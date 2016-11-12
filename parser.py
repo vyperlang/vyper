@@ -74,14 +74,16 @@ class LLLnode():
                 if not self.args[1].valency:
                     raise Exception("Second argument to with statement (initial value) cannot be zerovalent: %r" % self.args[1])
                 self.valency = self.args[2].valency
-            # Repeat statements: repeat <round> <index_memloc> <statement>
+            # Repeat statements: repeat <index_memloc> <startval> <rounds> <body>
             elif self.value == 'repeat':
-                if len(self.args[0].args) or not isinstance(self.args[0].value, int) or self.args[0].value <= 0:
+                if len(self.args[2].args) or not isinstance(self.args[2].value, int) or self.args[2].value <= 0:
                     raise Exception("Number of times repeated must be a constant nonzero positive integer")
+                if not self.args[0].valency:
+                    raise Exception("First argument to repeat (memory location) cannot be zerovalent: %r" % self.args[0])
                 if not self.args[1].valency:
-                    raise Exception("Second argument to repeat (memory location) cannot be zerovalent: %r" % self.args[1])
-                if self.args[2].valency:
-                    raise Exception("Third argument to repeat (clause to be repeated) must be zerovalent: %r" % self.args[2])
+                    raise Exception("Second argument to repeat (start value) cannot be zerovalent: %r" % self.args[1])
+                if self.args[3].valency:
+                    raise Exception("Third argument to repeat (clause to be repeated) must be zerovalent: %r" % self.args[3])
                 self.valency = 0
             # Seq statements: seq <statement> <statement> ...
             elif self.value == 'seq':
@@ -760,14 +762,32 @@ def parse_stmt(stmt, context):
                 not isinstance(stmt.iter.func, ast.Name) or \
                 not isinstance(stmt.target, ast.Name) or \
                 stmt.iter.func.id != "range" or \
-                len(stmt.iter.args) != 1 or \
-                not isinstance(stmt.iter.args[0], ast.Num):
-            raise Exception("For statements must be of the form for i in range(<num>): ...")
-        if not isinstance(stmt.iter.args[0].n, int) or stmt.iter.args[0].n <= 0:
-            raise Exception("Repeat must have a nonzero positive integral number of rounds")
+                len(stmt.iter.args) not in (1, 2):
+            raise Exception("For statements must be of the form `for i in range(rounds): ..` or `for i in range(start, start + rounds): ..`")
+        # Type 1 for, eg. for i in range(10): ...
+        if len(stmt.iter.args) == 1:
+            if not isinstance(stmt.iter.args[0], ast.Num):
+                raise Exception("Repeat must have a nonzero positive integral number of rounds")
+            start = LLLnode.from_list(0, typ='num')
+            rounds = stmt.iter.args[0].n
+        elif len(stmt.iter.args) == 2:
+            if isinstance(stmt.iter.args[0], ast.Num) and isinstance(stmt.iter.args[1], ast.Num):
+                # Type 2 for, eg. for i in range(100, 110): ...
+                start = LLLnode.from_list(stmt.iter.args[0].n, typ='num')
+                rounds = LLLnode.from_list(stmt.iter.args[1].n - stmt.iter.args[0].n, typ='num')
+            else:
+                # Type 3 for, eg. for i in range(x, x + 10): ...
+                if not isinstance(stmt.iter.args[1], ast.BinOp) or not isinstance(stmt.iter.args[1].op, ast.Add):
+                    raise Exception("Two-arg for statements must be of the form `for i in range(start, start + rounds): ...`")
+                if ast.dump(stmt.iter.args[0]) != ast.dump(stmt.iter.args[1].left):
+                    raise Exception("Two-arg for statements of the form `for i in range(x, x + y): ...` must have x identical in both places: %r %r" % (ast.dump(stmt.iter.args[0]), ast.dump(stmt.iter.args[1].left)))
+                if not isinstance(stmt.iter.args[1].right, ast.Num):
+                    raise Exception("Repeat must have a nonzero positive integral number of rounds")
+                start = parse_expr(stmt.iter.args[0], context)
+                rounds = stmt.iter.args[1].right.n
         varname = stmt.target.id
         pos = context.vars[varname][0] if varname in context.forvars else context.new_variable(varname, 'num')
-        o = LLLnode.from_list(['repeat', stmt.iter.args[0].n, pos, parse_body(stmt.body, context)], typ=None)
+        o = LLLnode.from_list(['repeat', pos, start, rounds, parse_body(stmt.body, context)], typ=None)
         context.forvars[varname] = True
         return o
     # Creating a new memory variable and assigning it

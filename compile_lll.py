@@ -103,18 +103,22 @@ def compile_to_assembly(code, withargs={}, break_dest=None, height=0):
         o.extend([end_symbol, 'JUMPDEST'])
         return o
     # Repeat statements (compiled from for loops)
+    # Repeat(memloc, start, rounds, body)
     elif code.value == 'repeat':
         o = []
-        loops = num_to_bytearray(code.args[0].value) or [0]
+        loops = num_to_bytearray(code.args[2].value) or [2]
         start, end = mksymbol(), mksymbol()
-        o.extend(['PUSH'+str(len(loops))] + loops)
+        o.extend(compile_to_assembly(code.args[0]))
         o.extend(compile_to_assembly(code.args[1]))
-        o.extend(['PUSH1', 0, 'DUP2', 'MSTORE', start, 'JUMPDEST'])
-        # stack: len(loops), index memory address
-        o.extend(compile_to_assembly(code.args[2], withargs, (end, height + 1), height + 1))
-        o.extend(['DUP1', 'MLOAD', 'PUSH1', 1, 'ADD', 'DUP1', 'DUP3', 'MSTORE'])
+        o.extend(['PUSH'+str(len(loops))] + loops)
+        # stack: memloc, startvalue, rounds
+        o.extend(['DUP2', 'DUP4', 'MSTORE', 'ADD', start, 'JUMPDEST'])
+        # stack: memloc, exit_index
+        o.extend(compile_to_assembly(code.args[3], withargs, (end, height + 1), height + 1))
+        # stack: memloc, exit_index
+        o.extend(['DUP2', 'MLOAD', 'PUSH1', 1, 'ADD', 'DUP1', 'DUP4', 'MSTORE'])
         # stack: len(loops), index memory address, new index
-        o.extend(['DUP3', 'EQ', 'ISZERO', start, 'JUMPI', end, 'JUMPDEST', 'POP', 'POP'])
+        o.extend(['DUP2', 'EQ', 'ISZERO', start, 'JUMPI', end, 'JUMPDEST', 'POP', 'POP'])
         return o
     # Break from inside a for loop
     elif code.value == 'break':

@@ -50,6 +50,35 @@ assert c.repeat() == 666666
 print('Passed complex repeater test')
 print('Gas estimate', t.languages['viper'].gas_estimate(more_complex_repeater)['repeat'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - 21000)
 
+offset_repeater = """
+def sum() -> num:
+    out = 0
+    for i in range(80, 121):
+        out = out + i
+    return(out)
+"""
+
+c = s.abi_contract(offset_repeater, language='viper')
+assert c.sum() == 4100
+
+print('Passed repeater with offset test')
+
+offset_repeater_2 = """
+def sum(frm: num, to: num) -> num:
+    out = 0
+    for i in range(frm, frm + 101):
+        if i == to:
+            break
+        out = out + i
+    return(out)
+"""
+
+c = s.abi_contract(offset_repeater_2, language='viper')
+assert c.sum(100, 99999) == 15150
+assert c.sum(70, 131) == 6100
+
+print('Passed more complex repeater with offset test')
+
 array_accessor = """
 def test_array(x: num, y: num, z: num, w: num) -> num:
     a = num[4]
