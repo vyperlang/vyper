@@ -65,5 +65,19 @@ opcodes = {
     'RETURN': [0xf3, 2, 0, 0],
     'DELEGATECALL': [0xf4, 6, 1, 700],
     'CALLBLACKBOX': [0xf5, 7, 1, 700],
+    'INVALID': [0xfe, 0, 0, 0],
     'SUICIDE': [0xff, 1, 0, 5000],
+    'SELFDESTRUCT': [0xff, 1, 0, 5000],
+}
+
+pseudo_opcodes = {
+    'CLAMP': [None, 3, 1, 30],
+    'UCLAMPLT': [None, 2, 1, 30],
+    'CLAMP_NONZERO': [None, 1, 1, 30],
+    'ASSERT': [None, 1, 0, 20],
+    'PASS': [None, 0, 0, 0],
+    'BREAK': [None, 0, 0, 20],
+    'SHA3_32': [None, 1, 1, 40],
+    'SLE': [0x12, 2, 1, 10],
+    'SGE': [0x13, 2, 1, 10],
 }
