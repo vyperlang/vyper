@@ -429,15 +429,15 @@ def finalize():
     selfdestruct(self.beneficiary)
 
 def refund():
-    ind = refundIndex
+    ind = self.refundIndex
     for i in range(30):
         if ind + i >= self.nextFunderIndex:
-            refundIndex = self.nextFunderIndex
+            self.refundIndex = self.nextFunderIndex
             return
         send(self.funders[ind + i].sender, self.funders[ind + i].value)
         self.funders[ind + i].sender = "0x0000000000000000000000000000000000000000"
         self.funders[ind + i].value = 0
-    refundIndex = ind + 30
+    self.refundIndex = ind + 30
 
 """
 

@@ -314,6 +314,8 @@ class Context():
     def new_variable(self, name, typ):
         if not is_varname_valid(name):
             raise Exception("Variable name invalid or reserved: "+name)
+        if name in self.vars or name in self.args or name in self.globals:
+            raise Exception("Duplicate variable name")
         pos = self.vars.get('_next_mem', RESERVED_MEMORY)
         self.vars[name] = pos, typ
         self.vars['_next_mem'] = pos + 32 * get_size_of_type(typ)
@@ -526,9 +528,6 @@ def parse_expr(expr, context):
         elif expr.id in context.vars:
             dataloc, typ = context.vars[expr.id]
             return LLLnode.from_list(['mload', dataloc], typ=typ)
-        elif expr.id in context.globals:
-            dataloc, typ = context.globals[expr.id]
-            return LLLnode.from_list(['sload', dataloc], typ=typ)
         else:
             raise Exception("Undeclared variable: "+expr.id)
     # x.y or x[5]
@@ -767,9 +766,7 @@ def parse_stmt(stmt, context):
         if not isinstance(stmt.iter.args[0].n, int) or stmt.iter.args[0].n <= 0:
             raise Exception("Repeat must have a nonzero positive integral number of rounds")
         varname = stmt.target.id
-        if varname in context.args or (varname in context.vars and varname not in context.forvars) or varname in context.globals:
-            raise Exception("Not allowed to use existing variables in for statements")
-        pos = context.new_variable(varname, 'num')
+        pos = context.vars[varname][0] if varname in context.forvars else context.new_variable(varname, 'num')
         o = LLLnode.from_list(['repeat', stmt.iter.args[0].n, pos, parse_body(stmt.body, context)], typ=None)
         context.forvars[varname] = True
         return o
