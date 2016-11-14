@@ -596,8 +596,10 @@ def parse_expr(expr, context):
                 o = LLLnode.from_list([op, left, right], typ=left.typ)
             elif left.typ == 'num' and right.typ == 'decimal':
                 o = LLLnode.from_list([op, ['mul', left, DECIMAL_DIVISOR], right], typ='decimal')
-            elif right.typ == 'decimal' and right.typ == 'num':
+            elif left.typ == 'decimal' and right.typ == 'num':
                 o = LLLnode.from_list([op, left, ['mul', right, DECIMAL_DIVISOR]], typ='decimal')
+            else:
+                raise Exception("How did I get here? %r %r" % (left.typ, right.typ))
         elif isinstance(expr.op, ast.Mult):
             if left.typ == right.typ == 'num':
                 o = LLLnode.from_list(['mul', left, right], typ='num')

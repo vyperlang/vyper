@@ -31,13 +31,13 @@ def gas_estimate(code, depth=0):
         return o
     elif isinstance(code.value, str) and code.value == 'if':
         if (len(code.args) == 2):
-            return gas_estimate(code.args[0], depth + 1) + gas_estimate(code.args[1], depth + 1) + 30
+            return gas_estimate(code.args[0], depth + 1) + gas_estimate(code.args[1], depth + 1) + 17
         elif (len(code.args) == 3):
-            return gas_estimate(code.args[0], depth + 1) + max(gas_estimate(code.args[1], depth + 1), gas_estimate(code.args[2], depth + 1)) + 30
+            return gas_estimate(code.args[0], depth + 1) + max(gas_estimate(code.args[1], depth + 1), gas_estimate(code.args[2], depth + 1))+ 31
         else:
             raise Exception("If statement must have 2 or 3 child elements")
     elif isinstance(code.value, str) and code.value == 'with':
-        return gas_estimate(code.args[1], depth + 1) + gas_estimate(code.args[2], depth + 1) + 20
+        return gas_estimate(code.args[1], depth + 1) + gas_estimate(code.args[2], depth + 1) + 5
     elif isinstance(code.value, str) and code.value == 'repeat':
         return (gas_estimate(code.args[2], depth + 1) + 50) * code.args[0].value + 30
     elif isinstance(code.value, str) and code.value == 'seq':
@@ -170,7 +170,7 @@ def compile_to_assembly(code, withargs={}, break_dest=None, height=0):
     # Unsigned clamp, check less-than
     elif code.value == 'uclamplt':
         if isinstance(code.args[0].value, int) and isinstance(code.args[1].value, int):
-            if code.args[0].value < code.args[1].value:
+            if 0 <= code.args[0].value < code.args[1].value:
                 return compile_to_assembly(code.args[0], withargs, break_dest, height)
             else:
                 return ['INVALID']

@@ -8,6 +8,17 @@ from ethereum import tester as t
 s = t.state()
 t.languages['viper'] = compiler_plugin.Compiler() 
 
+null_code = """
+def foo():
+    pass
+"""
+
+c = s.abi_contract(null_code, language='viper')
+c.foo()
+
+print('Successfully executed a null function')
+print('Gas estimate', t.languages['viper'].gas_estimate(null_code)['foo'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
+
 basic_code = """
 
 def foo(x: num) -> num:
@@ -18,7 +29,7 @@ def foo(x: num) -> num:
 c = s.abi_contract(basic_code, language='viper')
 assert c.foo(9) == 18
 print('Passed basic code test')
-print('Gas estimate', t.languages['viper'].gas_estimate(basic_code)['foo'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - 21000)
+print('Gas estimate', t.languages['viper'].gas_estimate(basic_code)['foo'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
 
 basic_repeater = """
 
@@ -32,7 +43,7 @@ def repeat(z: num) -> num:
 c = s.abi_contract(basic_repeater, language='viper')
 assert c.repeat(9) == 54
 print('Passed basic repeater test')
-print('Gas estimate', t.languages['viper'].gas_estimate(basic_repeater)['repeat'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - 21000)
+print('Gas estimate', t.languages['viper'].gas_estimate(basic_repeater)['repeat'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
 
 more_complex_repeater = """
 def repeat() -> num:
@@ -48,7 +59,7 @@ def repeat() -> num:
 c = s.abi_contract(more_complex_repeater, language='viper')
 assert c.repeat() == 666666
 print('Passed complex repeater test')
-print('Gas estimate', t.languages['viper'].gas_estimate(more_complex_repeater)['repeat'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - 21000)
+print('Gas estimate', t.languages['viper'].gas_estimate(more_complex_repeater)['repeat'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
 
 offset_repeater = """
 def sum() -> num:
@@ -92,7 +103,7 @@ def test_array(x: num, y: num, z: num, w: num) -> num:
 c = s.abi_contract(array_accessor, language='viper')
 assert c.test_array(2, 7, 1, 8) == 2718
 print('Passed basic array accessor test')
-print('Gas estimate', t.languages['viper'].gas_estimate(array_accessor)['test_array'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - 21000)
+print('Gas estimate', t.languages['viper'].gas_estimate(array_accessor)['test_array'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
 
 two_d_array_accessor = """
 def test_array(x: num, y: num, z: num, w: num) -> num:
@@ -107,7 +118,7 @@ def test_array(x: num, y: num, z: num, w: num) -> num:
 c = s.abi_contract(two_d_array_accessor, language='viper')
 assert c.test_array(2, 7, 1, 8) == 2718
 print('Passed complex array accessor test')
-print('Gas estimate', t.languages['viper'].gas_estimate(two_d_array_accessor)['test_array'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - 21000)
+print('Gas estimate', t.languages['viper'].gas_estimate(two_d_array_accessor)['test_array'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
 
 
 digit_reverser = """
@@ -128,7 +139,7 @@ def reverse_digits(x: num) -> num:
 c = s.abi_contract(digit_reverser, language='viper')
 assert c.reverse_digits(123456) == 654321
 print('Passed digit reverser test')
-print('Gas estimate', t.languages['viper'].gas_estimate(digit_reverser)['reverse_digits'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - 21000)
+print('Gas estimate', t.languages['viper'].gas_estimate(digit_reverser)['reverse_digits'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
 
 arbitration_code = """
 buyer = address
@@ -151,7 +162,7 @@ def refund():
 
 """
 
-c = s.abi_contract(arbitration_code, language='viper')
+c = s.abi_contract(arbitration_code, language='viper', endowment=1)
 c.setup(t.a1, t.a2, sender=t.k0)
 try:
     c.finalize(sender=t.k1)
@@ -162,7 +173,7 @@ assert not success
 c.finalize(sender=t.k0)
 
 print('Passed escrow test')
-print('Gas estimate', t.languages['viper'].gas_estimate(arbitration_code)['finalize'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - 21000)
+print('Gas estimate', t.languages['viper'].gas_estimate(arbitration_code)['finalize'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
 
 arbitration_code_with_init = """
 buyer = address
@@ -184,7 +195,7 @@ def refund():
     send(self.buyer, self.balance)
 """
 
-c = s.abi_contract(arbitration_code_with_init, language='viper', constructor_parameters=[t.a1, t.a2], sender=t.k0)
+c = s.abi_contract(arbitration_code_with_init, language='viper', constructor_parameters=[t.a1, t.a2], sender=t.k0, endowment=1)
 try:
     c.finalize(sender=t.k1)
     success = True
@@ -194,7 +205,7 @@ assert not success
 c.finalize(sender=t.k0)
 
 print('Passed escrow test with initializer')
-print('Gas estimate', t.languages['viper'].gas_estimate(arbitration_code)['finalize'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - 21000)
+print('Gas estimate', t.languages['viper'].gas_estimate(arbitration_code)['finalize'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
 
 decimal_test = """
 def foo() -> num:
@@ -265,7 +276,7 @@ estimate = t.languages['viper'].gas_estimate(decimal_test)
 
 
 print('Passed basic addition, subtraction and multiplication tests')
-print('Gas estimate', sum(estimate.values()), 'actual', post_gas - pre_gas - 21000 * (post_txs - pre_txs))
+print('Gas estimate', sum(estimate.values()), 'actual', post_gas - pre_gas - s.last_tx.intrinsic_gas_used * (post_txs - pre_txs))
 
 harder_decimal_test = """
 def phooey() -> num:
@@ -399,6 +410,7 @@ def returnMoose() -> num:
 c = s.abi_contract(init_argument_test, language='viper', constructor_parameters=[5])
 assert c.returnMoose() == 5
 print('Passed init argument test')
+print('Gas estimate', t.languages['viper'].gas_estimate(init_argument_test)['returnMoose'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
 
 permanent_variables_test = """
 var = [a(num), b(num)]
@@ -413,6 +425,7 @@ def returnMoose() -> num:
 c = s.abi_contract(permanent_variables_test, language='viper', constructor_parameters=[5, 7])
 assert c.returnMoose() == 57
 print('Passed init argument and variable member test')
+print('Gas estimate', t.languages['viper'].gas_estimate(permanent_variables_test)['returnMoose'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
 
 
 crowdfund = """
