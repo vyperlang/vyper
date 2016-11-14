@@ -1,5 +1,5 @@
 import parser, compile_lll
-from parser import InvalidTypeException, TypeMismatchException, VariableDeclarationException, StructureException
+from parser import InvalidTypeException, TypeMismatchException, VariableDeclarationException, StructureException, ConstancyViolationException
 import compiler_plugin
 c = compiler_plugin.Compiler() 
 
@@ -344,10 +344,24 @@ def foo():
     send("0x1234567890123456789012345678901234567890", floor(self.x))
 """)
 
+must_succeed("""
+def foo():
+    selfdestruct("0x1234567890123456789012345678901234567890")
+""")
+
+must_fail("""
+def foo():
+    selfdestruct(7)
+""", TypeMismatchException)
+
 must_fail("""
 def foo(): pass
 
 x = num
+""", StructureException)
+
+must_fail("""
+send("0x1234567890123456789012345678901234567890", 5)
 """, StructureException)
 
 must_fail("""
@@ -377,3 +391,59 @@ def foo():
     x = num[5]
     z = x[2]
 """)
+
+must_succeed("""
+def foo():
+    for i in range(10):
+        pass
+""")
+
+must_fail("""
+def foo():
+    x = 5
+    for i in range(x):
+        pass
+""", StructureException)
+
+must_succeed("""
+def foo():
+    for i in range(10, 20):
+        pass
+""")
+
+must_succeed("""
+def foo():
+    x = 5
+    for i in range(x, x + 10):
+        pass
+""")
+
+must_fail("""
+def foo():
+    x = 5
+    y = 7
+    for i in range(x, x + y):
+        pass
+""", StructureException)
+
+must_fail("""
+x = num
+def foo() -> num(const):
+    self.x = 5
+""", ConstancyViolationException)
+
+must_succeed("""
+x = num
+def foo() -> num:
+    self.x = 5
+""")
+
+must_fail("""
+def foo() -> num(const):
+    send("0x1234567890123456789012345678901234567890", 5)
+""", ConstancyViolationException)
+
+must_fail("""
+def foo() -> num(const):
+    selfdestruct("0x1234567890123456789012345678901234567890")
+""", ConstancyViolationException)

@@ -187,6 +187,9 @@ class VariableDeclarationException(Exception):
 class StructureException(Exception):
     pass
 
+class ConstancyViolationException(Exception):
+    pass
+
 # Parses an expression representing a type. Annotation refers to whether
 # the type is to be located in memory or storage
 def parse_type(item, annotation):
@@ -748,7 +751,7 @@ def parse_stmt(stmt, context):
             sub = type_conversion(sub, sub.typ, target.typ)
             if target.annotation == 'storage':
                 if context.is_constant:
-                    raise Exception("Cannot modify storage inside a constant function!")
+                    raise ConstancyViolationException("Cannot modify storage inside a constant function!")
                 return LLLnode.from_list(['sstore', target, sub], typ=None)
             elif target.annotation == 'memory':
                 return LLLnode.from_list(['mstore', target, sub], typ=None)
@@ -769,7 +772,7 @@ def parse_stmt(stmt, context):
             raise Exception("Function call must be one of: send, selfdestruct")
         if stmt.func.id == 'send':
             if context.is_constant:
-                raise Exception("Cannot send ether inside a constant function!")
+                raise ConstancyViolationException("Cannot send ether inside a constant function!")
             if len(stmt.args) != 2:
                 raise Exception("Send expects 2 arguments!")
             to = parse_expr(stmt.args[0], context)
@@ -784,7 +787,7 @@ def parse_stmt(stmt, context):
             if len(stmt.args) != 1:
                 raise Exception("%s expects 1 argument!" % stmt.func.id)
             if context.is_constant:
-                raise Exception("Cannot %s inside a constant function!" % stmt.func.id)
+                raise ConstancyViolationException("Cannot %s inside a constant function!" % stmt.func.id)
             sub = parse_expr(stmt.args[0], context)
             if sub.typ != "address":
                 raise TypeMismatchException("%s expects an address!" % stmt.func.id)
@@ -799,11 +802,11 @@ def parse_stmt(stmt, context):
                 not isinstance(stmt.target, ast.Name) or \
                 stmt.iter.func.id != "range" or \
                 len(stmt.iter.args) not in (1, 2):
-            raise Exception("For statements must be of the form `for i in range(rounds): ..` or `for i in range(start, start + rounds): ..`")
+            raise StructureException("For statements must be of the form `for i in range(rounds): ..` or `for i in range(start, start + rounds): ..`")
         # Type 1 for, eg. for i in range(10): ...
         if len(stmt.iter.args) == 1:
             if not isinstance(stmt.iter.args[0], ast.Num):
-                raise Exception("Repeat must have a nonzero positive integral number of rounds")
+                raise StructureException("Repeat must have a nonzero positive integral number of rounds")
             start = LLLnode.from_list(0, typ='num')
             rounds = stmt.iter.args[0].n
         elif len(stmt.iter.args) == 2:
@@ -814,11 +817,11 @@ def parse_stmt(stmt, context):
             else:
                 # Type 3 for, eg. for i in range(x, x + 10): ...
                 if not isinstance(stmt.iter.args[1], ast.BinOp) or not isinstance(stmt.iter.args[1].op, ast.Add):
-                    raise Exception("Two-arg for statements must be of the form `for i in range(start, start + rounds): ...`")
+                    raise StructureException("Two-arg for statements must be of the form `for i in range(start, start + rounds): ...`")
                 if ast.dump(stmt.iter.args[0]) != ast.dump(stmt.iter.args[1].left):
-                    raise Exception("Two-arg for statements of the form `for i in range(x, x + y): ...` must have x identical in both places: %r %r" % (ast.dump(stmt.iter.args[0]), ast.dump(stmt.iter.args[1].left)))
+                    raise StructureException("Two-arg for statements of the form `for i in range(x, x + y): ...` must have x identical in both places: %r %r" % (ast.dump(stmt.iter.args[0]), ast.dump(stmt.iter.args[1].left)))
                 if not isinstance(stmt.iter.args[1].right, ast.Num):
-                    raise Exception("Repeat must have a nonzero positive integral number of rounds")
+                    raise StructureException("Repeat must have a nonzero positive integral number of rounds")
                 start = parse_expr(stmt.iter.args[0], context)
                 rounds = stmt.iter.args[1].right.n
         varname = stmt.target.id
@@ -834,7 +837,7 @@ def parse_stmt(stmt, context):
             raise Exception("Unsupported operator for augassign")
         if target.annotation == 'storage':
             if context.is_constant:
-                raise Exception("Cannot modify storage inside a constant function!")
+                raise ConstancyViolationException("Cannot modify storage inside a constant function!")
             o = parse_expr(ast.BinOp(left=LLLnode.from_list(['sload', '_addr'], typ=target.typ),
                                      right=sub, op=stmt.op), context)
             return LLLnode.from_list(['with', '_addr', target, ['sstore', '_addr', type_conversion(o, o.typ, target.typ)]], typ=None)
