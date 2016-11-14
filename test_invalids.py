@@ -447,3 +447,31 @@ must_fail("""
 def foo() -> num(const):
     selfdestruct("0x1234567890123456789012345678901234567890")
 """, ConstancyViolationException)
+
+must_succeed("""
+def foo():
+    x = true
+    z = x and false
+""")
+
+must_succeed("""
+def foo():
+    x = true
+    z = x and False
+""")
+
+must_fail("""
+def foo():
+    x = true
+    x = 5
+""", TypeMismatchException)
+
+must_fail("""
+def foo():
+    true = 3
+""", VariableDeclarationException)
+
+must_fail("""
+def foo():
+    True = 3
+""", SyntaxError)

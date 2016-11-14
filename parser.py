@@ -161,7 +161,8 @@ reserved_words = ['int128', 'int256', 'uint256', 'address', 'bytes32',
                   'real', 'real128x128', 'if', 'for', 'while', 'until',
                   'pass', 'def', 'push', 'dup', 'swap', 'send', 'call',
                   'suicide', 'selfdestruct', 'assert', 'stop', 'throw',
-                  'raise', 'init', '_init_', '___init___', '____init____']
+                  'raise', 'init', '_init_', '___init___', '____init____',
+                  'true', 'True', 'false', 'False']
 
 # Is a variable name valid?
 def is_varname_valid(varname):
@@ -537,10 +538,21 @@ def parse_expr(expr, context):
             return LLLnode.from_list(hex_to_int(expr.s), typ='bytes32')
         else:
             raise Exception("Unsupported bytes: "+expr.s)
+    elif isinstance(expr, ast.NameConstant):
+        if expr.value == True:
+            return LLLnode.from_list(1, typ='bool')
+        elif expr.value == False:
+            return LLLnode.from_list(0, typ='bool')
+        else:
+            raise Exception("Unknown name constant: %r" % expr.value.value)
     # Variable names
     elif isinstance(expr, ast.Name):
         if expr.id == 'self':
             return LLLnode.from_list(['address'], typ='address')
+        if expr.id == 'true':
+            return LLLnode.from_list(1, typ='bool')
+        if expr.id == 'false':
+            return LLLnode.from_list(0, typ='bool')
         if expr.id in context.args:
             dataloc, typ = context.args[expr.id]
             if dataloc >= 0:
