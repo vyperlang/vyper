@@ -5,6 +5,7 @@ Viper is an experimental programming language that aims to provide the following
 * Decidability - it's possible to compute a precise upper bound on the gas consumption of any function call
 * Strong typing
 * Maximally small and understandable compiler code size
+* Limited support for pure functions - anything marked constant is NOT allowed to change the state
 
 ### Grammar
 
