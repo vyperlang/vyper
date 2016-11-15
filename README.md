@@ -87,3 +87,46 @@ Code examples can be found in the `test_parser.py` file.
 * Support for sha3, sha256, ecrecover, etc
 * Smart optimizations, including compile-time computation of arithmetic and clamps, inteliigently computing realistic variable ranges, etc
 * Setting values for structs in one line, eg. `self.funders[nextFunderIndex] = {sender: msg.sender, value: msg.value}`
+
+### Code example
+
+    funders = {sender: address, value: num}[num]
+    nextFunderIndex = num
+    beneficiary = address
+    deadline = num
+    goal = num
+    refundIndex = num
+    timelimit = num
+    
+    # Setup global variables
+    def __init__(_beneficiary: address, _goal: num, _timelimit: num):
+        self.beneficiary = _beneficiary
+        self.deadline = block.timestamp + _timelimit
+        self.timelimit = _timelimit
+        self.goal = _goal
+    
+    # Participate in this crowdfunding campaign
+    def participate():
+        assert block.timestamp < self.deadline
+        nfi = self.nextFunderIndex
+        self.funders[nfi].sender = msg.sender
+        self.funders[nfi].value = msg.value
+        self.nextFunderIndex = nfi + 1
+    
+    # Enough money was raised! Send funds to the beneficiary
+    def finalize():
+        assert block.timestamp >= self.deadline and self.balance >= self.goal
+        selfdestruct(self.beneficiary)
+    
+    # Not enough money was raised! Refund everyone (max 30 people at a time
+    # to avoid gas limit issues)
+    def refund():
+        ind = self.refundIndex
+        for i in range(ind, ind + 30):
+            if i >= self.nextFunderIndex:
+                self.refundIndex = self.nextFunderIndex
+                return
+            send(self.funders[i].sender, self.funders[i].value)
+            self.funders[i].sender = "0x0000000000000000000000000000000000000000"
+            self.funders[i].value = 0
+        self.refundIndex = ind + 30

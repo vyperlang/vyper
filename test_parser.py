@@ -472,13 +472,13 @@ def finalize():
 
 def refund():
     ind = self.refundIndex
-    for i in range(30):
-        if ind + i >= self.nextFunderIndex:
+    for i in range(ind, ind + 30):
+        if i >= self.nextFunderIndex:
             self.refundIndex = self.nextFunderIndex
             return
-        send(self.funders[ind + i].sender, self.funders[ind + i].value)
-        self.funders[ind + i].sender = "0x0000000000000000000000000000000000000000"
-        self.funders[ind + i].value = 0
+        send(self.funders[i].sender, self.funders[i].value)
+        self.funders[i].sender = "0x0000000000000000000000000000000000000000"
+        self.funders[i].value = 0
     self.refundIndex = ind + 30
 
 """
