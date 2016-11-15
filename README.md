@@ -61,7 +61,7 @@ Note that not all programs that satisfy the following are valid; for example, th
 ### Types
 
 * `num`: a signed integer strictly between -2\*\*128 and 2\*\*128
-* `decimal`: a decimal fixed point value with the integer component being a signed integer strictly between -2\*\*128 and \*\*128 and the fractional component being ten decimal places
+* `decimal`: a decimal fixed point value with the integer component being a signed integer strictly between -2\*\*128 and 2\*\*128 and the fractional component being ten decimal places
 * `address`: an address
 * `bytes32`: 32 bytes
 * `bool`: true or false
