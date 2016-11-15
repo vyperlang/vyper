@@ -199,40 +199,30 @@ def parse_type(item, annotation):
         if item.id not in types:
             raise InvalidTypeException("Invalid type: "+item.id)
         return item.id
-    # Lists, used to enumerate members, eg. [bar(uint), baz(bytes32)...]
-    elif isinstance(item, ast.List):
-        all_calls = True
-        for elt in item.elts:
-            if not isinstance(elt, ast.Call):
-                all_calls = False
-                break
-            elif len(elt.args) != 1:
-                raise InvalidTypeException("Named element must have single type in brackets")
-        if len(item.elts) and all_calls:
-            o = {elt.func.id: parse_type(elt.args[0], annotation) for elt in item.elts}
-            if len(o) < len(item.elts):
-                raise InvalidTypeException("Duplicate argument")
-            return o
-        else:
-            raise InvalidTypeException("Mal-formatted list type")
-    # Subscripts, used to represent fixed-size lists, eg. uint[100]
+    # Subscripts
     elif isinstance(item, ast.Subscript):
         if 'value' not in vars(item.slice):
-            raise StructureException("Array access must access a single element, not a slice")
-        if not isinstance(item.slice.value, ast.Num):
-            raise InvalidTypeException("Arrays must be of the format type[num_of_elements]")
-        if not isinstance(item.slice.value.n, int) or item.slice.value.n <= 0:
-            raise InvalidTypeException("Arrays must have a positive integral number of elements")
-        return [parse_type(item.value, annotation), item.slice.value.n]
+            raise InvalidTypeException("Array access must access a single element, not a slice")
+        # Fixed size lists, eg. num[100]
+        elif isinstance(item.slice.value, ast.Num):
+            if not isinstance(item.slice.value.n, int) or item.slice.value.n <= 0:
+                raise InvalidTypeException("Arrays must have a positive integral number of elements")
+            return [parse_type(item.value, annotation), item.slice.value.n]
+        # Mappings, eg. num[address]
+        elif isinstance(item.slice.value, ast.Name) and item.slice.value.id in types:
+            if annotation == 'memory':
+                raise InvalidTypeException("No mappings allowed for in-memory types, only fixed-size arrays") 
+            return {item.slice.value.id: parse_type(item.value, annotation)}
+        else:
+            raise InvalidTypeException("Arrays must be of the format type[num_of_elements] or type[key_type]")
     # Dicts, used to represent mappings, eg. {uint: uint}. Key must be a base type
     elif isinstance(item, ast.Dict):
-        if annotation == 'memory':
-            raise InvalidTypeException("No dicts allowed for in-memory types!") 
-        if not (len(item.keys) == len(item.values) == 1):
-            raise InvalidTypeException("Dict types must specify one mapping")
-        if not isinstance(item.keys[0], ast.Name) or item.keys[0].id not in types:
-            raise InvalidTypeException("Key type invalid")
-        return {item.keys[0].id: parse_type(item.values[0], annotation)}
+        o = {} 
+        for key, value in zip(item.keys, item.values):
+            if not isinstance(key, ast.Name) or not is_varname_valid(key.id):
+                raise InvalidTypeException("Invalid member variable for struct: %r" % vars(key).get('id', key))
+            o[key.id] = parse_type(value, annotation)
+        return o
     else:
         raise InvalidTypeException("Invalid type: %r" % ast.dump(item))
 

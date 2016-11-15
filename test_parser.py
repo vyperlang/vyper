@@ -413,7 +413,7 @@ print('Passed init argument test')
 print('Gas estimate', t.languages['viper'].gas_estimate(init_argument_test)['returnMoose'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
 
 permanent_variables_test = """
-var = [a(num), b(num)]
+var = {a: num, b: num}
 def __init__(a: num, b: num):
     self.var.a = a
     self.var.b = b
@@ -430,7 +430,7 @@ print('Gas estimate', t.languages['viper'].gas_estimate(permanent_variables_test
 
 crowdfund = """
 
-funders = {num: [sender(address), value(num)]}
+funders = {sender: address, value: num}[num]
 nextFunderIndex = num
 beneficiary = address
 deadline = num

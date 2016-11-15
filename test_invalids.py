@@ -57,8 +57,16 @@ x = [bar(num), baz(baffle)]
 """, InvalidTypeException)
 
 must_succeed("""
-x = [bar(num), baz(num)]
+x = {bar: num, baz: num}
 """)
+
+must_fail("""
+x = {bar: num, decimal: num}
+""", InvalidTypeException)
+
+must_fail("""
+x = {bar: num, 5: num}
+""", InvalidTypeException)
 
 must_fail("""
 x[5] = 4
@@ -224,38 +232,38 @@ def foo():
 """, TypeMismatchException)
 
 must_fail("""
-b = [foo(num), bar(num)]
+b = {foo: num, bar: num}
 def foo():
     x = self.b.cow
 """, TypeMismatchException)
 
 # TODO
 must_fail("""
-b = [foo(num), bar(num)]
+b = {foo: num, bar: num}
 def foo():
     x = self.b[0]
 """, TypeMismatchException)
 
 must_succeed("""
-b = [foo(num), bar(num)]
+b = {foo: num, bar: num}
 def foo():
     x = self.b.bar
 """)
 
 must_succeed("""
-b = {num: num}
+b = num[num]
 def foo():
     x = self.b[5]
 """)
 
 must_fail("""
-b = {num: num}
+b = num[num]
 def foo():
     x = self.b[5.7]
 """, TypeMismatchException)
 
 must_succeed("""
-b = {decimal: num}
+b = num[decimal]
 def foo():
     x = self.b[5]
 """)
@@ -265,19 +273,27 @@ b = {num: num, address: address}
 """, InvalidTypeException)
 
 must_fail("""
-b = {num: num}
+b = num[num, decimal]
+""", InvalidTypeException)
+
+must_fail("""
+b = num[num: address]
+""", InvalidTypeException)
+
+must_fail("""
+b = num[num]
 def foo():
     self.b[3] = 5.6
 """, TypeMismatchException)
 
 must_succeed("""
-b = {num: num}
+b = num[num]
 def foo():
     self.b[3] = -5
 """)
 
 must_succeed("""
-b = {num: num}
+b = num[num]
 def foo():
     self.b[-3] = 5
 """)
