@@ -10,7 +10,7 @@ Viper is an experimental programming language that aims to provide the following
 
 Note that not all programs that satisfy the following are valid; for example, there are also requirements against declaring variables twice, accessig undeclared variables, type mismatches among other rules.
 
-body = <globals> + <defs>
+    body = <globals> + <defs>
     globals = <global> <global> ...
     global = <varname> = <type>
     defs = <def> <def> ...
