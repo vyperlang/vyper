@@ -205,13 +205,6 @@ def foo():
     self.b[0] = 7.5
 """, TypeMismatchException)
 
-must_fail("""
-b = num[5]
-def foo():
-    a = num[5]
-    self.b = a
-""", TypeMismatchException)
-
 must_succeed("""
 b = num[5]
 def foo():
@@ -491,3 +484,217 @@ must_fail("""
 def foo():
     True = 3
 """, SyntaxError)
+
+must_fail("""
+foo = num[3]
+def foo():
+    self.foo = 5
+""", TypeMismatchException)
+
+must_succeed("""
+foo = num[3]
+def foo():
+    self.foo[0] = 5
+""")
+
+must_succeed("""
+foo = num[3]
+def foo():
+    self.foo = [1, 2, 3]
+""")
+
+must_fail("""
+foo = num[3]
+def foo():
+    self.foo = [1, 2, 3, 4]
+""", TypeMismatchException)
+
+must_fail("""
+foo = num[3]
+def foo():
+    self.foo = [1, 2]
+""", TypeMismatchException)
+
+must_fail("""
+foo = num[3]
+def foo():
+    self.foo = {0: 5, 1: 7, 2: 9}
+""", TypeMismatchException)
+
+must_fail("""
+foo = num[3]
+def foo():
+    self.foo = {a: 5, b: 7, c: 9}
+""", TypeMismatchException)
+
+must_fail("""
+foo = num[3]
+def foo():
+    self.foo = [1, 2, "0x1234567890123456789012345678901234567890"]
+""", TypeMismatchException)
+
+must_succeed("""
+foo = decimal[3]
+def foo():
+    self.foo = [1, 2.1, 3]
+""")
+
+must_fail("""
+foo = num[3]
+def foo():
+    self.foo = []
+""", (TypeMismatchException, StructureException))
+
+must_fail("""
+foo = num[3]
+def foo():
+    self.foo = [1, [2], 3]
+""", TypeMismatchException)
+
+must_fail("""
+bar = num[3][3]
+def foo():
+    self.bar = 5
+""", TypeMismatchException)
+
+must_fail("""
+bar = num[3][3]
+def foo():
+    self.bar = [2, 5]
+""", TypeMismatchException)
+
+must_fail("""
+bar = num[3][3]
+def foo():
+    self.bar = [[1, 2], [3, 4, 5], [6, 7, 8]]
+""", TypeMismatchException)
+
+must_succeed("""
+bar = num[3][3]
+def foo():
+    self.bar = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+""")
+
+must_fail("""
+bar = num[3][3]
+def foo():
+    self.bar = [[1, 2, 3], [4, 5, 6], [7, 8, 9.0]]
+""", TypeMismatchException)
+
+must_succeed("""
+bar = decimal[3][3]
+def foo():
+    self.bar = [[1, 2, 3], [4, 5, 6], [7, 8, 9.0]]
+""")
+
+must_fail("""
+mom = {a: {c: num}[3], b: num}
+nom = {a: {c: num}[2], b: num}
+def foo():
+    self.nom = self.mom
+""", TypeMismatchException)
+
+must_fail("""
+mom = {a: {c: num}[3], b: num}
+nom = {a: {c: decimal}[2], b: num}
+def foo():
+    self.nom = self.mom
+""", TypeMismatchException)
+
+must_succeed("""
+mom = {a: {c: num}[3], b: num}
+nom = {a: {c: decimal}[3], b: num}
+def foo():
+    self.nom = self.mom
+""")
+
+must_fail("""
+mom = {a: {c: num}[3], b: num}
+nom = {a: {c: num}[3], b: num, c: num}
+def foo():
+    self.nom = self.mom
+""", TypeMismatchException)
+
+must_fail("""
+mom = {a: {c: num}[3], b: num}
+nom = {a: {c: num}[3]}
+def foo():
+    self.nom = self.mom
+""", TypeMismatchException)
+
+must_fail("""
+mom = {a: {c: num}[3], b: num}
+nom = {a: {c: num}, b: num}
+def foo():
+    self.nom = self.mom
+""", TypeMismatchException)
+
+must_succeed("""
+mom = {a: {c: num}[3], b: num}
+nom = {c: num}[3]
+def foo():
+    self.nom = self.mom.a
+""")
+
+must_fail("""
+mom = {a: {c: num}[3], b: num}
+nom = {c: num}[3]
+def foo():
+    self.nom = self.mom.b
+""", TypeMismatchException)
+
+must_succeed("""
+mom = {a: {c: num}[3], b: num}
+nom = {c: num}[3]
+def foo():
+    self.mom = {a: self.nom, b: 5}
+""")
+
+must_fail("""
+mom = {a: {c: num}[3], b: num}
+nom = {c: num}[3]
+def foo():
+    self.mom = {a: self.nom, b: 5.5}
+""", TypeMismatchException)
+
+must_succeed("""
+mom = {a: {c: decimal}[3], b: num}
+nom = {c: num}[3]
+def foo():
+    self.mom = {a: self.nom, b: 5}
+""")
+
+must_fail("""
+mom = {a: {c: num}[3], b: num}
+nom = {c: decimal}[3]
+def foo():
+    self.mom = {a: self.nom, b: 5}
+""", TypeMismatchException)
+
+must_fail("""
+mom = {a: {c: num}[3], b: num}
+nom = {c: num}[3]
+def foo():
+    self.mom = {a: self.nom, b: self.nom}
+""", TypeMismatchException)
+
+must_succeed("""
+mom = {a: {c: num}[3], b: num}
+nom = {c: num}[3]
+def foo():
+    self.mom = {a: null, b: 5}
+""")
+
+must_succeed("""
+mom = {a: {c: num}[3], b: num}
+def foo():
+    nom = {c: num}[3]
+    self.mom = {a: nom, b: 5}
+""")
+
+must_succeed("""
+nom = {c: num}[3]
+def foo():
+    mom = {a: {c: num}[3], b: num}
+    mom.a = self.nom
+""")

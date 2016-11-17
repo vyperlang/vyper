@@ -137,7 +137,7 @@ def compile_to_assembly(code, withargs={}, break_dest=None, height=0):
             o.extend(['SWAP1', 'POP'])
         else:
             o.extend(['POP'])
-        if old:
+        if old is not None:
             withargs[code.args[0].value] = old
         else:
             del withargs[code.args[0].value]

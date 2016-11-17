@@ -86,8 +86,7 @@ Code examples can be found in the `test_parser.py` file.
 * An ABI extension to allow the use of decimal fixed-point values in inputs and outputs
 * A mini-language for handling num256 and signed256 values and directly / unsafely using opcodes; will be useful for high-performance code segments
 * Support for sha3, sha256, ecrecover, etc
-* Smart optimizations, including compile-time computation of arithmetic and clamps, inteliigently computing realistic variable ranges, etc
-* Setting values for structs in one line, eg. `self.funders[nextFunderIndex] = {sender: msg.sender, value: msg.value}`
+* Smart optimizations, including compile-time computation of arithmetic and clamps, intelligently computing realistic variable ranges, etc
 
 ### Code example
 
