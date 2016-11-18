@@ -817,7 +817,6 @@ def make_setter(left, right, annotation):
             right_token = LLLnode.from_list('_R', typ=right.typ, annotation=right.annotation)
             subs = []
             for i in range(elts):
-                print('a',left.typ, right.typ, left.annotation, right.annotation)
                 subs.append(make_setter(add_variable_offset(left_token, LLLnode.from_list(i, typ='num')),
                                         add_variable_offset(right_token, LLLnode.from_list(i, typ='num')), annotation))
             return LLLnode.from_list(['with', '_L', left, ['with', '_R', right, ['seq'] + subs]], typ=None)
