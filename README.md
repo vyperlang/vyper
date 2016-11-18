@@ -109,8 +109,7 @@ Code examples can be found in the `test_parser.py` file.
     def participate():
         assert block.timestamp < self.deadline
         nfi = self.nextFunderIndex
-        self.funders[nfi].sender = msg.sender
-        self.funders[nfi].value = msg.value
+        self.funders[nfi] = {sender: msg.sender, value: msg.value}
         self.nextFunderIndex = nfi + 1
     
     # Enough money was raised! Send funds to the beneficiary
@@ -127,6 +126,5 @@ Code examples can be found in the `test_parser.py` file.
                 self.refundIndex = self.nextFunderIndex
                 return
             send(self.funders[i].sender, self.funders[i].value)
-            self.funders[i].sender = "0x0000000000000000000000000000000000000000"
-            self.funders[i].value = 0
+            self.funders[i] = None
         self.refundIndex = ind + 30

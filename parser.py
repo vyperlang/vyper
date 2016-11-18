@@ -763,8 +763,7 @@ def base_type_conversion(orig, frm, to):
     elif frm == 'num' and to == 'decimal':
         return LLLnode.from_list(['mul', orig, DECIMAL_DIVISOR], typ='decimal')
     elif frm == 'null':
-        return LLLnode.from_list(0 if to in ('num', 'bool', 'num256') else 0.0 if to == 'address' else
-                                 '0x0000000000000000000000000000000000000000' if to == 'bytes32' else None, typ=to)
+        return LLLnode.from_list(0 if to in ('num', 'bool', 'num256', 'address', 'bytes32') else None, typ=to)
     else:
         raise TypeMismatchException("Typecasting from base type %r to %r unavailable" % (frm, to))
 
