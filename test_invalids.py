@@ -698,3 +698,22 @@ def foo():
     mom = {a: {c: num}[3], b: num}
     mom.a = self.nom
 """)
+
+must_fail("""
+nom = {a: {c: num}[num], b: num}
+def foo():
+    self.nom = None
+""", TypeMismatchException)
+
+must_fail("""
+nom = {a: {c: num}[num], b: num}
+def foo():
+    self.nom = {a: [{c: 5}], b: 7}
+""", TypeMismatchException)
+
+must_succeed("""
+nom = {a: {c: num}[num], b: num}
+def foo():
+    self.nom.a[135] = {c: 6}
+    self.nom.b = 9
+""")
