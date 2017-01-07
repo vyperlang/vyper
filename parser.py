@@ -416,8 +416,9 @@ def add_variable_offset(parent, key):
             raise TypeMismatchException("Object does not have member variable %s" % key)
         subtype = typ[key]
         attrs = sorted(typ.keys())
+
         if key not in attrs:
-            raise TypeMismatchException("Member %s not found. Only the following available: %s" % (expr.attr, " ".join(attrs)))
+            raise TypeMismatchException("Member %s not found. Only the following available: %s" % (expr.attr, " ".join(attrs)))
         index = attrs.index(key)
         if annotation == 'storage':
             return LLLnode.from_list(['add', ['sha3_32', parent], index],
@@ -558,7 +559,7 @@ def parse_expr(expr, context):
                 raise TypeMismatchException("Type mismatch: member variable access not expected: %r" % sub)
             attrs = sorted(sub.typ.keys())
             if expr.attr not in attrs:
-                raise TypeMismatchException("Member %s not found. Only the following available: %s" % (expr.attr, " ".join(attrs)))
+                raise TypeMismatchException("Member %s not found. Only the following available: %s" % (expr.attr, " ".join(attrs)))
             return add_variable_offset(sub, expr.attr)
     elif isinstance(expr, ast.Subscript):
         sub = parse_variable_location(expr.value, context)
