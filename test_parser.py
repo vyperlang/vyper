@@ -1,4 +1,4 @@
-import parser, compile_lll # Following a standard naming scheme; nothing to do with the US republican party
+import parser, compile_lll
 import compiler_plugin
 from ethereum import tester as t
 # from ethereum.slogging import LogRecorder, configure_logging, set_level
@@ -92,7 +92,7 @@ print('Passed more complex repeater with offset test')
 
 array_accessor = """
 def test_array(x: num, y: num, z: num, w: num) -> num:
-    a = num[4]
+    a: num[4]
     a[0] = x
     a[1] = y
     a[2] = z
@@ -107,7 +107,7 @@ print('Gas estimate', t.languages['viper'].gas_estimate(array_accessor)['test_ar
 
 two_d_array_accessor = """
 def test_array(x: num, y: num, z: num, w: num) -> num:
-    a = num[2][2]
+    a: num[2][2]
     a[0][0] = x
     a[0][1] = y
     a[1][0] = z
@@ -124,7 +124,7 @@ print('Gas estimate', t.languages['viper'].gas_estimate(two_d_array_accessor)['t
 digit_reverser = """
 
 def reverse_digits(x: num) -> num:
-    dig = num[6]
+    dig: num[6]
     z = x
     for i in range(6):
         dig[i] = z % 10
@@ -142,9 +142,9 @@ print('Passed digit reverser test')
 print('Gas estimate', t.languages['viper'].gas_estimate(digit_reverser)['reverse_digits'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
 
 arbitration_code = """
-buyer = address
-seller = address
-arbitrator = address
+buyer: address
+seller: address
+arbitrator: address
 
 def setup(_seller: address, _arbitrator: address):
     if not self.buyer:
@@ -176,9 +176,9 @@ print('Passed escrow test')
 print('Gas estimate', t.languages['viper'].gas_estimate(arbitration_code)['finalize'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
 
 arbitration_code_with_init = """
-buyer = address
-seller = address
-arbitrator = address
+buyer: address
+seller: address
+arbitrator: address
 
 def __init__(_seller: address, _arbitrator: address):
     if not self.buyer:
@@ -399,7 +399,7 @@ print('Passed aug-assignment break composite test')
 
 
 init_argument_test = """
-moose = num
+moose: num
 def __init__(_moose: num):
     self.moose = _moose
 
@@ -413,7 +413,7 @@ print('Passed init argument test')
 print('Gas estimate', t.languages['viper'].gas_estimate(init_argument_test)['returnMoose'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
 
 permanent_variables_test = """
-var = {a: num, b: num}
+var: {a: num, b: num}
 def __init__(a: num, b: num):
     self.var.a = a
     self.var.b = b
@@ -430,13 +430,13 @@ print('Gas estimate', t.languages['viper'].gas_estimate(permanent_variables_test
 
 crowdfund = """
 
-funders = {sender: address, value: num}[num]
-nextFunderIndex = num
-beneficiary = address
-deadline = num
-goal = num
-refundIndex = num
-timelimit = num
+funders: {sender: address, value: num}[num]
+nextFunderIndex: num
+beneficiary: address
+deadline: num
+goal: num
+refundIndex: num
+timelimit: num
 
 def __init__(_beneficiary: address, _goal: num, _timelimit: num):
     self.beneficiary = _beneficiary
@@ -527,10 +527,10 @@ assert c.foo() == 3
 print('Passed comment test')
 
 packing_test = """
-x = num
-y = num[5]
-z = {foo: num[3], bar: {a: num, b: num}[2]}
-a = num
+x: num
+y: num[5]
+z: {foo: num[3], bar: {a: num, b: num}[2]}
+a: num
 
 def foo() -> num:
     self.x = 1
@@ -547,10 +547,10 @@ def foo() -> num:
         self.z.bar[0].a + self.z.bar[0].b + self.z.bar[1].a + self.z.bar[1].b + self.a
 
 def fop() -> num:
-    _x = num
-    _y = num[5]
-    _z = {foo: num[3], bar: {a: num, b: num}[2]}
-    _a = num
+    _x: num
+    _y: num[5]
+    _z: {foo: num[3], bar: {a: num, b: num}[2]}
+    _a: num
     _x = 1
     _y[0] = 2
     _y[4] = 4
@@ -571,8 +571,8 @@ assert c.fop() == 1023, c.fop()
 print('Passed packing test')
 
 multi_setter_test = """
-foo = num[3]
-bar = num[3][3]
+foo: num[3]
+bar: num[3][3]
 def foo() -> num:
     self.foo = [1, 2, 3]
     return(self.foo[0] + self.foo[1] * 10 + self.foo[2] * 100)
@@ -584,12 +584,12 @@ def fop() -> num:
         self.bar[1][0] * 1000 + self.bar[1][1] * 10000 + self.bar[1][2] * 100000
 
 def goo() -> num:
-    goo = num[3]
+    goo: num[3]
     goo = [1, 2, 3]
     return(goo[0] + goo[1] * 10 + goo[2] * 100)
 
 def gop() -> num: # Following a standard naming scheme; nothing to do with the US republican party
-    gar = num[3][3]
+    gar: num[3][3]
     gar[0] = [1, 2, 3]
     gar[1] = [4, 5, 6]
     return gar[0][0] + gar[0][1] * 10 + gar[0][2] * 100 + \
@@ -605,13 +605,13 @@ def hop() -> num:
         self.bar[1][0] * 1000 + self.bar[1][1] * 10000 + self.bar[1][2] * 100000
 
 def joo() -> num:
-    goo = num[3]
+    goo: num[3]
     goo = [1, 2, 3]
     goo = None
     return(goo[0] + goo[1] * 10 + goo[2] * 100)
 
 def jop() -> num:
-    gar = num[3][3]
+    gar: num[3][3]
     gar[0] = [1, 2, 3]
     gar[1] = [4, 5, 6]
     gar[1] = None
@@ -632,8 +632,8 @@ assert c.jop() == 321
 print('Passed multi-setter literal test')
 
 multi_setter_struct_test = """
-foo = {foo: num, bar: num}[3]
-z = {foo: num[3], bar: {a: num, b: num}[2]}[2]
+foo: {foo: num, bar: num}[3]
+z: {foo: num[3], bar: {a: num, b: num}[2]}[2]
 
 def foo() -> num:
     self.foo[0] = {foo: 1, bar: 2}
@@ -652,7 +652,7 @@ def fop() -> num:
         self.z[1].bar[1].a * 1000000000000 + self.z[1].bar[1].b * 10000000000000
 
 def goo() -> num:
-    goo = {foo: num, bar: num}[3]
+    goo: {foo: num, bar: num}[3]
     goo[0] = {foo: 1, bar: 2}
     goo[1] = {foo: 3, bar: 4}
     goo[2] = {foo: 5, bar: 6}
@@ -678,9 +678,9 @@ assert c.gop() == 87198763254321
 print('Passed multi-setter struct test')
 
 type_converter_setter_test = """
-mom = {a: {c: num}[3], b: num}
-non = {a: {c: decimal}[3], b:num}
-pop = decimal[2][2]
+mom: {a: {c: num}[3], b: num}
+non: {a: {c: decimal}[3], b:num}
+pop: decimal[2][2]
 
 def foo() -> num:
     self.mom = {a: [{c: 1}, {c: 2}, {c: 3}], b: 4}
@@ -698,8 +698,8 @@ assert c.foo() == 4321
 print('Passed type-conversion struct test')
 
 composite_setter_test = """
-mom = {a: {c: num}[3], b:num}
-qoq = {c: num}
+mom: {a: {c: num}[3], b:num}
+qoq: {c: num}
 def foo() -> num:
     self.mom = {a: [{c: 1}, {c: 2}, {c: 3}], b: 4}
     non = {c: 5}
@@ -731,13 +731,13 @@ print('Passed composite struct test')
 
 crowdfund2 = """
 
-funders = {sender: address, value: num}[num]
-nextFunderIndex = num
-beneficiary = address
-deadline = num
-goal = num
-refundIndex = num
-timelimit = num
+funders: {sender: address, value: num}[num]
+nextFunderIndex: num
+beneficiary: address
+deadline: num
+goal: num
+refundIndex: num
+timelimit: num
 
 def __init__(_beneficiary: address, _goal: num, _timelimit: num):
     self.beneficiary = _beneficiary

@@ -87,6 +87,7 @@ Code examples can be found in the `test_parser.py` file.
 * A mini-language for handling num256 and signed256 values and directly / unsafely using opcodes; will be useful for high-performance code segments
 * Support for sha3, sha256, ecrecover, etc
 * Smart optimizations, including compile-time computation of arithmetic and clamps, intelligently computing realistic variable ranges, etc
+* Special data types for timestamps, timedeltas, currency, etc; support for "units"
 
 ### Code example
 

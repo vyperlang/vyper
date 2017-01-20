@@ -2,12 +2,17 @@ try:
     from Crypto.Hash import keccak
     sha3_256 = lambda x: keccak.new(digest_bits=256, data=x).digest()
 except ImportError:
-    import sha3 as _sha3
-    sha3_256 = lambda x: _sha3.sha3_256(x).digest()
+    import sha3
+    sha3_256 = lambda x: sha3._sha3.sha3_256(x).digest()
 
 import ast, tokenize, binascii
 from io import BytesIO
 from opcodes import opcodes, pseudo_opcodes
+
+try:
+    x = ast.AnnAssign
+except:
+    raise Exception("Requires python 3.6 or higher for annotation support")
 
 # Converts code to parse tree
 def parse(code):
@@ -251,16 +256,14 @@ def get_defs_and_globals(code):
     _globals = {}
     _defs = []
     for item in code:
-        if isinstance(item, ast.Assign):
-            if len(item.targets) != 1:
-                raise StructureException("Top-level assign must have one target")
-            if not isinstance(item.targets[0], ast.Name):
+        if isinstance(item, ast.AnnAssign):
+            if not isinstance(item.target, ast.Name):
                 raise StructureException("Can only assign type to variable in top-level statement")
-            if item.targets[0].id in _globals:
+            if item.target.id in _globals:
                 raise VariableDeclarationException("Cannot declare a persistent variable twice!")
             if len(_defs):
                 raise StructureException("Global variables must all come before function definitions")
-            _globals[item.targets[0].id] = (len(_globals), parse_type(item.value, 'storage'))
+            _globals[item.target.id] = (len(_globals), parse_type(item.annotation, 'storage'))
         elif isinstance(item, ast.FunctionDef):
             _defs.append(item)
         else:
@@ -858,27 +861,24 @@ def parse_stmt(stmt, context):
         return parse_stmt(stmt.value, context)
     elif isinstance(stmt, ast.Pass):
         return LLLnode.from_list('pass', typ=None)
+    elif isinstance(stmt, ast.AnnAssign):
+        typ = parse_type(stmt.annotation, annotation='memory')
+        varname = stmt.target.id
+        pos = context.new_variable(varname, typ)
+        return LLLnode.from_list('pass', typ=None)
     elif isinstance(stmt, ast.Assign):
         # Assignment (eg. x[4] = y)
         if len(stmt.targets) != 1:
             raise StructureException("Assignment statement must have one target")
-        try:
-            typ = parse_type(stmt.value, annotation='memory')
-            if not isinstance(stmt.targets[0], ast.Name):
-                raise StructureException("Can only assign a variable to a new type")
-            varname = stmt.targets[0].id
-            pos = context.new_variable(varname, typ)
-            return LLLnode.from_list('pass', typ=None)
-        except InvalidTypeException:
-            sub = parse_expr(stmt.value, context)
-            if isinstance(stmt.targets[0], ast.Name) and stmt.targets[0].id not in context.vars:
-                pos = context.new_variable(stmt.targets[0].id, sub.typ)
-                return make_setter(LLLnode.from_list(pos, typ=sub.typ, annotation='memory'), sub, 'memory')
-            else:
-                target = parse_variable_location(stmt.targets[0], context)
-                if target.annotation == 'storage' and context.is_constant:
-                    raise ConstancyViolationException("Cannot modify storage inside a constant function!")
-                return make_setter(target, sub, target.annotation)
+        sub = parse_expr(stmt.value, context)
+        if isinstance(stmt.targets[0], ast.Name) and stmt.targets[0].id not in context.vars:
+            pos = context.new_variable(stmt.targets[0].id, sub.typ)
+            return make_setter(LLLnode.from_list(pos, typ=sub.typ, annotation='memory'), sub, 'memory')
+        else:
+            target = parse_variable_location(stmt.targets[0], context)
+            if target.annotation == 'storage' and context.is_constant:
+                raise ConstancyViolationException("Cannot modify storage inside a constant function!")
+            return make_setter(target, sub, target.annotation)
     # If statements
     elif isinstance(stmt, ast.If):
         if stmt.orelse:

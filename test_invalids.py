@@ -17,55 +17,55 @@ def must_succeed(code):
     print('Compilation successful')
 
 must_fail("""
-x = bat
+x: bat
 """, InvalidTypeException)
 
 must_fail("""
-x = 5
+x: 5
 """, InvalidTypeException)
 
 must_fail("""
-x = num[int]
+x: num[int]
 """, InvalidTypeException)
 
 must_fail("""
-x = num[-1]
+x: num[-1]
 """, InvalidTypeException)
 
 must_fail("""
-x = num[3.5]
-""", InvalidTypeException)
-
-must_succeed("""
-x = num[3]
-""")
-
-must_succeed("""
-x = num[1][2][3][4][5]
-""")
-
-must_fail("""
-x = {num[5]: num[7]}
-""", InvalidTypeException)
-
-must_fail("""
-x = [bar, baz]
-""", InvalidTypeException)
-
-must_fail("""
-x = [bar(num), baz(baffle)]
+x: num[3.5]
 """, InvalidTypeException)
 
 must_succeed("""
-x = {bar: num, baz: num}
+x: num[3]
+""")
+
+must_succeed("""
+x: num[1][2][3][4][5]
 """)
 
 must_fail("""
-x = {bar: num, decimal: num}
+x: {num[5]: num[7]}
 """, InvalidTypeException)
 
 must_fail("""
-x = {bar: num, 5: num}
+x: [bar, baz]
+""", InvalidTypeException)
+
+must_fail("""
+x: [bar(num), baz(baffle)]
+""", InvalidTypeException)
+
+must_succeed("""
+x: {bar: num, baz: num}
+""")
+
+must_fail("""
+x: {bar: num, decimal: num}
+""", InvalidTypeException)
+
+must_fail("""
+x: {bar: num, 5: num}
 """, InvalidTypeException)
 
 must_fail("""
@@ -81,12 +81,12 @@ def foo(x: num): pass
 """)
 
 must_fail("""
-x = num
-x = num
+x: num
+x: num
 """, VariableDeclarationException)
 
 must_fail("""
-x = num
+x: num
 
 def foo(x: num): pass
 """, VariableDeclarationException)
@@ -103,18 +103,18 @@ def foo(x: num):
 must_fail("""
 def foo():
     x = 5
-    x = num
+    x: num
 """, VariableDeclarationException)
 
 must_fail("""
 def foo():
-    x = num
-    x = num
+    x: num
+    x: num
 """, VariableDeclarationException)
 
 must_succeed("""
 def foo():
-    x = num
+    x: num
     x = 5
 """)
 
@@ -134,7 +134,7 @@ def foo():
 """, VariableDeclarationException)
 
 must_fail("""
-x = num
+x: num
 def foo():
     x = 5
 """, VariableDeclarationException)
@@ -158,135 +158,134 @@ def foo():
 """)
 
 must_fail("""
-b = num
+b: num
 def foo():
     b = 7
 """, VariableDeclarationException)
 
 must_succeed("""
-b = num
+b: num
 def foo():
     self.b = 7
 """)
 
 must_fail("""
-b = num
+b: num
 def foo():
     self.b = 7.5
 """, TypeMismatchException)
 
 must_succeed("""
-b = decimal
+b: decimal
 def foo():
     self.b = 7.5
 """)
 
 must_succeed("""
-b = decimal
+b: decimal
 def foo():
     self.b = 7
 """)
 
 must_fail("""
-b = num[5]
+b: num[5]
 def foo():
     self.b = 7
 """, TypeMismatchException)
 
 must_succeed("""
-b = decimal[5]
+b: decimal[5]
 def foo():
     self.b[0] = 7
 """)
 
 must_fail("""
-b = num[5]
+b: num[5]
 def foo():
     self.b[0] = 7.5
 """, TypeMismatchException)
 
 must_succeed("""
-b = num[5]
+b: num[5]
 def foo():
-    a = num[5]
+    a: num[5]
     self.b[0] = a[0]
 """)
 
 must_fail("""
-b = num[5]
+b: num[5]
 def foo():
     x = self.b[0][1]
 """, TypeMismatchException)
 
 must_fail("""
-b = num[5]
+b: num[5]
 def foo():
     x = self.b[0].cow
 """, TypeMismatchException)
 
 must_fail("""
-b = {foo: num, bar: num}
+b: {foo: num, bar: num}
 def foo():
     x = self.b.cow
 """, TypeMismatchException)
 
-# TODO
 must_fail("""
-b = {foo: num, bar: num}
+b: {foo: num, bar: num}
 def foo():
     x = self.b[0]
 """, TypeMismatchException)
 
 must_succeed("""
-b = {foo: num, bar: num}
+b: {foo: num, bar: num}
 def foo():
     x = self.b.bar
 """)
 
 must_succeed("""
-b = num[num]
+b: num[num]
 def foo():
     x = self.b[5]
 """)
 
 must_fail("""
-b = num[num]
+b: num[num]
 def foo():
     x = self.b[5.7]
 """, TypeMismatchException)
 
 must_succeed("""
-b = num[decimal]
+b: num[decimal]
 def foo():
     x = self.b[5]
 """)
 
 must_fail("""
-b = {num: num, address: address}
+b: {num: num, address: address}
 """, InvalidTypeException)
 
 must_fail("""
-b = num[num, decimal]
+b: num[num, decimal]
 """, InvalidTypeException)
 
 must_fail("""
-b = num[num: address]
+b: num[num: address]
 """, InvalidTypeException)
 
 must_fail("""
-b = num[num]
+b: num[num]
 def foo():
     self.b[3] = 5.6
 """, TypeMismatchException)
 
 must_succeed("""
-b = num[num]
+b: num[num]
 def foo():
     self.b[3] = -5
 """)
 
 must_succeed("""
-b = num[num]
+b: num[num]
 def foo():
     self.b[-3] = 5
 """)
@@ -312,42 +311,42 @@ def foo():
 """, TypeMismatchException)
 
 must_succeed("""
-x = num
+x: num
 
 def foo():
     send("0x1234567890123456789012345678901234567890", self.x)
 """)
 
 must_fail("""
-x = num
+x: num
 
 def foo():
     send("0x1234567890123456789012345678901234567890", x)
 """, VariableDeclarationException)
 
 must_succeed("""
-x = num
+x: num
 
 def foo():
     send("0x1234567890123456789012345678901234567890", self.x + 1)
 """)
 
 must_fail("""
-x = num
+x: num
 
 def foo():
     send("0x1234567890123456789012345678901234567890", self.x + 1.5)
 """, TypeMismatchException)
 
 must_fail("""
-x = decimal
+x: decimal
 
 def foo():
     send("0x1234567890123456789012345678901234567890", self.x)
 """, TypeMismatchException)
 
 must_succeed("""
-x = decimal
+x: decimal
 
 def foo():
     send("0x1234567890123456789012345678901234567890", floor(self.x))
@@ -366,7 +365,7 @@ def foo():
 must_fail("""
 def foo(): pass
 
-x = num
+x: num
 """, StructureException)
 
 must_fail("""
@@ -378,26 +377,26 @@ send("0x1234567890123456789012345678901234567890", 5)
 """, StructureException)
 
 must_fail("""
-x = num[5]
+x: num[5]
 def foo():
     self.x[2:4] = 3
 """, StructureException)
 
 must_fail("""
-x = num[5]
+x: num[5]
 def foo():
     z = self.x[2:4]
 """, StructureException)
 
 must_fail("""
 def foo():
-    x = num[5]
+    x: num[5]
     z = x[2:4]
 """, StructureException)
 
 must_succeed("""
 def foo():
-    x = num[5]
+    x: num[5]
     z = x[2]
 """)
 
@@ -436,13 +435,13 @@ def foo():
 """, StructureException)
 
 must_fail("""
-x = num
+x: num
 def foo() -> num(const):
     self.x = 5
 """, ConstancyViolationException)
 
 must_succeed("""
-x = num
+x: num
 def foo() -> num:
     self.x = 5
 """)
@@ -486,233 +485,233 @@ def foo():
 """, SyntaxError)
 
 must_fail("""
-foo = num[3]
+foo: num[3]
 def foo():
     self.foo = 5
 """, TypeMismatchException)
 
 must_succeed("""
-foo = num[3]
+foo: num[3]
 def foo():
     self.foo[0] = 5
 """)
 
 must_succeed("""
-foo = num[3]
+foo: num[3]
 def foo():
     self.foo = [1, 2, 3]
 """)
 
 must_fail("""
-foo = num[3]
+foo: num[3]
 def foo():
     self.foo = [1, 2, 3, 4]
 """, TypeMismatchException)
 
 must_fail("""
-foo = num[3]
+foo: num[3]
 def foo():
     self.foo = [1, 2]
 """, TypeMismatchException)
 
 must_fail("""
-foo = num[3]
+foo: num[3]
 def foo():
     self.foo = {0: 5, 1: 7, 2: 9}
 """, TypeMismatchException)
 
 must_fail("""
-foo = num[3]
+foo: num[3]
 def foo():
     self.foo = {a: 5, b: 7, c: 9}
 """, TypeMismatchException)
 
 must_fail("""
-foo = num[3]
+foo: num[3]
 def foo():
     self.foo = [1, 2, "0x1234567890123456789012345678901234567890"]
 """, TypeMismatchException)
 
 must_succeed("""
-foo = decimal[3]
+foo: decimal[3]
 def foo():
     self.foo = [1, 2.1, 3]
 """)
 
 must_fail("""
-foo = num[3]
+foo: num[3]
 def foo():
     self.foo = []
 """, (TypeMismatchException, StructureException))
 
 must_fail("""
-foo = num[3]
+foo: num[3]
 def foo():
     self.foo = [1, [2], 3]
 """, TypeMismatchException)
 
 must_fail("""
-bar = num[3][3]
+bar: num[3][3]
 def foo():
     self.bar = 5
 """, TypeMismatchException)
 
 must_fail("""
-bar = num[3][3]
+bar: num[3][3]
 def foo():
     self.bar = [2, 5]
 """, TypeMismatchException)
 
 must_fail("""
-bar = num[3][3]
+bar: num[3][3]
 def foo():
     self.bar = [[1, 2], [3, 4, 5], [6, 7, 8]]
 """, TypeMismatchException)
 
 must_succeed("""
-bar = num[3][3]
+bar: num[3][3]
 def foo():
     self.bar = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
 """)
 
 must_fail("""
-bar = num[3][3]
+bar: num[3][3]
 def foo():
     self.bar = [[1, 2, 3], [4, 5, 6], [7, 8, 9.0]]
 """, TypeMismatchException)
 
 must_succeed("""
-bar = decimal[3][3]
+bar: decimal[3][3]
 def foo():
     self.bar = [[1, 2, 3], [4, 5, 6], [7, 8, 9.0]]
 """)
 
 must_fail("""
-mom = {a: {c: num}[3], b: num}
-nom = {a: {c: num}[2], b: num}
+mom: {a: {c: num}[3], b: num}
+nom: {a: {c: num}[2], b: num}
 def foo():
     self.nom = self.mom
 """, TypeMismatchException)
 
 must_fail("""
-mom = {a: {c: num}[3], b: num}
-nom = {a: {c: decimal}[2], b: num}
+mom: {a: {c: num}[3], b: num}
+nom: {a: {c: decimal}[2], b: num}
 def foo():
     self.nom = self.mom
 """, TypeMismatchException)
 
 must_succeed("""
-mom = {a: {c: num}[3], b: num}
-nom = {a: {c: decimal}[3], b: num}
+mom: {a: {c: num}[3], b: num}
+nom: {a: {c: decimal}[3], b: num}
 def foo():
     self.nom = self.mom
 """)
 
 must_fail("""
-mom = {a: {c: num}[3], b: num}
-nom = {a: {c: num}[3], b: num, c: num}
+mom: {a: {c: num}[3], b: num}
+nom: {a: {c: num}[3], b: num, c: num}
 def foo():
     self.nom = self.mom
 """, TypeMismatchException)
 
 must_fail("""
-mom = {a: {c: num}[3], b: num}
-nom = {a: {c: num}[3]}
+mom: {a: {c: num}[3], b: num}
+nom: {a: {c: num}[3]}
 def foo():
     self.nom = self.mom
 """, TypeMismatchException)
 
 must_fail("""
-mom = {a: {c: num}[3], b: num}
-nom = {a: {c: num}, b: num}
+mom: {a: {c: num}[3], b: num}
+nom: {a: {c: num}, b: num}
 def foo():
     self.nom = self.mom
 """, TypeMismatchException)
 
 must_succeed("""
-mom = {a: {c: num}[3], b: num}
-nom = {c: num}[3]
+mom: {a: {c: num}[3], b: num}
+nom: {c: num}[3]
 def foo():
     self.nom = self.mom.a
 """)
 
 must_fail("""
-mom = {a: {c: num}[3], b: num}
-nom = {c: num}[3]
+mom: {a: {c: num}[3], b: num}
+nom: {c: num}[3]
 def foo():
     self.nom = self.mom.b
 """, TypeMismatchException)
 
 must_succeed("""
-mom = {a: {c: num}[3], b: num}
-nom = {c: num}[3]
+mom: {a: {c: num}[3], b: num}
+nom: {c: num}[3]
 def foo():
     self.mom = {a: self.nom, b: 5}
 """)
 
 must_fail("""
-mom = {a: {c: num}[3], b: num}
-nom = {c: num}[3]
+mom: {a: {c: num}[3], b: num}
+nom: {c: num}[3]
 def foo():
     self.mom = {a: self.nom, b: 5.5}
 """, TypeMismatchException)
 
 must_succeed("""
-mom = {a: {c: decimal}[3], b: num}
-nom = {c: num}[3]
+mom: {a: {c: decimal}[3], b: num}
+nom: {c: num}[3]
 def foo():
     self.mom = {a: self.nom, b: 5}
 """)
 
 must_fail("""
-mom = {a: {c: num}[3], b: num}
-nom = {c: decimal}[3]
+mom: {a: {c: num}[3], b: num}
+nom: {c: decimal}[3]
 def foo():
     self.mom = {a: self.nom, b: 5}
 """, TypeMismatchException)
 
 must_fail("""
-mom = {a: {c: num}[3], b: num}
-nom = {c: num}[3]
+mom: {a: {c: num}[3], b: num}
+nom: {c: num}[3]
 def foo():
     self.mom = {a: self.nom, b: self.nom}
 """, TypeMismatchException)
 
 must_succeed("""
-mom = {a: {c: num}[3], b: num}
-nom = {c: num}[3]
+mom: {a: {c: num}[3], b: num}
+nom: {c: num}[3]
 def foo():
     self.mom = {a: null, b: 5}
 """)
 
 must_succeed("""
-mom = {a: {c: num}[3], b: num}
+mom: {a: {c: num}[3], b: num}
 def foo():
-    nom = {c: num}[3]
+    nom: {c: num}[3]
     self.mom = {a: nom, b: 5}
 """)
 
 must_succeed("""
-nom = {c: num}[3]
+nom: {c: num}[3]
 def foo():
-    mom = {a: {c: num}[3], b: num}
+    mom: {a: {c: num}[3], b: num}
     mom.a = self.nom
 """)
 
 must_fail("""
-nom = {a: {c: num}[num], b: num}
+nom: {a: {c: num}[num], b: num}
 def foo():
     self.nom = None
 """, TypeMismatchException)
 
 must_fail("""
-nom = {a: {c: num}[num], b: num}
+nom: {a: {c: num}[num], b: num}
 def foo():
     self.nom = {a: [{c: 5}], b: 7}
 """, TypeMismatchException)
 
 must_succeed("""
-nom = {a: {c: num}[num], b: num}
+nom: {a: {c: num}[num], b: num}
 def foo():
     self.nom.a[135] = {c: 6}
     self.nom.b = 9
