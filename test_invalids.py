@@ -716,3 +716,172 @@ def foo():
     self.nom.a[135] = {c: 6}
     self.nom.b = 9
 """)
+
+must_succeed("""
+def foo(x: timestamp) -> timestamp:
+    return x
+""")
+
+must_succeed("""
+def foo(x: timestamp) -> num(const):
+    return 5
+""")
+
+must_succeed("""
+def foo(x: timestamp) -> timestamp(const):
+    return x
+""")
+
+must_succeed("""
+def foo(x: timestamp) -> timestamp:
+    y = x
+    return y
+""")
+
+must_fail("""
+def foo(x: timestamp) -> num:
+    return x
+""", TypeMismatchException)
+
+must_fail("""
+def foo(x: timestamp) -> timedelta:
+    return x
+""", TypeMismatchException)
+
+must_succeed("""
+def foo(x: timestamp, y: timestamp) -> bool:
+    return y > x
+""")
+
+must_succeed("""
+def foo(x: timedelta, y: timedelta) -> bool:
+    return y == x
+""")
+
+must_fail("""
+def foo(x: timestamp, y: timedelta) -> bool:
+    return y < x
+""", TypeMismatchException)
+
+must_succeed("""
+def foo(x: timestamp) -> timestamp:
+    return x + 50
+""")
+
+must_succeed("""
+def foo() -> timestamp:
+    return 720
+""")
+
+must_succeed("""
+def foo() -> timedelta:
+    return 720
+""")
+
+must_succeed("""
+def foo(x: timestamp, y: timedelta) -> timestamp:
+    return x + y
+""")
+
+must_fail("""
+def foo(x: timestamp, y: timedelta) -> timedelta:
+    return x + y
+""", TypeMismatchException)
+
+must_fail("""
+def foo(x: timestamp, y: timestamp) -> timestamp:
+    return x + y
+""", TypeMismatchException)
+
+must_succeed("""
+def foo(x: timedelta, y: timedelta) -> timedelta:
+    return x + y
+""")
+
+must_succeed("""
+def foo(x: timedelta) -> timedelta:
+    return x * 2
+""")
+
+must_fail("""
+def foo(x: timestamp) -> timestamp:
+    return x * 2
+""", TypeMismatchException)
+
+must_fail("""
+def foo(x: timedelta, y: timedelta) -> timedelta:
+    return x * y
+""", TypeMismatchException)
+
+must_succeed("""
+def foo(x: timedelta) -> bool:
+    return x > 50
+""")
+
+must_succeed("""
+def foo(x: timestamp) -> bool:
+    return x > 12894712
+""")
+
+must_succeed("""
+def foo() -> timestamp:
+    x: timestamp
+    x = 30
+    return x
+""")
+
+must_fail("""
+def foo() -> timestamp:
+    x = 30
+    y: timestamp
+    return x + y
+""", TypeMismatchException)
+
+must_succeed("""
+a: timestamp[timestamp]
+
+def add_record():
+    self.a[block.timestamp] = block.timestamp + 20
+""")
+
+must_fail("""
+a: num[timestamp]
+
+def add_record():
+    self.a[block.timestamp] = block.timestamp + 20
+""", TypeMismatchException)
+
+must_fail("""
+a: timestamp[num]
+
+def add_record():
+    self.a[block.timestamp] = block.timestamp + 20
+""", TypeMismatchException)
+
+must_fail("""
+def add_record():
+    a = {x: block.timestamp}
+    b = {y: 5}
+    a.x = b.y
+""", TypeMismatchException)
+
+must_succeed("""
+def add_record():
+    a = {x: block.timestamp}
+    a.x = 5
+""")
+
+must_succeed("""
+def foo() -> num:
+    return as_number(block.timestamp)
+""")
+
+must_fail("""
+def foo() -> address:
+    return as_number(block.coinbase)
+""", TypeMismatchException)
+
+must_fail("""
+def foo() -> address:
+    return as_number([1, 2, 3])
+""", TypeMismatchException)

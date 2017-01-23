@@ -430,15 +430,15 @@ print('Gas estimate', t.languages['viper'].gas_estimate(permanent_variables_test
 
 crowdfund = """
 
-funders: {sender: address, value: num}[num]
+funders: {sender: address, value: wei_value}[num]
 nextFunderIndex: num
 beneficiary: address
-deadline: num
-goal: num
+deadline: timestamp
+goal: wei_value
 refundIndex: num
-timelimit: num
+timelimit: timedelta
 
-def __init__(_beneficiary: address, _goal: num, _timelimit: num):
+def __init__(_beneficiary: address, _goal: wei_value, _timelimit: timedelta):
     self.beneficiary = _beneficiary
     self.deadline = block.timestamp + _timelimit
     self.timelimit = _timelimit
@@ -454,13 +454,13 @@ def participate():
 def expired() -> bool(const):
     return block.timestamp >= self.deadline
 
-def timestamp() -> num(const):
+def timestamp() -> timestamp(const):
     return block.timestamp
 
-def deadline() -> num(const):
+def deadline() -> timestamp(const):
     return self.deadline
 
-def timelimit() -> num(const):
+def timelimit() -> timedelta(const):
     return self.timelimit
 
 def reached() -> bool(const):
@@ -731,15 +731,15 @@ print('Passed composite struct test')
 
 crowdfund2 = """
 
-funders: {sender: address, value: num}[num]
+funders: {sender: address, value: wei_value}[num]
 nextFunderIndex: num
 beneficiary: address
-deadline: num
-goal: num
+deadline: timestamp
+goal: wei_value
 refundIndex: num
-timelimit: num
+timelimit: timedelta
 
-def __init__(_beneficiary: address, _goal: num, _timelimit: num):
+def __init__(_beneficiary: address, _goal: wei_value, _timelimit: timedelta):
     self.beneficiary = _beneficiary
     self.deadline = block.timestamp + _timelimit
     self.timelimit = _timelimit
@@ -754,13 +754,13 @@ def participate():
 def expired() -> bool(const):
     return block.timestamp >= self.deadline
 
-def timestamp() -> num(const):
+def timestamp() -> timestamp(const):
     return block.timestamp
 
-def deadline() -> num(const):
+def deadline() -> timestamp(const):
     return self.deadline
 
-def timelimit() -> num(const):
+def timelimit() -> timedelta(const):
     return self.timelimit
 
 def reached() -> bool(const):

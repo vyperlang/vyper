@@ -3,7 +3,7 @@ Viper is an experimental programming language that aims to provide the following
 * Bounds and overflow checking, both on array accesses and on arithmetic
 * Support for signed integers and decimal fixed point numbers
 * Decidability - it's possible to compute a precise upper bound on the gas consumption of any function call
-* Strong typing
+* Strong typing, including limited support for units (eg. timestamp, timedelta)
 * Maximally small and understandable compiler code size
 * Limited support for pure functions - anything marked constant is NOT allowed to change the state
 
@@ -63,6 +63,10 @@ Note that not all programs that satisfy the following are valid; for example, th
 
 * `num`: a signed integer strictly between -2\*\*128 and 2\*\*128
 * `decimal`: a decimal fixed point value with the integer component being a signed integer strictly between -2\*\*128 and 2\*\*128 and the fractional component being ten decimal places
+* `timestamp`: a timestamp value
+* `timedelta`: a number of seconds (note: two timedeltas can be added together, as can a timedelta and a timestamp, but not two timestamps)
+* `wei_value`: an amount of wei
+* `currency_value`: an amount of currency
 * `address`: an address
 * `bytes32`: 32 bytes
 * `bool`: true or false
@@ -87,20 +91,20 @@ Code examples can be found in the `test_parser.py` file.
 * A mini-language for handling num256 and signed256 values and directly / unsafely using opcodes; will be useful for high-performance code segments
 * Support for sha3, sha256, ecrecover, etc
 * Smart optimizations, including compile-time computation of arithmetic and clamps, intelligently computing realistic variable ranges, etc
-* Special data types for timestamps, timedeltas, currency, etc; support for "units"
+* More advanced support for units, including support for "x per y", "x * y", etc types
 
 ### Code example
 
-    funders = {sender: address, value: num}[num]
+    funders = {sender: address, value: wei_value}[num]
     nextFunderIndex = num
     beneficiary = address
-    deadline = num
-    goal = num
+    deadline = timestamp
+    goal = wei_value
     refundIndex = num
-    timelimit = num
+    timelimit = timedelta
     
     # Setup global variables
-    def __init__(_beneficiary: address, _goal: num, _timelimit: num):
+    def __init__(_beneficiary: address, _goal: wei_value, _timelimit: timedelta):
         self.beneficiary = _beneficiary
         self.deadline = block.timestamp + _timelimit
         self.timelimit = _timelimit
