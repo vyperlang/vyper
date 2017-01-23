@@ -794,6 +794,11 @@ def foo(x: timestamp, y: timestamp) -> timestamp:
 """, TypeMismatchException)
 
 must_succeed("""
+def foo(x: timestamp, y: timestamp) -> timedelta:
+    return x - y
+""")
+
+must_succeed("""
 def foo(x: timedelta, y: timedelta) -> timedelta:
     return x + y
 """)
@@ -885,3 +890,52 @@ must_fail("""
 def foo() -> address:
     return as_number([1, 2, 3])
 """, TypeMismatchException)
+
+must_succeed("""
+def foo(x: timedelta, y: num (wei/sec)) -> wei_value:
+    return x * y
+""")
+
+must_fail("""
+def foo(x: timedelta, y: num (wei/sec)) -> num:
+    return x * y
+""", TypeMismatchException)
+
+must_fail("""
+def foo(x: timestamp, y: num (wei/sec)) -> wei_value:
+    return x * y
+""", TypeMismatchException)
+
+must_succeed("""
+def foo(x: wei_value, y: currency_value, z: num (wei*currency/sec**2)) -> num (sec**2):
+    return x * y / z
+""")
+
+must_succeed("""
+x: timedelta
+def foo() -> num(sec):
+    return self.x
+""")
+
+must_succeed("""
+x: timedelta
+y: num
+def foo() -> num(sec, const):
+    return self.x
+""")
+
+must_fail("""
+x: timedelta
+y: num
+def foo() -> num(sec, const):
+    self.y = 9
+    return 5
+""", ConstancyViolationException)
+
+must_succeed("""
+x: timedelta
+y: num
+def foo() -> num(sec):
+    self.y = 9
+    return 5
+""")

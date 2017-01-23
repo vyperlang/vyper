@@ -69,11 +69,11 @@ def print_unit(unit):
     else:
         return pos[1:]
 
-def combine_units(unit1, unit2, div=True):
+def combine_units(unit1, unit2, div=False):
     o = {k: v for k, v in (unit1 or {}).items()}
     for k, v in (unit2 or {}).items():
         o[k] = o.get(k, 0) + v * (-1 if div else 1)
-    return o
+    return {k: v for k, v in o.items() if v}
 
 class BaseType(NodeType):
     def __init__(self, typ, unit=False, positional=False):
@@ -300,18 +300,43 @@ class ConstancyViolationException(Exception):
 special_types = {
     'timestamp': BaseType('num', {'sec': 1}, True),
     'timedelta': BaseType('num', {'sec': 1}, False),
-    'currency_value': BaseType('decimal', {'currency': 1}, False),
-    'currency1_value': BaseType('decimal', {'currency1': 1}, False),
-    'currency2_value': BaseType('decimal', {'currency2': 1}, False),
+    'currency_value': BaseType('num', {'currency': 1}, False),
+    'currency1_value': BaseType('num', {'currency1': 1}, False),
+    'currency2_value': BaseType('num', {'currency2': 1}, False),
     'wei_value': BaseType('num', {'wei': 1}, False),
 }
 
-valid_units = ['currency', 'wei', 'currency1', 'currency2', 'sec']
+valid_units = ['currency', 'wei', 'currency1', 'currency2', 'sec', 'm', 'kg']
+
+# Parse an expression representing a unit
+def parse_unit(item):
+    if isinstance(item, ast.Name):
+        if item.id not in valid_units:
+            raise InvalidTypeException("Invalid base unit: %r" % item.id)
+        return {item.id: 1}
+    elif isinstance(item, ast.Num) and item.n == 1:
+        return {}
+    elif not isinstance(item, ast.BinOp):
+        raise InvalidTypeException("Invalid unit expression: %r" % ast.dump(item))
+    elif isinstance(item.op, ast.Mult):
+        left, right = parse_unit(item.left), parse_unit(item.right)
+        return combine_units(left, right)
+    elif isinstance(item.op, ast.Div):
+        left, right = parse_unit(item.left), parse_unit(item.right)
+        return combine_units(left, right, div=True)
+    elif isinstance(item.op, ast.Pow):
+        if not isinstance(item.left, ast.Name):
+            raise InvalidTypeException("Can only raise a base type to an exponent")
+        if not isinstance(item.right, ast.Num) or not isinstance(item.right.n, int) or item.right.n <= 0:
+            raise InvalidTypeException("Exponent must be positive integer")
+        return {item.left.id: item.right.n}
+    else:
+        raise InvalidTypeException("Invalid unit expression: %r" % ast.dump(item))
 
 # Parses an expression representing a type. Annotation refers to whether
 # the type is to be located in memory or storage
 def parse_type(item, location):
-    # Base types, eg. uint
+    # Base types, eg. num
     if isinstance(item, ast.Name):
         if item.id in base_types:
             return BaseType(item.id)
@@ -319,6 +344,17 @@ def parse_type(item, location):
             return special_types[item.id]
         else:
             raise InvalidTypeException("Invalid type: "+item.id)
+    # Units, eg. num (1/sec)
+    elif isinstance(item, ast.Call):
+        if not isinstance(item.func, ast.Name):
+            raise InvalidTypeException("Malformed unit type: %r" % ast.dump(item.func))
+        base_type = item.func.id
+        if base_type not in ('num', 'decimal'):
+            raise Exception("Base type with units can only be num and decimal")
+        if len(item.args) != 1:
+            raise InvalidTypeException("Malformed unit type: %r" % ast.dump(item))
+        unit = parse_unit(item.args[0])
+        return BaseType(base_type, unit, False)
     # Subscripts
     elif isinstance(item, ast.Subscript):
         if 'value' not in vars(item.slice):
@@ -421,11 +457,17 @@ def get_func_details(code):
         output_type = None
     elif isinstance(code.returns, ast.Name):
         output_type = parse_type(code.returns, None)
-    elif isinstance(code.returns, ast.Call) and isinstance(code.returns.func, ast.Name) and \
-            len(code.returns.args) == 1 and isinstance(code.returns.args[0], ast.Name) and \
-            code.returns.args[0].id == 'const':
-        output_type = parse_type(code.returns.func, None)
-        const = True
+    elif isinstance(code.returns, ast.Call):
+        consts = [arg for arg in code.returns.args if isinstance(arg, ast.Name) and arg.id == 'const']
+        units = [arg for arg in code.returns.args if arg not in consts]
+        if len(consts) > 1 or len(units) > 1:
+            raise InvalidTypeException("Expecting at most one unit declaration and const keyword")
+        const = len(consts) == 1
+        if units:
+            typ = ast.Call(func=code.returns.func, args=units)
+        else:
+            typ = code.returns.func
+        output_type = parse_type(typ, None)
     else:
         raise InvalidTypeException("Output type invalid or unsupported: %r" % parse_type(code.returns, None))
     # Output type can only be base type or none
@@ -699,10 +741,10 @@ def parse_expr(expr, context):
         if isinstance(expr.op, (ast.Add, ast.Sub)):
             if left.typ.unit != right.typ.unit and left.typ.unit is not None and right.typ.unit is not None:
                 raise TypeMismatchException("Unit mismatch: %r %r" % (left.typ.unit, right.typ.unit))
-            if left.typ.positional and right.typ.positional:
-                raise TypeMismatchException("Cannot add or subtract two positional units!")
+            if left.typ.positional and right.typ.positional and isinstance(expr.op, ast.Add):
+                raise TypeMismatchException("Cannot add two positional units!")
             new_unit = left.typ.unit or right.typ.unit
-            new_positional = left.typ.positional or right.typ.positional
+            new_positional = left.typ.positional ^ right.typ.positional # xor, as subtracting two positionals gives a delta
             op = 'add' if isinstance(expr.op, ast.Add) else 'sub'
             if ltyp == rtyp:
                 o = LLLnode.from_list([op, left, right], typ=BaseType(ltyp, new_unit, new_positional))

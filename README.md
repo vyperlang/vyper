@@ -3,7 +3,7 @@ Viper is an experimental programming language that aims to provide the following
 * Bounds and overflow checking, both on array accesses and on arithmetic
 * Support for signed integers and decimal fixed point numbers
 * Decidability - it's possible to compute a precise upper bound on the gas consumption of any function call
-* Strong typing, including limited support for units (eg. timestamp, timedelta)
+* Strong typing, including support for units (eg. timestamp, timedelta, seconds, wei, wei per second, meters per second squared)
 * Maximally small and understandable compiler code size
 * Limited support for pure functions - anything marked constant is NOT allowed to change the state
 
@@ -49,10 +49,15 @@ Note that not all programs that satisfy the following are valid; for example, th
         OR floor(<expr>)
     literal = (block.timestamp, block.coinbase, block.number, block.difficulty, tx.origin, tx.gasprice, msg.gas, self)
     basetype = (num, decimal, bool, address, bytes32)
+    unit = <baseunit>
+        OR <baseunit> * <positive integer>
+        OR <unit> * <unit>
+        OR <unit> / <unit>
     type = <basetype>
         OR {<membername>: <type>, <membername>: <type>, ...}
         OR <type>[<basetype>]
         OR <type>[<int>] # Integer must be nonzero positive
+        OR <num or decimal>(unit)
     binop = (+, -, *, /, %)
     augassignop = (+=, -=, *=, /=, %=)
     boolop = (or, and)
@@ -91,7 +96,6 @@ Code examples can be found in the `test_parser.py` file.
 * A mini-language for handling num256 and signed256 values and directly / unsafely using opcodes; will be useful for high-performance code segments
 * Support for sha3, sha256, ecrecover, etc
 * Smart optimizations, including compile-time computation of arithmetic and clamps, intelligently computing realistic variable ranges, etc
-* More advanced support for units, including support for "x per y", "x * y", etc types
 
 ### Code example
 
