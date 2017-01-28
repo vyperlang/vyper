@@ -1,6 +1,5 @@
-import parser, compile_lll
-from parser import InvalidTypeException, TypeMismatchException, VariableDeclarationException, StructureException, ConstancyViolationException
-import compiler_plugin
+from viper import parser, compile_lll, compiler_plugin
+from viper.parser import InvalidTypeException, TypeMismatchException, VariableDeclarationException, StructureException, ConstancyViolationException
 c = compiler_plugin.Compiler() 
 
 def must_fail(code, exception_type):

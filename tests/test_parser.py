@@ -1,5 +1,5 @@
-import parser, compile_lll
-import compiler_plugin
+from viper import parser, compile_lll
+from viper import compiler_plugin
 from ethereum import tester as t
 # from ethereum.slogging import LogRecorder, configure_logging, set_level
 # config_string = ':info,eth.vm.log:trace,eth.vm.op:trace,eth.vm.stack:trace,eth.vm.exit:trace,eth.pb.msg:trace,eth.pb.tx:debug'

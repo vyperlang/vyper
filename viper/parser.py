@@ -7,7 +7,7 @@ except ImportError:
 
 import ast, tokenize, binascii
 from io import BytesIO
-from opcodes import opcodes, pseudo_opcodes
+from .opcodes import opcodes, pseudo_opcodes
 import copy
 
 try:

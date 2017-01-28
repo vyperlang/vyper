@@ -1,4 +1,5 @@
-import parser, compile_lll
+from . import parser
+from . import compile_lll
 
 def memsize_to_gas(memsize):
     return (memsize // 32) * 3 + (memsize // 32) ** 2 // 512

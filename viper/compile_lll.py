@@ -1,5 +1,5 @@
-from parser import LLLnode
-from opcodes import opcodes, pseudo_opcodes
+from .parser import LLLnode
+from .opcodes import opcodes, pseudo_opcodes
 
 def num_to_bytearray(x):
     o = []
