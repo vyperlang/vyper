@@ -1,5 +1,23 @@
+<<<<<<< HEAD
 viper.egg-info/
 __pycache__/
 build/
 dist/
 .eggs/
+=======
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# pyenv
+.python-version
+
+# dotenv
+.env
+
+# virtualenv
+.venv/
+venv/
+ENV/
+>>>>>>> c9e38afb1aa5c2e4798b1177f0c8225b98ece8e9
