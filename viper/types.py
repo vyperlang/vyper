@@ -1,6 +1,7 @@
 import ast
 from .opcodes import opcodes
 import copy
+from .exceptions import InvalidTypeException, TypeMismatchException
 
 # Available base types
 base_types = ['num', 'decimal', 'bytes32', 'num256', 'signed256', 'bool', 'address']
@@ -132,12 +133,6 @@ class MixedType(NodeType):
 class NullType(NodeType):
     def __eq__(self, other):
         return other.__class__ == NullType
-
-class InvalidTypeException(Exception):
-    pass
-
-class TypeMismatchException(Exception):
-    pass
 
 # Convert type into common form used in ABI
 def canonicalize_type(t):

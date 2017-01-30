@@ -108,13 +108,13 @@ Code examples can be found in the `test_parser.py` file.
 
 ### Code example
 
-    funders:{sender: address, value: wei_value}[num]
-    nextFunderIndex:num
-    beneficiary:address
-    deadline:timestamp
-    goal:wei_value
-    refundIndex:num
-    timelimit:timedelta
+    funders: {sender: address, value: wei_value}[num]
+    nextFunderIndex: num
+    beneficiary: address
+    deadline: timestamp
+    goal: wei_value
+    refundIndex: num
+    timelimit: timedelta
     
     # Setup global variables
     def __init__(_beneficiary: address, _goal: wei_value, _timelimit: timedelta):
