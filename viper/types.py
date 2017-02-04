@@ -73,7 +73,18 @@ class BaseType(NodeType):
         return other.__class__ == BaseType and self.typ == other.typ and self.unit == other.unit and self.positional == other.positional
 
     def __repr__(self):
-        return '<' + str(self.typ) + ('>' if self.unit == {} else '> (' + print_unit(self.unit) + ')') + (' (positional) ' * self.positional)
+        return str(self.typ) + ('' if self.unit == {} else '(' + print_unit(self.unit) + ')') + (' (positional) ' * self.positional)
+
+# Data structure for a byte array
+class ByteArrayType(NodeType):
+    def __init__(self, maxlen):
+        self.maxlen = maxlen
+
+    def __eq__(self, other):
+        return other.__class__ == ByteArrayType and self.maxlen == other.maxlen
+
+    def __repr__(self):
+        return 'bytearray<%d>' % self.maxlen
 
 # Data structure for a list with some fixed length        
 class ListType(NodeType):
@@ -130,6 +141,8 @@ class TypeMismatchException(Exception):
 
 # Convert type into common form used in ABI
 def canonicalize_type(t):
+    if isinstance(t, ByteArrayType):
+        return 'bytes'
     if not isinstance(t, BaseType):
         raise Exception("Cannot canonicalize non-base type: %r" % t)
     t = t.typ
@@ -192,7 +205,7 @@ def parse_type(item, location):
         elif item.id in special_types:
             return special_types[item.id]
         else:
-            raise InvalidTypeException("Invalid type: "+item.id)
+            raise InvalidTypeException("Invalid base type: "+item.id)
     # Units, eg. num (1/sec)
     elif isinstance(item, ast.Call):
         if not isinstance(item.func, ast.Name):
@@ -231,6 +244,16 @@ def parse_type(item, location):
                 raise InvalidTypeException("Invalid member variable for struct: %r" % vars(key).get('id', key))
             o[key.id] = parse_type(value, location)
         return StructType(o)
+    elif isinstance(item, ast.Compare):
+        if len(item.ops) != 1 or not isinstance(item.ops[0], ast.LtE):
+            raise InvalidTypeException("Invalid type: %r" % ast.dump(item))
+        if not isinstance(item.left, ast.Name) or item.left.id != "bytes":
+            raise InvalidTypeException("Invalid type: %r" % ast.dump(item))
+        if len(item.comparators) != 1 or not isinstance(item.comparators[0], ast.Num):
+            raise InvalidTypeException("Byte array length must be a number")
+        if not isinstance(item.comparators[0].n, int) or item.comparators[0].n <= 0:
+            raise InvalidTypeException("Bad byte array length: %r" % item.comparators[0].n)
+        return ByteArrayType(item.comparators[0].n)
     else:
         raise InvalidTypeException("Invalid type: %r" % ast.dump(item))
 

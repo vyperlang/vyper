@@ -78,6 +78,7 @@ pseudo_opcodes = {
     'PASS': [None, 0, 0, 0],
     'BREAK': [None, 0, 0, 20],
     'SHA3_32': [None, 1, 1, 40],
-    'SLE': [0x12, 2, 1, 10],
-    'SGE': [0x13, 2, 1, 10],
+    'SLE': [None, 2, 1, 10],
+    'SGE': [None, 2, 1, 10],
+    'CEIL32': [None, 1, 1, 20],
 }

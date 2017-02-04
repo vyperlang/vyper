@@ -938,3 +938,28 @@ def foo() -> num(sec):
     self.y = 9
     return 5
 """)
+
+must_succeed("""
+def foo(x: bytes <= 100) -> bytes <= 100:
+    return x
+""")
+
+must_succeed("""
+def foo(x: bytes <= 100) -> bytes <= 150:
+    return x
+""")
+
+must_fail("""
+def foo(x: bytes <= 100) -> bytes <= 75:
+    return x
+""", TypeMismatchException)
+
+must_fail("""
+def foo(x: bytes <= 100) -> num:
+    return x
+""", TypeMismatchException)
+
+must_fail("""
+def foo(x: num) -> bytes <= 75:
+    return x
+""", TypeMismatchException)

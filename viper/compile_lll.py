@@ -201,10 +201,15 @@ def compile_to_assembly(code, withargs={}, break_dest=None, height=0):
         return o
     # <= operator
     elif code.value == 'sle':
-        return compile_to_assembly(LLLnode.from_list(['iszero', ['sgt', code.args[0], code.args[1]]]))
+        return compile_to_assembly(LLLnode.from_list(['iszero', ['sgt', code.args[0], code.args[1]]]), withargs, break_dest, height)
     # >= operator
     elif code.value == 'sge':
-        return compile_to_assembly(LLLnode.from_list(['iszero', ['slt', code.args[0], code.args[1]]]))
+        return compile_to_assembly(LLLnode.from_list(['iszero', ['slt', code.args[0], code.args[1]]]), withargs, break_dest, height)
+    # eg. 95 -> 96, 96 -> 96, 97 -> 128
+    elif code.value == "ceil32":
+        return compile_to_assembly(LLLnode.from_list(['with', '_val', code.args[0],
+                                                        ['sub', ['add', '_val', 31],
+                                                                ['mod', ['sub', '_val', 1], 32]]]), withargs, break_dest, height)
     else:
         raise Exception("Weird code element: "+repr(code))
 

@@ -813,3 +813,14 @@ post_bals = [s.state.get_balance(x) for x in [t.a3, t.a4, t.a5, t.a6]]
 assert [y-x for x, y in zip(pre_bals, post_bals)] == [1,2,3,4]
 
 print('Passed second composite crowdfund test')
+
+test_bytes = """
+def foo(x: bytes <= 100) -> bytes <= 100:
+    return x
+"""
+
+c = s.abi_contract(test_bytes, language='viper')
+moo_result = c.foo(b'cow')
+assert moo_result == b'cow'
+
+print('Passed basic bytes test')

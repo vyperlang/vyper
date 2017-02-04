@@ -10,7 +10,7 @@ from io import BytesIO
 from .opcodes import opcodes, pseudo_opcodes
 import copy
 from .types import NodeType, BaseType, ListType, MappingType, StructType, \
-    MixedType, NullType
+    MixedType, NullType, ByteArrayType
 from .types import base_types, parse_type, canonicalize_type, is_base_type, \
     is_numeric_type, get_size_of_type, is_varname_valid
 from .types import combine_units, are_units_compatible, set_default_units
@@ -220,8 +220,6 @@ def get_func_details(code):
     const = False
     if not code.returns:
         output_type = None
-    elif isinstance(code.returns, ast.Name):
-        output_type = parse_type(code.returns, None)
     elif isinstance(code.returns, ast.Call):
         consts = [arg for arg in code.returns.args if isinstance(arg, ast.Name) and arg.id == 'const']
         units = [arg for arg in code.returns.args if arg not in consts]
@@ -233,10 +231,12 @@ def get_func_details(code):
         else:
             typ = code.returns.func
         output_type = parse_type(typ, None)
+    elif isinstance(code.returns, (ast.Name, ast.Compare)):
+        output_type = parse_type(code.returns, None)
     else:
         raise InvalidTypeException("Output type invalid or unsupported: %r" % parse_type(code.returns, None))
     # Output type can only be base type or none
-    assert isinstance(output_type, (BaseType, (None).__class__))
+    assert isinstance(output_type, (BaseType, ByteArrayType, (None).__class__))
     # Get the four-byte method id
     sig = name + '(' + ','.join([canonicalize_type(parse_type(arg.annotation, None)) for arg in code.args.args]) + ')'
     method_id = fourbytes_to_int(sha3_256(bytes(sig, 'utf-8'))[:4])
@@ -257,10 +257,13 @@ class Context():
             raise VariableDeclarationException("Variable name invalid or reserved: "+name)
         if name in self.vars or name in self.args or name in self.globals:
             raise VariableDeclarationException("Duplicate variable name")
-        pos = self.vars.get('_next_mem', RESERVED_MEMORY)
+        pos = self.get_next_mem()
         self.vars[name] = pos, typ
         self.vars['_next_mem'] = pos + 32 * get_size_of_type(typ)
         return pos
+
+    def get_next_mem(self):
+        return self.vars.get('_next_mem', RESERVED_MEMORY)
 
 # Is a function the initializer?
 def is_initializer(code):
@@ -431,8 +434,10 @@ def parse_expr(expr, context):
                 return LLLnode.from_list(['uclamplt', data_decl, ['mload', ADDRSIZE_POS]], typ=typ)
             elif is_base_type(typ, ('num256', 'signed256', 'bytes32')):
                 return LLLnode.from_list(data_decl, typ=typ)
+            elif isinstance(typ, ByteArrayType):
+                return LLLnode.from_list(data_decl, typ=typ, location='calldata')
             else:
-                raise InvalidTypeException("Unsupported type: "+typ)
+                raise InvalidTypeException("Unsupported type: %r" % typ)
         elif expr.id in context.vars:
             dataloc, typ = context.vars[expr.id]
             return LLLnode.from_list(dataloc, typ=typ, location='memory')
@@ -691,6 +696,8 @@ def unwrap_location(orig):
         return LLLnode.from_list(['mload', orig], typ=orig.typ)
     elif orig.location == 'storage':
         return LLLnode.from_list(['sload', orig], typ=orig.typ)
+    elif orig.location == 'calldata':
+        return LLLnode.from_list(['calldataload', orig], typ=orig.typ)
     else:
         return orig
 
@@ -931,19 +938,46 @@ def parse_stmt(stmt, context):
             return LLLnode.from_list(['return', 0, 0], typ=None)
         if not stmt.value:
             raise TypeMismatchException("Expecting to return a value")
-        sub = parse_value_expr(stmt.value, context)
-        if not isinstance(sub.typ, BaseType):
-            raise TypeMismatchException("Can only return base type!")
-        elif not are_units_compatible(sub.typ, context.return_type):
-            raise TypeMismatchException("Return type units mismatch %r %r" % (sub.typ, context.return_type))
-        elif is_base_type(sub.typ, context.return_type.typ) or \
-                (is_base_type(sub.typ, 'num') and is_base_type(context.return_type, 'signed256')):
-            return LLLnode.from_list(['seq', ['mstore', 0, sub], ['return', 0, 32]], typ=None)
-        elif is_base_type(sub.typ, 'num') and is_base_type(context.return_type, 'num256'):
-            return LLLnode.from_list(['seq', ['mstore', 0, sub],
-                                             ['assert', ['iszero', ['lt', ['mload', 0], 0]]],
-                                             ['return', 0, 32]], typ=None)
+        sub = parse_expr(stmt.value, context)
+        # Returning a value (most common case)
+        if isinstance(sub.typ, BaseType):
+            if not isinstance(context.return_type, BaseType):
+                raise TypeMismatchException("Trying to return base type %r, output expecting %r" % (sub.typ, context.return_type))
+            sub = unwrap_location(sub)
+            if not are_units_compatible(sub.typ, context.return_type):
+                raise TypeMismatchException("Return type units mismatch %r %r" % (sub.typ, context.return_type))
+            elif is_base_type(sub.typ, context.return_type.typ) or \
+                    (is_base_type(sub.typ, 'num') and is_base_type(context.return_type, 'signed256')):
+                return LLLnode.from_list(['seq', ['mstore', 0, sub], ['return', 0, 32]], typ=None)
+            elif is_base_type(sub.typ, 'num') and is_base_type(context.return_type, 'num256'):
+                return LLLnode.from_list(['seq', ['mstore', 0, sub],
+                                                 ['assert', ['iszero', ['lt', ['mload', 0], 0]]],
+                                                 ['return', 0, 32]], typ=None)
+            else:
+                raise TypeMismatchException("Unsupported type conversion: %r to %r" % (sub.typ, context.return_type))
+        # Returning a byte array
+        elif isinstance(sub.typ, ByteArrayType):
+            if not isinstance(context.return_type, ByteArrayType):
+                raise TypeMismatchException("Trying to return base type %r, output expecting %r" % (sub.typ, context.return_type))
+            if sub.typ.maxlen > context.return_type.maxlen:
+                raise TypeMismatchException("Cannot cast from greater max-length to shorter max-length")
+            if sub.location == 'calldata':
+                return LLLnode.from_list(['with', '_pos', ['add', 4, sub],
+                                            ['with', '_len', ['ceil32', ['add', ['calldataload', '_pos'], 32]],
+                                                    ['seq', ['assert', ['lt', '_len', sub.typ.maxlen]],
+                                                            ['mstore', context.get_next_mem(), 32],
+                                                            ['calldatacopy', context.get_next_mem() + 32, '_pos', '_len'],
+                                                            ['return', context.get_next_mem(), ['add', '_len', 32]]]]], typ=None)
+            elif sub.location == 'memory':
+                return LLLnode.from_list(['with', '_loc', sub,
+                                            ['seq',
+                                                ['mstore', ['sub', '_loc', 32], 32],
+                                                ['return', ['sub', '_loc', 32], ['add', ['mload', sub], 32]]]], typ=None)
+            elif sub.location == 'storage':
+                raise Exception("not yet impl'd")
+            else:
+                raise Exception("Invalid location: %s" % sub.location)
         else:
-            raise TypeMismatchException("Unsupported type conversion: %r to %r" % (sub.typ, context.return_type))
+            raise TypeMismatchException("Can only return base type!")
     else:
         raise StructureException("Unsupported statement type")
