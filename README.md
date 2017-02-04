@@ -54,6 +54,7 @@ Note that not all programs that satisfy the following are valid; for example, th
         OR <unit> * <unit>
         OR <unit> / <unit>
     type = <basetype>
+        OR bytes <= <maxlen>
         OR {<membername>: <type>, <membername>: <type>, ...}
         OR <type>[<basetype>]
         OR <type>[<int>] # Integer must be nonzero positive
@@ -76,6 +77,7 @@ Note that not all programs that satisfy the following are valid; for example, th
 * `bytes32`: 32 bytes
 * `bool`: true or false
 * `type[length]`: finite list
+* `bytes <= maxlen`: a byte array with the given maximum length
 * `{base_type: type}`: map (can only be accessed, NOT iterated)
 * `[arg1(type), arg2(type)...]`: struct (can be accessed via struct.argname)
 
@@ -96,6 +98,7 @@ Code examples can be found in the `test_parser.py` file.
 * A mini-language for handling num256 and signed256 values and directly / unsafely using opcodes; will be useful for high-performance code segments
 * Support for sha3, sha256, ecrecover, etc
 * Smart optimizations, including compile-time computation of arithmetic and clamps, intelligently computing realistic variable ranges, etc
+* Basic byte array slicing, splicing and byte access
 
 ### Code example
 
