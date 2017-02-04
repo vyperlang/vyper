@@ -257,11 +257,17 @@ def parse_type(item, location):
     else:
         raise InvalidTypeException("Invalid type: %r" % ast.dump(item))
 
+# Rounds up to nearest 32, eg. 95 -> 96, 96 -> 96, 97 -> 128
+def ceil32(x):
+    return x + 31 - (x - 1) % 32
+
 # Gets the number of memory or storage keys needed to represent a given type
 def get_size_of_type(typ):
     if isinstance(typ, BaseType):
         return 1
-    if isinstance(typ, ListType):
+    elif isinstance(typ, ByteArrayType):
+        return ceil32(typ.maxlen) // 32 + 1
+    elif isinstance(typ, ListType):
         return get_size_of_type(typ.subtype) * typ.count
     elif isinstance(typ, MappingType):
         raise Exception("Type size infinite!")

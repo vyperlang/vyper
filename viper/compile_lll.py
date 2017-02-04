@@ -12,6 +12,8 @@ PUSH_OFFSET = 0x5f
 DUP_OFFSET = 0x7f
 SWAP_OFFSET = 0x8f
 
+FREE_VAR_SPACE = 192
+
 # Estimates gas consumption
 def gas_estimate(code, depth=0):
     if isinstance(code.value, int):
@@ -114,7 +116,7 @@ def compile_to_assembly(code, withargs={}, break_dest=None, height=0):
         # stack: memloc, startvalue, rounds
         o.extend(['DUP2', 'DUP4', 'MSTORE', 'ADD', start, 'JUMPDEST'])
         # stack: memloc, exit_index
-        o.extend(compile_to_assembly(code.args[3], withargs, (end, height + 1), height + 1))
+        o.extend(compile_to_assembly(code.args[3], withargs, (end, height + 2), height + 2))
         # stack: memloc, exit_index
         o.extend(['DUP2', 'MLOAD', 'PUSH1', 1, 'ADD', 'DUP1', 'DUP4', 'MSTORE'])
         # stack: len(loops), index memory address, new index
@@ -197,8 +199,14 @@ def compile_to_assembly(code, withargs={}, break_dest=None, height=0):
     # SHA3 a single value
     elif code.value == 'sha3_32':
         o = compile_to_assembly(code.args[0], withargs, break_dest, height)
-        o.extend(['PUSH1', 192, 'MSTORE', 'PUSH1', 192, 'PUSH1', 32, 'SHA3'])
+        o.extend(['PUSH1', FREE_VAR_SPACE, 'MSTORE', 'PUSH1', FREE_VAR_SPACE, 'PUSH1', 32, 'SHA3'])
         return o
+    # <= operator
+    elif code.value == 'le':
+        return compile_to_assembly(LLLnode.from_list(['iszero', ['gt', code.args[0], code.args[1]]]), withargs, break_dest, height)
+    # >= operator
+    elif code.value == 'ge':
+        return compile_to_assembly(LLLnode.from_list(['iszero', ['lt', code.args[0], code.args[1]]]), withargs, break_dest, height)
     # <= operator
     elif code.value == 'sle':
         return compile_to_assembly(LLLnode.from_list(['iszero', ['sgt', code.args[0], code.args[1]]]), withargs, break_dest, height)

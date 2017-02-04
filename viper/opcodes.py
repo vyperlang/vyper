@@ -80,5 +80,7 @@ pseudo_opcodes = {
     'SHA3_32': [None, 1, 1, 40],
     'SLE': [None, 2, 1, 10],
     'SGE': [None, 2, 1, 10],
+    'LE': [None, 2, 1, 10],
+    'GE': [None, 2, 1, 10],
     'CEIL32': [None, 1, 1, 20],
 }

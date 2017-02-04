@@ -90,7 +90,7 @@ class LLLnode():
             # Repeat statements: repeat <index_memloc> <startval> <rounds> <body>
             elif self.value == 'repeat':
                 if len(self.args[2].args) or not isinstance(self.args[2].value, int) or self.args[2].value <= 0:
-                    raise Exception("Number of times repeated must be a constant nonzero positive integer")
+                    raise Exception("Number of times repeated must be a constant nonzero positive integer: %r" % self.args[2])
                 if not self.args[0].valency:
                     raise Exception("First argument to repeat (memory location) cannot be zerovalent: %r" % self.args[0])
                 if not self.args[1].valency:
@@ -147,12 +147,15 @@ class LLLnode():
 DECIMAL_DIVISOR = 10000000000
 
 # Number of bytes in memory used for system purposes, not for variables
-RESERVED_MEMORY = 256
+RESERVED_MEMORY = 288
 ADDRSIZE_POS = 32
 MAXNUM_POS = 64
 MINNUM_POS = 96
 MAXDECIMAL_POS = 128
 MINDECIMAL_POS = 160
+FREE_VAR_SPACE = 192
+BLANK_SPACE = 224
+FREE_LOOP_INDEX = 256
 
 class VariableDeclarationException(Exception):
     pass
@@ -256,7 +259,7 @@ class Context():
         if not is_varname_valid(name):
             raise VariableDeclarationException("Variable name invalid or reserved: "+name)
         if name in self.vars or name in self.args or name in self.globals:
-            raise VariableDeclarationException("Duplicate variable name")
+            raise VariableDeclarationException("Duplicate variable name: %s" % name)
         pos = self.get_next_mem()
         self.vars[name] = pos, typ
         self.vars['_next_mem'] = pos + 32 * get_size_of_type(typ)
@@ -425,7 +428,7 @@ def parse_expr(expr, context):
             if dataloc >= 0:
                 data_decl = ['calldataload', dataloc]
             else:
-                data_decl = ['seq', ['codecopy', 192, ['sub', ['codesize'], -dataloc], 32], ['mload', 192]]
+                data_decl = ['seq', ['codecopy', FREE_VAR_SPACE, ['sub', ['codesize'], -dataloc], 32], ['mload', FREE_VAR_SPACE]]
             if is_base_type(typ, 'num'):
                 return LLLnode.from_list(['clamp', ['mload', MINNUM_POS], data_decl, ['mload', MAXNUM_POS]], typ=typ)
             elif is_base_type(typ, 'bool'):
@@ -496,7 +499,7 @@ def parse_expr(expr, context):
         left = parse_value_expr(expr.left, context)
         right = parse_value_expr(expr.right, context)
         if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
-            raise TypeMismatchException("Unsupported type for arithmetic op: "+typ)
+            raise TypeMismatchException("Unsupported types for arithmetic op: %r %r" % (left.typ, right.typ))
         ltyp, rtyp = left.typ.typ, right.typ.typ
         if isinstance(expr.op, (ast.Add, ast.Sub)):
             if left.typ.unit != right.typ.unit and left.typ.unit is not None and right.typ.unit is not None:
@@ -737,6 +740,53 @@ def make_setter(left, right, location):
             return LLLnode.from_list(['sstore', left, right], typ=None)
         elif location == 'memory':
             return LLLnode.from_list(['mstore', left, right], typ=None)
+    # Byte arrays
+    elif isinstance(left.typ, ByteArrayType):
+        if not isinstance(right.typ, (ByteArrayType, NullType)):
+            raise TypeMismatchException("Can only set a byte array to another byte array")
+        if isinstance(right.typ, ByteArrayType) and right.typ.maxlen > left.typ.maxlen:
+            raise TypeMismatchException("Cannot cast from greater max-length to shorter max-length")
+        # Copy over data
+        if isinstance(right.typ, NullType):
+            input_start = BLANK_SPACE
+            loader = 0
+            length = 0
+        elif right.location == "calldata":
+            # Location of where the input starts; placed into _pos
+            input_start = ['add', 4, right]
+            # Loads an individual slice of 32 bytes (mload(FREE_VAR_SPACE) = index)
+            loader = ['calldataload', ['add', '_pos', ['mul', 32, ['mload', FREE_LOOP_INDEX]]]]
+            # Loads the length of the new value
+            length = ['calldataload', '_pos']
+        elif right.location == "memory":
+            input_start = right
+            loader = ['mload', ['add', '_pos', ['mul', 32, ['mload', FREE_LOOP_INDEX]]]]
+            length = ['mload', '_pos']
+        elif right.location == "storage":
+            input_start = right
+            loader = ['sload', ['add', ['sha3_32', '_pos'], ['mload', FREE_LOOP_INDEX]]]
+            length = ['sload', ['sha3_32', '_pos']]
+        else:
+            raise Exception("Unsupported location:"+right.location)
+        # Where to paste it?
+        if left.location == "calldata":
+            raise TypeMismatchException("Cannot set a value in call data")
+        elif left.location == "memory":
+            setter = ['mstore', ['add', '_opos', ['mul', 32, ['mload', FREE_LOOP_INDEX]]], loader]
+        elif left.location == "storage":
+            setter = ['sstore', ['add', ['sha3_32', '_opos'], ['mload', FREE_LOOP_INDEX]], loader]
+        else:
+            raise Exception("Unsupported location:"+left.location)
+        max_roundcount = (right.typ.maxlen + 63) // 32 if isinstance(right.typ, ByteArrayType) else 1
+        actual_roundcount = ['div', ['add', length, 63], 32]
+        checker = ['if', ['ge', ['mload', FREE_LOOP_INDEX], '_actual_len'], 'break']
+        o = ['with', '_pos', input_start,
+                ['with', '_opos', left,
+                    ['with', '_actual_len', actual_roundcount,
+                        ['repeat', FREE_LOOP_INDEX, 0, max_roundcount,
+                            # ['seq', checker, setter]]]]]
+                            setter]]]]
+        return LLLnode.from_list(o, typ=None)
     # Can't copy mappings
     elif isinstance(left.typ, MappingType):
         raise TypeMismatchException("Cannot copy mappings; can only copy individual elements")
@@ -951,7 +1001,7 @@ def parse_stmt(stmt, context):
                 return LLLnode.from_list(['seq', ['mstore', 0, sub], ['return', 0, 32]], typ=None)
             elif is_base_type(sub.typ, 'num') and is_base_type(context.return_type, 'num256'):
                 return LLLnode.from_list(['seq', ['mstore', 0, sub],
-                                                 ['assert', ['iszero', ['lt', ['mload', 0], 0]]],
+                                                 ['assert', ['sge', ['mload', 0], 0]],
                                                  ['return', 0, 32]], typ=None)
             else:
                 raise TypeMismatchException("Unsupported type conversion: %r to %r" % (sub.typ, context.return_type))
@@ -964,7 +1014,7 @@ def parse_stmt(stmt, context):
             if sub.location == 'calldata':
                 return LLLnode.from_list(['with', '_pos', ['add', 4, sub],
                                             ['with', '_len', ['ceil32', ['add', ['calldataload', '_pos'], 32]],
-                                                    ['seq', ['assert', ['lt', '_len', sub.typ.maxlen]],
+                                                    ['seq', ['assert', ['le', ['calldataload', '_pos'], sub.typ.maxlen]],
                                                             ['mstore', context.get_next_mem(), 32],
                                                             ['calldatacopy', context.get_next_mem() + 32, '_pos', '_len'],
                                                             ['return', context.get_next_mem(), ['add', '_len', 32]]]]], typ=None)
@@ -972,9 +1022,23 @@ def parse_stmt(stmt, context):
                 return LLLnode.from_list(['with', '_loc', sub,
                                             ['seq',
                                                 ['mstore', ['sub', '_loc', 32], 32],
-                                                ['return', ['sub', '_loc', 32], ['add', ['mload', sub], 32]]]], typ=None)
+                                                ['return', ['sub', '_loc', 32], ['ceil32', ['add', ['mload', sub], 64]]]]], typ=None)
             elif sub.location == 'storage':
-                raise Exception("not yet impl'd")
+                loader = ['sload', ['add', ['sha3_32', '_pos'], ['mload', FREE_LOOP_INDEX]]]
+                length = ['sload', ['sha3_32', '_pos']]
+                setter = ['mstore', ['add', context.get_next_mem() + 32, ['mul', 32, ['mload', FREE_LOOP_INDEX]]], loader]
+                max_roundcount = (sub.typ.maxlen + 63) // 32
+                actual_roundcount = ['div', ['add', length, 63], 32]
+                checker = ['if', ['ge', ['mload', FREE_LOOP_INDEX], '_actual_len'], 'break']
+                o = ['with', '_pos', sub,
+                            ['with', '_actual_len', actual_roundcount,
+                                ['seq',
+                                    ['repeat', FREE_LOOP_INDEX, 0, max_roundcount,
+                                      # ['seq', checker, setter]]]]]
+                                      setter],
+                                    ['mstore', context.get_next_mem(), 32],
+                                    ['return', context.get_next_mem(), ['add', ['mul', '_actual_len', 32], 32]]]]]
+                return LLLnode.from_list(o, typ=None)
             else:
                 raise Exception("Invalid location: %s" % sub.location)
         else:

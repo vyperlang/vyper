@@ -963,3 +963,36 @@ must_fail("""
 def foo(x: num) -> bytes <= 75:
     return x
 """, TypeMismatchException)
+
+must_succeed("""
+def baa():
+    x: bytes <= 50
+""")
+
+must_fail("""
+def baa():
+    x: bytes <= 50
+    y: bytes <= 50
+    z = x + y
+""", TypeMismatchException)
+
+must_fail("""
+def baa():
+    x: bytes <= 50
+    y: num
+    y = x
+""", TypeMismatchException)
+
+must_fail("""
+def baa():
+    x: bytes <= 50
+    y: num
+    x = y
+""", TypeMismatchException)
+
+must_fail("""
+def baa():
+    x: bytes <= 50
+    y: bytes <= 60
+    x = y
+""", TypeMismatchException)
