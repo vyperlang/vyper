@@ -673,8 +673,12 @@ def parse_expr(expr, context):
             if not isinstance(sub.typ, ByteArrayType):
                 raise TypeMismatchException("Expecting a byte array for slice")
             start = parse_expr([k.value for k in expr.keywords if k.arg == 'start'][0], context)
+            if not is_base_type(start.typ, "num") or not are_units_compatible(start.typ, BaseType("num")):
+                raise TypeMismatchException("Type for slice start index must be a number")
             length_node = [k.value for k in expr.keywords if k.arg == 'len'][0]
             length = parse_expr(length_node, context)
+            if not is_base_type(length.typ, "num") or not are_units_compatible(length.typ, BaseType("num")):
+                raise TypeMismatchException("Type for slice length must be a number")
             placeholder_node = LLLnode.from_list(context.new_placeholder(sub.typ), typ=sub.typ, location='memory')
             copier = make_byte_array_copier(placeholder_node, sub, '_start', '_length')
             newmaxlen = length_node.n if isinstance(length_node, ast.Num) else sub.typ.maxlen
@@ -688,6 +692,20 @@ def parse_expr(expr, context):
                    ]]]
             return LLLnode.from_list(out, typ=ByteArrayType(newmaxlen), location='memory')
             raise Exception("Not yet impl'd")
+        elif isinstance(expr.func, ast.Name) and expr.func.id == "len":
+            if len(expr.args) != 1:
+                raise StructureException("Expecting only one non-keyword argument: the bytearray")
+            sub = parse_expr(expr.args[0], context)
+            if not isinstance(sub.typ, ByteArrayType):
+                raise TypeMismatchException("Slice argument must be byte array")
+            if sub.location == "calldata":
+                return LLLnode.from_list(['calldataload', ['add', 4, sub]], typ=BaseType('num'))
+            elif sub.location == "memory":
+                return LLLnode.from_list(['mload', sub], typ=BaseType('num'))
+            elif sub.location == "storage":
+                return LLLnode.from_list(['sload', ['sha3_32', sub]], typ=BaseType('num'))
+            else:
+                raise Exception("Unsupported location: %s" % sub.location)
         else:
             raise Exception("Unsupported operator: %r" % ast.dump(expr))
     elif isinstance(expr, ast.List):

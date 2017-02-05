@@ -1011,3 +1011,28 @@ must_fail("""
 def foo(inp: bytes <= 10) -> bytes <= 2:
     return slice(inp, start=2, len=3)
 """, TypeMismatchException)
+
+must_fail("""
+def foo(inp: num) -> bytes <= 3:
+    return slice(inp, start=2, len=3)
+""", TypeMismatchException)
+
+must_fail("""
+def foo(inp: bytes <= 10) -> bytes <= 3:
+    return slice(inp, start=block.timestamp, len=3)
+""", TypeMismatchException)
+
+must_fail("""
+def foo(inp: bytes <= 10) -> bytes <= 3:
+    return slice(inp, start=4.0, len=3)
+""", TypeMismatchException)
+
+must_succeed("""
+def foo(inp: bytes <= 10) -> num:
+    return len(inp)
+""")
+
+must_fail("""
+def foo(inp: num) -> num:
+    return len(inp)
+""", TypeMismatchException)
