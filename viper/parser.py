@@ -636,6 +636,7 @@ def parse_expr(expr, context):
             raise Exception("Only the 'not' unary operator is supported")
     # Function calls
     elif isinstance(expr, ast.Call):
+        # Floor, eg. 5.3 -> 5
         if isinstance(expr.func, ast.Name) and expr.func.id == 'floor':
             if len(expr.args) != 1:
                 raise StructureException("Floor expects 1 argument!")
@@ -646,6 +647,7 @@ def parse_expr(expr, context):
                 return LLLnode.from_list(['sdiv', sub, DECIMAL_DIVISOR], typ=BaseType('num', sub.typ.unit, sub.typ.positional))
             else:
                 raise TypeMismatchException("Bad type for argument to floor: %r" % sub.typ)
+        # Decimal, eg. 5 -> 5.0
         elif isinstance(expr.func, ast.Name) and expr.func.id == 'decimal':
             if len(expr.args) != 1:
                 raise StructureException("Decimal expects 1 argument!")
@@ -656,12 +658,14 @@ def parse_expr(expr, context):
                 return LLLnode.from_list(['mul', sub, DECIMAL_DIVISOR], typ=BaseType('decimal', sub.typ.unit, sub.typ.positional))
             else:
                 raise TypeMismatchException("Bad type for argument to decimal: %r" % sub.typ)
+        # Casts to simple number, eg. used for timestamps, currency values
         elif isinstance(expr.func, ast.Name) and expr.func.id == "as_number":
             sub = parse_value_expr(expr.args[0], context)
             if is_base_type(sub.typ, ('num', 'decimal')):
                 return LLLnode(value=sub.value, args=sub.args, typ=BaseType(sub.typ.typ, {}))
             else:
                 raise TypeMismatchException("as_number only accepts base types")
+        # Slice, eg. slice("mongoose", start=3, len=5) -> "goose"
         elif isinstance(expr.func, ast.Name) and expr.func.id == "slice":
             if len(expr.args) != 1:
                 raise StructureException("Expecting only one non-keyword argument: the bytearray")
@@ -672,15 +676,23 @@ def parse_expr(expr, context):
             sub = parse_expr(expr.args[0], context)
             if not isinstance(sub.typ, ByteArrayType):
                 raise TypeMismatchException("Expecting a byte array for slice")
+            # Expression representing where to start slicing
             start = parse_expr([k.value for k in expr.keywords if k.arg == 'start'][0], context)
             if not is_base_type(start.typ, "num") or not are_units_compatible(start.typ, BaseType("num")):
                 raise TypeMismatchException("Type for slice start index must be a number")
+            # AST node representing the length of the slice (kept around to
+            # later check if it is a number; if it is, we set the type of
+            # the result to have a shorter max length)
             length_node = [k.value for k in expr.keywords if k.arg == 'len'][0]
+            # Expression representing the length of the slice
             length = parse_expr(length_node, context)
             if not is_base_type(length.typ, "num") or not are_units_compatible(length.typ, BaseType("num")):
                 raise TypeMismatchException("Type for slice length must be a number")
+            # Node representing the position of the output in memory
             placeholder_node = LLLnode.from_list(context.new_placeholder(sub.typ), typ=sub.typ, location='memory')
+            # Copies over bytearray data
             copier = make_byte_array_copier(placeholder_node, sub, '_start', '_length')
+            # New maximum length in the type of the result
             newmaxlen = length_node.n if isinstance(length_node, ast.Num) else sub.typ.maxlen
             out = ['with', '_start', start,
                       ['with', '_length', length,
@@ -691,7 +703,7 @@ def parse_expr(expr, context):
                                ['add', placeholder_node, '_start']
                    ]]]
             return LLLnode.from_list(out, typ=ByteArrayType(newmaxlen), location='memory')
-            raise Exception("Not yet impl'd")
+        # Byte array length, eg. len("mongoose") -> 8
         elif isinstance(expr.func, ast.Name) and expr.func.id == "len":
             if len(expr.args) != 1:
                 raise StructureException("Expecting only one non-keyword argument: the bytearray")
@@ -706,8 +718,46 @@ def parse_expr(expr, context):
                 return LLLnode.from_list(['sload', ['sha3_32', sub]], typ=BaseType('num'))
             else:
                 raise Exception("Unsupported location: %s" % sub.location)
+        # Byte array concatenation, eg. concat("Mon", "goose") -> "Mongoose"
+        elif isinstance(expr.func, ast.Name) and expr.func.id == "concat":
+            args = [parse_expr(arg, context) for arg in expr.args]
+            for arg in args:
+                if not isinstance(arg.typ, ByteArrayType):
+                    raise TypeMismatchException("Concat expects byte arrays")
+            # Maximum length of the output
+            total_maxlen = sum([arg.typ.maxlen for arg in args])
+            # Node representing the position of the output in memory
+            placeholder = context.new_placeholder(ByteArrayType(total_maxlen))
+            # Object representing the output
+            seq = []
+            # For each argument we are concatenating...
+            for arg in args:
+                # Start pasting into a position the starts at zero, and keeps
+                # incrementing as we concatenate arguments
+                placeholder_node = LLLnode.from_list(['add', placeholder, '_poz'], typ=ByteArrayType(total_maxlen), location='memory')
+                # Get the length of the current argument
+                if arg.location == "calldata":
+                    length = LLLnode.from_list(['calldataload', ['add', 4, '_arg']], typ=BaseType('num'))
+                elif arg.location == "memory":
+                    length = LLLnode.from_list(['mload', '_arg'], typ=BaseType('num'))
+                elif arg.location == "storage":
+                    length = LLLnode.from_list(['sload', ['sha3_32', '_arg']], typ=BaseType('num'))
+                # Make a copier to copy over data from that argyument
+                seq.append(['with', '_arg', arg,
+                               ['seq',
+                                    make_byte_array_copier(placeholder_node, LLLnode.from_list('_arg', typ=arg.typ, location=arg.location), 0),
+                                    # Change the position to start at the correct
+                                    # place to paste the next value
+                                    ['set', '_poz', ['add', '_poz', length]]]])
+            # The position, after all arguments are processing, equals the total
+            # length. Paste this in to make the output a proper bytearray
+            seq.append(['mstore', placeholder, '_poz'])
+            # Memory location of the output
+            seq.append(placeholder)
+            return LLLnode.from_list(['with', '_poz', 0, ['seq'] + seq], typ=ByteArrayType(total_maxlen), location='memory')
         else:
             raise Exception("Unsupported operator: %r" % ast.dump(expr))
+    # List literals
     elif isinstance(expr, ast.List):
         if not len(expr.elts):
             raise StructureException("List must have elements")
@@ -720,6 +770,7 @@ def parse_expr(expr, context):
             elif len(o) > 1 and o[-1].typ != out_type:
                 out_type = MixedType()
         return LLLnode.from_list(["multi"] + o, typ=ListType(out_type, len(o)))
+    # Struct literals
     elif isinstance(expr, ast.Dict):
         o = {}
         members = {}
@@ -782,11 +833,11 @@ def base_type_conversion(orig, frm, to):
         raise TypeMismatchException("Typecasting from base type %r to %r unavailable" % (frm, to))
 
 # Copies byte array
-def make_byte_array_copier(destination, source, start_index=None, end_index=None):
+def make_byte_array_copier(destination, source, start_index=None, length_index=None):
     if not isinstance(source.typ, (ByteArrayType, NullType)):
         raise TypeMismatchException("Can only set a byte array to another byte array")
     if isinstance(source.typ, ByteArrayType) and source.typ.maxlen > destination.typ.maxlen:
-        raise TypeMismatchException("Cannot cast from greater max-length to shorter max-length")
+        raise TypeMismatchException("Cannot cast from greater max-length %d to shorter max-length %d" % (source.typ.maxlen, destination.typ.maxlen))
     # Copy over data
     if isinstance(source.typ, NullType):
         input_start = BLANK_SPACE
@@ -818,15 +869,25 @@ def make_byte_array_copier(destination, source, start_index=None, end_index=None
         setter = ['sstore', ['add', ['sha3_32', '_opos'], ['mload', FREE_LOOP_INDEX]], loader]
     else:
         raise Exception("Unsupported location:"+destination.location)
-    if end_index:
-        length = ['uclample', end_index, ['sub', length, start_index]]
-    if start_index:
-        if not end_index:
-            raise Exception("Cannot provide start index without end index")
+    # Set the length, and check that the length is short enough
+    if length_index:
+        assert start_index is not None
+        length = ['uclample', length_index, ['sub', length, start_index]]
+    if start_index is not None and length_index is None:
+        length = ['uclample', ['sub', length, start_index], length]
+    # Maximum theoretical round count as allowed by the byte array types
     max_roundcount = (source.typ.maxlen + 63) // 32 if isinstance(source.typ, ByteArrayType) else 1
-    actual_start = ['div', ['add', start_index, 32], 32] if start_index else 0
-    actual_end = ['div', ['add', ['add', start_index, length], 63], 32] if start_index else ['div', ['add', length, 63], 32]
+    # The actual indices to start copying and end copying
+    # eg. actual_start = 5, actual_end = 8, means copy 5, 6, 7
+    if start_index is not None:
+        actual_start = ['div', ['add', start_index, 32], 32]
+        actual_end = ['div', ['add', ['add', start_index, length], 63], 32]
+    else:
+        actual_start = 0
+        actual_end = ['div', ['add', length, 63], 32]
+    # Check for the actual end
     checker = ['if', ['ge', ['mload', FREE_LOOP_INDEX], '_actual_len'], 'break']
+    # Make a loop to do the copying
     o = ['with', '_pos', input_start,
             ['with', '_opos', destination,
                 ['with', '_actual_len', actual_end,
@@ -1072,6 +1133,7 @@ def parse_stmt(stmt, context):
             if sub.typ.maxlen > context.return_type.maxlen:
                 raise TypeMismatchException("Cannot cast from greater max-length %d to shorter max-length %d" %
                                             (sub.typ.maxlen, context.return_type.maxlen))
+            # Copying from calldata
             if sub.location == 'calldata':
                 return LLLnode.from_list(['with', '_pos', ['add', 4, sub],
                                             ['with', '_len', ['ceil32', ['add', ['calldataload', '_pos'], 32]],
@@ -1079,11 +1141,13 @@ def parse_stmt(stmt, context):
                                                             ['mstore', context.get_next_mem(), 32],
                                                             ['calldatacopy', context.get_next_mem() + 32, '_pos', '_len'],
                                                             ['return', context.get_next_mem(), ['add', '_len', 32]]]]], typ=None)
+            # Returning something already in memory
             elif sub.location == 'memory':
                 return LLLnode.from_list(['with', '_loc', sub,
                                             ['seq',
                                                 ['mstore', ['sub', '_loc', 32], 32],
                                                 ['return', ['sub', '_loc', 32], ['ceil32', ['add', ['mload', sub], 64]]]]], typ=None)
+            # Copying from storage
             elif sub.location == 'storage':
                 # Instantiate a byte array at some index
                 fake_byte_array = LLLnode(context.get_next_mem() + 32, typ=sub.typ, location='memory')

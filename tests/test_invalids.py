@@ -1036,3 +1036,28 @@ must_fail("""
 def foo(inp: num) -> num:
     return len(inp)
 """, TypeMismatchException)
+
+must_succeed("""
+def cat(i1: bytes <= 10, i2: bytes <= 30) -> bytes <= 40:
+    return concat(i1, i2)
+""")
+
+must_succeed("""
+def cat(i1: bytes <= 10, i2: bytes <= 30) -> bytes <= 40:
+    return concat(i1, i1, i1, i1)
+""")
+
+must_succeed("""
+def cat(i1: bytes <= 10, i2: bytes <= 30) -> bytes <= 40:
+    return concat(i1, i1)
+""")
+
+must_fail("""
+def cat(i1: bytes <= 10, i2: bytes <= 30) -> bytes <= 40:
+    return concat(i1, i2, i1, i1)
+""", TypeMismatchException)
+
+must_fail("""
+def cat(i1: bytes <= 10, i2: bytes <= 30) -> bytes <= 40:
+    return concat(i1, 5)
+""", TypeMismatchException)

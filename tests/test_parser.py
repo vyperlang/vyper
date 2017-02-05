@@ -1058,3 +1058,32 @@ def foo(inp: bytes <= 10) -> num:
 c = s.abi_contract(test_length, language='viper')
 assert c.foo("badminton") == 954, c.foo("badminton")
 print('Passed length test')
+
+test_concat = """
+def foo2(input1: bytes <= 50, input2: bytes <= 50) -> bytes <= 1000:
+    return concat(input1, input2)
+
+def foo3(input1: bytes <= 50, input2: bytes <= 50, input3: bytes <= 50) -> bytes <= 1000:
+    return concat(input1, input2, input3)
+"""
+
+c = s.abi_contract(test_concat, language='viper')
+assert c.foo2("h", "orse") == b"horse"
+assert c.foo2("h", "") == b"h"
+assert c.foo2("", "") == b""
+assert c.foo2("", "orse") == b"orse"
+assert c.foo3("Buffalo", " ", "buffalo") == b"Buffalo buffalo"
+assert c.foo2("\x36", "\x35" * 32) == b"\x36" + b"\x35" * 32
+assert c.foo2("\x36" * 48, "\x35" * 32) == b"\x36" * 48 + b"\x35" * 32
+assert c.foo3("horses" * 4, "mice" * 7, "crows" * 10) == b"horses" * 4 + b"mice" * 7 + b"crows" * 10
+print('Passed simple concat test')
+
+test_concat2 = """
+def foo(inp: bytes <= 50) -> bytes <= 1000:
+    x = inp
+    return concat(x, inp, x, inp, x, inp, x, inp, x, inp)
+"""
+
+c = s.abi_contract(test_concat2, language='viper')
+assert c.foo("horse" * 9 + "viper") == (b"horse" * 9 + b"viper") * 10
+print('Passed second concat test')

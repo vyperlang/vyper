@@ -84,4 +84,5 @@ pseudo_opcodes = {
     'LE': [None, 2, 1, 10],
     'GE': [None, 2, 1, 10],
     'CEIL32': [None, 1, 1, 20],
+    'SET': [None, 2, 0, 20],
 }
