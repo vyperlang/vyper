@@ -996,3 +996,18 @@ def baa():
     y: bytes <= 60
     x = y
 """, TypeMismatchException)
+
+must_succeed("""
+def foo(inp: bytes <= 10) -> bytes <= 3:
+    return slice(inp, start=2, len=3)
+""")
+
+must_succeed("""
+def foo(inp: bytes <= 10) -> bytes <= 4:
+    return slice(inp, start=2, len=3)
+""")
+
+must_fail("""
+def foo(inp: bytes <= 10) -> bytes <= 2:
+    return slice(inp, start=2, len=3)
+""", TypeMismatchException)

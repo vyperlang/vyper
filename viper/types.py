@@ -266,7 +266,7 @@ def get_size_of_type(typ):
     if isinstance(typ, BaseType):
         return 1
     elif isinstance(typ, ByteArrayType):
-        return ceil32(typ.maxlen) // 32 + 1
+        return ceil32(typ.maxlen) // 32 + 2
     elif isinstance(typ, ListType):
         return get_size_of_type(typ.subtype) * typ.count
     elif isinstance(typ, MappingType):

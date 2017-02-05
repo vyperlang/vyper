@@ -110,8 +110,8 @@ def compile_to_assembly(code, withargs={}, break_dest=None, height=0):
         o = []
         loops = num_to_bytearray(code.args[2].value) or [2]
         start, end = mksymbol(), mksymbol()
-        o.extend(compile_to_assembly(code.args[0]))
-        o.extend(compile_to_assembly(code.args[1]))
+        o.extend(compile_to_assembly(code.args[0], withargs, break_dest, height))
+        o.extend(compile_to_assembly(code.args[1], withargs, break_dest, height + 1))
         o.extend(['PUSH'+str(len(loops))] + loops)
         # stack: memloc, startvalue, rounds
         o.extend(['DUP2', 'DUP4', 'MSTORE', 'ADD', start, 'JUMPDEST'])
@@ -170,7 +170,7 @@ def compile_to_assembly(code, withargs={}, break_dest=None, height=0):
         o.extend(['ISZERO', 'PC', 'JUMPI'])
         return o
     # Unsigned clamp, check less-than
-    elif code.value == 'uclamplt':
+    elif code.value == 'uclamplt' or code.value == 'uclample':
         if isinstance(code.args[0].value, int) and isinstance(code.args[1].value, int):
             if 0 <= code.args[0].value < code.args[1].value:
                 return compile_to_assembly(code.args[0], withargs, break_dest, height)
@@ -180,7 +180,10 @@ def compile_to_assembly(code, withargs={}, break_dest=None, height=0):
         o.extend(compile_to_assembly(code.args[1], withargs, break_dest, height + 1))
         o.extend(['DUP2'])
         # Stack: num num bound
-        o.extend(['LT', 'ISZERO', 'PC', 'JUMPI'])
+        if code.value == 'uclamplt':
+            o.extend(['LT', 'ISZERO', 'PC', 'JUMPI'])
+        else:
+            o.extend(['GT', 'PC', 'JUMPI'])
         return o
     # Signed clamp, check against upper and lower bounds
     elif code.value == 'clamp':

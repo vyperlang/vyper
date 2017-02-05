@@ -147,7 +147,7 @@ class LLLnode():
 DECIMAL_DIVISOR = 10000000000
 
 # Number of bytes in memory used for system purposes, not for variables
-RESERVED_MEMORY = 288
+RESERVED_MEMORY = 320
 ADDRSIZE_POS = 32
 MAXNUM_POS = 64
 MINNUM_POS = 96
@@ -254,6 +254,7 @@ class Context():
         self.forvars = forvars or {}
         self.return_type = return_type
         self.is_constant = is_constant
+        self.placeholder_count = 1
 
     def new_variable(self, name, typ):
         if not is_varname_valid(name):
@@ -264,6 +265,11 @@ class Context():
         self.vars[name] = pos, typ
         self.vars['_next_mem'] = pos + 32 * get_size_of_type(typ)
         return pos
+
+    def new_placeholder(self, typ):
+        name = '_placeholder_'+str(self.placeholder_count)
+        self.placeholder_count += 1
+        return self.new_variable(name, typ)
 
     def get_next_mem(self):
         return self.vars.get('_next_mem', RESERVED_MEMORY)
@@ -656,6 +662,32 @@ def parse_expr(expr, context):
                 return LLLnode(value=sub.value, args=sub.args, typ=BaseType(sub.typ.typ, {}))
             else:
                 raise TypeMismatchException("as_number only accepts base types")
+        elif isinstance(expr.func, ast.Name) and expr.func.id == "slice":
+            if len(expr.args) != 1:
+                raise StructureException("Expecting only one non-keyword argument: the bytearray")
+            if len(expr.keywords) != 2:
+                raise StructureException("Expecting two keyword arguments: start and len")
+            if set((expr.keywords[0].arg, expr.keywords[1].arg)) != set(('start', 'len')):
+                raise StructureException("Expecting two keyword arguments: start and len")
+            sub = parse_expr(expr.args[0], context)
+            if not isinstance(sub.typ, ByteArrayType):
+                raise TypeMismatchException("Expecting a byte array for slice")
+            start = parse_expr([k.value for k in expr.keywords if k.arg == 'start'][0], context)
+            length_node = [k.value for k in expr.keywords if k.arg == 'len'][0]
+            length = parse_expr(length_node, context)
+            placeholder_node = LLLnode.from_list(context.new_placeholder(sub.typ), typ=sub.typ, location='memory')
+            copier = make_byte_array_copier(placeholder_node, sub, '_start', '_length')
+            newmaxlen = length_node.n if isinstance(length_node, ast.Num) else sub.typ.maxlen
+            out = ['with', '_start', start,
+                      ['with', '_length', length,
+                          ['seq',
+                               ['assert', ['lt', ['add', '_start', '_length'], sub.typ.maxlen]],
+                               copier,
+                               ['mstore', ['add', placeholder_node, '_start'], '_length'],
+                               ['add', placeholder_node, '_start']
+                   ]]]
+            return LLLnode.from_list(out, typ=ByteArrayType(newmaxlen), location='memory')
+            raise Exception("Not yet impl'd")
         else:
             raise Exception("Unsupported operator: %r" % ast.dump(expr))
     elif isinstance(expr, ast.List):
@@ -731,6 +763,60 @@ def base_type_conversion(orig, frm, to):
     else:
         raise TypeMismatchException("Typecasting from base type %r to %r unavailable" % (frm, to))
 
+# Copies byte array
+def make_byte_array_copier(destination, source, start_index=None, end_index=None):
+    if not isinstance(source.typ, (ByteArrayType, NullType)):
+        raise TypeMismatchException("Can only set a byte array to another byte array")
+    if isinstance(source.typ, ByteArrayType) and source.typ.maxlen > destination.typ.maxlen:
+        raise TypeMismatchException("Cannot cast from greater max-length to shorter max-length")
+    # Copy over data
+    if isinstance(source.typ, NullType):
+        input_start = BLANK_SPACE
+        loader = 0
+        length = 0
+    elif source.location == "calldata":
+        # Location of where the input starts; placed into _pos
+        input_start = ['add', 4, source]
+        # Loads an individual slice of 32 bytes (mload(FREE_VAR_SPACE) = index)
+        loader = ['calldataload', ['add', '_pos', ['mul', 32, ['mload', FREE_LOOP_INDEX]]]]
+        # Loads the length of the new value
+        length = ['calldataload', '_pos']
+    elif source.location == "memory":
+        input_start = source
+        loader = ['mload', ['add', '_pos', ['mul', 32, ['mload', FREE_LOOP_INDEX]]]]
+        length = ['mload', '_pos']
+    elif source.location == "storage":
+        input_start = source
+        loader = ['sload', ['add', ['sha3_32', '_pos'], ['mload', FREE_LOOP_INDEX]]]
+        length = ['sload', ['sha3_32', '_pos']]
+    else:
+        raise Exception("Unsupported location:"+source.location)
+    # Where to paste it?
+    if destination.location == "calldata":
+        raise TypeMismatchException("Cannot set a value in call data")
+    elif destination.location == "memory":
+        setter = ['mstore', ['add', '_opos', ['mul', 32, ['mload', FREE_LOOP_INDEX]]], loader]
+    elif destination.location == "storage":
+        setter = ['sstore', ['add', ['sha3_32', '_opos'], ['mload', FREE_LOOP_INDEX]], loader]
+    else:
+        raise Exception("Unsupported location:"+destination.location)
+    if end_index:
+        length = ['uclample', end_index, ['sub', length, start_index]]
+    if start_index:
+        if not end_index:
+            raise Exception("Cannot provide start index without end index")
+    max_roundcount = (source.typ.maxlen + 63) // 32 if isinstance(source.typ, ByteArrayType) else 1
+    actual_start = ['div', ['add', start_index, 32], 32] if start_index else 0
+    actual_end = ['div', ['add', ['add', start_index, length], 63], 32] if start_index else ['div', ['add', length, 63], 32]
+    checker = ['if', ['ge', ['mload', FREE_LOOP_INDEX], '_actual_len'], 'break']
+    o = ['with', '_pos', input_start,
+            ['with', '_opos', destination,
+                ['with', '_actual_len', actual_end,
+                    ['repeat', FREE_LOOP_INDEX, actual_start, max_roundcount,
+                        ['seq', checker, setter]]]]]
+    return LLLnode.from_list(o, typ=None)
+
+
 # Create an x=y statement, where the types may be compound
 def make_setter(left, right, location):
     # Basic types
@@ -742,51 +828,7 @@ def make_setter(left, right, location):
             return LLLnode.from_list(['mstore', left, right], typ=None)
     # Byte arrays
     elif isinstance(left.typ, ByteArrayType):
-        if not isinstance(right.typ, (ByteArrayType, NullType)):
-            raise TypeMismatchException("Can only set a byte array to another byte array")
-        if isinstance(right.typ, ByteArrayType) and right.typ.maxlen > left.typ.maxlen:
-            raise TypeMismatchException("Cannot cast from greater max-length to shorter max-length")
-        # Copy over data
-        if isinstance(right.typ, NullType):
-            input_start = BLANK_SPACE
-            loader = 0
-            length = 0
-        elif right.location == "calldata":
-            # Location of where the input starts; placed into _pos
-            input_start = ['add', 4, right]
-            # Loads an individual slice of 32 bytes (mload(FREE_VAR_SPACE) = index)
-            loader = ['calldataload', ['add', '_pos', ['mul', 32, ['mload', FREE_LOOP_INDEX]]]]
-            # Loads the length of the new value
-            length = ['calldataload', '_pos']
-        elif right.location == "memory":
-            input_start = right
-            loader = ['mload', ['add', '_pos', ['mul', 32, ['mload', FREE_LOOP_INDEX]]]]
-            length = ['mload', '_pos']
-        elif right.location == "storage":
-            input_start = right
-            loader = ['sload', ['add', ['sha3_32', '_pos'], ['mload', FREE_LOOP_INDEX]]]
-            length = ['sload', ['sha3_32', '_pos']]
-        else:
-            raise Exception("Unsupported location:"+right.location)
-        # Where to paste it?
-        if left.location == "calldata":
-            raise TypeMismatchException("Cannot set a value in call data")
-        elif left.location == "memory":
-            setter = ['mstore', ['add', '_opos', ['mul', 32, ['mload', FREE_LOOP_INDEX]]], loader]
-        elif left.location == "storage":
-            setter = ['sstore', ['add', ['sha3_32', '_opos'], ['mload', FREE_LOOP_INDEX]], loader]
-        else:
-            raise Exception("Unsupported location:"+left.location)
-        max_roundcount = (right.typ.maxlen + 63) // 32 if isinstance(right.typ, ByteArrayType) else 1
-        actual_roundcount = ['div', ['add', length, 63], 32]
-        checker = ['if', ['ge', ['mload', FREE_LOOP_INDEX], '_actual_len'], 'break']
-        o = ['with', '_pos', input_start,
-                ['with', '_opos', left,
-                    ['with', '_actual_len', actual_roundcount,
-                        ['repeat', FREE_LOOP_INDEX, 0, max_roundcount,
-                            # ['seq', checker, setter]]]]]
-                            setter]]]]
-        return LLLnode.from_list(o, typ=None)
+        return make_byte_array_copier(left, right)
     # Can't copy mappings
     elif isinstance(left.typ, MappingType):
         raise TypeMismatchException("Cannot copy mappings; can only copy individual elements")
@@ -1010,7 +1052,8 @@ def parse_stmt(stmt, context):
             if not isinstance(context.return_type, ByteArrayType):
                 raise TypeMismatchException("Trying to return base type %r, output expecting %r" % (sub.typ, context.return_type))
             if sub.typ.maxlen > context.return_type.maxlen:
-                raise TypeMismatchException("Cannot cast from greater max-length to shorter max-length")
+                raise TypeMismatchException("Cannot cast from greater max-length %d to shorter max-length %d" %
+                                            (sub.typ.maxlen, context.return_type.maxlen))
             if sub.location == 'calldata':
                 return LLLnode.from_list(['with', '_pos', ['add', 4, sub],
                                             ['with', '_len', ['ceil32', ['add', ['calldataload', '_pos'], 32]],
@@ -1024,20 +1067,15 @@ def parse_stmt(stmt, context):
                                                 ['mstore', ['sub', '_loc', 32], 32],
                                                 ['return', ['sub', '_loc', 32], ['ceil32', ['add', ['mload', sub], 64]]]]], typ=None)
             elif sub.location == 'storage':
-                loader = ['sload', ['add', ['sha3_32', '_pos'], ['mload', FREE_LOOP_INDEX]]]
-                length = ['sload', ['sha3_32', '_pos']]
-                setter = ['mstore', ['add', context.get_next_mem() + 32, ['mul', 32, ['mload', FREE_LOOP_INDEX]]], loader]
-                max_roundcount = (sub.typ.maxlen + 63) // 32
-                actual_roundcount = ['div', ['add', length, 63], 32]
-                checker = ['if', ['ge', ['mload', FREE_LOOP_INDEX], '_actual_len'], 'break']
-                o = ['with', '_pos', sub,
-                            ['with', '_actual_len', actual_roundcount,
-                                ['seq',
-                                    ['repeat', FREE_LOOP_INDEX, 0, max_roundcount,
-                                      # ['seq', checker, setter]]]]]
-                                      setter],
-                                    ['mstore', context.get_next_mem(), 32],
-                                    ['return', context.get_next_mem(), ['add', ['mul', '_actual_len', 32], 32]]]]]
+                # Instantiate a byte array at some index
+                fake_byte_array = LLLnode(context.get_next_mem() + 32, typ=sub.typ, location='memory')
+                o = ['seq',
+                        # Copy the data to this byte array
+                        make_byte_array_copier(fake_byte_array, sub),
+                        # Store the number 32 before it for ABI formatting purposes
+                        ['mstore', context.get_next_mem(), 32],
+                        # Return it
+                        ['return', context.get_next_mem(), ['add', ['ceil32', ['mload', context.get_next_mem() + 32]], 64]]]
                 return LLLnode.from_list(o, typ=None)
             else:
                 raise Exception("Invalid location: %s" % sub.location)

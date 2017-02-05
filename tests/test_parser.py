@@ -950,3 +950,99 @@ assert c.check1() == b"badminton"
 assert c.check2() == b"fluffysheep"
 
 print('Passed string struct test')
+
+test_slice = """
+def foo(inp1: bytes <= 10) -> bytes <= 3:
+    x = 5
+    s = slice(inp1, start=3, len=3)
+    y = 7
+    return s
+
+def bar(inp1: bytes <= 10) -> num:
+    x = 5
+    s = slice(inp1, start=3, len=3)
+    y = 7
+    return x * y
+"""
+
+c = s.abi_contract(test_slice, language='viper')
+x = c.foo("badminton")
+assert x == b"min", x
+
+assert c.bar("badminton") == 35
+
+print('Passed slice test')
+
+test_slice2 = """
+def slice_tower_test(inp1: bytes <= 50) -> bytes <= 50:
+    inp = inp1
+    for i in range(1, 11):
+        inp = slice(inp, start=1, len=30 - i * 2)
+    return inp
+"""
+
+c = s.abi_contract(test_slice2, language='viper')
+x = c.slice_tower_test("abcdefghijklmnopqrstuvwxyz1234")
+assert x == b"klmnopqrst"
+
+print('Passed advanced slice test')
+
+test_slice3 = """
+x: num
+s: bytes <= 50
+y: num
+def foo(inp1: bytes <= 50) -> bytes <= 50:
+    self.x = 5
+    self.s = slice(inp1, start=3, len=3)
+    self.y = 7
+    return self.s
+
+def bar(inp1: bytes <= 50) -> num:
+    self.x = 5
+    self.s = slice(inp1, start=3, len=3)
+    self.y = 7
+    return self.x * self.y
+"""
+
+c = s.abi_contract(test_slice3, language='viper')
+x = c.foo("badminton")
+assert x == b"min", x
+
+assert c.bar("badminton") == 35
+
+print('Passed storage slice test')
+
+test_slice4 = """
+def foo(inp: bytes <= 10, start: num, len: num) -> bytes <= 10:
+    return slice(inp, start=start, len=len)
+"""
+
+c = s.abi_contract(test_slice4, language='viper')
+assert c.foo("badminton", 3, 3) == b"min"
+assert c.foo("badminton", 0, 9) == b"badminton"
+assert c.foo("badminton", 1, 8) == b"adminton"
+assert c.foo("badminton", 1, 7) == b"adminto"
+assert c.foo("badminton", 1, 0) == b""
+assert c.foo("badminton", 9, 0) == b""
+try:
+    c.foo("badminton", 0, 10)
+    assert False
+except:
+    pass
+try:
+    c.foo("badminton", 1, 9)
+    assert False
+except:
+    pass
+try:
+    c.foo("badminton", 9, 1)
+    assert False
+except:
+    pass
+try:
+    c.foo("badminton", 10, 0)
+    assert False
+except:
+    pass
+
+print('Passed slice edge case test')
