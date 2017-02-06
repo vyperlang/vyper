@@ -785,6 +785,34 @@ def parse_expr(expr, context):
             # Memory location of the output
             seq.append(placeholder)
             return LLLnode.from_list(['with', '_poz', 0, ['seq'] + seq], typ=ByteArrayType(total_maxlen), location='memory')
+        # SHA3 hashing
+        elif isinstance(expr.func, ast.Name) and expr.func.id == "sha3":
+            if len(expr.args) != 1:
+                raise StructureException("Expecting only one non-keyword argument: the input")
+            sub = parse_expr(expr.args[0], context)
+            # Can hash bytes32 objects
+            if is_base_type(sub.typ, 'bytes32'):
+                return LLLnode.from_list(['seq', ['mstore', FREE_VAR_SPACE, sub], ['sha3', FREE_VAR_SPACE, 32]], typ=BaseType('bytes32'))
+            # Can only hash bytes32 objects and byte arrays
+            if not isinstance(sub.typ, ByteArrayType):
+                raise TypeMismatchException("SHA3 argument must be byte array")
+            # Copy the data to an in-memory array
+            if sub.location == "calldata":
+                lengetter = LLLnode.from_list(['calldataload', ['add', 4, '_sub']], typ=BaseType('num'))
+            elif sub.location == "memory":
+                # If we are hashing a value in memory, no need to copy it, just hash in-place
+                return LLLnode.from_list(['with', '_sub', sub, ['sha3', ['add', '_sub', 32], ['mload', '_sub']]], typ=BaseType('bytes32'))
+            elif sub.location == "storage":
+                lengetter = LLLnode.from_list(['sload', ['sha3_32', '_sub']], typ=BaseType('num'))
+            else:
+                raise Exception("Unsupported location: %s" % sub.location)
+            placeholder = context.new_placeholder(sub.typ)
+            placeholder_node = LLLnode.from_list(placeholder, typ=sub.typ, location='memory')
+            copier = make_byte_array_copier(placeholder_node, LLLnode.from_list('_sub', typ=sub.typ, location=sub.location))
+            return LLLnode.from_list(['with', '_sub', sub,
+                                        ['seq',
+                                            copier,
+                                            ['sha3', ['add', placeholder, 32], lengetter]]], typ=BaseType('bytes32'))
         else:
             raise Exception("Unsupported operator: %r" % ast.dump(expr))
     # List literals

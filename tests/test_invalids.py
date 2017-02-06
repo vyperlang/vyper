@@ -1112,3 +1112,23 @@ must_succeed("""
 def foo():
     x = "¡très bien!"
 """)
+
+must_succeed("""
+def foo():
+    x = sha3("moose")
+""")
+
+must_succeed("""
+def foo():
+    x = sha3(0x1234567890123456789012345678901234567890123456789012345678901234)
+""")
+
+must_fail("""
+def foo():
+    x = sha3("moose", 3)
+""", StructureException)
+
+must_fail("""
+def foo():
+    x = sha3(3)
+""", TypeMismatchException)
