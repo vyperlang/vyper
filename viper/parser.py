@@ -166,6 +166,9 @@ class StructureException(Exception):
 class ConstancyViolationException(Exception):
     pass
 
+class InvalidLiteralException(Exception):
+    pass
+
 # Parse top-level functions and variables
 def get_defs_and_globals(code):
     _globals = {}
@@ -247,7 +250,7 @@ def get_func_details(code):
 
 # Contains arguments, variables, etc
 class Context():
-    def __init__(self, args=None, vars=None, globals=None, forvars=None, return_type=None, is_constant=False):
+    def __init__(self, args=None, vars=None, globals=None, forvars=None, return_type=None, is_constant=False, origcode=''):
         self.args = args or {}
         self.vars = vars or {}
         self.globals = globals or {}
@@ -255,6 +258,7 @@ class Context():
         self.return_type = return_type
         self.is_constant = is_constant
         self.placeholder_count = 1
+        self.origcode = origcode
 
     def new_variable(self, name, typ):
         if not is_varname_valid(name):
@@ -278,21 +282,6 @@ class Context():
 def is_initializer(code):
     return code.name == '__init__'
 
-# Parses a function declaration
-def parse_func(code, _globals, _vars=None):
-    name, args, output_type, const, sig, method_id = get_func_details(code)
-    for arg in args:
-        if arg[0] in _globals:
-            raise VariableDeclarationException("Variable name duplicated between function arguments and globals: "+arg[0])
-    context = Context(args={a[0]: (a[1], a[2]) for a in args}, globals=_globals, vars=_vars or {}, return_type=output_type, is_constant=const)
-    if name == '__init__':
-        return parse_body(code.body, context)
-    else:
-        return LLLnode.from_list(['if',
-                                    ['eq', ['mload', 0], method_id],
-                                    ['seq'] + [parse_body(c, context) for c in code.body]
-                                 ], typ=None)
-
 # Get ABI signature
 def mk_full_signature(code):
     o = []
@@ -309,7 +298,7 @@ def mk_full_signature(code):
     return o
         
 # Main python parse tree => LLL method
-def parse_tree_to_lll(code):
+def parse_tree_to_lll(code, origcode):
     _defs, _globals = get_defs_and_globals(code)
     if len(set([_def.name for _def in _defs])) < len(_defs):
         raise VariableDeclarationException("Duplicate function name!")
@@ -320,13 +309,30 @@ def parse_tree_to_lll(code):
     if not initfunc and not otherfuncs:
         return LLLnode.from_list('pass')
     if not initfunc and otherfuncs:
-        return LLLnode.from_list(['return', 0, ['lll', ['seq', mk_initial()] + [parse_func(_def, _globals) for _def in otherfuncs], 0]], typ=None)
+        return LLLnode.from_list(['return', 0, ['lll', ['seq', mk_initial()] + [parse_func(_def, _globals, origcode) for _def in otherfuncs], 0]], typ=None)
     elif initfunc and not otherfuncs:
-        return LLLnode.from_list(['seq', mk_initial(), parse_func(initfunc[0], _globals), ['selfdestruct']], typ=None)
+        return LLLnode.from_list(['seq', mk_initial(), parse_func(initfunc[0], _globals, origcode), ['selfdestruct']], typ=None)
     elif initfunc and otherfuncs:
-        return LLLnode.from_list(['seq', mk_initial(), parse_func(initfunc[0], _globals),
-                                    ['return', 0, ['lll', ['seq', mk_initial()] + [parse_func(_def, _globals) for _def in otherfuncs], 0]]],
+        return LLLnode.from_list(['seq', mk_initial(), parse_func(initfunc[0], _globals, origcode),
+                                    ['return', 0, ['lll', ['seq', mk_initial()] + [parse_func(_def, _globals, origcode) for _def in otherfuncs], 0]]],
                                  typ=None)
+
+# Parses a function declaration
+def parse_func(code, _globals, origcode, _vars=None):
+    assert isinstance(origcode, str)
+    name, args, output_type, const, sig, method_id = get_func_details(code)
+    for arg in args:
+        if arg[0] in _globals:
+            raise VariableDeclarationException("Variable name duplicated between function arguments and globals: "+arg[0])
+    context = Context(args={a[0]: (a[1], a[2]) for a in args}, globals=_globals, vars=_vars or {},
+                      return_type=output_type, is_constant=const, origcode=origcode)
+    if name == '__init__':
+        return parse_body(code.body, context)
+    else:
+        return LLLnode.from_list(['if',
+                                    ['eq', ['mload', 0], method_id],
+                                    ['seq'] + [parse_body(c, context) for c in code.body]
+                                 ], typ=None)
     
 # Parse a piece of code
 def parse_body(code, context):
@@ -387,28 +393,40 @@ def add_variable_offset(parent, key):
     else:
         raise TypeMismatchException("Cannot access the child of a constant variable!")
 
+# Is a number of decimal form (eg. 65281) or 0x form (eg. 0xff01)
+def get_length_if_0x_prefixed(expr, context):
+    context_slice = context.origcode.splitlines()[expr.lineno - 1][expr.col_offset:]
+    if context_slice[:2] != '0x':
+        return None
+    t = 0
+    while t + 2 < len(context_slice) and context_slice[t + 2] in '0123456789abcdefABCDEF':
+        t += 1
+    return t
+
 # Parse an expression
 def parse_expr(expr, context):
     if isinstance(expr, LLLnode):
         return expr
     # Numbers (integers or decimals)
     elif isinstance(expr, ast.Num):
-        if isinstance(expr.n, int):
+        L = get_length_if_0x_prefixed(expr, context)
+        if L is None and isinstance(expr.n, int):
             if not (-2**127 + 1 <= expr.n <= 2**127 - 1):
-                raise Exception("Number out of range: "+str(expr.n))
+                raise InvalidLiteralException("Number out of range: "+str(expr.n))
             return LLLnode.from_list(expr.n, typ=BaseType('num', None))
         elif isinstance(expr.n, float):
             if not (-2**127 + 1 <= expr.n <= 2**127 - 1):
-                raise Exception("Number out of range: "+str(expr.n))
+                raise InvalidLiteralException("Number out of range: "+str(expr.n))
             return LLLnode.from_list(int(expr.n * DECIMAL_DIVISOR), typ=BaseType('decimal', None))
-    # Addresses and bytes32 objects
-    elif isinstance(expr, ast.Str):
-        if len(expr.s) == 42 and expr.s[:2] == '0x':
-            return LLLnode.from_list(hex_to_int(expr.s), typ='address')
-        elif len(expr.s) == 66 and expr.s[:2] == '0x':
-            return LLLnode.from_list(hex_to_int(expr.s), typ='bytes32')
+        elif L == 40:
+            return LLLnode.from_list(expr.n, typ='address')
+        elif L == 64:
+            return LLLnode.from_list(expr.n, typ='bytes32')
         else:
-            raise Exception("Unsupported bytes: "+expr.s)
+            raise InvalidLiteralException("Cannot read 0x value with length %d. Expecting 40 (address) or 64 (bytes32)" % L)
+    # Byte array literals
+    elif isinstance(expr, ast.Str):
+        raise Exception("Not yet implemented")
     # True, False, None constants
     elif isinstance(expr, ast.NameConstant):
         if expr.value == True:

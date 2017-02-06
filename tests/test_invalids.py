@@ -1,5 +1,5 @@
 from viper import parser, compile_lll, compiler_plugin
-from viper.parser import InvalidTypeException, TypeMismatchException, VariableDeclarationException, StructureException, ConstancyViolationException
+from viper.parser import InvalidTypeException, TypeMismatchException, VariableDeclarationException, StructureException, ConstancyViolationException, InvalidLiteralException
 c = compiler_plugin.Compiler() 
 
 def must_fail(code, exception_type):
@@ -141,8 +141,23 @@ def foo():
 must_fail("""
 def foo():
     x = 5
-    x = '0x1234567890123456789012345678901234567890'
+    x = 0x1234567890123456789012345678901234567890
 """, TypeMismatchException)
+
+must_fail("""
+def foo():
+    x = 0x12345678901234567890123456789012345678901
+""", InvalidLiteralException)
+
+must_fail("""
+def foo():
+    x = 0x01234567890123456789012345678901234567890
+""", InvalidLiteralException)
+
+must_fail("""
+def foo():
+    x = 0x123456789012345678901234567890123456789
+""", InvalidLiteralException)
 
 must_fail("""
 def foo():
@@ -301,59 +316,59 @@ def foo():
 
 must_fail("""
 def foo():
-    send("0x1234567890123456789012345678901234567890", 2.5)
+    send(0x1234567890123456789012345678901234567890, 2.5)
 """, TypeMismatchException)
 
 must_fail("""
 def foo():
-    send("0x1234567890123456789012345678901234567890", "0x1234567890123456789012345678901234567890")
+    send(0x1234567890123456789012345678901234567890, 0x1234567890123456789012345678901234567890)
 """, TypeMismatchException)
 
 must_succeed("""
 x: num
 
 def foo():
-    send("0x1234567890123456789012345678901234567890", self.x)
+    send(0x1234567890123456789012345678901234567890, self.x)
 """)
 
 must_fail("""
 x: num
 
 def foo():
-    send("0x1234567890123456789012345678901234567890", x)
+    send(0x1234567890123456789012345678901234567890, x)
 """, VariableDeclarationException)
 
 must_succeed("""
 x: num
 
 def foo():
-    send("0x1234567890123456789012345678901234567890", self.x + 1)
+    send(0x1234567890123456789012345678901234567890, self.x + 1)
 """)
 
 must_fail("""
 x: num
 
 def foo():
-    send("0x1234567890123456789012345678901234567890", self.x + 1.5)
+    send(0x1234567890123456789012345678901234567890, self.x + 1.5)
 """, TypeMismatchException)
 
 must_fail("""
 x: decimal
 
 def foo():
-    send("0x1234567890123456789012345678901234567890", self.x)
+    send(0x1234567890123456789012345678901234567890, self.x)
 """, TypeMismatchException)
 
 must_succeed("""
 x: decimal
 
 def foo():
-    send("0x1234567890123456789012345678901234567890", floor(self.x))
+    send(0x1234567890123456789012345678901234567890, floor(self.x))
 """)
 
 must_succeed("""
 def foo():
-    selfdestruct("0x1234567890123456789012345678901234567890")
+    selfdestruct(0x1234567890123456789012345678901234567890)
 """)
 
 must_fail("""
@@ -368,11 +383,11 @@ x: num
 """, StructureException)
 
 must_fail("""
-send("0x1234567890123456789012345678901234567890", 5)
+send(0x1234567890123456789012345678901234567890, 5)
 """, StructureException)
 
 must_fail("""
-send("0x1234567890123456789012345678901234567890", 5)
+send(0x1234567890123456789012345678901234567890, 5)
 """, StructureException)
 
 must_fail("""
@@ -447,12 +462,12 @@ def foo() -> num:
 
 must_fail("""
 def foo() -> num(const):
-    send("0x1234567890123456789012345678901234567890", 5)
+    send(0x1234567890123456789012345678901234567890, 5)
 """, ConstancyViolationException)
 
 must_fail("""
 def foo() -> num(const):
-    selfdestruct("0x1234567890123456789012345678901234567890")
+    selfdestruct(0x1234567890123456789012345678901234567890)
 """, ConstancyViolationException)
 
 must_succeed("""
@@ -528,7 +543,7 @@ def foo():
 must_fail("""
 foo: num[3]
 def foo():
-    self.foo = [1, 2, "0x1234567890123456789012345678901234567890"]
+    self.foo = [1, 2, 0x1234567890123456789012345678901234567890]
 """, TypeMismatchException)
 
 must_succeed("""
