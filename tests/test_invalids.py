@@ -1076,3 +1076,39 @@ must_fail("""
 def cat(i1: bytes <= 10, i2: bytes <= 30) -> bytes <= 40:
     return concat(i1, 5)
 """, TypeMismatchException)
+
+must_succeed("""
+def foo() -> bytes <= 10:
+    return "badminton"
+""")
+
+must_fail("""
+def foo() -> bytes <= 10:
+    return "badmintonzz"
+""", TypeMismatchException)
+
+must_succeed("""
+def foo() -> bytes <= 10:
+    return slice("badmintonzzz", start=1, len=10)
+""")
+
+must_fail("""
+def foo() -> bytes <= 10:
+    x = '0x1234567890123456789012345678901234567890'
+    x = 0x1234567890123456789012345678901234567890
+""", TypeMismatchException)
+
+must_fail("""
+def foo():
+    x = "these bytes are nо gооd because the o's are from the Russian alphabet"
+""", InvalidLiteralException)
+
+must_fail("""
+def foo():
+    x = "这个傻老外不懂中文"
+""", InvalidLiteralException)
+
+must_succeed("""
+def foo():
+    x = "¡très bien!"
+""")

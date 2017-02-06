@@ -8,6 +8,7 @@ from ethereum import tester as t
 s = t.state()
 t.languages['viper'] = compiler_plugin.Compiler() 
 
+
 null_code = """
 def foo():
     pass
@@ -1087,3 +1088,50 @@ def foo(inp: bytes <= 50) -> bytes <= 1000:
 c = s.abi_contract(test_concat2, language='viper')
 assert c.foo("horse" * 9 + "viper") == (b"horse" * 9 + b"viper") * 10
 print('Passed second concat test')
+
+string_literal_code = """
+def foo() -> bytes <= 5:
+    return "horse"
+
+def bar() -> bytes <= 10:
+    return concat("b", "a", "d", "m", "i", "", "nton")
+
+def baz() -> bytes <= 40:
+    return concat("0123456789012345678901234567890", "12")
+
+def baz2() -> bytes <= 40:
+    return concat("01234567890123456789012345678901", "12")
+
+def baz3() -> bytes <= 40:
+    return concat("0123456789012345678901234567890", "1")
+
+def baz4() -> bytes <= 100:
+    return concat("01234567890123456789012345678901234567890123456789",
+                  "01234567890123456789012345678901234567890123456789")
+"""
+
+c = s.abi_contract(string_literal_code, language='viper')
+assert c.foo() == b"horse"
+assert c.bar() == b"badminton"
+assert c.baz() == b"012345678901234567890123456789012"
+assert c.baz2() == b"0123456789012345678901234567890112"
+assert c.baz3() == b"01234567890123456789012345678901"
+assert c.baz4() == b"0123456789" * 10
+
+print("String literal test passed")
+
+for i in range(95, 96, 97):
+    kode = """
+def foo(s: num, L: num) -> bytes <= 100:
+        x = 27
+        r = slice("%s", start=s, len=L)
+        y = 37
+        if x * y == 999:
+            return r
+    """ % ("c" * i)
+    c = s.abi_contract(kode, language='viper')
+    for e in range(63, 64, 65):
+        for _s in range(31, 32, 33):
+            assert c.foo(_s, e - _s) == b"c" * (e - _s), (i, _s, e - _s, c.foo(_s, e - _s))
+
+print("String literal splicing fuzz-test passed")

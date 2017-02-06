@@ -36,7 +36,10 @@ def fourbytes_to_int(inp):
 def hex_to_int(inp):
     if inp[:2] == '0x':
         inp = inp[2:]
-    bytez = binascii.unhexlify(inp)
+    return bytes_to_int(binascii.unhexlify(inp))
+
+# Converts bytes to an integer
+def bytes_to_int(bytez):
     o = 0
     for b in bytez:
         o = o * 256 + b
@@ -301,7 +304,7 @@ def mk_full_signature(code):
 def parse_tree_to_lll(code, origcode):
     _defs, _globals = get_defs_and_globals(code)
     if len(set([_def.name for _def in _defs])) < len(_defs):
-        raise VariableDeclarationException("Duplicate function name!")
+        raise VariableDeclarationException("Duplicate function name: %s" % [x for x in _defs if _defs.count(x) > 1][0])
     # Initialization function
     initfunc = [_def for _def in _defs if is_initializer(_def)]
     # Regular functions
@@ -319,7 +322,6 @@ def parse_tree_to_lll(code, origcode):
 
 # Parses a function declaration
 def parse_func(code, _globals, origcode, _vars=None):
-    assert isinstance(origcode, str)
     name, args, output_type, const, sig, method_id = get_func_details(code)
     for arg in args:
         if arg[0] in _globals:
@@ -426,7 +428,17 @@ def parse_expr(expr, context):
             raise InvalidLiteralException("Cannot read 0x value with length %d. Expecting 40 (address) or 64 (bytes32)" % L)
     # Byte array literals
     elif isinstance(expr, ast.Str):
-        raise Exception("Not yet implemented")
+        bytez = b''
+        for c in expr.s:
+            if ord(c) >= 256:
+                raise InvalidLiteralException("Cannot insert special character %r into byte array" % c)
+            bytez += bytes([ord(c)])
+        placeholder = context.new_placeholder(ByteArrayType(len(bytez)))
+        seq = []
+        seq.append(['mstore', placeholder, len(bytez)])
+        for i in range(0, len(bytez), 32):
+            seq.append(['mstore', ['add', placeholder, i + 32], bytes_to_int((bytez + b'\x00' * 31)[i: i + 32])])
+        return LLLnode.from_list(['seq'] + seq + [placeholder], typ=ByteArrayType(len(bytez)), location='memory')
     # True, False, None constants
     elif isinstance(expr, ast.NameConstant):
         if expr.value == True:

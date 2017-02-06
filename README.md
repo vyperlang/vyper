@@ -37,17 +37,22 @@ Note that not all programs that satisfy the following are valid; for example, th
         OR <var>.<membername>
         OR <var>[<expr>]
     varname = <str>
-    expr = <int>
+    expr = <literal>
         OR <expr> <binop> <expr>
         OR <expr> <boolop> <expr>
         OR <expr> <compareop> <expr>
         OR not <expr>
         OR <var>
         OR <expr>.balance
-        OR <literal>
+        OR <system_var>
         OR <basetype>(<expr>) (only some type conversions allowed)
         OR floor(<expr>)
-    literal = (block.timestamp, block.coinbase, block.number, block.difficulty, tx.origin, tx.gasprice, msg.gas, self)
+    literal = <integer>
+        OR <fixed point number>
+        OR <address, in the form 0x12cd2f...3fe>
+        OR <bytes32, in the form 0x414db52e5....2a7d>
+        OR <bytes, in the form "cow">
+    system_var = (block.timestamp, block.coinbase, block.number, block.difficulty, tx.origin, tx.gasprice, msg.gas, self)
     basetype = (num, decimal, bool, address, bytes32)
     unit = <baseunit>
         OR <baseunit> * <positive integer>
@@ -89,6 +94,8 @@ Arithmetic is overflow-checked, meaning that if a number is out of range then an
 
 In all three cases, it's possible to statically determine the maximum runtime of a loop. Jumping out of a loop before it ends can be done with either `break` or `return`.
 
+Regarding byte array literals, unicode strings like "这个傻老外不懂中文" or "Я очень умный" are illegal, though those that manage to use values that are in the 0...255 range according to UTF-8, like "¡très bien!", are fine.
+
 Code examples can be found in the `test_parser.py` file.
 
 ### Planned future features
@@ -98,7 +105,6 @@ Code examples can be found in the `test_parser.py` file.
 * A mini-language for handling num256 and signed256 values and directly / unsafely using opcodes; will be useful for high-performance code segments
 * Support for sha3, sha256, ecrecover, etc
 * Smart optimizations, including compile-time computation of arithmetic and clamps, intelligently computing realistic variable ranges, etc
-* Basic byte array slicing, splicing and byte access
 
 ### Code example
 
