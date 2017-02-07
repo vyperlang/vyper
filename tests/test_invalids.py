@@ -1132,3 +1132,13 @@ must_fail("""
 def foo():
     x = sha3(3)
 """, TypeMismatchException)
+
+must_fail("""
+def sandwich(inp: bytes <= 100, inp2: bytes32) -> bytes <= 163:
+    return concat(inp2, inp, inp2)
+""", TypeMismatchException)
+
+must_succeed("""
+def sandwich(inp: bytes <= 100, inp2: bytes32) -> bytes <= 165:
+    return concat(inp2, inp, inp2)
+""")

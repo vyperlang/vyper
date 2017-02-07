@@ -763,11 +763,13 @@ def parse_expr(expr, context):
         # Byte array concatenation, eg. concat("Mon", "goose") -> "Mongoose"
         elif isinstance(expr.func, ast.Name) and expr.func.id == "concat":
             args = [parse_expr(arg, context) for arg in expr.args]
+            if len(args) < 2:
+                raise StructureException("Concat expects at least two arguments")
             for arg in args:
-                if not isinstance(arg.typ, ByteArrayType):
-                    raise TypeMismatchException("Concat expects byte arrays")
+                if not isinstance(arg.typ, ByteArrayType) and not is_base_type(arg.typ, 'bytes32'):
+                    raise TypeMismatchException("Concat expects byte arrays or bytes32 objects")
             # Maximum length of the output
-            total_maxlen = sum([arg.typ.maxlen for arg in args])
+            total_maxlen = sum([arg.typ.maxlen if isinstance(arg.typ, ByteArrayType) else 32 for arg in args])
             # Node representing the position of the output in memory
             placeholder = context.new_placeholder(ByteArrayType(total_maxlen))
             # Object representing the output
@@ -777,20 +779,26 @@ def parse_expr(expr, context):
                 # Start pasting into a position the starts at zero, and keeps
                 # incrementing as we concatenate arguments
                 placeholder_node = LLLnode.from_list(['add', placeholder, '_poz'], typ=ByteArrayType(total_maxlen), location='memory')
-                # Get the length of the current argument
-                if arg.location == "calldata":
-                    length = LLLnode.from_list(['calldataload', ['add', 4, '_arg']], typ=BaseType('num'))
-                elif arg.location == "memory":
-                    length = LLLnode.from_list(['mload', '_arg'], typ=BaseType('num'))
-                elif arg.location == "storage":
-                    length = LLLnode.from_list(['sload', ['sha3_32', '_arg']], typ=BaseType('num'))
-                # Make a copier to copy over data from that argyument
-                seq.append(['with', '_arg', arg,
-                               ['seq',
-                                    make_byte_array_copier(placeholder_node, LLLnode.from_list('_arg', typ=arg.typ, location=arg.location), 0),
-                                    # Change the position to start at the correct
-                                    # place to paste the next value
-                                    ['set', '_poz', ['add', '_poz', length]]]])
+                if isinstance(arg.typ, ByteArrayType):
+                    # Get the length of the current argument
+                    if arg.location == "calldata":
+                        length = LLLnode.from_list(['calldataload', ['add', 4, '_arg']], typ=BaseType('num'))
+                    elif arg.location == "memory":
+                        length = LLLnode.from_list(['mload', '_arg'], typ=BaseType('num'))
+                    elif arg.location == "storage":
+                        length = LLLnode.from_list(['sload', ['sha3_32', '_arg']], typ=BaseType('num'))
+                    # Make a copier to copy over data from that argyument
+                    seq.append(['with', '_arg', arg,
+                                    ['seq',
+                                        make_byte_array_copier(placeholder_node,
+                                                               LLLnode.from_list('_arg', typ=arg.typ, location=arg.location), 0),
+                                        # Change the position to start at the correct
+                                        # place to paste the next value
+                                        ['set', '_poz', ['add', '_poz', length]]]])
+                else:
+                    seq.append(['seq',
+                                    ['mstore', ['add', placeholder_node, 32], arg],
+                                    ['set', '_poz', ['add', '_poz', 32]]])
             # The position, after all arguments are processing, equals the total
             # length. Paste this in to make the output a proper bytearray
             seq.append(['mstore', placeholder, '_poz'])

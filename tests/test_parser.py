@@ -1256,3 +1256,21 @@ for S, i in test_cases:
         assert c.extrakt32_storage(i, S) == expected_result
 
 print("Passed bytes32 extraction test")
+
+test_concat_bytes32 = """
+def sandwich(inp: bytes <= 100, inp2: bytes32) -> bytes <= 164:
+    return concat(inp2, inp, inp2)
+
+def fivetimes(inp: bytes32) -> bytes <= 160:
+    return concat(inp, inp, inp, inp, inp)
+"""
+
+c = s.abi_contract(test_concat_bytes32, language='viper')
+assert c.sandwich("cow", b"\x35" * 32) == b"\x35" * 32 + b"cow" + b"\x35" * 32, c.sandwich("cow", b"\x35" * 32)
+assert c.sandwich("", b"\x46" * 32) == b"\x46" * 64
+assert c.sandwich(b"\x57" * 95, b"\x57" * 32) == b"\x57" * 159
+assert c.sandwich(b"\x57" * 96, b"\x57" * 32) == b"\x57" * 160
+assert c.sandwich(b"\x57" * 97, b"\x57" * 32) == b"\x57" * 161
+assert c.fivetimes(b"mongoose" * 4) == b"mongoose" * 20
+
+print("Passed concat bytes32 test")
