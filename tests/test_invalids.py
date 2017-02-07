@@ -1142,3 +1142,18 @@ must_succeed("""
 def sandwich(inp: bytes <= 100, inp2: bytes32) -> bytes <= 165:
     return concat(inp2, inp, inp2)
 """)
+
+must_succeed("""
+def convert1(inp: bytes32) -> num256:
+    return as_num256(inp)
+""")
+
+must_succeed("""
+def convert2(inp: num256) -> bytes32:
+    return as_bytes32(inp)
+""")
+
+must_fail("""
+def convert2(inp: num256) -> address:
+    return as_bytes32(inp)
+""", TypeMismatchException)

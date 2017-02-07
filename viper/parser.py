@@ -691,22 +691,35 @@ def parse_expr(expr, context):
                 raise TypeMismatchException("Bad type for argument to decimal: %r" % sub.typ)
         # Casts to simple number, eg. used for timestamps, currency values
         elif isinstance(expr.func, ast.Name) and expr.func.id == "as_number":
+            if len(expr.args) != 1:
+                raise StructureException("Cast to num expects one input")
             sub = parse_value_expr(expr.args[0], context)
             if is_base_type(sub.typ, ('num', 'decimal')):
                 return LLLnode(value=sub.value, args=sub.args, typ=BaseType(sub.typ.typ, {}))
             else:
                 raise TypeMismatchException("as_number only accepts base types")
         # Casts to num256
-        elif isinstance(expr.func, ast.Name) and expr.func.id == "num256":
+        elif isinstance(expr.func, ast.Name) and expr.func.id == "as_num256":
+            if len(expr.args) != 1:
+                raise StructureException("Cast to num256 expects one input")
             if isinstance(expr.args[0], ast.Num):
                 if not (0 <= expr.args[0].n <= 2**256 - 1):
                     raise InvalidLiteralException("Number out of range: "+str(expr.args[0].n))
                 return LLLnode.from_list(expr.args[0].n, typ=BaseType('num256', None))
             sub = parse_value_expr(expr.args[0], context)
-            if is_base_type(sub.typ, 'num'):
+            if is_base_type(sub.typ, ('num', 'bytes32', 'address')):
                 return LLLnode(value=sub.value, args=sub.args, typ=BaseType('num256'))
             else:
-                raise TypeMismatchException("num256 only accepts number literals or nums")
+                raise TypeMismatchException("as_num256 only accepts number literals, nums, bytes32s and addresses")
+        # Casts to bytes32
+        elif isinstance(expr.func, ast.Name) and expr.func.id == "as_bytes32":
+            if len(expr.args) != 1:
+                raise StructureException("Cast to bytes32 expects one input")
+            sub = parse_value_expr(expr.args[0], context)
+            if is_base_type(sub.typ, ('num', 'num256', 'address')):
+                return LLLnode(value=sub.value, args=sub.args, typ=BaseType('bytes32'))
+            else:
+                raise TypeMismatchException("as_bytes32 only accepts nums, num256s and addresses")
         # Slice, eg. slice("mongoose", start=3, len=5) -> "goose"
         elif isinstance(expr.func, ast.Name) and expr.func.id == "slice":
             if len(expr.args) != 1:
