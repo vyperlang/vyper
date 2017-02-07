@@ -695,6 +695,17 @@ def parse_expr(expr, context):
                 return LLLnode(value=sub.value, args=sub.args, typ=BaseType(sub.typ.typ, {}))
             else:
                 raise TypeMismatchException("as_number only accepts base types")
+        # Casts to num256
+        elif isinstance(expr.func, ast.Name) and expr.func.id == "num256":
+            if isinstance(expr.args[0], ast.Num):
+                if not (0 <= expr.args[0].n <= 2**256 - 1):
+                    raise InvalidLiteralException("Number out of range: "+str(expr.args[0].n))
+                return LLLnode.from_list(expr.args[0].n, typ=BaseType('num256', None))
+            sub = parse_value_expr(expr.args[0], context)
+            if is_base_type(sub.typ, 'num'):
+                return LLLnode(value=sub.value, args=sub.args, typ=BaseType('num256'))
+            else:
+                raise TypeMismatchException("num256 only accepts number literals or nums")
         # Slice, eg. slice("mongoose", start=3, len=5) -> "goose"
         elif isinstance(expr.func, ast.Name) and expr.func.id == "slice":
             if len(expr.args) != 1:
@@ -813,6 +824,24 @@ def parse_expr(expr, context):
                                         ['seq',
                                             copier,
                                             ['sha3', ['add', placeholder, 32], lengetter]]], typ=BaseType('bytes32'))
+        # Elliptic curve signature recovery
+        elif isinstance(expr.func, ast.Name) and expr.func.id == "ecrecover":
+            if len(expr.args) != 4:
+                raise StructureException("Elliptic curve signature recovery expects 4 argument (h, v, r, s)")
+            args = [parse_expr(arg, context) for arg in expr.args]
+            if not is_base_type(args[0].typ, 'bytes32'):
+                raise TypeMismatchException("Expecting bytes32 as first argument (h) for ecrecover")
+            for pos, arg, symb in zip(['second', 'third', 'fourth'], args[1:], ['v', 'r', 's']):
+                if not is_base_type(arg.typ, 'num256'):
+                    raise TypeMismatchException("Expecting num256 as %s argument (%s) for ecrecover, got type %r" % (pos, symb, arg.typ))
+            placeholder_node = LLLnode.from_list(context.new_placeholder(ByteArrayType(128)), typ=ByteArrayType(128), location='memory')
+            return LLLnode.from_list(['seq',
+                                      ['mstore', placeholder_node, args[0]],
+                                      ['mstore', ['add', placeholder_node, 32], args[1]],
+                                      ['mstore', ['add', placeholder_node, 64], args[2]],
+                                      ['mstore', ['add', placeholder_node, 96], args[3]],
+                                      ['pop', ['call', 3000, 1, 0, placeholder_node, 128, FREE_VAR_SPACE, 32]],
+                                      ['mload', FREE_VAR_SPACE]], typ=BaseType('address'))
         else:
             raise Exception("Unsupported operator: %r" % ast.dump(expr))
     # List literals

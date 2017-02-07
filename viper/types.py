@@ -151,9 +151,9 @@ def canonicalize_type(t):
     elif t == 'bool':
         return 'bool'
     elif t == 'num256':
-        return 'int256'
-    elif t == 'signed256':
         return 'uint256'
+    elif t == 'signed256':
+        return 'int256'
     elif t == 'address' or t == 'bytes32':
         return t
     elif t == 'real':
