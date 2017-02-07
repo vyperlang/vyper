@@ -23,5 +23,6 @@ setup(
         'ethereum == 1.3.7',
         'serpent',
         'nose',
-    ]
+    ],
+    scripts=['bin/viper']
 )
