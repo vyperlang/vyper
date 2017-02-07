@@ -303,8 +303,9 @@ def mk_full_signature(code):
 # Main python parse tree => LLL method
 def parse_tree_to_lll(code, origcode):
     _defs, _globals = get_defs_and_globals(code)
-    if len(set([_def.name for _def in _defs])) < len(_defs):
-        raise VariableDeclarationException("Duplicate function name: %s" % [x for x in _defs if _defs.count(x) > 1][0])
+    _defnames = [_def.name for _def in _defs]
+    if len(set(_defnames)) < len(_defs):
+        raise VariableDeclarationException("Duplicate function name: %s" % [name for name in _defnames if _defnames.count(name) > 1][0])
     # Initialization function
     initfunc = [_def for _def in _defs if is_initializer(_def)]
     # Regular functions
@@ -842,6 +843,42 @@ def parse_expr(expr, context):
                                       ['mstore', ['add', placeholder_node, 96], args[3]],
                                       ['pop', ['call', 3000, 1, 0, placeholder_node, 128, FREE_VAR_SPACE, 32]],
                                       ['mload', FREE_VAR_SPACE]], typ=BaseType('address'))
+        # Extracts 32 bytes from a byte array
+        elif isinstance(expr.func, ast.Name) and expr.func.id == "extract32":
+            if len(expr.args) != 2:
+                raise StructureException("extract32 expects two arguments (byte array, index)")
+            sub = parse_expr(expr.args[0], context)
+            if not isinstance(sub.typ, ByteArrayType):
+                raise TypeMismatchException("First argument to extract32 must be byte array")
+            index = parse_expr(expr.args[1], context)
+            if not is_base_type(index.typ, 'num'):
+                raise TypeMismatchException("Second argument to extract32 must be number")
+            # Get length and specific element
+            if sub.location == "calldata":
+                lengetter = LLLnode.from_list(['calldataload', ['add', 4, '_sub']], typ=BaseType('num'))
+                elementgetter = LLLnode.from_list(['calldataload', ['add', ['add', 36, '_sub'], ['mul', 32, '_i']]], typ=BaseType('num'))
+            elif sub.location == "memory":
+                lengetter = LLLnode.from_list(['mload', '_sub'], typ=BaseType('num'))
+                elementgetter = LLLnode.from_list(['mload', ['add', '_sub', ['add', 32, ['mul', 32, '_i']]]], typ=BaseType('num'))
+            elif sub.location == "storage":
+                lengetter = LLLnode.from_list(['sload', ['sha3_32', '_sub']], typ=BaseType('num'))
+                elementgetter = LLLnode.from_list(['sload', ['add', ['sha3_32', '_sub'], ['add', 1, '_i']]], typ=BaseType('num'))
+            return LLLnode.from_list(
+                ['with', '_sub', sub,
+                    ['with', '_len', lengetter,
+                        ['with', '_index', ['clamp', 0, index, ['sub', '_len', 32]],
+                            ['if',
+                                ['eq', ['mod', '_index', 32], 0],
+                                ['with', '_i', ['div', '_index', 32], elementgetter],
+                                ['with', '_v1', 0,
+                                    ['with', '_v2', 0, 
+                                        ['seq',
+                                            ['set', '_v1', ['with', '_i', ['div', '_index', 32], elementgetter]],
+                                            ['set', '_v2', ['with', '_i', ['add', ['div', '_index', 32], 1], elementgetter]],
+                                            ['add',
+                                                ['mul', '_v1', ['exp', 256, ['mod', '_index', 32]]],
+                                                ['div', '_v2', ['exp', 256, ['sub', 32, ['mod', '_index', 32]]]]]]]]]]]],
+                typ=BaseType('bytes32'))
         else:
             raise Exception("Unsupported operator: %r" % ast.dump(expr))
     # List literals

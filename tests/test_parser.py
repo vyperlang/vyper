@@ -9,7 +9,6 @@ from ethereum import utils as u
 s = t.state()
 t.languages['viper'] = compiler_plugin.Compiler() 
 
-
 null_code = """
 def foo():
     pass
@@ -837,7 +836,7 @@ try:
 except:
     pass
 
-print('Failed input-too-long test as expected')
+print('Passed input-too-long test')
 
 test_bytes2 = """
 def foo(x: bytes <= 100) -> bytes <= 100:
@@ -1119,7 +1118,7 @@ assert c.baz2() == b"0123456789012345678901234567890112"
 assert c.baz3() == b"01234567890123456789012345678901"
 assert c.baz4() == b"0123456789" * 10
 
-print("String literal test passed")
+print("Passed string literal test")
 
 for i in range(95, 96, 97):
     kode = """
@@ -1135,7 +1134,7 @@ def foo(s: num, L: num) -> bytes <= 100:
         for _s in range(31, 32, 33):
             assert c.foo(_s, e - _s) == b"c" * (e - _s), (i, _s, e - _s, c.foo(_s, e - _s))
 
-print("String literal splicing fuzz-test passed")
+print("Passed string literal splicing fuzz-test")
 
 hash_code = """
 def foo(inp: bytes <= 100) -> bytes32:
@@ -1188,7 +1187,7 @@ assert c.trymem("\x35" * 32) is False
 assert c.try32(b"\x35" * 32) is False
 assert c.tryy("\x35" * 33) is True
 
-print("SHA3 hash test passed")
+print("Passed SHA3 hash test")
 
 ecrecover_test = """
 def test_ecrecover(h: bytes32, v:num256, r:num256, s:num256) -> address:
@@ -1204,8 +1203,56 @@ def test_ecrecover2() -> address:
 c = s.abi_contract(ecrecover_test, language='viper')
 h = b'\x35' * 32
 k = b'\x46' * 32
-v, r, s = u.ecsign(h, k)
-assert c.test_ecrecover(h, v, r, s) == '0x' + u.encode_hex(u.privtoaddr(k))
+v, r, S = u.ecsign(h, k)
+assert c.test_ecrecover(h, v, r, S) == '0x' + u.encode_hex(u.privtoaddr(k))
 assert c.test_ecrecover2() == '0x' + u.encode_hex(u.privtoaddr(k))
 
-print("ECRECOVER test passed")
+print("Passed ecrecover test")
+
+extract32_code = """
+y: bytes <= 100
+def extrakt32(inp: bytes <= 100, index: num) -> bytes32:
+    return extract32(inp, index)
+
+def extrakt32_mem(inp: bytes <= 100, index: num) -> bytes32:
+    x = inp
+    return extract32(x, index)
+
+def extrakt32_storage(index: num, inp: bytes <= 100) -> bytes32:
+    self.y = inp
+    return extract32(self.y, index)
+"""
+
+c = s.abi_contract(extract32_code, language='viper')
+test_cases = (
+    (b"c" * 31, 0),
+    (b"c" * 32, 0),
+    (b"c" * 32, -1),
+    (b"c" * 33, 0),
+    (b"c" * 33, 1),
+    (b"c" * 33, 2),
+    (b"cow" * 30, 0),
+    (b"cow" * 30, 1),
+    (b"cow" * 30, 31),
+    (b"cow" * 30, 32),
+    (b"cow" * 30, 33),
+    (b"cow" * 30, 34),
+    (b"cow" * 30, 58),
+    (b"cow" * 30, 59),
+)
+
+for S, i in test_cases:
+    expected_result = S[i: i + 32] if 0 <= i <= len(S) - 32 else None
+    if expected_result is None:
+        try:
+            o = c.extrakt32(S, i)
+            success = True
+        except:
+            success = False
+        assert not success
+    else:
+        assert c.extrakt32(S, i) == expected_result
+        assert c.extrakt32_mem(S, i) == expected_result
+        assert c.extrakt32_storage(i, S) == expected_result
+
+print("Passed bytes32 extraction test")

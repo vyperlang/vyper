@@ -196,7 +196,7 @@ def compile_to_assembly(code, withargs={}, break_dest=None, height=0):
         o = compile_to_assembly(code.args[0], withargs, break_dest, height)
         o.extend(compile_to_assembly(code.args[1], withargs, break_dest, height + 1))
         o.extend(['DUP1'])
-        o.extend(compile_to_assembly(code.args[2], withargs, break_dest, height + 2))
+        o.extend(compile_to_assembly(code.args[2], withargs, break_dest, height + 3))
         o.extend(['SWAP1', 'SGT', 'PC', 'JUMPI'])
         o.extend(['DUP1', 'SWAP2', 'SWAP1', 'SLT', 'PC', 'JUMPI'])
         return o
