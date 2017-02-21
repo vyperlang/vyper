@@ -1,6 +1,7 @@
 import ast
 from .opcodes import opcodes
 import copy
+from .exceptions import InvalidTypeException, TypeMismatchException
 
 # Available base types
 base_types = ['num', 'decimal', 'bytes32', 'num256', 'signed256', 'bool', 'address']
@@ -133,12 +134,6 @@ class NullType(NodeType):
     def __eq__(self, other):
         return other.__class__ == NullType
 
-class InvalidTypeException(Exception):
-    pass
-
-class TypeMismatchException(Exception):
-    pass
-
 # Convert type into common form used in ABI
 def canonicalize_type(t):
     if isinstance(t, ByteArrayType):
@@ -174,12 +169,12 @@ special_types = {
 def parse_unit(item):
     if isinstance(item, ast.Name):
         if item.id not in valid_units:
-            raise InvalidTypeException("Invalid base unit: %r" % item.id)
+            raise InvalidTypeException("Invalid base unit", item)
         return {item.id: 1}
     elif isinstance(item, ast.Num) and item.n == 1:
         return {}
     elif not isinstance(item, ast.BinOp):
-        raise InvalidTypeException("Invalid unit expression: %r" % ast.dump(item))
+        raise InvalidTypeException("Invalid unit expression", item)
     elif isinstance(item.op, ast.Mult):
         left, right = parse_unit(item.left), parse_unit(item.right)
         return combine_units(left, right)
@@ -188,12 +183,12 @@ def parse_unit(item):
         return combine_units(left, right, div=True)
     elif isinstance(item.op, ast.Pow):
         if not isinstance(item.left, ast.Name):
-            raise InvalidTypeException("Can only raise a base type to an exponent")
+            raise InvalidTypeException("Can only raise a base type to an exponent", item)
         if not isinstance(item.right, ast.Num) or not isinstance(item.right.n, int) or item.right.n <= 0:
-            raise InvalidTypeException("Exponent must be positive integer")
+            raise InvalidTypeException("Exponent must be positive integer", item)
         return {item.left.id: item.right.n}
     else:
-        raise InvalidTypeException("Invalid unit expression: %r" % ast.dump(item))
+        raise InvalidTypeException("Invalid unit expression", item)
 
 # Parses an expression representing a type. Annotation refers to whether
 # the type is to be located in memory or storage
@@ -205,54 +200,54 @@ def parse_type(item, location):
         elif item.id in special_types:
             return special_types[item.id]
         else:
-            raise InvalidTypeException("Invalid base type: "+item.id)
+            raise InvalidTypeException("Invalid base type: "+item.id, item)
     # Units, eg. num (1/sec)
     elif isinstance(item, ast.Call):
         if not isinstance(item.func, ast.Name):
-            raise InvalidTypeException("Malformed unit type: %r" % ast.dump(item.func))
+            raise InvalidTypeException("Malformed unit type:", item)
         base_type = item.func.id
         if base_type not in ('num', 'decimal'):
-            raise Exception("Base type with units can only be num and decimal")
+            raise InvalidTypeException("Base type with units can only be num and decimal", item)
         if len(item.args) != 1:
-            raise InvalidTypeException("Malformed unit type: %r" % ast.dump(item))
+            raise InvalidTypeException("Malformed unit type", item)
         unit = parse_unit(item.args[0])
         return BaseType(base_type, unit, False)
     # Subscripts
     elif isinstance(item, ast.Subscript):
         if 'value' not in vars(item.slice):
-            raise InvalidTypeException("Array access must access a single element, not a slice")
+            raise InvalidTypeException("Array access must access a single element, not a slice", item)
         # Fixed size lists, eg. num[100]
         elif isinstance(item.slice.value, ast.Num):
             if not isinstance(item.slice.value.n, int) or item.slice.value.n <= 0:
-                raise InvalidTypeException("Arrays must have a positive integral number of elements")
+                raise InvalidTypeException("Arrays must have a positive integral number of elements", item.slice.value)
             return ListType(parse_type(item.value, location), item.slice.value.n)
         # Mappings, eg. num[address]
         elif isinstance(item.slice.value, ast.Name):
             if location == 'memory':
-                raise InvalidTypeException("No mappings allowed for in-memory types, only fixed-size arrays") 
+                raise InvalidTypeException("No mappings allowed for in-memory types, only fixed-size arrays", item)
             keytype = parse_type(item.slice.value, None)
             if not isinstance(keytype, BaseType):
-                raise Exception("Mapping keys must be base types")
+                raise InvalidTypeException("Mapping keys must be base types", item.slice.value)
             return MappingType(keytype, parse_type(item.value, location))
         else:
-            raise InvalidTypeException("Arrays must be of the format type[num_of_elements] or type[key_type]")
+            raise InvalidTypeException("Arrays must be of the format type[num_of_elements] or type[key_type]", item.slice.value)
     # Dicts, used to represent mappings, eg. {uint: uint}. Key must be a base type
     elif isinstance(item, ast.Dict):
         o = {} 
         for key, value in zip(item.keys, item.values):
             if not isinstance(key, ast.Name) or not is_varname_valid(key.id):
-                raise InvalidTypeException("Invalid member variable for struct: %r" % vars(key).get('id', key))
+                raise InvalidTypeException("Invalid member variable for struct", key)
             o[key.id] = parse_type(value, location)
         return StructType(o)
     elif isinstance(item, ast.Compare):
         if len(item.ops) != 1 or not isinstance(item.ops[0], ast.LtE):
-            raise InvalidTypeException("Invalid type: %r" % ast.dump(item))
+            raise InvalidTypeException("Invalid type", item)
         if not isinstance(item.left, ast.Name) or item.left.id != "bytes":
-            raise InvalidTypeException("Invalid type: %r" % ast.dump(item))
+            raise InvalidTypeException("Invalid type", item.left)
         if len(item.comparators) != 1 or not isinstance(item.comparators[0], ast.Num):
-            raise InvalidTypeException("Byte array length must be a number")
+            raise InvalidTypeException("Byte array length must be a number", item)
         if not isinstance(item.comparators[0].n, int) or item.comparators[0].n <= 0:
-            raise InvalidTypeException("Bad byte array length: %r" % item.comparators[0].n)
+            raise InvalidTypeException("Bad byte array length: %r" % item.comparators[0].n, item.comparators[0])
         return ByteArrayType(item.comparators[0].n)
     else:
         raise InvalidTypeException("Invalid type: %r" % ast.dump(item))

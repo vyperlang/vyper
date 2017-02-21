@@ -23,10 +23,21 @@ except:
 
 # Converts code to parse tree
 def parse(code):
-    return ast.parse(code).body
+    o = ast.parse(code)
+    decorate_ast_with_source(o, code)
+    return o.body
 
 def parse_line(code):
     return parse(code)[0].value
+
+def decorate_ast_with_source(_ast, code):
+
+    class MyVisitor(ast.NodeVisitor):
+        def visit(self, node):
+            self.generic_visit(node)
+            node.source_code = code
+
+    MyVisitor().visit(_ast)
 
 # Converts for bytes to an integer
 def fourbytes_to_int(inp):
