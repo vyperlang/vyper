@@ -1101,8 +1101,12 @@ def make_setter(left, right, location):
         if not isinstance(right.typ, NullType):
             if not isinstance(right.typ, StructType):
                 raise TypeMismatchException("Setter type mismatch: left side is %r, right side is %r" % (left.typ, right.typ))
-            if sorted(list(left.typ.members.keys())) != sorted(list(right.typ.members.keys())):
-                raise TypeMismatchException("Keys don't match for structs")
+            for k in left.typ.members:
+                if k not in right.typ.members:
+                    raise TypeMismatchException("Keys don't match for structs, missing %s" % k)
+            for k in right.typ.members:
+                if k not in left.typ.members:
+                    raise TypeMismatchException("Keys don't match for structs, extra %s" % k)
         left_token = LLLnode.from_list('_L', typ=left.typ, location=left.location)
         # If the right side is a literal
         if right.value == "multi":
