@@ -15,7 +15,9 @@ reserved_words = ['int128', 'int256', 'uint256', 'address', 'bytes32',
                   'pass', 'def', 'push', 'dup', 'swap', 'send', 'call',
                   'suicide', 'selfdestruct', 'assert', 'stop', 'throw',
                   'raise', 'init', '_init_', '___init___', '____init____',
-                  'true', 'false', 'self', 'this', 'continue']
+                  'true', 'false', 'self', 'this', 'continue', 'ether',
+                  'wei', 'finney', 'szabo', 'shannon', 'lovelace', 'ada',
+                  'babbage', 'gwei', 'kwei', 'mwei', 'twei', 'pwei']
 
 # Is a variable or member variable name valid?
 def is_varname_valid(varname):

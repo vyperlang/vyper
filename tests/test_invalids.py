@@ -195,6 +195,12 @@ def foo():
     self.b = 7.5
 """)
 
+must_fail("""
+b: decimal
+def foo():
+    self.b = 7.5178246872145875217495129745982164981654986129846
+""", InvalidLiteralException)
+
 must_succeed("""
 b: decimal
 def foo():

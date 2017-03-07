@@ -417,6 +417,16 @@ def get_length_if_0x_prefixed(expr, context):
         t += 1
     return t
 
+# Get a decimal number as a fraction with denominator multiple of 10
+def get_number_as_fraction(expr, context):
+    context_slice = context.origcode.splitlines()[expr.lineno - 1][expr.col_offset:]
+    t = 0
+    while t < len(context_slice) and context_slice[t] in '0123456789.':
+        t += 1
+    top = int(context_slice[:t].replace('.', ''))
+    bottom = 1 if '.' not in context_slice[:t] else 10**(t - context_slice[:t].index('.') - 1)
+    return context_slice[:t], top, bottom
+
 # Parse an expression
 def parse_expr(expr, context):
     if isinstance(expr, LLLnode):
@@ -429,9 +439,12 @@ def parse_expr(expr, context):
                 raise InvalidLiteralException("Number out of range: "+str(expr.n))
             return LLLnode.from_list(expr.n, typ=BaseType('num', None))
         elif isinstance(expr.n, float):
-            if not (-2**127 + 1 <= expr.n <= 2**127 - 1):
-                raise InvalidLiteralException("Number out of range: "+str(expr.n))
-            return LLLnode.from_list(int(expr.n * DECIMAL_DIVISOR), typ=BaseType('decimal', None))
+            numstring, num, den = get_number_as_fraction(expr, context)
+            if not (-2**127 * den < num < 2**127 * den):
+                raise InvalidLiteralException("Number out of range: "+numstring)
+            if DECIMAL_DIVISOR % den:
+                raise InvalidLiteralException("Too many decimal places: "+numstring)
+            return LLLnode.from_list(num * DECIMAL_DIVISOR // den, typ=BaseType('decimal', None))
         elif L == 40:
             return LLLnode.from_list(expr.n, typ='address')
         elif L == 64:
@@ -911,6 +924,37 @@ def parse_expr(expr, context):
                                                 ['mul', '_v1', ['exp', 256, ['mod', '_index', 32]]],
                                                 ['div', '_v2', ['exp', 256, ['sub', 32, ['mod', '_index', 32]]]]]]]]]]]],
                 typ=BaseType('bytes32'))
+        elif isinstance(expr.func, ast.Name) and expr.func.id == "as_wei":
+            if len(expr.args) != 2:
+                raise StructureException("wei expects two arguments (value, currency unit)")
+            if not isinstance(expr.args[0], ast.Num):
+                raise StructureException("First argument must be number literal")
+            if not isinstance(expr.args[1], ast.Name):
+                raise StructureException("Second argument must be ether denomination")
+            if expr.args[1].id == "wei":
+                denomination = 1
+            elif expr.args[1].id in ("kwei", "ada", "lovelace"):
+                denomination = 10**3
+            elif expr.args[1].id == "babbage":
+                denomination = 10**6
+            elif expr.args[1].id in ("shannon", "gwei"):
+                denomination = 10**9
+            elif expr.args[1].id == "szabo":
+                denomination = 10**12
+            elif expr.args[1].id == "finney":
+                denomination = 10**15
+            elif expr.args[1].id == "ether":
+                denomination = 10**18
+            else:
+                raise InvalidLiteralException("Invalid denomination: %s" % expr.args[1].id)
+            if isinstance(expr.args[0].n, int):
+                return LLLnode.from_list(expr.args[0].n * denomination, typ=BaseType('num', {'wei': 1}), location=None)
+            else:
+                numstring, num, den = get_number_as_fraction(expr.args[0], context)
+                if denomination % den:
+                    raise InvalidLiteralException("Too many decimal places: %s" % numstring)
+                return LLLnode.from_list(num * denomination // den, typ=BaseType('num', {'wei': 1}), location=None)
+            return LLLnode.from_list(int(expr.args[0].n))
         else:
             raise Exception("Unsupported operator: %r" % ast.dump(expr))
     # List literals

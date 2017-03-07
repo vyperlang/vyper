@@ -1274,3 +1274,22 @@ assert c.sandwich(b"\x57" * 97, b"\x57" * 32) == b"\x57" * 161
 assert c.fivetimes(b"mongoose" * 4) == b"mongoose" * 20
 
 print("Passed concat bytes32 test")
+
+test_wei = """
+def return_2_finney() -> wei_value:
+    return as_wei(2, finney)
+
+def return_2p5_ether() -> wei_value:
+    return as_wei(2.5, ether)
+
+def return_2pow64_wei() -> wei_value:
+    return as_wei(18446744.073709551616, szabo)
+"""
+
+c = s.abi_contract(test_wei, language='viper')
+
+assert c.return_2_finney() == 2 * 10**15
+assert c.return_2p5_ether() == 2.5 * 10**18
+assert c.return_2pow64_wei() == 2**64
+
+print("Passed wei value literals test")
