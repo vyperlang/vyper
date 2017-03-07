@@ -1,5 +1,5 @@
 from viper import parser, compile_lll
-from viper import compiler_plugin
+from viper import compiler
 from ethereum import tester as t
 from ethereum import utils as u
 # from ethereum.slogging import LogRecorder, configure_logging, set_level
@@ -7,7 +7,7 @@ from ethereum import utils as u
 # configure_logging(config_string=config_string)
 
 s = t.state()
-t.languages['viper'] = compiler_plugin.Compiler() 
+t.languages['viper'] = compiler.Compiler() 
 
 null_code = """
 def foo():

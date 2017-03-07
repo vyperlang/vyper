@@ -1,18 +1,17 @@
-from viper import parser, compile_lll, compiler_plugin
-from viper.parser import InvalidTypeException, TypeMismatchException, VariableDeclarationException, StructureException, ConstancyViolationException, InvalidLiteralException
-c = compiler_plugin.Compiler() 
+from viper import parser, compile_lll, compiler
+from viper.exceptions import InvalidTypeException, TypeMismatchException, VariableDeclarationException, StructureException, ConstancyViolationException, InvalidLiteralException
 
 def must_fail(code, exception_type):
     success = False
     try:
-        c.compile(code)
+        compiler.compile(code)
     except exception_type as e:
         print(e)
         success = True
     assert success
 
 def must_succeed(code):
-    c.compile(code)
+    compiler.compile(code)
     print('Compilation successful')
 
 must_fail("""

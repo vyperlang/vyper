@@ -252,7 +252,7 @@ def parse_type(item, location):
             raise InvalidTypeException("Bad byte array length: %r" % item.comparators[0].n, item.comparators[0])
         return ByteArrayType(item.comparators[0].n)
     else:
-        raise InvalidTypeException("Invalid type: %r" % ast.dump(item))
+        raise InvalidTypeException("Invalid type: %r" % ast.dump(item), item)
 
 # Rounds up to nearest 32, eg. 95 -> 96, 96 -> 96, 97 -> 128
 def ceil32(x):
