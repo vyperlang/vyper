@@ -1162,3 +1162,50 @@ must_fail("""
 def convert2(inp: num256) -> address:
     return as_bytes32(inp)
 """, TypeMismatchException)
+
+must_succeed("""
+def foo():
+    x = raw_call(0x1234567890123456789012345678901234567890, "cow", outsize=4)
+""")
+
+must_succeed("""
+def foo():
+    x = raw_call(0x1234567890123456789012345678901234567890, "cow", outsize=4, gas=595757)
+""")
+
+must_succeed("""
+def foo():
+    x = raw_call(0x1234567890123456789012345678901234567890, "cow", outsize=4, gas=595757, value=9)
+""")
+
+must_fail("""
+def foo():
+    x = raw_call(0x1234567890123456789012345678901234567890, "cow")
+""", StructureException)
+
+must_fail("""
+def foo():
+    x = raw_call(0x123456789012345678901234567890123456789, "cow", outsize=4)
+""", InvalidLiteralException)
+
+must_fail("""
+def foo():
+    x = raw_call(0x1234567890123456789012345678901234567890, "cow", outsize=4, outsize=9)
+""", SyntaxError)
+
+must_fail("""
+def foo():
+    x = raw_call(0x1234567890123456789012345678901234567890, outsize=4)
+""", StructureException)
+
+must_fail("""
+def foo() -> num(const):
+    x = raw_call(0x1234567890123456789012345678901234567890, "cow", outsize=4, gas=595757, value=9)
+    return 5
+""", ConstancyViolationException)
+
+must_succeed("""
+def foo() -> num(const):
+    x = raw_call(0x0000000000000000000000000000000000000004, "cow", outsize=4, gas=595757, value=9)
+    return 7
+""")

@@ -1293,3 +1293,21 @@ assert c.return_2p5_ether() == 2.5 * 10**18
 assert c.return_2pow64_wei() == 2**64
 
 print("Passed wei value literals test")
+
+caller_code = """
+def foo() -> bytes <= 7:
+    return raw_call(0x0000000000000000000000000000000000000004, "moose", gas=50000, outsize=5)
+
+def bar() -> bytes <= 7:
+    return raw_call(0x0000000000000000000000000000000000000004, "moose", gas=50000, outsize=3)
+
+def baz() -> bytes <= 7:
+    return raw_call(0x0000000000000000000000000000000000000004, "moose", gas=50000, outsize=7)
+"""
+
+c = s.abi_contract(caller_code, language='viper')
+assert c.foo() == b"moose"
+assert c.bar() == b"moo"
+assert c.baz() == b"moose\x00\x00"
+
+print('Successfully executed a raw call test')

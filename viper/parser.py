@@ -395,7 +395,7 @@ def add_variable_offset(parent, key):
         else:
             raise TypeMismatchException("Not expecting an array access")
     else:
-        raise TypeMismatchException("Cannot access the child of a constant variable!")
+        raise TypeMismatchException("Cannot access the child of a constant variable! %r" % typ)
 
 # Is a number of decimal form (eg. 65281) or 0x form (eg. 0xff01)
 def get_length_if_0x_prefixed(expr, context):
@@ -436,9 +436,9 @@ def parse_expr(expr, context):
                 raise InvalidLiteralException("Too many decimal places: "+numstring, expr)
             return LLLnode.from_list(num * DECIMAL_DIVISOR // den, typ=BaseType('decimal', None))
         elif L == 40:
-            return LLLnode.from_list(expr.n, typ='address')
+            return LLLnode.from_list(expr.n, typ=BaseType('address'))
         elif L == 64:
-            return LLLnode.from_list(expr.n, typ='bytes32')
+            return LLLnode.from_list(expr.n, typ=BaseType('bytes32'))
         else:
             raise InvalidLiteralException("Cannot read 0x value with length %d. Expecting 40 (address) or 64 (bytes32)" % L, expr)
     # Byte array literals
@@ -916,6 +916,7 @@ def parse_expr(expr, context):
                                                 ['mul', '_v1', ['exp', 256, ['mod', '_index', 32]]],
                                                 ['div', '_v2', ['exp', 256, ['sub', 32, ['mod', '_index', 32]]]]]]]]]]]],
                 typ=BaseType('bytes32'))
+        # Prints out a number in wei corresponding to a literal number of ether, finney, etc
         elif isinstance(expr.func, ast.Name) and expr.func.id == "as_wei":
             if len(expr.args) != 2:
                 raise StructureException("wei expects two arguments (value, currency unit)", expr)
@@ -923,6 +924,7 @@ def parse_expr(expr, context):
                 raise StructureException("First argument must be number literal", expr.args[0])
             if not isinstance(expr.args[1], ast.Name):
                 raise StructureException("Second argument must be ether denomination", expr.args[1])
+            # Denominations
             if expr.args[1].id == "wei":
                 denomination = 1
             elif expr.args[1].id in ("kwei", "ada", "lovelace"):
@@ -939,16 +941,64 @@ def parse_expr(expr, context):
                 denomination = 10**18
             else:
                 raise InvalidLiteralException("Invalid denomination: %s" % expr.args[1].id, expr.args[1])
-            if isinstance(expr.args[0].n, int):
-                return LLLnode.from_list(expr.args[0].n * denomination, typ=BaseType('num', {'wei': 1}), location=None)
-            else:
-                numstring, num, den = get_number_as_fraction(expr.args[0], context)
-                if denomination % den:
-                    raise InvalidLiteralException("Too many decimal places: %s" % numstring, expr.args[1])
-                return LLLnode.from_list(num * denomination // den, typ=BaseType('num', {'wei': 1}), location=None)
-            return LLLnode.from_list(int(expr.args[0].n))
+            # Compute the amount of wei and return that value
+            numstring, num, den = get_number_as_fraction(expr.args[0], context)
+            if denomination % den:
+                raise InvalidLiteralException("Too many decimal places: %s" % numstring, expr.args[1])
+            return LLLnode.from_list(num * denomination // den, typ=BaseType('num', {'wei': 1}), location=None)
+        # Calls another contract, passing in raw data and getting back raw data
+        elif isinstance(expr.func, ast.Name) and expr.func.id == "raw_call":
+            if context.is_constant:
+                if not isinstance(expr.args[0], ast.Num) or expr.args[0].n not in (1, 2, 3, 4):
+                    raise ConstancyViolationException("Cannot make non-constant calls from a constant function", expr)
+            if len(expr.args) != 2:
+                raise StructureException("call expects two basic arguments (to and input data)", expr)
+            # Get destination address
+            to = parse_expr(expr.args[0], context)
+            if not is_base_type(to.typ, 'address'):
+                raise TypeMismatchException("Expecting address as first argument", expr.args[0])
+            # Get input data
+            data = parse_expr(expr.args[1], context)
+            if not isinstance(data.typ, ByteArrayType):
+                raise TypeMismatchException("Expecting byte array as second argument", expr.args[1])
+            # Get gas (optional), value (optional), output data size (mandatory)
+            gas = None
+            value = None
+            outsize = None
+            for kw in expr.keywords:
+                if kw.arg == 'gas' and gas is None:
+                    gas = parse_expr(kw.value, context)
+                    if not is_base_type(gas.typ, 'num') and gas.typ.unit not in (None, {}):
+                        raise TypeMismatchException("Gas must be a number", kw)
+                elif kw.arg == 'value' and value is None:
+                    value = parse_expr(kw.value, context)
+                    if not is_base_type(value.typ, 'num') and value.typ.unit not in (None, {'wei': 1}):
+                        raise TypeMismatchException("Value must be a wei_value or a literal", kw)
+                elif kw.arg == 'outsize' and outsize is None:
+                    if not isinstance(kw.value, ast.Num):
+                        raise TypeMismatchException("Output size must be a literal number", kw)
+                    outsize = kw.value.n
+                else:
+                    raise StructureException("Bad or repeated keyword: %s" % kw.arg, kw)
+            gas = gas or LLLnode.from_list(['sub', 0, 1], typ=BaseType('num'))
+            value = value or LLLnode.from_list(0, typ=BaseType('num', {'wei': 1}))
+            if outsize is None:
+                raise StructureException("Outsize argument required for raw call!", expr)
+
+            placeholder = context.new_placeholder(data.typ)
+            placeholder_node = LLLnode.from_list(placeholder, typ=data.typ, location='memory')
+            copier = make_byte_array_copier(placeholder_node, data)
+            output_placeholder = context.new_placeholder(ByteArrayType(outsize))
+            output_node = LLLnode.from_list(output_placeholder, typ=ByteArrayType(outsize), location='memory')
+            z = LLLnode.from_list(['seq',
+                                      copier,
+                                      ['assert', ['call', gas, to, value, ['add', placeholder_node, 32], ['mload', placeholder_node],
+                                                 ['add', output_node, 32], outsize]],
+                                      ['mstore', output_node, outsize],
+                                      output_node], typ=ByteArrayType(outsize), location='memory')
+            return z
         else:
-            raise Exception("Unsupported operator: %r" % ast.dump(expr))
+            raise StructureException("Unsupported operator: %r" % ast.dump(expr), expr)
     # List literals
     elif isinstance(expr, ast.List):
         if not len(expr.elts):
