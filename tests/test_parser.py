@@ -1310,4 +1310,44 @@ assert c.foo() == b"moose"
 assert c.bar() == b"moo"
 assert c.baz() == b"moose\x00\x00"
 
-print('Successfully executed a raw call test')
+print('Passed raw call test')
+
+extract32_code = """
+def foo(inp: bytes <= 32) -> num:
+    return extract32(inp, 0, type=num128)
+
+def bar(inp: bytes <= 32) -> num256:
+    return extract32(inp, 0, type=num256)
+
+def baz(inp: bytes <= 32) -> bytes32:
+    return extract32(inp, 0, type=bytes32)
+
+def fop(inp: bytes <= 32) -> bytes32:
+    return extract32(inp, 0)
+
+def foq(inp: bytes <= 32) -> address:
+    return extract32(inp, 0, type=address)
+"""
+
+c = s.abi_contract(extract32_code, language='viper')
+assert c.foo(b"\x00" * 30 + b"\x01\x01") == 257
+assert c.bar(b"\x00" * 30 + b"\x01\x01") == 257
+try:
+    c.foo(b"\x80" + b"\x00" * 30)
+    success = True
+except:
+    success = False
+assert not success
+assert c.bar(b"\x80" + b"\x00" * 31) == 2**255
+
+assert c.baz(b"crow" * 8) == b"crow" * 8
+assert c.fop(b"crow" * 8) == b"crow" * 8
+assert c.foq(b"\x00" * 12 + b"3" * 20) == "0x" + "3" * 40
+try:
+    c.foq(b"crow" * 8)
+    success = True
+except:
+    success = False
+assert not success
+
+print('Passed extract32 test')

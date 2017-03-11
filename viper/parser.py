@@ -890,6 +890,14 @@ def parse_expr(expr, context):
             index = parse_expr(expr.args[1], context)
             if not is_base_type(index.typ, 'num'):
                 raise TypeMismatchException("Second argument to extract32 must be number", expr.args[1])
+            ret_type = 'bytes32'
+            # Get return type
+            for kw in expr.keywords:
+                if kw.arg != "type":
+                    raise StructureException("Only 'type' keyword expected for extract32")
+                if not isinstance(kw.value, ast.Name) or kw.value.id not in ("bytes32", "num256", "num128", "address"):
+                    raise InvalidTypeException("Only allowed return types for extract32: bytes32, num256, num128, address")
+                ret_type = kw.value.id
             # Get length and specific element
             if sub.location == "calldata":
                 lengetter = LLLnode.from_list(['calldataload', ['add', 4, '_sub']], typ=BaseType('num'))
@@ -900,7 +908,7 @@ def parse_expr(expr, context):
             elif sub.location == "storage":
                 lengetter = LLLnode.from_list(['sload', ['sha3_32', '_sub']], typ=BaseType('num'))
                 elementgetter = LLLnode.from_list(['sload', ['add', ['sha3_32', '_sub'], ['add', 1, '_i']]], typ=BaseType('num'))
-            return LLLnode.from_list(
+            o = LLLnode.from_list(
                 ['with', '_sub', sub,
                     ['with', '_len', lengetter,
                         ['with', '_index', ['clamp', 0, index, ['sub', '_len', 32]],
@@ -915,7 +923,13 @@ def parse_expr(expr, context):
                                             ['add',
                                                 ['mul', '_v1', ['exp', 256, ['mod', '_index', 32]]],
                                                 ['div', '_v2', ['exp', 256, ['sub', 32, ['mod', '_index', 32]]]]]]]]]]]],
-                typ=BaseType('bytes32'))
+                typ=BaseType(ret_type))
+            if ret_type == 'num128':
+                return LLLnode.from_list(['clamp', ['mload', MINNUM_POS], o, ['mload', MAXNUM_POS]], typ=BaseType("num"))
+            elif ret_type == 'address':
+                return LLLnode.from_list(['uclamplt', o, ['mload', ADDRSIZE_POS]], typ=BaseType(ret_type))
+            else:
+                return o
         # Prints out a number in wei corresponding to a literal number of ether, finney, etc
         elif isinstance(expr.func, ast.Name) and expr.func.id == "as_wei":
             if len(expr.args) != 2:

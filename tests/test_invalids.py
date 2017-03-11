@@ -1209,3 +1209,13 @@ def foo() -> num(const):
     x = raw_call(0x0000000000000000000000000000000000000004, "cow", outsize=4, gas=595757, value=9)
     return 7
 """)
+
+must_fail("""
+def foo() -> num256:
+    return extract32("cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc", 0)
+""", TypeMismatchException)
+
+must_succeed("""
+def foo() -> num256:
+    return extract32("cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc", 0, type=num256)
+""")
