@@ -704,7 +704,7 @@ def parse_expr(expr, context):
             else:
                 raise TypeMismatchException("Bad type for argument to decimal: %r" % sub.typ, expr.args[0])
         # Casts to simple number, eg. used for timestamps, currency values
-        elif isinstance(expr.func, ast.Name) and expr.func.id == "as_number":
+        elif isinstance(expr.func, ast.Name) and expr.func.id == "as_unitless_number":
             if len(expr.args) != 1:
                 raise StructureException("Cast to num expects one input", expr)
             sub = parse_value_expr(expr.args[0], context)
@@ -712,6 +712,15 @@ def parse_expr(expr, context):
                 return LLLnode(value=sub.value, args=sub.args, typ=BaseType(sub.typ.typ, {}))
             else:
                 raise TypeMismatchException("as_number only accepts base types", expr.args[0])
+        # Casts of num256 to number
+        elif isinstance(expr.func, ast.Name) and expr.func.id == "as_num128":
+            if len(expr.args) != 1:
+                raise StructureException("Cast to num expects one input", expr)
+            sub = parse_value_expr(expr.args[0], context)
+            if is_base_type(sub.typ, ('num', 'bytes32', 'num256', 'address')):
+                return LLLnode.from_list(['clamp', ['mload', MINNUM_POS], sub, ['mload', MAXNUM_POS]], typ=BaseType("num"))
+            else:
+                raise TypeMismatchException("as_num128 only accepts number literals, nums, bytes32s and addresses", expr.args[0])
         # Casts to num256
         elif isinstance(expr.func, ast.Name) and expr.func.id == "as_num256":
             if len(expr.args) != 1:
@@ -747,7 +756,7 @@ def parse_expr(expr, context):
                 raise TypeMismatchException("Expecting a byte array for slice", expr)
             # Expression representing where to start slicing
             start_element = [k.value for k in expr.keywords if k.arg == 'start'][0]
-            start = parse_expr(start_element, context)
+            start = parse_value_expr(start_element, context)
             if not is_base_type(start.typ, "num") or not are_units_compatible(start.typ, BaseType("num")):
                 raise TypeMismatchException("Type for slice start index must be a number", expr)
             # AST node representing the length of the slice (kept around to
@@ -755,7 +764,7 @@ def parse_expr(expr, context):
             # the result to have a shorter max length)
             length_node = [k.value for k in expr.keywords if k.arg == 'len'][0]
             # Expression representing the length of the slice
-            length = parse_expr(length_node, context)
+            length = parse_value_expr(length_node, context)
             if not is_base_type(length.typ, "num") or not are_units_compatible(length.typ, BaseType("num")):
                 raise TypeMismatchException("Type for slice length must be a number")
             # Node representing the position of the output in memory
@@ -865,7 +874,7 @@ def parse_expr(expr, context):
         elif isinstance(expr.func, ast.Name) and expr.func.id == "ecrecover":
             if len(expr.args) != 4:
                 raise StructureException("Elliptic curve signature recovery expects 4 argument (h, v, r, s)", expr)
-            args = [parse_expr(arg, context) for arg in expr.args]
+            args = [parse_value_expr(arg, context) for arg in expr.args]
             if not is_base_type(args[0].typ, 'bytes32'):
                 raise TypeMismatchException("Expecting bytes32 as first argument (h) for ecrecover", expr.args[0])
             for pos, arg, symb in zip(['second', 'third', 'fourth'], args[1:], ['v', 'r', 's']):
@@ -887,7 +896,7 @@ def parse_expr(expr, context):
             sub = parse_expr(expr.args[0], context)
             if not isinstance(sub.typ, ByteArrayType):
                 raise TypeMismatchException("First argument to extract32 must be byte array", expr.args[0])
-            index = parse_expr(expr.args[1], context)
+            index = parse_value_expr(expr.args[1], context)
             if not is_base_type(index.typ, 'num'):
                 raise TypeMismatchException("Second argument to extract32 must be number", expr.args[1])
             ret_type = 'bytes32'
@@ -930,6 +939,33 @@ def parse_expr(expr, context):
                 return LLLnode.from_list(['uclamplt', o, ['mload', ADDRSIZE_POS]], typ=BaseType(ret_type))
             else:
                 return o
+        # Takes a byte array, and outputs the corresponding number. Checks for minimality
+        # of representation (ie. no leading zero bytes)
+        elif isinstance(expr.func, ast.Name) and expr.func.id == "bytes_to_num":
+            if len(expr.args) != 1:
+                raise StructureException("bytes_to_num expects a single argument", expr)
+            sub = parse_expr(expr.args[0], context)
+            if not isinstance(sub.typ, ByteArrayType):
+                raise TypeMismatchException("Argument to bytes_to_num must be byte array", expr.args[0])
+            if sub.location == "calldata":
+                lengetter = LLLnode.from_list(['calldataload', ['add', 4, '_sub']], typ=BaseType('num'))
+                first_el_getter = LLLnode.from_list(['calldataload', ['add', 36, '_sub']], typ=BaseType('num'))
+            elif sub.location == "memory":
+                lengetter = LLLnode.from_list(['mload', '_sub'], typ=BaseType('num'))
+                first_el_getter = LLLnode.from_list(['mload', ['add', 32, '_sub']], typ=BaseType('num'))
+            elif sub.location == "storage":
+                lengetter = LLLnode.from_list(['sload', ['sha3_32', '_sub']], typ=BaseType('num'))
+                first_el_getter = LLLnode.from_list(['sload', ['add', 1, ['sha3_32', '_sub']]], typ=BaseType('num'))
+            return LLLnode.from_list(['with', '_sub', sub,
+                                         ['with', '_el1', first_el_getter,
+                                            ['with', '_len', ['clamp', 0, lengetter, 32],
+                                               ['seq',
+                                                  ['assert', ['or', ['iszero', '_len'], ['div', '_el1', ['exp', 256, 31]]]],
+                                                  ['clamp',
+                                                     ['mload', MINNUM_POS],
+                                                     ['div', '_el1', ['exp', 256, ['sub', 32, '_len']]],
+                                                     ['mload', MAXNUM_POS]]]]]],
+                                     typ=BaseType('num'))
         # Prints out a number in wei corresponding to a literal number of ether, finney, etc
         elif isinstance(expr.func, ast.Name) and expr.func.id == "as_wei":
             if len(expr.args) != 2:
@@ -968,7 +1004,7 @@ def parse_expr(expr, context):
             if len(expr.args) != 2:
                 raise StructureException("call expects two basic arguments (to and input data)", expr)
             # Get destination address
-            to = parse_expr(expr.args[0], context)
+            to = parse_value_expr(expr.args[0], context)
             if not is_base_type(to.typ, 'address'):
                 raise TypeMismatchException("Expecting address as first argument", expr.args[0])
             # Get input data
@@ -981,11 +1017,11 @@ def parse_expr(expr, context):
             outsize = None
             for kw in expr.keywords:
                 if kw.arg == 'gas' and gas is None:
-                    gas = parse_expr(kw.value, context)
+                    gas = parse_value_expr(kw.value, context)
                     if not is_base_type(gas.typ, 'num') and gas.typ.unit not in (None, {}):
                         raise TypeMismatchException("Gas must be a number", kw)
                 elif kw.arg == 'value' and value is None:
-                    value = parse_expr(kw.value, context)
+                    value = parse_value_expr(kw.value, context)
                     if not is_base_type(value.typ, 'num') and value.typ.unit not in (None, {'wei': 1}):
                         raise TypeMismatchException("Value must be a wei_value or a literal", kw)
                 elif kw.arg == 'outsize' and outsize is None:

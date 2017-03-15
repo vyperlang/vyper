@@ -897,17 +897,17 @@ def add_record():
 
 must_succeed("""
 def foo() -> num:
-    return as_number(block.timestamp)
+    return as_unitless_number(block.timestamp)
 """)
 
 must_fail("""
 def foo() -> address:
-    return as_number(block.coinbase)
+    return as_unitless_number(block.coinbase)
 """, TypeMismatchException)
 
 must_fail("""
 def foo() -> address:
-    return as_number([1, 2, 3])
+    return as_unitless_number([1, 2, 3])
 """, TypeMismatchException)
 
 must_succeed("""

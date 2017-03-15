@@ -1351,3 +1351,38 @@ except:
 assert not success
 
 print('Passed extract32 test')
+
+bytes_to_num_code = """
+def foo(x: bytes <= 32) -> num:
+    return bytes_to_num(x)
+"""
+
+c = s.abi_contract(bytes_to_num_code, language='viper')
+assert c.foo(b"") == 0
+try:
+    c.foo(b"\x00")
+    success = True
+except:
+    success = False
+assert not success
+assert c.foo(b"\x01") == 1
+try:
+    c.foo(b"\x00\x01")
+    success = True
+except:
+    success = False
+assert not success
+assert c.foo(b"\x01\x00") == 256
+assert c.foo(b"\x01\x00\x00\x00\x01") == 4294967297
+assert c.foo(b"\xff" * 32) == -1
+try:
+    c.foo(b"\x80" + b"\xff" * 31)
+    success = True
+except:
+    success = False
+try:
+    c.foo(b"\x01" * 33)
+    success = True
+except:
+    success = False
+print('Passed bytes_to_num tests')
