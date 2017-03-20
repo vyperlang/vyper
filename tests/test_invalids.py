@@ -330,7 +330,7 @@ def foo():
 """, TypeMismatchException)
 
 must_succeed("""
-x: num
+x: wei_value
 
 def foo():
     send(0x1234567890123456789012345678901234567890, self.x)
@@ -340,18 +340,25 @@ must_fail("""
 x: num
 
 def foo():
+    send(0x1234567890123456789012345678901234567890, self.x)
+""", TypeMismatchException)
+
+must_fail("""
+x: wei_value
+
+def foo():
     send(0x1234567890123456789012345678901234567890, x)
 """, VariableDeclarationException)
 
 must_succeed("""
-x: num
+x: wei_value
 
 def foo():
     send(0x1234567890123456789012345678901234567890, self.x + 1)
 """)
 
 must_fail("""
-x: num
+x: wei_value
 
 def foo():
     send(0x1234567890123456789012345678901234567890, self.x + 1.5)
@@ -368,7 +375,7 @@ must_succeed("""
 x: decimal
 
 def foo():
-    send(0x1234567890123456789012345678901234567890, floor(self.x))
+    send(0x1234567890123456789012345678901234567890, as_wei_value(floor(self.x), wei))
 """)
 
 must_succeed("""
@@ -1165,11 +1172,6 @@ def convert2(inp: num256) -> address:
 
 must_succeed("""
 def foo():
-    x = raw_call(0x1234567890123456789012345678901234567890, "cow", outsize=4)
-""")
-
-must_succeed("""
-def foo():
     x = raw_call(0x1234567890123456789012345678901234567890, "cow", outsize=4, gas=595757)
 """)
 
@@ -1204,12 +1206,6 @@ def foo() -> num(const):
     return 5
 """, ConstancyViolationException)
 
-must_succeed("""
-def foo() -> num(const):
-    x = raw_call(0x0000000000000000000000000000000000000004, "cow", outsize=4, gas=595757, value=9)
-    return 7
-""")
-
 must_fail("""
 def foo() -> num256:
     return extract32("cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc", 0)
@@ -1219,3 +1215,39 @@ must_succeed("""
 def foo() -> num256:
     return extract32("cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc", 0, type=num256)
 """)
+
+must_succeed("""
+def foo():
+    x = as_wei_value(5, finney)
+""")
+
+must_succeed("""
+def foo():
+    z = 2 + 3
+    x = as_wei_value(2 + 3, finney)
+""")
+
+must_succeed("""
+def foo():
+    x = as_wei_value(5.182, ada)
+""")
+
+must_fail("""
+def foo():
+    x = as_wei_value(5.1824, ada)
+""", InvalidLiteralException)
+
+must_fail("""
+def foo():
+    x = as_wei_value(0x05, ada)
+""", InvalidLiteralException)
+
+must_fail("""
+def foo():
+    x = as_wei_value(5, vader)
+""", InvalidLiteralException)
+
+must_fail("""
+def foo():
+    x = as_wei_value(5, 'szabo')
+""", TypeMismatchException)
