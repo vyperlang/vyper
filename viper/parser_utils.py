@@ -194,3 +194,29 @@ def make_byte_array_copier(destination, source, start_index=None, length_index=N
                     ['repeat', FREE_LOOP_INDEX, actual_start, max_roundcount,
                         ['seq', checker, setter]]]]]
     return LLLnode.from_list(o, typ=None)
+
+# Takes a <32 byte array as input, and outputs a number.
+def byte_array_to_num(arg, expr, out_type):
+    if arg.location == "calldata":
+        lengetter = LLLnode.from_list(['calldataload', ['add', 4, '_sub']], typ=BaseType('num'))
+        first_el_getter = LLLnode.from_list(['calldataload', ['add', 36, '_sub']], typ=BaseType('num'))
+    elif arg.location == "memory":
+        lengetter = LLLnode.from_list(['mload', '_sub'], typ=BaseType('num'))
+        first_el_getter = LLLnode.from_list(['mload', ['add', 32, '_sub']], typ=BaseType('num'))
+    elif arg.location == "storage":
+        lengetter = LLLnode.from_list(['sload', ['sha3_32', '_sub']], typ=BaseType('num'))
+        first_el_getter = LLLnode.from_list(['sload', ['add', 1, ['sha3_32', '_sub']]], typ=BaseType('num'))
+    if out_type == 'num':
+        result = ['clamp',
+                     ['mload', MINNUM_POS],
+                     ['div', '_el1', ['exp', 256, ['sub', 32, '_len']]],
+                     ['mload', MAXNUM_POS]]
+    elif out_type == 'num256':
+        result = ['div', '_el1', ['exp', 256, ['sub', 32, '_len']]]
+    return LLLnode.from_list(['with', '_sub', arg,
+                                 ['with', '_el1', first_el_getter,
+                                    ['with', '_len', ['clamp', 0, lengetter, 32],
+                                       ['seq',
+                                          ['assert', ['or', ['iszero', '_len'], ['div', '_el1', ['exp', 256, 31]]]],
+                                          result]]]],
+                             typ=BaseType(out_type))

@@ -126,6 +126,17 @@ class StructType(NodeType):
     def __repr__(self):
         return '{' + ', '.join([k + ': ' + repr(v) for k, v in self.members.items()]) + '}'
 
+# Data structure for a list with heterogeneous types, eg. [num, bytes32, bytes]
+class TupleType(NodeType):
+    def __init__(self, members):
+        self.members = copy.copy(members)
+
+    def __eq__(self, other):
+        return other.__class__ == StructType and other.members == self.members
+
+    def __repr__(self):
+        return '[' + ', '.join([repr(m) for m in self.members]) + ']'
+
 # Data structure for a "multi" object with a mixed type
 class MixedType(NodeType):
     def __eq__(self, other):
@@ -270,6 +281,8 @@ def get_size_of_type(typ):
         raise Exception("Type size infinite!")
     elif isinstance(typ, StructType):
         return sum([get_size_of_type(v) for v in typ.members.values()])
+    elif isinstance(typ, TupleType):
+        return sum([get_size_of_type(v) for v in typ.members])
     else:
         raise Exception("Unexpected type: %r" % repr(typ))
 

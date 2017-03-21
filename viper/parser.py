@@ -10,7 +10,7 @@ from io import BytesIO
 from .opcodes import opcodes, pseudo_opcodes
 import copy
 from .types import NodeType, BaseType, ListType, MappingType, StructType, \
-    MixedType, NullType, ByteArrayType
+    MixedType, NullType, ByteArrayType, TupleType
 from .types import base_types, parse_type, canonicalize_type, is_base_type, \
     is_numeric_type, get_size_of_type, is_varname_valid
 from .types import combine_units, are_units_compatible, set_default_units
@@ -224,17 +224,23 @@ def parse_body(code, context):
 # Take a value representing a storage location, and descend down to an element or member variable
 def add_variable_offset(parent, key):
     typ, location = parent.typ, parent.location
-    if isinstance(typ, StructType):
-        if not isinstance(key, str):
-            raise TypeMismatchException("Expecting a member variable access; cannot access element %r" % key)
-        if key not in typ.members:
-            raise TypeMismatchException("Object does not have member variable %s" % key)
-        subtype = typ.members[key]
-        attrs = sorted(typ.members.keys())
-
-        if key not in attrs:
-            raise TypeMismatchException("Member %s not found. Only the following available: %s" % (expr.attr, " ".join(attrs)))
-        index = attrs.index(key)
+    if isinstance(typ, (StructType, TupleType)):
+        if isinstance(typ, StructType):
+            if not isinstance(key, str):
+                raise TypeMismatchException("Expecting a member variable access; cannot access element %r" % key)
+            if key not in typ.members:
+                raise TypeMismatchException("Object does not have member variable %s" % key)
+            subtype = typ.members[key]
+            attrs = sorted(typ.members.keys())
+    
+            if key not in attrs:
+                raise TypeMismatchException("Member %s not found. Only the following available: %s" % (expr.attr, " ".join(attrs)))
+            index = attrs.index(key)
+        else:
+            if not isinstance(key, int):
+                raise TypeMismatchException("Expecting a static index; cannot access element %r" % key)
+            attrs = list(range(len(typ.members)))
+            index = key
         if location == 'storage':
             return LLLnode.from_list(['add', ['sha3_32', parent], index],
                                      typ=subtype,
@@ -397,9 +403,16 @@ def parse_expr(expr, context):
             return add_variable_offset(sub, expr.attr)
     elif isinstance(expr, ast.Subscript):
         sub = parse_variable_location(expr.value, context)
-        if 'value' not in vars(expr.slice):
-            raise StructureException("Array access must access a single element, not a slice", expr)
-        index = parse_value_expr(expr.slice.value, context)
+        if isinstance(sub.typ, (MappingType, ListType)):
+            if 'value' not in vars(expr.slice):
+                raise StructureException("Array access must access a single element, not a slice", expr)
+            index = parse_value_expr(expr.slice.value, context)
+        elif isinstance(sub.typ, TupleType):
+            if not isinstance(expr.slice.value, ast.Num) or expr.slice.value.n < 0 or expr.slice.value.n >= len(sub.typ.members):
+                raise TypeMismatchException("Tuple index invalid", expr.slice.value)
+            index = expr.slice.value.n
+        else:
+            raise TypeMismatchException("Bad subscript attempt", expr.value)
         return add_variable_offset(sub, index)
     # Arithmetic operations
     elif isinstance(expr, ast.BinOp):
@@ -670,40 +683,50 @@ def make_setter(left, right, location):
                                         add_variable_offset(right_token, LLLnode.from_list(i, typ='num')), location))
             return LLLnode.from_list(['with', '_L', left, ['with', '_R', right, ['seq'] + subs]], typ=None)
     # Structs
-    elif isinstance(left.typ, StructType):
+    elif isinstance(left.typ, (StructType, TupleType)):
         if left.value == "multi":
             raise Exception("Target of set statement must be a single item")
         if not isinstance(right.typ, NullType):
-            if not isinstance(right.typ, StructType):
+            if not isinstance(right.typ, left.typ.__class__):
                 raise TypeMismatchException("Setter type mismatch: left side is %r, right side is %r" % (left.typ, right.typ))
-            for k in left.typ.members:
-                if k not in right.typ.members:
-                    raise TypeMismatchException("Keys don't match for structs, missing %s" % k)
-            for k in right.typ.members:
-                if k not in left.typ.members:
-                    raise TypeMismatchException("Keys don't match for structs, extra %s" % k)
+            if isinstance(left.typ, StructType):
+                for k in left.typ.members:
+                    if k not in right.typ.members:
+                        raise TypeMismatchException("Keys don't match for structs, missing %s" % k)
+                for k in right.typ.members:
+                    if k not in left.typ.members:
+                        raise TypeMismatchException("Keys don't match for structs, extra %s" % k)
+            else:
+                if len(left.typ.members) != len(right.typ.members):
+                    raise TypeMismatchException("Tuple lengths don't match, %d vs %d" % (len(left.typ.members), len(right.typ.members)))
         left_token = LLLnode.from_list('_L', typ=left.typ, location=left.location)
+        if isinstance(left.typ, StructType):
+            keyz = sorted(list(left.typ.members.keys()))
+        else:
+            keyz = list(range(len(left.typ.members)))
         # If the right side is a literal
         if right.value == "multi":
-            if len(right.args) != len(list(left.typ.members.keys())):
+            if len(right.args) != len(keyz):
                 raise TypeMismatchException("Mismatched number of elements")
             subs = []
-            for i, typ in enumerate(sorted(list(left.typ.members.keys()))):
+            for i, typ in enumerate(keyz):
                 subs.append(make_setter(add_variable_offset(left_token, typ), right.args[i], location))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If the right side is a null
         elif isinstance(right.typ, NullType):
             subs = []
-            for typ in sorted(list(left.typ.members.keys())):
+            for typ in keyz:
                 subs.append(make_setter(add_variable_offset(left_token, typ), LLLnode.from_list(None, typ=NullType()), location))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If the right side is a variable
         else:
             right_token = LLLnode.from_list('_R', typ=right.typ, location=right.location)
             subs = []
-            for typ in sorted(list(left.typ.members.keys())):
+            for typ in keyz:
                 subs.append(make_setter(add_variable_offset(left_token, typ), add_variable_offset(right_token, typ), location))
             return LLLnode.from_list(['with', '_L', left, ['with', '_R', right, ['seq'] + subs]], typ=None)
+    else:
+        raise Exception("Invalid type for setters")
 
 # Parse a statement (usually one line of code but not always)
 def parse_stmt(stmt, context):

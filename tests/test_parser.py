@@ -1,13 +1,20 @@
 from viper import parser, compile_lll
 from viper import compiler
 from ethereum import tester as t
+from ethereum import transactions, state_transition
 from ethereum import utils as u
-# from ethereum.slogging import LogRecorder, configure_logging, set_level
-# config_string = ':info,eth.vm.log:trace,eth.vm.op:trace,eth.vm.stack:trace,eth.vm.exit:trace,eth.pb.msg:trace,eth.pb.tx:debug'
-# configure_logging(config_string=config_string)
+import rlp
+from ethereum.slogging import LogRecorder, configure_logging, set_level
+config_string = ':info,eth.vm.log:trace,eth.vm.op:trace,eth.vm.stack:trace,eth.vm.exit:trace,eth.pb.msg:trace,eth.pb.tx:debug'
+#configure_logging(config_string=config_string)
 
 s = t.state()
 t.languages['viper'] = compiler.Compiler() 
+
+# Install RLP decoder library
+s.state.set_balance('0xfe2ec957647679d210034b65e9c7db2452910b0c', 9350880000000000)
+state_transition.apply_transaction(s.state, rlp.decode(u.decode_hex('f903bd808506fc23ac008304c1908080b903aa6103988061000e6000396103a65660006101bf5361202059905901600090526101008152602081019050602052600060605261040036018060200159905901600090528181526020810190509050608052600060e0527f0100000000000000000000000000000000000000000000000000000000000000600035046101005260c061010051121561007e57fe5b60f86101005112156100a95760c061010051036001013614151561009e57fe5b6001610120526100ec565b60f761010051036020036101000a600161012051013504610140526101405160f7610100510360010101361415156100dd57fe5b60f76101005103600101610120525b5b366101205112156102ec577f01000000000000000000000000000000000000000000000000000000000000006101205135046101005260e0516060516020026020510152600160605101606052608061010051121561017a57600160e0516080510152600161012051602060e0516080510101376001610120510161012052602160e0510160e0526102da565b60b8610100511215610218576080610100510360e05160805101526080610100510360016101205101602060e05160805101013760816101005114156101ef5760807f010000000000000000000000000000000000000000000000000000000000000060016101205101350412156101ee57fe5b5b600160806101005103016101205101610120526020608061010051030160e0510160e0526102d9565b60c06101005112156102d65760b761010051036020036101000a6001610120510135046101405260007f0100000000000000000000000000000000000000000000000000000000000000600161012051013504141561027357fe5b603861014051121561028157fe5b6101405160e05160805101526101405160b761010051600161012051010103602060e05160805101013761014051600160b7610100510301016101205101610120526020610140510160e0510160e0526102d8565bfe5b5b5b602060605113156102e757fe5b6100ed565b60e051606051602002602051015261082059905901600090526108008152602081019050610160526000610120525b6060516101205113151561035c576020602060605102610120516020026020510151010161012051602002610160510152600161012051016101205261031b565b60e0518060206020606051026101605101018260805160006004600a8705601201f161038457fe5b50602060e051602060605102010161016051f35b6000f31b2d4f'), transactions.Transaction))
+assert s.state.get_code('0x0b8178879f97f2ada01fb8d219ee3d0ad74e91e0')
 
 null_code = """
 def foo():
@@ -1394,3 +1401,86 @@ try:
 except:
     success = False
 print('Passed bytes_to_num tests')
+
+rlp_decoder_code = """
+u: bytes <= 100
+
+def foo() -> address:
+    x = RLPList('\xf6\x9455555555555555555555\xa0GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG', [address, bytes32])
+    return x[0]
+
+def fop() -> bytes32:
+    x = RLPList('\xf6\x9455555555555555555555\xa0GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG', [address, bytes32])
+    return x[1]
+
+def foq() -> bytes <= 100:
+    x = RLPList('\xc5\x83cow\x03', [bytes, num])
+    return x[0]
+
+def fos() -> num:
+    x = RLPList('\xc5\x83cow\x03', [bytes, num])
+    return x[1]
+
+def fot() -> num256:
+    x = RLPList('\xc5\x83cow\x03', [bytes, num256])
+    return x[1]
+
+def qoo(inp: bytes <= 100) -> address:
+    x = RLPList(inp, [address, bytes32])
+    return x[0]
+
+def qos(inp: bytes <= 100) -> num:
+    x = RLPList(inp, [num, num])
+    return x[0] + x[1]
+
+def qot(inp: bytes <= 100):
+    x = RLPList(inp, [num, num])
+
+def qov(inp: bytes <= 100):
+    x = RLPList(inp, [num256, num256])
+
+def roo(inp: bytes <= 100) -> address:
+    self.u = inp
+    x = RLPList(self.u, [address, bytes32])
+    return x[0]
+"""
+c = s.abi_contract(rlp_decoder_code, language='viper')
+
+assert c.foo() == '0x' + '35' * 20
+assert c.fop() == b'G' * 32
+assert c.foq() == b'cow'
+assert c.fos() == 3
+assert c.fot() == 3
+assert c.qoo(b'\xf6\x9455555555555555555555\xa0GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG') == '0x' + '35' * 20
+assert c.roo(b'\xf6\x9455555555555555555555\xa0GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG') == '0x' + '35' * 20
+assert c.qos(rlp.encode([3, 30])) == 33
+assert c.qos(rlp.encode([3, 2**100 - 5])) == 2**100 - 2
+try:
+    c.qot(rlp.encode([7, 2**160]))
+    success = True
+except:
+    success = False
+assert not success
+c.qov(rlp.encode([7, 2**160]))
+try:
+    c.qov(rlp.encode([2**160]))
+    success = True
+except:
+    success = False
+assert not success
+try:
+    c.qov(rlp.encode([b'\x03', b'\x00\x01']))
+    success = True
+except:
+    success = False
+assert not success
+c.qov(rlp.encode([b'\x03', b'\x01']))
+c.qov(rlp.encode([b'\x03', b'']))
+try:
+    c.qov(rlp.encode([b'\x03', b'\x00']))
+    success = True
+except:
+    success = False
+assert not success
+
+print('Passed RLP decoder tests')

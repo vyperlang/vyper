@@ -1251,3 +1251,39 @@ must_fail("""
 def foo():
     x = as_wei_value(5, 'szabo')
 """, TypeMismatchException)
+
+must_succeed("""
+def foo() -> address:
+    x = RLPList('\xf6\x9455555555555555555555\xa0GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG', [address, bytes32])
+    return x[0]
+""")
+
+must_succeed("""
+def foo() -> bytes32:
+    x = RLPList('\xf6\x9455555555555555555555\xa0GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG', [address, bytes32])
+    return x[1]
+""")
+
+must_fail("""
+def foo() -> address:
+    x = RLPList('\xf6\x9455555555555555555555\xa0GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG', [address, bytes32])
+    return x[1]
+""", TypeMismatchException)
+
+must_fail("""
+def foo() -> address:
+    x = RLPList('\xf6\x9455555555555555555555\xa0GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG', [address, bytes32])
+    return x[2]
+""", TypeMismatchException)
+
+must_succeed("""
+def foo() -> bytes <= 500:
+    x = RLPList('\xe0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', [bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes])
+    return x[1]
+""")
+
+must_fail("""
+def foo() -> bytes <= 500:
+    x = RLPList('\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', [bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes])
+    return x[1]
+""", TypeMismatchException)

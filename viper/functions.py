@@ -2,14 +2,16 @@ from .exceptions import InvalidTypeException, TypeMismatchException, \
     VariableDeclarationException, StructureException, ConstancyViolationException, \
     InvalidTypeException, InvalidLiteralException
 from .types import NodeType, BaseType, ListType, MappingType, StructType, \
-    MixedType, NullType, ByteArrayType
+    MixedType, NullType, ByteArrayType, TupleType
 from .types import base_types, parse_type, canonicalize_type, is_base_type, \
     is_numeric_type, get_size_of_type, is_varname_valid
 from .types import combine_units, are_units_compatible, set_default_units
-from .parser_utils import LLLnode, make_byte_array_copier, get_number_as_fraction, get_length_if_0x_prefixed
+from .parser_utils import LLLnode, make_byte_array_copier, get_number_as_fraction, \
+    get_length_if_0x_prefixed, byte_array_to_num
 from .utils import fourbytes_to_int, hex_to_int, bytes_to_int, \
     DECIMAL_DIVISOR, RESERVED_MEMORY, ADDRSIZE_POS, MAXNUM_POS, MINNUM_POS, \
-    MAXDECIMAL_POS, MINDECIMAL_POS, FREE_VAR_SPACE, BLANK_SPACE, FREE_LOOP_INDEX
+    MAXDECIMAL_POS, MINDECIMAL_POS, FREE_VAR_SPACE, BLANK_SPACE, FREE_LOOP_INDEX, \
+    RLP_DECODER_ADDRESS
 import ast
 
 class Optional():
@@ -29,6 +31,8 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
             return arg.n
         elif expected_arg == 'name_literal' and isinstance(arg, ast.Name):
             return arg.id
+        elif expected_arg == '*':
+            return arg
         elif expected_arg == 'bytes':
             sub = parse_expr(arg, context)
             if isinstance(sub.typ, ByteArrayType):
@@ -262,26 +266,7 @@ def extract32(expr, args, kwargs, context):
 
 @signature('bytes')
 def bytes_to_num(expr, args, kwargs, context):
-    sub = args[0]
-    if sub.location == "calldata":
-        lengetter = LLLnode.from_list(['calldataload', ['add', 4, '_sub']], typ=BaseType('num'))
-        first_el_getter = LLLnode.from_list(['calldataload', ['add', 36, '_sub']], typ=BaseType('num'))
-    elif sub.location == "memory":
-        lengetter = LLLnode.from_list(['mload', '_sub'], typ=BaseType('num'))
-        first_el_getter = LLLnode.from_list(['mload', ['add', 32, '_sub']], typ=BaseType('num'))
-    elif sub.location == "storage":
-        lengetter = LLLnode.from_list(['sload', ['sha3_32', '_sub']], typ=BaseType('num'))
-        first_el_getter = LLLnode.from_list(['sload', ['add', 1, ['sha3_32', '_sub']]], typ=BaseType('num'))
-    return LLLnode.from_list(['with', '_sub', sub,
-                                 ['with', '_el1', first_el_getter,
-                                    ['with', '_len', ['clamp', 0, lengetter, 32],
-                                       ['seq',
-                                          ['assert', ['or', ['iszero', '_len'], ['div', '_el1', ['exp', 256, 31]]]],
-                                          ['clamp',
-                                             ['mload', MINNUM_POS],
-                                             ['div', '_el1', ['exp', 256, ['sub', 32, '_len']]],
-                                             ['mload', MAXNUM_POS]]]]]],
-                             typ=BaseType('num'))
+    return byte_array_to_num(args[0], expr, 'num')
 
 @signature(('num_literal', 'num', 'decimal'), 'name_literal')
 def as_wei_value(expr, args, kwargs, context):
@@ -351,6 +336,96 @@ def selfdestruct(expr, args, kwargs, context):
         raise ConstancyViolationException("Cannot %s inside a constant function!" % expr.func.id, expr.func)
     return LLLnode.from_list(['selfdestruct', args[0]], typ=None)
 
+@signature('bytes', '*')
+def _RLPlist(expr, args, kwargs, context):
+    # Second argument must be a list of types
+    if not isinstance(args[1], ast.List):
+        raise TypeMismatchException("Expecting list of types for second argument", args[1])
+    if len(args[1].elts) == 0:
+        raise TypeMismatchException("RLP list must have at least one item", expr)
+    if len(args[1].elts) > 32:
+        raise TypeMismatchException("RLP list must have at most 32 items", expr)
+    # Get the output format
+    _format = []
+    for arg in args[1].elts:
+        if isinstance(arg, ast.Name) and arg.id == "bytes":
+            subtyp = ByteArrayType(args[0].typ.maxlen)
+        else:
+            subtyp = parse_type(arg, 'memory')
+            if not isinstance(subtyp, BaseType):
+                raise TypeMismatchException("RLP lists only accept BaseTypes and byte arrays", arg)
+            if not is_base_type(subtyp, ('num', 'num256', 'bytes32', 'address')):
+                raise TypeMismatchException("Unsupported base type: %s" % subtyp.typ, arg)
+        _format.append(subtyp)
+    output_type = TupleType(_format)
+    output_placeholder_type = ByteArrayType(2 * len(_format) + 1 + get_size_of_type(output_type))
+    output_placeholder = context.new_placeholder(output_placeholder_type)
+    output_node = LLLnode.from_list(output_placeholder, typ=output_placeholder_type, location='memory')
+    # Create a decoder for each element in the tuple
+    decoder = []
+    for i, typ in enumerate(_format):
+        # Decoder for bytes32
+        if is_base_type(typ, 'bytes32'):
+            decoder.append(LLLnode.from_list(
+                ['seq',
+                    ['assert', ['eq', ['mload', ['add', output_node, ['mload', ['add', output_node, 32 * i]]]], 32]],
+                    ['mload', ['add', 32, ['add', output_node, ['mload', ['add', output_node, 32 * i]]]]]],
+            typ))
+        # Decoder for address
+        elif is_base_type(typ, 'address'):
+            decoder.append(LLLnode.from_list(
+                ['seq',
+                    ['assert', ['eq', ['mload', ['add', output_node, ['mload', ['add', output_node, 32 * i]]]], 20]],
+                    ['mod',
+                         ['mload', ['add', 20, ['add', output_node, ['mload', ['add', output_node, 32 * i]]]]],
+                         ['mload', ADDRSIZE_POS]]],
+            typ))
+        # Decoder for bytes
+        elif isinstance(typ, ByteArrayType):
+            decoder.append(LLLnode.from_list(
+                ['add', output_node, ['mload', ['add', output_node, 32 * i]]],
+            typ, location='memory'))
+        # Decoder for num and num256
+        elif is_base_type(typ, ('num', 'num256')):
+            bytez = LLLnode.from_list(
+                ['add', output_node, ['mload', ['add', output_node, 32 * i]]],
+            typ, location='memory')
+            decoder.append(byte_array_to_num(bytez, expr, typ.typ))
+        else:
+            raise Exception("Type not yet supported")
+    # Copy the input data to memory
+    if args[0].location == "memory":
+        variable_pointer = args[0]
+    else:
+        if args[0].location == "calldata":
+            lengetter = LLLnode.from_list(['calldataload', ['add', 4, '_ptr']], typ=BaseType('num'))
+        elif args[0].location == "storage":
+            lengetter = LLLnode.from_list(['sload', ['sha3_32', '_ptr']], typ=BaseType('num'))
+        else:
+            raise Exception("Location not yet supported")
+        placeholder = context.new_placeholder(args[0].typ)
+        placeholder_node = LLLnode.from_list(placeholder, typ=args[0].typ, location='memory')
+        copier = make_byte_array_copier(placeholder_node, LLLnode.from_list('_ptr', typ=args[0].typ, location=args[0].location))
+        variable_pointer = ['with', '_ptr', args[0], ['seq', copier, placeholder_node]]
+    # Decode the input data
+    initial_setter = LLLnode.from_list(
+        ['seq',
+            ['with', '_sub', variable_pointer,
+                ['pop', ['call',
+                         10000 + 500 * len(_format) + 10 * len(args),
+                         RLP_DECODER_ADDRESS,
+                         0,
+                         ['add', '_sub', 32],
+                         ['mload', '_sub'],
+                         output_node,
+                         64 * len(_format) + 32 + 32 * get_size_of_type(output_type)]]],
+            ['sstore', 4, ['mload', output_node]],
+            ['assert', ['eq', ['mload', output_node], 32 * len(_format) + 32]]],
+        typ=None)
+    # Shove the input data decoder in front of the first variable decoder
+    decoder[0] = LLLnode.from_list(['seq', initial_setter, decoder[0]], typ=decoder[0].typ, location=decoder[0].location)
+    return LLLnode.from_list(["multi"] + decoder, typ=output_type, location='memory')
+
 
 dispatch_table = {
     'floor': floor,
@@ -368,6 +443,7 @@ dispatch_table = {
     'bytes_to_num': bytes_to_num,
     'as_wei_value': as_wei_value,
     'raw_call': raw_call,
+    'RLPList': _RLPlist,
 }
 
 stmt_dispatch_table = {
