@@ -1525,3 +1525,25 @@ assert c.get_w__f(3) == 750
 assert c.get_w__g(3) == 751
 
 print('Passed getter tests')
+
+konkat_code = """
+ecks: bytes32
+
+def foo(x: bytes32, y: bytes32) -> bytes <= 64:
+    selfecks = x
+    return concat(selfecks, y)
+
+def goo(x: bytes32, y: bytes32) -> bytes <= 64:
+    self.ecks = x
+    return concat(self.ecks, y)
+
+def hoo(x: bytes32, y: bytes32) -> bytes <= 64:
+    return concat(x, y)
+"""
+
+c = s.abi_contract(konkat_code, language='viper')
+assert c.foo(b'\x35' * 32, b'\x00' * 32) == b'\x35' * 32 + b'\x00' * 32
+assert c.goo(b'\x35' * 32, b'\x00' * 32) == b'\x35' * 32 + b'\x00' * 32
+assert c.hoo(b'\x35' * 32, b'\x00' * 32) == b'\x35' * 32 + b'\x00' * 32
+
+print('Passed second concat tests')

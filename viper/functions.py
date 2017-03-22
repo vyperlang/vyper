@@ -147,7 +147,7 @@ def _len(expr, args, kwargs, context):
         return LLLnode.from_list(['sload', ['sha3_32', args[0]]], typ=BaseType('num'))
 
 def concat(expr, context):
-    from .parser import parse_expr
+    from .parser import parse_expr, unwrap_location
     args = [parse_expr(arg, context) for arg in expr.args]
     if len(args) < 2:
         raise StructureException("Concat expects at least two arguments", expr)
@@ -183,7 +183,7 @@ def concat(expr, context):
                                 ['set', '_poz', ['add', '_poz', length]]]])
         else:
             seq.append(['seq',
-                            ['mstore', ['add', placeholder_node, 32], arg],
+                            ['mstore', ['add', placeholder_node, 32], unwrap_location(arg)],
                             ['set', '_poz', ['add', '_poz', 32]]])
     # The position, after all arguments are processing, equals the total
     # length. Paste this in to make the output a proper bytearray

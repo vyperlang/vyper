@@ -918,7 +918,7 @@ def parse_stmt(stmt, context):
                 return LLLnode.from_list(['with', '_loc', sub,
                                             ['seq',
                                                 ['mstore', ['sub', '_loc', 32], 32],
-                                                ['return', ['sub', '_loc', 32], ['ceil32', ['add', ['mload', sub], 64]]]]], typ=None)
+                                                ['return', ['sub', '_loc', 32], ['ceil32', ['add', ['mload', '_loc'], 64]]]]], typ=None)
             # Copying from storage
             elif sub.location == 'storage':
                 # Instantiate a byte array at some index
