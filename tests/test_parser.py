@@ -1486,19 +1486,21 @@ assert not success
 print('Passed RLP decoder tests')
 
 getter_code = """
-x: public(num)
+x: public(wei_value)
 y: public(num[5])
 z: public(bytes <= 100)
 w: public({
-    a: num,
+    a: wei_value,
     b: num[7],
     c: bytes <= 100,
     d: num[address],
-    e: num[3][3]
-}[5])
+    e: num[3][3],
+    f: timestamp,
+    g: wei_value
+}[num])
 
 def __init__():
-    self.x = 7
+    self.x = as_wei_value(7, wei)
     self.y[1] = 9
     self.z = "cow"
     self.w[1].a = 11
@@ -1506,6 +1508,8 @@ def __init__():
     self.w[1].c = "horse"
     self.w[1].d[0x1234567890123456789012345678901234567890] = 15
     self.w[2].e[1][2] = 17
+    self.w[3].f = 750
+    self.w[3].g = 751
 """
 
 c = s.abi_contract(getter_code, language='viper')
@@ -1517,5 +1521,7 @@ assert c.get_w__b(1, 2) == 13
 assert c.get_w__c(1) == b"horse"
 assert c.get_w__d(1, "0x1234567890123456789012345678901234567890") == 15
 assert c.get_w__e(2, 1, 2) == 17
+assert c.get_w__f(3) == 750
+assert c.get_w__g(3) == 751
 
 print('Passed getter tests')

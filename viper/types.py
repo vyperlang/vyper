@@ -76,7 +76,12 @@ class BaseType(NodeType):
         return other.__class__ == BaseType and self.typ == other.typ and self.unit == other.unit and self.positional == other.positional
 
     def __repr__(self):
-        return str(self.typ) + ('' if self.unit == {} else '(' + print_unit(self.unit) + ')') + (' (positional) ' * self.positional)
+        subs = []
+        if self.unit != {}:
+            subs.append(print_unit(self.unit))
+        if self.positional:
+            subs.append('positional')
+        return str(self.typ) + (('(' + ', '.join(subs) + ')') if subs else '')
 
 # Data structure for a byte array
 class ByteArrayType(NodeType):
@@ -221,10 +226,18 @@ def parse_type(item, location):
         base_type = item.func.id
         if base_type not in ('num', 'decimal'):
             raise InvalidTypeException("Base type with units can only be num and decimal", item)
-        if len(item.args) != 1:
+        if len(item.args) == 0:
             raise InvalidTypeException("Malformed unit type", item)
-        unit = parse_unit(item.args[0])
-        return BaseType(base_type, unit, False)
+        if isinstance(item.args[-1], ast.Name) and item.args[-1].id == "positional":
+            positional = True
+            argz = item.args[:-1]
+        else:
+            positional = False
+            argz = item.args
+        if len(argz) != 1:
+            raise InvalidTypeException("Malformed unit type", item)
+        unit = parse_unit(argz[0])
+        return BaseType(base_type, unit, positional)
     # Subscripts
     elif isinstance(item, ast.Subscript):
         if 'value' not in vars(item.slice):

@@ -2,7 +2,7 @@
 class ParserException(Exception):
     def __init__(self, message='Error Message not found.', item=None):
         self.message = message
-        if item:
+        if item and hasattr(item, 'lineno'):
             self.set_err_pos(item.lineno, item.col_offset)
             self.source_code = item.source_code.splitlines()
 

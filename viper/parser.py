@@ -36,7 +36,9 @@ def parse(code):
     return o.body
 
 def parse_line(code):
-    return parse(code)[0]
+    o = ast.parse(code).body[0]
+    decorate_ast_with_source(o, code)
+    return o
 
 def decorate_ast_with_source(_ast, code):
 
@@ -61,7 +63,7 @@ def _mk_getter_helper(typ, depth=0):
     elif isinstance(typ, MappingType):
         o = []
         for funname, head, tail, base in _mk_getter_helper(typ.valuetype, depth+1):
-            o.append((funname, ("arg%d: %r, " % (depth, typ.keytype)) + head, tail+"[arg%d]" % depth, base))
+            o.append((funname, ("arg%d: %r, " % (depth, typ.keytype)) + head, ("[arg%d]" % depth) + tail, base))
         return o
     elif isinstance(typ, StructType):
         o = []
@@ -72,10 +74,13 @@ def _mk_getter_helper(typ, depth=0):
     else:
         raise Exception("Unexpected type")
 
+def update_base(base):
+    return '('+base+')(const)' if '(' not in base else base.rstrip(')') + ', const)'
+
 def mk_getter(varname, typ):
     funs = _mk_getter_helper(typ)
-    o = ['def get_%s%s(%s) -> %s: return self.%s%s' % (varname, funname, head.rstrip(', '), base, varname, tail) for (funname, head, tail, base) in funs]
-    return o
+    return ['def get_%s%s(%s) -> %s: return self.%s%s' % (varname, funname, head.rstrip(', '), update_base(base), varname, tail)
+            for (funname, head, tail, base) in funs]
 
 # Parse top-level functions and variables
 def get_defs_and_globals(code):
@@ -146,8 +151,8 @@ def get_func_details(code):
     elif isinstance(code.returns, ast.Call):
         consts = [arg for arg in code.returns.args if isinstance(arg, ast.Name) and arg.id == 'const']
         units = [arg for arg in code.returns.args if arg not in consts]
-        if len(consts) > 1 or len(units) > 1:
-            raise InvalidTypeException("Expecting at most one unit declaration and const keyword", code.returns)
+        if len(consts) > 1:
+            raise InvalidTypeException("Expecting at most one const keyword", code.returns)
         const = len(consts) == 1
         if units:
             typ = ast.Call(func=code.returns.func, args=units)

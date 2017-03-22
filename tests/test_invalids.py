@@ -922,6 +922,11 @@ def foo(x: timedelta, y: num (wei/sec)) -> wei_value:
     return x * y
 """)
 
+must_succeed("""
+def foo(x: num(sec, positional)) -> timestamp:
+    return x
+""")
+
 must_fail("""
 def foo(x: timedelta, y: num (wei/sec)) -> num:
     return x * y
