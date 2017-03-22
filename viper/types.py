@@ -31,20 +31,20 @@ def is_varname_valid(varname):
         return False
     return True
 
-# Pretty-print a unit (eg. wei/seconds^2)
+# Pretty-print a unit (eg. wei/seconds**2)
 def print_unit(unit):
     if unit is None:
         return '*'
     pos = ''
     for k in sorted([x for x in unit.keys() if unit[x] > 0]):
         if unit[k] > 1:
-            pos += '*' + k + '^' + str(unit[k])
+            pos += '*' + k + '**' + str(unit[k])
         else:
             pos += '*' + k
     neg = ''
     for k in sorted([x for x in unit.keys() if unit[x] < 0]):
         if unit[k] < -1:
-            neg += '/' + k + '^' + str(-unit[k])
+            neg += '/' + k + '**' + str(-unit[k])
         else:
             neg += '/' + k
     if pos and neg:
@@ -87,7 +87,7 @@ class ByteArrayType(NodeType):
         return other.__class__ == ByteArrayType and self.maxlen == other.maxlen
 
     def __repr__(self):
-        return 'bytearray<%d>' % self.maxlen
+        return 'bytes <= %d' % self.maxlen
 
 # Data structure for a list with some fixed length        
 class ListType(NodeType):
@@ -235,15 +235,13 @@ def parse_type(item, location):
                 raise InvalidTypeException("Arrays must have a positive integral number of elements", item.slice.value)
             return ListType(parse_type(item.value, location), item.slice.value.n)
         # Mappings, eg. num[address]
-        elif isinstance(item.slice.value, ast.Name):
+        else:
             if location == 'memory':
                 raise InvalidTypeException("No mappings allowed for in-memory types, only fixed-size arrays", item)
             keytype = parse_type(item.slice.value, None)
             if not isinstance(keytype, BaseType):
                 raise InvalidTypeException("Mapping keys must be base types", item.slice.value)
             return MappingType(keytype, parse_type(item.value, location))
-        else:
-            raise InvalidTypeException("Arrays must be of the format type[num_of_elements] or type[key_type]", item.slice.value)
     # Dicts, used to represent mappings, eg. {uint: uint}. Key must be a base type
     elif isinstance(item, ast.Dict):
         o = {} 

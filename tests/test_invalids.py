@@ -1287,3 +1287,11 @@ def foo() -> bytes <= 500:
     x = RLPList('\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', [bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes])
     return x[1]
 """, TypeMismatchException)
+
+must_succeed("""
+x: public(num)
+""")
+
+must_fail("""
+x: public()
+""", StructureException)

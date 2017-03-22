@@ -36,7 +36,7 @@ def parse(code):
     return o.body
 
 def parse_line(code):
-    return parse(code)[0].value
+    return parse(code)[0]
 
 def decorate_ast_with_source(_ast, code):
 
@@ -47,10 +47,41 @@ def decorate_ast_with_source(_ast, code):
 
     MyVisitor().visit(_ast)
 
+# Make a getter for a variable
+def _mk_getter_helper(typ, depth=0):
+    if isinstance(typ, BaseType):
+        return [("", "", "", repr(typ))]
+    elif isinstance(typ, ByteArrayType):
+        return [("", "", "", repr(typ))]
+    elif isinstance(typ, ListType):
+        o = []
+        for funname, head, tail, base in _mk_getter_helper(typ.subtype, depth+1):
+            o.append((funname, ("arg%d: num, " % depth) + head, ("[arg%d]" % depth) + tail, base))
+        return o
+    elif isinstance(typ, MappingType):
+        o = []
+        for funname, head, tail, base in _mk_getter_helper(typ.valuetype, depth+1):
+            o.append((funname, ("arg%d: %r, " % (depth, typ.keytype)) + head, tail+"[arg%d]" % depth, base))
+        return o
+    elif isinstance(typ, StructType):
+        o = []
+        for k, v in typ.members.items():
+            for funname, head, tail, base in _mk_getter_helper(v, depth):
+                o.append(("__"+k+funname, head, "."+k+tail, base))
+        return o
+    else:
+        raise Exception("Unexpected type")
+
+def mk_getter(varname, typ):
+    funs = _mk_getter_helper(typ)
+    o = ['def get_%s%s(%s) -> %s: return self.%s%s' % (varname, funname, head.rstrip(', '), base, varname, tail) for (funname, head, tail, base) in funs]
+    return o
+
 # Parse top-level functions and variables
 def get_defs_and_globals(code):
     _globals = {}
     _defs = []
+    _getters = []
     for item in code:
         if isinstance(item, ast.AnnAssign):
             if not isinstance(item.target, ast.Name):
@@ -59,12 +90,20 @@ def get_defs_and_globals(code):
                 raise VariableDeclarationException("Cannot declare a persistent variable twice!", item.target)
             if len(_defs):
                 raise StructureException("Global variables must all come before function definitions", item)
-            _globals[item.target.id] = (len(_globals), parse_type(item.annotation, 'storage'))
+            if isinstance(item.annotation, ast.Call) and item.annotation.func.id == "public":
+                if len(item.annotation.args) != 1:
+                    raise StructureException("Public expects one arg (the type)")
+                typ = parse_type(item.annotation.args[0], 'storage')
+                _globals[item.target.id] = (len(_globals), typ)
+                for getter in mk_getter(item.target.id, typ):
+                    _getters.append(parse_line(getter))
+            else:
+                _globals[item.target.id] = (len(_globals), parse_type(item.annotation, 'storage'))
         elif isinstance(item, ast.FunctionDef):
             _defs.append(item)
         else:
             raise StructureException("Invalid top-level statement", item)
-    return _defs, _globals
+    return _defs + _getters, _globals
 
 # Header code
 def mk_initial():

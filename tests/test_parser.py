@@ -1484,3 +1484,38 @@ except:
 assert not success
 
 print('Passed RLP decoder tests')
+
+getter_code = """
+x: public(num)
+y: public(num[5])
+z: public(bytes <= 100)
+w: public({
+    a: num,
+    b: num[7],
+    c: bytes <= 100,
+    d: num[address],
+    e: num[3][3]
+}[5])
+
+def __init__():
+    self.x = 7
+    self.y[1] = 9
+    self.z = "cow"
+    self.w[1].a = 11
+    self.w[1].b[2] = 13
+    self.w[1].c = "horse"
+    self.w[1].d[0x1234567890123456789012345678901234567890] = 15
+    self.w[2].e[1][2] = 17
+"""
+
+c = s.abi_contract(getter_code, language='viper')
+assert c.get_x() == 7
+assert c.get_y(1) == 9
+assert c.get_z() == b"cow"
+assert c.get_w__a(1) == 11
+assert c.get_w__b(1, 2) == 13
+assert c.get_w__c(1) == b"horse"
+assert c.get_w__d(1, "0x1234567890123456789012345678901234567890") == 15
+assert c.get_w__e(2, 1, 2) == 17
+
+print('Passed getter tests')
