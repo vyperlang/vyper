@@ -831,7 +831,7 @@ def parse_stmt(stmt, context):
             return LLLnode.from_list(['if',
                                       parse_value_expr(stmt.test, context),
                                       parse_body(stmt.body, context),
-                                      parse_body(stmt.orelse[0], context)], typ=None)
+                                      parse_body(stmt.orelse, context)], typ=None)
         else:
             return LLLnode.from_list(['if',
                                       parse_value_expr(stmt.test, context),

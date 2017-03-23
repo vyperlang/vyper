@@ -360,7 +360,7 @@ def _RLPlist(expr, args, kwargs, context):
             subtyp = parse_type(arg, 'memory')
             if not isinstance(subtyp, BaseType):
                 raise TypeMismatchException("RLP lists only accept BaseTypes and byte arrays", arg)
-            if not is_base_type(subtyp, ('num', 'num256', 'bytes32', 'address')):
+            if not is_base_type(subtyp, ('num', 'num256', 'bytes32', 'address', 'bool')):
                 raise TypeMismatchException("Unsupported base type: %s" % subtyp.typ, arg)
         _format.append(subtyp)
     output_type = TupleType(_format)
@@ -397,6 +397,16 @@ def _RLPlist(expr, args, kwargs, context):
                 ['add', output_node, ['mload', ['add', output_node, 32 * i]]],
             typ, location='memory')
             decoder.append(byte_array_to_num(bytez, expr, typ.typ))
+        # Decoder for bools
+        elif is_base_type(typ, ('bool')):
+            # This is basically a really clever way to test for a length-prefixed one or zero. We take the 32 bytes
+            # starting one byte *after* the start of the length declaration; this includes the last 31 bytes of the
+            # length and the first byte of the value. 0 corresponds to length 0, first byte 0, and 257 corresponds
+            # to length 1, first byte \x01
+            decoder.append(LLLnode.from_list(
+                ['with', '_ans', ['mload', ['add', 1, ['add', output_node, ['mload', ['add', output_node, 32 * i]]]]],
+                    ['seq', ['assert', ['or', ['eq', '_ans', 0], ['eq', '_ans', 257]]], ['div', '_ans', 257]]],
+            typ))
         else:
             raise Exception("Type not yet supported")
     # Copy the input data to memory

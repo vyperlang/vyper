@@ -16,37 +16,6 @@ s.state.set_balance('0xfe2ec957647679d210034b65e9c7db2452910b0c', 93508800000000
 state_transition.apply_transaction(s.state, rlp.decode(u.decode_hex('f903bd808506fc23ac008304c1908080b903aa6103988061000e6000396103a65660006101bf5361202059905901600090526101008152602081019050602052600060605261040036018060200159905901600090528181526020810190509050608052600060e0527f0100000000000000000000000000000000000000000000000000000000000000600035046101005260c061010051121561007e57fe5b60f86101005112156100a95760c061010051036001013614151561009e57fe5b6001610120526100ec565b60f761010051036020036101000a600161012051013504610140526101405160f7610100510360010101361415156100dd57fe5b60f76101005103600101610120525b5b366101205112156102ec577f01000000000000000000000000000000000000000000000000000000000000006101205135046101005260e0516060516020026020510152600160605101606052608061010051121561017a57600160e0516080510152600161012051602060e0516080510101376001610120510161012052602160e0510160e0526102da565b60b8610100511215610218576080610100510360e05160805101526080610100510360016101205101602060e05160805101013760816101005114156101ef5760807f010000000000000000000000000000000000000000000000000000000000000060016101205101350412156101ee57fe5b5b600160806101005103016101205101610120526020608061010051030160e0510160e0526102d9565b60c06101005112156102d65760b761010051036020036101000a6001610120510135046101405260007f0100000000000000000000000000000000000000000000000000000000000000600161012051013504141561027357fe5b603861014051121561028157fe5b6101405160e05160805101526101405160b761010051600161012051010103602060e05160805101013761014051600160b7610100510301016101205101610120526020610140510160e0510160e0526102d8565bfe5b5b5b602060605113156102e757fe5b6100ed565b60e051606051602002602051015261082059905901600090526108008152602081019050610160526000610120525b6060516101205113151561035c576020602060605102610120516020026020510151010161012051602002610160510152600161012051016101205261031b565b60e0518060206020606051026101605101018260805160006004600a8705601201f161038457fe5b50602060e051602060605102010161016051f35b6000f31b2d4f'), transactions.Transaction))
 assert s.state.get_code('0x0b8178879f97f2ada01fb8d219ee3d0ad74e91e0')
 
-large_input_code = """
-def foo(x: num) -> num:
-    return 3
-"""
-
-c = s.abi_contract(large_input_code, language='viper')
-c.foo(1274124)
-c.foo(2**120)
-try:
-    c.foo(2**130)
-    success = True
-except:
-    success = False
-assert not success
-
-large_input_code_2 = """
-def __init__(x: num):
-    y = x
-
-def foo() -> num:
-    return 5
-"""
-
-c = s.abi_contract(large_input_code_2, language='viper', constructor_parameters=[17], sender=t.k0, endowment=0)
-try:
-    c = s.abi_contract(large_input_code_2, language='viper', constructor_parameters=[2**130], sender=t.k0, endowment=0)
-    success = True
-except:
-    success = False
-assert not success
-
 null_code = """
 def foo():
     pass
@@ -1474,6 +1443,10 @@ def roo(inp: bytes <= 100) -> address:
     self.u = inp
     x = RLPList(self.u, [address, bytes32])
     return x[0]
+
+def too(inp: bytes <= 100) -> bool:
+    x = RLPList(inp, [bool])
+    return x[0]
 """
 c = s.abi_contract(rlp_decoder_code, language='viper')
 
@@ -1509,6 +1482,20 @@ c.qov(rlp.encode([b'\x03', b'\x01']))
 c.qov(rlp.encode([b'\x03', b'']))
 try:
     c.qov(rlp.encode([b'\x03', b'\x00']))
+    success = True
+except:
+    success = False
+assert not success
+assert c.too(rlp.encode([b'\x01'])) is True
+assert c.too(rlp.encode([b''])) is False
+try:
+    c.too(rlp.encode([b'\x02']))
+    success = True
+except:
+    success = False
+assert not success
+try:
+    c.too(rlp.encode([b'\x00']))
     success = True
 except:
     success = False
@@ -1578,3 +1565,52 @@ assert c.goo(b'\x35' * 32, b'\x00' * 32) == b'\x35' * 32 + b'\x00' * 32
 assert c.hoo(b'\x35' * 32, b'\x00' * 32) == b'\x35' * 32 + b'\x00' * 32
 
 print('Passed second concat tests')
+
+conditional_return_code = """
+def foo(i: bool) -> num:
+    if i:
+        return 5
+    else:
+        assert 2
+        return 7
+    return 11
+"""
+
+c = s.abi_contract(conditional_return_code, language='viper')
+assert c.foo(True) == 5
+assert c.foo(False) == 7
+
+print('Passed conditional return tests')
+
+large_input_code = """
+def foo(x: num) -> num:
+    return 3
+"""
+
+c = s.abi_contract(large_input_code, language='viper')
+c.foo(1274124)
+c.foo(2**120)
+try:
+    c.foo(2**130)
+    success = True
+except:
+    success = False
+assert not success
+
+large_input_code_2 = """
+def __init__(x: num):
+    y = x
+
+def foo() -> num:
+    return 5
+"""
+
+c = s.abi_contract(large_input_code_2, language='viper', constructor_parameters=[17], sender=t.k0, endowment=0)
+try:
+    c = s.abi_contract(large_input_code_2, language='viper', constructor_parameters=[2**130], sender=t.k0, endowment=0)
+    success = True
+except:
+    success = False
+assert not success
+
+print('Passed invalid input tests')
