@@ -167,7 +167,6 @@ def compile_to_assembly(code, withargs={}, break_dest=None, height=0):
         for arg in code.args:
             o.extend(compile_to_assembly(arg, withargs, break_dest, height))
             if arg.valency == 1 and arg != code.args[-1]:
-                print(arg, 'sss')
                 o.append('POP')
         return o
     # Assert (if false, exit)
@@ -175,8 +174,8 @@ def compile_to_assembly(code, withargs={}, break_dest=None, height=0):
         o = compile_to_assembly(code.args[0], withargs, break_dest, height)
         o.extend(['ISZERO', 'PC', 'JUMPI'])
         return o
-    # Unsigned clamp, check less-than
-    elif code.value == 'uclamplt' or code.value == 'uclample':
+    # Unsigned/signed clamp, check less-than
+    elif code.value in ('uclamplt', 'uclample', 'clamplt', 'clample'):
         if isinstance(code.args[0].value, int) and isinstance(code.args[1].value, int):
             if 0 <= code.args[0].value < code.args[1].value:
                 return compile_to_assembly(code.args[0], withargs, break_dest, height)
@@ -187,9 +186,13 @@ def compile_to_assembly(code, withargs={}, break_dest=None, height=0):
         o.extend(['DUP2'])
         # Stack: num num bound
         if code.value == 'uclamplt':
-            o.extend(['LT', 'ISZERO', 'PC', 'JUMPI'])
+            o.extend(["LT", 'ISZERO', 'PC', 'JUMPI'])
+        elif code.value == "clamplt":
+            o.extend(["SLT", 'ISZERO', 'PC', 'JUMPI'])
+        elif code.value == "uclample":
+            o.extend(["GT", 'PC', 'JUMPI'])
         else:
-            o.extend(['GT', 'PC', 'JUMPI'])
+            o.extend(["SGT", 'PC', 'JUMPI'])
         return o
     # Signed clamp, check against upper and lower bounds
     elif code.value == 'clamp':

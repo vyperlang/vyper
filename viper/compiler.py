@@ -1,5 +1,6 @@
 from . import parser
 from . import compile_lll
+from . import optimizer
 
 def memsize_to_gas(memsize):
     return (memsize // 32) * 3 + (memsize // 32) ** 2 // 512
@@ -8,7 +9,7 @@ initial_gas = compile_lll.gas_estimate(parser.mk_initial())
 function_gas = compile_lll.gas_estimate(parser.parse_func(parser.parse('def foo(): pass')[0], {}, 'def foo(): pass'))
 
 def compile(code, *args, **kwargs):
-    lll = parser.parse_tree_to_lll(parser.parse(code), code)
+    lll = optimizer.optimize(parser.parse_tree_to_lll(parser.parse(code), code))
     return compile_lll.assembly_to_evm(compile_lll.compile_to_assembly(lll))
 
 def mk_full_signature(code, *args, **kwargs):

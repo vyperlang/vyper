@@ -234,28 +234,34 @@ def extract32(expr, args, kwargs, context):
     # Get length and specific element
     if sub.location == "calldata":
         lengetter = LLLnode.from_list(['calldataload', ['add', 4, '_sub']], typ=BaseType('num'))
-        elementgetter = LLLnode.from_list(['calldataload', ['add', ['add', 36, '_sub'], ['mul', 32, '_i']]], typ=BaseType('num'))
+        elementgetter = lambda index: LLLnode.from_list(['calldataload', ['add', ['add', 36, '_sub'], ['mul', 32, index]]], typ=BaseType('num'))
     elif sub.location == "memory":
         lengetter = LLLnode.from_list(['mload', '_sub'], typ=BaseType('num'))
-        elementgetter = LLLnode.from_list(['mload', ['add', '_sub', ['add', 32, ['mul', 32, '_i']]]], typ=BaseType('num'))
+        elementgetter = lambda index: LLLnode.from_list(['mload', ['add', '_sub', ['add', 32, ['mul', 32, index]]]], typ=BaseType('num'))
     elif sub.location == "storage":
         lengetter = LLLnode.from_list(['sload', ['sha3_32', '_sub']], typ=BaseType('num'))
-        elementgetter = LLLnode.from_list(['sload', ['add', ['sha3_32', '_sub'], ['add', 1, '_i']]], typ=BaseType('num'))
-    o = LLLnode.from_list(
-        ['with', '_sub', sub,
-            ['with', '_len', lengetter,
-                ['with', '_index', ['clamp', 0, index, ['sub', '_len', 32]],
-                    ['if',
-                        ['eq', ['mod', '_index', 32], 0],
-                        ['with', '_i', ['div', '_index', 32], elementgetter],
-                        ['with', '_v1', 0,
-                            ['with', '_v2', 0, 
-                                ['seq',
-                                    ['set', '_v1', ['with', '_i', ['div', '_index', 32], elementgetter]],
-                                    ['set', '_v2', ['with', '_i', ['add', ['div', '_index', 32], 1], elementgetter]],
-                                    ['add',
-                                        ['mul', '_v1', ['exp', 256, ['mod', '_index', 32]]],
-                                        ['div', '_v2', ['exp', 256, ['sub', 32, ['mod', '_index', 32]]]]]]]]]]]],
+        elementgetter = lambda index: LLLnode.from_list(['sload', ['add', ['sha3_32', '_sub'], ['add', 1, index]]], typ=BaseType('num'))
+    # Special case: index known to be a multiple of 32
+    if isinstance(index.value, int) and not index.value % 32:
+        o = LLLnode.from_list(['with', '_sub', sub, elementgetter(['div', ['clamp', 0, index, ['sub', lengetter, 32]], 32])], typ=BaseType(ret_type))
+    # General case
+    else:
+        o = LLLnode.from_list(
+            ['with', '_sub', sub,
+                ['with', '_len', lengetter,
+                    ['with', '_index', ['clamp', 0, index, ['sub', '_len', 32]],
+                      ['with', '_mi32', ['mod', '_index', 32],
+                        ['with', '_di32', ['div', '_index', 32],
+                          ['if',
+                            '_mi32',
+                            ['add',
+                                ['mul',
+                                    elementgetter('_di32'),
+                                    ['exp', 256, '_mi32']],
+                                ['div',
+                                    elementgetter(['add', '_di32', 1]),
+                                    ['exp', 256, ['sub', 32, '_mi32']]]],
+                            elementgetter('_di32')]]]]]],
         typ=BaseType(ret_type))
     if ret_type == 'num128':
         return LLLnode.from_list(['clamp', ['mload', MINNUM_POS], o, ['mload', MAXNUM_POS]], typ=BaseType("num"))

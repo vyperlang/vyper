@@ -240,20 +240,40 @@ def parse_tree_to_lll(code, origcode):
                                     ['return', 0, ['lll', ['seq', mk_initial()] + [parse_func(_def, _globals, origcode) for _def in otherfuncs], 0]]],
                                  typ=None)
 
+# Checks that an input matches its type
+def make_clamper(dataloc, typ):
+    if dataloc >= 0:
+        data_decl = ['calldataload', dataloc]
+    else:
+        data_decl = ['seq', ['codecopy', FREE_VAR_SPACE, ['sub', ['codesize'], -dataloc], 32], ['mload', FREE_VAR_SPACE]]
+    if is_base_type(typ, 'num'):
+        return LLLnode.from_list(['clamp', ['mload', MINNUM_POS], data_decl, ['mload', MAXNUM_POS]], typ=typ)
+    elif is_base_type(typ, 'bool'):
+        return LLLnode.from_list(['uclamplt', data_decl, 2], typ=typ)
+    elif is_base_type(typ, 'address'):
+        return LLLnode.from_list(['uclamplt', data_decl, ['mload', ADDRSIZE_POS]], typ=typ)
+    else:
+        return LLLnode.from_list('pass')
+
 # Parses a function declaration
 def parse_func(code, _globals, origcode, _vars=None):
     name, args, output_type, const, sig, method_id = get_func_details(code)
+    # Check for duplicate variables with globals
     for arg in args:
         if arg[0] in _globals:
             raise VariableDeclarationException("Variable name duplicated between function arguments and globals: "+arg[0])
+    # Create a context
     context = Context(args={a[0]: (a[1], a[2]) for a in args}, globals=_globals, vars=_vars or {},
                       return_type=output_type, is_constant=const, origcode=origcode)
+    # Create "clampers" (input well-formedness checkers)
+    clampers = [make_clamper(loc, typ) for _, loc, typ in args]
+    # Return function body
     if name == '__init__':
-        return parse_body(code.body, context)
+        return LLLnode.from_list(['seq'] + clampers + [parse_body(code.body, context)])
     else:
         return LLLnode.from_list(['if',
                                     ['eq', ['mload', 0], method_id],
-                                    ['seq'] + [parse_body(c, context) for c in code.body]
+                                    ['seq'] + clampers + [parse_body(c, context) for c in code.body]
                                  ], typ=None)
     
 # Parse a piece of code
@@ -289,6 +309,11 @@ def add_variable_offset(parent, key):
             return LLLnode.from_list(['add', ['sha3_32', parent], index],
                                      typ=subtype,
                                      location='storage')
+
+        elif location == 'storage_prehashed':
+            return LLLnode.from_list(['add', parent, index],
+                                     typ=subtype,
+                                     location='storage')
         elif location == 'memory':
             offset = 0
             for i in range(index):
@@ -307,6 +332,10 @@ def add_variable_offset(parent, key):
             sub = base_type_conversion(key, key.typ, typ.keytype)
         if location == 'storage':
            return LLLnode.from_list(['add', ['sha3_32', parent], sub],
+                                     typ=subtype,
+                                     location='storage')
+        elif location == 'storage_prehashed':
+           return LLLnode.from_list(['add', parent, sub],
                                      typ=subtype,
                                      location='storage')
         elif location == 'memory':
@@ -386,13 +415,7 @@ def parse_expr(expr, context):
                 data_decl = ['calldataload', dataloc]
             else:
                 data_decl = ['seq', ['codecopy', FREE_VAR_SPACE, ['sub', ['codesize'], -dataloc], 32], ['mload', FREE_VAR_SPACE]]
-            if is_base_type(typ, 'num'):
-                return LLLnode.from_list(['clamp', ['mload', MINNUM_POS], data_decl, ['mload', MAXNUM_POS]], typ=typ)
-            elif is_base_type(typ, 'bool'):
-                return LLLnode.from_list(['uclamplt', data_decl, 2], typ=typ)
-            elif is_base_type(typ, 'address'):
-                return LLLnode.from_list(['uclamplt', data_decl, ['mload', ADDRSIZE_POS]], typ=typ)
-            elif is_base_type(typ, ('num256', 'signed256', 'bytes32')):
+            if is_base_type(typ, ('num', 'bool', 'address', 'num256', 'signed256', 'bytes32')):
                 return LLLnode.from_list(data_decl, typ=typ)
             elif isinstance(typ, ByteArrayType):
                 return LLLnode.from_list(data_decl, typ=typ, location='calldata')
@@ -696,6 +719,9 @@ def make_setter(left, right, location):
         if not isinstance(right.typ, (ListType, NullType)):
             raise TypeMismatchException("Setter type mismatch: left side is array, right side is %r" % right.typ)
         left_token = LLLnode.from_list('_L', typ=left.typ, location=left.location)
+        if left.location == "storage":
+            left = LLLnode.from_list(['sha3_32', left], typ=left.typ, location="storage_prehashed")
+            left_token.location = "storage_prehashed"
         # Type checks
         if not isinstance(right.typ, NullType):
             if not isinstance(right.typ, ListType):
@@ -744,6 +770,9 @@ def make_setter(left, right, location):
                 if len(left.typ.members) != len(right.typ.members):
                     raise TypeMismatchException("Tuple lengths don't match, %d vs %d" % (len(left.typ.members), len(right.typ.members)))
         left_token = LLLnode.from_list('_L', typ=left.typ, location=left.location)
+        if left.location == "storage":
+            left = LLLnode.from_list(['sha3_32', left], typ=left.typ, location="storage_prehashed")
+            left_token.location = "storage_prehashed"
         if isinstance(left.typ, StructType):
             keyz = sorted(list(left.typ.members.keys()))
         else:
