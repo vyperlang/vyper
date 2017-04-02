@@ -287,16 +287,40 @@ print('Passed basic addition, subtraction and multiplication tests')
 print('Gas estimate', sum(estimate.values()), 'actual', post_gas - pre_gas - s.last_tx.intrinsic_gas_used * (post_txs - pre_txs))
 
 harder_decimal_test = """
-def phooey() -> num:
+def phooey(inp: decimal) -> decimal:
     x = 10000.0
     for i in range(4):
-        x = x * 1.2
-    return(floor(x))
+        x = x * inp
+    return x
+
+def arg(inp: decimal) -> decimal:
+    return inp
+
+def garg() -> decimal:
+    x = 4.5
+    x *= 1.5
+    return x
+
+def harg() -> decimal:
+    x = 4.5
+    x *= 2
+    return x
+
+def iarg() -> wei_value:
+    x = as_wei_value(7, wei)
+    x *= 2
+    return x
 """
 
 
 c = s.abi_contract(harder_decimal_test, language='viper')
-assert c.phooey() == 20736
+assert c.phooey(1.2) == 20736.0
+assert c.phooey(-1.2) == 20736.0
+assert c.arg(-3.7) == -3.7
+assert c.arg(3.7) == 3.7
+assert c.garg() == 6.75
+assert c.harg() == 9.0
+assert c.iarg() == 14
 
 print('Passed fractional multiplication test')
 

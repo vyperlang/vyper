@@ -342,6 +342,10 @@ def selfdestruct(expr, args, kwargs, context):
         raise ConstancyViolationException("Cannot %s inside a constant function!" % expr.func.id, expr.func)
     return LLLnode.from_list(['selfdestruct', args[0]], typ=None)
 
+@signature('num')
+def blockhash(expr, args, kwargs, contact):
+    return LLLnode.from_list(['blockhash', ['uclamp', ['sub', ['number'], 256], args[0], ['sub', ['number'], 1]]], typ=BaseType('bytes32'))
+
 @signature('bytes', '*')
 def _RLPlist(expr, args, kwargs, context):
     # Second argument must be a list of types
@@ -460,6 +464,7 @@ dispatch_table = {
     'as_wei_value': as_wei_value,
     'raw_call': raw_call,
     'RLPList': _RLPlist,
+    'blockhash': blockhash
 }
 
 stmt_dispatch_table = {

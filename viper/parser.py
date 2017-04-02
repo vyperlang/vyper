@@ -415,7 +415,7 @@ def parse_expr(expr, context):
                 data_decl = ['calldataload', dataloc]
             else:
                 data_decl = ['seq', ['codecopy', FREE_VAR_SPACE, ['sub', ['codesize'], -dataloc], 32], ['mload', FREE_VAR_SPACE]]
-            if is_base_type(typ, ('num', 'bool', 'address', 'num256', 'signed256', 'bytes32')):
+            if is_base_type(typ, ('num', 'bool', 'decimal', 'address', 'num256', 'signed256', 'bytes32')):
                 return LLLnode.from_list(data_decl, typ=typ)
             elif isinstance(typ, ByteArrayType):
                 return LLLnode.from_list(data_decl, typ=typ, location='calldata')
@@ -455,6 +455,8 @@ def parse_expr(expr, context):
                 return LLLnode.from_list(['coinbase'], typ='address')
             elif key == "block.number":
                 return LLLnode.from_list(['number'], typ='num')
+            elif key == "block.prevhash":
+                return LLLnode.from_list(['prevhash', ['sub', 'number', 1]], typ='bytes32')
             elif key == "tx.origin":
                 return LLLnode.from_list(['origin'], typ='address')
             else:
@@ -884,7 +886,7 @@ def parse_stmt(stmt, context):
     elif isinstance(stmt, ast.AugAssign):
         target = parse_variable_location(stmt.target, context)
         sub = parse_value_expr(stmt.value, context)
-        sub = base_type_conversion(sub, sub.typ, target.typ)
+        #sub = base_type_conversion(sub, sub.typ, target.typ)
         if not isinstance(stmt.op, (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Mod)):
             raise Exception("Unsupported operator for augassign")
         if not isinstance(target.typ, BaseType):

@@ -161,6 +161,8 @@ def canonicalize_type(t):
     t = t.typ
     if t == 'num':
         return 'int128'
+    elif t == 'decimal':
+        return 'decimal10'
     elif t == 'bool':
         return 'bool'
     elif t == 'num256':

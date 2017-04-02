@@ -195,13 +195,15 @@ def compile_to_assembly(code, withargs={}, break_dest=None, height=0):
             o.extend(["SGT", 'PC', 'JUMPI'])
         return o
     # Signed clamp, check against upper and lower bounds
-    elif code.value == 'clamp':
+    elif code.value in ('clamp', 'uclamp'):
+        comp1 = 'SGT' if code.value == 'clamp' else 'GT'
+        comp2 = 'SLT' if code.value == 'clamp' else 'LT'
         o = compile_to_assembly(code.args[0], withargs, break_dest, height)
         o.extend(compile_to_assembly(code.args[1], withargs, break_dest, height + 1))
         o.extend(['DUP1'])
         o.extend(compile_to_assembly(code.args[2], withargs, break_dest, height + 3))
-        o.extend(['SWAP1', 'SGT', 'PC', 'JUMPI'])
-        o.extend(['DUP1', 'SWAP2', 'SWAP1', 'SLT', 'PC', 'JUMPI'])
+        o.extend(['SWAP1', comp1, 'PC', 'JUMPI'])
+        o.extend(['DUP1', 'SWAP2', 'SWAP1', comp2, 'PC', 'JUMPI'])
         return o
     # Checks that a value is nonzero
     elif code.value == 'clamp_nonzero':
