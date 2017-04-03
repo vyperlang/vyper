@@ -49,7 +49,7 @@ Note that not all programs that satisfy the following are valid; for example, th
         OR floor(<expr>)
     literal = <integer>
         OR <fixed point number>
-        OR <address, in the form 0x12cd2f...3fe>
+        OR <address, in the form 0x12cd2f...3fe, CHECKSUMS ARE MANDATORY>
         OR <bytes32, in the form 0x414db52e5....2a7d>
         OR <bytes, in the form "cow">
     system_var = (block.timestamp, block.coinbase, block.number, block.difficulty, tx.origin, tx.gasprice, msg.gas, self)
@@ -101,9 +101,7 @@ Code examples can be found in the `test_parser.py` file.
 ### Planned future features
 
 * Declaring external contract ABIs, and calling to external contracts
-* An ABI extension to allow the use of decimal fixed-point values in inputs and outputs
 * A mini-language for handling num256 and signed256 values and directly / unsafely using opcodes; will be useful for high-performance code segments
-* Support for sha3, sha256, ecrecover, etc
 * Smart optimizations, including compile-time computation of arithmetic and clamps, intelligently computing realistic variable ranges, etc
 
 ### Code example

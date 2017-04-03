@@ -123,14 +123,14 @@ def get_number_as_fraction(expr, context):
     return context_slice[:t], top, bottom
 
 # Is a number of decimal form (eg. 65281) or 0x form (eg. 0xff01)
-def get_length_if_0x_prefixed(expr, context):
+def get_original_if_0x_prefixed(expr, context):
     context_slice = context.origcode.splitlines()[expr.lineno - 1][expr.col_offset:]
     if context_slice[:2] != '0x':
         return None
     t = 0
     while t + 2 < len(context_slice) and context_slice[t + 2] in '0123456789abcdefABCDEF':
         t += 1
-    return t
+    return context_slice[:t+2]
 
 # Copies byte array
 def make_byte_array_copier(destination, source, start_index=None, length_index=None):

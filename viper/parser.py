@@ -19,8 +19,8 @@ from .exceptions import InvalidTypeException, TypeMismatchException, \
     InvalidTypeException, InvalidLiteralException
 from .functions import dispatch_table, stmt_dispatch_table
 from .parser_utils import LLLnode, make_byte_array_copier, get_number_as_fraction, \
-    get_length_if_0x_prefixed
-from .utils import fourbytes_to_int, hex_to_int, bytes_to_int, \
+    get_original_if_0x_prefixed
+from .utils import fourbytes_to_int, hex_to_int, bytes_to_int, checksum_encode, \
     DECIMAL_DIVISOR, RESERVED_MEMORY, ADDRSIZE_POS, MAXNUM_POS, MINNUM_POS, \
     MAXDECIMAL_POS, MINDECIMAL_POS, FREE_VAR_SPACE, BLANK_SPACE, FREE_LOOP_INDEX
 
@@ -358,8 +358,8 @@ def parse_expr(expr, context):
         return expr
     # Numbers (integers or decimals)
     elif isinstance(expr, ast.Num):
-        L = get_length_if_0x_prefixed(expr, context)
-        if L is None and isinstance(expr.n, int):
+        orignum = get_original_if_0x_prefixed(expr, context)
+        if orignum is None and isinstance(expr.n, int):
             if not (-2**127 + 1 <= expr.n <= 2**127 - 1):
                 raise InvalidLiteralException("Number out of range: "+str(expr.n), expr)
             return LLLnode.from_list(expr.n, typ=BaseType('num', None))
@@ -370,12 +370,17 @@ def parse_expr(expr, context):
             if DECIMAL_DIVISOR % den:
                 raise InvalidLiteralException("Too many decimal places: "+numstring, expr)
             return LLLnode.from_list(num * DECIMAL_DIVISOR // den, typ=BaseType('decimal', None))
-        elif L == 40:
+        elif len(orignum) == 42:
+            if checksum_encode(orignum) != orignum:
+                raise InvalidLiteralException("Address checksum mismatch. If you are sure this is the "
+                                              "right address, the correct checksummed form is: "+
+                                              checksum_encode(orignum), expr)
             return LLLnode.from_list(expr.n, typ=BaseType('address'))
-        elif L == 64:
+        elif len(orignum) == 66:
             return LLLnode.from_list(expr.n, typ=BaseType('bytes32'))
         else:
-            raise InvalidLiteralException("Cannot read 0x value with length %d. Expecting 40 (address) or 64 (bytes32)" % L, expr)
+            raise InvalidLiteralException("Cannot read 0x value with length %d. Expecting 42 (address incl 0x) or 66 (bytes32 incl 0x)"
+                                          % len(orignum), expr)
     # Byte array literals
     elif isinstance(expr, ast.Str):
         bytez = b''

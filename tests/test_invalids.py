@@ -1300,3 +1300,33 @@ x: public(num)
 must_fail("""
 x: public()
 """, StructureException)
+
+must_fail("""
+def foo():
+    raw_log([], 0x1234567890123456789012345678901234567890)
+""", TypeMismatchException)
+
+must_fail("""
+def foo():
+    raw_log([], "cow", "dog")
+""", StructureException)
+
+must_fail("""
+def foo():
+    raw_log("cow", "dog")
+""", StructureException)
+
+must_fail("""
+def foo():
+    raw_log(["cow"], "dog")
+""", TypeMismatchException)
+
+must_fail("""
+def foo():
+    send(0xde0b295669a9fd93d5f28d9ec85e40f4cb697bae, 5)
+""", InvalidLiteralException)
+
+must_succeed("""
+def foo():
+    send(0xde0B295669a9FD93d5F28D9Ec85E40f4cb697BAe, 5)
+""")

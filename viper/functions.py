@@ -7,7 +7,7 @@ from .types import base_types, parse_type, canonicalize_type, is_base_type, \
     is_numeric_type, get_size_of_type, is_varname_valid
 from .types import combine_units, are_units_compatible, set_default_units
 from .parser_utils import LLLnode, make_byte_array_copier, get_number_as_fraction, \
-    get_length_if_0x_prefixed, byte_array_to_num
+    get_original_if_0x_prefixed, byte_array_to_num
 from .utils import fourbytes_to_int, hex_to_int, bytes_to_int, \
     DECIMAL_DIVISOR, RESERVED_MEMORY, ADDRSIZE_POS, MAXNUM_POS, MINNUM_POS, \
     MAXDECIMAL_POS, MINDECIMAL_POS, FREE_VAR_SPACE, BLANK_SPACE, FREE_LOOP_INDEX, \
@@ -27,7 +27,7 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
         expected_arg_typelist = (expected_arg_typelist, )
     vsub = None
     for expected_arg in expected_arg_typelist:
-        if expected_arg == 'num_literal' and isinstance(arg, ast.Num) and get_length_if_0x_prefixed(arg, context) is None:
+        if expected_arg == 'num_literal' and isinstance(arg, ast.Num) and get_original_if_0x_prefixed(arg, context) is None:
             return arg.n
         elif expected_arg == 'name_literal' and isinstance(arg, ast.Name):
             return arg.id
@@ -446,6 +446,30 @@ def _RLPlist(expr, args, kwargs, context):
     decoder[0] = LLLnode.from_list(['seq', initial_setter, decoder[0]], typ=decoder[0].typ, location=decoder[0].location)
     return LLLnode.from_list(["multi"] + decoder, typ=output_type, location='memory')
 
+@signature('*', 'bytes')
+def raw_log(expr, args, kwargs, context):
+    from .parser import parse_value_expr
+    if not isinstance(args[0], ast.List) or len(args[0].elts) > 4:
+        raise StructureException("Expecting a list of 0-4 topics as first argument", args[0])
+    topics = []
+    for elt in args[0].elts:
+        arg = parse_value_expr(elt, context)
+        if not is_base_type(arg.typ, 'bytes32'): 
+            raise TypeMismatchException("Expecting a bytes32 argument as topic", elt)
+        topics.append(arg)
+    if args[1].location == "memory":
+        return LLLnode.from_list(["with", "_arr", args[1], ["log"+str(len(topics)), ["add", "_arr", 32], ["mload", "_arr"]] + topics], typ=None)
+    placeholder = context.new_placeholder(args[1].typ)
+    placeholder_node = LLLnode.from_list(placeholder, typ=args[1].typ, location='memory')
+    copier = make_byte_array_copier(placeholder_node, LLLnode.from_list('_sub', typ=args[1].typ, location=args[1].location))
+    return LLLnode.from_list(
+        ["with", "_sub", args[1],
+            ["seq",
+                copier,
+                ["log"+str(len(topics)), ["add", placeholder_node, 32], ["mload", placeholder_node]] + topics]],
+    typ=None)
+                   
+
 
 dispatch_table = {
     'floor': floor,
@@ -464,11 +488,13 @@ dispatch_table = {
     'as_wei_value': as_wei_value,
     'raw_call': raw_call,
     'RLPList': _RLPlist,
-    'blockhash': blockhash
+    'blockhash': blockhash,
 }
 
 stmt_dispatch_table = {
     'send': send,
     'suicide': selfdestruct,
     'selfdestruct': selfdestruct,
+    'raw_call': raw_call,
+    'raw_log': raw_log,
 }
