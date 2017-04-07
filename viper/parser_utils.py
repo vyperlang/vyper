@@ -133,31 +133,47 @@ def get_original_if_0x_prefixed(expr, context):
     return context_slice[:t+2]
 
 # Copies byte array
-def make_byte_array_copier(destination, source, start_index=None, length_index=None):
+def make_byte_array_copier(destination, source):
     if not isinstance(source.typ, (ByteArrayType, NullType)):
         raise TypeMismatchException("Can only set a byte array to another byte array")
     if isinstance(source.typ, ByteArrayType) and source.typ.maxlen > destination.typ.maxlen:
         raise TypeMismatchException("Cannot cast from greater max-length %d to shorter max-length %d" % (source.typ.maxlen, destination.typ.maxlen))
+    pos_node = LLLnode.from_list('_pos', typ=source.typ, location=source.location)
+    # Get the length
+    if isinstance(source.typ, NullType):
+        length = 1
+    elif source.location == "calldata":
+        length = ['add', ['calldataload', ['add', 4, '_pos']], 32]
+    elif source.location == "memory":
+        length = ['add', ['mload', '_pos'], 32]
+    elif source.location == "storage":
+        length = ['add', ['sload', '_pos'], 32]
+        pos_node = LLLnode.from_list(['sha3_32', pos_node], typ=source.typ, location=source.location)
+    else:
+        raise Exception("Unsupported location:"+source.location)
+    if destination.location == "storage":
+        destination = LLLnode.from_list(['sha3_32', destination], typ=destination.typ, location=destination.location)
+    # Maximum theoretical length
+    max_length = 32 if isinstance(source.typ, NullType) else source.typ.maxlen + 32
+    return LLLnode.from_list(['with', '_pos', 0 if isinstance(source.typ, NullType) else source,
+                                make_byte_slice_copier(destination, pos_node, length, max_length)], typ=None)
+
+# Copy bytes
+# Accepts 4 arguments:
+# (i) an LLL node for the start position of the source
+# (ii) an LLL node for the start position of the destination
+# (iii) an LLL node for the length
+# (iv) a constant for the max length
+def make_byte_slice_copier(destination, source, length, max_length):
     # Copy over data
     if isinstance(source.typ, NullType):
-        input_start = BLANK_SPACE
         loader = 0
-        length = 0
     elif source.location == "calldata":
-        # Location of where the input starts; placed into _pos
-        input_start = ['add', 4, source]
-        # Loads an individual slice of 32 bytes (mload(FREE_VAR_SPACE) = index)
-        loader = ['calldataload', ['add', '_pos', ['mul', 32, ['mload', FREE_LOOP_INDEX]]]]
-        # Loads the length of the new value
-        length = ['calldataload', '_pos']
+        loader = ['calldataload', ['add', 4, ['add', '_pos', ['mul', 32, ['mload', FREE_LOOP_INDEX]]]]]
     elif source.location == "memory":
-        input_start = source
         loader = ['mload', ['add', '_pos', ['mul', 32, ['mload', FREE_LOOP_INDEX]]]]
-        length = ['mload', '_pos']
     elif source.location == "storage":
-        input_start = source
-        loader = ['sload', ['add', ['sha3_32', '_pos'], ['mload', FREE_LOOP_INDEX]]]
-        length = ['sload', ['sha3_32', '_pos']]
+        loader = ['sload', ['add', '_pos', ['mload', FREE_LOOP_INDEX]]]
     else:
         raise Exception("Unsupported location:"+source.location)
     # Where to paste it?
@@ -166,32 +182,16 @@ def make_byte_array_copier(destination, source, start_index=None, length_index=N
     elif destination.location == "memory":
         setter = ['mstore', ['add', '_opos', ['mul', 32, ['mload', FREE_LOOP_INDEX]]], loader]
     elif destination.location == "storage":
-        setter = ['sstore', ['add', ['sha3_32', '_opos'], ['mload', FREE_LOOP_INDEX]], loader]
+        setter = ['sstore', ['add', '_opos', ['mload', FREE_LOOP_INDEX]], loader]
     else:
         raise Exception("Unsupported location:"+destination.location)
-    # Set the length, and check that the length is short enough
-    if length_index:
-        assert start_index is not None
-        length = ['uclample', length_index, ['sub', length, start_index]]
-    if start_index is not None and length_index is None:
-        length = ['uclample', ['sub', length, start_index], length]
-    # Maximum theoretical round count as allowed by the byte array types
-    max_roundcount = (source.typ.maxlen + 63) // 32 if isinstance(source.typ, ByteArrayType) else 1
-    # The actual indices to start copying and end copying
-    # eg. actual_start = 5, actual_end = 8, means copy 5, 6, 7
-    if start_index is not None:
-        actual_start = ['div', ['add', start_index, 32], 32]
-        actual_end = ['div', ['add', ['add', start_index, length], 63], 32]
-    else:
-        actual_start = 0
-        actual_end = ['div', ['add', length, 63], 32]
-    # Check for the actual end
-    checker = ['if', ['ge', ['mload', FREE_LOOP_INDEX], '_actual_len'], 'break']
+    # Check to see if we hit the length
+    checker = ['if', ['gt', ['mul', 32, ['mload', FREE_LOOP_INDEX]], '_actual_len'], 'break']
     # Make a loop to do the copying
-    o = ['with', '_pos', input_start,
+    o = ['with', '_pos', source,
             ['with', '_opos', destination,
-                ['with', '_actual_len', actual_end,
-                    ['repeat', FREE_LOOP_INDEX, actual_start, max_roundcount,
+                ['with', '_actual_len', length,
+                    ['repeat', FREE_LOOP_INDEX, 0, (max_length + 31) // 32,
                         ['seq', checker, setter]]]]]
     return LLLnode.from_list(o, typ=None)
 

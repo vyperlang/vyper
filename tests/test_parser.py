@@ -1120,6 +1120,21 @@ c = s.abi_contract(test_concat2, language='viper')
 assert c.foo("horse" * 9 + "viper") == (b"horse" * 9 + b"viper") * 10
 print('Passed second concat test')
 
+crazy_concat_code = """
+y: bytes <= 10
+
+def krazykonkat(z: bytes <= 10) -> bytes <= 25:
+    x = "cow"
+    self.y = "horse"
+    return concat(x, " ", self.y, " ", z)
+"""
+
+c = s.abi_contract(crazy_concat_code, language='viper')
+
+assert c.krazykonkat("moose") == b'cow horse moose'
+
+print('Passed third concat test')
+
 string_literal_code = """
 def foo() -> bytes <= 5:
     return "horse"
@@ -1153,28 +1168,55 @@ print("Passed string literal test")
 
 for i in range(95, 96, 97):
     kode = """
+moo: bytes <= 100
+
 def foo(s: num, L: num) -> bytes <= 100:
         x = 27
         r = slice("%s", start=s, len=L)
         y = 37
         if x * y == 999:
             return r
-    """ % ("c" * i)
+
+def bar(s: num, L: num) -> bytes <= 100:
+        self.moo = "%s"
+        x = 27
+        r = slice(self.moo, start=s, len=L)
+        y = 37
+        if x * y == 999:
+            return r
+
+def baz(s: num, L: num) -> bytes <= 100:
+        x = 27
+        self.moo = slice("%s", start=s, len=L)
+        y = 37
+        if x * y == 999:
+            return self.moo
+    """ % (("c" * i), ("c" * i), ("c" * i))
     c = s.abi_contract(kode, language='viper')
     for e in range(63, 64, 65):
         for _s in range(31, 32, 33):
-            assert c.foo(_s, e - _s) == b"c" * (e - _s), (i, _s, e - _s, c.foo(_s, e - _s))
+            #print(parser.parse_tree_to_lll(parser.parse(kode), kode))
+            #configure_logging(config_string=config_string)
+            o1 = c.foo(_s, e - _s)
+            o2 = c.bar(_s, e - _s)
+            o3 = c.baz(_s, e - _s)
+            assert o1 == o2 == o3 == b"c" * (e - _s), (i, _s, e - _s, o1, o2, o3) 
 
 print("Passed string literal splicing fuzz-test")
 
 hash_code = """
 def foo(inp: bytes <= 100) -> bytes32:
     return sha3(inp)
+
+def bar() -> bytes32:
+    return sha3("inp")
 """
 
 c = s.abi_contract(hash_code, language='viper')
 for inp in (b"", b"cow", b"s" * 31, b"\xff" * 32, b"\n" * 33, b"g" * 64, b"h" * 65):
     assert c.foo(inp) == u.sha3(inp)
+
+assert c.bar() == u.sha3("inp")
 
 hash_code2 = """
 def foo(inp: bytes <= 100) -> bool:

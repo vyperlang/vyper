@@ -35,11 +35,14 @@ def parse(code):
     decorate_ast_with_source(o, code)
     return o.body
 
+# Parser for a single line
 def parse_line(code):
     o = ast.parse(code).body[0]
     decorate_ast_with_source(o, code)
     return o
 
+# Decorate every node of an AST tree with the original source code.
+# This is necessary to facilitate error pretty-printing.
 def decorate_ast_with_source(_ast, code):
 
     class MyVisitor(ast.NodeVisitor):
@@ -49,22 +52,51 @@ def decorate_ast_with_source(_ast, code):
 
     MyVisitor().visit(_ast)
 
-# Make a getter for a variable
+# Make a getter for a variable. This function gives an output that
+# contains lists of 4-tuples:
+# (i) the tail of the function name for the getter
+# (ii) the code for the arguments that the function takes
+# (iii) the code for the return
+# (iv) the output type
+# 
+# Here is an example:
+#
+# Input: my_variable: {foo: num, bar: decimal[5]}
+#
+# Output:
+#
+# [('__foo', '', '.foo', 'num'),
+#  ('__bar', 'arg0: num, ', '.bar[arg0]', 'decimal')]
+# 
+# The getters will have code:
+# def get_my_variable__foo() -> num: return self.foo
+# def get_my_variable__bar(arg0: nun) -> decimal: return self.bar[arg0]
+
 def _mk_getter_helper(typ, depth=0):
+    # Base type and byte array type: do not extend the getter function
+    # name, add no input arguments, add nothing to the return statement,
+    # output type is the base type
     if isinstance(typ, BaseType):
         return [("", "", "", repr(typ))]
     elif isinstance(typ, ByteArrayType):
         return [("", "", "", repr(typ))]
+    # List type: do not extend the getter name, add an input argument for
+    # the index in the list, add an item access to the return statement
     elif isinstance(typ, ListType):
         o = []
         for funname, head, tail, base in _mk_getter_helper(typ.subtype, depth+1):
             o.append((funname, ("arg%d: num, " % depth) + head, ("[arg%d]" % depth) + tail, base))
         return o
+    # Mapping type: do not extend the getter name, add an input argument for
+    # the key in the map, add a value access to the return statement
     elif isinstance(typ, MappingType):
         o = []
         for funname, head, tail, base in _mk_getter_helper(typ.valuetype, depth+1):
             o.append((funname, ("arg%d: %r, " % (depth, typ.keytype)) + head, ("[arg%d]" % depth) + tail, base))
         return o
+    # Struct type: for each member variable, make a separate getter, extend
+    # its function name with the name of the variable, do not add input
+    # arguments, add a member access to the return statement
     elif isinstance(typ, StructType):
         o = []
         for k, v in typ.members.items():
@@ -74,9 +106,11 @@ def _mk_getter_helper(typ, depth=0):
     else:
         raise Exception("Unexpected type")
 
+# Update a function return type to make it constant
 def update_base(base):
     return '('+base+')(const)' if '(' not in base else base.rstrip(')') + ', const)'
 
+# Make a list of getters for a given variable name with a given type
 def mk_getter(varname, typ):
     funs = _mk_getter_helper(typ)
     return ['def get_%s%s(%s) -> %s: return self.%s%s' % (varname, funname, head.rstrip(', '), update_base(base), varname, tail)
@@ -88,6 +122,8 @@ def get_defs_and_globals(code):
     _defs = []
     _getters = []
     for item in code:
+        # Statements of the form:
+        # variable_name: type
         if isinstance(item, ast.AnnAssign):
             if not isinstance(item.target, ast.Name):
                 raise StructureException("Can only assign type to variable in top-level statement", item)
@@ -95,15 +131,19 @@ def get_defs_and_globals(code):
                 raise VariableDeclarationException("Cannot declare a persistent variable twice!", item.target)
             if len(_defs):
                 raise StructureException("Global variables must all come before function definitions", item)
+            # If the type declaration is of the form public(<type here>), then proceed with
+            # the underlying type but also add getters
             if isinstance(item.annotation, ast.Call) and item.annotation.func.id == "public":
                 if len(item.annotation.args) != 1:
                     raise StructureException("Public expects one arg (the type)")
                 typ = parse_type(item.annotation.args[0], 'storage')
                 _globals[item.target.id] = (len(_globals), typ)
+                # Adding getters here
                 for getter in mk_getter(item.target.id, typ):
                     _getters.append(parse_line(getter))
             else:
                 _globals[item.target.id] = (len(_globals), parse_type(item.annotation, 'storage'))
+        # Function definitions
         elif isinstance(item, ast.FunctionDef):
             _defs.append(item)
         else:
@@ -122,6 +162,14 @@ def mk_initial():
                              ], typ=None)
 
 # Get function details
+# Returns:
+# (i) function name
+# (ii) function arguments, as a list of triples:
+#     argname, location in calldata, type
+# (iii) output type
+# (iv) boolean: is this a constant function?
+# (v) signature (for ABI purposes)
+# (vi) 4-byte ID generated from signature
 def get_func_details(code):
     name = code.name
     # Determine the arguments, expects something of the form def foo(arg1: num, arg2: num ...
@@ -136,8 +184,11 @@ def get_func_details(code):
             raise VariableDeclarationException("Argument name invalid or reserved: "+arg.arg, arg)
         if arg.arg in (x[0] for x in args):
             raise VariableDeclarationException("Duplicate function argument name: "+arg.arg, arg)
+        # Init function: store the memory location of any arguments as negative. This will be used
+        # later that the variable should be accessed from the code, not the calldata
         if name == '__init__':
             args.append((arg.arg, -32 * len(code.args.args) + 32 * len(args), parse_type(typ, None)))
+        # Regular functions
         else:
             args.append((arg.arg, 4 + 32 * len(args), parse_type(typ, None)))
     # Determine the return type and whether or not it's constant. Expects something
@@ -146,42 +197,61 @@ def get_func_details(code):
     # def foo() -> num: ... 
     # def foo() -> num(const): ...
     const = False
+    # If there is no return type, ie. it's of the form def foo(): ...
+    # and NOT def foo() -> type: ..., then it's null
     if not code.returns:
         output_type = None
+    # If it's of the form def foo() -> x(y): ..., then what's inside the
+    # brackets could represent two things: a const keyword, meaning the
+    # function is constant, and the unit (eg. def foo() -> num(sec): ...)
     elif isinstance(code.returns, ast.Call):
         consts = [arg for arg in code.returns.args if isinstance(arg, ast.Name) and arg.id == 'const']
-        units = [arg for arg in code.returns.args if arg not in consts]
         if len(consts) > 1:
             raise InvalidTypeException("Expecting at most one const keyword", code.returns)
+        units = [arg for arg in code.returns.args if arg not in consts]
         const = len(consts) == 1
+        # We do a bit of jiggling with the AST object to surgically remove the
+        # const keyword if present
         if units:
             typ = ast.Call(func=code.returns.func, args=units)
         else:
             typ = code.returns.func
         output_type = parse_type(typ, None)
+    # If the return type is of the form def foo() -> x: ..., then parse the
+    # return type directly
     elif isinstance(code.returns, (ast.Name, ast.Compare)):
         output_type = parse_type(code.returns, None)
     else:
         raise InvalidTypeException("Output type invalid or unsupported: %r" % parse_type(code.returns, None), code.returns)
     # Output type can only be base type or none
     assert isinstance(output_type, (BaseType, ByteArrayType, (None).__class__))
-    # Get the four-byte method id
+    # Get the canonical function signature
     sig = name + '(' + ','.join([canonicalize_type(parse_type(arg.annotation, None)) for arg in code.args.args]) + ')'
+    # Take the first 4 bytes of the hash of the sig to get the method ID
     method_id = fourbytes_to_int(sha3_256(bytes(sig, 'utf-8'))[:4])
     return name, args, output_type, const, sig, method_id
 
 # Contains arguments, variables, etc
 class Context():
     def __init__(self, args=None, vars=None, globals=None, forvars=None, return_type=None, is_constant=False, origcode=''):
+        # Function arguments, in the form (name, calldata location, type)
         self.args = args or {}
+        # In-memory variables, in the form (name, memory location, type)
         self.vars = vars or {}
+        # Global variables, in the form (name, storage location, type)
         self.globals = globals or {}
+        # Variables defined in for loops, eg. for i in range(6): ...
         self.forvars = forvars or {}
+        # Return type of the function
         self.return_type = return_type
+        # Is the function constant?
         self.is_constant = is_constant
+        # Number of placeholders generated (used to generate random names)
         self.placeholder_count = 1
+        # Original code (for error pretty-printing purposes)
         self.origcode = origcode
 
+    # Add a new variable
     def new_variable(self, name, typ):
         if not is_varname_valid(name):
             raise VariableDeclarationException("Variable name invalid or reserved: "+name)
@@ -192,11 +262,13 @@ class Context():
         self.vars['_next_mem'] = pos + 32 * get_size_of_type(typ)
         return pos
 
+    # Add an anonymous variable (used in some complex function definitions)
     def new_placeholder(self, typ):
         name = '_placeholder_'+str(self.placeholder_count)
         self.placeholder_count += 1
         return self.new_variable(name, typ)
 
+    # Get the next unused memory location
     def get_next_mem(self):
         return self.vars.get('_next_mem', RESERVED_MEMORY)
 
@@ -229,12 +301,18 @@ def parse_tree_to_lll(code, origcode):
     initfunc = [_def for _def in _defs if is_initializer(_def)]
     # Regular functions
     otherfuncs = [_def for _def in _defs if not is_initializer(_def)]
+    # Create the main statement
+
+    # Case 1: no functions at all
     if not initfunc and not otherfuncs:
         return LLLnode.from_list('pass')
+    # No init function: just put all the functions together inside a return LLL statement
     if not initfunc and otherfuncs:
         return LLLnode.from_list(['return', 0, ['lll', ['seq', mk_initial()] + [parse_func(_def, _globals, origcode) for _def in otherfuncs], 0]], typ=None)
+    # Init func only: don't bother with the return LLL statement
     elif initfunc and not otherfuncs:
         return LLLnode.from_list(['seq', mk_initial(), parse_func(initfunc[0], _globals, origcode), ['selfdestruct']], typ=None)
+    # Init func AND other funcs: return LLL statement, prepended with init
     elif initfunc and otherfuncs:
         return LLLnode.from_list(['seq', mk_initial(), parse_func(initfunc[0], _globals, origcode),
                                     ['return', 0, ['lll', ['seq', mk_initial()] + [parse_func(_def, _globals, origcode) for _def in otherfuncs], 0]]],
@@ -242,16 +320,22 @@ def parse_tree_to_lll(code, origcode):
 
 # Checks that an input matches its type
 def make_clamper(dataloc, typ):
+    # Dataloc >= 0, means the variable is in memory
     if dataloc >= 0:
         data_decl = ['calldataload', dataloc]
+    # Dataloc < 0, means the variable is in code (because it's a constructor argument)
     else:
         data_decl = ['seq', ['codecopy', FREE_VAR_SPACE, ['sub', ['codesize'], -dataloc], 32], ['mload', FREE_VAR_SPACE]]
+    # Numbers: make sure they're in range
     if is_base_type(typ, 'num'):
         return LLLnode.from_list(['clamp', ['mload', MINNUM_POS], data_decl, ['mload', MAXNUM_POS]], typ=typ)
+    # Booleans: make sure they're zero or one
     elif is_base_type(typ, 'bool'):
         return LLLnode.from_list(['uclamplt', data_decl, 2], typ=typ)
+    # Addresses: make sure they're in range
     elif is_base_type(typ, 'address'):
         return LLLnode.from_list(['uclamplt', data_decl, ['mload', ADDRSIZE_POS]], typ=typ)
+    # Otherwise don't make any checks
     else:
         return LLLnode.from_list('pass')
 

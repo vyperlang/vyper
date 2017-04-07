@@ -7,11 +7,11 @@ from .types import base_types, parse_type, canonicalize_type, is_base_type, \
     is_numeric_type, get_size_of_type, is_varname_valid
 from .types import combine_units, are_units_compatible, set_default_units
 from .parser_utils import LLLnode, make_byte_array_copier, get_number_as_fraction, \
-    get_original_if_0x_prefixed, byte_array_to_num
+    get_original_if_0x_prefixed, byte_array_to_num, make_byte_slice_copier
 from .utils import fourbytes_to_int, hex_to_int, bytes_to_int, \
     DECIMAL_DIVISOR, RESERVED_MEMORY, ADDRSIZE_POS, MAXNUM_POS, MINNUM_POS, \
     MAXDECIMAL_POS, MINDECIMAL_POS, FREE_VAR_SPACE, BLANK_SPACE, FREE_LOOP_INDEX, \
-    RLP_DECODER_ADDRESS
+    RLP_DECODER_ADDRESS, sha3
 import ast
 
 class Optional():
@@ -29,6 +29,13 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
     for expected_arg in expected_arg_typelist:
         if expected_arg == 'num_literal' and isinstance(arg, ast.Num) and get_original_if_0x_prefixed(arg, context) is None:
             return arg.n
+        elif expected_arg == 'str_literal' and isinstance(arg, ast.Str) and get_original_if_0x_prefixed(arg, context) is None:
+            bytez = b''
+            for c in arg.s:
+                if ord(c) >= 256:
+                    raise InvalidLiteralException("Cannot insert special character %r into byte array" % c, arg)
+                bytez += bytes([ord(c)])
+            return bytez
         elif expected_arg == 'name_literal' and isinstance(arg, ast.Name):
             return arg.id
         elif expected_arg == '*':
@@ -122,19 +129,25 @@ def _slice(expr, args, kwargs, context):
     if not are_units_compatible(length.typ, BaseType("num")):
         raise TypeMismatchException("Type for slice length must be a unitless number")
     # Node representing the position of the output in memory
-    placeholder_node = LLLnode.from_list(context.new_placeholder(sub.typ), typ=sub.typ, location='memory')
+    np = context.new_placeholder(sub.typ)
+    placeholder_node = LLLnode.from_list(np, typ=sub.typ, location='memory')
+    placeholder_plus_32_node = LLLnode.from_list(np + 32, typ=sub.typ, location='memory')
     # Copies over bytearray data
-    copier = make_byte_array_copier(placeholder_node, sub, '_start', '_length')
+    if sub.location == 'storage':
+        adj_sub = LLLnode.from_list(['add', ['sha3_32', sub], ['add', ['div', '_start', 32], 1]], typ=sub.typ, location=sub.location)
+    else:
+        adj_sub = LLLnode.from_list(['add', sub, ['add', ['sub', '_start', ['mod', '_start', 32]], 32]], typ=sub.typ, location=sub.location)
+    copier = make_byte_slice_copier(placeholder_plus_32_node, adj_sub, '_length', sub.typ.maxlen)
     # New maximum length in the type of the result
     newmaxlen = length.value if not len(length.args) else sub.typ.maxlen
     out = ['with', '_start', start,
               ['with', '_length', length,
-                  ['seq',
-                       ['assert', ['lt', ['add', '_start', '_length'], sub.typ.maxlen]],
-                       copier,
-                       ['mstore', ['add', placeholder_node, '_start'], '_length'],
-                       ['add', placeholder_node, '_start']
-           ]]]
+                  ['with', '_opos', ['add', placeholder_node, ['mod', '_start', 32]],
+                       ['seq',
+                           ['assert', ['lt', ['add', '_start', '_length'], sub.typ.maxlen]],
+                           copier,
+                           ['mstore', '_opos', '_length'],
+                           '_opos']]]]
     return LLLnode.from_list(out, typ=ByteArrayType(newmaxlen), location='memory')
 
 @signature('bytes')
@@ -165,19 +178,28 @@ def concat(expr, context):
         # Start pasting into a position the starts at zero, and keeps
         # incrementing as we concatenate arguments
         placeholder_node = LLLnode.from_list(['add', placeholder, '_poz'], typ=ByteArrayType(total_maxlen), location='memory')
+        placeholder_node_plus_32 = LLLnode.from_list(['add', ['add', placeholder, '_poz'], 32], typ=ByteArrayType(total_maxlen), location='memory')
         if isinstance(arg.typ, ByteArrayType):
+            # Ignore empty strings
+            if arg.typ.maxlen == 0:
+                continue
             # Get the length of the current argument
             if arg.location == "calldata":
                 length = LLLnode.from_list(['calldataload', ['add', 4, '_arg']], typ=BaseType('num'))
+                argstart = LLLnode.from_list(['add', '_arg', 32], typ=arg.typ, location=arg.location)
             elif arg.location == "memory":
                 length = LLLnode.from_list(['mload', '_arg'], typ=BaseType('num'))
+                argstart = LLLnode.from_list(['add', '_arg', 32], typ=arg.typ, location=arg.location)
             elif arg.location == "storage":
                 length = LLLnode.from_list(['sload', ['sha3_32', '_arg']], typ=BaseType('num'))
+                argstart = LLLnode.from_list(['add', ['sha3_32', '_arg'], 1], typ=arg.typ, location=arg.location)
             # Make a copier to copy over data from that argyument
             seq.append(['with', '_arg', arg,
                             ['seq',
-                                make_byte_array_copier(placeholder_node,
-                                                       LLLnode.from_list('_arg', typ=arg.typ, location=arg.location), 0),
+                                make_byte_slice_copier(placeholder_node_plus_32,
+                                                       argstart,
+                                                       length,
+                                                       arg.typ.maxlen),
                                 # Change the position to start at the correct
                                 # place to paste the next value
                                 ['set', '_poz', ['add', '_poz', length]]]])
@@ -192,9 +214,12 @@ def concat(expr, context):
     seq.append(placeholder)
     return LLLnode.from_list(['with', '_poz', 0, ['seq'] + seq], typ=ByteArrayType(total_maxlen), location='memory')
 
-@signature(('bytes', 'bytes32'))
+@signature(('str_literal', 'bytes', 'bytes32'))
 def _sha3(expr, args, kwargs, context):
     sub = args[0]
+    # Can hash literals
+    if isinstance(sub, bytes):
+        return LLLnode.from_list(bytes_to_int(sha3(sub)), typ=BaseType('bytes32'))
     # Can hash bytes32 objects
     if is_base_type(sub.typ, 'bytes32'):
         return LLLnode.from_list(['seq', ['mstore', FREE_VAR_SPACE, sub], ['sha3', FREE_VAR_SPACE, 32]], typ=BaseType('bytes32'))

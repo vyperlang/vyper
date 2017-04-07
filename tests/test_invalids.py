@@ -1095,6 +1095,24 @@ def cat(i1: bytes <= 10, i2: bytes <= 30) -> bytes <= 40:
 """, TypeMismatchException)
 
 must_succeed("""
+y: bytes <= 10
+
+def krazykonkat(z: bytes <= 10) -> bytes <= 25:
+    x = "cow"
+    self.y = "horse"
+    return concat(x, " ", self.y, " ", z)
+""")
+
+must_fail("""
+y: bytes <= 10
+
+def krazykonkat(z: bytes <= 10) -> bytes <= 24:
+    x = "cow"
+    self.y = "horse"
+    return concat(x, " ", self.y, " ", z)
+""", TypeMismatchException)
+
+must_succeed("""
 def foo() -> bytes <= 10:
     return "badminton"
 """)
