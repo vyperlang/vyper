@@ -6,7 +6,7 @@ def memsize_to_gas(memsize):
     return (memsize // 32) * 3 + (memsize // 32) ** 2 // 512
 
 initial_gas = compile_lll.gas_estimate(parser.mk_initial())
-function_gas = compile_lll.gas_estimate(parser.parse_func(parser.parse('def foo(): pass')[0], {}, 'def foo(): pass'))
+function_gas = compile_lll.gas_estimate(parser.parse_func(parser.parse('def foo(): pass')[0], {}, {}, 'def foo(): pass'))
 
 def compile(code, *args, **kwargs):
     lll = optimizer.optimize(parser.parse_tree_to_lll(parser.parse(code), code))
@@ -20,10 +20,11 @@ def gas_estimate(origcode, *args, **kwargs):
     code = parser.parse(origcode)
     _defs, _globals = parser.get_defs_and_globals(code)
     o = {}
+    sigs = {name: (ins, out, sig) for name, ins, out, sig in [parser.get_function_signature(_def) for _def in _defs]}
     for i, _def in enumerate(_defs):
         name, args, output_type, const, sig, method_id = parser.get_func_details(_def)
         varz = {}
-        kode = parser.parse_func(_def, _globals, origcode, varz)
+        kode = parser.parse_func(_def, _globals, sigs, origcode, varz)
         gascost = compile_lll.gas_estimate(kode) + initial_gas
         o[name] = gascost + memsize_to_gas(varz.get("_next_mem", parser.RESERVED_MEMORY)) + function_gas * i
     return o

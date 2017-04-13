@@ -220,3 +220,11 @@ def byte_array_to_num(arg, expr, out_type):
                                           ['assert', ['or', ['iszero', '_len'], ['div', '_el1', ['exp', 256, 31]]]],
                                           result]]]],
                              typ=BaseType(out_type))
+
+def get_length(arg):
+    if arg.location == "calldata":
+        return LLLnode.from_list(['calldataload', ['add', 4, arg]], typ=BaseType('num'))
+    elif arg.location == "memory":
+        return LLLnode.from_list(['mload', arg], typ=BaseType('num'))
+    elif arg.location == "storage":
+        return LLLnode.from_list(['sload', ['sha3_32', arg]], typ=BaseType('num'))

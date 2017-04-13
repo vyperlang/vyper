@@ -175,6 +175,21 @@ def canonicalize_type(t):
         return 'real128x128'
     raise Exception("Invalid or unsupported type: "+repr(t))
 
+def parse_abi_type(t):
+    if t == 'int128':
+        return 'num'
+    elif t == 'decimal10':
+        return 'decimal'
+    elif t == 'bool':
+        return 'bool'
+    elif t == 'uint256':
+        return 'num256'
+    elif t == 'int256':
+        return 'signed256'
+    elif t in ('address', 'bytes32'):
+        return t
+    raise Exception("Invalid or unsupported type: "+repr(t))
+
 # Special types
 special_types = {
     'timestamp': BaseType('num', {'sec': 1}, True),

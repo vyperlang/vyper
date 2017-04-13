@@ -7,7 +7,8 @@ from .types import base_types, parse_type, canonicalize_type, is_base_type, \
     is_numeric_type, get_size_of_type, is_varname_valid
 from .types import combine_units, are_units_compatible, set_default_units
 from .parser_utils import LLLnode, make_byte_array_copier, get_number_as_fraction, \
-    get_original_if_0x_prefixed, byte_array_to_num, make_byte_slice_copier
+    get_original_if_0x_prefixed, byte_array_to_num, make_byte_slice_copier, \
+    get_length
 from .utils import fourbytes_to_int, hex_to_int, bytes_to_int, \
     DECIMAL_DIVISOR, RESERVED_MEMORY, ADDRSIZE_POS, MAXNUM_POS, MINNUM_POS, \
     MAXDECIMAL_POS, MINDECIMAL_POS, FREE_VAR_SPACE, BLANK_SPACE, FREE_LOOP_INDEX, \
@@ -152,12 +153,7 @@ def _slice(expr, args, kwargs, context):
 
 @signature('bytes')
 def _len(expr, args, kwargs, context):
-    if args[0].location == "calldata":
-        return LLLnode.from_list(['calldataload', ['add', 4, args[0]]], typ=BaseType('num'))
-    elif args[0].location == "memory":
-        return LLLnode.from_list(['mload', args[0]], typ=BaseType('num'))
-    elif args[0].location == "storage":
-        return LLLnode.from_list(['sload', ['sha3_32', args[0]]], typ=BaseType('num'))
+    return get_length(args[0])
 
 def concat(expr, context):
     from .parser import parse_expr, unwrap_location
@@ -493,7 +489,51 @@ def raw_log(expr, args, kwargs, context):
                 copier,
                 ["log"+str(len(topics)), ["add", placeholder_node, 32], ["mload", placeholder_node]] + topics]],
     typ=None)
-                   
+
+@signature('num256', 'num256')
+def bitwise_and(expr, args, kwargs, context):
+    return LLLnode.from_list(['and', args[0], args[1]], typ=BaseType('num256'))
+
+@signature('num256', 'num256')
+def bitwise_or(expr, args, kwargs, context):
+    return LLLnode.from_list(['or', args[0], args[1]], typ=BaseType('num256'))
+
+@signature('num256', 'num256')
+def bitwise_xor(expr, args, kwargs, context):
+    return LLLnode.from_list(['xor', args[0], args[1]], typ=BaseType('num256'))
+
+@signature('num256', 'num256')
+def num256_add(expr, args, kwargs, context):
+    return LLLnode.from_list(['add', args[0], args[1]], typ=BaseType('num256'))
+
+@signature('num256', 'num256')
+def num256_sub(expr, args, kwargs, context):
+    return LLLnode.from_list(['sub', args[0], args[1]], typ=BaseType('num256'))
+
+@signature('num256', 'num256')
+def num256_mul(expr, args, kwargs, context):
+    return LLLnode.from_list(['mul', args[0], args[1]], typ=BaseType('num256'))
+
+@signature('num256', 'num256')
+def num256_div(expr, args, kwargs, context):
+    return LLLnode.from_list(['div', args[0], args[1]], typ=BaseType('num256'))
+
+@signature('num256')
+def bitwise_not(expr, args, kwargs, context):
+    return LLLnode.from_list(['not', args[0]], typ=BaseType('num256'))
+
+@signature('num256', 'num')
+def shift(expr, args, kwargs, context):
+    return LLLnode.from_list(['with', '_v', args[0], 
+                                ['with', '_s', args[1],
+                                    # If second argument is positive, left-shift so multiply by a power of two
+                                    # If it is negative, divide by a power of two
+                                    # node that if the abs of the second argument >= 256, then in the EVM
+                                    # 2**(second arg) = 0, and multiplying OR dividing by 0 gives 0
+                                    ['if', ['sle', '_s', 0],
+                                           ['div', '_v', ['exp', 2, ['sub', 0, '_s']]],
+                                           ['mul', '_v', ['exp', 2, '_s']]]]],
+    typ=BaseType('num256'))
 
 
 dispatch_table = {
@@ -514,6 +554,15 @@ dispatch_table = {
     'raw_call': raw_call,
     'RLPList': _RLPlist,
     'blockhash': blockhash,
+    'bitwise_and': bitwise_and,
+    'bitwise_or': bitwise_or,
+    'bitwise_xor': bitwise_xor,
+    'bitwise_not': bitwise_not,
+    'num256_add': num256_add,
+    'num256_sub': num256_sub,
+    'num256_mul': num256_mul,
+    'num256_div': num256_div,
+    'shift': shift,
 }
 
 stmt_dispatch_table = {

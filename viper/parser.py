@@ -19,7 +19,7 @@ from .exceptions import InvalidTypeException, TypeMismatchException, \
     InvalidTypeException, InvalidLiteralException
 from .functions import dispatch_table, stmt_dispatch_table
 from .parser_utils import LLLnode, make_byte_array_copier, get_number_as_fraction, \
-    get_original_if_0x_prefixed
+    get_original_if_0x_prefixed, get_length
 from .utils import fourbytes_to_int, hex_to_int, bytes_to_int, checksum_encode, \
     DECIMAL_DIVISOR, RESERVED_MEMORY, ADDRSIZE_POS, MAXNUM_POS, MINNUM_POS, \
     MAXDECIMAL_POS, MINDECIMAL_POS, FREE_VAR_SPACE, BLANK_SPACE, FREE_LOOP_INDEX
@@ -233,13 +233,15 @@ def get_func_details(code):
 
 # Contains arguments, variables, etc
 class Context():
-    def __init__(self, args=None, vars=None, globals=None, forvars=None, return_type=None, is_constant=False, origcode=''):
+    def __init__(self, args=None, vars=None, globals=None, sigs=None, forvars=None, return_type=None, is_constant=False, origcode=''):
         # Function arguments, in the form (name, calldata location, type)
         self.args = args or {}
         # In-memory variables, in the form (name, memory location, type)
         self.vars = vars or {}
         # Global variables, in the form (name, storage location, type)
         self.globals = globals or {}
+        # ABI objects, in the form {classname: ABI JSON}
+        self.sigs = sigs or {}
         # Variables defined in for loops, eg. for i in range(6): ...
         self.forvars = forvars or {}
         # Return type of the function
@@ -290,6 +292,11 @@ def mk_full_signature(code):
             "type": "constructor" if name == "__init__" else "function"
         })
     return o
+
+# Get a signature of a single function
+def get_function_signature(code):
+    name, args, output_type, const, sig, method_id = get_func_details(code)
+    return (name, [typ for nam, loc, typ in args], output_type, method_id)
         
 # Main python parse tree => LLL method
 def parse_tree_to_lll(code, origcode):
@@ -301,6 +308,8 @@ def parse_tree_to_lll(code, origcode):
     initfunc = [_def for _def in _defs if is_initializer(_def)]
     # Regular functions
     otherfuncs = [_def for _def in _defs if not is_initializer(_def)]
+    # Generate the list of all function signatures for this contract
+    sigs = {name: (ins, outs, sig) for name, ins, outs, sig in [get_function_signature(_def) for _def in _defs]}
     # Create the main statement
 
     # Case 1: no functions at all
@@ -308,14 +317,14 @@ def parse_tree_to_lll(code, origcode):
         return LLLnode.from_list('pass')
     # No init function: just put all the functions together inside a return LLL statement
     if not initfunc and otherfuncs:
-        return LLLnode.from_list(['return', 0, ['lll', ['seq', mk_initial()] + [parse_func(_def, _globals, origcode) for _def in otherfuncs], 0]], typ=None)
+        return LLLnode.from_list(['return', 0, ['lll', ['seq', mk_initial()] + [parse_func(_def, _globals, {'self': sigs}, origcode) for _def in otherfuncs], 0]], typ=None)
     # Init func only: don't bother with the return LLL statement
     elif initfunc and not otherfuncs:
-        return LLLnode.from_list(['seq', mk_initial(), parse_func(initfunc[0], _globals, origcode), ['selfdestruct']], typ=None)
+        return LLLnode.from_list(['seq', mk_initial(), parse_func(initfunc[0], _globals, {'self': sigs}, origcode), ['selfdestruct']], typ=None)
     # Init func AND other funcs: return LLL statement, prepended with init
     elif initfunc and otherfuncs:
-        return LLLnode.from_list(['seq', mk_initial(), parse_func(initfunc[0], _globals, origcode),
-                                    ['return', 0, ['lll', ['seq', mk_initial()] + [parse_func(_def, _globals, origcode) for _def in otherfuncs], 0]]],
+        return LLLnode.from_list(['seq', mk_initial(), parse_func(initfunc[0], _globals, {'self': sigs}, origcode),
+                                    ['return', 0, ['lll', ['seq', mk_initial()] + [parse_func(_def, _globals, {'self': sigs}, origcode) for _def in otherfuncs], 0]]],
                                  typ=None)
 
 # Checks that an input matches its type
@@ -340,14 +349,14 @@ def make_clamper(dataloc, typ):
         return LLLnode.from_list('pass')
 
 # Parses a function declaration
-def parse_func(code, _globals, origcode, _vars=None):
+def parse_func(code, _globals, sigs, origcode, _vars=None):
     name, args, output_type, const, sig, method_id = get_func_details(code)
     # Check for duplicate variables with globals
     for arg in args:
         if arg[0] in _globals:
             raise VariableDeclarationException("Variable name duplicated between function arguments and globals: "+arg[0])
     # Create a context
-    context = Context(args={a[0]: (a[1], a[2]) for a in args}, globals=_globals, vars=_vars or {},
+    context = Context(args={a[0]: (a[1], a[2]) for a in args}, globals=_globals, sigs=sigs, vars=_vars or {},
                       return_type=output_type, is_constant=const, origcode=origcode)
     # Create "clampers" (input well-formedness checkers)
     clampers = [make_clamper(loc, typ) for _, loc, typ in args]
@@ -434,7 +443,16 @@ def add_variable_offset(parent, key):
     else:
         raise TypeMismatchException("Cannot access the child of a constant variable! %r" % typ)
 
-
+# Encode ABI arguments
+def encode_abi_arguments(context, args, types):
+    indata_placeholder = context.new_placeholder(ByteArrayType(sum([get_size_of_type(t) for t in types]) * 32))
+    seq = []
+    offset = 0
+    for arg, typ in zip(args, types):
+        pos = indata_placeholder + offset
+        seq.append(make_setter(LLLnode.from_list(pos, typ=typ, location='memory'), arg, 'memory'))
+        offset += get_size_of_type(typ) * 32
+    return LLLnode.from_list(['seq'] + seq + [indata_placeholder], typ=indata_placeholder.typ, location='memory'), offset
 
 # Parse an expression
 def parse_expr(expr, context):
@@ -710,6 +728,21 @@ def parse_expr(expr, context):
     elif isinstance(expr, ast.Call):
         if isinstance(expr.func, ast.Name) and expr.func.id in dispatch_table:
             return dispatch_table[expr.func.id](expr, context)
+        elif isinstance(expr.func, ast.Attribute) and isinstance(expr.func.value, ast.Name) and expr.func.value.id == "self":
+            ins, out, sig = context.sigs['self'][expr.func.attr]
+            inargs, inargsize = pack_arguments(context, 'self', expr.func.attr, [parse_expr(arg, context) for arg in expr.args])
+            output_placeholder = context.new_placeholder(typ=out)
+            if isinstance(out, BaseType):
+                returner = output_placeholder
+            elif isinstance(out, ByteArrayType):
+                returner = output_placeholder + 32
+            else:
+                raise TypeMismatchException("Invalid output type: %r" % out, expr)
+            return LLLnode.from_list(['seq',
+                                        ['assert', ['call', ['gas'], ['address'], 0,
+                                                        inargs, inargsize,
+                                                        output_placeholder, get_size_of_type(out) * 32]],
+                                        returner], typ=out, location='memory')
         else:
             raise StructureException("Unsupported operator: %r" % ast.dump(expr), expr)
     # List literals
@@ -931,6 +964,9 @@ def parse_stmt(stmt, context):
     elif isinstance(stmt, ast.Call):
         if isinstance(stmt.func, ast.Name) and stmt.func.id in stmt_dispatch_table:
             return stmt_dispatch_table[stmt.func.id](stmt, context)
+        elif isinstance(stmt.func, ast.Attribute) and isinstance(stmt.func.value, ast.Name) and stmt.func.value.id == "self":
+            inargs, inargsize = pack_arguments(context, 'self', stmt.func.attr, [parse_expr(arg, context) for arg in stmt.args])
+            return LLLnode.from_list(['assert', ['call', ['gas'], ['address'], 0, inargs, inargsize, 0, 0]], typ=None)
         else:
             raise StructureException("Unsupported operator: %r" % ast.dump(stmt), stmt)
     # Asserts
@@ -1057,3 +1093,32 @@ def parse_stmt(stmt, context):
             raise TypeMismatchException("Can only return base type!", stmt)
     else:
         raise StructureException("Unsupported statement type", stmt)
+
+# Pack function arguments for a call
+def pack_arguments(context, type_name, method_name, args):
+    types, _, method_id = context.sigs[type_name][method_name]
+    placeholder_typ = ByteArrayType(maxlen=sum([get_size_of_type(typ) for typ in types]) * 32 + 32)
+    placeholder = context.new_placeholder(placeholder_typ)
+    setters = [['mstore', placeholder, method_id]]
+    offset = 0
+    needpos = False
+    for i, (arg, typ) in enumerate(zip(args, types)):
+        if isinstance(typ, BaseType):
+            setters.append(make_setter(LLLnode.from_list(placeholder + 32 + i * 32, typ=typ), arg, 'memory'))
+        elif isinstance(typ, ByteArrayType):
+            setters.append(['mstore', placeholder + 32 + i * 32, '_poz'])
+            arg_copy = LLLnode.from_list('_s', typ=arg.typ, location=arg.location)
+            target = LLLnode.from_list(['add', placeholder + 32, '_poz'], typ=typ, location='memory')
+            setters.append(['with', '_s', arg, ['seq',
+                                                    make_byte_array_copier(target, arg_copy),
+                                                    ['set', '_poz', ['add', 32, ['add', '_poz', get_length(arg_copy)]]]]])
+            needpos = True
+        else:
+            raise TypeMismatchException("Cannot pack argument of type %r" % typ)
+    if needpos:
+        return LLLnode.from_list(['with', '_poz', len(args) * 32, ['seq'] + setters + [placeholder + 28]],
+                                 typ=placeholder_typ, location='memory'), \
+            placeholder_typ.maxlen - 28
+    else:
+        return LLLnode.from_list(['seq'] + setters + [placeholder + 28], typ=placeholder_typ, location='memory'), \
+            placeholder_typ.maxlen - 28
