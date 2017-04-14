@@ -47,6 +47,6 @@ t.r = 45
 t.s = 79
 print("RLP decoder")
 print('Send %d wei to %s' % (t.startgas * t.gasprice,
-                             '0x'+utils.encode_hex(t.sender)))
-print('Contract address: 0x'+utils.encode_hex(utils.mk_contract_address(t.sender, 0)))
+                             utils.checksum_encode(t.sender)))
+print('Contract address: '+utils.checksum_encode(utils.mk_contract_address(t.sender, 0)))
 print('Code: 0x'+utils.encode_hex(rlp.encode(t)))

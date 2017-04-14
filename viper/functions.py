@@ -130,7 +130,7 @@ def _slice(expr, args, kwargs, context):
     if not are_units_compatible(length.typ, BaseType("num")):
         raise TypeMismatchException("Type for slice length must be a unitless number")
     # Node representing the position of the output in memory
-    np = context.new_placeholder(sub.typ)
+    np = context.new_placeholder(ByteArrayType(maxlen=sub.typ.maxlen+32))
     placeholder_node = LLLnode.from_list(np, typ=sub.typ, location='memory')
     placeholder_plus_32_node = LLLnode.from_list(np + 32, typ=sub.typ, location='memory')
     # Copies over bytearray data
@@ -138,7 +138,7 @@ def _slice(expr, args, kwargs, context):
         adj_sub = LLLnode.from_list(['add', ['sha3_32', sub], ['add', ['div', '_start', 32], 1]], typ=sub.typ, location=sub.location)
     else:
         adj_sub = LLLnode.from_list(['add', sub, ['add', ['sub', '_start', ['mod', '_start', 32]], 32]], typ=sub.typ, location=sub.location)
-    copier = make_byte_slice_copier(placeholder_plus_32_node, adj_sub, '_length', sub.typ.maxlen)
+    copier = make_byte_slice_copier(placeholder_plus_32_node, adj_sub, ['add', '_length', 32], sub.typ.maxlen)
     # New maximum length in the type of the result
     newmaxlen = length.value if not len(length.args) else sub.typ.maxlen
     out = ['with', '_start', start,
@@ -460,7 +460,7 @@ def _RLPlist(expr, args, kwargs, context):
                          ['mload', '_sub'],
                          output_node,
                          64 * len(_format) + 32 + 32 * get_size_of_type(output_type)]]],
-            ['sstore', 4, ['mload', output_node]],
+            #['sstore', 4, ['mload', output_node]],
             ['assert', ['eq', ['mload', output_node], 32 * len(_format) + 32]]],
         typ=None)
     # Shove the input data decoder in front of the first variable decoder

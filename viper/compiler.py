@@ -24,7 +24,7 @@ def gas_estimate(origcode, *args, **kwargs):
     for i, _def in enumerate(_defs):
         name, args, output_type, const, sig, method_id = parser.get_func_details(_def)
         varz = {}
-        kode = parser.parse_func(_def, _globals, sigs, origcode, varz)
+        kode = parser.parse_func(_def, _globals, {"self": sigs}, origcode, varz)
         gascost = compile_lll.gas_estimate(kode) + initial_gas
         o[name] = gascost + memsize_to_gas(varz.get("_next_mem", parser.RESERVED_MEMORY)) + function_gas * i
     return o

@@ -344,6 +344,9 @@ def make_clamper(dataloc, typ):
     # Addresses: make sure they're in range
     elif is_base_type(typ, 'address'):
         return LLLnode.from_list(['uclamplt', data_decl, ['mload', ADDRSIZE_POS]], typ=typ)
+    # Bytes: make sure they have the right size
+    elif isinstance(typ, ByteArrayType):
+        return LLLnode.from_list(['assert', ['le', ['calldataload', ['add', 4, data_decl]], typ.maxlen]], typ=None)
     # Otherwise don't make any checks
     else:
         return LLLnode.from_list('pass')

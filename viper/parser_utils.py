@@ -138,6 +138,9 @@ def make_byte_array_copier(destination, source):
         raise TypeMismatchException("Can only set a byte array to another byte array")
     if isinstance(source.typ, ByteArrayType) and source.typ.maxlen > destination.typ.maxlen:
         raise TypeMismatchException("Cannot cast from greater max-length %d to shorter max-length %d" % (source.typ.maxlen, destination.typ.maxlen))
+    # Special case: calldata to memory
+    if source.location == "calldata" and destination.location == "memory":
+        return LLLnode.from_list(['calldatacopy', destination, ['add', 4, source], ['add', 32, ['calldataload', ['add', 4, source]]]], typ=None)
     pos_node = LLLnode.from_list('_pos', typ=source.typ, location=source.location)
     # Get the length
     if isinstance(source.typ, NullType):
@@ -165,6 +168,14 @@ def make_byte_array_copier(destination, source):
 # (iii) an LLL node for the length
 # (iv) a constant for the max length
 def make_byte_slice_copier(destination, source, length, max_length):
+    # Special case: calldata to memory
+    if source.location == "calldata" and destination.location == "memory":
+        return LLLnode.from_list(['calldatacopy', destination, ['add', 4, source], max_length], typ=None)
+    # Special case: memory to memory
+    elif source.location == "memory" and destination.location == "memory":
+        return LLLnode.from_list(['with', '_l', max_length,
+                                    ['pop', ['call', 18 + max_length // 10, 4, 0, source,
+                                             '_l', destination, '_l']]], typ=None)
     # Copy over data
     if isinstance(source.typ, NullType):
         loader = 0
