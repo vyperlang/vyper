@@ -369,7 +369,7 @@ def parse_func(code, _globals, sigs, origcode, _vars=None):
     else:
         return LLLnode.from_list(['if',
                                     ['eq', ['mload', 0], method_id],
-                                    ['seq'] + clampers + [parse_body(c, context) for c in code.body]
+                                    ['seq'] + clampers + [parse_body(c, context) for c in code.body] + ['stop']
                                  ], typ=None)
     
 # Parse a piece of code
