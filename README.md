@@ -83,8 +83,8 @@ Note that not all programs that satisfy the following are valid; for example, th
 * `bool`: true or false
 * `type[length]`: finite list
 * `bytes <= maxlen`: a byte array with the given maximum length
-* `{base_type: type}`: map (can only be accessed, NOT iterated)
-* `[arg1(type), arg2(type)...]`: struct (can be accessed via struct.argname)
+* `type[base_type]`: map (can only be accessed, NOT iterated)
+* `{arg1:type, arg2:type...}`: struct (can be accessed via struct.argname)
 
 Arithmetic is overflow-checked, meaning that if a number is out of range then an exception is immediately thrown. Division and modulo by zero has a similar effect. The only kind of looping allowed is a for statement, which can come in three forms:
 
@@ -97,6 +97,10 @@ In all three cases, it's possible to statically determine the maximum runtime of
 Regarding byte array literals, unicode strings like "这个傻老外不懂中文" or "Я очень умный" are illegal, though those that manage to use values that are in the 0...255 range according to UTF-8, like "¡très bien!", are fine.
 
 Code examples can be found in the `test_parser.py` file.
+
+### Visibility
+
+* `public(type)`: publicly visible state variable
 
 ### Planned future features
 
