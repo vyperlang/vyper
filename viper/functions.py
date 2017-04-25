@@ -365,7 +365,7 @@ def selfdestruct(expr, args, kwargs, context):
 
 @signature('num')
 def blockhash(expr, args, kwargs, contact):
-    return LLLnode.from_list(['blockhash', ['uclamp', ['sub', ['number'], 256], args[0], ['sub', ['number'], 1]]], typ=BaseType('bytes32'))
+    return LLLnode.from_list(['blockhash', ['uclamplt', ['clampge', ['sub', ['number'], 256], args[0]], ['sub', ['number'], 1]]], typ=BaseType('bytes32'))
 
 @signature('bytes', '*')
 def _RLPlist(expr, args, kwargs, context):
