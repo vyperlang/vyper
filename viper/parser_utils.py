@@ -10,15 +10,17 @@ from .opcodes import opcodes, pseudo_opcodes
 from .utils import fourbytes_to_int, hex_to_int, bytes_to_int, \
     DECIMAL_DIVISOR, RESERVED_MEMORY, ADDRSIZE_POS, MAXNUM_POS, MINNUM_POS, \
     MAXDECIMAL_POS, MINDECIMAL_POS, FREE_VAR_SPACE, BLANK_SPACE, FREE_LOOP_INDEX
+import re
 
 # Data structure for LLL parse tree
 class LLLnode():
-    def __init__(self, value, args=[], typ=None, location=None):
+    def __init__(self, value, args=[], typ=None, location=None, pos=None):
         self.value = value
         self.args = args
         self.typ = typ
         assert isinstance(self.typ, NodeType) or self.typ is None, repr(self.typ)
         self.location = location
+        self.pos = pos
         # Determine this node's valency (1 if it pushes a value on the stack,
         # 0 otherwise) and checks to make sure the number and valencies of
         # children are correct
@@ -89,28 +91,49 @@ class LLLnode():
         return [self.value] + [a.to_list() for a in self.args]
 
     def repr(self):
-        x = repr(self.to_list())
-        if len(x) < 80:
-            return x
-        o = '[' + repr(self.value) + ',\n  '
+        if not len(self.args):
+            return str(self.value)
+        # x = repr(self.to_list())
+        # if len(x) < 80:
+        #     return x
+        o = '[' + str(self.value)
+        prev_lineno = self.pos[0] if self.pos else None
+        arg_lineno = None
+        annotated = False
+        has_inner_newlines = False
         for arg in self.args:
-            sub = arg.repr().replace('\n', '\n  ').strip(' ')
-            o += sub + '\n  '
-        return o.rstrip(' ') + ']'
+            o += ',\n  '
+            arg_lineno = arg.pos[0] if arg.pos else None
+            if arg_lineno is not None and arg_lineno != prev_lineno and self.value in ('seq', 'if'):
+                o += '# Line %d\n  ' % (arg_lineno)
+                prev_lineno = arg_lineno
+                annotated = True
+            arg_repr = arg.repr()
+            if '\n' in arg_repr:
+                has_inner_newlines = True
+            sub = arg_repr.replace('\n', '\n  ').strip(' ')
+            o += sub
+        output = o.rstrip(' ') + ']'
+        if (len(output) < 80 or len(self.args) == 1) and not annotated and not has_inner_newlines:
+            return re.sub(r',\n *', ', ', output).replace('\n', '')
+        else:
+            return output
 
     def __repr__(self):
         return self.repr()
 
     @classmethod
-    def from_list(cls, obj, typ=None, location=None):
+    def from_list(cls, obj, typ=None, location=None, pos=None):
         if isinstance(typ, str):
             typ = BaseType(typ)
         if isinstance(obj, LLLnode):
+            if obj.pos is None:
+                obj.pos = pos
             return obj
         elif not isinstance(obj, list):
-            return cls(obj, [], typ, location)
+            return cls(obj, [], typ, location, pos)
         else:
-            return cls(obj[0], [cls.from_list(o) for o in obj[1:]], typ, location)
+            return cls(obj[0], [cls.from_list(o,pos=pos) for o in obj[1:]], typ, location, pos)
 
 # Get a decimal number as a fraction with denominator multiple of 10
 def get_number_as_fraction(expr, context):
@@ -239,3 +262,6 @@ def get_length(arg):
         return LLLnode.from_list(['mload', arg], typ=BaseType('num'))
     elif arg.location == "storage":
         return LLLnode.from_list(['sload', ['sha3_32', arg]], typ=BaseType('num'))
+
+def getpos(node):
+    return (node.lineno, node.col_offset)

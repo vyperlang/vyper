@@ -19,7 +19,7 @@ from .exceptions import InvalidTypeException, TypeMismatchException, \
     InvalidTypeException, InvalidLiteralException
 from .functions import dispatch_table, stmt_dispatch_table
 from .parser_utils import LLLnode, make_byte_array_copier, get_number_as_fraction, \
-    get_original_if_0x_prefixed, get_length
+    get_original_if_0x_prefixed, get_length, getpos
 from .utils import fourbytes_to_int, hex_to_int, bytes_to_int, checksum_encode, \
     DECIMAL_DIVISOR, RESERVED_MEMORY, ADDRSIZE_POS, MAXNUM_POS, MINNUM_POS, \
     MAXDECIMAL_POS, MINDECIMAL_POS, FREE_VAR_SPACE, BLANK_SPACE, FREE_LOOP_INDEX
@@ -140,7 +140,8 @@ def get_defs_and_globals(code):
                 _globals[item.target.id] = (len(_globals), typ)
                 # Adding getters here
                 for getter in mk_getter(item.target.id, typ):
-                    _getters.append(parse_line(getter))
+                    _getters.append(parse_line('\n' * (item.lineno - 1) + getter))
+                    _getters[-1].pos = getpos(item)
             else:
                 _globals[item.target.id] = (len(_globals), parse_type(item.annotation, 'storage'))
         # Function definitions
@@ -365,12 +366,12 @@ def parse_func(code, _globals, sigs, origcode, _vars=None):
     clampers = [make_clamper(loc, typ) for _, loc, typ in args]
     # Return function body
     if name == '__init__':
-        return LLLnode.from_list(['seq'] + clampers + [parse_body(code.body, context)])
+        return LLLnode.from_list(['seq'] + clampers + [parse_body(code.body, context)], pos=getpos(code))
     else:
         return LLLnode.from_list(['if',
                                     ['eq', ['mload', 0], method_id],
                                     ['seq'] + clampers + [parse_body(c, context) for c in code.body] + ['stop']
-                                 ], typ=None)
+                                 ], typ=None, pos=getpos(code))
     
 # Parse a piece of code
 def parse_body(code, context):
@@ -379,7 +380,7 @@ def parse_body(code, context):
     o = []
     for stmt in code:
         o.append(parse_stmt(stmt, context))
-    return LLLnode.from_list(['seq'] + o)
+    return LLLnode.from_list(['seq'] + o, pos=getpos(code[0]) if code else None)
 
 # Take a value representing a storage location, and descend down to an element or member variable
 def add_variable_offset(parent, key):
@@ -467,22 +468,22 @@ def parse_expr(expr, context):
         if orignum is None and isinstance(expr.n, int):
             if not (-2**127 + 1 <= expr.n <= 2**127 - 1):
                 raise InvalidLiteralException("Number out of range: "+str(expr.n), expr)
-            return LLLnode.from_list(expr.n, typ=BaseType('num', None))
+            return LLLnode.from_list(expr.n, typ=BaseType('num', None), pos=getpos(expr))
         elif isinstance(expr.n, float):
             numstring, num, den = get_number_as_fraction(expr, context)
             if not (-2**127 * den < num < 2**127 * den):
                 raise InvalidLiteralException("Number out of range: "+numstring, expr)
             if DECIMAL_DIVISOR % den:
                 raise InvalidLiteralException("Too many decimal places: "+numstring, expr)
-            return LLLnode.from_list(num * DECIMAL_DIVISOR // den, typ=BaseType('decimal', None))
+            return LLLnode.from_list(num * DECIMAL_DIVISOR // den, typ=BaseType('decimal', None), pos=getpos(expr))
         elif len(orignum) == 42:
             if checksum_encode(orignum) != orignum:
                 raise InvalidLiteralException("Address checksum mismatch. If you are sure this is the "
                                               "right address, the correct checksummed form is: "+
                                               checksum_encode(orignum), expr)
-            return LLLnode.from_list(expr.n, typ=BaseType('address'))
+            return LLLnode.from_list(expr.n, typ=BaseType('address'), pos=getpos(expr))
         elif len(orignum) == 66:
-            return LLLnode.from_list(expr.n, typ=BaseType('bytes32'))
+            return LLLnode.from_list(expr.n, typ=BaseType('bytes32'), pos=getpos(expr))
         else:
             raise InvalidLiteralException("Cannot read 0x value with length %d. Expecting 42 (address incl 0x) or 66 (bytes32 incl 0x)"
                                           % len(orignum), expr)
@@ -498,27 +499,27 @@ def parse_expr(expr, context):
         seq.append(['mstore', placeholder, len(bytez)])
         for i in range(0, len(bytez), 32):
             seq.append(['mstore', ['add', placeholder, i + 32], bytes_to_int((bytez + b'\x00' * 31)[i: i + 32])])
-        return LLLnode.from_list(['seq'] + seq + [placeholder], typ=ByteArrayType(len(bytez)), location='memory')
+        return LLLnode.from_list(['seq'] + seq + [placeholder], typ=ByteArrayType(len(bytez)), location='memory', pos=getpos(expr))
     # True, False, None constants
     elif isinstance(expr, ast.NameConstant):
         if expr.value == True:
-            return LLLnode.from_list(1, typ='bool')
+            return LLLnode.from_list(1, typ='bool', pos=getpos(expr))
         elif expr.value == False:
-            return LLLnode.from_list(0, typ='bool')
+            return LLLnode.from_list(0, typ='bool', pos=getpos(expr))
         elif expr.value == None:
-            return LLLnode.from_list(None, typ=NullType())
+            return LLLnode.from_list(None, typ=NullType(), pos=getpos(expr))
         else:
             raise Exception("Unknown name constant: %r" % expr.value.value)
     # Variable names
     elif isinstance(expr, ast.Name):
         if expr.id == 'self':
-            return LLLnode.from_list(['address'], typ='address')
+            return LLLnode.from_list(['address'], typ='address', pos=getpos(expr))
         if expr.id == 'true':
-            return LLLnode.from_list(1, typ='bool')
+            return LLLnode.from_list(1, typ='bool', pos=getpos(expr))
         if expr.id == 'false':
-            return LLLnode.from_list(0, typ='bool')
+            return LLLnode.from_list(0, typ='bool', pos=getpos(expr))
         if expr.id == 'null':
-            return LLLnode.from_list(None, typ=NullType())
+            return LLLnode.from_list(None, typ=NullType(), pos=getpos(expr))
         if expr.id in context.args:
             dataloc, typ = context.args[expr.id]
             if dataloc >= 0:
@@ -526,14 +527,14 @@ def parse_expr(expr, context):
             else:
                 data_decl = ['seq', ['codecopy', FREE_VAR_SPACE, ['sub', ['codesize'], -dataloc], 32], ['mload', FREE_VAR_SPACE]]
             if is_base_type(typ, ('num', 'bool', 'decimal', 'address', 'num256', 'signed256', 'bytes32')):
-                return LLLnode.from_list(data_decl, typ=typ)
+                return LLLnode.from_list(data_decl, typ=typ, pos=getpos(expr))
             elif isinstance(typ, ByteArrayType):
-                return LLLnode.from_list(data_decl, typ=typ, location='calldata')
+                return LLLnode.from_list(data_decl, typ=typ, location='calldata', pos=getpos(expr))
             else:
                 raise InvalidTypeException("Unsupported type: %r" % typ, expr)
         elif expr.id in context.vars:
             dataloc, typ = context.vars[expr.id]
-            return LLLnode.from_list(dataloc, typ=typ, location='memory')
+            return LLLnode.from_list(dataloc, typ=typ, location='memory', pos=getpos(expr))
         else:
             raise VariableDeclarationException("Undeclared variable: "+expr.id, expr)
     # x.y or x[5]
@@ -543,32 +544,32 @@ def parse_expr(expr, context):
             addr = parse_value_expr(expr.value, context)
             if not is_base_type(addr.typ, 'address'):
                 raise TypeMismatchException("Type mismatch: balance keyword expects an address as input", expr)
-            return LLLnode.from_list(['balance', addr], typ=BaseType('num', {'wei': 1}), location=None)
+            return LLLnode.from_list(['balance', addr], typ=BaseType('num', {'wei': 1}), location=None, pos=getpos(expr))
         # self.x: global attribute
         elif isinstance(expr.value, ast.Name) and expr.value.id == "self":
             if expr.attr not in context.globals:
                 raise VariableDeclarationException("Persistent variable undeclared: "+expr.attr, expr)
             pos, typ = context.globals[expr.attr][0],context.globals[expr.attr][1]
-            return LLLnode.from_list(pos, typ=typ, location='storage')
+            return LLLnode.from_list(pos, typ=typ, location='storage', pos=getpos(expr))
         # Reserved keywords
         elif isinstance(expr.value, ast.Name) and expr.value.id in ("msg", "block", "tx"):
             key = expr.value.id + "." + expr.attr
             if key == "msg.sender":
-                return LLLnode.from_list(['caller'], typ='address')
+                return LLLnode.from_list(['caller'], typ='address', pos=getpos(expr))
             elif key == "msg.value":
-                return LLLnode.from_list(['callvalue'], typ=BaseType('num', {'wei': 1}))
+                return LLLnode.from_list(['callvalue'], typ=BaseType('num', {'wei': 1}), pos=getpos(expr))
             elif key == "block.difficulty":
-                return LLLnode.from_list(['difficulty'], typ='num')
+                return LLLnode.from_list(['difficulty'], typ='num', pos=getpos(expr))
             elif key == "block.timestamp":
-                return LLLnode.from_list(['timestamp'], typ=BaseType('num', {'sec': 1}, True))
+                return LLLnode.from_list(['timestamp'], typ=BaseType('num', {'sec': 1}, True), pos=getpos(expr))
             elif key == "block.coinbase":
-                return LLLnode.from_list(['coinbase'], typ='address')
+                return LLLnode.from_list(['coinbase'], typ='address', pos=getpos(expr))
             elif key == "block.number":
-                return LLLnode.from_list(['number'], typ='num')
+                return LLLnode.from_list(['number'], typ='num', pos=getpos(expr))
             elif key == "block.prevhash":
-                return LLLnode.from_list(['prevhash', ['sub', 'number', 1]], typ='bytes32')
+                return LLLnode.from_list(['prevhash', ['sub', 'number', 1]], typ='bytes32', pos=getpos(expr))
             elif key == "tx.origin":
-                return LLLnode.from_list(['origin'], typ='address')
+                return LLLnode.from_list(['origin'], typ='address', pos=getpos(expr))
             else:
                 raise Exception("Unsupported keyword: "+key)
         # Other variables
@@ -609,13 +610,13 @@ def parse_expr(expr, context):
             new_positional = left.typ.positional ^ right.typ.positional # xor, as subtracting two positionals gives a delta
             op = 'add' if isinstance(expr.op, ast.Add) else 'sub'
             if ltyp == rtyp:
-                o = LLLnode.from_list([op, left, right], typ=BaseType(ltyp, new_unit, new_positional))
+                o = LLLnode.from_list([op, left, right], typ=BaseType(ltyp, new_unit, new_positional), pos=getpos(expr))
             elif ltyp == 'num' and rtyp == 'decimal':
                 o = LLLnode.from_list([op, ['mul', left, DECIMAL_DIVISOR], right],
-                                      typ=BaseType('decimal', new_unit, new_positional))
+                                      typ=BaseType('decimal', new_unit, new_positional), pos=getpos(expr))
             elif ltyp == 'decimal' and rtyp == 'num':
                 o = LLLnode.from_list([op, left, ['mul', right, DECIMAL_DIVISOR]],
-                                      typ=BaseType('decimal', new_unit, new_positional))
+                                      typ=BaseType('decimal', new_unit, new_positional), pos=getpos(expr))
             else:
                 raise Exception("How did I get here? %r %r" % (ltyp, rtyp))
         elif isinstance(expr.op, ast.Mult):
@@ -623,32 +624,32 @@ def parse_expr(expr, context):
                 raise TypeMismatchException("Cannot multiply positional values!", expr)
             new_unit = combine_units(left.typ.unit, right.typ.unit)
             if ltyp == rtyp == 'num':
-                o = LLLnode.from_list(['mul', left, right], typ=BaseType('num', new_unit))
+                o = LLLnode.from_list(['mul', left, right], typ=BaseType('num', new_unit), pos=getpos(expr))
             elif ltyp == rtyp == 'decimal':
                 o = LLLnode.from_list(['with', 'r', right, ['with', 'l', left,
                                         ['with', 'ans', ['mul', 'l', 'r'],
                                             ['seq',
                                                 ['assert', ['or', ['eq', ['sdiv', 'ans', 'l'], 'r'], ['not', 'l']]],
-                                                ['sdiv', 'ans', DECIMAL_DIVISOR]]]]], typ=BaseType('decimal', new_unit))
+                                                ['sdiv', 'ans', DECIMAL_DIVISOR]]]]], typ=BaseType('decimal', new_unit), pos=getpos(expr))
             elif (ltyp == 'num' and rtyp == 'decimal') or (ltyp == 'decimal' and rtyp == 'num'):
                 o = LLLnode.from_list(['with', 'r', right, ['with', 'l', left,
                                         ['with', 'ans', ['mul', 'l', 'r'],
                                             ['seq',
                                                 ['assert', ['or', ['eq', ['sdiv', 'ans', 'l'], 'r'], ['not', 'l']]],
-                                                'ans']]]], typ=BaseType('decimal', new_unit))
+                                                'ans']]]], typ=BaseType('decimal', new_unit), pos=getpos(expr))
         elif isinstance(expr.op, ast.Div):
             if left.typ.positional or right.typ.positional:
                 raise TypeMismatchException("Cannot divide positional values!", expr)
             new_unit = combine_units(left.typ.unit, right.typ.unit, div=True)
             if rtyp == 'num':
-                o = LLLnode.from_list(['sdiv', left, ['clamp_nonzero', right]], typ=BaseType(ltyp, new_unit))
+                o = LLLnode.from_list(['sdiv', left, ['clamp_nonzero', right]], typ=BaseType(ltyp, new_unit), pos=getpos(expr))
             elif ltyp == rtyp == 'decimal':
                 o = LLLnode.from_list(['with', 'l', left, ['with', 'r', ['clamp_nonzero', right],
                                             ['sdiv', ['mul', 'l', DECIMAL_DIVISOR], 'r']]],
-                                      typ=BaseType('decimal', new_unit))
+                                      typ=BaseType('decimal', new_unit), pos=getpos(expr))
             elif ltyp == 'num' and rtyp == 'decimal':
                 o = LLLnode.from_list(['sdiv', ['mul', left, DECIMAL_DIVISOR ** 2], ['clamp_nonzero', right]],
-                                      typ=BaseType('decimal', new_unit))
+                                      typ=BaseType('decimal', new_unit), pos=getpos(expr))
         elif isinstance(expr.op, ast.Mod):
             if left.typ.positional or right.typ.positional:
                 raise TypeMismatchException("Cannot use positional values as modulus arguments!", expr)
@@ -656,13 +657,13 @@ def parse_expr(expr, context):
                 raise TypeMismatchException("Modulus arguments must have same unit", expr)
             new_unit = left.typ.unit or right.typ.unit
             if ltyp == rtyp:
-                o = LLLnode.from_list(['smod', left, ['clamp_nonzero', right]], typ=BaseType(ltyp, new_unit))
+                o = LLLnode.from_list(['smod', left, ['clamp_nonzero', right]], typ=BaseType(ltyp, new_unit), pos=getpos(expr))
             elif ltyp == 'decimal' and rtyp == 'num':
                 o = LLLnode.from_list(['smod', left, ['mul', ['clamp_nonzero', right], DECIMAL_DIVISOR]],
-                                      typ=BaseType('decimal', new_unit))
+                                      typ=BaseType('decimal', new_unit), pos=getpos(expr))
             elif ltyp == 'num' and rtyp == 'decimal':
                 o = LLLnode.from_list(['smod', ['mul', left, DECIMAL_DIVISOR], right],
-                                      typ=BaseType('decimal', new_unit))
+                                      typ=BaseType('decimal', new_unit), pos=getpos(expr))
         else:
             raise Exception("Unsupported binop: %r" % expr.op)
     # Comparison operations
@@ -692,11 +693,11 @@ def parse_expr(expr, context):
                 raise TypeMismatchException("Invalid type for comparison op", expr)
         ltyp, rtyp = left.typ.typ, right.typ.typ
         if ltyp == rtyp:
-            o = LLLnode.from_list([op, left, right], typ='bool')
+            o = LLLnode.from_list([op, left, right], typ='bool', pos=getpos(expr))
         elif ltyp == 'decimal' and rtyp == 'num':
-            o = LLLnode.from_list([op, left, ['mul', right, DECIMAL_DIVISOR]], typ='bool')
+            o = LLLnode.from_list([op, left, ['mul', right, DECIMAL_DIVISOR]], typ='bool', pos=getpos(expr))
         elif ltyp == 'num' and rtyp == 'decimal':
-            o = LLLnode.from_list([op, ['mul', left, DECIMAL_DIVISOR], right], typ='bool')
+            o = LLLnode.from_list([op, ['mul', left, DECIMAL_DIVISOR], right], typ='bool', pos=getpos(expr))
         else:
             raise TypeMismatchException("Unsupported types for comparison: %r %r" % (ltyp, rtyp), expr)
     # Boolean logical operations
@@ -713,18 +714,18 @@ def parse_expr(expr, context):
             op = 'or'
         else:
             raise Exception("Unsupported bool op: "+expr.op)
-        o = LLLnode.from_list([op, left, right], typ='bool')
+        o = LLLnode.from_list([op, left, right], typ='bool', pos=getpos(expr))
     # Unary operations (only "not" supported)
     elif isinstance(expr, ast.UnaryOp):
         operand = parse_value_expr(expr.operand, context)
         if isinstance(expr.op, ast.Not):
             # Note that in the case of bool, num, address, decimal, num256 AND bytes32,
             # a zero entry represents false, all others represent true
-            o = LLLnode.from_list(["iszero", operand], typ='bool')
+            o = LLLnode.from_list(["iszero", operand], typ='bool', pos=getpos(expr))
         elif isinstance(expr.op, ast.USub):
             if not is_numeric_type(operand.typ):
                 raise TypeMismatchException("Unsupported type for negation: %r" % operand.typ, operand)
-            o = LLLnode.from_list(["sub", 0, operand], typ=operand.typ)
+            o = LLLnode.from_list(["sub", 0, operand], typ=operand.typ, pos=getpos(expr))
         else:
             raise Exception("Only the 'not' unary operator is supported")
     # Function calls
@@ -745,7 +746,7 @@ def parse_expr(expr, context):
                                         ['assert', ['call', ['gas'], ['address'], 0,
                                                         inargs, inargsize,
                                                         output_placeholder, get_size_of_type(out) * 32]],
-                                        returner], typ=out, location='memory')
+                                        returner], typ=out, location='memory', pos=getpos(expr))
         else:
             raise StructureException("Unsupported operator: %r" % ast.dump(expr), expr)
     # List literals
@@ -760,7 +761,7 @@ def parse_expr(expr, context):
                 out_type = o[-1].typ
             elif len(o) > 1 and o[-1].typ != out_type:
                 out_type = MixedType()
-        return LLLnode.from_list(["multi"] + o, typ=ListType(out_type, len(o)))
+        return LLLnode.from_list(["multi"] + o, typ=ListType(out_type, len(o)), pos=getpos(expr))
     # Struct literals
     elif isinstance(expr, ast.Dict):
         o = {}
@@ -772,16 +773,16 @@ def parse_expr(expr, context):
                 raise TypeMismatchException("Member variable duplicated: "+key.id, key)
             o[key.id] = parse_expr(value, context)
             members[key.id] = o[key.id].typ
-        return LLLnode.from_list(["multi"] + [o[key] for key in sorted(list(o.keys()))], typ=StructType(members))
+        return LLLnode.from_list(["multi"] + [o[key] for key in sorted(list(o.keys()))], typ=StructType(members), pos=getpos(expr))
     else:
         raise Exception("Unsupported operator: %r" % ast.dump(expr))
     # Clamp based on variable type
     if o.location is None and o.typ == 'bool':
         return o
     elif o.location is None and o.typ == 'num':
-        return LLLnode.from_list(['clamp', ['mload', MINNUM_POS], o, ['mload', MAXNUM_POS]], typ='num')
+        return LLLnode.from_list(['clamp', ['mload', MINNUM_POS], o, ['mload', MAXNUM_POS]], typ='num', pos=getpos(expr))
     elif o.location is None and o.typ == 'decimal':
-        return LLLnode.from_list(['clamp', ['mload', MINDECIMAL_POS], o, ['mload', MAXDECIMAL_POS]], typ='decimal')
+        return LLLnode.from_list(['clamp', ['mload', MINDECIMAL_POS], o, ['mload', MAXDECIMAL_POS]], typ='decimal', pos=getpos(expr))
     else:
         return o
 
@@ -933,12 +934,12 @@ def parse_stmt(stmt, context):
     if isinstance(stmt, ast.Expr):
         return parse_stmt(stmt.value, context)
     elif isinstance(stmt, ast.Pass):
-        return LLLnode.from_list('pass', typ=None)
+        return LLLnode.from_list('pass', typ=None, pos=getpos(stmt))
     elif isinstance(stmt, ast.AnnAssign):
         typ = parse_type(stmt.annotation, location='memory')
         varname = stmt.target.id
         pos = context.new_variable(varname, typ)
-        return LLLnode.from_list('pass', typ=None)
+        return LLLnode.from_list('pass', typ=None, pos=getpos(stmt))
     elif isinstance(stmt, ast.Assign):
         # Assignment (eg. x[4] = y)
         if len(stmt.targets) != 1:
@@ -946,35 +947,37 @@ def parse_stmt(stmt, context):
         sub = parse_expr(stmt.value, context)
         if isinstance(stmt.targets[0], ast.Name) and stmt.targets[0].id not in context.vars:
             pos = context.new_variable(stmt.targets[0].id, set_default_units(sub.typ))
-            return make_setter(LLLnode.from_list(pos, typ=sub.typ, location='memory'), sub, 'memory')
+            o = make_setter(LLLnode.from_list(pos, typ=sub.typ, location='memory', pos=getpos(stmt)), sub, 'memory')
         else:
             target = parse_variable_location(stmt.targets[0], context)
             if target.location == 'storage' and context.is_constant:
                 raise ConstancyViolationException("Cannot modify storage inside a constant function!", stmt.targets[0])
-            return make_setter(target, sub, target.location)
+            o = make_setter(target, sub, target.location)
+        o.pos = getpos(stmt)
+        return o
     # If statements
     elif isinstance(stmt, ast.If):
         if stmt.orelse:
             return LLLnode.from_list(['if',
                                       parse_value_expr(stmt.test, context),
                                       parse_body(stmt.body, context),
-                                      parse_body(stmt.orelse, context)], typ=None)
+                                      parse_body(stmt.orelse, context)], typ=None, pos=getpos(stmt))
         else:
             return LLLnode.from_list(['if',
                                       parse_value_expr(stmt.test, context),
-                                      parse_body(stmt.body, context)], typ=None)
+                                      parse_body(stmt.body, context)], typ=None, pos=getpos(stmt))
     # Calls
     elif isinstance(stmt, ast.Call):
         if isinstance(stmt.func, ast.Name) and stmt.func.id in stmt_dispatch_table:
             return stmt_dispatch_table[stmt.func.id](stmt, context)
         elif isinstance(stmt.func, ast.Attribute) and isinstance(stmt.func.value, ast.Name) and stmt.func.value.id == "self":
             inargs, inargsize = pack_arguments(context, 'self', stmt.func.attr, [parse_expr(arg, context) for arg in stmt.args])
-            return LLLnode.from_list(['assert', ['call', ['gas'], ['address'], 0, inargs, inargsize, 0, 0]], typ=None)
+            return LLLnode.from_list(['assert', ['call', ['gas'], ['address'], 0, inargs, inargsize, 0, 0]], typ=None, pos=getpos(stmt))
         else:
             raise StructureException("Unsupported operator: %r" % ast.dump(stmt), stmt)
     # Asserts
     elif isinstance(stmt, ast.Assert):
-        return LLLnode.from_list(['assert', parse_value_expr(stmt.test, context)], typ=None)
+        return LLLnode.from_list(['assert', parse_value_expr(stmt.test, context)], typ=None, pos=getpos(stmt))
     # for i in range(n): ... (note: n must be a nonzero positive constant integer)
     elif isinstance(stmt, ast.For):
         if not isinstance(stmt.iter, ast.Call) or \
@@ -987,13 +990,13 @@ def parse_stmt(stmt, context):
         if len(stmt.iter.args) == 1:
             if not isinstance(stmt.iter.args[0], ast.Num):
                 raise StructureException("Repeat must have a nonzero positive integral number of rounds", stmt.iter)
-            start = LLLnode.from_list(0, typ='num')
+            start = LLLnode.from_list(0, typ='num', pos=getpos(stmt))
             rounds = stmt.iter.args[0].n
         elif len(stmt.iter.args) == 2:
             if isinstance(stmt.iter.args[0], ast.Num) and isinstance(stmt.iter.args[1], ast.Num):
                 # Type 2 for, eg. for i in range(100, 110): ...
-                start = LLLnode.from_list(stmt.iter.args[0].n, typ='num')
-                rounds = LLLnode.from_list(stmt.iter.args[1].n - stmt.iter.args[0].n, typ='num')
+                start = LLLnode.from_list(stmt.iter.args[0].n, typ='num', pos=getpos(stmt))
+                rounds = LLLnode.from_list(stmt.iter.args[1].n - stmt.iter.args[0].n, typ='num', pos=getpos(stmt))
             else:
                 # Type 3 for, eg. for i in range(x, x + 10): ...
                 if not isinstance(stmt.iter.args[1], ast.BinOp) or not isinstance(stmt.iter.args[1].op, ast.Add):
@@ -1007,7 +1010,7 @@ def parse_stmt(stmt, context):
                 rounds = stmt.iter.args[1].right.n
         varname = stmt.target.id
         pos = context.vars[varname][0] if varname in context.forvars else context.new_variable(varname, BaseType('num'))
-        o = LLLnode.from_list(['repeat', pos, start, rounds, parse_body(stmt.body, context)], typ=None)
+        o = LLLnode.from_list(['repeat', pos, start, rounds, parse_body(stmt.body, context)], typ=None, pos=getpos(stmt))
         context.forvars[varname] = True
         return o
     # Creating a new memory variable and assigning it
@@ -1022,22 +1025,22 @@ def parse_stmt(stmt, context):
         if target.location == 'storage':
             if context.is_constant:
                 raise ConstancyViolationException("Cannot modify storage inside a constant function!", stmt.target)
-            o = parse_value_expr(ast.BinOp(left=LLLnode.from_list(['sload', '_addr'], typ=target.typ),
-                                 right=sub, op=stmt.op), context)
-            return LLLnode.from_list(['with', '_addr', target, ['sstore', '_addr', base_type_conversion(o, o.typ, target.typ)]], typ=None)
+            o = parse_value_expr(ast.BinOp(left=LLLnode.from_list(['sload', '_addr'], typ=target.typ, pos=target.pos),
+                                 right=sub, op=stmt.op, lineno=stmt.lineno, col_offset=stmt.col_offset), context)
+            return LLLnode.from_list(['with', '_addr', target, ['sstore', '_addr', base_type_conversion(o, o.typ, target.typ)]], typ=None, pos=getpos(stmt))
         elif target.location == 'memory':
-            o = parse_value_expr(ast.BinOp(left=LLLnode.from_list(['mload', '_addr'], typ=target.typ),
-                                 right=sub, op=stmt.op), context)
-            return LLLnode.from_list(['with', '_addr', target, ['mstore', '_addr', base_type_conversion(o, o.typ, target.typ)]], typ=None)
+            o = parse_value_expr(ast.BinOp(left=LLLnode.from_list(['mload', '_addr'], typ=target.typ, pos=target.pos),
+                                 right=sub, op=stmt.op, lineno=stmt.lineno, col_offset=stmt.col_offset), context)
+            return LLLnode.from_list(['with', '_addr', target, ['mstore', '_addr', base_type_conversion(o, o.typ, target.typ)]], typ=None, pos=getpos(stmt))
     # Break from a loop
     elif isinstance(stmt, ast.Break):
-        return LLLnode.from_list('break', typ=None)
+        return LLLnode.from_list('break', typ=None, pos=getpos(stmt))
     # Return statement
     elif isinstance(stmt, ast.Return):
         if context.return_type is None:
             if stmt.value:
                 raise TypeMismatchException("Not expecting to return a value", stmt)
-            return LLLnode.from_list(['return', 0, 0], typ=None)
+            return LLLnode.from_list(['return', 0, 0], typ=None, pos=getpos(stmt))
         if not stmt.value:
             raise TypeMismatchException("Expecting to return a value", stmt)
         sub = parse_expr(stmt.value, context)
@@ -1050,11 +1053,11 @@ def parse_stmt(stmt, context):
                 raise TypeMismatchException("Return type units mismatch %r %r" % (sub.typ, context.return_type), stmt.value)
             elif is_base_type(sub.typ, context.return_type.typ) or \
                     (is_base_type(sub.typ, 'num') and is_base_type(context.return_type, 'signed256')):
-                return LLLnode.from_list(['seq', ['mstore', 0, sub], ['return', 0, 32]], typ=None)
+                return LLLnode.from_list(['seq', ['mstore', 0, sub], ['return', 0, 32]], typ=None, pos=getpos(stmt))
             elif is_base_type(sub.typ, 'num') and is_base_type(context.return_type, 'num256'):
                 return LLLnode.from_list(['seq', ['mstore', 0, sub],
                                                  ['assert', ['sge', ['mload', 0], 0]],
-                                                 ['return', 0, 32]], typ=None)
+                                                 ['return', 0, 32]], typ=None, pos=getpos(stmt))
             else:
                 raise TypeMismatchException("Unsupported type conversion: %r to %r" % (sub.typ, context.return_type), stmt.value)
         # Returning a byte array
@@ -1071,17 +1074,17 @@ def parse_stmt(stmt, context):
                                                     ['seq', ['assert', ['le', ['calldataload', '_pos'], sub.typ.maxlen]],
                                                             ['mstore', context.get_next_mem(), 32],
                                                             ['calldatacopy', context.get_next_mem() + 32, '_pos', '_len'],
-                                                            ['return', context.get_next_mem(), ['add', '_len', 32]]]]], typ=None)
+                                                            ['return', context.get_next_mem(), ['add', '_len', 32]]]]], typ=None, pos=getpos(stmt))
             # Returning something already in memory
             elif sub.location == 'memory':
                 return LLLnode.from_list(['with', '_loc', sub,
                                             ['seq',
                                                 ['mstore', ['sub', '_loc', 32], 32],
-                                                ['return', ['sub', '_loc', 32], ['ceil32', ['add', ['mload', '_loc'], 64]]]]], typ=None)
+                                                ['return', ['sub', '_loc', 32], ['ceil32', ['add', ['mload', '_loc'], 64]]]]], typ=None, pos=getpos(stmt))
             # Copying from storage
             elif sub.location == 'storage':
                 # Instantiate a byte array at some index
-                fake_byte_array = LLLnode(context.get_next_mem() + 32, typ=sub.typ, location='memory')
+                fake_byte_array = LLLnode(context.get_next_mem() + 32, typ=sub.typ, location='memory', pos=getpos(stmt))
                 o = ['seq',
                         # Copy the data to this byte array
                         make_byte_array_copier(fake_byte_array, sub),
@@ -1089,7 +1092,7 @@ def parse_stmt(stmt, context):
                         ['mstore', context.get_next_mem(), 32],
                         # Return it
                         ['return', context.get_next_mem(), ['add', ['ceil32', ['mload', context.get_next_mem() + 32]], 64]]]
-                return LLLnode.from_list(o, typ=None)
+                return LLLnode.from_list(o, typ=None, pos=getpos(stmt))
             else:
                 raise Exception("Invalid location: %s" % sub.location)
         else:
@@ -1125,3 +1128,7 @@ def pack_arguments(context, type_name, method_name, args):
     else:
         return LLLnode.from_list(['seq'] + setters + [placeholder + 28], typ=placeholder_typ, location='memory'), \
             placeholder_typ.maxlen - 28
+
+def parse_to_lll(kode):
+    code = parse(kode)
+    return parse_tree_to_lll(code, kode)
