@@ -106,6 +106,7 @@ Code examples can be found in the `test_parser.py` file.
 
 ### Code example
 
+```python
     funders: {sender: address, value: wei_value}[num]
     nextFunderIndex: num
     beneficiary: address
@@ -144,6 +145,7 @@ Code examples can be found in the `test_parser.py` file.
             send(self.funders[i].sender, self.funders[i].value)
             self.funders[i] = None
         self.refundIndex = ind + 30
+```
 
 ## Installation
 
