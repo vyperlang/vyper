@@ -1,37 +1,42 @@
 from viper import parser, compile_lll, utils
 from viper import compiler
-from ethereum import tester as t
-from ethereum import transactions, state_transition
+from ethereum.tools import tester2 as t
+from ethereum import transactions, messages
 from ethereum import utils as u
 import rlp
 from ethereum.slogging import LogRecorder, configure_logging, set_level
 config_string = ':info,eth.vm.log:trace,eth.vm.op:trace,eth.vm.stack:trace,eth.vm.exit:trace,eth.pb.msg:trace,eth.pb.tx:debug'
 #configure_logging(config_string=config_string)
 
-s = t.state()
+s = t.Chain()
 t.languages['viper'] = compiler.Compiler() 
 
 def inject_tx(txhex):
     tx = rlp.decode(u.decode_hex(txhex[2:]), transactions.Transaction)
-    s.state.set_balance(tx.sender, tx.startgas * tx.gasprice)
-    state_transition.apply_transaction(s.state, tx)
+    s.head_state.set_balance(tx.sender, tx.startgas * tx.gasprice)
+    s.chain.state.set_balance(tx.sender, tx.startgas * tx.gasprice)
+    messages.apply_transaction(s.head_state, tx)
+    s.block.transactions.append(tx)
     contract_address = u.sha3(rlp.encode([tx.sender, 0]))[12:]
-    assert s.state.get_code(contract_address)
+    assert s.head_state.get_code(contract_address)
+    s.mine(1)
     return contract_address
 
 rlp_decoder_address = inject_tx( "0xf90237808506fc23ac00830330888080b902246102128061000e60003961022056600060007f010000000000000000000000000000000000000000000000000000000000000060003504600060c082121515585760f882121561004d5760bf820336141558576001905061006e565b600181013560f783036020035260005160f6830301361415585760f6820390505b5b368112156101c2577f010000000000000000000000000000000000000000000000000000000000000081350483602086026040015260018501945060808112156100d55760018461044001526001828561046001376001820191506021840193506101bc565b60b881121561014357608081038461044001526080810360018301856104600137608181141561012e5760807f010000000000000000000000000000000000000000000000000000000000000060018401350412151558575b607f81038201915060608103840193506101bb565b60c08112156101b857600182013560b782036020035260005160388112157f010000000000000000000000000000000000000000000000000000000000000060018501350402155857808561044001528060b6838501038661046001378060b6830301830192506020810185019450506101ba565bfe5b5b5b5061006f565b601f841315155857602060208502016020810391505b6000821215156101fc578082604001510182826104400301526020820391506101d8565b808401610420528381018161044003f350505050505b6000f31b2d4f")
 assert utils.bytes_to_int(rlp_decoder_address) == utils.RLP_DECODER_ADDRESS
+
+s.head_state.gas_limit = 10**9
 
 null_code = """
 def foo():
     pass
 """
 
-c = s.abi_contract(null_code, language='viper')
+c = s.contract(null_code, language='viper')
 c.foo()
 
 print('Successfully executed a null function')
-print('Gas estimate', t.languages['viper'].gas_estimate(null_code)['foo'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
+print('Gas estimate', t.languages['viper'].gas_estimate(null_code)['foo'], 'actual', s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
 
 basic_code = """
 
@@ -40,10 +45,10 @@ def foo(x: num) -> num:
 
 """
 
-c = s.abi_contract(basic_code, language='viper')
+c = s.contract(basic_code, language='viper')
 assert c.foo(9) == 18
 print('Passed basic code test')
-print('Gas estimate', t.languages['viper'].gas_estimate(basic_code)['foo'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
+print('Gas estimate', t.languages['viper'].gas_estimate(basic_code)['foo'], 'actual', s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
 
 basic_repeater = """
 
@@ -54,10 +59,10 @@ def repeat(z: num) -> num:
     return(x)
 """
 
-c = s.abi_contract(basic_repeater, language='viper')
+c = s.contract(basic_repeater, language='viper')
 assert c.repeat(9) == 54
 print('Passed basic repeater test')
-print('Gas estimate', t.languages['viper'].gas_estimate(basic_repeater)['repeat'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
+print('Gas estimate', t.languages['viper'].gas_estimate(basic_repeater)['repeat'], 'actual', s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
 
 more_complex_repeater = """
 def repeat() -> num:
@@ -70,10 +75,10 @@ def repeat() -> num:
 """
 
 
-c = s.abi_contract(more_complex_repeater, language='viper')
+c = s.contract(more_complex_repeater, language='viper')
 assert c.repeat() == 666666
 print('Passed complex repeater test')
-print('Gas estimate', t.languages['viper'].gas_estimate(more_complex_repeater)['repeat'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
+print('Gas estimate', t.languages['viper'].gas_estimate(more_complex_repeater)['repeat'], 'actual', s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
 
 offset_repeater = """
 def sum() -> num:
@@ -83,7 +88,7 @@ def sum() -> num:
     return(out)
 """
 
-c = s.abi_contract(offset_repeater, language='viper')
+c = s.contract(offset_repeater, language='viper')
 assert c.sum() == 4100
 
 print('Passed repeater with offset test')
@@ -98,7 +103,7 @@ def sum(frm: num, to: num) -> num:
     return(out)
 """
 
-c = s.abi_contract(offset_repeater_2, language='viper')
+c = s.contract(offset_repeater_2, language='viper')
 assert c.sum(100, 99999) == 15150
 assert c.sum(70, 131) == 6100
 
@@ -114,10 +119,10 @@ def test_array(x: num, y: num, z: num, w: num) -> num:
     return a[0] * 1000 + a[1] * 100 + a[2] * 10 + a[3]
 """
 
-c = s.abi_contract(array_accessor, language='viper')
+c = s.contract(array_accessor, language='viper')
 assert c.test_array(2, 7, 1, 8) == 2718
 print('Passed basic array accessor test')
-print('Gas estimate', t.languages['viper'].gas_estimate(array_accessor)['test_array'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
+print('Gas estimate', t.languages['viper'].gas_estimate(array_accessor)['test_array'], 'actual', s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
 
 two_d_array_accessor = """
 def test_array(x: num, y: num, z: num, w: num) -> num:
@@ -129,10 +134,10 @@ def test_array(x: num, y: num, z: num, w: num) -> num:
     return a[0][0] * 1000 + a[0][1] * 100 + a[1][0] * 10 + a[1][1]
 """
 
-c = s.abi_contract(two_d_array_accessor, language='viper')
+c = s.contract(two_d_array_accessor, language='viper')
 assert c.test_array(2, 7, 1, 8) == 2718
 print('Passed complex array accessor test')
-print('Gas estimate', t.languages['viper'].gas_estimate(two_d_array_accessor)['test_array'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
+print('Gas estimate', t.languages['viper'].gas_estimate(two_d_array_accessor)['test_array'], 'actual', s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
 
 
 digit_reverser = """
@@ -150,10 +155,10 @@ def reverse_digits(x: num) -> num:
 
 """
 
-c = s.abi_contract(digit_reverser, language='viper')
+c = s.contract(digit_reverser, language='viper')
 assert c.reverse_digits(123456) == 654321
 print('Passed digit reverser test')
-print('Gas estimate', t.languages['viper'].gas_estimate(digit_reverser)['reverse_digits'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
+print('Gas estimate', t.languages['viper'].gas_estimate(digit_reverser)['reverse_digits'], 'actual', s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
 
 arbitration_code = """
 buyer: address
@@ -176,18 +181,18 @@ def refund():
 
 """
 
-c = s.abi_contract(arbitration_code, language='viper', endowment=1)
+c = s.contract(arbitration_code, language='viper', value=1)
 c.setup(t.a1, t.a2, sender=t.k0)
 try:
     c.finalize(sender=t.k1)
     success = True
-except t.TransactionFailed:
+except:
     success = False
 assert not success
 c.finalize(sender=t.k0)
 
 print('Passed escrow test')
-print('Gas estimate', t.languages['viper'].gas_estimate(arbitration_code)['finalize'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
+print('Gas estimate', t.languages['viper'].gas_estimate(arbitration_code)['finalize'], 'actual', s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
 
 arbitration_code_with_init = """
 buyer: address
@@ -209,7 +214,7 @@ def refund():
     send(self.buyer, self.balance)
 """
 
-c = s.abi_contract(arbitration_code_with_init, language='viper', constructor_parameters=[t.a1, t.a2], sender=t.k0, endowment=1)
+c = s.contract(arbitration_code_with_init, language='viper', args=[t.a1, t.a2], sender=t.k0, value=1)
 try:
     c.finalize(sender=t.k1)
     success = True
@@ -219,7 +224,7 @@ assert not success
 c.finalize(sender=t.k0)
 
 print('Passed escrow test with initializer')
-print('Gas estimate', t.languages['viper'].gas_estimate(arbitration_code)['finalize'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
+print('Gas estimate', t.languages['viper'].gas_estimate(arbitration_code)['finalize'], 'actual', s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
 
 decimal_test = """
 def foo() -> num:
@@ -266,9 +271,9 @@ def foop() -> num:
     return(floor(1999 % 1000.0))
 """
 
-c = s.abi_contract(decimal_test, language='viper')
-pre_gas = s.state.receipts[-1].gas_used
-pre_txs = len(s.state.receipts)
+c = s.contract(decimal_test, language='viper')
+pre_gas = s.head_state.receipts[-1].gas_used
+pre_txs = len(s.head_state.receipts)
 assert c.foo() == 999
 assert c.fop() == 999
 assert c.foq() == 999
@@ -283,8 +288,8 @@ assert c.moo() == 999
 assert c.foom() == 999
 assert c.foon() == 999
 assert c.foop() == 999
-post_gas = s.state.receipts[-1].gas_used
-post_txs = len(s.state.receipts)
+post_gas = s.head_state.receipts[-1].gas_used
+post_txs = len(s.head_state.receipts)
 
 estimate = t.languages['viper'].gas_estimate(decimal_test)
 
@@ -319,7 +324,7 @@ def iarg() -> wei_value:
 """
 
 
-c = s.abi_contract(harder_decimal_test, language='viper')
+c = s.contract(harder_decimal_test, language='viper')
 assert c.phooey(1.2) == 20736.0
 assert c.phooey(-1.2) == 20736.0
 assert c.arg(-3.7) == -3.7
@@ -342,7 +347,7 @@ def log(n: num) -> num:
     return output
 """
 
-c = s.abi_contract(break_test, language='viper')
+c = s.contract(break_test, language='viper')
 assert c.log(1) == 0
 assert c.log(2) == 3
 assert c.log(10) == 10
@@ -367,7 +372,7 @@ def log(n: num) -> num:
 """
 
 
-c = s.abi_contract(break_test_2, language='viper')
+c = s.contract(break_test_2, language='viper')
 assert c.log(1) == 0
 assert c.log(2) == 3
 assert c.log(10) == 10
@@ -402,7 +407,7 @@ def augmod(x: num, y: num) -> num:
     return z
 """
 
-c = s.abi_contract(augassign_test, language='viper')
+c = s.contract(augassign_test, language='viper')
 
 assert c.augadd(5, 12) == 17
 assert c.augmul(5, 12) == 60
@@ -427,7 +432,7 @@ def log(n: num) -> num:
             break
     return output
 """
-c = s.abi_contract(break_test_3, language='viper')
+c = s.contract(break_test_3, language='viper')
 assert c.log(1) == 0
 assert c.log(2) == 3
 assert c.log(10) == 10
@@ -445,10 +450,10 @@ def returnMoose() -> num:
     return self.moose
 """
 
-c = s.abi_contract(init_argument_test, language='viper', constructor_parameters=[5])
+c = s.contract(init_argument_test, language='viper', args=[5])
 assert c.returnMoose() == 5
 print('Passed init argument test')
-print('Gas estimate', t.languages['viper'].gas_estimate(init_argument_test)['returnMoose'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
+print('Gas estimate', t.languages['viper'].gas_estimate(init_argument_test)['returnMoose'], 'actual', s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
 
 permanent_variables_test = """
 var: {a: num, b: num}
@@ -460,10 +465,10 @@ def returnMoose() -> num:
     return self.var.a * 10 + self.var.b
 """
 
-c = s.abi_contract(permanent_variables_test, language='viper', constructor_parameters=[5, 7])
+c = s.contract(permanent_variables_test, language='viper', args=[5, 7])
 assert c.returnMoose() == 57
 print('Passed init argument and variable member test')
-print('Gas estimate', t.languages['viper'].gas_estimate(permanent_variables_test)['returnMoose'], 'actual', s.state.receipts[-1].gas_used - s.state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
+print('Gas estimate', t.languages['viper'].gas_estimate(permanent_variables_test)['returnMoose'], 'actual', s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
 
 
 crowdfund = """
@@ -521,7 +526,7 @@ def refund():
 
 """
 
-c = s.abi_contract(crowdfund, language='viper', constructor_parameters=[t.a1, 50, 600])
+c = s.contract(crowdfund, language='viper', args=[t.a1, 50, 600])
 
 
 c.participate(value = 5)
@@ -531,24 +536,24 @@ assert not c.expired()
 assert not c.reached()
 c.participate(value = 49)
 assert c.reached()
-pre_bal = s.state.get_balance(t.a1)
-s.state.timestamp += 1000
+pre_bal = s.head_state.get_balance(t.a1)
+s.head_state.timestamp += 1000
 assert c.expired()
 c.finalize()
-post_bal = s.state.get_balance(t.a1)
+post_bal = s.head_state.get_balance(t.a1)
 assert post_bal - pre_bal == 54
 
-c = s.abi_contract(crowdfund, language='viper', constructor_parameters=[t.a1, 50, 600])
+c = s.contract(crowdfund, language='viper', args=[t.a1, 50, 600])
 c.participate(value = 1, sender=t.k3)
 c.participate(value = 2, sender=t.k4)
 c.participate(value = 3, sender=t.k5)
 c.participate(value = 4, sender=t.k6)
-s.state.timestamp += 1000
+s.head_state.timestamp += 1000
 assert c.expired()
 assert not c.reached()
-pre_bals = [s.state.get_balance(x) for x in [t.a3, t.a4, t.a5, t.a6]]
+pre_bals = [s.head_state.get_balance(x) for x in [t.a3, t.a4, t.a5, t.a6]]
 c.refund()
-post_bals = [s.state.get_balance(x) for x in [t.a3, t.a4, t.a5, t.a6]]
+post_bals = [s.head_state.get_balance(x) for x in [t.a3, t.a4, t.a5, t.a6]]
 assert [y-x for x, y in zip(pre_bals, post_bals)] == [1,2,3,4]
 
 print('Passed composite crowdfund test')
@@ -560,7 +565,7 @@ def foo() -> num:
     return 3
 """
 
-c = s.abi_contract(comment_test, language='viper')
+c = s.contract(comment_test, language='viper')
 assert c.foo() == 3
 print('Passed comment test')
 
@@ -603,7 +608,7 @@ def fop() -> num:
         _z.bar[0].a + _z.bar[0].b + _z.bar[1].a + _z.bar[1].b + _a
 """
 
-c = s.abi_contract(packing_test, language='viper')
+c = s.contract(packing_test, language='viper')
 assert c.foo() == 1023, c.foo()
 assert c.fop() == 1023, c.fop()
 print('Passed packing test')
@@ -658,7 +663,7 @@ def jop() -> num:
 
 """
 
-c = s.abi_contract(multi_setter_test, language='viper')
+c = s.contract(multi_setter_test, language='viper')
 assert c.foo() == 321
 assert c.fop() == 654321
 assert c.goo() == 321
@@ -707,7 +712,7 @@ def gop() -> num:
         zed[1].bar[1].a * 1000000000000 + zed[1].bar[1].b * 10000000000000
 """
 
-c = s.abi_contract(multi_setter_struct_test, language='viper')
+c = s.contract(multi_setter_struct_test, language='viper')
 assert c.foo() == 654321
 assert c.fop() == 87198763254321
 assert c.goo() == 654321
@@ -730,7 +735,7 @@ def goo() -> num:
     return floor(self.pop[0][0] + self.pop[0][1] * 10 + self.pop[1][0] * 100 + self.pop[1][1] * 1000)
 """
 
-c = s.abi_contract(type_converter_setter_test, language='viper')
+c = s.contract(type_converter_setter_test, language='viper')
 assert c.foo() == 4321
 assert c.foo() == 4321
 print('Passed type-conversion struct test')
@@ -761,7 +766,7 @@ def foq() -> num:
     return popp.a[0].c + popp.a[1].c * 10 + popp.a[2].c * 100 + popp.b * 1000
 """
 
-c = s.abi_contract(composite_setter_test, language='viper')
+c = s.contract(composite_setter_test, language='viper')
 assert c.foo() == 4625
 assert c.fop() == 4625
 assert c.foq() == 4020
@@ -820,7 +825,7 @@ def refund():
 
 """
 
-c = s.abi_contract(crowdfund2, language='viper', constructor_parameters=[t.a1, 50, 600])
+c = s.contract(crowdfund2, language='viper', args=[t.a1, 50, 600])
 
 
 c.participate(value = 5)
@@ -830,24 +835,24 @@ assert not c.expired()
 assert not c.reached()
 c.participate(value = 49)
 assert c.reached()
-pre_bal = s.state.get_balance(t.a1)
-s.state.timestamp += 1000
+pre_bal = s.head_state.get_balance(t.a1)
+s.head_state.timestamp += 1000
 assert c.expired()
 c.finalize()
-post_bal = s.state.get_balance(t.a1)
+post_bal = s.head_state.get_balance(t.a1)
 assert post_bal - pre_bal == 54
 
-c = s.abi_contract(crowdfund2, language='viper', constructor_parameters=[t.a1, 50, 600])
+c = s.contract(crowdfund2, language='viper', args=[t.a1, 50, 600])
 c.participate(value = 1, sender=t.k3)
 c.participate(value = 2, sender=t.k4)
 c.participate(value = 3, sender=t.k5)
 c.participate(value = 4, sender=t.k6)
-s.state.timestamp += 1000
+s.head_state.timestamp += 1000
 assert c.expired()
 assert not c.reached()
-pre_bals = [s.state.get_balance(x) for x in [t.a3, t.a4, t.a5, t.a6]]
+pre_bals = [s.head_state.get_balance(x) for x in [t.a3, t.a4, t.a5, t.a6]]
 c.refund()
-post_bals = [s.state.get_balance(x) for x in [t.a3, t.a4, t.a5, t.a6]]
+post_bals = [s.head_state.get_balance(x) for x in [t.a3, t.a4, t.a5, t.a6]]
 assert [y-x for x, y in zip(pre_bals, post_bals)] == [1,2,3,4]
 
 print('Passed second composite crowdfund test')
@@ -857,7 +862,7 @@ def foo(x: bytes <= 100) -> bytes <= 100:
     return x
 """
 
-c = s.abi_contract(test_bytes, language='viper')
+c = s.contract(test_bytes, language='viper')
 moo_result = c.foo(b'cow')
 assert moo_result == b'cow'
 
@@ -881,7 +886,7 @@ def foo(x: bytes <= 100) -> bytes <= 100:
     return y
 """
 
-c = s.abi_contract(test_bytes2, language='viper')
+c = s.contract(test_bytes2, language='viper')
 assert c.foo(b'cow') == b'cow'
 assert c.foo(b'') == b''
 assert c.foo(b'\x35' * 63) == b'\x35' * 63
@@ -917,7 +922,7 @@ def get_xy() -> num:
     return self.x * self.y
 """
 
-c = s.abi_contract(test_bytes3, language='viper')
+c = s.contract(test_bytes3, language='viper')
 c.set_maa(b"pig")
 assert c.get_maa() == b"pig"
 assert c.get_maa2() == b"pig"
@@ -946,7 +951,7 @@ def bar(inp: bytes <= 60) -> bytes <= 60:
     return b
 """
 
-c = s.abi_contract(test_bytes4, language='viper')
+c = s.contract(test_bytes4, language='viper')
 assert c.foo() == b"", c.foo()
 assert c.bar() == b""
 
@@ -977,7 +982,7 @@ def quz(inp1: bytes <= 40, inp2: bytes <= 45):
     self.g = h
 """
 
-c = s.abi_contract(test_bytes5, language='viper')
+c = s.contract(test_bytes5, language='viper')
 c.foo(b"cow", b"horse")
 assert c.check1() == b"cow"
 assert c.check2() == b"horse"
@@ -1003,7 +1008,7 @@ def bar(inp1: bytes <= 10) -> num:
     return x * y
 """
 
-c = s.abi_contract(test_slice, language='viper')
+c = s.contract(test_slice, language='viper')
 x = c.foo("badminton")
 assert x == b"min", x
 
@@ -1019,7 +1024,7 @@ def slice_tower_test(inp1: bytes <= 50) -> bytes <= 50:
     return inp
 """
 
-c = s.abi_contract(test_slice2, language='viper')
+c = s.contract(test_slice2, language='viper')
 x = c.slice_tower_test("abcdefghijklmnopqrstuvwxyz1234")
 assert x == b"klmnopqrst", x
 
@@ -1042,7 +1047,7 @@ def bar(inp1: bytes <= 50) -> num:
     return self.x * self.y
 """
 
-c = s.abi_contract(test_slice3, language='viper')
+c = s.contract(test_slice3, language='viper')
 x = c.foo("badminton")
 assert x == b"min", x
 
@@ -1055,7 +1060,7 @@ def foo(inp: bytes <= 10, start: num, len: num) -> bytes <= 10:
     return slice(inp, start=start, len=len)
 """
 
-c = s.abi_contract(test_slice4, language='viper')
+c = s.contract(test_slice4, language='viper')
 assert c.foo("badminton", 3, 3) == b"min"
 assert c.foo("badminton", 0, 9) == b"badminton"
 assert c.foo("badminton", 1, 8) == b"adminton"
@@ -1093,7 +1098,7 @@ def foo(inp: bytes <= 10) -> num:
     return len(inp) * 100 + len(x) * 10 + len(self.y)
 """
 
-c = s.abi_contract(test_length, language='viper')
+c = s.contract(test_length, language='viper')
 assert c.foo("badminton") == 954, c.foo("badminton")
 print('Passed length test')
 
@@ -1105,7 +1110,7 @@ def foo3(input1: bytes <= 50, input2: bytes <= 50, input3: bytes <= 50) -> bytes
     return concat(input1, input2, input3)
 """
 
-c = s.abi_contract(test_concat, language='viper')
+c = s.contract(test_concat, language='viper')
 assert c.foo2("h", "orse") == b"horse"
 assert c.foo2("h", "") == b"h"
 assert c.foo2("", "") == b""
@@ -1122,7 +1127,7 @@ def foo(inp: bytes <= 50) -> bytes <= 1000:
     return concat(x, inp, x, inp, x, inp, x, inp, x, inp)
 """
 
-c = s.abi_contract(test_concat2, language='viper')
+c = s.contract(test_concat2, language='viper')
 assert c.foo("horse" * 9 + "viper") == (b"horse" * 9 + b"viper") * 10
 print('Passed second concat test')
 
@@ -1135,7 +1140,7 @@ def krazykonkat(z: bytes <= 10) -> bytes <= 25:
     return concat(x, " ", self.y, " ", z)
 """
 
-c = s.abi_contract(crazy_concat_code, language='viper')
+c = s.contract(crazy_concat_code, language='viper')
 
 assert c.krazykonkat("moose") == b'cow horse moose'
 
@@ -1162,7 +1167,7 @@ def baz4() -> bytes <= 100:
                   "01234567890123456789012345678901234567890123456789")
 """
 
-c = s.abi_contract(string_literal_code, language='viper')
+c = s.contract(string_literal_code, language='viper')
 assert c.foo() == b"horse"
 assert c.bar() == b"badminton"
 assert c.baz() == b"012345678901234567890123456789012"
@@ -1198,7 +1203,7 @@ def baz(s: num, L: num) -> bytes <= 100:
         if x * y == 999:
             return self.moo
     """ % (("c" * i), ("c" * i), ("c" * i))
-    c = s.abi_contract(kode, language='viper')
+    c = s.contract(kode, language='viper')
     for e in range(63, 64, 65):
         for _s in range(31, 32, 33):
             #print(parser.parse_tree_to_lll(parser.parse(kode), kode))
@@ -1218,7 +1223,7 @@ def bar() -> bytes32:
     return sha3("inp")
 """
 
-c = s.abi_contract(hash_code, language='viper')
+c = s.contract(hash_code, language='viper')
 for inp in (b"", b"cow", b"s" * 31, b"\xff" * 32, b"\n" * 33, b"g" * 64, b"h" * 65):
     assert c.foo(inp) == u.sha3(inp)
 
@@ -1228,7 +1233,7 @@ hash_code2 = """
 def foo(inp: bytes <= 100) -> bool:
     return sha3(inp) == sha3("badminton")
 """
-c = s.abi_contract(hash_code2, language='viper')
+c = s.contract(hash_code2, language='viper')
 assert c.foo("badminto") is False
 assert c.foo("badminton") is True
 
@@ -1247,7 +1252,7 @@ def trymem(inp: bytes <= 100) -> bool:
 def try32(inp: bytes32) -> bool:
     return sha3(inp) == sha3(self.test)
 """
-c = s.abi_contract(hash_code3, language='viper')
+c = s.contract(hash_code3, language='viper')
 c.set_test("")
 assert c.tryy("") is True
 assert c.trymem("") is True
@@ -1279,7 +1284,7 @@ def test_ecrecover2() -> address:
                      as_num256(6577251522710269046055727877571505144084475024240851440410274049870970796685))
 """
 
-c = s.abi_contract(ecrecover_test, language='viper')
+c = s.contract(ecrecover_test, language='viper')
 h = b'\x35' * 32
 k = b'\x46' * 32
 v, r, S = u.ecsign(h, k)
@@ -1302,7 +1307,7 @@ def extrakt32_storage(index: num, inp: bytes <= 100) -> bytes32:
     return extract32(self.y, index)
 """
 
-c = s.abi_contract(extract32_code, language='viper')
+c = s.contract(extract32_code, language='viper')
 test_cases = (
     (b"c" * 31, 0),
     (b"c" * 32, 0),
@@ -1344,7 +1349,7 @@ def fivetimes(inp: bytes32) -> bytes <= 160:
     return concat(inp, inp, inp, inp, inp)
 """
 
-c = s.abi_contract(test_concat_bytes32, language='viper')
+c = s.contract(test_concat_bytes32, language='viper')
 assert c.sandwich("cow", b"\x35" * 32) == b"\x35" * 32 + b"cow" + b"\x35" * 32, c.sandwich("cow", b"\x35" * 32)
 assert c.sandwich("", b"\x46" * 32) == b"\x46" * 64
 assert c.sandwich(b"\x57" * 95, b"\x57" * 32) == b"\x57" * 159
@@ -1371,7 +1376,7 @@ def return_2pow64_wei() -> wei_value:
     return as_wei_value(18446744.073709551616, szabo)
 """
 
-c = s.abi_contract(test_wei, language='viper')
+c = s.contract(test_wei, language='viper')
 
 assert c.return_2_finney() == 2 * 10**15
 assert c.return_3_finney() == 3 * 10**15, c.return_3_finney()
@@ -1392,7 +1397,7 @@ def baz() -> bytes <= 7:
     return raw_call(0x0000000000000000000000000000000000000004, "moose", gas=50000, outsize=7)
 """
 
-c = s.abi_contract(caller_code, language='viper')
+c = s.contract(caller_code, language='viper')
 assert c.foo() == b"moose"
 assert c.bar() == b"moo"
 assert c.baz() == b"moose\x00\x00"
@@ -1416,7 +1421,7 @@ def foq(inp: bytes <= 32) -> address:
     return extract32(inp, 0, type=address)
 """
 
-c = s.abi_contract(extract32_code, language='viper')
+c = s.contract(extract32_code, language='viper')
 assert c.foo(b"\x00" * 30 + b"\x01\x01") == 257
 assert c.bar(b"\x00" * 30 + b"\x01\x01") == 257
 try:
@@ -1444,7 +1449,7 @@ def foo(x: bytes <= 32) -> num:
     return bytes_to_num(x)
 """
 
-c = s.abi_contract(bytes_to_num_code, language='viper')
+c = s.contract(bytes_to_num_code, language='viper')
 assert c.foo(b"") == 0
 try:
     c.foo(b"\x00")
@@ -1520,7 +1525,7 @@ def too(inp: bytes <= 100) -> bool:
     x = RLPList(inp, [bool])
     return x[0]
 """
-c = s.abi_contract(rlp_decoder_code, language='viper')
+c = s.contract(rlp_decoder_code, language='viper')
 
 assert c.foo() == '0x' + '35' * 20
 assert c.fop() == b'G' * 32
@@ -1602,7 +1607,7 @@ def __init__():
     self.w[3].g = 751
 """
 
-c = s.abi_contract(getter_code, language='viper')
+c = s.contract(getter_code, language='viper')
 assert c.get_x() == 7
 assert c.get_y(1) == 9
 assert c.get_z() == b"cow"
@@ -1631,7 +1636,7 @@ def hoo(x: bytes32, y: bytes32) -> bytes <= 64:
     return concat(x, y)
 """
 
-c = s.abi_contract(konkat_code, language='viper')
+c = s.contract(konkat_code, language='viper')
 assert c.foo(b'\x35' * 32, b'\x00' * 32) == b'\x35' * 32 + b'\x00' * 32
 assert c.goo(b'\x35' * 32, b'\x00' * 32) == b'\x35' * 32 + b'\x00' * 32
 assert c.hoo(b'\x35' * 32, b'\x00' * 32) == b'\x35' * 32 + b'\x00' * 32
@@ -1648,7 +1653,7 @@ def foo(i: bool) -> num:
     return 11
 """
 
-c = s.abi_contract(conditional_return_code, language='viper')
+c = s.contract(conditional_return_code, language='viper')
 assert c.foo(True) == 5
 assert c.foo(False) == 7
 
@@ -1659,7 +1664,7 @@ def foo(x: num) -> num:
     return 3
 """
 
-c = s.abi_contract(large_input_code, language='viper')
+c = s.contract(large_input_code, language='viper')
 c.foo(1274124)
 c.foo(2**120)
 try:
@@ -1677,9 +1682,9 @@ def foo() -> num:
     return 5
 """
 
-c = s.abi_contract(large_input_code_2, language='viper', constructor_parameters=[17], sender=t.k0, endowment=0)
+c = s.contract(large_input_code_2, language='viper', args=[17], sender=t.k0, value=0)
 try:
-    c = s.abi_contract(large_input_code_2, language='viper', constructor_parameters=[2**130], sender=t.k0, endowment=0)
+    c = s.contract(large_input_code_2, language='viper', args=[2**130], sender=t.k0, value=0)
     success = True
 except:
     success = False
@@ -1704,16 +1709,16 @@ def ioo(inp: bytes <= 100):
     raw_log([], inp)
 """
 
-c = s.abi_contract(loggy_code, language='viper')
+c = s.contract(loggy_code, language='viper')
 c.foo()
-assert s.state.receipts[-1].logs[0].data == b'moo'
+assert s.head_state.receipts[-1].logs[0].data == b'moo'
 c.goo()
-assert s.state.receipts[-1].logs[0].data == b'moo2'
-assert s.state.receipts[-1].logs[0].topics == [0x1234567812345678123456781234567812345678123456781234567812345678]
+assert s.head_state.receipts[-1].logs[0].data == b'moo2'
+assert s.head_state.receipts[-1].logs[0].topics == [0x1234567812345678123456781234567812345678123456781234567812345678]
 c.hoo()
-assert s.state.receipts[-1].logs[0].data == b'moo3'
+assert s.head_state.receipts[-1].logs[0].data == b'moo3'
 c.ioo(b"moo4")
-assert s.state.receipts[-1].logs[0].data == b'moo4'
+assert s.head_state.receipts[-1].logs[0].data == b'moo4'
 print("Passed raw log tests")
 
 test_bitwise = """
@@ -1733,7 +1738,7 @@ def _shift(x: num256, y: num) -> num256:
     return shift(x, y)
 """
 
-c = s.abi_contract(test_bitwise, language='viper')
+c = s.contract(test_bitwise, language='viper')
 x = 126416208461208640982146408124
 y = 7128468721412412459
 assert c._bitwise_and(x, y) == (x & y)
@@ -1765,7 +1770,7 @@ def _num256_div(x: num256, y: num256) -> num256:
     return num256_div(x, y)
 """
 
-c = s.abi_contract(num256_code, language='viper')
+c = s.contract(num256_code, language='viper')
 x = 126416208461208640982146408124
 y = 7128468721412412459
 
@@ -1787,7 +1792,7 @@ def bar() -> num:
     return self.foo()
 """
 
-c = s.abi_contract(selfcall_code, language='viper')
+c = s.contract(selfcall_code, language='viper')
 assert c.bar() == 3
 
 print("Passed no-argument self-call test")
@@ -1806,7 +1811,7 @@ def return_hash_of_rzpadded_cow() -> bytes32:
     return self._hashy(0x636f770000000000000000000000000000000000000000000000000000000000)
 """
 
-c = s.abi_contract(selfcall_code_2, language='viper')
+c = s.contract(selfcall_code_2, language='viper')
 assert c.returnten() == 10
 assert c.return_hash_of_rzpadded_cow() == u.sha3(b'cow' + b'\x00' * 29)
 
@@ -1826,7 +1831,7 @@ def returnten() -> num:
     return self._len("badminton!")
 """
 
-c = s.abi_contract(selfcall_code_3, language='viper')
+c = s.contract(selfcall_code_3, language='viper')
 assert c.return_hash_of_cow_x_30() == u.sha3(b'cow' * 30)
 assert c.returnten() == 10
 
@@ -1858,7 +1863,7 @@ def return_goose2() -> bytes <= 10:
     return self.slicey2(5, "goosedog")
 """
 
-c = s.abi_contract(selfcall_code_4, language='viper')
+c = s.contract(selfcall_code_4, language='viper')
 assert c.returnten() == 10
 assert c.return_mongoose() == b"mongoose"
 assert c.return_goose() == b"goose"
@@ -1877,7 +1882,7 @@ def returnten() -> num:
         self.increment()
     return self.counter
 """
-c = s.abi_contract(selfcall_code_5, language='viper')
+c = s.contract(selfcall_code_5, language='viper')
 assert c.returnten() == 10
 
 print("Passed self-call statement test")
@@ -1899,7 +1904,7 @@ def return_mongoose_revolution_32_excls() -> bytes <= 201:
     return self.hardtest("megamongoose123", 4, 8, concat("russian revolution", self.excls), 8, 42)
 """
 
-c = s.abi_contract(selfcall_code_6, language='viper')
+c = s.contract(selfcall_code_6, language='viper')
 assert c.return_mongoose_revolution_32_excls() == b"mongoose_revolution" + b"!" * 32
 
 print("Passed composite self-call test")
@@ -1909,7 +1914,7 @@ def foo(s: bytes <= 3) -> bytes <= 3:
     return s
 """
 
-c = s.abi_contract(clamper_test_code, language='viper', endowment=1)
+c = s.contract(clamper_test_code, language='viper', value=1)
 assert c.foo("ca") == b"ca"
 assert c.foo("cat") == b"cat"
 try:
