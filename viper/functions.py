@@ -525,6 +525,22 @@ def num256_div(expr, args, kwargs, context):
 def bitwise_not(expr, args, kwargs, context):
     return LLLnode.from_list(['not', args[0]], typ=BaseType('num256'), pos=getpos(expr))
 
+@signature('num256' ,'num256')
+def num256_gt(expr, args, kwargs, context):
+    return LLLnode.from_list(['gt', args[0], args[1]], typ=BaseType('bool'), pos=getpos(expr))
+
+@signature('num256' ,'num256')
+def num256_ge(expr, args, kwargs, context):
+    return LLLnode.from_list(['ge', args[0], args[1]], typ=BaseType('bool'), pos=getpos(expr))
+
+@signature('num256' ,'num256')
+def num256_lt(expr, args, kwargs, context):
+    return LLLnode.from_list(['lt', args[0], args[1]], typ=BaseType('bool'), pos=getpos(expr))
+
+@signature('num256' ,'num256')
+def num256_le(expr, args, kwargs, context):
+    return LLLnode.from_list(['le', args[0], args[1]], typ=BaseType('bool'), pos=getpos(expr))
+
 @signature('num256', 'num')
 def shift(expr, args, kwargs, context):
     return LLLnode.from_list(['with', '_v', args[0], 
@@ -565,6 +581,10 @@ dispatch_table = {
     'num256_sub': num256_sub,
     'num256_mul': num256_mul,
     'num256_div': num256_div,
+    'num256_gt': num256_gt,
+    'num256_ge': num256_ge,
+    'num256_lt': num256_lt,
+    'num256_le': num256_le,
     'shift': shift,
 }
 
