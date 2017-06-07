@@ -14,13 +14,14 @@ import re
 
 # Data structure for LLL parse tree
 class LLLnode():
-    def __init__(self, value, args=[], typ=None, location=None, pos=None):
+    def __init__(self, value, args=[], typ=None, location=None, pos=None, annotation=''):
         self.value = value
         self.args = args
         self.typ = typ
         assert isinstance(self.typ, NodeType) or self.typ is None, repr(self.typ)
         self.location = location
         self.pos = pos
+        self.annotation = annotation
         # Determine this node's valency (1 if it pushes a value on the stack,
         # 0 otherwise) and checks to make sure the number and valencies of
         # children are correct
@@ -92,11 +93,17 @@ class LLLnode():
 
     def repr(self):
         if not len(self.args):
-            return str(self.value)
+            if self.annotation:
+                return '%r <%s>' % (self.value, self.annotation)
+            else:
+                return str(self.value)
         # x = repr(self.to_list())
         # if len(x) < 80:
         #     return x
-        o = '[' + str(self.value)
+        o = ''
+        if self.annotation:
+            o += '/* %s */ \n' % self.annotation
+        o += '[' + str(self.value)
         prev_lineno = self.pos[0] if self.pos else None
         arg_lineno = None
         annotated = False
@@ -114,8 +121,9 @@ class LLLnode():
             sub = arg_repr.replace('\n', '\n  ').strip(' ')
             o += sub
         output = o.rstrip(' ') + ']'
-        if (len(output) < 80 or len(self.args) == 1) and not annotated and not has_inner_newlines:
-            return re.sub(r',\n *', ', ', output).replace('\n', '')
+        output_on_one_line = re.sub(r',\n *', ', ', output).replace('\n', '')
+        if (len(output_on_one_line) < 80 or len(self.args) == 1) and not annotated and not has_inner_newlines:
+            return output_on_one_line
         else:
             return output
 
@@ -123,7 +131,7 @@ class LLLnode():
         return self.repr()
 
     @classmethod
-    def from_list(cls, obj, typ=None, location=None, pos=None):
+    def from_list(cls, obj, typ=None, location=None, pos=None, annotation=None):
         if isinstance(typ, str):
             typ = BaseType(typ)
         if isinstance(obj, LLLnode):
@@ -131,9 +139,9 @@ class LLLnode():
                 obj.pos = pos
             return obj
         elif not isinstance(obj, list):
-            return cls(obj, [], typ, location, pos)
+            return cls(obj, [], typ, location, pos, annotation)
         else:
-            return cls(obj[0], [cls.from_list(o,pos=pos) for o in obj[1:]], typ, location, pos)
+            return cls(obj[0], [cls.from_list(o,pos=pos) for o in obj[1:]], typ, location, pos, annotation)
 
 # Get a decimal number as a fraction with denominator multiple of 10
 def get_number_as_fraction(expr, context):

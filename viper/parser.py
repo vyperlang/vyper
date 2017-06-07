@@ -338,16 +338,18 @@ def make_clamper(dataloc, typ):
         data_decl = ['seq', ['codecopy', FREE_VAR_SPACE, ['sub', ['codesize'], -dataloc], 32], ['mload', FREE_VAR_SPACE]]
     # Numbers: make sure they're in range
     if is_base_type(typ, 'num'):
-        return LLLnode.from_list(['clamp', ['mload', MINNUM_POS], data_decl, ['mload', MAXNUM_POS]], typ=typ)
+        return LLLnode.from_list(['clamp', ['mload', MINNUM_POS], data_decl, ['mload', MAXNUM_POS]],
+                                 typ=typ, annotation='checking num input')
     # Booleans: make sure they're zero or one
     elif is_base_type(typ, 'bool'):
-        return LLLnode.from_list(['uclamplt', data_decl, 2], typ=typ)
+        return LLLnode.from_list(['uclamplt', data_decl, 2], typ=typ, annotation='checking bool input')
     # Addresses: make sure they're in range
     elif is_base_type(typ, 'address'):
-        return LLLnode.from_list(['uclamplt', data_decl, ['mload', ADDRSIZE_POS]], typ=typ)
+        return LLLnode.from_list(['uclamplt', data_decl, ['mload', ADDRSIZE_POS]], typ=typ, annotation='checking address input')
     # Bytes: make sure they have the right size
     elif isinstance(typ, ByteArrayType):
-        return LLLnode.from_list(['assert', ['le', ['calldataload', ['add', 4, data_decl]], typ.maxlen]], typ=None)
+        return LLLnode.from_list(['assert', ['le', ['calldataload', ['add', 4, data_decl]], typ.maxlen]],
+                                 typ=None, annotation='checking bytearray input')
     # Otherwise don't make any checks
     else:
         return LLLnode.from_list('pass')
@@ -368,8 +370,9 @@ def parse_func(code, _globals, sigs, origcode, _vars=None):
     if name == '__init__':
         return LLLnode.from_list(['seq'] + clampers + [parse_body(code.body, context)], pos=getpos(code))
     else:
+        method_id_node = LLLnode.from_list(method_id, pos=getpos(code), annotation='%s' % name)
         return LLLnode.from_list(['if',
-                                    ['eq', ['mload', 0], method_id],
+                                    ['eq', ['mload', 0], method_id_node],
                                     ['seq'] + clampers + [parse_body(c, context) for c in code.body] + ['stop']
                                  ], typ=None, pos=getpos(code))
     
@@ -397,18 +400,20 @@ def add_variable_offset(parent, key):
             if key not in attrs:
                 raise TypeMismatchException("Member %s not found. Only the following available: %s" % (expr.attr, " ".join(attrs)))
             index = attrs.index(key)
+            annotation = key
         else:
             if not isinstance(key, int):
                 raise TypeMismatchException("Expecting a static index; cannot access element %r" % key)
             attrs = list(range(len(typ.members)))
             index = key
+            annotation = None
         if location == 'storage':
-            return LLLnode.from_list(['add', ['sha3_32', parent], index],
+            return LLLnode.from_list(['add', ['sha3_32', parent], LLLnode.from_list(index, annotation=annotation)],
                                      typ=subtype,
                                      location='storage')
 
         elif location == 'storage_prehashed':
-            return LLLnode.from_list(['add', parent, index],
+            return LLLnode.from_list(['add', parent, LLLnode.from_list(index, annotation=annotation)],
                                      typ=subtype,
                                      location='storage')
         elif location == 'memory':
@@ -417,7 +422,8 @@ def add_variable_offset(parent, key):
                 offset += 32 * get_size_of_type(typ.members[attrs[i]])
             return LLLnode.from_list(['add', offset, parent],
                                      typ=typ.members[key],
-                                     location='memory')
+                                     location='memory',
+                                     annotation=annotation)
         else:
             raise TypeMismatchException("Not expecting a member variable access")
     elif isinstance(typ, (ListType, MappingType)):
@@ -523,9 +529,11 @@ def parse_expr(expr, context):
         if expr.id in context.args:
             dataloc, typ = context.args[expr.id]
             if dataloc >= 0:
-                data_decl = ['calldataload', dataloc]
+                dataloc_node = LLLnode.from_list(dataloc, pos=getpos(expr), annotation=expr.id)
+                data_decl = ['calldataload', dataloc_node]
             else:
-                data_decl = ['seq', ['codecopy', FREE_VAR_SPACE, ['sub', ['codesize'], -dataloc], 32], ['mload', FREE_VAR_SPACE]]
+                minus_dataloc_node = LLLnode.from_list(-dataloc, pos=getpos(expr), annotation=expr.id)
+                data_decl = ['seq', ['codecopy', FREE_VAR_SPACE, ['sub', ['codesize'], minus_dataloc_node], 32], ['mload', FREE_VAR_SPACE]]
             if is_base_type(typ, ('num', 'bool', 'decimal', 'address', 'num256', 'signed256', 'bytes32')):
                 return LLLnode.from_list(data_decl, typ=typ, pos=getpos(expr))
             elif isinstance(typ, ByteArrayType):
@@ -534,7 +542,7 @@ def parse_expr(expr, context):
                 raise InvalidTypeException("Unsupported type: %r" % typ, expr)
         elif expr.id in context.vars:
             dataloc, typ = context.vars[expr.id]
-            return LLLnode.from_list(dataloc, typ=typ, location='memory', pos=getpos(expr))
+            return LLLnode.from_list(dataloc, typ=typ, location='memory', pos=getpos(expr), annotation=expr.id)
         else:
             raise VariableDeclarationException("Undeclared variable: "+expr.id, expr)
     # x.y or x[5]
@@ -550,7 +558,7 @@ def parse_expr(expr, context):
             if expr.attr not in context.globals:
                 raise VariableDeclarationException("Persistent variable undeclared: "+expr.attr, expr)
             pos, typ = context.globals[expr.attr][0],context.globals[expr.attr][1]
-            return LLLnode.from_list(pos, typ=typ, location='storage', pos=getpos(expr))
+            return LLLnode.from_list(pos, typ=typ, location='storage', pos=getpos(expr), annotation='self.' + expr.attr)
         # Reserved keywords
         elif isinstance(expr.value, ast.Name) and expr.value.id in ("msg", "block", "tx"):
             key = expr.value.id + "." + expr.attr
@@ -947,7 +955,8 @@ def parse_stmt(stmt, context):
         sub = parse_expr(stmt.value, context)
         if isinstance(stmt.targets[0], ast.Name) and stmt.targets[0].id not in context.vars:
             pos = context.new_variable(stmt.targets[0].id, set_default_units(sub.typ))
-            o = make_setter(LLLnode.from_list(pos, typ=sub.typ, location='memory', pos=getpos(stmt)), sub, 'memory')
+            variable_loc = LLLnode.from_list(pos, typ=sub.typ, location='memory', pos=getpos(stmt), annotation=stmt.targets[0].id)
+            o = make_setter(variable_loc, sub, 'memory')
         else:
             target = parse_variable_location(stmt.targets[0], context)
             if target.location == 'storage' and context.is_constant:
@@ -1025,13 +1034,13 @@ def parse_stmt(stmt, context):
         if target.location == 'storage':
             if context.is_constant:
                 raise ConstancyViolationException("Cannot modify storage inside a constant function!", stmt.target)
-            o = parse_value_expr(ast.BinOp(left=LLLnode.from_list(['sload', '_addr'], typ=target.typ, pos=target.pos),
+            o = parse_value_expr(ast.BinOp(left=LLLnode.from_list(['sload', '_stloc'], typ=target.typ, pos=target.pos),
                                  right=sub, op=stmt.op, lineno=stmt.lineno, col_offset=stmt.col_offset), context)
-            return LLLnode.from_list(['with', '_addr', target, ['sstore', '_addr', base_type_conversion(o, o.typ, target.typ)]], typ=None, pos=getpos(stmt))
+            return LLLnode.from_list(['with', '_stloc', target, ['sstore', '_stloc', base_type_conversion(o, o.typ, target.typ)]], typ=None, pos=getpos(stmt))
         elif target.location == 'memory':
-            o = parse_value_expr(ast.BinOp(left=LLLnode.from_list(['mload', '_addr'], typ=target.typ, pos=target.pos),
+            o = parse_value_expr(ast.BinOp(left=LLLnode.from_list(['mload', '_mloc'], typ=target.typ, pos=target.pos),
                                  right=sub, op=stmt.op, lineno=stmt.lineno, col_offset=stmt.col_offset), context)
-            return LLLnode.from_list(['with', '_addr', target, ['mstore', '_addr', base_type_conversion(o, o.typ, target.typ)]], typ=None, pos=getpos(stmt))
+            return LLLnode.from_list(['with', '_mloc', target, ['mstore', '_mloc', base_type_conversion(o, o.typ, target.typ)]], typ=None, pos=getpos(stmt))
     # Break from a loop
     elif isinstance(stmt, ast.Break):
         return LLLnode.from_list('break', typ=None, pos=getpos(stmt))
