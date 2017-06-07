@@ -265,7 +265,7 @@ def extract32(expr, args, kwargs, context):
         elementgetter = lambda index: LLLnode.from_list(['sload', ['add', ['sha3_32', '_sub'], ['add', 1, index]]], typ=BaseType('num'))
     # Special case: index known to be a multiple of 32
     if isinstance(index.value, int) and not index.value % 32:
-        o = LLLnode.from_list(['with', '_sub', sub, elementgetter(['div', ['clamp', 0, index, ['sub', lengetter, 32]], 32])], typ=BaseType(ret_type))
+        o = LLLnode.from_list(['with', '_sub', sub, elementgetter(['div', ['clamp', 0, index, ['sub', lengetter, 32]], 32])], typ=BaseType(ret_type), annotation='extracting 32 bytes')
     # General case
     else:
         o = LLLnode.from_list(
@@ -284,7 +284,7 @@ def extract32(expr, args, kwargs, context):
                                     elementgetter(['add', '_di32', 1]),
                                     ['exp', 256, ['sub', 32, '_mi32']]]],
                             elementgetter('_di32')]]]]]],
-        typ=BaseType(ret_type), pos=getpos(expr))
+        typ=BaseType(ret_type), pos=getpos(expr), annotation='extracting 32 bytes')
     if ret_type == 'num128':
         return LLLnode.from_list(['clamp', ['mload', MINNUM_POS], o, ['mload', MAXNUM_POS]], typ=BaseType("num"), pos=getpos(expr))
     elif ret_type == 'address':
@@ -403,7 +403,7 @@ def _RLPlist(expr, args, kwargs, context):
                 ['seq',
                     ['assert', ['eq', ['mload', ['add', output_node, ['mload', ['add', output_node, 32 * i]]]], 32]],
                     ['mload', ['add', 32, ['add', output_node, ['mload', ['add', output_node, 32 * i]]]]]],
-            typ))
+            typ, annotation='getting and checking bytes32 item'))
         # Decoder for address
         elif is_base_type(typ, 'address'):
             decoder.append(LLLnode.from_list(
@@ -412,17 +412,17 @@ def _RLPlist(expr, args, kwargs, context):
                     ['mod',
                          ['mload', ['add', 20, ['add', output_node, ['mload', ['add', output_node, 32 * i]]]]],
                          ['mload', ADDRSIZE_POS]]],
-            typ))
+            typ, annotation='getting and checking address item'))
         # Decoder for bytes
         elif isinstance(typ, ByteArrayType):
             decoder.append(LLLnode.from_list(
                 ['add', output_node, ['mload', ['add', output_node, 32 * i]]],
-            typ, location='memory'))
+            typ, location='memory', annotation='getting byte array'))
         # Decoder for num and num256
         elif is_base_type(typ, ('num', 'num256')):
             bytez = LLLnode.from_list(
                 ['add', output_node, ['mload', ['add', output_node, 32 * i]]],
-            typ, location='memory')
+            typ, location='memory', annotation='getting and checking %s' % typ.typ)
             decoder.append(byte_array_to_num(bytez, expr, typ.typ))
         # Decoder for bools
         elif is_base_type(typ, ('bool')):
@@ -433,7 +433,7 @@ def _RLPlist(expr, args, kwargs, context):
             decoder.append(LLLnode.from_list(
                 ['with', '_ans', ['mload', ['add', 1, ['add', output_node, ['mload', ['add', output_node, 32 * i]]]]],
                     ['seq', ['assert', ['or', ['eq', '_ans', 0], ['eq', '_ans', 257]]], ['div', '_ans', 257]]],
-            typ))
+            typ, annotation='getting and checking bool'))
         else:
             raise Exception("Type not yet supported")
     # Copy the input data to memory
@@ -456,7 +456,7 @@ def _RLPlist(expr, args, kwargs, context):
             ['with', '_sub', variable_pointer,
                 ['pop', ['call',
                          10000 + 500 * len(_format) + 10 * len(args),
-                         RLP_DECODER_ADDRESS,
+                         LLLnode.from_list(RLP_DECODER_ADDRESS, annotation='RLP decoder'),
                          0,
                          ['add', '_sub', 32],
                          ['mload', '_sub'],

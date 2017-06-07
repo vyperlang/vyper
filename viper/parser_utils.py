@@ -201,12 +201,12 @@ def make_byte_array_copier(destination, source):
 def make_byte_slice_copier(destination, source, length, max_length):
     # Special case: calldata to memory
     if source.location == "calldata" and destination.location == "memory":
-        return LLLnode.from_list(['calldatacopy', destination, ['add', 4, source], max_length], typ=None)
+        return LLLnode.from_list(['calldatacopy', destination, ['add', 4, source], max_length], typ=None, annotation='copy byte slice')
     # Special case: memory to memory
     elif source.location == "memory" and destination.location == "memory":
         return LLLnode.from_list(['with', '_l', max_length,
                                     ['pop', ['call', 18 + max_length // 10, 4, 0, source,
-                                             '_l', destination, '_l']]], typ=None)
+                                             '_l', destination, '_l']]], typ=None, annotation='copy byte slice')
     # Copy over data
     if isinstance(source.typ, NullType):
         loader = 0
@@ -235,7 +235,7 @@ def make_byte_slice_copier(destination, source, length, max_length):
                 ['with', '_actual_len', length,
                     ['repeat', FREE_LOOP_INDEX, 0, (max_length + 31) // 32,
                         ['seq', checker, setter]]]]]
-    return LLLnode.from_list(o, typ=None)
+    return LLLnode.from_list(o, typ=None, annotation='copy byte slice')
 
 # Takes a <32 byte array as input, and outputs a number.
 def byte_array_to_num(arg, expr, out_type):
@@ -261,7 +261,7 @@ def byte_array_to_num(arg, expr, out_type):
                                        ['seq',
                                           ['assert', ['or', ['iszero', '_len'], ['div', '_el1', ['exp', 256, 31]]]],
                                           result]]]],
-                             typ=BaseType(out_type))
+                             typ=BaseType(out_type), annotation='bytearray to number, verify no leading zbytes')
 
 def get_length(arg):
     if arg.location == "calldata":
