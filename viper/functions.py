@@ -329,7 +329,7 @@ def as_wei_value(expr, args, kwargs, context):
 
 zero_value = LLLnode.from_list(0, typ=BaseType('num', {'wei': 1}))
 
-@signature('address', 'bytes', outsize='num_literal', gas='num', value=Optional('num', zero_value))
+@signature('address', 'bytes', outsize='num_literal', gas='num', value=Optional('wei', zero_value))
 def raw_call(expr, args, kwargs, context):
     to, data = args
     gas, value, outsize = kwargs['gas'], kwargs['value'], kwargs['outsize']
@@ -554,6 +554,16 @@ def shift(expr, args, kwargs, context):
                                            ['mul', '_v', ['exp', 2, '_s']]]]],
     typ=BaseType('num256'), pos=getpos(expr))
 
+@signature('address', Optional('wei', zero_value))
+def create_with_code_of(expr, args, kwargs, context):
+    placeholder = context.new_placeholder(ByteArrayType(96))
+    # bytes b'`+`\x0c`\x009`+`\x00\xf36`\x00`\x007a\x10\x00`\x006`\x00s\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00Z\xf4a\x10\x00`\x00\xf3\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+    return LLLnode.from_list(['seq',
+                                ['mstore', placeholder, 43498670789057767909257803986740311602484282027972889669610432187675367702528],
+                                ['mstore', ['add', placeholder, 27], ['mul', args[0], 2**96]],
+                                ['mstore', ['add', placeholder, 47], 41139936957094179723826547537264141858788319842199047882696068174885584633856],
+                                ['clamp_nonzero', ['create', args[1], placeholder, 55]]], typ=BaseType('address'), pos=getpos(expr))
+
 
 dispatch_table = {
     'floor': floor,
@@ -586,6 +596,7 @@ dispatch_table = {
     'num256_lt': num256_lt,
     'num256_le': num256_le,
     'shift': shift,
+    'create_with_code_of': create_with_code_of,
 }
 
 stmt_dispatch_table = {
@@ -594,4 +605,5 @@ stmt_dispatch_table = {
     'selfdestruct': selfdestruct,
     'raw_call': raw_call,
     'raw_log': raw_log,
+    'create_with_code_of': create_with_code_of,
 }

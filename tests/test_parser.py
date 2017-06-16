@@ -1009,10 +1009,10 @@ def bar(inp1: bytes <= 10) -> num:
 """
 
 c = s.contract(test_slice, language='viper')
-x = c.foo("badminton")
+x = c.foo(b"badminton")
 assert x == b"min", x
 
-assert c.bar("badminton") == 35
+assert c.bar(b"badminton") == 35
 
 print('Passed slice test')
 
@@ -1025,7 +1025,7 @@ def slice_tower_test(inp1: bytes <= 50) -> bytes <= 50:
 """
 
 c = s.contract(test_slice2, language='viper')
-x = c.slice_tower_test("abcdefghijklmnopqrstuvwxyz1234")
+x = c.slice_tower_test(b"abcdefghijklmnopqrstuvwxyz1234")
 assert x == b"klmnopqrst", x
 
 print('Passed advanced slice test')
@@ -1048,10 +1048,10 @@ def bar(inp1: bytes <= 50) -> num:
 """
 
 c = s.contract(test_slice3, language='viper')
-x = c.foo("badminton")
+x = c.foo(b"badminton")
 assert x == b"min", x
 
-assert c.bar("badminton") == 35
+assert c.bar(b"badminton") == 35
 
 print('Passed storage slice test')
 
@@ -1061,29 +1061,29 @@ def foo(inp: bytes <= 10, start: num, len: num) -> bytes <= 10:
 """
 
 c = s.contract(test_slice4, language='viper')
-assert c.foo("badminton", 3, 3) == b"min"
-assert c.foo("badminton", 0, 9) == b"badminton"
-assert c.foo("badminton", 1, 8) == b"adminton"
-assert c.foo("badminton", 1, 7) == b"adminto"
-assert c.foo("badminton", 1, 0) == b""
-assert c.foo("badminton", 9, 0) == b""
+assert c.foo(b"badminton", 3, 3) == b"min"
+assert c.foo(b"badminton", 0, 9) == b"badminton"
+assert c.foo(b"badminton", 1, 8) == b"adminton"
+assert c.foo(b"badminton", 1, 7) == b"adminto"
+assert c.foo(b"badminton", 1, 0) == b""
+assert c.foo(b"badminton", 9, 0) == b""
 try:
-    c.foo("badminton", 0, 10)
+    c.foo(b"badminton", 0, 10)
     assert False
 except:
     pass
 try:
-    c.foo("badminton", 1, 9)
+    c.foo(b"badminton", 1, 9)
     assert False
 except:
     pass
 try:
-    c.foo("badminton", 9, 1)
+    c.foo(b"badminton", 9, 1)
     assert False
 except:
     pass
 try:
-    c.foo("badminton", 10, 0)
+    c.foo(b"badminton", 10, 0)
     assert False
 except:
     pass
@@ -1099,7 +1099,7 @@ def foo(inp: bytes <= 10) -> num:
 """
 
 c = s.contract(test_length, language='viper')
-assert c.foo("badminton") == 954, c.foo("badminton")
+assert c.foo(b"badminton") == 954, c.foo(b"badminton")
 print('Passed length test')
 
 test_concat = """
@@ -1111,14 +1111,14 @@ def foo3(input1: bytes <= 50, input2: bytes <= 50, input3: bytes <= 50) -> bytes
 """
 
 c = s.contract(test_concat, language='viper')
-assert c.foo2("h", "orse") == b"horse"
-assert c.foo2("h", "") == b"h"
-assert c.foo2("", "") == b""
-assert c.foo2("", "orse") == b"orse"
-assert c.foo3("Buffalo", " ", "buffalo") == b"Buffalo buffalo"
-assert c.foo2("\x36", "\x35" * 32) == b"\x36" + b"\x35" * 32
-assert c.foo2("\x36" * 48, "\x35" * 32) == b"\x36" * 48 + b"\x35" * 32
-assert c.foo3("horses" * 4, "mice" * 7, "crows" * 10) == b"horses" * 4 + b"mice" * 7 + b"crows" * 10
+assert c.foo2(b"h", b"orse") == b"horse"
+assert c.foo2(b"h", b"") == b"h"
+assert c.foo2(b"", b"") == b""
+assert c.foo2(b"", b"orse") == b"orse"
+assert c.foo3(b"Buffalo", b" ", b"buffalo") == b"Buffalo buffalo"
+assert c.foo2(b"\x36", b"\x35" * 32) == b"\x36" + b"\x35" * 32
+assert c.foo2(b"\x36" * 48, b"\x35" * 32) == b"\x36" * 48 + b"\x35" * 32
+assert c.foo3(b"horses" * 4, b"mice" * 7, b"crows" * 10) == b"horses" * 4 + b"mice" * 7 + b"crows" * 10
 print('Passed simple concat test')
 
 test_concat2 = """
@@ -1128,7 +1128,7 @@ def foo(inp: bytes <= 50) -> bytes <= 1000:
 """
 
 c = s.contract(test_concat2, language='viper')
-assert c.foo("horse" * 9 + "viper") == (b"horse" * 9 + b"viper") * 10
+assert c.foo(b"horse" * 9 + b"viper") == (b"horse" * 9 + b"viper") * 10
 print('Passed second concat test')
 
 crazy_concat_code = """
@@ -1142,7 +1142,7 @@ def krazykonkat(z: bytes <= 10) -> bytes <= 25:
 
 c = s.contract(crazy_concat_code, language='viper')
 
-assert c.krazykonkat("moose") == b'cow horse moose'
+assert c.krazykonkat(b"moose") == b'cow horse moose'
 
 print('Passed third concat test')
 
@@ -1234,8 +1234,8 @@ def foo(inp: bytes <= 100) -> bool:
     return sha3(inp) == sha3("badminton")
 """
 c = s.contract(hash_code2, language='viper')
-assert c.foo("badminto") is False
-assert c.foo("badminton") is True
+assert c.foo(b"badminto") is False
+assert c.foo(b"badminton") is True
 
 hash_code3 = """
 test: bytes <= 100
@@ -1253,23 +1253,23 @@ def try32(inp: bytes32) -> bool:
     return sha3(inp) == sha3(self.test)
 """
 c = s.contract(hash_code3, language='viper')
-c.set_test("")
-assert c.tryy("") is True
-assert c.trymem("") is True
-assert c.tryy("cow") is False
-c.set_test("cow")
-assert c.tryy("") is False
-assert c.tryy("cow") is True
-c.set_test("\x35" * 32)
-assert c.tryy("\x35" * 32) is True
-assert c.trymem("\x35" * 32) is True
+c.set_test(b"")
+assert c.tryy(b"") is True
+assert c.trymem(b"") is True
+assert c.tryy(b"cow") is False
+c.set_test(b"cow")
+assert c.tryy(b"") is False
+assert c.tryy(b"cow") is True
+c.set_test(b"\x35" * 32)
+assert c.tryy(b"\x35" * 32) is True
+assert c.trymem(b"\x35" * 32) is True
 assert c.try32(b"\x35" * 32) is True
-assert c.tryy("\x35" * 33) is False
-c.set_test("\x35" * 33)
-assert c.tryy("\x35" * 32) is False
-assert c.trymem("\x35" * 32) is False
+assert c.tryy(b"\x35" * 33) is False
+c.set_test(b"\x35" * 33)
+assert c.tryy(b"\x35" * 32) is False
+assert c.trymem(b"\x35" * 32) is False
 assert c.try32(b"\x35" * 32) is False
-assert c.tryy("\x35" * 33) is True
+assert c.tryy(b"\x35" * 33) is True
 
 print("Passed SHA3 hash test")
 
@@ -1350,8 +1350,8 @@ def fivetimes(inp: bytes32) -> bytes <= 160:
 """
 
 c = s.contract(test_concat_bytes32, language='viper')
-assert c.sandwich("cow", b"\x35" * 32) == b"\x35" * 32 + b"cow" + b"\x35" * 32, c.sandwich("cow", b"\x35" * 32)
-assert c.sandwich("", b"\x46" * 32) == b"\x46" * 64
+assert c.sandwich(b"cow", b"\x35" * 32) == b"\x35" * 32 + b"cow" + b"\x35" * 32, c.sandwich(b"cow", b"\x35" * 32)
+assert c.sandwich(b"", b"\x46" * 32) == b"\x46" * 64
 assert c.sandwich(b"\x57" * 95, b"\x57" * 32) == b"\x57" * 159
 assert c.sandwich(b"\x57" * 96, b"\x57" * 32) == b"\x57" * 160
 assert c.sandwich(b"\x57" * 97, b"\x57" * 32) == b"\x57" * 161
@@ -1936,13 +1936,41 @@ def foo(s: bytes <= 3) -> bytes <= 3:
 """
 
 c = s.contract(clamper_test_code, language='viper', value=1)
-assert c.foo("ca") == b"ca"
-assert c.foo("cat") == b"cat"
+assert c.foo(b"ca") == b"ca"
+assert c.foo(b"cat") == b"cat"
 try:
-    c.foo("cate")
+    c.foo(b"cate")
     success = True
 except t.TransactionFailed:
     success = False
 assert not success
 
 print("Passed bytearray clamping test")
+
+inner_code = """
+def returnten() -> num:
+    return 10
+"""
+
+c = s.contract(inner_code, language='viper')
+
+
+outer_code = """
+def create_and_call_returnten(inp: address) -> num:
+    x = create_with_code_of(inp)
+    o = extract32(raw_call(x, "\xd0\x1f\xb1\xb8", outsize=32, gas=50000), 0, type=num128)
+    return o
+
+def create_and_return_forwarder(inp: address) -> address:
+    return create_with_code_of(inp)
+"""
+
+c2 = s.contract(outer_code, language='viper')
+assert c2.create_and_call_returnten(c.address) == 10
+expected_forwarder_code_mask = b'`+`\x0c`\x009`+`\x00\xf36`\x00`\x007a\x10\x00`\x006`\x00s\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00Z\xf4a\x10\x00`\x00\xf3'[12:]
+c3 = c2.create_and_return_forwarder(c.address)
+assert s.head_state.get_code(c3)[:15] == expected_forwarder_code_mask[:15]
+assert s.head_state.get_code(c3)[35:] == expected_forwarder_code_mask[35:]
+
+print('Passed forwarder test')
+print('Gas consumed: %d' % (s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used))
