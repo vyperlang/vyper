@@ -1967,10 +1967,39 @@ def create_and_return_forwarder(inp: address) -> address:
 
 c2 = s.contract(outer_code, language='viper')
 assert c2.create_and_call_returnten(c.address) == 10
-expected_forwarder_code_mask = b'`+`\x0c`\x009`+`\x00\xf36`\x00`\x007a\x10\x00`\x006`\x00s\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00Z\xf4a\x10\x00`\x00\xf3'[12:]
+expected_forwarder_code_mask = b'`.`\x0c`\x009`.`\x00\xf36`\x00`\x007a\x10\x00`\x006`\x00s\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00Z\xf4\x15XWa\x10\x00`\x00\xf3'[12:]
 c3 = c2.create_and_return_forwarder(c.address)
 assert s.head_state.get_code(c3)[:15] == expected_forwarder_code_mask[:15]
 assert s.head_state.get_code(c3)[35:] == expected_forwarder_code_mask[35:]
 
 print('Passed forwarder test')
 print('Gas consumed: %d' % (s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used))
+
+inner_code = """
+def returnten() -> num:
+    assert False
+    return 10
+"""
+
+c = s.contract(inner_code, language='viper')
+
+
+outer_code = """
+def create_and_call_returnten(inp: address) -> num:
+    x = create_with_code_of(inp)
+    o = extract32(raw_call(x, "\xd0\x1f\xb1\xb8", outsize=32, gas=50000), 0, type=num128)
+    return o
+
+def create_and_return_forwarder(inp: address) -> address:
+    return create_with_code_of(inp)
+"""
+
+c2 = s.contract(outer_code, language='viper')
+try:
+    c2.create_and_call_returnten(c.address)
+    success = True
+except:
+    success = False
+assert not success
+
+print('Passed forwarder exception test')

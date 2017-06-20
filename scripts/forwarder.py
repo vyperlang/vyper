@@ -5,6 +5,7 @@ def mk_forwarder(address):
     code += b'\x61\x10\x00\x60\x00\x36\x60\x00' # 4096 0 CALLDATASIZE 0
     code += b'\x73' + utils.normalize_address(address) + b'\x5a' # address gas
     code += b'\xf4' # delegatecall
+    code += b'\x15\x58\x57' # ISZERO PC JUMPI (fail if inner call fails)
     code += b'\x61\x10\x00\x60\x00\xf3' # 4096 0 RETURN
     return code
 
@@ -29,11 +30,13 @@ def test():
     x = c.contract(kode, language='viper', sender=tester2.k3)
     fwdcode = mk_forwarder(x.address)
     initcode = mk_wrapper(fwdcode)
+    print('Forwarder code:', initcode)
     y = c.contract(initcode, language='evm')
     assert c.head_state.get_code(y) == fwdcode
     z = tester2.ABIContract(c, x.translator, y)
     assert z.increment_moose(3) == 3
     assert z.increment_moose(5) == 8
+    print('Tests passed')
 
 if __name__ == '__main__':
     test()

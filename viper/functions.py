@@ -557,12 +557,15 @@ def shift(expr, args, kwargs, context):
 @signature('address', Optional('wei', zero_value))
 def create_with_code_of(expr, args, kwargs, context):
     placeholder = context.new_placeholder(ByteArrayType(96))
-    # bytes b'`+`\x0c`\x009`+`\x00\xf36`\x00`\x007a\x10\x00`\x006`\x00s\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00Z\xf4a\x10\x00`\x00\xf3\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+    kode = b'`.`\x0c`\x009`.`\x00\xf36`\x00`\x007a\x10\x00`\x006`\x00s\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00Z\xf4\x15XWa\x10\x00`\x00\xf3'
+    assert len(kode) <= 64
+    high = bytes_to_int(kode[:32])
+    low = bytes_to_int((kode + b'\x00' * 32)[47:79])
     return LLLnode.from_list(['seq',
-                                ['mstore', placeholder, 43498670789057767909257803986740311602484282027972889669610432187675367702528],
+                                ['mstore', placeholder, high],
                                 ['mstore', ['add', placeholder, 27], ['mul', args[0], 2**96]],
-                                ['mstore', ['add', placeholder, 47], 41139936957094179723826547537264141858788319842199047882696068174885584633856],
-                                ['clamp_nonzero', ['create', args[1], placeholder, 55]]], typ=BaseType('address'), pos=getpos(expr))
+                                ['mstore', ['add', placeholder, 47], low],
+                                ['clamp_nonzero', ['create', args[1], placeholder, 64]]], typ=BaseType('address'), pos=getpos(expr))
 
 
 dispatch_table = {
