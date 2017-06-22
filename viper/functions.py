@@ -84,9 +84,23 @@ def signature(*argz, **kwargz):
                                                  (function_name, k), element)
                 else:
                     kwsubs[k] = process_arg(k, element_kw[k], expected_arg, function_name, context)
+            for k, arg in element_kw.items():
+                if k not in kwargz:
+                    raise StructureException("Unexpected argument: %s"
+                                             % k, element)
             return f(element, subs, kwsubs, context)
         return g
     return decorator
+
+def enforce_units(typ, obj, expected):
+    if not are_units_compatible(typ, expected):
+        raise TypeMismatchException("Invalid units", obj)
+
+def get_keyword(expr, keyword):
+    for kw in expr.keywords:
+        if kw.arg == keyword:
+            return kw.value
+    raise Exception("Keyword %s not found" % keyword)
 
 @signature('decimal')
 def floor(expr, args, kwargs, context):
@@ -329,12 +343,15 @@ def as_wei_value(expr, args, kwargs, context):
 
 zero_value = LLLnode.from_list(0, typ=BaseType('num', {'wei': 1}))
 
-@signature('address', 'bytes', outsize='num_literal', gas='num', value=Optional('wei', zero_value))
+@signature('address', 'bytes', outsize='num_literal', gas='num', value=Optional('num', zero_value))
 def raw_call(expr, args, kwargs, context):
     to, data = args
     gas, value, outsize = kwargs['gas'], kwargs['value'], kwargs['outsize']
     if context.is_constant:
         raise ConstancyViolationException("Cannot make calls from a constant function", expr)
+    if value != zero_value:
+        enforce_units(value.typ, get_keyword(expr, 'value'),
+                      BaseType('num', {'wei': 1}))
     placeholder = context.new_placeholder(data.typ)
     placeholder_node = LLLnode.from_list(placeholder, typ=data.typ, location='memory')
     copier = make_byte_array_copier(placeholder_node, data)
@@ -353,9 +370,7 @@ def send(expr, args, kwargs, context):
     to, value = args
     if context.is_constant:
         raise ConstancyViolationException("Cannot send ether inside a constant function!", expr)
-    if not are_units_compatible(value.typ, BaseType('num', {'wei': 1})):
-        raise TypeMismatchException("Expecting a wei_value as argument to send. Try as_wei_value or declaring the variable as a wei_value.",
-                                    expr.args[1])
+    enforce_units(value.typ, expr.args[1], BaseType('num', {'wei': 1}))
     return LLLnode.from_list(['pop', ['call', 0, to, value, 0, 0, 0, 0]], typ=None, pos=getpos(expr))
 
 @signature('address')
@@ -554,8 +569,14 @@ def shift(expr, args, kwargs, context):
                                            ['mul', '_v', ['exp', 2, '_s']]]]],
     typ=BaseType('num256'), pos=getpos(expr))
 
-@signature('address', Optional('wei', zero_value))
+@signature('address', value=Optional('num', zero_value))
 def create_with_code_of(expr, args, kwargs, context):
+    value = kwargs['value']
+    if value != zero_value:
+        enforce_units(value.typ, get_keyword(expr, 'value'),
+                      BaseType('num', {'wei': 1}))
+    if context.is_constant:
+        raise ConstancyViolationException("Cannot make calls from a constant function", expr)
     placeholder = context.new_placeholder(ByteArrayType(96))
     kode = b'`.`\x0c`\x009`.`\x00\xf36`\x00`\x007a\x10\x00`\x006`\x00s\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00Z\xf4\x15XWa\x10\x00`\x00\xf3'
     assert len(kode) <= 64
@@ -565,7 +586,7 @@ def create_with_code_of(expr, args, kwargs, context):
                                 ['mstore', placeholder, high],
                                 ['mstore', ['add', placeholder, 27], ['mul', args[0], 2**96]],
                                 ['mstore', ['add', placeholder, 47], low],
-                                ['clamp_nonzero', ['create', args[1], placeholder, 64]]], typ=BaseType('address'), pos=getpos(expr))
+                                ['clamp_nonzero', ['create', value, placeholder, 64]]], typ=BaseType('address'), pos=getpos(expr))
 
 
 dispatch_table = {

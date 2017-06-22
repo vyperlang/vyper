@@ -1200,6 +1200,11 @@ def foo():
 
 must_succeed("""
 def foo():
+    x = raw_call(0x1234567890123456789012345678901234567890, "cow", outsize=4, gas=595757, value=as_wei_value(9, wei))
+""")
+
+must_succeed("""
+def foo():
     x = raw_call(0x1234567890123456789012345678901234567890, "cow", outsize=4, gas=595757, value=9)
 """)
 
@@ -1228,6 +1233,58 @@ def foo() -> num(const):
     x = raw_call(0x1234567890123456789012345678901234567890, "cow", outsize=4, gas=595757, value=9)
     return 5
 """, ConstancyViolationException)
+
+must_succeed("""
+def foo():
+    x = create_with_code_of(0x1234567890123456789012345678901234567890)
+""")
+
+must_succeed("""
+def foo():
+    x = create_with_code_of(0x1234567890123456789012345678901234567890, value=as_wei_value(9, wei))
+""")
+
+must_succeed("""
+def foo():
+    x = create_with_code_of(0x1234567890123456789012345678901234567890, value=9)
+""")
+
+must_fail("""
+def foo():
+    x = create_with_code_of(0x1234567890123456789012345678901234567890, "cow")
+""", StructureException)
+
+must_fail("""
+def foo():
+    x = create_with_code_of(0x123456789012345678901234567890123456789)
+""", InvalidLiteralException)
+
+must_fail("""
+def foo():
+    x = create_with_code_of(0x1234567890123456789012345678901234567890, value=4, value=9)
+""", SyntaxError)
+
+must_fail("""
+def foo():
+    x = raw_call(0x1234567890123456789012345678901234567890, "cow", gas=111111, outsize=4, moose=9)
+""", StructureException)
+
+must_fail("""
+def foo():
+    x = create_with_code_of(0x1234567890123456789012345678901234567890, outsize=4)
+""", StructureException)
+
+must_fail("""
+def foo() -> num(const):
+    x = create_with_code_of(0x1234567890123456789012345678901234567890, value=9)
+    return 5
+""", ConstancyViolationException)
+
+must_fail("""
+def foo() -> num:
+    x = create_with_code_of(0x1234567890123456789012345678901234567890, value=block.timestamp)
+    return 5
+""", TypeMismatchException)
 
 must_fail("""
 def foo() -> num256:
