@@ -7,14 +7,16 @@ import argparse
 
 parser = argparse.ArgumentParser(description='Viper {0} programming language for Ethereum'.format(viper.__version__))
 parser.add_argument('input_file', help='Viper sourcecode to compile')
-parser.add_argument('--audit', help='Print intermediate representation for auditing', dest='audit', action='store_true')
+parser.add_argument('-f', help='Format to print', choices=['abi', 'bytecode', 'ir'], default='bytecode', dest='format')
 
 args = parser.parse_args()
 
 if __name__ == '__main__':
     with open(args.input_file) as fh:
         code = fh.read()
-        if args.audit:
-            print(optimizer.optimize(parse_to_lll(code)))
-        else:
+        if args.format == 'abi':
+            print(compiler.mk_full_signature(code))
+        elif args.format == 'bytecode':
             print('0x'+compiler.compile(code).hex())
+        elif args.format == 'ir':
+            print(optimizer.optimize(parse_to_lll(code)))
