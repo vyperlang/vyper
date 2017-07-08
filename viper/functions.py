@@ -600,6 +600,7 @@ dispatch_table = {
     'len': _len,
     'concat': concat,
     'sha3': _sha3,
+    'keccak256': _sha3,
     'ecrecover': ecrecover,
     'extract32': extract32,
     'bytes_to_num': bytes_to_num,
