@@ -1106,6 +1106,8 @@ def parse_stmt(stmt, context):
                 raise Exception("Invalid location: %s" % sub.location)
         else:
             raise TypeMismatchException("Can only return base type!", stmt)
+    elif isinstance(stmt, ast.Name) and stmt.id == "throw":
+        return LLLnode.from_list(['assert', 0], typ=None, pos=getpos(stmt))
     else:
         raise StructureException("Unsupported statement type", stmt)
 
