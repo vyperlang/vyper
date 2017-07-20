@@ -173,6 +173,7 @@ def mk_initial():
 # (vi) 4-byte ID generated from signature
 def get_func_details(code):
     name = code.name
+    pos = 0 
     # Determine the arguments, expects something of the form def foo(arg1: num, arg2: num ...
     args = []
     for arg in code.args.args:
@@ -185,13 +186,12 @@ def get_func_details(code):
             raise VariableDeclarationException("Argument name invalid or reserved: "+arg.arg, arg)
         if arg.arg in (x[0] for x in args):
             raise VariableDeclarationException("Duplicate function argument name: "+arg.arg, arg)
-        # Init function: store the memory location of any arguments as negative. This will be used
-        # later that the variable should be accessed from the code, not the calldata
-        if name == '__init__':
-            args.append((arg.arg, -32 * len(code.args.args) + 32 * len(args), parse_type(typ, None)))
-        # Regular functions
+        parsed_type = parse_type(typ, None)
+        args.append((arg.arg, pos, parsed_type))
+        if isinstance(parsed_type, ByteArrayType):
+            pos += 32
         else:
-            args.append((arg.arg, 4 + 32 * len(args), parse_type(typ, None)))
+            pos += get_size_of_type(parsed_type) * 32
     # Determine the return type and whether or not it's constant. Expects something
     # of the form:
     # def foo(): ...
@@ -235,11 +235,10 @@ def get_func_details(code):
 
 # Contains arguments, variables, etc
 class Context():
-    def __init__(self, args=None, vars=None, globals=None, sigs=None, forvars=None, return_type=None, is_constant=False, origcode=''):
-        # Function arguments, in the form (name, calldata location, type)
-        self.args = args or {}
+    def __init__(self, vars=None, globals=None, sigs=None, forvars=None, return_type=None, is_constant=False, origcode=''):
         # In-memory variables, in the form (name, memory location, type)
         self.vars = vars or {}
+        self.next_mem = RESERVED_MEMORY
         # Global variables, in the form (name, storage location, type)
         self.globals = globals or {}
         # ABI objects, in the form {classname: ABI JSON}
@@ -259,11 +258,11 @@ class Context():
     def new_variable(self, name, typ):
         if not is_varname_valid(name):
             raise VariableDeclarationException("Variable name invalid or reserved: "+name)
-        if name in self.vars or name in self.args or name in self.globals:
+        if name in self.vars or name in self.globals:
             raise VariableDeclarationException("Duplicate variable name: %s" % name)
-        pos = self.get_next_mem()
-        self.vars[name] = pos, typ
-        self.vars['_next_mem'] = pos + 32 * get_size_of_type(typ)
+        self.vars[name] = self.next_mem, typ, True
+        pos = self.next_mem
+        self.next_mem += 32 * get_size_of_type(typ)
         return pos
 
     # Add an anonymous variable (used in some complex function definitions)
@@ -274,7 +273,7 @@ class Context():
 
     # Get the next unused memory location
     def get_next_mem(self):
-        return self.vars.get('_next_mem', RESERVED_MEMORY)
+        return self.next_mem
 
 # Is a function the initializer?
 def is_initializer(code):
@@ -330,13 +329,13 @@ def parse_tree_to_lll(code, origcode):
                                  typ=None)
 
 # Checks that an input matches its type
-def make_clamper(dataloc, typ):
-    # Dataloc >= 0, means the variable is in memory
-    if dataloc >= 0:
-        data_decl = ['calldataload', dataloc]
-    # Dataloc < 0, means the variable is in code (because it's a constructor argument)
+def make_clamper(datapos, mempos, typ, is_init=False):
+    if not is_init:
+        data_decl = ['calldataload', ['add', 4, datapos]]
+        copier = lambda pos, sz: ['calldatacopy', mempos, ['add', 4, pos], sz]
     else:
-        data_decl = ['seq', ['codecopy', FREE_VAR_SPACE, ['sub', ['codesize'], -dataloc], 32], ['mload', FREE_VAR_SPACE]]
+        data_decl = ['codeload', ['add', '~codelen', datapos]]
+        copier = lambda pos, sz: ['codecopy', mempos, ['add', '~codelen', pos], sz]
     # Numbers: make sure they're in range
     if is_base_type(typ, 'num'):
         return LLLnode.from_list(['clamp', ['mload', MINNUM_POS], data_decl, ['mload', MAXNUM_POS]],
@@ -349,30 +348,48 @@ def make_clamper(dataloc, typ):
         return LLLnode.from_list(['uclamplt', data_decl, ['mload', ADDRSIZE_POS]], typ=typ, annotation='checking address input')
     # Bytes: make sure they have the right size
     elif isinstance(typ, ByteArrayType):
-        return LLLnode.from_list(['assert', ['le', ['calldataload', ['add', 4, data_decl]], typ.maxlen]],
+        return LLLnode.from_list(['seq',
+                                    copier(data_decl, ['add', 32, ['calldataload', ['add', 4, data_decl]]]),
+                                    ['assert', ['le', ['calldataload', ['add', 4, data_decl]], typ.maxlen]]],
                                  typ=None, annotation='checking bytearray input')
     # Lists: recurse
     elif isinstance(typ, ListType):
         o = []
         for i in range(typ.count):
-            o.append(make_clamper(dataloc + get_size_of_type(typ.subtype) * 32 * i, typ.subtype))
+            offset = get_size_of_type(typ.subtype) * 32 * i
+            o.append(make_clamper(datapos + offset, mempos + offset, typ.subtype, is_init))
         return LLLnode.from_list(['seq'] + o, typ=None, annotation='checking list input')
     # Otherwise don't make any checks
     else:
         return LLLnode.from_list('pass')
 
 # Parses a function declaration
-def parse_func(code, _globals, sigs, origcode, _vars=None):
+def parse_func(code, _globals, sigs, origcode, _vars={}):
     name, args, output_type, const, sig, method_id = get_func_details(code)
     # Check for duplicate variables with globals
     for arg in args:
         if arg[0] in _globals:
             raise VariableDeclarationException("Variable name duplicated between function arguments and globals: "+arg[0])
     # Create a context
-    context = Context(args={a[0]: (a[1], a[2]) for a in args}, globals=_globals, sigs=sigs, vars=_vars or {},
+    context = Context(vars=_vars, globals=_globals, sigs=sigs,
                       return_type=output_type, is_constant=const, origcode=origcode)
+    # Copy calldata to memory for fixed-size arguments
+    copy_size = sum([32 if isinstance(typ, ByteArrayType) else get_size_of_type(typ) * 32 for _, _, typ in args])
+    context.next_mem += copy_size
+    if name == '__init__':
+        copier = ['codecopy', RESERVED_MEMORY, '~codelen', copy_size]
+    else:
+        copier = ['calldatacopy', RESERVED_MEMORY, 4, copy_size]
+    clampers = [copier]
+    # Fill in variable positions
+    for arg, pos, typ in args:
+        clampers.append(make_clamper(pos, context.next_mem, typ, name == '__init__'))
+        if isinstance(typ, ByteArrayType):
+            context.vars[arg] = context.next_mem, typ, False
+            context.next_mem += 32 * get_size_of_type(typ)
+        else:
+            context.vars[arg] = RESERVED_MEMORY + pos, typ, False
     # Create "clampers" (input well-formedness checkers)
-    clampers = [make_clamper(loc, typ) for _, loc, typ in args]
     # Return function body
     if name == '__init__':
         return LLLnode.from_list(['seq'] + clampers + [parse_body(code.body, context)], pos=getpos(code))
@@ -455,13 +472,6 @@ def add_variable_offset(parent, key):
             return LLLnode.from_list(['add', ['mul', offset, sub], parent],
                                       typ=subtype,
                                       location='memory')
-        elif location == 'calldata':
-            if isinstance(typ, MappingType):
-                raise TypeMismatchException("Can only have fixed-side arrays in calldata, not mappings")
-            offset = 32 * get_size_of_type(subtype)
-            return LLLnode.from_list(['add', ['mul', offset, sub], parent],
-                                      typ=subtype,
-                                      location='calldata')
         else:
             raise TypeMismatchException("Not expecting an array access")
     else:
@@ -540,26 +550,9 @@ def parse_expr(expr, context):
             return LLLnode.from_list(0, typ='bool', pos=getpos(expr))
         if expr.id == 'null':
             return LLLnode.from_list(None, typ=NullType(), pos=getpos(expr))
-        if expr.id in context.args:
-            dataloc, typ = context.args[expr.id]
-            if dataloc >= 0:
-                dataloc_node = dataloc
-                data_decl = ['calldataload', dataloc_node]
-            else:
-                dataloc_node = ['sub', ['codesize'], -dataloc]
-                data_decl = ['seq', ['codecopy', FREE_VAR_SPACE, dataloc_node, 32], ['mload', FREE_VAR_SPACE]]
-            if is_base_type(typ, ('num', 'bool', 'decimal', 'address', 'num256', 'signed256', 'bytes32')):
-                return LLLnode.from_list(data_decl, typ=typ, pos=getpos(expr))
-            elif isinstance(typ, ByteArrayType):
-                return LLLnode.from_list(data_decl, typ=typ, location='calldata', pos=getpos(expr))
-            elif isinstance(typ, ListType):
-                o = LLLnode.from_list(dataloc_node, typ=typ, location='calldata', pos=getpos(expr))
-                return o
-            else:
-                raise InvalidTypeException("Unsupported type: %r" % typ, expr)
-        elif expr.id in context.vars:
-            dataloc, typ = context.vars[expr.id]
-            return LLLnode.from_list(dataloc, typ=typ, location='memory', pos=getpos(expr), annotation=expr.id)
+        if expr.id in context.vars:
+            dataloc, typ, mutable = context.vars[expr.id]
+            return LLLnode.from_list(dataloc, typ=typ, location='memory', pos=getpos(expr), annotation=expr.id, mutable=mutable)
         else:
             raise VariableDeclarationException("Undeclared variable: "+expr.id, expr)
     # x.y or x[5]
@@ -618,7 +611,9 @@ def parse_expr(expr, context):
             index = expr.slice.value.n
         else:
             raise TypeMismatchException("Bad subscript attempt", expr.value)
-        return add_variable_offset(sub, index)
+        o = add_variable_offset(sub, index)
+        o.mutable = sub.mutable
+        return o
     # Arithmetic operations
     elif isinstance(expr, ast.BinOp):
         left = parse_value_expr(expr.left, context)
@@ -817,8 +812,6 @@ def unwrap_location(orig):
         return LLLnode.from_list(['mload', orig], typ=orig.typ)
     elif orig.location == 'storage':
         return LLLnode.from_list(['sload', orig], typ=orig.typ)
-    elif orig.location == 'calldata':
-        return LLLnode.from_list(['calldataload', orig], typ=orig.typ)
     else:
         return orig
 
@@ -978,6 +971,8 @@ def parse_stmt(stmt, context):
             target = parse_variable_location(stmt.targets[0], context)
             if target.location == 'storage' and context.is_constant:
                 raise ConstancyViolationException("Cannot modify storage inside a constant function!", stmt.targets[0])
+            if not target.mutable:
+                raise ConstancyViolationException("Cannot modify function argument", stmt.targets[0])
             o = make_setter(target, sub, target.location)
         o.pos = getpos(stmt)
         return o
@@ -1093,16 +1088,8 @@ def parse_stmt(stmt, context):
             if sub.typ.maxlen > context.return_type.maxlen:
                 raise TypeMismatchException("Cannot cast from greater max-length %d to shorter max-length %d" %
                                             (sub.typ.maxlen, context.return_type.maxlen), stmt.value)
-            # Copying from calldata
-            if sub.location == 'calldata':
-                return LLLnode.from_list(['with', '_pos', ['add', 4, sub],
-                                            ['with', '_len', ['ceil32', ['add', ['calldataload', '_pos'], 32]],
-                                                    ['seq', ['assert', ['le', ['calldataload', '_pos'], sub.typ.maxlen]],
-                                                            ['mstore', context.get_next_mem(), 32],
-                                                            ['calldatacopy', context.get_next_mem() + 32, '_pos', '_len'],
-                                                            ['return', context.get_next_mem(), ['add', '_len', 32]]]]], typ=None, pos=getpos(stmt))
             # Returning something already in memory
-            elif sub.location == 'memory':
+            if sub.location == 'memory':
                 return LLLnode.from_list(['with', '_loc', sub,
                                             ['seq',
                                                 ['mstore', ['sub', '_loc', 32], 32],

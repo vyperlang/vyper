@@ -96,7 +96,7 @@ def foo(x: num, x: num): pass
 must_fail("""
 def foo(x: num):
     x = 5
-""", VariableDeclarationException)
+""", ConstancyViolationException)
 
 must_fail("""
 def foo():

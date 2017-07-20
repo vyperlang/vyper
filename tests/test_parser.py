@@ -456,6 +456,30 @@ assert c.returnMoose() == 5
 print('Passed init argument test')
 print('Gas estimate', t.languages['viper'].gas_estimate(init_argument_test)['returnMoose'], 'actual', s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
 
+constructor_advanced_code = """
+twox: num
+
+def __init__(x: num):
+    self.twox = x * 2
+
+def get_twox() -> num:
+    return self.twox
+"""
+assert s.contract(constructor_advanced_code, args=[5], language='viper').get_twox() == 10
+
+constructor_advanced_code2 = """
+comb: num
+
+def __init__(x: num[2], y: bytes <= 3, z: num):
+    self.comb = x[0] * 1000 + x[1] * 100 + len(y) * 10 + z
+
+def get_comb() -> num:
+    return self.comb
+"""
+assert s.contract(constructor_advanced_code2, args=[[5,7], "dog", 8], language='viper').get_comb() == 5738
+
+print("Passed advanced init argument tests")
+
 permanent_variables_test = """
 var: {a: num, b: num}
 def __init__(a: num, b: num):

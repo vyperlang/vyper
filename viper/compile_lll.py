@@ -1,5 +1,6 @@
 from .parser import LLLnode
 from .opcodes import opcodes, pseudo_opcodes
+from .utils import MAXDECIMAL_POS, MINDECIMAL_POS, FREE_VAR_SPACE, BLANK_SPACE, FREE_LOOP_INDEX
 
 def num_to_bytearray(x):
     o = []
@@ -89,6 +90,13 @@ def compile_to_assembly(code, withargs={}, break_dest=None, height=0):
     # Pass statements
     elif code.value == 'pass':
         return []
+    # Code length
+    elif code.value == '~codelen':
+        return ['_sym_codeend']
+    # Calldataload equivalent for code
+    elif code.value == 'codeload':
+        return compile_to_assembly(LLLnode.from_list(['seq', ['codecopy', FREE_VAR_SPACE, code.args[0], 32], ['mload', FREE_VAR_SPACE]]),
+                                   withargs, break_dest, height)                     
     # If statements (2 arguments, ie. if x: y)
     elif code.value == 'if' and len(code.args) == 2:
         o = []
@@ -267,6 +275,7 @@ def assembly_to_evm(assembly):
             pos += len(c)
         else:
             pos += 1
+    posmap['_sym_codeend'] = pos
     o = b''
     for i, item in enumerate(assembly):
         if is_symbol(item):
@@ -291,4 +300,5 @@ def assembly_to_evm(assembly):
                     break
         else:
             raise Exception("Weird symbol in assembly: "+str(item))
+    assert len(o) == pos
     return o

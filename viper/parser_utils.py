@@ -14,7 +14,7 @@ import re
 
 # Data structure for LLL parse tree
 class LLLnode():
-    def __init__(self, value, args=[], typ=None, location=None, pos=None, annotation=''):
+    def __init__(self, value, args=[], typ=None, location=None, pos=None, annotation='', mutable=True):
         self.value = value
         self.args = args
         self.typ = typ
@@ -22,6 +22,7 @@ class LLLnode():
         self.location = location
         self.pos = pos
         self.annotation = annotation
+        self.mutable = mutable
         # Determine this node's valency (1 if it pushes a value on the stack,
         # 0 otherwise) and checks to make sure the number and valencies of
         # children are correct
@@ -131,7 +132,7 @@ class LLLnode():
         return self.repr()
 
     @classmethod
-    def from_list(cls, obj, typ=None, location=None, pos=None, annotation=None):
+    def from_list(cls, obj, typ=None, location=None, pos=None, annotation=None, mutable=True):
         if isinstance(typ, str):
             typ = BaseType(typ)
         if isinstance(obj, LLLnode):
@@ -141,9 +142,9 @@ class LLLnode():
                 obj.location = location
             return obj
         elif not isinstance(obj, list):
-            return cls(obj, [], typ, location, pos, annotation)
+            return cls(obj, [], typ, location, pos, annotation, mutable)
         else:
-            return cls(obj[0], [cls.from_list(o,pos=pos) for o in obj[1:]], typ, location, pos, annotation)
+            return cls(obj[0], [cls.from_list(o,pos=pos) for o in obj[1:]], typ, location, pos, annotation, mutable)
 
 # Get a decimal number as a fraction with denominator multiple of 10
 def get_number_as_fraction(expr, context):
@@ -171,15 +172,15 @@ def make_byte_array_copier(destination, source):
         raise TypeMismatchException("Can only set a byte array to another byte array")
     if isinstance(source.typ, ByteArrayType) and source.typ.maxlen > destination.typ.maxlen:
         raise TypeMismatchException("Cannot cast from greater max-length %d to shorter max-length %d" % (source.typ.maxlen, destination.typ.maxlen))
-    # Special case: calldata to memory
-    if source.location == "calldata" and destination.location == "memory":
-        return LLLnode.from_list(['calldatacopy', destination, ['add', 4, source], ['add', 32, ['calldataload', ['add', 4, source]]]], typ=None)
+    # Special case: memory to memory
+    if source.location == "memory" and destination.location == "memory":
+        return LLLnode.from_list(
+            ['with', '_sz', ['add', 32, ['mload', source]],
+                ['assert', ['call', ['add', 18, ['div', '_sz', 10]], 4, 0, source, '_sz', destination, '_sz']]], typ=None)
     pos_node = LLLnode.from_list('_pos', typ=source.typ, location=source.location)
     # Get the length
     if isinstance(source.typ, NullType):
         length = 1
-    elif source.location == "calldata":
-        length = ['add', ['calldataload', ['add', 4, '_pos']], 32]
     elif source.location == "memory":
         length = ['add', ['mload', '_pos'], 32]
     elif source.location == "storage":
@@ -201,19 +202,14 @@ def make_byte_array_copier(destination, source):
 # (iii) an LLL node for the length
 # (iv) a constant for the max length
 def make_byte_slice_copier(destination, source, length, max_length):
-    # Special case: calldata to memory
-    if source.location == "calldata" and destination.location == "memory":
-        return LLLnode.from_list(['calldatacopy', destination, ['add', 4, source], max_length], typ=None, annotation='copy byte slice')
     # Special case: memory to memory
-    elif source.location == "memory" and destination.location == "memory":
+    if source.location == "memory" and destination.location == "memory":
         return LLLnode.from_list(['with', '_l', max_length,
                                     ['pop', ['call', 18 + max_length // 10, 4, 0, source,
                                              '_l', destination, '_l']]], typ=None, annotation='copy byte slice')
     # Copy over data
     if isinstance(source.typ, NullType):
         loader = 0
-    elif source.location == "calldata":
-        loader = ['calldataload', ['add', 4, ['add', '_pos', ['mul', 32, ['mload', FREE_LOOP_INDEX]]]]]
     elif source.location == "memory":
         loader = ['mload', ['add', '_pos', ['mul', 32, ['mload', FREE_LOOP_INDEX]]]]
     elif source.location == "storage":
@@ -221,9 +217,7 @@ def make_byte_slice_copier(destination, source, length, max_length):
     else:
         raise Exception("Unsupported location:"+source.location)
     # Where to paste it?
-    if destination.location == "calldata":
-        raise TypeMismatchException("Cannot set a value in call data")
-    elif destination.location == "memory":
+    if destination.location == "memory":
         setter = ['mstore', ['add', '_opos', ['mul', 32, ['mload', FREE_LOOP_INDEX]]], loader]
     elif destination.location == "storage":
         setter = ['sstore', ['add', '_opos', ['mload', FREE_LOOP_INDEX]], loader]
@@ -241,10 +235,7 @@ def make_byte_slice_copier(destination, source, length, max_length):
 
 # Takes a <32 byte array as input, and outputs a number.
 def byte_array_to_num(arg, expr, out_type):
-    if arg.location == "calldata":
-        lengetter = LLLnode.from_list(['calldataload', ['add', 4, '_sub']], typ=BaseType('num'))
-        first_el_getter = LLLnode.from_list(['calldataload', ['add', 36, '_sub']], typ=BaseType('num'))
-    elif arg.location == "memory":
+    if arg.location == "memory":
         lengetter = LLLnode.from_list(['mload', '_sub'], typ=BaseType('num'))
         first_el_getter = LLLnode.from_list(['mload', ['add', 32, '_sub']], typ=BaseType('num'))
     elif arg.location == "storage":
@@ -266,9 +257,7 @@ def byte_array_to_num(arg, expr, out_type):
                              typ=BaseType(out_type), annotation='bytearray to number, verify no leading zbytes')
 
 def get_length(arg):
-    if arg.location == "calldata":
-        return LLLnode.from_list(['calldataload', ['add', 4, arg]], typ=BaseType('num'))
-    elif arg.location == "memory":
+    if arg.location == "memory":
         return LLLnode.from_list(['mload', arg], typ=BaseType('num'))
     elif arg.location == "storage":
         return LLLnode.from_list(['sload', ['sha3_32', arg]], typ=BaseType('num'))
