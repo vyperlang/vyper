@@ -137,6 +137,8 @@ class LLLnode():
         if isinstance(obj, LLLnode):
             if obj.pos is None:
                 obj.pos = pos
+            if obj.location is None:
+                obj.location = location
             return obj
         elif not isinstance(obj, list):
             return cls(obj, [], typ, location, pos, annotation)

@@ -156,6 +156,10 @@ class NullType(NodeType):
 def canonicalize_type(t):
     if isinstance(t, ByteArrayType):
         return 'bytes'
+    if isinstance(t, ListType):
+        if not isinstance(t.subtype, (ListType, BaseType)):
+            raise Exception("List of byte arrays not allowed")
+        return canonicalize_type(t.subtype) + "[%d]" % t.count
     if not isinstance(t, BaseType):
         raise Exception("Cannot canonicalize non-base type: %r" % t)
     t = t.typ

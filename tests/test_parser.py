@@ -27,6 +27,7 @@ assert utils.bytes_to_int(rlp_decoder_address) == utils.RLP_DECODER_ADDRESS
 
 s.head_state.gas_limit = 10**9
 
+
 null_code = """
 def foo():
     pass
@@ -2003,3 +2004,42 @@ except:
 assert not success
 
 print('Passed forwarder exception test')
+
+list_tester_code = """
+z: num[3]
+z2: num[2][2]
+z3: num[2]
+
+def foo(x: num[3]) -> num:
+    return x[0] + x[1] + x[2]
+
+def goo(x: num[2][2]) -> num:
+    return x[0][0] + x[0][1] + x[1][0] * 10 + x[1][1] * 10
+
+def hoo(x: num[3]) -> num:
+    y = x
+    return y[0] + x[1] + y[2]
+
+def joo(x: num[2][2]) -> num:
+    y = x
+    y2 = x[1]
+    return y[0][0] + y[0][1] + y2[0] * 10 + y2[1] * 10
+
+def koo(x: num[3]) -> num:
+    self.z = x
+    return self.z[0] + x[1] + self.z[2]
+
+def loo(x: num[2][2]) -> num:
+    self.z2 = x
+    self.z3 = x[1]
+    return self.z2[0][0] + self.z2[0][1] + self.z3[0] * 10 + self.z3[1] * 10
+"""
+
+c = s.contract(list_tester_code, language='viper')
+assert c.foo([3,4,5]) == 12
+assert c.goo([[1,2],[3,4]]) == 73
+assert c.hoo([3,4,5]) == 12
+assert c.joo([[1,2],[3,4]]) == 73
+assert c.koo([3,4,5]) == 12
+assert c.loo([[1,2],[3,4]]) == 73
+print("Passed list tests")

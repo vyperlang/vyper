@@ -1415,3 +1415,64 @@ must_fail("""
 def foo():
     throe
 """, StructureException)
+
+must_succeed("""
+def foo(x: num[3]) -> num:
+    return x[0]
+""")
+
+must_succeed("""
+y: num[3]
+
+def foo(x: num[3]) -> num:
+    self.y = x
+""")
+
+must_fail("""
+y: num[3]
+
+def foo(x: num[3]) -> num:
+    self.y = x[0]
+""", TypeMismatchException)
+
+must_fail("""
+y: num[3]
+
+def foo(x: num[3]) -> num:
+    self.y[0] = x
+""", TypeMismatchException)
+
+must_fail("""
+y: num[4]
+
+def foo(x: num[3]) -> num:
+    self.y = x
+""", TypeMismatchException)
+
+must_succeed("""
+y: decimal[3]
+
+def foo(x: num[3]) -> num:
+    self.y = x
+""")
+
+must_succeed("""
+y: decimal[2][2]
+
+def foo(x: num[2][2]) -> num:
+    self.y = x
+""")
+
+must_fail("""
+y: address[2][2]
+
+def foo(x: num[2][2]) -> num:
+    self.y = x
+""", TypeMismatchException)
+
+must_succeed("""
+y: decimal[2]
+
+def foo(x: num[2][2]) -> num:
+    self.y = x[1]
+""")

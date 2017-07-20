@@ -350,6 +350,12 @@ def make_clamper(dataloc, typ):
     elif isinstance(typ, ByteArrayType):
         return LLLnode.from_list(['assert', ['le', ['calldataload', ['add', 4, data_decl]], typ.maxlen]],
                                  typ=None, annotation='checking bytearray input')
+    # Lists: recurse
+    elif isinstance(typ, ListType):
+        o = []
+        for i in range(typ.count):
+            o.append(make_clamper(dataloc + get_size_of_type(typ.subtype) * 32 * i, typ.subtype))
+        return LLLnode.from_list(['seq'] + o, typ=None, annotation='checking list input')
     # Otherwise don't make any checks
     else:
         return LLLnode.from_list('pass')
@@ -448,6 +454,13 @@ def add_variable_offset(parent, key):
             return LLLnode.from_list(['add', ['mul', offset, sub], parent],
                                       typ=subtype,
                                       location='memory')
+        elif location == 'calldata':
+            if isinstance(typ, MappingType):
+                raise TypeMismatchException("Can only have fixed-side arrays in calldata, not mappings")
+            offset = 32 * get_size_of_type(subtype)
+            return LLLnode.from_list(['add', ['mul', offset, sub], parent],
+                                      typ=subtype,
+                                      location='calldata')
         else:
             raise TypeMismatchException("Not expecting an array access")
     else:
@@ -529,15 +542,18 @@ def parse_expr(expr, context):
         if expr.id in context.args:
             dataloc, typ = context.args[expr.id]
             if dataloc >= 0:
-                dataloc_node = LLLnode.from_list(dataloc, pos=getpos(expr), annotation=expr.id)
+                dataloc_node = dataloc
                 data_decl = ['calldataload', dataloc_node]
             else:
-                minus_dataloc_node = LLLnode.from_list(-dataloc, pos=getpos(expr), annotation=expr.id)
-                data_decl = ['seq', ['codecopy', FREE_VAR_SPACE, ['sub', ['codesize'], minus_dataloc_node], 32], ['mload', FREE_VAR_SPACE]]
+                dataloc_node = ['sub', ['codesize'], -dataloc]
+                data_decl = ['seq', ['codecopy', FREE_VAR_SPACE, dataloc_node, 32], ['mload', FREE_VAR_SPACE]]
             if is_base_type(typ, ('num', 'bool', 'decimal', 'address', 'num256', 'signed256', 'bytes32')):
                 return LLLnode.from_list(data_decl, typ=typ, pos=getpos(expr))
             elif isinstance(typ, ByteArrayType):
                 return LLLnode.from_list(data_decl, typ=typ, location='calldata', pos=getpos(expr))
+            elif isinstance(typ, ListType):
+                o = LLLnode.from_list(dataloc_node, typ=typ, location='calldata', pos=getpos(expr))
+                return o
             else:
                 raise InvalidTypeException("Unsupported type: %r" % typ, expr)
         elif expr.id in context.vars:
