@@ -1274,6 +1274,18 @@ assert c.tryy(b"\x35" * 33) is True
 
 print("Passed SHA3 hash test")
 
+method_id_test = """
+def double(x: num) -> num:
+    return x * 2
+
+def returnten() -> num:
+    ans = raw_call(self, concat(method_id("double(int128)"), as_bytes32(5)), gas=50000, outsize=32)
+    return as_num128(extract32(ans, 0))
+"""
+c = s.contract(method_id_test, language='viper')
+assert c.returnten() == 10
+print("Passed method ID test")
+
 ecrecover_test = """
 def test_ecrecover(h: bytes32, v:num256, r:num256, s:num256) -> address:
     return ecrecover(h, v, r, s)
@@ -2100,4 +2112,4 @@ assert c.poo([[1,2],[3,4]]) == [[1,2],[3,4]]
 assert c.qoo([1,2]) == [[1,2],[3,4]]
 assert c.roo([1,2]) == [[1.0,2.0],[3.0,4.0]]
 
-print("List output tests passed")
+print("Passed list output tests")

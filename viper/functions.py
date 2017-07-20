@@ -176,7 +176,7 @@ def concat(expr, context):
     if len(args) < 2:
         raise StructureException("Concat expects at least two arguments", expr)
     for expr_arg, arg in zip(expr.args, args):
-        if not isinstance(arg.typ, ByteArrayType) and not is_base_type(arg.typ, 'bytes32'):
+        if not isinstance(arg.typ, ByteArrayType) and not is_base_type(arg.typ, 'bytes32') and not is_base_type(arg.typ, 'method_id'):
             raise TypeMismatchException("Concat expects byte arrays or bytes32 objects", expr_arg)
     # Maximum length of the output
     total_maxlen = sum([arg.typ.maxlen if isinstance(arg.typ, ByteArrayType) else 32 for arg in args])
@@ -214,6 +214,10 @@ def concat(expr, context):
                                 # Change the position to start at the correct
                                 # place to paste the next value
                                 ['set', '_poz', ['add', '_poz', length]]]])
+        elif isinstance(arg.typ, BaseType) and arg.typ.typ == "method_id":
+            seq.append(['seq',
+                            ['mstore', ['add', placeholder_node, 32], arg.value * 2**224],
+                            ['set', '_poz', ['add', '_poz', 4]]])
         else:
             seq.append(['seq',
                             ['mstore', ['add', placeholder_node, 32], unwrap_location(arg)],
@@ -251,6 +255,11 @@ def _sha3(expr, args, kwargs, context):
                                 ['seq',
                                     copier,
                                     ['sha3', ['add', placeholder, 32], lengetter]]], typ=BaseType('bytes32'), pos=getpos(expr))
+
+@signature('str_literal')
+def method_id(expr, args, kwargs, context):
+    method_id = fourbytes_to_int(sha3(args[0])[:4])
+    return LLLnode(method_id, typ=BaseType('method_id'), pos=getpos(expr))
 
 @signature('bytes32', 'num256', 'num256', 'num256')
 def ecrecover(expr, args, kwargs, context):
@@ -604,6 +613,7 @@ dispatch_table = {
     'len': _len,
     'concat': concat,
     'sha3': _sha3,
+    'method_id': method_id,
     'keccak256': _sha3,
     'ecrecover': ecrecover,
     'extract32': extract32,
