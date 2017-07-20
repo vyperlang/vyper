@@ -13,7 +13,7 @@ Note that not all programs that satisfy the following are valid; for example, th
 
     body = <globals> + <defs>
     globals = <global> <global> ...
-    global = <varname> = <type>
+    global = <varname>: <type>
     defs = <def> <def> ...
     def = def <funname>(<argname>: <type>, <argname>: <type>...): <body>
         OR def <funname>(<argname>: <type>, <argname>: <type>...) -> <type>: <body>
@@ -33,6 +33,7 @@ Note that not all programs that satisfy the following are valid; for example, th
         OR return <expr>
         OR send(<expr>, <expr>)
         OR selfdestruct(<expr>) # suicide(<expr>) is a synonym
+        OR [other functions, see full list in viper/functions.py]
     var = <varname>
         OR <var>.<membername>
         OR <var>[<expr>]
@@ -47,6 +48,7 @@ Note that not all programs that satisfy the following are valid; for example, th
         OR <system_var>
         OR <basetype>(<expr>) (only some type conversions allowed)
         OR floor(<expr>)
+        OR [other functions, see full list in viper/functions.py]
     literal = <integer>
         OR <fixed point number>
         OR <address, in the form 0x12cd2f...3fe, CHECKSUMS ARE MANDATORY>
