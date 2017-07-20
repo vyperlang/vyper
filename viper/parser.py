@@ -220,12 +220,13 @@ def get_func_details(code):
         output_type = parse_type(typ, None)
     # If the return type is of the form def foo() -> x: ..., then parse the
     # return type directly
-    elif isinstance(code.returns, (ast.Name, ast.Compare)):
+    elif isinstance(code.returns, (ast.Name, ast.Compare, ast.Subscript)):
         output_type = parse_type(code.returns, None)
     else:
         raise InvalidTypeException("Output type invalid or unsupported: %r" % parse_type(code.returns, None), code.returns)
-    # Output type can only be base type or none
-    assert isinstance(output_type, (BaseType, ByteArrayType, (None).__class__))
+    # Output type must be canonicalizable
+    if output_type is not None:
+        assert canonicalize_type(output_type)
     # Get the canonical function signature
     sig = name + '(' + ','.join([canonicalize_type(parse_type(arg.annotation, None)) for arg in code.args.args]) + ')'
     # Take the first 4 bytes of the hash of the sig to get the method ID
@@ -1120,6 +1121,18 @@ def parse_stmt(stmt, context):
                 return LLLnode.from_list(o, typ=None, pos=getpos(stmt))
             else:
                 raise Exception("Invalid location: %s" % sub.location)
+        # Returning a list
+        elif isinstance(sub.typ, ListType):
+            if sub.location == "memory" and sub.value != "multi":
+                new_sub = LLLnode.from_list(context.new_placeholder(context.return_type), typ=context.return_type, location='memory')
+                make_setter(new_sub, sub, 'memory')
+                return LLLnode.from_list(['return', sub, get_size_of_type(context.return_type) * 32],
+                                         typ=None, pos=getpos(stmt))
+            else:
+                new_sub = LLLnode.from_list(context.new_placeholder(context.return_type), typ=context.return_type, location='memory')
+                setter = make_setter(new_sub, sub, 'memory')
+                return LLLnode.from_list(['seq', setter, ['return', new_sub, get_size_of_type(context.return_type) * 32]],
+                                         typ=None, pos=getpos(stmt))
         else:
             raise TypeMismatchException("Can only return base type!", stmt)
     elif isinstance(stmt, ast.Name) and stmt.id == "throw":

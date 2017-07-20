@@ -2043,3 +2043,61 @@ assert c.joo([[1,2],[3,4]]) == 73
 assert c.koo([3,4,5]) == 12
 assert c.loo([[1,2],[3,4]]) == 73
 print("Passed list tests")
+
+list_output_tester_code = """
+z: num[2]
+
+def foo() -> num[2]:
+    return [3, 5]
+
+def goo() -> num[2]:
+    x = [3, 5]
+    return x
+
+def hoo() -> num[2]:
+    self.z = [3, 5]
+    return self.z
+
+def joo() -> num[2]:
+    self.z = [3, 5]
+    x = self.z
+    return x
+
+def koo() -> num[2][2]:
+    return [[1,2],[3,4]]
+
+def loo() -> num[2][2]:
+    x = [[1,2],[3,4]]
+    return x
+
+def moo() -> num[2][2]:
+    x = [1,2]
+    return [x,[3,4]]
+
+def noo(inp: num[2]) -> num[2]:
+    return inp
+
+def poo(inp: num[2][2]) -> num[2][2]:
+    return inp
+
+def qoo(inp: num[2]) -> num[2][2]:
+    return [inp,[3,4]]
+
+def roo(inp: num[2]) -> decimal[2][2]:
+    return [inp,[3,4]]
+"""
+
+c = s.contract(list_output_tester_code, language='viper')
+assert c.foo() == [3,5]
+assert c.goo() == [3,5]
+assert c.hoo() == [3,5]
+assert c.joo() == [3,5]
+assert c.koo() == [[1,2],[3,4]]
+assert c.loo() == [[1,2],[3,4]]
+assert c.moo() == [[1,2],[3,4]]
+assert c.noo([3,5]) == [3,5]
+assert c.poo([[1,2],[3,4]]) == [[1,2],[3,4]]
+assert c.qoo([1,2]) == [[1,2],[3,4]]
+assert c.roo([1,2]) == [[1.0,2.0],[3.0,4.0]]
+
+print("List output tests passed")

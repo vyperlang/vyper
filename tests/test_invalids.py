@@ -1476,3 +1476,58 @@ y: decimal[2]
 def foo(x: num[2][2]) -> num:
     self.y = x[1]
 """)
+
+must_succeed("""
+def foo() -> num[2]:
+    return [3,5]
+""")
+
+must_fail("""
+def foo() -> num[2]:
+    return [3,5,7]
+""", TypeMismatchException)
+
+must_fail("""
+def foo() -> num[2]:
+    return [3]
+""", TypeMismatchException)
+
+must_fail("""
+def foo() -> num[2]:
+    return [[1,2],[3,4]]
+""", TypeMismatchException)
+
+must_fail("""
+def foo() -> num[2][2]:
+    return [1,2]
+""", TypeMismatchException)
+
+must_succeed("""
+def foo() -> num[2][2]:
+    return [[1,2],[3,4]]
+""")
+
+must_succeed("""
+def foo() -> decimal[2][2]:
+    return [[1,2],[3,4]]
+""")
+
+must_succeed("""
+def foo() -> decimal[2][2]:
+    return [[1,2.0],[3.5,4]]
+""")
+
+must_fail("""
+def foo() -> num[2]:
+    return [3,block.timestamp]
+""", TypeMismatchException)
+
+must_fail("""
+def foo() -> timedelta[2]:
+    return [block.timestamp - block.timestamp, block.timestamp]
+""", TypeMismatchException)
+
+must_succeed("""
+def foo() -> timestamp[2]:
+    return [block.timestamp + 86400, block.timestamp]
+""")
