@@ -1,6 +1,7 @@
 // Expects:
+// seq: big integer or number
 // to: address, in the form 0x46d241f4....
-// value: big integer
+// value: big integer or number
 // data: hex data
 function sign(seq, to, value, data, signingAddr) {
     var seqHex = web3.toHex(seq).substr(2);
