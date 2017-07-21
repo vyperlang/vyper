@@ -195,10 +195,7 @@ def concat(expr, context):
             if arg.typ.maxlen == 0:
                 continue
             # Get the length of the current argument
-            if arg.location == "calldata":
-                length = LLLnode.from_list(['calldataload', ['add', 4, '_arg']], typ=BaseType('num'))
-                argstart = LLLnode.from_list(['add', '_arg', 32], typ=arg.typ, location=arg.location)
-            elif arg.location == "memory":
+            if arg.location == "memory":
                 length = LLLnode.from_list(['mload', '_arg'], typ=BaseType('num'))
                 argstart = LLLnode.from_list(['add', '_arg', 32], typ=arg.typ, location=arg.location)
             elif arg.location == "storage":
@@ -239,9 +236,7 @@ def _sha3(expr, args, kwargs, context):
     if is_base_type(sub.typ, 'bytes32'):
         return LLLnode.from_list(['seq', ['mstore', FREE_VAR_SPACE, sub], ['sha3', FREE_VAR_SPACE, 32]], typ=BaseType('bytes32'), pos=getpos(expr))
     # Copy the data to an in-memory array
-    if sub.location == "calldata":
-        lengetter = LLLnode.from_list(['calldataload', ['add', 4, '_sub']], typ=BaseType('num'))
-    elif sub.location == "memory":
+    if sub.location == "memory":
         # If we are hashing a value in memory, no need to copy it, just hash in-place
         return LLLnode.from_list(['with', '_sub', sub, ['sha3', ['add', '_sub', 32], ['mload', '_sub']]], typ=BaseType('bytes32'), pos=getpos(expr))
     elif sub.location == "storage":
@@ -277,10 +272,7 @@ def extract32(expr, args, kwargs, context):
     sub, index = args
     ret_type = kwargs['type']
     # Get length and specific element
-    if sub.location == "calldata":
-        lengetter = LLLnode.from_list(['calldataload', ['add', 4, '_sub']], typ=BaseType('num'))
-        elementgetter = lambda index: LLLnode.from_list(['calldataload', ['add', ['add', 36, '_sub'], ['mul', 32, index]]], typ=BaseType('num'))
-    elif sub.location == "memory":
+    if sub.location == "memory":
         lengetter = LLLnode.from_list(['mload', '_sub'], typ=BaseType('num'))
         elementgetter = lambda index: LLLnode.from_list(['mload', ['add', '_sub', ['add', 32, ['mul', 32, index]]]], typ=BaseType('num'))
     elif sub.location == "storage":
@@ -464,9 +456,7 @@ def _RLPlist(expr, args, kwargs, context):
     if args[0].location == "memory":
         variable_pointer = args[0]
     else:
-        if args[0].location == "calldata":
-            lengetter = LLLnode.from_list(['calldataload', ['add', 4, '_ptr']], typ=BaseType('num'))
-        elif args[0].location == "storage":
+        if args[0].location == "storage":
             lengetter = LLLnode.from_list(['sload', ['sha3_32', '_ptr']], typ=BaseType('num'))
         else:
             raise Exception("Location not yet supported")
