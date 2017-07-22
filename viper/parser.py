@@ -3,7 +3,11 @@ try:
     sha3_256 = lambda x: keccak.new(digest_bits=256, data=x).digest()
 except ImportError:
     import sha3
-    sha3_256 = lambda x: sha3._sha3.sha3_256(x).digest()
+#    sha3_256 = lambda x: sha3._sha3.sha3_256(x).digest()
+    def sha3_256(x):
+        digester = sha3.sha3_256()
+        digester.update(x)
+        return digester.digest()
 
 import ast, tokenize, binascii
 from io import BytesIO
