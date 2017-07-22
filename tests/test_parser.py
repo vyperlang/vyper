@@ -1,6 +1,6 @@
 from viper import parser, compile_lll, utils
 from viper import compiler
-from ethereum.tools import tester2 as t
+from ethereum.tools import tester as t
 from ethereum import transactions, messages
 from ethereum import utils as u
 import rlp
