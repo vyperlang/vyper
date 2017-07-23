@@ -17,7 +17,7 @@ class TestERC20(unittest.TestCase):
         self.s = self.t.Chain()
         from viper import compiler
         self.t.languages['viper'] = compiler.Compiler()
-        self.c = self.s.contract(open('erc20.vy').read(), language='viper')
+        self.c = self.s.contract(open('erc20.v.py').read(), language='viper')
 
     def test_initial_state(self):
         # Check total supply is 0
@@ -85,12 +85,12 @@ class TestERC20(unittest.TestCase):
         self.assertEqual(self.c.allowance(self.t.a1, self.t.a2, sender=self.t.k3), 0)
         self.assertTrue(self.c.approve(self.t.a1, 1, sender=self.t.k2))
         self.s.mine()
-        self.assertEqual(self.c.allowance(self.t.a1, self.t.a2, sender=self.t.k2), 1)
-        self.assertTrue(self.c.transferFrom(self.t.a1, self.t.a2, 1, sender=self.t.k3))
+        self.assertEqual(self.c.allowance(self.t.a2, self.t.a1, sender=self.t.k2), 1)
+        self.assertFalse(self.c.transferFrom(self.t.a2, self.t.a3, 1, sender=self.t.k2))
         self.assertFalse(self.c.transferFrom(self.t.a1, self.t.a2, 1, sender=self.t.k3))
         # transferFrom with no funds should fail despite approval
-        self.assertTrue(self.c.approve(self.t.a1, 1, sender=self.t.k2))
-        self.assertEqual(self.c.allowance(self.t.a1, self.t.a2, sender=self.t.k2), 1)
+        self.assertFalse(self.c.approve(self.t.a1, 1, sender=self.t.k2))
+        self.assertEqual(self.c.allowance(self.t.a2, self.t.a1, sender=self.t.k2), 1)
         self.assertFalse(self.c.transferFrom(self.t.a1, self.t.a2, 1, sender=self.t.k3))
 
 
