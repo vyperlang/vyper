@@ -33,22 +33,28 @@ class TestERC20(unittest.TestCase):
         self.assertEqual(self.c.allowance(self.t.a2, self.t.a3), 0)
 
     def test_deposit_and_withdraw(self):
-        print(self.s.head_state.get_balance(self.t.a1)) # todo balance checks
+        initial_a1_balance = self.s.head_state.get_balance(self.t.a1)
         # Test scenario where a1 deposits 2, withdraws twice (check balance consistency)
         self.assertEqual(self.c.balanceOf(self.t.a1), 0)
         self.assertTrue(self.c.deposit(value=2, sender=self.t.k1))
         self.assertEqual(self.c.balanceOf(self.t.a1), 2)
+        # Check that 2 Wei have been debited from a1
+        self.assertEqual(initial_a1_balance - self.s.head_state.get_balance(self.t.a1), 2)
+        # ... and added to the contract
+        self.assertEqual(self.s.head_state.get_balance(self.c.address), 2)
         self.assertTrue(self.c.withdraw(2, sender=self.t.k1))
         self.assertEqual(self.c.balanceOf(self.t.a1), 0)
+        # a1 should have all his money back
+        self.assertEqual(self.s.head_state.get_balance(self.t.a1), initial_a1_balance)
         self.assertFalse(self.c.withdraw(2, sender=self.t.k1))
         self.assertEqual(self.c.balanceOf(self.t.a1), 0)
         # Test scenario where a2 deposits 0, withdraws (check balance consistency, false withdraw)
         self.assertTrue(self.c.deposit(value=0, sender=self.t.k2))
         self.assertEqual(self.c.balanceOf(self.t.a2), 0)
+        self.assertEqual(self.s.head_state.get_balance(self.t.a2), initial_a1_balance)
         self.assertFalse(self.c.withdraw(2, sender=self.t.k2))
         # Check that a1 cannot withdraw after depleting their balance
         self.assertFalse(self.c.withdraw(1, sender=self.t.k1))
-        print(self.s.head_state.get_balance(self.t.a1)) # todo balance checks
 
     def test_totalSupply(self):
         # Test total supply initially, after deposit, between two withdraws, and after failed withdraw
@@ -57,6 +63,8 @@ class TestERC20(unittest.TestCase):
         self.assertEqual(self.c.totalSupply(), 2)
         self.assertTrue(self.c.withdraw(1, sender=self.t.k1))
         self.assertEqual(self.c.totalSupply(), 1)
+        # Ensure total supply is equal to balance
+        self.assertEqual(self.c.totalSupply(), self.s.head_state.get_balance(self.c.address))
         self.assertTrue(self.c.withdraw(1, sender=self.t.k1))
         self.assertEqual(self.c.totalSupply(), 0)
         self.assertFalse(self.c.withdraw(1, sender=self.t.k1))
@@ -92,7 +100,6 @@ class TestERC20(unittest.TestCase):
         self.assertFalse(self.c.approve(self.t.a1, 1, sender=self.t.k2))
         self.assertEqual(self.c.allowance(self.t.a2, self.t.a1, sender=self.t.k2), 1)
         self.assertFalse(self.c.transferFrom(self.t.a1, self.t.a2, 1, sender=self.t.k3))
-
 
     def test_payability(self):
         # Make sure functions are appopriately payable (or not)
