@@ -161,6 +161,23 @@ assert c.reverse_digits(123456) == 654321
 print('Passed digit reverser test')
 print('Gas estimate', t.languages['viper'].gas_estimate(digit_reverser)['reverse_digits'], 'actual', s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
 
+state_accessor = """
+y: num[num]
+
+def oo():
+    self.y[3] = 5
+
+def foo() -> num:
+    return self.y[3]
+
+"""
+
+c = s.contract(state_accessor, language='viper')
+c.oo()
+assert c.foo() == 5
+print('Passed basic state accessor test')
+print('Gas estimate', t.languages['viper'].gas_estimate(state_accessor)['foo'], 'actual', s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
+
 arbitration_code = """
 buyer: address
 seller: address
