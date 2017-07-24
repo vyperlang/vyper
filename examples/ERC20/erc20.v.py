@@ -29,8 +29,10 @@ def __init__():
 def deposit() -> bool:
     self.payable(true, msg.value)
     if self.is_overflow_add(self.balances[msg.sender], as_num256(msg.value)):
+        send(msg.sender, msg.value)
         return false
     if self.is_overflow_add(self.num_issued, as_num256(msg.value)):
+        send(msg.sender, msg.value)
         return false
     self.balances[msg.sender] = num256_add(self.balances[msg.sender], as_num256(msg.value))
     self.num_issued = num256_add(self.num_issued, as_num256(msg.value))
@@ -41,9 +43,7 @@ def withdraw(_value : num256) -> bool:
     if self.is_overflow_sub(self.balances[msg.sender], _value):
         return false
     if self.is_overflow_sub(self.num_issued, _value):
-        return false # TODO test this
-    if not (_value == as_num256(as_num128(_value))):
-        return false # TODO test this boundary, formalize for Solidity compatibility
+        return false
     self.balances[msg.sender] = num256_sub(self.balances[msg.sender], _value)
     self.num_issued = num256_sub(self.num_issued, _value)
     send(msg.sender, as_wei_value(as_num128(_value), wei))
@@ -60,9 +60,9 @@ def balanceOf(_owner : address) -> num256(const):
 def transfer(_to : address, _value : num256) -> bool:
     self.payable(false, msg.value)
     if self.is_overflow_add(self.balances[_to], _value):
-        return false # TODO test this
+        return false
     if self.is_overflow_sub(self.balances[msg.sender], _value):
-        return false # TODO test this
+        return false
     self.balances[msg.sender] = num256_sub(self.balances[msg.sender], _value)
     self.balances[_to] = num256_add(self.balances[_to], _value)
     return true
@@ -71,7 +71,7 @@ def transferFrom(_from : address, _to : address, _value : num256) -> bool:
     self.payable(false, msg.value)
     allowance = self.allowances[_from][_to]
     if self.is_overflow_add(self.balances[_to], _value):
-        return false # TODO test this
+        return false
     if self.is_overflow_sub(self.balances[_from], _value):
         return false
     if self.is_overflow_sub(allowance, _value):
