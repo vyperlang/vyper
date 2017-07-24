@@ -1531,3 +1531,19 @@ must_succeed("""
 def foo() -> timestamp[2]:
     return [block.timestamp + 86400, block.timestamp]
 """)
+
+must_succeed("""
+def foo():
+    pass
+
+def goo():
+    self.foo()
+""")
+
+must_fail("""
+def foo():
+    self.goo()
+
+def goo():
+    self.foo()
+""", VariableDeclarationException)

@@ -6,11 +6,20 @@ from .types import combine_units, are_units_compatible, set_default_units
 from .exceptions import InvalidTypeException, TypeMismatchException, \
     VariableDeclarationException, StructureException, ConstancyViolationException, \
     InvalidTypeException, InvalidLiteralException
-from .opcodes import opcodes, pseudo_opcodes
-from .utils import fourbytes_to_int, hex_to_int, bytes_to_int, \
+from .opcodes import comb_opcodes
+from .utils import fourbytes_to_int, hex_to_int, bytes_to_int, ceil32, \
     DECIMAL_DIVISOR, RESERVED_MEMORY, ADDRSIZE_POS, MAXNUM_POS, MINNUM_POS, \
     MAXDECIMAL_POS, MINDECIMAL_POS, FREE_VAR_SPACE, BLANK_SPACE, FREE_LOOP_INDEX
 import re
+
+class NullAttractor():
+    def __add__(self, other):
+        return NullAttractor()
+    def __repr__(self):
+        return 'None'
+    __radd__ = __add__
+    __mul__ = __add__
+
 
 # Data structure for LLL parse tree
 class LLLnode():
@@ -25,27 +34,44 @@ class LLLnode():
         self.mutable = mutable
         # Determine this node's valency (1 if it pushes a value on the stack,
         # 0 otherwise) and checks to make sure the number and valencies of
-        # children are correct
+        # children are correct. Also, find an upper bound on gas consumption
         # Numbers
         if isinstance(self.value, int):
             self.valency = 1
+            self.gas = 5
         elif isinstance(self.value, str):
             # Opcodes and pseudo-opcodes (eg. clamp)
-            if self.value.upper() in opcodes or self.value.upper() in pseudo_opcodes:
-                record = opcodes.get(self.value.upper(), pseudo_opcodes.get(self.value.upper(), None))
-                self.valency = record[2]
-                if len(self.args) != record[1]:
+            if self.value.upper() in comb_opcodes:
+                _, ins, outs, gas = comb_opcodes[self.value.upper()]
+                self.valency = outs
+                if len(self.args) != ins:
                     raise Exception("Number of arguments mismatched: %r %r" % (self.value, self.args))
+                # We add 2 per stack height at push time and take it back
+                # at pop time; this makes `break` easier to handle
+                self.gas = gas + 2 * (outs - ins)
                 for arg in self.args:
                     if arg.valency == 0:
                         raise Exception("Can't have a zerovalent argument to an opcode or a pseudo-opcode! %r" % arg)
+                    self.gas += arg.gas
+                # Dynamic gas cost: non-zero-valued call
+                if self.value.upper() == 'CALL' and self.args[2].value != 0:
+                    self.gas += 34000
+                # Dynamic gas cost: filling sstore (ie. not clearing)
+                elif self.value.upper() == 'SSTORE' and self.args[1].value != 0:
+                    self.gas += 15000
+                # Dynamic gas cost: calldatacopy
+                elif self.value.upper() in ('CALLDATACOPY', 'CODECOPY'):
+                    self.gas += ceil32(self.args[2].value) // 32 * 3
             # If statements
             elif self.value == 'if':
                 if len(self.args) == 3:
+                    self.gas = self.args[0].gas + max(self.args[1].gas, self.args[2].gas) + 3
                     if self.args[1].valency != self.args[2].valency:
                         raise Exception("Valency mismatch between then and else clause: %r %r" % (self.args[1], self.args[2]))
-                if len(self.args) == 2 and self.args[1].valency:
-                    raise Exception("2-clause if statement must have a zerovalent body: %r" % self.args[1])
+                if len(self.args) == 2:
+                    self.gas = self.args[0].gas + self.args[1].gas + 17
+                    if self.args[1].valency:
+                        raise Exception("2-clause if statement must have a zerovalent body: %r" % self.args[1])
                 if not self.args[0].valency:
                     raise Exception("Can't have a zerovalent argument as a test to an if statement! %r" % self.args[0])
                 if len(self.args) not in (2, 3):
@@ -60,6 +86,7 @@ class LLLnode():
                 if not self.args[1].valency:
                     raise Exception("Second argument to with statement (initial value) cannot be zerovalent: %r" % self.args[1])
                 self.valency = self.args[2].valency
+                self.gas = self.args[0].gas + self.args[1].gas + 5
             # Repeat statements: repeat <index_memloc> <startval> <rounds> <body>
             elif self.value == 'repeat':
                 if len(self.args[2].args) or not isinstance(self.args[2].value, int) or self.args[2].value <= 0:
@@ -71,20 +98,29 @@ class LLLnode():
                 if self.args[3].valency:
                     raise Exception("Third argument to repeat (clause to be repeated) must be zerovalent: %r" % self.args[3])
                 self.valency = 0
+                self.gas = (self.args[2].gas + 50) * self.args[0].value + 30
             # Seq statements: seq <statement> <statement> ...
             elif self.value == 'seq':
                 self.valency = self.args[-1].valency if self.args else 0
+                self.gas = sum([arg.gas for arg in self.args])
             # Multi statements: multi <expr> <expr> ...
             elif self.value == 'multi':
                 for arg in self.args:
                     if not arg.valency:
                         raise Exception("Multi expects all children to not be zerovalent: %r" % arg)
                 self.valency = sum([arg.valency for arg in self.args])
-            # Variables
+                self.gas = sum([arg.gas for arg in self.args])
+            # LLL brackets (don't bother gas counting)
+            elif self.value == 'lll':
+                self.valency = 1
+                self.gas = NullAttractor()
+            # Stack variables
             else:
                 self.valency = 1
+                self.gas = 5
         elif self.value is None and isinstance(self.typ, NullType):
             self.valency = 1
+            self.gas = 5
         else:
             raise Exception("Invalid value for LLL AST node: %r" % self.value)
         assert isinstance(self.args, list)

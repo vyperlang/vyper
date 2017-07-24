@@ -22,7 +22,8 @@ from .parser_utils import LLLnode, make_byte_array_copier, get_number_as_fractio
     get_original_if_0x_prefixed, get_length, getpos
 from .utils import fourbytes_to_int, hex_to_int, bytes_to_int, checksum_encode, \
     DECIMAL_DIVISOR, RESERVED_MEMORY, ADDRSIZE_POS, MAXNUM_POS, MINNUM_POS, \
-    MAXDECIMAL_POS, MINDECIMAL_POS, FREE_VAR_SPACE, BLANK_SPACE, FREE_LOOP_INDEX
+    MAXDECIMAL_POS, MINDECIMAL_POS, FREE_VAR_SPACE, BLANK_SPACE, FREE_LOOP_INDEX, \
+    calc_mem_gas
 
 try:
     x = ast.AnnAssign
@@ -152,15 +153,14 @@ def get_defs_and_globals(code):
     return _defs + _getters, _globals
 
 # Header code
-def mk_initial():
-    return LLLnode.from_list(['seq',
-                                ['mstore', 28, ['calldataload', 0]],
-                                ['mstore', ADDRSIZE_POS, 2**160],
-                                ['mstore', MAXNUM_POS, 2**128 - 1],
-                                ['mstore', MINNUM_POS, -2**128 + 1],
-                                ['mstore', MAXDECIMAL_POS, (2**128 - 1) * DECIMAL_DIVISOR],
-                                ['mstore', MINDECIMAL_POS, (-2**128 + 1) * DECIMAL_DIVISOR],
-                             ], typ=None)
+initializer_lll = LLLnode.from_list(['seq',
+                                        ['mstore', 28, ['calldataload', 0]],
+                                        ['mstore', ADDRSIZE_POS, 2**160],
+                                        ['mstore', MAXNUM_POS, 2**128 - 1],
+                                        ['mstore', MINNUM_POS, -2**128 + 1],
+                                        ['mstore', MAXDECIMAL_POS, (2**128 - 1) * DECIMAL_DIVISOR],
+                                        ['mstore', MINDECIMAL_POS, (-2**128 + 1) * DECIMAL_DIVISOR],
+                                    ], typ=None)
 
 # Get function details
 # Returns:
@@ -312,21 +312,24 @@ def parse_tree_to_lll(code, origcode):
     # Generate the list of all function signatures for this contract
     sigs = {name: (ins, outs, sig) for name, ins, outs, sig in [get_function_signature(_def) for _def in _defs]}
     # Create the main statement
-
-    # Case 1: no functions at all
-    if not initfunc and not otherfuncs:
-        return LLLnode.from_list('pass')
-    # No init function: just put all the functions together inside a return LLL statement
-    if not initfunc and otherfuncs:
-        return LLLnode.from_list(['return', 0, ['lll', ['seq', mk_initial()] + [parse_func(_def, _globals, {'self': sigs}, origcode) for _def in otherfuncs], 0]], typ=None)
-    # Init func only: don't bother with the return LLL statement
-    elif initfunc and not otherfuncs:
-        return LLLnode.from_list(['seq', mk_initial(), parse_func(initfunc[0], _globals, {'self': sigs}, origcode), ['selfdestruct']], typ=None)
-    # Init func AND other funcs: return LLL statement, prepended with init
-    elif initfunc and otherfuncs:
-        return LLLnode.from_list(['seq', mk_initial(), parse_func(initfunc[0], _globals, {'self': sigs}, origcode),
-                                    ['return', 0, ['lll', ['seq', mk_initial()] + [parse_func(_def, _globals, {'self': sigs}, origcode) for _def in otherfuncs], 0]]],
-                                 typ=None)
+    o = ['seq']
+    # If there is an init func...
+    if initfunc:
+        o.append(initializer_lll)
+        o.append(parse_func(initfunc[0], _globals, {'self': {}}, origcode))
+    # If there are regular functions...
+    if otherfuncs:
+        sub = ['seq', initializer_lll]
+        add_gas = initializer_lll.gas
+        sigs = {}
+        for _def in otherfuncs:
+            sub.append(parse_func(_def, _globals, {'self': sigs}, origcode))
+            sub[-1].total_gas += add_gas
+            add_gas += 30
+            name, ins, outs, sig = get_function_signature(_def)
+            sigs[name] = (ins, outs, sig, sub[-1].total_gas)
+        o.append(['return', 0, ['lll', sub, 0]])
+    return LLLnode.from_list(o, typ=None)
 
 # Checks that an input matches its type
 def make_clamper(datapos, mempos, typ, is_init=False):
@@ -349,7 +352,7 @@ def make_clamper(datapos, mempos, typ, is_init=False):
     # Bytes: make sure they have the right size
     elif isinstance(typ, ByteArrayType):
         return LLLnode.from_list(['seq',
-                                    copier(data_decl, ['add', 32, ['calldataload', ['add', 4, data_decl]]]),
+                                    copier(data_decl, 32 + typ.maxlen),
                                     ['assert', ['le', ['calldataload', ['add', 4, data_decl]], typ.maxlen]]],
                                  typ=None, annotation='checking bytearray input')
     # Lists: recurse
@@ -376,7 +379,9 @@ def parse_func(code, _globals, sigs, origcode, _vars={}):
     # Copy calldata to memory for fixed-size arguments
     copy_size = sum([32 if isinstance(typ, ByteArrayType) else get_size_of_type(typ) * 32 for _, _, typ in args])
     context.next_mem += copy_size
-    if name == '__init__':
+    if not len(args):
+        copier = 'pass'
+    elif name == '__init__':
         copier = ['codecopy', RESERVED_MEMORY, '~codelen', copy_size]
     else:
         copier = ['calldatacopy', RESERVED_MEMORY, 4, copy_size]
@@ -392,13 +397,17 @@ def parse_func(code, _globals, sigs, origcode, _vars={}):
     # Create "clampers" (input well-formedness checkers)
     # Return function body
     if name == '__init__':
-        return LLLnode.from_list(['seq'] + clampers + [parse_body(code.body, context)], pos=getpos(code))
+        o = LLLnode.from_list(['seq'] + clampers + [parse_body(code.body, context)], pos=getpos(code))
     else:
         method_id_node = LLLnode.from_list(method_id, pos=getpos(code), annotation='%s' % name)
-        return LLLnode.from_list(['if',
-                                    ['eq', ['mload', 0], method_id_node],
-                                    ['seq'] + clampers + [parse_body(c, context) for c in code.body] + ['stop']
-                                 ], typ=None, pos=getpos(code))
+        o = LLLnode.from_list(['if',
+                                  ['eq', ['mload', 0], method_id_node],
+                                  ['seq'] + clampers + [parse_body(c, context) for c in code.body] + ['stop']
+                               ], typ=None, pos=getpos(code))
+    o.context = context
+    o.total_gas = o.gas + calc_mem_gas(o.context.next_mem)
+    o.func_name = name
+    return o
     
 # Parse a piece of code
 def parse_body(code, context):
@@ -753,7 +762,7 @@ def parse_expr(expr, context):
         if isinstance(expr.func, ast.Name) and expr.func.id in dispatch_table:
             return dispatch_table[expr.func.id](expr, context)
         elif isinstance(expr.func, ast.Attribute) and isinstance(expr.func.value, ast.Name) and expr.func.value.id == "self":
-            ins, out, sig = context.sigs['self'][expr.func.attr]
+            ins, out, sig, maxgas = context.sigs['self'][expr.func.attr]
             inargs, inargsize = pack_arguments(context, 'self', expr.func.attr, [parse_expr(arg, context) for arg in expr.args])
             output_placeholder = context.new_placeholder(typ=out)
             if isinstance(out, BaseType):
@@ -762,11 +771,13 @@ def parse_expr(expr, context):
                 returner = output_placeholder + 32
             else:
                 raise TypeMismatchException("Invalid output type: %r" % out, expr)
-            return LLLnode.from_list(['seq',
+            o = LLLnode.from_list(['seq',
                                         ['assert', ['call', ['gas'], ['address'], 0,
                                                         inargs, inargsize,
                                                         output_placeholder, get_size_of_type(out) * 32]],
                                         returner], typ=out, location='memory', pos=getpos(expr))
+            o.gas += maxgas
+            return o
         else:
             raise StructureException("Unsupported operator: %r" % ast.dump(expr), expr)
     # List literals
@@ -1129,7 +1140,9 @@ def parse_stmt(stmt, context):
 
 # Pack function arguments for a call
 def pack_arguments(context, type_name, method_name, args):
-    types, _, method_id = context.sigs[type_name][method_name]
+    if method_name not in context.sigs[type_name]:
+        raise VariableDeclarationException("Function not declared yet (reminder: functions cannot call functions later in code than themselves): %s" % method_name)
+    types, _, method_id, _ = context.sigs[type_name][method_name]
     placeholder_typ = ByteArrayType(maxlen=sum([get_size_of_type(typ) for typ in types]) * 32 + 32)
     placeholder = context.new_placeholder(placeholder_typ)
     setters = [['mstore', placeholder, method_id]]

@@ -35,6 +35,13 @@ def checksum_encode(addr): # Expects an input of the form 0x<40 hex chars>
             o += c.upper() if (v & (2**(255 - 4*i))) else c.lower()
     return '0x'+o
 
+# Returns lowest multiple of 32 >= the input
+def ceil32(x):
+    return x if x % 32 == 0 else x + 32 - (x % 32)
+
+# Calculates amount of gas needed for memory expansion
+def calc_mem_gas(memsize):
+    return (memsize // 32) * 3 + (memsize // 32) ** 2 // 512
 
 # A decimal value can store multiples of 1/DECIMAL_DIVISOR
 DECIMAL_DIVISOR = 10000000000

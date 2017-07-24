@@ -15,41 +15,6 @@ SWAP_OFFSET = 0x8f
 
 FREE_VAR_SPACE = 192
 
-# Estimates gas consumption
-def gas_estimate(code, depth=0):
-    if isinstance(code.value, int):
-        return 3
-    elif isinstance(code.value, str) and (code.value.upper() in opcodes or code.value.upper() in pseudo_opcodes):
-        decl = opcodes.get(code.value.upper(), pseudo_opcodes.get(code.value.upper(), None))
-        o = sum([gas_estimate(c, depth + i) for i, c in enumerate(code.args[::-1])]) + decl[3]
-        # Dynamic gas costs
-        if code.value.upper() == 'CALL' and code.args[2].value != 0:
-            o += 34000
-        if code.value.upper() == 'SSTORE' and code.args[1].value != 0:
-            o += 15000
-        if code.value.upper() in ('SUICIDE', 'SELFDESTRUCT'):
-            o += 25000
-        if code.value.upper() == 'BREAK':
-            o += opcodes['POP'][3] * depth
-        return o
-    elif isinstance(code.value, str) and code.value == 'if':
-        if (len(code.args) == 2):
-            return gas_estimate(code.args[0], depth + 1) + gas_estimate(code.args[1], depth + 1) + 17
-        elif (len(code.args) == 3):
-            return gas_estimate(code.args[0], depth + 1) + max(gas_estimate(code.args[1], depth + 1), gas_estimate(code.args[2], depth + 1))+ 31
-        else:
-            raise Exception("If statement must have 2 or 3 child elements")
-    elif isinstance(code.value, str) and code.value == 'with':
-        return gas_estimate(code.args[1], depth + 1) + gas_estimate(code.args[2], depth + 1) + 5
-    elif isinstance(code.value, str) and code.value == 'repeat':
-        return (gas_estimate(code.args[2], depth + 1) + 50) * code.args[0].value + 30
-    elif isinstance(code.value, str) and code.value == 'seq':
-        return sum([gas_estimate(c, depth + 1) for c in code.args])
-    elif isinstance(code.value, str):
-        return 3
-    else:
-        raise Exception("Gas estimate failed: "+repr(code))
-
 next_symbol = [0]
 
 def mksymbol():

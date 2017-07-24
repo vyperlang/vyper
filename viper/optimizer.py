@@ -105,6 +105,11 @@ def optimize(node):
             elif arg.value != "pass":
                 o.append(arg)
         return LLLnode(node.value, o, node.typ, node.location, node.pos, node.annotation)
+    elif hasattr(node, 'total_gas'):
+        o = LLLnode(node.value, argz, node.typ, node.location, node.pos, node.annotation)
+        o.total_gas = node.total_gas - node.gas + o.gas
+        o.func_name = node.func_name
+        return o
     else:
         return LLLnode(node.value, argz, node.typ, node.location, node.pos, node.annotation)
     

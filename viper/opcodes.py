@@ -67,7 +67,7 @@ opcodes = {
     'CALLBLACKBOX': [0xf5, 7, 1, 700],
     'INVALID': [0xfe, 0, 0, 0],
     'SUICIDE': [0xff, 1, 0, 5000],
-    'SELFDESTRUCT': [0xff, 1, 0, 5000],
+    'SELFDESTRUCT': [0xff, 1, 0, 25000],
 }
 
 pseudo_opcodes = {
@@ -78,7 +78,7 @@ pseudo_opcodes = {
     'ASSERT': [None, 1, 0, 20],
     'PASS': [None, 0, 0, 0],
     'BREAK': [None, 0, 0, 20],
-    'SHA3_32': [None, 1, 1, 40],
+    'SHA3_32': [None, 1, 1, 50],
     'SLE': [None, 2, 1, 10],
     'SGE': [None, 2, 1, 10],
     'LE': [None, 2, 1, 10],
@@ -87,3 +87,10 @@ pseudo_opcodes = {
     'SET': [None, 2, 0, 20],
     'NE': [None, 2, 1, 6],
 }
+
+comb_opcodes = {}
+for k in opcodes:
+    comb_opcodes[k] = opcodes[k]
+for k in pseudo_opcodes:
+    comb_opcodes[k] = pseudo_opcodes[k]
+
