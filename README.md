@@ -7,6 +7,12 @@ Viper is an experimental programming language that aims to provide the following
 * Maximally small and understandable compiler code size
 * Limited support for pure functions - anything marked constant is NOT allowed to change the state
 
+### Compatibility-breaking change log
+
+* **2017.07.25**: the `def foo() -> num(const): ...` syntax no longer works; you now need to do `def foo() -> num: ...` with a `@constant` decorator on the previous line.
+* **2017.07.25**: functions without a `@payable` decorator now fail when called with nonzero wei.
+* **2017.07.25**: a function can only call functions that are declared above it (that is, A can call B only if B appears earlier in the code than A does). This was introduced to prevent infinite looping through recursion.
+
 ### Grammar
 
 Note that not all programs that satisfy the following are valid; for example, there are also requirements against declaring variables twice, accessing undeclared variables, type mismatches among other rules.
@@ -15,9 +21,9 @@ Note that not all programs that satisfy the following are valid; for example, th
     globals = <global> <global> ...
     global = <varname>: <type>
     defs = <def> <def> ...
-    def = def <funname>(<argname>: <type>, <argname>: <type>...): <body>
-        OR def <funname>(<argname>: <type>, <argname>: <type>...) -> <type>: <body>
-        OR def <funname>(<argname>: <type>, <argname>: <type>...) -> <type>(const): <body>
+    def = <0 or more decorators> def <funname>(<argname>: <type>, <argname>: <type>...): <body>
+        OR <0 or more decorators> def <funname>(<argname>: <type>, <argname>: <type>...) -> <type>: <body>
+    decorator = @constant OR @payable OR @internal
     argname = <str>
     body = <stmt> <stmt> ...
     stmt = <varname> = <type>
@@ -125,6 +131,7 @@ def __init__(_beneficiary: address, _goal: wei_value, _timelimit: timedelta):
     self.goal = _goal
     
 # Participate in this crowdfunding campaign
+@payable
 def participate():
     assert block.timestamp < self.deadline
     nfi = self.nextFunderIndex

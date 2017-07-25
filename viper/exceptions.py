@@ -34,6 +34,10 @@ class ConstancyViolationException(ParserException):
     pass
 
 
+class NonPayableViolationException(ParserException):
+    pass
+
+
 class InvalidLiteralException(ParserException):
     pass
 

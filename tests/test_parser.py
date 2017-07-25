@@ -217,6 +217,7 @@ buyer: address
 seller: address
 arbitrator: address
 
+@payable
 def __init__(_seller: address, _arbitrator: address):
     if not self.buyer:
         self.buyer = msg.sender
@@ -529,6 +530,7 @@ def __init__(_beneficiary: address, _goal: wei_value, _timelimit: timedelta):
     self.timelimit = _timelimit
     self.goal = _goal
 
+@payable
 def participate():
     assert block.timestamp < self.deadline
     nfi = self.nextFunderIndex
@@ -536,19 +538,24 @@ def participate():
     self.funders[nfi].value = msg.value
     self.nextFunderIndex = nfi + 1
 
-def expired() -> bool(const):
+@constant
+def expired() -> bool:
     return block.timestamp >= self.deadline
 
-def timestamp() -> timestamp(const):
+@constant
+def timestamp() -> timestamp:
     return block.timestamp
 
-def deadline() -> timestamp(const):
+@constant
+def deadline() -> timestamp:
     return self.deadline
 
-def timelimit() -> timedelta(const):
+@constant
+def timelimit() -> timedelta:
     return self.timelimit
 
-def reached() -> bool(const):
+@constant
+def reached() -> bool:
     return self.balance >= self.goal
 
 def finalize():
@@ -830,25 +837,31 @@ def __init__(_beneficiary: address, _goal: wei_value, _timelimit: timedelta):
     self.timelimit = _timelimit
     self.goal = _goal
 
+@payable
 def participate():
     assert block.timestamp < self.deadline
     nfi = self.nextFunderIndex
     self.funders[nfi] = {sender: msg.sender, value: msg.value}
     self.nextFunderIndex = nfi + 1
 
-def expired() -> bool(const):
+@constant
+def expired() -> bool:
     return block.timestamp >= self.deadline
 
-def timestamp() -> timestamp(const):
+@constant
+def timestamp() -> timestamp:
     return block.timestamp
 
-def deadline() -> timestamp(const):
+@constant
+def deadline() -> timestamp:
     return self.deadline
 
-def timelimit() -> timedelta(const):
+@constant
+def timelimit() -> timedelta:
     return self.timelimit
 
-def reached() -> bool(const):
+@constant
+def reached() -> bool:
     return self.balance >= self.goal
 
 def finalize():
@@ -2154,3 +2167,17 @@ assert c.qoo([1,2]) == [[1,2],[3,4]]
 assert c.roo([1,2]) == [[1.0,2.0],[3.0,4.0]]
 
 print("Passed list output tests")
+
+internal_test = """
+@internal
+def a() -> num:
+    return 5
+
+def returnten() -> num:
+    return self.a() * 2
+"""
+
+c = s.contract(internal_test, language='viper')
+assert c.returnten() == 10
+
+print("Passed internal function test")

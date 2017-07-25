@@ -1,5 +1,5 @@
 from viper import parser, compile_lll, compiler
-from viper.exceptions import InvalidTypeException, TypeMismatchException, VariableDeclarationException, StructureException, ConstancyViolationException, InvalidLiteralException
+from viper.exceptions import InvalidTypeException, TypeMismatchException, VariableDeclarationException, StructureException, ConstancyViolationException, InvalidLiteralException, NonPayableViolationException
 
 def must_fail(code, exception_type):
     success = False
@@ -462,9 +462,31 @@ def foo():
 
 must_fail("""
 x: num
-def foo() -> num(const):
+@constant
+def foo() -> num:
     self.x = 5
 """, ConstancyViolationException)
+
+must_fail("""
+x: num
+@const
+def foo() -> num:
+    pass
+""", StructureException)
+
+must_fail("""
+x: num
+@monkeydoodledoo
+def foo() -> num:
+    pass
+""", StructureException)
+
+must_fail("""
+x: num
+@constant(123)
+def foo() -> num:
+    pass
+""", StructureException)
 
 must_succeed("""
 x: num
@@ -472,13 +494,29 @@ def foo() -> num:
     self.x = 5
 """)
 
+must_succeed("""
+x: num
+@payable
+def foo() -> num:
+    self.x = 5
+""")
+
+must_succeed("""
+x: num
+@internal
+def foo() -> num:
+    self.x = 5
+""")
+
 must_fail("""
-def foo() -> num(const):
+@constant
+def foo() -> num:
     send(0x1234567890123456789012345678901234567890, 5)
 """, ConstancyViolationException)
 
 must_fail("""
-def foo() -> num(const):
+@constant
+def foo() -> num:
     selfdestruct(0x1234567890123456789012345678901234567890)
 """, ConstancyViolationException)
 
@@ -749,12 +787,14 @@ def foo(x: timestamp) -> timestamp:
 """)
 
 must_succeed("""
-def foo(x: timestamp) -> num(const):
+@constant
+def foo(x: timestamp) -> num:
     return 5
 """)
 
 must_succeed("""
-def foo(x: timestamp) -> timestamp(const):
+@constant
+def foo(x: timestamp) -> timestamp:
     return x
 """)
 
@@ -951,14 +991,16 @@ def foo() -> num(sec):
 must_succeed("""
 x: timedelta
 y: num
-def foo() -> num(sec, const):
+@constant
+def foo() -> num(sec):
     return self.x
 """)
 
 must_fail("""
 x: timedelta
 y: num
-def foo() -> num(sec, const):
+@constant
+def foo() -> num(sec):
     self.y = 9
     return 5
 """, ConstancyViolationException)
@@ -1229,7 +1271,8 @@ def foo():
 """, StructureException)
 
 must_fail("""
-def foo() -> num(const):
+@constant
+def foo() -> num:
     x = raw_call(0x1234567890123456789012345678901234567890, "cow", outsize=4, gas=595757, value=9)
     return 5
 """, ConstancyViolationException)
@@ -1275,7 +1318,8 @@ def foo():
 """, StructureException)
 
 must_fail("""
-def foo() -> num(const):
+@constant
+def foo() -> num:
     x = create_with_code_of(0x1234567890123456789012345678901234567890, value=9)
     return 5
 """, ConstancyViolationException)
@@ -1547,3 +1591,14 @@ def foo():
 def goo():
     self.foo()
 """, VariableDeclarationException)
+
+must_succeed("""
+@payable
+def foo():
+    x = msg.value
+""")
+
+must_fail("""
+def foo():
+    x = msg.value
+""", NonPayableViolationException)

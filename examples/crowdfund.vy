@@ -14,6 +14,7 @@ def __init__(_beneficiary: address, _goal: wei_value, _timelimit: timedelta):
     self.goal = _goal
 
 # Participate in this crowdfunding campaign
+@payable
 def participate():
     assert block.timestamp < self.deadline
     nfi = self.nextFunderIndex

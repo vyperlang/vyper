@@ -16,7 +16,7 @@ from .types import base_types, parse_type, canonicalize_type, is_base_type, \
 from .types import combine_units, are_units_compatible, set_default_units
 from .exceptions import InvalidTypeException, TypeMismatchException, \
     VariableDeclarationException, StructureException, ConstancyViolationException, \
-    InvalidTypeException, InvalidLiteralException
+    InvalidTypeException, InvalidLiteralException, NonPayableViolationException
 from .functions import dispatch_table, stmt_dispatch_table
 from .parser_utils import LLLnode, make_byte_array_copier, get_number_as_fraction, \
     get_original_if_0x_prefixed, get_length, getpos
@@ -107,14 +107,10 @@ def _mk_getter_helper(typ, depth=0):
     else:
         raise Exception("Unexpected type")
 
-# Update a function return type to make it constant
-def update_base(base):
-    return '('+base+')(const)' if '(' not in base else base.rstrip(')') + ', const)'
-
 # Make a list of getters for a given variable name with a given type
 def mk_getter(varname, typ):
     funs = _mk_getter_helper(typ)
-    return ['def get_%s%s(%s) -> %s: return self.%s%s' % (varname, funname, head.rstrip(', '), update_base(base), varname, tail)
+    return ['@constant\ndef get_%s%s(%s) -> %s: return self.%s%s' % (varname, funname, head.rstrip(', '), base, varname, tail)
             for (funname, head, tail, base) in funs]
 
 # Parse top-level functions and variables
@@ -192,35 +188,26 @@ def get_func_details(code):
             pos += 32
         else:
             pos += get_size_of_type(parsed_type) * 32
+    # Apply decorators
+    const, payable, internal = False, False, False
+    for dec in code.decorator_list:
+        if isinstance(dec, ast.Name) and dec.id == "constant":
+            const = True
+        elif isinstance(dec, ast.Name) and dec.id == "payable":
+            payable = True
+        elif isinstance(dec, ast.Name) and dec.id == "internal":
+            internal = True
+        else:
+            raise StructureException("Bad decorator", dec)
     # Determine the return type and whether or not it's constant. Expects something
     # of the form:
     # def foo(): ...
     # def foo() -> num: ... 
-    # def foo() -> num(const): ...
-    const = False
     # If there is no return type, ie. it's of the form def foo(): ...
     # and NOT def foo() -> type: ..., then it's null
     if not code.returns:
         output_type = None
-    # If it's of the form def foo() -> x(y): ..., then what's inside the
-    # brackets could represent two things: a const keyword, meaning the
-    # function is constant, and the unit (eg. def foo() -> num(sec): ...)
-    elif isinstance(code.returns, ast.Call):
-        consts = [arg for arg in code.returns.args if isinstance(arg, ast.Name) and arg.id == 'const']
-        if len(consts) > 1:
-            raise InvalidTypeException("Expecting at most one const keyword", code.returns)
-        units = [arg for arg in code.returns.args if arg not in consts]
-        const = len(consts) == 1
-        # We do a bit of jiggling with the AST object to surgically remove the
-        # const keyword if present
-        if units:
-            typ = ast.Call(func=code.returns.func, args=units)
-        else:
-            typ = code.returns.func
-        output_type = parse_type(typ, None)
-    # If the return type is of the form def foo() -> x: ..., then parse the
-    # return type directly
-    elif isinstance(code.returns, (ast.Name, ast.Compare, ast.Subscript)):
+    elif isinstance(code.returns, (ast.Name, ast.Compare, ast.Subscript, ast.Call)):
         output_type = parse_type(code.returns, None)
     else:
         raise InvalidTypeException("Output type invalid or unsupported: %r" % parse_type(code.returns, None), code.returns)
@@ -231,11 +218,11 @@ def get_func_details(code):
     sig = name + '(' + ','.join([canonicalize_type(parse_type(arg.annotation, None)) for arg in code.args.args]) + ')'
     # Take the first 4 bytes of the hash of the sig to get the method ID
     method_id = fourbytes_to_int(sha3_256(bytes(sig, 'utf-8'))[:4])
-    return name, args, output_type, const, sig, method_id
+    return name, args, output_type, (const, payable, internal), sig, method_id
 
 # Contains arguments, variables, etc
 class Context():
-    def __init__(self, vars=None, globals=None, sigs=None, forvars=None, return_type=None, is_constant=False, origcode=''):
+    def __init__(self, vars=None, globals=None, sigs=None, forvars=None, return_type=None, is_constant=False, is_payable=False, origcode=''):
         # In-memory variables, in the form (name, memory location, type)
         self.vars = vars or {}
         self.next_mem = RESERVED_MEMORY
@@ -249,6 +236,8 @@ class Context():
         self.return_type = return_type
         # Is the function constant?
         self.is_constant = is_constant
+        # Is the function payable?
+        self.is_payable = is_payable
         # Number of placeholders generated (used to generate random names)
         self.placeholder_count = 1
         # Original code (for error pretty-printing purposes)
@@ -284,20 +273,22 @@ def mk_full_signature(code):
     o = []
     _defs, _globals = get_defs_and_globals(code)
     for code in _defs:
-        name, args, output_type, const, sig, method_id = get_func_details(code)
-        o.append({
-            "name": sig,
-            "outputs": [{"type": canonicalize_type(output_type), "name": "out"}] if output_type else [],
-            "inputs": [{"type": canonicalize_type(typ), "name": nam} for nam, loc, typ in args],
-            "constant": const,
-            "type": "constructor" if name == "__init__" else "function"
-        })
+        name, args, output_type, (const, payable, internal), sig, method_id = get_func_details(code)
+        if not internal:
+            o.append({
+                "name": sig,
+                "outputs": [{"type": canonicalize_type(output_type), "name": "out"}] if output_type else [],
+                "inputs": [{"type": canonicalize_type(typ), "name": nam} for nam, loc, typ in args],
+                "constant": const,
+                "payable": payable,
+                "type": "constructor" if name == "__init__" else "function"
+            })
     return o
 
 # Get a signature of a single function
 def get_function_signature(code):
-    name, args, output_type, const, sig, method_id = get_func_details(code)
-    return (name, [typ for nam, loc, typ in args], output_type, method_id)
+    name, args, output_type, flags, sig, method_id = get_func_details(code)
+    return (name, [typ for nam, loc, typ in args], output_type, method_id, flags)
         
 # Main python parse tree => LLL method
 def parse_tree_to_lll(code, origcode):
@@ -309,8 +300,6 @@ def parse_tree_to_lll(code, origcode):
     initfunc = [_def for _def in _defs if is_initializer(_def)]
     # Regular functions
     otherfuncs = [_def for _def in _defs if not is_initializer(_def)]
-    # Generate the list of all function signatures for this contract
-    sigs = {name: (ins, outs, sig) for name, ins, outs, sig in [get_function_signature(_def) for _def in _defs]}
     # Create the main statement
     o = ['seq']
     # If there is an init func...
@@ -326,8 +315,8 @@ def parse_tree_to_lll(code, origcode):
             sub.append(parse_func(_def, _globals, {'self': sigs}, origcode))
             sub[-1].total_gas += add_gas
             add_gas += 30
-            name, ins, outs, sig = get_function_signature(_def)
-            sigs[name] = (ins, outs, sig, sub[-1].total_gas)
+            name, ins, outs, sig, flags = get_function_signature(_def)
+            sigs[name] = (ins, outs, sig, sub[-1].total_gas, flags)
         o.append(['return', 0, ['lll', sub, 0]])
     return LLLnode.from_list(o, typ=None)
 
@@ -368,14 +357,14 @@ def make_clamper(datapos, mempos, typ, is_init=False):
 
 # Parses a function declaration
 def parse_func(code, _globals, sigs, origcode, _vars={}):
-    name, args, output_type, const, sig, method_id = get_func_details(code)
+    name, args, output_type, (const, payable, internal), sig, method_id = get_func_details(code)
     # Check for duplicate variables with globals
     for arg in args:
         if arg[0] in _globals:
             raise VariableDeclarationException("Variable name duplicated between function arguments and globals: "+arg[0])
     # Create a context
     context = Context(vars=_vars, globals=_globals, sigs=sigs,
-                      return_type=output_type, is_constant=const, origcode=origcode)
+                      return_type=output_type, is_constant=const, is_payable=payable, origcode=origcode)
     # Copy calldata to memory for fixed-size arguments
     copy_size = sum([32 if isinstance(typ, ByteArrayType) else get_size_of_type(typ) * 32 for _, _, typ in args])
     context.next_mem += copy_size
@@ -386,6 +375,11 @@ def parse_func(code, _globals, sigs, origcode, _vars={}):
     else:
         copier = ['calldatacopy', RESERVED_MEMORY, 4, copy_size]
     clampers = [copier]
+    # Add asserts for payable and internal
+    if not payable:
+        clampers.append(['assert', ['iszero', 'callvalue']])
+    if internal:
+        clampers.append(['assert', ['eq', 'caller', 'address']])
     # Fill in variable positions
     for arg, pos, typ in args:
         clampers.append(make_clamper(pos, context.next_mem, typ, name == '__init__'))
@@ -584,6 +578,8 @@ def parse_expr(expr, context):
             if key == "msg.sender":
                 return LLLnode.from_list(['caller'], typ='address', pos=getpos(expr))
             elif key == "msg.value":
+                if not context.is_payable:
+                    raise NonPayableViolationException("Cannot use msg.value in a non-payable function", expr)
                 return LLLnode.from_list(['callvalue'], typ=BaseType('num', {'wei': 1}), pos=getpos(expr))
             elif key == "block.difficulty":
                 return LLLnode.from_list(['difficulty'], typ='num', pos=getpos(expr))
@@ -762,7 +758,7 @@ def parse_expr(expr, context):
         if isinstance(expr.func, ast.Name) and expr.func.id in dispatch_table:
             return dispatch_table[expr.func.id](expr, context)
         elif isinstance(expr.func, ast.Attribute) and isinstance(expr.func.value, ast.Name) and expr.func.value.id == "self":
-            ins, out, sig, maxgas = context.sigs['self'][expr.func.attr]
+            ins, out, sig, maxgas, (const, payable, internal) = context.sigs['self'][expr.func.attr]
             inargs, inargsize = pack_arguments(context, 'self', expr.func.attr, [parse_expr(arg, context) for arg in expr.args])
             output_placeholder = context.new_placeholder(typ=out)
             if isinstance(out, BaseType):
@@ -1142,7 +1138,7 @@ def parse_stmt(stmt, context):
 def pack_arguments(context, type_name, method_name, args):
     if method_name not in context.sigs[type_name]:
         raise VariableDeclarationException("Function not declared yet (reminder: functions cannot call functions later in code than themselves): %s" % method_name)
-    types, _, method_id, _ = context.sigs[type_name][method_name]
+    types, _, method_id, _, _ = context.sigs[type_name][method_name]
     placeholder_typ = ByteArrayType(maxlen=sum([get_size_of_type(typ) for typ in types]) * 32 + 32)
     placeholder = context.new_placeholder(placeholder_typ)
     setters = [['mstore', placeholder, method_id]]
