@@ -94,6 +94,11 @@ def foo(x: num, x: num): pass
 """, VariableDeclarationException)
 
 must_fail("""
+def foo(num: num):
+    pass
+""", VariableDeclarationException)
+
+must_fail("""
 def foo(x: num):
     x = 5
 """, ConstancyViolationException)
@@ -108,6 +113,13 @@ must_fail("""
 def foo():
     x: num
     x: num
+""", VariableDeclarationException)
+
+must_fail("""
+def foo():
+    x: num
+def foo():
+    y: num
 """, VariableDeclarationException)
 
 must_succeed("""
@@ -156,6 +168,16 @@ def foo():
 must_fail("""
 def foo():
     x = 0x123456789012345678901234567890123456789
+""", InvalidLiteralException)
+
+must_fail("""
+def foo():
+    x = -170141183460469231731687303715884105728
+""", InvalidLiteralException)
+
+must_fail("""
+def foo():
+    x = -170141183460469231731687303715884105728.
 """, InvalidLiteralException)
 
 must_fail("""
@@ -244,6 +266,12 @@ def foo():
 """, TypeMismatchException)
 
 must_fail("""
+b: {foo: num}
+def foo():
+    self.b = {foo: 1, foo: 2}
+""", TypeMismatchException)
+
+must_fail("""
 b: {foo: num, bar: num}
 def foo():
     x = self.b.cow
@@ -308,6 +336,46 @@ b: num[num]
 def foo():
     self.b[-3] = 5
 """)
+
+must_succeed("""
+def foo() -> bool:
+    return 1 == 1
+""")
+
+must_succeed("""
+def foo() -> bool:
+    return 1 != 1
+""")
+
+must_succeed("""
+def foo() -> bool:
+    return 1 > 1
+""")
+
+must_succeed("""
+def foo() -> bool:
+    return 1. >= 1
+""")
+
+must_succeed("""
+def foo() -> bool:
+    return 1 < 1
+""")
+
+must_succeed("""
+def foo() -> bool:
+    return 1 <= 1.
+""")
+
+must_fail("""
+def foo() -> bool:
+    return (1 == 2) <= (1 == 1)
+""", TypeMismatchException)
+
+must_fail("""
+def foo() -> bool:
+    return (1 == 2) or 3
+""", TypeMismatchException)
 
 must_fail("""
 def foo():
