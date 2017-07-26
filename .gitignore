@@ -19,3 +19,6 @@ dist/
 .venv/
 venv/
 ENV/
+
+# Coverage tests
+.coverage
