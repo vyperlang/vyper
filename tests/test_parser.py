@@ -243,7 +243,7 @@ def refund():
     c.finalize(sender=t.k0)
 
     print('Passed escrow test with initializer')
-    print('Gas estimate', t.languages['viper'].gas_estimate(arbitration_code)['finalize'], 'actual', s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
+    print('Gas estimate', t.languages['viper'].gas_estimate(arbitration_code_with_init)['finalize'], 'actual', s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
 def test_decimal_test():
     decimal_test = """
 def foo() -> num:
