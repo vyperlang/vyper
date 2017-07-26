@@ -147,6 +147,7 @@ def finalize():
 # Not enough money was raised! Refund everyone (max 30 people at a time
 # to avoid gas limit issues)
 def refund():
+    assert block.timestamp >= self.deadline and self.balance < self.goal
     ind = self.refundIndex
     for i in range(ind, ind + 30):
         if i >= self.nextFunderIndex:
