@@ -51,6 +51,7 @@ Note that not all programs that satisfy the following are valid; for example, th
         OR not <expr>
         OR <var>
         OR <expr>.balance
+        OR <expr>.codesize
         OR <system_var>
         OR <basetype>(<expr>) (only some type conversions allowed)
         OR floor(<expr>)
