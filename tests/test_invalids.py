@@ -1,19 +1,23 @@
-from viper import parser, compile_lll, compiler
-from viper.exceptions import InvalidTypeException, TypeMismatchException, VariableDeclarationException, StructureException, ConstancyViolationException, InvalidLiteralException, NonPayableViolationException
+from viper import compiler
+from viper.exceptions import    InvalidTypeException, \
+                                TypeMismatchException, \
+                                VariableDeclarationException, \
+                                StructureException, \
+                                ConstancyViolationException, \
+                                InvalidLiteralException, \
+                                NonPayableViolationException
 
-def must_fail(code, exception_type):
-    success = False
-    try:
-        compiler.compile(code)
-    except exception_type as e:
-        print(e)
-        success = True
-    assert success
+# These functions register test cases
+# for pytest functions at the end
+fail_list = []
+def must_fail(code, exception):
+    fail_list.append((code, exception))
 
+pass_list = []
 def must_succeed(code):
-    compiler.compile(code)
-    print('Compilation successful')
+    pass_list.append((code))
 
+# TEST CASES
 must_fail("""
 x: bat
 """, InvalidTypeException)
@@ -1602,3 +1606,16 @@ must_fail("""
 def foo():
     x = msg.value
 """, NonPayableViolationException)
+
+# Run all of our registered tests
+import pytest
+from pytest import raises
+
+@pytest.mark.parametrize('bad_code,exception_type', fail_list)
+def test_compilation_fails_with_exception(bad_code, exception_type):
+    with raises(exception_type):
+        compiler.compile(bad_code)
+
+@pytest.mark.parametrize('good_code', pass_list)
+def test_compilation_succeeds(good_code):
+    assert compiler.compile(good_code) is not None
