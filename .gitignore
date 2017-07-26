@@ -22,3 +22,4 @@ ENV/
 
 # Coverage tests
 .coverage
+.cache/
