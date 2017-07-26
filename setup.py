@@ -22,13 +22,9 @@ setup(
     install_requires=[
         'ethereum == 1.3.7',
         'serpent',
-    ],
-    setup_requires=[
+        'pytest',
         'pytest-runner',
-    ],
-    tests_requires=[
-       ' pytest',
-       ' pytest-cov',
+        'pytest-cov',
     ],
     scripts=['bin/viper']
 )
