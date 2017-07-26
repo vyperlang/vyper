@@ -1602,3 +1602,45 @@ must_fail("""
 def foo():
     x = msg.value
 """, NonPayableViolationException)
+
+must_succeed("""
+def foo() -> num(wei):
+    x = 0x1234567890123456789012345678901234567890
+    return x.balance
+""")
+
+must_fail("""
+def foo() -> num(wei):
+    x = 0x1234567890123456789012345678901234567890
+    return x.balance()
+""", StructureException)
+
+must_fail("""
+def foo() -> num(wei):
+    x = 45
+    return x.balance
+""", TypeMismatchException)
+
+must_succeed("""
+def foo() -> num:
+    x = 0x1234567890123456789012345678901234567890
+    return x.codesize
+""")
+
+must_fail("""
+def foo() -> num:
+    x = 0x1234567890123456789012345678901234567890
+    return x.codesize()
+""", StructureException)
+
+must_fail("""
+def foo() -> num:
+    x = 45
+    return x.codesize
+""", TypeMismatchException)
+
+must_fail("""
+def foo() -> num(wei):
+    x = 0x1234567890123456789012345678901234567890
+    return x.codesize
+""", TypeMismatchException)
