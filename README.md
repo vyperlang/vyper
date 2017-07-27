@@ -160,7 +160,7 @@ def refund():
 
 ## Installation
 
-Requires python3
+Requires Python 3.6 or higher
 
 	python setup.py install
 
