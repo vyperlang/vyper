@@ -27,6 +27,20 @@ assert utils.bytes_to_int(rlp_decoder_address) == utils.RLP_DECODER_ADDRESS
 
 s.head_state.gas_limit = 10**9
 
+def check_gas(code, function=None, num_txs=1):
+    if function:
+        gas_estimate = t.languages['viper'].gas_estimate(code)[function]
+    else:
+        gas_estimate = sum(t.languages['viper'].gas_estimate(code).values())
+
+    gas_actual = s.head_state.receipts[-1].gas_used \
+               - s.head_state.receipts[-1-num_txs].gas_used \
+               - s.last_tx.intrinsic_gas_used*num_txs
+    #Computed upper bound on the gas consumption should be greater than or equal to the amount of gas used
+    assert gas_estimate >= gas_actual
+
+    print('Gas estimate', gas_estimate, 'actual', gas_actual)
+
 def test_null_code():
     null_code = """
 def foo():
@@ -37,7 +51,8 @@ def foo():
     c.foo()
 
     print('Successfully executed a null function')
-    print('Gas estimate', t.languages['viper'].gas_estimate(null_code)['foo'], 'actual', s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
+    check_gas(null_code, function='foo')
+
 def test_basic_code():
     basic_code = """
 
@@ -49,7 +64,8 @@ def foo(x: num) -> num:
     c = s.contract(basic_code, language='viper')
     assert c.foo(9) == 18
     print('Passed basic code test')
-    print('Gas estimate', t.languages['viper'].gas_estimate(basic_code)['foo'], 'actual', s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
+    check_gas(basic_code, function='foo')
+
 def test_basic_repeater():
     basic_repeater = """
 
@@ -63,7 +79,8 @@ def repeat(z: num) -> num:
     c = s.contract(basic_repeater, language='viper')
     assert c.repeat(9) == 54
     print('Passed basic repeater test')
-    print('Gas estimate', t.languages['viper'].gas_estimate(basic_repeater)['repeat'], 'actual', s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
+    check_gas(basic_repeater, function='repeat')
+
 def test_more_complex_repeater():
     more_complex_repeater = """
 def repeat() -> num:
@@ -79,7 +96,8 @@ def repeat() -> num:
     c = s.contract(more_complex_repeater, language='viper')
     assert c.repeat() == 666666
     print('Passed complex repeater test')
-    print('Gas estimate', t.languages['viper'].gas_estimate(more_complex_repeater)['repeat'], 'actual', s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
+    check_gas(more_complex_repeater, function='repeat')
+
 def test_offset_repeater():
     offset_repeater = """
 def sum() -> num:
@@ -93,6 +111,7 @@ def sum() -> num:
     assert c.sum() == 4100
 
     print('Passed repeater with offset test')
+
 def test_offset_repeater_2():
     offset_repeater_2 = """
 def sum(frm: num, to: num) -> num:
@@ -109,6 +128,7 @@ def sum(frm: num, to: num) -> num:
     assert c.sum(70, 131) == 6100
 
     print('Passed more complex repeater with offset test')
+
 def test_array_accessor():
     array_accessor = """
 def test_array(x: num, y: num, z: num, w: num) -> num:
@@ -123,7 +143,8 @@ def test_array(x: num, y: num, z: num, w: num) -> num:
     c = s.contract(array_accessor, language='viper')
     assert c.test_array(2, 7, 1, 8) == 2718
     print('Passed basic array accessor test')
-    print('Gas estimate', t.languages['viper'].gas_estimate(array_accessor)['test_array'], 'actual', s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
+    check_gas(array_accessor, function='test_array')
+
 def test_two_d_array_accessor():
     two_d_array_accessor = """
 def test_array(x: num, y: num, z: num, w: num) -> num:
@@ -138,7 +159,7 @@ def test_array(x: num, y: num, z: num, w: num) -> num:
     c = s.contract(two_d_array_accessor, language='viper')
     assert c.test_array(2, 7, 1, 8) == 2718
     print('Passed complex array accessor test')
-    print('Gas estimate', t.languages['viper'].gas_estimate(two_d_array_accessor)['test_array'], 'actual', s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
+    check_gas(two_d_array_accessor, function='test_array')
 
 def test_digit_reverser():
     digit_reverser = """
@@ -159,7 +180,8 @@ def reverse_digits(x: num) -> num:
     c = s.contract(digit_reverser, language='viper')
     assert c.reverse_digits(123456) == 654321
     print('Passed digit reverser test')
-    print('Gas estimate', t.languages['viper'].gas_estimate(digit_reverser)['reverse_digits'], 'actual', s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
+    check_gas(digit_reverser, function='reverse_digits')
+
 def test_state_accessor():
     state_accessor = """
 y: num[num]
@@ -176,7 +198,8 @@ def foo() -> num:
     c.oo()
     assert c.foo() == 5
     print('Passed basic state accessor test')
-    print('Gas estimate', t.languages['viper'].gas_estimate(state_accessor)['foo'], 'actual', s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
+    check_gas(state_accessor, function='foo')
+
 def test_arbitration_code():
     arbitration_code = """
 buyer: address
@@ -210,7 +233,8 @@ def refund():
     c.finalize(sender=t.k0)
 
     print('Passed escrow test')
-    print('Gas estimate', t.languages['viper'].gas_estimate(arbitration_code)['finalize'], 'actual', s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
+    check_gas(arbitration_code, function='finalize')
+
 def test_arbitration_code_with_init():
     arbitration_code_with_init = """
 buyer: address
@@ -243,7 +267,8 @@ def refund():
     c.finalize(sender=t.k0)
 
     print('Passed escrow test with initializer')
-    print('Gas estimate', t.languages['viper'].gas_estimate(arbitration_code_with_init)['finalize'], 'actual', s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
+    check_gas(arbitration_code_with_init, function='finalize')
+
 def test_decimal_test():
     decimal_test = """
 def foo() -> num:
@@ -291,7 +316,6 @@ def foop() -> num:
     """
 
     c = s.contract(decimal_test, language='viper')
-    pre_gas = s.head_state.receipts[-1].gas_used
     pre_txs = len(s.head_state.receipts)
     assert c.foo() == 999
     assert c.fop() == 999
@@ -307,14 +331,11 @@ def foop() -> num:
     assert c.foom() == 999
     assert c.foon() == 999
     assert c.foop() == 999
-    post_gas = s.head_state.receipts[-1].gas_used
     post_txs = len(s.head_state.receipts)
 
-    estimate = t.languages['viper'].gas_estimate(decimal_test)
-
-
     print('Passed basic addition, subtraction and multiplication tests')
-    print('Gas estimate', sum(estimate.values()), 'actual', post_gas - pre_gas - s.last_tx.intrinsic_gas_used * (post_txs - pre_txs))
+    check_gas(decimal_test, num_txs=(post_txs - pre_txs))
+
 def test_harder_decimal_test():
     harder_decimal_test = """
 def phooey(inp: decimal) -> decimal:
@@ -353,6 +374,7 @@ def iarg() -> wei_value:
     assert c.iarg() == 14
 
     print('Passed fractional multiplication test')
+
 def test_break_test():
     break_test = """
 def log(n: num) -> num:
@@ -372,6 +394,7 @@ def log(n: num) -> num:
     assert c.log(10) == 10
     assert c.log(200) == 23
     print('Passed for-loop break test')
+
 def test_break_test_2():
     break_test_2 = """
 def log(n: num) -> num:
@@ -398,6 +421,7 @@ def log(n: num) -> num:
     assert c.log(200) == 23
     assert c.log(4000000) == 66
     print('Passed for-loop break test 2')
+
 def test_augassign_test():
     augassign_test = """
 def augadd(x: num, y: num) -> num:
@@ -434,6 +458,7 @@ def augmod(x: num, y: num) -> num:
     assert c.augdiv(5, 12) == 0
     assert c.augmod(5, 12) == 5
     print('Passed aug-assignment test')
+
 def test_break_test_3():
     break_test_3 = """
 def log(n: num) -> num:
@@ -472,7 +497,8 @@ def returnMoose() -> num:
     c = s.contract(init_argument_test, language='viper', args=[5])
     assert c.returnMoose() == 5
     print('Passed init argument test')
-    print('Gas estimate', t.languages['viper'].gas_estimate(init_argument_test)['returnMoose'], 'actual', s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
+    check_gas(init_argument_test, function='returnMoose')
+
 def test_constructor_advanced_code():
     constructor_advanced_code = """
 twox: num
@@ -497,6 +523,7 @@ def get_comb() -> num:
     assert s.contract(constructor_advanced_code2, args=[[5,7], "dog", 8], language='viper').get_comb() == 5738
 
     print("Passed advanced init argument tests")
+
 def test_permanent_variables_test():
     permanent_variables_test = """
 var: {a: num, b: num}
@@ -511,7 +538,7 @@ def returnMoose() -> num:
     c = s.contract(permanent_variables_test, language='viper', args=[5, 7])
     assert c.returnMoose() == 57
     print('Passed init argument and variable member test')
-    print('Gas estimate', t.languages['viper'].gas_estimate(permanent_variables_test)['returnMoose'], 'actual', s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used)
+    check_gas(permanent_variables_test, function='returnMoose')
 
 def test_crowdfund():
     crowdfund = """
@@ -606,6 +633,7 @@ def refund():
     assert [y-x for x, y in zip(pre_bals, post_bals)] == [1,2,3,4]
 
     print('Passed composite crowdfund test')
+
 def test_comment_test():
     comment_test = """
 
@@ -617,6 +645,7 @@ def foo() -> num:
     c = s.contract(comment_test, language='viper')
     assert c.foo() == 3
     print('Passed comment test')
+
 def test_packing_test():
     packing_test = """
 x: num
@@ -661,6 +690,7 @@ def fop() -> num:
     assert c.foo() == 1023, c.foo()
     assert c.fop() == 1023, c.fop()
     print('Passed packing test')
+
 def test_multi_setter_test():
     multi_setter_test = """
 foo: num[3]
@@ -722,6 +752,7 @@ def jop() -> num:
     assert c.joo() == 0
     assert c.jop() == 321
     print('Passed multi-setter literal test')
+
 def test_multi_setter_struct_test():
     multi_setter_struct_test = """
 foo: {foo: num, bar: num}[3]
@@ -768,6 +799,7 @@ def gop() -> num:
     assert c.gop() == 87198763254321
 
     print('Passed multi-setter struct test')
+
 def test_type_converter_setter_test():
     type_converter_setter_test = """
 mom: {a: {c: num}[3], b: num}
@@ -788,6 +820,7 @@ def goo() -> num:
     assert c.foo() == 4321
     assert c.foo() == 4321
     print('Passed type-conversion struct test')
+
 def test_composite_setter_test():
     composite_setter_test = """
 mom: {a: {c: num}[3], b:num}
@@ -820,6 +853,7 @@ def foq() -> num:
     assert c.fop() == 4625
     assert c.foq() == 4020
     print('Passed composite struct test')
+
 def test_crowdfund2():
     crowdfund2 = """
 
@@ -911,6 +945,7 @@ def refund():
     assert [y-x for x, y in zip(pre_bals, post_bals)] == [1,2,3,4]
 
     print('Passed second composite crowdfund test')
+
 def test_test_bytes():
     test_bytes = """
 def foo(x: bytes <= 100) -> bytes <= 100:
@@ -934,6 +969,7 @@ def foo(x: bytes <= 100) -> bytes <= 100:
         pass
 
     print('Passed input-too-long test')
+
 def test_test_bytes2():
     test_bytes2 = """
 def foo(x: bytes <= 100) -> bytes <= 100:
@@ -949,6 +985,7 @@ def foo(x: bytes <= 100) -> bytes <= 100:
     assert c.foo(b'\x35' * 65) == b'\x35' * 65
 
     print('Passed string copying test')
+
 def test_test_bytes3():
     test_bytes3 = """
 x: num
@@ -992,6 +1029,7 @@ def get_xy() -> num:
     assert c.get_xy() == 999
 
     print('Passed advanced string copying test')
+
 def test_test_bytes4():
     test_bytes4 = """
 a: bytes <= 60
@@ -1011,6 +1049,7 @@ def bar(inp: bytes <= 60) -> bytes <= 60:
     assert c.bar() == b""
 
     print('Passed string deleting test')
+
 def test_test_bytes5():
     test_bytes5 = """
 g: {a: bytes <= 50, b: bytes <= 50}
@@ -1048,6 +1087,7 @@ def quz(inp1: bytes <= 40, inp2: bytes <= 45):
     assert c.check2() == b"fluffysheep"
 
     print('Passed string struct test')
+
 def test_test_slice():
     test_slice = """
 def foo(inp1: bytes <= 10) -> bytes <= 3:
@@ -1070,6 +1110,7 @@ def bar(inp1: bytes <= 10) -> num:
     assert c.bar(b"badminton") == 35
 
     print('Passed slice test')
+
 def test_test_slice2():
     test_slice2 = """
 def slice_tower_test(inp1: bytes <= 50) -> bytes <= 50:
@@ -1084,6 +1125,7 @@ def slice_tower_test(inp1: bytes <= 50) -> bytes <= 50:
     assert x == b"klmnopqrst", x
 
     print('Passed advanced slice test')
+
 def test_test_slice3():
     test_slice3 = """
 x: num
@@ -1109,6 +1151,7 @@ def bar(inp1: bytes <= 50) -> num:
     assert c.bar(b"badminton") == 35
 
     print('Passed storage slice test')
+
 def test_test_slice4():
     test_slice4 = """
 def foo(inp: bytes <= 10, start: num, len: num) -> bytes <= 10:
@@ -1144,6 +1187,7 @@ def foo(inp: bytes <= 10, start: num, len: num) -> bytes <= 10:
         pass
 
     print('Passed slice edge case test')
+
 def test_test_length():
     test_length = """
 y: bytes <= 10
@@ -1156,6 +1200,7 @@ def foo(inp: bytes <= 10) -> num:
     c = s.contract(test_length, language='viper')
     assert c.foo(b"badminton") == 954, c.foo(b"badminton")
     print('Passed length test')
+
 def test_test_concat():
     test_concat = """
 def foo2(input1: bytes <= 50, input2: bytes <= 50) -> bytes <= 1000:
@@ -1175,6 +1220,7 @@ def foo3(input1: bytes <= 50, input2: bytes <= 50, input3: bytes <= 50) -> bytes
     assert c.foo2(b"\x36" * 48, b"\x35" * 32) == b"\x36" * 48 + b"\x35" * 32
     assert c.foo3(b"horses" * 4, b"mice" * 7, b"crows" * 10) == b"horses" * 4 + b"mice" * 7 + b"crows" * 10
     print('Passed simple concat test')
+
 def test_test_concat2():
     test_concat2 = """
 def foo(inp: bytes <= 50) -> bytes <= 1000:
@@ -1185,6 +1231,7 @@ def foo(inp: bytes <= 50) -> bytes <= 1000:
     c = s.contract(test_concat2, language='viper')
     assert c.foo(b"horse" * 9 + b"viper") == (b"horse" * 9 + b"viper") * 10
     print('Passed second concat test')
+
 def test_crazy_concat_code():
     crazy_concat_code = """
 y: bytes <= 10
@@ -1200,6 +1247,7 @@ def krazykonkat(z: bytes <= 10) -> bytes <= 25:
     assert c.krazykonkat(b"moose") == b'cow horse moose'
 
     print('Passed third concat test')
+
 def test_string_literal_code():
     string_literal_code = """
 def foo() -> bytes <= 5:
@@ -1270,6 +1318,7 @@ def baz(s: num, L: num) -> bytes <= 100:
                 assert o1 == o2 == o3 == b"c" * (e - _s), (i, _s, e - _s, o1, o2, o3) 
 
     print("Passed string literal splicing fuzz-test")
+
 def test_hash_code():
     hash_code = """
 def foo(inp: bytes <= 100) -> bytes32:
@@ -1284,6 +1333,7 @@ def bar() -> bytes32:
         assert c.foo(inp) == u.sha3(inp)
 
     assert c.bar() == u.sha3("inp")
+
 def test_hash_code2():
     hash_code2 = """
 def foo(inp: bytes <= 100) -> bool:
@@ -1292,6 +1342,7 @@ def foo(inp: bytes <= 100) -> bool:
     c = s.contract(hash_code2, language='viper')
     assert c.foo(b"badminto") is False
     assert c.foo(b"badminton") is True
+
 def test_hash_code3():
     hash_code3 = """
 test: bytes <= 100
@@ -1328,6 +1379,7 @@ def try32(inp: bytes32) -> bool:
     assert c.tryy(b"\x35" * 33) is True
 
     print("Passed SHA3 hash test")
+
 def test_method_id_test():
     method_id_test = """
 def double(x: num) -> num:
@@ -1340,6 +1392,7 @@ def returnten() -> num:
     c = s.contract(method_id_test, language='viper')
     assert c.returnten() == 10
     print("Passed method ID test")
+
 def test_ecrecover_test():
     ecrecover_test = """
 def test_ecrecover(h: bytes32, v:num256, r:num256, s:num256) -> address:
@@ -1360,6 +1413,7 @@ def test_ecrecover2() -> address:
     assert c.test_ecrecover2() == '0x' + u.encode_hex(u.privtoaddr(k))
 
     print("Passed ecrecover test")
+
 def test_extract32_code():
     extract32_code = """
 y: bytes <= 100
@@ -1408,6 +1462,7 @@ def extrakt32_storage(index: num, inp: bytes <= 100) -> bytes32:
             assert c.extrakt32_storage(i, S) == expected_result
 
     print("Passed bytes32 extraction test")
+
 def test_test_concat_bytes32():
     test_concat_bytes32 = """
 def sandwich(inp: bytes <= 100, inp2: bytes32) -> bytes <= 164:
@@ -1426,6 +1481,7 @@ def fivetimes(inp: bytes32) -> bytes <= 160:
     assert c.fivetimes(b"mongoose" * 4) == b"mongoose" * 20
 
     print("Passed concat bytes32 test")
+
 def test_test_wei():
     test_wei = """
 def return_2_finney() -> wei_value:
@@ -1453,6 +1509,7 @@ def return_2pow64_wei() -> wei_value:
     assert c.return_2pow64_wei() == 2**64
 
     print("Passed wei value literals test")
+
 def test_caller_code():
     caller_code = """
 def foo() -> bytes <= 7:
@@ -1471,6 +1528,7 @@ def baz() -> bytes <= 7:
     assert c.baz() == b"moose\x00\x00"
 
     print('Passed raw call test')
+
 def test_extract32_code():
     extract32_code = """
 def foo(inp: bytes <= 32) -> num:
@@ -1511,6 +1569,7 @@ def foq(inp: bytes <= 32) -> address:
     assert not success
 
     print('Passed extract32 test')
+
 def test_bytes_to_num_code():
     bytes_to_num_code = """
 def foo(x: bytes <= 32) -> num:
@@ -1546,6 +1605,7 @@ def foo(x: bytes <= 32) -> num:
     except:
         success = False
     print('Passed bytes_to_num tests')
+
 def test_rlp_decoder_code():
     rlp_decoder_code = """
 u: bytes <= 100
@@ -1647,6 +1707,7 @@ def too(inp: bytes <= 100) -> bool:
     assert not success
 
     print('Passed RLP decoder tests')
+
 def test_getter_code():
     getter_code = """
 x: public(wei_value)
@@ -1688,6 +1749,7 @@ def __init__():
     assert c.get_w__g(3) == 751
 
     print('Passed getter tests')
+
 def test_konkat_code():
     konkat_code = """
 ecks: bytes32
@@ -1710,6 +1772,7 @@ def hoo(x: bytes32, y: bytes32) -> bytes <= 64:
     assert c.hoo(b'\x35' * 32, b'\x00' * 32) == b'\x35' * 32 + b'\x00' * 32
 
     print('Passed second concat tests')
+
 def test_conditional_return_code():
     conditional_return_code = """
 def foo(i: bool) -> num:
@@ -1726,6 +1789,7 @@ def foo(i: bool) -> num:
     assert c.foo(False) == 7
 
     print('Passed conditional return tests')
+
 def test_large_input_code():
     large_input_code = """
 def foo(x: num) -> num:
@@ -1741,6 +1805,7 @@ def foo(x: num) -> num:
     except:
         success = False
     assert not success
+
 def test_large_input_code_2():
     large_input_code_2 = """
 def __init__(x: num):
@@ -1759,6 +1824,7 @@ def foo() -> num:
     assert not success
 
     print('Passed invalid input tests')
+
 def test_loggy_code():
     loggy_code = """
 s: bytes <= 100
@@ -1788,6 +1854,7 @@ def ioo(inp: bytes <= 100):
     c.ioo(b"moo4")
     assert s.head_state.receipts[-1].logs[0].data == b'moo4'
     print("Passed raw log tests")
+
 def test_test_bitwise():
     test_bitwise = """
 def _bitwise_and(x: num256, y: num256) -> num256:
@@ -1823,6 +1890,7 @@ def _shift(x: num256, y: num) -> num256:
     assert c._shift(x, -256) == 0
 
     print("Passed bitwise operation tests")
+
 def test_num256_code():
     num256_code = """
 def _num256_add(x: num256, y: num256) -> num256:
@@ -1872,6 +1940,7 @@ def _num256_le(x: num256, y: num256) -> bool:
     assert c._num256_lt(y, x) is True
 
     print("Passed num256 operation tests")
+
 def test_selfcall_code():
     selfcall_code = """
 def foo() -> num:
@@ -1885,6 +1954,7 @@ def bar() -> num:
     assert c.bar() == 3
 
     print("Passed no-argument self-call test")
+
 def test_selfcall_code_2():
     selfcall_code_2 = """
 def double(x: num) -> num:
@@ -1905,6 +1975,7 @@ def return_hash_of_rzpadded_cow() -> bytes32:
     assert c.return_hash_of_rzpadded_cow() == u.sha3(b'cow' + b'\x00' * 29)
 
     print("Passed single fixed-size argument self-call test")
+
 def test_selfcall_code_3():
     selfcall_code_3 = """
 def _hashy2(x: bytes <= 100) -> bytes32:
@@ -1925,6 +1996,7 @@ def returnten() -> num:
     assert c.returnten() == 10
 
     print("Passed single variable-size argument self-call test")
+
 def test_selfcall_code_4():
     selfcall_code_4 = """
 def summy(x: num, y: num) -> num:
@@ -1959,6 +2031,7 @@ def return_goose2() -> bytes <= 10:
     assert c.return_goose2() == b"goose"
 
     print("Passed multi-argument self-call test")
+
 def test_selfcall_code_5():
     selfcall_code_5 = """
 counter: num
@@ -1975,6 +2048,7 @@ def returnten() -> num:
     assert c.returnten() == 10
 
     print("Passed self-call statement test")
+
 def test_selfcall_code_6():
     selfcall_code_6 = """
 excls: bytes <= 32
@@ -1997,6 +2071,7 @@ def return_mongoose_revolution_32_excls() -> bytes <= 201:
     assert c.return_mongoose_revolution_32_excls() == b"mongoose_revolution" + b"!" * 32
 
     print("Passed composite self-call test")
+
 def test_clamper_test_code():
     clamper_test_code = """
 def foo(s: bytes <= 3) -> bytes <= 3:
@@ -2042,6 +2117,7 @@ def create_and_return_forwarder(inp: address) -> address:
     assert s.head_state.get_code(c3)[35:] == expected_forwarder_code_mask[35:]
 
     print('Passed forwarder test')
+    # TODO: This one is special
     print('Gas consumed: %d' % (s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used))
 
 def test_multiple_levels2():
@@ -2073,6 +2149,7 @@ def create_and_return_forwarder(inp: address) -> address:
     assert not success
 
     print('Passed forwarder exception test')
+
 def test_list_tester_code():
     list_tester_code = """
 z: num[3]
@@ -2112,6 +2189,7 @@ def loo(x: num[2][2]) -> num:
     assert c.koo([3,4,5]) == 12
     assert c.loo([[1,2],[3,4]]) == 73
     print("Passed list tests")
+
 def test_list_output_tester_code():
     list_output_tester_code = """
 z: num[2]
@@ -2170,6 +2248,7 @@ def roo(inp: num[2]) -> decimal[2][2]:
     assert c.roo([1,2]) == [[1.0,2.0],[3.0,4.0]]
 
     print("Passed list output tests")
+
 def test_internal_test():
     internal_test = """
 @internal
