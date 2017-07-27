@@ -484,17 +484,6 @@ def add_variable_offset(parent, key):
     else:
         raise TypeMismatchException("Cannot access the child of a constant variable! %r" % typ)
 
-# Encode ABI arguments
-def encode_abi_arguments(context, args, types):
-    indata_placeholder = context.new_placeholder(ByteArrayType(sum([get_size_of_type(t) for t in types]) * 32))
-    seq = []
-    offset = 0
-    for arg, typ in zip(args, types):
-        pos = indata_placeholder + offset
-        seq.append(make_setter(LLLnode.from_list(pos, typ=typ, location='memory'), arg, 'memory'))
-        offset += get_size_of_type(typ) * 32
-    return LLLnode.from_list(['seq'] + seq + [indata_placeholder], typ=indata_placeholder.typ, location='memory'), offset
-
 # Parse an expression
 def parse_expr(expr, context):
     if isinstance(expr, LLLnode):
@@ -600,7 +589,7 @@ def parse_expr(expr, context):
             elif key == "block.number":
                 return LLLnode.from_list(['number'], typ='num', pos=getpos(expr))
             elif key == "block.prevhash":
-                return LLLnode.from_list(['prevhash', ['sub', 'number', 1]], typ='bytes32', pos=getpos(expr))
+                return LLLnode.from_list(['blockhash', ['sub', 'number', 1]], typ='bytes32', pos=getpos(expr))
             elif key == "tx.origin":
                 return LLLnode.from_list(['origin'], typ='address', pos=getpos(expr))
             else:
@@ -762,7 +751,7 @@ def parse_expr(expr, context):
                 raise TypeMismatchException("Unsupported type for negation: %r" % operand.typ, operand)
             o = LLLnode.from_list(["sub", 0, operand], typ=operand.typ, pos=getpos(expr))
         else:
-            raise Exception("Only the 'not' unary operator is supported")
+            raise StructureException("Only the 'not' unary operator is supported")
     # Function calls
     elif isinstance(expr, ast.Call):
         if isinstance(expr.func, ast.Name) and expr.func.id in dispatch_table:
@@ -1092,10 +1081,6 @@ def parse_stmt(stmt, context):
             elif is_base_type(sub.typ, context.return_type.typ) or \
                     (is_base_type(sub.typ, 'num') and is_base_type(context.return_type, 'signed256')):
                 return LLLnode.from_list(['seq', ['mstore', 0, sub], ['return', 0, 32]], typ=None, pos=getpos(stmt))
-            elif is_base_type(sub.typ, 'num') and is_base_type(context.return_type, 'num256'):
-                return LLLnode.from_list(['seq', ['mstore', 0, sub],
-                                                 ['assert', ['sge', ['mload', 0], 0]],
-                                                 ['return', 0, 32]], typ=None, pos=getpos(stmt))
             else:
                 raise TypeMismatchException("Unsupported type conversion: %r to %r" % (sub.typ, context.return_type), stmt.value)
         # Returning a byte array

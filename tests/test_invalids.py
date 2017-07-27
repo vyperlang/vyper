@@ -1413,8 +1413,22 @@ def foo() -> num256:
 """)
 
 must_succeed("""
+x: bytes <= 100
+def foo() -> num256:
+    self.x = "cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc"
+    return extract32(self.x, 0, type=num256)
+""")
+
+must_succeed("""
+x: bytes <= 100
+def foo() -> num256:
+    self.x = "cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc"
+    return extract32(self.x, 1, type=num256)
+""")
+
+must_succeed("""
 def foo():
-    x = as_wei_value(5, finney)
+    x = as_wei_value(5, finney) + as_wei_value(2, babbage) + as_wei_value(8, shannon)
 """)
 
 must_succeed("""
@@ -1715,6 +1729,148 @@ must_fail("""
 def foo() -> num(wei):
     x = 0x1234567890123456789012345678901234567890
     return x.codesize
+""", TypeMismatchException)
+
+must_succeed("""
+def foo() -> num(wei / sec):
+    x = as_wei_value(5, finney)
+    y = block.timestamp + 50 - block.timestamp
+    return x / y
+""")
+
+must_succeed("""
+x: public(num(wei / sec))
+y: public(num(wei / sec ** 2))
+z: public(num(1 / sec))
+
+def foo() -> num(sec ** 2):
+    return self.x / self.y / self.z
+""")
+
+must_fail("""
+def foo() -> num(wei / sec):
+    x = as_wei_value(5, finney)
+    y = block.timestamp + 50
+    return x / y
+""", TypeMismatchException)
+
+must_fail("""
+x: num[address[bool]]
+def foo() -> num(wei / sec):
+    pass
+""", InvalidTypeException)
+
+must_fail("""
+x: {cow: num, cor: num}
+def foo():
+    self.x.cof = 1
+""", TypeMismatchException)
+
+must_fail("""
+def foo():
+    BALANCE = 45
+""", VariableDeclarationException)
+
+must_succeed("""
+def foo():
+    MOOSE = 45
+""")
+
+must_fail("""
+def foo():
+    x = -self
+""", TypeMismatchException)
+
+must_fail("""
+def foo():
+    x = ~self
+""", StructureException)
+
+must_fail("""
+def foo() -> {cow: num, dog: num}:
+    return {cow: 5, dog: 7}
+""", InvalidTypeException)
+
+must_fail("""
+def foo() -> num:
+    return {cow: 5, dog: 7}
+""", TypeMismatchException)
+
+must_succeed("""
+def foo():
+    x = True
+    x = False
+""")
+
+must_fail("""
+def foo():
+    x = [1, 2, 3]
+    x = 4
+""", TypeMismatchException)
+
+must_fail("""
+def foo() -> num:
+    return
+""", TypeMismatchException)
+
+must_fail("""
+def foo():
+    return 3
+""", TypeMismatchException)
+
+must_fail("""
+def foo():
+    x = as_num256(821649876217461872458712528745872158745214187264875632587324658732648753245328764872135671285218762145)
+""", InvalidLiteralException)
+
+must_fail("""
+def foo():
+    x = slice("cow", start=0, len=block.timestamp)
+""", TypeMismatchException)
+
+must_fail("""
+def foo():
+    x = concat("")
+""", StructureException)
+
+must_fail("""
+def foo():
+    x = as_num256(-1)
+""", InvalidLiteralException)
+
+must_fail("""
+def foo():
+    x = as_num256(3.1415)
+""", InvalidLiteralException)
+
+must_fail("""
+def foo():
+    x = [1, 2, 3]
+    x = [4, 5, 6, 7]
+""", TypeMismatchException)
+
+must_succeed("""
+def foo():
+    x = [1, 2, 3]
+    x = [4, 5, 6]
+""")
+
+must_fail("""
+def foo():
+    x = y = 3
+""", StructureException)
+
+must_succeed("""
+def foo():
+    x = block.difficulty + block.number
+    if tx.origin == self:
+        y = concat(block.prevhash, "dog")
+""")
+
+must_fail("""
+def foo():
+    x = True
+    x = 129
 """, TypeMismatchException)
 
 # Run all of our registered tests
