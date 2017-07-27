@@ -2,4 +2,4 @@ init:
 	python setup.py install
 
 test:
-	nosetests tests
+	python setup.py test

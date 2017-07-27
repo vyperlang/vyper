@@ -19,3 +19,8 @@ dist/
 .venv/
 venv/
 ENV/
+
+# Coverage tests
+.coverage
+.cache/
+htmlcov/

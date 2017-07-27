@@ -22,7 +22,9 @@ setup(
     install_requires=[
         'ethereum == 1.3.7',
         'serpent',
-        'nose',
+        'pytest-cov',
+        'pytest-runner', # Must be after pytest-cov or it will not work
+        #           due to https://github.com/pypa/setuptools/issues/196
     ],
     scripts=['bin/viper']
 )
