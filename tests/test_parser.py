@@ -1652,6 +1652,10 @@ def roo(inp: bytes <= 100) -> address:
 def too(inp: bytes <= 100) -> bool:
     x = RLPList(inp, [bool])
     return x[0]
+
+def voo(inp: bytes <= 1024) -> num:
+    x = RLPList(inp, [num, num, bytes32, num, bytes32, bytes])
+    return x[1]
     """
     c = s.contract(rlp_decoder_code, language='viper')
 
@@ -1664,6 +1668,7 @@ def too(inp: bytes <= 100) -> bool:
     assert c.roo(b'\xf6\x9455555555555555555555\xa0GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG') == '0x' + '35' * 20
     assert c.qos(rlp.encode([3, 30])) == 33
     assert c.qos(rlp.encode([3, 2**100 - 5])) == 2**100 - 2
+    assert c.voo(rlp.encode([b'', b'\x01', b'\xbds\xc31\xf5=b\xa5\xcfy]\x0f\x05\x8f}\\\xf3\xe6\xea\x9d~\r\x96\xda\xdf:+\xdb4pm\xcc', b'', b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00', b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x1b:\xcd\x85\x9b\x84`FD\xf9\xa8'\x8ezR\xd5\xc9*\xf5W\x1f\x14\xc2\x0cd\xa0\x17\xd4Z\xde\x9d\xc2\x18_\x82B\xc2\xaa\x82\x19P\xdd\xa2\xd0\xe9(\xcaO\xe2\xb1\x13s\x05yS\xc3q\xdb\x1eB\xe2g\xaa'\xba"])) == 1
     try:
         c.qot(rlp.encode([7, 2**160]))
         success = True

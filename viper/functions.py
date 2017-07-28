@@ -386,7 +386,7 @@ def selfdestruct(expr, args, kwargs, context):
 
 @signature('num')
 def blockhash(expr, args, kwargs, contact):
-    return LLLnode.from_list(['blockhash', ['uclamplt', ['clampge', args[0], ['sub', ['number'], 256]], ['sub', ['number'], 1]]],
+    return LLLnode.from_list(['blockhash', ['uclamplt', ['clampge', args[0], ['sub', ['number'], 256]], 'number']],
                              typ=BaseType('bytes32'), pos=getpos(expr))
 
 @signature('bytes', '*')
@@ -411,7 +411,7 @@ def _RLPlist(expr, args, kwargs, context):
                 raise TypeMismatchException("Unsupported base type: %s" % subtyp.typ, arg)
         _format.append(subtyp)
     output_type = TupleType(_format)
-    output_placeholder_type = ByteArrayType(2 * len(_format) + 1 + get_size_of_type(output_type))
+    output_placeholder_type = ByteArrayType((2 * len(_format) + 1 + get_size_of_type(output_type)) * 32)
     output_placeholder = context.new_placeholder(output_placeholder_type)
     output_node = LLLnode.from_list(output_placeholder, typ=output_placeholder_type, location='memory')
     # Create a decoder for each element in the tuple
