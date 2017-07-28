@@ -1,24 +1,25 @@
-from .exceptions import InvalidTypeException, TypeMismatchException, \
-    VariableDeclarationException, StructureException, ConstancyViolationException, \
-    InvalidTypeException, InvalidLiteralException
-from .types import NodeType, BaseType, ListType, MappingType, StructType, \
-    MixedType, NullType, ByteArrayType, TupleType
-from .types import base_types, parse_type, canonicalize_type, is_base_type, \
-    is_numeric_type, get_size_of_type, is_varname_valid
-from .types import combine_units, are_units_compatible, set_default_units
+import ast
+
+from .exceptions import TypeMismatchException, \
+    StructureException, ConstancyViolationException, \
+    InvalidLiteralException
 from .parser_utils import LLLnode, make_byte_array_copier, get_number_as_fraction, \
     get_original_if_0x_prefixed, byte_array_to_num, make_byte_slice_copier, \
     get_length, getpos
-from .utils import fourbytes_to_int, hex_to_int, bytes_to_int, \
-    DECIMAL_DIVISOR, RESERVED_MEMORY, ADDRSIZE_POS, MAXNUM_POS, MINNUM_POS, \
-    MAXDECIMAL_POS, MINDECIMAL_POS, FREE_VAR_SPACE, BLANK_SPACE, FREE_LOOP_INDEX, \
-    RLP_DECODER_ADDRESS, sha3
-import ast
+from .types import BaseType, ByteArrayType, TupleType
+from .types import are_units_compatible
+from .types import parse_type, is_base_type, \
+    get_size_of_type
+from .utils import fourbytes_to_int, bytes_to_int, \
+    DECIMAL_DIVISOR, ADDRSIZE_POS, MAXNUM_POS, MINNUM_POS, \
+    FREE_VAR_SPACE, RLP_DECODER_ADDRESS, sha3
 
-class Optional():
+
+class Optional(object):
     def __init__(self, typ, default):
         self.typ = typ
         self.default = default
+
 
 def process_arg(index, arg, expected_arg_typelist, function_name, context):
     from .parser import parse_expr, parse_value_expr
@@ -57,6 +58,7 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
                                     (expected_arg_typelist, index, function_name), arg)
         return arg.id
 
+
 def signature(*argz, **kwargz):
     def decorator(f):
         def g(element, context):
@@ -92,9 +94,11 @@ def signature(*argz, **kwargz):
         return g
     return decorator
 
+
 def enforce_units(typ, obj, expected):
     if not are_units_compatible(typ, expected):
         raise TypeMismatchException("Invalid units", obj)
+
 
 def get_keyword(expr, keyword):
     for kw in expr.keywords:
@@ -102,25 +106,37 @@ def get_keyword(expr, keyword):
             return kw.value
     raise Exception("Keyword %s not found" % keyword)
 
+
 @signature('decimal')
 def floor(expr, args, kwargs, context):
-    return LLLnode.from_list(['sdiv', args[0], DECIMAL_DIVISOR], typ=BaseType('num', args[0].typ.unit, args[0].typ.positional), pos=getpos(expr))
+    return LLLnode.from_list(
+        ['sdiv', args[0], DECIMAL_DIVISOR], typ=BaseType('num', args[0].typ.unit, args[0].typ.positional),
+        pos=getpos(expr)
+    )
+
 
 @signature(('num', 'decimal'))
 def decimal(expr, args, kwargs, context):
     if args[0].typ.typ == 'decimal':
         return args[0]
     else:
-        return LLLnode.from_list(['mul', args[0], DECIMAL_DIVISOR], typ=BaseType('decimal', args[0].typ.unit, args[0].typ.positional),
-                                 pos=getpos(expr))
+        return LLLnode.from_list(
+            ['mul', args[0], DECIMAL_DIVISOR], typ=BaseType('decimal', args[0].typ.unit, args[0].typ.positional),
+            pos=getpos(expr)
+        )
+
 
 @signature(('num', 'decimal'))
 def as_unitless_number(expr, args, kwargs, context):
     return LLLnode(value=args[0].value, args=args[0].args, typ=BaseType(args[0].typ.typ, {}), pos=getpos(expr))
 
+
 @signature(('num', 'bytes32', 'num256', 'address'))
 def as_num128(expr, args, kwargs, context):
-    return LLLnode.from_list(['clamp', ['mload', MINNUM_POS], args[0], ['mload', MAXNUM_POS]], typ=BaseType("num"), pos=getpos(expr))
+    return LLLnode.from_list(
+        ['clamp', ['mload', MINNUM_POS], args[0], ['mload', MAXNUM_POS]], typ=BaseType("num"), pos=getpos(expr)
+    )
+
 
 # Can take either a literal number or a num/bytes32/address as an input
 @signature(('num_literal', 'num', 'bytes32', 'address'))
@@ -136,9 +152,11 @@ def as_num256(expr, args, kwargs, context):
     else:
         raise InvalidLiteralException("Invalid input for num256: %r" % args[0], expr)
 
+
 @signature(('num', 'num256', 'address'))
 def as_bytes32(expr, args, kwargs, context):
     return LLLnode(value=args[0].value, args=args[0].args, typ=BaseType('bytes32'), pos=getpos(expr))
+
 
 @signature('bytes', start='num', len='num')
 def _slice(expr, args, kwargs, context):
@@ -154,9 +172,13 @@ def _slice(expr, args, kwargs, context):
     placeholder_plus_32_node = LLLnode.from_list(np + 32, typ=sub.typ, location='memory')
     # Copies over bytearray data
     if sub.location == 'storage':
-        adj_sub = LLLnode.from_list(['add', ['sha3_32', sub], ['add', ['div', '_start', 32], 1]], typ=sub.typ, location=sub.location)
+        adj_sub = LLLnode.from_list(
+            ['add', ['sha3_32', sub], ['add', ['div', '_start', 32], 1]], typ=sub.typ, location=sub.location
+        )
     else:
-        adj_sub = LLLnode.from_list(['add', sub, ['add', ['sub', '_start', ['mod', '_start', 32]], 32]], typ=sub.typ, location=sub.location)
+        adj_sub = LLLnode.from_list(
+            ['add', sub, ['add', ['sub', '_start', ['mod', '_start', 32]], 32]], typ=sub.typ, location=sub.location
+        )
     copier = make_byte_slice_copier(placeholder_plus_32_node, adj_sub, ['add', '_length', 32], sub.typ.maxlen)
     # New maximum length in the type of the result
     newmaxlen = length.value if not len(length.args) else sub.typ.maxlen
@@ -170,9 +192,11 @@ def _slice(expr, args, kwargs, context):
                            '_opos']]]]
     return LLLnode.from_list(out, typ=ByteArrayType(newmaxlen), location='memory', pos=getpos(expr))
 
+
 @signature('bytes')
 def _len(expr, args, kwargs, context):
     return get_length(args[0])
+
 
 def concat(expr, context):
     from .parser import parse_expr, unwrap_location
@@ -228,7 +252,10 @@ def concat(expr, context):
     seq.append(['mstore', placeholder, '_poz'])
     # Memory location of the output
     seq.append(placeholder)
-    return LLLnode.from_list(['with', '_poz', 0, ['seq'] + seq], typ=ByteArrayType(total_maxlen), location='memory', pos=getpos(expr))
+    return LLLnode.from_list(
+        ['with', '_poz', 0, ['seq'] + seq], typ=ByteArrayType(total_maxlen), location='memory', pos=getpos(expr)
+    )
+
 
 @signature(('str_literal', 'bytes', 'bytes32'))
 def _sha3(expr, args, kwargs, context):
@@ -238,11 +265,17 @@ def _sha3(expr, args, kwargs, context):
         return LLLnode.from_list(bytes_to_int(sha3(sub)), typ=BaseType('bytes32'), pos=getpos(expr))
     # Can hash bytes32 objects
     if is_base_type(sub.typ, 'bytes32'):
-        return LLLnode.from_list(['seq', ['mstore', FREE_VAR_SPACE, sub], ['sha3', FREE_VAR_SPACE, 32]], typ=BaseType('bytes32'), pos=getpos(expr))
+        return LLLnode.from_list(
+            ['seq', ['mstore', FREE_VAR_SPACE, sub], ['sha3', FREE_VAR_SPACE, 32]], typ=BaseType('bytes32'),
+            pos=getpos(expr)
+        )
     # Copy the data to an in-memory array
     if sub.location == "memory":
         # If we are hashing a value in memory, no need to copy it, just hash in-place
-        return LLLnode.from_list(['with', '_sub', sub, ['sha3', ['add', '_sub', 32], ['mload', '_sub']]], typ=BaseType('bytes32'), pos=getpos(expr))
+        return LLLnode.from_list(
+            ['with', '_sub', sub, ['sha3', ['add', '_sub', 32], ['mload', '_sub']]], typ=BaseType('bytes32'),
+            pos=getpos(expr)
+        )
     elif sub.location == "storage":
         lengetter = LLLnode.from_list(['sload', ['sha3_32', '_sub']], typ=BaseType('num'))
     else:
@@ -250,19 +283,23 @@ def _sha3(expr, args, kwargs, context):
     placeholder = context.new_placeholder(sub.typ)
     placeholder_node = LLLnode.from_list(placeholder, typ=sub.typ, location='memory')
     copier = make_byte_array_copier(placeholder_node, LLLnode.from_list('_sub', typ=sub.typ, location=sub.location))
-    return LLLnode.from_list(['with', '_sub', sub,
-                                ['seq',
-                                    copier,
-                                    ['sha3', ['add', placeholder, 32], lengetter]]], typ=BaseType('bytes32'), pos=getpos(expr))
+    return LLLnode.from_list(
+        ['with', '_sub', sub, ['seq', copier, ['sha3', ['add', placeholder, 32], lengetter]]], typ=BaseType('bytes32'),
+        pos=getpos(expr)
+    )
+
 
 @signature('str_literal')
 def method_id(expr, args, kwargs, context):
     method_id = fourbytes_to_int(sha3(args[0])[:4])
     return LLLnode(method_id, typ=BaseType('method_id'), pos=getpos(expr))
 
+
 @signature('bytes32', 'num256', 'num256', 'num256')
 def ecrecover(expr, args, kwargs, context):
-    placeholder_node = LLLnode.from_list(context.new_placeholder(ByteArrayType(128)), typ=ByteArrayType(128), location='memory')
+    placeholder_node = LLLnode.from_list(
+        context.new_placeholder(ByteArrayType(128)), typ=ByteArrayType(128), location='memory'
+    )
     return LLLnode.from_list(['seq',
                               ['mstore', placeholder_node, args[0]],
                               ['mstore', ['add', placeholder_node, 32], args[1]],
@@ -271,6 +308,7 @@ def ecrecover(expr, args, kwargs, context):
                               ['pop', ['call', 3000, 1, 0, placeholder_node, 128, FREE_VAR_SPACE, 32]],
                               ['mload', FREE_VAR_SPACE]], typ=BaseType('address'), pos=getpos(expr))
 
+
 @signature('bytes', 'num', type=Optional('name_literal', 'bytes32'))
 def extract32(expr, args, kwargs, context):
     sub, index = args
@@ -278,32 +316,39 @@ def extract32(expr, args, kwargs, context):
     # Get length and specific element
     if sub.location == "memory":
         lengetter = LLLnode.from_list(['mload', '_sub'], typ=BaseType('num'))
-        elementgetter = lambda index: LLLnode.from_list(['mload', ['add', '_sub', ['add', 32, ['mul', 32, index]]]], typ=BaseType('num'))
+        elementgetter = lambda index: LLLnode.from_list(
+            ['mload', ['add', '_sub', ['add', 32, ['mul', 32, index]]]], typ=BaseType('num')
+        )
     elif sub.location == "storage":
         lengetter = LLLnode.from_list(['sload', ['sha3_32', '_sub']], typ=BaseType('num'))
-        elementgetter = lambda index: LLLnode.from_list(['sload', ['add', ['sha3_32', '_sub'], ['add', 1, index]]], typ=BaseType('num'))
+        elementgetter = lambda index: LLLnode.from_list(
+            ['sload', ['add', ['sha3_32', '_sub'], ['add', 1, index]]], typ=BaseType('num')
+        )
     # Special case: index known to be a multiple of 32
     if isinstance(index.value, int) and not index.value % 32:
-        o = LLLnode.from_list(['with', '_sub', sub, elementgetter(['div', ['clamp', 0, index, ['sub', lengetter, 32]], 32])], typ=BaseType(ret_type), annotation='extracting 32 bytes')
+        o = LLLnode.from_list(
+            ['with', '_sub', sub, elementgetter(['div', ['clamp', 0, index, ['sub', lengetter, 32]], 32])],
+            typ=BaseType(ret_type), annotation='extracting 32 bytes'
+        )
     # General case
     else:
         o = LLLnode.from_list(
             ['with', '_sub', sub,
-                ['with', '_len', lengetter,
-                    ['with', '_index', ['clamp', 0, index, ['sub', '_len', 32]],
-                      ['with', '_mi32', ['mod', '_index', 32],
-                        ['with', '_di32', ['div', '_index', 32],
-                          ['if',
-                            '_mi32',
-                            ['add',
-                                ['mul',
-                                    elementgetter('_di32'),
-                                    ['exp', 256, '_mi32']],
-                                ['div',
-                                    elementgetter(['add', '_di32', 1]),
-                                    ['exp', 256, ['sub', 32, '_mi32']]]],
-                            elementgetter('_di32')]]]]]],
-        typ=BaseType(ret_type), pos=getpos(expr), annotation='extracting 32 bytes')
+             ['with', '_len', lengetter,
+              ['with', '_index', ['clamp', 0, index, ['sub', '_len', 32]],
+               ['with', '_mi32', ['mod', '_index', 32],
+                ['with', '_di32', ['div', '_index', 32],
+                 ['if',
+                  '_mi32',
+                  ['add',
+                   ['mul',
+                    elementgetter('_di32'),
+                    ['exp', 256, '_mi32']],
+                   ['div',
+                    elementgetter(['add', '_di32', 1]),
+                    ['exp', 256, ['sub', 32, '_mi32']]]],
+                  elementgetter('_di32')]]]]]],
+        typ = BaseType(ret_type), pos=getpos(expr), annotation='extracting 32 bytes')
     if ret_type == 'num128':
         return LLLnode.from_list(['clamp', ['mload', MINNUM_POS], o, ['mload', MAXNUM_POS]], typ=BaseType("num"), pos=getpos(expr))
     elif ret_type == 'address':
@@ -311,9 +356,11 @@ def extract32(expr, args, kwargs, context):
     else:
         return o
 
+
 @signature('bytes')
 def bytes_to_num(expr, args, kwargs, context):
     return byte_array_to_num(args[0], expr, 'num')
+
 
 @signature(('num_literal', 'num', 'decimal'), 'name_literal')
 def as_wei_value(expr, args, kwargs, context):
@@ -348,6 +395,7 @@ def as_wei_value(expr, args, kwargs, context):
 
 zero_value = LLLnode.from_list(0, typ=BaseType('num', {'wei': 1}))
 
+
 @signature('address', 'bytes', outsize='num_literal', gas='num', value=Optional('num', zero_value))
 def raw_call(expr, args, kwargs, context):
     to, data = args
@@ -370,6 +418,7 @@ def raw_call(expr, args, kwargs, context):
                               output_node], typ=ByteArrayType(outsize), location='memory', pos=getpos(expr))
     return z
 
+
 @signature('address', 'num')
 def send(expr, args, kwargs, context):
     to, value = args
@@ -378,16 +427,19 @@ def send(expr, args, kwargs, context):
     enforce_units(value.typ, expr.args[1], BaseType('num', {'wei': 1}))
     return LLLnode.from_list(['pop', ['call', 0, to, value, 0, 0, 0, 0]], typ=None, pos=getpos(expr))
 
+
 @signature('address')
 def selfdestruct(expr, args, kwargs, context):
     if context.is_constant:
         raise ConstancyViolationException("Cannot %s inside a constant function!" % expr.func.id, expr.func)
     return LLLnode.from_list(['selfdestruct', args[0]], typ=None, pos=getpos(expr))
 
+
 @signature('num')
 def blockhash(expr, args, kwargs, contact):
     return LLLnode.from_list(['blockhash', ['uclamplt', ['clampge', args[0], ['sub', ['number'], 256]], 'number']],
                              typ=BaseType('bytes32'), pos=getpos(expr))
+
 
 @signature('bytes', '*')
 def _RLPlist(expr, args, kwargs, context):
@@ -487,6 +539,7 @@ def _RLPlist(expr, args, kwargs, context):
     decoder[0] = LLLnode.from_list(['seq', initial_setter, decoder[0]], typ=decoder[0].typ, location=decoder[0].location)
     return LLLnode.from_list(["multi"] + decoder, typ=output_type, location='memory', pos=getpos(expr))
 
+
 @signature('*', 'bytes')
 def raw_log(expr, args, kwargs, context):
     from .parser import parse_value_expr
@@ -511,57 +564,71 @@ def raw_log(expr, args, kwargs, context):
                 ["log"+str(len(topics)), ["add", placeholder_node, 32], ["mload", placeholder_node]] + topics]],
     typ=None, pos=getpos(expr))
 
+
 @signature('num256', 'num256')
 def bitwise_and(expr, args, kwargs, context):
     return LLLnode.from_list(['and', args[0], args[1]], typ=BaseType('num256'), pos=getpos(expr))
+
 
 @signature('num256', 'num256')
 def bitwise_or(expr, args, kwargs, context):
     return LLLnode.from_list(['or', args[0], args[1]], typ=BaseType('num256'), pos=getpos(expr))
 
+
 @signature('num256', 'num256')
 def bitwise_xor(expr, args, kwargs, context):
     return LLLnode.from_list(['xor', args[0], args[1]], typ=BaseType('num256'), pos=getpos(expr))
+
 
 @signature('num256', 'num256')
 def num256_add(expr, args, kwargs, context):
     return LLLnode.from_list(['add', args[0], args[1]], typ=BaseType('num256'), pos=getpos(expr))
 
+
 @signature('num256', 'num256')
 def num256_sub(expr, args, kwargs, context):
     return LLLnode.from_list(['sub', args[0], args[1]], typ=BaseType('num256'), pos=getpos(expr))
+
 
 @signature('num256', 'num256')
 def num256_mul(expr, args, kwargs, context):
     return LLLnode.from_list(['mul', args[0], args[1]], typ=BaseType('num256'), pos=getpos(expr))
 
+
 @signature('num256', 'num256')
 def num256_div(expr, args, kwargs, context):
     return LLLnode.from_list(['div', args[0], args[1]], typ=BaseType('num256'), pos=getpos(expr))
+
 
 @signature('num256', 'num256')
 def num256_mod(expr, args, kwargs, context):
     return LLLnode.from_list(['mod', args[0], args[1]], typ=BaseType('num256'), pos=getpos(expr))
 
+
 @signature('num256')
 def bitwise_not(expr, args, kwargs, context):
     return LLLnode.from_list(['not', args[0]], typ=BaseType('num256'), pos=getpos(expr))
+
 
 @signature('num256' ,'num256')
 def num256_gt(expr, args, kwargs, context):
     return LLLnode.from_list(['gt', args[0], args[1]], typ=BaseType('bool'), pos=getpos(expr))
 
+
 @signature('num256' ,'num256')
 def num256_ge(expr, args, kwargs, context):
     return LLLnode.from_list(['ge', args[0], args[1]], typ=BaseType('bool'), pos=getpos(expr))
+
 
 @signature('num256' ,'num256')
 def num256_lt(expr, args, kwargs, context):
     return LLLnode.from_list(['lt', args[0], args[1]], typ=BaseType('bool'), pos=getpos(expr))
 
+
 @signature('num256' ,'num256')
 def num256_le(expr, args, kwargs, context):
     return LLLnode.from_list(['le', args[0], args[1]], typ=BaseType('bool'), pos=getpos(expr))
+
 
 @signature('num256', 'num')
 def shift(expr, args, kwargs, context):
@@ -575,6 +642,7 @@ def shift(expr, args, kwargs, context):
                                            ['div', '_v', ['exp', 2, ['sub', 0, '_s']]],
                                            ['mul', '_v', ['exp', 2, '_s']]]]],
     typ=BaseType('num256'), pos=getpos(expr))
+
 
 @signature('address', value=Optional('num', zero_value))
 def create_with_code_of(expr, args, kwargs, context):
