@@ -20,7 +20,7 @@ setup(
     license=license,
     packages=find_packages(exclude=('tests', 'docs')),
     install_requires=[
-        'ethereum == 1.3.7',
+        'ethereum==2.0.4',
         'serpent',
         'pytest-cov',
         'pytest-runner', # Must be after pytest-cov or it will not work
