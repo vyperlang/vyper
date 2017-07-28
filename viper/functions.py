@@ -663,6 +663,35 @@ def create_with_code_of(expr, args, kwargs, context):
                                 ['mstore', ['add', placeholder, 47], low],
                                 ['clamp_nonzero', ['create', value, placeholder, 64]]], typ=BaseType('address'), pos=getpos(expr))
 
+@signature(('num', 'decimal', 'num256'), ('num', 'decimal', 'num256'))
+def _min(expr, args, kwargs, context):
+    return minmax(expr, args, kwargs, context, True)
+
+@signature(('num', 'decimal', 'num256'), ('num', 'decimal', 'num256'))
+def _max(expr, args, kwargs, context):
+    return minmax(expr, args, kwargs, context, False)
+
+def minmax(expr, args, kwargs, context, is_min):
+    left, right = args[0], args[1]
+    if not are_units_compatible(left.typ, right.typ) and not are_units_compatible(right.typ, left.typ):
+        raise TypeMismatchException("Units must be compatible", expr)
+    if left.typ.typ == 'num256':
+        comparator = 'gt' if is_min else 'lt'
+    else:
+        comparator = 'sgt' if is_min else 'slt'
+    if left.typ == right.typ:
+        o = ['if', [comparator, '_l', '_r'], '_r', '_l']
+        otyp = left.typ
+    elif left.typ.typ == 'num' and right.typ.typ == 'decimal':
+        o = ['if', [comparator, ['mul', '_l', DECIMAL_DIVISOR], '_r'], '_r', ['mul', '_l', DECIMAL_DIVISOR]]
+        otyp = 'decimal'
+    elif left.typ.typ == 'decimal' and right.typ.typ == 'num':
+        o = ['if', [comparator, '_l', ['mul', '_r', DECIMAL_DIVISOR]], ['mul', '_r', DECIMAL_DIVISOR], '_l']
+        otyp = 'decimal'
+    else:
+        raise TypeMismatchException("Minmax types incompatible: %s %s' % (left.typ.typ, right.typ.typ)")
+    return LLLnode.from_list(['with', '_l', left, ['with', '_r', right, o]], typ=otyp, pos=getpos(expr))
+
 
 dispatch_table = {
     'floor': floor,
@@ -699,6 +728,8 @@ dispatch_table = {
     'num256_le': num256_le,
     'shift': shift,
     'create_with_code_of': create_with_code_of,
+    'min': _min,
+    'max': _max,
 }
 
 stmt_dispatch_table = {

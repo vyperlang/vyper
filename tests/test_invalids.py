@@ -1873,6 +1873,31 @@ def foo():
     x = 129
 """, TypeMismatchException)
 
+must_fail("""
+def foo():
+    y = min(7, as_num256(3))
+""", TypeMismatchException)
+
+must_fail("""
+def foo():
+    y = min(7, 0x1234567890123456789012345678901234567890)
+""", TypeMismatchException)
+
+must_fail("""
+def foo():
+    y = min(7, block.timestamp)
+""", TypeMismatchException)
+
+must_fail("""
+def foo():
+    y = min(block.timestamp + 30 - block.timestamp, block.timestamp)
+""", TypeMismatchException)
+
+must_succeed("""
+def foo():
+    y = min(block.timestamp + 30, block.timestamp + 50)
+""")
+
 # Run all of our registered tests
 import pytest
 from pytest import raises
