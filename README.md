@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/ethereum/viper.svg?branch=master)](https://travis-ci.org/ethereum/viper)
+
 Viper is an experimental programming language that aims to provide the following features:
 
 * Bounds and overflow checking, both on array accesses and on arithmetic
