@@ -4,22 +4,7 @@ avail_shares: num
 total_shares: num
 price: wei_value
 
-stockholders: {account: address, stock: num}[num]
-stockholder_lookup: num[address]
-num_stockholders: num
-not_found: num = -1
-
-@internal
-def lookup(_account: address) -> num:
-    return self.stockholder_lookup[_account]
-
-@internal
-def append(_account: address, _stock: num):
-    assert self.lookup(_account) == self.not_found
-    
-    self.stockholders[self.num_stockholders] = {account: _account, stock: _stock}
-    self.stockholder_lookup[_account] = self.num_stockholders
-    self.num_stockholders += 1
+holdings: num[address]
 
 # Setup company
 def __init__(_company: address, _total_shares: num, initial_price: wei_value):
@@ -29,44 +14,40 @@ def __init__(_company: address, _total_shares: num, initial_price: wei_value):
     self.company = _company
     self.avail_shares = _total_shares
     self.total_shares = _total_shares
-    self.num_stockholders = 0
     
     self.price = initial_price
 
+# Give value to company and get stock in return
 @payable
 def buy_stock():
-    buy_order = msg.value / self.price # round_down to nearest whole num
+    # Note: full amount is given to company (no fractional shares),
+    #       so be sure to send exact amount to buy shares
+    buy_order = msg.value / self.price # rounds down
+
     # There are enough shares to buy
     assert self.avail_shares >= buy_order
-    # Full amount is given to company
-    send(self.company, msg.value)
-    # Find (or create) shareholder account
-    # Take the shares off the market and give to that account
-    self.avail_shares -= buy_order
-    idx = self.lookup(msg.sender)
-    if idx > self.not_found:
-        # Account exists, so add to that account
-        self.stockholders[idx].stock += buy_order
-        return
-    # Not in stockholders list, so add account
-    self.append(msg.sender, buy_order)
-
-@payable
-def sell_stock():
-    sell_order = msg.value / self.price # round_down
     
-    idx = self.lookup(msg.sender)
-    assert idx > self.not_found
+    # Take the shares off the market and give to stockholder
+    self.avail_shares -= buy_order
+    if self.holdings[msg.sender]:
+        # Account exists, so add to that account
+        self.holdings[msg.sender] += buy_order
+    else:
+        # Not currently a stockholder, so add them
+        self.holdings[msg.sender] = buy_order
+
+# Give stock back to company and get my money back!
+def sell_stock(sell_order: num):
     # Can only sell as much stock as you own
-    if self.stockholders[idx].stock > sell_order:
-        sell_order = self.stockholders[idx].stock
+    assert self.holdings[msg.sender] >= sell_order
+
     # Sell the stock, send the proceeds to the user
-    self.stockholders[idx].stock -= sell_order
+    self.holdings[msg.sender] -= sell_order
     send(msg.sender, sell_order * self.price)
+
     # Put the stock back on the market
     self.avail_shares += sell_order
 
 @constant
 def valuation() -> wei_value:
-    # Valuation is shares off the market times asking price
     return (self.total_shares - self.avail_shares) * self.price
