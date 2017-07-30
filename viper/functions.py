@@ -679,7 +679,7 @@ def minmax(expr, args, kwargs, context, is_min):
         comparator = 'gt' if is_min else 'lt'
     else:
         comparator = 'sgt' if is_min else 'slt'
-    if left.typ == right.typ:
+    if left.typ.typ == right.typ.typ:
         o = ['if', [comparator, '_l', '_r'], '_r', '_l']
         otyp = left.typ
     elif left.typ.typ == 'num' and right.typ.typ == 'decimal':
@@ -689,7 +689,7 @@ def minmax(expr, args, kwargs, context, is_min):
         o = ['if', [comparator, '_l', ['mul', '_r', DECIMAL_DIVISOR]], ['mul', '_r', DECIMAL_DIVISOR], '_l']
         otyp = 'decimal'
     else:
-        raise TypeMismatchException("Minmax types incompatible: %s %s' % (left.typ.typ, right.typ.typ)")
+        raise TypeMismatchException("Minmax types incompatible: %s %s" % (left.typ.typ, right.typ.typ))
     return LLLnode.from_list(['with', '_l', left, ['with', '_r', right, o]], typ=otyp, pos=getpos(expr))
 
 

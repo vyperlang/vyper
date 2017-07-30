@@ -1862,10 +1862,17 @@ def foo():
 
 must_succeed("""
 def foo():
-    x = block.difficulty + block.number
+    x = block.difficulty + 185
     if tx.origin == self:
         y = concat(block.prevhash, "dog")
 """)
+
+must_fail("""
+def foo():
+    x = block.difficulty + block.number
+    if tx.origin == self:
+        y = concat(block.prevhash, "dog")
+""", TypeMismatchException)
 
 must_fail("""
 def foo():
@@ -1885,7 +1892,8 @@ def foo():
 
 must_fail("""
 def foo():
-    y = min(7, block.timestamp)
+    x = 7
+    y = min(x, block.timestamp)
 """, TypeMismatchException)
 
 must_fail("""
