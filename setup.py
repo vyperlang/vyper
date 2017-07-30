@@ -20,8 +20,7 @@ setup(
     license=license,
     packages=find_packages(exclude=('tests', 'docs')),
     install_requires=[
-        #'ethereum == 2.0.4',
-        #'serpent',
+        'ethereum==2.0.4',
         'pytest-cov',
         'pytest-runner', # Must be after pytest-cov or it will not work
         #           due to https://github.com/pypa/setuptools/issues/196

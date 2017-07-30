@@ -24,3 +24,8 @@ ENV/
 .coverage
 .cache/
 htmlcov/
+
+# sphinx
+docs/_build
+docs/modules.rst
+
