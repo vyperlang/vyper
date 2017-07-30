@@ -7,7 +7,7 @@ from .exceptions import InvalidTypeException, TypeMismatchException
 base_types = ['num', 'decimal', 'bytes32', 'num256', 'signed256', 'bool', 'address']
 
 # Valid base units
-valid_units = ['currency', 'wei', 'currency1', 'currency2', 'sec', 'blocks', 'm', 'kg']
+valid_units = ['currency', 'wei', 'currency1', 'currency2', 'sec', 'm', 'kg']
 
 # Cannot be used for variable or member naming
 reserved_words = ['int128', 'int256', 'uint256', 'address', 'bytes32',
@@ -198,8 +198,6 @@ def parse_abi_type(t):
 special_types = {
     'timestamp': BaseType('num', {'sec': 1}, True),
     'timedelta': BaseType('num', {'sec': 1}, False),
-    'blockcount': BaseType('num', {'blocks': 1}, True),
-    'blockdelta': BaseType('num', {'blocks': 1}, False),
     'currency_value': BaseType('num', {'currency': 1}, False),
     'currency1_value': BaseType('num', {'currency1': 1}, False),
     'currency2_value': BaseType('num', {'currency2': 1}, False),

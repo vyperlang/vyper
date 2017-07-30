@@ -587,7 +587,7 @@ def parse_expr(expr, context):
             elif key == "block.coinbase":
                 return LLLnode.from_list(['coinbase'], typ='address', pos=getpos(expr))
             elif key == "block.number":
-                return LLLnode.from_list(['number'], typ=BaseType('num', {'blocks': 1}, True), pos=getpos(expr))
+                return LLLnode.from_list(['number'], typ='num', pos=getpos(expr))
             elif key == "block.prevhash":
                 return LLLnode.from_list(['blockhash', ['sub', 'number', 1]], typ='bytes32', pos=getpos(expr))
             elif key == "tx.origin":

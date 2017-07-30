@@ -1869,13 +1869,6 @@ def foo():
 
 must_fail("""
 def foo():
-    x = block.difficulty + block.number
-    if tx.origin == self:
-        y = concat(block.prevhash, "dog")
-""", TypeMismatchException)
-
-must_fail("""
-def foo():
     x = True
     x = 129
 """, TypeMismatchException)
