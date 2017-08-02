@@ -1563,8 +1563,8 @@ def foo(x: bytes <= 32) -> num:
         success = False
     print('Passed bytes_to_num tests')
 
-import rlp
 def test_rlp_decoder_code():
+    import rlp
     rlp_decoder_code = """
 u: bytes <= 100
 
