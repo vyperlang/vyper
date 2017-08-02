@@ -205,6 +205,11 @@ source viper/bin/activate
 deactivate 
 ```
 
+   *Alternatively*: It is handy to use `pyenv` [https://github.com/pyenv/pyenv] to help manage your Python 3.6.2 or higher when Python releases new version. It works like a python version manager.
+```
+pyenv virtualenv viper
+```
+
 5. Install `setuptools` package 
 `pip3 install setuptools`
 
@@ -212,22 +217,16 @@ deactivate
 ```
 git clone https://github.com/ethereum/pyethereum/
 git checkout state_revamp
-cd pyethereum 
-python3.6 setup.py install (or: python setup.py install (both work)
 ```
 
 7. Now, we are talking business, clone this Viper repo and install and test, and Walla!
 ```
 git clone https://github.com/ethereum/viper.git
 cd viper 
-python3.6 setup.py install
-python3.6 setup.py test
+python setup.py install
+python setup.py test
 ```
 
-8. Oh, One more thing: by the time of writing, this bug has been fixed, but depending on when did you clone the Viper Repo, if during `python3.6 setup.py install`, there is an error with `tester2`, that's because of the following bug in `viper/tests/test_parser.py`.
-```
-change `tester2` into `tester`
-```
 - **MacOS**
 
 1. Make sure you have homebrew installed. if not, you could checkout [How-To-Geek Guide](https://www.howtogeek.com/211541/homebrew-for-os-x-easily-installs-desktop-apps-and-terminal-utilities/) or [Homebrew Repo](https://github.com/Homebrew/brew/blob/master/docs/Installation.md)
