@@ -168,7 +168,7 @@ Take a deep breath and follow, please create an issue if any errors encountered.
 
 It is **strongly recommended** to install in **a virtual Python environment (normally either `virtualenv` or `venv`)**, so that new packages installed and dependencies built are strictly contained in your viper project and will not alter/affect your other dev environment set-up.
 
-To find out how to set-up virtual environment, more infomation check out: [virtualenv guide](http://python-guide-pt-br.readthedocs.io/en/latest/dev/virtualenvs/). Or follow t
+To find out how to set-up virtual environment, check out: [virtualenv guide](http://python-guide-pt-br.readthedocs.io/en/latest/dev/virtualenvs/).
 
 
 - **Ubuntu (16.04 LTS)**
@@ -185,13 +185,14 @@ python3 -V
 
 3. Install python3.6 and some necessary package (*if you haven't installed the package*)
 ```
+sudo apt-get install build-essential libssl-dev libffi-dev python-dev python3.6-dev python3.6
+
 wget https://www.python.org/ftp/python/3.6.1/Python-3.6.1.tgz
 tar xfz Python-3.6.1.tgz
 cd Python-3.6.1/
 ./configure –prefix /usr/local/lib/python3.6
 sudo make
 sudo make install
-sudo apt-get install build-essential libssl-dev libffi-dev python-dev python3.6-dev python3.6
 ```
 
 4. Now, start a python virtual environment named it "viper", then activate the virtual env. (after activation, you should be able to see "(viper)" at the front of each commandline, indicating that you are now in a virtual environment)
