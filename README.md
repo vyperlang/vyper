@@ -185,7 +185,7 @@ python3 -V
 
 3. Install python3.6 and some necessary package (*if you haven't installed the package*)
 ```
-sudo apt-get install build-essential libssl-dev libffi-dev python-dev python3.6-dev python3.6
+sudo apt-get install build-essential libssl-dev libffi-dev
 
 wget https://www.python.org/ftp/python/3.6.1/Python-3.6.1.tgz
 tar xfz Python-3.6.1.tgz
