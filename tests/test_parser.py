@@ -1,4 +1,4 @@
-from .setup_transaction_tests import s, t, u, check_gas
+from .setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas
 
 def test_null_code():
     null_code = """
