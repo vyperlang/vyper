@@ -168,7 +168,7 @@ Take a deep breath and follow, please create an issue if any errors encountered.
 
 It is **strongly recommended** to install in **a virtual Python environment (normally either `virtualenv` or `venv`)**, so that new packages installed and dependencies built are strictly contained in your viper project and will not alter/affect your other dev environment set-up.
 
-To find out how to set-up virtual environment, check out: [virtualenv guide](http://python-guide-pt-br.readthedocs.io/en/latest/dev/virtualenvs/)
+To find out how to set-up virtual environment, more infomation check out: [virtualenv guide](http://python-guide-pt-br.readthedocs.io/en/latest/dev/virtualenvs/). Or follow t
 
 
 - **Ubuntu (16.04 LTS)**
@@ -185,16 +185,30 @@ python3 -V
 
 3. Install python3.6 and some necessary package (*if you haven't installed the package*)
 ```
-sudo add-apt-repository ppa:jonathonf/python-3.6
-sudo apt-get update
-
-sudo apt-get install -y python3-pip
+wget https://www.python.org/ftp/python/3.6.1/Python-3.6.1.tgz
+tar xfz Python-3.6.1.tgz
+cd Python-3.6.1/
+./configure –prefix /usr/local/lib/python3.6
+sudo make
+sudo make install
 sudo apt-get install build-essential libssl-dev libffi-dev python-dev python3.6-dev python3.6
 ```
-4. Install `setuptools` package 
+
+4. Now, start a python virtual environment named it "viper", then activate the virtual env. (after activation, you should be able to see "(viper)" at the front of each commandline, indicating that you are now in a virtual environment)
+```
+virtualenv -python=/usr/local/lib/python3.6/bin/python --no-site-packages viper
+source viper/bin/activate
+
+```
+   To deactivate and return to default environment, (you should see the "(viper)" at the front disappeared.)
+```
+deactivate 
+```
+
+5. Install `setuptools` package 
 `pip3 install setuptools`
 
-5. Before testing, make sure you already have pyethereum cloned on branch state_revamp
+6. Before testing, make sure you already have pyethereum cloned on branch state_revamp
 ```
 git clone https://github.com/ethereum/pyethereum/
 git checkout state_revamp
@@ -202,7 +216,7 @@ cd pyethereum
 python3.6 setup.py install (or: python setup.py install (both work)
 ```
 
-6. Now, we are talking business, clone this Viper repo and install and test, and Walla!
+7. Now, we are talking business, clone this Viper repo and install and test, and Walla!
 ```
 git clone https://github.com/ethereum/viper.git
 cd viper 
@@ -210,7 +224,7 @@ python3.6 setup.py install
 python3.6 setup.py test
 ```
 
-7. Oh, One more thing: by the time of writing, this bug has been fixed, but depending on when did you clone the Viper Repo, if during `python3.6 setup.py install`, there is an error with `tester2`, that's because of the following bug in `viper/tests/test_parser.py`.
+8. Oh, One more thing: by the time of writing, this bug has been fixed, but depending on when did you clone the Viper Repo, if during `python3.6 setup.py install`, there is an error with `tester2`, that's because of the following bug in `viper/tests/test_parser.py`.
 ```
 change `tester2` into `tester`
 ```
