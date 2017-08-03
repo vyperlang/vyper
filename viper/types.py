@@ -310,7 +310,7 @@ def get_size_of_type(typ):
     elif isinstance(typ, ListType):
         return get_size_of_type(typ.subtype) * typ.count
     elif isinstance(typ, MappingType):
-        raise Exception("Type size infinite!")
+        raise Exception("Maps are not supported for function arguments or outputs.")
     elif isinstance(typ, StructType):
         return sum([get_size_of_type(v) for v in typ.members.values()])
     elif isinstance(typ, TupleType):
