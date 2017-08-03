@@ -197,7 +197,7 @@ sudo make install
 
 4. Now, start a python virtual environment named it "viper", then activate the virtual env. (after activation, you should be able to see "(viper)" at the front of each commandline, indicating that you are now in a virtual environment)
 ```
-virtualenv -python=/usr/local/lib/python3.6/bin/python --no-site-packages viper
+virtualenv --python=/usr/local/lib/python3.6/bin/python --no-site-packages viper
 source viper/bin/activate
 
 ```
@@ -211,16 +211,7 @@ deactivate
 pyenv virtualenv viper
 ```
 
-5. Install `setuptools` package 
-`pip3 install setuptools`
-
-6. Before testing, make sure you already have pyethereum cloned on branch state_revamp
-```
-git clone https://github.com/ethereum/pyethereum/
-git checkout state_revamp
-```
-
-7. Now, we are talking business, clone this Viper repo and install and test, and Walla!
+5. Now, we are talking business, clone this Viper repo and install and test, and Walla!
 ```
 git clone https://github.com/ethereum/viper.git
 cd viper 
@@ -234,24 +225,17 @@ python setup.py test
 
 2. Make sure your python is 3.6 or higher. If not, you could checkout [python3 for MacOS guide](http://python-guide-pt-br.readthedocs.io/en/latest/starting/install3/osx/)
 
-3. Before testing, make sure you already have pyethereum cloned on branch state_revamp
-```
-git clone https://github.com/ethereum/pyethereum/
-git checkout state_revamp
-cd pyethereum 
-python setup.py install
-```
-  If it fails with some error message on `openssl`, do the following:
-```
-env LDFLAGS=“-L$(brew --prefix openssl)/lib” CFLAGS=“-I$(brew --prefix openssl)/include” pip install scrypt
-```
-
-4. Now, go ahead and clone viper repo (not within `pyethereum` folder), and you run install and test, and Walla !! 
+3. Now, go ahead and clone viper repo (not within `pyethereum` folder), and you run install and test, and Walla !! 
 ```
 git clone https://github.com/ethereum/viper.git
 cd viper 
 python setup.py install
 python setup.py test
+```
+
+If it fails with some error message on `openssl`, do the following:
+```
+env LDFLAGS=“-L$(brew --prefix openssl)/lib” CFLAGS=“-I$(brew --prefix openssl)/include” pip install scrypt
 ```
 
 # Compile 
