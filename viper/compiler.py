@@ -33,7 +33,6 @@ def mk_full_signature(code, *args, **kwargs):
     gas_estimates = gas_estimate(code)
     for idx, func in enumerate(abi):
         func_name = func['name'].split('(')[0]
-        print(func_name)
         # Skip __init__, has no estimate
         if func_name != '__init__':
             abi[idx]['gas'] = gas_estimates[func_name]
