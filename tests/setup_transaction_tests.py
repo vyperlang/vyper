@@ -58,14 +58,14 @@ def gas_estimation_decorator(fn, source_code, func):
     return decorator
 
 
-def contract_with_gas_estimation(source_code, func=None):
+def contract_with_gas_estimation(source_code, func_target_check_gas=None):
     contract = chain.contract(source_code, language="viper")
 
-    if hasattr(contract, func):
-        func_definition = getattr(contract, func)
+    if hasattr(contract, func_target_check_gas):
+        func_definition = getattr(contract, func_target_check_gas)
         func_with_decorator = gas_estimation_decorator(
-            func_definition, source_code, func
+            func_definition, source_code, func_target_check_gas
         )
-        setattr(contract, func, func_with_decorator)
+        setattr(contract, func_target_check_gas, func_with_decorator)
 
     return contract
