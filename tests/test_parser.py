@@ -478,8 +478,8 @@ def __init__(x: num[2], y: bytes <= 3, z: num):
 def get_comb() -> num:
     return self.comb
     """
-    assert s.contract(constructor_advanced_code2, args=[[5,7], "dog", 8]).get_comb() == 5738
-
+    c = get_contract_with_gas_estimation(constructor_advanced_code2, args=[[5,7], "dog", 8])
+    assert c.get_comb() == 5738
     print("Passed advanced init argument tests")
 
 def test_permanent_variables_test():
@@ -493,10 +493,10 @@ def returnMoose() -> num:
     return self.var.a * 10 + self.var.b
     """
 
-    c = s.contract(permanent_variables_test, args=[5, 7])
+    c = get_contract_with_gas_estimation(permanent_variables_test, args=[5, 7])
     assert c.returnMoose() == 57
     print('Passed init argument and variable member test')
-    check_gas(permanent_variables_test, function='returnMoose')
+
 
 def test_crowdfund():
     crowdfund = """
@@ -560,15 +560,14 @@ def refund():
 
     """
 
-    c = s.contract(crowdfund, args=[t.a1, 50, 600])
+    c = get_contract_with_gas_estimation(crowdfund, args=[t.a1, 50, 600])
 
-
-    c.participate(value = 5)
+    c.participate(value=5)
     assert c.timelimit() == 600
     assert c.deadline() - c.timestamp() == 600
     assert not c.expired()
     assert not c.reached()
-    c.participate(value = 49)
+    c.participate(value=49)
     assert c.reached()
     pre_bal = s.head_state.get_balance(t.a1)
     s.head_state.timestamp += 1000
@@ -578,19 +577,20 @@ def refund():
     assert post_bal - pre_bal == 54
 
     c = s.contract(crowdfund, args=[t.a1, 50, 600])
-    c.participate(value = 1, sender=t.k3)
-    c.participate(value = 2, sender=t.k4)
-    c.participate(value = 3, sender=t.k5)
-    c.participate(value = 4, sender=t.k6)
+    c.participate(value=1, sender=t.k3)
+    c.participate(value=2, sender=t.k4)
+    c.participate(value=3, sender=t.k5)
+    c.participate(value=4, sender=t.k6)
     s.head_state.timestamp += 1000
     assert c.expired()
     assert not c.reached()
     pre_bals = [s.head_state.get_balance(x) for x in [t.a3, t.a4, t.a5, t.a6]]
     c.refund()
     post_bals = [s.head_state.get_balance(x) for x in [t.a3, t.a4, t.a5, t.a6]]
-    assert [y-x for x, y in zip(pre_bals, post_bals)] == [1,2,3,4]
+    assert [y-x for x, y in zip(pre_bals, post_bals)] == [1, 2, 3, 4]
 
     print('Passed composite crowdfund test')
+
 
 def test_comment_test():
     comment_test = """
@@ -600,9 +600,10 @@ def foo() -> num:
     return 3
     """
 
-    c = s.contract(comment_test)
+    c = get_contract_with_gas_estimation(comment_test)
     assert c.foo() == 3
     print('Passed comment test')
+
 
 def test_packing_test():
     packing_test = """
@@ -644,10 +645,11 @@ def fop() -> num:
         _z.bar[0].a + _z.bar[0].b + _z.bar[1].a + _z.bar[1].b + _a
     """
 
-    c = s.contract(packing_test)
+    c = get_contract_with_gas_estimation(packing_test)
     assert c.foo() == 1023, c.foo()
     assert c.fop() == 1023, c.fop()
     print('Passed packing test')
+
 
 def test_multi_setter_test():
     multi_setter_test = """
@@ -700,7 +702,7 @@ def jop() -> num:
 
     """
 
-    c = s.contract(multi_setter_test)
+    c = get_contract_with_gas_estimation(multi_setter_test)
     assert c.foo() == 321
     assert c.fop() == 654321
     assert c.goo() == 321
@@ -710,6 +712,7 @@ def jop() -> num:
     assert c.joo() == 0
     assert c.jop() == 321
     print('Passed multi-setter literal test')
+
 
 def test_multi_setter_struct_test():
     multi_setter_struct_test = """
@@ -750,13 +753,14 @@ def gop() -> num:
         zed[1].bar[1].a * 1000000000000 + zed[1].bar[1].b * 10000000000000
     """
 
-    c = s.contract(multi_setter_struct_test)
+    c = get_contract_with_gas_estimation(multi_setter_struct_test)
     assert c.foo() == 654321
     assert c.fop() == 87198763254321
     assert c.goo() == 654321
     assert c.gop() == 87198763254321
 
     print('Passed multi-setter struct test')
+
 
 def test_type_converter_setter_test():
     type_converter_setter_test = """
@@ -774,10 +778,11 @@ def goo() -> num:
     return floor(self.pop[0][0] + self.pop[0][1] * 10 + self.pop[1][0] * 100 + self.pop[1][1] * 1000)
     """
 
-    c = s.contract(type_converter_setter_test)
+    c = get_contract_with_gas_estimation(type_converter_setter_test)
     assert c.foo() == 4321
     assert c.foo() == 4321
     print('Passed type-conversion struct test')
+
 
 def test_composite_setter_test():
     composite_setter_test = """
@@ -806,11 +811,12 @@ def foq() -> num:
     return popp.a[0].c + popp.a[1].c * 10 + popp.a[2].c * 100 + popp.b * 1000
     """
 
-    c = s.contract(composite_setter_test)
+    c = get_contract_with_gas_estimation(composite_setter_test)
     assert c.foo() == 4625
     assert c.fop() == 4625
     assert c.foq() == 4020
     print('Passed composite struct test')
+
 
 def test_crowdfund2():
     crowdfund2 = """
@@ -872,15 +878,14 @@ def refund():
 
     """
 
-    c = s.contract(crowdfund2, args=[t.a1, 50, 600])
+    c = get_contract_with_gas_estimation(crowdfund2, args=[t.a1, 50, 600])
 
-
-    c.participate(value = 5)
+    c.participate(value=5)
     assert c.timelimit() == 600
     assert c.deadline() - c.timestamp() == 600
     assert not c.expired()
     assert not c.reached()
-    c.participate(value = 49)
+    c.participate(value=49)
     assert c.reached()
     pre_bal = s.head_state.get_balance(t.a1)
     s.head_state.timestamp += 1000
@@ -890,19 +895,20 @@ def refund():
     assert post_bal - pre_bal == 54
 
     c = s.contract(crowdfund2, args=[t.a1, 50, 600])
-    c.participate(value = 1, sender=t.k3)
-    c.participate(value = 2, sender=t.k4)
-    c.participate(value = 3, sender=t.k5)
-    c.participate(value = 4, sender=t.k6)
+    c.participate(value=1, sender=t.k3)
+    c.participate(value=2, sender=t.k4)
+    c.participate(value=3, sender=t.k5)
+    c.participate(value=4, sender=t.k6)
     s.head_state.timestamp += 1000
     assert c.expired()
     assert not c.reached()
     pre_bals = [s.head_state.get_balance(x) for x in [t.a3, t.a4, t.a5, t.a6]]
     c.refund()
     post_bals = [s.head_state.get_balance(x) for x in [t.a3, t.a4, t.a5, t.a6]]
-    assert [y-x for x, y in zip(pre_bals, post_bals)] == [1,2,3,4]
+    assert [y-x for x, y in zip(pre_bals, post_bals)] == [1, 2, 3, 4]
 
     print('Passed second composite crowdfund test')
+
 
 def test_test_bytes():
     test_bytes = """
