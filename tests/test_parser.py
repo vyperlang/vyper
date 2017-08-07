@@ -405,7 +405,7 @@ def augmod(x: num, y: num) -> num:
     return z
     """
 
-    c = get_contract_with_gas_estimation(augassign_test)
+    c = get_contract(augassign_test)
 
     assert c.augadd(5, 12) == 17
     assert c.augmul(5, 12) == 60
@@ -560,7 +560,7 @@ def refund():
 
     """
 
-    c = get_contract_with_gas_estimation(crowdfund, args=[t.a1, 50, 600])
+    c = get_contract(crowdfund, args=[t.a1, 50, 600])
 
     c.participate(value=5)
     assert c.timelimit() == 600
@@ -576,7 +576,7 @@ def refund():
     post_bal = s.head_state.get_balance(t.a1)
     assert post_bal - pre_bal == 54
 
-    c = s.contract(crowdfund, args=[t.a1, 50, 600])
+    c = get_contract(crowdfund, args=[t.a1, 50, 600])
     c.participate(value=1, sender=t.k3)
     c.participate(value=2, sender=t.k4)
     c.participate(value=3, sender=t.k5)
@@ -702,7 +702,7 @@ def jop() -> num:
 
     """
 
-    c = get_contract_with_gas_estimation(multi_setter_test)
+    c = get_contract(multi_setter_test)
     assert c.foo() == 321
     assert c.fop() == 654321
     assert c.goo() == 321
@@ -753,7 +753,7 @@ def gop() -> num:
         zed[1].bar[1].a * 1000000000000 + zed[1].bar[1].b * 10000000000000
     """
 
-    c = get_contract_with_gas_estimation(multi_setter_struct_test)
+    c = get_contract(multi_setter_struct_test)
     assert c.foo() == 654321
     assert c.fop() == 87198763254321
     assert c.goo() == 654321
@@ -778,7 +778,7 @@ def goo() -> num:
     return floor(self.pop[0][0] + self.pop[0][1] * 10 + self.pop[1][0] * 100 + self.pop[1][1] * 1000)
     """
 
-    c = get_contract_with_gas_estimation(type_converter_setter_test)
+    c = get_contract(type_converter_setter_test)
     assert c.foo() == 4321
     assert c.foo() == 4321
     print('Passed type-conversion struct test')
@@ -811,7 +811,7 @@ def foq() -> num:
     return popp.a[0].c + popp.a[1].c * 10 + popp.a[2].c * 100 + popp.b * 1000
     """
 
-    c = get_contract_with_gas_estimation(composite_setter_test)
+    c = get_contract(composite_setter_test)
     assert c.foo() == 4625
     assert c.fop() == 4625
     assert c.foq() == 4020
@@ -878,7 +878,7 @@ def refund():
 
     """
 
-    c = get_contract_with_gas_estimation(crowdfund2, args=[t.a1, 50, 600])
+    c = get_contract(crowdfund2, args=[t.a1, 50, 600])
 
     c.participate(value=5)
     assert c.timelimit() == 600
@@ -894,7 +894,7 @@ def refund():
     post_bal = s.head_state.get_balance(t.a1)
     assert post_bal - pre_bal == 54
 
-    c = s.contract(crowdfund2, args=[t.a1, 50, 600])
+    c = get_contract(crowdfund2, args=[t.a1, 50, 600])
     c.participate(value=1, sender=t.k3)
     c.participate(value=2, sender=t.k4)
     c.participate(value=3, sender=t.k5)
@@ -916,7 +916,7 @@ def foo(x: bytes <= 100) -> bytes <= 100:
     return x
     """
 
-    c = s.contract(test_bytes)
+    c = get_contract(test_bytes)
     moo_result = c.foo(b'cow')
     assert moo_result == b'cow'
 
@@ -934,6 +934,7 @@ def foo(x: bytes <= 100) -> bytes <= 100:
 
     print('Passed input-too-long test')
 
+
 def test_test_bytes2():
     test_bytes2 = """
 def foo(x: bytes <= 100) -> bytes <= 100:
@@ -941,7 +942,7 @@ def foo(x: bytes <= 100) -> bytes <= 100:
     return y
     """
 
-    c = s.contract(test_bytes2)
+    c = get_contract(test_bytes2)
     assert c.foo(b'cow') == b'cow'
     assert c.foo(b'') == b''
     assert c.foo(b'\x35' * 63) == b'\x35' * 63
@@ -949,6 +950,7 @@ def foo(x: bytes <= 100) -> bytes <= 100:
     assert c.foo(b'\x35' * 65) == b'\x35' * 65
 
     print('Passed string copying test')
+
 
 def test_test_bytes3():
     test_bytes3 = """
@@ -978,7 +980,7 @@ def get_xy() -> num:
     return self.x * self.y
     """
 
-    c = s.contract(test_bytes3)
+    c = get_contract(test_bytes3)
     c.set_maa(b"pig")
     assert c.get_maa() == b"pig"
     assert c.get_maa2() == b"pig"
@@ -994,6 +996,7 @@ def get_xy() -> num:
 
     print('Passed advanced string copying test')
 
+
 def test_test_bytes4():
     test_bytes4 = """
 a: bytes <= 60
@@ -1008,11 +1011,12 @@ def bar(inp: bytes <= 60) -> bytes <= 60:
     return b
     """
 
-    c = s.contract(test_bytes4)
+    c = get_contract(test_bytes4)
     assert c.foo() == b"", c.foo()
     assert c.bar() == b""
 
     print('Passed string deleting test')
+
 
 def test_test_bytes5():
     test_bytes5 = """
@@ -1040,7 +1044,7 @@ def quz(inp1: bytes <= 40, inp2: bytes <= 45):
     self.g = h
     """
 
-    c = s.contract(test_bytes5)
+    c = get_contract(test_bytes5)
     c.foo(b"cow", b"horse")
     assert c.check1() == b"cow"
     assert c.check2() == b"horse"
@@ -1051,6 +1055,7 @@ def quz(inp1: bytes <= 40, inp2: bytes <= 45):
     assert c.check2() == b"fluffysheep"
 
     print('Passed string struct test')
+
 
 def test_test_slice():
     test_slice = """
@@ -1067,13 +1072,14 @@ def bar(inp1: bytes <= 10) -> num:
     return x * y
     """
 
-    c = s.contract(test_slice)
+    c = get_contract(test_slice)
     x = c.foo(b"badminton")
     assert x == b"min", x
 
     assert c.bar(b"badminton") == 35
 
     print('Passed slice test')
+
 
 def test_test_slice2():
     test_slice2 = """
@@ -1084,11 +1090,12 @@ def slice_tower_test(inp1: bytes <= 50) -> bytes <= 50:
     return inp
     """
 
-    c = s.contract(test_slice2)
+    c = get_contract_with_gas_estimation(test_slice2)
     x = c.slice_tower_test(b"abcdefghijklmnopqrstuvwxyz1234")
     assert x == b"klmnopqrst", x
 
     print('Passed advanced slice test')
+
 
 def test_test_slice3():
     test_slice3 = """
@@ -1108,7 +1115,7 @@ def bar(inp1: bytes <= 50) -> num:
     return self.x * self.y
     """
 
-    c = s.contract(test_slice3)
+    c = get_contract(test_slice3)
     x = c.foo(b"badminton")
     assert x == b"min", x
 
@@ -1116,13 +1123,14 @@ def bar(inp1: bytes <= 50) -> num:
 
     print('Passed storage slice test')
 
+
 def test_test_slice4():
     test_slice4 = """
 def foo(inp: bytes <= 10, start: num, len: num) -> bytes <= 10:
     return slice(inp, start=start, len=len)
     """
 
-    c = s.contract(test_slice4)
+    c = get_contract(test_slice4)
     assert c.foo(b"badminton", 3, 3) == b"min"
     assert c.foo(b"badminton", 0, 9) == b"badminton"
     assert c.foo(b"badminton", 1, 8) == b"adminton"
@@ -1152,6 +1160,7 @@ def foo(inp: bytes <= 10, start: num, len: num) -> bytes <= 10:
 
     print('Passed slice edge case test')
 
+
 def test_test_length():
     test_length = """
 y: bytes <= 10
@@ -1161,9 +1170,10 @@ def foo(inp: bytes <= 10) -> num:
     return len(inp) * 100 + len(x) * 10 + len(self.y)
     """
 
-    c = s.contract(test_length)
+    c = get_contract(test_length)
     assert c.foo(b"badminton") == 954, c.foo(b"badminton")
     print('Passed length test')
+
 
 def test_test_concat():
     test_concat = """
@@ -1174,7 +1184,7 @@ def foo3(input1: bytes <= 50, input2: bytes <= 50, input3: bytes <= 50) -> bytes
     return concat(input1, input2, input3)
     """
 
-    c = s.contract(test_concat)
+    c = get_contract(test_concat)
     assert c.foo2(b"h", b"orse") == b"horse"
     assert c.foo2(b"h", b"") == b"h"
     assert c.foo2(b"", b"") == b""
@@ -1185,6 +1195,7 @@ def foo3(input1: bytes <= 50, input2: bytes <= 50, input3: bytes <= 50) -> bytes
     assert c.foo3(b"horses" * 4, b"mice" * 7, b"crows" * 10) == b"horses" * 4 + b"mice" * 7 + b"crows" * 10
     print('Passed simple concat test')
 
+
 def test_test_concat2():
     test_concat2 = """
 def foo(inp: bytes <= 50) -> bytes <= 1000:
@@ -1192,9 +1203,10 @@ def foo(inp: bytes <= 50) -> bytes <= 1000:
     return concat(x, inp, x, inp, x, inp, x, inp, x, inp)
     """
 
-    c = s.contract(test_concat2)
+    c = get_contract(test_concat2)
     assert c.foo(b"horse" * 9 + b"viper") == (b"horse" * 9 + b"viper") * 10
     print('Passed second concat test')
+
 
 def test_crazy_concat_code():
     crazy_concat_code = """
@@ -1206,11 +1218,12 @@ def krazykonkat(z: bytes <= 10) -> bytes <= 25:
     return concat(x, " ", self.y, " ", z)
     """
 
-    c = s.contract(crazy_concat_code)
+    c = get_contract(crazy_concat_code)
 
     assert c.krazykonkat(b"moose") == b'cow horse moose'
 
     print('Passed third concat test')
+
 
 def test_string_literal_code():
     string_literal_code = """
@@ -1234,7 +1247,7 @@ def baz4() -> bytes <= 100:
                   "01234567890123456789012345678901234567890123456789")
     """
 
-    c = s.contract(string_literal_code)
+    c = get_contract(string_literal_code)
     assert c.foo() == b"horse"
     assert c.bar() == b"badminton"
     assert c.baz() == b"012345678901234567890123456789012"
@@ -1243,6 +1256,7 @@ def baz4() -> bytes <= 100:
     assert c.baz4() == b"0123456789" * 10
 
     print("Passed string literal test")
+
 
 def test_kode():
     for i in range(95, 96, 97):
@@ -1271,7 +1285,7 @@ def baz(s: num, L: num) -> bytes <= 100:
         if x * y == 999:
             return self.moo
         """ % (("c" * i), ("c" * i), ("c" * i))
-        c = s.contract(kode)
+        c = get_contract(kode)
         for e in range(63, 64, 65):
             for _s in range(31, 32, 33):
                 o1 = c.foo(_s, e - _s)
@@ -1280,6 +1294,7 @@ def baz(s: num, L: num) -> bytes <= 100:
                 assert o1 == o2 == o3 == b"c" * (e - _s), (i, _s, e - _s, o1, o2, o3) 
 
     print("Passed string literal splicing fuzz-test")
+
 
 def test_hash_code():
     hash_code = """
@@ -1290,20 +1305,22 @@ def bar() -> bytes32:
     return sha3("inp")
     """
 
-    c = s.contract(hash_code)
+    c = get_contract(hash_code)
     for inp in (b"", b"cow", b"s" * 31, b"\xff" * 32, b"\n" * 33, b"g" * 64, b"h" * 65):
         assert c.foo(inp) == u.sha3(inp)
 
     assert c.bar() == u.sha3("inp")
+
 
 def test_hash_code2():
     hash_code2 = """
 def foo(inp: bytes <= 100) -> bool:
     return sha3(inp) == sha3("badminton")
     """
-    c = s.contract(hash_code2)
+    c = get_contract(hash_code2)
     assert c.foo(b"badminto") is False
     assert c.foo(b"badminton") is True
+
 
 def test_hash_code3():
     hash_code3 = """
@@ -1321,7 +1338,7 @@ def trymem(inp: bytes <= 100) -> bool:
 def try32(inp: bytes32) -> bool:
     return sha3(inp) == sha3(self.test)
     """
-    c = s.contract(hash_code3)
+    c = get_contract(hash_code3)
     c.set_test(b"")
     assert c.tryy(b"") is True
     assert c.trymem(b"") is True
@@ -1342,6 +1359,7 @@ def try32(inp: bytes32) -> bool:
 
     print("Passed SHA3 hash test")
 
+
 def test_method_id_test():
     method_id_test = """
 def double(x: num) -> num:
@@ -1351,9 +1369,10 @@ def returnten() -> num:
     ans = raw_call(self, concat(method_id("double(int128)"), as_bytes32(5)), gas=50000, outsize=32)
     return as_num128(extract32(ans, 0))
     """
-    c = s.contract(method_id_test)
+    c = get_contract(method_id_test)
     assert c.returnten() == 10
     print("Passed method ID test")
+
 
 def test_ecrecover_test():
     ecrecover_test = """
@@ -1367,7 +1386,7 @@ def test_ecrecover2() -> address:
                      as_num256(6577251522710269046055727877571505144084475024240851440410274049870970796685))
     """
 
-    c = s.contract(ecrecover_test)
+    c = get_contract(ecrecover_test)
     h = b'\x35' * 32
     k = b'\x46' * 32
     v, r, S = u.ecsign(h, k)
@@ -1375,6 +1394,7 @@ def test_ecrecover2() -> address:
     assert c.test_ecrecover2() == '0x' + u.encode_hex(u.privtoaddr(k))
 
     print("Passed ecrecover test")
+
 
 def test_extract32_code():
     extract32_code = """
@@ -1391,7 +1411,7 @@ def extrakt32_storage(index: num, inp: bytes <= 100) -> bytes32:
     return extract32(self.y, index)
     """
 
-    c = s.contract(extract32_code)
+    c = get_contract_with_gas_estimation(extract32_code)
     test_cases = (
         (b"c" * 31, 0),
         (b"c" * 32, 0),
@@ -1425,6 +1445,7 @@ def extrakt32_storage(index: num, inp: bytes <= 100) -> bytes32:
 
     print("Passed bytes32 extraction test")
 
+
 def test_test_concat_bytes32():
     test_concat_bytes32 = """
 def sandwich(inp: bytes <= 100, inp2: bytes32) -> bytes <= 164:
@@ -1434,7 +1455,7 @@ def fivetimes(inp: bytes32) -> bytes <= 160:
     return concat(inp, inp, inp, inp, inp)
     """
 
-    c = s.contract(test_concat_bytes32)
+    c = get_contract(test_concat_bytes32)
     assert c.sandwich(b"cow", b"\x35" * 32) == b"\x35" * 32 + b"cow" + b"\x35" * 32, c.sandwich(b"cow", b"\x35" * 32)
     assert c.sandwich(b"", b"\x46" * 32) == b"\x46" * 64
     assert c.sandwich(b"\x57" * 95, b"\x57" * 32) == b"\x57" * 159
@@ -1443,6 +1464,7 @@ def fivetimes(inp: bytes32) -> bytes <= 160:
     assert c.fivetimes(b"mongoose" * 4) == b"mongoose" * 20
 
     print("Passed concat bytes32 test")
+
 
 def test_test_wei():
     test_wei = """
@@ -1462,7 +1484,7 @@ def return_2pow64_wei() -> wei_value:
     return as_wei_value(18446744.073709551616, szabo)
     """
 
-    c = s.contract(test_wei)
+    c = get_contract_with_gas_estimation(test_wei)
 
     assert c.return_2_finney() == 2 * 10**15
     assert c.return_3_finney() == 3 * 10**15, c.return_3_finney()
@@ -1471,6 +1493,7 @@ def return_2pow64_wei() -> wei_value:
     assert c.return_2pow64_wei() == 2**64
 
     print("Passed wei value literals test")
+
 
 def test_caller_code():
     caller_code = """
@@ -1484,12 +1507,13 @@ def baz() -> bytes <= 7:
     return raw_call(0x0000000000000000000000000000000000000004, "moose", gas=50000, outsize=7)
     """
 
-    c = s.contract(caller_code)
+    c = get_contract(caller_code)
     assert c.foo() == b"moose"
     assert c.bar() == b"moo"
     assert c.baz() == b"moose\x00\x00"
 
     print('Passed raw call test')
+
 
 def test_extract32_code():
     extract32_code = """
@@ -1509,7 +1533,7 @@ def foq(inp: bytes <= 32) -> address:
     return extract32(inp, 0, type=address)
     """
 
-    c = s.contract(extract32_code)
+    c = get_contract(extract32_code)
     assert c.foo(b"\x00" * 30 + b"\x01\x01") == 257
     assert c.bar(b"\x00" * 30 + b"\x01\x01") == 257
     try:
@@ -1532,13 +1556,14 @@ def foq(inp: bytes <= 32) -> address:
 
     print('Passed extract32 test')
 
+
 def test_bytes_to_num_code():
     bytes_to_num_code = """
 def foo(x: bytes <= 32) -> num:
     return bytes_to_num(x)
     """
 
-    c = s.contract(bytes_to_num_code)
+    c = get_contract(bytes_to_num_code)
     assert c.foo(b"") == 0
     try:
         c.foo(b"\x00")
@@ -1567,6 +1592,7 @@ def foo(x: bytes <= 32) -> num:
     except:
         success = False
     print('Passed bytes_to_num tests')
+
 
 def test_rlp_decoder_code():
     import rlp
@@ -1620,7 +1646,7 @@ def voo(inp: bytes <= 1024) -> num:
     x = RLPList(inp, [num, num, bytes32, num, bytes32, bytes])
     return x[1]
     """
-    c = s.contract(rlp_decoder_code)
+    c = get_contract(rlp_decoder_code)
 
     assert c.foo() == '0x' + '35' * 20
     assert c.fop() == b'G' * 32
@@ -1676,6 +1702,7 @@ def voo(inp: bytes <= 1024) -> num:
 
     print('Passed RLP decoder tests')
 
+
 def test_getter_code():
     getter_code = """
 x: public(wei_value)
@@ -1704,7 +1731,7 @@ def __init__():
     self.w[3].g = 751
     """
 
-    c = s.contract(getter_code)
+    c = get_contract(getter_code)
     assert c.get_x() == 7
     assert c.get_y(1) == 9
     assert c.get_z() == b"cow"
@@ -1717,6 +1744,7 @@ def __init__():
     assert c.get_w__g(3) == 751
 
     print('Passed getter tests')
+
 
 def test_konkat_code():
     konkat_code = """
@@ -1734,12 +1762,13 @@ def hoo(x: bytes32, y: bytes32) -> bytes <= 64:
     return concat(x, y)
     """
 
-    c = s.contract(konkat_code)
+    c = get_contract(konkat_code)
     assert c.foo(b'\x35' * 32, b'\x00' * 32) == b'\x35' * 32 + b'\x00' * 32
     assert c.goo(b'\x35' * 32, b'\x00' * 32) == b'\x35' * 32 + b'\x00' * 32
     assert c.hoo(b'\x35' * 32, b'\x00' * 32) == b'\x35' * 32 + b'\x00' * 32
 
     print('Passed second concat tests')
+
 
 def test_conditional_return_code():
     conditional_return_code = """
@@ -1752,11 +1781,12 @@ def foo(i: bool) -> num:
     return 11
     """
 
-    c = s.contract(conditional_return_code)
+    c = get_contract_with_gas_estimation(conditional_return_code)
     assert c.foo(True) == 5
     assert c.foo(False) == 7
 
     print('Passed conditional return tests')
+
 
 def test_large_input_code():
     large_input_code = """
@@ -1764,7 +1794,7 @@ def foo(x: num) -> num:
     return 3
     """
 
-    c = s.contract(large_input_code)
+    c = get_contract_with_gas_estimation(large_input_code)
     c.foo(1274124)
     c.foo(2**120)
     try:
@@ -1773,6 +1803,7 @@ def foo(x: num) -> num:
     except:
         success = False
     assert not success
+
 
 def test_large_input_code_2():
     large_input_code_2 = """
@@ -1783,15 +1814,16 @@ def foo() -> num:
     return 5
     """
 
-    c = s.contract(large_input_code_2, args=[17], sender=t.k0, value=0)
+    c = get_contract(large_input_code_2, args=[17], sender=t.k0, value=0)
     try:
-        c = s.contract(large_input_code_2, args=[2**130], sender=t.k0, value=0)
+        c = get_contract(large_input_code_2, args=[2**130], sender=t.k0, value=0)
         success = True
     except:
         success = False
     assert not success
 
     print('Passed invalid input tests')
+
 
 def test_loggy_code():
     loggy_code = """
@@ -1811,7 +1843,7 @@ def ioo(inp: bytes <= 100):
     raw_log([], inp)
     """
 
-    c = s.contract(loggy_code)
+    c = get_contract(loggy_code)
     c.foo()
     assert s.head_state.receipts[-1].logs[0].data == b'moo'
     c.goo()
@@ -1822,6 +1854,7 @@ def ioo(inp: bytes <= 100):
     c.ioo(b"moo4")
     assert s.head_state.receipts[-1].logs[0].data == b'moo4'
     print("Passed raw log tests")
+
 
 def test_test_bitwise():
     test_bitwise = """
@@ -1841,7 +1874,7 @@ def _shift(x: num256, y: num) -> num256:
     return shift(x, y)
     """
 
-    c = s.contract(test_bitwise)
+    c = get_contract(test_bitwise)
     x = 126416208461208640982146408124
     y = 7128468721412412459
     assert c._bitwise_and(x, y) == (x & y)
@@ -1858,6 +1891,7 @@ def _shift(x: num256, y: num) -> num256:
     assert c._shift(x, -256) == 0
 
     print("Passed bitwise operation tests")
+
 
 def test_num256_code():
     num256_code = """
@@ -1886,7 +1920,7 @@ def _num256_le(x: num256, y: num256) -> bool:
     return num256_le(x, y)
     """
 
-    c = s.contract(num256_code)
+    c = get_contract_with_gas_estimation(num256_code)
     x = 126416208461208640982146408124
     y = 7128468721412412459
 
@@ -1909,6 +1943,7 @@ def _num256_le(x: num256, y: num256) -> bool:
 
     print("Passed num256 operation tests")
 
+
 def test_selfcall_code():
     selfcall_code = """
 def foo() -> num:
@@ -1918,10 +1953,11 @@ def bar() -> num:
     return self.foo()
     """
 
-    c = s.contract(selfcall_code)
+    c = get_contract(selfcall_code)
     assert c.bar() == 3
 
     print("Passed no-argument self-call test")
+
 
 def test_selfcall_code_2():
     selfcall_code_2 = """
@@ -1938,11 +1974,12 @@ def return_hash_of_rzpadded_cow() -> bytes32:
     return self._hashy(0x636f770000000000000000000000000000000000000000000000000000000000)
     """
 
-    c = s.contract(selfcall_code_2)
+    c = get_contract(selfcall_code_2)
     assert c.returnten() == 10
     assert c.return_hash_of_rzpadded_cow() == u.sha3(b'cow' + b'\x00' * 29)
 
     print("Passed single fixed-size argument self-call test")
+
 
 def test_selfcall_code_3():
     selfcall_code_3 = """
@@ -1959,11 +1996,12 @@ def returnten() -> num:
     return self._len("badminton!")
     """
 
-    c = s.contract(selfcall_code_3)
+    c = get_contract(selfcall_code_3)
     assert c.return_hash_of_cow_x_30() == u.sha3(b'cow' * 30)
     assert c.returnten() == 10
 
     print("Passed single variable-size argument self-call test")
+
 
 def test_selfcall_code_4():
     selfcall_code_4 = """
@@ -1992,7 +2030,7 @@ def return_goose2() -> bytes <= 10:
     return self.slicey2(5, "goosedog")
     """
 
-    c = s.contract(selfcall_code_4)
+    c = get_contract(selfcall_code_4)
     assert c.returnten() == 10
     assert c.return_mongoose() == b"mongoose"
     assert c.return_goose() == b"goose"
@@ -2012,10 +2050,11 @@ def returnten() -> num:
         self.increment()
     return self.counter
     """
-    c = s.contract(selfcall_code_5)
+    c = get_contract(selfcall_code_5)
     assert c.returnten() == 10
 
     print("Passed self-call statement test")
+
 
 def test_selfcall_code_6():
     selfcall_code_6 = """
@@ -2035,10 +2074,11 @@ def return_mongoose_revolution_32_excls() -> bytes <= 201:
     return self.hardtest("megamongoose123", 4, 8, concat("russian revolution", self.excls), 8, 42)
     """
 
-    c = s.contract(selfcall_code_6)
+    c = get_contract(selfcall_code_6)
     assert c.return_mongoose_revolution_32_excls() == b"mongoose_revolution" + b"!" * 32
 
     print("Passed composite self-call test")
+
 
 def test_clamper_test_code():
     clamper_test_code = """
@@ -2046,7 +2086,7 @@ def foo(s: bytes <= 3) -> bytes <= 3:
     return s
     """
 
-    c = s.contract(clamper_test_code, value=1)
+    c = get_contract(clamper_test_code, value=1)
     assert c.foo(b"ca") == b"ca"
     assert c.foo(b"cat") == b"cat"
     try:
@@ -2058,14 +2098,14 @@ def foo(s: bytes <= 3) -> bytes <= 3:
 
     print("Passed bytearray clamping test")
 
+
 def test_multiple_levels():
     inner_code = """
 def returnten() -> num:
     return 10
     """
 
-    c = s.contract(inner_code)
-
+    c = get_contract(inner_code)
 
     outer_code = """
 def create_and_call_returnten(inp: address) -> num:
@@ -2077,7 +2117,7 @@ def create_and_return_forwarder(inp: address) -> address:
     return create_with_code_of(inp)
     """
 
-    c2 = s.contract(outer_code)
+    c2 = get_contract(outer_code)
     assert c2.create_and_call_returnten(c.address) == 10
     expected_forwarder_code_mask = b'`.`\x0c`\x009`.`\x00\xf36`\x00`\x007a\x10\x00`\x006`\x00s\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00Z\xf4\x15XWa\x10\x00`\x00\xf3'[12:]
     c3 = c2.create_and_return_forwarder(c.address)
@@ -2088,6 +2128,7 @@ def create_and_return_forwarder(inp: address) -> address:
     # TODO: This one is special
     print('Gas consumed: %d' % (s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used))
 
+
 def test_multiple_levels2():
     inner_code = """
 def returnten() -> num:
@@ -2095,8 +2136,7 @@ def returnten() -> num:
     return 10
     """
 
-    c = s.contract(inner_code)
-
+    c = get_contract_with_gas_estimation(inner_code)
 
     outer_code = """
 def create_and_call_returnten(inp: address) -> num:
@@ -2108,7 +2148,7 @@ def create_and_return_forwarder(inp: address) -> address:
     return create_with_code_of(inp)
     """
 
-    c2 = s.contract(outer_code)
+    c2 = get_contract_with_gas_estimation(outer_code)
     try:
         c2.create_and_call_returnten(c.address)
         success = True
@@ -2117,6 +2157,7 @@ def create_and_return_forwarder(inp: address) -> address:
     assert not success
 
     print('Passed forwarder exception test')
+
 
 def test_list_tester_code():
     list_tester_code = """
@@ -2149,7 +2190,7 @@ def loo(x: num[2][2]) -> num:
     return self.z2[0][0] + self.z2[0][1] + self.z3[0] * 10 + self.z3[1] * 10
     """
 
-    c = s.contract(list_tester_code)
+    c = get_contract(list_tester_code)
     assert c.foo([3,4,5]) == 12
     assert c.goo([[1,2],[3,4]]) == 73
     assert c.hoo([3,4,5]) == 12
@@ -2157,6 +2198,7 @@ def loo(x: num[2][2]) -> num:
     assert c.koo([3,4,5]) == 12
     assert c.loo([[1,2],[3,4]]) == 73
     print("Passed list tests")
+
 
 def test_list_output_tester_code():
     list_output_tester_code = """
@@ -2202,7 +2244,7 @@ def roo(inp: num[2]) -> decimal[2][2]:
     return [inp,[3,4]]
     """
 
-    c = s.contract(list_output_tester_code)
+    c = get_contract(list_output_tester_code)
     assert c.foo() == [3,5]
     assert c.goo() == [3,5]
     assert c.hoo() == [3,5]
@@ -2217,6 +2259,7 @@ def roo(inp: num[2]) -> decimal[2][2]:
 
     print("Passed list output tests")
 
+
 def test_internal_test():
     internal_test = """
 @internal
@@ -2227,10 +2270,11 @@ def returnten() -> num:
     return self.a() * 2
     """
 
-    c = s.contract(internal_test)
+    c = get_contract(internal_test)
     assert c.returnten() == 10
 
     print("Passed internal function test")
+
 
 def test_minmax():
     minmax_test = """
@@ -2241,7 +2285,7 @@ def goo() -> num256:
     return num256_add(min(as_num256(3), as_num256(5)), max(as_num256(40), as_num256(80)))
     """
 
-    c = s.contract(minmax_test)
+    c = get_contract(minmax_test)
     assert c.foo() == 58223.123
     assert c.goo() == 83
 
