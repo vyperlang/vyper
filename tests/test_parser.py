@@ -1,4 +1,6 @@
-from .setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas
+from .setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
+    contract_with_gas_estimation
+
 
 def test_null_code():
     null_code = """
@@ -6,11 +8,11 @@ def foo():
     pass
     """
 
-    c = s.contract(null_code, language='viper')
+    c = contract_with_gas_estimation(null_code, 'foo')
     c.foo()
 
     print('Successfully executed a null function')
-    check_gas(null_code, function='foo')
+
 
 def test_basic_code():
     basic_code = """
@@ -20,10 +22,9 @@ def foo(x: num) -> num:
 
     """
 
-    c = s.contract(basic_code, language='viper')
+    c = contract_with_gas_estimation(basic_code, 'foo')
     assert c.foo(9) == 18
     print('Passed basic code test')
-    check_gas(basic_code, function='foo')
 
 def test_basic_repeater():
     basic_repeater = """
@@ -35,10 +36,10 @@ def repeat(z: num) -> num:
     return(x)
     """
 
-    c = s.contract(basic_repeater, language='viper')
+    c = contract_with_gas_estimation(basic_repeater, 'repeat')
     assert c.repeat(9) == 54
     print('Passed basic repeater test')
-    check_gas(basic_repeater, function='repeat')
+
 
 def test_more_complex_repeater():
     more_complex_repeater = """
