@@ -11,7 +11,7 @@ def tester():
     tester.s = t.Chain()
     tester.s.head_state.gas_limit = 10**9
     tester.languages['viper'] = compiler.Compiler()
-    contract_code = open('company.v.py').read()
+    contract_code = open('examples/stock/company.v.py').read()
     tester.company_address = t.a0
     # 100 shares @ 10^6 wei / share
     tester.total_shares = 100
