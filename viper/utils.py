@@ -1,4 +1,5 @@
 import binascii
+from .opcodes import opcodes
 try:
     from Crypto.Hash import keccak
     sha3 = lambda x: keccak.new(digest_bits=256, data=x).digest()
@@ -63,3 +64,33 @@ RLP_DECODER_ADDRESS = hex_to_int('0xCb969cAAad21A78a24083164ffa81604317Ab603'[2:
 # First send 6270960000000000 wei to 0xd2c560282c9C02465C2dAcdEF3E859E730848761
 # Publish this tx to create the contract: 0xf90237808506fc23ac00830330888080b902246102128061000e60003961022056600060007f010000000000000000000000000000000000000000000000000000000000000060003504600060c082121515585760f882121561004d5760bf820336141558576001905061006e565b600181013560f783036020035260005160f6830301361415585760f6820390505b5b368112156101c2577f010000000000000000000000000000000000000000000000000000000000000081350483602086026040015260018501945060808112156100d55760018461044001526001828561046001376001820191506021840193506101bc565b60b881121561014357608081038461044001526080810360018301856104600137608181141561012e5760807f010000000000000000000000000000000000000000000000000000000000000060018401350412151558575b607f81038201915060608103840193506101bb565b60c08112156101b857600182013560b782036020035260005160388112157f010000000000000000000000000000000000000000000000000000000000000060018501350402155857808561044001528060b6838501038661046001378060b6830301830192506020810185019450506101ba565bfe5b5b5b5061006f565b601f841315155857602060208502016020810391505b6000821215156101fc578082604001510182826104400301526020820391506101d8565b808401610420528381018161044003f350505050505b6000f31b2d4f
 # This is the contract address: 0xCb969cAAad21A78a24083164ffa81604317Ab603
+
+# Available base types
+base_types = ['num', 'decimal', 'bytes32', 'num256', 'signed256', 'bool', 'address']
+
+# Valid base units
+valid_units = ['currency', 'wei', 'currency1', 'currency2', 'sec', 'm', 'kg']
+
+# Cannot be used for variable or member naming
+reserved_words = ['int128', 'int256', 'uint256', 'address', 'bytes32',
+                  'real', 'real128x128', 'if', 'for', 'while', 'until',
+                  'pass', 'def', 'push', 'dup', 'swap', 'send', 'call',
+                  'suicide', 'selfdestruct', 'assert', 'stop', 'throw',
+                  'raise', 'init', '_init_', '___init___', '____init____',
+                  'true', 'false', 'self', 'this', 'continue', 'ether',
+                  'wei', 'finney', 'szabo', 'shannon', 'lovelace', 'ada',
+                  'babbage', 'gwei', 'kwei', 'mwei', 'twei', 'pwei']
+
+# Is a variable or member variable name valid?
+def is_varname_valid(varname):
+    if varname.lower() in base_types:
+        return False
+    if varname.lower() in valid_units:
+        return False
+    if varname.lower() in reserved_words:
+        return False
+    if varname[0] == '~':
+        return False
+    if varname.upper() in opcodes:
+        return False
+    return True
