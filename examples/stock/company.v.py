@@ -72,7 +72,7 @@ def transfer_stock(receiver: address, transfer_order: currency_value):
     self.holdings[receiver] += transfer_order
 
 # Allows the company to pay someone for services rendered
-def give(vendor: address, amount: wei_value):
+def pay_bill(vendor: address, amount: wei_value):
     # Only the company can pay people
     assert msg.sender == self.company
     # And only if there's enough to pay them with
