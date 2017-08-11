@@ -156,6 +156,33 @@ def foo() -> num:
     print('Passed basic state accessor test')
 
 
+def test_use_constant_function():
+    code="""
+bal: num[address]
+
+def __init__():
+    self.bal[msg.sender] = 1
+
+@constant
+def get_my_bal() -> num:
+    return self.bal[msg.sender]
+
+def foo():
+    assert self.bal[msg.sender] > 0
+    self.bal[msg.sender] += 1
+
+def bar():
+    assert self.get_my_bal() > 0
+    self.bal[msg.sender] += 1
+    """
+    
+    c = s.contract(code, language='viper')
+    assert c.get_my_bal() == 1
+    c.foo() # equivalent code to bar()
+    c.bar() # This transaction should estimate less gas than foo(), but take the same amt
+    assert c.get_my_bal() == 3
+    check_gas(code, num_txs=4)
+
 def test_arbitration_code():
     arbitration_code = """
 buyer: address
