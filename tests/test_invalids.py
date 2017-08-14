@@ -1,21 +1,25 @@
 from viper import compiler
-from viper.exceptions import    InvalidTypeException, \
-                                TypeMismatchException, \
-                                VariableDeclarationException, \
-                                StructureException, \
-                                ConstancyViolationException, \
-                                InvalidLiteralException, \
-                                NonPayableViolationException
+from viper.exceptions import InvalidTypeException, \
+    TypeMismatchException, \
+    VariableDeclarationException, \
+    StructureException, \
+    ConstancyViolationException, \
+    InvalidLiteralException, \
+    NonPayableViolationException
 
 # These functions register test cases
 # for pytest functions at the end
 fail_list = []
+
+
 def must_fail(code, exception):
     fail_list.append((code, exception))
 
 pass_list = []
+
+
 def must_succeed(code):
-    pass_list.append((code))
+    pass_list.append(code)
 
 # TEST CASES
 must_fail("""
@@ -1903,10 +1907,12 @@ def foo():
 import pytest
 from pytest import raises
 
+
 @pytest.mark.parametrize('bad_code,exception_type', fail_list)
 def test_compilation_fails_with_exception(bad_code, exception_type):
     with raises(exception_type):
         compiler.compile(bad_code)
+
 
 @pytest.mark.parametrize('good_code', pass_list)
 def test_compilation_succeeds(good_code):
