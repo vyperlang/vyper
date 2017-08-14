@@ -94,8 +94,8 @@ Note that not all programs that satisfy the following are valid; for example, th
 * `bool`: true or false
 * `type[length]`: finite list
 * `bytes <= maxlen`: a byte array with the given maximum length
-* `{base_type: type}`: map (can only be accessed, NOT iterated)
-* `[arg1(type), arg2(type)...]`: struct (can be accessed via struct.argname)
+* `type[base_type]`: map (can only be accessed, NOT iterated)
+* `{arg1:type, arg2:type...}`: struct (can be accessed via struct.argname)
 
 Arithmetic is overflow-checked, meaning that if a number is out of range then an exception is immediately thrown. Division and modulo by zero has a similar effect. The only kind of looping allowed is a for statement, which can come in three forms:
 
@@ -108,6 +108,10 @@ In all three cases, it's possible to statically determine the maximum runtime of
 Regarding byte array literals, unicode strings like "这个傻老外不懂中文" or "Я очень умный" are illegal, though those that manage to use values that are in the 0...255 range according to UTF-8, like "¡très bien!", are fine.
 
 Code examples can be found in the `test_parser.py` file.
+
+### Visibility
+
+* `public(type)`: publicly visible state variable
 
 ### Planned future features
 
@@ -160,11 +164,92 @@ def refund():
     self.refundIndex = ind + 30
 ```
 
-## Installation
 
-Requires Python 3.6 or higher
+# Installation 
+Don't panic if installation fails, Viper is still under development and constant changes. Installation will be much simplified/optimized after a stable version release. 
 
-	python setup.py install
+Take a deep breath and follow, please create an issue if any errors encountered. 
+
+It is **strongly recommended** to install in **a virtual Python environment (normally either `virtualenv` or `venv`)**, so that new packages installed and dependencies built are strictly contained in your viper project and will not alter/affect your other dev environment set-up.
+
+To find out how to set-up virtual environment, check out: [virtualenv guide](http://python-guide-pt-br.readthedocs.io/en/latest/dev/virtualenvs/).
+
+
+- **Ubuntu (16.04 LTS)**
+1. Package update:
+```
+sudo apt-get update 
+sudo apt-get -y upgrade
+```
+
+2. For Viper to run, Python3.6 or later is required, know your python version, if the output is `Python 3.5.2`, then install python3.6, otherwise skip step 3
+```
+python3 -V
+```
+
+3. Install python3.6 and some necessary package (*if you haven't installed the package*)
+```
+sudo apt-get install build-essential libssl-dev libffi-dev
+
+wget https://www.python.org/ftp/python/3.6.1/Python-3.6.1.tgz
+tar xfz Python-3.6.1.tgz
+cd Python-3.6.1/
+./configure –prefix /usr/local/lib/python3.6
+sudo make
+sudo make install
+```
+
+4. Now, start a python virtual environment named it "viper", then activate the virtual env. (after activation, you should be able to see "(viper)" at the front of each commandline, indicating that you are now in a virtual environment)
+```
+virtualenv --python=/usr/local/lib/python3.6/bin/python --no-site-packages viper
+source viper/bin/activate
+
+```
+   To deactivate and return to default environment, (you should see the "(viper)" at the front disappeared.)
+```
+deactivate 
+```
+
+   *Alternatively*: It is handy to use `pyenv` [https://github.com/pyenv/pyenv] to help manage your Python 3.6.2 or higher when Python releases new version. It works like a python version manager.
+```
+pyenv virtualenv viper
+```
+
+5. Now, we are talking business, clone this Viper repo and install and test, and Walla!
+```
+git clone https://github.com/ethereum/viper.git
+cd viper 
+python setup.py install
+python setup.py test
+```
+
+- **MacOS**
+
+1. Make sure you have homebrew installed. if not, you could checkout [How-To-Geek Guide](https://www.howtogeek.com/211541/homebrew-for-os-x-easily-installs-desktop-apps-and-terminal-utilities/) or [Homebrew Repo](https://github.com/Homebrew/brew/blob/master/docs/Installation.md)
+
+2. Make sure your python is 3.6 or higher. If not, you could checkout [python3 for MacOS guide](http://python-guide-pt-br.readthedocs.io/en/latest/starting/install3/osx/)
+
+3. Now, go ahead and clone viper repo (not within `pyethereum` folder), and you run install and test, and Walla !! 
+```
+git clone https://github.com/ethereum/viper.git
+cd viper 
+python setup.py install
+python setup.py test
+```
+
+If it fails with some error message on `openssl`, do the following:
+```
+env LDFLAGS=“-L$(brew --prefix openssl)/lib” CFLAGS=“-I$(brew --prefix openssl)/include” pip install scrypt
+```
+
+# Compile 
+To compile your file, use:
+```
+viper yourFileName.v.py
+```
+
+**Note: Since .vy is not official a language supported by any syntax highlights or linter, it is recommended to name your viper file into `.v.py` to have a python highlights.**
+
 
 ## Testing
 
