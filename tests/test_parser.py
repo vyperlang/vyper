@@ -163,6 +163,7 @@ bal: num[address]
 def __init__():
     self.bal[msg.sender] = 1
 
+@constant
 def my_bal() -> num:
     return self.bal[msg.sender]
 
@@ -171,11 +172,10 @@ def bar():
     self.bal[msg.sender] += 1
     """
     
-    c = s.contract(code, language='viper')
+    c = get_contract_with_gas_estimation(code)
     assert c.my_bal() == 1
     c.bar()
     assert c.my_bal() == 2
-    check_gas(code, num_txs=3)
 
 def test_arbitration_code():
     arbitration_code = """
