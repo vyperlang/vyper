@@ -1,3 +1,5 @@
+from functools import wraps
+
 from viper import parser, compile_lll, utils
 from viper import compiler
 from ethereum.tools import tester
@@ -43,4 +45,42 @@ def check_gas(code, func=None, num_txs=1):
     # be greater than or equal to the amount of gas used
     assert gas_estimate >= gas_actual
 
-    print('Gas estimate', gas_estimate, 'actual', gas_actual)
+    print('Function name: {} - Gas estimate {}, Actual: {}'.format(
+        function, gas_estimate, gas_actual)
+    )
+
+
+def gas_estimation_decorator(fn, source_code, func):
+    def decorator(*args, **kwargs):
+        @wraps(fn)
+        def decorated_function(*args, **kwargs):
+            result = fn(*args, **kwargs)
+            check_gas(source_code, func)
+            return result
+        return decorated_function(*args, **kwargs)
+    return decorator
+
+
+def set_decorator_to_contract_function(contract, source_code, func):
+    func_definition = getattr(contract, func)
+    func_with_decorator = gas_estimation_decorator(
+        func_definition, source_code, func
+    )
+    setattr(contract, func, func_with_decorator)
+
+
+def get_contract_with_gas_estimation(
+        source_code,
+        *args, **kwargs):
+    contract = chain.contract(source_code, language="viper", *args, **kwargs)
+
+    for func_name in contract.translator.function_data:
+        set_decorator_to_contract_function(
+            contract, source_code, func_name
+        )
+
+    return contract
+
+
+def get_contract(source_code, *args, **kwargs):
+    return chain.contract(source_code, language="viper", *args, **kwargs)

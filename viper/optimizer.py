@@ -77,14 +77,14 @@ def optimize(node):
     elif node.value == "add" and get_int_at(argz, 1) == 0:
         return LLLnode(argz[0].value, argz[0].args, node.typ, node.location, node.pos, argz[0].annotation)
     elif node.value == "clamp" and int_at(argz, 0) and int_at(argz, 1) and int_at(argz, 2):
-        if get_int_at(argz, 0) > get_int_at(argz, 1):
+        if get_int_at(argz, 0, True) > get_int_at(argz, 1, True):
             raise Exception("Clamp always fails")
-        elif get_int_at(argz, 1) > get_int_at(argz, 2):
+        elif get_int_at(argz, 1, True) > get_int_at(argz, 2, True):
             raise Exception("Clamp always fails")
         else:
             return argz[1]
     elif node.value == "clamp" and int_at(argz, 0) and int_at(argz, 1):
-        if get_int_at(argz, 0) > get_int_at(argz, 1):
+        if get_int_at(argz, 0, True) > get_int_at(argz, 1, True):
             raise Exception("Clamp always fails")
         else:
             return LLLnode("clample", [argz[1], argz[2]], node.typ, node.location, node.pos, node.annotation)

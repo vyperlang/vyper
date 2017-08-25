@@ -425,7 +425,7 @@ def send(expr, args, kwargs, context):
     if context.is_constant:
         raise ConstancyViolationException("Cannot send ether inside a constant function!", expr)
     enforce_units(value.typ, expr.args[1], BaseType('num', {'wei': 1}))
-    return LLLnode.from_list(['pop', ['call', 0, to, value, 0, 0, 0, 0]], typ=None, pos=getpos(expr))
+    return LLLnode.from_list(['assert', ['call', 0, to, value, 0, 0, 0, 0]], typ=None, pos=getpos(expr))
 
 
 @signature('address')

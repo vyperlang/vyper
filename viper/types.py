@@ -1,35 +1,7 @@
 import ast
-from .opcodes import opcodes
 import copy
 from .exceptions import InvalidTypeException, TypeMismatchException
-
-# Available base types
-base_types = ['num', 'decimal', 'bytes32', 'num256', 'signed256', 'bool', 'address']
-
-# Valid base units
-valid_units = ['currency', 'wei', 'currency1', 'currency2', 'sec', 'm', 'kg']
-
-# Cannot be used for variable or member naming
-reserved_words = ['int128', 'int256', 'uint256', 'address', 'bytes32',
-                  'real', 'real128x128', 'if', 'for', 'while', 'until',
-                  'pass', 'def', 'push', 'dup', 'swap', 'send', 'call',
-                  'suicide', 'selfdestruct', 'assert', 'stop', 'throw',
-                  'raise', 'init', '_init_', '___init___', '____init____',
-                  'true', 'false', 'self', 'this', 'continue', 'ether',
-                  'wei', 'finney', 'szabo', 'shannon', 'lovelace', 'ada',
-                  'babbage', 'gwei', 'kwei', 'mwei', 'twei', 'pwei']
-
-# Is a variable or member variable name valid?
-def is_varname_valid(varname):
-    if varname.lower() in base_types:
-        return False
-    if varname.lower() in reserved_words:
-        return False
-    if varname[0] == '~':
-        return False
-    if varname.upper() in opcodes:
-        return False
-    return True
+from .utils import is_varname_valid, base_types, valid_units
 
 # Pretty-print a unit (eg. wei/seconds**2)
 def print_unit(unit):

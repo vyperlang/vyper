@@ -9,9 +9,12 @@ with open('README.md') as f:
 with open('LICENSE') as f:
     license = f.read()
 
+# *IMPORTANT*: Don't manually change the version here. Use the 'bumpversion' utility.
+version = '0.0.1'
+
 setup(
     name='viper',
-    version='0.0.1',
+    version=version,
     description='Viper Programming Language for Ethereum',
     long_description=readme,
     author='Vitalik Buterin',
@@ -21,6 +24,7 @@ setup(
     packages=find_packages(exclude=('tests', 'docs')),
     install_requires=[
         'ethereum==2.0.4',
+        'bumpversion',
         'pytest-cov',
         'pytest-runner', # Must be after pytest-cov or it will not work
         #           due to https://github.com/pypa/setuptools/issues/196
