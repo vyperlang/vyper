@@ -46,7 +46,7 @@ def check_gas(code, func=None, num_txs=1):
     assert gas_estimate >= gas_actual
 
     print('Function name: {} - Gas estimate {}, Actual: {}'.format(
-        function, gas_estimate, gas_actual)
+        func, gas_estimate, gas_actual)
     )
 
 
