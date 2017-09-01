@@ -22,13 +22,9 @@ Compatibility-breaking change log
 
 
 .. toctree::
-   :maxdepth: 4
-   :caption: Contents:
+    :maxdepth: 2
 
+    installing-viper.rst
+    contributing.rst
+    frequently-asked-questions.rst
 
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`

@@ -28,6 +28,14 @@ viper\.exceptions module
     :undoc-members:
     :show-inheritance:
 
+viper\.function\_signature module
+---------------------------------
+
+.. automodule:: viper.function_signature
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 viper\.functions module
 -----------------------
 
