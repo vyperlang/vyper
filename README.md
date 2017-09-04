@@ -172,7 +172,7 @@ Take a deep breath and follow, please create an issue if any errors encountered.
 
 It is **strongly recommended** to install in **a virtual Python environment (normally either `virtualenv` or `venv`)**, so that new packages installed and dependencies built are strictly contained in your viper project and will not alter/affect your other dev environment set-up.
 
-To find out how to set-up virtual environment, check out: [virtualenv guide](http://python-guide-pt-br.readthedocs.io/en/latest/dev/virtualenvs/).
+To find out how to set-up virtual environment, check out: [virtualenv guide](https://virtualenv.pypa.io/en/stable/).
 
 
 - **Ubuntu (16.04 LTS)**
@@ -227,7 +227,7 @@ python setup.py test
 
 1. Make sure you have homebrew installed. if not, you could checkout [How-To-Geek Guide](https://www.howtogeek.com/211541/homebrew-for-os-x-easily-installs-desktop-apps-and-terminal-utilities/) or [Homebrew Repo](https://github.com/Homebrew/brew/blob/master/docs/Installation.md)
 
-2. Make sure your python is 3.6 or higher. If not, you could checkout [python3 for MacOS guide](http://python-guide-pt-br.readthedocs.io/en/latest/starting/install3/osx/)
+2. Make sure your python is 3.6 or higher. If not, you could checkout [python3 for MacOS guide](http://python-guide.readthedocs.io/en/latest/starting/install3/osx/)
 
 3. Now, go ahead and clone viper repo (not within `pyethereum` folder), and you run install and test, and Walla !! 
 ```
