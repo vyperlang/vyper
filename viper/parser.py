@@ -163,7 +163,8 @@ def mk_getter(varname, typ):
 
 
 # Parse top-level functions and variables
-def get_defs_and_globals(code):
+def get_contracts_and_defs_and_globals(code):
+    _contracts = {}
     _events = []
     _globals = {}
     _defs = []
@@ -171,7 +172,12 @@ def get_defs_and_globals(code):
     for item in code:
         # Statements of the form:
         # variable_name: type
-        if isinstance(item, ast.AnnAssign):
+        # Contract defintions
+        if isinstance(item, ast.ClassDef):
+            # Check if globals exist, if so error
+            # Refactor this function so that contracts is seperate from the rest
+            _contracts[item.name] = get_contracts_and_defs_and_globals(item.body)
+        elif isinstance(item, ast.AnnAssign):
             if isinstance(item.annotation, ast.Call) and item.annotation.func.id == "__log__":
                 if _globals or len(_defs):
                     raise StructureException("Events must all come before global declarations and function definitions", item)
@@ -200,7 +206,7 @@ def get_defs_and_globals(code):
             _defs.append(item)
         else:
             raise StructureException("Invalid top-level statement", item)
-    return _events, _defs + _getters, _globals
+    return _contracts, _events, _defs + _getters, _globals
 
 
 # Header code
@@ -267,10 +273,7 @@ def is_initializer(code):
 # Get ABI signature
 def mk_full_signature(code):
     o = []
-    _events, _defs, _globals = get_defs_and_globals(code)
-    for code in _events:
-        sig = EventSignature.from_declaration(code)
-        o.append(sig.to_abi_dict())
+    _contracts, _events, _defs, _globals = get_contracts_and_defs_and_globals(code)
     for code in _defs:
         sig = FunctionSignature.from_definition(code)
         if not sig.internal:
@@ -280,37 +283,62 @@ def mk_full_signature(code):
 
 # Main python parse tree => LLL method
 def parse_tree_to_lll(code, origcode):
-    _events, _defs, _globals = get_defs_and_globals(code)
+    _contracts, _events_defs, _globals = get_contracts_and_defs_and_globals(code)
     _names = [_def.name for _def in _defs] + [_event.target.id for _event in _events]
     # Checks for duplicate funciton / event names
     if len(set(_names)) < len(_names):
         raise VariableDeclarationException("Duplicate function or event name: %s" % [name for name in _names if _names.count(name) > 1][0])
+    contracts = {}
+    # Create the main statement
+    o = ['seq']
     # Initialization function
     initfunc = [_def for _def in _defs if is_initializer(_def)]
     # Regular functions
     otherfuncs = [_def for _def in _defs if not is_initializer(_def)]
-    # Create the main statement
+    # If there is an init func...
     sigs = {}
-    o = ['seq']
     if _events:
         for event in _events:
             sigs[event.target.id] = EventSignature.from_declaration(event)
+    sub = ['seq', initializer_lll]
+    for _contractname in _contracts.keys():
+        _c_contracts, _c_defs, _c_globals = _contracts[_contractname]
+        _defnames = [_def.name for _def in _c_defs]
+        contract = {}
+        if len(set(_defnames)) < len(_c_defs):
+            raise VariableDeclarationException("Duplicate function name: %s" % [name for name in _defnames if _defnames.count(name) > 1][0])
+        c_initfunc = [_def for _def in _c_defs if is_initializer(_def)]
+        c_otherfuncs = [_def for _def in _c_defs if not is_initializer(_def)]
+        if c_otherfuncs:
+            add_gas = initializer_lll.gas
+            for _def in c_otherfuncs:
+                sub.append(parse_func(_def, _globals, {_contractname: contract}, origcode))
+                sub[-1].total_gas += add_gas
+                add_gas += 30
+                sig = FunctionSignature.from_definition(_def)
+                sig.gas = sub[-1].total_gas
+                contract[sig.name] = sig
+            o.append(['return', 0, ['lll', sub, 0]])
+        contracts[_contractname] = contract
+    _defnames = [_def.name for _def in _defs]
+    if len(set(_defnames)) < len(_defs):
+        raise VariableDeclarationException("Duplicate function name: %s" % [name for name in _defnames if _defnames.count(name) > 1][0])
     # If there is an init func...
     if initfunc:
         o.append(['seq', initializer_lll])
         o.append(parse_func(initfunc[0], _globals, {'self': sigs}, origcode))
     # If there are regular functions...
     if otherfuncs:
-        sub = ['seq', initializer_lll]
         add_gas = initializer_lll.gas
         for _def in otherfuncs:
-            sub.append(parse_func(_def, _globals, {'self': sigs}, origcode))
+            sub.append(parse_func(_def, _globals, {**{'self': sigs}, **contracts}, origcode))
             sub[-1].total_gas += add_gas
             add_gas += 30
             sig = FunctionSignature.from_definition(_def)
             sig.gas = sub[-1].total_gas
             sigs[sig.name] = sig
         o.append(['return', 0, ['lll', sub, 0]])
+    # import pdb; pdb.set_trace()
     return LLLnode.from_list(o, typ=None)
 
 
@@ -705,6 +733,25 @@ def parse_expr(expr, context):
                 raise TypeMismatchException("Invalid output type: %r" % sig.output_type, expr)
             o = LLLnode.from_list(['seq',
                                         ['assert', ['call', ['gas'], ['address'], 0,
+                                                        inargs, inargsize,
+                                                        output_placeholder, get_size_of_type(sig.output_type) * 32]],
+                                        returner], typ=sig.output_type, location='memory', pos=getpos(expr))
+            o.gas += sig.gas
+            return o
+        elif isinstance(expr.func, ast.Attribute) and expr.func.value.func.id in context.sigs:
+            contract_name = expr.func.value.func.id
+            sig = context.sigs[contract_name][expr.func.attr]
+            contract_address = parse_expr(expr.func.value.args[0], context)
+            inargs, inargsize = pack_arguments(sig, [parse_expr(arg, context) for arg in expr.args], context)
+            output_placeholder = context.new_placeholder(typ=sig.output_type)
+            if isinstance(sig.output_type, BaseType):
+                returner = output_placeholder
+            elif isinstance(sig.output_type, ByteArrayType):
+                returner = output_placeholder + 32
+            else:
+                raise TypeMismatchException("Invalid output type: %r" % out, expr)
+            o = LLLnode.from_list(['seq',
+                                        ['assert', ['call', ['gas'], ['mload', contract_address], 0,
                                                         inargs, inargsize,
                                                         output_placeholder, get_size_of_type(sig.output_type) * 32]],
                                         returner], typ=sig.output_type, location='memory', pos=getpos(expr))
