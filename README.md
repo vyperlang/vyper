@@ -1,7 +1,7 @@
 ## Contributing
 * See Issues above, and feel free to submit your own issues or PRs if you discover a solution
 * Further discussions and questions [chat on gitter](https://gitter.im/ethereum/viper)
-* For more information, see [Contributing](no-link-yet)
+* For more information, see [Contributing](http://eth-viper.readthedocs.io/en/latest/contributing.html)
 
 [![Join the chat at https://gitter.im/bethereum/viper](https://badges.gitter.im/ethereum/viper.svg)](https://gitter.im/ethereum/viper?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [![Build Status](https://travis-ci.org/ethereum/viper.svg?branch=master)](https://travis-ci.org/ethereum/viper)
