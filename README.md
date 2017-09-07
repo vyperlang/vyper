@@ -29,13 +29,8 @@ Viper does NOT strive to be a 100% replacement for everything that can be done i
 **Note: Viper is still alpha software, use with care**
 
 # Installation 
-If you have all of the dependancies installed (Python 3.6+, pip, etc.), the following will install viper:
-```bash
-    python setup.py install
-```
-
-For more detailed instructions, see 
-[Installation](http://eth-viper.readthedocs.io/en/latest/installing-viper.html)
+See the [Viper documentation](https://eth-viper.readthedocs.io/en/latest/installing-viper.html)
+for build instructions.
 
 # Compiling a contract
 To compile a contract, use:
@@ -43,9 +38,8 @@ To compile a contract, use:
     viper yourFileName.v.py
 ```
 
-**Note: Since .vy is not official a language supported by any syntax highlights or linter, 
+**Note: Since .vy is not official a language supported by any syntax highlights or linter,
 it is recommended to name your viper file into `.v.py` to have a python highlights.**
-
 
 ## Testing (using pytest)
 ```bash
