@@ -1,3 +1,5 @@
+import unittest
+
 from ethereum.tools import tester
 import ethereum.utils as utils
 import ethereum.abi as abi
