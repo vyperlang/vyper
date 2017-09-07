@@ -161,6 +161,48 @@ def mk_getter(varname, typ):
     return ['@constant\ndef get_%s%s(%s) -> %s: return self.%s%s' % (varname, funname, head.rstrip(', '), base, varname, tail)
             for (funname, head, tail, base) in funs]
 
+def add_contract(code):
+    _globals = {}
+    _defs = []
+    _getters = []
+    for item in code:
+        # Global variables
+        if isinstance(item, ast.AnnAssign):
+            _globals, _getters = add_global(_defs, _getters, _globals, item)
+        # Function definitions
+        elif isinstance(item, ast.FunctionDef):
+            _defs.append(item)
+        else:
+            raise StructureException("Invalid contract reference", item)
+    return _defs + _getters, _globals
+
+
+def add_globals_and_events(_defs, _events, _getters, _globals, item):
+    if isinstance(item.annotation, ast.Call) and item.annotation.func.id == "__log__":
+                if _globals or len(_defs):
+                    raise StructureException("Events must all come before global declarations and function definitions", item)
+                _events.append(item)
+    elif not isinstance(item.target, ast.Name):
+        raise StructureException("Can only assign type to variable in top-level statement", item)
+    # Check if global already exists, if so error
+    elif item.target.id in _globals:
+        raise VariableDeclarationException("Cannot declare a persistent variable twice!", item.target)
+    elif len(_defs):
+        raise StructureException("Global variables must all come before function definitions", item)
+    # If the type declaration is of the form public(<type here>), then proceed with
+    # the underlying type but also add getters
+    elif isinstance(item.annotation, ast.Call) and item.annotation.func.id == "public":
+        if len(item.annotation.args) != 1:
+            raise StructureException("Public expects one arg (the type)")
+        typ = parse_type(item.annotation.args[0], 'storage')
+        _globals[item.target.id] = VariableRecord(item.target.id, len(_globals), typ, True)
+                # Adding getters here
+        for getter in mk_getter(item.target.id, typ):
+            _getters.append(parse_line('\n' * (item.lineno - 1) + getter))
+            _getters[-1].pos = getpos(item)
+    else:
+        _globals[item.target.id] = VariableRecord(item.target.id, len(_globals), parse_type(item.annotation, 'storage'), True)
+    return _events, _globals, _getters
 
 # Parse top-level functions and variables
 def get_contracts_and_defs_and_globals(code):
@@ -170,37 +212,13 @@ def get_contracts_and_defs_and_globals(code):
     _defs = []
     _getters = []
     for item in code:
+        # Contract references
+        if isinstance(item, ast.ClassDef):
+            _contracts[item.name] = add_contract(item.body)
         # Statements of the form:
         # variable_name: type
-        # Contract defintions
-        if isinstance(item, ast.ClassDef):
-            # Check if globals exist, if so error
-            # Refactor this function so that contracts is seperate from the rest
-            _contracts[item.name] = get_contracts_and_defs_and_globals(item.body)
         elif isinstance(item, ast.AnnAssign):
-            if isinstance(item.annotation, ast.Call) and item.annotation.func.id == "__log__":
-                if _globals or len(_defs):
-                    raise StructureException("Events must all come before global declarations and function definitions", item)
-                _events.append(item)
-            elif not isinstance(item.target, ast.Name):
-                raise StructureException("Can only assign type to variable in top-level statement", item)
-            elif item.target.id in _globals:
-                raise VariableDeclarationException("Cannot declare a persistent variable twice!", item.target)
-            elif len(_defs):
-                raise StructureException("Global variables must all come before function definitions", item)
-            # If the type declaration is of the form public(<type here>), then proceed with
-            # the underlying type but also add getters
-            elif isinstance(item.annotation, ast.Call) and item.annotation.func.id == "public":
-                if len(item.annotation.args) != 1:
-                    raise StructureException("Public expects one arg (the type)")
-                typ = parse_type(item.annotation.args[0], 'storage')
-                _globals[item.target.id] = VariableRecord(item.target.id, len(_globals), typ, True)
-                # Adding getters here
-                for getter in mk_getter(item.target.id, typ):
-                    _getters.append(parse_line('\n' * (item.lineno - 1) + getter))
-                    _getters[-1].pos = getpos(item)
-            else:
-                _globals[item.target.id] = VariableRecord(item.target.id, len(_globals), parse_type(item.annotation, 'storage'), True)
+            _events, _globals, _getters = add_global(_defs, _events, _getters, _globals, item)
         # Function definitions
         elif isinstance(item, ast.FunctionDef):
             _defs.append(item)
@@ -301,8 +319,9 @@ def parse_tree_to_lll(code, origcode):
         for event in _events:
             sigs[event.target.id] = EventSignature.from_declaration(event)
     sub = ['seq', initializer_lll]
+    # If there is an init func...
     for _contractname in _contracts.keys():
-        _c_contracts, _c_defs, _c_globals = _contracts[_contractname]
+        _c_defs, _c_globals = _contracts[_contractname]
         _defnames = [_def.name for _def in _c_defs]
         contract = {}
         if len(set(_defnames)) < len(_c_defs):
@@ -318,7 +337,6 @@ def parse_tree_to_lll(code, origcode):
                 sig = FunctionSignature.from_definition(_def)
                 sig.gas = sub[-1].total_gas
                 contract[sig.name] = sig
-            o.append(['return', 0, ['lll', sub, 0]])
         contracts[_contractname] = contract
     _defnames = [_def.name for _def in _defs]
     if len(set(_defnames)) < len(_defs):
@@ -338,18 +356,17 @@ def parse_tree_to_lll(code, origcode):
             sig.gas = sub[-1].total_gas
             sigs[sig.name] = sig
         o.append(['return', 0, ['lll', sub, 0]])
-    # import pdb; pdb.set_trace()
     return LLLnode.from_list(o, typ=None)
 
 
 # Checks that an input matches its type
 def make_clamper(datapos, mempos, typ, is_init=False):
-    if not is_init:
-        data_decl = ['calldataload', ['add', 4, datapos]]
-        copier = lambda pos, sz: ['calldatacopy', mempos, ['add', 4, pos], sz]
-    else:
-        data_decl = ['codeload', ['add', '~codelen', datapos]]
-        copier = lambda pos, sz: ['codecopy', mempos, ['add', '~codelen', pos], sz]
+    # if not is_init:
+    data_decl = ['calldataload', ['add', 4, datapos]]
+    copier = lambda pos, sz: ['calldatacopy', mempos, ['add', 4, pos], sz]
+    # else:
+        # data_decl = ['codeload', ['add', '~codelen', datapos]]
+        # copier = lambda pos, sz: ['codecopy', mempos, ['add', '~codelen', pos], sz]
     # Numbers: make sure they're in range
     if is_base_type(typ, 'num'):
         return LLLnode.from_list(['clamp', ['mload', MINNUM_POS], data_decl, ['mload', MAXNUM_POS]],
@@ -719,7 +736,8 @@ def parse_expr(expr, context):
         if isinstance(expr.func, ast.Name) and expr.func.id in dispatch_table:
             return dispatch_table[expr.func.id](expr, context)
         elif isinstance(expr.func, ast.Attribute) and isinstance(expr.func.value, ast.Name) and expr.func.value.id == "self":
-            if expr.func.attr not in context.sigs['self']:
+            method_name = expr.func.attr
+            if method_name not in context.sigs['self']:
                 raise VariableDeclarationException("Function not declared yet (reminder: functions cannot "
                                                    "call functions later in code than themselves): %s" % expr.func.attr)
             sig = context.sigs['self'][expr.func.attr]
@@ -738,9 +756,15 @@ def parse_expr(expr, context):
                                         returner], typ=sig.output_type, location='memory', pos=getpos(expr))
             o.gas += sig.gas
             return o
-        elif isinstance(expr.func, ast.Attribute) and expr.func.value.func.id in context.sigs:
+        elif isinstance(expr.func, ast.Attribute) and isinstance(expr.func.value, ast.Call):
             contract_name = expr.func.value.func.id
-            sig = context.sigs[contract_name][expr.func.attr]
+            if not contract_name in context.sigs:
+                raise VariableDeclarationException("Contract not declared yet: %s" % contract_name)
+            method_name = expr.func.attr
+            if not method_name in context.sigs[contract_name]:
+                raise VariableDeclarationException("Function not declared yet: %s (reminder: "
+                                                    "function must be declared in the correct contract)" % method_name)
+            sig = context.sigs[contract_name][method_name]
             contract_address = parse_expr(expr.func.value.args[0], context)
             inargs, inargsize = pack_arguments(sig, [parse_expr(arg, context) for arg in expr.args], context)
             output_placeholder = context.new_placeholder(typ=sig.output_type)
