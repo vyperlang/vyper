@@ -12,7 +12,7 @@ def foo(arg1: num) -> num:
 
     contract_2 = """
 class Foo():
-    def foo(arg1: num) -> num: pass
+        def foo(arg1: num) -> num: pass
 
 def bar(arg1: address, arg2: num) -> num:
     return Foo(arg1).foo(arg2)
@@ -50,6 +50,69 @@ def bar(arg1: address) -> num:
     print('Successfully executed a complicated external contract call')
 
 
+def test_external_contract_call__state_change():
+    contract_1 = """
+lucky: public(num)
+
+def set_lucky(_lucky: num):
+    self.lucky = _lucky
+    """
+
+    lucky_number = 7
+    c = get_contract(contract_1)
+
+    contract_2 = """
+class Foo():
+    def set_lucky(_lucky: num): pass
+
+def set_lucky(arg1: address, arg2: num):
+    Foo(arg1).set_lucky(arg2)
+    """
+    c2 = get_contract(contract_2)
+
+    assert c.get_lucky() == 0
+    c2.set_lucky(c.address, lucky_number)
+    assert c.get_lucky() == lucky_number
+    print('Successfully executed an external contract call state change')
+
+
+def test_external_contract_can_be_changed_based_on_address():
+    contract_1 = """
+lucky: public(num)
+
+def set_lucky(_lucky: num):
+    self.lucky = _lucky
+    """
+
+    lucky_number_1 = 7
+    c = get_contract(contract_1)
+
+    contract_2 =  """
+lucky: public(num)
+
+def set_lucky(_lucky: num):
+    self.lucky = _lucky
+    """
+
+    lucky_number_2 = 3
+    c2 = get_contract(contract_1)
+
+    contract_3 = """
+class Foo():
+    def set_lucky(_lucky: num): pass
+
+def set_lucky(arg1: address, arg2: num):
+    Foo(arg1).set_lucky(arg2)
+    """
+    c3 = get_contract(contract_3)
+
+    c3.set_lucky(c.address, lucky_number_1)
+    c3.set_lucky(c2.address, lucky_number_2)
+    assert c.get_lucky() == lucky_number_1
+    assert c2.get_lucky() == lucky_number_2
+    print('Successfully executed multiple external contract calls to different contracts based on address')
+
+
 def test_external_contract_calls_with_public_globals():
     contract_1 = """
 lucky: public(num)
@@ -71,7 +134,7 @@ def bar(arg1: address) -> num:
     c2 = get_contract(contract_2)
 
     assert c2.bar(c.address) == lucky_number
-    print('Successfully executed a complicated external contract call')
+    print('Successfully executed an external contract call with public globals')
 
 
 def test_external_contract_calls_with_multiple_contracts():
@@ -109,3 +172,4 @@ def __init__(arg1: address):
     c3 = get_contract(contract_3, args=[c2.address])
     assert c3.get_best_number() == lucky_number
     print('Successfully executed a multiple external contract calls')
+

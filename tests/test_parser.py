@@ -61,7 +61,7 @@ def get_comb() -> num:
     return self.comb
     """
     c = get_contract_with_gas_estimation(constructor_advanced_code2, args=[[5,7], "dog", 8])
-    assert c.get_comb() == 5708
+    assert c.get_comb() == 5738
     print("Passed advanced init argument tests")
 
 def test_permanent_variables_test():

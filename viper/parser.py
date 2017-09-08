@@ -361,12 +361,12 @@ def parse_tree_to_lll(code, origcode):
 
 # Checks that an input matches its type
 def make_clamper(datapos, mempos, typ, is_init=False):
-    # if not is_init:
-    data_decl = ['calldataload', ['add', 4, datapos]]
-    copier = lambda pos, sz: ['calldatacopy', mempos, ['add', 4, pos], sz]
-    # else:
-        # data_decl = ['codeload', ['add', '~codelen', datapos]]
-        # copier = lambda pos, sz: ['codecopy', mempos, ['add', '~codelen', pos], sz]
+    if not is_init:
+        data_decl = ['calldataload', ['add', 4, datapos]]
+        copier = lambda pos, sz: ['calldatacopy', mempos, ['add', 4, pos], sz]
+    else:
+        data_decl = ['codeload', ['add', '~codelen', datapos]]
+        copier = lambda pos, sz: ['codecopy', mempos, ['add', '~codelen', pos], sz]
     # Numbers: make sure they're in range
     if is_base_type(typ, 'num'):
         return LLLnode.from_list(['clamp', ['mload', MINNUM_POS], data_decl, ['mload', MAXNUM_POS]],
@@ -456,6 +456,48 @@ def parse_body(code, context):
         o.append(parse_stmt(stmt, context))
     return LLLnode.from_list(['seq'] + o, pos=getpos(code[0]) if code else None)
 
+
+def external_contract_call_stmt(stmt, context):
+    contract_name = stmt.func.value.func.id
+    if not contract_name in context.sigs:
+        raise VariableDeclarationException("Contract not declared yet: %s" % contract_name)
+    method_name = stmt.func.attr
+    if not method_name in context.sigs[contract_name]:
+        raise VariableDeclarationException("Function not declared yet: %s (reminder: "
+                                                    "function must be declared in the correct contract)" % method_name)
+    sig = context.sigs[contract_name][method_name]
+    contract_address = parse_expr(stmt.func.value.args[0], context)
+    inargs, inargsize = pack_arguments(sig, [parse_expr(arg, context) for arg in stmt.args], context)
+    o = LLLnode.from_list(['assert', ['call', ['gas'], ['mload', contract_address], 0, inargs, inargsize, 0, 0]],
+                                    typ=None, location='memory', pos=getpos(stmt))
+    o.gas += sig.gas
+    return o
+
+def external_contract_call_expr(expr, context):
+    contract_name = expr.func.value.func.id
+    if not contract_name in context.sigs:
+        raise VariableDeclarationException("Contract not declared yet: %s" % contract_name)
+    method_name = expr.func.attr
+    if not method_name in context.sigs[contract_name]:
+        raise VariableDeclarationException("Function not declared yet: %s (reminder: "
+                                                    "function must be declared in the correct contract)" % method_name)
+    sig = context.sigs[contract_name][method_name]
+    contract_address = parse_expr(expr.func.value.args[0], context)
+    inargs, inargsize = pack_arguments(sig, [parse_expr(arg, context) for arg in expr.args], context)
+    output_placeholder = context.new_placeholder(typ=sig.output_type)
+    if isinstance(sig.output_type, BaseType):
+        returner = output_placeholder
+    elif isinstance(sig.output_type, ByteArrayType):
+        returner = output_placeholder + 32
+    else:
+        raise TypeMismatchException("Invalid output type: %r" % out, expr)
+    o = LLLnode.from_list(['seq',
+                            ['assert', ['call', ['gas'], ['mload', contract_address], 0,
+                            inargs, inargsize,
+                            output_placeholder, get_size_of_type(sig.output_type) * 32]],
+                            returner], typ=sig.output_type, location='memory', pos=getpos(expr))
+    o.gas += sig.gas
+    return o
 
 # Parse an expression
 def parse_expr(expr, context):
@@ -757,30 +799,7 @@ def parse_expr(expr, context):
             o.gas += sig.gas
             return o
         elif isinstance(expr.func, ast.Attribute) and isinstance(expr.func.value, ast.Call):
-            contract_name = expr.func.value.func.id
-            if not contract_name in context.sigs:
-                raise VariableDeclarationException("Contract not declared yet: %s" % contract_name)
-            method_name = expr.func.attr
-            if not method_name in context.sigs[contract_name]:
-                raise VariableDeclarationException("Function not declared yet: %s (reminder: "
-                                                    "function must be declared in the correct contract)" % method_name)
-            sig = context.sigs[contract_name][method_name]
-            contract_address = parse_expr(expr.func.value.args[0], context)
-            inargs, inargsize = pack_arguments(sig, [parse_expr(arg, context) for arg in expr.args], context)
-            output_placeholder = context.new_placeholder(typ=sig.output_type)
-            if isinstance(sig.output_type, BaseType):
-                returner = output_placeholder
-            elif isinstance(sig.output_type, ByteArrayType):
-                returner = output_placeholder + 32
-            else:
-                raise TypeMismatchException("Invalid output type: %r" % out, expr)
-            o = LLLnode.from_list(['seq',
-                                        ['assert', ['call', ['gas'], ['mload', contract_address], 0,
-                                                        inargs, inargsize,
-                                                        output_placeholder, get_size_of_type(sig.output_type) * 32]],
-                                        returner], typ=sig.output_type, location='memory', pos=getpos(expr))
-            o.gas += sig.gas
-            return o
+            return external_contract_call_expr(expr, context)
         else:
             raise StructureException("Unsupported operator: %r" % ast.dump(expr), expr)
     # List literals
@@ -990,6 +1009,8 @@ def parse_stmt(stmt, context):
             topics, stored_topics, event, data = pack_logging_topics(event, stmt.args, context)
             inargs, inargsize, inarg_start = pack_logging_data(event, data, context)
             return LLLnode.from_list(['seq', inargs, stored_topics, ["log" + str(len(topics)), inarg_start, inargsize] + topics], typ=None, pos=getpos(stmt))
+        elif isinstance(stmt.func, ast.Attribute) and isinstance(stmt.func.value, ast.Call):
+            return external_contract_call_stmt(stmt, context)
         else:
             raise StructureException("Unsupported operator: %r" % ast.dump(stmt), stmt)
     # Asserts
