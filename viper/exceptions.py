@@ -2,14 +2,19 @@
 class ParserException(Exception):
     def __init__(self, message='Error Message not found.', item=None):
         self.message = message
+
+        self.lineno = None
+        self.col_offset = None
+
         if item and hasattr(item, 'lineno'):
             self.set_err_pos(item.lineno, item.col_offset)
             self.source_code = item.source_code.splitlines()
 
     def set_err_pos(self, lineno, col_offset):
-        if not hasattr(self, 'lineno'):
+        if not self.lineno:
             self.lineno = lineno
-            if not hasattr(self, 'col_offset'):
+
+            if not self.col_offset:
                 self.col_offset = col_offset
 
     def __str__(self):
