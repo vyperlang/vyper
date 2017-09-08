@@ -1,8 +1,6 @@
-import ast
 from .parser_utils import LLLnode
-from .utils import fourbytes_to_int, hex_to_int, bytes_to_int, \
-    DECIMAL_DIVISOR, RESERVED_MEMORY, ADDRSIZE_POS, MAXNUM_POS, MINNUM_POS, \
-    MAXDECIMAL_POS, MINDECIMAL_POS, FREE_VAR_SPACE, BLANK_SPACE, FREE_LOOP_INDEX
+from .utils import DECIMAL_DIVISOR, ADDRSIZE_POS, MAXNUM_POS, MINNUM_POS, \
+    MAXDECIMAL_POS, MINDECIMAL_POS
 
 def get_int_at(args, pos, signed=False):
     if isinstance(args[pos].value, int):

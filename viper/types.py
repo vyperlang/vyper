@@ -1,6 +1,6 @@
 import ast
 import copy
-from .exceptions import InvalidTypeException, TypeMismatchException
+from .exceptions import InvalidTypeException
 from .utils import is_varname_valid, base_types, valid_units
 
 # Pretty-print a unit (eg. wei/seconds**2)

@@ -1,15 +1,7 @@
-from .types import NodeType, BaseType, ListType, MappingType, StructType, \
-    MixedType, NullType, ByteArrayType
-from .types import base_types, parse_type, canonicalize_type, is_base_type, \
-    is_numeric_type, get_size_of_type, is_varname_valid
-from .types import combine_units, are_units_compatible, set_default_units
-from .exceptions import InvalidTypeException, TypeMismatchException, \
-    VariableDeclarationException, StructureException, ConstancyViolationException, \
-    InvalidTypeException, InvalidLiteralException
+from .types import NodeType, BaseType, NullType, ByteArrayType
+from .exceptions import TypeMismatchException
 from .opcodes import comb_opcodes
-from .utils import fourbytes_to_int, hex_to_int, bytes_to_int, ceil32, \
-    DECIMAL_DIVISOR, RESERVED_MEMORY, ADDRSIZE_POS, MAXNUM_POS, MINNUM_POS, \
-    MAXDECIMAL_POS, MINDECIMAL_POS, FREE_VAR_SPACE, BLANK_SPACE, FREE_LOOP_INDEX
+from .utils import ceil32, MAXNUM_POS, MINNUM_POS, FREE_LOOP_INDEX
 import re
 
 class NullAttractor():

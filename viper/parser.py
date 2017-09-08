@@ -1,21 +1,18 @@
-import ast, tokenize, binascii
-from io import BytesIO
-from .opcodes import opcodes, pseudo_opcodes
-import copy
-from .types import NodeType, BaseType, ListType, MappingType, StructType, \
+import ast
+from .types import BaseType, ListType, MappingType, StructType, \
     MixedType, NullType, ByteArrayType, TupleType
-from .types import base_types, parse_type, canonicalize_type, is_base_type, \
+from .types import parse_type, is_base_type, \
     is_numeric_type, get_size_of_type
 from .types import combine_units, are_units_compatible, set_default_units
-from .exceptions import InvalidTypeException, TypeMismatchException, \
+from .exceptions import TypeMismatchException, \
     VariableDeclarationException, StructureException, ConstancyViolationException, \
-    InvalidTypeException, InvalidLiteralException, NonPayableViolationException
+    InvalidLiteralException, NonPayableViolationException
 from .functions import dispatch_table, stmt_dispatch_table
 from .parser_utils import LLLnode, make_byte_array_copier, get_number_as_fraction, \
     get_original_if_0x_prefixed, get_length, getpos
-from .utils import fourbytes_to_int, hex_to_int, bytes_to_int, checksum_encode, \
+from .utils import bytes_to_int, checksum_encode, \
     DECIMAL_DIVISOR, RESERVED_MEMORY, ADDRSIZE_POS, MAXNUM_POS, MINNUM_POS, \
-    MAXDECIMAL_POS, MINDECIMAL_POS, FREE_VAR_SPACE, BLANK_SPACE, FREE_LOOP_INDEX, \
+    MAXDECIMAL_POS, MINDECIMAL_POS, \
     calc_mem_gas, is_varname_valid
 from .function_signature import VariableRecord, FunctionSignature
 

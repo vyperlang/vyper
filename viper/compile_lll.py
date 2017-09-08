@@ -1,6 +1,7 @@
 from .parser import LLLnode
-from .opcodes import opcodes, pseudo_opcodes
-from .utils import MAXDECIMAL_POS, MINDECIMAL_POS, FREE_VAR_SPACE, BLANK_SPACE, FREE_LOOP_INDEX
+from .opcodes import opcodes
+from .utils import FREE_VAR_SPACE
+
 
 def num_to_bytearray(x):
     o = []

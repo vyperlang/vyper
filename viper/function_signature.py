@@ -3,9 +3,8 @@ from .types import get_size_of_type, canonicalize_type, parse_type, \
 from .utils import fourbytes_to_int, sha3, is_varname_valid
 import ast
 
-from .exceptions import InvalidTypeException, TypeMismatchException, \
-    VariableDeclarationException, StructureException, ConstancyViolationException, \
-    InvalidTypeException, InvalidLiteralException, NonPayableViolationException
+from .exceptions import VariableDeclarationException, StructureException, \
+    InvalidTypeException
 
 # Function argument
 class VariableRecord():
