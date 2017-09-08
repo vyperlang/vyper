@@ -13,8 +13,6 @@ PUSH_OFFSET = 0x5f
 DUP_OFFSET = 0x7f
 SWAP_OFFSET = 0x8f
 
-FREE_VAR_SPACE = 192
-
 next_symbol = [0]
 
 def mksymbol():

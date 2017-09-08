@@ -347,7 +347,7 @@ def add_variable_offset(parent, key):
             attrs = sorted(typ.members.keys())
     
             if key not in attrs:
-                raise TypeMismatchException("Member %s not found. Only the following available: %s" % (expr.attr, " ".join(attrs)))
+                raise TypeMismatchException("Member %s not found. Only the following available: %s" % (key, " ".join(attrs)))
             index = attrs.index(key)
             annotation = key
         else:
@@ -682,7 +682,7 @@ def parse_expr(expr, context):
         elif isinstance(expr.func, ast.Attribute) and isinstance(expr.func.value, ast.Name) and expr.func.value.id == "self":
             if expr.func.attr not in context.sigs['self']:
                 raise VariableDeclarationException("Function not declared yet (reminder: functions cannot "
-                                                   "call functions later in code than themselves): %s" % method_name)
+                                                   "call functions later in code than themselves): %s" % expr.func.attr)
             sig = context.sigs['self'][expr.func.attr]
             inargs, inargsize = pack_arguments(sig, [parse_expr(arg, context) for arg in expr.args], context)
             output_placeholder = context.new_placeholder(typ=sig.output_type)
@@ -691,7 +691,7 @@ def parse_expr(expr, context):
             elif isinstance(sig.output_type, ByteArrayType):
                 returner = output_placeholder + 32
             else:
-                raise TypeMismatchException("Invalid output type: %r" % out, expr)
+                raise TypeMismatchException("Invalid output type: %r" % sig.output_type, expr)
             o = LLLnode.from_list(['seq',
                                         ['assert', ['call', ['gas'], ['address'], 0,
                                                         inargs, inargsize,

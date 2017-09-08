@@ -64,6 +64,7 @@ def optimize(node):
             annotation = ''
         return LLLnode(new_value, [], node.typ, None, node.pos, annotation)
     elif node.value == "add" and int_at(argz, 0) and argz[1].value == "add" and int_at(argz[1].args, 0):
+        calcer, symb = arith[node.value]
         if argz[0].annotation and argz[1].args[0].annotation:
             annotation = argz[0].annotation + symb + argz[1].args[0].annotation
         elif argz[0].annotation or argz[1].args[0].annotation:
