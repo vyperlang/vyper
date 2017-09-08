@@ -8,6 +8,7 @@ from .utils import (
     MINNUM_POS,
 )
 
+
 def get_int_at(args, pos, signed=False):
     if isinstance(args[pos].value, int):
         o = args[pos].value
@@ -26,8 +27,10 @@ def get_int_at(args, pos, signed=False):
     else:
         return o % 2**256
 
+
 def int_at(args, pos):
     return get_int_at(args, pos) is not None
+
 
 def search_for_set(node, var):
     if node.value == "set" and node.args[0].value == var:
@@ -36,6 +39,7 @@ def search_for_set(node, var):
         if search_for_set(arg, var):
             return True
     return False
+
 
 def replace_with_value(node, var, value):
     if node.value == "with" and node.args[0].value == var:
@@ -46,6 +50,7 @@ def replace_with_value(node, var, value):
     else:
         return LLLnode(node.value, [replace_with_value(arg, var, value) for arg in node.args], node.typ, node.location, node.annotation)
 
+
 arith = {
     "add": (lambda x, y: x + y, '+'),
     "sub": (lambda x, y: x - y, '-'),
@@ -53,6 +58,7 @@ arith = {
     "div": (lambda x, y: x // y, '/'),
     "mod": (lambda x, y: x % y, '%'),
 }
+
 
 def optimize(node):
     argz = [optimize(arg) for arg in node.args]
@@ -117,4 +123,3 @@ def optimize(node):
         return o
     else:
         return LLLnode(node.value, argz, node.typ, node.location, node.pos, node.annotation)
-    

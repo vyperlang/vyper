@@ -14,11 +14,18 @@ class ParserException(Exception):
 
     def __str__(self):
         output = self.message
-        if hasattr(self, 'lineno'):
-            output = 'line ' + str(self.lineno) + ': ' + output + '\n' + self.source_code[self.lineno-1]
-            if hasattr(self, 'col_offset'):
-                col = ''.join(['-' for i in range(self.col_offset)]) + '^'
-                output = output + '\n' + col
+
+        if self.lineno:
+            output = 'line %d: %s\n%s' % (
+                self.lineno,
+                output,
+                self.source_code[self.lineno - 1]
+            )
+
+            if self.col_offset:
+                col = '-' * self.col_offset + '^'
+                output += '\n' + col
+
         return output
 
 

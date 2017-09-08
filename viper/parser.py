@@ -67,17 +67,20 @@ try:
 except:
     raise Exception("Requires python 3.6 or higher for annotation support")
 
+
 # Converts code to parse tree
 def parse(code):
     o = ast.parse(code)
     decorate_ast_with_source(o, code)
     return o.body
 
+
 # Parser for a single line
 def parse_line(code):
     o = ast.parse(code).body[0]
     decorate_ast_with_source(o, code)
     return o
+
 
 # Decorate every node of an AST tree with the original source code.
 # This is necessary to facilitate error pretty-printing.
@@ -90,13 +93,14 @@ def decorate_ast_with_source(_ast, code):
 
     MyVisitor().visit(_ast)
 
+
 # Make a getter for a variable. This function gives an output that
 # contains lists of 4-tuples:
 # (i) the tail of the function name for the getter
 # (ii) the code for the arguments that the function takes
 # (iii) the code for the return
 # (iv) the output type
-# 
+#
 # Here is an example:
 #
 # Input: my_variable: {foo: num, bar: decimal[5]}
@@ -105,7 +109,7 @@ def decorate_ast_with_source(_ast, code):
 #
 # [('__foo', '', '.foo', 'num'),
 #  ('__bar', 'arg0: num, ', '.bar[arg0]', 'decimal')]
-# 
+#
 # The getters will have code:
 # def get_my_variable__foo() -> num: return self.foo
 # def get_my_variable__bar(arg0: nun) -> decimal: return self.bar[arg0]
@@ -122,14 +126,14 @@ def _mk_getter_helper(typ, depth=0):
     # the index in the list, add an item access to the return statement
     elif isinstance(typ, ListType):
         o = []
-        for funname, head, tail, base in _mk_getter_helper(typ.subtype, depth+1):
+        for funname, head, tail, base in _mk_getter_helper(typ.subtype, depth + 1):
             o.append((funname, ("arg%d: num, " % depth) + head, ("[arg%d]" % depth) + tail, base))
         return o
     # Mapping type: do not extend the getter name, add an input argument for
     # the key in the map, add a value access to the return statement
     elif isinstance(typ, MappingType):
         o = []
-        for funname, head, tail, base in _mk_getter_helper(typ.valuetype, depth+1):
+        for funname, head, tail, base in _mk_getter_helper(typ.valuetype, depth + 1):
             o.append((funname, ("arg%d: %r, " % (depth, typ.keytype)) + head, ("[arg%d]" % depth) + tail, base))
         return o
     # Struct type: for each member variable, make a separate getter, extend
@@ -139,16 +143,18 @@ def _mk_getter_helper(typ, depth=0):
         o = []
         for k, v in typ.members.items():
             for funname, head, tail, base in _mk_getter_helper(v, depth):
-                o.append(("__"+k+funname, head, "."+k+tail, base))
+                o.append(("__" + k + funname, head, "." + k + tail, base))
         return o
     else:
         raise Exception("Unexpected type")
+
 
 # Make a list of getters for a given variable name with a given type
 def mk_getter(varname, typ):
     funs = _mk_getter_helper(typ)
     return ['@constant\ndef get_%s%s(%s) -> %s: return self.%s%s' % (varname, funname, head.rstrip(', '), base, varname, tail)
             for (funname, head, tail, base) in funs]
+
 
 # Parse top-level functions and variables
 def get_defs_and_globals(code):
@@ -185,6 +191,7 @@ def get_defs_and_globals(code):
             raise StructureException("Invalid top-level statement", item)
     return _defs + _getters, _globals
 
+
 # Header code
 initializer_lll = LLLnode.from_list(['seq',
                                         ['mstore', 28, ['calldataload', 0]],
@@ -194,6 +201,7 @@ initializer_lll = LLLnode.from_list(['seq',
                                         ['mstore', MAXDECIMAL_POS, (2**128 - 1) * DECIMAL_DIVISOR],
                                         ['mstore', MINDECIMAL_POS, (-2**128 + 1) * DECIMAL_DIVISOR],
                                     ], typ=None)
+
 
 # Contains arguments, variables, etc
 class Context():
@@ -221,7 +229,7 @@ class Context():
     # Add a new variable
     def new_variable(self, name, typ):
         if not is_varname_valid(name):
-            raise VariableDeclarationException("Variable name invalid or reserved: "+name)
+            raise VariableDeclarationException("Variable name invalid or reserved: " + name)
         if name in self.vars or name in self.globals:
             raise VariableDeclarationException("Duplicate variable name: %s" % name)
         self.vars[name] = VariableRecord(name, self.next_mem, typ, True)
@@ -231,7 +239,7 @@ class Context():
 
     # Add an anonymous variable (used in some complex function definitions)
     def new_placeholder(self, typ):
-        name = '_placeholder_'+str(self.placeholder_count)
+        name = '_placeholder_' + str(self.placeholder_count)
         self.placeholder_count += 1
         return self.new_variable(name, typ)
 
@@ -239,9 +247,11 @@ class Context():
     def get_next_mem(self):
         return self.next_mem
 
+
 # Is a function the initializer?
 def is_initializer(code):
     return code.name == '__init__'
+
 
 # Get ABI signature
 def mk_full_signature(code):
@@ -285,6 +295,7 @@ def parse_tree_to_lll(code, origcode):
         o.append(['return', 0, ['lll', sub, 0]])
     return LLLnode.from_list(o, typ=None)
 
+
 # Checks that an input matches its type
 def make_clamper(datapos, mempos, typ, is_init=False):
     if not is_init:
@@ -320,13 +331,14 @@ def make_clamper(datapos, mempos, typ, is_init=False):
     else:
         return LLLnode.from_list('pass')
 
+
 # Parses a function declaration
 def parse_func(code, _globals, sigs, origcode, _vars={}):
     sig = FunctionSignature.from_definition(code)
     # Check for duplicate variables with globals
     for arg in sig.args:
         if arg.name in _globals:
-            raise VariableDeclarationException("Variable name duplicated between function arguments and globals: "+arg.name)
+            raise VariableDeclarationException("Variable name duplicated between function arguments and globals: " + arg.name)
     # Create a context
     context = Context(vars=_vars, globals=_globals, sigs=sigs,
                       return_type=sig.output_type, is_constant=sig.const, is_payable=sig.payable, origcode=origcode)
@@ -367,7 +379,8 @@ def parse_func(code, _globals, sigs, origcode, _vars={}):
     o.total_gas = o.gas + calc_mem_gas(o.context.next_mem)
     o.func_name = sig.name
     return o
-    
+
+
 # Parse a piece of code
 def parse_body(code, context):
     if not isinstance(code, list):
@@ -376,6 +389,7 @@ def parse_body(code, context):
     for stmt in code:
         o.append(parse_stmt(stmt, context))
     return LLLnode.from_list(['seq'] + o, pos=getpos(code[0]) if code else None)
+
 
 # Take a value representing a memory or storage location, and descend down to an element or member variable
 def add_variable_offset(parent, key):
@@ -388,7 +402,7 @@ def add_variable_offset(parent, key):
                 raise TypeMismatchException("Object does not have member variable %s" % key)
             subtype = typ.members[key]
             attrs = sorted(typ.members.keys())
-    
+
             if key not in attrs:
                 raise TypeMismatchException("Member %s not found. Only the following available: %s" % (key, " ".join(attrs)))
             index = attrs.index(key)
@@ -425,7 +439,7 @@ def add_variable_offset(parent, key):
             subtype = typ.valuetype
             sub = base_type_conversion(key, key.typ, typ.keytype)
         if location == 'storage':
-           return LLLnode.from_list(['add', ['sha3_32', parent], sub],
+            return LLLnode.from_list(['add', ['sha3_32', parent], sub],
                                      typ=subtype,
                                      location='storage')
         elif location == 'storage_prehashed':
@@ -444,6 +458,7 @@ def add_variable_offset(parent, key):
     else:
         raise TypeMismatchException("Cannot access the child of a constant variable! %r" % typ)
 
+
 # Parse an expression
 def parse_expr(expr, context):
     if isinstance(expr, LLLnode):
@@ -453,19 +468,19 @@ def parse_expr(expr, context):
         orignum = get_original_if_0x_prefixed(expr, context)
         if orignum is None and isinstance(expr.n, int):
             if not (-2**127 + 1 <= expr.n <= 2**127 - 1):
-                raise InvalidLiteralException("Number out of range: "+str(expr.n), expr)
+                raise InvalidLiteralException("Number out of range: " + str(expr.n), expr)
             return LLLnode.from_list(expr.n, typ=BaseType('num', None), pos=getpos(expr))
         elif isinstance(expr.n, float):
             numstring, num, den = get_number_as_fraction(expr, context)
             if not (-2**127 * den < num < 2**127 * den):
-                raise InvalidLiteralException("Number out of range: "+numstring, expr)
+                raise InvalidLiteralException("Number out of range: " + numstring, expr)
             if DECIMAL_DIVISOR % den:
-                raise InvalidLiteralException("Too many decimal places: "+numstring, expr)
+                raise InvalidLiteralException("Too many decimal places: " + numstring, expr)
             return LLLnode.from_list(num * DECIMAL_DIVISOR // den, typ=BaseType('decimal', None), pos=getpos(expr))
         elif len(orignum) == 42:
             if checksum_encode(orignum) != orignum:
                 raise InvalidLiteralException("Address checksum mismatch. If you are sure this is the "
-                                              "right address, the correct checksummed form is: "+
+                                              "right address, the correct checksummed form is: " +
                                               checksum_encode(orignum), expr)
             return LLLnode.from_list(expr.n, typ=BaseType('address'), pos=getpos(expr))
         elif len(orignum) == 66:
@@ -510,7 +525,7 @@ def parse_expr(expr, context):
             var = context.vars[expr.id]
             return LLLnode.from_list(var.pos, typ=var.typ, location='memory', pos=getpos(expr), annotation=expr.id, mutable=var.mutable)
         else:
-            raise VariableDeclarationException("Undeclared variable: "+expr.id, expr)
+            raise VariableDeclarationException("Undeclared variable: " + expr.id, expr)
     # x.y or x[5]
     elif isinstance(expr, ast.Attribute):
         # x.balance: balance of address x
@@ -528,7 +543,7 @@ def parse_expr(expr, context):
         # self.x: global attribute
         elif isinstance(expr.value, ast.Name) and expr.value.id == "self":
             if expr.attr not in context.globals:
-                raise VariableDeclarationException("Persistent variable undeclared: "+expr.attr, expr)
+                raise VariableDeclarationException("Persistent variable undeclared: " + expr.attr, expr)
             var = context.globals[expr.attr]
             return LLLnode.from_list(var.pos, typ=var.typ, location='storage', pos=getpos(expr), annotation='self.' + expr.attr)
         # Reserved keywords
@@ -553,7 +568,7 @@ def parse_expr(expr, context):
             elif key == "tx.origin":
                 return LLLnode.from_list(['origin'], typ='address', pos=getpos(expr))
             else:
-                raise Exception("Unsupported keyword: "+key)
+                raise Exception("Unsupported keyword: " + key)
         # Other variables
         else:
             sub = parse_variable_location(expr.value, context)
@@ -591,7 +606,7 @@ def parse_expr(expr, context):
             if left.typ.positional and right.typ.positional and isinstance(expr.op, ast.Add):
                 raise TypeMismatchException("Cannot add two positional units!", expr)
             new_unit = left.typ.unit or right.typ.unit
-            new_positional = left.typ.positional ^ right.typ.positional # xor, as subtracting two positionals gives a delta
+            new_positional = left.typ.positional ^ right.typ.positional  # xor, as subtracting two positionals gives a delta
             op = 'add' if isinstance(expr.op, ast.Add) else 'sub'
             if ltyp == rtyp:
                 o = LLLnode.from_list([op, left, right], typ=BaseType(ltyp, new_unit, new_positional), pos=getpos(expr))
@@ -703,7 +718,7 @@ def parse_expr(expr, context):
         elif isinstance(expr.op, ast.Or):
             op = 'or'
         else:
-            raise Exception("Unsupported bool op: "+expr.op)
+            raise Exception("Unsupported bool op: " + expr.op)
         return LLLnode.from_list([op, left, right], typ='bool', pos=getpos(expr))
     # Unary operations (only "not" supported)
     elif isinstance(expr, ast.UnaryOp):
@@ -765,11 +780,12 @@ def parse_expr(expr, context):
             if not isinstance(key, ast.Name) or not is_varname_valid(key.id):
                 raise TypeMismatchException("Invalid member variable for struct: %r" % vars(key).get('id', key), key)
             if key.id in o:
-                raise TypeMismatchException("Member variable duplicated: "+key.id, key)
+                raise TypeMismatchException("Member variable duplicated: " + key.id, key)
             o[key.id] = parse_expr(value, context)
             members[key.id] = o[key.id].typ
         return LLLnode.from_list(["multi"] + [o[key] for key in sorted(list(o.keys()))], typ=StructType(members), pos=getpos(expr))
     raise Exception("Unsupported operator: %r" % ast.dump(expr))
+
 
 # Unwrap location
 def unwrap_location(orig):
@@ -780,6 +796,7 @@ def unwrap_location(orig):
     else:
         return orig
 
+
 # Parse an expression that represents an address in memory or storage
 def parse_variable_location(expr, context):
     o = parse_expr(expr, context)
@@ -787,9 +804,11 @@ def parse_variable_location(expr, context):
         raise Exception("Looking for a variable location, instead got a value")
     return o
 
+
 # Parse an expression that results in a value
 def parse_value_expr(expr, context):
     return unwrap_location(parse_expr(expr, context))
+
 
 # Convert from one base type to another
 def base_type_conversion(orig, frm, to):
@@ -806,6 +825,7 @@ def base_type_conversion(orig, frm, to):
         return LLLnode.from_list(0, typ=to)
     else:
         raise TypeMismatchException("Typecasting from base type %r to %r unavailable" % (frm, to))
+
 
 # Create an x=y statement, where the types may be compound
 def make_setter(left, right, location):
@@ -911,6 +931,7 @@ def make_setter(left, right, location):
             return LLLnode.from_list(['with', '_L', left, ['with', '_R', right, ['seq'] + subs]], typ=None)
     else:
         raise Exception("Invalid type for setters")
+
 
 # Parse a statement (usually one line of code but not always)
 def parse_stmt(stmt, context):
@@ -1091,6 +1112,7 @@ def parse_stmt(stmt, context):
     else:
         raise StructureException("Unsupported statement type", stmt)
 
+
 # Pack function arguments for a call
 def pack_arguments(signature, args, context):
     placeholder_typ = ByteArrayType(maxlen=sum([get_size_of_type(arg.typ) for arg in signature.args]) * 32 + 32)
@@ -1118,6 +1140,7 @@ def pack_arguments(signature, args, context):
     else:
         return LLLnode.from_list(['seq'] + setters + [placeholder + 28], typ=placeholder_typ, location='memory'), \
             placeholder_typ.maxlen - 28
+
 
 def parse_to_lll(kode):
     code = parse(kode)

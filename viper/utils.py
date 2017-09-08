@@ -7,15 +7,18 @@ except ImportError:
     import sha3 as _sha3
     sha3 = lambda x: _sha3.sha3_256(x).digest()
 
+
 # Converts for bytes to an integer
 def fourbytes_to_int(inp):
     return (inp[0] << 24) + (inp[1] << 16) + (inp[2] << 8) + inp[3]
+
 
 # Converts a provided hex string to an integer
 def hex_to_int(inp):
     if inp[:2] == '0x':
         inp = inp[2:]
     return bytes_to_int(binascii.unhexlify(inp))
+
 
 # Converts bytes to an integer
 def bytes_to_int(bytez):
@@ -24,8 +27,9 @@ def bytes_to_int(bytez):
         o = o * 256 + b
     return o
 
+
 # Encodes an address using ethereum's checksum scheme
-def checksum_encode(addr): # Expects an input of the form 0x<40 hex chars>
+def checksum_encode(addr):  # Expects an input of the form 0x<40 hex chars>
     assert addr[:2] == '0x' and len(addr) == 42
     o = ''
     v = bytes_to_int(sha3(addr[2:].lower().encode('utf-8')))
@@ -33,16 +37,19 @@ def checksum_encode(addr): # Expects an input of the form 0x<40 hex chars>
         if c in '0123456789':
             o += c
         else:
-            o += c.upper() if (v & (2**(255 - 4*i))) else c.lower()
-    return '0x'+o
+            o += c.upper() if (v & (2**(255 - 4 * i))) else c.lower()
+    return '0x' + o
+
 
 # Returns lowest multiple of 32 >= the input
 def ceil32(x):
     return x if x % 32 == 0 else x + 32 - (x % 32)
 
+
 # Calculates amount of gas needed for memory expansion
 def calc_mem_gas(memsize):
     return (memsize // 32) * 3 + (memsize // 32) ** 2 // 512
+
 
 # A decimal value can store multiples of 1/DECIMAL_DIVISOR
 DECIMAL_DIVISOR = 10000000000
@@ -80,6 +87,7 @@ reserved_words = ['int128', 'int256', 'uint256', 'address', 'bytes32',
                   'true', 'false', 'self', 'this', 'continue', 'ether',
                   'wei', 'finney', 'szabo', 'shannon', 'lovelace', 'ada',
                   'babbage', 'gwei', 'kwei', 'mwei', 'twei', 'pwei']
+
 
 # Is a variable or member variable name valid?
 def is_varname_valid(varname):
