@@ -28,7 +28,10 @@ def is_symbol(i):
 
 
 # Compiles LLL to assembly
-def compile_to_assembly(code, withargs={}, break_dest=None, height=0):
+def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
+    if withargs is None:
+        withargs = {}
+
     # Opcodes
     if isinstance(code.value, str) and code.value.upper() in opcodes:
         o = []

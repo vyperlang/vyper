@@ -333,7 +333,10 @@ def make_clamper(datapos, mempos, typ, is_init=False):
 
 
 # Parses a function declaration
-def parse_func(code, _globals, sigs, origcode, _vars={}):
+def parse_func(code, _globals, sigs, origcode, _vars=None):
+    if _vars is None:
+        _vars = {}
+
     sig = FunctionSignature.from_definition(code)
     # Check for duplicate variables with globals
     for arg in sig.args:

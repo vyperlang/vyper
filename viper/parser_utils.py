@@ -29,7 +29,10 @@ class NullAttractor():
 
 # Data structure for LLL parse tree
 class LLLnode():
-    def __init__(self, value, args=[], typ=None, location=None, pos=None, annotation='', mutable=True):
+    def __init__(self, value, args=None, typ=None, location=None, pos=None, annotation='', mutable=True):
+        if args is None:
+            args = []
+
         self.value = value
         self.args = args
         self.typ = typ
