@@ -1,7 +1,12 @@
 import ast
 import copy
+
 from .exceptions import InvalidTypeException
-from .utils import is_varname_valid, base_types, valid_units
+from .utils import (
+    base_types,
+    is_varname_valid,
+    valid_units,
+)
 
 # Pretty-print a unit (eg. wei/seconds**2)
 def print_unit(unit):

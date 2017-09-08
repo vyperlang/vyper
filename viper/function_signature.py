@@ -1,10 +1,21 @@
-from .types import get_size_of_type, canonicalize_type, parse_type, \
-    ByteArrayType
-from .utils import fourbytes_to_int, sha3, is_varname_valid
 import ast
 
-from .exceptions import VariableDeclarationException, StructureException, \
-    InvalidTypeException
+from .exceptions import (
+    InvalidTypeException,
+    StructureException,
+    VariableDeclarationException,
+)
+from .types import ByteArrayType
+from .types import (
+    canonicalize_type,
+    get_size_of_type,
+    parse_type,
+)
+from .utils import (
+    fourbytes_to_int,
+    is_varname_valid,
+    sha3,
+)
 
 # Function argument
 class VariableRecord():

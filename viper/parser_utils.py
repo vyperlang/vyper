@@ -1,8 +1,19 @@
-from .types import NodeType, BaseType, NullType, ByteArrayType
+import re
+
 from .exceptions import TypeMismatchException
 from .opcodes import comb_opcodes
-from .utils import ceil32, MAXNUM_POS, MINNUM_POS, FREE_LOOP_INDEX
-import re
+from .types import (
+    BaseType,
+    ByteArrayType,
+    NodeType,
+    NullType,
+)
+from .utils import (
+    MAXNUM_POS,
+    MINNUM_POS,
+    FREE_LOOP_INDEX,
+)
+from .utils import ceil32
 
 class NullAttractor():
     def __add__(self, other):

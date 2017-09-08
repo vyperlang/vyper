@@ -1,18 +1,45 @@
 import ast
 
-from .exceptions import TypeMismatchException, \
-    StructureException, ConstancyViolationException, \
-    InvalidLiteralException
-from .parser_utils import LLLnode, make_byte_array_copier, get_number_as_fraction, \
-    get_original_if_0x_prefixed, byte_array_to_num, make_byte_slice_copier, \
-    get_length, getpos
-from .types import BaseType, ByteArrayType, TupleType
-from .types import are_units_compatible
-from .types import parse_type, is_base_type, \
-    get_size_of_type
-from .utils import fourbytes_to_int, bytes_to_int, \
-    DECIMAL_DIVISOR, ADDRSIZE_POS, MAXNUM_POS, MINNUM_POS, \
-    FREE_VAR_SPACE, RLP_DECODER_ADDRESS, sha3
+from .exceptions import (
+    ConstancyViolationException,
+    InvalidLiteralException,
+    StructureException,
+    TypeMismatchException,
+)
+from .parser_utils import (
+    byte_array_to_num,
+    LLLnode,
+    get_length,
+    get_number_as_fraction,
+    get_original_if_0x_prefixed,
+    getpos,
+    make_byte_array_copier,
+    make_byte_slice_copier,
+)
+from .types import (
+    BaseType,
+    ByteArrayType,
+    TupleType,
+)
+from .types import (
+    are_units_compatible,
+    parse_type,
+    is_base_type,
+    get_size_of_type,
+)
+from .utils import (
+    ADDRSIZE_POS,
+    DECIMAL_DIVISOR,
+    FREE_VAR_SPACE,
+    MAXNUM_POS,
+    MINNUM_POS,
+    RLP_DECODER_ADDRESS,
+)
+from .utils import (
+    bytes_to_int,
+    fourbytes_to_int,
+    sha3,
+)
 
 
 class Optional(object):

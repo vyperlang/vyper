@@ -1,20 +1,66 @@
 import ast
-from .types import BaseType, ListType, MappingType, StructType, \
-    MixedType, NullType, ByteArrayType, TupleType
-from .types import parse_type, is_base_type, \
-    is_numeric_type, get_size_of_type
-from .types import combine_units, are_units_compatible, set_default_units
-from .exceptions import TypeMismatchException, \
-    VariableDeclarationException, StructureException, ConstancyViolationException, \
-    InvalidLiteralException, NonPayableViolationException
-from .functions import dispatch_table, stmt_dispatch_table
-from .parser_utils import LLLnode, make_byte_array_copier, get_number_as_fraction, \
-    get_original_if_0x_prefixed, get_length, getpos
-from .utils import bytes_to_int, checksum_encode, \
-    DECIMAL_DIVISOR, RESERVED_MEMORY, ADDRSIZE_POS, MAXNUM_POS, MINNUM_POS, \
-    MAXDECIMAL_POS, MINDECIMAL_POS, \
-    calc_mem_gas, is_varname_valid
-from .function_signature import VariableRecord, FunctionSignature
+
+from .exceptions import (
+    ConstancyViolationException,
+    InvalidLiteralException,
+    NonPayableViolationException,
+    StructureException,
+    TypeMismatchException,
+    VariableDeclarationException,
+)
+from .function_signature import (
+    FunctionSignature,
+    VariableRecord,
+)
+from .functions import (
+    dispatch_table,
+    stmt_dispatch_table,
+)
+from .parser_utils import LLLnode
+from .parser_utils import (
+    get_length,
+    get_number_as_fraction,
+    get_original_if_0x_prefixed,
+    getpos,
+    make_byte_array_copier,
+)
+from .types import (
+    BaseType,
+    ByteArrayType,
+    ListType,
+    MappingType,
+    MixedType,
+    NullType,
+    StructType,
+    TupleType,
+)
+from .types import (
+    get_size_of_type,
+    is_base_type,
+    is_numeric_type,
+    parse_type,
+)
+from .types import (
+    are_units_compatible,
+    combine_units,
+    set_default_units,
+)
+from .utils import (
+    DECIMAL_DIVISOR,
+    RESERVED_MEMORY,
+    ADDRSIZE_POS,
+    MAXNUM_POS,
+    MINNUM_POS,
+    MAXDECIMAL_POS,
+    MINDECIMAL_POS,
+)
+from .utils import (
+    bytes_to_int,
+    checksum_encode,
+    calc_mem_gas,
+    is_varname_valid,
+)
+
 
 try:
     x = ast.AnnAssign

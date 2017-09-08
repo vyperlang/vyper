@@ -1,6 +1,12 @@
 from .parser_utils import LLLnode
-from .utils import DECIMAL_DIVISOR, ADDRSIZE_POS, MAXNUM_POS, MINNUM_POS, \
-    MAXDECIMAL_POS, MINDECIMAL_POS
+from .utils import (
+    ADDRSIZE_POS,
+    DECIMAL_DIVISOR,
+    MAXDECIMAL_POS,
+    MAXNUM_POS,
+    MINDECIMAL_POS,
+    MINNUM_POS,
+)
 
 def get_int_at(args, pos, signed=False):
     if isinstance(args[pos].value, int):
