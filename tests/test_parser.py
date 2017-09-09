@@ -918,35 +918,7 @@ def foo() -> num:
     print('Passed invalid input tests')
 
 
-def test_loggy_code():
-    loggy_code = """
-s: bytes <= 100
 
-def foo():
-    raw_log([], "moo")
-
-def goo():
-    raw_log([0x1234567812345678123456781234567812345678123456781234567812345678], "moo2")
-
-def hoo():
-    self.s = "moo3"
-    raw_log([], self.s)
-
-def ioo(inp: bytes <= 100):
-    raw_log([], inp)
-    """
-
-    c = get_contract(loggy_code)
-    c.foo()
-    assert s.head_state.receipts[-1].logs[0].data == b'moo'
-    c.goo()
-    assert s.head_state.receipts[-1].logs[0].data == b'moo2'
-    assert s.head_state.receipts[-1].logs[0].topics == [0x1234567812345678123456781234567812345678123456781234567812345678]
-    c.hoo()
-    assert s.head_state.receipts[-1].logs[0].data == b'moo3'
-    c.ioo(b"moo4")
-    assert s.head_state.receipts[-1].logs[0].data == b'moo4'
-    print("Passed raw log tests")
 
 
 def test_test_bitwise():
