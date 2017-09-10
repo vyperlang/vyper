@@ -1,5 +1,6 @@
 [![Join the chat at https://gitter.im/bethereum/viper](https://badges.gitter.im/ethereum/viper.svg)](https://gitter.im/ethereum/viper?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [![Build Status](https://travis-ci.org/ethereum/viper.svg?branch=master)](https://travis-ci.org/ethereum/viper)
+[![Documentation Status](https://readthedocs.org/projects/eth-viper/badge/?version=latest)](http://eth-viper.readthedocs.io/en/latest/?badge=latest)
 
 # Principles and Goals
 
