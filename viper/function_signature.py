@@ -90,7 +90,6 @@ class FunctionSignature():
     def to_abi_dict(self):
         return {
             "name": self.name,
-            "sig": self.sig,
             "outputs": [{"type": canonicalize_type(self.output_type), "name": "out"}] if self.output_type else [],
             "inputs": [{"type": canonicalize_type(arg.typ), "name": arg.name} for arg in self.args],
             "constant": self.const,
