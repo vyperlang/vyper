@@ -83,13 +83,16 @@ class FunctionSignature():
             assert canonicalize_type(output_type)
         # Get the canonical function signature
         sig = name + '(' + ','.join([canonicalize_type(parse_type(arg.annotation, None)) for arg in code.args.args]) + ')'
+        if output_type is not None:
+            sig += " -> " + canonicalize_type(output_type)
         # Take the first 4 bytes of the hash of the sig to get the method ID
         method_id = fourbytes_to_int(sha3(bytes(sig, 'utf-8'))[:4])
         return cls(name, args, output_type, const, payable, internal, sig, method_id)
 
     def to_abi_dict(self):
         return {
-            "name": self.sig,
+            "name": self.name,
+            "sig": self.sig,
             "outputs": [{"type": canonicalize_type(self.output_type), "name": "out"}] if self.output_type else [],
             "inputs": [{"type": canonicalize_type(arg.typ), "name": arg.name} for arg in self.args],
             "constant": self.const,
