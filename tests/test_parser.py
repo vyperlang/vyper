@@ -124,6 +124,27 @@ def foo() -> num:
     print('Passed basic state accessor test')
 
 
+def test_reuse_function():
+    code="""
+bal: num[address]
+
+def __init__():
+    self.bal[msg.sender] = 1
+
+@constant
+def my_bal() -> num:
+    return self.bal[msg.sender]
+
+def bar():
+    assert self.my_bal() > 0
+    self.bal[msg.sender] += 1
+    """
+    
+    c = get_contract_with_gas_estimation(code)
+    assert c.my_bal() == 1
+    c.bar()
+    assert c.my_bal() == 2
+
 def test_arbitration_code():
     arbitration_code = """
 buyer: address
