@@ -7,7 +7,11 @@ cache: pip
 
 install:
   - pip install --upgrade pip setuptools
+  - pip install coveralls
   - pip install .
 
 script:
   - python setup.py test
+
+after_success:
+- coveralls
