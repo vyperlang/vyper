@@ -40,8 +40,8 @@ def buy_stock():
 
 # So someone can find out how much they have
 @constant
-def get_holding() -> currency_value:
-    return self.holdings[msg.sender]
+def get_holding(_stockholder: address) -> currency_value:
+    return self.holdings[_stockholder]
 
 # The amount the company has on hand in cash
 @constant
@@ -51,7 +51,7 @@ def cash() -> wei_value:
 # Give stock back to company and get my money back!
 def sell_stock(sell_order: currency_value):
     # Can only sell as much stock as you own
-    assert self.get_holding() >= sell_order
+    assert self.get_holding(msg.sender) >= sell_order
     # Company can pay you
     assert self.cash() >= (sell_order * self.price)
 
@@ -65,7 +65,7 @@ def sell_stock(sell_order: currency_value):
 # (Assumes the receiver is given some compensation, but not enforced)
 def transfer_stock(receiver: address, transfer_order: currency_value):
     # Can only trade as much stock as you own
-    assert self.get_holding() >= transfer_order
+    assert self.get_holding(msg.sender) >= transfer_order
     
     # Debit sender's stock and add to receiver's address
     self.holdings[msg.sender] -= transfer_order

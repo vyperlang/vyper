@@ -32,7 +32,7 @@ def test_overbuy(tester):
     tester.c.buy_stock(sender=t.k1, value=test_value)
     tester.c.buy_stock(sender=t.k1, value=test_value)
     assert tester.c.stock_available() == 0
-    assert tester.c.get_holding(sender=t.k1) == (test_shares * 2)
+    assert tester.c.get_holding(t.a1) == (test_shares * 2)
     one_stock = tester.c.get_price()
     assert_tx_failed(tester, lambda: tester.c.buy_stock(sender=t.k1, value=one_stock))
     assert_tx_failed(tester, lambda: tester.c.buy_stock(sender=t.k2, value=one_stock))
@@ -45,7 +45,7 @@ def test_sell_without_stock(tester):
     test_shares = int(tester.c.get_total_shares())
     test_value = int(test_shares * tester.c.get_price())
     tester.c.buy_stock(sender=t.k1, value=test_value)
-    assert tester.c.get_holding(sender=t.k1) == test_shares
+    assert tester.c.get_holding(t.a1) == test_shares
     tester.c.sell_stock(test_shares, sender=t.k1)
     # But only until you run out
     assert_tx_failed(tester, lambda: tester.c.sell_stock(1, sender=t.k1))
@@ -65,7 +65,7 @@ def test_transfer(tester):
     test_shares = int(tester.c.get_total_shares())
     test_value = int(test_shares * tester.c.get_price())
     tester.c.buy_stock(sender=t.k1, value=test_value)
-    assert tester.c.get_holding(sender=t.k1) == test_shares
+    assert tester.c.get_holding(t.a1) == test_shares
     tester.c.transfer_stock(t.a2, test_shares, sender=t.k1)
     assert_tx_failed(tester, lambda: tester.c.sell_stock(1, sender=t.k1))
     # But the other person does
