@@ -539,15 +539,13 @@ def _RLPlist(expr, args, kwargs, context):
     # Copy the input data to memory
     if args[0].location == "memory":
         variable_pointer = args[0]
-    else:
-        if args[0].location == "storage":
-            lengetter = LLLnode.from_list(['sload', ['sha3_32', '_ptr']], typ=BaseType('num'))
-        else:
-            raise Exception("Location not yet supported")
+    elif args[0].location == "storage":
         placeholder = context.new_placeholder(args[0].typ)
         placeholder_node = LLLnode.from_list(placeholder, typ=args[0].typ, location='memory')
         copier = make_byte_array_copier(placeholder_node, LLLnode.from_list('_ptr', typ=args[0].typ, location=args[0].location))
         variable_pointer = ['with', '_ptr', args[0], ['seq', copier, placeholder_node]]
+    else:
+        raise Exception("Location not yet supported")
     # Decode the input data
     initial_setter = LLLnode.from_list(
         ['seq',

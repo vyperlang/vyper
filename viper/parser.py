@@ -1120,7 +1120,6 @@ def pack_arguments(signature, args, context):
     placeholder_typ = ByteArrayType(maxlen=sum([get_size_of_type(arg.typ) for arg in signature.args]) * 32 + 32)
     placeholder = context.new_placeholder(placeholder_typ)
     setters = [['mstore', placeholder, signature.method_id]]
-    offset = 0
     needpos = False
     for i, (arg, typ) in enumerate(zip(args, [arg.typ for arg in signature.args])):
         if isinstance(typ, BaseType):
