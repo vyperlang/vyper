@@ -506,11 +506,11 @@ def parse_expr(expr, context):
         return LLLnode.from_list(['seq'] + seq + [placeholder], typ=ByteArrayType(len(bytez)), location='memory', pos=getpos(expr))
     # True, False, None constants
     elif isinstance(expr, ast.NameConstant):
-        if expr.value == True:
+        if expr.value is True:
             return LLLnode.from_list(1, typ='bool', pos=getpos(expr))
-        elif expr.value == False:
+        elif expr.value is False:
             return LLLnode.from_list(0, typ='bool', pos=getpos(expr))
-        elif expr.value == None:
+        elif expr.value is None:
             return LLLnode.from_list(None, typ=NullType(), pos=getpos(expr))
         else:
             raise Exception("Unknown name constant: %r" % expr.value.value)
