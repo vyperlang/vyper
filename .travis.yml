@@ -8,10 +8,12 @@ cache: pip
 install:
   - pip install --upgrade pip setuptools
   - pip install coveralls
+  - pip install flake8
   - pip install .
 
 script:
   - python setup.py test
+  - flake8 viper
 
 after_success:
 - coveralls
