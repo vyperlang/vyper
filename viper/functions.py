@@ -560,7 +560,6 @@ def _RLPlist(expr, args, kwargs, context):
                          ['mload', '_sub'],
                          output_node,
                          64 * len(_format) + 32 + 32 * get_size_of_type(output_type)]]],
-            #['sstore', 4, ['mload', output_node]],
             ['assert', ['eq', ['mload', output_node], 32 * len(_format) + 32]]],
         typ=None)
     # Shove the input data decoder in front of the first variable decoder

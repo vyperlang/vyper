@@ -1032,7 +1032,6 @@ def parse_stmt(stmt, context):
     elif isinstance(stmt, ast.AugAssign):
         target = parse_variable_location(stmt.target, context)
         sub = parse_value_expr(stmt.value, context)
-        #sub = base_type_conversion(sub, sub.typ, target.typ)
         if not isinstance(stmt.op, (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Mod)):
             raise Exception("Unsupported operator for augassign")
         if not isinstance(target.typ, BaseType):
