@@ -1,11 +1,22 @@
-from .types import get_size_of_type, canonicalize_type, parse_type, \
-    ByteArrayType
-from .utils import fourbytes_to_int, sha3, is_varname_valid
 import ast
 
-from .exceptions import InvalidTypeException, TypeMismatchException, \
-    VariableDeclarationException, StructureException, ConstancyViolationException, \
-    InvalidTypeException, InvalidLiteralException, NonPayableViolationException
+from .exceptions import (
+    InvalidTypeException,
+    StructureException,
+    VariableDeclarationException,
+)
+from .types import ByteArrayType
+from .types import (
+    canonicalize_type,
+    get_size_of_type,
+    parse_type,
+)
+from .utils import (
+    fourbytes_to_int,
+    is_varname_valid,
+    sha3,
+)
+
 
 # Function argument
 class VariableRecord():
@@ -18,6 +29,7 @@ class VariableRecord():
     @property
     def size(self):
         return get_size_of_type(self.typ)
+
 
 # Function signature object
 class FunctionSignature():
@@ -36,7 +48,7 @@ class FunctionSignature():
     @classmethod
     def from_definition(cls, code):
         name = code.name
-        pos = 0 
+        pos = 0
         # Determine the arguments, expects something of the form def foo(arg1: num, arg2: num ...
         args = []
         for arg in code.args.args:
@@ -46,9 +58,9 @@ class FunctionSignature():
             if not typ:
                 raise InvalidTypeException("Argument must have type", arg)
             if not is_varname_valid(arg.arg):
-                raise VariableDeclarationException("Argument name invalid or reserved: "+arg.arg, arg)
+                raise VariableDeclarationException("Argument name invalid or reserved: " + arg.arg, arg)
             if arg.arg in (x.name for x in args):
-                raise VariableDeclarationException("Duplicate function argument name: "+arg.arg, arg)
+                raise VariableDeclarationException("Duplicate function argument name: " + arg.arg, arg)
             parsed_type = parse_type(typ, None)
             args.append(VariableRecord(arg.arg, pos, parsed_type, False))
             if isinstance(parsed_type, ByteArrayType):
@@ -69,7 +81,7 @@ class FunctionSignature():
         # Determine the return type and whether or not it's constant. Expects something
         # of the form:
         # def foo(): ...
-        # def foo() -> num: ... 
+        # def foo() -> num: ...
         # If there is no return type, ie. it's of the form def foo(): ...
         # and NOT def foo() -> type: ..., then it's null
         if not code.returns:

@@ -1,29 +1,38 @@
-from .types import NodeType, BaseType, ListType, MappingType, StructType, \
-    MixedType, NullType, ByteArrayType
-from .types import base_types, parse_type, canonicalize_type, is_base_type, \
-    is_numeric_type, get_size_of_type, is_varname_valid
-from .types import combine_units, are_units_compatible, set_default_units
-from .exceptions import InvalidTypeException, TypeMismatchException, \
-    VariableDeclarationException, StructureException, ConstancyViolationException, \
-    InvalidTypeException, InvalidLiteralException
-from .opcodes import comb_opcodes
-from .utils import fourbytes_to_int, hex_to_int, bytes_to_int, ceil32, \
-    DECIMAL_DIVISOR, RESERVED_MEMORY, ADDRSIZE_POS, MAXNUM_POS, MINNUM_POS, \
-    MAXDECIMAL_POS, MINDECIMAL_POS, FREE_VAR_SPACE, BLANK_SPACE, FREE_LOOP_INDEX
 import re
+
+from .exceptions import TypeMismatchException
+from .opcodes import comb_opcodes
+from .types import (
+    BaseType,
+    ByteArrayType,
+    NodeType,
+    NullType,
+)
+from .utils import (
+    MAXNUM_POS,
+    MINNUM_POS,
+    FREE_LOOP_INDEX,
+)
+from .utils import ceil32
+
 
 class NullAttractor():
     def __add__(self, other):
         return NullAttractor()
+
     def __repr__(self):
         return 'None'
+
     __radd__ = __add__
     __mul__ = __add__
 
 
 # Data structure for LLL parse tree
 class LLLnode():
-    def __init__(self, value, args=[], typ=None, location=None, pos=None, annotation='', mutable=True):
+    def __init__(self, value, args=None, typ=None, location=None, pos=None, annotation='', mutable=True):
+        if args is None:
+            args = []
+
         self.value = value
         self.args = args
         self.typ = typ
@@ -180,7 +189,8 @@ class LLLnode():
         elif not isinstance(obj, list):
             return cls(obj, [], typ, location, pos, annotation, mutable)
         else:
-            return cls(obj[0], [cls.from_list(o,pos=pos) for o in obj[1:]], typ, location, pos, annotation, mutable)
+            return cls(obj[0], [cls.from_list(o, pos=pos) for o in obj[1:]], typ, location, pos, annotation, mutable)
+
 
 # Get a decimal number as a fraction with denominator multiple of 10
 def get_number_as_fraction(expr, context):
@@ -192,6 +202,7 @@ def get_number_as_fraction(expr, context):
     bottom = 1 if '.' not in context_slice[:t] else 10**(t - context_slice[:t].index('.') - 1)
     return context_slice[:t], top, bottom
 
+
 # Is a number of decimal form (eg. 65281) or 0x form (eg. 0xff01)
 def get_original_if_0x_prefixed(expr, context):
     context_slice = context.origcode.splitlines()[expr.lineno - 1][expr.col_offset:]
@@ -200,7 +211,8 @@ def get_original_if_0x_prefixed(expr, context):
     t = 0
     while t + 2 < len(context_slice) and context_slice[t + 2] in '0123456789abcdefABCDEF':
         t += 1
-    return context_slice[:t+2]
+    return context_slice[:t + 2]
+
 
 # Copies byte array
 def make_byte_array_copier(destination, source):
@@ -223,13 +235,14 @@ def make_byte_array_copier(destination, source):
         length = ['add', ['sload', '_pos'], 32]
         pos_node = LLLnode.from_list(['sha3_32', pos_node], typ=source.typ, location=source.location)
     else:
-        raise Exception("Unsupported location:"+source.location)
+        raise Exception("Unsupported location:" + source.location)
     if destination.location == "storage":
         destination = LLLnode.from_list(['sha3_32', destination], typ=destination.typ, location=destination.location)
     # Maximum theoretical length
     max_length = 32 if isinstance(source.typ, NullType) else source.typ.maxlen + 32
     return LLLnode.from_list(['with', '_pos', 0 if isinstance(source.typ, NullType) else source,
                                 make_byte_slice_copier(destination, pos_node, length, max_length)], typ=None)
+
 
 # Copy bytes
 # Accepts 4 arguments:
@@ -251,14 +264,14 @@ def make_byte_slice_copier(destination, source, length, max_length):
     elif source.location == "storage":
         loader = ['sload', ['add', '_pos', ['mload', FREE_LOOP_INDEX]]]
     else:
-        raise Exception("Unsupported location:"+source.location)
+        raise Exception("Unsupported location:" + source.location)
     # Where to paste it?
     if destination.location == "memory":
         setter = ['mstore', ['add', '_opos', ['mul', 32, ['mload', FREE_LOOP_INDEX]]], loader]
     elif destination.location == "storage":
         setter = ['sstore', ['add', '_opos', ['mload', FREE_LOOP_INDEX]], loader]
     else:
-        raise Exception("Unsupported location:"+destination.location)
+        raise Exception("Unsupported location:" + destination.location)
     # Check to see if we hit the length
     checker = ['if', ['gt', ['mul', 32, ['mload', FREE_LOOP_INDEX]], '_actual_len'], 'break']
     # Make a loop to do the copying
@@ -268,6 +281,7 @@ def make_byte_slice_copier(destination, source, length, max_length):
                     ['repeat', FREE_LOOP_INDEX, 0, (max_length + 31) // 32,
                         ['seq', checker, setter]]]]]
     return LLLnode.from_list(o, typ=None, annotation='copy byte slice')
+
 
 # Takes a <32 byte array as input, and outputs a number.
 def byte_array_to_num(arg, expr, out_type):
@@ -292,11 +306,13 @@ def byte_array_to_num(arg, expr, out_type):
                                           result]]]],
                              typ=BaseType(out_type), annotation='bytearray to number, verify no leading zbytes')
 
+
 def get_length(arg):
     if arg.location == "memory":
         return LLLnode.from_list(['mload', arg], typ=BaseType('num'))
     elif arg.location == "storage":
         return LLLnode.from_list(['sload', ['sha3_32', arg]], typ=BaseType('num'))
+
 
 def getpos(node):
     return (node.lineno, node.col_offset)

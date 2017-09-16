@@ -1,7 +1,13 @@
 import ast
 import copy
-from .exceptions import InvalidTypeException, TypeMismatchException
-from .utils import is_varname_valid, base_types, valid_units
+
+from .exceptions import InvalidTypeException
+from .utils import (
+    base_types,
+    is_varname_valid,
+    valid_units,
+)
+
 
 # Pretty-print a unit (eg. wei/seconds**2)
 def print_unit(unit):
@@ -26,6 +32,7 @@ def print_unit(unit):
     else:
         return pos[1:]
 
+
 # Multiply or divide two units by each other
 def combine_units(unit1, unit2, div=False):
     o = {k: v for k, v in (unit1 or {}).items()}
@@ -33,9 +40,11 @@ def combine_units(unit1, unit2, div=False):
         o[k] = o.get(k, 0) + v * (-1 if div else 1)
     return {k: v for k, v in o.items() if v}
 
+
 # Data structure for a type
 class NodeType():
     pass
+
 
 # Data structure for a type that representsa 32-byte object
 class BaseType(NodeType):
@@ -55,6 +64,7 @@ class BaseType(NodeType):
             subs.append('positional')
         return str(self.typ) + (('(' + ', '.join(subs) + ')') if subs else '')
 
+
 # Data structure for a byte array
 class ByteArrayType(NodeType):
     def __init__(self, maxlen):
@@ -66,7 +76,8 @@ class ByteArrayType(NodeType):
     def __repr__(self):
         return 'bytes <= %d' % self.maxlen
 
-# Data structure for a list with some fixed length        
+
+# Data structure for a list with some fixed length
 class ListType(NodeType):
     def __init__(self, subtype, count):
         self.subtype = subtype
@@ -77,6 +88,7 @@ class ListType(NodeType):
 
     def __repr__(self):
         return repr(self.subtype) + '[' + str(self.count) + ']'
+
 
 # Data structure for a key-value mapping
 class MappingType(NodeType):
@@ -92,6 +104,7 @@ class MappingType(NodeType):
     def __repr__(self):
         return repr(self.valuetype) + '[' + repr(self.keytype) + ']'
 
+
 # Data structure for a struct, eg. {a: <type>, b: <type>}
 class StructType(NodeType):
     def __init__(self, members):
@@ -102,6 +115,7 @@ class StructType(NodeType):
 
     def __repr__(self):
         return '{' + ', '.join([k + ': ' + repr(v) for k, v in self.members.items()]) + '}'
+
 
 # Data structure for a list with heterogeneous types, eg. [num, bytes32, bytes]
 class TupleType(NodeType):
@@ -114,15 +128,18 @@ class TupleType(NodeType):
     def __repr__(self):
         return '[' + ', '.join([repr(m) for m in self.members]) + ']'
 
+
 # Data structure for a "multi" object with a mixed type
 class MixedType(NodeType):
     def __eq__(self, other):
         return other.__class__ == MixedType
 
+
 # Data structure for the type used by None/null
 class NullType(NodeType):
     def __eq__(self, other):
         return other.__class__ == NullType
+
 
 # Convert type into common form used in ABI
 def canonicalize_type(t):
@@ -149,7 +166,8 @@ def canonicalize_type(t):
         return t
     elif t == 'real':
         return 'real128x128'
-    raise Exception("Invalid or unsupported type: "+repr(t))
+    raise Exception("Invalid or unsupported type: " + repr(t))
+
 
 def parse_abi_type(t):
     if t == 'int128':
@@ -164,7 +182,8 @@ def parse_abi_type(t):
         return 'signed256'
     elif t in ('address', 'bytes32'):
         return t
-    raise Exception("Invalid or unsupported type: "+repr(t))
+    raise Exception("Invalid or unsupported type: " + repr(t))
+
 
 # Special types
 special_types = {
@@ -175,6 +194,7 @@ special_types = {
     'currency2_value': BaseType('num', {'currency2': 1}, False),
     'wei_value': BaseType('num', {'wei': 1}, False),
 }
+
 
 # Parse an expression representing a unit
 def parse_unit(item):
@@ -201,6 +221,7 @@ def parse_unit(item):
     else:
         raise InvalidTypeException("Invalid unit expression", item)
 
+
 # Parses an expression representing a type. Annotation refers to whether
 # the type is to be located in memory or storage
 def parse_type(item, location):
@@ -211,7 +232,7 @@ def parse_type(item, location):
         elif item.id in special_types:
             return special_types[item.id]
         else:
-            raise InvalidTypeException("Invalid base type: "+item.id, item)
+            raise InvalidTypeException("Invalid base type: " + item.id, item)
     # Units, eg. num (1/sec)
     elif isinstance(item, ast.Call):
         if not isinstance(item.func, ast.Name):
@@ -250,7 +271,7 @@ def parse_type(item, location):
             return MappingType(keytype, parse_type(item.value, location))
     # Dicts, used to represent mappings, eg. {uint: uint}. Key must be a base type
     elif isinstance(item, ast.Dict):
-        o = {} 
+        o = {}
         for key, value in zip(item.keys, item.values):
             if not isinstance(key, ast.Name) or not is_varname_valid(key.id):
                 raise InvalidTypeException("Invalid member variable for struct", key)
@@ -269,9 +290,11 @@ def parse_type(item, location):
     else:
         raise InvalidTypeException("Invalid type: %r" % ast.dump(item), item)
 
+
 # Rounds up to nearest 32, eg. 95 -> 96, 96 -> 96, 97 -> 128
 def ceil32(x):
     return x + 31 - (x - 1) % 32
+
 
 # Gets the number of memory or storage keys needed to represent a given type
 def get_size_of_type(typ):
@@ -290,6 +313,7 @@ def get_size_of_type(typ):
     else:
         raise Exception("Unexpected type: %r" % repr(typ))
 
+
 def set_default_units(typ):
     if isinstance(typ, BaseType):
         if typ.unit is None:
@@ -305,13 +329,16 @@ def set_default_units(typ):
     else:
         return typ
 
+
 # Checks that the units of frm can be seamlessly converted into the units of to
 def are_units_compatible(frm, to):
     return frm.unit is None or (frm.unit == to.unit and frm.positional == to.positional)
 
+
 # Is a type representing a number?
 def is_numeric_type(typ):
     return isinstance(typ, BaseType) and typ.typ in ('num', 'decimal')
+
 
 # Is a type representing some particular base type?
 def is_base_type(typ, btypes):

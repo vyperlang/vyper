@@ -1,18 +1,45 @@
 import ast
 
-from .exceptions import TypeMismatchException, \
-    StructureException, ConstancyViolationException, \
-    InvalidLiteralException
-from .parser_utils import LLLnode, make_byte_array_copier, get_number_as_fraction, \
-    get_original_if_0x_prefixed, byte_array_to_num, make_byte_slice_copier, \
-    get_length, getpos
-from .types import BaseType, ByteArrayType, TupleType
-from .types import are_units_compatible
-from .types import parse_type, is_base_type, \
-    get_size_of_type
-from .utils import fourbytes_to_int, bytes_to_int, \
-    DECIMAL_DIVISOR, ADDRSIZE_POS, MAXNUM_POS, MINNUM_POS, \
-    FREE_VAR_SPACE, RLP_DECODER_ADDRESS, sha3
+from .exceptions import (
+    ConstancyViolationException,
+    InvalidLiteralException,
+    StructureException,
+    TypeMismatchException,
+)
+from .parser_utils import (
+    byte_array_to_num,
+    LLLnode,
+    get_length,
+    get_number_as_fraction,
+    get_original_if_0x_prefixed,
+    getpos,
+    make_byte_array_copier,
+    make_byte_slice_copier,
+)
+from .types import (
+    BaseType,
+    ByteArrayType,
+    TupleType,
+)
+from .types import (
+    are_units_compatible,
+    parse_type,
+    is_base_type,
+    get_size_of_type,
+)
+from .utils import (
+    ADDRSIZE_POS,
+    DECIMAL_DIVISOR,
+    FREE_VAR_SPACE,
+    MAXNUM_POS,
+    MINNUM_POS,
+    RLP_DECODER_ADDRESS,
+)
+from .utils import (
+    bytes_to_int,
+    fourbytes_to_int,
+    sha3,
+)
 
 
 class Optional(object):
@@ -143,7 +170,7 @@ def as_num128(expr, args, kwargs, context):
 def as_num256(expr, args, kwargs, context):
     if isinstance(args[0], int):
         if not(0 <= args[0] <= 2**256 - 1):
-            raise InvalidLiteralException("Number out of range: "+str(expr.args[0].n), expr.args[0])
+            raise InvalidLiteralException("Number out of range: " + str(expr.args[0].n), expr.args[0])
         return LLLnode.from_list(args[0], typ=BaseType('num256', None), pos=getpos(expr))
     elif isinstance(args[0], LLLnode):
         if args[0].value == "sub" and args[0].args[0].value == 0 and args[0].args[1].value > 0:
@@ -167,7 +194,7 @@ def _slice(expr, args, kwargs, context):
     if not are_units_compatible(length.typ, BaseType("num")):
         raise TypeMismatchException("Type for slice length must be a unitless number")
     # Node representing the position of the output in memory
-    np = context.new_placeholder(ByteArrayType(maxlen=sub.typ.maxlen+32))
+    np = context.new_placeholder(ByteArrayType(maxlen=sub.typ.maxlen + 32))
     placeholder_node = LLLnode.from_list(np, typ=sub.typ, location='memory')
     placeholder_plus_32_node = LLLnode.from_list(np + 32, typ=sub.typ, location='memory')
     # Copies over bytearray data
@@ -348,7 +375,7 @@ def extract32(expr, args, kwargs, context):
                     elementgetter(['add', '_di32', 1]),
                     ['exp', 256, ['sub', 32, '_mi32']]]],
                   elementgetter('_di32')]]]]]],
-        typ = BaseType(ret_type), pos=getpos(expr), annotation='extracting 32 bytes')
+        typ=BaseType(ret_type), pos=getpos(expr), annotation='extracting 32 bytes')
     if ret_type == 'num128':
         return LLLnode.from_list(['clamp', ['mload', MINNUM_POS], o, ['mload', MAXNUM_POS]], typ=BaseType("num"), pos=getpos(expr))
     elif ret_type == 'address':
@@ -392,6 +419,7 @@ def as_wei_value(expr, args, kwargs, context):
     else:
         sub = ['div', ['mul', args[0], denomination], DECIMAL_DIVISOR]
     return LLLnode.from_list(sub, typ=BaseType('num', {'wei': 1}), location=None, pos=getpos(expr))
+
 
 zero_value = LLLnode.from_list(0, typ=BaseType('num', {'wei': 1}))
 
@@ -511,15 +539,13 @@ def _RLPlist(expr, args, kwargs, context):
     # Copy the input data to memory
     if args[0].location == "memory":
         variable_pointer = args[0]
-    else:
-        if args[0].location == "storage":
-            lengetter = LLLnode.from_list(['sload', ['sha3_32', '_ptr']], typ=BaseType('num'))
-        else:
-            raise Exception("Location not yet supported")
+    elif args[0].location == "storage":
         placeholder = context.new_placeholder(args[0].typ)
         placeholder_node = LLLnode.from_list(placeholder, typ=args[0].typ, location='memory')
         copier = make_byte_array_copier(placeholder_node, LLLnode.from_list('_ptr', typ=args[0].typ, location=args[0].location))
         variable_pointer = ['with', '_ptr', args[0], ['seq', copier, placeholder_node]]
+    else:
+        raise Exception("Location not yet supported")
     # Decode the input data
     initial_setter = LLLnode.from_list(
         ['seq',
@@ -532,7 +558,6 @@ def _RLPlist(expr, args, kwargs, context):
                          ['mload', '_sub'],
                          output_node,
                          64 * len(_format) + 32 + 32 * get_size_of_type(output_type)]]],
-            #['sstore', 4, ['mload', output_node]],
             ['assert', ['eq', ['mload', output_node], 32 * len(_format) + 32]]],
         typ=None)
     # Shove the input data decoder in front of the first variable decoder
@@ -548,11 +573,11 @@ def raw_log(expr, args, kwargs, context):
     topics = []
     for elt in args[0].elts:
         arg = parse_value_expr(elt, context)
-        if not is_base_type(arg.typ, 'bytes32'): 
+        if not is_base_type(arg.typ, 'bytes32'):
             raise TypeMismatchException("Expecting a bytes32 argument as topic", elt)
         topics.append(arg)
     if args[1].location == "memory":
-        return LLLnode.from_list(["with", "_arr", args[1], ["log"+str(len(topics)), ["add", "_arr", 32], ["mload", "_arr"]] + topics],
+        return LLLnode.from_list(["with", "_arr", args[1], ["log" + str(len(topics)), ["add", "_arr", 32], ["mload", "_arr"]] + topics],
                                  typ=None, pos=getpos(expr))
     placeholder = context.new_placeholder(args[1].typ)
     placeholder_node = LLLnode.from_list(placeholder, typ=args[1].typ, location='memory')
@@ -561,7 +586,7 @@ def raw_log(expr, args, kwargs, context):
         ["with", "_sub", args[1],
             ["seq",
                 copier,
-                ["log"+str(len(topics)), ["add", placeholder_node, 32], ["mload", placeholder_node]] + topics]],
+                ["log" + str(len(topics)), ["add", placeholder_node, 32], ["mload", placeholder_node]] + topics]],
     typ=None, pos=getpos(expr))
 
 
@@ -610,29 +635,29 @@ def bitwise_not(expr, args, kwargs, context):
     return LLLnode.from_list(['not', args[0]], typ=BaseType('num256'), pos=getpos(expr))
 
 
-@signature('num256' ,'num256')
+@signature('num256', 'num256')
 def num256_gt(expr, args, kwargs, context):
     return LLLnode.from_list(['gt', args[0], args[1]], typ=BaseType('bool'), pos=getpos(expr))
 
 
-@signature('num256' ,'num256')
+@signature('num256', 'num256')
 def num256_ge(expr, args, kwargs, context):
     return LLLnode.from_list(['ge', args[0], args[1]], typ=BaseType('bool'), pos=getpos(expr))
 
 
-@signature('num256' ,'num256')
+@signature('num256', 'num256')
 def num256_lt(expr, args, kwargs, context):
     return LLLnode.from_list(['lt', args[0], args[1]], typ=BaseType('bool'), pos=getpos(expr))
 
 
-@signature('num256' ,'num256')
+@signature('num256', 'num256')
 def num256_le(expr, args, kwargs, context):
     return LLLnode.from_list(['le', args[0], args[1]], typ=BaseType('bool'), pos=getpos(expr))
 
 
 @signature('num256', 'num')
 def shift(expr, args, kwargs, context):
-    return LLLnode.from_list(['with', '_v', args[0], 
+    return LLLnode.from_list(['with', '_v', args[0],
                                 ['with', '_s', args[1],
                                     # If second argument is positive, left-shift so multiply by a power of two
                                     # If it is negative, divide by a power of two
@@ -663,13 +688,16 @@ def create_with_code_of(expr, args, kwargs, context):
                                 ['mstore', ['add', placeholder, 47], low],
                                 ['clamp_nonzero', ['create', value, placeholder, 64]]], typ=BaseType('address'), pos=getpos(expr))
 
+
 @signature(('num', 'decimal', 'num256'), ('num', 'decimal', 'num256'))
 def _min(expr, args, kwargs, context):
     return minmax(expr, args, kwargs, context, True)
 
+
 @signature(('num', 'decimal', 'num256'), ('num', 'decimal', 'num256'))
 def _max(expr, args, kwargs, context):
     return minmax(expr, args, kwargs, context, False)
+
 
 def minmax(expr, args, kwargs, context, is_min):
     left, right = args[0], args[1]

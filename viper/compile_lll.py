@@ -1,6 +1,7 @@
 from .parser import LLLnode
-from .opcodes import opcodes, pseudo_opcodes
-from .utils import MAXDECIMAL_POS, MINDECIMAL_POS, FREE_VAR_SPACE, BLANK_SPACE, FREE_LOOP_INDEX
+from .opcodes import opcodes
+from .utils import FREE_VAR_SPACE
+
 
 def num_to_bytearray(x):
     o = []
@@ -9,23 +10,28 @@ def num_to_bytearray(x):
         x //= 256
     return o
 
+
 PUSH_OFFSET = 0x5f
 DUP_OFFSET = 0x7f
 SWAP_OFFSET = 0x8f
 
-FREE_VAR_SPACE = 192
-
 next_symbol = [0]
+
 
 def mksymbol():
     next_symbol[0] += 1
-    return '_sym_'+str(next_symbol[0])
+    return '_sym_' + str(next_symbol[0])
+
 
 def is_symbol(i):
     return isinstance(i, str) and i[:5] == '_sym_'
 
+
 # Compiles LLL to assembly
-def compile_to_assembly(code, withargs={}, break_dest=None, height=0):
+def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
+    if withargs is None:
+        withargs = {}
+
     # Opcodes
     if isinstance(code.value, str) and code.value.upper() in opcodes:
         o = []
@@ -40,18 +46,18 @@ def compile_to_assembly(code, withargs={}, break_dest=None, height=0):
         elif code.value >= 2**256:
             raise Exception("Value too high: %d" % code.value)
         bytez = num_to_bytearray(code.value % 2**256) or [0]
-        return ['PUSH'+str(len(bytez))] + bytez
+        return ['PUSH' + str(len(bytez))] + bytez
     # Variables connected to with statements
     elif isinstance(code.value, str) and code.value in withargs:
         if height - withargs[code.value] > 16:
             raise Exception("With statement too deep")
-        return ['DUP'+str(height - withargs[code.value])]
+        return ['DUP' + str(height - withargs[code.value])]
     # Setting variables connected to with statements
     elif code.value == "set":
         if len(code.args) != 2 or code.args[0].value not in withargs:
             raise Exception("Set expects two arguments, the first being a stack variable")
         return compile_to_assembly(code.args[1], withargs, break_dest, height) + \
-            ['SWAP'+str(height - withargs[code.args[0].value]), 'POP']
+            ['SWAP' + str(height - withargs[code.args[0].value]), 'POP']
     # Pass statements
     elif code.value == 'pass':
         return []
@@ -61,7 +67,7 @@ def compile_to_assembly(code, withargs={}, break_dest=None, height=0):
     # Calldataload equivalent for code
     elif code.value == 'codeload':
         return compile_to_assembly(LLLnode.from_list(['seq', ['codecopy', FREE_VAR_SPACE, code.args[0], 32], ['mload', FREE_VAR_SPACE]]),
-                                   withargs, break_dest, height)                     
+                                   withargs, break_dest, height)
     # If statements (2 arguments, ie. if x: y)
     elif code.value == 'if' and len(code.args) == 2:
         o = []
@@ -91,7 +97,7 @@ def compile_to_assembly(code, withargs={}, break_dest=None, height=0):
         start, end = mksymbol(), mksymbol()
         o.extend(compile_to_assembly(code.args[0], withargs, break_dest, height))
         o.extend(compile_to_assembly(code.args[1], withargs, break_dest, height + 1))
-        o.extend(['PUSH'+str(len(loops))] + loops)
+        o.extend(['PUSH' + str(len(loops))] + loops)
         # stack: memloc, startvalue, rounds
         o.extend(['DUP2', 'DUP4', 'MSTORE', 'ADD', start, 'JUMPDEST'])
         # stack: memloc, exit_index
@@ -129,7 +135,7 @@ def compile_to_assembly(code, withargs={}, break_dest=None, height=0):
         begincode = mksymbol()
         endcode = mksymbol()
         o.extend([endcode, 'JUMP', begincode, 'BLANK'])
-        o.append(compile_to_assembly(code.args[0], {}, None, 0)) # Append is intentional
+        o.append(compile_to_assembly(code.args[0], {}, None, 0))  # Append is intentional
         o.extend([endcode, 'JUMPDEST', begincode, endcode, 'SUB', begincode])
         o.extend(compile_to_assembly(code.args[1], withargs, break_dest, height))
         o.extend(['CODECOPY', begincode, endcode, 'SUB'])
@@ -217,7 +223,8 @@ def compile_to_assembly(code, withargs={}, break_dest=None, height=0):
                                                         ['sub', ['add', '_val', 31],
                                                                 ['mod', ['sub', '_val', 1], 32]]]), withargs, break_dest, height)
     else:
-        raise Exception("Weird code element: "+repr(code))
+        raise Exception("Weird code element: " + repr(code))
+
 
 # Assembles assembly into EVM
 def assembly_to_evm(assembly):
@@ -228,9 +235,9 @@ def assembly_to_evm(assembly):
     for i, item in enumerate(assembly):
         if is_symbol(item):
             if assembly[i + 1] == 'JUMPDEST' or assembly[i + 1] == 'BLANK':
-                posmap[item] = pos # Don't increment position as the symbol itself doesn't go into code
+                posmap[item] = pos  # Don't increment position as the symbol itself doesn't go into code
             else:
-                pos += 3 # PUSH2 highbits lowbits
+                pos += 3  # PUSH2 highbits lowbits
         elif item == 'BLANK':
             pos += 0
         elif isinstance(item, list):
@@ -264,6 +271,6 @@ def assembly_to_evm(assembly):
                     o += codes[i]
                     break
         else:
-            raise Exception("Weird symbol in assembly: "+str(item))
+            raise Exception("Weird symbol in assembly: " + str(item))
     assert len(o) == pos
     return o

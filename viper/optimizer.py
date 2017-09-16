@@ -1,8 +1,13 @@
-import ast
 from .parser_utils import LLLnode
-from .utils import fourbytes_to_int, hex_to_int, bytes_to_int, \
-    DECIMAL_DIVISOR, RESERVED_MEMORY, ADDRSIZE_POS, MAXNUM_POS, MINNUM_POS, \
-    MAXDECIMAL_POS, MINDECIMAL_POS, FREE_VAR_SPACE, BLANK_SPACE, FREE_LOOP_INDEX
+from .utils import (
+    ADDRSIZE_POS,
+    DECIMAL_DIVISOR,
+    MAXDECIMAL_POS,
+    MAXNUM_POS,
+    MINDECIMAL_POS,
+    MINNUM_POS,
+)
+
 
 def get_int_at(args, pos, signed=False):
     if isinstance(args[pos].value, int):
@@ -22,8 +27,10 @@ def get_int_at(args, pos, signed=False):
     else:
         return o % 2**256
 
+
 def int_at(args, pos):
     return get_int_at(args, pos) is not None
+
 
 def search_for_set(node, var):
     if node.value == "set" and node.args[0].value == var:
@@ -32,6 +39,7 @@ def search_for_set(node, var):
         if search_for_set(arg, var):
             return True
     return False
+
 
 def replace_with_value(node, var, value):
     if node.value == "with" and node.args[0].value == var:
@@ -42,6 +50,7 @@ def replace_with_value(node, var, value):
     else:
         return LLLnode(node.value, [replace_with_value(arg, var, value) for arg in node.args], node.typ, node.location, node.annotation)
 
+
 arith = {
     "add": (lambda x, y: x + y, '+'),
     "sub": (lambda x, y: x - y, '-'),
@@ -49,6 +58,7 @@ arith = {
     "div": (lambda x, y: x // y, '/'),
     "mod": (lambda x, y: x % y, '%'),
 }
+
 
 def optimize(node):
     argz = [optimize(arg) for arg in node.args]
@@ -64,6 +74,7 @@ def optimize(node):
             annotation = ''
         return LLLnode(new_value, [], node.typ, None, node.pos, annotation)
     elif node.value == "add" and int_at(argz, 0) and argz[1].value == "add" and int_at(argz[1].args, 0):
+        calcer, symb = arith[node.value]
         if argz[0].annotation and argz[1].args[0].annotation:
             annotation = argz[0].annotation + symb + argz[1].args[0].annotation
         elif argz[0].annotation or argz[1].args[0].annotation:
@@ -112,4 +123,3 @@ def optimize(node):
         return o
     else:
         return LLLnode(node.value, argz, node.typ, node.location, node.pos, node.annotation)
-    
