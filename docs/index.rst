@@ -25,6 +25,7 @@ Compatibility-breaking change log
     :maxdepth: 2
 
     installing-viper.rst
+    viper-in-depth.rst
     contributing.rst
     frequently-asked-questions.rst
 
