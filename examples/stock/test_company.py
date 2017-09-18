@@ -87,7 +87,7 @@ def test_paybill(tester):
 
 def test_valuation(tester):
     # Valuation is number of shares held times price
-    assert tester.c.worth() == 0
+    assert tester.c.debt() == 0
     test_value = int(tester.c.get_total_shares() * tester.c.get_price())
     tester.c.buy_stock(sender=t.k1, value=test_value)
-    assert tester.c.worth() == test_value
+    assert tester.c.debt() == test_value
