@@ -83,10 +83,10 @@ def pay_bill(vendor: address, amount: wei_value):
 
 # The amount a company has raised in the stock offering
 @constant
-def worth() -> wei_value:
+def debt() -> wei_value:
     return (self.total_shares - self.holdings[self.company]) * self.price
 
 # The balance sheet of the company
 @constant
-def debt() -> wei_value:
-    return self.cash() - self.worth()
+def worth() -> wei_value:
+    return self.cash() - self.debt()
