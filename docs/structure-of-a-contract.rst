@@ -1,4 +1,4 @@
-.. index:: contract, state variable, function, event, struct, enum, function;modifier
+.. index:: contract, state variable, function;
 
 .. _contract_structure:
 
@@ -42,26 +42,3 @@ Functions are the executable units of code within a contract.
 and have different levels of visibility (:ref:`visibility-and-getters`)
 towards other contracts.
 
-
-
-.. _structure-structs-types:
-
-Structs Types
-=============
-
-Structs are custom defined types that can group several variables (see
-:ref:`structs` in types section).
-
-::
-
-    # Information about voters
-    voters: public({
-        # weight is accumulated by delegation
-        weight: num,
-        # if true, that person already voted
-        voted: bool,
-        # person delegated to
-        delegate: address,
-        # index of the voted proposal
-        vote: num
-    })

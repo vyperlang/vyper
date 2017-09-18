@@ -34,8 +34,7 @@ Operators:
 *  ``and`` (logical conjunction, "&&")
 *  ``or`` (logical disjunction, "||")
 *  ``==`` (equality)
-*  ``not ... == ... `` (inequality)
-*  ``!=`` (inequality)
+*  ``not ... == ... ``, ``!=`` (inequality)
 
 The operators ``or`` and ``and`` apply the common short-circuiting rules. This means that in the expression ``f(x) or g(y)``, if ``f(x)`` evaluates to ``true``, ``g(y)`` will not be evaluated even if it may have side-effects.
 
@@ -45,7 +44,7 @@ The operators ``or`` and ``and`` apply the common short-circuiting rules. This m
 Integers
 --------
 
-``num``:  a signed integer strictly between -2\*\*128 and 2\*\*128.
+``num``:  equivalent to``int128``, a signed integer strictly between -2\*\*127 and 2\*\*127-1.
 
 Operators:
 
@@ -55,21 +54,21 @@ Operators:
 
 Decimals
 --------
-``decimal``:  a decimal fixed point value with the integer component being a signed integer strictly between -2\*\*128 and 2\*\*128 and the fractional component being ten decimal places
+``decimal``:  a decimal fixed point value with the integer component represented as a ``num`` and the fractional component supporting up to ten decimal places.
 
 
 Time
 -----
-``timestamp``:  a timestamp value
+``timestamp``:  a timestamp value with a base unit of one second, represented as a ``num``.
 
-``timedelta``:  a number of seconds (note: two timedeltas can be added together, as can a timedelta and a timestamp, but not two timestamps)
+``timedelta``:  a number of seconds (note: two timedeltas can be added together, as can a timedelta and a timestamp, but not two timestamps), represented as a ``num``.
 
 
 Value
 ------
-``wei_value``:  an amount of wei
+``wei_value``:  an amount of `ether <http://ethdocs.org/en/latest/ether.html#denominations>`_ with a base unit of one wei, represented as a ``num``.
 
-``currency_value``:  an amount of currency
+``currency_value``:  represents an amount of currency and should be used to represent assets where ether is traded for value, represented as a ``num``.
 
 
 
@@ -78,7 +77,7 @@ Value
 Address
 -------
 
-``address``: Holds a 20 byte value (size of an Ethereum address).
+``address``: Holds an Ethereum address (20 byte value).
 
 
 .. _members-of-addresses:
@@ -108,15 +107,55 @@ Fixed-size byte arrays
 
 ``bytes32``: 32 bytes
 
-``type[length]``: finite list
+::
+
+    # Declaration
+    hash: bytes32
+
+    # Assignment
+    self.hash = _hash
 
 ``bytes <= maxlen``: a byte array with the given maximum length
 
+::
+
+    # Declaration
+    name: bytes <= 5
+
+    # Assignment
+    self.name = _name
+
+``type[length]``: finite list
+
+::
+
+    # Declaration
+    numbers: num[3]
+
+    # Assignment
+    self.numbers[0] = _num1
+
+
+.. index:: !structs
 
 Structs
 -------
 
-``{arg1:type, arg2:type...}``:  struct (can be accessed via struct.argname)
+Structs are custom defined types that can group several variables.  They can be accessed via ``struct.argname``.
+
+::
+
+    # Information about voters
+    voters: public({
+        # weight is accumulated by delegation
+        weight: num,
+        # if true, that person already voted
+        voted: bool,
+        # person delegated to
+        delegate: address,
+        # index of the voted proposal
+        vote: num
+    })
 
 
 .. index:: !mapping
