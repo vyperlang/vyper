@@ -627,6 +627,8 @@ def parse_expr(expr, context):
             new_unit = combine_units(left.typ.unit, right.typ.unit)
             if ltyp == rtyp == 'num':
                 o = LLLnode.from_list(['mul', left, right], typ=BaseType('num', new_unit), pos=getpos(expr))
+            elif ltyp == rtyp == 'num256':
+                o = LLLnode.from_list(['mul', left, right], typ=BaseType('num256', new_unit), pos=getpos(expr))
             elif ltyp == rtyp == 'decimal':
                 o = LLLnode.from_list(['with', 'r', right, ['with', 'l', left,
                                         ['with', 'ans', ['mul', 'l', 'r'],
@@ -645,6 +647,8 @@ def parse_expr(expr, context):
             new_unit = combine_units(left.typ.unit, right.typ.unit, div=True)
             if rtyp == 'num':
                 o = LLLnode.from_list(['sdiv', left, ['clamp_nonzero', right]], typ=BaseType(ltyp, new_unit), pos=getpos(expr))
+            elif ltyp == rtyp == 'num256':
+                o = LLLnode.from_list(['div', left, right], typ=BaseType('num256', new_unit), pos=getpos(expr))
             elif ltyp == rtyp == 'decimal':
                 o = LLLnode.from_list(['with', 'l', left, ['with', 'r', ['clamp_nonzero', right],
                                             ['sdiv', ['mul', 'l', DECIMAL_DIVISOR], 'r']]],
@@ -668,12 +672,16 @@ def parse_expr(expr, context):
                                       typ=BaseType('decimal', new_unit), pos=getpos(expr))
         else:
             raise Exception("Unsupported binop: %r" % expr.op)
+
         if o.typ.typ == 'num':
             return LLLnode.from_list(['clamp', ['mload', MINNUM_POS], o, ['mload', MAXNUM_POS]], typ=o.typ, pos=getpos(expr))
         elif o.typ.typ == 'decimal':
             return LLLnode.from_list(['clamp', ['mload', MINDECIMAL_POS], o, ['mload', MAXDECIMAL_POS]], typ=o.typ, pos=getpos(expr))
+        elif o.typ.typ == 'num256':
+            return o
         else:
             raise Exception("%r %r" % (o, o.typ))
+
     # Comparison operations
     elif isinstance(expr, ast.Compare):
         left = parse_value_expr(expr.left, context)
