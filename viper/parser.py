@@ -163,19 +163,14 @@ def mk_getter(varname, typ):
 
 
 def add_contract(code):
-    _globals = {}
     _defs = []
-    _getters = []
     for item in code:
-        # Global variables
-        if isinstance(item, ast.AnnAssign):
-            _globals, _getters = add_global(_defs, _getters, _globals, item)
         # Function definitions
-        elif isinstance(item, ast.FunctionDef):
+        if isinstance(item, ast.FunctionDef):
             _defs.append(item)
         else:
             raise StructureException("Invalid contract reference", item)
-    return _defs + _getters, _globals
+    return _defs
 
 
 def add_globals_and_events(_defs, _events, _getters, _globals, item):
@@ -323,7 +318,7 @@ def parse_tree_to_lll(code, origcode):
     sub = ['seq', initializer_lll]
     # If there is an init func...
     for _contractname in _contracts.keys():
-        _c_defs, _c_globals = _contracts[_contractname]
+        _c_defs = _contracts[_contractname]
         _defnames = [_def.name for _def in _c_defs]
         contract = {}
         if len(set(_defnames)) < len(_c_defs):

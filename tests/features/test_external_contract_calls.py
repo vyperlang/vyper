@@ -1,6 +1,7 @@
 import pytest
 from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation, get_contract
+    get_contract_with_gas_estimation, get_contract, assert_tx_failed
+from viper.exceptions import StructureException, VariableDeclarationException, InvalidTypeException
 
 def test_external_contract_calls():
     contract_1 = """
@@ -32,6 +33,9 @@ def __init__(_lucky: num):
 
 def foo() -> num:
     return self.lucky
+
+def array() -> bytes <= 3:
+    return 'dog'
     """
 
     lucky_number = 7
@@ -40,6 +44,7 @@ def foo() -> num:
     contract_2 = """
 class Foo():
     def foo() -> num: pass
+    def array() -> bytes <= 3: pass
 
 def bar(arg1: address) -> num:
     return Foo(arg1).foo()
@@ -48,6 +53,26 @@ def bar(arg1: address) -> num:
 
     assert c2.bar(c.address) == lucky_number
     print('Successfully executed a complicated external contract call')
+
+
+def test_external_contract_calls_with_bytes():
+    contract_1 = """
+def array() -> bytes <= 3:
+    return 'dog'
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+class Foo():
+    def array() -> bytes <= 3: pass
+
+def get_array(arg1: address) -> bytes <= 3:
+    return Foo(arg1).array()
+"""
+
+    c2 = get_contract(contract_2)
+    assert c2.get_array(c.address) == b'dog'
 
 
 def test_external_contract_call__state_change():
@@ -173,3 +198,36 @@ def __init__(arg1: address):
     assert c3.get_best_number() == lucky_number
     print('Successfully executed a multiple external contract calls')
 
+
+def test_invalid_contract_reference_declaration(assert_tx_failed):
+    contract = """
+class Bar():
+    get_magic_number: 1
+
+best_number: public(num)
+
+def __init__():
+    pass
+"""
+    t.s = t.Chain()
+    assert_tx_failed(t, lambda: get_contract(contract), exception = StructureException)
+
+
+def test_invalid_contract_reference_call(assert_tx_failed):
+    contract = """
+def bar(arg1: address, arg2: num) -> num:
+    return Foo(arg1).foo(arg2)
+"""
+    t.s = t.Chain()
+    assert_tx_failed(t, lambda: get_contract(contract), exception = VariableDeclarationException)
+
+def test_invalid_contract_reference_return_type(assert_tx_failed):
+    contract = """
+class Foo():
+    def foo(arg2: num) -> invalid: pass
+
+def bar(arg1: address, arg2: num) -> num:
+    return Foo(arg1).foo(arg2)
+"""
+    t.s = t.Chain()
+    assert_tx_failed(t, lambda: get_contract(contract), exception = InvalidTypeException)
