@@ -12,6 +12,9 @@ from .function_signature import (
     FunctionSignature,
     VariableRecord,
 )
+from .signatures.event_signature import (
+    EventSignature
+)
 from .functions import (
     dispatch_table,
     stmt_dispatch_table,
@@ -161,6 +164,7 @@ def mk_getter(varname, typ):
 
 # Parse top-level functions and variables
 def get_defs_and_globals(code):
+    _events = []
     _globals = {}
     _defs = []
     _getters = []
@@ -168,15 +172,17 @@ def get_defs_and_globals(code):
         # Statements of the form:
         # variable_name: type
         if isinstance(item, ast.AnnAssign):
-            if not isinstance(item.target, ast.Name):
+            if isinstance(item.annotation, ast.Call) and item.annotation.func.id == "__log__":
+                _events.append(item)
+            elif not isinstance(item.target, ast.Name):
                 raise StructureException("Can only assign type to variable in top-level statement", item)
-            if item.target.id in _globals:
+            elif item.target.id in _globals:
                 raise VariableDeclarationException("Cannot declare a persistent variable twice!", item.target)
-            if len(_defs):
+            elif len(_defs):
                 raise StructureException("Global variables must all come before function definitions", item)
             # If the type declaration is of the form public(<type here>), then proceed with
             # the underlying type but also add getters
-            if isinstance(item.annotation, ast.Call) and item.annotation.func.id == "public":
+            elif isinstance(item.annotation, ast.Call) and item.annotation.func.id == "public":
                 if len(item.annotation.args) != 1:
                     raise StructureException("Public expects one arg (the type)")
                 typ = parse_type(item.annotation.args[0], 'storage')
@@ -192,7 +198,7 @@ def get_defs_and_globals(code):
             _defs.append(item)
         else:
             raise StructureException("Invalid top-level statement", item)
-    return _defs + _getters, _globals
+    return _events, _defs + _getters, _globals
 
 
 # Header code
@@ -259,7 +265,10 @@ def is_initializer(code):
 # Get ABI signature
 def mk_full_signature(code):
     o = []
-    _defs, _globals = get_defs_and_globals(code)
+    _events, _defs, _globals = get_defs_and_globals(code)
+    for code in _events:
+        sig = EventSignature.from_declaration(code)
+        o.append(sig.to_abi_dict())
     for code in _defs:
         sig = FunctionSignature.from_definition(code)
         if not sig.internal:
@@ -269,25 +278,29 @@ def mk_full_signature(code):
 
 # Main python parse tree => LLL method
 def parse_tree_to_lll(code, origcode):
-    _defs, _globals = get_defs_and_globals(code)
-    _defnames = [_def.name for _def in _defs]
-    if len(set(_defnames)) < len(_defs):
-        raise VariableDeclarationException("Duplicate function name: %s" % [name for name in _defnames if _defnames.count(name) > 1][0])
+    _events, _defs, _globals = get_defs_and_globals(code)
+    _names = [_def.name for _def in _defs] + [_event.target.id for _event in _events]
+    # Checks for duplicate funciton / event names
+    if len(set(_names)) < len(_names):
+        raise VariableDeclarationException("Duplicate function or event name: %s" % [name for name in _names if _names.count(name) > 1][0])
     # Initialization function
     initfunc = [_def for _def in _defs if is_initializer(_def)]
     # Regular functions
     otherfuncs = [_def for _def in _defs if not is_initializer(_def)]
     # Create the main statement
+    sigs = {}
     o = ['seq']
+    if _events:
+        for event in _events:
+            sigs[event.target.id] = EventSignature.from_declaration(event)
     # If there is an init func...
     if initfunc:
-        o.append(initializer_lll)
-        o.append(parse_func(initfunc[0], _globals, {'self': {}}, origcode))
+        o.append(['seq', initializer_lll])
+        o.append(parse_func(initfunc[0], _globals, {'self': sigs}, origcode))
     # If there are regular functions...
     if otherfuncs:
         sub = ['seq', initializer_lll]
         add_gas = initializer_lll.gas
-        sigs = {}
         for _def in otherfuncs:
             sub.append(parse_func(_def, _globals, {'self': sigs}, origcode))
             sub[-1].total_gas += add_gas
@@ -896,6 +909,13 @@ def parse_stmt(stmt, context):
                                                context)
             return LLLnode.from_list(['assert', ['call', ['gas'], ['address'], 0, inargs, inargsize, 0, 0]],
                                      typ=None, pos=getpos(stmt))
+        elif isinstance(stmt.func, ast.Attribute) and stmt.func.value.id == 'log':
+            if stmt.func.attr not in context.sigs['self']:
+                raise VariableDeclarationException("Event not declared yet: %s" % stmt.func.attr)
+            event = context.sigs['self'][stmt.func.attr]
+            topics, stored_topics, event, data = pack_logging_topics(event, stmt.args, context)
+            inargs, inargsize, inarg_start = pack_logging_data(event, data, context)
+            return LLLnode.from_list(['seq', inargs, stored_topics, ["log" + str(len(topics)), inarg_start, inargsize] + topics], typ=None, pos=getpos(stmt))
         else:
             raise StructureException("Unsupported operator: %r" % ast.dump(stmt), stmt)
     # Asserts
@@ -1020,6 +1040,48 @@ def parse_stmt(stmt, context):
         return LLLnode.from_list(['assert', 0], typ=None, pos=getpos(stmt))
     else:
         raise StructureException("Unsupported statement type", stmt)
+
+
+def pack_logging_topics(event, args, context):
+    topics = [event.event_id]
+    stored_topics = ['seq']
+    topics_count = 1
+    for pos, is_indexed in enumerate(event.indexed_list):
+        if is_indexed:
+            event.args.pop(pos + 1 - topics_count)
+            arg = args.pop(pos + 1 - topics_count)
+            topics_count += 1
+            if isinstance(arg, ast.Str):
+                stored_topics.append(parse_value_expr(arg, context))
+                topics.append(['mload', stored_topics[-1].to_list()[-1][-1][-1] + 32])
+            else:
+                topics.append(parse_value_expr(arg, context))
+    return topics, stored_topics, event, args
+
+
+# Pack logging data arguments
+def pack_logging_data(signature, args, context):
+    # Checks to see if there's any data
+    if not args:
+        return ['seq'], 0, 0
+    holders = ['seq']
+    maxlen = len(args) * 32
+    for i, (arg, typ) in enumerate(zip(args, [arg.typ for arg in signature.args])):
+        placeholder = context.new_placeholder(BaseType(32))
+        if isinstance(typ, BaseType):
+            input = parse_expr(arg, context)
+            holders.append(LLLnode.from_list(['mstore', placeholder, input], typ=typ, location='memory'))
+        elif isinstance(typ, ByteArrayType):
+            bytez = b''
+            for c in arg.s:
+                if ord(c) >= 256:
+                    raise InvalidLiteralException("Cannot insert special character %r into byte array" % c)
+                bytez += bytes([ord(c)])
+            bytez_length = len(bytez)
+            if len(bytez) > 32:
+                raise InvalidLiteralException("Can only log a maximum of 32 bytes at a time.")
+            holders.append(LLLnode.from_list(['mstore', placeholder, bytes_to_int(bytez + b'\x00' * (32 - bytez_length))], typ=typ, location='memory'))
+    return holders, maxlen, holders[1].to_list()[1][0]
 
 
 # Pack function arguments for a call
