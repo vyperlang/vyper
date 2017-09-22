@@ -750,6 +750,7 @@ def parse_variable_location(expr, context):
 def parse_value_expr(expr, context):
     return unwrap_location(parse_expr(expr, context))
 
+
 # Create an x=y statement, where the types may be compound
 def make_setter(left, right, location):
     # Basic types

@@ -415,6 +415,7 @@ def base_type_conversion(orig, frm, to):
     else:
         raise TypeMismatchException("Typecasting from base type %r to %r unavailable" % (frm, to))
 
+
 # Unwrap location
 def unwrap_location(orig):
     if orig.location == 'memory':
