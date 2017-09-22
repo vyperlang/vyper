@@ -1,11 +1,9 @@
 from viper.types import get_size_of_type, canonicalize_type, parse_type, \
     ByteArrayType
-from viper.utils import fourbytes_to_int, sha3, is_varname_valid, bytes_to_int
+from viper.utils import sha3, is_varname_valid, bytes_to_int
 import ast
 from viper.function_signature import VariableRecord
-from viper.exceptions import InvalidTypeException, TypeMismatchException, \
-    VariableDeclarationException, StructureException, ConstancyViolationException, \
-    InvalidTypeException, InvalidLiteralException, NonPayableViolationException
+from viper.exceptions import InvalidTypeException, VariableDeclarationException
 
 
 # Event signature object
@@ -43,15 +41,15 @@ class EventSignature():
                 else:
                     indexed_list.append(False)
                 if topics_count > 4:
-                    raise VariableDeclarationException("Maximum of 3 topics {} given".format(topics_count-1), arg)
+                    raise VariableDeclarationException("Maximum of 3 topics {} given".format(topics_count - 1), arg)
                 if not isinstance(arg, str):
                     raise VariableDeclarationException("Argument name invalid", arg)
                 if not typ:
                     raise InvalidTypeException("Argument must have type", arg)
                 if not is_varname_valid(arg):
-                    raise VariableDeclarationException("Argument name invalid or reserved: "+arg.arg, arg)
+                    raise VariableDeclarationException("Argument name invalid or reserved: " + arg.arg, arg)
                 if arg in (x.name for x in args):
-                    raise VariableDeclarationException("Duplicate function argument name: "+arg.arg, arg)
+                    raise VariableDeclarationException("Duplicate function argument name: " + arg.arg, arg)
                 parsed_type = parse_type(typ, None)
                 args.append(VariableRecord(arg, pos, parsed_type, False))
                 if isinstance(parsed_type, ByteArrayType):
