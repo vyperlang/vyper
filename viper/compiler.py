@@ -34,7 +34,7 @@ def mk_full_signature(code, *args, **kwargs):
     for idx, func in enumerate(abi):
         func_name = func['name'].split('(')[0]
         # Skip __init__, has no estimate
-        if func_name != '__init__':
+        if func_name in abi and func_name != '__init__':
             abi[idx]['gas'] = gas_estimates[func_name]
     return abi
 
