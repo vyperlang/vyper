@@ -1049,14 +1049,16 @@ def pack_logging_topics(event, args, context):
     topics_count = 1
     for pos, is_indexed in enumerate(event.indexed_list):
         if is_indexed:
-            event.args.pop(pos + 1 - topics_count)
+            typ = event.args.pop(pos + 1 - topics_count).typ
             arg = args.pop(pos + 1 - topics_count)
             topics_count += 1
             if isinstance(arg, ast.Str):
                 stored_topics.append(parse_value_expr(arg, context))
                 topics.append(['mload', stored_topics[-1].to_list()[-1][-1][-1] + 32])
             else:
-                topics.append(parse_value_expr(arg, context))
+                input = parse_value_expr(arg, context)
+                input = base_type_conversion(input, input.typ, typ)
+                topics.append(input)
     return topics, stored_topics, event, args
 
 
@@ -1071,6 +1073,7 @@ def pack_logging_data(signature, args, context):
         placeholder = context.new_placeholder(BaseType(32))
         if isinstance(typ, BaseType):
             input = parse_expr(arg, context)
+            input = base_type_conversion(input, input.typ, typ)
             holders.append(LLLnode.from_list(['mstore', placeholder, input], typ=typ, location='memory'))
         elif isinstance(typ, ByteArrayType):
             bytez = b''

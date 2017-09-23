@@ -1,7 +1,7 @@
 import pytest
 from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
     get_contract_with_gas_estimation, get_contract, assert_tx_failed
-from viper.exceptions import VariableDeclarationException
+from viper.exceptions import VariableDeclarationException, TypeMismatchException
 
 
 def test_empy_event_logging():
@@ -209,3 +209,25 @@ def foo():
     """
     t.s = s
     assert_tx_failed(t, lambda: get_contract(loggy_code), VariableDeclarationException)
+
+
+def test_logging_fails_with_topic_type_mismatch(assert_tx_failed):
+    loggy_code = """
+MyLog: __log__({arg1: indexed(num)})
+
+def foo():
+    log.MyLog(self)
+    """
+    t.s = s
+    assert_tx_failed(t, lambda: get_contract(loggy_code), TypeMismatchException)
+
+
+def test_logging_fails_with_data_type_mismatch(assert_tx_failed):
+    loggy_code = """
+MyLog: __log__({arg1: bytes <= 3})
+
+def foo():
+    log.MyLog(self)
+    """
+    t.s = s
+    assert_tx_failed(t, lambda: get_contract(loggy_code), AttributeError)
