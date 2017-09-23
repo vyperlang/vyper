@@ -8,7 +8,8 @@ class ParserException(Exception):
 
         if item and hasattr(item, 'lineno'):
             self.set_err_pos(item.lineno, item.col_offset)
-            self.source_code = item.source_code.splitlines()
+            if hasattr(item, 'source_code'):
+                self.source_code = item.source_code.splitlines()
 
     def set_err_pos(self, lineno, col_offset):
         if not self.lineno:

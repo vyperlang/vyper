@@ -40,7 +40,8 @@ def check_gas(code, function=None, num_txs=1):
                - chain.last_tx.intrinsic_gas_used*num_txs
     #Computed upper bound on the gas consumption should 
     #be greater than or equal to the amount of gas used
-    assert gas_estimate >= gas_actual
+    if gas_estimate < gas_actual:
+        raise Exception("Gas upper bound fail: bound %d actual %d" % (gas_estimate, gas_actual))
 
     print('Function name: {} - Gas estimate {}, Actual: {}'.format(
         function, gas_estimate, gas_actual)
@@ -81,3 +82,22 @@ def get_contract_with_gas_estimation(
 
 def get_contract(source_code, *args, **kwargs):
     return chain.contract(source_code, language="viper", *args, **kwargs)
+
+G1 = [1, 2]
+
+G1_times_two = [
+    1368015179489954701390400359078579693043519447331113978918064868415326638035,
+    9918110051302171585080402603319702774565515993150576347155970296011118125764
+]
+
+G1_times_three = [
+    3353031288059533942658390886683067124040920775575537747144343083137631628272,
+    19321533766552368860946552437480515441416830039777911637913418824951667761761
+]
+
+negative_G1 = [
+    1,
+    21888242871839275222246405745257275088696311157297823662689037894645226208581
+]
+
+curve_order = 21888242871839275222246405745257275088548364400416034343698204186575808495617

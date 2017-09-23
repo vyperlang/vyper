@@ -24,10 +24,10 @@ voter_count: public(num)
 chairperson: public(address)
 
 # Setup global variables
-def __init__(_proposalNames: bytes32[5]):
+def __init__(_proposalNames: bytes32[2]):
     self.chairperson = msg.sender
     self.voter_count = 0
-    for i in range(5):
+    for i in range(2):
         self.proposals[i] = {
             name: _proposalNames[i],
             vote_count: 0
