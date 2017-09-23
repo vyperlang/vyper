@@ -7,6 +7,7 @@ t.s.head_state.gas_limit = 10**9
 
 x = t.s.contract(open('examples/wallet/wallet.v.py').read(), args=[[t.a1, t.a2, t.a3, t.a4, t.a5], 3], language='viper')
 print(t.s.last_tx.data[-192:])
+# Sends wei to the contract for future transactions gas costs
 t.s.tx(sender=t.k1, to=x.address, value=10**17)
 
 print([utils.encode_hex(a) for a in [t.a1, t.a2, t.a3, t.a4, t.a5]])
@@ -20,14 +21,16 @@ def sign(seq, to, value, data, key):
 
 def test_approve(assert_tx_failed):
     to, value, data = b'\x35' * 20, 10**16, b""
-    assert x.approve(0, to, value, data, [sign(0, to, value, data, k) if k else [0, 0, 0] for k in (t.k1, 0, t.k3, 0, t.k5)])
+    assert x.approve(0, to, value, data, [sign(0, to, value, data, k) if k else [0, 0, 0] for k in (t.k1, 0, t.k3, 0, t.k5)], value=value, sender=t.k1)
     # Approve fails if only 2 signatures are given
-    assert_tx_failed(t, lambda: x.approve(1, to, value, data, [sign(1, to, value, data, k) if k else [0, 0, 0] for k in (t.k1, 0, 0, 0, t.k5)]))
+    assert_tx_failed(t, lambda: x.approve(1, to, value, data, [sign(1, to, value, data, k) if k else [0, 0, 0] for k in (t.k1, 0, 0, 0, t.k5)], value=value, sender=t.k1))
     # Approve fails if an invalid signature is given
-    assert_tx_failed(t, lambda: x.approve(1, to, value, data, [sign(1, to, value, data, k) if k else [0, 0, 0] for k in (t.k1, 0, t.k7, 0, t.k5)]))
+    assert_tx_failed(t, lambda: x.approve(1, to, value, data, [sign(1, to, value, data, k) if k else [0, 0, 0] for k in (t.k1, 0, t.k7, 0, t.k5)], value=value, sender=t.k1))
     # Approve fails if transaction number is incorrect (the first argument should be 1)
-    assert_tx_failed(t, lambda: x.approve(0, to, value, data, [sign(0, to, value, data, k) if k else [0, 0, 0] for k in (t.k1, 0, t.k3, 0, t.k5)]))
-    assert x.approve(1, to, value, data, [sign(1, to, value, data, k) if k else [0, 0, 0] for k in (t.k1, 0, t.k3, 0, t.k5)])
+    assert_tx_failed(t, lambda: x.approve(0, to, value, data, [sign(0, to, value, data, k) if k else [0, 0, 0] for k in (t.k1, 0, t.k3, 0, t.k5)], value=value, sender=t.k1))
+    # Approve fails if not enough value is sent
+    assert_tx_failed(t, lambda: x.approve(1, to, value, data, [sign(1, to, value, data, k) if k else [0, 0, 0] for k in (t.k1, 0, t.k3, 0, t.k5)], value=0, sender=t.k1))
+    assert x.approve(1, to, value, data, [sign(1, to, value, data, k) if k else [0, 0, 0] for k in (t.k1, 0, t.k3, 0, t.k5)], value=value, sender=t.k1)
     print("Basic tests passed")
 
 
@@ -58,6 +61,6 @@ def test_javascript_signatures():
     t.s.tx(sender=t.k1, to=x2.address, value=10**17)
 
     # There's no need to pass in signatures because the owners are 0 addresses causing them to default to valid signatures
-    assert x2.approve(0, recipient, 25, "", sigs + [[0, 0, 0]] * 3)
+    assert x2.approve(0, recipient, 25, "", sigs + [[0, 0, 0]] * 3, value=25, sender=t.k1)
 
     print("Javascript signature tests passed")

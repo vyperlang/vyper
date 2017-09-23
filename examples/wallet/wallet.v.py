@@ -14,7 +14,11 @@ def __init__(_owners: address[5], _threshold: num):
             self.owners[i] = _owners[i]
     self.threshold = _threshold
 
+# `@payable` allows functions to receive ether
+@payable
 def approve(_seq: num, to: address, value: wei_value, data: bytes <= 4096, sigdata: num256[3][5]) -> bytes <= 4096:
+    # Throws if the value sent to the contract is less than the sum of the value to be sent
+    assert msg.value >= value
     # Every time the number of approvals starts at 0 (multiple signatures can be added through the sigdata argument)
     approvals = 0
     # Starts by combining:
