@@ -1512,3 +1512,18 @@ def _ecmul3(x: num256[2], y: num256) -> num256[2]:
     assert c._ecmul(G1, 3) == G1_times_three
     assert c._ecmul(G1, curve_order - 1) == negative_G1
     assert c._ecmul(G1, curve_order) == [0, 0]
+
+def test_modmul():
+    modexper = """
+def exp(base: num256, exponent: num256, modulus: num256) -> num256:
+      o = as_num256(1)
+      for i in range(256):
+          o = num256_mulmod(o, o, modulus)
+          if bitwise_and(exponent, shift(as_num256(1), 255 - i)) != as_num256(0):
+              o = num256_mulmod(o, base, modulus)
+      return o
+    """
+
+    c = get_contract(modexper)
+    assert c.exp(3, 5, 100) == 43
+    assert c.exp(2, 997, 997) == 2

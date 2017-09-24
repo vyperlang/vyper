@@ -675,6 +675,16 @@ def num256_mod(expr, args, kwargs, context):
     return LLLnode.from_list(['mod', args[0], args[1]], typ=BaseType('num256'), pos=getpos(expr))
 
 
+@signature('num256', 'num256', 'num256')
+def num256_addmod(expr, args, kwargs, context):
+    return LLLnode.from_list(['addmod', args[0], args[1], args[2]], typ=BaseType('num256'), pos=getpos(expr))
+
+
+@signature('num256', 'num256', 'num256')
+def num256_mulmod(expr, args, kwargs, context):
+    return LLLnode.from_list(['mulmod', args[0], args[1], args[2]], typ=BaseType('num256'), pos=getpos(expr))
+
+
 @signature('num256')
 def bitwise_not(expr, args, kwargs, context):
     return LLLnode.from_list(['not', args[0]], typ=BaseType('num256'), pos=getpos(expr))
@@ -797,6 +807,8 @@ dispatch_table = {
     'num256_mul': num256_mul,
     'num256_div': num256_div,
     'num256_mod': num256_mod,
+    'num256_addmod': num256_addmod,
+    'num256_mulmod': num256_mulmod,
     'num256_gt': num256_gt,
     'num256_ge': num256_ge,
     'num256_lt': num256_lt,
