@@ -1,7 +1,7 @@
 import pytest
 from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
     get_contract_with_gas_estimation, get_contract, assert_tx_failed
-from viper.exceptions import VariableDeclarationException, TypeMismatchException
+from viper.exceptions import VariableDeclarationException, TypeMismatchException, StructureException
 
 
 def test_empy_event_logging():
@@ -102,6 +102,28 @@ def foo():
     assert c.translator.event_data[event_id] == {'types': ['int128'], 'name': 'MyLog', 'names': ['arg1'], 'indexed': [False], 'anonymous': False}
     # Event is decoded correctly
     assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': 123, '_event_type': b'MyLog'}
+
+
+def test_event_loggging_with_fixed_array_data():
+    loggy_code = """
+MyLog: __log__({arg1: num[2], arg2: timestamp[3], arg3: num[2][2]})
+
+def foo():
+    log.MyLog([1,2], [block.timestamp, block.timestamp+1, block.timestamp+2], [[1,2],[1,2]])
+#     """
+
+    c = get_contract(loggy_code)
+    c.foo()
+    logs = s.head_state.receipts[-1].logs[-1]
+    event_id = u.bytes_to_int(u.sha3(bytes('MyLog(int128[2],int128[3],int128[2][2])', 'utf-8')))
+    # # Event id is always the first topic
+    assert logs.topics[0] == event_id
+    # # Event id is calculated correctly
+    assert c.translator.event_data[event_id]
+    # # Event abi is created correctly
+    assert c.translator.event_data[event_id] == {'types': ['int128[2]', 'int128[3]', 'int128[2][2]'], 'name': 'MyLog', 'names': ['arg1', 'arg2', 'arg3'], 'indexed': [False, False, False], 'anonymous': False}
+    # # Event is decoded correctly
+    assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': [1, 2], 'arg2': [1467446892, 1467446893, 1467446894], 'arg3': [[1, 2], [1, 2]], '_event_type': b'MyLog'}
 
 
 def test_event_logging_with_data_with_different_types():
@@ -231,3 +253,23 @@ def foo():
     """
     t.s = s
     assert_tx_failed(t, lambda: get_contract(loggy_code), AttributeError)
+
+
+def test_logging_fails_after_a_global_declaration(assert_tx_failed):
+    loggy_code = """
+age: num
+MyLog: __log__({arg1: bytes <= 3})
+    """
+    t.s = s
+    assert_tx_failed(t, lambda: get_contract(loggy_code), StructureException)
+
+
+def test_logging_fails_after_a_function_declaration(assert_tx_failed):
+    loggy_code = """
+def foo():
+    pass
+
+MyLog: __log__({arg1: bytes <= 3})
+    """
+    t.s = s
+    assert_tx_failed(t, lambda: get_contract(loggy_code), StructureException)

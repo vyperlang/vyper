@@ -173,6 +173,8 @@ def get_defs_and_globals(code):
         # variable_name: type
         if isinstance(item, ast.AnnAssign):
             if isinstance(item.annotation, ast.Call) and item.annotation.func.id == "__log__":
+                if _globals or len(_defs):
+                    raise StructureException("Events must all come before global declarations and function definitions", item)
                 _events.append(item)
             elif not isinstance(item.target, ast.Name):
                 raise StructureException("Can only assign type to variable in top-level statement", item)
@@ -1062,30 +1064,40 @@ def pack_logging_topics(event, args, context):
     return topics, stored_topics, event, args
 
 
+def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder):
+    if isinstance(typ, BaseType):
+            input = parse_expr(arg, context)
+            input = base_type_conversion(input, input.typ, typ)
+            holder.append(LLLnode.from_list(['mstore', placeholder, input], typ=typ, location='memory'))
+    elif isinstance(typ, ByteArrayType):
+        bytez = b''
+        for c in arg.s:
+            if ord(c) >= 256:
+                raise InvalidLiteralException("Cannot insert special character %r into byte array" % c)
+            bytez += bytes([ord(c)])
+        bytez_length = len(bytez)
+        if len(bytez) > 32:
+            raise InvalidLiteralException("Can only log a maximum of 32 bytes at a time.")
+        holder.append(LLLnode.from_list(['mstore', placeholder, bytes_to_int(bytez + b'\x00' * (32 - bytez_length))], typ=typ, location='memory'))
+    elif isinstance(typ, ListType):
+            maxlen += (typ.count - 1) * 32
+            typ = typ.subtype
+            holder, maxlen = pack_args_by_32(holder, maxlen, arg.elts[0], typ, context, placeholder)
+            for j, arg2 in enumerate(arg.elts[1:]):
+                holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, context.new_placeholder(BaseType(32)))
+    return holder, maxlen
+
+
 # Pack logging data arguments
 def pack_logging_data(signature, args, context):
     # Checks to see if there's any data
     if not args:
         return ['seq'], 0, 0
-    holders = ['seq']
+    holder = ['seq']
     maxlen = len(args) * 32
     for i, (arg, typ) in enumerate(zip(args, [arg.typ for arg in signature.args])):
-        placeholder = context.new_placeholder(BaseType(32))
-        if isinstance(typ, BaseType):
-            input = parse_expr(arg, context)
-            input = base_type_conversion(input, input.typ, typ)
-            holders.append(LLLnode.from_list(['mstore', placeholder, input], typ=typ, location='memory'))
-        elif isinstance(typ, ByteArrayType):
-            bytez = b''
-            for c in arg.s:
-                if ord(c) >= 256:
-                    raise InvalidLiteralException("Cannot insert special character %r into byte array" % c)
-                bytez += bytes([ord(c)])
-            bytez_length = len(bytez)
-            if len(bytez) > 32:
-                raise InvalidLiteralException("Can only log a maximum of 32 bytes at a time.")
-            holders.append(LLLnode.from_list(['mstore', placeholder, bytes_to_int(bytez + b'\x00' * (32 - bytez_length))], typ=typ, location='memory'))
-    return holders, maxlen, holders[1].to_list()[1][0]
+        holder, maxlen = pack_args_by_32(holder, maxlen, arg, typ, context, context.new_placeholder(BaseType(32)))
+    return holder, maxlen, holder[1].to_list()[1][0]
 
 
 # Pack function arguments for a call
