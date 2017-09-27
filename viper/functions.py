@@ -348,8 +348,10 @@ def ecrecover(expr, args, kwargs, context):
                               ['pop', ['call', 3000, 1, 0, placeholder_node, 128, FREE_VAR_SPACE, 32]],
                               ['mload', FREE_VAR_SPACE]], typ=BaseType('address'), pos=getpos(expr))
 
+
 def avo(arg, ind):
     return unwrap_location(add_variable_offset(arg, LLLnode.from_list(ind, 'num')))
+
 
 @signature('num256[2]', 'num256[2]')
 def ecadd(expr, args, kwargs, context):
@@ -365,6 +367,7 @@ def ecadd(expr, args, kwargs, context):
                               ['assert', ['call', 500, 6, 0, placeholder_node, 128, placeholder_node, 64]],
                               placeholder_node], typ=ListType(BaseType('num256'), 2), pos=getpos(expr), location='memory')
     return o
+
 
 @signature('num256[2]', 'num256')
 def ecmul(expr, args, kwargs, context):
