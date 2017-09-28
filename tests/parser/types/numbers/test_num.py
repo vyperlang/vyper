@@ -14,5 +14,5 @@ def _num_exp(x: num, y: num) -> num:
     assert c._num_exp(2,4) == 16
     assert c._num_exp(3,2) == 9
     assert c._num_exp(3,3) == 27
-    assert c._num_exp(72,19) == 194678249355036212415530357760196608
+    assert c._num_exp(72,19) == 72**19
 
