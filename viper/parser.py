@@ -175,9 +175,9 @@ def add_contract(code):
 
 def add_globals_and_events(_defs, _events, _getters, _globals, item):
     if isinstance(item.annotation, ast.Call) and item.annotation.func.id == "__log__":
-                if _globals or len(_defs):
-                    raise StructureException("Events must all come before global declarations and function definitions", item)
-                _events.append(item)
+        if _globals or len(_defs):
+            raise StructureException("Events must all come before global declarations and function definitions", item)
+        _events.append(item)
     elif not isinstance(item.target, ast.Name):
         raise StructureException("Can only assign type to variable in top-level statement", item)
     # Check if global already exists, if so error
@@ -319,7 +319,7 @@ def parse_tree_to_lll(code, origcode):
     if _events:
         for event in _events:
             sigs[event.target.id] = EventSignature.from_declaration(event)
-    for _contractname in _contracts.keys():
+    for _contractname in _contracts:
         _c_defs = _contracts[_contractname]
         _defnames = [_def.name for _def in _c_defs]
         contract = {}
@@ -327,7 +327,6 @@ def parse_tree_to_lll(code, origcode):
             raise VariableDeclarationException("Duplicate function name: %s" % [name for name in _defnames if _defnames.count(name) > 1][0])
         c_otherfuncs = [_def for _def in _c_defs if not is_initializer(_def)]
         if c_otherfuncs:
-            add_gas = initializer_lll.gas
             for _def in c_otherfuncs:
                 sig = FunctionSignature.from_definition(_def)
                 contract[sig.name] = sig
