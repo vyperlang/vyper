@@ -221,6 +221,7 @@ def bar(arg1: address, arg2: num) -> num:
     t.s = t.Chain()
     assert_tx_failed(t, lambda: get_contract(contract), exception = VariableDeclarationException)
 
+
 def test_invalid_contract_reference_return_type(assert_tx_failed):
     contract = """
 class Foo():
@@ -232,3 +233,39 @@ def bar(arg1: address, arg2: num) -> num:
     t.s = t.Chain()
     assert_tx_failed(t, lambda: get_contract(contract), exception = InvalidTypeException)
 
+
+def test_external_contracts_must_be_declared_first_1(assert_tx_failed):
+    contract = """
+
+item: public(num)
+
+class Foo():
+    def foo(arg2: num) -> num: pass
+"""
+    t.s = t.Chain()
+    assert_tx_failed(t, lambda: get_contract(contract), exception = StructureException)
+
+
+def test_external_contracts_must_be_declared_first_2(assert_tx_failed):
+    contract = """
+
+MyLog: __log__({})
+
+class Foo():
+    def foo(arg2: num) -> num: pass
+"""
+    t.s = t.Chain()
+    assert_tx_failed(t, lambda: get_contract(contract), exception = StructureException)
+
+
+def test_external_contracts_must_be_declared_first_3(assert_tx_failed):
+    contract = """
+
+def foo() -> num:
+    return 1
+
+class Foo():
+    def foo(arg2: num) -> num: pass
+"""
+    t.s = t.Chain()
+    assert_tx_failed(t, lambda: get_contract(contract), exception = StructureException)

@@ -211,6 +211,8 @@ def get_contracts_and_defs_and_globals(code):
     for item in code:
         # Contract references
         if isinstance(item, ast.ClassDef):
+            if _events or _globals or _defs:
+                    raise StructureException("External contract declarations must come before event declarations, global declarations, and function definitions", item)
             _contracts[item.name] = add_contract(item.body)
         # Statements of the form:
         # variable_name: type
