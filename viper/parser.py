@@ -215,7 +215,7 @@ def get_contracts_and_defs_and_globals(code):
         # Statements of the form:
         # variable_name: type
         elif isinstance(item, ast.AnnAssign):
-            _events, _globals, _getters = add_global(_defs, _events, _getters, _globals, item)
+            _events, _globals, _getters = add_globals_and_events(_defs, _events, _getters, _globals, item)
         # Function definitions
         elif isinstance(item, ast.FunctionDef):
             _defs.append(item)
@@ -289,6 +289,9 @@ def is_initializer(code):
 def mk_full_signature(code):
     o = []
     _contracts, _events, _defs, _globals = get_contracts_and_defs_and_globals(code)
+    for code in _events:
+        sig = EventSignature.from_declaration(code)
+        o.append(sig.to_abi_dict())
     for code in _defs:
         sig = FunctionSignature.from_definition(code)
         if not sig.internal:
@@ -298,7 +301,7 @@ def mk_full_signature(code):
 
 # Main python parse tree => LLL method
 def parse_tree_to_lll(code, origcode):
-    _contracts, _events_defs, _globals = get_contracts_and_defs_and_globals(code)
+    _contracts, _events, _defs, _globals = get_contracts_and_defs_and_globals(code)
     _names = [_def.name for _def in _defs] + [_event.target.id for _event in _events]
     # Checks for duplicate funciton / event names
     if len(set(_names)) < len(_names):
@@ -310,13 +313,10 @@ def parse_tree_to_lll(code, origcode):
     initfunc = [_def for _def in _defs if is_initializer(_def)]
     # Regular functions
     otherfuncs = [_def for _def in _defs if not is_initializer(_def)]
-    # If there is an init func...
     sigs = {}
     if _events:
         for event in _events:
             sigs[event.target.id] = EventSignature.from_declaration(event)
-    sub = ['seq', initializer_lll]
-    # If there is an init func...
     for _contractname in _contracts.keys():
         _c_defs = _contracts[_contractname]
         _defnames = [_def.name for _def in _c_defs]
@@ -327,11 +327,7 @@ def parse_tree_to_lll(code, origcode):
         if c_otherfuncs:
             add_gas = initializer_lll.gas
             for _def in c_otherfuncs:
-                sub.append(parse_func(_def, _globals, {_contractname: contract}, origcode))
-                sub[-1].total_gas += add_gas
-                add_gas += 30
                 sig = FunctionSignature.from_definition(_def)
-                sig.gas = sub[-1].total_gas
                 contract[sig.name] = sig
         contracts[_contractname] = contract
     _defnames = [_def.name for _def in _defs]
@@ -340,9 +336,10 @@ def parse_tree_to_lll(code, origcode):
     # If there is an init func...
     if initfunc:
         o.append(['seq', initializer_lll])
-        o.append(parse_func(initfunc[0], _globals, {'self': sigs}, origcode))
+        o.append(parse_func(initfunc[0], _globals, {**{'self': sigs}, **contracts}, origcode))
     # If there are regular functions...
     if otherfuncs:
+        sub = ['seq', initializer_lll]
         add_gas = initializer_lll.gas
         for _def in otherfuncs:
             sub.append(parse_func(_def, _globals, {**{'self': sigs}, **contracts}, origcode))
@@ -466,7 +463,6 @@ def external_contract_call_stmt(stmt, context):
     inargs, inargsize = pack_arguments(sig, [parse_expr(arg, context) for arg in stmt.args], context)
     o = LLLnode.from_list(['assert', ['call', ['gas'], ['mload', contract_address], 0, inargs, inargsize, 0, 0]],
                                     typ=None, location='memory', pos=getpos(stmt))
-    o.gas += sig.gas
     return o
 
 
@@ -493,7 +489,6 @@ def external_contract_call_expr(expr, context):
                             inargs, inargsize,
                             output_placeholder, get_size_of_type(sig.output_type) * 32]],
                             returner], typ=sig.output_type, location='memory', pos=getpos(expr))
-    o.gas += sig.gas
     return o
 
 
@@ -1000,6 +995,8 @@ def parse_stmt(stmt, context):
                                                context)
             return LLLnode.from_list(['assert', ['call', ['gas'], ['address'], 0, inargs, inargsize, 0, 0]],
                                      typ=None, pos=getpos(stmt))
+        elif isinstance(stmt.func, ast.Attribute) and isinstance(stmt.func.value, ast.Call):
+            return external_contract_call_stmt(stmt, context)
         elif isinstance(stmt.func, ast.Attribute) and stmt.func.value.id == 'log':
             if stmt.func.attr not in context.sigs['self']:
                 raise VariableDeclarationException("Event not declared yet: %s" % stmt.func.attr)
@@ -1007,8 +1004,6 @@ def parse_stmt(stmt, context):
             topics, stored_topics, event, data = pack_logging_topics(event, stmt.args, context)
             inargs, inargsize, inarg_start = pack_logging_data(event, data, context)
             return LLLnode.from_list(['seq', inargs, stored_topics, ["log" + str(len(topics)), inarg_start, inargsize] + topics], typ=None, pos=getpos(stmt))
-        elif isinstance(stmt.func, ast.Attribute) and isinstance(stmt.func.value, ast.Call):
-            return external_contract_call_stmt(stmt, context)
         else:
             raise StructureException("Unsupported operator: %r" % ast.dump(stmt), stmt)
     # Asserts

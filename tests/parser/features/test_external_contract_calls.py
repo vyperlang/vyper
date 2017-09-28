@@ -231,3 +231,4 @@ def bar(arg1: address, arg2: num) -> num:
 """
     t.s = t.Chain()
     assert_tx_failed(t, lambda: get_contract(contract), exception = InvalidTypeException)
+
