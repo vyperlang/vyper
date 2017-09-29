@@ -674,6 +674,11 @@ def num256_div(expr, args, kwargs, context):
 
 
 @signature('num256', 'num256')
+def num256_exp(expr, args, kwargs, context):
+    return LLLnode.from_list(['exp', args[0], args[1]], typ=BaseType('num256'), pos=getpos(expr))
+
+
+@signature('num256', 'num256')
 def num256_mod(expr, args, kwargs, context):
     return LLLnode.from_list(['mod', args[0], args[1]], typ=BaseType('num256'), pos=getpos(expr))
 
@@ -809,6 +814,7 @@ dispatch_table = {
     'num256_sub': num256_sub,
     'num256_mul': num256_mul,
     'num256_div': num256_div,
+    'num256_exp': num256_exp,
     'num256_mod': num256_mod,
     'num256_addmod': num256_addmod,
     'num256_mulmod': num256_mulmod,

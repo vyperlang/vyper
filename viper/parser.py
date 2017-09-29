@@ -697,6 +697,14 @@ def parse_expr(expr, context):
             elif ltyp == 'num' and rtyp == 'decimal':
                 o = LLLnode.from_list(['smod', ['mul', left, DECIMAL_DIVISOR], right],
                                       typ=BaseType('decimal', new_unit), pos=getpos(expr))
+        elif isinstance(expr.op, ast.Pow):
+            if left.typ.positional or right.typ.positional:
+                raise TypeMismatchException("Cannot use positional values as exponential arguments!", expr)
+            new_unit = combine_units(left.typ.unit, right.typ.unit)
+            if ltyp == rtyp == 'num':
+                o = LLLnode.from_list(['exp', left, right], typ=BaseType('num', new_unit), pos=getpos(expr))
+            else:
+                raise TypeMismatchException('Only whole number exponents are supported', expr)
         else:
             raise Exception("Unsupported binop: %r" % expr.op)
         if o.typ.typ == 'num':
