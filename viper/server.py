@@ -78,4 +78,3 @@ def runserver(host='', port=8000):
     httpd = ViperHTTPServer(server_address, ViperRequestHandler)
     print('Listening on http://{0}:{1}'.format(host, port))
     httpd.serve_forever()
-    httpd.shutdown()
