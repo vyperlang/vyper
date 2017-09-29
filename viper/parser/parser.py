@@ -567,11 +567,15 @@ def parse_expr(expr, context):
                 raise TypeMismatchException("Type mismatch: balance keyword expects an address as input", expr)
             return LLLnode.from_list(['balance', addr], typ=BaseType('num', {'wei': 1}), location=None, pos=getpos(expr))
         # x.codesize: codesize of address x
-        elif expr.attr == 'codesize':
+        elif expr.attr == 'codesize' or expr.attr == 'is_contract':
             addr = parse_value_expr(expr.value, context)
             if not is_base_type(addr.typ, 'address'):
-                raise TypeMismatchException("Type mismatch: codesize keyword expects an address as input", expr)
-            return LLLnode.from_list(['extcodesize', addr], typ=BaseType('num'), location=None, pos=getpos(expr))
+                raise TypeMismatchException(f"Type mismatch: {expr.attr} keyword expects an address as input", expr)
+            if expr.attr == 'codesize':
+                output_type = 'num'
+            else:
+                output_type = 'bool'
+            return LLLnode.from_list(['extcodesize', addr], typ=BaseType(output_type), location=None, pos=getpos(expr))
         # self.x: global attribute
         elif isinstance(expr.value, ast.Name) and expr.value.id == "self":
             if expr.attr not in context.globals:
