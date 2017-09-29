@@ -103,6 +103,7 @@ negative_G1 = [
 
 curve_order = 21888242871839275222246405745257275088548364400416034343698204186575808495617
 
+
 @pytest.fixture
 def assert_tx_failed():
     def assert_tx_failed(tester, function_to_test, exception = tester.TransactionFailed):
