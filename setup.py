@@ -10,7 +10,7 @@ with open('LICENSE') as f:
     license = f.read()
 
 # *IMPORTANT*: Don't manually change the version here. Use the 'bumpversion' utility.
-version = '0.0.1'
+version = '0.0.2'
 
 setup(
     name='viper',
