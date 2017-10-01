@@ -1,6 +1,6 @@
 import ast
 
-from .exceptions import (
+from viper.exceptions import (
     ConstancyViolationException,
     InvalidLiteralException,
     NonPayableViolationException,
@@ -8,14 +8,14 @@ from .exceptions import (
     TypeMismatchException,
     VariableDeclarationException,
 )
-from .function_signature import (
+from viper.function_signature import (
     FunctionSignature,
     VariableRecord,
 )
-from .signatures.event_signature import (
+from viper.signatures.event_signature import (
     EventSignature
 )
-from .functions import (
+from viper.functions import (
     dispatch_table,
     stmt_dispatch_table,
 )
@@ -30,7 +30,7 @@ from .parser_utils import (
     base_type_conversion,
     unwrap_location
 )
-from .types import (
+from viper.types import (
     BaseType,
     ByteArrayType,
     ListType,
@@ -40,18 +40,18 @@ from .types import (
     StructType,
     TupleType,
 )
-from .types import (
+from viper.types import (
     get_size_of_type,
     is_base_type,
     is_numeric_type,
     parse_type,
 )
-from .types import (
+from viper.types import (
     are_units_compatible,
     combine_units,
     set_default_units,
 )
-from .utils import (
+from viper.utils import (
     DECIMAL_DIVISOR,
     RESERVED_MEMORY,
     ADDRSIZE_POS,
@@ -60,7 +60,7 @@ from .utils import (
     MAXDECIMAL_POS,
     MINDECIMAL_POS,
 )
-from .utils import (
+from viper.utils import (
     bytes_to_int,
     checksum_encode,
     calc_mem_gas,
@@ -1141,6 +1141,7 @@ def parse_stmt_return(stmt, context):
     else:
         raise TypeMismatchException("Can only return base type!", stmt)
 
+
 parser_stmt_table = {
     ast.Expr: parse_stmt_expr,
     ast.Pass: parse_stmt_pass,
@@ -1155,27 +1156,12 @@ parser_stmt_table = {
     ast.Return: parse_stmt_return,
 }
 
+
 # Parse a statement (usually one line of code but not always)
 def parse_stmt(stmt, context):
     stmt_type = stmt.__class__
     if stmt_type in parser_stmt_table:
         return parser_stmt_table[stmt_type](stmt, context)
-    # elif isinstance(stmt, ast.AnnAssign):
-    # elif isinstance(stmt, ast.Assign):
-    # If statements
-    # elif isinstance(stmt, ast.If):
-    # Calls
-    # elif isinstance(stmt, ast.Call):
-    # Asserts
-    # elif isinstance(stmt, ast.Assert):
-    # for i in range(n): ... (note: n must be a nonzero positive constant integer)
-    # elif isinstance(stmt, ast.For):
-    # +=, *=, etc
-    # elif isinstance(stmt, ast.AugAssign):
-    # Break from a loop
-    # elif isinstance(stmt, ast.Break):
-    # Return statement
-    # elif isinstance(stmt, ast.Return):
     elif isinstance(stmt, ast.Name) and stmt.id == "throw":
         return LLLnode.from_list(['assert', 0], typ=None, pos=getpos(stmt))
     else:
