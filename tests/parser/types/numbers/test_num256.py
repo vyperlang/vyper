@@ -1,6 +1,7 @@
 import pytest
+from ethereum.abi import ValueOutOfBounds
 from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation, get_contract
+    get_contract_with_gas_estimation, get_contract, assert_tx_failed
 
 
 def test_num256_code():
@@ -64,3 +65,27 @@ def _num256_exp(x: num256, y: num256) -> num256:
     assert c._num256_exp(2**128, 2) == 0
     assert c._num256_exp(2**64, 2) == 2**128
     assert c._num256_exp(7**23, 3) == 7**69
+
+
+def test_num256_to_num_casting(assert_tx_failed):
+    code = """
+def _num256_to_num(x: num(num256)) -> num:
+    return x
+
+def _num256_to_num_call(x: num256) -> num:
+    return self._num256_to_num(x)
+
+def built_in_conversion(x: num256) -> num:
+    return as_num128(x)
+    """
+
+    c = get_contract(code)
+    assert c._num256_to_num(1) == 1
+    assert c._num256_to_num((2**127)-1) == 2**127-1
+    t.s = s
+    assert_tx_failed(t, lambda: c._num256_to_num((2**127)) == 0, ValueOutOfBounds)
+    assert c._num256_to_num_call(1) == 1
+    # Make sure it has int128 overflow
+    assert c._num256_to_num_call(2**127) == -170141183460469231731687303715884105728
+    # Check that casting matches manual conversion
+    assert c._num256_to_num_call(2**127) == c.built_in_conversion(2**127)

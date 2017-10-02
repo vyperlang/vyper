@@ -254,6 +254,9 @@ def parse_type(item, location):
             argz = item.args
         if len(argz) != 1:
             raise InvalidTypeException("Malformed unit type", item)
+        # Check for num256 to num casting
+        if item.func.id == 'num' and item.args[0].id == 'num256':
+            return BaseType('num')
         unit = parse_unit(argz[0])
         return BaseType(base_type, unit, positional)
     # Subscripts
