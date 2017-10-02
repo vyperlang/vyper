@@ -12,11 +12,9 @@
 # This token is intended as a proof of concept towards
 # language interoperability and not for production use.
 
-# To maintain compatibility with both Solidity tokens and the
-# existing ERC20 specification, this contract will throw
-# only when a non-payable function is attempted to be called
-# with some value; otherwise (on conditions like overflow),
-# false will be returned.
+# Events issued by the contract
+Transfer: __log__({_from: indexed(address), _to: indexed(address), _value: num256})
+Approval: __log__({_owner: indexed(address), _spender: indexed(address), _value: num256})
 
 balances: num256[address]
 allowances: (num256[address])[address]
@@ -34,15 +32,14 @@ def is_overflow_sub(a : num256, b : num256) -> bool:
 
 @payable
 def deposit():
-    _value = msg.value
+    _value = as_num256(msg.value)
     _sender = msg.sender
-    assert not self.is_overflow_add(self.balances[_sender], as_num256(_value))
-    assert not self.is_overflow_add(self.num_issued, as_num256(_value))
-    self.balances[_sender] = num256_add(self.balances[_sender], as_num256(_value))
-    self.num_issued = num256_add(self.num_issued, as_num256(_value))
-    # Fire deposit event
-    byte_value = concat(as_bytes32(_value), "")
-    raw_log([keccak256("Transfer(address,address,uint256)"), as_bytes32(0), as_bytes32(_sender)], byte_value)
+    assert not self.is_overflow_add(self.balances[_sender], _value)
+    assert not self.is_overflow_add(self.num_issued, _value)
+    self.balances[_sender] = num256_add(self.balances[_sender], _value)
+    self.num_issued = num256_add(self.num_issued, _value)
+    # Fire deposit event as transfer from 0x0
+    log.Transfer(0x0000000000000000000000000000000000000000, _sender, _value)
 
 def withdraw(_value : num256) -> bool:
     _sender = msg.sender
@@ -53,8 +50,7 @@ def withdraw(_value : num256) -> bool:
     self.num_issued = num256_sub(self.num_issued, _value)
     send(_sender, as_wei_value(as_num128(_value), wei))
     # Fire withdraw event as transfer to 0x0
-    byte_value = concat(as_bytes32(_value), "")
-    raw_log([keccak256("Transfer(address,address,uint256)"), as_bytes32(_sender), as_bytes32(0)], byte_value)
+    log.Transfer(_sender, 0x0000000000000000000000000000000000000000, _value)
     return true
 
 @constant
@@ -72,8 +68,7 @@ def transfer(_to : address, _value : num256) -> bool:
     self.balances[_sender] = num256_sub(self.balances[_sender], _value)
     self.balances[_to] = num256_add(self.balances[_to], _value)
     # Fire transfer event
-    byte_value = concat(as_bytes32(_value), "")
-    raw_log([keccak256("Transfer(address,address,uint256)"), as_bytes32(_sender), as_bytes32(_to)], byte_value)
+    log.Transfer(_sender, _to, _value)
     return true
 
 def transferFrom(_from : address, _to : address, _value : num256) -> bool:
@@ -86,18 +81,17 @@ def transferFrom(_from : address, _to : address, _value : num256) -> bool:
     self.balances[_to] = num256_add(self.balances[_to], _value)
     self.allowances[_from][_sender] = num256_sub(allowance, _value)
     # Fire transfer event
-    byte_value = concat(as_bytes32(_value), "")
-    raw_log([keccak256("Transfer(address,address,uint256)"), as_bytes32(_from), as_bytes32(_to)], byte_value)
+    log.Transfer(_from, _to, _value)
     return true
 
 def approve(_spender : address, _value : num256) -> bool:
-    self.allowances[msg.sender][_spender] = _value
-    byte_value = concat(as_bytes32(_value), "")
-    raw_log([keccak256("Approval(address,address,uint256)"), as_bytes32(msg.sender), as_bytes32(_spender)], byte_value)
+    _sender = msg.sender
+    self.allowances[_sender][_spender] = _value
+    # Fire approval event
+    log.Approval(_sender, _spender, _value)
     return true
 
 @constant
 def allowance(_owner : address, _spender : address) -> num256:
     return self.allowances[_owner][_spender]
-
 
