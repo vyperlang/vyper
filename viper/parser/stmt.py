@@ -33,6 +33,7 @@ from viper.types import (
 
 
 class Stmt(object):
+    # TODO: Once other refactors are made reevaluate all inline imports
     def __init__(self, stmt, context):
         self.stmt = stmt
         self.context = context
