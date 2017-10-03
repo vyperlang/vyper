@@ -48,10 +48,12 @@ class NodeType():
 
 # Data structure for a type that representsa 32-byte object
 class BaseType(NodeType):
-    def __init__(self, typ, unit=False, positional=False):
+
+    def __init__(self, typ, unit=False, positional=False, override_signature=False):
         self.typ = typ
         self.unit = {} if unit is False else unit
         self.positional = positional
+        self.override_signature = override_signature
 
     def __eq__(self, other):
         return other.__class__ == BaseType and self.typ == other.typ and self.unit == other.unit and self.positional == other.positional
@@ -156,7 +158,7 @@ def canonicalize_type(t, is_event=False):
     if not isinstance(t, BaseType):
         raise Exception("Cannot canonicalize non-base type: %r" % t)
 
-    num256_override = True if getattr(t, 'num256_signature', False) else False
+    num256_override = True if t.override_signature == 'num256' else False
 
     t = t.typ
     if t == 'num' and not num256_override:
@@ -260,10 +262,8 @@ def parse_type(item, location):
         if len(argz) != 1:
             raise InvalidTypeException("Malformed unit type", item)
         # Check for num256 to num casting
-        if item.func.id == 'num' and item.args[0].id == 'num256':
-            _typ = BaseType('num')
-            setattr(_typ, 'num256_signature', True)
-            return _typ
+        if item.func.id == 'num' and getattr(item.args[0], 'id', '') == 'num256':
+            return BaseType('num', override_signature='num256')
         unit = parse_unit(argz[0])
         return BaseType(base_type, unit, positional)
     # Subscripts

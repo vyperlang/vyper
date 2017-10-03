@@ -230,10 +230,10 @@ def get_contracts_and_defs_and_globals(code):
 initializer_lll = LLLnode.from_list(['seq',
                                         ['mstore', 28, ['calldataload', 0]],
                                         ['mstore', ADDRSIZE_POS, 2**160],
-                                        ['mstore', MAXNUM_POS, 2**128 - 1],
-                                        ['mstore', MINNUM_POS, -2**128 + 1],
-                                        ['mstore', MAXDECIMAL_POS, (2**128 - 1) * DECIMAL_DIVISOR],
-                                        ['mstore', MINDECIMAL_POS, (-2**128 + 1) * DECIMAL_DIVISOR],
+                                        ['mstore', MAXNUM_POS, 2**127 - 1],
+                                        ['mstore', MINNUM_POS, -2**127],
+                                        ['mstore', MAXDECIMAL_POS, (2**127 - 1) * DECIMAL_DIVISOR],
+                                        ['mstore', MINDECIMAL_POS, (-2**127 + 1) * DECIMAL_DIVISOR],
                                     ], typ=None)
 
 

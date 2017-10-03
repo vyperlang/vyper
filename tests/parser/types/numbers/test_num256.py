@@ -80,17 +80,20 @@ def built_in_conversion(x: num256) -> num:
     """
 
     c = get_contract(code)
+
+    # Ensure uint256 function signature.
+    assert c.translator.function_data['_num256_to_num']['encode_types'] == ['uint256']
+
     assert c._num256_to_num(1) == 1
     assert c._num256_to_num((2**127) - 1) == 2**127 - 1
     t.s = s
     assert_tx_failed(t, lambda: c._num256_to_num((2**128)) == 0)
     assert c._num256_to_num_call(1) == 1
-    # Make sure it has int128 overflow
-    assert c._num256_to_num_call(2**127) == -170141183460469231731687303715884105728
+
     # Check that casting matches manual conversion
     assert c._num256_to_num_call(2**127 - 1) == c.built_in_conversion(2**127 - 1)
 
     # Pass in negative int.
     assert_tx_failed(t, lambda: c._num256_to_num(-1) != -1, ValueOutOfBounds)
-    # Ensure uint256 function signature.
-    assert c.translator.function_data['_num256_to_num']['encode_types'] == ['uint256']
+    # Make sure it can't be coherced into a negative number.
+    assert_tx_failed(t, lambda: c._num256_to_num_call(2**127))
