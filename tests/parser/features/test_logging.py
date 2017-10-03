@@ -123,7 +123,8 @@ def foo():
     # # Event abi is created correctly
     assert c.translator.event_data[event_id] == {'types': ['int128[2]', 'int128[3]', 'int128[2][2]'], 'name': 'MyLog', 'names': ['arg1', 'arg2', 'arg3'], 'indexed': [False, False, False], 'anonymous': False}
     # # Event is decoded correctly
-    assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': [1, 2], 'arg2': [1467446892, 1467446893, 1467446894], 'arg3': [[1, 2], [1, 2]], '_event_type': b'MyLog'}
+    timestamp = s.head_state.timestamp
+    assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': [1, 2], 'arg2': [timestamp, timestamp + 1, timestamp + 2], 'arg3': [[1, 2], [1, 2]], '_event_type': b'MyLog'}
 
 
 def test_event_logging_with_data_with_different_types():
@@ -144,9 +145,8 @@ def foo():
     assert c.translator.event_data[event_id]
     # Event abi is created correctly
     assert c.translator.event_data[event_id] == {'types': ['int128', 'bytes4', 'bytes3', 'address', 'address', 'int128'], 'name': 'MyLog', 'names': ['arg1', 'arg2', 'arg3', 'arg4', 'arg5', 'arg6'], 'indexed': [False, False, False, False, False, False], 'anonymous': False}
-
     # Event is decoded correctly
-    assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': 123, 'arg2': b'home', 'arg3': b'bar', 'arg4': '0xc305c901078781c232a2a521c2af7980f8385ee9', 'arg5': '0x' + c.address.hex(), 'arg6': 1467446892, '_event_type': b'MyLog'}
+    assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': 123, 'arg2': b'home', 'arg3': b'bar', 'arg4': '0xc305c901078781c232a2a521c2af7980f8385ee9', 'arg5': '0x' + c.address.hex(), 'arg6': s.head_state.timestamp, '_event_type': b'MyLog'}
 
 
 def test_event_logging_with_topics_and_data():
