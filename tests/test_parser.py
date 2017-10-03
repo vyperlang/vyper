@@ -863,11 +863,10 @@ def _ecadd3(x: num256[2], y: num256[2]) -> num256[2]:
     """
     c = get_contract(ecadder)
 
-    # UNCOMMENT WHEN NEXT VERSION OF ETHEREUM IS RELEASED (these tests should pass then)
-    # assert c._ecadd(G1, G1) == G1_times_two
-    # assert c._ecadd2(G1, G1_times_two) == G1_times_three
-    # assert c._ecadd3(G1, [0, 0]) == G1
-    # assert c._ecadd3(G1, negative_G1) == [0, 0]
+    assert c._ecadd(G1, G1) == G1_times_two
+    assert c._ecadd2(G1, G1_times_two) == G1_times_three
+    assert c._ecadd3(G1, [0, 0]) == G1
+    assert c._ecadd3(G1, negative_G1) == [0, 0]
 
 def test_ecmul():
     ecmuller = """
@@ -890,12 +889,11 @@ def _ecmul3(x: num256[2], y: num256) -> num256[2]:
 """
     c = get_contract(ecmuller)
 
-    # UNCOMMENT WHEN NEXT VERSION OF ETHEREUM IS RELEASED (these tests should pass then)
-    # assert c._ecmul(G1, 0) == [0 ,0]
-    # assert c._ecmul(G1, 1) == G1
-    # assert c._ecmul(G1, 3) == G1_times_three
-    # assert c._ecmul(G1, curve_order - 1) == negative_G1
-    # assert c._ecmul(G1, curve_order) == [0, 0]
+    assert c._ecmul(G1, 0) == [0 ,0]
+    assert c._ecmul(G1, 1) == G1
+    assert c._ecmul(G1, 3) == G1_times_three
+    assert c._ecmul(G1, curve_order - 1) == negative_G1
+    assert c._ecmul(G1, curve_order) == [0, 0]
 
 def test_modmul():
     modexper = """
