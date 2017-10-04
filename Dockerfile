@@ -2,7 +2,7 @@ FROM python:3.6
 
 MAINTAINER Obul <obulpathi@merkletree.vc>
 
-# install libgmp
+# coincurve requires libgmp
 RUN apt-get update
 RUN apt-get install -y libgmp-dev
 
