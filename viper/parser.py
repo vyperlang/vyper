@@ -233,7 +233,7 @@ initializer_lll = LLLnode.from_list(['seq',
                                         ['mstore', MAXNUM_POS, 2**127 - 1],
                                         ['mstore', MINNUM_POS, -2**127],
                                         ['mstore', MAXDECIMAL_POS, (2**127 - 1) * DECIMAL_DIVISOR],
-                                        ['mstore', MINDECIMAL_POS, (-2**127 + 1) * DECIMAL_DIVISOR],
+                                        ['mstore', MINDECIMAL_POS, (-2**127) * DECIMAL_DIVISOR],
                                     ], typ=None)
 
 
