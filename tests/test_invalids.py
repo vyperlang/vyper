@@ -1,6 +1,10 @@
+import pytest
+from pytest import raises
+
 from viper import compiler
 from viper.exceptions import StructureException, \
     TypeMismatchException
+
 
 # These functions register test cases
 # for pytest functions at the end
@@ -9,6 +13,7 @@ fail_list = []
 
 def must_fail(code, exception):
     fail_list.append((code, exception))
+
 
 pass_list = []
 
@@ -200,11 +205,6 @@ must_fail("""
 def foo():
     return 3
 """, TypeMismatchException)
-
-
-# Run all of our registered tests
-import pytest
-from pytest import raises
 
 
 @pytest.mark.parametrize('bad_code,exception_type', fail_list)

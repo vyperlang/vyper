@@ -5,9 +5,6 @@ from viper import compiler
 from viper.exceptions import TypeMismatchException, StructureException
 
 
-
-
-
 fail_list = [
     """
 def foo():

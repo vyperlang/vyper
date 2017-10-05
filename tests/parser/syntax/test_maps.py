@@ -103,7 +103,7 @@ def foo():
 b: {foo: num, bar: num}
 def foo():
     x = self.b[0]
-    """
+    """,
 ]
 
 
@@ -166,6 +166,9 @@ def foo():
 b: {foo: num, bar: num}
 def foo():
     x = self.b.bar
+    """,
+    """
+x: {bar: num, baz: num}
     """,
 ]
 
