@@ -13,6 +13,10 @@ def foo(inp: bytes <= 10) -> bytes <= 2:
     """
 def foo(inp: num) -> bytes <= 3:
     return slice(inp, start=2, len=3)
+    """,
+    """
+def foo(inp: bytes <= 10) -> bytes <= 3:
+    return slice(inp, start=4.0, len=3)
     """
 ]
 
@@ -32,7 +36,11 @@ def foo(inp: bytes <= 10) -> bytes <= 3:
     """
 def foo(inp: bytes <= 10) -> bytes <= 4:
     return slice(inp, start=2, len=3)
-"""
+    """,
+    """
+def foo() -> bytes <= 10:
+    return slice("badmintonzzz", start=1, len=10)
+    """
 ]
 
 

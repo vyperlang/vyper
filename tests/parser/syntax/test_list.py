@@ -5,6 +5,9 @@ from viper import compiler
 from viper.exceptions import TypeMismatchException, StructureException
 
 
+
+
+
 fail_list = [
     """
 def foo():
@@ -25,14 +28,6 @@ def foo() -> num[2]:
     return [3]
     """,
     """
-def foo() -> num[2]:
-    return [[1,2],[3,4]]
-    """,
-    """
-def foo() -> num[2][2]:
-    return [1,2]
-    """,
-    """
 y: num[3]
 
 def foo(x: num[3]) -> num:
@@ -51,12 +46,6 @@ def foo(x: num[3]) -> num:
     self.y = x
     """,
     """
-y: address[2][2]
-
-def foo(x: num[2][2]) -> num:
-    self.y = x
-    """,
-    """
 foo: num[3]
 def foo():
     self.foo = [1, 2, 0x1234567890123456789012345678901234567890]
@@ -65,7 +54,47 @@ def foo():
 foo: num[3]
 def foo():
     self.foo = []
-    """, StructureException)
+    """, StructureException),
+    """
+b: num[5]
+def foo():
+    x = self.b[0][1]
+    """,
+    """
+foo: num[3]
+def foo():
+    self.foo = [1, [2], 3]
+    """,
+    """
+bar: num[3][3]
+def foo():
+    self.bar = 5
+    """,
+    """
+bar: num[3][3]
+def foo():
+    self.bar = [2, 5]
+    """,
+    """
+foo: num[3]
+def foo():
+    self.foo = [1, 2, 3, 4]
+    """,
+    """
+foo: num[3]
+def foo():
+    self.foo = [1, 2]
+    """,
+    """
+b: num[5]
+def foo():
+    self.b[0] = 7.5
+    """,
+    """
+b: num[5]
+def foo():
+    x = self.b[0].cow
+    """,
 ]
 
 
@@ -137,6 +166,22 @@ def foo():
     """,
     """
 x: num[1][2][3][4][5]
+    """,
+    """
+foo: num[3]
+def foo():
+    self.foo = [1, 2, 3]
+    """,
+    """
+b: num[5]
+def foo():
+    a: num[5]
+    self.b[0] = a[0]
+    """,
+    """
+b: decimal[5]
+def foo():
+    self.b[0] = 7
     """
 ]
 

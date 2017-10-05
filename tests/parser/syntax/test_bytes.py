@@ -45,6 +45,15 @@ def foo(x: num) -> bytes <= 75:
     """
 def convert2(inp: num256) -> address:
     return as_bytes32(inp)
+    """,
+    """
+def foo() -> bytes <= 10:
+    x = '0x1234567890123456789012345678901234567890'
+    x = 0x1234567890123456789012345678901234567890
+    """,
+    """
+def foo() -> bytes <= 10:
+    return "badmintonzz"
     """
 ]
 

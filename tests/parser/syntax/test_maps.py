@@ -80,6 +80,30 @@ foo: num[3]
 def foo():
     self.foo = {a: 5, b: 7, c: 9}
     """,
+    """
+def foo() -> num:
+    return {cow: 5, dog: 7}
+    """,
+    """
+x: {cow: num, cor: num}
+def foo():
+    self.x.cof = 1
+    """,
+    """
+b: {foo: num}
+def foo():
+    self.b = {foo: 1, foo: 2}
+    """,
+    """
+b: {foo: num, bar: num}
+def foo():
+    x = self.b.cow
+    """,
+    """
+b: {foo: num, bar: num}
+def foo():
+    x = self.b[0]
+    """
 ]
 
 
@@ -137,7 +161,12 @@ mom: {a: {c: decimal}[3], b: num}
 nom: {c: num}[3]
 def foo():
     self.mom = {a: self.nom, b: 5}
+    """,
     """
+b: {foo: num, bar: num}
+def foo():
+    x = self.b.bar
+    """,
 ]
 
 
