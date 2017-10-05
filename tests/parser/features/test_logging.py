@@ -70,6 +70,34 @@ def foo():
     assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': b'bar', 'arg2': b'home', 'arg3': '0x'+c.address.hex(), '_event_type': b'MyLog'}
 
 
+def test_logging_the_same_event_multiple_times_with_topics():
+    loggy_code = """
+MyLog: __log__({arg1: indexed(num), arg2: indexed(address)})
+
+def foo():
+    log.MyLog(1, self)
+    log.MyLog(1, self)
+
+def bar():
+    log.MyLog(1, self)
+    log.MyLog(1, self)
+    """
+
+    c = get_contract(loggy_code)
+    c.foo()
+    c.bar()
+    logs = s.head_state.receipts[-1].logs[-1]
+    event_id = u.bytes_to_int(u.sha3(bytes('MyLog(int128,address)', 'utf-8')))
+    # Event id is always the first topic
+    assert logs.topics[0] == event_id
+    # Event id is calculated correctly
+    assert c.translator.event_data[event_id]
+    # Event abi is created correctly
+    assert c.translator.event_data[event_id] == {'types': ['int128','address'], 'name': 'MyLog', 'names': ['arg1','arg2'], 'indexed': [True,True], 'anonymous': False}
+    # Event is decoded correctly
+    assert c.translator.decode_event(logs.topics, logs.data) == {'_event_type': b'MyLog', 'arg1': 1, 'arg2': '0x' + c.address.hex()}
+
+
 def test_event_logging_cannot_have_more_than_three_topics():
     loggy_code = """
 MyLog: __log__({arg1: indexed(bytes <= 3), arg2: indexed(bytes <= 4), arg3: indexed(address), arg4: indexed(num)})
@@ -110,7 +138,8 @@ MyLog: __log__({arg1: num[2], arg2: timestamp[3], arg3: num[2][2]})
 
 def foo():
     log.MyLog([1,2], [block.timestamp, block.timestamp+1, block.timestamp+2], [[1,2],[1,2]])
-#     """
+    log.MyLog([1,2], [block.timestamp, block.timestamp+1, block.timestamp+2], [[1,2],[1,2]])
+    """
 
     c = get_contract(loggy_code)
     c.foo()

@@ -954,23 +954,21 @@ def parse_stmt(stmt, context):
     return Stmt(stmt, context).lll_node
 
 
-def pack_logging_topics(event, args, context):
-    topics = [event.event_id]
-    stored_topics = ['seq']
+def pack_logging_topics(event_id, args, topics_types, context):
+    topics = [event_id]
     topics_count = 1
-    for pos, is_indexed in enumerate(event.indexed_list):
-        if is_indexed:
-            typ = event.args.pop(pos + 1 - topics_count).typ
-            arg = args.pop(pos + 1 - topics_count)
-            topics_count += 1
-            if isinstance(arg, ast.Str):
-                stored_topics.append(parse_value_expr(arg, context))
-                topics.append(['mload', stored_topics[-1].to_list()[-1][-1][-1] + 32])
-            else:
-                input = parse_value_expr(arg, context)
-                input = base_type_conversion(input, input.typ, typ)
-                topics.append(input)
-    return topics, stored_topics, event, args
+    stored_topics = ['seq']
+    for pos, typ in enumerate(topics_types):
+        arg = args[pos]
+        topics_count += 1
+        if isinstance(arg, ast.Str):
+            stored_topics.append(parse_value_expr(arg, context))
+            topics.append(['mload', stored_topics[-1].to_list()[-1][-1][-1] + 32])
+        else:
+            input = parse_value_expr(arg, context)
+            input = base_type_conversion(input, input.typ, typ)
+            topics.append(input)
+    return topics, stored_topics
 
 
 def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder):
@@ -998,13 +996,13 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder):
 
 
 # Pack logging data arguments
-def pack_logging_data(signature, args, context):
+def pack_logging_data(types, args, context):
     # Checks to see if there's any data
     if not args:
         return ['seq'], 0, 0
     holder = ['seq']
     maxlen = len(args) * 32
-    for i, (arg, typ) in enumerate(zip(args, [arg.typ for arg in signature.args])):
+    for i, (arg, typ) in enumerate(zip(args, types)):
         holder, maxlen = pack_args_by_32(holder, maxlen, arg, typ, context, context.new_placeholder(BaseType(32)))
     return holder, maxlen, holder[1].to_list()[1][0]
 

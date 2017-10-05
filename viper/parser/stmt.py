@@ -130,8 +130,17 @@ class Stmt(object):
             if self.stmt.func.attr not in self.context.sigs['self']:
                 raise VariableDeclarationException("Event not declared yet: %s" % self.stmt.func.attr)
             event = self.context.sigs['self'][self.stmt.func.attr]
-            topics, stored_topics, event, data = pack_logging_topics(event, self.stmt.args, self.context)
-            inargs, inargsize, inarg_start = pack_logging_data(event, data, self.context)
+            topics_types, topics = [], []
+            data_types, data = [], []
+            for pos, is_indexed in enumerate(event.indexed_list):
+                if is_indexed:
+                    topics_types.append(event.args[pos].typ)
+                    topics.append(self.stmt.args[pos])
+                else:
+                    data_types.append(event.args[pos].typ)
+                    data.append(self.stmt.args[pos])
+            topics, stored_topics = pack_logging_topics(event.event_id, topics, topics_types, self.context)
+            inargs, inargsize, inarg_start = pack_logging_data(data_types, data, self.context)
             return LLLnode.from_list(['seq', inargs, stored_topics, ["log" + str(len(topics)), inarg_start, inargsize] + topics], typ=None, pos=getpos(self.stmt))
         else:
             raise StructureException("Unsupported operator: %r" % ast.dump(self.stmt), self.stmt)
