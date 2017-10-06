@@ -29,5 +29,5 @@ setup(
         'pytest-runner', # Must be after pytest-cov or it will not work
         #           due to https://github.com/pypa/setuptools/issues/196
     ],
-    scripts=['bin/viper']
+    scripts=['bin/viper', 'bin/viper-serve']
 )
