@@ -18,6 +18,9 @@ from viper.parser.parser_utils import (
     add_variable_offset,
     unwrap_location
 )
+from viper.parser.expr import (
+    Expr,
+)
 from .types import (
     BaseType,
     ByteArrayType,
@@ -49,7 +52,6 @@ class Optional(object):
 
 
 def process_arg(index, arg, expected_arg_typelist, function_name, context):
-    from viper.parser.parser import parse_expr, parse_value_expr
     if isinstance(expected_arg_typelist, Optional):
         expected_arg_typelist = expected_arg_typelist.typ
     if not isinstance(expected_arg_typelist, tuple):
@@ -73,20 +75,20 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
         elif expected_arg == '*':
             return arg
         elif expected_arg == 'bytes':
-            sub = parse_expr(arg, context)
+            sub = Expr(arg, context).lll_node
             if isinstance(sub.typ, ByteArrayType):
                 return sub
         else:
             # Does not work for unit-endowed types inside compound types, eg. timestamp[2]
             parsed_expected_type = parse_type(ast.parse(expected_arg).body[0].value, 'memory')
             if isinstance(parsed_expected_type, BaseType):
-                vsub = vsub or parse_value_expr(arg, context)
+                vsub = vsub or Expr.parse_value_expr(arg, context)
                 if is_base_type(vsub.typ, expected_arg):
                     return vsub
             else:
-                vsub = vsub or parse_expr(arg, context)
+                vsub = vsub or Expr(arg, context).lll_node
                 if vsub.typ == parsed_expected_type:
-                    return parse_expr(arg, context)
+                    return Expr(arg, context).lll_node
     if len(expected_arg_typelist) == 1:
         raise TypeMismatchException("Expecting %s for argument %r of %s" %
                                     (expected_arg, index, function_name), arg)
@@ -236,8 +238,7 @@ def _len(expr, args, kwargs, context):
 
 
 def concat(expr, context):
-    from viper.parser.parser import parse_expr, unwrap_location
-    args = [parse_expr(arg, context) for arg in expr.args]
+    args = [Expr(arg, context).lll_node for arg in expr.args]
     if len(args) < 2:
         raise StructureException("Concat expects at least two arguments", expr)
     for expr_arg, arg in zip(expr.args, args):
@@ -612,12 +613,11 @@ def _RLPlist(expr, args, kwargs, context):
 
 @signature('*', 'bytes')
 def raw_log(expr, args, kwargs, context):
-    from viper.parser.parser import parse_value_expr
     if not isinstance(args[0], ast.List) or len(args[0].elts) > 4:
         raise StructureException("Expecting a list of 0-4 topics as first argument", args[0])
     topics = []
     for elt in args[0].elts:
-        arg = parse_value_expr(elt, context)
+        arg = Expr.parse_value_expr(elt, context)
         if not is_base_type(arg.typ, 'bytes32'):
             raise TypeMismatchException("Expecting a bytes32 argument as topic", elt)
         topics.append(arg)

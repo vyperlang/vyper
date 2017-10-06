@@ -31,6 +31,9 @@ from viper.types import (
     are_units_compatible,
     set_default_units,
 )
+from .expr import (
+    Expr
+)
 
 
 class Stmt(object):
@@ -73,20 +76,18 @@ class Stmt(object):
 
     def assign(self):
         from .parser import (
-            parse_expr,
-            parse_variable_location,
             make_setter,
         )
         # Assignment (eg. x[4] = y)
         if len(self.stmt.targets) != 1:
             raise StructureException("Assignment statement must have one target", self.stmt)
-        sub = parse_expr(self.stmt.value, self.context)
+        sub = Expr(self.stmt.value, self.context).lll_node
         if isinstance(self.stmt.targets[0], ast.Name) and self.stmt.targets[0].id not in self.context.vars:
             pos = self.context.new_variable(self.stmt.targets[0].id, set_default_units(sub.typ))
             variable_loc = LLLnode.from_list(pos, typ=sub.typ, location='memory', pos=getpos(self.stmt), annotation=self.stmt.targets[0].id)
             o = make_setter(variable_loc, sub, 'memory')
         else:
-            target = parse_variable_location(self.stmt.targets[0], self.context)
+            target = Expr.parse_variable_location(self.stmt.targets[0], self.context)
             if target.location == 'storage' and self.context.is_constant:
                 raise ConstancyViolationException("Cannot modify storage inside a constant function!", self.stmt.targets[0])
             if not target.mutable:
@@ -97,18 +98,16 @@ class Stmt(object):
 
     def parse_if(self):
         from .parser import (
-            parse_value_expr,
             parse_body,
         )
         if self.stmt.orelse:
             add_on = [parse_body(self.stmt.orelse, self.context)]
         else:
             add_on = []
-        return LLLnode.from_list(['if', parse_value_expr(self.stmt.test, self.context), parse_body(self.stmt.body, self.context)] + add_on, typ=None, pos=getpos(self.stmt))
+        return LLLnode.from_list(['if', Expr.parse_value_expr(self.stmt.test, self.context), parse_body(self.stmt.body, self.context)] + add_on, typ=None, pos=getpos(self.stmt))
 
     def call(self):
         from .parser import (
-            parse_expr,
             pack_arguments,
             pack_logging_data,
             pack_logging_topics,
@@ -121,7 +120,7 @@ class Stmt(object):
                 raise VariableDeclarationException("Function not declared yet (reminder: functions cannot "
                                                     "call functions later in code than themselves): %s" % self.stmt.func.attr)
             inargs, inargsize = pack_arguments(self.context.sigs['self'][self.stmt.func.attr],
-                                                [parse_expr(arg, self.context) for arg in self.stmt.args],
+                                                [Expr(arg, self.context).lll_node for arg in self.stmt.args],
                                                 self.context)
             return LLLnode.from_list(['assert', ['call', ['gas'], ['address'], 0, inargs, inargsize, 0, 0]],
                                         typ=None, pos=getpos(self.stmt))
@@ -147,14 +146,10 @@ class Stmt(object):
             raise StructureException("Unsupported operator: %r" % ast.dump(self.stmt), self.stmt)
 
     def parse_assert(self):
-        from .parser import (
-            parse_value_expr
-        )
-        return LLLnode.from_list(['assert', parse_value_expr(self.stmt.test, self.context)], typ=None, pos=getpos(self.stmt))
+        return LLLnode.from_list(['assert', Expr.parse_value_expr(self.stmt.test, self.context)], typ=None, pos=getpos(self.stmt))
 
     def parse_for(self):
         from .parser import (
-            parse_value_expr,
             parse_body,
         )
         if not isinstance(self.stmt.iter, ast.Call) or \
@@ -182,7 +177,7 @@ class Stmt(object):
                 raise StructureException("Two-arg for statements of the form `for i in range(x, x + y): ...` must have x identical in both places: %r %r" % (ast.dump(self.stmt.iter.args[0]), ast.dump(self.stmt.iter.args[1].left)), self.stmt.iter)
             if not isinstance(self.stmt.iter.args[1].right, ast.Num):
                 raise StructureException("Repeat must have a nonzero positive integral number of rounds", self.stmt.iter.args[1])
-            start = parse_value_expr(self.stmt.iter.args[0], self.context)
+            start = Expr.parse_value_expr(self.stmt.iter.args[0], self.context)
             rounds = self.stmt.iter.args[1].right.n
         varname = self.stmt.target.id
         pos = self.context.vars[varname].pos if varname in self.context.forvars else self.context.new_variable(varname, BaseType('num'))
@@ -191,12 +186,8 @@ class Stmt(object):
         return o
 
     def aug_assign(self):
-        from .parser import (
-            parse_variable_location,
-            parse_value_expr,
-        )
-        target = parse_variable_location(self.stmt.target, self.context)
-        sub = parse_value_expr(self.stmt.value, self.context)
+        target = Expr.parse_variable_location(self.stmt.target, self.context)
+        sub = Expr.parse_value_expr(self.stmt.value, self.context)
         if not isinstance(self.stmt.op, (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Mod)):
             raise Exception("Unsupported operator for augassign")
         if not isinstance(target.typ, BaseType):
@@ -204,11 +195,11 @@ class Stmt(object):
         if target.location == 'storage':
             if self.context.is_constant:
                 raise ConstancyViolationException("Cannot modify storage inside a constant function!", self.stmt.target)
-            o = parse_value_expr(ast.BinOp(left=LLLnode.from_list(['sload', '_stloc'], typ=target.typ, pos=target.pos),
+            o = Expr.parse_value_expr(ast.BinOp(left=LLLnode.from_list(['sload', '_stloc'], typ=target.typ, pos=target.pos),
                                     right=sub, op=self.stmt.op, lineno=self.stmt.lineno, col_offset=self.stmt.col_offset), self.context)
             return LLLnode.from_list(['with', '_stloc', target, ['sstore', '_stloc', base_type_conversion(o, o.typ, target.typ)]], typ=None, pos=getpos(self.stmt))
         elif target.location == 'memory':
-            o = parse_value_expr(ast.BinOp(left=LLLnode.from_list(['mload', '_mloc'], typ=target.typ, pos=target.pos),
+            o = Expr.parse_value_expr(ast.BinOp(left=LLLnode.from_list(['mload', '_mloc'], typ=target.typ, pos=target.pos),
                                     right=sub, op=self.stmt.op, lineno=self.stmt.lineno, col_offset=self.stmt.col_offset), self.context)
             return LLLnode.from_list(['with', '_mloc', target, ['mstore', '_mloc', base_type_conversion(o, o.typ, target.typ)]], typ=None, pos=getpos(self.stmt))
 
@@ -217,7 +208,6 @@ class Stmt(object):
 
     def parse_return(self):
         from .parser import (
-            parse_expr,
             make_setter
         )
         if self.context.return_type is None:
@@ -226,7 +216,7 @@ class Stmt(object):
             return LLLnode.from_list(['return', 0, 0], typ=None, pos=getpos(self.stmt))
         if not self.stmt.value:
             raise TypeMismatchException("Expecting to return a value", self.stmt)
-        sub = parse_expr(self.stmt.value, self.context)
+        sub = Expr(self.stmt.value, self.context).lll_node
         # Returning a value (most common case)
         if isinstance(sub.typ, BaseType):
             if not isinstance(self.context.return_type, BaseType):
