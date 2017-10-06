@@ -14,6 +14,10 @@ Viper is an experimental programming language that aims to provide the following
 * Maximally small and understandable compiler code size
 * Limited support for pure functions - anything marked constant is NOT allowed to change the state
 
+.. note::
+   The easiest way to try out the language, experiment with examples and compile code to ``bytecode``
+   or ``LLL`` is to use the online compiler at https://viper.tools.
+
 Compatibility-breaking change log
 
 * **2017.07.25**: the `def foo() -> num(const): ...` syntax no longer works; you now need to do `def foo() -> num: ...` with a `@constant` decorator on the previous line.
