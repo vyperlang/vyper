@@ -67,6 +67,7 @@ class FunctionSignature():
                 pos += 32
             else:
                 pos += get_size_of_type(parsed_type) * 32
+
         # Apply decorators
         const, payable, internal = False, False, False
         for dec in code.decorator_list:

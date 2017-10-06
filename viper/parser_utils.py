@@ -408,6 +408,8 @@ def base_type_conversion(orig, frm, to):
         return LLLnode(orig.value, orig.args, typ=to)
     elif is_base_type(frm, 'num') and is_base_type(to, 'decimal') and are_units_compatible(frm, to):
         return LLLnode.from_list(['mul', orig, DECIMAL_DIVISOR], typ=BaseType('decimal', to.unit, to.positional))
+    elif is_base_type(frm, 'num256') and is_base_type(to, 'num') and are_units_compatible(frm, to):
+        return LLLnode.from_list(['uclample', orig, ['mload', MAXNUM_POS]], typ=BaseType("num"))
     elif isinstance(frm, NullType):
         if to.typ not in ('num', 'bool', 'num256', 'address', 'bytes32', 'decimal'):
             raise TypeMismatchException("Cannot convert null-type object to type %r" % to)
