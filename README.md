@@ -43,6 +43,12 @@ To compile a contract, use:
 **Note: Since .vy is not official a language supported by any syntax highlights or linter,
 it is recommended to name your viper file into `.v.py` to have a python highlights.**
 
+There is also an [online compiler](https://viper.tools/) available you can use to experiment with
+the language and compile to ``bytecode`` and/or ``LLL``.
+
+**Note: While the viper version of the online compiler is updated on a regular basis it might
+be a bit behind the latest version found in the master branch of this repository.**
+
 ## Testing (using pytest)
 ```bash
     python setup.py test
