@@ -25,7 +25,12 @@ def krazykonkat(z: bytes <= 10) -> bytes <= 24:
     x = "cow"
     self.y = "horse"
     return concat(x, " ", self.y, " ", z)
+    """,
     """
+def cat_list(y: num) -> bytes <= 40:
+    x = [y]
+    return concat("test", y)
+    """,
 ]
 
 valid_list = [

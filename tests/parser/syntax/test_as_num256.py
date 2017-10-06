@@ -1,6 +1,27 @@
 import pytest
+from pytest import raises
 
 from viper import compiler
+from viper.exceptions import TypeMismatchException
+
+
+fail_list = [
+    """
+def convert2(inp: num256) -> address:
+    return as_bytes32(inp)
+    """,
+    """
+def modtest(x: num256, y: num) -> num256:
+    return x % y
+    """
+]
+
+
+@pytest.mark.parametrize('bad_code', fail_list)
+def test_as_wei_fail(bad_code):
+
+    with raises(TypeMismatchException):
+        compiler.compile(bad_code)
 
 
 valid_list = [
@@ -8,6 +29,14 @@ valid_list = [
 def convert1(inp: bytes32) -> num256:
     return as_num256(inp)
     """,
+    """
+def convert1(inp: bytes32) -> num256:
+    return as_num256(inp)
+    """,
+    """
+def convert2(inp: num256) -> bytes32:
+    return as_bytes32(inp)
+    """
 ]
 
 
