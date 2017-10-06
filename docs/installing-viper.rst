@@ -91,8 +91,8 @@ install and test commands
 
     Use the following commands:
     ::
-        export CFLAGS=“-I$(brew --prefix openssl)/include”
-        export LDFLAGS=“-L$(brew --prefix openssl)/lib”
+        export CFLAGS="-I$(brew --prefix openssl)/include"
+        export LDFLAGS="-L$(brew --prefix openssl)/lib"
         pip install scrypt
 
     Now you can run the install and test commands again:

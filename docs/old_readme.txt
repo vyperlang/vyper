@@ -261,7 +261,7 @@ python setup.py test
 
 If it fails with some error message on `openssl`, do the following:
 ```
-env LDFLAGS=“-L$(brew --prefix openssl)/lib” CFLAGS=“-I$(brew --prefix openssl)/include” pip install scrypt
+env LDFLAGS="-L$(brew --prefix openssl)/lib" CFLAGS="-I$(brew --prefix openssl)/include" pip install scrypt
 ```
 
 # Compile 
