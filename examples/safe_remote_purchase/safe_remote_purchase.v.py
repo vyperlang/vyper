@@ -35,4 +35,4 @@ def recieved():
     assert self.unlocked() == false #Is the item already purchased and pending confirmation of buyer
     assert msg.sender == self.buyer 
     send(self.buyer, self.value) #Return deposit (=value) to buyer
-selfdestruct(self.seller) #Returns deposit (=2*value) and the purchase price (=value)
+    selfdestruct(self.seller) #Returns deposit (=2*value) and the purchase price (=value)
