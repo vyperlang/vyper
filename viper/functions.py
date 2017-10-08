@@ -655,22 +655,26 @@ def bitwise_xor(expr, args, kwargs, context):
 
 @signature('num256', 'num256')
 def num256_add(expr, args, kwargs, context):
-    return LLLnode.from_list(['add', args[0], args[1]], typ=BaseType('num256'), pos=getpos(expr))
+    return LLLnode.from_list(['seq', ['assert', ['or', ['iszero', args[1]], ['gt', ['add', args[0], args[1]], args[0]]]],
+                            ['add', args[0], args[1]]], typ=BaseType('num256'), pos=getpos(expr))
 
 
 @signature('num256', 'num256')
 def num256_sub(expr, args, kwargs, context):
-    return LLLnode.from_list(['sub', args[0], args[1]], typ=BaseType('num256'), pos=getpos(expr))
+    return LLLnode.from_list(['seq', ['assert', ['or', ['iszero', args[1]], ['lt', ['sub', args[0], args[1]], args[0]]]],
+                            ['sub', args[0], args[1]]], typ=BaseType('num256'), pos=getpos(expr))
 
 
 @signature('num256', 'num256')
 def num256_mul(expr, args, kwargs, context):
-    return LLLnode.from_list(['mul', args[0], args[1]], typ=BaseType('num256'), pos=getpos(expr))
+    return LLLnode.from_list(['seq', ['assert', ['or', ['iszero', args[0]], ['eq', ['div', ['mul', args[0], args[1]], args[0]], args[1]]]],
+                                ['mul', args[0], args[1]]], typ=BaseType('num256'), pos=getpos(expr))
 
 
 @signature('num256', 'num256')
 def num256_div(expr, args, kwargs, context):
-    return LLLnode.from_list(['div', args[0], args[1]], typ=BaseType('num256'), pos=getpos(expr))
+    return LLLnode.from_list(['seq', ['assert', args[1]],
+                                ['div', args[0], args[1]]], typ=BaseType('num256'), pos=getpos(expr))
 
 
 @signature('num256', 'num256')

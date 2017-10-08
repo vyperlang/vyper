@@ -4,7 +4,7 @@ from tests.setup_transaction_tests import chain as s, tester as t, ethereum_util
     get_contract_with_gas_estimation, get_contract, assert_tx_failed
 
 
-def test_num256_code():
+def test_num256_code(assert_tx_failed):
     num256_code = """
 def _num256_add(x: num256, y: num256) -> num256:
     return num256_add(x, y)
@@ -31,16 +31,24 @@ def _num256_le(x: num256, y: num256) -> bool:
     return num256_le(x, y)
     """
 
-    c = get_contract_with_gas_estimation(num256_code)
+    c = get_contract(num256_code)
     x = 126416208461208640982146408124
     y = 7128468721412412459
 
+    t.s = s
     assert c._num256_add(x, y) == x + y
+    assert c._num256_add(0,y) == y
+    assert c._num256_add(y,0) == y
+    assert_tx_failed(t, lambda: c._num256_add(2**255, 2**255))
     assert c._num256_sub(x, y) == x - y
-    assert c._num256_sub(y, x) == 2**256 + y - x
+    assert_tx_failed(t, lambda: c._num256_sub(y, x))
+    assert c._num256_sub(0, 0) == 0
     assert c._num256_mul(x, y) == x * y
-    assert c._num256_mul(2**128, 2**128) == 0
+    assert_tx_failed(t, lambda: c._num256_mul(2**255, 2))
+    assert c._num256_mul(2**255, 0) == 0
+    assert c._num256_mul(0, 2**255) == 0
     assert c._num256_div(x, y) == x // y
+    assert_tx_failed(t, lambda: c._num256_div(2**255, 0))
     assert c._num256_div(y, x) == 0
     assert c._num256_gt(x, y) is True
     assert c._num256_ge(x, y) is True
