@@ -5,7 +5,7 @@ import json
 import viper
 
 from viper import compiler, optimizer
-from viper.parser import parse_to_lll
+from viper.parser.parser import parse_to_lll
 
 parser = argparse.ArgumentParser(description='Viper {0} programming language for Ethereum'.format(viper.__version__))
 parser.add_argument('input_file', help='Viper sourcecode to compile')
