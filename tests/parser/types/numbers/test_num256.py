@@ -62,15 +62,47 @@ def _num256_le(x: num256, y: num256) -> bool:
 
     print("Passed num256 operation tests")
 
-def test_num256_with_exponents():
+
+def test_num256_mod(assert_tx_failed):
+    num256_code = """
+def _num256_mod(x: num256, y: num256) -> num256:
+    return num256_mod(x, y)
+
+def _num256_addmod(x: num256, y: num256, z: num256) -> num256:
+    return num256_addmod(x, y, z)
+
+def _num256_mulmod(x: num256, y: num256, z: num256) -> num256:
+    return num256_mulmod(x, y, z)
+    """
+
+    c = get_contract(num256_code)
+    t.s = s
+
+    assert c._num256_mod(3, 2) == 1
+    assert c._num256_mod(34, 32) == 2
+    assert c._num256_addmod(1, 2, 2) == 1
+    assert c._num256_addmod(32, 2, 32) == 2
+    assert c._num256_addmod((2**256) - 1, 0, 2) == 1
+    assert_tx_failed(t, lambda: c._num256_addmod((2**256) - 1, 1, 1))
+    assert c._num256_mulmod(3, 1, 2) == 1
+    assert c._num256_mulmod(200, 3, 601) == 600
+    assert c._num256_mulmod(2**255, 1, 3) == 2
+    assert_tx_failed(t, lambda: c._num256_mulmod(2**255, 2, 1))
+
+
+def test_num256_with_exponents(assert_tx_failed):
     exp_code = """
 def _num256_exp(x: num256, y: num256) -> num256:
         return num256_exp(x,y)
     """
 
     c = get_contract(exp_code)
+    t.s = s
+
+    assert c._num256_exp(2, 0) == 1
+    assert c._num256_exp(2, 1) == 2
     assert c._num256_exp(2, 3) == 8
-    assert c._num256_exp(2**128, 2) == 0
+    assert_tx_failed(t, lambda: c._num256_exp(2**128, 2))
     assert c._num256_exp(2**64, 2) == 2**128
     assert c._num256_exp(7**23, 3) == 7**69
 
