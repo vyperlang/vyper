@@ -199,6 +199,34 @@ def __init__(arg1: address):
     print('Successfully executed a multiple external contract calls')
 
 
+def test_invalid_external_contract_call_to_the_same_contract(assert_tx_failed):
+    contract_1 = """
+def bar() -> num:
+    return 1
+    """
+    contract_2 = """
+class Bar():
+    def bar() -> num: pass
+
+def bar() -> num:
+    return 1
+
+def _stmt(x: address):
+    Bar(x).bar()
+
+def _expr(x: address) -> num:
+    return Bar(x).bar()
+    """
+    t.s = t.Chain()
+
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
+    c2._stmt(c1.address)
+    c2._expr(c1.address)
+    assert_tx_failed(t, lambda: c2._stmt(c2.address))
+    assert_tx_failed(t, lambda: c2._expr(c2.address))
+
+
 def test_invalid_contract_reference_declaration(assert_tx_failed):
     contract = """
 class Bar():

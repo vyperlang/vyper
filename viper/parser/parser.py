@@ -460,7 +460,9 @@ def external_contract_call_stmt(stmt, context):
     sig = context.sigs[contract_name][method_name]
     contract_address = parse_expr(stmt.func.value.args[0], context)
     inargs, inargsize = pack_arguments(sig, [parse_expr(arg, context) for arg in stmt.args], context)
-    o = LLLnode.from_list(['assert', ['call', ['gas'], ['mload', contract_address], 0, inargs, inargsize, 0, 0]],
+    o = LLLnode.from_list(['seq',
+                            ['assert', ['ne', 'address', ['mload', contract_address]]],
+                            ['assert', ['call', ['gas'], ['mload', contract_address], 0, inargs, inargsize, 0, 0]]],
                                     typ=None, location='memory', pos=getpos(stmt))
     return o
 
@@ -484,6 +486,7 @@ def external_contract_call_expr(expr, context):
     else:
         raise TypeMismatchException("Invalid output type: %r" % sig.output_type, expr)
     o = LLLnode.from_list(['seq',
+                            ['assert', ['ne', 'address', ['mload', contract_address]]],
                             ['assert', ['call', ['gas'], ['mload', contract_address], 0,
                             inargs, inargsize,
                             output_placeholder, get_size_of_type(sig.output_type) * 32]],
