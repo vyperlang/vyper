@@ -9,7 +9,7 @@ from socketserver import ThreadingMixIn
 
 import viper
 
-from viper.parser import parse_to_lll
+from viper.parser.parser import parse_to_lll
 from viper import compiler, optimizer
 
 
