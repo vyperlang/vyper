@@ -5,7 +5,12 @@
 # https://github.com/ethereum/EIPs/blob/master/EIPS/eip-20-token-standard.md
 
 
-# Variables of the token
+# Events of the token.
+Transfer: __log__({_from: indexed(address), _to: indexed(address), _value: indexed(num256)})
+Approval: __log__({_owner: indexed(address), _spender: indexed(address), _value: indexed(num256)})
+
+
+# Variables of the token.
 name: bytes32
 symbol: bytes32
 totalSupply: num
@@ -51,6 +56,7 @@ def transfer(_to: address, _amount: num(num256)) -> bool:
 
         self.balances[msg.sender] -= _amount  # Subtract from the sender
         self.balances[_to] += _amount  # Add the same to the recipient
+        log.Transfer(msg.sender, _to, as_num256(_amount))  # log transfer event.
 
         return True
     else:
@@ -66,6 +72,7 @@ def transferFrom(_from: address, _to: address, _value: num(num256)) -> bool:
         self.balances[_from] -= _value  # decrease balance of from address.
         self.allowed[_from][msg.sender] -= _value  # decrease allowance.
         self.balances[_to] += _value  # incease balance of to address.
+        log.Transfer(_from, _to, as_num256(_value))  # log transfer event.
 
         return True
     else:
@@ -77,6 +84,8 @@ def transferFrom(_from: address, _to: address, _value: num(num256)) -> bool:
 def approve(_spender: address, _amount: num(num256)) -> bool:
 
     self.allowed[msg.sender][_spender] = _amount
+    log.Approval(msg.sender, _spender, as_num256(_amount))
+
     return True
 
 
