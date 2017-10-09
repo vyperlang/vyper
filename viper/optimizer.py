@@ -1,4 +1,4 @@
-from .parser_utils import LLLnode
+from viper.parser.parser_utils import LLLnode
 from .utils import (
     ADDRSIZE_POS,
     DECIMAL_DIVISOR,

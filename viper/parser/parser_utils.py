@@ -1,8 +1,8 @@
 import re
 
-from .exceptions import TypeMismatchException
-from .opcodes import comb_opcodes
-from .types import (
+from viper.exceptions import TypeMismatchException
+from viper.opcodes import comb_opcodes
+from viper.types import (
     BaseType,
     ByteArrayType,
     NodeType,
@@ -12,18 +12,18 @@ from .types import (
     TupleType,
     ListType,
 )
-from .types import (
+from viper.types import (
     is_base_type,
     are_units_compatible,
     get_size_of_type
 )
-from .utils import (
+from viper.utils import (
     MAXNUM_POS,
     MINNUM_POS,
     FREE_LOOP_INDEX,
     DECIMAL_DIVISOR,
 )
-from .utils import ceil32
+from viper.utils import ceil32
 
 
 class NullAttractor():

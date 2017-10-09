@@ -1,4 +1,4 @@
-from .parser import LLLnode
+from viper.parser.parser import LLLnode
 from .opcodes import opcodes
 from .utils import FREE_VAR_SPACE
 

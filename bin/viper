@@ -3,6 +3,7 @@ import argparse
 import json
 
 import viper
+
 from viper import compiler, optimizer
 from viper.parser import parse_to_lll
 
@@ -13,6 +14,7 @@ parser.add_argument('-f', help='Format to print', choices=['abi', 'json', 'bytec
 args = parser.parse_args()
 
 if __name__ == '__main__':
+
     with open(args.input_file) as fh:
         code = fh.read()
         if args.format == 'abi':

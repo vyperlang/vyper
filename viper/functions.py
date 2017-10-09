@@ -6,7 +6,7 @@ from .exceptions import (
     StructureException,
     TypeMismatchException,
 )
-from .parser_utils import (
+from viper.parser.parser_utils import (
     byte_array_to_num,
     LLLnode,
     get_length,
@@ -52,7 +52,7 @@ class Optional(object):
 
 
 def process_arg(index, arg, expected_arg_typelist, function_name, context):
-    from .parser import parse_expr, parse_value_expr
+    from viper.parser.parser import parse_expr, parse_value_expr
     if isinstance(expected_arg_typelist, Optional):
         expected_arg_typelist = expected_arg_typelist.typ
     if not isinstance(expected_arg_typelist, tuple):
@@ -239,7 +239,7 @@ def _len(expr, args, kwargs, context):
 
 
 def concat(expr, context):
-    from .parser import parse_expr, unwrap_location
+    from viper.parser.parser import parse_expr, unwrap_location
     args = [parse_expr(arg, context) for arg in expr.args]
     if len(args) < 2:
         raise StructureException("Concat expects at least two arguments", expr)
@@ -615,7 +615,7 @@ def _RLPlist(expr, args, kwargs, context):
 
 @signature('*', 'bytes')
 def raw_log(expr, args, kwargs, context):
-    from .parser import parse_value_expr
+    from viper.parser.parser import parse_value_expr
     if not isinstance(args[0], ast.List) or len(args[0].elts) > 4:
         raise StructureException("Expecting a list of 0-4 topics as first argument", args[0])
     topics = []
