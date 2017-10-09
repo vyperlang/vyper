@@ -19,13 +19,13 @@ balances: num[address]
 allowed: num[address][address]
 
 
-def __init__(_name: bytes32, _symbol: bytes32, _decimals: num, initialSupply: num):
+def __init__(_name: bytes32, _symbol: bytes32, _decimals: num, _initialSupply: num):
 
     self.name = _name
     self.symbol = _symbol
     self.decimals = _decimals
-    self.totalSupply = initialSupply
-    self.balances[msg.sender] = initialSupply
+    self.totalSupply = _initialSupply * 10 ** _decimals
+    self.balances[msg.sender] = self.totalSupply
 
 
 @constant
