@@ -6,8 +6,8 @@
 
 
 # Events of the token.
-Transfer: __log__({_from: indexed(address), _to: indexed(address), _value: indexed(num256)})
-Approval: __log__({_owner: indexed(address), _spender: indexed(address), _value: indexed(num256)})
+Transfer: __log__({_from: indexed(address), _to: indexed(address), _value: num256})
+Approval: __log__({_owner: indexed(address), _spender: indexed(address), _value: num256})
 
 
 # Variables of the token.
