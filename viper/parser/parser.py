@@ -460,7 +460,10 @@ def external_contract_call_stmt(stmt, context):
     sig = context.sigs[contract_name][method_name]
     contract_address = parse_expr(stmt.func.value.args[0], context)
     inargs, inargsize = pack_arguments(sig, [parse_expr(arg, context) for arg in stmt.args], context)
-    o = LLLnode.from_list(['assert', ['call', ['gas'], ['mload', contract_address], 0, inargs, inargsize, 0, 0]],
+    o = LLLnode.from_list(['seq',
+                            ['assert', ['extcodesize', ['mload', contract_address]]],
+                            ['assert', ['ne', 'address', ['mload', contract_address]]],
+                            ['assert', ['call', ['gas'], ['mload', contract_address], 0, inargs, inargsize, 0, 0]]],
                                     typ=None, location='memory', pos=getpos(stmt))
     return o
 
@@ -484,6 +487,8 @@ def external_contract_call_expr(expr, context):
     else:
         raise TypeMismatchException("Invalid output type: %r" % sig.output_type, expr)
     o = LLLnode.from_list(['seq',
+                            ['assert', ['extcodesize', ['mload', contract_address]]],
+                            ['assert', ['ne', 'address', ['mload', contract_address]]],
                             ['assert', ['call', ['gas'], ['mload', contract_address], 0,
                             inargs, inargsize,
                             output_placeholder, get_size_of_type(sig.output_type) * 32]],
@@ -567,11 +572,15 @@ def parse_expr(expr, context):
                 raise TypeMismatchException("Type mismatch: balance keyword expects an address as input", expr)
             return LLLnode.from_list(['balance', addr], typ=BaseType('num', {'wei': 1}), location=None, pos=getpos(expr))
         # x.codesize: codesize of address x
-        elif expr.attr == 'codesize':
+        elif expr.attr == 'codesize' or expr.attr == 'is_contract':
             addr = parse_value_expr(expr.value, context)
             if not is_base_type(addr.typ, 'address'):
-                raise TypeMismatchException("Type mismatch: codesize keyword expects an address as input", expr)
-            return LLLnode.from_list(['extcodesize', addr], typ=BaseType('num'), location=None, pos=getpos(expr))
+                raise TypeMismatchException(f"Type mismatch: {expr.attr} keyword expects an address as input", expr)
+            if expr.attr == 'codesize':
+                output_type = 'num'
+            else:
+                output_type = 'bool'
+            return LLLnode.from_list(['extcodesize', addr], typ=BaseType(output_type), location=None, pos=getpos(expr))
         # self.x: global attribute
         elif isinstance(expr.value, ast.Name) and expr.value.id == "self":
             if expr.attr not in context.globals:
