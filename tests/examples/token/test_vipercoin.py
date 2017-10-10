@@ -8,7 +8,8 @@ from ethereum.tools import tester
 TOKEN_NAME = "Vipercoin"
 TOKEN_SYMBOL = "FANG"
 TOKEN_DECIMALS = 18
-TOKEN_INITIAL_SUPPLY = 21 * 10 ** 6
+TOKEN_INITIAL_SUPPLY = (21 * 10 ** 6)
+TOKEN_TOTAL_SUPPLY = TOKEN_INITIAL_SUPPLY * (10 ** TOKEN_DECIMALS)
 
 
 @pytest.fixture
@@ -37,7 +38,7 @@ def assert_tx_failed():
 
 
 def test_initial_state(token_tester):
-    assert token_tester.c.totalSupply() == TOKEN_INITIAL_SUPPLY == token_tester.c.balanceOf(token_tester.accounts[0])
+    assert token_tester.c.totalSupply() == TOKEN_TOTAL_SUPPLY == token_tester.c.balanceOf(token_tester.accounts[0])
     assert token_tester.c.balanceOf(token_tester.accounts[1]) == 0
 
 
@@ -46,12 +47,12 @@ def test_transfer(token_tester, assert_tx_failed):
     # Basic transfer.
     assert token_tester.c.transfer(token_tester.accounts[1], 1) is True
     assert token_tester.c.balanceOf(token_tester.accounts[1]) == 1
-    assert token_tester.c.balanceOf(token_tester.accounts[0]) == TOKEN_INITIAL_SUPPLY - 1
+    assert token_tester.c.balanceOf(token_tester.accounts[0]) == TOKEN_TOTAL_SUPPLY - 1
 
     # Some edge cases:
 
     # more than allowed
-    assert token_tester.c.transfer(token_tester.accounts[1], TOKEN_INITIAL_SUPPLY) is False
+    assert token_tester.c.transfer(token_tester.accounts[1], TOKEN_TOTAL_SUPPLY) is False
 
     # Negative transfer value.
     assert_tx_failed(
@@ -81,7 +82,7 @@ def test_transferFrom(token_tester, assert_tx_failed):
     assert contract.allowance(a0, a1) == ALLOWANCE
 
     assert contract.transferFrom(a0, a2, 3, sender=k1) is True  # a1 may transfer.
-    assert contract.balanceOf(a0) == TOKEN_INITIAL_SUPPLY - 3
+    assert contract.balanceOf(a0) == TOKEN_TOTAL_SUPPLY - 3
     assert contract.balanceOf(a1) == 0
     assert contract.balanceOf(a2) == 3
     assert contract.allowance(a0, a1) == ALLOWANCE - 3
@@ -98,7 +99,7 @@ def test_transferFrom(token_tester, assert_tx_failed):
 
     # Transfer more than allowance:
     assert contract.transferFrom(a0, a2, 8, sender=k1) is False
-    assert contract.balanceOf(a0) == TOKEN_INITIAL_SUPPLY - 3
+    assert contract.balanceOf(a0) == TOKEN_TOTAL_SUPPLY - 3
     assert contract.balanceOf(a1) == 0
     assert contract.balanceOf(a2) == 3
     assert contract.allowance(a0, a1) == ALLOWANCE - 3
@@ -106,7 +107,7 @@ def test_transferFrom(token_tester, assert_tx_failed):
     # Transfer exact amount left in allowance:
     allowance_left = contract.allowance(a0, a1)
     assert contract.transferFrom(a0, a2, allowance_left, sender=k1) is True
-    assert contract.balanceOf(a0) == TOKEN_INITIAL_SUPPLY - ALLOWANCE
+    assert contract.balanceOf(a0) == TOKEN_TOTAL_SUPPLY - ALLOWANCE
     assert contract.balanceOf(a1) == 0
     assert contract.balanceOf(a2) == ALLOWANCE
     assert contract.allowance(a0, a1) == 0
