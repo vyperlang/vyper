@@ -30,13 +30,10 @@ from .types import (
     is_base_type,
     get_size_of_type,
 )
-from .utils import (
-    ADDRSIZE_POS,
+from viper.utils import (
+    MemoryPositions,
     DECIMAL_DIVISOR,
-    FREE_VAR_SPACE,
-    MAXNUM_POS,
-    MINNUM_POS,
-    RLP_DECODER_ADDRESS,
+    RLP_DECODER_ADDRESS
 )
 from .utils import (
     bytes_to_int,
@@ -174,7 +171,7 @@ def as_unitless_number(expr, args, kwargs, context):
 @signature(('num', 'bytes32', 'num256', 'address'))
 def as_num128(expr, args, kwargs, context):
     return LLLnode.from_list(
-        ['clamp', ['mload', MINNUM_POS], args[0], ['mload', MAXNUM_POS]], typ=BaseType("num"), pos=getpos(expr)
+        ['clamp', ['mload', MemoryPositions.MINNUM], args[0], ['mload', MemoryPositions.MAXNUM]], typ=BaseType("num"), pos=getpos(expr)
     )
 
 
@@ -306,7 +303,7 @@ def _sha3(expr, args, kwargs, context):
     # Can hash bytes32 objects
     if is_base_type(sub.typ, 'bytes32'):
         return LLLnode.from_list(
-            ['seq', ['mstore', FREE_VAR_SPACE, sub], ['sha3', FREE_VAR_SPACE, 32]], typ=BaseType('bytes32'),
+            ['seq', ['mstore', MemoryPositions.FREE_VAR_SPACE, sub], ['sha3', MemoryPositions.FREE_VAR_SPACE, 32]], typ=BaseType('bytes32'),
             pos=getpos(expr)
         )
     # Copy the data to an in-memory array
@@ -345,8 +342,8 @@ def ecrecover(expr, args, kwargs, context):
                               ['mstore', ['add', placeholder_node, 32], args[1]],
                               ['mstore', ['add', placeholder_node, 64], args[2]],
                               ['mstore', ['add', placeholder_node, 96], args[3]],
-                              ['pop', ['call', 3000, 1, 0, placeholder_node, 128, FREE_VAR_SPACE, 32]],
-                              ['mload', FREE_VAR_SPACE]], typ=BaseType('address'), pos=getpos(expr))
+                              ['pop', ['call', 3000, 1, 0, placeholder_node, 128, MemoryPositions.FREE_VAR_SPACE, 32]],
+                              ['mload', MemoryPositions.FREE_VAR_SPACE]], typ=BaseType('address'), pos=getpos(expr))
 
 
 def avo(arg, ind):
@@ -425,9 +422,9 @@ def extract32(expr, args, kwargs, context):
                   elementgetter('_di32')]]]]]],
         typ=BaseType(ret_type), pos=getpos(expr), annotation='extracting 32 bytes')
     if ret_type == 'num128':
-        return LLLnode.from_list(['clamp', ['mload', MINNUM_POS], o, ['mload', MAXNUM_POS]], typ=BaseType("num"), pos=getpos(expr))
+        return LLLnode.from_list(['clamp', ['mload', MemoryPositions.MINNUM], o, ['mload', MemoryPositions.MAXNUM]], typ=BaseType("num"), pos=getpos(expr))
     elif ret_type == 'address':
-        return LLLnode.from_list(['uclamplt', o, ['mload', ADDRSIZE_POS]], typ=BaseType(ret_type), pos=getpos(expr))
+        return LLLnode.from_list(['uclamplt', o, ['mload', MemoryPositions.ADDRSIZE]], typ=BaseType(ret_type), pos=getpos(expr))
     else:
         return o
 
@@ -559,7 +556,7 @@ def _RLPlist(expr, args, kwargs, context):
                     ['assert', ['eq', ['mload', ['add', output_node, ['mload', ['add', output_node, 32 * i]]]], 20]],
                     ['mod',
                          ['mload', ['add', 20, ['add', output_node, ['mload', ['add', output_node, 32 * i]]]]],
-                         ['mload', ADDRSIZE_POS]]],
+                         ['mload', MemoryPositions.ADDRSIZE]]],
             typ, annotation='getting and checking address item'))
         # Decoder for bytes
         elif isinstance(typ, ByteArrayType):

@@ -1,4 +1,5 @@
 import binascii
+
 from collections import OrderedDict
 
 from .opcodes import opcodes

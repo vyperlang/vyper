@@ -51,12 +51,8 @@ from viper.types import (
 )
 from viper.utils import (
     DECIMAL_DIVISOR,
-    RESERVED_MEMORY,
-    ADDRSIZE_POS,
-    MAXNUM_POS,
-    MINNUM_POS,
-    MAXDECIMAL_POS,
-    MINDECIMAL_POS,
+    MemoryPositions,
+    LOADED_LIMIT_MAP
 )
 from viper.utils import (
     bytes_to_int,
@@ -225,14 +221,9 @@ def get_contracts_and_defs_and_globals(code):
 
 
 # Header code
-initializer_lll = LLLnode.from_list(['seq',
-                                        ['mstore', 28, ['calldataload', 0]],
-                                        ['mstore', ADDRSIZE_POS, 2**160],
-                                        ['mstore', MAXNUM_POS, 2**127 - 1],
-                                        ['mstore', MINNUM_POS, -2**127],
-                                        ['mstore', MAXDECIMAL_POS, (2**127 - 1) * DECIMAL_DIVISOR],
-                                        ['mstore', MINDECIMAL_POS, (-2**127) * DECIMAL_DIVISOR],
-                                    ], typ=None)
+initialiser_list = ['seq', ['mstore', 28, ['calldataload', 0]]]
+initialiser_list += [['mstore', pos, limit_size] for pos, limit_size in LOADED_LIMIT_MAP.items()]
+initializer_lll = LLLnode.from_list(initialiser_list, typ=None)
 
 
 # Contains arguments, variables, etc
@@ -240,7 +231,7 @@ class Context():
     def __init__(self, vars=None, globals=None, sigs=None, forvars=None, return_type=None, is_constant=False, is_payable=False, origcode=''):
         # In-memory variables, in the form (name, memory location, type)
         self.vars = vars or {}
-        self.next_mem = RESERVED_MEMORY
+        self.next_mem = MemoryPositions.RESERVED_MEMORY
         # Global variables, in the form (name, storage location, type)
         self.globals = globals or {}
         # ABI objects, in the form {classname: ABI JSON}
@@ -361,14 +352,14 @@ def make_clamper(datapos, mempos, typ, is_init=False):
         copier = lambda pos, sz: ['codecopy', mempos, ['add', '~codelen', pos], sz]
     # Numbers: make sure they're in range
     if is_base_type(typ, 'num'):
-        return LLLnode.from_list(['clamp', ['mload', MINNUM_POS], data_decl, ['mload', MAXNUM_POS]],
+        return LLLnode.from_list(['clamp', ['mload', MemoryPositions.MINNUM], data_decl, ['mload', MemoryPositions.MAXNUM]],
                                  typ=typ, annotation='checking num input')
     # Booleans: make sure they're zero or one
     elif is_base_type(typ, 'bool'):
         return LLLnode.from_list(['uclamplt', data_decl, 2], typ=typ, annotation='checking bool input')
     # Addresses: make sure they're in range
     elif is_base_type(typ, 'address'):
-        return LLLnode.from_list(['uclamplt', data_decl, ['mload', ADDRSIZE_POS]], typ=typ, annotation='checking address input')
+        return LLLnode.from_list(['uclamplt', data_decl, ['mload', MemoryPositions.ADDRSIZE]], typ=typ, annotation='checking address input')
     # Bytes: make sure they have the right size
     elif isinstance(typ, ByteArrayType):
         return LLLnode.from_list(['seq',
@@ -406,9 +397,9 @@ def parse_func(code, _globals, sigs, origcode, _vars=None):
     if not len(sig.args):
         copier = 'pass'
     elif sig.name == '__init__':
-        copier = ['codecopy', RESERVED_MEMORY, '~codelen', copy_size]
+        copier = ['codecopy', MemoryPositions.RESERVED_MEMORY, '~codelen', copy_size]
     else:
-        copier = ['calldatacopy', RESERVED_MEMORY, 4, copy_size]
+        copier = ['calldatacopy', MemoryPositions.RESERVED_MEMORY, 4, copy_size]
     clampers = [copier]
     # Add asserts for payable and internal
     if not sig.payable:
@@ -422,7 +413,7 @@ def parse_func(code, _globals, sigs, origcode, _vars=None):
             context.vars[arg.name] = VariableRecord(arg.name, context.next_mem, arg.typ, False)
             context.next_mem += 32 * get_size_of_type(arg.typ)
         else:
-            context.vars[arg.name] = VariableRecord(arg.name, RESERVED_MEMORY + arg.pos, arg.typ, False)
+            context.vars[arg.name] = VariableRecord(arg.name, MemoryPositions.RESERVED_MEMORY + arg.pos, arg.typ, False)
     # Create "clampers" (input well-formedness checkers)
     # Return function body
     if sig.name == '__init__':
@@ -715,9 +706,9 @@ def parse_expr(expr, context):
         else:
             raise Exception("Unsupported binop: %r" % expr.op)
         if o.typ.typ == 'num':
-            return LLLnode.from_list(['clamp', ['mload', MINNUM_POS], o, ['mload', MAXNUM_POS]], typ=o.typ, pos=getpos(expr))
+            return LLLnode.from_list(['clamp', ['mload', MemoryPositions.MINNUM], o, ['mload', MemoryPositions.MAXNUM]], typ=o.typ, pos=getpos(expr))
         elif o.typ.typ == 'decimal':
-            return LLLnode.from_list(['clamp', ['mload', MINDECIMAL_POS], o, ['mload', MAXDECIMAL_POS]], typ=o.typ, pos=getpos(expr))
+            return LLLnode.from_list(['clamp', ['mload', MemoryPositions.MINDECIMAL], o, ['mload', MemoryPositions.MAXDECIMAL]], typ=o.typ, pos=getpos(expr))
         else:
             raise Exception("%r %r" % (o, o.typ))
     # Comparison operations
