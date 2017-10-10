@@ -169,6 +169,10 @@ def add_contract(code):
             raise StructureException("Invalid contract reference", item)
     return _defs
 
+erc20_code = """
+class ERC20():
+    def transfer(_to: address, _amount: num256): pass
+"""
 
 def add_globals_and_events(_defs, _events, _getters, _globals, item):
     if item.value is not None:
@@ -189,6 +193,18 @@ def add_globals_and_events(_defs, _events, _getters, _globals, item):
         raise StructureException("Global variables must all come before function definitions", item)
     # If the type declaration is of the form public(<type here>), then proceed with
     # the underlying type but also add getters
+    elif isinstance(item.annotation, ast.Call) and item.annotation.func.id == "address":
+        premade_contracts = {
+            "ERC20": ast.parse(erc20_code).body[0],
+        }
+        if len(item.annotation.args) != 1:
+            raise StructureException("Address expects one arg (the type)")
+        if item.annotation.args[0].id not in premade_contracts:
+            raise VariableDeclarationException("Unsupported premade contract declaration", item.annotation.args[0])
+        
+        premade_contract = premade_contracts[item.annotation.args[0].id]
+        _contracts[item.target.id] = add_contract(premade_contract.body)
+        _globals[item.target.id] = VariableRecord(item.target.id, len(_globals), BaseType('address'), True)
     elif isinstance(item.annotation, ast.Call) and item.annotation.func.id == "public":
         if len(item.annotation.args) != 1:
             raise StructureException("Public expects one arg (the type)")
@@ -200,7 +216,7 @@ def add_globals_and_events(_defs, _events, _getters, _globals, item):
             _getters[-1].pos = getpos(item)
     else:
         _globals[item.target.id] = VariableRecord(item.target.id, len(_globals), parse_type(item.annotation, 'storage'), True)
-    return _events, _globals, _getters
+    return _contracts, _events, _globals, _getters
 
 
 # Parse top-level functions and variables
@@ -219,7 +235,7 @@ def get_contracts_and_defs_and_globals(code):
         # Statements of the form:
         # variable_name: type
         elif isinstance(item, ast.AnnAssign):
-            _events, _globals, _getters = add_globals_and_events(_defs, _events, _getters, _globals, item)
+            _contracts, _events, _globals, _getters = add_globals_and_events(_contracts, _defs, _events, _getters, _globals, item)
         # Function definitions
         elif isinstance(item, ast.FunctionDef):
             _defs.append(item)
@@ -470,8 +486,12 @@ def parse_body(code, context):
     return LLLnode.from_list(['seq'] + o, pos=getpos(code[0]) if code else None)
 
 
-def external_contract_call_stmt(stmt, context):
-    contract_name = stmt.func.value.func.id
+def declared_external_contract_call_stmt(stmt, context):
+    contract_name = stmt.func.value.attr
+
+
+
+def external_contract_call_stmt(stmt, context, contract_name, contract_address):
     if contract_name not in context.sigs:
         raise VariableDeclarationException("Contract not declared yet: %s" % contract_name)
     method_name = stmt.func.attr
@@ -479,7 +499,6 @@ def external_contract_call_stmt(stmt, context):
         raise VariableDeclarationException("Function not declared yet: %s (reminder: "
                                                     "function must be declared in the correct contract)" % method_name)
     sig = context.sigs[contract_name][method_name]
-    contract_address = parse_expr(stmt.func.value.args[0], context)
     inargs, inargsize = pack_arguments(sig, [parse_expr(arg, context) for arg in stmt.args], context)
     sub = ['seq', ['assert', ['extcodesize', ['mload', contract_address]]],
                     ['assert', ['ne', 'address', ['mload', contract_address]]]]
