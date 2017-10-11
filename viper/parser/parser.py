@@ -13,6 +13,15 @@ from viper.function_signature import (
 from viper.signatures.event_signature import (
     EventSignature
 )
+<<<<<<< HEAD
+=======
+from viper.premade_contracts import (
+    premade_contracts
+)
+from viper.functions import (
+    dispatch_table,
+)
+>>>>>>> Add implied erc20 token abi fucntionality
 from .stmt import Stmt
 from .expr import Expr
 from .parser_utils import LLLnode
@@ -169,10 +178,7 @@ def add_contract(code):
             raise StructureException("Invalid contract reference", item)
     return _defs
 
-erc20_code = """
-class ERC20():
-    def transfer(_to: address, _amount: num256): pass
-"""
+
 
 def add_globals_and_events(_defs, _events, _getters, _globals, item):
     if item.value is not None:
@@ -194,9 +200,6 @@ def add_globals_and_events(_defs, _events, _getters, _globals, item):
     # If the type declaration is of the form public(<type here>), then proceed with
     # the underlying type but also add getters
     elif isinstance(item.annotation, ast.Call) and item.annotation.func.id == "address":
-        premade_contracts = {
-            "ERC20": ast.parse(erc20_code).body[0],
-        }
         if len(item.annotation.args) != 1:
             raise StructureException("Address expects one arg (the type)")
         if item.annotation.args[0].id not in premade_contracts:
@@ -510,8 +513,7 @@ def external_contract_call_stmt(stmt, context, contract_name, contract_address):
     return o
 
 
-def external_contract_call_expr(expr, context):
-    contract_name = expr.func.value.func.id
+def external_contract_call_expr(expr, context, contract_name, contract_address):
     if contract_name not in context.sigs:
         raise VariableDeclarationException("Contract not declared yet: %s" % contract_name)
     method_name = expr.func.attr
@@ -519,7 +521,6 @@ def external_contract_call_expr(expr, context):
         raise VariableDeclarationException("Function not declared yet: %s (reminder: "
                                                     "function must be declared in the correct contract)" % method_name)
     sig = context.sigs[contract_name][method_name]
-    contract_address = parse_expr(expr.func.value.args[0], context)
     inargs, inargsize = pack_arguments(sig, [parse_expr(arg, context) for arg in expr.args], context)
     output_placeholder = context.new_placeholder(typ=sig.output_type)
     if isinstance(sig.output_type, BaseType):
