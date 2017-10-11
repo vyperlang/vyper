@@ -4,6 +4,8 @@ from ethereum import utils
 from ethereum.abi import ValueOutOfBounds
 from ethereum.tools import tester
 
+from tests.setup_transaction_tests import assert_tx_failed
+
 
 TOKEN_NAME = "Vipercoin"
 TOKEN_SYMBOL = "FANG"
@@ -18,7 +20,7 @@ def token_tester():
     tester.s = t.Chain()
     from viper import compiler
     t.languages['viper'] = compiler.Compiler()
-    contract_code = open('examples/token/vipercoin.v.py').read()
+    contract_code = open('examples/tokens/vipercoin.v.py').read()
     tester.c = tester.s.contract(
         contract_code,
         language='viper',
@@ -27,19 +29,17 @@ def token_tester():
     return tester
 
 
-@pytest.fixture
-def assert_tx_failed():
-    def assert_tx_failed(tester, function_to_test, exception=tester.TransactionFailed):
-        initial_state = tester.s.snapshot()
-        with pytest.raises(exception):
-            function_to_test()
-        tester.s.revert(initial_state)
-    return assert_tx_failed
+def pad_bytes32(instr):
+    """ Pad a string \x00 bytes to return correct bytes32 representation. """
+    bstr = instr.encode()
+    return bstr + (32 - len(bstr)) * b'\x00'
 
 
 def test_initial_state(token_tester):
     assert token_tester.c.totalSupply() == TOKEN_TOTAL_SUPPLY == token_tester.c.balanceOf(token_tester.accounts[0])
     assert token_tester.c.balanceOf(token_tester.accounts[1]) == 0
+    assert token_tester.c.symbol() == pad_bytes32(TOKEN_SYMBOL)
+    assert token_tester.c.name() == pad_bytes32(TOKEN_NAME)
 
 
 def test_transfer(token_tester, assert_tx_failed):
@@ -78,7 +78,7 @@ def test_transferFrom(token_tester, assert_tx_failed):
 
     # Allow 10 token transfers. Account a1 is allowed to spend 10 tokens of a0's account.
     ALLOWANCE = 10
-    assert contract.approve(a1, 10) is True
+    assert contract.approve(a1, ALLOWANCE) is True
     assert contract.allowance(a0, a1) == ALLOWANCE
 
     assert contract.transferFrom(a0, a2, 3, sender=k1) is True  # a1 may transfer.

@@ -34,6 +34,12 @@ def symbol() -> bytes32:
     return self.symbol
 
 
+def name() -> bytes32:
+
+    return self.name
+
+
+
 # What is the balance of a particular account?
 @constant
 def balanceOf(_owner: address) -> num256:
@@ -81,6 +87,13 @@ def transferFrom(_from: address, _to: address, _value: num(num256)) -> bool:
 
 # Allow _spender to withdraw from your account, multiple times, up to the _value amount.
 # If this function is called again it overwrites the current allowance with _value.
+#
+# NOTE: To prevent attack vectors like the one described here and discussed here,
+#       clients SHOULD make sure to create user interfaces in such a way that they
+#       set the allowance first to 0 before setting it to another value for the
+#       same spender. THOUGH The contract itself shouldn't enforce it, to allow
+#       backwards compatilibilty with contracts deployed before.
+#
 def approve(_spender: address, _amount: num(num256)) -> bool:
 
     self.allowed[msg.sender][_spender] = _amount
