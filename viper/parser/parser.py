@@ -13,15 +13,12 @@ from viper.function_signature import (
 from viper.signatures.event_signature import (
     EventSignature
 )
-<<<<<<< HEAD
-=======
 from viper.premade_contracts import (
     premade_contracts
 )
 from viper.functions import (
     dispatch_table,
 )
->>>>>>> Add implied erc20 token abi fucntionality
 from .stmt import Stmt
 from .expr import Expr
 from .parser_utils import LLLnode
@@ -204,7 +201,6 @@ def add_globals_and_events(_defs, _events, _getters, _globals, item):
             raise StructureException("Address expects one arg (the type)")
         if item.annotation.args[0].id not in premade_contracts:
             raise VariableDeclarationException("Unsupported premade contract declaration", item.annotation.args[0])
-        
         premade_contract = premade_contracts[item.annotation.args[0].id]
         _contracts[item.target.id] = add_contract(premade_contract.body)
         _globals[item.target.id] = VariableRecord(item.target.id, len(_globals), BaseType('address'), True)
@@ -487,11 +483,6 @@ def parse_body(code, context):
     for stmt in code:
         o.append(parse_stmt(stmt, context))
     return LLLnode.from_list(['seq'] + o, pos=getpos(code[0]) if code else None)
-
-
-def declared_external_contract_call_stmt(stmt, context):
-    contract_name = stmt.func.value.attr
-
 
 
 def external_contract_call_stmt(stmt, context, contract_name, contract_address):
