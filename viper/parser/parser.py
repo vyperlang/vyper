@@ -221,9 +221,10 @@ def get_contracts_and_defs_and_globals(code):
 
 
 # Header code
-initialiser_list = ['seq', ['mstore', 28, ['calldataload', 0]]]
-initialiser_list += [['mstore', pos, limit_size] for pos, limit_size in LOADED_LIMIT_MAP.items()]
-initializer_lll = LLLnode.from_list(initialiser_list, typ=None)
+initializer_list = ['seq', ['mstore', 28, ['calldataload', 0]]]
+# Store limit constants at fixed addresses in memory.
+initializer_list += [['mstore', pos, limit_size] for pos, limit_size in LOADED_LIMIT_MAP.items()]
+initializer_lll = LLLnode.from_list(initializer_list, typ=None)
 
 
 # Contains arguments, variables, etc
