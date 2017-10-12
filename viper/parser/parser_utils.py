@@ -17,12 +17,7 @@ from viper.types import (
     are_units_compatible,
     get_size_of_type
 )
-from viper.utils import (
-    MAXNUM_POS,
-    MINNUM_POS,
-    FREE_LOOP_INDEX,
-    DECIMAL_DIVISOR,
-)
+from viper.utils import MemoryPositions, DECIMAL_DIVISOR
 from viper.utils import ceil32
 
 
@@ -273,25 +268,25 @@ def make_byte_slice_copier(destination, source, length, max_length):
     if isinstance(source.typ, NullType):
         loader = 0
     elif source.location == "memory":
-        loader = ['mload', ['add', '_pos', ['mul', 32, ['mload', FREE_LOOP_INDEX]]]]
+        loader = ['mload', ['add', '_pos', ['mul', 32, ['mload', MemoryPositions.FREE_LOOP_INDEX]]]]
     elif source.location == "storage":
-        loader = ['sload', ['add', '_pos', ['mload', FREE_LOOP_INDEX]]]
+        loader = ['sload', ['add', '_pos', ['mload', MemoryPositions.FREE_LOOP_INDEX]]]
     else:
         raise Exception("Unsupported location:" + source.location)
     # Where to paste it?
     if destination.location == "memory":
-        setter = ['mstore', ['add', '_opos', ['mul', 32, ['mload', FREE_LOOP_INDEX]]], loader]
+        setter = ['mstore', ['add', '_opos', ['mul', 32, ['mload', MemoryPositions.FREE_LOOP_INDEX]]], loader]
     elif destination.location == "storage":
-        setter = ['sstore', ['add', '_opos', ['mload', FREE_LOOP_INDEX]], loader]
+        setter = ['sstore', ['add', '_opos', ['mload', MemoryPositions.FREE_LOOP_INDEX]], loader]
     else:
         raise Exception("Unsupported location:" + destination.location)
     # Check to see if we hit the length
-    checker = ['if', ['gt', ['mul', 32, ['mload', FREE_LOOP_INDEX]], '_actual_len'], 'break']
+    checker = ['if', ['gt', ['mul', 32, ['mload', MemoryPositions.FREE_LOOP_INDEX]], '_actual_len'], 'break']
     # Make a loop to do the copying
     o = ['with', '_pos', source,
             ['with', '_opos', destination,
                 ['with', '_actual_len', length,
-                    ['repeat', FREE_LOOP_INDEX, 0, (max_length + 31) // 32,
+                    ['repeat', MemoryPositions.FREE_LOOP_INDEX, 0, (max_length + 31) // 32,
                         ['seq', checker, setter]]]]]
     return LLLnode.from_list(o, typ=None, annotation='copy byte slice')
 
@@ -306,9 +301,9 @@ def byte_array_to_num(arg, expr, out_type):
         first_el_getter = LLLnode.from_list(['sload', ['add', 1, ['sha3_32', '_sub']]], typ=BaseType('num'))
     if out_type == 'num':
         result = ['clamp',
-                     ['mload', MINNUM_POS],
+                     ['mload', MemoryPositions.MINNUM],
                      ['div', '_el1', ['exp', 256, ['sub', 32, '_len']]],
-                     ['mload', MAXNUM_POS]]
+                     ['mload', MemoryPositions.MAXNUM]]
     elif out_type == 'num256':
         result = ['div', '_el1', ['exp', 256, ['sub', 32, '_len']]]
     return LLLnode.from_list(['with', '_sub', arg,
@@ -409,7 +404,7 @@ def base_type_conversion(orig, frm, to):
     elif is_base_type(frm, 'num') and is_base_type(to, 'decimal') and are_units_compatible(frm, to):
         return LLLnode.from_list(['mul', orig, DECIMAL_DIVISOR], typ=BaseType('decimal', to.unit, to.positional))
     elif is_base_type(frm, 'num256') and is_base_type(to, 'num') and are_units_compatible(frm, to):
-        return LLLnode.from_list(['uclample', orig, ['mload', MAXNUM_POS]], typ=BaseType("num"))
+        return LLLnode.from_list(['uclample', orig, ['mload', MemoryPositions.MAXNUM]], typ=BaseType("num"))
     elif isinstance(frm, NullType):
         if to.typ not in ('num', 'bool', 'num256', 'address', 'bytes32', 'decimal'):
             raise TypeMismatchException("Cannot convert null-type object to type %r" % to)
