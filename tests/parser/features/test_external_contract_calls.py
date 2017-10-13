@@ -75,7 +75,7 @@ def get_array(arg1: address) -> bytes <= 3:
     assert c2.get_array(c.address) == b'dog'
 
 
-def test_external_contract_call__state_change():
+def test_external_contract_call_state_change():
     contract_1 = """
 lucky: public(num)
 
@@ -98,6 +98,33 @@ def set_lucky(arg1: address, arg2: num):
     assert c.get_lucky() == 0
     c2.set_lucky(c.address, lucky_number)
     assert c.get_lucky() == lucky_number
+    print('Successfully executed an external contract call state change')
+
+
+def test_constant_external_contract_call_cannot_change_state():
+    contract_1 = """
+lucky: public(num)
+
+def set_lucky(_lucky: num):
+    self.lucky = _lucky
+    """
+
+    lucky_number = 7
+    c = get_contract(contract_1)
+
+    contract_2 = """
+class Foo():
+    def set_lucky(_lucky: num) -> num: pass
+
+@constant
+def set_lucky(arg1: address, arg2: num):
+    Foo(arg1).set_lucky(arg2)
+    """
+    c2 = get_contract(contract_2)
+
+    assert c.get_lucky() == 0
+    c2.set_lucky(c.address, lucky_number)
+    assert c.get_lucky() == 0
     print('Successfully executed an external contract call state change')
 
 
