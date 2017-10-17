@@ -8,18 +8,18 @@ def prettyprint(message):
 success = True
 
 # Run first test suite (Phil Daian) on each contract
-prettyprint("Running single-head tests, Suite 1")
+prettyprint("Running Solidity-compatible ERC20 tests, Suite 1")
 from test import erc20_tests_1
 res = unittest.TextTestRunner(verbosity=2).run(unittest.TestLoader().loadTestsFromModule(erc20_tests_1))
 success &= res.wasSuccessful()
-prettyprint("Finished single-head tests, Suite 1")
+prettyprint("Finished Solidity-compatible ERC20 tests, Suite 1")
 
 # Run second test suite (Florian Tramer) on each contract
-prettyprint("Running single-head tests, Suite 2")
+prettyprint("Running Solidity-compatible ERC20 tests, Suite 2")
 from test import erc20_tests_2
 res = unittest.TextTestRunner(verbosity=2).run(unittest.TestLoader().loadTestsFromModule(erc20_tests_2))
 success &= res.wasSuccessful()
-prettyprint("Finished single-head tests, Suite 2")
+prettyprint("Finished Solidity-compatible ERC20 tests, Suite 2")
 
 if not success:
     print("FAILED : Test failures encounting, exiting with error.")

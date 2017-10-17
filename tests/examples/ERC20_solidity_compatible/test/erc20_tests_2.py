@@ -7,14 +7,8 @@ from os.path import basename
 
 from utils.pyethereum_test_utils import PyEthereumTestCase, bytes_to_int, int_to_bytes
 
-try:
-    from examples.ERC20.test.test_config import PATH_TO_CONTRACTS
-except:
-    PATH_TO_CONTRACTS = ""
-
-#from ethereum.slogging import configure_logging
-#config_string = ':trace'
-#configure_logging(config_string=config_string)
+# Base path to contracts from current directory
+PATH_TO_CONTRACTS = ""
 
 log_sigs = {
     'Transfer': bytes_to_int(utils.sha3("Transfer(address,address,uint256)")),
@@ -151,7 +145,7 @@ class TestSingleERC20(TestERC20Flo):
 
 
 test_suites = []
-for f in glob.glob(PATH_TO_CONTRACTS + "nonviper/*") + glob.glob(PATH_TO_CONTRACTS + "ERC20.v.py"):
+for f in glob.glob(PATH_TO_CONTRACTS + "nonviper/*") + glob.glob(PATH_TO_CONTRACTS + "/../../../examples/ERC20_solidity_compatible/ERC20.v.py"):
     # ugly hack: copy the class instance to set a different file path
     # replace extension with underscore so that unittest parses it correctly
     cls_name = basename(f.replace('.', '_'))
@@ -169,6 +163,4 @@ def load_tests(loader, tests, pattern):
 
 
 if __name__ == '__main__':
-    # run with `python3 -m path.to.this.test`
-    # or `python3 -m path.to.this.test [ERC20 class name]`
     unittest.main(verbosity=2)

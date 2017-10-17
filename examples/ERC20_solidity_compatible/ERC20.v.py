@@ -1,5 +1,5 @@
-# Solidity-Compatible ERC20 Token
-# Implements https://github.com/ethereum/EIPs/issues/20
+# Solidity-Compatible EIP20/ERC20 Token
+# Implements https://github.com/ethereum/EIPs/blob/master/EIPS/eip-20-token-standard.md
 # Author: Phil Daian
 
 # The use of the num256 datatype as in this token is not

@@ -12,11 +12,8 @@ from utils.pyethereum_test_utils import PyEthereumTestCase, bytes_to_int, int_to
 MAX_UINT256 = (2 ** 256) - 1  # Max num256 value
 MAX_UINT128 = (2 ** 128) - 1  # Max num128 value
 
-# Allow for running tests either in root or ERC20 dir
-try:
-    from examples.ERC20.test.test_config import PATH_TO_CONTRACTS
-except:
-    PATH_TO_CONTRACTS = "."
+# Base path to contracts from current directory
+PATH_TO_CONTRACTS = "."
 
 class TestERC20(PyEthereumTestCase):
 
@@ -338,7 +335,7 @@ class TestViperERC20(TestERC20):
 
         from viper import compiler
         cls.t.languages['viper'] = compiler.Compiler()
-        contract_code = open(PATH_TO_CONTRACTS + '/ERC20.v.py').read()
+        contract_code = open(PATH_TO_CONTRACTS + '/../../../examples/ERC20_solidity_compatible/ERC20.v.py').read()
         cls.c = cls.s.contract(contract_code, language='viper')
         # Bad version of contract where totalSupply / num_issued never gets updated after init
         # (required for full decision/branch coverage)

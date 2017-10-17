@@ -1,1 +1,0 @@
-PATH_TO_CONTRACTS = 'examples/ERC20/'

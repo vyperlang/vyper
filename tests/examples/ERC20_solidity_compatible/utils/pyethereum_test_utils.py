@@ -54,9 +54,7 @@ class PyEthereumTestCase(unittest.TestCase):
 
         from ethereum.slogging import get_logger
         log_tx = get_logger('eth.pb.tx')
-        #log_tx.setLevel("DEBUG")
         log_msg = get_logger('eth.pb.msg')
-        #log_msg.setLevel("TRACE")
 
     def tearDown(self):
         gas_used_after = self.s.head_state.gas_used
