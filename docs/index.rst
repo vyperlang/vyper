@@ -7,8 +7,7 @@
 Viper
 #####
 
-Viper is an **experimental**, contract-oriented, and high-level programming language whose syntax is similar to Python and it is
-designed to target the Etherum Virtual Machine (EVM).
+Viper is an **experimental**, contract-oriented, pythonic programming language that targets the `Ethereum Virtual Machine (EVM) <http://ethdocs.org/en/latest/introduction/what-is-ethereum.html#ethereum-virtual-machine>`_
 
 ********************
 Principles and Goals

@@ -92,8 +92,8 @@ install and test commands:
 ::
     git clone https://github.com/ethereum/viper.git
     cd viper
-    python setup.py install
-    python setup.py test
+    make install
+    make test
 
 Additionally, you may try to compile an example contract by running:
 ::
@@ -117,14 +117,17 @@ However, please keep in mind that Viper is still experimental and not ready for 
 
     Now you can run the install and test commands again:
     ::
-        python setup.py install
-        python setup.py test
+        make install
+        make test
 ******
 Docker
 ******
-A Docker image which executes most of the installation steps is provided.
+A Dockerfile is provided in the master branch of the repository. In order to build a Docker Image please run:
+::
+    docker build https://github.com/ethereum/viper.git -t viper:1
+    docker run -it viper:1 /bin/bash 
 To ensure that everything works correctly after the installtion, please run the test commands
 and try compiling a contract:
 ::
-    python setup.py test
+    make test
     viper examples/crowdfund.v.py
