@@ -3,8 +3,6 @@
 # ERC20 details at:
 # https://theethereum.wiki/w/index.php/ERC20_Token_Standard
 # https://github.com/ethereum/EIPs/blob/master/EIPS/eip-20-token-standard.md
-
-
 # Events of the token.
 Transfer: __log__({_from: indexed(address), _to: indexed(address), _value: num256})
 Approval: __log__({_owner: indexed(address), _spender: indexed(address), _value: num256})
@@ -34,10 +32,10 @@ def symbol() -> bytes32:
     return self.symbol
 
 
+@constant
 def name() -> bytes32:
 
     return self.name
-
 
 
 # What is the balance of a particular account?
