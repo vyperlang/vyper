@@ -11,7 +11,6 @@ from viper.functions import (
 )
 from .parser_utils import LLLnode
 from .parser_utils import (
-    add_variable_offset,
     getpos,
     make_byte_array_copier,
     base_type_conversion,
