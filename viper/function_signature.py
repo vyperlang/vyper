@@ -10,6 +10,7 @@ from .types import (
     canonicalize_type,
     get_size_of_type,
     parse_type,
+    TupleType
 )
 from .utils import (
     fourbytes_to_int,
@@ -87,23 +88,35 @@ class FunctionSignature():
         # and NOT def foo() -> type: ..., then it's null
         if not code.returns:
             output_type = None
-        elif isinstance(code.returns, (ast.Name, ast.Compare, ast.Subscript, ast.Call)):
+        elif isinstance(code.returns, (ast.Name, ast.Compare, ast.Subscript, ast.Call, ast.Tuple)):
             output_type = parse_type(code.returns, None)
         else:
             raise InvalidTypeException("Output type invalid or unsupported: %r" % parse_type(code.returns, None), code.returns)
         # Output type must be canonicalizable
         if output_type is not None:
-            assert canonicalize_type(output_type)
+            assert isinstance(output_type, TupleType) or canonicalize_type(output_type)
         # Get the canonical function signature
         sig = name + '(' + ','.join([canonicalize_type(parse_type(arg.annotation, None)) for arg in code.args.args]) + ')'
         # Take the first 4 bytes of the hash of the sig to get the method ID
         method_id = fourbytes_to_int(sha3(bytes(sig, 'utf-8'))[:4])
         return cls(name, args, output_type, const, payable, internal, sig, method_id)
 
+    def _generate_output_abi(self):
+        t = self.output_type
+
+        if not t:
+            return []
+        elif isinstance(t, TupleType):
+            res = [canonicalize_type(x) for x in t.members]
+        else:
+            res = [canonicalize_type(t)]
+
+        return [{"type": x, "name": "out"} for x in res]
+
     def to_abi_dict(self):
         return {
             "name": self.name,
-            "outputs": [{"type": canonicalize_type(self.output_type), "name": "out"}] if self.output_type else [],
+            "outputs": self._generate_output_abi(),
             "inputs": [{"type": canonicalize_type(arg.typ), "name": arg.name} for arg in self.args],
             "constant": self.const,
             "payable": self.payable,
