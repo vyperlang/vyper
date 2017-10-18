@@ -47,9 +47,9 @@ class EventSignature():
                 if not typ:
                     raise InvalidTypeException("Argument must have type", arg)
                 if not is_varname_valid(arg):
-                    raise VariableDeclarationException("Argument name invalid or reserved: " + arg.arg, arg)
+                    raise VariableDeclarationException("Argument name invalid or reserved: " + arg, arg)
                 if arg in (x.name for x in args):
-                    raise VariableDeclarationException("Duplicate function argument name: " + arg.arg, arg)
+                    raise VariableDeclarationException("Duplicate function argument name: " + arg, arg)
                 parsed_type = parse_type(typ, None)
                 args.append(VariableRecord(arg, pos, parsed_type, False))
                 if isinstance(parsed_type, ByteArrayType):
