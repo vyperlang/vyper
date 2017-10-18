@@ -45,5 +45,3 @@ Interesting potential extensions of this token include:
 - Full formal verification.  This is underway using the [KEVM project](https://github.com/kframework/evm-semantics).
 - Examples of other common token usage patterns (owner-mintable tokens being one 
     possible example). 
-- [Wishlist] Addition of logs to Viper to remove ugly raw_log calls and 
-    include events in the automatically generated ABI.
