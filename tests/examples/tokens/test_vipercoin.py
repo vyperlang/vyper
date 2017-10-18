@@ -120,11 +120,10 @@ def test_transfer_event(token_tester, get_log):
     a2 = token_tester.accounts[2]
 
     contract = token_tester.c
-    chain = token_tester.s
 
     assert contract.transfer(a1, 1) is True
 
-    assert get_log(chain, contract, 'Transfer') == {
+    assert get_log(tester, contract, 'Transfer') == {
         '_from': '0x' + a0.hex(),
         '_to': '0x' + a1.hex(),
         '_value': 1,
@@ -135,7 +134,7 @@ def test_transfer_event(token_tester, get_log):
     assert contract.approve(a1, 10) is True  # approve 10 token transfers to a1.
     assert contract.transferFrom(a0, a2, 4, sender=k1)  # transfer to a2, as a1, from a0's funds.
 
-    assert get_log(chain, contract, 'Transfer') == {
+    assert get_log(tester, contract, 'Transfer') == {
         '_from': '0x' + a0.hex(),
         '_to': '0x' + a2.hex(),
         '_value': 4,
@@ -148,11 +147,10 @@ def test_approval_event(token_tester, get_log):
     a1 = token_tester.accounts[1]
 
     contract = token_tester.c
-    chain = token_tester.s
 
     assert contract.approve(a1, 10) is True  # approve 10 token transfers to a1.
 
-    assert get_log(chain, contract, 'Approval') == {
+    assert get_log(tester, contract, 'Approval') == {
         '_owner': '0x' + a0.hex(),
         '_spender': '0x' + a1.hex(),
         '_value': 10,
