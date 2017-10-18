@@ -41,6 +41,8 @@ def test_sell_without_stock(tester):
     # If you don't have any stock, you can't sell
     assert_tx_failed(tester, lambda: tester.c.sell_stock(1, sender=t.k1))
     assert_tx_failed(tester, lambda: tester.c.sell_stock(1, sender=t.k2))
+    # Negative stock doesn't work either
+    assert_tx_failed(tester, lambda: tester.c.sell_stock(-1, sender=t.k1))
     # But if you do, you can!
     test_shares = int(tester.c.get_total_shares())
     test_value = int(test_shares * tester.c.get_price())
@@ -61,6 +63,8 @@ def test_transfer(tester):
     # If you don't have any stock, you can't transfer
     assert_tx_failed(tester, lambda: tester.c.transfer_stock(t.a2, 1, sender=t.k1))
     assert_tx_failed(tester, lambda: tester.c.transfer_stock(t.a1, 1, sender=t.k2))
+    # You can't do negative transfers to gain stock
+    assert_tx_failed(tester, lambda: tester.c.transfer_stock(t.a2, -1, sender=t.k1))
     # If you transfer, you don't have the stock anymore
     test_shares = int(tester.c.get_total_shares())
     test_value = int(test_shares * tester.c.get_price())

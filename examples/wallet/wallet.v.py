@@ -34,7 +34,7 @@ def approve(_seq: num, to: address, value: wei_value, data: bytes <= 4096, sigda
     # Verifies that the caller of approve has entered the correct transaction number
     assert self.seq == _seq
     # Iterates through all the owners and verifies that there signatures,
-    # given as the sidata argument are correct
+    # given as the sigdata argument are correct
     for i in range(5):
         if sigdata[i][0]:
             # If an invalid signature is given for an owner then the contract throws 

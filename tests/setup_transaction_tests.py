@@ -105,7 +105,7 @@ curve_order = 218882428718392752222464057452572750885483644004160343436982041865
 
 @pytest.fixture
 def get_log():
-    def get_log(chain, contract, event_name):
+    def get_log(tester, contract, event_name):
         event_ids_w_name = [k for k, v in \
                 contract.translator.event_data.items() if v["name"] == event_name]
         assert len(event_ids_w_name) == 1, \
@@ -113,7 +113,7 @@ def get_log():
         event_id = event_ids_w_name[0]
 
         # Get the last logged event
-        logs = chain.head_state.receipts[-1].logs[-1]
+        logs = tester.s.head_state.receipts[-1].logs[-1]
 
         # Ensure it has the event we are looking to decode
         assert logs.address == contract.address, \
