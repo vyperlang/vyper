@@ -100,7 +100,7 @@ def approve(_spender: address, _amount: num(num256)) -> bool:
     return True
 
 
-# Get the allowence an address has to spend anothers' token.
+# Get the allowance an address has to spend anothers' token.
 def allowance(_owner: address, _spender: address) -> num256:
 
     return as_num256(self.allowed[_owner][_spender])
