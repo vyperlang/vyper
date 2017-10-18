@@ -1,25 +1,14 @@
 from viper.parser.parser_utils import LLLnode
-from .utils import (
-    ADDRSIZE_POS,
-    DECIMAL_DIVISOR,
-    MAXDECIMAL_POS,
-    MAXNUM_POS,
-    MINDECIMAL_POS,
-    MINNUM_POS,
-)
+from viper.utils import LOADED_LIMIT_MAP
 
 
 def get_int_at(args, pos, signed=False):
-    if isinstance(args[pos].value, int):
-        o = args[pos].value
-    elif args[pos].value == "mload" and args[pos].args[0].value in (ADDRSIZE_POS, MAXNUM_POS, MINNUM_POS, MAXDECIMAL_POS, MINDECIMAL_POS):
-        o = {
-            ADDRSIZE_POS: 2**160,
-            MAXNUM_POS: 2**128 - 1,
-            MINNUM_POS: -2**128 + 1,
-            MAXDECIMAL_POS: (2**128 - 1) * DECIMAL_DIVISOR,
-            MINDECIMAL_POS: (-2**128 + 1) * DECIMAL_DIVISOR,
-        }[args[pos].args[0].value]
+    value = args[pos].value
+
+    if isinstance(value, int):
+        o = value
+    elif value == "mload" and args[pos].args[0].value in LOADED_LIMIT_MAP.keys():
+        o = LOADED_LIMIT_MAP[args[pos].args[0].value]
     else:
         return None
     if signed:

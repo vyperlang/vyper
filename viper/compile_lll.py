@@ -1,6 +1,6 @@
 from viper.parser.parser import LLLnode
 from .opcodes import opcodes
-from .utils import FREE_VAR_SPACE
+from viper.utils import MemoryPositions
 
 
 def num_to_bytearray(x):
@@ -66,7 +66,7 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
         return ['_sym_codeend']
     # Calldataload equivalent for code
     elif code.value == 'codeload':
-        return compile_to_assembly(LLLnode.from_list(['seq', ['codecopy', FREE_VAR_SPACE, code.args[0], 32], ['mload', FREE_VAR_SPACE]]),
+        return compile_to_assembly(LLLnode.from_list(['seq', ['codecopy', MemoryPositions.FREE_VAR_SPACE, code.args[0], 32], ['mload', MemoryPositions.FREE_VAR_SPACE]]),
                                    withargs, break_dest, height)
     # If statements (2 arguments, ie. if x: y)
     elif code.value == 'if' and len(code.args) == 2:
@@ -200,7 +200,7 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
     # SHA3 a single value
     elif code.value == 'sha3_32':
         o = compile_to_assembly(code.args[0], withargs, break_dest, height)
-        o.extend(['PUSH1', FREE_VAR_SPACE, 'MSTORE', 'PUSH1', FREE_VAR_SPACE, 'PUSH1', 32, 'SHA3'])
+        o.extend(['PUSH1', MemoryPositions.FREE_VAR_SPACE, 'MSTORE', 'PUSH1', MemoryPositions.FREE_VAR_SPACE, 'PUSH1', 32, 'SHA3'])
         return o
     # <= operator
     elif code.value == 'le':

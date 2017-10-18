@@ -103,6 +103,27 @@ negative_G1 = [
 
 curve_order = 21888242871839275222246405745257275088548364400416034343698204186575808495617
 
+@pytest.fixture
+def get_log():
+    def get_log(tester, contract, event_name):
+        event_ids_w_name = [k for k, v in \
+                contract.translator.event_data.items() if v["name"] == event_name]
+        assert len(event_ids_w_name) == 1, \
+                "Contract doesn't have event {}!".format(event_name)
+        event_id = event_ids_w_name[0]
+
+        # Get the last logged event
+        logs = tester.s.head_state.receipts[-1].logs[-1]
+
+        # Ensure it has the event we are looking to decode
+        assert logs.address == contract.address, \
+                "This contract didn't originate the last event!"
+        assert logs.topics[0] == event_id, \
+                "The last event wasn't {}!".format(event_name)
+
+        # Return the decoded event data
+        return contract.translator.decode_event(logs.topics, logs.data)
+    return get_log
 
 @pytest.fixture
 def assert_tx_failed():

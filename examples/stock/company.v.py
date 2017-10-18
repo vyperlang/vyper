@@ -50,6 +50,7 @@ def cash() -> wei_value:
 
 # Give stock back to company and get my money back!
 def sell_stock(sell_order: currency_value):
+    assert sell_order > 0 # Otherwise, will fail at send() below
     # Can only sell as much stock as you own
     assert self.get_holding(msg.sender) >= sell_order
     # Company can pay you
@@ -64,6 +65,7 @@ def sell_stock(sell_order: currency_value):
 # Transfer stock from one stockholder to another
 # (Assumes the receiver is given some compensation, but not enforced)
 def transfer_stock(receiver: address, transfer_order: currency_value):
+    assert transfer_order > 0 # AUDIT revealed this!
     # Can only trade as much stock as you own
     assert self.get_holding(msg.sender) >= transfer_order
     
