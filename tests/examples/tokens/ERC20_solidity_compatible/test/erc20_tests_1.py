@@ -393,23 +393,6 @@ class TestSolidity1ERC20(TestERC20):
         super().setUp()
 
 
-class TestSerpentERC20(TestERC20):
-
-    @classmethod
-    def setUpClass(cls):
-        super(TestSerpentERC20, cls).setUpClass()
-
-        contract_code = open(PATH_TO_CONTRACTS + '/nonviper/ERC20_serpent.se').read()
-        cls.c = cls.s.contract(contract_code, language='serpent')
-
-        cls.initial_state = cls.s.snapshot()
-        cls.strict_log_mode = True
-        cls.listenForEvents()
-
-    def setUp(self):
-        super().setUp()
-
-
 class TestSolidity2ERC20(TestERC20):
 
     @classmethod
@@ -430,8 +413,7 @@ class TestSolidity2ERC20(TestERC20):
 def load_tests(loader, tests, pattern):
     full_suite = unittest.TestSuite()
 
-    for suite in [TestViperERC20, TestSolidity1ERC20, TestSolidity2ERC20,
-                  TestSerpentERC20]:
+    for suite in [TestViperERC20, TestSolidity1ERC20, TestSolidity2ERC20]:
         tests = loader.loadTestsFromTestCase(suite)
         full_suite.addTests(tests)
     return full_suite
