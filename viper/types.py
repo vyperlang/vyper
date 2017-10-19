@@ -317,12 +317,11 @@ def ceil32(x):
 
 
 # Gets the number of memory or storage keys needed to represent a given type
-def get_size_of_type(typ, in_return=False):
+def get_size_of_type(typ):
     if isinstance(typ, BaseType):
         return 1
     elif isinstance(typ, ByteArrayType):
-        return_offset = 1 if in_return else 0
-        return ceil32(typ.maxlen) // 32 + 2 + return_offset
+        return ceil32(typ.maxlen) // 32 + 2
     elif isinstance(typ, ListType):
         return get_size_of_type(typ.subtype) * typ.count
     elif isinstance(typ, MappingType):
@@ -330,7 +329,7 @@ def get_size_of_type(typ, in_return=False):
     elif isinstance(typ, StructType):
         return sum([get_size_of_type(v) for v in typ.members.values()])
     elif isinstance(typ, TupleType):
-        return sum([get_size_of_type(v, in_return) for v in typ.members])
+        return sum([get_size_of_type(v) for v in typ.members])
     else:
         raise Exception("Unexpected type: %r" % repr(typ))
 
