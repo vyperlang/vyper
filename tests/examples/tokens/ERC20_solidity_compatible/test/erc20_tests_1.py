@@ -349,11 +349,6 @@ class TestViperERC20(TestERC20):
     def setUp(self):
         super().setUp()
 
-    def test_internal_payability(self):
-        # Assert that contract-specific functions are nonpayable
-        self.assert_tx_failed(lambda :self.c.is_overflow_add(0, 0, value=2, sender=self.t.k1))
-        self.assert_tx_failed(lambda :self.c.is_overflow_sub(0, 0, value=2, sender=self.t.k1))
-
     def test_bad_transfer(self):
         # Ensure transfer fails if it would otherwise overflow balance
         # (bad contract is used or overflow checks on total supply would fail)
