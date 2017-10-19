@@ -279,7 +279,8 @@ class Stmt(object):
 
         # Returning a tuple.
         elif isinstance(sub.typ, TupleType):
-
+            if len(self.context.return_type.members) != len(sub.typ.members):
+                raise StructureException("Tuple lengths don't match!")
             subs = []
             dynamic_offset_counter = LLLnode(self.context.get_next_mem(), typ=None, annotation="dynamic_offset_counter")  # dynamic offset position counter.
             new_sub = LLLnode.from_list(self.context.get_next_mem() + 32, typ=self.context.return_type, location='memory', annotation='new_sub')
@@ -306,7 +307,7 @@ class Stmt(object):
                     subs.append(['mstore', variable_offset, get_dynamic_offset_value()])
 
                     # Store dynamic data, from offset pointer onwards.
-                    dynamic_spot = LLLnode.from_list(['add', left_token, get_dynamic_offset_value()], location="memory", typ=arg.typ, annotation='dyanmic_spot')
+                    dynamic_spot = LLLnode.from_list(['add', left_token, get_dynamic_offset_value()], location="memory", typ=arg.typ, annotation='dynamic_spot')
                     subs.append(make_setter(dynamic_spot, arg, location="memory"))
                     subs.append(increment_dynamic_offset(dynamic_spot))
 
