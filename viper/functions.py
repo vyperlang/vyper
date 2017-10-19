@@ -662,7 +662,7 @@ def num256_add(expr, args, kwargs, context):
 def num256_sub(expr, args, kwargs, context):
     return LLLnode.from_list(['seq',
                                 # Checks that: a >= b
-                                ['assert', ['or', ['iszero', args[1]], ['sge', args[0], args[1]]]],
+                                ['assert', ['ge', args[0], args[1]]],
                                 ['sub', args[0], args[1]]], typ=BaseType('num256'), pos=getpos(expr))
 
 
