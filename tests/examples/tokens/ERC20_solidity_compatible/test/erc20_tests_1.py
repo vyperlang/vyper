@@ -335,7 +335,7 @@ class TestViperERC20(TestERC20):
 
         from viper import compiler
         cls.t.languages['viper'] = compiler.Compiler()
-        contract_code = open(PATH_TO_CONTRACTS + '/../../../examples/ERC20_solidity_compatible/ERC20.v.py').read()
+        contract_code = open(PATH_TO_CONTRACTS + '/../../../../examples/tokens/ERC20_solidity_compatible/ERC20.v.py').read()
         cls.c = cls.s.contract(contract_code, language='viper')
         # Bad version of contract where totalSupply / num_issued never gets updated after init
         # (required for full decision/branch coverage)
