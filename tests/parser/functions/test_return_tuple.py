@@ -54,3 +54,13 @@ def out_very_long_bytes() -> (num, bytes <= 1024, num, address):
     assert c.four() == [1234, b"bytes", b"test", 4321]
     assert c.out_chunk() == [b"hello", 5678, b"world"]
     assert c.out_very_long_bytes() == [5555, long_string.encode(), 6666, "0x0000000000000000000000000000000000001234"]
+
+
+def test_return_type_signatures():
+    code = """
+def out_literals() -> (num, address, bytes <= 4):
+    return 1, 0x0000000000000000000000000000000000000000, "random"
+    """
+
+    c = get_contract(code)
+    assert c.translator.function_data['out_literals']['decode_types'] == ['int128', 'address', 'bytes']
