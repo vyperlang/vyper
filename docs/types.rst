@@ -94,7 +94,7 @@ and to send Ether (in units of wei) to an address using the ``send`` function:
 
     x: address
 
-    def foo(x: adress):
+    def foo(x: address):
         if (x.balance < 10 and self.balance >= 10):
             x.send(10)
 
