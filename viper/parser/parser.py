@@ -22,6 +22,8 @@ from .parser_utils import (
     make_byte_array_copier,
     add_variable_offset,
     base_type_conversion,
+    unwrap_location,
+    byte_array_to_num,
 )
 from viper.types import (
     BaseType,
@@ -39,7 +41,8 @@ from viper.types import (
 )
 from viper.utils import (
     MemoryPositions,
-    LOADED_LIMIT_MAP
+    LOADED_LIMIT_MAP,
+    reserved_words
 )
 from viper.utils import (
     bytes_to_int,
@@ -590,36 +593,51 @@ def parse_stmt(stmt, context):
 
 def pack_logging_topics(event_id, args, topics_types, context):
     topics = [event_id]
-    topics_count = 1
-    stored_topics = ['seq']
     for pos, typ in enumerate(topics_types):
         arg = args[pos]
-        topics_count += 1
-        if isinstance(arg, ast.Str):
-            stored_topics.append(Expr.parse_value_expr(arg, context))
-            topics.append(['mload', stored_topics[-1].to_list()[-1][-1][-1] + 32])
+        input = parse_expr(arg, context)
+        if isinstance(typ, ByteArrayType) and (isinstance(arg, ast.Str) or (isinstance(arg, ast.Name) and not arg.id in reserved_words)):
+            if input.typ.maxlen > typ.maxlen:
+                raise TypeMismatchException("Topic input bytes are to big: %r %r" % (input.typ, typ))
+            if isinstance(arg, ast.Str):
+                size = len(arg.s)
+            else:
+                size = context.vars[arg.id].size
+            topics.append(byte_array_to_num(input, arg, 'num256', size))
         else:
-            input = Expr.parse_value_expr(arg, context)
+            input = unwrap_location(input)
             input = base_type_conversion(input, input.typ, typ)
             topics.append(input)
-    return topics, stored_topics
+    return topics
 
 
 def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder):
     if isinstance(typ, BaseType):
-            input = parse_expr(arg, context)
-            input = base_type_conversion(input, input.typ, typ)
-            holder.append(LLLnode.from_list(['mstore', placeholder, input], typ=typ, location='memory'))
+        input = parse_expr(arg, context)
+        input = base_type_conversion(input, input.typ, typ)
+        holder.append(LLLnode.from_list(['mstore', placeholder, input], typ=typ, location='memory'))
     elif isinstance(typ, ByteArrayType):
         bytez = b''
-        for c in arg.s:
-            if ord(c) >= 256:
-                raise InvalidLiteralException("Cannot insert special character %r into byte array" % c)
-            bytez += bytes([ord(c)])
-        bytez_length = len(bytez)
-        if len(bytez) > 32:
-            raise InvalidLiteralException("Can only log a maximum of 32 bytes at a time.")
-        holder.append(LLLnode.from_list(['mstore', placeholder, bytes_to_int(bytez + b'\x00' * (32 - bytez_length))], typ=typ, location='memory'))
+        # String literals
+        if isinstance(arg, ast.Str):
+            if len(arg.s) > typ.maxlen:
+                raise TypeMismatchException("Data input bytes are to big: %r %r" % (len(arg.s), typ))
+            for c in arg.s:
+                if ord(c) >= 256:
+                    raise InvalidLiteralException("Cannot insert special character %r into byte array" % c)
+                bytez += bytes([ord(c)])
+            bytez_length = len(bytez)
+            if len(bytez) > 32:
+                raise InvalidLiteralException("Can only log a maximum of 32 bytes at a time.")
+            holder.append(LLLnode.from_list(['mstore', placeholder, bytes_to_int(bytez + b'\x00' * (32 - bytez_length))], typ=typ, location='memory'))
+        # Variables
+        else:
+            input = parse_expr(arg, context)
+            if input.typ.maxlen > typ.maxlen:
+                raise TypeMismatchException("Data input bytes are to big: %r %r" % (input.typ, typ))
+            if arg.id in context.vars:
+                size = context.vars[arg.id].size
+                holder.append(LLLnode.from_list(['mstore' , placeholder, byte_array_to_num(parse_expr(arg, context), arg, 'num256', size)], typ=typ, location='memory'))
     elif isinstance(typ, ListType):
             maxlen += (typ.count - 1) * 32
             typ = typ.subtype
