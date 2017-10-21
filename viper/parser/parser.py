@@ -596,7 +596,7 @@ def pack_logging_topics(event_id, args, topics_types, context):
     for pos, typ in enumerate(topics_types):
         arg = args[pos]
         input = parse_expr(arg, context)
-        if isinstance(typ, ByteArrayType) and (isinstance(arg, ast.Str) or (isinstance(arg, ast.Name) and not arg.id in reserved_words)):
+        if isinstance(typ, ByteArrayType) and (isinstance(arg, ast.Str) or (isinstance(arg, ast.Name) and arg.id not in reserved_words)):
             if input.typ.maxlen > typ.maxlen:
                 raise TypeMismatchException("Topic input bytes are to big: %r %r" % (input.typ, typ))
             if isinstance(arg, ast.Str):
@@ -637,7 +637,7 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder):
                 raise TypeMismatchException("Data input bytes are to big: %r %r" % (input.typ, typ))
             if arg.id in context.vars:
                 size = context.vars[arg.id].size
-                holder.append(LLLnode.from_list(['mstore' , placeholder, byte_array_to_num(parse_expr(arg, context), arg, 'num256', size)], typ=typ, location='memory'))
+                holder.append(LLLnode.from_list(['mstore', placeholder, byte_array_to_num(parse_expr(arg, context), arg, 'num256', size)], typ=typ, location='memory'))
     elif isinstance(typ, ListType):
             maxlen += (typ.count - 1) * 32
             typ = typ.subtype
