@@ -92,7 +92,7 @@ install and test commands:
 ::
     git clone https://github.com/ethereum/viper.git
     cd viper
-    make install
+    make
     make test
 
 Additionally, you may try to compile an example contract by running:
