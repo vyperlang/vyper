@@ -10,7 +10,6 @@ import unittest
 def extract_language(sourcefile):
     languages = {
         '.sol': 'solidity',
-        '.se': 'serpent',
         '.vy': 'viper',
         '.py': 'viper' # hack to handle new .v.py suggested Viper extension
     }
