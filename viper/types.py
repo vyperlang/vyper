@@ -128,7 +128,7 @@ class TupleType(NodeType):
         return other.__class__ == StructType and other.members == self.members
 
     def __repr__(self):
-        return '[' + ', '.join([repr(m) for m in self.members]) + ']'
+        return '(' + ', '.join([repr(m) for m in self.members]) + ')'
 
 
 # Data structure for a "multi" object with a mixed type
@@ -155,9 +155,12 @@ def canonicalize_type(t, is_event=False):
         if not isinstance(t.subtype, (ListType, BaseType)):
             raise Exception("List of byte arrays not allowed")
         return canonicalize_type(t.subtype) + "[%d]" % t.count
+    if isinstance(t, TupleType):
+        return "({})".format(
+            ",".join(canonicalize_type(x) for x in t.subtypes)
+        )
     if not isinstance(t, BaseType):
         raise Exception("Cannot canonicalize non-base type: %r" % t)
-
     num256_override = True if t.override_signature == 'num256' else False
 
     t = t.typ
@@ -301,6 +304,9 @@ def parse_type(item, location):
         if not isinstance(item.comparators[0].n, int) or item.comparators[0].n <= 0:
             raise InvalidTypeException("Bad byte array length: %r" % item.comparators[0].n, item.comparators[0])
         return ByteArrayType(item.comparators[0].n)
+    elif isinstance(item, ast.Tuple):
+        members = [parse_type(x, location) for x in item.elts]
+        return TupleType(members)
     else:
         raise InvalidTypeException("Invalid type: %r" % ast.dump(item), item)
 

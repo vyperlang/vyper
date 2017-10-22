@@ -828,6 +828,17 @@ def parse_expr(expr, context):
             o[key.id] = parse_expr(value, context)
             members[key.id] = o[key.id].typ
         return LLLnode.from_list(["multi"] + [o[key] for key in sorted(list(o.keys()))], typ=StructType(members), pos=getpos(expr))
+
+    # Tuple literals
+    elif isinstance(expr, ast.Tuple):
+        if not len(expr.elts):
+            raise StructureException("Tuple must have elements", expr)
+        o = []
+        out_type = None
+        for elt in expr.elts:
+            o.append(parse_expr(elt, context))
+        return LLLnode.from_list(["multi"] + o, typ=TupleType(o), pos=getpos(expr))
+
     raise Exception("Unsupported operator: %r" % ast.dump(expr))
 
 

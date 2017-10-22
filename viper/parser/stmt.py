@@ -20,6 +20,7 @@ from viper.types import (
     BaseType,
     ByteArrayType,
     ListType,
+    TupleType
 )
 from viper.types import (
     get_size_of_type,
@@ -265,7 +266,7 @@ class Stmt(object):
                 return LLLnode.from_list(o, typ=None, pos=getpos(self.stmt))
             else:
                 raise Exception("Invalid location: %s" % sub.location)
-        # Returning a list
+
         elif isinstance(sub.typ, ListType):
             if sub.location == "memory" and sub.value != "multi":
                 return LLLnode.from_list(['return', sub, get_size_of_type(self.context.return_type) * 32],
@@ -275,5 +276,52 @@ class Stmt(object):
                 setter = make_setter(new_sub, sub, 'memory')
                 return LLLnode.from_list(['seq', setter, ['return', new_sub, get_size_of_type(self.context.return_type) * 32]],
                                             typ=None, pos=getpos(self.stmt))
+
+        # Returning a tuple.
+        elif isinstance(sub.typ, TupleType):
+            if len(self.context.return_type.members) != len(sub.typ.members):
+                raise StructureException("Tuple lengths don't match!")
+            subs = []
+            dynamic_offset_counter = LLLnode(self.context.get_next_mem(), typ=None, annotation="dynamic_offset_counter")  # dynamic offset position counter.
+            new_sub = LLLnode.from_list(self.context.get_next_mem() + 32, typ=self.context.return_type, location='memory', annotation='new_sub')
+            keyz = list(range(len(sub.typ.members)))
+            dynamic_offset_start = 32 * len(sub.args)  # The static list of args end.
+            left_token = LLLnode.from_list('_loc', typ=new_sub.typ, location="memory")
+
+            def get_dynamic_offset_value():
+                # Get value of dynamic offset counter.
+                return ['mload', dynamic_offset_counter]
+
+            def increment_dynamic_offset(dynamic_spot):
+                # Increment dyanmic offset counter in memory.
+                return ['mstore', dynamic_offset_counter,
+                                 ['add',
+                                        ['add', ['ceil32', ['mload', dynamic_spot]], 32],
+                                        ['mload', dynamic_offset_counter]]]
+
+            for i, typ in enumerate(keyz):
+                arg = sub.args[i]
+                variable_offset = LLLnode.from_list(['add', 32 * i, left_token], typ=arg.typ, annotation='variable_offset')
+                if isinstance(arg.typ, ByteArrayType):
+                    # Store offset pointer value.
+                    subs.append(['mstore', variable_offset, get_dynamic_offset_value()])
+
+                    # Store dynamic data, from offset pointer onwards.
+                    dynamic_spot = LLLnode.from_list(['add', left_token, get_dynamic_offset_value()], location="memory", typ=arg.typ, annotation='dynamic_spot')
+                    subs.append(make_setter(dynamic_spot, arg, location="memory"))
+                    subs.append(increment_dynamic_offset(dynamic_spot))
+
+                elif isinstance(arg.typ, BaseType):
+                    subs.append(make_setter(variable_offset, arg, "memory"))
+                else:
+                    raise Exception("Can't return type %s as part of tuple", type(arg.typ))
+
+            setter = LLLnode.from_list(['seq',
+                ['mstore', dynamic_offset_counter, dynamic_offset_start],
+                ['with', '_loc', new_sub, ['seq'] + subs]], typ=None
+            )
+
+            return LLLnode.from_list(['seq', setter, ['return', new_sub, get_dynamic_offset_value()]],
+                                        typ=None, pos=getpos(self.stmt))
         else:
             raise TypeMismatchException("Can only return base type!", self.stmt)
