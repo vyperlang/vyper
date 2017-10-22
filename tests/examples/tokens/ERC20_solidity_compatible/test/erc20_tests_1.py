@@ -1,6 +1,6 @@
 # Requires Python 3.6, Viper, and pyethereum dependencies
 # Manually verified for full branch/decision, statement coverage (on Viper contract)
-# Author: Philip Daian
+# Author: Philip Daian (contributions from Florian Tramer, Lorenz Breidenbach)
 
 import unittest
 from ethereum.tools import tester
