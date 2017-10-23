@@ -856,10 +856,10 @@ def parse_value_expr(expr, context):
 
 
 # Create an x=y statement, where the types may be compound
-def make_setter(left, right, location):
+def make_setter(left, right, location, pos=None):
     # Basic types
     if isinstance(left.typ, BaseType):
-        right = base_type_conversion(right, right.typ, left.typ)
+        right = base_type_conversion(right, right.typ, left.typ, pos)
         if location == 'storage':
             return LLLnode.from_list(['sstore', left, right], typ=None)
         elif location == 'memory':
@@ -869,14 +869,14 @@ def make_setter(left, right, location):
         return make_byte_array_copier(left, right)
     # Can't copy mappings
     elif isinstance(left.typ, MappingType):
-        raise TypeMismatchException("Cannot copy mappings; can only copy individual elements")
+        raise TypeMismatchException("Cannot copy mappings; can only copy individual elements", pos)
     # Arrays
     elif isinstance(left.typ, ListType):
         # Cannot do something like [a, b, c] = [1, 2, 3]
         if left.value == "multi":
             raise Exception("Target of set statement must be a single item")
         if not isinstance(right.typ, (ListType, NullType)):
-            raise TypeMismatchException("Setter type mismatch: left side is array, right side is %r" % right.typ)
+            raise TypeMismatchException("Setter type mismatch: left side is array, right side is %r" % right.typ, pos)
         left_token = LLLnode.from_list('_L', typ=left.typ, location=left.location)
         if left.location == "storage":
             left = LLLnode.from_list(['sha3_32', left], typ=left.typ, location="storage_prehashed")
@@ -884,24 +884,24 @@ def make_setter(left, right, location):
         # Type checks
         if not isinstance(right.typ, NullType):
             if not isinstance(right.typ, ListType):
-                raise TypeMismatchException("Left side is array, right side is not")
+                raise TypeMismatchException("Left side is array, right side is not", pos)
             if left.typ.count != right.typ.count:
-                raise TypeMismatchException("Mismatched number of elements")
+                raise TypeMismatchException("Mismatched number of elements", pos)
         # If the right side is a literal
         if right.value == "multi":
             if len(right.args) != left.typ.count:
-                raise TypeMismatchException("Mismatched number of elements")
+                raise TypeMismatchException("Mismatched number of elements", pos)
             subs = []
             for i in range(left.typ.count):
                 subs.append(make_setter(add_variable_offset(left_token, LLLnode.from_list(i, typ='num')),
-                                        right.args[i], location))
+                                        right.args[i], location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If the right side is a null
         elif isinstance(right.typ, NullType):
             subs = []
             for i in range(left.typ.count):
                 subs.append(make_setter(add_variable_offset(left_token, LLLnode.from_list(i, typ='num')),
-                                        LLLnode.from_list(None, typ=NullType()), location))
+                                        LLLnode.from_list(None, typ=NullType()), location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If the right side is a variable
         else:
@@ -909,7 +909,7 @@ def make_setter(left, right, location):
             subs = []
             for i in range(left.typ.count):
                 subs.append(make_setter(add_variable_offset(left_token, LLLnode.from_list(i, typ='num')),
-                                        add_variable_offset(right_token, LLLnode.from_list(i, typ='num')), location))
+                                        add_variable_offset(right_token, LLLnode.from_list(i, typ='num')), location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['with', '_R', right, ['seq'] + subs]], typ=None)
     # Structs
     elif isinstance(left.typ, (StructType, TupleType)):
@@ -917,17 +917,17 @@ def make_setter(left, right, location):
             raise Exception("Target of set statement must be a single item")
         if not isinstance(right.typ, NullType):
             if not isinstance(right.typ, left.typ.__class__):
-                raise TypeMismatchException("Setter type mismatch: left side is %r, right side is %r" % (left.typ, right.typ))
+                raise TypeMismatchException("Setter type mismatch: left side is %r, right side is %r" % (left.typ, right.typ), pos)
             if isinstance(left.typ, StructType):
                 for k in left.typ.members:
                     if k not in right.typ.members:
-                        raise TypeMismatchException("Keys don't match for structs, missing %s" % k)
+                        raise TypeMismatchException("Keys don't match for structs, missing %s" % k, pos)
                 for k in right.typ.members:
                     if k not in left.typ.members:
-                        raise TypeMismatchException("Keys don't match for structs, extra %s" % k)
+                        raise TypeMismatchException("Keys don't match for structs, extra %s" % k, pos)
             else:
                 if len(left.typ.members) != len(right.typ.members):
-                    raise TypeMismatchException("Tuple lengths don't match, %d vs %d" % (len(left.typ.members), len(right.typ.members)))
+                    raise TypeMismatchException("Tuple lengths don't match, %d vs %d" % (len(left.typ.members), len(right.typ.members)), pos)
         left_token = LLLnode.from_list('_L', typ=left.typ, location=left.location)
         if left.location == "storage":
             left = LLLnode.from_list(['sha3_32', left], typ=left.typ, location="storage_prehashed")
@@ -939,7 +939,7 @@ def make_setter(left, right, location):
         # If the right side is a literal
         if right.value == "multi":
             if len(right.args) != len(keyz):
-                raise TypeMismatchException("Mismatched number of elements")
+                raise TypeMismatchException("Mismatched number of elements", pos)
             subs = []
             for i, typ in enumerate(keyz):
                 subs.append(make_setter(add_variable_offset(left_token, typ), right.args[i], location))
@@ -948,14 +948,14 @@ def make_setter(left, right, location):
         elif isinstance(right.typ, NullType):
             subs = []
             for typ in keyz:
-                subs.append(make_setter(add_variable_offset(left_token, typ), LLLnode.from_list(None, typ=NullType()), location))
+                subs.append(make_setter(add_variable_offset(left_token, typ), LLLnode.from_list(None, typ=NullType()), location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If the right side is a variable
         else:
             right_token = LLLnode.from_list('_R', typ=right.typ, location=right.location)
             subs = []
             for typ in keyz:
-                subs.append(make_setter(add_variable_offset(left_token, typ), add_variable_offset(right_token, typ), location))
+                subs.append(make_setter(add_variable_offset(left_token, typ), add_variable_offset(right_token, typ), location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['with', '_R', right, ['seq'] + subs]], typ=None)
     else:
         raise Exception("Invalid type for setters")

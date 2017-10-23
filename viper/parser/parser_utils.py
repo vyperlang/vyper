@@ -395,10 +395,10 @@ def add_variable_offset(parent, key):
 
 
 # Convert from one base type to another
-def base_type_conversion(orig, frm, to):
+def base_type_conversion(orig, frm, to, pos=None):
     orig = unwrap_location(orig)
     if not isinstance(frm, (BaseType, NullType)) or not isinstance(to, BaseType):
-        raise TypeMismatchException("Base type conversion from or to non-base type: %r %r" % (frm, to))
+        raise TypeMismatchException("Base type conversion from or to non-base type: %r %r" % (frm, to), pos)
     elif is_base_type(frm, to.typ) and are_units_compatible(frm, to):
         return LLLnode(orig.value, orig.args, typ=to)
     elif is_base_type(frm, 'num') and is_base_type(to, 'decimal') and are_units_compatible(frm, to):
@@ -407,10 +407,10 @@ def base_type_conversion(orig, frm, to):
         return LLLnode.from_list(['uclample', orig, ['mload', MemoryPositions.MAXNUM]], typ=BaseType("num"))
     elif isinstance(frm, NullType):
         if to.typ not in ('num', 'bool', 'num256', 'address', 'bytes32', 'decimal'):
-            raise TypeMismatchException("Cannot convert null-type object to type %r" % to)
+            raise TypeMismatchException("Cannot convert null-type object to type %r" % to, pos)
         return LLLnode.from_list(0, typ=to)
     else:
-        raise TypeMismatchException("Typecasting from base type %r to %r unavailable" % (frm, to))
+        raise TypeMismatchException("Typecasting from base type %r to %r unavailable" % (frm, to), pos)
 
 
 # Unwrap location
