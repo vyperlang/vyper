@@ -62,9 +62,7 @@ from viper.utils import (
 )
 
 
-try:
-    x = ast.AnnAssign
-except:
+if not hasattr(ast, 'AnnAssign'):
     raise Exception("Requires python 3.6 or higher for annotation support")
 
 
