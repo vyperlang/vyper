@@ -8,8 +8,14 @@ x: num
 def __init__():
     self.x = 1
     """
+    code_init_empty = """
+x: num
 
-    assert mk_full_signature(code) == [{
+def __init__():
+    pass
+    """
+
+    empty_sig = [{
         'name': '__init__',
         'outputs': [],
         'inputs': [],
@@ -17,3 +23,6 @@ def __init__():
         'payable': False,
         'type': 'constructor'
     }]
+
+    assert mk_full_signature(code) == empty_sig
+    assert mk_full_signature(code_init_empty) == empty_sig
