@@ -2,7 +2,6 @@ import ast
 
 from viper.exceptions import (
     InvalidLiteralException,
-    NonPayableViolationException,
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
@@ -14,27 +13,21 @@ from viper.function_signature import (
 from viper.signatures.event_signature import (
     EventSignature
 )
-from viper.functions import (
-    dispatch_table,
-)
 from .stmt import Stmt
+from .expr import Expr
 from .parser_utils import LLLnode
 from .parser_utils import (
     get_length,
-    get_number_as_fraction,
-    get_original_if_0x_prefixed,
     getpos,
     make_byte_array_copier,
     add_variable_offset,
     base_type_conversion,
-    unwrap_location
 )
 from viper.types import (
     BaseType,
     ByteArrayType,
     ListType,
     MappingType,
-    MixedType,
     NullType,
     StructType,
     TupleType,
@@ -42,21 +35,14 @@ from viper.types import (
 from viper.types import (
     get_size_of_type,
     is_base_type,
-    is_numeric_type,
     parse_type,
 )
-from viper.types import (
-    are_units_compatible,
-    combine_units,
-)
 from viper.utils import (
-    DECIMAL_DIVISOR,
     MemoryPositions,
     LOADED_LIMIT_MAP
 )
 from viper.utils import (
     bytes_to_int,
-    checksum_encode,
     calc_mem_gas,
     is_varname_valid,
 )
@@ -490,369 +476,7 @@ def external_contract_call_expr(expr, context):
 
 # Parse an expression
 def parse_expr(expr, context):
-    if isinstance(expr, LLLnode):
-        return expr
-    # Numbers (integers or decimals)
-    elif isinstance(expr, ast.Num):
-        orignum = get_original_if_0x_prefixed(expr, context)
-        if orignum is None and isinstance(expr.n, int):
-            if not (-2**127 + 1 <= expr.n <= 2**127 - 1):
-                raise InvalidLiteralException("Number out of range: " + str(expr.n), expr)
-            return LLLnode.from_list(expr.n, typ=BaseType('num', None), pos=getpos(expr))
-        elif isinstance(expr.n, float):
-            numstring, num, den = get_number_as_fraction(expr, context)
-            if not (-2**127 * den < num < 2**127 * den):
-                raise InvalidLiteralException("Number out of range: " + numstring, expr)
-            if DECIMAL_DIVISOR % den:
-                raise InvalidLiteralException("Too many decimal places: " + numstring, expr)
-            return LLLnode.from_list(num * DECIMAL_DIVISOR // den, typ=BaseType('decimal', None), pos=getpos(expr))
-        elif len(orignum) == 42:
-            if checksum_encode(orignum) != orignum:
-                raise InvalidLiteralException("Address checksum mismatch. If you are sure this is the "
-                                              "right address, the correct checksummed form is: " +
-                                              checksum_encode(orignum), expr)
-            return LLLnode.from_list(expr.n, typ=BaseType('address'), pos=getpos(expr))
-        elif len(orignum) == 66:
-            return LLLnode.from_list(expr.n, typ=BaseType('bytes32'), pos=getpos(expr))
-        else:
-            raise InvalidLiteralException("Cannot read 0x value with length %d. Expecting 42 (address incl 0x) or 66 (bytes32 incl 0x)"
-                                          % len(orignum), expr)
-    # Byte array literals
-    elif isinstance(expr, ast.Str):
-        bytez = b''
-        for c in expr.s:
-            if ord(c) >= 256:
-                raise InvalidLiteralException("Cannot insert special character %r into byte array" % c, expr)
-            bytez += bytes([ord(c)])
-        placeholder = context.new_placeholder(ByteArrayType(len(bytez)))
-        seq = []
-        seq.append(['mstore', placeholder, len(bytez)])
-        for i in range(0, len(bytez), 32):
-            seq.append(['mstore', ['add', placeholder, i + 32], bytes_to_int((bytez + b'\x00' * 31)[i: i + 32])])
-        return LLLnode.from_list(['seq'] + seq + [placeholder], typ=ByteArrayType(len(bytez)), location='memory', pos=getpos(expr))
-    # True, False, None constants
-    elif isinstance(expr, ast.NameConstant):
-        if expr.value is True:
-            return LLLnode.from_list(1, typ='bool', pos=getpos(expr))
-        elif expr.value is False:
-            return LLLnode.from_list(0, typ='bool', pos=getpos(expr))
-        elif expr.value is None:
-            return LLLnode.from_list(None, typ=NullType(), pos=getpos(expr))
-        else:
-            raise Exception("Unknown name constant: %r" % expr.value.value)
-    # Variable names
-    elif isinstance(expr, ast.Name):
-        if expr.id == 'self':
-            return LLLnode.from_list(['address'], typ='address', pos=getpos(expr))
-        if expr.id == 'true':
-            return LLLnode.from_list(1, typ='bool', pos=getpos(expr))
-        if expr.id == 'false':
-            return LLLnode.from_list(0, typ='bool', pos=getpos(expr))
-        if expr.id == 'null':
-            return LLLnode.from_list(None, typ=NullType(), pos=getpos(expr))
-        if expr.id in context.vars:
-            var = context.vars[expr.id]
-            return LLLnode.from_list(var.pos, typ=var.typ, location='memory', pos=getpos(expr), annotation=expr.id, mutable=var.mutable)
-        else:
-            raise VariableDeclarationException("Undeclared variable: " + expr.id, expr)
-    # x.y or x[5]
-    elif isinstance(expr, ast.Attribute):
-        # x.balance: balance of address x
-        if expr.attr == 'balance':
-            addr = parse_value_expr(expr.value, context)
-            if not is_base_type(addr.typ, 'address'):
-                raise TypeMismatchException("Type mismatch: balance keyword expects an address as input", expr)
-            return LLLnode.from_list(['balance', addr], typ=BaseType('num', {'wei': 1}), location=None, pos=getpos(expr))
-        # x.codesize: codesize of address x
-        elif expr.attr == 'codesize' or expr.attr == 'is_contract':
-            addr = parse_value_expr(expr.value, context)
-            if not is_base_type(addr.typ, 'address'):
-                raise TypeMismatchException(f"Type mismatch: {expr.attr} keyword expects an address as input", expr)
-            if expr.attr == 'codesize':
-                output_type = 'num'
-            else:
-                output_type = 'bool'
-            return LLLnode.from_list(['extcodesize', addr], typ=BaseType(output_type), location=None, pos=getpos(expr))
-        # self.x: global attribute
-        elif isinstance(expr.value, ast.Name) and expr.value.id == "self":
-            if expr.attr not in context.globals:
-                raise VariableDeclarationException("Persistent variable undeclared: " + expr.attr, expr)
-            var = context.globals[expr.attr]
-            return LLLnode.from_list(var.pos, typ=var.typ, location='storage', pos=getpos(expr), annotation='self.' + expr.attr)
-        # Reserved keywords
-        elif isinstance(expr.value, ast.Name) and expr.value.id in ("msg", "block", "tx"):
-            key = expr.value.id + "." + expr.attr
-            if key == "msg.sender":
-                return LLLnode.from_list(['caller'], typ='address', pos=getpos(expr))
-            elif key == "msg.value":
-                if not context.is_payable:
-                    raise NonPayableViolationException("Cannot use msg.value in a non-payable function", expr)
-                return LLLnode.from_list(['callvalue'], typ=BaseType('num', {'wei': 1}), pos=getpos(expr))
-            elif key == "block.difficulty":
-                return LLLnode.from_list(['difficulty'], typ='num', pos=getpos(expr))
-            elif key == "block.timestamp":
-                return LLLnode.from_list(['timestamp'], typ=BaseType('num', {'sec': 1}, True), pos=getpos(expr))
-            elif key == "block.coinbase":
-                return LLLnode.from_list(['coinbase'], typ='address', pos=getpos(expr))
-            elif key == "block.number":
-                return LLLnode.from_list(['number'], typ='num', pos=getpos(expr))
-            elif key == "block.prevhash":
-                return LLLnode.from_list(['blockhash', ['sub', 'number', 1]], typ='bytes32', pos=getpos(expr))
-            elif key == "tx.origin":
-                return LLLnode.from_list(['origin'], typ='address', pos=getpos(expr))
-            else:
-                raise Exception("Unsupported keyword: " + key)
-        # Other variables
-        else:
-            sub = parse_variable_location(expr.value, context)
-            if not isinstance(sub.typ, StructType):
-                raise TypeMismatchException("Type mismatch: member variable access not expected", expr.value)
-            attrs = sorted(sub.typ.members.keys())
-            if expr.attr not in attrs:
-                raise TypeMismatchException("Member %s not found. Only the following available: %s" % (expr.attr, " ".join(attrs)), expr)
-            return add_variable_offset(sub, expr.attr)
-    elif isinstance(expr, ast.Subscript):
-        sub = parse_variable_location(expr.value, context)
-        if isinstance(sub.typ, (MappingType, ListType)):
-            if 'value' not in vars(expr.slice):
-                raise StructureException("Array access must access a single element, not a slice", expr)
-            index = parse_value_expr(expr.slice.value, context)
-        elif isinstance(sub.typ, TupleType):
-            if not isinstance(expr.slice.value, ast.Num) or expr.slice.value.n < 0 or expr.slice.value.n >= len(sub.typ.members):
-                raise TypeMismatchException("Tuple index invalid", expr.slice.value)
-            index = expr.slice.value.n
-        else:
-            raise TypeMismatchException("Bad subscript attempt", expr.value)
-        o = add_variable_offset(sub, index)
-        o.mutable = sub.mutable
-        return o
-    # Arithmetic operations
-    elif isinstance(expr, ast.BinOp):
-        left = parse_value_expr(expr.left, context)
-        right = parse_value_expr(expr.right, context)
-        if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
-            raise TypeMismatchException("Unsupported types for arithmetic op: %r %r" % (left.typ, right.typ), expr)
-        ltyp, rtyp = left.typ.typ, right.typ.typ
-        if isinstance(expr.op, (ast.Add, ast.Sub)):
-            if left.typ.unit != right.typ.unit and left.typ.unit is not None and right.typ.unit is not None:
-                raise TypeMismatchException("Unit mismatch: %r %r" % (left.typ.unit, right.typ.unit), expr)
-            if left.typ.positional and right.typ.positional and isinstance(expr.op, ast.Add):
-                raise TypeMismatchException("Cannot add two positional units!", expr)
-            new_unit = left.typ.unit or right.typ.unit
-            new_positional = left.typ.positional ^ right.typ.positional  # xor, as subtracting two positionals gives a delta
-            op = 'add' if isinstance(expr.op, ast.Add) else 'sub'
-            if ltyp == rtyp:
-                o = LLLnode.from_list([op, left, right], typ=BaseType(ltyp, new_unit, new_positional), pos=getpos(expr))
-            elif ltyp == 'num' and rtyp == 'decimal':
-                o = LLLnode.from_list([op, ['mul', left, DECIMAL_DIVISOR], right],
-                                      typ=BaseType('decimal', new_unit, new_positional), pos=getpos(expr))
-            elif ltyp == 'decimal' and rtyp == 'num':
-                o = LLLnode.from_list([op, left, ['mul', right, DECIMAL_DIVISOR]],
-                                      typ=BaseType('decimal', new_unit, new_positional), pos=getpos(expr))
-            else:
-                raise Exception("How did I get here? %r %r" % (ltyp, rtyp))
-        elif isinstance(expr.op, ast.Mult):
-            if left.typ.positional or right.typ.positional:
-                raise TypeMismatchException("Cannot multiply positional values!", expr)
-            new_unit = combine_units(left.typ.unit, right.typ.unit)
-            if ltyp == rtyp == 'num':
-                o = LLLnode.from_list(['mul', left, right], typ=BaseType('num', new_unit), pos=getpos(expr))
-            elif ltyp == rtyp == 'decimal':
-                o = LLLnode.from_list(['with', 'r', right, ['with', 'l', left,
-                                        ['with', 'ans', ['mul', 'l', 'r'],
-                                            ['seq',
-                                                ['assert', ['or', ['eq', ['sdiv', 'ans', 'l'], 'r'], ['not', 'l']]],
-                                                ['sdiv', 'ans', DECIMAL_DIVISOR]]]]], typ=BaseType('decimal', new_unit), pos=getpos(expr))
-            elif (ltyp == 'num' and rtyp == 'decimal') or (ltyp == 'decimal' and rtyp == 'num'):
-                o = LLLnode.from_list(['with', 'r', right, ['with', 'l', left,
-                                        ['with', 'ans', ['mul', 'l', 'r'],
-                                            ['seq',
-                                                ['assert', ['or', ['eq', ['sdiv', 'ans', 'l'], 'r'], ['not', 'l']]],
-                                                'ans']]]], typ=BaseType('decimal', new_unit), pos=getpos(expr))
-        elif isinstance(expr.op, ast.Div):
-            if left.typ.positional or right.typ.positional:
-                raise TypeMismatchException("Cannot divide positional values!", expr)
-            new_unit = combine_units(left.typ.unit, right.typ.unit, div=True)
-            if rtyp == 'num':
-                o = LLLnode.from_list(['sdiv', left, ['clamp_nonzero', right]], typ=BaseType(ltyp, new_unit), pos=getpos(expr))
-            elif ltyp == rtyp == 'decimal':
-                o = LLLnode.from_list(['with', 'l', left, ['with', 'r', ['clamp_nonzero', right],
-                                            ['sdiv', ['mul', 'l', DECIMAL_DIVISOR], 'r']]],
-                                      typ=BaseType('decimal', new_unit), pos=getpos(expr))
-            elif ltyp == 'num' and rtyp == 'decimal':
-                o = LLLnode.from_list(['sdiv', ['mul', left, DECIMAL_DIVISOR ** 2], ['clamp_nonzero', right]],
-                                      typ=BaseType('decimal', new_unit), pos=getpos(expr))
-        elif isinstance(expr.op, ast.Mod):
-            if left.typ.positional or right.typ.positional:
-                raise TypeMismatchException("Cannot use positional values as modulus arguments!", expr)
-            if left.typ.unit != right.typ.unit and left.typ.unit is not None and right.typ.unit is not None:
-                raise TypeMismatchException("Modulus arguments must have same unit", expr)
-            new_unit = left.typ.unit or right.typ.unit
-            if ltyp == rtyp:
-                o = LLLnode.from_list(['smod', left, ['clamp_nonzero', right]], typ=BaseType(ltyp, new_unit), pos=getpos(expr))
-            elif ltyp == 'decimal' and rtyp == 'num':
-                o = LLLnode.from_list(['smod', left, ['mul', ['clamp_nonzero', right], DECIMAL_DIVISOR]],
-                                      typ=BaseType('decimal', new_unit), pos=getpos(expr))
-            elif ltyp == 'num' and rtyp == 'decimal':
-                o = LLLnode.from_list(['smod', ['mul', left, DECIMAL_DIVISOR], right],
-                                      typ=BaseType('decimal', new_unit), pos=getpos(expr))
-        elif isinstance(expr.op, ast.Pow):
-            if left.typ.positional or right.typ.positional:
-                raise TypeMismatchException("Cannot use positional values as exponential arguments!", expr)
-            new_unit = combine_units(left.typ.unit, right.typ.unit)
-            if ltyp == rtyp == 'num':
-                o = LLLnode.from_list(['exp', left, right], typ=BaseType('num', new_unit), pos=getpos(expr))
-            else:
-                raise TypeMismatchException('Only whole number exponents are supported', expr)
-        else:
-            raise Exception("Unsupported binop: %r" % expr.op)
-        if o.typ.typ == 'num':
-            return LLLnode.from_list(['clamp', ['mload', MemoryPositions.MINNUM], o, ['mload', MemoryPositions.MAXNUM]], typ=o.typ, pos=getpos(expr))
-        elif o.typ.typ == 'decimal':
-            return LLLnode.from_list(['clamp', ['mload', MemoryPositions.MINDECIMAL], o, ['mload', MemoryPositions.MAXDECIMAL]], typ=o.typ, pos=getpos(expr))
-        else:
-            raise Exception("%r %r" % (o, o.typ))
-    # Comparison operations
-    elif isinstance(expr, ast.Compare):
-        left = parse_value_expr(expr.left, context)
-        right = parse_value_expr(expr.comparators[0], context)
-        if not are_units_compatible(left.typ, right.typ) and not are_units_compatible(right.typ, left.typ):
-            raise TypeMismatchException("Can't compare values with different units!", expr)
-        if len(expr.ops) != 1:
-            raise StructureException("Cannot have a comparison with more than two elements", expr)
-        if isinstance(expr.ops[0], ast.Gt):
-            op = 'sgt'
-        elif isinstance(expr.ops[0], ast.GtE):
-            op = 'sge'
-        elif isinstance(expr.ops[0], ast.LtE):
-            op = 'sle'
-        elif isinstance(expr.ops[0], ast.Lt):
-            op = 'slt'
-        elif isinstance(expr.ops[0], ast.Eq):
-            op = 'eq'
-        elif isinstance(expr.ops[0], ast.NotEq):
-            op = 'ne'
-        else:
-            raise Exception("Unsupported comparison operator")
-        if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
-            if op not in ('eq', 'ne'):
-                raise TypeMismatchException("Invalid type for comparison op", expr)
-        ltyp, rtyp = left.typ.typ, right.typ.typ
-        if ltyp == rtyp:
-            return LLLnode.from_list([op, left, right], typ='bool', pos=getpos(expr))
-        elif ltyp == 'decimal' and rtyp == 'num':
-            return LLLnode.from_list([op, left, ['mul', right, DECIMAL_DIVISOR]], typ='bool', pos=getpos(expr))
-        elif ltyp == 'num' and rtyp == 'decimal':
-            return LLLnode.from_list([op, ['mul', left, DECIMAL_DIVISOR], right], typ='bool', pos=getpos(expr))
-        else:
-            raise TypeMismatchException("Unsupported types for comparison: %r %r" % (ltyp, rtyp), expr)
-    # Boolean logical operations
-    elif isinstance(expr, ast.BoolOp):
-        if len(expr.values) != 2:
-            raise StructureException("Expected two arguments for a bool op", expr)
-        left = parse_value_expr(expr.values[0], context)
-        right = parse_value_expr(expr.values[1], context)
-        if not is_base_type(left.typ, 'bool') or not is_base_type(right.typ, 'bool'):
-            raise TypeMismatchException("Boolean operations can only be between booleans!", expr)
-        if isinstance(expr.op, ast.And):
-            op = 'and'
-        elif isinstance(expr.op, ast.Or):
-            op = 'or'
-        else:
-            raise Exception("Unsupported bool op: " + expr.op)
-        return LLLnode.from_list([op, left, right], typ='bool', pos=getpos(expr))
-    # Unary operations (only "not" supported)
-    elif isinstance(expr, ast.UnaryOp):
-        operand = parse_value_expr(expr.operand, context)
-        if isinstance(expr.op, ast.Not):
-            # Note that in the case of bool, num, address, decimal, num256 AND bytes32,
-            # a zero entry represents false, all others represent true
-            return LLLnode.from_list(["iszero", operand], typ='bool', pos=getpos(expr))
-        elif isinstance(expr.op, ast.USub):
-            if not is_numeric_type(operand.typ):
-                raise TypeMismatchException("Unsupported type for negation: %r" % operand.typ, operand)
-            return LLLnode.from_list(["sub", 0, operand], typ=operand.typ, pos=getpos(expr))
-        else:
-            raise StructureException("Only the 'not' unary operator is supported")
-    # Function calls
-    elif isinstance(expr, ast.Call):
-        if isinstance(expr.func, ast.Name) and expr.func.id in dispatch_table:
-            return dispatch_table[expr.func.id](expr, context)
-        elif isinstance(expr.func, ast.Attribute) and isinstance(expr.func.value, ast.Name) and expr.func.value.id == "self":
-            method_name = expr.func.attr
-            if method_name not in context.sigs['self']:
-                raise VariableDeclarationException("Function not declared yet (reminder: functions cannot "
-                                                   "call functions later in code than themselves): %s" % expr.func.attr)
-            sig = context.sigs['self'][expr.func.attr]
-            inargs, inargsize = pack_arguments(sig, [parse_expr(arg, context) for arg in expr.args], context)
-            output_placeholder = context.new_placeholder(typ=sig.output_type)
-            if isinstance(sig.output_type, BaseType):
-                returner = output_placeholder
-            elif isinstance(sig.output_type, ByteArrayType):
-                returner = output_placeholder + 32
-            else:
-                raise TypeMismatchException("Invalid output type: %r" % sig.output_type, expr)
-            o = LLLnode.from_list(['seq',
-                                        ['assert', ['call', ['gas'], ['address'], 0,
-                                                        inargs, inargsize,
-                                                        output_placeholder, get_size_of_type(sig.output_type) * 32]],
-                                        returner], typ=sig.output_type, location='memory', pos=getpos(expr))
-            o.gas += sig.gas
-            return o
-        elif isinstance(expr.func, ast.Attribute) and isinstance(expr.func.value, ast.Call):
-            return external_contract_call_expr(expr, context)
-        else:
-            raise StructureException("Unsupported operator: %r" % ast.dump(expr), expr)
-    # List literals
-    elif isinstance(expr, ast.List):
-        if not len(expr.elts):
-            raise StructureException("List must have elements", expr)
-        o = []
-        out_type = None
-        for elt in expr.elts:
-            o.append(parse_expr(elt, context))
-            if not out_type:
-                out_type = o[-1].typ
-            elif len(o) > 1 and o[-1].typ != out_type:
-                out_type = MixedType()
-        return LLLnode.from_list(["multi"] + o, typ=ListType(out_type, len(o)), pos=getpos(expr))
-    # Struct literals
-    elif isinstance(expr, ast.Dict):
-        o = {}
-        members = {}
-        for key, value in zip(expr.keys, expr.values):
-            if not isinstance(key, ast.Name) or not is_varname_valid(key.id):
-                raise TypeMismatchException("Invalid member variable for struct: %r" % vars(key).get('id', key), key)
-            if key.id in o:
-                raise TypeMismatchException("Member variable duplicated: " + key.id, key)
-            o[key.id] = parse_expr(value, context)
-            members[key.id] = o[key.id].typ
-        return LLLnode.from_list(["multi"] + [o[key] for key in sorted(list(o.keys()))], typ=StructType(members), pos=getpos(expr))
-
-    # Tuple literals
-    elif isinstance(expr, ast.Tuple):
-        if not len(expr.elts):
-            raise StructureException("Tuple must have elements", expr)
-        o = []
-        out_type = None
-        for elt in expr.elts:
-            o.append(parse_expr(elt, context))
-        return LLLnode.from_list(["multi"] + o, typ=TupleType(o), pos=getpos(expr))
-
-    raise Exception("Unsupported operator: %r" % ast.dump(expr))
-
-
-# Parse an expression that represents an address in memory or storage
-def parse_variable_location(expr, context):
-    o = parse_expr(expr, context)
-    if not o.location:
-        raise Exception("Looking for a variable location, instead got a value")
-    return o
-
-
-# Parse an expression that results in a value
-def parse_value_expr(expr, context):
-    return unwrap_location(parse_expr(expr, context))
+    return Expr(expr, context).lll_node
 
 
 # Create an x=y statement, where the types may be compound
@@ -974,10 +598,10 @@ def pack_logging_topics(event_id, args, topics_types, context):
         arg = args[pos]
         topics_count += 1
         if isinstance(arg, ast.Str):
-            stored_topics.append(parse_value_expr(arg, context))
+            stored_topics.append(Expr.parse_value_expr(arg, context))
             topics.append(['mload', stored_topics[-1].to_list()[-1][-1][-1] + 32])
         else:
-            input = parse_value_expr(arg, context)
+            input = Expr.parse_value_expr(arg, context)
             input = base_type_conversion(input, input.typ, typ)
             topics.append(input)
     return topics, stored_topics
