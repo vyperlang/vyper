@@ -15,9 +15,11 @@ def compile(code, *args, **kwargs):
 def gas_estimate(origcode, *args, **kwargs):
     o = {}
     code = optimizer.optimize(parser.parse_to_lll(origcode))
+
     # Extract the stuff inside the LLL bracket
     if code.value == 'seq':
-        code = code.args[-1].args[1].args[0]
+        if code.args[-1].value == 'return':
+            code = code.args[-1].args[1].args[0]
     else:
         code = code.args[1].args[0]
     assert code.value == 'seq'
