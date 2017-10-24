@@ -156,7 +156,7 @@ def foo():
     assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': [1, 2], 'arg2': [timestamp, timestamp + 1, timestamp + 2], 'arg3': [[1, 2], [1, 2]], '_event_type': b'MyLog'}
 
 
-def test_logging_with_input_bytes():
+def test_logging_with_input_bytes(bytes_helper):
     loggy_code = """
 MyLog: __log__({arg1: indexed(bytes <= 4), arg2: indexed(bytes <= 29), arg3: bytes<=31})
 
@@ -174,7 +174,8 @@ def foo(arg1: bytes <= 29, arg2: bytes <= 31):
     # # Event abi is created correctly
     assert c.translator.event_data[event_id] == {'types': ['bytes4', 'bytes29', 'bytes31'], 'name': 'MyLog', 'names': ['arg1', 'arg2', 'arg3'], 'indexed': [True, True, False], 'anonymous': False}
     # Event is decoded correctly
-    assert c.translator.decode_event(logs.topics, logs.data) ==  {'arg1': b'bar\x00', 'arg2': b'bar\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00', 'arg3': b'foo\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00', '_event_type': b'MyLog'}
+    assert c.translator.decode_event(logs.topics, logs.data) ==  {'arg1': b'bar\x00', 'arg2': bytes_helper('bar', 29), 'arg3': bytes_helper('foo', 31), '_event_type': b'MyLog'}
+
 
 def test_event_logging_with_data_with_different_types():
     loggy_code = """
