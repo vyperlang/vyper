@@ -34,7 +34,7 @@ def foo():
     log.MyLog('bar')
     """
 
-    c = get_contract_with_gas_estimation(loggy_code)
+    c = get_contract(loggy_code)
     c.foo()
     logs = s.head_state.receipts[-1].logs[-1]
     event_id = u.bytes_to_int(u.sha3(bytes('MyLog(bytes3)', 'utf-8')))
@@ -56,7 +56,7 @@ def foo():
     log.MyLog('bar', 'home', self)
     """
 
-    c = get_contract_with_gas_estimation(loggy_code)
+    c = get_contract(loggy_code)
     c.foo()
     logs = s.head_state.receipts[-1].logs[-1]
     event_id = u.bytes_to_int(u.sha3(bytes('MyLog(bytes3,bytes4,address)', 'utf-8')))
@@ -302,6 +302,16 @@ def foo(arg1: bytes <= 4):
 """
     t.s = s
     assert_tx_failed(t, lambda: get_contract(loggy_code), TypeMismatchException)
+
+
+def test_fails_when_log_data_is_over_32_bytes(assert_tx_failed):
+    loggy_code = """
+MyLog: __log__({arg1: bytes <= 100})
+def foo():
+    pass
+    """
+    t.s = s
+    assert_tx_failed(t, lambda: get_contract(loggy_code), VariableDeclarationException)
 
 
 def test_logging_fails_with_over_three_topics(assert_tx_failed):
