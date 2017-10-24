@@ -85,14 +85,14 @@ class Stmt(object):
         if isinstance(self.stmt.targets[0], ast.Name) and self.stmt.targets[0].id not in self.context.vars:
             pos = self.context.new_variable(self.stmt.targets[0].id, set_default_units(sub.typ))
             variable_loc = LLLnode.from_list(pos, typ=sub.typ, location='memory', pos=getpos(self.stmt), annotation=self.stmt.targets[0].id)
-            o = make_setter(variable_loc, sub, 'memory')
+            o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
         else:
             target = Expr.parse_variable_location(self.stmt.targets[0], self.context)
             if target.location == 'storage' and self.context.is_constant:
                 raise ConstancyViolationException("Cannot modify storage inside a constant function!", self.stmt.targets[0])
             if not target.mutable:
                 raise ConstancyViolationException("Cannot modify function argument", self.stmt.targets[0])
-            o = make_setter(target, sub, target.location)
+            o = make_setter(target, sub, target.location, pos=getpos(self.stmt))
         o.pos = getpos(self.stmt)
         return o
 
@@ -263,7 +263,7 @@ class Stmt(object):
                                             typ=None, pos=getpos(self.stmt))
             else:
                 new_sub = LLLnode.from_list(self.context.new_placeholder(self.context.return_type), typ=self.context.return_type, location='memory')
-                setter = make_setter(new_sub, sub, 'memory')
+                setter = make_setter(new_sub, sub, 'memory', pos=getpos(self.stmt))
                 return LLLnode.from_list(['seq', setter, ['return', new_sub, get_size_of_type(self.context.return_type) * 32]],
                                             typ=None, pos=getpos(self.stmt))
 
@@ -298,11 +298,11 @@ class Stmt(object):
 
                     # Store dynamic data, from offset pointer onwards.
                     dynamic_spot = LLLnode.from_list(['add', left_token, get_dynamic_offset_value()], location="memory", typ=arg.typ, annotation='dynamic_spot')
-                    subs.append(make_setter(dynamic_spot, arg, location="memory"))
+                    subs.append(make_setter(dynamic_spot, arg, location="memory", pos=getpos(self.stmt)))
                     subs.append(increment_dynamic_offset(dynamic_spot))
 
                 elif isinstance(arg.typ, BaseType):
-                    subs.append(make_setter(variable_offset, arg, "memory"))
+                    subs.append(make_setter(variable_offset, arg, "memory", pos=getpos(self.stmt)))
                 else:
                     raise Exception("Can't return type %s as part of tuple", type(arg.typ))
 
