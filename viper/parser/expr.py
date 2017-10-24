@@ -299,11 +299,45 @@ class Expr(object):
         else:
             raise Exception("%r %r" % (o, o.typ))
 
+    def build_in_comparator(self):
+        left = Expr(self.expr.left, self.context).lll_node
+        right = Expr(self.expr.comparators[0], self.context).lll_node
+
+        result_placeholder = self.context.new_placeholder(BaseType('bool'))
+        load_i_from_list = ['mload', ['add', right, ['mul', 32, ['mload', MemoryPositions.FREE_LOOP_INDEX]]]]
+
+        break_loop_condition = [
+            'if',
+            ['eq', unwrap_location(left), load_i_from_list],
+            ['seq',
+                ['mstore', '_result', 1],  # store true.
+                'break']
+        ]
+
+        o = LLLnode.from_list([
+            'eq', 1,
+            ['seq',
+                ['mstore', result_placeholder, 0],
+                ['with', '_result', result_placeholder,
+                    ['repeat', MemoryPositions.FREE_LOOP_INDEX, 0, right.typ.count, break_loop_condition]],
+                ['mload', result_placeholder]]],
+            typ='bool'
+        )
+
+        # LLLnode.from_list([op, left, right], typ='bool', pos=getpos(self.expr))
+
+        return o
+
     def compare(self):
         left = Expr.parse_value_expr(self.expr.left, self.context)
         right = Expr.parse_value_expr(self.expr.comparators[0], self.context)
-        if not are_units_compatible(left.typ, right.typ) and not are_units_compatible(right.typ, left.typ):
-            raise TypeMismatchException("Can't compare values with different units!", self.expr)
+        if isinstance(self.expr.ops[0], ast.In) and \
+           is_numeric_type(left.typ) and \
+           isinstance(right.typ, ListType):
+            return self.build_in_comparator()
+        else:
+            if not are_units_compatible(left.typ, right.typ) and not are_units_compatible(right.typ, left.typ):
+                raise TypeMismatchException("Can't compare values with different units!", self.expr)
         if len(self.expr.ops) != 1:
             raise StructureException("Cannot have a comparison with more than two elements", self.expr)
         if isinstance(self.expr.ops[0], ast.Gt):
