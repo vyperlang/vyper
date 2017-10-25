@@ -24,20 +24,6 @@ def testin(x: num) -> bool:
     assert c.testin(-1) is False
 
 
-# def test_cmp_in_list():
-#     code = """
-# def in_test(x: num) -> bool:
-#     if x in [9, 7, 6, 5]:
-#         return True
-#     return False
-#     """
-
-#     c = get_contract(code)
-
-#     assert c.in_test(1) == True
-#     assert c.in_test(5) == False
-
-
 def test_in_storage_list():
     code = """
 allowed: num[10]
@@ -50,7 +36,26 @@ def in_test(x: num) -> bool:
     """
 
     c = get_contract(code)
-    assert c.in_test(1) == True
-    assert c.in_test(9) == True
-    assert c.in_test(11) == False
-    assert c.in_test(-1) == False
+
+    assert c.in_test(1) is True
+    assert c.in_test(9) is True
+    assert c.in_test(11) is False
+    assert c.in_test(-1) is False
+    assert c.in_test(32000) is False
+
+
+def test_cmp_in_list():
+    code = """
+def in_test(x: num) -> bool:
+    if x in [9, 7, 6, 5]:
+        return True
+    return False
+    """
+
+    c = get_contract(code)
+
+    assert c.in_test(1) is False
+    assert c.in_test(-7) is False
+    assert c.in_test(-9) is False
+    assert c.in_test(5) is True
+    assert c.in_test(7) is True

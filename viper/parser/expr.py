@@ -300,16 +300,29 @@ class Expr(object):
             raise Exception("%r %r" % (o, o.typ))
 
     def build_in_comparator(self):
+        from viper.parser.parser import make_setter
         left = Expr(self.expr.left, self.context).lll_node
         right = Expr(self.expr.comparators[0], self.context).lll_node
 
         result_placeholder = self.context.new_placeholder(BaseType('bool'))
+        setter = []
 
-        if right.location == "storage":
+        # Load nth item from list in memory.
+        if right.value == 'multi':
+            # Copy literal to memory to be compared.
+            tmp_list = LLLnode.from_list(
+                obj=self.context.new_placeholder(ListType(right.typ.subtype, right.typ.count)),
+                typ=ListType(right.typ.subtype, right.typ.count),
+                location='memory'
+            )
+            setter = make_setter(tmp_list, right, 'memory')
+            load_i_from_list = ['mload', ['add', tmp_list, ['mul', 32, ['mload', MemoryPositions.FREE_LOOP_INDEX]]]]
+        elif right.location == "storage":
             load_i_from_list = ['sload', ['add', ['sha3_32', right], ['mload', MemoryPositions.FREE_LOOP_INDEX]]]
         else:
             load_i_from_list = ['mload', ['add', right, ['mul', 32, ['mload', MemoryPositions.FREE_LOOP_INDEX]]]]
 
+        # Condition repeat loop has to break on.
         break_loop_condition = [
             'if',
             ['eq', unwrap_location(left), load_i_from_list],
@@ -318,13 +331,25 @@ class Expr(object):
                 'break']
         ]
 
+        # Repeat loop to loop-compare each item in the list.
+        for_loop_sequence = [
+            ['mstore', result_placeholder, 0],
+            ['with', '_result', result_placeholder,
+                ['repeat', MemoryPositions.FREE_LOOP_INDEX, 0, right.typ.count, break_loop_condition]],
+            ['mload', result_placeholder]
+        ]
+
+        # Save list to memory, so one can iterate over it,
+        # used when literal was created with tmp_list.
+        if setter:
+            compare_sequence = ['seq', setter] + for_loop_sequence
+        else:
+            compare_sequence = ['seq'] + for_loop_sequence
+
+        # Compare the result of the repeat loop to 1, to know if a match was found.
         o = LLLnode.from_list([
             'eq', 1,
-            ['seq',
-                ['mstore', result_placeholder, 0],
-                ['with', '_result', result_placeholder,
-                    ['repeat', MemoryPositions.FREE_LOOP_INDEX, 0, right.typ.count, break_loop_condition]],
-                ['mload', result_placeholder]]],
+            compare_sequence],
             typ='bool',
             annotation="in comporator"
         )
