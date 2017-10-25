@@ -304,7 +304,11 @@ class Expr(object):
         right = Expr(self.expr.comparators[0], self.context).lll_node
 
         result_placeholder = self.context.new_placeholder(BaseType('bool'))
-        load_i_from_list = ['mload', ['add', right, ['mul', 32, ['mload', MemoryPositions.FREE_LOOP_INDEX]]]]
+
+        if right.location == "storage":
+            load_i_from_list = ['sload', ['add', ['sha3_32', right], ['mload', MemoryPositions.FREE_LOOP_INDEX]]]
+        else:
+            load_i_from_list = ['mload', ['add', right, ['mul', 32, ['mload', MemoryPositions.FREE_LOOP_INDEX]]]]
 
         break_loop_condition = [
             'if',
@@ -321,10 +325,9 @@ class Expr(object):
                 ['with', '_result', result_placeholder,
                     ['repeat', MemoryPositions.FREE_LOOP_INDEX, 0, right.typ.count, break_loop_condition]],
                 ['mload', result_placeholder]]],
-            typ='bool'
+            typ='bool',
+            annotation="in comporator"
         )
-
-        # LLLnode.from_list([op, left, right], typ='bool', pos=getpos(self.expr))
 
         return o
 
