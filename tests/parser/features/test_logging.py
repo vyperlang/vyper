@@ -12,7 +12,7 @@ def foo():
     log.MyLog()
     """
 
-    c = get_contract(loggy_code)
+    c = get_contract_with_gas_estimation(loggy_code)
     c.foo()
     logs = s.head_state.receipts[-1].logs[-1]
     event_id = u.bytes_to_int(u.sha3(bytes('MyLog()', 'utf-8')))
@@ -34,7 +34,7 @@ def foo():
     log.MyLog('bar')
     """
 
-    c = get_contract(loggy_code)
+    c = get_contract_with_gas_estimation(loggy_code)
     c.foo()
     logs = s.head_state.receipts[-1].logs[-1]
     event_id = u.bytes_to_int(u.sha3(bytes('MyLog(bytes3)', 'utf-8')))
@@ -56,7 +56,7 @@ def foo():
     log.MyLog('bar', 'home', self)
     """
 
-    c = get_contract(loggy_code)
+    c = get_contract_with_gas_estimation(loggy_code)
     c.foo()
     logs = s.head_state.receipts[-1].logs[-1]
     event_id = u.bytes_to_int(u.sha3(bytes('MyLog(bytes3,bytes4,address)', 'utf-8')))
@@ -107,7 +107,7 @@ def foo():
     """
 
     with pytest.raises(VariableDeclarationException):
-        get_contract(loggy_code)
+        get_contract_with_gas_estimation(loggy_code)
 
 
 def test_event_logging_with_data():
@@ -118,7 +118,7 @@ def foo():
     log.MyLog(123)
     """
 
-    c = get_contract(loggy_code)
+    c = get_contract_with_gas_estimation(loggy_code)
     c.foo()
     logs = s.head_state.receipts[-1].logs[-1]
     event_id = u.bytes_to_int(u.sha3(bytes('MyLog(int128)', 'utf-8')))
@@ -141,7 +141,7 @@ def foo():
     log.MyLog([1,2], [block.timestamp, block.timestamp+1, block.timestamp+2], [[1,2],[1,2]])
     """
 
-    c = get_contract(loggy_code)
+    c = get_contract_with_gas_estimation(loggy_code)
     c.foo()
     logs = s.head_state.receipts[-1].logs[-1]
     event_id = u.bytes_to_int(u.sha3(bytes('MyLog(int128[2],int128[3],int128[2][2])', 'utf-8')))
@@ -164,7 +164,7 @@ def foo():
     log.MyLog(123, 'home', 'bar', 0xc305c901078781C232A2a521C2aF7980f8385ee9, self, block.timestamp)
     """
 
-    c = get_contract(loggy_code)
+    c = get_contract_with_gas_estimation(loggy_code)
     c.foo()
     logs = s.head_state.receipts[-1].logs[-1]
     event_id = u.bytes_to_int(u.sha3(bytes('MyLog(int128,bytes4,bytes3,address,address,int128)', 'utf-8')))
@@ -186,7 +186,7 @@ def foo():
     log.MyLog(1, 'bar')
     """
 
-    c = get_contract(loggy_code)
+    c = get_contract_with_gas_estimation(loggy_code)
     c.foo()
     logs = s.head_state.receipts[-1].logs[-1]
     event_id = u.bytes_to_int(u.sha3(bytes('MyLog(int128,bytes3)', 'utf-8')))
@@ -210,7 +210,7 @@ def foo():
     log.YourLog(self, 'house')
     """
 
-    c = get_contract(loggy_code)
+    c = get_contract_with_gas_estimation(loggy_code)
     c.foo()
     logs1 = s.head_state.receipts[-1].logs[-2]
     logs2 = s.head_state.receipts[-1].logs[-1]
@@ -238,7 +238,7 @@ def __init__():
     log.MyLog(1, 2, 3, 4)
     """
     t.s = s
-    assert_tx_failed(t, lambda: get_contract(loggy_code), VariableDeclarationException)
+    assert_tx_failed(t, lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
 
 
 def test_logging_fails_with_duplicate_log_names(assert_tx_failed):
@@ -250,7 +250,7 @@ def foo():
     log.MyLog()
     """
     t.s = s
-    assert_tx_failed(t, lambda: get_contract(loggy_code), VariableDeclarationException)
+    assert_tx_failed(t, lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
 
 
 def test_logging_fails_with_when_log_is_undeclared(assert_tx_failed):
@@ -259,7 +259,7 @@ def foo():
     log.MyLog()
     """
     t.s = s
-    assert_tx_failed(t, lambda: get_contract(loggy_code), VariableDeclarationException)
+    assert_tx_failed(t, lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
 
 
 def test_logging_fails_with_topic_type_mismatch(assert_tx_failed):
@@ -270,7 +270,7 @@ def foo():
     log.MyLog(self)
     """
     t.s = s
-    assert_tx_failed(t, lambda: get_contract(loggy_code), TypeMismatchException)
+    assert_tx_failed(t, lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatchException)
 
 
 def test_logging_fails_with_data_type_mismatch(assert_tx_failed):
@@ -281,7 +281,7 @@ def foo():
     log.MyLog(self)
     """
     t.s = s
-    assert_tx_failed(t, lambda: get_contract(loggy_code), AttributeError)
+    assert_tx_failed(t, lambda: get_contract_with_gas_estimation(loggy_code), AttributeError)
 
 
 def test_logging_fails_after_a_global_declaration(assert_tx_failed):
@@ -290,7 +290,7 @@ age: num
 MyLog: __log__({arg1: bytes <= 3})
     """
     t.s = s
-    assert_tx_failed(t, lambda: get_contract(loggy_code), StructureException)
+    assert_tx_failed(t, lambda: get_contract_with_gas_estimation(loggy_code), StructureException)
 
 
 def test_logging_fails_after_a_function_declaration(assert_tx_failed):
@@ -301,7 +301,7 @@ def foo():
 MyLog: __log__({arg1: bytes <= 3})
     """
     t.s = s
-    assert_tx_failed(t, lambda: get_contract(loggy_code), StructureException)
+    assert_tx_failed(t, lambda: get_contract_with_gas_estimation(loggy_code), StructureException)
 
 
 def test_loggy_code():

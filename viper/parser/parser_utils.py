@@ -67,6 +67,9 @@ class LLLnode():
                     if arg.valency == 0:
                         raise Exception("Can't have a zerovalent argument to an opcode or a pseudo-opcode! %r" % arg)
                     self.gas += arg.gas
+                # Dynamic gas cost: 8 gas for each byte of logging data
+                if self.value.upper()[0:3] == 'LOG' and isinstance(self.args[1].value, int):
+                    self.gas += self.args[1].value * 8
                 # Dynamic gas cost: non-zero-valued call
                 if self.value.upper() == 'CALL' and self.args[2].value != 0:
                     self.gas += 34000
