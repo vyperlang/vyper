@@ -17,7 +17,6 @@ def initiate(token_addr: address, token_quantity: num):
 
 @payable
 def eth_to_tokens():
-    assert msg.value > 0
     fee = msg.value / 500
     eth_in_purchase = msg.value - fee
     new_total_eth = self.total_eth_qty + eth_in_purchase
@@ -27,7 +26,6 @@ def eth_to_tokens():
     self.total_token_qty = new_total_tokens
 
 def tokens_to_eth(sell_quantity: num):
-    assert sell_quantity > 0
     self.token_address.transferFrom(msg.sender, self, as_num256(sell_quantity))
     new_total_tokens = self.total_token_qty + sell_quantity
     new_total_eth = self.invariant / new_total_tokens
