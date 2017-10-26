@@ -26,11 +26,13 @@ num_proposals: public(num)
 
 @constant
 def delegated(addr: address) -> bool:
-    return self.voters[addr].delegate != 0x0000000000000000000000000000000000000000
+    # equivalent to self.voters[addr].delegate != 0x0000000000000000000000000000000000000000
+    return not not self.voters[addr].delegate
 
 @constant
 def directly_voted(addr: address) -> bool:
-    return self.voters[addr].voted and self.voters[addr].delegate == 0x0000000000000000000000000000000000000000
+    # not <address> equivalent to <address> == 0x0000000000000000000000000000000000000000
+    return self.voters[addr].voted and not self.voters[addr].delegate
 
 # Setup global variables
 def __init__(_proposalNames: bytes32[2]):
@@ -95,7 +97,7 @@ def delegate(to: address):
     # Throws if sender tries to delegate their vote to themselves or to
     # the default address value of 0x0000000000000000000000000000000000000000
     # (the latter might not be problematic, but I don't want to think about it)
-    assert to != msg.sender and to != 0x0000000000000000000000000000000000000000
+    assert to != msg.sender and not not to
 
     self.voters[msg.sender].voted = True
     self.voters[msg.sender].delegate = to
