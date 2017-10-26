@@ -34,7 +34,7 @@ def foo():
     log.MyLog('bar')
     """
 
-    c = get_contract_with_gas_estimation(loggy_code)
+    c = get_contract(loggy_code)
     c.foo()
     logs = s.head_state.receipts[-1].logs[-1]
     event_id = u.bytes_to_int(u.sha3(bytes('MyLog(bytes3)', 'utf-8')))
@@ -56,7 +56,7 @@ def foo():
     log.MyLog('bar', 'home', self)
     """
 
-    c = get_contract_with_gas_estimation(loggy_code)
+    c = get_contract(loggy_code)
     c.foo()
     logs = s.head_state.receipts[-1].logs[-1]
     event_id = u.bytes_to_int(u.sha3(bytes('MyLog(bytes3,bytes4,address)', 'utf-8')))
@@ -156,12 +156,36 @@ def foo():
     assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': [1, 2], 'arg2': [timestamp, timestamp + 1, timestamp + 2], 'arg3': [[1, 2], [1, 2]], '_event_type': b'MyLog'}
 
 
+def test_logging_with_input_bytes(bytes_helper):
+    loggy_code = """
+MyLog: __log__({arg1: indexed(bytes <= 4), arg2: indexed(bytes <= 29), arg3: bytes<=31})
+
+def foo(arg1: bytes <= 29, arg2: bytes <= 31):
+    log.MyLog('bar', arg1, arg2)
+"""
+    c = get_contract(loggy_code)
+    c.foo('bar', 'foo')
+    logs = s.head_state.receipts[-1].logs[-1]
+    event_id = u.bytes_to_int(u.sha3(bytes('MyLog(bytes4,bytes29,bytes31)', 'utf-8')))
+    # # Event id is always the first topic
+    assert logs.topics[0] == event_id
+    # # Event id is calculated correctly
+    assert c.translator.event_data[event_id]
+    # # Event abi is created correctly
+    assert c.translator.event_data[event_id] == {'types': ['bytes4', 'bytes29', 'bytes31'], 'name': 'MyLog', 'names': ['arg1', 'arg2', 'arg3'], 'indexed': [True, True, False], 'anonymous': False}
+    # Event is decoded correctly
+    assert c.translator.decode_event(logs.topics, logs.data) ==  {'arg1': b'bar\x00', 'arg2': bytes_helper('bar', 29), 'arg3': bytes_helper('foo', 31), '_event_type': b'MyLog'}
+
+
 def test_event_logging_with_data_with_different_types():
     loggy_code = """
 MyLog: __log__({arg1: num, arg2: bytes <= 4, arg3: bytes <= 3, arg4: address, arg5: address, arg6: timestamp})
 
 def foo():
     log.MyLog(123, 'home', 'bar', 0xc305c901078781C232A2a521C2aF7980f8385ee9, self, block.timestamp)
+# MyLog: __log__({arg1: bytes <= 3, arg2: bytes <= 5})
+# def foo():
+#     log.MyLog('bar', 'bears')
     """
 
     c = get_contract_with_gas_estimation(loggy_code)
@@ -229,6 +253,65 @@ def foo():
     assert c.translator.decode_event(logs1.topics, logs1.data) == {'arg1': 1, 'arg2': b'bar', '_event_type': b'MyLog'}
     assert c.translator.decode_event(logs2.topics, logs2.data) == {'arg1': '0x' + c.address.hex(), 'arg2': b'house', '_event_type': b'YourLog'}
 
+
+def test_fails_when_input_is_the_wrong_type(assert_tx_failed):
+    loggy_code = """
+MyLog: __log__({arg1: indexed(num)})
+def foo_():
+    log.MyLog('yo')
+"""
+    t.s = s
+    assert_tx_failed(t, lambda: get_contract(loggy_code), TypeMismatchException)
+
+
+def test_fails_when_topic_is_the_wrong_size(assert_tx_failed):
+    loggy_code = """
+MyLog: __log__({arg1: indexed(bytes <= 3)})
+def foo():
+    log.MyLog('bars')
+"""
+    t.s = s
+    assert_tx_failed(t, lambda: get_contract(loggy_code), TypeMismatchException)
+
+
+def test_fails_when_input_topic_is_the_wrong_size(assert_tx_failed):
+    loggy_code = """
+MyLog: __log__({arg1: indexed(bytes <= 3)})
+def foo(arg1: bytes <= 4):
+    log.MyLog(arg1)
+"""
+    t.s = s
+    assert_tx_failed(t, lambda: get_contract(loggy_code), TypeMismatchException)
+
+
+def test_fails_when_data_is_the_wrong_size(assert_tx_failed):
+    loggy_code = """
+MyLog: __log__({arg1: bytes <= 3})
+def foo():
+    log.MyLog('bars')
+"""
+    t.s = s
+    assert_tx_failed(t, lambda: get_contract(loggy_code), TypeMismatchException)
+
+
+def test_fails_when_input_data_is_the_wrong_size(assert_tx_failed):
+    loggy_code = """
+MyLog: __log__({arg1: bytes <= 3})
+def foo(arg1: bytes <= 4):
+    log.MyLog(arg1)
+"""
+    t.s = s
+    assert_tx_failed(t, lambda: get_contract(loggy_code), TypeMismatchException)
+
+
+def test_fails_when_log_data_is_over_32_bytes(assert_tx_failed):
+    loggy_code = """
+MyLog: __log__({arg1: bytes <= 100})
+def foo():
+    pass
+    """
+    t.s = s
+    assert_tx_failed(t, lambda: get_contract(loggy_code), VariableDeclarationException)
 
 
 def test_logging_fails_with_over_three_topics(assert_tx_failed):

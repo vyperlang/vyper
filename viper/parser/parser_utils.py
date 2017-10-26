@@ -295,7 +295,7 @@ def make_byte_slice_copier(destination, source, length, max_length):
 
 
 # Takes a <32 byte array as input, and outputs a number.
-def byte_array_to_num(arg, expr, out_type):
+def byte_array_to_num(arg, expr, out_type, offset=32,):
     if arg.location == "memory":
         lengetter = LLLnode.from_list(['mload', '_sub'], typ=BaseType('num'))
         first_el_getter = LLLnode.from_list(['mload', ['add', 32, '_sub']], typ=BaseType('num'))
@@ -308,7 +308,7 @@ def byte_array_to_num(arg, expr, out_type):
                      ['div', '_el1', ['exp', 256, ['sub', 32, '_len']]],
                      ['mload', MemoryPositions.MAXNUM]]
     elif out_type == 'num256':
-        result = ['div', '_el1', ['exp', 256, ['sub', 32, '_len']]]
+        result = ['div', '_el1', ['exp', 256, ['sub', offset, '_len']]]
     return LLLnode.from_list(['with', '_sub', arg,
                                  ['with', '_el1', first_el_getter,
                                     ['with', '_len', ['clamp', 0, lengetter, 32],

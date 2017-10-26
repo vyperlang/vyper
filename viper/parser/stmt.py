@@ -139,9 +139,9 @@ class Stmt(object):
                 else:
                     data_types.append(event.args[pos].typ)
                     data.append(self.stmt.args[pos])
-            topics, stored_topics = pack_logging_topics(event.event_id, topics, topics_types, self.context)
+            topics = pack_logging_topics(event.event_id, topics, topics_types, self.context)
             inargs, inargsize, inarg_start = pack_logging_data(data_types, data, self.context)
-            return LLLnode.from_list(['seq', inargs, stored_topics, ["log" + str(len(topics)), inarg_start, inargsize] + topics], typ=None, pos=getpos(self.stmt))
+            return LLLnode.from_list(['seq', inargs, ["log" + str(len(topics)), inarg_start, inargsize] + topics], typ=None, pos=getpos(self.stmt))
         else:
             raise StructureException("Unsupported operator: %r" % ast.dump(self.stmt), self.stmt)
 
