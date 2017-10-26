@@ -1,6 +1,7 @@
 import pytest
 from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
     get_contract_with_gas_estimation, get_contract
+from viper.exceptions import TypeMismatchException
 
 
 def test_basic_in_list():
@@ -59,3 +60,15 @@ def in_test(x: num) -> bool:
     assert c.in_test(-9) is False
     assert c.in_test(5) is True
     assert c.in_test(7) is True
+
+
+def test_mixed_in_list():
+    code = """
+def testin() -> bool:
+    s = [1, 2, 3, 4]
+    if "test" in s:
+        return True
+    return False
+    """
+    with pytest.raises(TypeMismatchException):
+        c = get_contract(code)
