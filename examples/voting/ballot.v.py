@@ -102,7 +102,7 @@ def delegate(to: address):
     self.voters[msg.sender].voted = True
     self.voters[msg.sender].delegate = to
 
-    # this call will throw iff this delegation would cause a loop of length <= 5.
+    # this call will throw if and only if this delegation would cause a loop of length <= 5.
     self.forward_weight(msg.sender)
 
 # Give your vote (including votes delegated to you)
