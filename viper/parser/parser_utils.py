@@ -118,7 +118,11 @@ class LLLnode():
                 if self.args[3].valency:
                     raise Exception("Third argument to repeat (clause to be repeated) must be zerovalent: %r" % self.args[3])
                 self.valency = 0
-                self.gas = (self.args[2].gas + 50) * self.args[0].value + 30
+                if self.args[1].value == 'mload' or self.args[1].value == 'sload':
+                    rounds = self.args[2].value
+                else:
+                    rounds = abs(self.args[2].value - self.args[1].value)
+                self.gas = rounds * (self.args[3].gas + 50) + 30
             # Seq statements: seq <statement> <statement> ...
             elif self.value == 'seq':
                 self.valency = self.args[-1].valency if self.args else 0
