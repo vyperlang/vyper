@@ -176,7 +176,6 @@ class TestVoting(unittest.TestCase):
         self.c.delegate(self.t.a1, sender=self.t.k3)
         # Delegate's weight is 3
         self.assertEqual(self.c.get_voters__weight(self.t.a0), 3)
-        self.assertEqual(0x0000000000000000000000000000000000000000, 0x0)
 
     def test_vote(self):
         self.c.give_right_to_vote(self.t.a0)
