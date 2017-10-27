@@ -173,6 +173,8 @@ class Expr(object):
                 if not self.context.is_payable:
                     raise NonPayableViolationException("Cannot use msg.value in a non-payable function", self.expr)
                 return LLLnode.from_list(['callvalue'], typ=BaseType('num', {'wei': 1}), pos=getpos(self.expr))
+            elif key == "msg.gas":
+                return LLLnode.from_list(['gas'], typ='num', pos=getpos(self.expr))
             elif key == "block.difficulty":
                 return LLLnode.from_list(['difficulty'], typ='num', pos=getpos(self.expr))
             elif key == "block.timestamp":
