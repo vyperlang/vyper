@@ -1,10 +1,9 @@
 from ethereum import transactions, utils
-import serpent
 import rlp
 from ethereum.slogging import LogRecorder, configure_logging, set_level
 config_string = ':info,eth.vm.log:trace,eth.vm.op:trace,eth.vm.stack:trace,eth.vm.exit:trace,eth.pb.msg:trace,eth.pb.tx:debug'
-
-rlp_decoder = serpent.compile('rlp_decoder.se.py')
+from viper import optimizer, compile_lll
+from rlp_decoder import rlp_decoder_bytes
 
 def encode_vals(vals):
     o = b''
@@ -17,11 +16,21 @@ def encode_vals(vals):
 
 # Run some tests first
 
-from ethereum import tester as t
+from ethereum.tools import tester as t
 t.gas_limit = 1000000
-s = t.state()
-c = s.evm(rlp_decoder, sender=t.k0, endowment=0)
-assert s.send(t.k0, c, 0, rlp.encode([b'\x45', b'\x95'])) == encode_vals([96, 129, 162, 1, b"\x45", 1, b"\x95"])
+chain = t.Chain()
+t.s = chain
+
+rlp_decoder_address = t.s.tx(to=b'', data=rlp_decoder_bytes)
+yo = encode_vals([96, 129, 162, 1, b"\x45", 1, b"\x95"])
+do = t.s.tx(sender=t.k0, to=rlp_decoder_address, data=rlp.encode([b'\x45', b'\x95']))
+yo2 = encode_vals([96, 131, 166, 3, b"cow", 3, b"dog"])
+do2 = t.s.tx(sender=t.k0, to=rlp_decoder_address, data=rlp.encode([b'cow', b'dog']))
+
+
+import pdb; pdb.set_trace()
+assert t.s.tx(sender=t.k0, to=rlp_decoder_address, data=rlp.encode([b'\x45', b'\x95'])) == encode_vals([96, 129, 162, 1, b"\x45", 1, b"\x95"])
+# c = s.evm(rlp_decoder, sender=t.k0, endowment=0)
 assert s.send(t.k0, c, 0, rlp.encode([b'cow', b'dog'])) == encode_vals([96, 131, 166, 3, b"cow", 3, b"dog"])
 assert s.send(t.k0, c, 0, rlp.encode([b'cow', b'dog'])) == encode_vals([96, 131, 166, 3, b"cow", 3, b"dog"])
 assert s.send(t.k0, c, 0, rlp.encode([])) == encode_vals([32])
