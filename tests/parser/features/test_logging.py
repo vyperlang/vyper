@@ -34,7 +34,7 @@ def foo():
     log.MyLog('bar')
     """
 
-    c = get_contract(loggy_code)
+    c = get_contract_with_gas_estimation(loggy_code)
     c.foo()
     logs = s.head_state.receipts[-1].logs[-1]
     event_id = u.bytes_to_int(u.sha3(bytes('MyLog(bytes3)', 'utf-8')))
@@ -56,7 +56,7 @@ def foo():
     log.MyLog('bar', 'home', self)
     """
 
-    c = get_contract(loggy_code)
+    c = get_contract_with_gas_estimation(loggy_code)
     c.foo()
     logs = s.head_state.receipts[-1].logs[-1]
     event_id = u.bytes_to_int(u.sha3(bytes('MyLog(bytes3,bytes4,address)', 'utf-8')))

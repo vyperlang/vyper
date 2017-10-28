@@ -168,7 +168,7 @@ def slice_tower_test(inp1: bytes <= 50) -> bytes <= 50:
     return inp
     """
 
-    c = get_contract_with_gas_estimation(test_slice2)
+    c = get_contract(test_slice2)
     x = c.slice_tower_test(b"abcdefghijklmnopqrstuvwxyz1234")
     assert x == b"klmnopqrst", x
 
