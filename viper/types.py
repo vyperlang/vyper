@@ -352,7 +352,9 @@ def set_default_units(typ):
 
 # Checks that the units of frm can be seamlessly converted into the units of to
 def are_units_compatible(frm, to):
-    return frm.unit is None or (frm.unit == to.unit and frm.positional == to.positional)
+    frm_unit = getattr(frm, 'unit', 0)
+    to_unit = getattr(to, 'unit', 0)
+    return frm_unit is None or (frm_unit == to_unit and frm.positional == to.positional)
 
 
 # Is a type representing a number?

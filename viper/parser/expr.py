@@ -301,11 +301,74 @@ class Expr(object):
         else:
             raise Exception("%r %r" % (o, o.typ))
 
+    def build_in_comparator(self):
+        from viper.parser.parser import make_setter
+        left = Expr(self.expr.left, self.context).lll_node
+        right = Expr(self.expr.comparators[0], self.context).lll_node
+
+        result_placeholder = self.context.new_placeholder(BaseType('bool'))
+        setter = []
+
+        # Load nth item from list in memory.
+        if right.value == 'multi':
+            # Copy literal to memory to be compared.
+            tmp_list = LLLnode.from_list(
+                obj=self.context.new_placeholder(ListType(right.typ.subtype, right.typ.count)),
+                typ=ListType(right.typ.subtype, right.typ.count),
+                location='memory'
+            )
+            setter = make_setter(tmp_list, right, 'memory')
+            load_i_from_list = ['mload', ['add', tmp_list, ['mul', 32, ['mload', MemoryPositions.FREE_LOOP_INDEX]]]]
+        elif right.location == "storage":
+            load_i_from_list = ['sload', ['add', ['sha3_32', right], ['mload', MemoryPositions.FREE_LOOP_INDEX]]]
+        else:
+            load_i_from_list = ['mload', ['add', right, ['mul', 32, ['mload', MemoryPositions.FREE_LOOP_INDEX]]]]
+
+        # Condition repeat loop has to break on.
+        break_loop_condition = [
+            'if',
+            ['eq', unwrap_location(left), load_i_from_list],
+            ['seq',
+                ['mstore', '_result', 1],  # store true.
+                'break']
+        ]
+
+        # Repeat loop to loop-compare each item in the list.
+        for_loop_sequence = [
+            ['mstore', result_placeholder, 0],
+            ['with', '_result', result_placeholder,
+                ['repeat', MemoryPositions.FREE_LOOP_INDEX, 0, right.typ.count, break_loop_condition]],
+            ['mload', result_placeholder]
+        ]
+
+        # Save list to memory, so one can iterate over it,
+        # used when literal was created with tmp_list.
+        if setter:
+            compare_sequence = ['seq', setter] + for_loop_sequence
+        else:
+            compare_sequence = ['seq'] + for_loop_sequence
+
+        # Compare the result of the repeat loop to 1, to know if a match was found.
+        o = LLLnode.from_list([
+            'eq', 1,
+            compare_sequence],
+            typ='bool',
+            annotation="in comporator"
+        )
+
+        return o
+
     def compare(self):
         left = Expr.parse_value_expr(self.expr.left, self.context)
         right = Expr.parse_value_expr(self.expr.comparators[0], self.context)
-        if not are_units_compatible(left.typ, right.typ) and not are_units_compatible(right.typ, left.typ):
-            raise TypeMismatchException("Can't compare values with different units!", self.expr)
+        if isinstance(self.expr.ops[0], ast.In) and \
+           isinstance(right.typ, ListType):
+            if not are_units_compatible(left.typ, right.typ.subtype) and not are_units_compatible(right.typ.subtype, left.typ):
+                raise TypeMismatchException("Can't use IN comparison with different types!", self.expr)
+            return self.build_in_comparator()
+        else:
+            if not are_units_compatible(left.typ, right.typ) and not are_units_compatible(right.typ, left.typ):
+                raise TypeMismatchException("Can't compare values with different units!", self.expr)
         if len(self.expr.ops) != 1:
             raise StructureException("Cannot have a comparison with more than two elements", self.expr)
         if isinstance(self.expr.ops[0], ast.Gt):
