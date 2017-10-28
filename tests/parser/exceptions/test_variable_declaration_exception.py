@@ -77,6 +77,9 @@ def goo():
     """
 def foo():
     BALANCE = 45
+    """,
+    """
+num: num
     """
 ]
 
