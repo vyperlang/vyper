@@ -18,6 +18,7 @@ from .parser_utils import (
 from viper.utils import (
     MemoryPositions,
     bytes_to_int,
+    string_to_bytes,
     DECIMAL_DIVISOR,
     checksum_encode,
     is_varname_valid,
@@ -101,17 +102,13 @@ class Expr(object):
 
     # Byte array literals
     def string(self):
-        bytez = b''
-        for c in self.expr.s:
-            if ord(c) >= 256:
-                raise InvalidLiteralException("Cannot insert special character %r into byte array" % c, self.expr)
-            bytez += bytes([ord(c)])
-        placeholder = self.context.new_placeholder(ByteArrayType(len(bytez)))
+        bytez, bytez_length = string_to_bytes(self.expr.s)
+        placeholder = self.context.new_placeholder(ByteArrayType(bytez_length))
         seq = []
-        seq.append(['mstore', placeholder, len(bytez)])
+        seq.append(['mstore', placeholder, bytez_length])
         for i in range(0, len(bytez), 32):
             seq.append(['mstore', ['add', placeholder, i + 32], bytes_to_int((bytez + b'\x00' * 31)[i: i + 32])])
-        return LLLnode.from_list(['seq'] + seq + [placeholder], typ=ByteArrayType(len(bytez)), location='memory', pos=getpos(self.expr))
+        return LLLnode.from_list(['seq'] + seq + [placeholder], typ=ByteArrayType(bytez_length), location='memory', pos=getpos(self.expr))
 
     # True, False, None constants
     def constants(self):
