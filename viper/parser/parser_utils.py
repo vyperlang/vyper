@@ -18,7 +18,6 @@ from viper.types import (
     get_size_of_type
 )
 from viper.utils import MemoryPositions, DECIMAL_DIVISOR
-from viper.utils import ceil32
 
 
 class NullAttractor():

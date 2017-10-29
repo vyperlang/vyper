@@ -17,11 +17,12 @@ def sub(x, y):
 
 positions = 64
 data = 1088
-position_index = 2176
-data_pos = 2208
-c = 2240
-i = 2272
-position_offset = 2304
+position_index = 5176
+data_pos = 5208
+c = 5240
+i = 5272
+L = 5304
+position_offset = 5304
 
 rlp_decoder_lll = LLLnode.from_list(['seq', 
     ['return', [0],
@@ -53,7 +54,7 @@ rlp_decoder_lll = LLLnode.from_list(['seq',
                     ['seq',
                         ['if', ['ge', ['mload', i], 'calldatasize'], 'break'],
                         ['mstore', c, call_data_char(['mload', i])],
-                        ['mstore', ['mul', add(positions, ['mload', position_index]), 32], ['mload', data_pos]],
+                        ['mstore', add(positions, ['mul', ['mload', position_index], 32]), ['mload', data_pos]],
                         ['mstore', position_index, add(['mload', position_index], 1)],
                         ['if', ['lt', ['mload', c], 128],
                             ['seq',
@@ -62,7 +63,6 @@ rlp_decoder_lll = LLLnode.from_list(['seq',
                                 ['mstore', i, add(['mload', i], 1)],
                                 ['mstore', data_pos, add(['mload', data_pos], 33)]
                             ],
-                            # Insert elif here
                             ['if', ['lt', ['mload', c], 184], 
                                 ['seq',
                                     ['mstore', add(data, ['mload', data_pos]), sub(['mload', c], 128)],
@@ -73,7 +73,17 @@ rlp_decoder_lll = LLLnode.from_list(['seq',
                                     ['mstore', i, add(['mload', i], sub(['mload', c], 127))],
                                     ['mstore', data_pos, add(['mload', data_pos], sub(['mload', c], 96))]
                                 ],
-                                ['invalid']
+                                ['if', ['lt', ['mload', c], 192],
+                                    ['seq',
+                                        ['mstore', L, call_data_bytes_as_int(add(['mload', i], 1), sub(['mload', c], 183))],
+                                        ['assert', ['mul', call_data_char(add(['mload', i], 1)), ['ge', ['mload', L], 56]]],
+                                        ['mstore', add(data, ['mload', data_pos]), ['mload', L]],
+                                        ['calldatacopy', add(data + 32, ['mload', data_pos]), add(['mload', i], sub(['mload', c], 182)), ['mload', L]],
+                                        ['mstore', i, add(add(['mload', i], sub(['mload', c], 182)), ['mload', L])],
+                                        ['mstore', data_pos, add(['mload', data_pos], add(['mload', L], 32))]
+                                    ],
+                                    # ['invalid']
+                                ]
                             ]
                         ],
                     ]
@@ -83,7 +93,7 @@ rlp_decoder_lll = LLLnode.from_list(['seq',
                 ['mstore', i, sub(['mload', position_offset], 32)],
                 ['repeat', 3000, 1, 1000,
                     ['seq',
-                        ['if', ['gt', sub(['mload', i], 32), ['mload', i]], 'break'],
+                        ['if', ['slt', ['mload', i], 0], 'break'],
                         ['mstore', add(sub(data, ['mload', position_offset]), ['mload', i]), add(['mload', add(positions, ['mload', i])], ['mload', position_offset])],
                         # ~mstore(data - positionOffset + i, ~mload(positions + i) + positionOffset)
                         ['mstore', i, sub(['mload', i], 32)],
