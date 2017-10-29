@@ -162,6 +162,9 @@ def add_globals_and_events(_defs, _events, _getters, _globals, item):
         _events.append(item)
     elif not isinstance(item.target, ast.Name):
         raise StructureException("Can only assign type to variable in top-level statement", item)
+    # Check if variable name is reserved or invalid
+    elif not is_varname_valid(item.target.id):
+        raise VariableDeclarationException("Variable name invalid or reserved: ", item.target)
     # Check if global already exists, if so error
     elif item.target.id in _globals:
         raise VariableDeclarationException("Cannot declare a persistent variable twice!", item.target)

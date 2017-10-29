@@ -118,7 +118,7 @@ def test_type_converter_setter_test():
     type_converter_setter_test = """
 mom: {a: {c: num}[3], b: num}
 non: {a: {c: decimal}[3], b:num}
-pop: decimal[2][2]
+pap: decimal[2][2]
 
 def foo() -> num:
     self.mom = {a: [{c: 1}, {c: 2}, {c: 3}], b: 4}
@@ -126,8 +126,8 @@ def foo() -> num:
     return floor(self.non.a[0].c + self.non.a[1].c * 10 + self.non.a[2].c * 100 + self.non.b * 1000)
 
 def goo() -> num:
-    self.pop = [[1, 2], [3, 4.0]]
-    return floor(self.pop[0][0] + self.pop[0][1] * 10 + self.pop[1][0] * 100 + self.pop[1][1] * 1000)
+    self.pap = [[1, 2], [3, 4.0]]
+    return floor(self.pap[0][0] + self.pap[0][1] * 10 + self.pap[1][0] * 100 + self.pap[1][1] * 1000)
     """
 
     c = get_contract(type_converter_setter_test)
