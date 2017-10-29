@@ -290,6 +290,40 @@ def mk_full_signature(code):
     return o
 
 
+def parse_events(sigs, _events):
+    for event in _events:
+        sigs[event.target.id] = EventSignature.from_declaration(event)
+    return sigs
+
+
+def parse_external_contracts(external_contracts, _contracts):
+    for _contractname in _contracts:
+        _contract_defs = _contracts[_contractname]
+        _defnames = [_def.name for _def in _contract_defs]
+        contract = {}
+        if len(set(_defnames)) < len(_contract_defs):
+            raise VariableDeclarationException("Duplicate function name: %s" % [name for name in _defnames if _defnames.count(name) > 1][0])
+        for _def in _contract_defs:
+            sig = FunctionSignature.from_definition(_def)
+            contract[sig.name] = sig
+        external_contracts[_contractname] = contract
+    return external_contracts
+
+
+def parse_other_functions(o, otherfuncs, _globals, sigs, external_contracts, origcode):
+    sub = ['seq', initializer_lll]
+    add_gas = initializer_lll.gas
+    for _def in otherfuncs:
+        sub.append(parse_func(_def, _globals, {**{'self': sigs}, **external_contracts}, origcode))
+        sub[-1].total_gas += add_gas
+        add_gas += 30
+        sig = FunctionSignature.from_definition(_def)
+        sig.gas = sub[-1].total_gas
+        sigs[sig.name] = sig
+    o.append(['return', 0, ['lll', sub, 0]])
+    return o
+
+
 # Main python parse tree => LLL method
 def parse_tree_to_lll(code, origcode):
     _contracts, _events, _defs, _globals = get_contracts_and_defs_and_globals(code)
@@ -297,48 +331,25 @@ def parse_tree_to_lll(code, origcode):
     # Checks for duplicate funciton / event names
     if len(set(_names)) < len(_names):
         raise VariableDeclarationException("Duplicate function or event name: %s" % [name for name in _names if _names.count(name) > 1][0])
-    contracts = {}
-    # Create the main statement
-    o = ['seq']
     # Initialization function
     initfunc = [_def for _def in _defs if is_initializer(_def)]
     # Regular functions
     otherfuncs = [_def for _def in _defs if not is_initializer(_def)]
     sigs = {}
+    external_contracts = {}
+    # Create the main statement
+    o = ['seq']
     if _events:
-        for event in _events:
-            sigs[event.target.id] = EventSignature.from_declaration(event)
-    for _contractname in _contracts:
-        _c_defs = _contracts[_contractname]
-        _defnames = [_def.name for _def in _c_defs]
-        contract = {}
-        if len(set(_defnames)) < len(_c_defs):
-            raise VariableDeclarationException("Duplicate function name: %s" % [name for name in _defnames if _defnames.count(name) > 1][0])
-        c_otherfuncs = [_def for _def in _c_defs if not is_initializer(_def)]
-        if c_otherfuncs:
-            for _def in c_otherfuncs:
-                sig = FunctionSignature.from_definition(_def)
-                contract[sig.name] = sig
-        contracts[_contractname] = contract
-    _defnames = [_def.name for _def in _defs]
-    if len(set(_defnames)) < len(_defs):
-        raise VariableDeclarationException("Duplicate function name: %s" % [name for name in _defnames if _defnames.count(name) > 1][0])
+        sigs = parse_events(sigs, _events)
+    if _contracts:
+        external_contracts = parse_external_contracts(external_contracts, _contracts)
     # If there is an init func...
     if initfunc:
         o.append(['seq', initializer_lll])
-        o.append(parse_func(initfunc[0], _globals, {**{'self': sigs}, **contracts}, origcode))
+        o.append(parse_func(initfunc[0], _globals, {**{'self': sigs}, **external_contracts}, origcode))
     # If there are regular functions...
     if otherfuncs:
-        sub = ['seq', initializer_lll]
-        add_gas = initializer_lll.gas
-        for _def in otherfuncs:
-            sub.append(parse_func(_def, _globals, {**{'self': sigs}, **contracts}, origcode))
-            sub[-1].total_gas += add_gas
-            add_gas += 30
-            sig = FunctionSignature.from_definition(_def)
-            sig.gas = sub[-1].total_gas
-            sigs[sig.name] = sig
-        o.append(['return', 0, ['lll', sub, 0]])
+        o = parse_other_functions(o, otherfuncs, _globals, sigs, external_contracts, origcode)
     return LLLnode.from_list(o, typ=None)
 
 
@@ -382,7 +393,6 @@ def make_clamper(datapos, mempos, typ, is_init=False):
 def parse_func(code, _globals, sigs, origcode, _vars=None):
     if _vars is None:
         _vars = {}
-
     sig = FunctionSignature.from_definition(code)
     # Check for duplicate variables with globals
     for arg in sig.args:
