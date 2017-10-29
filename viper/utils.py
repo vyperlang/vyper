@@ -1,7 +1,7 @@
 import binascii
 
 from collections import OrderedDict
-
+from . exceptions import InvalidLiteralException
 from .opcodes import opcodes
 
 try:
@@ -15,6 +15,17 @@ except ImportError:
 # Converts for bytes to an integer
 def fourbytes_to_int(inp):
     return (inp[0] << 24) + (inp[1] << 16) + (inp[2] << 8) + inp[3]
+
+
+# Converts string to bytes
+def string_to_bytes(str):
+    bytez = b''
+    for c in str:
+        if ord(c) >= 256:
+            raise InvalidLiteralException("Cannot insert special character %r into byte array" % c)
+        bytez += bytes([ord(c)])
+    bytez_length = len(bytez)
+    return bytez, bytez_length
 
 
 # Converts a provided hex string to an integer

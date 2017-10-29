@@ -42,7 +42,8 @@ from viper.types import (
 from viper.utils import (
     MemoryPositions,
     LOADED_LIMIT_MAP,
-    reserved_words
+    reserved_words,
+    string_to_bytes
 )
 from viper.utils import (
     bytes_to_int,
@@ -600,10 +601,13 @@ def pack_logging_topics(event_id, args, topics_types, context):
             if input.typ.maxlen > typ.maxlen:
                 raise TypeMismatchException("Topic input bytes are to big: %r %r" % (input.typ, typ))
             if isinstance(arg, ast.Str):
-                size = len(arg.s)
+                bytez, bytez_length = string_to_bytes(arg.s)
+                if len(bytez) > 32:
+                    raise InvalidLiteralException("Can only log a maximum of 32 bytes at a time.")
+                topics.append(bytes_to_int(bytez + b'\x00' * (32 - bytez_length)))
             else:
                 size = context.vars[arg.id].size
-            topics.append(byte_array_to_num(input, arg, 'num256', size))
+                topics.append(byte_array_to_num(input, arg, 'num256', size))
         else:
             input = unwrap_location(input)
             input = base_type_conversion(input, input.typ, typ)
