@@ -216,6 +216,7 @@ class Stmt(object):
             )
             return o
         else:
+            import ipdb; ipdb.set_trace()
             raise StructureException('For loop with list type not supported', self.stmt.iter)
 
     def aug_assign(self):
