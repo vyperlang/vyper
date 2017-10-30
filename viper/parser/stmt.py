@@ -152,12 +152,19 @@ class Stmt(object):
         from .parser import (
             parse_body,
         )
+
+        # Type 0 for, eg. for i in list(): ...
+        iter_var_type = self.context.vars.get(self.stmt.iter.id).typ if isinstance(self.stmt.iter, ast.Name) else None
+        if isinstance(self.stmt.iter, ast.List) or isinstance(iter_var_type, ListType):
+            return self.parse_for_list()
+
         if not isinstance(self.stmt.iter, ast.Call) or \
             not isinstance(self.stmt.iter.func, ast.Name) or \
                 not isinstance(self.stmt.target, ast.Name) or \
                     self.stmt.iter.func.id != "range" or \
                         len(self.stmt.iter.args) not in (1, 2):
             raise StructureException("For statements must be of the form `for i in range(rounds): ..` or `for i in range(start, start + rounds): ..`", self.stmt.iter)
+
         # Type 1 for, eg. for i in range(10): ...
         if len(self.stmt.iter.args) == 1:
             if not isinstance(self.stmt.iter.args[0], ast.Num):
@@ -184,6 +191,32 @@ class Stmt(object):
         o = LLLnode.from_list(['repeat', pos, start, rounds, parse_body(self.stmt.body, self.context)], typ=None, pos=getpos(self.stmt))
         self.context.forvars[varname] = True
         return o
+
+    def parse_for_list(self):
+        from .parser import (
+            parse_body,
+        )
+
+        iter_var_type = self.context.vars.get(self.stmt.iter.id).typ if isinstance(self.stmt.iter, ast.Name) else None
+        if iter_var_type and not isinstance(iter_var_type.subtype, BaseType):
+            raise StructureException('For loops allowed only on basetype lists.', self.stmt.iter)
+
+        if iter_var_type:  # We have a list that is already allocated.
+            iter_var = self.context.vars.get(self.stmt.iter.id)
+            varname = self.stmt.target.id
+            i_pos = self.context.new_variable('_i', BaseType('num'))
+            value_pos = self.context.vars[varname].pos if varname in self.context.forvars else self.context.new_variable(varname, BaseType('num'))
+            body = [
+                'seq',
+                ['mstore', value_pos, ['mload', ['add', iter_var.pos, ['mul', ['mload', i_pos], 32]]]],
+                parse_body(self.stmt.body, self.context)
+            ]
+            o = LLLnode.from_list(
+                ['repeat', i_pos, 0, iter_var.size, body], typ=None, pos=getpos(self.stmt)
+            )
+            return o
+        else:
+            raise StructureException('For loop with list type not supported', self.stmt.iter)
 
     def aug_assign(self):
         target = Expr.parse_variable_location(self.stmt.target, self.context)
