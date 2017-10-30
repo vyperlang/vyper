@@ -1,5 +1,6 @@
 from viper import optimizer, compile_lll
 from viper.parser.parser_utils import LLLnode
+from viper.utils import MemoryPositions
 
 def call_data_char(position):
     return ['div', ['calldataload', position], 2**248]
@@ -17,12 +18,12 @@ def sub(x, y):
 
 positions = 64
 data = 1088
-position_index = 5176
-data_pos = 5208
-c = 5240
-i = 5272
-L = 5304
-position_offset = 5304
+position_index = 2476
+data_pos = 2508
+c = 2540
+i = 2572
+L = 2604
+position_offset = 2304
 
 rlp_decoder_lll = LLLnode.from_list(['seq', 
     ['return', [0],
@@ -50,7 +51,7 @@ rlp_decoder_lll = LLLnode.from_list(['seq',
                 #     representing the start positions of each value
                 # (ii) starting from memory index 1088, the values, in format
                 #     <length as 32 byte int> <value>, packed one after the other
-                ['repeat', 4000, 1, 1000,
+                ['repeat', MemoryPositions.FREE_LOOP_INDEX, 1, 100,
                     ['seq',
                         ['if', ['ge', ['mload', i], 'calldatasize'], 'break'],
                         ['mstore', c, call_data_char(['mload', i])],
@@ -82,7 +83,7 @@ rlp_decoder_lll = LLLnode.from_list(['seq',
                                         ['mstore', i, add(add(['mload', i], sub(['mload', c], 182)), ['mload', L])],
                                         ['mstore', data_pos, add(['mload', data_pos], add(['mload', L], 32))]
                                     ],
-                                    # ['invalid']
+                                    ['invalid']
                                 ]
                             ]
                         ],
@@ -91,7 +92,7 @@ rlp_decoder_lll = LLLnode.from_list(['seq',
                 ['assert', ['le', ['mload', position_index], 31]],
                 ['mstore', position_offset, add(['mul', ['mload', position_index], 32], 32)],
                 ['mstore', i, sub(['mload', position_offset], 32)],
-                ['repeat', 3000, 1, 1000,
+                ['repeat', MemoryPositions.FREE_LOOP_INDEX, 1, 100,
                     ['seq',
                         ['if', ['slt', ['mload', i], 0], 'break'],
                         ['mstore', add(sub(data, ['mload', position_offset]), ['mload', i]), add(['mload', add(positions, ['mload', i])], ['mload', position_offset])],
