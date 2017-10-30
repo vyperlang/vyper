@@ -18,7 +18,6 @@ from viper.types import (
     get_size_of_type
 )
 from viper.utils import MemoryPositions, DECIMAL_DIVISOR
-from viper.utils import ceil32
 
 
 class NullAttractor():
@@ -78,7 +77,9 @@ class LLLnode():
                     self.gas += 15000
                 # Dynamic gas cost: calldatacopy
                 elif self.value.upper() in ('CALLDATACOPY', 'CODECOPY'):
-                    self.gas += ceil32(self.args[2].value) // 32 * 3
+                    pass
+                    # TODO FIX GAS ESTIMATION IN ANOTHER PR
+                    # self.gas += ceil32(self.args[2].value) // 32 * 3
                 # Gas limits in call
                 if self.value.upper() == 'CALL' and isinstance(self.args[0].value, int):
                     self.gas += self.args[0].value
