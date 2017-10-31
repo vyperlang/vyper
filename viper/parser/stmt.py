@@ -154,8 +154,7 @@ class Stmt(object):
         )
 
         # Type 0 for, eg. for i in list(): ...
-        iter_var_type = self.context.vars.get(self.stmt.iter.id).typ if isinstance(self.stmt.iter, ast.Name) else None
-        if isinstance(self.stmt.iter, ast.List) or isinstance(iter_var_type, ListType):
+        if self._is_list_iter():
             return self.parse_for_list()
 
         if not isinstance(self.stmt.iter, ast.Call) or \
@@ -163,7 +162,7 @@ class Stmt(object):
                 not isinstance(self.stmt.target, ast.Name) or \
                     self.stmt.iter.func.id != "range" or \
                         len(self.stmt.iter.args) not in (1, 2):
-            raise StructureException("For statements must be of the form `for i in range(rounds): ..` or `for i in range(start, start + rounds): ..`", self.stmt.iter)
+            raise StructureException("For statements must be of the form `for i in range(rounds): ..` or `for i in range(start, start + rounds): ..`", self.stmt.iter)  # noqa
 
         # Type 1 for, eg. for i in range(10): ...
         if len(self.stmt.iter.args) == 1:
@@ -192,20 +191,39 @@ class Stmt(object):
         self.context.forvars[varname] = True
         return o
 
+    def _is_list_iter(self):
+        """
+        Test if the current statement is a type of list, used in for loops.
+        """
+
+        # Check for literal or memory list.
+        iter_var_type = self.context.vars.get(self.stmt.iter.id).typ if isinstance(self.stmt.iter, ast.Name) else None
+        if isinstance(self.stmt.iter, ast.List) or isinstance(iter_var_type, ListType):
+            return True
+
+        # Check for storage list.
+        if isinstance(self.stmt.iter, ast.Attribute):
+            iter_var_type = self.context.globals.get(self.stmt.iter.attr)
+            if iter_var_type and isinstance(iter_var_type.typ, ListType):
+                return True
+
+        return False
+
     def parse_for_list(self):
         from .parser import (
             parse_body,
+            make_setter
         )
 
         iter_var_type = self.context.vars.get(self.stmt.iter.id).typ if isinstance(self.stmt.iter, ast.Name) else None
         if iter_var_type and not isinstance(iter_var_type.subtype, BaseType):
             raise StructureException('For loops allowed only on basetype lists.', self.stmt.iter)
 
-        if iter_var_type:  # We have a list that is already allocated.
+        varname = self.stmt.target.id
+        value_pos = self.context.vars[varname].pos if varname in self.context.forvars else self.context.new_variable(varname, BaseType('num'))
+        i_pos = self.context.new_variable('_i', BaseType('num'))
+        if iter_var_type:  # Is a list that is already allocated to memory.
             iter_var = self.context.vars.get(self.stmt.iter.id)
-            varname = self.stmt.target.id
-            i_pos = self.context.new_variable('_i', BaseType('num'))
-            value_pos = self.context.vars[varname].pos if varname in self.context.forvars else self.context.new_variable(varname, BaseType('num'))
             body = [
                 'seq',
                 ['mstore', value_pos, ['mload', ['add', iter_var.pos, ['mul', ['mload', i_pos], 32]]]],
@@ -215,9 +233,40 @@ class Stmt(object):
                 ['repeat', i_pos, 0, iter_var.size, body], typ=None, pos=getpos(self.stmt)
             )
             return o
-        else:
-            import ipdb; ipdb.set_trace()
-            raise StructureException('For loop with list type not supported', self.stmt.iter)
+        elif isinstance(self.stmt.iter, ast.List):  # List gets defined in the for statement.
+            # Allocate list to memory.
+            list_literal = Expr(self.stmt.iter, self.context).lll_node
+            count = list_literal.typ.count
+            tmp_list = LLLnode.from_list(
+                obj=self.context.new_placeholder(ListType(list_literal.typ.subtype, count)),
+                typ=ListType(list_literal.typ.subtype, count),
+                location='memory'
+            )
+            setter = make_setter(tmp_list, list_literal, 'memory')
+            body = [
+                'seq',
+                ['mstore', value_pos, ['mload', ['add', tmp_list, ['mul', ['mload', i_pos], 32]]]],
+                parse_body(self.stmt.body, self.context)
+            ]
+            o = LLLnode.from_list(
+                ['seq',
+                    setter,
+                    ['repeat', i_pos, 0, count, body]], typ=None, pos=getpos(self.stmt)
+            )
+            return o
+        elif isinstance(self.stmt.iter, ast.Attribute):  # List is contained in storage.
+            storage_list = Expr(self.stmt.iter, self.context).lll_node
+            count = storage_list.typ.count
+            body = [
+                'seq',
+                ['mstore', value_pos, ['sload', ['add', ['sha3_32', storage_list], ['mload', i_pos]]]],
+                parse_body(self.stmt.body, self.context),
+            ]
+            o = LLLnode.from_list(
+                ['seq',
+                    ['repeat', i_pos, 0, count, body]], typ=None, pos=getpos(self.stmt)
+            )
+            return o
 
     def aug_assign(self):
         target = Expr.parse_variable_location(self.stmt.target, self.context)
