@@ -4,7 +4,7 @@ from ethereum import utils
 from ethereum.abi import ValueOutOfBounds
 from ethereum.tools import tester
 
-from tests.setup_transaction_tests import assert_tx_failed, get_log
+from tests.setup_transaction_tests import assert_tx_failed, get_last_log
 
 
 TOKEN_NAME = "Vipercoin"
@@ -113,7 +113,7 @@ def test_transferFrom(token_tester, assert_tx_failed):
     assert contract.allowance(a0, a1) == 0
 
 
-def test_transfer_event(token_tester, get_log):
+def test_transfer_event(token_tester, get_last_log):
     a0 = token_tester.accounts[0]
     a1 = token_tester.accounts[1]
     k1 = token_tester.k1
@@ -123,7 +123,7 @@ def test_transfer_event(token_tester, get_log):
 
     assert contract.transfer(a1, 1) is True
 
-    assert get_log(tester, contract, 'Transfer') == {
+    assert get_last_log(tester, contract) == {
         '_from': '0x' + a0.hex(),
         '_to': '0x' + a1.hex(),
         '_value': 1,
@@ -134,7 +134,7 @@ def test_transfer_event(token_tester, get_log):
     assert contract.approve(a1, 10) is True  # approve 10 token transfers to a1.
     assert contract.transferFrom(a0, a2, 4, sender=k1)  # transfer to a2, as a1, from a0's funds.
 
-    assert get_log(tester, contract, 'Transfer') == {
+    assert get_last_log(tester, contract) == {
         '_from': '0x' + a0.hex(),
         '_to': '0x' + a2.hex(),
         '_value': 4,
@@ -142,7 +142,7 @@ def test_transfer_event(token_tester, get_log):
     }
 
 
-def test_approval_event(token_tester, get_log):
+def test_approval_event(token_tester, get_last_log):
     a0 = token_tester.accounts[0]
     a1 = token_tester.accounts[1]
 
@@ -150,7 +150,7 @@ def test_approval_event(token_tester, get_log):
 
     assert contract.approve(a1, 10) is True  # approve 10 token transfers to a1.
 
-    assert get_log(tester, contract, 'Approval') == {
+    assert get_last_log(tester, contract) == {
         '_owner': '0x' + a0.hex(),
         '_spender': '0x' + a1.hex(),
         '_value': 10,
