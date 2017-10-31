@@ -118,7 +118,7 @@ def get_logs(receipt, contract, event_name=None):
 
 @pytest.fixture
 def get_log():
-    def get_log(tester, contract, event_name):
+    def get_log(tester, contract, event_name=None):
         receipt = tester.s.head_state.receipts[-1] # Only the receipts for the last block
         # Get last log event with correct name and return the decoded event
         return get_logs(receipt, contract, event_name=event_name)[-1]
