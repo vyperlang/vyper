@@ -215,11 +215,10 @@ class Stmt(object):
             make_setter
         )
 
-        iter_var_type = self.context.vars.get(self.stmt.iter.id).typ if isinstance(self.stmt.iter, ast.Name) else None
-        if iter_var_type and not isinstance(iter_var_type.subtype, BaseType):  # Sanity check on list subtype.
-            raise StructureException('For loops allowed only on basetype lists.', self.stmt.iter)
-
         iter_list_node = Expr(self.stmt.iter, self.context).lll_node
+        if not isinstance(iter_list_node.typ.subtype, BaseType):  # Sanity check on list subtype.
+            raise StructureException('For loops allowed only on basetype lists.', self.stmt.iter)
+        iter_var_type = self.context.vars.get(self.stmt.iter.id).typ if isinstance(self.stmt.iter, ast.Name) else None
         subtype = iter_list_node.typ.subtype.typ
         varname = self.stmt.target.id
         value_pos = self.context.new_variable(varname, BaseType(subtype))
