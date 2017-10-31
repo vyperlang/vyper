@@ -29,6 +29,15 @@ y: address[2][2]
 
 def foo(x: num[2][2]) -> num:
     self.y = x
+    """,
+    """
+bar: num[3][3]
+
+def foo() -> num[3]:
+    self.bar = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+    for x in self.bar:
+        if x == [4, 5, 6]:
+            return x
     """
 ]
 

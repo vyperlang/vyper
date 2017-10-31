@@ -216,12 +216,15 @@ class Stmt(object):
         )
 
         iter_var_type = self.context.vars.get(self.stmt.iter.id).typ if isinstance(self.stmt.iter, ast.Name) else None
-        if iter_var_type and not isinstance(iter_var_type.subtype, BaseType):
+        if iter_var_type and not isinstance(iter_var_type.subtype, BaseType):  # Sanity check on list subtype.
             raise StructureException('For loops allowed only on basetype lists.', self.stmt.iter)
 
+        iter_list_node = Expr(self.stmt.iter, self.context).lll_node
+        subtype = iter_list_node.typ.subtype.typ
         varname = self.stmt.target.id
-        value_pos = self.context.vars[varname].pos if varname in self.context.forvars else self.context.new_variable(varname, BaseType('num'))
-        i_pos = self.context.new_variable('_i', BaseType('num'))
+        value_pos = self.context.new_variable(varname, BaseType(subtype))
+        i_pos = self.context.new_variable('_i', BaseType(subtype))
+
         if iter_var_type:  # Is a list that is already allocated to memory.
             iter_var = self.context.vars.get(self.stmt.iter.id)
             body = [
@@ -235,14 +238,13 @@ class Stmt(object):
             return o
         elif isinstance(self.stmt.iter, ast.List):  # List gets defined in the for statement.
             # Allocate list to memory.
-            list_literal = Expr(self.stmt.iter, self.context).lll_node
-            count = list_literal.typ.count
+            count = iter_list_node.typ.count
             tmp_list = LLLnode.from_list(
-                obj=self.context.new_placeholder(ListType(list_literal.typ.subtype, count)),
-                typ=ListType(list_literal.typ.subtype, count),
+                obj=self.context.new_placeholder(ListType(iter_list_node.typ.subtype, count)),
+                typ=ListType(iter_list_node.typ.subtype, count),
                 location='memory'
             )
-            setter = make_setter(tmp_list, list_literal, 'memory')
+            setter = make_setter(tmp_list, iter_list_node, 'memory')
             body = [
                 'seq',
                 ['mstore', value_pos, ['mload', ['add', tmp_list, ['mul', ['mload', i_pos], 32]]]],
@@ -255,11 +257,10 @@ class Stmt(object):
             )
             return o
         elif isinstance(self.stmt.iter, ast.Attribute):  # List is contained in storage.
-            storage_list = Expr(self.stmt.iter, self.context).lll_node
-            count = storage_list.typ.count
+            count = iter_list_node.typ.count
             body = [
                 'seq',
-                ['mstore', value_pos, ['sload', ['add', ['sha3_32', storage_list], ['mload', i_pos]]]],
+                ['mstore', value_pos, ['sload', ['add', ['sha3_32', iter_list_node], ['mload', i_pos]]]],
                 parse_body(self.stmt.body, self.context),
             ]
             o = LLLnode.from_list(
