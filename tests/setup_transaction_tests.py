@@ -30,22 +30,22 @@ assert utils.bytes_to_int(_rlp_decoder_address) == utils.RLP_DECODER_ADDRESS
 
 chain.head_state.gas_limit = 10**9
 
-def check_gas(code, function=None, num_txs=1):
-    if function:
-        gas_estimate = tester.languages['viper'].gas_estimate(code)[function]
+def check_gas(code, func=None, num_txs=1):
+    if func:
+        gas_estimate = tester.languages['viper'].gas_estimate(code)[func]
     else:
         gas_estimate = sum(tester.languages['viper'].gas_estimate(code).values())
     gas_actual = chain.head_state.receipts[-1].gas_used \
                - chain.head_state.receipts[-1-num_txs].gas_used \
                - chain.last_tx.intrinsic_gas_used*num_txs
 
-    #Computed upper bound on the gas consumption should 
-    #be greater than or equal to the amount of gas used
+    # Computed upper bound on the gas consumption should 
+    # be greater than or equal to the amount of gas used
     if gas_estimate < gas_actual:
         raise Exception("Gas upper bound fail: bound %d actual %d" % (gas_estimate, gas_actual))
 
     print('Function name: {} - Gas estimate {}, Actual: {}'.format(
-        function, gas_estimate, gas_actual)
+        func, gas_estimate, gas_actual)
     )
 
 
