@@ -95,7 +95,7 @@ class ListType(NodeType):
 # Data structure for a key-value mapping
 class MappingType(NodeType):
     def __init__(self, keytype, valuetype):
-        if not isinstance(keytype, BaseType):
+        if not isinstance(keytype, (BaseType, ByteArrayType)):
             raise Exception("Dictionary keys must be a base type")
         self.keytype = keytype
         self.valuetype = valuetype
@@ -283,8 +283,8 @@ def parse_type(item, location):
             if location == 'memory':
                 raise InvalidTypeException("No mappings allowed for in-memory types, only fixed-size arrays", item)
             keytype = parse_type(item.slice.value, None)
-            if not isinstance(keytype, BaseType):
-                raise InvalidTypeException("Mapping keys must be base types", item.slice.value)
+            if not isinstance(keytype, (BaseType, ByteArrayType)):
+                raise InvalidTypeException("Mapping keys must be base or bytes types", item.slice.value)
             return MappingType(keytype, parse_type(item.value, location))
     # Dicts, used to represent mappings, eg. {uint: uint}. Key must be a base type
     elif isinstance(item, ast.Dict):
