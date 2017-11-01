@@ -40,7 +40,7 @@ datatype ``address``. The ``beneficiary`` will be the receiver of money from
 the highest bidder.  We also initialize the variables ``auction_start`` and
 ``auction_end`` with the datatype ``timestamp`` to manage the open auction
 period and ``highest_bid`` with datatype ``wei_value``, the smallest
-denomination of ether, to manage auction state. The variable ``ended`` is a
+denomination of ether, to manage auction state. Variable ``ended`` is a
 boolean to determine whether the auction is officially over.
 
 You may notice the all of the variables being passed into the ``public``
@@ -74,13 +74,13 @@ With initial setup out of the way, lets look at how our users can make bids.
   :language: python
   :lines: 24-38
 
-The ``@payable`` decorator will allow a user to send some ethers to the
+The ``@payable`` decorator will allow a user to send some ether to the
 contract in order to call the decorated method. In this case, a user wanting
 to make a bid would call the ``bid()`` method while sending an amount equal
 to their desired bid (not including gas fees). When calling any method within a
 contract, we are provided with a built-in variable ``msg`` and we can access
 the public address of any method caller with ``msg.sender``. Similarly, the
-amount of ether a user sends can be accessed by calling ``msg.sender``.
+amount of ether a user sends can be accessed by calling ``msg.value``.
 
 .. warning:: ``msg.sender`` will change between internal function calls so that
   if you're calling a function from the outside, it's correct for the first
@@ -89,12 +89,12 @@ amount of ether a user sends can be accessed by calling ``msg.sender``.
 
 Here, we first check whether the current time is before the auction's end time
 using the ``assert`` function which takes any boolean statement. We also check
-to see if the new bid is greater than the highest bid. If both ``assert``
-statements pass, we continue to the next lines; otherwise, the ``bid()`` method
-will throw an error and revert the transaction. If the two ``assert`` statements
-the check that the previous bid is not equal to zero pass, we can safely
-conclude that we have a valid new highest bid. We will send back the previous
-``highest_bid`` to the previous ``highest_bidder`` and set our new
+to see if the new bid is greater than the highest bid. If the two ``assert``
+statements pass, we can safely continue to the next lines; otherwise, the
+``bid()`` method will throw an error and revert the transaction. If the two
+``assert`` statements the check that the previous bid is not equal to zero pass,
+we can safely conclude that we have a valid new highest bid. We will send back
+the previous ``highest_bid`` to the previous ``highest_bidder`` and set our new
 ``highest_bid`` and ``highest_bidder``.
 
 .. literalinclude:: ../examples/auctions/simple_open_auction.v.py
@@ -289,8 +289,7 @@ crowdfunding. We initialize the arguments as contract variables with their
 corresponding names. Additionally, a ``self.deadline`` is initialized to set
 a definitive end time for the crowdfunding period.
 
-Now lets take a look at the method of how a person can participate in the
-crowdfund.
+Now lets take a look at how a person can participate in the crowdfund.
 
 .. literalinclude:: ../examples/crowdfund.v.py
   :language: python
@@ -317,8 +316,8 @@ sends the collected funds to the beneficiary.
 
 .. note:: Notice that we have access to the total amount sent to the contract by
 calling ``self.balance``, a variable we never explicitly set. Similar to ``msg``
-and ``block``, ``self.balance`` is a variable thats comes free in all Viper
-contracts.
+and ``block``, ``self.balance`` is a built-in variable thats available in all
+Viper contracts.
 
 We can finalize the campaign if all goes well, but what happens if the
 crowdfunding campaign isn't successful? We're going to need a way to refund
@@ -336,23 +335,6 @@ contribution. For the sake of gas limits, we group the number of contributors
 in batches of 30 and refund them one at a time. Unfortunately, if there's a
 large number of of participants, multiple calls to ``refund()`` may be
 necessary.
-
-One thing to note about the ``send()`` method is that it costs gas. Thus,
-refunding each participant will deduct gas from the total balance of the
-contract. This creates a big problem in that the last person to be refunded
-bears the burden of paying the gas cost for all refunds. There are many ways
-we can redesign this contract to be more fair to all participants in the case
-of a refund. One potential way we can go about this is that the beneficiary or
-the campaign owner set aside some initial funds during contract initialization to
-bear the burden of the cost. But this also has the drawback of the not knowing
-how much to set aside since the number of participants is unpredictable at the
-time of contract initialization.
-
-As an exercise, can we think of another way to design this contract to shares
-the refunding cost fairly among all participants? *Hint: Can we have the
-participants come collect their fund individually instead of having the
-contract batch refunding all participants?*
-
 
 .. index:: voting, ballot
 
