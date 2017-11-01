@@ -40,10 +40,10 @@ datatype ``address``. The ``beneficiary`` will be the receiver of money from
 the highest bidder.  We also initialize the variables ``auction_start`` and
 ``auction_end`` with the datatype ``timestamp`` to manage the open auction
 period and ``highest_bid`` with datatype ``wei_value``, the smallest
-denomination of ether, to manage auction state. Variable ``ended`` is a
+denomination of ether, to manage auction state. The variable ``ended`` is a
 boolean to determine whether the auction is officially over.
 
-You may notice the all of the variables being passed into the ``public``
+You may notice all of the variables being passed into the ``public``
 function. By declaring the variable *public*, the variable is
 callable by external contracts. Initializing the variables without the  ``public``
 function defaults to a private declaration and thus only accessible to methods
