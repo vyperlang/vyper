@@ -39,3 +39,22 @@ def get(k: bytes <= 5) -> num:
     c.set(54321)
 
     assert c.get("test") == 54321
+
+
+def test_basic_long_bytes_as_keys():
+    code = """
+mapped_bytes: num[bytes <= 34]
+
+def set(k: bytes <= 34, v: num):
+    self.mapped_bytes[k] = v
+
+
+def get(k: bytes <= 34) -> num:
+    return self.mapped_bytes[k]
+    """
+
+    c = get_contract(code)
+
+    c.set("a" * 34, 6789)
+
+    assert c.get("a" * 34) == 6789
