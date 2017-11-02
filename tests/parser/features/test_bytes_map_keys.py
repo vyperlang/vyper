@@ -1,6 +1,7 @@
 import pytest
 from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
     get_contract_with_gas_estimation, get_contract
+from viper.exceptions import TypeMismatchException
 
 
 def test_basic_bytes_keys():
@@ -58,3 +59,15 @@ def get(k: bytes <= 34) -> num:
     c.set("a" * 34, 6789)
 
     assert c.get("a" * 34) == 6789
+
+
+def test_mismatched_byte_length():
+    code = """
+mapped_bytes: num[bytes <= 34]
+
+def set(k: bytes <= 35, v: num):
+    self.mapped_bytes[k] = v
+    """
+
+    with pytest.raises(TypeMismatchException):
+        c = get_contract(code)
