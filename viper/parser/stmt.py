@@ -222,7 +222,7 @@ class Stmt(object):
         subtype = iter_list_node.typ.subtype.typ
         varname = self.stmt.target.id
         value_pos = self.context.new_variable(varname, BaseType(subtype))
-        i_pos = self.context.new_variable('_i', BaseType(subtype))
+        i_pos = self.context.new_variable('_index_for_' + varname, BaseType(subtype))
 
         if iter_var_type:  # Is a list that is already allocated to memory.
             iter_var = self.context.vars.get(self.stmt.iter.id)
