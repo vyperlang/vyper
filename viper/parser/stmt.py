@@ -78,6 +78,22 @@ class Stmt(object):
         from .parser import (
             make_setter,
         )
+
+        if isinstance(self.stmt.targets[0], ast.Subscript):  # Check if we are doing assignment of an iteration loop.
+            raise_exception = False
+            if isinstance(self.stmt.targets[0].value, ast.Attribute):
+                list_name = "%s.%s" % (self.stmt.targets[0].value.value.id, self.stmt.targets[0].value.attr)
+                if list_name in self.context.in_for_loop:
+                    raise_exception = True
+
+            if isinstance(self.stmt.targets[0].value, ast.Name) and \
+               self.stmt.targets[0].value.id in self.context.in_for_loop:
+                list_name = self.stmt.targets[0].value.id
+                raise_exception = True
+
+            if raise_exception:
+                raise StructureException("Altering list '%s' which is being iterated!" % list_name, self.stmt)
+
         # Assignment (eg. x[4] = y)
         if len(self.stmt.targets) != 1:
             raise StructureException("Assignment statement must have one target", self.stmt)
@@ -225,6 +241,7 @@ class Stmt(object):
         i_pos = self.context.new_variable('_index_for_' + varname, BaseType(subtype))
 
         if iter_var_type:  # Is a list that is already allocated to memory.
+            self.context.set_in_for_loop(self.stmt.iter.id)  # make sure list cannot be altered whilst iterating.
             iter_var = self.context.vars.get(self.stmt.iter.id)
             body = [
                 'seq',
@@ -234,6 +251,7 @@ class Stmt(object):
             o = LLLnode.from_list(
                 ['repeat', i_pos, 0, iter_var.size, body], typ=None, pos=getpos(self.stmt)
             )
+            self.context.remove_in_for_loop(self.stmt.iter.id)
             return o
         elif isinstance(self.stmt.iter, ast.List):  # List gets defined in the for statement.
             # Allocate list to memory.
@@ -257,6 +275,7 @@ class Stmt(object):
             return o
         elif isinstance(self.stmt.iter, ast.Attribute):  # List is contained in storage.
             count = iter_list_node.typ.count
+            self.context.set_in_for_loop(iter_list_node.annotation)  # make sure list cannot be altered whilst iterating.
             body = [
                 'seq',
                 ['mstore', value_pos, ['sload', ['add', ['sha3_32', iter_list_node], ['mload', i_pos]]]],
@@ -266,6 +285,7 @@ class Stmt(object):
                 ['seq',
                     ['repeat', i_pos, 0, count, body]], typ=None, pos=getpos(self.stmt)
             )
+            self.context.remove_in_for_loop(iter_list_node.annotation)
             return o
 
     def aug_assign(self):

@@ -1,6 +1,7 @@
 import pytest
 from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
     get_contract_with_gas_estimation, get_contract
+from viper.exceptions import StructureException
 
 
 def test_basic_for_in_list():
@@ -128,3 +129,41 @@ def i_return(break_count: num) -> decimal:
     assert c.ret(2) == c.i_return(2) == 2.2
     assert c.ret(1) == c.i_return(1) == 1.1
     assert c.ret(0) == c.i_return(0) == 0.0001
+
+
+def test_altering_list_within_for_loop():
+    code = """
+def data() -> num:
+    s = [1, 2, 3, 4, 5, 6]
+    count = 0
+    for i in s:
+        s[count] = 1  # this should not be allowed.
+        if i >= 3:
+            return i
+        count += 1
+    return -1
+    """
+
+    with pytest.raises(StructureException):
+        get_contract(code)
+
+
+def test_altering_list_within_for_loop_storage():
+    code = """
+s: num[6]
+
+def set():
+    self.s = [1, 2, 3, 4, 5, 6]
+
+def data() -> num:
+    count = 0
+    for i in self.s:
+        self.s[count] = 1  # this should not be allowed.
+        if i >= 3:
+            return i
+        count += 1
+    return -1
+    """
+
+    with pytest.raises(StructureException):
+        get_contract(code)
