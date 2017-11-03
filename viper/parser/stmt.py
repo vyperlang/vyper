@@ -79,7 +79,7 @@ class Stmt(object):
             make_setter,
         )
 
-        if isinstance(self.stmt.targets[0], ast.Subscript):  # Check if we are doing assignment of an iteration loop.
+        if isinstance(self.stmt.targets[0], ast.Subscript) and self.context.in_for_loop:  # Check if we are doing assignment of an iteration loop.
             raise_exception = False
             if isinstance(self.stmt.targets[0].value, ast.Attribute):
                 list_name = "%s.%s" % (self.stmt.targets[0].value.value.id, self.stmt.targets[0].value.attr)
