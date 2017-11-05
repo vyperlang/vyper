@@ -37,7 +37,7 @@ Install Python 3.6 and some necessary packages:
     wget https://www.python.org/ftp/python/3.6.2/Python-3.6.2.tgz
     tar xfz Python-3.6.2.tgz
     cd Python-3.6.2/
-    ./configure –prefix /usr/local/lib/python3.6
+    ./configure --prefix /usr/local/lib/python3.6
     sudo make
     sudo make install
 
@@ -75,7 +75,7 @@ other development environment set-up.
 
 To create a new virtual environment for Viper run the following commands:
 ::
-    virtualenv -p /usr/local/lib/python3.6/bin/python --no-site-packages ~/viper-venv
+    virtualenv -p /usr/local/lib/python3.6/bin/python3 --no-site-packages ~/viper-venv
     source ~/viper-venv/bin/activate
 
 To find out more about virtual environments, check out:
