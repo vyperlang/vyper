@@ -14,6 +14,9 @@ to form complex types.
 In addition, types can interact with each other in expressions containing
 operators.
 
+
+.. index:: ! value 
+
 ***********
 Value Types
 ***********
@@ -28,7 +31,7 @@ Boolean
 =======
 **Keyword:** ``bool``
 
-A Boolean is a type to store a logical/truth value.
+A boolean is a type to store a logical/truth value.
 
 Values
 ------
@@ -40,12 +43,12 @@ Operators
 ====================  ===================  
 Operator              Description
 ====================  ===================  
-``f(x) not g(y)``     Logical negation     
-``f(x) and g(y)``     Logical conjunction  
-``f(x) or g(y)``      Logical disjunction  
-``f(x) == g(y)``      Equality             
-``f(x) != g(y)``      Inequality
-====================  ===================  
+``x not y``           Logical negation     
+``x and y``           Logical conjunction  
+``x or y``            Logical disjunction  
+``x == y``            Equality             
+``x != y``            Inequality
+===================  ===================  
 
 The operators ``or`` and ``and`` apply the common short-circuiting rules:
 ::
@@ -84,7 +87,7 @@ Operator    Description
 ==========  ================
 ``x`` and ``y`` must be of the type ``num``.
 
-Arithmetic operators
+Arithmetic Operators
 ^^^^^^^^^^^^^^^^^^^^
 
 =============  ======================
@@ -101,11 +104,6 @@ Operator       Description
 ``max(x, y)``  Maximum
 =============  ======================
 ``x`` and ``y`` must be of the type ``num``.
-
-Conversion
-----------
-A ``num`` can be converted to a ``num256`` with the function ``as_num256(x)``, where ``x`` is of the type ``num``.
-Conversly, a ``num256`` can be converted to a ``num`` with the function ``as_num128(x)``, where ``x`` is of the type ``num256``.
 
 .. index:: ! unit, ! num256
 Unsigned Integer (256 bit)
@@ -139,7 +137,7 @@ Operator             Description
 ===================  ================
 ``x`` and ``y`` must be of the type ``num256``.
 
-Arithmetic operators
+Arithmetic Operators
 ^^^^^^^^^^^^^^^^^^^^
 
 =======================  ======================
@@ -158,7 +156,7 @@ Operator                 Description
 =======================  ======================
 ``x`` and ``y`` must be of the type ``num256``.
 
-Bitwise operators 
+Bitwise Operators 
 ^^^^^^^^^^^^^^^^^
 
 ===================== =============
@@ -176,11 +174,6 @@ Operator              Description
     Positive ``_shift`` equals a left shift; negative ``_shift`` equals a right shift.
     Values shifted above/below the most/least significant bit get discarded.
 
-Conversion
-----------
-A ``num256`` can be converted to a ``num`` with the function ``as_num128(x)``, where ``x`` is of the type ``num256``.
-Conversly, a ``num`` can be converted to a ``num256`` with the function ``as_num256(x)``, where ``x`` is of the type ``num``.
-     
 Decimals
 ========
 **Keyword:** ``decimal``
@@ -209,7 +202,7 @@ Operator    Description
 ==========  ================
 ``x`` and ``y`` must be of the type ``decimal``.
 
-Arithmetic operators
+Arithmetic Operators
 ^^^^^^^^^^^^^^^^^^^^
 
 =============  ==========================================
@@ -236,7 +229,7 @@ The address type holds an Ethereum address.
 
 Values
 ------
-An Address type can hold an Ethereum address which equates to 20 bytes/160 bits. Returns in hexadecimal notation with a leading ``0x``.
+An address type can hold an Ethereum address which equates to 20 bytes/160 bits. Returns in hexadecimal notation with a leading ``0x``.
 
 .. _members-of-addresses:
 Members
@@ -278,73 +271,106 @@ Keyword              Unit         Base type  Description
 ``currency2_value``  1 currency2  ``num``    An amount of currency2
 ===================  ===========  =========  ====================================================================================
 
-Conversion
-----------
-The unit of a unit type may be stripped with the function ``as_unitless_number(_unitType)``, where ``_unitType`` is a unit type. The returned value is then either a ``num``
-or a ``decimal``, depending on the base type.
+.. index:: !bytes32
+32-bit-wide Byte Array
+======================
+**Keyword:** ``bytes32``
+A 32-bit-wide byte array. Otherwise similiar to byte arrays.
 
-#################
-TODO from here on
-#################
-Todo: bytes32 and reference types; revist conversion between num/num256/bytes32
-
-.. index:: byte array, bytes32
-
-
-Fixed-size byte arrays
-----------------------
-
-``bytes32``: 32 bytes
-
+**Example:**
 ::
-
     # Declaration
     hash: bytes32
-
     # Assignment
     self.hash = _hash
+Operators
+---------
+====================================  ============================================================ 
+Keyword                               Description
+====================================  ============================================================ 
+``len(x)``                            Returns the length as an integer
+``sha3(x)``                           Returns the sha3 hash as bytes32
+``concat(x, ...)``                    Concatenates multiple inputs
+``slice(x, start=_start, len=_len)``  Returns a slice of ``_len`` starting at ``_start``
+====================================  ============================================================ 
+Where ``x`` is a byte array and ``_start`` as well as ``_len`` are integer values.
 
-``bytes <= maxlen``: a byte array with the given maximum length
+.. index:: !bytes
+Fixed-size Byte Arrays
+======================
+**Keyword:** ``bytes``
 
+A byte array with a fixed size.
+The syntax being ``bytes <= maxLen``, where ``maxLen`` is an integer which denotes the maximum number of bits.
+
+.. index:: !string
+Strings
+-------
+Fixed-size byte arrays can hold strings with equal or fewer characters than the maximum length of the byte array.
+
+**Example:**
 ::
+    exampleString = "Test String"
 
-    # Declaration
-    name: bytes <= 5
+Operators
+---------
+====================================  ============================================================ 
+Keyword                               Description
+====================================  ============================================================ 
+``len(x)``                            Returns the length as an integer
+``sha3(x)``                           Returns the sha3 hash as bytes32
+``concat(x, ...)``                    Concatenates multiple inputs
+``slice(x, start=_start, len=_len)``  Returns a slice of ``_len`` starting at ``_start``
+====================================  ============================================================ 
+Where ``x`` is a byte array and ``_start`` as well as ``_len`` are integer values.
 
-    # Assignment
-    self.name = _name
+.. index:: !reference
 
-``type[length]``: finite list
+***************
+Reference Types
+***************
 
+Reference types do not fit into 32 Bytes. Because of this, copying their value is not as feasible as
+with value types. Therefore only the location, the reference, of the data is passed.
+
+.. index:: !arrays
+Fixed-size Lists
+================
+
+Fixed-size lists hold a finite number of elements which belong to a specified type.
+
+Syntax
+------
+Lists can be declared with ``_name: _ValueType[_Integer]``. Multidimensional lists are also possible.
+
+**Example:**
 ::
-
-    # Declaration
-    numbers: num[3]
-
-    # Assignment
-    self.numbers[0] = _num1
-
+    #Defining a list
+    exampleList: num[3]
+    #Setting values
+    exampleList = [10, 11, 12]
+    exampleList[2] = 42
+    #Returning a value
+    return exampleList[0]  
 
 .. index:: !structs
-
 Structs
--------
+=======
 
-Structs are custom defined types that can group several variables.  They can be accessed via ``struct.argname``.
+Structs are custom defined types that can group several variables. 
 
+Syntax
+------
+Structs can be accessed via ``struct.argname``.
+**Example:**
 ::
-
-    # Information about voters
-    voters: public({
-        # weight is accumulated by delegation
-        weight: num,
-        # if true, that person already voted
-        voted: bool,
-        # person delegated to
-        delegate: address,
-        # index of the voted proposal
-        vote: num
-    })
+    #Defining a struct
+    exampleStruct: {
+        value1: num,
+        value2: decimal,
+    }
+    #Accessing a value
+    exampleStruct.value1 = 1
 
 
 .. index:: !mapping
@@ -352,22 +378,49 @@ Structs are custom defined types that can group several variables.  They can be 
 Mappings
 ========
 
-Mapping types are declared as ``_ValueType[_KeyType]``.
-Here ``_KeyType`` can be almost any type except for mappings, a contract, or a struct.
-``_ValueType`` can actually be any type, including mappings.
-
-Mappings can be seen as `hash tables <https://en.wikipedia.org/wiki/Hash_table>`_ which are virtually initialized such that
+Mappings in Viper can be seen as `hash tables <https://en.wikipedia.org/wiki/Hash_table>`_ which are virtually initialized such that
 every possible key exists and is mapped to a value whose byte-representation is
-all zeros: a type's :ref:`default value <default-value>`. The similarity ends here, though: The key data is not actually stored
-in a mapping, only its ``keccak256`` hash used to look up the value.
+all zeros: a type's default value. The similarity ends here, though: The key data is not actually stored
+in a mapping, only its ``keccak256`` hash used to look up the value. Because of this, mappings
+do not have a length or a concept of a key or value being "set".
 
-Because of this, mappings do not have a length or a concept of a key or value being "set".
-
-Mappings are only allowed as state variables.
-
-It is possible to mark mappings ``public`` and have Viper create a :ref:`getter <visibility-and-getters>`.
+It is possible to mark mappings ``public`` and have Viper create a getter.
 The ``_KeyType`` will become a required parameter for the getter and it will
 return ``_ValueType``.
 
 .. note::
+    Mappings are only allowed as state variables.
+
+Syntax
+------
+
+Mapping types are declared as ``_ValueType[_KeyType]``.
+Here ``_KeyType`` can be almost any type except for mappings, a contract, or a struct.
+``_ValueType`` can actually be any type, including mappings.
+
+**Example:**
+::
+   #Defining a mapping
+   exampleMapping: decimal[num] 
+   #Accessing a value
+   exampleMapping[0] = 10.1
+
+.. note::
     Mappings can only be accessed, not iterated over.
+
+.. index:: !conversion
+
+**********
+Conversion
+**********
+Following conversions are possible.
+
+===================  =====================================================================================================================  =============
+Keyword              Input                                                                                                                  Output
+===================  =====================================================================================================================  =============
+``as_num128(x)``     ``num256``, ``address``, ``bytes32``                                                                                   ``num``
+``as_num256(x)``     ``num`` , ``address``, ``bytes32``                                                                                     ``num256``
+``as_bytes32(x)``    ``num``, ``num256``, ``address``                                                                                       ``bytes32``
+``bytes_to_num(x)``  ``bytes``                                                                                                              ``num``
+``as_wei_value(x)``  ``num`` , ``decimal``; `denomination <http://ethdocs.org/en/latest/ether.html#denominations>`_ literal                 ``wei_value``
+===================  =====================================================================================================================  =============
