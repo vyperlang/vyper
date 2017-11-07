@@ -56,7 +56,6 @@ def test_transfer(token_tester, assert_tx_failed):
 
     # Negative transfer value.
     assert_tx_failed(
-        tester=token_tester,
         function_to_test=lambda: tester.c.transfer(token_tester.accounts[1], -1),
         exception=ValueOutOfBounds
     )
@@ -92,7 +91,6 @@ def test_transferFrom(token_tester, assert_tx_failed):
 
     # Negative transfer value.
     assert_tx_failed(
-        tester=token_tester,
         function_to_test=lambda: contract.transferFrom(a0, a2, -1, sender=k1),
         exception=ValueOutOfBounds
     )

@@ -126,7 +126,7 @@ def get_last_log():
 
 @pytest.fixture
 def assert_tx_failed():
-    def assert_tx_failed(tester, function_to_test, exception = tester.TransactionFailed):
+    def assert_tx_failed(function_to_test, exception = tester.TransactionFailed):
         initial_state = tester.s.snapshot()
         with pytest.raises(exception):
             function_to_test()
