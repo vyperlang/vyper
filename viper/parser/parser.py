@@ -240,6 +240,14 @@ class Context():
         self.placeholder_count = 1
         # Original code (for error pretty-printing purposes)
         self.origcode = origcode
+        # In Loop status. Wether body is currently evaluating within a for-loop or not.
+        self.in_for_loop = set()
+
+    def set_in_for_loop(self, name_of_list):
+        self.in_for_loop.add(name_of_list)
+
+    def remove_in_for_loop(self, name_of_list):
+        self.in_for_loop.remove(name_of_list)
 
     # Add a new variable
     def new_variable(self, name, typ):
