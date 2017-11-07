@@ -1,0 +1,41 @@
+name: viper
+version: git
+summary: Experimental language for the Ethereum Virtual Machine
+description: |
+  Viper is an experimental, contract-oriented, pythonic programming language that targets the Ethereum Virtual Machine (EVM)
+
+grade: devel # must be 'stable' to release into candidate/stable channels
+confinement: devmode # use 'strict' once you have the right plugs and slots
+
+apps:
+  viper:
+    command: viper
+
+parts:
+  viper:
+    source: .
+    plugin: python
+    python-version: python3
+    after: [python]
+  python:
+    source: https://www.python.org/ftp/python/3.6.3/Python-3.6.3.tar.xz
+    plugin: autotools
+    configflags:
+      - --prefix=/usr
+    build-packages:
+      - gcc
+      - libreadline-dev
+      - libncursesw5-dev
+      - zlib1g-dev
+      - libbz2-dev
+      - liblzma-dev
+      - libgdbm-dev
+      - libdb-dev
+      - libssl-dev
+      - libexpat1-dev
+      - libmpdec-dev
+      - libbluetooth-dev
+      - libsqlite3-dev
+      - libffi-dev
+    stage:
+      - -usr/lib/python3.6/test
