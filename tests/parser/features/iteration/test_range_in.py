@@ -71,30 +71,36 @@ def testin() -> bool:
     return False
     """
     with pytest.raises(TypeMismatchException):
-        c = get_contract(code)
+        get_contract(code)
 
 
 def test_ownership(assert_tx_failed):
     code = """
 
-owners: address[10]
+owners: address[2]
 
 def __init__():
     self.owners[0] = msg.sender
 
-def set_owner(i: num):
-    self.owners[i] = msg.sender
+def set_owner(i: num, new_owner: address):
+    assert msg.sender in self.owners
+    self.owners[i] = new_owner
 
 def is_owner() -> bool:
-    assert msg.sender in self.owners
-    return True
+    return msg.sender in self.owners
     """
 
     c = get_contract(code)
 
-    assert c.is_owner()
-    c.set_owner(0, sender=t.k1)
-    assert c.is_owner(sender=t.k1)
+    assert c.is_owner() is True  # contract creator is owner.
+    assert c.is_owner(sender=t.k1) is False  # no one else is.
 
-    with pytest.raises(t.TransactionFailed):
-        c.is_owner(sender=t.k2)
+    # only an owner may set another owner.
+    assert_tx_failed(t, lambda: c.set_owner(1, t.a1, sender=t.k1))
+
+    c.set_owner(1, t.a1)
+    assert c.is_owner(sender=t.k1) is True
+
+    # Owner in place 0 can be replaced.
+    c.set_owner(0, t.a1)
+    assert c.is_owner() is False
