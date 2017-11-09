@@ -61,6 +61,25 @@ def get(k: bytes <= 34) -> num:
     assert c.get("a" * 34) == 6789
 
 
+def test_basic_very_long_bytes_as_keys():
+    code = """
+mapped_bytes: num[bytes <= 4096]
+
+def set(k: bytes <= 4096, v: num):
+    self.mapped_bytes[k] = v
+
+
+def get(k: bytes <= 4096) -> num:
+    return self.mapped_bytes[k]
+    """
+
+    c = get_contract(code)
+
+    c.set("test" * 1024, 6789)
+
+    assert c.get("test" * 1024) == 6789
+
+
 def test_mismatched_byte_length():
     code = """
 mapped_bytes: num[bytes <= 34]
@@ -70,4 +89,4 @@ def set(k: bytes <= 35, v: num):
     """
 
     with pytest.raises(TypeMismatchException):
-        c = get_contract(code)
+        get_contract(code)
