@@ -48,15 +48,9 @@ Operator              Description
 ``x or y``            Logical disjunction  
 ``x == y``            Equality             
 ``x != y``            Inequality
-===================  ===================  
+====================  ===================
 
-The operators ``or`` and ``and`` apply the common short-circuiting rules:
-::
-    #Short-circuiting
-    return false and foo()
-    #Returns false without calling foo() since it is not necessary for the result
-    return true or bar()
-    #Returns true without calling bar() since it is not necessary for the result 
+The operators ``or`` and ``and`` apply the common short-circuiting rules.
 
 .. index:: ! num, ! int, ! integer
 Signed Integer (128 bit)
@@ -245,7 +239,7 @@ Syntax as follows: ``_address.<member>``, where ``_address`` is of the type ``ad
 
 Unit Types
 ==========
-Viper allows the definition of types with a discrete unit such as e.g. meters, seconds, wei, ... . These types may only be based on either ``num`` or ``decimal``.
+Viper allows the definition of types with discrete units e.g. meters, seconds, wei, ... . These types may only be based on either ``num`` or ``decimal``.
 Viper has multiple unit types built in, which are the following:
 
 =============  =====  =========  ==========================
