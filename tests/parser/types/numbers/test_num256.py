@@ -31,7 +31,7 @@ def _num256_le(x: num256, y: num256) -> bool:
     return num256_le(x, y)
     """
 
-    c = get_contract(num256_code)
+    c = get_contract_with_gas_estimation(num256_code)
     x = 126416208461208640982146408124
     y = 7128468721412412459
 
@@ -100,7 +100,7 @@ def _num256_exp(x: num256, y: num256) -> num256:
         return num256_exp(x,y)
     """
 
-    c = get_contract(exp_code)
+    c = get_contract_with_gas_estimation(exp_code)
     t.s = s
 
     assert c._num256_exp(2, 0) == 1
@@ -123,7 +123,7 @@ def built_in_conversion(x: num256) -> num:
     return as_num128(x)
     """
 
-    c = get_contract(code)
+    c = get_contract_with_gas_estimation(code)
 
     # Ensure uint256 function signature.
     assert c.translator.function_data['_num256_to_num']['encode_types'] == ['uint256']

@@ -9,7 +9,7 @@ def foo(x: bytes <= 100) -> bytes <= 100:
     return x
     """
 
-    c = get_contract(test_bytes)
+    c = get_contract_with_gas_estimation(test_bytes)
     moo_result = c.foo(b'cow')
     assert moo_result == b'cow'
 
@@ -35,7 +35,7 @@ def foo(x: bytes <= 100) -> bytes <= 100:
     return y
     """
 
-    c = get_contract(test_bytes2)
+    c = get_contract_with_gas_estimation(test_bytes2)
     assert c.foo(b'cow') == b'cow'
     assert c.foo(b'') == b''
     assert c.foo(b'\x35' * 63) == b'\x35' * 63
@@ -73,7 +73,7 @@ def get_xy() -> num:
     return self.x * self.y
     """
 
-    c = get_contract(test_bytes3)
+    c = get_contract_with_gas_estimation(test_bytes3)
     c.set_maa(b"pig")
     assert c.get_maa() == b"pig"
     assert c.get_maa2() == b"pig"
@@ -104,7 +104,7 @@ def bar(inp: bytes <= 60) -> bytes <= 60:
     return b
     """
 
-    c = get_contract(test_bytes4)
+    c = get_contract_with_gas_estimation(test_bytes4)
     assert c.foo() == b"", c.foo()
     assert c.bar() == b""
 
@@ -137,7 +137,7 @@ def quz(inp1: bytes <= 40, inp2: bytes <= 45):
     self.g = h
     """
 
-    c = get_contract(test_bytes5)
+    c = get_contract_with_gas_estimation(test_bytes5)
     c.foo(b"cow", b"horse")
     assert c.check1() == b"cow"
     assert c.check2() == b"horse"
@@ -156,7 +156,7 @@ def foo(x: bytes <= 32) -> num:
     return bytes_to_num(x)
     """
 
-    c = get_contract(bytes_to_num_code)
+    c = get_contract_with_gas_estimation(bytes_to_num_code)
     assert c.foo(b"") == 0
     try:
         c.foo(b"\x00")

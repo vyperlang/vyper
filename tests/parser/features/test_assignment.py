@@ -31,7 +31,7 @@ def augmod(x: num, y: num) -> num:
     return z
     """
 
-    c = get_contract(augassign_test)
+    c = get_contract_with_gas_estimation(augassign_test)
 
     assert c.augadd(5, 12) == 17
     assert c.augmul(5, 12) == 60

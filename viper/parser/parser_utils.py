@@ -129,7 +129,7 @@ class LLLnode():
             # Seq statements: seq <statement> <statement> ...
             elif self.value == 'seq':
                 self.valency = self.args[-1].valency if self.args else 0
-                self.gas = sum([arg.gas for arg in self.args])
+                self.gas = sum([arg.gas for arg in self.args]) + 30
             # Multi statements: multi <expr> <expr> ...
             elif self.value == 'multi':
                 for arg in self.args:

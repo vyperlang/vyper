@@ -44,7 +44,7 @@ def out_very_long_bytes() -> (num, bytes <= 1024, num, address):
     return 5555, "testtesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttest", 6666, 0x0000000000000000000000000000000000001234  # noqa
     """
 
-    c = get_contract(code)
+    c = get_contract_with_gas_estimation(code)
 
     assert c.out() == [3333, "0x0000000000000000000000000000000000000001"]
     assert c.out_literals() == [1, "0x0000000000000000000000000000000000000000", b"random"]
@@ -62,5 +62,5 @@ def out_literals() -> (num, address, bytes <= 4):
     return 1, 0x0000000000000000000000000000000000000000, "random"
     """
 
-    c = get_contract(code)
+    c = get_contract_with_gas_estimation(code)
     assert c.translator.function_data['out_literals']['decode_types'] == ['int128', 'address', 'bytes']

@@ -9,7 +9,7 @@ def test_block_number():
 def block_number() -> num:
     return block.number
 """
-    c = get_contract(block_number_code)
+    c = get_contract_with_gas_estimation(block_number_code)
     c.block_number() == 2
 
 
@@ -150,7 +150,7 @@ def bar(inp1: bytes <= 10) -> num:
     return x * y
     """
 
-    c = get_contract(test_slice)
+    c = get_contract_with_gas_estimation(test_slice)
     x = c.foo(b"badminton")
     assert x == b"min", x
 
@@ -168,7 +168,7 @@ def slice_tower_test(inp1: bytes <= 50) -> bytes <= 50:
     return inp
     """
 
-    c = get_contract(test_slice2)
+    c = get_contract_with_gas_estimation(test_slice2)
     x = c.slice_tower_test(b"abcdefghijklmnopqrstuvwxyz1234")
     assert x == b"klmnopqrst", x
 
@@ -193,7 +193,7 @@ def bar(inp1: bytes <= 50) -> num:
     return self.x * self.y
     """
 
-    c = get_contract(test_slice3)
+    c = get_contract_with_gas_estimation(test_slice3)
     x = c.foo(b"badminton")
     assert x == b"min", x
 
@@ -208,7 +208,7 @@ def foo(inp: bytes <= 10, start: num, len: num) -> bytes <= 10:
     return slice(inp, start=start, len=len)
     """
 
-    c = get_contract(test_slice4)
+    c = get_contract_with_gas_estimation(test_slice4)
     assert c.foo(b"badminton", 3, 3) == b"min"
     assert c.foo(b"badminton", 0, 9) == b"badminton"
     assert c.foo(b"badminton", 1, 8) == b"adminton"
@@ -248,7 +248,7 @@ def foo(inp: bytes <= 10) -> num:
     return len(inp) * 100 + len(x) * 10 + len(self.y)
     """
 
-    c = get_contract(test_length)
+    c = get_contract_with_gas_estimation(test_length)
     assert c.foo(b"badminton") == 954, c.foo(b"badminton")
     print('Passed length test')
 
@@ -262,7 +262,7 @@ def foo3(input1: bytes <= 50, input2: bytes <= 50, input3: bytes <= 50) -> bytes
     return concat(input1, input2, input3)
     """
 
-    c = get_contract(test_concat)
+    c = get_contract_with_gas_estimation(test_concat)
     assert c.foo2(b"h", b"orse") == b"horse"
     assert c.foo2(b"h", b"") == b"h"
     assert c.foo2(b"", b"") == b""
@@ -281,7 +281,7 @@ def foo(inp: bytes <= 50) -> bytes <= 1000:
     return concat(x, inp, x, inp, x, inp, x, inp, x, inp)
     """
 
-    c = get_contract(test_concat2)
+    c = get_contract_with_gas_estimation(test_concat2)
     assert c.foo(b"horse" * 9 + b"viper") == (b"horse" * 9 + b"viper") * 10
     print('Passed second concat test')
 
@@ -296,7 +296,7 @@ def krazykonkat(z: bytes <= 10) -> bytes <= 25:
     return concat(x, " ", self.y, " ", z)
     """
 
-    c = get_contract(crazy_concat_code)
+    c = get_contract_with_gas_estimation(crazy_concat_code)
 
     assert c.krazykonkat(b"moose") == b'cow horse moose'
 
@@ -312,7 +312,7 @@ def bar() -> bytes32:
     return sha3("inp")
     """
 
-    c = get_contract(hash_code)
+    c = get_contract_with_gas_estimation(hash_code)
     for inp in (b"", b"cow", b"s" * 31, b"\xff" * 32, b"\n" * 33, b"g" * 64, b"h" * 65):
         assert c.foo(inp) == u.sha3(inp)
 
@@ -324,7 +324,7 @@ def test_hash_code2():
 def foo(inp: bytes <= 100) -> bool:
     return sha3(inp) == sha3("badminton")
     """
-    c = get_contract(hash_code2)
+    c = get_contract_with_gas_estimation(hash_code2)
     assert c.foo(b"badminto") is False
     assert c.foo(b"badminton") is True
 
@@ -345,7 +345,7 @@ def trymem(inp: bytes <= 100) -> bool:
 def try32(inp: bytes32) -> bool:
     return sha3(inp) == sha3(self.test)
     """
-    c = get_contract(hash_code3)
+    c = get_contract_with_gas_estimation(hash_code3)
     c.set_test(b"")
     assert c.tryy(b"") is True
     assert c.trymem(b"") is True
@@ -376,7 +376,7 @@ def returnten() -> num:
     ans = raw_call(self, concat(method_id("double(int128)"), as_bytes32(5)), gas=50000, outsize=32)
     return as_num128(extract32(ans, 0))
     """
-    c = get_contract(method_id_test)
+    c = get_contract_with_gas_estimation(method_id_test)
     assert c.returnten() == 10
     print("Passed method ID test")
 
@@ -393,7 +393,7 @@ def test_ecrecover2() -> address:
                      as_num256(6577251522710269046055727877571505144084475024240851440410274049870970796685))
     """
 
-    c = get_contract(ecrecover_test)
+    c = get_contract_with_gas_estimation(ecrecover_test)
     h = b'\x35' * 32
     k = b'\x46' * 32
     v, r, S = u.ecsign(h, k)
@@ -462,7 +462,7 @@ def fivetimes(inp: bytes32) -> bytes <= 160:
     return concat(inp, inp, inp, inp, inp)
     """
 
-    c = get_contract(test_concat_bytes32)
+    c = get_contract_with_gas_estimation(test_concat_bytes32)
     assert c.sandwich(b"cow", b"\x35" * 32) == b"\x35" * 32 + b"cow" + b"\x35" * 32, c.sandwich(b"cow", b"\x35" * 32)
     assert c.sandwich(b"", b"\x46" * 32) == b"\x46" * 64
     assert c.sandwich(b"\x57" * 95, b"\x57" * 32) == b"\x57" * 159
@@ -485,7 +485,7 @@ def baz() -> bytes <= 7:
     return raw_call(0x0000000000000000000000000000000000000004, "moose", gas=50000, outsize=7)
     """
 
-    c = get_contract(caller_code)
+    c = get_contract_with_gas_estimation(caller_code)
     assert c.foo() == b"moose"
     assert c.bar() == b"moo"
     assert c.baz() == b"moose\x00\x00"
@@ -511,7 +511,7 @@ def foq(inp: bytes <= 32) -> address:
     return extract32(inp, 0, type=address)
     """
 
-    c = get_contract(extract32_code)
+    c = get_contract_with_gas_estimation(extract32_code)
     assert c.foo(b"\x00" * 30 + b"\x01\x01") == 257
     assert c.bar(b"\x00" * 30 + b"\x01\x01") == 257
     try:
@@ -587,7 +587,7 @@ def voo(inp: bytes <= 1024) -> num:
     x = RLPList(inp, [num, num, bytes32, num, bytes32, bytes])
     return x[1]
     """
-    c = get_contract(rlp_decoder_code)
+    c = get_contract_with_gas_estimation(rlp_decoder_code)
 
     assert c.foo() == '0x' + '35' * 20
     assert c.fop() == b'G' * 32
@@ -660,7 +660,7 @@ def hoo(x: bytes32, y: bytes32) -> bytes <= 64:
     return concat(x, y)
     """
 
-    c = get_contract(konkat_code)
+    c = get_contract_with_gas_estimation(konkat_code)
     assert c.foo(b'\x35' * 32, b'\x00' * 32) == b'\x35' * 32 + b'\x00' * 32
     assert c.goo(b'\x35' * 32, b'\x00' * 32) == b'\x35' * 32 + b'\x00' * 32
     assert c.hoo(b'\x35' * 32, b'\x00' * 32) == b'\x35' * 32 + b'\x00' * 32
@@ -694,9 +694,9 @@ def foo() -> num:
     return 5
     """
 
-    c = get_contract(large_input_code_2, args=[17], sender=t.k0, value=0)
+    c = get_contract_with_gas_estimation(large_input_code_2, args=[17], sender=t.k0, value=0)
     try:
-        c = get_contract(large_input_code_2, args=[2**130], sender=t.k0, value=0)
+        c = get_contract_with_gas_estimation(large_input_code_2, args=[2**130], sender=t.k0, value=0)
         success = True
     except:
         success = False
@@ -726,7 +726,7 @@ def _shift(x: num256, y: num) -> num256:
     return shift(x, y)
     """
 
-    c = get_contract(test_bitwise)
+    c = get_contract_with_gas_estimation(test_bitwise)
     x = 126416208461208640982146408124
     y = 7128468721412412459
     assert c._bitwise_and(x, y) == (x & y)
@@ -760,7 +760,7 @@ def returnten() -> num:
     return self._len("badminton!")
     """
 
-    c = get_contract(selfcall_code_3)
+    c = get_contract_with_gas_estimation(selfcall_code_3)
     assert c.return_hash_of_cow_x_30() == u.sha3(b'cow' * 30)
     assert c.returnten() == 10
 
@@ -773,7 +773,7 @@ def returnten() -> num:
     return 10
     """
 
-    c = get_contract(inner_code)
+    c = get_contract_with_gas_estimation(inner_code)
 
     outer_code = """
 def create_and_call_returnten(inp: address) -> num:
@@ -836,7 +836,7 @@ def goo() -> num256:
     return num256_add(min(as_num256(3), as_num256(5)), max(as_num256(40), as_num256(80)))
     """
 
-    c = get_contract(minmax_test)
+    c = get_contract_with_gas_estimation(minmax_test)
     assert c.foo() == 58223.123
     assert c.goo() == 83
 
@@ -846,7 +846,7 @@ def test_ecadd():
     ecadder = """
 x3: num256[2]
 y3: num256[2]
-    
+
 def _ecadd(x: num256[2], y: num256[2]) -> num256[2]:
     return ecadd(x, y)
 
@@ -861,7 +861,7 @@ def _ecadd3(x: num256[2], y: num256[2]) -> num256[2]:
     return ecadd(self.x3, self.y3)
 
     """
-    c = get_contract(ecadder)
+    c = get_contract_with_gas_estimation(ecadder)
 
     assert c._ecadd(G1, G1) == G1_times_two
     assert c._ecadd2(G1, G1_times_two) == G1_times_three
@@ -872,7 +872,7 @@ def test_ecmul():
     ecmuller = """
 x3: num256[2]
 y3: num256
-    
+
 def _ecmul(x: num256[2], y: num256) -> num256[2]:
     return ecmul(x, y)
 
@@ -887,7 +887,7 @@ def _ecmul3(x: num256[2], y: num256) -> num256[2]:
     return ecmul(self.x3, self.y3)
 
 """
-    c = get_contract(ecmuller)
+    c = get_contract_with_gas_estimation(ecmuller)
 
     assert c._ecmul(G1, 0) == [0 ,0]
     assert c._ecmul(G1, 1) == G1
@@ -906,6 +906,6 @@ def exp(base: num256, exponent: num256, modulus: num256) -> num256:
       return o
     """
 
-    c = get_contract(modexper)
+    c = get_contract_with_gas_estimation(modexper)
     assert c.exp(3, 5, 100) == 43
     assert c.exp(2, 997, 997) == 2

@@ -8,7 +8,7 @@ def _num_exp(x: num, y: num) -> num:
     return x**y
     """
 
-    c = get_contract(exp_code)
+    c = get_contract_with_gas_estimation(exp_code)
     assert c._num_exp(2,2) == 4
     assert c._num_exp(2,3) == 8
     assert c._num_exp(2,4) == 16
