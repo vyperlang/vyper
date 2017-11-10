@@ -78,7 +78,7 @@ class Expr(object):
     def number(self):
         orignum = get_original_if_0x_prefixed(self.expr, self.context)
         if orignum is None and isinstance(self.expr.n, int):
-            if not (-2**127 + 1 <= self.expr.n <= 2**127 - 1):
+            if not (-2**127 <= self.expr.n <= 2**127 - 1):
                 raise InvalidLiteralException("Number out of range: " + str(self.expr.n), self.expr)
             return LLLnode.from_list(self.expr.n, typ=BaseType('num', None), pos=getpos(self.expr))
         elif isinstance(self.expr.n, float):

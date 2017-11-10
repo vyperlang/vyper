@@ -61,7 +61,7 @@ A signed integer (128 bit) is a type to store positive and negative integers.
 
 Values
 ------
-Signed integer values between -2\ :sup:`127` and (2\ :sup:`127` - 1).
+Signed integer values between -2\ :sup:`127` and (2\ :sup:`127` - 1), inclusive.
 
 Operators
 ---------
