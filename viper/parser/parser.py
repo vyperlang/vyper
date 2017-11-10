@@ -60,6 +60,7 @@ if not hasattr(ast, 'AnnAssign'):
 def parse(code):
     o = ast.parse(code)
     decorate_ast_with_source(o, code)
+    o = resolve_negative_literals(o)
     return o.body
 
 
@@ -67,6 +68,7 @@ def parse(code):
 def parse_line(code):
     o = ast.parse(code).body[0]
     decorate_ast_with_source(o, code)
+    o = resolve_negative_literals(o)
     return o
 
 
@@ -80,6 +82,19 @@ def decorate_ast_with_source(_ast, code):
             node.source_code = code
 
     MyVisitor().visit(_ast)
+
+
+def resolve_negative_literals(_ast):
+
+    class RewriteUnaryOp(ast.NodeTransformer):
+        def visit_UnaryOp(self, node):
+            if isinstance(node.op, ast.USub) and isinstance(node.operand, ast.Num):
+                node.operand.n = 0 - node.operand.n
+                return node.operand
+            else:
+                return node
+
+    return RewriteUnaryOp().visit(_ast)
 
 
 # Make a getter for a variable. This function gives an output that
