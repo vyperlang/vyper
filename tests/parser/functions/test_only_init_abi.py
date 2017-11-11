@@ -5,12 +5,14 @@ def test_only_init_function():
     code = """
 x: num
 
+@public
 def __init__():
     self.x = 1
     """
     code_init_empty = """
 x: num
 
+@public
 def __init__():
     pass
     """

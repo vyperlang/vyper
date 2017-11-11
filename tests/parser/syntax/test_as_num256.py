@@ -7,10 +7,12 @@ from viper.exceptions import TypeMismatchException
 
 fail_list = [
     """
+@public
 def convert2(inp: num256) -> address:
     return as_bytes32(inp)
     """,
     """
+@public
 def modtest(x: num256, y: num) -> num256:
     return x % y
     """
@@ -26,14 +28,17 @@ def test_as_wei_fail(bad_code):
 
 valid_list = [
     """
+@public
 def convert1(inp: bytes32) -> num256:
     return as_num256(inp)
     """,
     """
+@public
 def convert1(inp: bytes32) -> num256:
     return as_num256(inp)
     """,
     """
+@public
 def convert2(inp: num256) -> bytes32:
     return as_bytes32(inp)
     """

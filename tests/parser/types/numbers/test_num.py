@@ -4,6 +4,7 @@ from tests.setup_transaction_tests import chain as s, tester as t, ethereum_util
 
 def test_exponents_with_nums():
     exp_code = """
+@public
 def _num_exp(x: num, y: num) -> num:
     return x**y
     """

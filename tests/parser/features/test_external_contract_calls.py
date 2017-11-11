@@ -5,6 +5,7 @@ from viper.exceptions import StructureException, VariableDeclarationException, I
 
 def test_external_contract_calls():
     contract_1 = """
+@public
 def foo(arg1: num) -> num:
     return arg1
     """
@@ -15,6 +16,7 @@ def foo(arg1: num) -> num:
 class Foo():
         def foo(arg1: num) -> num: pass
 
+@public
 def bar(arg1: address, arg2: num) -> num:
     return Foo(arg1).foo(arg2)
     """
@@ -28,12 +30,15 @@ def test_complicated_external_contract_calls():
     contract_1 = """
 lucky: public(num)
 
+@public
 def __init__(_lucky: num):
     self.lucky = _lucky
 
+@public
 def foo() -> num:
     return self.lucky
 
+@public
 def array() -> bytes <= 3:
     return 'dog'
     """
@@ -46,6 +51,7 @@ class Foo():
     def foo() -> num: pass
     def array() -> bytes <= 3: pass
 
+@public
 def bar(arg1: address) -> num:
     return Foo(arg1).foo()
     """
@@ -57,6 +63,7 @@ def bar(arg1: address) -> num:
 
 def test_external_contract_calls_with_bytes():
     contract_1 = """
+@public
 def array() -> bytes <= 3:
     return 'dog'
     """
@@ -67,6 +74,7 @@ def array() -> bytes <= 3:
 class Foo():
     def array() -> bytes <= 3: pass
 
+@public
 def get_array(arg1: address) -> bytes <= 3:
     return Foo(arg1).array()
 """
@@ -79,6 +87,7 @@ def test_external_contract_call_state_change():
     contract_1 = """
 lucky: public(num)
 
+@public
 def set_lucky(_lucky: num):
     self.lucky = _lucky
     """
@@ -90,6 +99,7 @@ def set_lucky(_lucky: num):
 class Foo():
     def set_lucky(_lucky: num): pass
 
+@public
 def set_lucky(arg1: address, arg2: num):
     Foo(arg1).set_lucky(arg2)
     """
@@ -136,6 +146,7 @@ def test_external_contract_can_be_changed_based_on_address():
     contract_1 = """
 lucky: public(num)
 
+@public
 def set_lucky(_lucky: num):
     self.lucky = _lucky
     """
@@ -146,6 +157,7 @@ def set_lucky(_lucky: num):
     contract_2 =  """
 lucky: public(num)
 
+@public
 def set_lucky(_lucky: num):
     self.lucky = _lucky
     """
@@ -157,6 +169,7 @@ def set_lucky(_lucky: num):
 class Foo():
     def set_lucky(_lucky: num): pass
 
+@public
 def set_lucky(arg1: address, arg2: num):
     Foo(arg1).set_lucky(arg2)
     """
@@ -173,6 +186,7 @@ def test_external_contract_calls_with_public_globals():
     contract_1 = """
 lucky: public(num)
 
+@public
 def __init__(_lucky: num):
     self.lucky = _lucky
     """
@@ -184,6 +198,7 @@ def __init__(_lucky: num):
 class Foo():
     def get_lucky() -> num: pass
 
+@public
 def bar(arg1: address) -> num:
     return Foo(arg1).get_lucky()
     """
@@ -197,6 +212,7 @@ def test_external_contract_calls_with_multiple_contracts():
     contract_1 = """
 lucky: public(num)
 
+@public
 def __init__(_lucky: num):
     self.lucky = _lucky
     """
@@ -210,6 +226,7 @@ class Foo():
 
 magic_number: public(num)
 
+@public
 def __init__(arg1: address):
     self.magic_number = Foo(arg1).get_lucky()
     """
@@ -221,6 +238,7 @@ class Bar():
 
 best_number: public(num)
 
+@public
 def __init__(arg1: address):
     self.best_number = Bar(arg1).get_magic_number()
     """
@@ -232,6 +250,7 @@ def __init__(arg1: address):
 
 def test_invalid_external_contract_call_to_the_same_contract(assert_tx_failed):
     contract_1 = """
+@public
 def bar() -> num:
     return 1
     """
@@ -240,12 +259,15 @@ def bar() -> num:
 class Bar():
     def bar() -> num: pass
 
+@public
 def bar() -> num:
     return 1
 
+@public
 def _stmt(x: address):
     Bar(x).bar()
 
+@public
 def _expr(x: address) -> num:
     return Bar(x).bar()
     """
@@ -262,6 +284,7 @@ def _expr(x: address) -> num:
 
 def test_invalid_nonexistent_contract_call(assert_tx_failed):
     contract_1 = """
+@public
 def bar() -> num:
     return 1
     """
@@ -270,6 +293,7 @@ def bar() -> num:
 class Bar():
     def bar() -> num: pass
 
+@public
 def foo(x: address) -> num:
     return Bar(x).bar()
     """
@@ -290,6 +314,7 @@ class Bar():
 
 best_number: public(num)
 
+@public
 def __init__():
     pass
 """
@@ -299,6 +324,7 @@ def __init__():
 
 def test_invalid_contract_reference_call(assert_tx_failed):
     contract = """
+@public
 def bar(arg1: address, arg2: num) -> num:
     return Foo(arg1).foo(arg2)
 """
@@ -311,6 +337,7 @@ def test_invalid_contract_reference_return_type(assert_tx_failed):
 class Foo():
     def foo(arg2: num) -> invalid: pass
 
+@public
 def bar(arg1: address, arg2: num) -> num:
     return Foo(arg1).foo(arg2)
 """
@@ -344,7 +371,7 @@ class Foo():
 
 def test_external_contracts_must_be_declared_first_3(assert_tx_failed):
     contract = """
-
+@public
 def foo() -> num:
     return 1
 

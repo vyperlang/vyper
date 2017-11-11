@@ -5,9 +5,11 @@ from tests.setup_transaction_tests import chain as s, tester as t, ethereum_util
 
 def test_ecrecover_test():
     ecrecover_test = """
+@public
 def test_ecrecover(h: bytes32, v:num256, r:num256, s:num256) -> address:
     return ecrecover(h, v, r, s)
 
+@public
 def test_ecrecover2() -> address:
     return ecrecover(0x3535353535353535353535353535353535353535353535353535353535353535,
                      as_num256(28),

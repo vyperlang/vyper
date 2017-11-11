@@ -8,7 +8,7 @@ from viper.parser import parser_utils
 
 def test_gas_call():
     gas_call = """
-
+@public
 def foo() -> num:
     return msg.gas
     """
@@ -24,7 +24,7 @@ def test_gas_estimate_repr():
     code = """
 x: num
 
-
+@public
 def __init__():
     self.x = 1
     """

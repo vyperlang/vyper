@@ -10,6 +10,7 @@ y: num[5]
 z: {foo: num[3], bar: {a: num, b: num}[2]}
 a: num
 
+@public
 def foo() -> num:
     self.x = 1
     self.y[0] = 2
@@ -24,6 +25,7 @@ def foo() -> num:
     return self.x + self.y[0] + self.y[4] + self.z.foo[0] + self.z.foo[2] + \
         self.z.bar[0].a + self.z.bar[0].b + self.z.bar[1].a + self.z.bar[1].b + self.a
 
+@public
 def fop() -> num:
     _x: num
     _y: num[5]

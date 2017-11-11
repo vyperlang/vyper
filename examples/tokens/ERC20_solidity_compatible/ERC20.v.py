@@ -16,6 +16,7 @@ balances: num256[address]
 allowances: (num256[address])[address]
 num_issued: num256
 
+@public
 @payable
 def deposit():
     _value = as_num256(msg.value)
@@ -25,6 +26,7 @@ def deposit():
     # Fire deposit event as transfer from 0x0
     log.Transfer(0x0000000000000000000000000000000000000000, _sender, _value)
 
+@public
 def withdraw(_value : num256) -> bool:
     _sender = msg.sender
     # Make sure sufficient funds are present, op will not underflow supply
@@ -36,14 +38,17 @@ def withdraw(_value : num256) -> bool:
     log.Transfer(_sender, 0x0000000000000000000000000000000000000000, _value)
     return true
 
+@public
 @constant
 def totalSupply() -> num256:
     return self.num_issued
 
+@public
 @constant
 def balanceOf(_owner : address) -> num256:
     return self.balances[_owner]
 
+@public
 def transfer(_to : address, _value : num256) -> bool:
     _sender = msg.sender
     # Make sure sufficient funds are present implicitly through overflow protection
@@ -53,6 +58,7 @@ def transfer(_to : address, _value : num256) -> bool:
     log.Transfer(_sender, _to, _value)
     return true
 
+@public
 def transferFrom(_from : address, _to : address, _value : num256) -> bool:
     _sender = msg.sender
     allowance = self.allowances[_from][_sender]
@@ -64,6 +70,7 @@ def transferFrom(_from : address, _to : address, _value : num256) -> bool:
     log.Transfer(_from, _to, _value)
     return true
 
+@public
 def approve(_spender : address, _value : num256) -> bool:
     _sender = msg.sender
     self.allowances[_sender][_spender] = _value
@@ -71,6 +78,7 @@ def approve(_spender : address, _value : num256) -> bool:
     log.Approval(_sender, _spender, _value)
     return true
 
+@public
 @constant
 def allowance(_owner : address, _spender : address) -> num256:
     return self.allowances[_owner][_spender]

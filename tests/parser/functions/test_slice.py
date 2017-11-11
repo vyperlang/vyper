@@ -5,12 +5,15 @@ from tests.setup_transaction_tests import chain as s, tester as t, ethereum_util
 
 def test_test_slice():
     test_slice = """
+
+@public
 def foo(inp1: bytes <= 10) -> bytes <= 3:
     x = 5
     s = slice(inp1, start=3, len=3)
     y = 7
     return s
 
+@public
 def bar(inp1: bytes <= 10) -> num:
     x = 5
     s = slice(inp1, start=3, len=3)
@@ -29,6 +32,7 @@ def bar(inp1: bytes <= 10) -> num:
 
 def test_test_slice2():
     test_slice2 = """
+@public
 def slice_tower_test(inp1: bytes <= 50) -> bytes <= 50:
     inp = inp1
     for i in range(1, 11):
@@ -48,12 +52,14 @@ def test_test_slice3():
 x: num
 s: bytes <= 50
 y: num
+@public
 def foo(inp1: bytes <= 50) -> bytes <= 50:
     self.x = 5
     self.s = slice(inp1, start=3, len=3)
     self.y = 7
     return self.s
 
+@public
 def bar(inp1: bytes <= 50) -> num:
     self.x = 5
     self.s = slice(inp1, start=3, len=3)
@@ -72,6 +78,7 @@ def bar(inp1: bytes <= 50) -> num:
 
 def test_test_slice4():
     test_slice4 = """
+@public
 def foo(inp: bytes <= 10, start: num, len: num) -> bytes <= 10:
     return slice(inp, start=start, len=len)
     """

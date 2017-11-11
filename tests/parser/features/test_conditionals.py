@@ -5,6 +5,7 @@ from tests.setup_transaction_tests import chain as s, tester as t, ethereum_util
 
 def test_conditional_return_code():
     conditional_return_code = """
+@public
 def foo(i: bool) -> num:
     if i:
         return 5

@@ -6,6 +6,7 @@ from viper.exceptions import TypeMismatchException
 
 def test_basic_in_list():
     code = """
+@public
 def testin(x: num) -> bool:
     y = 1
     s = [1, 2, 3, 4]
@@ -29,6 +30,7 @@ def test_in_storage_list():
     code = """
 allowed: num[10]
 
+@public
 def in_test(x: num) -> bool:
     self.allowed = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     if x in self.allowed:
@@ -47,6 +49,7 @@ def in_test(x: num) -> bool:
 
 def test_cmp_in_list():
     code = """
+@public
 def in_test(x: num) -> bool:
     if x in [9, 7, 6, 5]:
         return True
@@ -64,6 +67,7 @@ def in_test(x: num) -> bool:
 
 def test_mixed_in_list(assert_compile_failed):
     code = """
+@public
 def testin() -> bool:
     s = [1, 2, 3, 4]
     if "test" in s:

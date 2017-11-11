@@ -7,26 +7,31 @@ from viper.exceptions import TypeMismatchException, StructureException
 
 fail_list = [
     """
+@public
 def foo() -> address:
     x = RLPList('\xf6\x9455555555555555555555\xa0GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG', [address, bytes32])
     return x[1]
     """,
     """
+@public
 def foo() -> address:
     x = RLPList('\xf6\x9455555555555555555555\xa0GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG', [address, bytes32])
     return x[2]
     """,
     """
+@public
 def foo() -> bytes <= 500:
     x = RLPList('\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', [bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes])
     return x[1]
     """,
     ("""
+@public
 def foo() -> bytes <= 500:
     x = 1
     return RLPList('\xe0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
     """, StructureException),
     """
+@public
 def foo() -> bytes <= 500:
     x = [1, 2, 3]
     return RLPList(x, [bytes])
@@ -47,16 +52,19 @@ def test_rlplist_fail(bad_code):
 
 valid_list = [
     """
+@public
 def foo() -> bytes <= 500:
     x = RLPList('\xe0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', [bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes])
     return x[1]
     """,
     """
+@public
 def foo() -> address:
     x = RLPList('\xf6\x9455555555555555555555\xa0GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG', [address, bytes32])
     return x[0]
     """,
     """
+@public
 def foo() -> bytes32:
     x = RLPList('\xf6\x9455555555555555555555\xa0GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG', [address, bytes32])
     return x[1]

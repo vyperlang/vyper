@@ -5,12 +5,14 @@ from tests.setup_transaction_tests import chain as s, tester as t, ethereum_util
 
 def test_is_contract():
     contract_1 = """
+@public
 def foo(arg1: address) -> bool:
     result = arg1.is_contract
     return result
 """
 
     contract_2 = """
+@public
 def foo(arg1: address) -> bool:
     return arg1.is_contract
 """

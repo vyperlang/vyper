@@ -5,6 +5,7 @@ from tests.setup_transaction_tests import chain as s, tester as t, ethereum_util
 
 def test_break_test():
     break_test = """
+@public
 def log(n: num) -> num:
     c = n * 1.0
     output = 0
@@ -26,6 +27,7 @@ def log(n: num) -> num:
 
 def test_break_test_2():
     break_test_2 = """
+@public
 def log(n: num) -> num:
     c = n * 1.0
     output = 0
@@ -53,6 +55,7 @@ def log(n: num) -> num:
 
 def test_break_test_3():
     break_test_3 = """
+@public
 def log(n: num) -> num:
     c = decimal(n)
     output = 0

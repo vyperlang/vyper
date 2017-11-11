@@ -7,6 +7,7 @@ from viper.exceptions import TypeMismatchException
 
 fail_list = [
     """
+@public
 def foo():
     selfdestruct(7)
     """
@@ -22,6 +23,7 @@ def test_block_fail(bad_code):
 
 valid_list = [
     """
+@public
 def foo():
     selfdestruct(0x1234567890123456789012345678901234567890)
     """

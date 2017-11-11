@@ -6,6 +6,7 @@ from viper.exceptions import StructureException
 
 def test_basic_for_in_list():
     code = """
+@public
 def data() -> num:
     s = [1, 2, 3, 4, 5, 6]
     for i in s:
@@ -21,6 +22,7 @@ def data() -> num:
 
 def test_basic_for_list_liter():
     code = """
+@public
 def data() -> num:
     for i in [3, 5, 7, 9]:
         if i > 5:
@@ -37,9 +39,11 @@ def test_basic_for_list_storage():
     code = """
 x: num[4]
 
+@public
 def set():
     self.x = [3, 5, 7, 9]
 
+@public
 def data() -> num:
     for i in self.x:
         if i > 5:
@@ -56,6 +60,7 @@ def data() -> num:
 
 def test_basic_for_list_address():
     code = """
+@public
 def data() -> address:
     addresses = [
         0x7d577a597B2742b498Cb5Cf0C26cDCD726d39E6e,
@@ -79,12 +84,15 @@ def test_basic_for_list_storage_address():
     code = """
 addresses: address[3]
 
+@public
 def set(i: num, val: address):
     self.addresses[i] = val
 
+@public
 def ret(i: num) -> address:
     return self.addresses[i]
 
+@public
 def iterate_return_second() -> address:
     count = 0
     for i in self.addresses:
@@ -106,12 +114,15 @@ def test_basic_for_list_storage_decimal():
     code = """
 readings: decimal[3]
 
+@public
 def set(i: num, val: decimal):
     self.readings[i] = val
 
+@public
 def ret(i: num) -> decimal:
     return self.readings[i]
 
+@public
 def i_return(break_count: num) -> decimal:
     count = 0
     for i in self.readings:
@@ -133,6 +144,7 @@ def i_return(break_count: num) -> decimal:
 
 def test_altering_list_within_for_loop(assert_compile_failed):
     code = """
+@public
 def data() -> num:
     s = [1, 2, 3, 4, 5, 6]
     count = 0
@@ -151,9 +163,11 @@ def test_altering_list_within_for_loop_storage(assert_compile_failed):
     code = """
 s: num[6]
 
+@public
 def set():
     self.s = [1, 2, 3, 4, 5, 6]
 
+@public
 def data() -> num:
     count = 0
     for i in self.s:

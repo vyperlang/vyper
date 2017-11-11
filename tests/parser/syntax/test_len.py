@@ -7,10 +7,12 @@ from viper.exceptions import TypeMismatchException
 
 fail_list = [
     """
+@public
 def foo(inp: num) -> num:
     return len(inp)
     """,
     """
+@public
 def foo(inp: num) -> address:
     return len(inp)
     """
@@ -30,6 +32,7 @@ def test_block_fail(bad_code):
 
 valid_list = [
     """
+@public
 def foo(inp: bytes <= 10) -> num:
     return len(inp)
     """

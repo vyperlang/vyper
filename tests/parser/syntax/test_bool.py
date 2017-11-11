@@ -7,24 +7,29 @@ from viper.exceptions import TypeMismatchException
 
 fail_list = [
     """
+@public
 def foo():
     x = true
     x = 5
     """,
     ("""
+@public
 def foo():
     True = 3
     """, SyntaxError),
     """
+@public
 def foo():
     x = True
     x = 129
     """,
     """
+@public
 def foo() -> bool:
     return (1 == 2) <= (1 == 1)
     """,
     """
+@public
 def foo() -> bool:
     return (1 == 2) or 3
     """
@@ -44,41 +49,50 @@ def test_bool_fail(bad_code):
 
 valid_list = [
     """
+@public
 def foo():
     x = true
     z = x and false
     """,
     """
+@public
 def foo():
     x = true
     z = x and False
     """,
     """
+@public
 def foo():
     x = True
     x = False
     """,
     """
+@public
 def foo() -> bool:
     return 1 == 1
     """,
     """
+@public
 def foo() -> bool:
     return 1 != 1
     """,
     """
+@public
 def foo() -> bool:
     return 1 > 1
     """,
     """
+@public
 def foo() -> bool:
     return 1. >= 1
     """,
     """
+@public
 def foo() -> bool:
     return 1 < 1
     """,
     """
+@public
 def foo() -> bool:
     return 1 <= 1.
     """

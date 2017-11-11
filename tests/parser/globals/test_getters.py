@@ -7,9 +7,11 @@ def test_state_accessor():
     state_accessor = """
 y: num[num]
 
+@public
 def oo():
     self.y[3] = 5
 
+@public
 def foo() -> num:
     return self.y[3]
 
@@ -36,6 +38,7 @@ w: public({
     g: wei_value
 }[num])
 
+@public
 def __init__():
     self.x = as_wei_value(7, wei)
     self.y[1] = 9

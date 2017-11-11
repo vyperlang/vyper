@@ -5,6 +5,7 @@ from tests.setup_transaction_tests import chain as s, tester as t, ethereum_util
 
 def test_clamper_test_code():
     clamper_test_code = """
+@public
 def foo(s: bytes <= 3) -> bytes <= 3:
     return s
     """
