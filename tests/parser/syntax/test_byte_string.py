@@ -5,18 +5,6 @@ from viper import compiler
 from viper.exceptions import TypeMismatchException
 
 
-fail_list = [
-
-]
-
-
-@pytest.mark.parametrize('bad_code', fail_list)
-def test_byte_string_fail(bad_code):
-
-    with raises(TypeMismatchException):
-        compiler.compile(bad_code)
-
-
 valid_list = [
     """
 def foo() -> bytes <= 10:
