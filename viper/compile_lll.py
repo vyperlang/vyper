@@ -93,7 +93,9 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
     # Repeat(memloc, start, rounds, body)
     elif code.value == 'repeat':
         o = []
-        loops = num_to_bytearray(code.args[2].value) or [2]
+        loops = num_to_bytearray(code.args[2].value)
+        if not loops:
+            raise Exception("Number of times repeated must be a constant nonzero positive integer: %r" % loops)
         start, end = mksymbol(), mksymbol()
         o.extend(compile_to_assembly(code.args[0], withargs, break_dest, height))
         o.extend(compile_to_assembly(code.args[1], withargs, break_dest, height + 1))
