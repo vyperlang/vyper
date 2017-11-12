@@ -101,12 +101,13 @@ def set_lucky(arg1: address, arg2: num):
     print('Successfully executed an external contract call state change')
 
 
-def test_constant_external_contract_call_cannot_change_state():
+def test_constant_external_contract_call_cannot_change_state(assert_tx_failed):
     contract_1 = """
 lucky: public(num)
 
-def set_lucky(_lucky: num):
+def set_lucky(_lucky: num) -> num:
     self.lucky = _lucky
+    return _lucky
     """
 
     lucky_number = 7
@@ -117,15 +118,18 @@ class Foo():
     def set_lucky(_lucky: num) -> num: pass
 
 @constant
-def set_lucky(arg1: address, arg2: num):
+def set_lucky_expr(arg1: address, arg2: num):
     Foo(arg1).set_lucky(arg2)
+
+@constant
+def set_lucky_stmt(arg1: address, arg2: num) -> num:
+    return Foo(arg1).set_lucky(arg2)
     """
     c2 = get_contract(contract_2)
 
-    assert c.get_lucky() == 0
-    c2.set_lucky(c.address, lucky_number)
-    assert c.get_lucky() == 0
-    print('Successfully executed an external contract call state change')
+    assert_tx_failed(lambda: c2.set_lucky_expr(c.address, lucky_number))
+    assert_tx_failed(lambda: c2.set_lucky_stmt(c.address, lucky_number))
+    print('Successfully tested an constant external contract call attempted state change')
 
 
 def test_external_contract_can_be_changed_based_on_address():
