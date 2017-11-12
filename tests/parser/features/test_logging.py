@@ -261,7 +261,7 @@ def foo_():
     log.MyLog('yo')
 """
     t.s = s
-    assert_tx_failed(t, lambda: get_contract(loggy_code), TypeMismatchException)
+    assert_tx_failed(lambda: get_contract(loggy_code), TypeMismatchException)
 
 
 def test_fails_when_topic_is_the_wrong_size(assert_tx_failed):
@@ -271,7 +271,7 @@ def foo():
     log.MyLog('bars')
 """
     t.s = s
-    assert_tx_failed(t, lambda: get_contract(loggy_code), TypeMismatchException)
+    assert_tx_failed(lambda: get_contract(loggy_code), TypeMismatchException)
 
 
 def test_fails_when_input_topic_is_the_wrong_size(assert_tx_failed):
@@ -281,7 +281,7 @@ def foo(arg1: bytes <= 4):
     log.MyLog(arg1)
 """
     t.s = s
-    assert_tx_failed(t, lambda: get_contract(loggy_code), TypeMismatchException)
+    assert_tx_failed(lambda: get_contract(loggy_code), TypeMismatchException)
 
 
 def test_fails_when_data_is_the_wrong_size(assert_tx_failed):
@@ -291,7 +291,7 @@ def foo():
     log.MyLog('bars')
 """
     t.s = s
-    assert_tx_failed(t, lambda: get_contract(loggy_code), TypeMismatchException)
+    assert_tx_failed(lambda: get_contract(loggy_code), TypeMismatchException)
 
 
 def test_fails_when_input_data_is_the_wrong_size(assert_tx_failed):
@@ -301,7 +301,7 @@ def foo(arg1: bytes <= 4):
     log.MyLog(arg1)
 """
     t.s = s
-    assert_tx_failed(t, lambda: get_contract(loggy_code), TypeMismatchException)
+    assert_tx_failed(lambda: get_contract(loggy_code), TypeMismatchException)
 
 
 def test_fails_when_log_data_is_over_32_bytes(assert_tx_failed):
@@ -311,7 +311,7 @@ def foo():
     pass
     """
     t.s = s
-    assert_tx_failed(t, lambda: get_contract(loggy_code), VariableDeclarationException)
+    assert_tx_failed(lambda: get_contract(loggy_code), VariableDeclarationException)
 
 
 def test_logging_fails_with_over_three_topics(assert_tx_failed):
@@ -321,7 +321,7 @@ def __init__():
     log.MyLog(1, 2, 3, 4)
     """
     t.s = s
-    assert_tx_failed(t, lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
 
 
 def test_logging_fails_with_duplicate_log_names(assert_tx_failed):
@@ -333,7 +333,7 @@ def foo():
     log.MyLog()
     """
     t.s = s
-    assert_tx_failed(t, lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
 
 
 def test_logging_fails_with_when_log_is_undeclared(assert_tx_failed):
@@ -342,7 +342,7 @@ def foo():
     log.MyLog()
     """
     t.s = s
-    assert_tx_failed(t, lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
 
 
 def test_logging_fails_with_topic_type_mismatch(assert_tx_failed):
@@ -353,7 +353,7 @@ def foo():
     log.MyLog(self)
     """
     t.s = s
-    assert_tx_failed(t, lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatchException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatchException)
 
 
 def test_logging_fails_with_data_type_mismatch(assert_tx_failed):
@@ -364,7 +364,7 @@ def foo():
     log.MyLog(self)
     """
     t.s = s
-    assert_tx_failed(t, lambda: get_contract_with_gas_estimation(loggy_code), AttributeError)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), AttributeError)
 
 
 def test_logging_fails_after_a_global_declaration(assert_tx_failed):
@@ -373,7 +373,7 @@ age: num
 MyLog: __log__({arg1: bytes <= 3})
     """
     t.s = s
-    assert_tx_failed(t, lambda: get_contract_with_gas_estimation(loggy_code), StructureException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), StructureException)
 
 
 def test_logging_fails_after_a_function_declaration(assert_tx_failed):
@@ -384,7 +384,7 @@ def foo():
 MyLog: __log__({arg1: bytes <= 3})
     """
     t.s = s
-    assert_tx_failed(t, lambda: get_contract_with_gas_estimation(loggy_code), StructureException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), StructureException)
 
 
 def test_loggy_code():

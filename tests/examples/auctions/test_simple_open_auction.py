@@ -16,7 +16,7 @@ def auction_tester():
 
 @pytest.fixture
 def assert_tx_failed():
-    def assert_tx_failed(tester, function_to_test, exception = tester.TransactionFailed):
+    def assert_tx_failed(function_to_test, exception = tester.TransactionFailed):
         initial_state = tester.s.snapshot()
         with pytest.raises(exception):
             function_to_test()
@@ -41,14 +41,14 @@ def test_initial_state(auction_tester):
 
 def test_bid(auction_tester, assert_tx_failed):
     # Bidder cannot bid 0
-    assert_tx_failed(auction_tester, lambda: auction_tester.c.bid(value=0, sender=auction_tester.k1))
+    assert_tx_failed(lambda: auction_tester.c.bid(value=0, sender=auction_tester.k1))
     # Bidder can bid
     auction_tester.c.bid(value=1, sender=tester.k1)
     # Check that higest bidder and highest bid have changed accordingly
     assert utils.remove_0x_head(auction_tester.c.get_highest_bidder()) == auction_tester.accounts[1].hex()
     assert auction_tester.c.get_highest_bid() == 1
     # Bidder bid cannot equal current highest bid
-    assert_tx_failed(auction_tester, lambda: auction_tester.c.bid(value=1, sender=auction_tester.k1))
+    assert_tx_failed(lambda: auction_tester.c.bid(value=1, sender=auction_tester.k1))
     # Higher bid can replace current highest bid
     auction_tester.c.bid(value=2, sender=tester.k2)
     # Check that higest bidder and highest bid have changed accordingly
@@ -71,7 +71,7 @@ def test_bid(auction_tester, assert_tx_failed):
 
 def test_auction_end(auction_tester, assert_tx_failed):
     # Fails if auction end time has not been reached
-    assert_tx_failed(auction_tester, lambda: auction_tester.c.auction_end())
+    assert_tx_failed(lambda: auction_tester.c.auction_end())
     auction_tester.c.bid(value=1 * 10**10, sender=tester.k2)
     # Move block timestamp foreward to reach auction end time
     auction_tester.s.head_state.timestamp += FIVE_DAYS
@@ -81,6 +81,6 @@ def test_auction_end(auction_tester, assert_tx_failed):
     # Beneficiary receives the highest bid
     assert balance_after_end == balance_before_end + 1 * 10 ** 10
     # Bidder cannot bid after auction end time has been reached
-    assert_tx_failed(auction_tester, lambda: auction_tester.c.bid(value=10, sender=auction_tester.k1))
+    assert_tx_failed(lambda: auction_tester.c.bid(value=10, sender=auction_tester.k1))
     # Auction cannot be ended twice
-    assert_tx_failed(auction_tester, lambda: auction_tester.c.auction_end())
+    assert_tx_failed(lambda: auction_tester.c.auction_end())
