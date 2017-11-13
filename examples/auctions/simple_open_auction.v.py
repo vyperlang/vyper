@@ -1,7 +1,7 @@
 # Open Auction
 
 # Auction params
-# Beneficiary recieves money from the highest bidder
+# Beneficiary receives money from the highest bidder
 beneficiary: public(address)
 auction_start: public(timestamp)
 auction_end: public(timestamp)

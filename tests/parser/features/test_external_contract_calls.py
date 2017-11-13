@@ -225,8 +225,8 @@ def _expr(x: address) -> num:
 
     c2._stmt(c1.address)
     c2._expr(c1.address)
-    assert_tx_failed(t, lambda: c2._stmt(c2.address))
-    assert_tx_failed(t, lambda: c2._expr(c2.address))
+    assert_tx_failed(lambda: c2._stmt(c2.address))
+    assert_tx_failed(lambda: c2._expr(c2.address))
 
 
 def test_invalid_nonexistent_contract_call(assert_tx_failed):
@@ -248,8 +248,8 @@ def foo(x: address) -> num:
     t.s = s
 
     assert c2.foo(c1.address) == 1
-    assert_tx_failed(t, lambda: c2.foo(t.a1))
-    assert_tx_failed(t, lambda: c2.foo(t.a7))
+    assert_tx_failed(lambda: c2.foo(t.a1))
+    assert_tx_failed(lambda: c2.foo(t.a7))
 
 
 def test_invalid_contract_reference_declaration(assert_tx_failed):
@@ -263,7 +263,7 @@ def __init__():
     pass
 """
     t.s = t.Chain()
-    assert_tx_failed(t, lambda: get_contract(contract), exception = StructureException)
+    assert_tx_failed(lambda: get_contract(contract), exception = StructureException)
 
 
 def test_invalid_contract_reference_call(assert_tx_failed):
@@ -272,7 +272,7 @@ def bar(arg1: address, arg2: num) -> num:
     return Foo(arg1).foo(arg2)
 """
     t.s = t.Chain()
-    assert_tx_failed(t, lambda: get_contract(contract), exception = VariableDeclarationException)
+    assert_tx_failed(lambda: get_contract(contract), exception = VariableDeclarationException)
 
 
 def test_invalid_contract_reference_return_type(assert_tx_failed):
@@ -284,7 +284,7 @@ def bar(arg1: address, arg2: num) -> num:
     return Foo(arg1).foo(arg2)
 """
     t.s = t.Chain()
-    assert_tx_failed(t, lambda: get_contract(contract), exception = InvalidTypeException)
+    assert_tx_failed(lambda: get_contract(contract), exception = InvalidTypeException)
 
 
 def test_external_contracts_must_be_declared_first_1(assert_tx_failed):
@@ -296,7 +296,7 @@ class Foo():
     def foo(arg2: num) -> num: pass
 """
     t.s = t.Chain()
-    assert_tx_failed(t, lambda: get_contract(contract), exception = StructureException)
+    assert_tx_failed(lambda: get_contract(contract), exception = StructureException)
 
 
 def test_external_contracts_must_be_declared_first_2(assert_tx_failed):
@@ -308,7 +308,7 @@ class Foo():
     def foo(arg2: num) -> num: pass
 """
     t.s = t.Chain()
-    assert_tx_failed(t, lambda: get_contract(contract), exception = StructureException)
+    assert_tx_failed(lambda: get_contract(contract), exception = StructureException)
 
 
 def test_external_contracts_must_be_declared_first_3(assert_tx_failed):
@@ -321,4 +321,4 @@ class Foo():
     def foo(arg2: num) -> num: pass
 """
     t.s = t.Chain()
-    assert_tx_failed(t, lambda: get_contract(contract), exception = StructureException)
+    assert_tx_failed(lambda: get_contract(contract), exception = StructureException)

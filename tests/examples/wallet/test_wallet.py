@@ -23,13 +23,13 @@ def test_approve(assert_tx_failed):
     to, value, data = b'\x35' * 20, 10**16, b""
     assert x.approve(0, to, value, data, [sign(0, to, value, data, k) if k else [0, 0, 0] for k in (t.k1, 0, t.k3, 0, t.k5)], value=value, sender=t.k1)
     # Approve fails if only 2 signatures are given
-    assert_tx_failed(t, lambda: x.approve(1, to, value, data, [sign(1, to, value, data, k) if k else [0, 0, 0] for k in (t.k1, 0, 0, 0, t.k5)], value=value, sender=t.k1))
+    assert_tx_failed(lambda: x.approve(1, to, value, data, [sign(1, to, value, data, k) if k else [0, 0, 0] for k in (t.k1, 0, 0, 0, t.k5)], value=value, sender=t.k1))
     # Approve fails if an invalid signature is given
-    assert_tx_failed(t, lambda: x.approve(1, to, value, data, [sign(1, to, value, data, k) if k else [0, 0, 0] for k in (t.k1, 0, t.k7, 0, t.k5)], value=value, sender=t.k1))
+    assert_tx_failed(lambda: x.approve(1, to, value, data, [sign(1, to, value, data, k) if k else [0, 0, 0] for k in (t.k1, 0, t.k7, 0, t.k5)], value=value, sender=t.k1))
     # Approve fails if transaction number is incorrect (the first argument should be 1)
-    assert_tx_failed(t, lambda: x.approve(0, to, value, data, [sign(0, to, value, data, k) if k else [0, 0, 0] for k in (t.k1, 0, t.k3, 0, t.k5)], value=value, sender=t.k1))
+    assert_tx_failed(lambda: x.approve(0, to, value, data, [sign(0, to, value, data, k) if k else [0, 0, 0] for k in (t.k1, 0, t.k3, 0, t.k5)], value=value, sender=t.k1))
     # Approve fails if not enough value is sent
-    assert_tx_failed(t, lambda: x.approve(1, to, value, data, [sign(1, to, value, data, k) if k else [0, 0, 0] for k in (t.k1, 0, t.k3, 0, t.k5)], value=0, sender=t.k1))
+    assert_tx_failed(lambda: x.approve(1, to, value, data, [sign(1, to, value, data, k) if k else [0, 0, 0] for k in (t.k1, 0, t.k3, 0, t.k5)], value=0, sender=t.k1))
     assert x.approve(1, to, value, data, [sign(1, to, value, data, k) if k else [0, 0, 0] for k in (t.k1, 0, t.k3, 0, t.k5)], value=value, sender=t.k1)
     print("Basic tests passed")
 

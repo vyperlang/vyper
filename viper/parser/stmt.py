@@ -78,6 +78,22 @@ class Stmt(object):
         from .parser import (
             make_setter,
         )
+
+        if isinstance(self.stmt.targets[0], ast.Subscript) and self.context.in_for_loop:  # Check if we are doing assignment of an iteration loop.
+            raise_exception = False
+            if isinstance(self.stmt.targets[0].value, ast.Attribute):
+                list_name = "%s.%s" % (self.stmt.targets[0].value.value.id, self.stmt.targets[0].value.attr)
+                if list_name in self.context.in_for_loop:
+                    raise_exception = True
+
+            if isinstance(self.stmt.targets[0].value, ast.Name) and \
+               self.stmt.targets[0].value.id in self.context.in_for_loop:
+                list_name = self.stmt.targets[0].value.id
+                raise_exception = True
+
+            if raise_exception:
+                raise StructureException("Altering list '%s' which is being iterated!" % list_name, self.stmt)
+
         # Assignment (eg. x[4] = y)
         if len(self.stmt.targets) != 1:
             raise StructureException("Assignment statement must have one target", self.stmt)
@@ -152,12 +168,18 @@ class Stmt(object):
         from .parser import (
             parse_body,
         )
+
+        # Type 0 for, eg. for i in list(): ...
+        if self._is_list_iter():
+            return self.parse_for_list()
+
         if not isinstance(self.stmt.iter, ast.Call) or \
             not isinstance(self.stmt.iter.func, ast.Name) or \
                 not isinstance(self.stmt.target, ast.Name) or \
                     self.stmt.iter.func.id != "range" or \
                         len(self.stmt.iter.args) not in (1, 2):
-            raise StructureException("For statements must be of the form `for i in range(rounds): ..` or `for i in range(start, start + rounds): ..`", self.stmt.iter)
+            raise StructureException("For statements must be of the form `for i in range(rounds): ..` or `for i in range(start, start + rounds): ..`", self.stmt.iter)  # noqa
+
         # Type 1 for, eg. for i in range(10): ...
         if len(self.stmt.iter.args) == 1:
             if not isinstance(self.stmt.iter.args[0], ast.Num):
@@ -184,6 +206,87 @@ class Stmt(object):
         o = LLLnode.from_list(['repeat', pos, start, rounds, parse_body(self.stmt.body, self.context)], typ=None, pos=getpos(self.stmt))
         self.context.forvars[varname] = True
         return o
+
+    def _is_list_iter(self):
+        """
+        Test if the current statement is a type of list, used in for loops.
+        """
+
+        # Check for literal or memory list.
+        iter_var_type = self.context.vars.get(self.stmt.iter.id).typ if isinstance(self.stmt.iter, ast.Name) else None
+        if isinstance(self.stmt.iter, ast.List) or isinstance(iter_var_type, ListType):
+            return True
+
+        # Check for storage list.
+        if isinstance(self.stmt.iter, ast.Attribute):
+            iter_var_type = self.context.globals.get(self.stmt.iter.attr)
+            if iter_var_type and isinstance(iter_var_type.typ, ListType):
+                return True
+
+        return False
+
+    def parse_for_list(self):
+        from .parser import (
+            parse_body,
+            make_setter
+        )
+
+        iter_list_node = Expr(self.stmt.iter, self.context).lll_node
+        if not isinstance(iter_list_node.typ.subtype, BaseType):  # Sanity check on list subtype.
+            raise StructureException('For loops allowed only on basetype lists.', self.stmt.iter)
+        iter_var_type = self.context.vars.get(self.stmt.iter.id).typ if isinstance(self.stmt.iter, ast.Name) else None
+        subtype = iter_list_node.typ.subtype.typ
+        varname = self.stmt.target.id
+        value_pos = self.context.new_variable(varname, BaseType(subtype))
+        i_pos = self.context.new_variable('_index_for_' + varname, BaseType(subtype))
+
+        if iter_var_type:  # Is a list that is already allocated to memory.
+            self.context.set_in_for_loop(self.stmt.iter.id)  # make sure list cannot be altered whilst iterating.
+            iter_var = self.context.vars.get(self.stmt.iter.id)
+            body = [
+                'seq',
+                ['mstore', value_pos, ['mload', ['add', iter_var.pos, ['mul', ['mload', i_pos], 32]]]],
+                parse_body(self.stmt.body, self.context)
+            ]
+            o = LLLnode.from_list(
+                ['repeat', i_pos, 0, iter_var.size, body], typ=None, pos=getpos(self.stmt)
+            )
+            self.context.remove_in_for_loop(self.stmt.iter.id)
+            return o
+        elif isinstance(self.stmt.iter, ast.List):  # List gets defined in the for statement.
+            # Allocate list to memory.
+            count = iter_list_node.typ.count
+            tmp_list = LLLnode.from_list(
+                obj=self.context.new_placeholder(ListType(iter_list_node.typ.subtype, count)),
+                typ=ListType(iter_list_node.typ.subtype, count),
+                location='memory'
+            )
+            setter = make_setter(tmp_list, iter_list_node, 'memory')
+            body = [
+                'seq',
+                ['mstore', value_pos, ['mload', ['add', tmp_list, ['mul', ['mload', i_pos], 32]]]],
+                parse_body(self.stmt.body, self.context)
+            ]
+            o = LLLnode.from_list(
+                ['seq',
+                    setter,
+                    ['repeat', i_pos, 0, count, body]], typ=None, pos=getpos(self.stmt)
+            )
+            return o
+        elif isinstance(self.stmt.iter, ast.Attribute):  # List is contained in storage.
+            count = iter_list_node.typ.count
+            self.context.set_in_for_loop(iter_list_node.annotation)  # make sure list cannot be altered whilst iterating.
+            body = [
+                'seq',
+                ['mstore', value_pos, ['sload', ['add', ['sha3_32', iter_list_node], ['mload', i_pos]]]],
+                parse_body(self.stmt.body, self.context),
+            ]
+            o = LLLnode.from_list(
+                ['seq',
+                    ['repeat', i_pos, 0, count, body]], typ=None, pos=getpos(self.stmt)
+            )
+            self.context.remove_in_for_loop(iter_list_node.annotation)
+            return o
 
     def aug_assign(self):
         target = Expr.parse_variable_location(self.stmt.target, self.context)

@@ -2,7 +2,7 @@ import pytest
 from pytest import raises
 
 from viper import compiler
-from viper.exceptions import TypeMismatchException
+from viper.exceptions import TypeMismatchException, StructureException
 
 
 fail_list = [
@@ -29,15 +29,28 @@ y: address[2][2]
 
 def foo(x: num[2][2]) -> num:
     self.y = x
-    """
+    """,
+    ("""
+bar: num[3][3]
+
+def foo() -> num[3]:
+    self.bar = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+    for x in self.bar:
+        if x == [4, 5, 6]:
+            return x
+    """, StructureException)
 ]
 
 
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_nested_list_fail(bad_code):
 
-    with raises(TypeMismatchException):
-        compiler.compile(bad_code)
+    if isinstance(bad_code, tuple):
+        with raises(bad_code[1]):
+            compiler.compile(bad_code[0])
+    else:
+        with raises(TypeMismatchException):
+            compiler.compile(bad_code)
 
 
 valid_list = [
