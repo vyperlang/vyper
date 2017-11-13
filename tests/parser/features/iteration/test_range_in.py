@@ -96,7 +96,7 @@ def is_owner() -> bool:
     assert c.is_owner(sender=t.k1) is False  # no one else is.
 
     # only an owner may set another owner.
-    assert_tx_failed(t, lambda: c.set_owner(1, t.a1, sender=t.k1))
+    assert_tx_failed(lambda: c.set_owner(1, t.a1, sender=t.k1))
 
     c.set_owner(1, t.a1)
     assert c.is_owner(sender=t.k1) is True
