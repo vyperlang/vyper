@@ -71,11 +71,11 @@ opcodes = {
 }
 
 pseudo_opcodes = {
-    'CLAMP': [None, 3, 1, 45 + 25],
+    'CLAMP': [None, 3, 1, 70],
     'UCLAMPLT': [None, 2, 1, 25],
     'UCLAMPLE': [None, 2, 1, 30],
     'CLAMP_NONZERO': [None, 1, 1, 19],
-    'ASSERT': [None, 1, 0, 20 + 65],
+    'ASSERT': [None, 1, 0, 85],
     'PASS': [None, 0, 0, 0],
     'BREAK': [None, 0, 0, 20],
     'SHA3_32': [None, 1, 1, 72],
