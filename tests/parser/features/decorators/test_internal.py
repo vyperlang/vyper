@@ -13,7 +13,7 @@ def returnten() -> num:
     return self.a() * 2
     """
 
-    c = get_contract(internal_test)
+    c = get_contract_with_gas_estimation(internal_test)
     assert c.returnten() == 10
 
     print("Passed internal function test")
