@@ -7,7 +7,6 @@ from viper import (
     compile_lll,
     optimizer
 )
-from tests.setup_transaction_tests import assert_tx_failed
 
 @pytest.fixture
 def bytes_helper():
@@ -29,5 +28,17 @@ def get_contract_from_lll(t):
     return lll_compiler
 
 @pytest.fixture
-def assert_compile_failed(assert_tx_failed):
+def assert_tx_failed():
+    def assert_tx_failed(function_to_test, exception = tester.TransactionFailed):
+        initial_state = tester.s.snapshot()
+        with pytest.raises(exception):
+            function_to_test()
+        tester.s.revert(initial_state)
     return assert_tx_failed
+
+@pytest.fixture
+def assert_compile_failed(get_contract_from_lll):
+    def assert_compile_failed(function_to_test, exception = tester.TransactionFailed):
+        with pytest.raises(exception):
+            function_to_test()
+    return assert_compile_failed

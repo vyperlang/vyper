@@ -14,15 +14,6 @@ def auction_tester():
     tester.c = tester.s.contract(contract_code, language='viper', args=[tester.accounts[0], FIVE_DAYS])
     return tester
 
-@pytest.fixture
-def assert_tx_failed():
-    def assert_tx_failed(function_to_test, exception = tester.TransactionFailed):
-        initial_state = tester.s.snapshot()
-        with pytest.raises(exception):
-            function_to_test()
-        tester.s.revert(initial_state)
-    return assert_tx_failed
-
 
 def test_initial_state(auction_tester):
     # Check beneficiary is correct

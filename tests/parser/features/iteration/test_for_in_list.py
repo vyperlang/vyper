@@ -131,7 +131,7 @@ def i_return(break_count: num) -> decimal:
     assert c.ret(0) == c.i_return(0) == 0.0001
 
 
-def test_altering_list_within_for_loop():
+def test_altering_list_within_for_loop(assert_compile_failed):
     code = """
 def data() -> num:
     s = [1, 2, 3, 4, 5, 6]
@@ -144,11 +144,10 @@ def data() -> num:
     return -1
     """
 
-    with pytest.raises(StructureException):
-        get_contract(code)
+    assert_compile_failed(lambda: get_contract(code), StructureException)
 
 
-def test_altering_list_within_for_loop_storage():
+def test_altering_list_within_for_loop_storage(assert_compile_failed):
     code = """
 s: num[6]
 
@@ -165,5 +164,4 @@ def data() -> num:
     return -1
     """
 
-    with pytest.raises(StructureException):
-        get_contract(code)
+    assert_compile_failed(lambda: get_contract(code), StructureException)

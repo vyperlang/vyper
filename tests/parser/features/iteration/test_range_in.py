@@ -62,7 +62,7 @@ def in_test(x: num) -> bool:
     assert c.in_test(7) is True
 
 
-def test_mixed_in_list():
+def test_mixed_in_list(assert_compile_failed):
     code = """
 def testin() -> bool:
     s = [1, 2, 3, 4]
@@ -70,5 +70,5 @@ def testin() -> bool:
         return True
     return False
     """
-    with pytest.raises(TypeMismatchException):
-        c = get_contract(code)
+
+    assert_compile_failed(lambda: get_contract(code), TypeMismatchException)

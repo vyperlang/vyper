@@ -141,3 +141,19 @@ def built_in_conversion(x: num256) -> num:
     assert_tx_failed(lambda: c._num256_to_num(-1) != -1, ValueOutOfBounds)
     # Make sure it can't be coherced into a negative number.
     assert_tx_failed(lambda: c._num256_to_num_call(2**127))
+
+
+def test_modmul():
+    modexper = """
+def exp(base: num256, exponent: num256, modulus: num256) -> num256:
+      o = as_num256(1)
+      for i in range(256):
+          o = num256_mulmod(o, o, modulus)
+          if bitwise_and(exponent, shift(as_num256(1), 255 - i)) != as_num256(0):
+              o = num256_mulmod(o, base, modulus)
+      return o
+    """
+
+    c = get_contract_with_gas_estimation(modexper)
+    assert c.exp(3, 5, 100) == 43
+    assert c.exp(2, 997, 997) == 2
