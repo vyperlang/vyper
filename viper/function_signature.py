@@ -85,7 +85,6 @@ class FunctionSignature():
         if public and internal:
             raise StructureException("Cannot use public and internal decorators on the same function")
         if not public and not internal and not isinstance(code.body[0], ast.Pass):
-            # import pdb; pdb.set_trace()
             raise StructureException("Function visibility must be declared")
         # Determine the return type and whether or not it's constant. Expects something
         # of the form:

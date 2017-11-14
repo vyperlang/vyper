@@ -115,6 +115,7 @@ def test_constant_external_contract_call_cannot_change_state(assert_tx_failed):
     contract_1 = """
 lucky: public(num)
 
+@public
 def set_lucky(_lucky: num) -> num:
     self.lucky = _lucky
     return _lucky
@@ -127,10 +128,12 @@ def set_lucky(_lucky: num) -> num:
 class Foo():
     def set_lucky(_lucky: num) -> num: pass
 
+@public
 @constant
 def set_lucky_expr(arg1: address, arg2: num):
     Foo(arg1).set_lucky(arg2)
 
+@public
 @constant
 def set_lucky_stmt(arg1: address, arg2: num) -> num:
     return Foo(arg1).set_lucky(arg2)

@@ -17,10 +17,13 @@ def _num_exp(x: num, y: num) -> num:
     assert c._num_exp(3,3) == 27
     assert c._num_exp(72,19) == 72**19
 
-def test_nagative_nums(assert_tx_failed):
+def test_negative_nums(assert_tx_failed):
     negative_nums_code = """
+@public
 def _negative_num() -> num:
     return -1
+
+@public
 def _negative_exp() -> num:
     return -(1+2)
     """
@@ -32,21 +35,27 @@ def _negative_exp() -> num:
 
 def test_num_bound(assert_tx_failed):
     num_bound_code = """
+@public
 def _num(x: num) -> num:
     return x
 
+@public
 def _num_add(x: num, y: num) -> num:
     return x + y
 
+@public
 def _num_sub(x: num, y: num) -> num:
     return x - y
 
+@public
 def _num_add3(x: num, y: num, z: num) -> num:
     return x + y + z
 
+@public
 def _num_max() -> num:
     return  170141183460469231731687303715884105727   #  2**127 - 1
 
+@public
 def _num_min() -> num:
     return -170141183460469231731687303715884105728   # -2**127
     """
