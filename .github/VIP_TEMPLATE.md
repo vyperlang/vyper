@@ -16,10 +16,10 @@ This is the suggested template for new VIPs.
 "If you can't explain it simply, you don't understand it well enough." Provide a simplified and layman-accessible explanation of the VIP.
 
 ## Abstract
-A short (description of the technical issue being addressed.
+A short description of the technical issue being addressed.
 
 ## Motivation
-The motivation is critical for VIPs that add or change Viper's functionality. It should clearly explain why the existing Viper functionality is inadequate to address the problem that the VIP solves. as well as how the VIP is in line with Viper's goals and design philosopy.
+The motivation is critical for VIPs that add or change Viper's functionality. It should clearly explain why the existing Viper functionality is inadequate to address the problem that the VIP solves as well as how the VIP is in line with Viper's goals and design philosopy.
 
 ## Specification
 The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow any developer to implement the functionality
