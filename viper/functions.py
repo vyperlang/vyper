@@ -597,7 +597,7 @@ def _RLPlist(expr, args, kwargs, context):
         ['seq',
             ['with', '_sub', variable_pointer,
                 ['pop', ['call',
-                         10000 + 500 * len(_format) + 10 * len(args),
+                         1500 + 400 * len(_format) + 10 * len(args),
                          LLLnode.from_list(RLP_DECODER_ADDRESS, annotation='RLP decoder'),
                          0,
                          ['add', '_sub', 32],
