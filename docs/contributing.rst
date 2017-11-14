@@ -17,9 +17,17 @@ In particular, we need help in the following areas:
 * Responding to questions from other users on `StackExchange
   <https://ethereum.stackexchange.com>`_ and the `Viper Gitter
   <https://gitter.im/ethereum/viper>`_
+* Suggesting Improvements
+<https://github.com/ethereum/viper/tree/master/.github/VIP_TEMPLATE.md>`_
 * Fixing and responding to `Viper's GitHub issues
   <https://github.com/ethereum/viper/issues>`_
 
+
+How to Suggest Improvements
+===========================
+
+To suggest an improvement, please create a Viper Improvement Proposal (VIP for short)
+using the `VIP Template <https://github.com/ethereum/viper/tree/master/.github/VIP_TEMPLATE.md>`_.
 
 How to Report Issues
 ====================
