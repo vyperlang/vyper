@@ -3,7 +3,7 @@ from tests.setup_transaction_tests import chain as s, tester as t, ethereum_util
     get_contract_with_gas_estimation
 
 
-def test_send():
+def test_send(assert_tx_failed):
     send_test = """
 
 def foo():
@@ -13,8 +13,6 @@ def fop():
     send(msg.sender, 10)
     """
     c = s.contract(send_test, language='viper', value=10)
-    with pytest.raises(t.TransactionFailed):
-        c.foo()
+    assert_tx_failed(lambda: c.foo())
     c.fop()
-    with pytest.raises(t.TransactionFailed):
-        c.fop()
+    assert_tx_failed(lambda: c.fop())

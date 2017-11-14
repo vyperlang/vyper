@@ -98,7 +98,7 @@ def bar():
     assert c.translator.decode_event(logs.topics, logs.data) == {'_event_type': b'MyLog', 'arg1': 1, 'arg2': '0x' + c.address.hex()}
 
 
-def test_event_logging_cannot_have_more_than_three_topics():
+def test_event_logging_cannot_have_more_than_three_topics(assert_tx_failed):
     loggy_code = """
 MyLog: __log__({arg1: indexed(bytes <= 3), arg2: indexed(bytes <= 4), arg3: indexed(address), arg4: indexed(num)})
 
@@ -106,8 +106,7 @@ def foo():
     log.MyLog('bar', 'home', self)
     """
 
-    with pytest.raises(VariableDeclarationException):
-        get_contract_with_gas_estimation(loggy_code)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
 
 
 def test_event_logging_with_data():
