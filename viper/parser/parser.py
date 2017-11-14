@@ -461,11 +461,13 @@ def external_contract_call_stmt(stmt, context):
     sig = context.sigs[contract_name][method_name]
     contract_address = parse_expr(stmt.func.value.args[0], context)
     inargs, inargsize = pack_arguments(sig, [parse_expr(arg, context) for arg in stmt.args], context)
-    o = LLLnode.from_list(['seq',
-                            ['assert', ['extcodesize', ['mload', contract_address]]],
-                            ['assert', ['ne', 'address', ['mload', contract_address]]],
-                            ['assert', ['call', ['gas'], ['mload', contract_address], 0, inargs, inargsize, 0, 0]]],
-                                    typ=None, location='memory', pos=getpos(stmt))
+    sub = ['seq', ['assert', ['extcodesize', ['mload', contract_address]]],
+                    ['assert', ['ne', 'address', ['mload', contract_address]]]]
+    if context.is_constant:
+        sub.append(['assert', ['staticcall', 'gas', ['mload', contract_address], inargs, inargsize, 0, 0]])
+    else:
+        sub.append(['assert', ['call', 'gas', ['mload', contract_address], 0, inargs, inargsize, 0, 0]])
+    o = LLLnode.from_list(sub, typ=sig.output_type, location='memory', pos=getpos(stmt))
     return o
 
 
@@ -487,13 +489,16 @@ def external_contract_call_expr(expr, context):
         returner = output_placeholder + 32
     else:
         raise TypeMismatchException("Invalid output type: %r" % sig.output_type, expr)
-    o = LLLnode.from_list(['seq',
-                            ['assert', ['extcodesize', ['mload', contract_address]]],
-                            ['assert', ['ne', 'address', ['mload', contract_address]]],
-                            ['assert', ['call', ['gas'], ['mload', contract_address], 0,
-                            inargs, inargsize,
-                            output_placeholder, get_size_of_type(sig.output_type) * 32]],
-                            returner], typ=sig.output_type, location='memory', pos=getpos(expr))
+    sub = ['seq', ['assert', ['extcodesize', ['mload', contract_address]]],
+                    ['assert', ['ne', 'address', ['mload', contract_address]]]]
+    if context.is_constant:
+        sub.append(['assert', ['staticcall', 'gas', ['mload', contract_address], inargs, inargsize,
+                    output_placeholder, get_size_of_type(sig.output_type) * 32]])
+    else:
+        sub.append(['assert', ['call', 'gas', ['mload', contract_address], 0, inargs, inargsize,
+            output_placeholder, get_size_of_type(sig.output_type) * 32]])
+    sub.extend([0, returner])
+    o = LLLnode.from_list(sub, typ=sig.output_type, location='memory', pos=getpos(expr))
     return o
 
 

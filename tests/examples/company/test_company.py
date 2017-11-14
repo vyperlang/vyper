@@ -2,8 +2,9 @@ import pytest
 
 from ethereum.tools import tester as t
 from ethereum import utils
-from viper import compiler
+
 from tests.setup_transaction_tests import assert_tx_failed
+from viper import compiler
 
 @pytest.fixture
 def tester():
