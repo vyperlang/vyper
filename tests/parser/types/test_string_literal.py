@@ -25,7 +25,7 @@ def baz4() -> bytes <= 100:
                   "01234567890123456789012345678901234567890123456789")
     """
 
-    c = get_contract(string_literal_code)
+    c = get_contract_with_gas_estimation(string_literal_code)
     assert c.foo() == b"horse"
     assert c.bar() == b"badminton"
     assert c.baz() == b"012345678901234567890123456789012"
@@ -63,7 +63,7 @@ def baz(s: num, L: num) -> bytes <= 100:
         if x * y == 999:
             return self.moo
         """ % (("c" * i), ("c" * i), ("c" * i))
-        c = get_contract(kode)
+        c = get_contract_with_gas_estimation(kode)
         for e in range(63, 64, 65):
             for _s in range(31, 32, 33):
                 o1 = c.foo(_s, e - _s)

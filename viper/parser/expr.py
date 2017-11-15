@@ -17,6 +17,7 @@ from .parser_utils import (
 )
 from viper.utils import (
     MemoryPositions,
+    SizeLimits,
     bytes_to_int,
     string_to_bytes,
     DECIMAL_DIVISOR,
@@ -78,7 +79,7 @@ class Expr(object):
     def number(self):
         orignum = get_original_if_0x_prefixed(self.expr, self.context)
         if orignum is None and isinstance(self.expr.n, int):
-            if not (-2**127 + 1 <= self.expr.n <= 2**127 - 1):
+            if not (SizeLimits.MINNUM <= self.expr.n <= SizeLimits.MAXNUM):
                 raise InvalidLiteralException("Number out of range: " + str(self.expr.n), self.expr)
             return LLLnode.from_list(self.expr.n, typ=BaseType('num', None), pos=getpos(self.expr))
         elif isinstance(self.expr.n, float):

@@ -54,7 +54,7 @@ def jop() -> num:
 
     """
 
-    c = get_contract(multi_setter_test)
+    c = get_contract_with_gas_estimation(multi_setter_test)
     assert c.foo() == 321
     assert c.fop() == 654321
     assert c.goo() == 321
@@ -105,7 +105,7 @@ def gop() -> num:
         zed[1].bar[1].a * 1000000000000 + zed[1].bar[1].b * 10000000000000
     """
 
-    c = get_contract(multi_setter_struct_test)
+    c = get_contract_with_gas_estimation(multi_setter_struct_test)
     assert c.foo() == 654321
     assert c.fop() == 87198763254321
     assert c.goo() == 654321
@@ -130,7 +130,7 @@ def goo() -> num:
     return floor(self.pap[0][0] + self.pap[0][1] * 10 + self.pap[1][0] * 100 + self.pap[1][1] * 1000)
     """
 
-    c = get_contract(type_converter_setter_test)
+    c = get_contract_with_gas_estimation(type_converter_setter_test)
     assert c.foo() == 4321
     assert c.foo() == 4321
     print('Passed type-conversion struct test')
@@ -163,7 +163,7 @@ def foq() -> num:
     return popp.a[0].c + popp.a[1].c * 10 + popp.a[2].c * 100 + popp.b * 1000
     """
 
-    c = get_contract(composite_setter_test)
+    c = get_contract_with_gas_estimation(composite_setter_test)
     assert c.foo() == 4625
     assert c.fop() == 4625
     assert c.foq() == 4020

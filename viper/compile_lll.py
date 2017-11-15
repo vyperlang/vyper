@@ -156,10 +156,14 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
     # Unsigned/signed clamp, check less-than
     elif code.value in ('uclamplt', 'uclample', 'clamplt', 'clample', 'uclampgt', 'uclampge', 'clampgt', 'clampge'):
         if isinstance(code.args[0].value, int) and isinstance(code.args[1].value, int):
-            if 0 <= code.args[0].value < code.args[1].value:
+            # Checks for clamp errors at compile time as opposed to run time
+            if code.value in ('uclamplt', 'clamplt') and 0 <= code.args[0].value < code.args[1].value or \
+            code.value in ('uclample', 'clample') and 0 <= code.args[0].value <= code.args[1].value or \
+            code.value in ('uclampgt', 'clampgt') and 0 <= code.args[0].value > code.args[1].value or \
+            code.value in ('uclampge', 'clampge') and 0 <= code.args[0].value >= code.args[1].value:
                 return compile_to_assembly(code.args[0], withargs, break_dest, height)
             else:
-                return ['INVALID']
+                raise Exception("Invalid %r with values %r and %r" % (code.value, code.args[0], code.args[1]))
         o = compile_to_assembly(code.args[0], withargs, break_dest, height)
         o.extend(compile_to_assembly(code.args[1], withargs, break_dest, height + 1))
         o.extend(['DUP2'])

@@ -49,7 +49,7 @@ def foop() -> num:
     return(floor(1999 % 1000.0))
     """
 
-    c = get_contract(decimal_test)
+    c = get_contract_with_gas_estimation(decimal_test)
     pre_txs = len(s.head_state.receipts)
     assert c.foo() == 999
     assert c.fop() == 999
@@ -97,7 +97,7 @@ def iarg() -> wei_value:
     x *= 2
     return x
     """
-    c = get_contract(harder_decimal_test)
+    c = get_contract_with_gas_estimation(harder_decimal_test)
     assert c.phooey(1.2) == 20736.0
     assert c.phooey(-1.2) == 20736.0
     assert c.arg(-3.7) == -3.7

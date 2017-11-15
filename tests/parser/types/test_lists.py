@@ -34,7 +34,7 @@ def loo(x: num[2][2]) -> num:
     return self.z2[0][0] + self.z2[0][1] + self.z3[0] * 10 + self.z3[1] * 10
     """
 
-    c = get_contract(list_tester_code)
+    c = get_contract_with_gas_estimation(list_tester_code)
     assert c.foo([3, 4, 5]) == 12
     assert c.goo([[1, 2], [3, 4]]) == 73
     assert c.hoo([3, 4, 5]) == 12
@@ -88,7 +88,7 @@ def roo(inp: num[2]) -> decimal[2][2]:
     return [inp,[3,4]]
     """
 
-    c = get_contract(list_output_tester_code)
+    c = get_contract_with_gas_estimation(list_output_tester_code)
     assert c.foo() == [3, 5]
     assert c.goo() == [3, 5]
     assert c.hoo() == [3, 5]

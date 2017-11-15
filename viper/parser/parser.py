@@ -60,6 +60,7 @@ if not hasattr(ast, 'AnnAssign'):
 def parse(code):
     o = ast.parse(code)
     decorate_ast_with_source(o, code)
+    o = resolve_negative_literals(o)
     return o.body
 
 
@@ -67,6 +68,7 @@ def parse(code):
 def parse_line(code):
     o = ast.parse(code).body[0]
     decorate_ast_with_source(o, code)
+    o = resolve_negative_literals(o)
     return o
 
 
@@ -80,6 +82,19 @@ def decorate_ast_with_source(_ast, code):
             node.source_code = code
 
     MyVisitor().visit(_ast)
+
+
+def resolve_negative_literals(_ast):
+
+    class RewriteUnaryOp(ast.NodeTransformer):
+        def visit_UnaryOp(self, node):
+            if isinstance(node.op, ast.USub) and isinstance(node.operand, ast.Num):
+                node.operand.n = 0 - node.operand.n
+                return node.operand
+            else:
+                return node
+
+    return RewriteUnaryOp().visit(_ast)
 
 
 # Make a getter for a variable. This function gives an output that
@@ -461,11 +476,13 @@ def external_contract_call_stmt(stmt, context):
     sig = context.sigs[contract_name][method_name]
     contract_address = parse_expr(stmt.func.value.args[0], context)
     inargs, inargsize = pack_arguments(sig, [parse_expr(arg, context) for arg in stmt.args], context)
-    o = LLLnode.from_list(['seq',
-                            ['assert', ['extcodesize', ['mload', contract_address]]],
-                            ['assert', ['ne', 'address', ['mload', contract_address]]],
-                            ['assert', ['call', ['gas'], ['mload', contract_address], 0, inargs, inargsize, 0, 0]]],
-                                    typ=None, location='memory', pos=getpos(stmt))
+    sub = ['seq', ['assert', ['extcodesize', ['mload', contract_address]]],
+                    ['assert', ['ne', 'address', ['mload', contract_address]]]]
+    if context.is_constant:
+        sub.append(['assert', ['staticcall', 'gas', ['mload', contract_address], inargs, inargsize, 0, 0]])
+    else:
+        sub.append(['assert', ['call', 'gas', ['mload', contract_address], 0, inargs, inargsize, 0, 0]])
+    o = LLLnode.from_list(sub, typ=sig.output_type, location='memory', pos=getpos(stmt))
     return o
 
 
@@ -487,13 +504,16 @@ def external_contract_call_expr(expr, context):
         returner = output_placeholder + 32
     else:
         raise TypeMismatchException("Invalid output type: %r" % sig.output_type, expr)
-    o = LLLnode.from_list(['seq',
-                            ['assert', ['extcodesize', ['mload', contract_address]]],
-                            ['assert', ['ne', 'address', ['mload', contract_address]]],
-                            ['assert', ['call', ['gas'], ['mload', contract_address], 0,
-                            inargs, inargsize,
-                            output_placeholder, get_size_of_type(sig.output_type) * 32]],
-                            returner], typ=sig.output_type, location='memory', pos=getpos(expr))
+    sub = ['seq', ['assert', ['extcodesize', ['mload', contract_address]]],
+                    ['assert', ['ne', 'address', ['mload', contract_address]]]]
+    if context.is_constant:
+        sub.append(['assert', ['staticcall', 'gas', ['mload', contract_address], inargs, inargsize,
+                    output_placeholder, get_size_of_type(sig.output_type) * 32]])
+    else:
+        sub.append(['assert', ['call', 'gas', ['mload', contract_address], 0, inargs, inargsize,
+            output_placeholder, get_size_of_type(sig.output_type) * 32]])
+    sub.extend([0, returner])
+    o = LLLnode.from_list(sub, typ=sig.output_type, location='memory', pos=getpos(expr))
     return o
 
 
