@@ -185,8 +185,6 @@ def as_num256(expr, args, kwargs, context):
             raise InvalidLiteralException("Number out of range: " + str(expr.args[0].n), expr.args[0])
         return LLLnode.from_list(args[0], typ=BaseType('num256', None), pos=getpos(expr))
     elif isinstance(args[0], LLLnode):
-        if args[0].value == "sub" and args[0].args[0].value == 0 and args[0].args[1].value > 0:
-            raise InvalidLiteralException("Negative numbers cannot be num256 literals")
         return LLLnode(value=args[0].value, args=args[0].args, typ=BaseType('num256'), pos=getpos(expr))
     else:
         raise InvalidLiteralException("Invalid input for num256: %r" % args[0], expr)
