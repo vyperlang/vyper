@@ -131,6 +131,16 @@ def foo():
     """
 def foo():
     x = y = 3
+    """,
+    """
+def foo() -> num:
+    q:num = 111
+    return q
+    """,
+    """
+q:num = 111
+def foo() -> num:
+    return self.q
     """
 ]
 
