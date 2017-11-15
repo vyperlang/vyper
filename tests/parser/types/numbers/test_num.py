@@ -16,6 +16,19 @@ def _num_exp(x: num, y: num) -> num:
     assert c._num_exp(3,3) == 27
     assert c._num_exp(72,19) == 72**19
 
+def test_nagative_nums(assert_tx_failed):
+    negative_nums_code = """
+def _negative_num() -> num:
+    return -1
+def _negative_exp() -> num:
+    return -(1+2)
+    """
+
+    c = get_contract(negative_nums_code)
+    t.s = s
+    assert c._negative_num() == -1
+    assert c._negative_exp() == -3
+
 def test_num_bound(assert_tx_failed):
     num_bound_code = """
 def _num(x: num) -> num:
