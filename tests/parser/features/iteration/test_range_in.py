@@ -1,6 +1,6 @@
 import pytest
 from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation, get_contract
+    get_contract_with_gas_estimation, get_contract, assert_tx_failed
 from viper.exceptions import TypeMismatchException
 
 
@@ -70,5 +70,36 @@ def testin() -> bool:
         return True
     return False
     """
-
     assert_compile_failed(lambda: get_contract(code), TypeMismatchException)
+
+
+def test_ownership(assert_tx_failed):
+    code = """
+
+owners: address[2]
+
+def __init__():
+    self.owners[0] = msg.sender
+
+def set_owner(i: num, new_owner: address):
+    assert msg.sender in self.owners
+    self.owners[i] = new_owner
+
+def is_owner() -> bool:
+    return msg.sender in self.owners
+    """
+
+    c = get_contract(code)
+
+    assert c.is_owner() is True  # contract creator is owner.
+    assert c.is_owner(sender=t.k1) is False  # no one else is.
+
+    # only an owner may set another owner.
+    assert_tx_failed(lambda: c.set_owner(1, t.a1, sender=t.k1))
+
+    c.set_owner(1, t.a1)
+    assert c.is_owner(sender=t.k1) is True
+
+    # Owner in place 0 can be replaced.
+    c.set_owner(0, t.a1)
+    assert c.is_owner() is False
