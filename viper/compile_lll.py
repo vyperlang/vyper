@@ -206,7 +206,7 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
     # SHA3 a single value
     elif code.value == 'sha3_32':
         o = compile_to_assembly(code.args[0], withargs, break_dest, height)
-        o.extend(['PUSH1', MemoryPositions.FREE_VAR_SPACE, 'MSTORE', 'PUSH1', MemoryPositions.FREE_VAR_SPACE, 'PUSH1', 32, 'SHA3'])
+        o.extend(['PUSH1', MemoryPositions.FREE_VAR_SPACE, 'MSTORE', 'PUSH1', 32, 'PUSH1', MemoryPositions.FREE_VAR_SPACE, 'SHA3'])
         return o
     # <= operator
     elif code.value == 'le':
