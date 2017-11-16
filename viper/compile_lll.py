@@ -54,6 +54,8 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
         return ['DUP' + str(height - withargs[code.value])]
     # Setting variables connected to with statements
     elif code.value == "set":
+        if height - withargs[code.args[0].value] > 16:
+            raise Exception("With statement too deep")
         if len(code.args) != 2 or code.args[0].value not in withargs:
             raise Exception("Set expects two arguments, the first being a stack variable")
         return compile_to_assembly(code.args[1], withargs, break_dest, height) + \
