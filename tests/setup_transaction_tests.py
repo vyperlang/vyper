@@ -12,7 +12,7 @@ config_string = ':info,eth.vm.log:trace,eth.vm.op:trace,eth.vm.stack:trace,eth.v
 #configure_logging(config_string=config_string)
 
 chain = tester.Chain()
-tester.languages['viper'] = compiler.Compiler() 
+tester.languages['viper'] = compiler.Compiler()
 
 def inject_tx(txhex):
     tx = rlp.decode(ethereum_utils.decode_hex(txhex[2:]), transactions.Transaction)
@@ -72,14 +72,28 @@ def get_contract_with_gas_estimation(
         source_code,
         *args, **kwargs):
     contract = chain.contract(source_code, language="viper", *args, **kwargs)
-
     for func_name in contract.translator.function_data:
         set_decorator_to_contract_function(
             contract, source_code, func_name
         )
-
     return contract
 
+def get_contract_with_gas_estimation_for_constants(
+        source_code,
+        *args, **kwargs):
+    abi = tester.languages['viper'].mk_full_signature(source_code)
+    # Take out constants from the abi for the purpose of gas estimation
+    for func in abi:
+        func['constant'] = False
+    ct = tester.ContractTranslator(abi)
+    byte_code = tester.languages['viper'].compile(source_code) + (ct.encode_constructor_arguments(kwargs['args']) if kwargs else b'')
+    address = chain.tx(to=b'', data=byte_code)
+    contract = tester.ABIContract(chain, abi, address)
+    for func_name in contract.translator.function_data:
+        set_decorator_to_contract_function(
+            contract, source_code, func_name
+        )
+    return contract
 
 def get_contract(source_code, *args, **kwargs):
     return chain.contract(source_code, language="viper", *args, **kwargs)

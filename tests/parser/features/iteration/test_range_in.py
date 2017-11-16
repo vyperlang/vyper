@@ -15,7 +15,7 @@ def testin(x: num) -> bool:
     return False
     """
 
-    c = get_contract(code)
+    c = get_contract_with_gas_estimation(code)
 
     assert c.testin(0) is True
     assert c.testin(1) is True
@@ -38,7 +38,7 @@ def in_test(x: num) -> bool:
     return False
     """
 
-    c = get_contract(code)
+    c = get_contract_with_gas_estimation(code)
 
     assert c.in_test(1) is True
     assert c.in_test(9) is True
@@ -56,7 +56,7 @@ def in_test(x: num) -> bool:
     return False
     """
 
-    c = get_contract(code)
+    c = get_contract_with_gas_estimation(code)
 
     assert c.in_test(1) is False
     assert c.in_test(-7) is False

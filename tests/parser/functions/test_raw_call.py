@@ -45,7 +45,8 @@ def create_and_call_returnten(inp: address) -> num:
 
 @public
 def create_and_return_forwarder(inp: address) -> address:
-    return create_with_code_of(inp)
+    x = create_with_code_of(inp)
+    return x
     """
 
     c2 = get_contract(outer_code)

@@ -14,7 +14,7 @@ def bar() -> num:
     return self.foo()
     """
 
-    c = get_contract(selfcall_code)
+    c = get_contract_with_gas_estimation(selfcall_code)
     assert c.bar() == 3
 
     print("Passed no-argument self-call test")
@@ -65,7 +65,7 @@ def returnten() -> num:
     return self._len("badminton!")
     """
 
-    c = get_contract(selfcall_code_3)
+    c = get_contract_with_gas_estimation(selfcall_code_3)
     assert c.return_hash_of_cow_x_30() == u.sha3(b'cow' * 30)
     assert c.returnten() == 10
 

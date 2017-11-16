@@ -157,8 +157,7 @@ class LLLnode():
             raise Exception("Invalid value for LLL AST node: %r" % self.value)
         assert isinstance(self.args, list)
 
-        if add_gas_estimate:
-            self.gas += add_gas_estimate
+        self.gas += add_gas_estimate
 
     def to_list(self):
         return [self.value] + [a.to_list() for a in self.args]

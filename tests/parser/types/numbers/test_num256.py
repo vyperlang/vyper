@@ -90,7 +90,7 @@ def _num256_mulmod(x: num256, y: num256, z: num256) -> num256:
     return num256_mulmod(x, y, z)
     """
 
-    c = get_contract(num256_code)
+    c = get_contract_with_gas_estimation(num256_code)
     t.s = s
 
     assert c._num256_mod(3, 2) == 1

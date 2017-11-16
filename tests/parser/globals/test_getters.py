@@ -17,7 +17,7 @@ def foo() -> num:
 
     """
 
-    c = get_contract_with_gas_estimation(state_accessor)
+    c = get_contract(state_accessor)
     c.oo()
     assert c.foo() == 5
     print('Passed basic state accessor test')
