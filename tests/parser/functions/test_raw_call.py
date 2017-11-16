@@ -5,12 +5,15 @@ from tests.setup_transaction_tests import chain as s, tester as t, ethereum_util
 
 def test_caller_code():
     caller_code = """
+@public
 def foo() -> bytes <= 7:
     return raw_call(0x0000000000000000000000000000000000000004, "moose", gas=50000, outsize=5)
 
+@public
 def bar() -> bytes <= 7:
     return raw_call(0x0000000000000000000000000000000000000004, "moose", gas=50000, outsize=3)
 
+@public
 def baz() -> bytes <= 7:
     return raw_call(0x0000000000000000000000000000000000000004, "moose", gas=50000, outsize=7)
     """
@@ -26,6 +29,7 @@ def baz() -> bytes <= 7:
 
 def test_multiple_levels():
     inner_code = """
+@public
 def returnten() -> num:
     return 10
     """
@@ -33,11 +37,13 @@ def returnten() -> num:
     c = get_contract_with_gas_estimation(inner_code)
 
     outer_code = """
+@public
 def create_and_call_returnten(inp: address) -> num:
     x = create_with_code_of(inp)
     o = extract32(raw_call(x, "\xd0\x1f\xb1\xb8", outsize=32, gas=50000), 0, type=num128)
     return o
 
+@public
 def create_and_return_forwarder(inp: address) -> address:
     return create_with_code_of(inp)
     """
@@ -56,6 +62,7 @@ def create_and_return_forwarder(inp: address) -> address:
 
 def test_multiple_levels2():
     inner_code = """
+@public
 def returnten() -> num:
     assert False
     return 10
@@ -64,11 +71,13 @@ def returnten() -> num:
     c = get_contract_with_gas_estimation(inner_code)
 
     outer_code = """
+@public
 def create_and_call_returnten(inp: address) -> num:
     x = create_with_code_of(inp)
     o = extract32(raw_call(x, "\xd0\x1f\xb1\xb8", outsize=32, gas=50000), 0, type=num128)
     return o
 
+@public
 def create_and_return_forwarder(inp: address) -> address:
     return create_with_code_of(inp)
     """

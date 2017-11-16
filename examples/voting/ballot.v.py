@@ -24,17 +24,20 @@ voter_count: public(num)
 chairperson: public(address)
 num_proposals: public(num)
 
+@public
 @constant
 def delegated(addr: address) -> bool:
     # equivalent to self.voters[addr].delegate != 0x0000000000000000000000000000000000000000
     return not not self.voters[addr].delegate
 
+@public
 @constant
 def directly_voted(addr: address) -> bool:
     # not <address> equivalent to <address> == 0x0000000000000000000000000000000000000000
     return self.voters[addr].voted and not self.voters[addr].delegate
 
 # Setup global variables
+@public
 def __init__(_proposalNames: bytes32[2]):
     self.chairperson = msg.sender
     self.voter_count = 0
@@ -47,6 +50,7 @@ def __init__(_proposalNames: bytes32[2]):
 
 # Give `voter` the right to vote on this ballot.
 # May only be called by `chairperson`.
+@public
 def give_right_to_vote(voter: address):
     # Throws if sender is not chairperson
     assert msg.sender == self.chairperson
@@ -58,6 +62,7 @@ def give_right_to_vote(voter: address):
     self.voter_count += 1
 
 # Used by `delegate`. Can be called by anyone.
+@public
 def forward_weight(delegate_with_weight_to_forward: address):
     assert self.delegated(delegate_with_weight_to_forward)
     # Throw if there is nothing to do:
@@ -91,6 +96,7 @@ def forward_weight(delegate_with_weight_to_forward: address):
     # to be called again.
 
 # Delegate your vote to the voter `to`.
+@public
 def delegate(to: address):
     # Throws if sender has already voted
     assert not self.voters[msg.sender].voted
@@ -107,6 +113,7 @@ def delegate(to: address):
 
 # Give your vote (including votes delegated to you)
 # to proposal `proposals[proposal].name`.
+@public
 def vote(proposal: num):
     # can't vote twice
     assert not self.voters[msg.sender].voted
@@ -121,6 +128,7 @@ def vote(proposal: num):
 
 # Computes the winning proposal taking all
 # previous votes into account.
+@public
 @constant
 def winning_proposal() -> num:
     winning_vote_count = 0
@@ -133,6 +141,7 @@ def winning_proposal() -> num:
 # Calls winning_proposal() function to get the index
 # of the winner contained in the proposals array and then
 # returns the name of the winner
+@public
 @constant
 def winner_name() -> bytes32:
     return self.proposals[self.winning_proposal()].name

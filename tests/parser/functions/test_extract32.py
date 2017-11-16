@@ -6,13 +6,16 @@ from tests.setup_transaction_tests import chain as s, tester as t, ethereum_util
 def test_extract32_code():
     extract32_code = """
 y: bytes <= 100
+@public
 def extrakt32(inp: bytes <= 100, index: num) -> bytes32:
     return extract32(inp, index)
 
+@public
 def extrakt32_mem(inp: bytes <= 100, index: num) -> bytes32:
     x = inp
     return extract32(x, index)
 
+@public
 def extrakt32_storage(index: num, inp: bytes <= 100) -> bytes32:
     self.y = inp
     return extract32(self.y, index)
@@ -55,18 +58,23 @@ def extrakt32_storage(index: num, inp: bytes <= 100) -> bytes32:
 
 def test_extract32_code():
     extract32_code = """
+@public
 def foo(inp: bytes <= 32) -> num:
     return extract32(inp, 0, type=num128)
 
+@public
 def bar(inp: bytes <= 32) -> num256:
     return extract32(inp, 0, type=num256)
 
+@public
 def baz(inp: bytes <= 32) -> bytes32:
     return extract32(inp, 0, type=bytes32)
 
+@public
 def fop(inp: bytes <= 32) -> bytes32:
     return extract32(inp, 0)
 
+@public
 def foq(inp: bytes <= 32) -> address:
     return extract32(inp, 0, type=address)
     """

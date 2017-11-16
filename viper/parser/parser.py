@@ -155,7 +155,7 @@ def _mk_getter_helper(typ, depth=0):
 # Make a list of getters for a given variable name with a given type
 def mk_getter(varname, typ):
     funs = _mk_getter_helper(typ)
-    return ['@constant\ndef get_%s%s(%s) -> %s: return self.%s%s' % (varname, funname, head.rstrip(', '), base, varname, tail)
+    return ["""@public\n@constant\ndef get_%s%s(%s) -> %s: return self.%s%s""" % (varname, funname, head.rstrip(', '), base, varname, tail)
             for (funname, head, tail, base) in funs]
 
 

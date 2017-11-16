@@ -5,7 +5,7 @@ from tests.setup_transaction_tests import chain as s, tester as t, ethereum_util
 
 def test_comment_test():
     comment_test = """
-
+@public
 def foo() -> num:
     # Returns 3
     return 3

@@ -15,25 +15,29 @@ unlocked: public(bool)
 #def unlocked() -> bool: #Is a refund possible for the seller?
 #    return (self.balance == self.value*2)
 #    
+@public
 @payable
 def __init__():
     assert (msg.value % 2) == 0
     self.value = msg.value / 2 #Seller initializes contract by posting a safety deposit of 2*value of the item up for sale
     self.seller = msg.sender
     self.unlocked = true
-    
+
+@public
 def abort():
     assert self.unlocked #Is the contract still refundable
     assert msg.sender == self.seller #Only seller can refund his deposit before any buyer purchases the item
     selfdestruct(self.seller) #Refunds seller, deletes contract
 
+@public
 @payable
 def purchase():
     assert self.unlocked #Contract still open (item still up for sale)?
     assert msg.value == (2*self.value) #Is the deposit of correct value?
     self.buyer = msg.sender
     self.unlocked = false
-    
+
+@public
 def received():
     assert not self.unlocked #Is the item already purchased and pending confirmation of buyer
     assert msg.sender == self.buyer 

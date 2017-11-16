@@ -5,9 +5,11 @@ from tests.setup_transaction_tests import chain as s, tester as t, ethereum_util
 
 def test_concat():
     test_concat = """
+@public
 def foo2(input1: bytes <= 50, input2: bytes <= 50) -> bytes <= 1000:
     return concat(input1, input2)
 
+@public
 def foo3(input1: bytes <= 50, input2: bytes <= 50, input3: bytes <= 50) -> bytes <= 1000:
     return concat(input1, input2, input3)
     """
@@ -26,6 +28,7 @@ def foo3(input1: bytes <= 50, input2: bytes <= 50, input3: bytes <= 50) -> bytes
 
 def test_concat2():
     test_concat2 = """
+@public
 def foo(inp: bytes <= 50) -> bytes <= 1000:
     x = inp
     return concat(x, inp, x, inp, x, inp, x, inp, x, inp)
@@ -40,6 +43,7 @@ def test_crazy_concat_code():
     crazy_concat_code = """
 y: bytes <= 10
 
+@public
 def krazykonkat(z: bytes <= 10) -> bytes <= 25:
     x = "cow"
     self.y = "horse"
@@ -55,9 +59,11 @@ def krazykonkat(z: bytes <= 10) -> bytes <= 25:
 
 def test_concat_bytes32():
     test_concat_bytes32 = """
+@public
 def sandwich(inp: bytes <= 100, inp2: bytes32) -> bytes <= 164:
     return concat(inp2, inp, inp2)
 
+@public
 def fivetimes(inp: bytes32) -> bytes <= 160:
     return concat(inp, inp, inp, inp, inp)
     """
@@ -77,14 +83,17 @@ def test_konkat_code():
     konkat_code = """
 ecks: bytes32
 
+@public
 def foo(x: bytes32, y: bytes32) -> bytes <= 64:
     selfecks = x
     return concat(selfecks, y)
 
+@public
 def goo(x: bytes32, y: bytes32) -> bytes <= 64:
     self.ecks = x
     return concat(self.ecks, y)
 
+@public
 def hoo(x: bytes32, y: bytes32) -> bytes <= 64:
     return concat(x, y)
     """

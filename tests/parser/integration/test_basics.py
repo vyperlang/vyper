@@ -5,6 +5,7 @@ from tests.setup_transaction_tests import chain as s, tester as t, ethereum_util
 
 def test_null_code():
     null_code = """
+@public
 def foo():
     pass
     """
@@ -15,7 +16,7 @@ def foo():
 
 def test_basic_code():
     basic_code = """
-
+@public
 def foo(x: num) -> num:
     return x * 2
 
@@ -27,15 +28,19 @@ def foo(x: num) -> num:
 
 def test_selfcall_code_3():
     selfcall_code_3 = """
+@public
 def _hashy2(x: bytes <= 100) -> bytes32:
     return sha3(x)
 
+@public
 def return_hash_of_cow_x_30() -> bytes32:
     return self._hashy2("cowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcow")
 
+@public
 def _len(x: bytes <= 100) -> num:
     return len(x)
 
+@public
 def returnten() -> num:
     return self._len("badminton!")
     """

@@ -6,6 +6,7 @@ from viper.exceptions import TypeMismatchException
 
 fail_list = [
     """
+@public
 def foo() -> num256:
     return extract32("cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc", 0)
     """
@@ -21,17 +22,20 @@ def test_extract32_fail(bad_code):
 
 valid_list = [
     """
+@public
 def foo() -> num256:
     return extract32("cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc", 0, type=num256)
     """,
     """
 x: bytes <= 100
+@public
 def foo() -> num256:
     self.x = "cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc"
     return extract32(self.x, 0, type=num256)
     """,
     """
 x: bytes <= 100
+@public
 def foo() -> num256:
     self.x = "cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc"
     return extract32(self.x, 1, type=num256)

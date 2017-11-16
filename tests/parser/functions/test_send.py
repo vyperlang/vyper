@@ -5,10 +5,11 @@ from tests.setup_transaction_tests import chain as s, tester as t, ethereum_util
 
 def test_send(assert_tx_failed):
     send_test = """
-
+@public
 def foo():
     send(msg.sender, self.balance+1)
 
+@public
 def fop():
     send(msg.sender, 10)
     """

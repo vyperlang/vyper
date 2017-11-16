@@ -9,6 +9,7 @@ def test_internal_test():
 def a() -> num:
     return 5
 
+@public
 def returnten() -> num:
     return self.a() * 2
     """

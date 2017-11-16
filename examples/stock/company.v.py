@@ -7,6 +7,7 @@ price: public(num (wei / currency))
 holdings: currency_value[address]
 
 # Setup company
+@public
 def __init__(_company: address, _total_shares: currency_value, 
         initial_price: num(wei / currency) ):
     assert _total_shares > 0
@@ -20,11 +21,13 @@ def __init__(_company: address, _total_shares: currency_value,
     # Company holds all the shares at first, but can sell them all
     self.holdings[self.company] = _total_shares
 
+@public
 @constant
 def stock_available() -> currency_value:
     return self.holdings[self.company]
 
 # Give value to company and get stock in return
+@public
 @payable
 def buy_stock():
     # Note: full amount is given to company (no fractional shares),
@@ -39,16 +42,19 @@ def buy_stock():
     self.holdings[msg.sender] += buy_order
 
 # So someone can find out how much they have
+@public
 @constant
 def get_holding(_stockholder: address) -> currency_value:
     return self.holdings[_stockholder]
 
 # The amount the company has on hand in cash
+@public
 @constant
 def cash() -> wei_value:
     return self.balance
 
 # Give stock back to company and get my money back!
+@public
 def sell_stock(sell_order: currency_value):
     assert sell_order > 0 # Otherwise, will fail at send() below
     # Can only sell as much stock as you own
@@ -64,6 +70,7 @@ def sell_stock(sell_order: currency_value):
 
 # Transfer stock from one stockholder to another
 # (Assumes the receiver is given some compensation, but not enforced)
+@public
 def transfer_stock(receiver: address, transfer_order: currency_value):
     assert transfer_order > 0 # AUDIT revealed this!
     # Can only trade as much stock as you own
@@ -74,6 +81,7 @@ def transfer_stock(receiver: address, transfer_order: currency_value):
     self.holdings[receiver] += transfer_order
 
 # Allows the company to pay someone for services rendered
+@public
 def pay_bill(vendor: address, amount: wei_value):
     # Only the company can pay people
     assert msg.sender == self.company
@@ -84,11 +92,13 @@ def pay_bill(vendor: address, amount: wei_value):
     send(vendor, amount)
 
 # The amount a company has raised in the stock offering
+@public
 @constant
 def debt() -> wei_value:
     return (self.total_shares - self.holdings[self.company]) * self.price
 
 # The balance sheet of the company
+@public
 @constant
 def worth() -> wei_value:
     return self.cash() - self.debt()

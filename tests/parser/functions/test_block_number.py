@@ -5,6 +5,7 @@ from tests.setup_transaction_tests import chain as s, tester as t, ethereum_util
 
 def test_block_number():
     block_number_code = """
+@public
 def block_number() -> num:
     return block.number
 """

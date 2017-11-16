@@ -5,10 +5,13 @@ from tests.setup_transaction_tests import chain as s, tester as t, ethereum_util
 def test_permanent_variables_test():
     permanent_variables_test = """
 var: {a: num, b: num}
+
+@public
 def __init__(a: num, b: num):
     self.var.a = a
     self.var.b = b
 
+@public
 def returnMoose() -> num:
     return self.var.a * 10 + self.var.b
     """

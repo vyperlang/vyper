@@ -8,6 +8,7 @@ def test_empy_event_logging():
     loggy_code = """
 MyLog: __log__({})
 
+@public
 def foo():
     log.MyLog()
     """
@@ -30,6 +31,7 @@ def test_event_logging_with_topics():
     loggy_code = """
 MyLog: __log__({arg1: indexed(bytes <= 3)})
 
+@public
 def foo():
     log.MyLog('bar')
     """
@@ -52,6 +54,7 @@ def test_event_logging_with_multiple_topics():
     loggy_code = """
 MyLog: __log__({arg1: indexed(bytes <= 3), arg2: indexed(bytes <= 4), arg3: indexed(address)})
 
+@public
 def foo():
     log.MyLog('bar', 'home', self)
     """
@@ -74,10 +77,12 @@ def test_logging_the_same_event_multiple_times_with_topics():
     loggy_code = """
 MyLog: __log__({arg1: indexed(num), arg2: indexed(address)})
 
+@public
 def foo():
     log.MyLog(1, self)
     log.MyLog(1, self)
 
+@public
 def bar():
     log.MyLog(1, self)
     log.MyLog(1, self)
@@ -102,6 +107,7 @@ def test_event_logging_cannot_have_more_than_three_topics(assert_tx_failed):
     loggy_code = """
 MyLog: __log__({arg1: indexed(bytes <= 3), arg2: indexed(bytes <= 4), arg3: indexed(address), arg4: indexed(num)})
 
+@public
 def foo():
     log.MyLog('bar', 'home', self)
     """
@@ -113,6 +119,7 @@ def test_event_logging_with_data():
     loggy_code = """
 MyLog: __log__({arg1: num})
 
+@public
 def foo():
     log.MyLog(123)
     """
@@ -135,6 +142,7 @@ def test_event_loggging_with_fixed_array_data():
     loggy_code = """
 MyLog: __log__({arg1: num[2], arg2: timestamp[3], arg3: num[2][2]})
 
+@public
 def foo():
     log.MyLog([1,2], [block.timestamp, block.timestamp+1, block.timestamp+2], [[1,2],[1,2]])
     log.MyLog([1,2], [block.timestamp, block.timestamp+1, block.timestamp+2], [[1,2],[1,2]])
@@ -159,6 +167,7 @@ def test_logging_with_input_bytes(bytes_helper):
     loggy_code = """
 MyLog: __log__({arg1: indexed(bytes <= 4), arg2: indexed(bytes <= 29), arg3: bytes<=31})
 
+@public
 def foo(arg1: bytes <= 29, arg2: bytes <= 31):
     log.MyLog('bar', arg1, arg2)
 """
@@ -180,11 +189,9 @@ def test_event_logging_with_data_with_different_types():
     loggy_code = """
 MyLog: __log__({arg1: num, arg2: bytes <= 4, arg3: bytes <= 3, arg4: address, arg5: address, arg6: timestamp})
 
+@public
 def foo():
     log.MyLog(123, 'home', 'bar', 0xc305c901078781C232A2a521C2aF7980f8385ee9, self, block.timestamp)
-# MyLog: __log__({arg1: bytes <= 3, arg2: bytes <= 5})
-# def foo():
-#     log.MyLog('bar', 'bears')
     """
 
     c = get_contract_with_gas_estimation(loggy_code)
@@ -205,6 +212,7 @@ def test_event_logging_with_topics_and_data():
     loggy_code = """
 MyLog: __log__({arg1: indexed(num), arg2: bytes <= 3})
 
+@public
 def foo():
     log.MyLog(1, 'bar')
     """
@@ -228,6 +236,7 @@ def test_event_logging_with_multiple_logs_topics_and_data():
 MyLog: __log__({arg1: indexed(num), arg2: bytes <= 3})
 YourLog: __log__({arg1: indexed(address), arg2: bytes <= 5})
 
+@public
 def foo():
     log.MyLog(1, 'bar')
     log.YourLog(self, 'house')
@@ -256,6 +265,8 @@ def foo():
 def test_fails_when_input_is_the_wrong_type(assert_tx_failed):
     loggy_code = """
 MyLog: __log__({arg1: indexed(num)})
+
+@public
 def foo_():
     log.MyLog('yo')
 """
@@ -266,6 +277,8 @@ def foo_():
 def test_fails_when_topic_is_the_wrong_size(assert_tx_failed):
     loggy_code = """
 MyLog: __log__({arg1: indexed(bytes <= 3)})
+
+@public
 def foo():
     log.MyLog('bars')
 """
@@ -276,6 +289,8 @@ def foo():
 def test_fails_when_input_topic_is_the_wrong_size(assert_tx_failed):
     loggy_code = """
 MyLog: __log__({arg1: indexed(bytes <= 3)})
+
+@public
 def foo(arg1: bytes <= 4):
     log.MyLog(arg1)
 """
@@ -286,6 +301,8 @@ def foo(arg1: bytes <= 4):
 def test_fails_when_data_is_the_wrong_size(assert_tx_failed):
     loggy_code = """
 MyLog: __log__({arg1: bytes <= 3})
+
+@public
 def foo():
     log.MyLog('bars')
 """
@@ -296,6 +313,8 @@ def foo():
 def test_fails_when_input_data_is_the_wrong_size(assert_tx_failed):
     loggy_code = """
 MyLog: __log__({arg1: bytes <= 3})
+
+@public
 def foo(arg1: bytes <= 4):
     log.MyLog(arg1)
 """
@@ -306,6 +325,8 @@ def foo(arg1: bytes <= 4):
 def test_fails_when_log_data_is_over_32_bytes(assert_tx_failed):
     loggy_code = """
 MyLog: __log__({arg1: bytes <= 100})
+
+@public
 def foo():
     pass
     """
@@ -316,6 +337,7 @@ def foo():
 def test_logging_fails_with_over_three_topics(assert_tx_failed):
     loggy_code = """
 MyLog: __log__({arg1: indexed(num), arg2: indexed(num), arg3: indexed(num), arg4: indexed(num)})
+@public
 def __init__():
     log.MyLog(1, 2, 3, 4)
     """
@@ -328,6 +350,7 @@ def test_logging_fails_with_duplicate_log_names(assert_tx_failed):
 MyLog: __log__({})
 MyLog: __log__({})
 
+@public
 def foo():
     log.MyLog()
     """
@@ -337,6 +360,8 @@ def foo():
 
 def test_logging_fails_with_when_log_is_undeclared(assert_tx_failed):
     loggy_code = """
+
+@public
 def foo():
     log.MyLog()
     """
@@ -348,6 +373,7 @@ def test_logging_fails_with_topic_type_mismatch(assert_tx_failed):
     loggy_code = """
 MyLog: __log__({arg1: indexed(num)})
 
+@public
 def foo():
     log.MyLog(self)
     """
@@ -359,6 +385,7 @@ def test_logging_fails_with_data_type_mismatch(assert_tx_failed):
     loggy_code = """
 MyLog: __log__({arg1: bytes <= 3})
 
+@public
 def foo():
     log.MyLog(self)
     """
@@ -377,6 +404,8 @@ MyLog: __log__({arg1: bytes <= 3})
 
 def test_logging_fails_after_a_function_declaration(assert_tx_failed):
     loggy_code = """
+
+@public
 def foo():
     pass
 
@@ -390,16 +419,20 @@ def test_loggy_code():
     loggy_code = """
 s: bytes <= 100
 
+@public
 def foo():
     raw_log([], "moo")
 
+@public
 def goo():
     raw_log([0x1234567812345678123456781234567812345678123456781234567812345678], "moo2")
 
+@public
 def hoo():
     self.s = "moo3"
     raw_log([], self.s)
 
+@public
 def ioo(inp: bytes <= 100):
     raw_log([], inp)
     """

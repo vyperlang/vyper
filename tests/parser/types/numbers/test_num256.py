@@ -6,27 +6,35 @@ from tests.setup_transaction_tests import chain as s, tester as t, ethereum_util
 
 def test_num256_code(assert_tx_failed):
     num256_code = """
+@public
 def _num256_add(x: num256, y: num256) -> num256:
     return num256_add(x, y)
 
+@public
 def _num256_sub(x: num256, y: num256) -> num256:
     return num256_sub(x, y)
 
+@public
 def _num256_mul(x: num256, y: num256) -> num256:
     return num256_mul(x, y)
 
+@public
 def _num256_div(x: num256, y: num256) -> num256:
     return num256_div(x, y)
 
+@public
 def _num256_gt(x: num256, y: num256) -> bool:
     return num256_gt(x, y)
 
+@public
 def _num256_ge(x: num256, y: num256) -> bool:
     return num256_ge(x, y)
 
+@public
 def _num256_lt(x: num256, y: num256) -> bool:
     return num256_lt(x, y)
 
+@public
 def _num256_le(x: num256, y: num256) -> bool:
     return num256_le(x, y)
     """
@@ -69,12 +77,15 @@ def _num256_le(x: num256, y: num256) -> bool:
 
 def test_num256_mod(assert_tx_failed):
     num256_code = """
+@public
 def _num256_mod(x: num256, y: num256) -> num256:
     return num256_mod(x, y)
 
+@public
 def _num256_addmod(x: num256, y: num256, z: num256) -> num256:
     return num256_addmod(x, y, z)
 
+@public
 def _num256_mulmod(x: num256, y: num256, z: num256) -> num256:
     return num256_mulmod(x, y, z)
     """
@@ -96,6 +107,7 @@ def _num256_mulmod(x: num256, y: num256, z: num256) -> num256:
 
 def test_num256_with_exponents(assert_tx_failed):
     exp_code = """
+@public
 def _num256_exp(x: num256, y: num256) -> num256:
         return num256_exp(x,y)
     """
@@ -113,12 +125,15 @@ def _num256_exp(x: num256, y: num256) -> num256:
 
 def test_num256_to_num_casting(assert_tx_failed):
     code = """
+@public
 def _num256_to_num(x: num(num256)) -> num:
     return x
 
+@public
 def _num256_to_num_call(x: num256) -> num:
     return self._num256_to_num(x)
 
+@public
 def built_in_conversion(x: num256) -> num:
     return as_num128(x)
     """
@@ -145,6 +160,7 @@ def built_in_conversion(x: num256) -> num:
 
 def test_modmul():
     modexper = """
+@public
 def exp(base: num256, exponent: num256, modulus: num256) -> num256:
       o = as_num256(1)
       for i in range(256):

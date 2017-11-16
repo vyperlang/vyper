@@ -16,22 +16,22 @@ decimals: num
 balances: num[address]
 allowed: num[address][address]
 
-
+@public
 def __init__(_name: bytes32, _symbol: bytes32, _decimals: num, _initialSupply: num):
-
+    
     self.name = _name
     self.symbol = _symbol
     self.decimals = _decimals
     self.totalSupply = _initialSupply * 10 ** _decimals
     self.balances[msg.sender] = self.totalSupply
 
-
+@public
 @constant
 def symbol() -> bytes32:
 
     return self.symbol
 
-
+@public
 @constant
 def name() -> bytes32:
 
@@ -39,6 +39,7 @@ def name() -> bytes32:
 
 
 # What is the balance of a particular account?
+@public
 @constant
 def balanceOf(_owner: address) -> num256:
 
@@ -46,6 +47,7 @@ def balanceOf(_owner: address) -> num256:
 
 
 # Return total supply of token.
+@public
 @constant
 def totalSupply() -> num256:
 
@@ -53,6 +55,7 @@ def totalSupply() -> num256:
 
 
 # Send `_value` tokens to `_to` from your account
+@public
 def transfer(_to: address, _amount: num(num256)) -> bool:
 
     if self.balances[msg.sender] >= _amount and \
@@ -68,6 +71,7 @@ def transfer(_to: address, _amount: num(num256)) -> bool:
 
 
 # Transfer allowed tokens from a specific account to another.
+@public
 def transferFrom(_from: address, _to: address, _value: num(num256)) -> bool:
 
     if _value <= self.allowed[_from][msg.sender] and \
@@ -92,6 +96,7 @@ def transferFrom(_from: address, _to: address, _value: num(num256)) -> bool:
 #       same spender. THOUGH The contract itself shouldn't enforce it, to allow
 #       backwards compatilibilty with contracts deployed before.
 #
+@public
 def approve(_spender: address, _amount: num(num256)) -> bool:
 
     self.allowed[msg.sender][_spender] = _amount
@@ -101,6 +106,7 @@ def approve(_spender: address, _amount: num(num256)) -> bool:
 
 
 # Get the allowance an address has to spend anothers' token.
+@public
 def allowance(_owner: address, _spender: address) -> num256:
 
     return as_num256(self.allowed[_owner][_spender])

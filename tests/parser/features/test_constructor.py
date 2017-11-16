@@ -6,9 +6,12 @@ from tests.setup_transaction_tests import chain as s, tester as t, ethereum_util
 def test_init_argument_test():
     init_argument_test = """
 moose: num
+
+@public
 def __init__(_moose: num):
     self.moose = _moose
 
+@public
 def returnMoose() -> num:
     return self.moose
     """
@@ -22,9 +25,11 @@ def test_constructor_advanced_code():
     constructor_advanced_code = """
 twox: num
 
+@public
 def __init__(x: num):
     self.twox = x * 2
 
+@public
 def get_twox() -> num:
     return self.twox
     """
@@ -36,9 +41,11 @@ def test_constructor_advanced_code2():
     constructor_advanced_code2 = """
 comb: num
 
+@public
 def __init__(x: num[2], y: bytes <= 3, z: num):
     self.comb = x[0] * 1000 + x[1] * 100 + len(y) * 10 + z
 
+@public
 def get_comb() -> num:
     return self.comb
     """
@@ -49,6 +56,7 @@ def get_comb() -> num:
 
 def test_large_input_code():
     large_input_code = """
+@public
 def foo(x: num) -> num:
     return 3
     """
@@ -66,9 +74,11 @@ def foo(x: num) -> num:
 
 def test_large_input_code_2():
     large_input_code_2 = """
+@public
 def __init__(x: num):
     y = x
 
+@public
 def foo() -> num:
     return 5
     """

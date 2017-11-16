@@ -7,10 +7,12 @@ from viper.exceptions import TypeMismatchException
 
 fail_list = [
     """
+@public
 def foo():
     x = as_wei_value(5, 'szabo')
     """,
     """
+@public
 def foo() -> num(wei):
     x = 45
     return x.balance
@@ -27,19 +29,23 @@ def test_as_wei_fail(bad_code):
 
 valid_list = [
     """
+@public
 def foo():
     x = as_wei_value(5, finney) + as_wei_value(2, babbage) + as_wei_value(8, shannon)
     """,
     """
+@public
 def foo():
     z = 2 + 3
     x = as_wei_value(2 + 3, finney)
     """,
     """
+@public
 def foo():
     x = as_wei_value(5.182, ada)
     """,
     """
+@public
 def foo() -> num(wei):
     x = 0x1234567890123456789012345678901234567890
     return x.balance
