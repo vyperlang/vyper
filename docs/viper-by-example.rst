@@ -120,9 +120,9 @@ And of course, no smart contract tutorial is complete without a note on
 security.
 
 .. note:: It's always important to keep security in mind when designing a smart
-contract. As any application becomes more complex, the greater the potential for
-introducing new risks. Thus, it's always good practice to keep contracts as
-readable and simple as possible.
+  contract. As any application becomes more complex, the greater the potential 
+  for introducing new risks. Thus, it's always good practice to keep contracts 
+  as readable and simple as possible.
 
 Whenever you're ready, let's turn it up a notch in the next example.
 
@@ -260,10 +260,10 @@ Like other examples, we begin by initiating our variables - except this time,
 we're not calling them with the ``public`` function. Variables initiated this
 way are, by default, private.
 
-..note ::
-Unlike the existence of the function ``public()``, there is no equivalent
-``private()`` function. Variables simply default to private if initiated
-without the ``public()`` function.
+.. note :: 
+  Unlike the existence of the function ``public()``, there is no equivalent
+  ``private()`` function. Variables simply default to private if initiated
+  without the ``public()`` function.
 
 The ``funders`` variable is initiated as a mapping where the key is a number,
 and the value is a struct representing the contribution of each participant.
@@ -315,9 +315,9 @@ two conditions pass, the contract calls the ``selfdestruct()`` function and
 sends the collected funds to the beneficiary.
 
 .. note:: Notice that we have access to the total amount sent to the contract by
-calling ``self.balance``, a variable we never explicitly set. Similar to ``msg``
-and ``block``, ``self.balance`` is a built-in variable thats available in all
-Viper contracts.
+  calling ``self.balance``, a variable we never explicitly set. Similar to ``msg``
+  and ``block``, ``self.balance`` is a built-in variable thats available in all
+  Viper contracts.
 
 We can finalize the campaign if all goes well, but what happens if the
 crowdfunding campaign isn't successful? We're going to need a way to refund
