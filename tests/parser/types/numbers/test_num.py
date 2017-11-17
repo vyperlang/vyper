@@ -28,7 +28,7 @@ def _negative_exp() -> num:
     return -(1+2)
     """
 
-    c = get_contract(negative_nums_code)
+    c = get_contract_with_gas_estimation(negative_nums_code)
     t.s = s
     assert c._negative_num() == -1
     assert c._negative_exp() == -3
@@ -60,7 +60,7 @@ def _num_min() -> num:
     return -170141183460469231731687303715884105728   # -2**127
     """
 
-    c = get_contract(num_bound_code)
+    c = get_contract_with_gas_estimation(num_bound_code)
 
     t.s = s
     NUM_MAX =  2**127 - 1

@@ -50,6 +50,7 @@ class LLLnode():
         self.pos = pos
         self.annotation = annotation
         self.mutable = mutable
+        self.add_gas_estimate = add_gas_estimate
         # Determine this node's valency (1 if it pushes a value on the stack,
         # 0 otherwise) and checks to make sure the number and valencies of
         # children are correct. Also, find an upper bound on gas consumption
@@ -157,7 +158,7 @@ class LLLnode():
             raise Exception("Invalid value for LLL AST node: %r" % self.value)
         assert isinstance(self.args, list)
 
-        self.gas += add_gas_estimate
+        self.gas += self.add_gas_estimate
 
     def to_list(self):
         return [self.value] + [a.to_list() for a in self.args]
@@ -437,7 +438,7 @@ def base_type_conversion(orig, frm, to, pos=None):
     if not isinstance(frm, (BaseType, NullType)) or not isinstance(to, BaseType):
         raise TypeMismatchException("Base type conversion from or to non-base type: %r %r" % (frm, to), pos)
     elif is_base_type(frm, to.typ) and are_units_compatible(frm, to):
-        return LLLnode(orig.value, orig.args, typ=to)
+        return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
     elif is_base_type(frm, 'num') and is_base_type(to, 'decimal') and are_units_compatible(frm, to):
         return LLLnode.from_list(['mul', orig, DECIMAL_DIVISOR], typ=BaseType('decimal', to.unit, to.positional))
     elif is_base_type(frm, 'num256') and is_base_type(to, 'num') and are_units_compatible(frm, to):
