@@ -48,6 +48,7 @@ Following the principles and goals, Viper **does not** provide the following fea
 Compatibility-breaking Changelog
 ********************************
 
+* **2017.11.15**: Functions require either ``@internal`` or ``@public`` decorators.
 * **2017.07.25**: The ``def foo() -> num(const): ...`` syntax no longer works; you now need to do ``def foo() -> num: ...`` with a ``@constant`` decorator on the previous line.
 * **2017.07.25**: Functions without a ``@payable`` decorator now fail when called with nonzero wei.
 * **2017.07.25**: A function can only call functions that are declared above it (that is, A can call B only if B appears earlier in the code than A does). This was introduced 
