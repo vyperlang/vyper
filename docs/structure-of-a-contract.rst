@@ -33,12 +33,13 @@ Functions are the executable units of code within a contract.
 
 ::
 
+  @public
   @payable
-  function bid(): // Function
+  def bid(): // Function
     // ...
   }
 
 :ref:`function-calls` can happen internally or externally
 and have different levels of visibility (:ref:`visibility-and-getters`)
-towards other contracts.
+towards other contracts. Functions must be decorated with either @public or @internal.
 
