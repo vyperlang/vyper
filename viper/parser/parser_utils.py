@@ -17,9 +17,10 @@ from viper.types import (
 from viper.types import (
     is_base_type,
     are_units_compatible,
-    get_size_of_type
+    get_size_of_type,
+    ceil32
 )
-from viper.utils import MemoryPositions, DECIMAL_DIVISOR, ceil32
+from viper.utils import MemoryPositions, DECIMAL_DIVISOR
 
 
 class NullAttractor():
@@ -395,6 +396,18 @@ def add_variable_offset(parent, key):
         if isinstance(typ, ListType):
             subtype = typ.subtype
             sub = ['uclamplt', base_type_conversion(key, key.typ, BaseType('num')), typ.count]
+        elif isinstance(typ, MappingType) and isinstance(key.typ, ByteArrayType):
+            if not isinstance(typ.keytype, ByteArrayType) or (typ.keytype.maxlen < key.typ.maxlen):
+                raise TypeMismatchException('Mapping keys of bytes cannot be cast, use exact same bytes type of: %s', str(typ.keytype))
+            subtype = typ.valuetype
+            if len(key.args[0].args) == 3:  # handle bytes literal.
+                sub = LLLnode.from_list([
+                    'seq',
+                    key,
+                    ['sha3', ['add', key.args[0].args[-1], 32], ceil32(key.typ.maxlen)]
+                ])
+            else:
+                sub = LLLnode.from_list(['sha3', ['add', key.args[0].value, 32], ceil32(key.typ.maxlen)])
         else:
             subtype = typ.valuetype
             sub = base_type_conversion(key, key.typ, typ.keytype)
