@@ -131,3 +131,14 @@ and try compiling a contract:
 ::
     make test
     viper examples/crowdfund.v.py
+
+****
+Snap
+****
+
+Viper is published in the snap store. In any of the `supported Linux distros <https://snapcraft.io/docs/core/install>`_, install it with:
+::
+    sudo snap install viper --edge
+
+
+(Note that this is an experimental and unstable release, at the moment)
