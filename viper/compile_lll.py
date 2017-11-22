@@ -155,7 +155,10 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
     # Assert (if false, exit)
     elif code.value == 'assert':
         o = compile_to_assembly(code.args[0], withargs, break_dest, height)
-        o.extend(['ISZERO', 'PC', 'JUMPI'])
+        end_symbol = mksymbol()
+        o.extend([end_symbol, 'JUMPI'])
+        o.extend(['PUSH1', 0, 'DUP1', 'REVERT'])
+        o.extend([end_symbol, 'JUMPDEST'])
         return o
     # Unsigned/signed clamp, check less-than
     elif code.value in ('uclamplt', 'uclample', 'clamplt', 'clample', 'uclampgt', 'uclampge', 'clampgt', 'clampge'):
@@ -173,21 +176,22 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
         o.extend(['DUP2'])
         # Stack: num num bound
         if code.value == 'uclamplt':
-            o.extend(["LT", 'ISZERO', 'PC', 'JUMPI'])
+            o.extend(["LT", 'ISZERO'])
         elif code.value == "clamplt":
-            o.extend(["SLT", 'ISZERO', 'PC', 'JUMPI'])
+            o.extend(["SLT", 'ISZERO'])
         elif code.value == "uclample":
-            o.extend(["GT", 'PC', 'JUMPI'])
+            o.extend(["GT"])
         elif code.value == "clample":
-            o.extend(["SGT", 'PC', 'JUMPI'])
+            o.extend(["SGT"])
         elif code.value == 'uclampgt':
-            o.extend(["GT", 'ISZERO', 'PC', 'JUMPI'])
+            o.extend(["GT", 'ISZERO'])
         elif code.value == "clampgt":
-            o.extend(["SGT", 'ISZERO', 'PC', 'JUMPI'])
+            o.extend(["SGT", 'ISZERO'])
         elif code.value == "uclampge":
-            o.extend(["LT", 'PC', 'JUMPI'])
+            o.extend(["LT"])
         elif code.value == "clampge":
-            o.extend(["SLT", 'PC', 'JUMPI'])
+            o.extend(["SLT"])
+        o.extend(['PC', 'JUMPI'])
         return o
     # Signed clamp, check against upper and lower bounds
     elif code.value in ('clamp', 'uclamp'):

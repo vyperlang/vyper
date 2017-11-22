@@ -65,10 +65,11 @@ opcodes = {
     'RETURN': [0xf3, 2, 0, 0],
     'DELEGATECALL': [0xf4, 6, 1, 700],
     'CALLBLACKBOX': [0xf5, 7, 1, 700],
-    'INVALID': [0xfe, 0, 0, 0],
-    'SUICIDE': [0xff, 1, 0, 5000],
     'SELFDESTRUCT': [0xff, 1, 0, 25000],
     'STATICCALL': [0xfa, 6, 1, 40],
+    'REVERT': [0xfd, 2, 0, 0],
+    'SUICIDE': [0xff, 1, 0, 5000],
+    'INVALID': [0xfe, 0, 0, 0],
 }
 
 pseudo_opcodes = {
