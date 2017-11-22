@@ -9,32 +9,38 @@ z: num[3]
 z2: num[2][2]
 z3: num[2]
 
+@public
 def foo(x: num[3]) -> num:
     return x[0] + x[1] + x[2]
 
+@public
 def goo(x: num[2][2]) -> num:
     return x[0][0] + x[0][1] + x[1][0] * 10 + x[1][1] * 10
 
+@public
 def hoo(x: num[3]) -> num:
     y = x
     return y[0] + x[1] + y[2]
 
+@public
 def joo(x: num[2][2]) -> num:
     y = x
     y2 = x[1]
     return y[0][0] + y[0][1] + y2[0] * 10 + y2[1] * 10
 
+@public
 def koo(x: num[3]) -> num:
     self.z = x
     return self.z[0] + x[1] + self.z[2]
 
+@public
 def loo(x: num[2][2]) -> num:
     self.z2 = x
     self.z3 = x[1]
     return self.z2[0][0] + self.z2[0][1] + self.z3[0] * 10 + self.z3[1] * 10
     """
 
-    c = get_contract(list_tester_code)
+    c = get_contract_with_gas_estimation(list_tester_code)
     assert c.foo([3, 4, 5]) == 12
     assert c.goo([[1, 2], [3, 4]]) == 73
     assert c.hoo([3, 4, 5]) == 12
@@ -48,47 +54,58 @@ def test_list_output_tester_code():
     list_output_tester_code = """
 z: num[2]
 
+@public
 def foo() -> num[2]:
     return [3, 5]
 
+@public
 def goo() -> num[2]:
     x = [3, 5]
     return x
 
+@public
 def hoo() -> num[2]:
     self.z = [3, 5]
     return self.z
 
+@public
 def joo() -> num[2]:
     self.z = [3, 5]
     x = self.z
     return x
 
+@public
 def koo() -> num[2][2]:
     return [[1,2],[3,4]]
 
+@public
 def loo() -> num[2][2]:
     x = [[1,2],[3,4]]
     return x
 
+@public
 def moo() -> num[2][2]:
     x = [1,2]
     return [x,[3,4]]
 
+@public
 def noo(inp: num[2]) -> num[2]:
     return inp
 
+@public
 def poo(inp: num[2][2]) -> num[2][2]:
     return inp
 
+@public
 def qoo(inp: num[2]) -> num[2][2]:
     return [inp,[3,4]]
 
+@public
 def roo(inp: num[2]) -> decimal[2][2]:
     return [inp,[3,4]]
     """
 
-    c = get_contract(list_output_tester_code)
+    c = get_contract_with_gas_estimation(list_output_tester_code)
     assert c.foo() == [3, 5]
     assert c.goo() == [3, 5]
     assert c.hoo() == [3, 5]
@@ -106,6 +123,7 @@ def roo(inp: num[2]) -> decimal[2][2]:
 
 def test_array_accessor():
     array_accessor = """
+@public
 def test_array(x: num, y: num, z: num, w: num) -> num:
     a: num[4]
     a[0] = x
@@ -122,6 +140,7 @@ def test_array(x: num, y: num, z: num, w: num) -> num:
 
 def test_two_d_array_accessor():
     two_d_array_accessor = """
+@public
 def test_array(x: num, y: num, z: num, w: num) -> num:
     a: num[2][2]
     a[0][0] = x

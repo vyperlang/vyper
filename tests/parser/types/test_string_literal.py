@@ -5,27 +5,33 @@ from tests.setup_transaction_tests import chain as s, tester as t, ethereum_util
 
 def test_string_literal_code():
     string_literal_code = """
+@public
 def foo() -> bytes <= 5:
     return "horse"
 
+@public
 def bar() -> bytes <= 10:
     return concat("b", "a", "d", "m", "i", "", "nton")
 
+@public
 def baz() -> bytes <= 40:
     return concat("0123456789012345678901234567890", "12")
 
+@public
 def baz2() -> bytes <= 40:
     return concat("01234567890123456789012345678901", "12")
 
+@public
 def baz3() -> bytes <= 40:
     return concat("0123456789012345678901234567890", "1")
 
+@public
 def baz4() -> bytes <= 100:
     return concat("01234567890123456789012345678901234567890123456789",
                   "01234567890123456789012345678901234567890123456789")
     """
 
-    c = get_contract(string_literal_code)
+    c = get_contract_with_gas_estimation(string_literal_code)
     assert c.foo() == b"horse"
     assert c.bar() == b"badminton"
     assert c.baz() == b"012345678901234567890123456789012"
@@ -41,6 +47,7 @@ def test_string_literal_splicing_fuzz():
         kode = """
 moo: bytes <= 100
 
+@public
 def foo(s: num, L: num) -> bytes <= 100:
         x = 27
         r = slice("%s", start=s, len=L)
@@ -48,6 +55,7 @@ def foo(s: num, L: num) -> bytes <= 100:
         if x * y == 999:
             return r
 
+@public
 def bar(s: num, L: num) -> bytes <= 100:
         self.moo = "%s"
         x = 27
@@ -56,6 +64,7 @@ def bar(s: num, L: num) -> bytes <= 100:
         if x * y == 999:
             return r
 
+@public
 def baz(s: num, L: num) -> bytes <= 100:
         x = 27
         self.moo = slice("%s", start=s, len=L)
@@ -63,7 +72,7 @@ def baz(s: num, L: num) -> bytes <= 100:
         if x * y == 999:
             return self.moo
         """ % (("c" * i), ("c" * i), ("c" * i))
-        c = get_contract(kode)
+        c = get_contract_with_gas_estimation(kode)
         for e in range(63, 64, 65):
             for _s in range(31, 32, 33):
                 o1 = c.foo(_s, e - _s)

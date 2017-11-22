@@ -5,6 +5,7 @@ from tests.setup_transaction_tests import chain as s, tester as t, ethereum_util
 
 def test_basic_repeater():
     basic_repeater = """
+@public
 def repeat(z: num) -> num:
     x = 0
     for i in range(6):
@@ -18,7 +19,7 @@ def repeat(z: num) -> num:
 
 def test_digit_reverser():
     digit_reverser = """
-
+@public
 def reverse_digits(x: num) -> num:
     dig: num[6]
     z = x
@@ -39,6 +40,7 @@ def reverse_digits(x: num) -> num:
 
 def test_more_complex_repeater():
     more_complex_repeater = """
+@public
 def repeat() -> num:
     out = 0
     for i in range(6):
@@ -54,6 +56,7 @@ def repeat() -> num:
 
 def test_offset_repeater():
     offset_repeater = """
+@public
 def sum() -> num:
     out = 0
     for i in range(80, 121):
@@ -69,6 +72,7 @@ def sum() -> num:
 
 def test_offset_repeater_2():
     offset_repeater_2 = """
+@public
 def sum(frm: num, to: num) -> num:
     out = 0
     for i in range(frm, frm + 101):

@@ -185,8 +185,6 @@ def as_num256(expr, args, kwargs, context):
             raise InvalidLiteralException("Number out of range: " + str(expr.args[0].n), expr.args[0])
         return LLLnode.from_list(args[0], typ=BaseType('num256', None), pos=getpos(expr))
     elif isinstance(args[0], LLLnode):
-        if args[0].value == "sub" and args[0].args[0].value == 0 and args[0].args[1].value > 0:
-            raise InvalidLiteralException("Negative numbers cannot be num256 literals")
         return LLLnode(value=args[0].value, args=args[0].args, typ=BaseType('num256'), pos=getpos(expr))
     else:
         raise InvalidLiteralException("Invalid input for num256: %r" % args[0], expr)
@@ -597,7 +595,7 @@ def _RLPlist(expr, args, kwargs, context):
         ['seq',
             ['with', '_sub', variable_pointer,
                 ['pop', ['call',
-                         10000 + 500 * len(_format) + 10 * len(args),
+                         1500 + 400 * len(_format) + 10 * len(args),
                          LLLnode.from_list(RLP_DECODER_ADDRESS, annotation='RLP decoder'),
                          0,
                          ['add', '_sub', 32],

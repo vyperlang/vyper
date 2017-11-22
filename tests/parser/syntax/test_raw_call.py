@@ -7,14 +7,17 @@ from viper.exceptions import TypeMismatchException
 
 fail_list = [
     ("""
+@public
 def foo():
     x = raw_call(0x1234567890123456789012345678901234567890, "cow", outsize=4, outsize=9)
     """, SyntaxError),
     """
+@public
 def foo():
     raw_log(["cow"], "dog")
     """,
     """
+@public
 def foo():
     raw_log([], 0x1234567890123456789012345678901234567890)
     """
@@ -34,14 +37,17 @@ def test_raw_call_fail(bad_code):
 
 valid_list = [
     """
+@public
 def foo():
     x = raw_call(0x1234567890123456789012345678901234567890, "cow", outsize=4, gas=595757)
     """,
     """
+@public
 def foo():
     x = raw_call(0x1234567890123456789012345678901234567890, "cow", outsize=4, gas=595757, value=as_wei_value(9, wei))
     """,
     """
+@public
 def foo():
     x = raw_call(0x1234567890123456789012345678901234567890, "cow", outsize=4, gas=595757, value=9)
     """

@@ -8,6 +8,7 @@ threshold: num
 # The number of transactions that have been approved
 seq: num
 
+@public
 def __init__(_owners: address[5], _threshold: num):
     for i in range(5):
         if _owners[i]:
@@ -15,6 +16,7 @@ def __init__(_owners: address[5], _threshold: num):
     self.threshold = _threshold
 
 # `@payable` allows functions to receive ether
+@public
 @payable
 def approve(_seq: num, to: address, value: wei_value, data: bytes <= 4096, sigdata: num256[3][5]) -> bytes <= 4096:
     # Throws if the value sent to the contract is less than the sum of the value to be sent

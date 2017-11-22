@@ -5,11 +5,12 @@ from tests.setup_transaction_tests import chain as s, tester as t, ethereum_util
 
 def test_test_bytes():
     test_bytes = """
+@public
 def foo(x: bytes <= 100) -> bytes <= 100:
     return x
     """
 
-    c = get_contract(test_bytes)
+    c = get_contract_with_gas_estimation(test_bytes)
     moo_result = c.foo(b'cow')
     assert moo_result == b'cow'
 
@@ -30,12 +31,13 @@ def foo(x: bytes <= 100) -> bytes <= 100:
 
 def test_test_bytes2():
     test_bytes2 = """
+@public
 def foo(x: bytes <= 100) -> bytes <= 100:
     y = x
     return y
     """
 
-    c = get_contract(test_bytes2)
+    c = get_contract_with_gas_estimation(test_bytes2)
     assert c.foo(b'cow') == b'cow'
     assert c.foo(b'') == b''
     assert c.foo(b'\x35' * 63) == b'\x35' * 63
@@ -51,29 +53,35 @@ x: num
 maa: bytes <= 60
 y: num
 
+@public
 def __init__():
     self.x = 27
     self.y = 37
 
+@public
 def set_maa(inp: bytes <= 60):
     self.maa = inp
 
+@public
 def set_maa2(inp: bytes <= 60):
     ay = inp
     self.maa = ay
 
+@public
 def get_maa() -> bytes <= 60:
     return self.maa
 
+@public
 def get_maa2() -> bytes <= 60:
     ay = self.maa
     return ay
 
+@public
 def get_xy() -> num:
     return self.x * self.y
     """
 
-    c = get_contract(test_bytes3)
+    c = get_contract_with_gas_estimation(test_bytes3)
     c.set_maa(b"pig")
     assert c.get_maa() == b"pig"
     assert c.get_maa2() == b"pig"
@@ -93,18 +101,20 @@ def get_xy() -> num:
 def test_test_bytes4():
     test_bytes4 = """
 a: bytes <= 60
+@public
 def foo(inp: bytes <= 60) -> bytes <= 60:
     self.a = inp
     self.a = None
     return self.a
 
+@public
 def bar(inp: bytes <= 60) -> bytes <= 60:
     b = inp
     b = None
     return b
     """
 
-    c = get_contract(test_bytes4)
+    c = get_contract_with_gas_estimation(test_bytes4)
     assert c.foo() == b"", c.foo()
     assert c.bar() == b""
 
@@ -115,29 +125,35 @@ def test_test_bytes5():
     test_bytes5 = """
 g: {a: bytes <= 50, b: bytes <= 50}
 
+@public
 def foo(inp1: bytes <= 40, inp2: bytes <= 45):
     self.g = {a: inp1, b: inp2}
 
+@public
 def check1() -> bytes <= 50:
     return self.g.a
 
+@public
 def check2() -> bytes <= 50:
     return self.g.b
 
+@public
 def bar(inp1: bytes <= 40, inp2: bytes <= 45) -> bytes <= 50:
     h = {a: inp1, b: inp2}
     return h.a
 
+@public
 def bat(inp1: bytes <= 40, inp2: bytes <= 45) -> bytes <= 50:
     h = {a: inp1, b: inp2}
     return h.b
 
+@public
 def quz(inp1: bytes <= 40, inp2: bytes <= 45):
     h = {a: inp1, b: inp2}
     self.g = h
     """
 
-    c = get_contract(test_bytes5)
+    c = get_contract_with_gas_estimation(test_bytes5)
     c.foo(b"cow", b"horse")
     assert c.check1() == b"cow"
     assert c.check2() == b"horse"
@@ -152,11 +168,12 @@ def quz(inp1: bytes <= 40, inp2: bytes <= 45):
 
 def test_bytes_to_num_code():
     bytes_to_num_code = """
+@public
 def foo(x: bytes <= 32) -> num:
     return bytes_to_num(x)
     """
 
-    c = get_contract(bytes_to_num_code)
+    c = get_contract_with_gas_estimation(bytes_to_num_code)
     assert c.foo(b"") == 0
     try:
         c.foo(b"\x00")

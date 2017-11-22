@@ -1,3 +1,5 @@
+If you're proposing a new feature please follow the [VIP Template] (https://github.com/ethereum/viper/tree/master/.github/VIP_TEMPLATE.md)
+
 * viper Version: x.x.x
 * pyethereum Version: x.x.x
 * OS: osx/linux/win

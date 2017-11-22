@@ -1,7 +1,7 @@
 # Open Auction
 
 # Auction params
-# Beneficiary recieves money from the highest bidder
+# Beneficiary receives money from the highest bidder
 beneficiary: public(address)
 auction_start: public(timestamp)
 auction_end: public(timestamp)
@@ -16,6 +16,7 @@ ended: public(bool)
 # Create a simple auction with `_bidding_time`
 # seconds bidding time on behalf of the
 # beneficiary address `_beneficiary`.
+@public
 def __init__(_beneficiary: address, _bidding_time: timedelta):
     self.beneficiary = _beneficiary
     self.auction_start = block.timestamp
@@ -25,6 +26,7 @@ def __init__(_beneficiary: address, _bidding_time: timedelta):
 # together with this transaction.
 # The value will only be refunded if the
 # auction is not won.
+@public
 @payable
 def bid():
     # Check if bidding period is over.
@@ -40,6 +42,7 @@ def bid():
 
 # End the auction and send the highest bid
 # to the beneficiary.
+@public
 def auction_end():
     # It is a good guideline to structure functions that interact
     # with other contracts (i.e. they call functions or send Ether)

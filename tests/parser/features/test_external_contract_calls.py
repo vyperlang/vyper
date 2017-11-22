@@ -5,6 +5,7 @@ from viper.exceptions import StructureException, VariableDeclarationException, I
 
 def test_external_contract_calls():
     contract_1 = """
+@public
 def foo(arg1: num) -> num:
     return arg1
     """
@@ -15,6 +16,7 @@ def foo(arg1: num) -> num:
 class Foo():
         def foo(arg1: num) -> num: pass
 
+@public
 def bar(arg1: address, arg2: num) -> num:
     return Foo(arg1).foo(arg2)
     """
@@ -28,12 +30,15 @@ def test_complicated_external_contract_calls():
     contract_1 = """
 lucky: public(num)
 
+@public
 def __init__(_lucky: num):
     self.lucky = _lucky
 
+@public
 def foo() -> num:
     return self.lucky
 
+@public
 def array() -> bytes <= 3:
     return 'dog'
     """
@@ -46,6 +51,7 @@ class Foo():
     def foo() -> num: pass
     def array() -> bytes <= 3: pass
 
+@public
 def bar(arg1: address) -> num:
     return Foo(arg1).foo()
     """
@@ -57,6 +63,7 @@ def bar(arg1: address) -> num:
 
 def test_external_contract_calls_with_bytes():
     contract_1 = """
+@public
 def array() -> bytes <= 3:
     return 'dog'
     """
@@ -67,6 +74,7 @@ def array() -> bytes <= 3:
 class Foo():
     def array() -> bytes <= 3: pass
 
+@public
 def get_array(arg1: address) -> bytes <= 3:
     return Foo(arg1).array()
 """
@@ -75,10 +83,11 @@ def get_array(arg1: address) -> bytes <= 3:
     assert c2.get_array(c.address) == b'dog'
 
 
-def test_external_contract_call__state_change():
+def test_external_contract_call_state_change():
     contract_1 = """
 lucky: public(num)
 
+@public
 def set_lucky(_lucky: num):
     self.lucky = _lucky
     """
@@ -90,6 +99,7 @@ def set_lucky(_lucky: num):
 class Foo():
     def set_lucky(_lucky: num): pass
 
+@public
 def set_lucky(arg1: address, arg2: num):
     Foo(arg1).set_lucky(arg2)
     """
@@ -101,10 +111,45 @@ def set_lucky(arg1: address, arg2: num):
     print('Successfully executed an external contract call state change')
 
 
+def test_constant_external_contract_call_cannot_change_state(assert_tx_failed):
+    contract_1 = """
+lucky: public(num)
+
+@public
+def set_lucky(_lucky: num) -> num:
+    self.lucky = _lucky
+    return _lucky
+    """
+
+    lucky_number = 7
+    c = get_contract(contract_1)
+
+    contract_2 = """
+class Foo():
+    def set_lucky(_lucky: num) -> num: pass
+
+@public
+@constant
+def set_lucky_expr(arg1: address, arg2: num):
+    Foo(arg1).set_lucky(arg2)
+
+@public
+@constant
+def set_lucky_stmt(arg1: address, arg2: num) -> num:
+    return Foo(arg1).set_lucky(arg2)
+    """
+    c2 = get_contract(contract_2)
+
+    assert_tx_failed(lambda: c2.set_lucky_expr(c.address, lucky_number))
+    assert_tx_failed(lambda: c2.set_lucky_stmt(c.address, lucky_number))
+    print('Successfully tested an constant external contract call attempted state change')
+
+
 def test_external_contract_can_be_changed_based_on_address():
     contract_1 = """
 lucky: public(num)
 
+@public
 def set_lucky(_lucky: num):
     self.lucky = _lucky
     """
@@ -115,6 +160,7 @@ def set_lucky(_lucky: num):
     contract_2 =  """
 lucky: public(num)
 
+@public
 def set_lucky(_lucky: num):
     self.lucky = _lucky
     """
@@ -126,6 +172,7 @@ def set_lucky(_lucky: num):
 class Foo():
     def set_lucky(_lucky: num): pass
 
+@public
 def set_lucky(arg1: address, arg2: num):
     Foo(arg1).set_lucky(arg2)
     """
@@ -142,6 +189,7 @@ def test_external_contract_calls_with_public_globals():
     contract_1 = """
 lucky: public(num)
 
+@public
 def __init__(_lucky: num):
     self.lucky = _lucky
     """
@@ -153,6 +201,7 @@ def __init__(_lucky: num):
 class Foo():
     def get_lucky() -> num: pass
 
+@public
 def bar(arg1: address) -> num:
     return Foo(arg1).get_lucky()
     """
@@ -166,6 +215,7 @@ def test_external_contract_calls_with_multiple_contracts():
     contract_1 = """
 lucky: public(num)
 
+@public
 def __init__(_lucky: num):
     self.lucky = _lucky
     """
@@ -179,6 +229,7 @@ class Foo():
 
 magic_number: public(num)
 
+@public
 def __init__(arg1: address):
     self.magic_number = Foo(arg1).get_lucky()
     """
@@ -190,6 +241,7 @@ class Bar():
 
 best_number: public(num)
 
+@public
 def __init__(arg1: address):
     self.best_number = Bar(arg1).get_magic_number()
     """
@@ -201,6 +253,7 @@ def __init__(arg1: address):
 
 def test_invalid_external_contract_call_to_the_same_contract(assert_tx_failed):
     contract_1 = """
+@public
 def bar() -> num:
     return 1
     """
@@ -209,12 +262,15 @@ def bar() -> num:
 class Bar():
     def bar() -> num: pass
 
+@public
 def bar() -> num:
     return 1
 
+@public
 def _stmt(x: address):
     Bar(x).bar()
 
+@public
 def _expr(x: address) -> num:
     return Bar(x).bar()
     """
@@ -225,12 +281,13 @@ def _expr(x: address) -> num:
 
     c2._stmt(c1.address)
     c2._expr(c1.address)
-    assert_tx_failed(t, lambda: c2._stmt(c2.address))
-    assert_tx_failed(t, lambda: c2._expr(c2.address))
+    assert_tx_failed(lambda: c2._stmt(c2.address))
+    assert_tx_failed(lambda: c2._expr(c2.address))
 
 
 def test_invalid_nonexistent_contract_call(assert_tx_failed):
     contract_1 = """
+@public
 def bar() -> num:
     return 1
     """
@@ -239,6 +296,7 @@ def bar() -> num:
 class Bar():
     def bar() -> num: pass
 
+@public
 def foo(x: address) -> num:
     return Bar(x).bar()
     """
@@ -248,8 +306,8 @@ def foo(x: address) -> num:
     t.s = s
 
     assert c2.foo(c1.address) == 1
-    assert_tx_failed(t, lambda: c2.foo(t.a1))
-    assert_tx_failed(t, lambda: c2.foo(t.a7))
+    assert_tx_failed(lambda: c2.foo(t.a1))
+    assert_tx_failed(lambda: c2.foo(t.a7))
 
 
 def test_invalid_contract_reference_declaration(assert_tx_failed):
@@ -259,20 +317,22 @@ class Bar():
 
 best_number: public(num)
 
+@public
 def __init__():
     pass
 """
     t.s = t.Chain()
-    assert_tx_failed(t, lambda: get_contract(contract), exception = StructureException)
+    assert_tx_failed(lambda: get_contract(contract), exception = StructureException)
 
 
 def test_invalid_contract_reference_call(assert_tx_failed):
     contract = """
+@public
 def bar(arg1: address, arg2: num) -> num:
     return Foo(arg1).foo(arg2)
 """
     t.s = t.Chain()
-    assert_tx_failed(t, lambda: get_contract(contract), exception = VariableDeclarationException)
+    assert_tx_failed(lambda: get_contract(contract), exception = VariableDeclarationException)
 
 
 def test_invalid_contract_reference_return_type(assert_tx_failed):
@@ -280,11 +340,12 @@ def test_invalid_contract_reference_return_type(assert_tx_failed):
 class Foo():
     def foo(arg2: num) -> invalid: pass
 
+@public
 def bar(arg1: address, arg2: num) -> num:
     return Foo(arg1).foo(arg2)
 """
     t.s = t.Chain()
-    assert_tx_failed(t, lambda: get_contract(contract), exception = InvalidTypeException)
+    assert_tx_failed(lambda: get_contract(contract), exception = InvalidTypeException)
 
 
 def test_external_contracts_must_be_declared_first_1(assert_tx_failed):
@@ -296,7 +357,7 @@ class Foo():
     def foo(arg2: num) -> num: pass
 """
     t.s = t.Chain()
-    assert_tx_failed(t, lambda: get_contract(contract), exception = StructureException)
+    assert_tx_failed(lambda: get_contract(contract), exception = StructureException)
 
 
 def test_external_contracts_must_be_declared_first_2(assert_tx_failed):
@@ -308,12 +369,12 @@ class Foo():
     def foo(arg2: num) -> num: pass
 """
     t.s = t.Chain()
-    assert_tx_failed(t, lambda: get_contract(contract), exception = StructureException)
+    assert_tx_failed(lambda: get_contract(contract), exception = StructureException)
 
 
 def test_external_contracts_must_be_declared_first_3(assert_tx_failed):
     contract = """
-
+@public
 def foo() -> num:
     return 1
 
@@ -321,4 +382,4 @@ class Foo():
     def foo(arg2: num) -> num: pass
 """
     t.s = t.Chain()
-    assert_tx_failed(t, lambda: get_contract(contract), exception = StructureException)
+    assert_tx_failed(lambda: get_contract(contract), exception = StructureException)

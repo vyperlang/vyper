@@ -52,10 +52,12 @@ b: num[num: address]
     """,
     """
 x: num[address[bool]]
+@public
 def foo() -> num(wei / sec):
     pass
     """,
     """
+@public
 def foo() -> {cow: num, dog: num}:
     return {cow: 5, dog: 7}
     """

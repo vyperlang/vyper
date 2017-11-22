@@ -5,33 +5,38 @@ from tests.setup_transaction_tests import chain as s, tester as t, ethereum_util
 
 def test_augassign_test():
     augassign_test = """
+@public
 def augadd(x: num, y: num) -> num:
     z = x
     z += y
     return z
 
+@public
 def augmul(x: num, y: num) -> num:
     z = x
     z *= y
     return z
 
+@public
 def augsub(x: num, y: num) -> num:
     z = x
     z -= y
     return z
 
+@public
 def augdiv(x: num, y: num) -> num:
     z = x
     z /= y
     return z
 
+@public
 def augmod(x: num, y: num) -> num:
     z = x
     z %= y
     return z
     """
 
-    c = get_contract(augassign_test)
+    c = get_contract_with_gas_estimation(augassign_test)
 
     assert c.augadd(5, 12) == 17
     assert c.augmul(5, 12) == 60

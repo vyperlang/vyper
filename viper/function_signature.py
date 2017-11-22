@@ -70,7 +70,7 @@ class FunctionSignature():
                 pos += get_size_of_type(parsed_type) * 32
 
         # Apply decorators
-        const, payable, internal = False, False, False
+        const, payable, internal, public = False, False, False, False
         for dec in code.decorator_list:
             if isinstance(dec, ast.Name) and dec.id == "constant":
                 const = True
@@ -78,8 +78,14 @@ class FunctionSignature():
                 payable = True
             elif isinstance(dec, ast.Name) and dec.id == "internal":
                 internal = True
+            elif isinstance(dec, ast.Name) and dec.id == "public":
+                public = True
             else:
                 raise StructureException("Bad decorator", dec)
+        if public and internal:
+            raise StructureException("Cannot use public and internal decorators on the same function")
+        if not public and not internal and not isinstance(code.body[0], ast.Pass):
+            raise StructureException("Function visibility must be declared (@public or @internal)")
         # Determine the return type and whether or not it's constant. Expects something
         # of the form:
         # def foo(): ...

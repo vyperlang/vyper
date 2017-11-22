@@ -4,16 +4,19 @@ from viper import compiler
 
 valid_list = [
     """
+@public
 def foo():
     for i in range(10):
         pass
     """,
     """
+@public
 def foo():
     for i in range(10, 20):
         pass
     """,
     """
+@public
 def foo():
     x = 5
     for i in range(x, x + 10):

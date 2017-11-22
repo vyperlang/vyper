@@ -7,10 +7,12 @@ from viper.exceptions import TypeMismatchException
 
 fail_list = [
     """
+@public
 def foo():
     y = min(7, 0x1234567890123456789012345678901234567890)
     """,
     """
+@public
 def foo():
     y = min(7, as_num256(3))
     """

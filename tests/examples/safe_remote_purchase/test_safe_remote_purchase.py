@@ -33,7 +33,7 @@ def check_balance(tester):
 def test_initial_state(srp_tester, assert_tx_failed):
     assert check_balance(srp_tester) == [INIT_BAL, INIT_BAL]
     #Inital deposit has to be divisible by two
-    assert_tx_failed(srp_tester, lambda: srp_tester.s.contract(contract_code, language = "viper", args = [], value = 1))
+    assert_tx_failed(lambda: srp_tester.s.contract(contract_code, language = "viper", args = [], value = 1))
     #Seller puts item up for sale
     srp_tester.c = tester.s.contract(contract_code, language = "viper", args = [], value=2)
     #Check that the seller is set correctly
@@ -48,20 +48,20 @@ def test_initial_state(srp_tester, assert_tx_failed):
 def test_abort(srp_tester, assert_tx_failed):
     srp_tester.c = srp_tester.s.contract(contract_code, language = "viper", args = [], value=2)
     #Only sender can trigger refund
-    assert_tx_failed(srp_tester, lambda: srp_tester.c.abort(sender=srp_tester.k2))
+    assert_tx_failed(lambda: srp_tester.c.abort(sender=srp_tester.k2))
     #Refund works correctly
     srp_tester.c.abort(sender=srp_tester.k0)
     assert check_balance(srp_tester) == [INIT_BAL, INIT_BAL]
     #Purchase in process, no refund possible
     srp_tester.c = srp_tester.s.contract(contract_code, language = "viper", args = [], value=2)
     srp_tester.c.purchase(value=2, sender=srp_tester.k1)
-    assert_tx_failed(srp_tester, lambda: srp_tester.c.abort(sender=srp_tester.k0))
+    assert_tx_failed(lambda: srp_tester.c.abort(sender=srp_tester.k0))
     
 def test_purchase(srp_tester, assert_tx_failed):
     srp_tester.c = srp_tester.s.contract(contract_code, language = "viper", args = [], value=2)
     #Purchase for too low/high price
-    assert_tx_failed(srp_tester, lambda: srp_tester.c.purchase(value=1, sender=srp_tester.k1))
-    assert_tx_failed(srp_tester, lambda: srp_tester.c.purchase(value=3, sender=srp_tester.k1))
+    assert_tx_failed(lambda: srp_tester.c.purchase(value=1, sender=srp_tester.k1))
+    assert_tx_failed(lambda: srp_tester.c.purchase(value=3, sender=srp_tester.k1))
     #Purchase for the correct price 
     srp_tester.c.purchase(value=2, sender=srp_tester.k1)
     #Check if buyer is set correctly
@@ -71,16 +71,16 @@ def test_purchase(srp_tester, assert_tx_failed):
     #Check balances, both deposits should have been deducted
     assert check_balance(srp_tester) == [INIT_BAL-2, INIT_BAL-2]
     #Allow nobody else to purchase
-    assert_tx_failed(srp_tester, lambda: srp_tester.c.purchase(value=2, sender=srp_tester.k3))
+    assert_tx_failed(lambda: srp_tester.c.purchase(value=2, sender=srp_tester.k3))
 
 def test_received(srp_tester, assert_tx_failed):
     srp_tester.c = srp_tester.s.contract(contract_code, language = "viper", args = [], value=2)
     #Can only be called after purchase
-    assert_tx_failed(srp_tester, lambda: srp_tester.c.received(sender=srp_tester.k1))
+    assert_tx_failed(lambda: srp_tester.c.received(sender=srp_tester.k1))
     #Purchase completed
     srp_tester.c.purchase(value=2, sender=srp_tester.k1)
     #Check that e.g. sender cannot trigger received
-    assert_tx_failed(srp_tester, lambda: srp_tester.c.received(sender=srp_tester.k0))
+    assert_tx_failed(lambda: srp_tester.c.received(sender=srp_tester.k0))
     #Check if buyer can call receive
     srp_tester.c.received(sender=srp_tester.k1)
     #Final check if everything worked. 1 value has been transferred
