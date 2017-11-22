@@ -54,8 +54,6 @@ be a bit behind the latest version found in the master branch of this repository
     python setup.py test
 ```
 
-For testing strategy, please see [Testing](no-link)
-
 # Contributing
 * See Issues tab, and feel free to submit your own issues 
 * Add PRs if you discover a solution to an existing issue
