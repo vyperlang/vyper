@@ -255,8 +255,9 @@ def make_byte_array_copier(destination, source):
         gas_calculation = opcodes.GIDENTITYBASE + \
             opcodes.GIDENTITYWORD * (ceil32(source.typ.maxlen) // 32)
         o = LLLnode.from_list(
-            ['with', '_sz', ['add', 32, ['mload', source]],
-                ['assert', ['call', ['add', 18, ['div', '_sz', 10]], 4, 0, source, '_sz', destination, '_sz']]], typ=None, add_gas_estimate=gas_calculation)
+            ['with', '_source', source,
+                ['with', '_sz', ['add', 32, ['mload', '_source']],
+                    ['assert', ['call', ['add', 18, ['div', '_sz', 10]], 4, 0, '_source', '_sz', destination, '_sz']]]], typ=None, add_gas_estimate=gas_calculation)
         return o
 
     pos_node = LLLnode.from_list('_pos', typ=source.typ, location=source.location)
