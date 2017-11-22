@@ -10,7 +10,7 @@ def foo(arg1: num) -> num:
     return arg1
     """
 
-    c = get_contract(contract_1)
+    c = get_contract_with_gas_estimation(contract_1)
 
     contract_2 = """
 class Foo():
@@ -20,7 +20,7 @@ class Foo():
 def bar(arg1: address, arg2: num) -> num:
     return Foo(arg1).foo(arg2)
     """
-    c2 = get_contract(contract_2)
+    c2 = get_contract_with_gas_estimation(contract_2)
 
     assert c2.bar(c.address, 1) == 1
     print('Successfully executed an external contract call')
@@ -44,7 +44,7 @@ def array() -> bytes <= 3:
     """
 
     lucky_number = 7
-    c = get_contract(contract_1, args=[lucky_number])
+    c = get_contract_with_gas_estimation(contract_1, args=[lucky_number])
 
     contract_2 = """
 class Foo():
@@ -55,7 +55,7 @@ class Foo():
 def bar(arg1: address) -> num:
     return Foo(arg1).foo()
     """
-    c2 = get_contract(contract_2)
+    c2 = get_contract_with_gas_estimation(contract_2)
 
     assert c2.bar(c.address) == lucky_number
     print('Successfully executed a complicated external contract call')
@@ -68,7 +68,7 @@ def array() -> bytes <= 3:
     return 'dog'
     """
 
-    c = get_contract(contract_1)
+    c = get_contract_with_gas_estimation(contract_1)
 
     contract_2 = """
 class Foo():
@@ -79,7 +79,7 @@ def get_array(arg1: address) -> bytes <= 3:
     return Foo(arg1).array()
 """
 
-    c2 = get_contract(contract_2)
+    c2 = get_contract_with_gas_estimation(contract_2)
     assert c2.get_array(c.address) == b'dog'
 
 
@@ -122,7 +122,7 @@ def set_lucky(_lucky: num) -> num:
     """
 
     lucky_number = 7
-    c = get_contract(contract_1)
+    c = get_contract_with_gas_estimation(contract_1)
 
     contract_2 = """
 class Foo():
@@ -138,7 +138,7 @@ def set_lucky_expr(arg1: address, arg2: num):
 def set_lucky_stmt(arg1: address, arg2: num) -> num:
     return Foo(arg1).set_lucky(arg2)
     """
-    c2 = get_contract(contract_2)
+    c2 = get_contract_with_gas_estimation(contract_2)
 
     assert_tx_failed(lambda: c2.set_lucky_expr(c.address, lucky_number))
     assert_tx_failed(lambda: c2.set_lucky_stmt(c.address, lucky_number))

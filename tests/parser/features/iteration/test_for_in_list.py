@@ -15,7 +15,7 @@ def data() -> num:
     return -1
     """
 
-    c = get_contract(code)
+    c = get_contract_with_gas_estimation(code)
 
     assert c.data() == 3
 
@@ -30,7 +30,7 @@ def data() -> num:
     return -1
     """
 
-    c = get_contract(code)
+    c = get_contract_with_gas_estimation(code)
 
     assert c.data() == 7
 
@@ -51,7 +51,7 @@ def data() -> num:
     return -1
     """
 
-    c = get_contract(code)
+    c = get_contract_with_gas_estimation(code)
 
     assert c.data() == -1
     assert c.set() is None
@@ -75,7 +75,7 @@ def data() -> address:
     return 0x0000000000000000000000000000000000000000
     """
 
-    c = get_contract(code)
+    c = get_contract_with_gas_estimation(code)
 
     assert c.data() == "0x82a978b3f5962a5b0957d9ee9eef472ee55b42f1"
 
@@ -101,7 +101,7 @@ def iterate_return_second() -> address:
             return i
     """
 
-    c = get_contract(code)
+    c = get_contract_with_gas_estimation(code)
 
     c.set(0, '0x82A978B3f5962A5b0957d9ee9eEf472EE55B42F1')
     c.set(1, '0x7d577a597B2742b498Cb5Cf0C26cDCD726d39E6e')
@@ -131,7 +131,7 @@ def i_return(break_count: num) -> decimal:
         count += 1
     """
 
-    c = get_contract(code)
+    c = get_contract_with_gas_estimation(code)
 
     c.set(0, 0.0001)
     c.set(1, 1.1)
@@ -156,7 +156,7 @@ def data() -> num:
     return -1
     """
 
-    assert_compile_failed(lambda: get_contract(code), StructureException)
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), StructureException)
 
 
 def test_altering_list_within_for_loop_storage(assert_compile_failed):
@@ -178,4 +178,4 @@ def data() -> num:
     return -1
     """
 
-    assert_compile_failed(lambda: get_contract(code), StructureException)
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), StructureException)

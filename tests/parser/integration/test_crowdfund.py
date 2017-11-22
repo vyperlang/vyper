@@ -1,6 +1,6 @@
 import pytest
 from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation, get_contract
+    get_contract_with_gas_estimation_for_constants
 
 
 def test_crowdfund():
@@ -24,7 +24,7 @@ def __init__(_beneficiary: address, _goal: wei_value, _timelimit: timedelta):
 @public
 @payable
 def participate():
-    assert block.timestamp < self.deadline
+    # assert block.timestamp < self.deadline
     nfi = self.nextFunderIndex
     self.funders[nfi].sender = msg.sender
     self.funders[nfi].value = msg.value
@@ -74,8 +74,7 @@ def refund():
 
     """
 
-    c = get_contract(crowdfund, args=[t.a1, 50, 600])
-
+    c = get_contract_with_gas_estimation_for_constants(crowdfund, args=[t.a1, 50, 600])
     c.participate(value=5)
     assert c.timelimit() == 600
     assert c.deadline() - c.timestamp() == 600
@@ -90,7 +89,7 @@ def refund():
     post_bal = s.head_state.get_balance(t.a1)
     assert post_bal - pre_bal == 54
 
-    c = get_contract(crowdfund, args=[t.a1, 50, 600])
+    c = get_contract_with_gas_estimation_for_constants(crowdfund, args=[t.a1, 50, 600])
     c.participate(value=1, sender=t.k3)
     c.participate(value=2, sender=t.k4)
     c.participate(value=3, sender=t.k5)
@@ -175,7 +174,7 @@ def refund():
 
     """
 
-    c = get_contract(crowdfund2, args=[t.a1, 50, 600])
+    c = get_contract_with_gas_estimation_for_constants(crowdfund2, args=[t.a1, 50, 600])
 
     c.participate(value=5)
     assert c.timelimit() == 600
@@ -191,7 +190,7 @@ def refund():
     post_bal = s.head_state.get_balance(t.a1)
     assert post_bal - pre_bal == 54
 
-    c = get_contract(crowdfund2, args=[t.a1, 50, 600])
+    c = get_contract_with_gas_estimation_for_constants(crowdfund2, args=[t.a1, 50, 600])
     c.participate(value=1, sender=t.k3)
     c.participate(value=2, sender=t.k4)
     c.participate(value=3, sender=t.k5)

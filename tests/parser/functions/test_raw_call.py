@@ -45,10 +45,11 @@ def create_and_call_returnten(inp: address) -> num:
 
 @public
 def create_and_return_forwarder(inp: address) -> address:
-    return create_with_code_of(inp)
+    x = create_with_code_of(inp)
+    return x
     """
 
-    c2 = get_contract(outer_code)
+    c2 = get_contract_with_gas_estimation(outer_code)
     assert c2.create_and_call_returnten(c.address) == 10
     expected_forwarder_code_mask = b'`.`\x0c`\x009`.`\x00\xf36`\x00`\x007a\x10\x00`\x006`\x00s\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00Z\xf4\x15XWa\x10\x00`\x00\xf3'[12:]
     c3 = c2.create_and_return_forwarder(c.address)

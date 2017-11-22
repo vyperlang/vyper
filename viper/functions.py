@@ -765,7 +765,7 @@ def create_with_code_of(expr, args, kwargs, context):
                                 ['mstore', placeholder, high],
                                 ['mstore', ['add', placeholder, 27], ['mul', args[0], 2**96]],
                                 ['mstore', ['add', placeholder, 47], low],
-                                ['clamp_nonzero', ['create', value, placeholder, 64]]], typ=BaseType('address'), pos=getpos(expr))
+                                ['clamp_nonzero', ['create', value, placeholder, 64]]], typ=BaseType('address'), pos=getpos(expr), add_gas_estimate=10000)
 
 
 @signature(('num', 'decimal', 'num256'), ('num', 'decimal', 'num256'))

@@ -15,7 +15,7 @@ def testin(x: num) -> bool:
     return False
     """
 
-    c = get_contract(code)
+    c = get_contract_with_gas_estimation(code)
 
     assert c.testin(0) is True
     assert c.testin(1) is True
@@ -38,7 +38,7 @@ def in_test(x: num) -> bool:
     return False
     """
 
-    c = get_contract(code)
+    c = get_contract_with_gas_estimation(code)
 
     assert c.in_test(1) is True
     assert c.in_test(9) is True
@@ -56,7 +56,7 @@ def in_test(x: num) -> bool:
     return False
     """
 
-    c = get_contract(code)
+    c = get_contract_with_gas_estimation(code)
 
     assert c.in_test(1) is False
     assert c.in_test(-7) is False
@@ -74,7 +74,7 @@ def testin() -> bool:
         return True
     return False
     """
-    assert_compile_failed(lambda: get_contract(code), TypeMismatchException)
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatchException)
 
 
 def test_ownership(assert_tx_failed):
@@ -96,7 +96,7 @@ def is_owner() -> bool:
     return msg.sender in self.owners
     """
 
-    c = get_contract(code)
+    c = get_contract_with_gas_estimation(code)
 
     assert c.is_owner() is True  # contract creator is owner.
     assert c.is_owner(sender=t.k1) is False  # no one else is.

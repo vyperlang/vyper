@@ -88,7 +88,7 @@ def bar():
     log.MyLog(1, self)
     """
 
-    c = get_contract(loggy_code)
+    c = get_contract_with_gas_estimation(loggy_code)
     c.foo()
     c.bar()
     logs = s.head_state.receipts[-1].logs[-1]
@@ -171,7 +171,7 @@ MyLog: __log__({arg1: indexed(bytes <= 4), arg2: indexed(bytes <= 29), arg3: byt
 def foo(arg1: bytes <= 29, arg2: bytes <= 31):
     log.MyLog('bar', arg1, arg2)
 """
-    c = get_contract(loggy_code)
+    c = get_contract_with_gas_estimation(loggy_code)
     c.foo('bar', 'foo')
     logs = s.head_state.receipts[-1].logs[-1]
     event_id = u.bytes_to_int(u.sha3(bytes('MyLog(bytes4,bytes29,bytes31)', 'utf-8')))
@@ -271,7 +271,7 @@ def foo_():
     log.MyLog('yo')
 """
     t.s = s
-    assert_tx_failed(lambda: get_contract(loggy_code), TypeMismatchException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatchException)
 
 
 def test_fails_when_topic_is_the_wrong_size(assert_tx_failed):
@@ -283,7 +283,7 @@ def foo():
     log.MyLog('bars')
 """
     t.s = s
-    assert_tx_failed(lambda: get_contract(loggy_code), TypeMismatchException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatchException)
 
 
 def test_fails_when_input_topic_is_the_wrong_size(assert_tx_failed):
@@ -295,7 +295,7 @@ def foo(arg1: bytes <= 4):
     log.MyLog(arg1)
 """
     t.s = s
-    assert_tx_failed(lambda: get_contract(loggy_code), TypeMismatchException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatchException)
 
 
 def test_fails_when_data_is_the_wrong_size(assert_tx_failed):
@@ -307,7 +307,7 @@ def foo():
     log.MyLog('bars')
 """
     t.s = s
-    assert_tx_failed(lambda: get_contract(loggy_code), TypeMismatchException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatchException)
 
 
 def test_fails_when_input_data_is_the_wrong_size(assert_tx_failed):
@@ -319,7 +319,7 @@ def foo(arg1: bytes <= 4):
     log.MyLog(arg1)
 """
     t.s = s
-    assert_tx_failed(lambda: get_contract(loggy_code), TypeMismatchException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatchException)
 
 
 def test_fails_when_log_data_is_over_32_bytes(assert_tx_failed):
@@ -331,7 +331,7 @@ def foo():
     pass
     """
     t.s = s
-    assert_tx_failed(lambda: get_contract(loggy_code), VariableDeclarationException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
 
 
 def test_logging_fails_with_over_three_topics(assert_tx_failed):
@@ -437,7 +437,7 @@ def ioo(inp: bytes <= 100):
     raw_log([], inp)
     """
 
-    c = get_contract(loggy_code)
+    c = get_contract_with_gas_estimation(loggy_code)
     c.foo()
     assert s.head_state.receipts[-1].logs[0].data == b'moo'
     c.goo()
