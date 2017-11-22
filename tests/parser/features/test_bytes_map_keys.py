@@ -8,10 +8,11 @@ def test_basic_bytes_keys():
     code = """
 mapped_bytes: num[bytes <= 5]
 
+@public
 def set(k: bytes <= 5, v: num):
     self.mapped_bytes[k] = v
 
-
+@public
 def get(k: bytes <= 5) -> num:
     return self.mapped_bytes[k]
     """
@@ -27,10 +28,11 @@ def test_basic_bytes_literal_key():
     code = """
 mapped_bytes: num[bytes <= 5]
 
-
+@public
 def set(v: num):
     self.mapped_bytes["test"] = v
 
+@public
 def get(k: bytes <= 5) -> num:
     return self.mapped_bytes[k]
     """
@@ -46,10 +48,11 @@ def test_basic_long_bytes_as_keys():
     code = """
 mapped_bytes: num[bytes <= 34]
 
+@public
 def set(k: bytes <= 34, v: num):
     self.mapped_bytes[k] = v
 
-
+@public
 def get(k: bytes <= 34) -> num:
     return self.mapped_bytes[k]
     """
@@ -65,10 +68,11 @@ def test_basic_very_long_bytes_as_keys():
     code = """
 mapped_bytes: num[bytes <= 4096]
 
+@public
 def set(k: bytes <= 4096, v: num):
     self.mapped_bytes[k] = v
 
-
+@public
 def get(k: bytes <= 4096) -> num:
     return self.mapped_bytes[k]
     """
@@ -84,6 +88,7 @@ def test_mismatched_byte_length():
     code = """
 mapped_bytes: num[bytes <= 34]
 
+@public
 def set(k: bytes <= 35, v: num):
     self.mapped_bytes[k] = v
     """
