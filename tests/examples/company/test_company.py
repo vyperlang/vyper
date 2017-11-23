@@ -3,7 +3,7 @@ import pytest
 from ethereum.tools import tester as t
 from ethereum import utils
 
-from tests.setup_transaction_tests import assert_tx_failed
+from tests.setup_transaction_tests import assert_tx_failed, ethereum_utils as u, chain as s
 from viper import compiler
 
 @pytest.fixture
@@ -89,3 +89,37 @@ def test_valuation(tester):
     test_value = int(tester.c.get_total_shares() * tester.c.get_price())
     tester.c.buy_stock(sender=t.k1, value=test_value)
     assert tester.c.debt() == test_value
+
+def test_logs(tester):
+    # Buy is logged
+    tester.c.buy_stock(sender=t.k1, value=7 * tester.c.get_price())
+    logs = tester.s.head_state.receipts[-1].logs
+    assert len(logs) == 1
+    event_id = u.bytes_to_int(u.sha3(bytes('Buy(address,int128)', 'utf-8')))
+    assert logs[-1].topics[0] == event_id
+    assert u.bytes_to_int(logs[-1].data) == 7
+
+    # Sell is logged
+    tester.c.sell_stock(3, sender=t.k1)
+    logs = tester.s.head_state.receipts[-1].logs
+    assert len(logs) == 1
+    event_id = u.bytes_to_int(u.sha3(bytes('Sell(address,int128)', 'utf-8')))
+    assert logs[-1].topics[0] == event_id
+    assert u.bytes_to_int(logs[-1].data) == 3
+
+    # Transfer is logged
+    tester.c.transfer_stock(t.a2, 4, sender=t.k1)
+    logs = tester.s.head_state.receipts[-1].logs
+    assert len(logs) == 1
+    event_id = u.bytes_to_int(u.sha3(bytes('Transfer(address,address,int128)', 'utf-8')))
+    assert logs[-1].topics[0] == event_id
+    assert u.bytes_to_int(logs[-1].data) == 4
+
+    # Pay is logged
+    amount = 10**4
+    tester.c.pay_bill(t.a3, amount)
+    logs = tester.s.head_state.receipts[-1].logs
+    assert len(logs) == 1
+    event_id = u.bytes_to_int(u.sha3(bytes('Pay(address,int128)', 'utf-8')))
+    assert logs[-1].topics[0] == event_id
+    assert u.bytes_to_int(logs[-1].data) == amount
