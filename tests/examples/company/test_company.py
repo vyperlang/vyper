@@ -3,7 +3,7 @@ import pytest
 from ethereum.tools import tester as t
 from ethereum import utils
 
-from tests.setup_transaction_tests import assert_tx_failed, ethereum_utils as u, chain as s
+from tests.setup_transaction_tests import assert_tx_failed, ethereum_utils as u
 from viper import compiler
 
 @pytest.fixture
