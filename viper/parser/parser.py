@@ -653,7 +653,7 @@ def pack_logging_topics(event_id, args, topics_types, context):
                 topics.append(byte_array_to_num(input, arg, 'num256', size))
         else:
             input = unwrap_location(input)
-            input = base_type_conversion(input, input.typ, typ)
+            input = base_type_conversion(input, input.typ, typ, arg)
             topics.append(input)
     return topics
 
@@ -661,7 +661,7 @@ def pack_logging_topics(event_id, args, topics_types, context):
 def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder):
     if isinstance(typ, BaseType):
         input = parse_expr(arg, context)
-        input = base_type_conversion(input, input.typ, typ)
+        input = base_type_conversion(input, input.typ, typ, arg)
         holder.append(LLLnode.from_list(['mstore', placeholder, input], typ=typ, location='memory'))
     elif isinstance(typ, ByteArrayType):
         bytez = b''
