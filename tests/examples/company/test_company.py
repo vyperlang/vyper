@@ -3,7 +3,7 @@ import pytest
 from ethereum.tools import tester as t
 from ethereum import utils
 
-from tests.setup_transaction_tests import assert_tx_failed, ethereum_utils as u
+from tests.setup_transaction_tests import assert_tx_failed, ethereum_utils as u, get_logs
 from viper import compiler
 
 @pytest.fixture
@@ -93,33 +93,34 @@ def test_valuation(tester):
 def test_logs(tester):
     # Buy is logged
     tester.c.buy_stock(sender=t.k1, value=7 * tester.c.get_price())
-    logs = tester.s.head_state.receipts[-1].logs
+    receipt = tester.s.head_state.receipts[-1]
+    logs = get_logs(receipt, tester.c)
     assert len(logs) == 1
-    event_id = u.bytes_to_int(u.sha3(bytes('Buy(address,int128)', 'utf-8')))
-    assert logs[-1].topics[0] == event_id
-    assert u.bytes_to_int(logs[-1].data) == 7
+    assert logs[0]["_event_type"] == b'Buy'
+    assert logs[0]["_buy_order"] == 7
 
     # Sell is logged
     tester.c.sell_stock(3, sender=t.k1)
-    logs = tester.s.head_state.receipts[-1].logs
+    receipt = tester.s.head_state.receipts[-1]
+    logs = get_logs(receipt, tester.c)
     assert len(logs) == 1
-    event_id = u.bytes_to_int(u.sha3(bytes('Sell(address,int128)', 'utf-8')))
-    assert logs[-1].topics[0] == event_id
-    assert u.bytes_to_int(logs[-1].data) == 3
+    assert logs[0]["_event_type"] == b'Sell'
+    assert logs[0]["_sell_order"] == 3
 
     # Transfer is logged
     tester.c.transfer_stock(t.a2, 4, sender=t.k1)
-    logs = tester.s.head_state.receipts[-1].logs
+    receipt = tester.s.head_state.receipts[-1]
+    logs = get_logs(receipt, tester.c)
     assert len(logs) == 1
-    event_id = u.bytes_to_int(u.sha3(bytes('Transfer(address,address,int128)', 'utf-8')))
-    assert logs[-1].topics[0] == event_id
-    assert u.bytes_to_int(logs[-1].data) == 4
+    assert logs[0]["_event_type"] == b'Transfer'
+    assert logs[0]["_value"] == 4
 
     # Pay is logged
     amount = 10**4
     tester.c.pay_bill(t.a3, amount)
-    logs = tester.s.head_state.receipts[-1].logs
+    receipt = tester.s.head_state.receipts[-1]
+    logs = get_logs(receipt, tester.c)
     assert len(logs) == 1
-    event_id = u.bytes_to_int(u.sha3(bytes('Pay(address,int128)', 'utf-8')))
-    assert logs[-1].topics[0] == event_id
-    assert u.bytes_to_int(logs[-1].data) == amount
+    assert logs[0]["_event_type"] == b'Pay'
+    assert logs[0]["_amount"] == amount
+
