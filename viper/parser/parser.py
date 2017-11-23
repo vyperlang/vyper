@@ -327,7 +327,7 @@ def parse_external_contracts(external_contracts, _contracts):
     return external_contracts
 
 
-def parse_other_functions(o, otherfuncs, _globals, sigs, external_contracts, origcode):
+def parse_other_functions(o, otherfuncs, _globals, sigs, external_contracts, origcode, runtime_only=False):
     sub = ['seq', initializer_lll]
     add_gas = initializer_lll.gas
     for _def in otherfuncs:
@@ -337,12 +337,15 @@ def parse_other_functions(o, otherfuncs, _globals, sigs, external_contracts, ori
         sig = FunctionSignature.from_definition(_def)
         sig.gas = sub[-1].total_gas
         sigs[sig.name] = sig
-    o.append(['return', 0, ['lll', sub, 0]])
-    return o
+    if runtime_only:
+        return sub
+    else:
+        o.append(['return', 0, ['lll', sub, 0]])
+        return o
 
 
 # Main python parse tree => LLL method
-def parse_tree_to_lll(code, origcode):
+def parse_tree_to_lll(code, origcode, runtime_only=False):
     _contracts, _events, _defs, _globals = get_contracts_and_defs_and_globals(code)
     _names = [_def.name for _def in _defs] + [_event.target.id for _event in _events]
     # Checks for duplicate funciton / event names
@@ -366,7 +369,7 @@ def parse_tree_to_lll(code, origcode):
         o.append(parse_func(initfunc[0], _globals, {**{'self': sigs}, **external_contracts}, origcode))
     # If there are regular functions...
     if otherfuncs:
-        o = parse_other_functions(o, otherfuncs, _globals, sigs, external_contracts, origcode)
+        o = parse_other_functions(o, otherfuncs, _globals, sigs, external_contracts, origcode, runtime_only)
     return LLLnode.from_list(o, typ=None)
 
 
