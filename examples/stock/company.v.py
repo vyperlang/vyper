@@ -1,3 +1,9 @@
+# Financial events the contract logs
+Transfer: __log__({_from: indexed(address), _to: indexed(address), _value: currency_value})
+Buy: __log__({_buyer: indexed(address), _buy_order: currency_value})
+Sell: __log__({_seller: indexed(address), _sell_order: currency_value})
+Pay: __log__({_vendor: indexed(address), _amount: wei_value})
+
 # Own shares of a company!
 company: public(address)
 total_shares: public(currency_value)
@@ -8,16 +14,16 @@ holdings: currency_value[address]
 
 # Setup company
 @public
-def __init__(_company: address, _total_shares: currency_value, 
+def __init__(_company: address, _total_shares: currency_value,
         initial_price: num(wei / currency) ):
     assert _total_shares > 0
     assert initial_price > 0
-    
+
     self.company = _company
     self.total_shares = _total_shares
-    
+
     self.price = initial_price
-    
+
     # Company holds all the shares at first, but can sell them all
     self.holdings[self.company] = _total_shares
 
@@ -36,10 +42,13 @@ def buy_stock():
 
     # There are enough shares to buy
     assert self.stock_available() >= buy_order
-    
+
     # Take the shares off the market and give to stockholder
     self.holdings[self.company] -= buy_order
     self.holdings[msg.sender] += buy_order
+
+    # Log the buy event
+    log.Buy(msg.sender, buy_order)
 
 # So someone can find out how much they have
 @public
@@ -68,6 +77,9 @@ def sell_stock(sell_order: currency_value):
     self.holdings[self.company] += sell_order
     send(msg.sender, sell_order * self.price)
 
+    # Log sell event
+    log.Sell(msg.sender, sell_order)
+
 # Transfer stock from one stockholder to another
 # (Assumes the receiver is given some compensation, but not enforced)
 @public
@@ -75,10 +87,13 @@ def transfer_stock(receiver: address, transfer_order: currency_value):
     assert transfer_order > 0 # AUDIT revealed this!
     # Can only trade as much stock as you own
     assert self.get_holding(msg.sender) >= transfer_order
-    
+
     # Debit sender's stock and add to receiver's address
     self.holdings[msg.sender] -= transfer_order
     self.holdings[receiver] += transfer_order
+
+    # Log the transfer event
+    log.Transfer(msg.sender, receiver, transfer_order)
 
 # Allows the company to pay someone for services rendered
 @public
@@ -90,6 +105,9 @@ def pay_bill(vendor: address, amount: wei_value):
 
     # Pay the bill!
     send(vendor, amount)
+
+    # Log payment event
+    log.Pay(vendor, amount)
 
 # The amount a company has raised in the stock offering
 @public
