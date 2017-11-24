@@ -280,7 +280,7 @@ class Expr(object):
                 o = LLLnode.from_list(['smod', left, ['mul', ['clamp_nonzero', right], DECIMAL_DIVISOR]],
                                       typ=BaseType('decimal', new_unit), pos=getpos(self.expr))
             elif ltyp == 'num' and rtyp == 'decimal':
-                o = LLLnode.from_list(['smod', ['mul', left, DECIMAL_DIVISOR], right],
+                o = LLLnode.from_list(['smod', ['mul', left, DECIMAL_DIVISOR], ['clamp_nonzero', right]],
                                       typ=BaseType('decimal', new_unit), pos=getpos(self.expr))
         elif isinstance(self.expr.op, ast.Pow):
             if left.typ.positional or right.typ.positional:
