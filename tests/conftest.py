@@ -28,12 +28,12 @@ def get_contract_from_lll(t):
     return lll_compiler
 
 @pytest.fixture
-def assert_tx_failed():
+def assert_tx_failed(t):
     def assert_tx_failed(function_to_test, exception = tester.TransactionFailed):
-        initial_state = tester.s.snapshot()
+        initial_state = t.s.snapshot()
         with pytest.raises(exception):
             function_to_test()
-        tester.s.revert(initial_state)
+        t.s.revert(initial_state)
     return assert_tx_failed
 
 @pytest.fixture
