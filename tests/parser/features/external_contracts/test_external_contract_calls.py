@@ -1,6 +1,6 @@
 import pytest
 from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation, get_contract, assert_tx_failed
+    get_contract_with_gas_estimation, get_contract
 from viper.exceptions import StructureException, VariableDeclarationException, InvalidTypeException
 
 def test_external_contract_calls():
@@ -275,7 +275,6 @@ def _expr(x: address) -> num:
     return Bar(x).bar()
     """
 
-    t.s = t.Chain()
     c1 = get_contract(contract_1)
     c2 = get_contract(contract_2)
 
@@ -303,7 +302,6 @@ def foo(x: address) -> num:
 
     c1 = get_contract(contract_1)
     c2 = get_contract(contract_2)
-    t.s = s
 
     assert c2.foo(c1.address) == 1
     assert_tx_failed(lambda: c2.foo(t.a1))
@@ -321,7 +319,6 @@ best_number: public(num)
 def __init__():
     pass
 """
-    t.s = t.Chain()
     assert_tx_failed(lambda: get_contract(contract), exception = StructureException)
 
 
@@ -331,7 +328,6 @@ def test_invalid_contract_reference_call(assert_tx_failed):
 def bar(arg1: address, arg2: num) -> num:
     return Foo(arg1).foo(arg2)
 """
-    t.s = t.Chain()
     assert_tx_failed(lambda: get_contract(contract), exception = VariableDeclarationException)
 
 
@@ -344,7 +340,6 @@ class Foo():
 def bar(arg1: address, arg2: num) -> num:
     return Foo(arg1).foo(arg2)
 """
-    t.s = t.Chain()
     assert_tx_failed(lambda: get_contract(contract), exception = InvalidTypeException)
 
 
@@ -356,7 +351,6 @@ item: public(num)
 class Foo():
     def foo(arg2: num) -> num: pass
 """
-    t.s = t.Chain()
     assert_tx_failed(lambda: get_contract(contract), exception = StructureException)
 
 
@@ -368,7 +362,6 @@ MyLog: __log__({})
 class Foo():
     def foo(arg2: num) -> num: pass
 """
-    t.s = t.Chain()
     assert_tx_failed(lambda: get_contract(contract), exception = StructureException)
 
 
@@ -381,5 +374,4 @@ def foo() -> num:
 class Foo():
     def foo(arg2: num) -> num: pass
 """
-    t.s = t.Chain()
     assert_tx_failed(lambda: get_contract(contract), exception = StructureException)

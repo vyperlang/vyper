@@ -16,9 +16,6 @@ from viper.signatures.event_signature import (
 from viper.premade_contracts import (
     premade_contracts
 )
-from viper.functions import (
-    dispatch_table,
-)
 from .stmt import Stmt
 from .expr import Expr
 from .parser_utils import LLLnode
@@ -176,8 +173,7 @@ def add_contract(code):
     return _defs
 
 
-
-def add_globals_and_events(_defs, _events, _getters, _globals, item):
+def add_globals_and_events(_contracts, _defs, _events, _getters, _globals, item):
     if item.value is not None:
         raise StructureException('May not assign value whilst defining type', item)
     elif isinstance(item.annotation, ast.Call) and item.annotation.func.id == "__log__":
@@ -494,12 +490,12 @@ def external_contract_call_stmt(stmt, context, contract_name, contract_address):
                                                     "function must be declared in the correct contract)" % method_name)
     sig = context.sigs[contract_name][method_name]
     inargs, inargsize = pack_arguments(sig, [parse_expr(arg, context) for arg in stmt.args], context)
-    sub = ['seq', ['assert', ['extcodesize', ['mload', contract_address]]],
-                    ['assert', ['ne', 'address', ['mload', contract_address]]]]
+    sub = ['seq', ['assert', ['extcodesize', contract_address]],
+                    ['assert', ['ne', 'address', contract_address]]]
     if context.is_constant:
-        sub.append(['assert', ['staticcall', 'gas', ['mload', contract_address], inargs, inargsize, 0, 0]])
+        sub.append(['assert', ['staticcall', 'gas', contract_address, inargs, inargsize, 0, 0]])
     else:
-        sub.append(['assert', ['call', 'gas', ['mload', contract_address], 0, inargs, inargsize, 0, 0]])
+        sub.append(['assert', ['call', 'gas', contract_address, 0, inargs, inargsize, 0, 0]])
     o = LLLnode.from_list(sub, typ=sig.output_type, location='memory', pos=getpos(stmt))
     return o
 
@@ -520,13 +516,13 @@ def external_contract_call_expr(expr, context, contract_name, contract_address):
         returner = output_placeholder + 32
     else:
         raise TypeMismatchException("Invalid output type: %r" % sig.output_type, expr)
-    sub = ['seq', ['assert', ['extcodesize', ['mload', contract_address]]],
-                    ['assert', ['ne', 'address', ['mload', contract_address]]]]
+    sub = ['seq', ['assert', ['extcodesize', contract_address]],
+                    ['assert', ['ne', 'address', contract_address]]]
     if context.is_constant:
-        sub.append(['assert', ['staticcall', 'gas', ['mload', contract_address], inargs, inargsize,
+        sub.append(['assert', ['staticcall', 'gas', contract_address, inargs, inargsize,
                     output_placeholder, get_size_of_type(sig.output_type) * 32]])
     else:
-        sub.append(['assert', ['call', 'gas', ['mload', contract_address], 0, inargs, inargsize,
+        sub.append(['assert', ['call', 'gas', contract_address, 0, inargs, inargsize,
             output_placeholder, get_size_of_type(sig.output_type) * 32]])
     sub.extend([0, returner])
     o = LLLnode.from_list(sub, typ=sig.output_type, location='memory', pos=getpos(expr))

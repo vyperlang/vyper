@@ -1,8 +1,7 @@
 import pytest
 from ethereum.abi import ValueOutOfBounds
 from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation, get_contract, assert_tx_failed
-from viper.exceptions import StructureException, VariableDeclarationException, InvalidTypeException
+    get_contract_with_gas_estimation, get_contract
 
 TOKEN_NAME = "Vipercoin"
 TOKEN_SYMBOL = "FANG"
@@ -12,7 +11,7 @@ TOKEN_TOTAL_SUPPLY = TOKEN_INITIAL_SUPPLY * (10 ** TOKEN_DECIMALS)
 
 @pytest.fixture
 def erc20():
-    erc20_code = open('examples/tokens/ERC20.v.py').read()
+    erc20_code = open('examples/tokens/vipercoin.v.py').read()
     return get_contract(erc20_code, args=[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY])
 
 @pytest.fixture
@@ -20,28 +19,36 @@ def erc20_caller(erc20):
     erc20_caller_code = """
 token_address: address(ERC20)
 
+@public
 def __init__(token_addr: address):
     self.token_address = token_addr
 
+@public
 def symbol() -> bytes32:
     return self.token_address.symbol()
 
+@public
 def balanceOf(_owner: address) -> num256:
     return self.token_address.balanceOf(_owner)
 
+@public
 def totalSupply() -> num256:
     return self.token_address.totalSupply()
 
+@public
 def transfer(_to: address, _value: num256) -> bool:
     return self.token_address.transfer(_to, _value)
 
+@public
 def transferFrom(_from: address, _to: address, _value: num(num256)) -> bool:
     return self.token_address.transferFrom(_from, _to, _value)
 
+@public
 def allowance(_owner: address, _spender: address) -> num256:
     return self.token_address.allowance(_owner, _spender)
     """
     return get_contract(erc20_caller_code, args=[erc20.address])
+
 
 def pad_bytes32(instr):
     """ Pad a string \x00 bytes to return correct bytes32 representation. """
@@ -63,15 +70,12 @@ def test_call_transfer(erc20, erc20_caller, assert_tx_failed):
     assert erc20.balanceOf(t.a1) == 10
 
 
-    # Some edge cases:
-
     # more than allowed
-    assert erc20_caller.transfer(t.a1, TOKEN_TOTAL_SUPPLY) is False
+    assert_tx_failed(lambda: erc20_caller.transfer(t.a1, TOKEN_TOTAL_SUPPLY))
 
     t.s = s
     # Negative transfer value.
     assert_tx_failed(
-        tester=t,
         function_to_test=lambda: erc20_caller.transfer(t.a1, -1),
         exception=ValueOutOfBounds
     )
@@ -83,7 +87,7 @@ def test_caller_approve_allowance(erc20, erc20_caller):
 
 def test_caller_tranfer_from(erc20, erc20_caller, assert_tx_failed):
     # Cannot transfer tokens that are unavailable
-    erc20_caller.transferFrom(t.a0, erc20_caller.address, 10)
+    assert_tx_failed(lambda: erc20_caller.transferFrom(t.a0, erc20_caller.address, 10))
     assert erc20.balanceOf(erc20_caller.address) == 0
     assert erc20.approve(erc20_caller.address, 10) == True
     erc20_caller.transferFrom(t.a0, erc20_caller.address, 5)
