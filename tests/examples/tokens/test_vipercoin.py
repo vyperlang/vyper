@@ -49,10 +49,8 @@ def test_transfer(token_tester, assert_tx_failed):
     assert token_tester.c.balanceOf(token_tester.accounts[1]) == 1
     assert token_tester.c.balanceOf(token_tester.accounts[0]) == TOKEN_TOTAL_SUPPLY - 1
 
-    # Some edge cases:
-
     # more than allowed
-    assert token_tester.c.transfer(token_tester.accounts[1], TOKEN_TOTAL_SUPPLY) is False
+    assert_tx_failed(lambda: token_tester.c.transfer(token_tester.accounts[1], TOKEN_TOTAL_SUPPLY))
 
     # Negative transfer value.
     assert_tx_failed(
@@ -87,7 +85,7 @@ def test_transferFrom(token_tester, assert_tx_failed):
     assert contract.allowance(a0, a1) == ALLOWANCE - 3
 
     # a2 may not transfer.
-    assert contract.transferFrom(a0, a2, ALLOWANCE, sender=k2) is False
+    assert_tx_failed(lambda: contract.transferFrom(a0, a2, ALLOWANCE, sender=k2))
 
     # Negative transfer value.
     assert_tx_failed(
@@ -96,7 +94,7 @@ def test_transferFrom(token_tester, assert_tx_failed):
     )
 
     # Transfer more than allowance:
-    assert contract.transferFrom(a0, a2, 8, sender=k1) is False
+    assert_tx_failed(lambda: contract.transferFrom(a0, a2, 8, sender=k1))
     assert contract.balanceOf(a0) == TOKEN_TOTAL_SUPPLY - 3
     assert contract.balanceOf(a1) == 0
     assert contract.balanceOf(a2) == 3

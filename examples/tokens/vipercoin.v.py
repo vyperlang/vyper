@@ -58,33 +58,29 @@ def totalSupply() -> num256:
 @public
 def transfer(_to: address, _amount: num(num256)) -> bool:
 
-    if self.balances[msg.sender] >= _amount and \
-       self.balances[_to] + _amount >= self.balances[_to]:
+    assert self.balances[msg.sender] >= _amount
+    assert self.balances[_to] + _amount >= self.balances[_to]
 
-        self.balances[msg.sender] -= _amount  # Subtract from the sender
-        self.balances[_to] += _amount  # Add the same to the recipient
-        log.Transfer(msg.sender, _to, as_num256(_amount))  # log transfer event.
+    self.balances[msg.sender] -= _amount  # Subtract from the sender
+    self.balances[_to] += _amount  # Add the same to the recipient
+    log.Transfer(msg.sender, _to, as_num256(_amount))  # log transfer event.
 
-        return True
-    else:
-        return False
+    return True
 
 
 # Transfer allowed tokens from a specific account to another.
 @public
 def transferFrom(_from: address, _to: address, _value: num(num256)) -> bool:
 
-    if _value <= self.allowed[_from][msg.sender] and \
-       _value <= self.balances[_from]:
+    assert _value <= self.allowed[_from][msg.sender]
+    assert _value <= self.balances[_from]
 
-        self.balances[_from] -= _value  # decrease balance of from address.
-        self.allowed[_from][msg.sender] -= _value  # decrease allowance.
-        self.balances[_to] += _value  # incease balance of to address.
-        log.Transfer(_from, _to, as_num256(_value))  # log transfer event.
-
-        return True
-    else:
-        return False
+    self.balances[_from] -= _value  # decrease balance of from address.
+    self.allowed[_from][msg.sender] -= _value  # decrease allowance.
+    self.balances[_to] += _value  # incease balance of to address.
+    log.Transfer(_from, _to, as_num256(_value))  # log transfer event.
+    
+    return True
 
 
 # Allow _spender to withdraw from your account, multiple times, up to the _value amount.
