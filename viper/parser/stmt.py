@@ -80,22 +80,6 @@ class Stmt(object):
         from .parser import (
             make_setter,
         )
-
-        if isinstance(self.stmt.targets[0], ast.Subscript) and self.context.in_for_loop:  # Check if we are doing assignment of an iteration loop.
-            raise_exception = False
-            if isinstance(self.stmt.targets[0].value, ast.Attribute):
-                list_name = "%s.%s" % (self.stmt.targets[0].value.value.id, self.stmt.targets[0].value.attr)
-                if list_name in self.context.in_for_loop:
-                    raise_exception = True
-
-            if isinstance(self.stmt.targets[0].value, ast.Name) and \
-               self.stmt.targets[0].value.id in self.context.in_for_loop:
-                list_name = self.stmt.targets[0].value.id
-                raise_exception = True
-
-            if raise_exception:
-                raise StructureException("Altering list '%s' which is being iterated!" % list_name, self.stmt)
-
         # Assignment (eg. x[4] = y)
         if len(self.stmt.targets) != 1:
             raise StructureException("Assignment statement must have one target", self.stmt)
@@ -105,11 +89,8 @@ class Stmt(object):
             variable_loc = LLLnode.from_list(pos, typ=sub.typ, location='memory', pos=getpos(self.stmt), annotation=self.stmt.targets[0].id)
             o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
         else:
-            target = Expr.parse_variable_location(self.stmt.targets[0], self.context)
-            if target.location == 'storage' and self.context.is_constant:
-                raise ConstancyViolationException("Cannot modify storage inside a constant function!", self.stmt.targets[0])
-            if not target.mutable:
-                raise ConstancyViolationException("Cannot modify function argument", self.stmt.targets[0])
+            # Checks to see if assignment is valid
+            target = self.get_target(self.stmt.targets[0])
             o = make_setter(target, sub, target.location, pos=getpos(self.stmt))
         o.pos = getpos(self.stmt)
         return o
@@ -170,7 +151,6 @@ class Stmt(object):
         from .parser import (
             parse_body,
         )
-
         # Type 0 for, eg. for i in list(): ...
         if self._is_list_iter():
             return self.parse_for_list()
@@ -204,9 +184,11 @@ class Stmt(object):
             start = Expr.parse_value_expr(self.stmt.iter.args[0], self.context)
             rounds = self.stmt.iter.args[1].right.n
         varname = self.stmt.target.id
-        pos = self.context.vars[varname].pos if varname in self.context.forvars else self.context.new_variable(varname, BaseType('num'))
-        o = LLLnode.from_list(['repeat', pos, start, rounds, parse_body(self.stmt.body, self.context)], typ=None, pos=getpos(self.stmt))
+        pos = self.context.new_variable(varname, BaseType('num'))
         self.context.forvars[varname] = True
+        o = LLLnode.from_list(['repeat', pos, start, rounds, parse_body(self.stmt.body, self.context)], typ=None, pos=getpos(self.stmt))
+        del self.context.vars[varname]
+
         return o
 
     def _is_list_iter(self):
@@ -239,9 +221,9 @@ class Stmt(object):
         iter_var_type = self.context.vars.get(self.stmt.iter.id).typ if isinstance(self.stmt.iter, ast.Name) else None
         subtype = iter_list_node.typ.subtype.typ
         varname = self.stmt.target.id
-        value_pos = self.context.new_variable(varname, BaseType(subtype))
+        value_pos = self.context.new_variable(varname,  BaseType(subtype))
         i_pos = self.context.new_variable('_index_for_' + varname, BaseType(subtype))
-
+        self.context.forvars[varname] = True
         if iter_var_type:  # Is a list that is already allocated to memory.
             self.context.set_in_for_loop(self.stmt.iter.id)  # make sure list cannot be altered whilst iterating.
             iter_var = self.context.vars.get(self.stmt.iter.id)
@@ -254,7 +236,6 @@ class Stmt(object):
                 ['repeat', i_pos, 0, iter_var.size, body], typ=None, pos=getpos(self.stmt)
             )
             self.context.remove_in_for_loop(self.stmt.iter.id)
-            return o
         elif isinstance(self.stmt.iter, ast.List):  # List gets defined in the for statement.
             # Allocate list to memory.
             count = iter_list_node.typ.count
@@ -274,7 +255,6 @@ class Stmt(object):
                     setter,
                     ['repeat', i_pos, 0, count, body]], typ=None, pos=getpos(self.stmt)
             )
-            return o
         elif isinstance(self.stmt.iter, ast.Attribute):  # List is contained in storage.
             count = iter_list_node.typ.count
             self.context.set_in_for_loop(iter_list_node.annotation)  # make sure list cannot be altered whilst iterating.
@@ -288,18 +268,20 @@ class Stmt(object):
                     ['repeat', i_pos, 0, count, body]], typ=None, pos=getpos(self.stmt)
             )
             self.context.remove_in_for_loop(iter_list_node.annotation)
-            return o
+        del self.context.vars[varname]
+        del self.context.vars['_index_for_' + varname]
+        return o
 
     def aug_assign(self):
-        target = Expr.parse_variable_location(self.stmt.target, self.context)
+        target = self.get_target(self.stmt.target)
         sub = Expr.parse_value_expr(self.stmt.value, self.context)
+        if isinstance(self.stmt.target, ast.Name) and self.stmt.target.id in self.context.forvars:
+            raise StructureException("Altering iterator '%s' which is in use!" % target.annotation, self.stmt)
         if not isinstance(self.stmt.op, (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Mod)):
             raise Exception("Unsupported operator for augassign")
         if not isinstance(target.typ, BaseType):
             raise TypeMismatchException("Can only use aug-assign operators with simple types!", self.stmt.target)
         if target.location == 'storage':
-            if self.context.is_constant:
-                raise ConstancyViolationException("Cannot modify storage inside a constant function!", self.stmt.target)
             o = Expr.parse_value_expr(ast.BinOp(left=LLLnode.from_list(['sload', '_stloc'], typ=target.typ, pos=target.pos),
                                     right=sub, op=self.stmt.op, lineno=self.stmt.lineno, col_offset=self.stmt.col_offset), self.context)
             return LLLnode.from_list(['with', '_stloc', target, ['sstore', '_stloc', base_type_conversion(o, o.typ, target.typ)]], typ=None, pos=getpos(self.stmt))
@@ -420,3 +402,28 @@ class Stmt(object):
                                         typ=None, pos=getpos(self.stmt))
         else:
             raise TypeMismatchException("Can only return base type!", self.stmt)
+
+    def get_target(self, target):
+        if isinstance(target, ast.Subscript) and self.context.in_for_loop:  # Check if we are doing assignment of an iteration loop.
+            raise_exception = False
+            if isinstance(target.value, ast.Attribute):
+                list_name = "%s.%s" % (target.value.value.id, target.value.attr)
+                if list_name in self.context.in_for_loop:
+                    raise_exception = True
+
+            if isinstance(target.value, ast.Name) and \
+               target.value.id in self.context.in_for_loop:
+                list_name = target.value.id
+                raise_exception = True
+
+            if raise_exception:
+                raise StructureException("Altering list '%s' which is being iterated!" % list_name, self.stmt)
+
+        if isinstance(target, ast.Name) and target.id in self.context.forvars:
+            raise StructureException("Altering iterator '%s' which is in use!" % target.id, self.stmt)
+        target = Expr.parse_variable_location(target, self.context)
+        if target.location == 'storage' and self.context.is_constant:
+            raise ConstancyViolationException("Cannot modify storage inside a constant function: %s" % target.annotation)
+        if not target.mutable:
+            raise ConstancyViolationException("Cannot modify function argument: %s", target.annotation)
+        return target
