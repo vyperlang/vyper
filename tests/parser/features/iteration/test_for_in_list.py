@@ -1,7 +1,7 @@
 import pytest
 from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
     get_contract_with_gas_estimation, get_contract
-from viper.exceptions import StructureException
+from viper.exceptions import StructureException, VariableDeclarationException
 
 
 def test_basic_for_in_list():
@@ -80,6 +80,44 @@ def data() -> address:
     assert c.data() == "0x82a978b3f5962a5b0957d9ee9eef472ee55b42f1"
 
 
+def test_multiple_for_loops_1():
+    code = """
+@public
+def foo(x: num): 
+    p = 0 
+    for i in range(3): 
+        p += i
+    for i in range(4):
+        p += i
+"""
+    get_contract_with_gas_estimation(code)
+
+def test_multiple_for_loops_2():
+    code = """
+@public
+def foo(x: num): 
+    p = 0 
+    for i in range(3): 
+        p += i
+    for i in [1, 2, 3, 4]: 
+        p += i
+"""
+    get_contract_with_gas_estimation(code)
+
+
+def test_multiple_for_loops_3():
+    code = """
+@public
+def foo(x: num): 
+    p = 0 
+    for i in [1, 2, 3, 4]: 
+        p += i
+    for i in [1, 2, 3, 4]: 
+        p += i
+"""
+    get_contract_with_gas_estimation(code)
+
+
 def test_basic_for_list_storage_address():
     code = """
 addresses: address[3]
@@ -142,7 +180,7 @@ def i_return(break_count: num) -> decimal:
     assert c.ret(0) == c.i_return(0) == 0.0001
 
 
-def test_altering_list_within_for_loop(assert_compile_failed):
+def test_altering_list_within_for_loop_1(assert_compile_failed):
     code = """
 @public
 def data() -> num:
@@ -156,6 +194,18 @@ def data() -> num:
     return -1
     """
 
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), StructureException)
+
+
+def test_altering_list_within_for_loop_2(assert_compile_failed):
+    code = """
+@public
+def foo():
+    s = [1, 2, 3, 4, 5, 6]
+    count = 0
+    for i in s:
+        s[count] += 1
+"""
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), StructureException)
 
 
@@ -178,4 +228,46 @@ def data() -> num:
     return -1
     """
 
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), StructureException)
+
+
+def test_invalid_nested_for_loop_1(assert_compile_failed):
+    code = """
+@public
+def foo(x: num):
+    for i in range(4):
+        for i in range(5):
+            pass
+"""
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code),VariableDeclarationException)
+
+
+def test_invalid_nested_for_loop_2(assert_compile_failed):
+    code = """
+@public
+def foo(x: num):
+    for i in [1,2]:
+        for i in [1,2]:
+            pass
+"""
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code),VariableDeclarationException)
+
+
+def test_invalid_iterator_assignment_1(assert_compile_failed):
+    code = """
+@public
+def foo(x: num):
+    for i in [1,2]:
+        i = 2
+"""
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), StructureException)
+
+
+def test_invalid_iterator_assignment_2(assert_compile_failed):
+    code = """
+@public
+def foo(x: num):
+    for i in [1,2]:
+        i += 2
+"""
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), StructureException)
