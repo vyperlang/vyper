@@ -13,6 +13,9 @@ from viper.function_signature import (
 from viper.signatures.event_signature import (
     EventSignature
 )
+from viper.premade_contracts import (
+    premade_contracts
+)
 from .stmt import Stmt
 from .expr import Expr
 from .parser_utils import LLLnode
@@ -170,7 +173,7 @@ def add_contract(code):
     return _defs
 
 
-def add_globals_and_events(_defs, _events, _getters, _globals, item):
+def add_globals_and_events(_contracts, _defs, _events, _getters, _globals, item):
     if item.value is not None:
         raise StructureException('May not assign value whilst defining type', item)
     elif isinstance(item.annotation, ast.Call) and item.annotation.func.id == "__log__":
@@ -189,6 +192,14 @@ def add_globals_and_events(_defs, _events, _getters, _globals, item):
         raise StructureException("Global variables must all come before function definitions", item)
     # If the type declaration is of the form public(<type here>), then proceed with
     # the underlying type but also add getters
+    elif isinstance(item.annotation, ast.Call) and item.annotation.func.id == "address":
+        if len(item.annotation.args) != 1:
+            raise StructureException("Address expects one arg (the type)")
+        if item.annotation.args[0].id not in premade_contracts:
+            raise VariableDeclarationException("Unsupported premade contract declaration", item.annotation.args[0])
+        premade_contract = premade_contracts[item.annotation.args[0].id]
+        _contracts[item.target.id] = add_contract(premade_contract.body)
+        _globals[item.target.id] = VariableRecord(item.target.id, len(_globals), BaseType('address'), True)
     elif isinstance(item.annotation, ast.Call) and item.annotation.func.id == "public":
         if len(item.annotation.args) != 1:
             raise StructureException("Public expects one arg (the type)")
@@ -200,7 +211,7 @@ def add_globals_and_events(_defs, _events, _getters, _globals, item):
             _getters[-1].pos = getpos(item)
     else:
         _globals[item.target.id] = VariableRecord(item.target.id, len(_globals), parse_type(item.annotation, 'storage'), True)
-    return _events, _globals, _getters
+    return _contracts, _events, _globals, _getters
 
 
 # Parse top-level functions and variables
@@ -219,7 +230,7 @@ def get_contracts_and_defs_and_globals(code):
         # Statements of the form:
         # variable_name: type
         elif isinstance(item, ast.AnnAssign):
-            _events, _globals, _getters = add_globals_and_events(_defs, _events, _getters, _globals, item)
+            _contracts, _events, _globals, _getters = add_globals_and_events(_contracts, _defs, _events, _getters, _globals, item)
         # Function definitions
         elif isinstance(item, ast.FunctionDef):
             _defs.append(item)
@@ -470,8 +481,7 @@ def parse_body(code, context):
     return LLLnode.from_list(['seq'] + o, pos=getpos(code[0]) if code else None)
 
 
-def external_contract_call_stmt(stmt, context):
-    contract_name = stmt.func.value.func.id
+def external_contract_call_stmt(stmt, context, contract_name, contract_address):
     if contract_name not in context.sigs:
         raise VariableDeclarationException("Contract not declared yet: %s" % contract_name)
     method_name = stmt.func.attr
@@ -479,20 +489,18 @@ def external_contract_call_stmt(stmt, context):
         raise VariableDeclarationException("Function not declared yet: %s (reminder: "
                                                     "function must be declared in the correct contract)" % method_name)
     sig = context.sigs[contract_name][method_name]
-    contract_address = parse_expr(stmt.func.value.args[0], context)
     inargs, inargsize = pack_arguments(sig, [parse_expr(arg, context) for arg in stmt.args], context)
-    sub = ['seq', ['assert', ['extcodesize', ['mload', contract_address]]],
-                    ['assert', ['ne', 'address', ['mload', contract_address]]]]
+    sub = ['seq', ['assert', ['extcodesize', contract_address]],
+                    ['assert', ['ne', 'address', contract_address]]]
     if context.is_constant:
-        sub.append(['assert', ['staticcall', 'gas', ['mload', contract_address], inargs, inargsize, 0, 0]])
+        sub.append(['assert', ['staticcall', 'gas', contract_address, inargs, inargsize, 0, 0]])
     else:
-        sub.append(['assert', ['call', 'gas', ['mload', contract_address], 0, inargs, inargsize, 0, 0]])
+        sub.append(['assert', ['call', 'gas', contract_address, 0, inargs, inargsize, 0, 0]])
     o = LLLnode.from_list(sub, typ=sig.output_type, location='memory', pos=getpos(stmt))
     return o
 
 
-def external_contract_call_expr(expr, context):
-    contract_name = expr.func.value.func.id
+def external_contract_call_expr(expr, context, contract_name, contract_address):
     if contract_name not in context.sigs:
         raise VariableDeclarationException("Contract not declared yet: %s" % contract_name)
     method_name = expr.func.attr
@@ -500,7 +508,6 @@ def external_contract_call_expr(expr, context):
         raise VariableDeclarationException("Function not declared yet: %s (reminder: "
                                                     "function must be declared in the correct contract)" % method_name)
     sig = context.sigs[contract_name][method_name]
-    contract_address = parse_expr(expr.func.value.args[0], context)
     inargs, inargsize = pack_arguments(sig, [parse_expr(arg, context) for arg in expr.args], context)
     output_placeholder = context.new_placeholder(typ=sig.output_type)
     if isinstance(sig.output_type, BaseType):
@@ -509,13 +516,13 @@ def external_contract_call_expr(expr, context):
         returner = output_placeholder + 32
     else:
         raise TypeMismatchException("Invalid output type: %r" % sig.output_type, expr)
-    sub = ['seq', ['assert', ['extcodesize', ['mload', contract_address]]],
-                    ['assert', ['ne', 'address', ['mload', contract_address]]]]
+    sub = ['seq', ['assert', ['extcodesize', contract_address]],
+                    ['assert', ['ne', 'address', contract_address]]]
     if context.is_constant:
-        sub.append(['assert', ['staticcall', 'gas', ['mload', contract_address], inargs, inargsize,
+        sub.append(['assert', ['staticcall', 'gas', contract_address, inargs, inargsize,
                     output_placeholder, get_size_of_type(sig.output_type) * 32]])
     else:
-        sub.append(['assert', ['call', 'gas', ['mload', contract_address], 0, inargs, inargsize,
+        sub.append(['assert', ['call', 'gas', contract_address, 0, inargs, inargsize,
             output_placeholder, get_size_of_type(sig.output_type) * 32]])
     sub.extend([0, returner])
     o = LLLnode.from_list(sub, typ=sig.output_type, location='memory', pos=getpos(expr))

@@ -458,7 +458,13 @@ class Expr(object):
             o.gas += sig.gas
             return o
         elif isinstance(self.expr.func, ast.Attribute) and isinstance(self.expr.func.value, ast.Call):
-            return external_contract_call_expr(self.expr, self.context)
+            contract_name = self.expr.func.value.func.id
+            contract_address = Expr.parse_value_expr(self.expr.func.value.args[0], self.context)
+            return external_contract_call_expr(self.expr, self.context, contract_name, contract_address)
+        elif isinstance(self.expr.func.value, ast.Attribute) and self.expr.func.value.attr in self.context.sigs:
+            contract_name = self.expr.func.value.attr
+            contract_address = Expr.parse_value_expr(ast.parse('self.token_address').body[0].value, self.context)
+            return external_contract_call_expr(self.expr, self.context, contract_name, contract_address)
         else:
             raise StructureException("Unsupported operator: %r" % ast.dump(self.expr), self.expr)
 
