@@ -188,7 +188,7 @@ class Stmt(object):
         self.context.forvars[varname] = True
         o = LLLnode.from_list(['repeat', pos, start, rounds, parse_body(self.stmt.body, self.context)], typ=None, pos=getpos(self.stmt))
         del self.context.vars[varname]
-
+        del self.context.forvars[varname]
         return o
 
     def _is_list_iter(self):
@@ -270,13 +270,12 @@ class Stmt(object):
             self.context.remove_in_for_loop(iter_list_node.annotation)
         del self.context.vars[varname]
         del self.context.vars['_index_for_' + varname]
+        del self.context.forvars[varname]
         return o
 
     def aug_assign(self):
         target = self.get_target(self.stmt.target)
         sub = Expr.parse_value_expr(self.stmt.value, self.context)
-        if isinstance(self.stmt.target, ast.Name) and self.stmt.target.id in self.context.forvars:
-            raise StructureException("Altering iterator '%s' which is in use!" % target.annotation, self.stmt)
         if not isinstance(self.stmt.op, (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Mod)):
             raise Exception("Unsupported operator for augassign")
         if not isinstance(target.typ, BaseType):
@@ -425,5 +424,5 @@ class Stmt(object):
         if target.location == 'storage' and self.context.is_constant:
             raise ConstancyViolationException("Cannot modify storage inside a constant function: %s" % target.annotation)
         if not target.mutable:
-            raise ConstancyViolationException("Cannot modify function argument: %s", target.annotation)
+            raise ConstancyViolationException("Cannot modify function argument: %s" % target.annotation)
         return target

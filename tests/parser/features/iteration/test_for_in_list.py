@@ -118,6 +118,30 @@ def foo(x: num):
     get_contract_with_gas_estimation(code)
 
 
+def test_multiple_loops_4():
+    code = """
+@public
+def foo():
+    for i in range(10):
+        pass
+    for i in range(20):
+        pass
+"""
+    get_contract_with_gas_estimation(code)
+
+
+def test_using_index_variable_after_loop():
+    code = """
+@public
+def foo():
+    for i in range(10):
+        pass
+    i = 100  # create new variable i
+    i = 200  # look up the variable i and check whether it is in forvars
+"""
+    get_contract_with_gas_estimation(code)
+
+
 def test_basic_for_list_storage_address():
     code = """
 addresses: address[3]
