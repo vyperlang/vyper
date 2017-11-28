@@ -129,7 +129,14 @@ class Stmt(object):
             return external_contract_call_stmt(self.stmt, self.context, contract_name, contract_address)
         elif isinstance(self.stmt.func.value, ast.Attribute) and self.stmt.func.value.attr in self.context.sigs:
             contract_name = self.stmt.func.value.attr
-            contract_address = Expr.parse_value_expr(ast.parse('self.token_address').body[0].value, self.context)
+            var = self.context.globals[self.stmt.func.value.attr]
+            contract_address = unwrap_location(LLLnode.from_list(var.pos, typ=var.typ, location='storage', pos=getpos(self.stmt), annotation='self.' + self.stmt.func.value.attr))
+            return external_contract_call_stmt(self.stmt, self.context, contract_name, contract_address)
+        elif isinstance(self.stmt.func.value, ast.Attribute) and self.stmt.func.value.attr in self.context.globals:
+            contract_name = self.context.globals[self.stmt.func.value.attr].typ.unit
+            var = self.context.globals[self.stmt.func.value.attr]
+            contract_address = unwrap_location(LLLnode.from_list(var.pos, typ=var.typ, location='storage', pos=getpos(self.stmt), annotation='self.' + self.stmt.func.value.attr))
+            # import pdb; pdb.set_trace()
             return external_contract_call_stmt(self.stmt, self.context, contract_name, contract_address)
         elif isinstance(self.stmt.func, ast.Attribute) and self.stmt.func.value.id == 'log':
             if self.stmt.func.attr not in self.context.sigs['self']:
