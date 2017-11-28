@@ -136,7 +136,6 @@ class Stmt(object):
             contract_name = self.context.globals[self.stmt.func.value.attr].typ.unit
             var = self.context.globals[self.stmt.func.value.attr]
             contract_address = unwrap_location(LLLnode.from_list(var.pos, typ=var.typ, location='storage', pos=getpos(self.stmt), annotation='self.' + self.stmt.func.value.attr))
-            # import pdb; pdb.set_trace()
             return external_contract_call_stmt(self.stmt, self.context, contract_name, contract_address)
         elif isinstance(self.stmt.func, ast.Attribute) and self.stmt.func.value.id == 'log':
             if self.stmt.func.attr not in self.context.sigs['self']:
