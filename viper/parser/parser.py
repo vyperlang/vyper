@@ -693,7 +693,7 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder):
             if input.typ.maxlen > typ.maxlen:
                 raise TypeMismatchException("Data input bytes are to big: %r %r" % (input.typ, typ))
             if arg.id in context.vars:
-                size = context.vars[arg.id].size
+                size = input.typ.maxlen
                 holder.append(LLLnode.from_list(['mstore', placeholder, byte_array_to_num(parse_expr(arg, context), arg, 'num256', size)], typ=typ, location='memory'))
     elif isinstance(typ, ListType):
             maxlen += (typ.count - 1) * 32
