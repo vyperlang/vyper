@@ -135,6 +135,8 @@ class Stmt(object):
             if self.stmt.func.attr not in self.context.sigs['self']:
                 raise VariableDeclarationException("Event not declared yet: %s" % self.stmt.func.attr)
             event = self.context.sigs['self'][self.stmt.func.attr]
+            if len(event.indexed_list) != len(self.stmt.args):
+                raise VariableDeclarationException("%s received %s arguments but expected %s" % (event.name, len(self.stmt.args), len(event.indexed_list)))
             topics_types, topics = [], []
             data_types, data = [], []
             for pos, is_indexed in enumerate(event.indexed_list):
