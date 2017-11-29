@@ -47,7 +47,7 @@ Note that not all programs that satisfy the following are valid; for example, th
     defs = <def> <def> ...
     def = <0 or more decorators> def <funname>(<argname>: <type>, <argname>: <type>...): <body>
         OR <0 or more decorators> def <funname>(<argname>: <type>, <argname>: <type>...) -> <type>: <body>
-    decorator = @constant OR @payable OR @internal
+    decorator = @constant OR @payable OR @private OR @public
     argname = <str>
     body = <stmt> <stmt> ...
     stmt = <varname> = <type>
@@ -151,14 +151,14 @@ deadline: timestamp
 goal: wei_value
 refundIndex: num
 timelimit: timedelta
-    
+
 # Setup global variables
 def __init__(_beneficiary: address, _goal: wei_value, _timelimit: timedelta):
     self.beneficiary = _beneficiary
     self.deadline = block.timestamp + _timelimit
     self.timelimit = _timelimit
     self.goal = _goal
-    
+
 # Participate in this crowdfunding campaign
 @payable
 def participate():
@@ -166,12 +166,12 @@ def participate():
     nfi = self.nextFunderIndex
     self.funders[nfi] = {sender: msg.sender, value: msg.value}
     self.nextFunderIndex = nfi + 1
-    
+
 # Enough money was raised! Send funds to the beneficiary
 def finalize():
     assert block.timestamp >= self.deadline and self.balance >= self.goal
     selfdestruct(self.beneficiary)
-    
+
 # Not enough money was raised! Refund everyone (max 30 people at a time
 # to avoid gas limit issues)
 def refund():
@@ -187,10 +187,10 @@ def refund():
 ```
 
 
-# Installation 
-Don't panic if installation fails, Viper is still under development and constant changes. Installation will be much simplified/optimized after a stable version release. 
+# Installation
+Don't panic if installation fails, Viper is still under development and constant changes. Installation will be much simplified/optimized after a stable version release.
 
-Take a deep breath and follow, please create an issue if any errors encountered. 
+Take a deep breath and follow, please create an issue if any errors encountered.
 
 It is **strongly recommended** to install in **a virtual Python environment (normally either `virtualenv` or `venv`)**, so that new packages installed and dependencies built are strictly contained in your viper project and will not alter/affect your other dev environment set-up.
 
@@ -200,7 +200,7 @@ To find out how to set-up virtual environment, check out: [virtualenv guide](htt
 - **Ubuntu (16.04 LTS)**
 1. Package update:
 ```
-sudo apt-get update 
+sudo apt-get update
 sudo apt-get -y upgrade
 ```
 
@@ -229,7 +229,7 @@ source viper/bin/activate
 ```
    To deactivate and return to default environment, (you should see the "(viper)" at the front disappeared.)
 ```
-deactivate 
+deactivate
 ```
 
    *Alternatively*: It is handy to use `pyenv` [https://github.com/pyenv/pyenv] to help manage your Python 3.6.2 or higher when Python releases new version. It works like a python version manager.
@@ -240,7 +240,7 @@ pyenv virtualenv viper
 5. Now, we are talking business, clone this Viper repo and install and test, and Walla!
 ```
 git clone https://github.com/ethereum/viper.git
-cd viper 
+cd viper
 python setup.py install
 python setup.py test
 ```
@@ -251,10 +251,10 @@ python setup.py test
 
 2. Make sure your python is 3.6 or higher. If not, you could checkout [python3 for MacOS guide](http://python-guide.readthedocs.io/en/latest/starting/install3/osx/)
 
-3. Now, go ahead and clone viper repo (not within `pyethereum` folder), and you run install and test, and Walla !! 
+3. Now, go ahead and clone viper repo (not within `pyethereum` folder), and you run install and test, and Walla !!
 ```
 git clone https://github.com/ethereum/viper.git
-cd viper 
+cd viper
 python setup.py install
 python setup.py test
 ```
@@ -264,7 +264,7 @@ If it fails with some error message on `openssl`, do the following:
 env LDFLAGS="-L$(brew --prefix openssl)/lib" CFLAGS="-I$(brew --prefix openssl)/include" pip install scrypt
 ```
 
-# Compile 
+# Compile
 To compile your file, use:
 ```
 viper yourFileName.v.py

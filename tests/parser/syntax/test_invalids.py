@@ -160,7 +160,7 @@ def foo() -> num:
 
 must_succeed("""
 x: num
-@internal
+@private
 def foo() -> num:
     self.x = 5
 """)
