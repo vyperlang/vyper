@@ -1,6 +1,6 @@
 import pytest
 from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation, get_contract, assert_tx_failed
+    get_contract_with_gas_estimation, get_contract, assert_tx_failed, get_last_log
 from viper.exceptions import VariableDeclarationException, TypeMismatchException, StructureException
 
 
@@ -448,3 +448,32 @@ def ioo(inp: bytes <= 100):
     c.ioo(b"moo4")
     assert s.head_state.receipts[-1].logs[0].data == b'moo4'
     print("Passed raw log tests")
+
+
+def test_variable_list_packing(get_last_log):
+    code = """
+Bar: __log__({_value: num[4]})
+
+@public
+def foo():
+    a = [1, 2, 3, 4]
+    log.Bar(a)
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    c.foo()
+    assert get_last_log(t, c)["_value"] == [1, 2, 3, 4]
+
+
+def test_literal_list_packing(get_last_log):
+    code = """
+Bar: __log__({_value: num[4]})
+
+@public
+def foo():
+    log.Bar([1, 2, 3, 4])
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    c.foo()
+    assert get_last_log(t, c)["_value"] == [1, 2, 3, 4]
