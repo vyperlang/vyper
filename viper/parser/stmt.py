@@ -137,17 +137,17 @@ class Stmt(object):
             event = self.context.sigs['self'][self.stmt.func.attr]
             if len(event.indexed_list) != len(self.stmt.args):
                 raise VariableDeclarationException("%s received %s arguments but expected %s" % (event.name, len(self.stmt.args), len(event.indexed_list)))
-            topics_types, topics = [], []
-            data_types, data = [], []
+            expected_topics, topics = [], []
+            expected_data, data = [], []
             for pos, is_indexed in enumerate(event.indexed_list):
                 if is_indexed:
-                    topics_types.append(event.args[pos].typ)
+                    expected_topics.append(event.args[pos])
                     topics.append(self.stmt.args[pos])
                 else:
-                    data_types.append(event.args[pos].typ)
+                    expected_data.append(event.args[pos])
                     data.append(self.stmt.args[pos])
-            topics = pack_logging_topics(event.event_id, topics, topics_types, self.context)
-            inargs, inargsize, inarg_start = pack_logging_data(data_types, data, self.context)
+            topics = pack_logging_topics(event.event_id, topics, expected_topics, self.context)
+            inargs, inargsize, inarg_start = pack_logging_data(expected_data, data, self.context)
             return LLLnode.from_list(['seq', inargs, ["log" + str(len(topics)), inarg_start, inargsize] + topics], typ=None, pos=getpos(self.stmt))
         else:
             raise StructureException("Unsupported operator: %r" % ast.dump(self.stmt), self.stmt)
