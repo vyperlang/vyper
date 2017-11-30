@@ -313,7 +313,7 @@ def mk_full_signature(code):
         o.append(sig.to_abi_dict())
     for code in _defs:
         sig = FunctionSignature.from_definition(code)
-        if not sig.internal:
+        if not sig.private:
             o.append(sig.to_abi_dict())
     return o
 
@@ -445,7 +445,7 @@ def parse_func(code, _globals, sigs, origcode, _vars=None):
     # Add asserts for payable and internal
     if not sig.payable:
         clampers.append(['assert', ['iszero', 'callvalue']])
-    if sig.internal:
+    if sig.private:
         clampers.append(['assert', ['eq', 'caller', 'address']])
     # Fill in variable positions
     for arg in sig.args:

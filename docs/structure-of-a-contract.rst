@@ -41,7 +41,7 @@ Functions are the executable units of code within a contract.
 
 :ref:`function-calls` can happen internally or externally
 and have different levels of visibility (:ref:`visibility-and-getters`)
-towards other contracts. Functions must be decorated with either @public or @internal.
+towards other contracts. Functions must be decorated with either @public or @private.
 
 .. _structure-events:
 
