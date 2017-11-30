@@ -106,14 +106,6 @@ def bar():
 def test_event_logging_cannot_have_more_than_three_topics(assert_tx_failed):
     loggy_code = """
 MyLog: __log__({arg1: indexed(bytes <= 3), arg2: indexed(bytes <= 4), arg3: indexed(address), arg4: indexed(num)})
-
-Transfer: __log__({_from: indexed(num), _to: indexed(num), _value: num})
-
-@public
-def foo():
-    log.Transfer(1, 2, 3, 4, 5, 6, 7, 8, 9 ,10)@public
-def foo():
-    log.MyLog('bar', 'home', self)
     """
 
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
@@ -187,7 +179,7 @@ def foo(arg1: bytes <= 29, arg2: bytes <= 31):
     # # Event abi is created correctly
     assert c.translator.event_data[event_id] == {'types': ['bytes4', 'bytes29', 'bytes31'], 'name': 'MyLog', 'names': ['arg1', 'arg2', 'arg3'], 'indexed': [True, True, False], 'anonymous': False}
     # Event is decoded correctly
-    assert c.translator.decode_event(logs.topics, logs.data) ==  {'arg1': b'bar\x00', 'arg2': bytes_helper('bar', 29), 'arg3': bytes_helper('', 28) + b'foo', '_event_type': b'MyLog'}
+    assert c.translator.decode_event(logs.topics, logs.data) ==  {'arg1': b'bar\x00', 'arg2': bytes_helper('bar', 29), 'arg3': bytes_helper('foo', 31), '_event_type': b'MyLog'}
 
 
 def test_event_logging_with_bytes_input_2(t, bytes_helper):
@@ -199,7 +191,7 @@ def foo(_arg1: bytes <= 20):
     log.MyLog(_arg1)
     """
 
-    c = get_contract(loggy_code)
+    c = get_contract_with_gas_estimation(loggy_code)
     c.foo('hello')
     logs = s.head_state.receipts[-1].logs[-1]
     event_id = u.bytes_to_int(u.sha3(bytes('MyLog(bytes20)', 'utf-8')))
@@ -210,7 +202,7 @@ def foo(_arg1: bytes <= 20):
     # Event abi is created correctly
     assert c.translator.event_data[event_id] == {'types': ['bytes20'], 'name': 'MyLog', 'names': ['arg1'], 'indexed': [False], 'anonymous': False}
     # Event is decoded correctly
-    assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': bytes_helper('', 15) + b'hello', '_event_type': b'MyLog'}
+    assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': bytes_helper('hello', 20), '_event_type': b'MyLog'}
 
 
 def test_event_logging_with_bytes_input_3(bytes_helper):
