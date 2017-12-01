@@ -477,3 +477,31 @@ def foo():
 
     c.foo()
     assert get_last_log(t, c)["_value"] == [1, 2, 3, 4]
+
+
+def test_passed_list_packing(get_last_log):
+    code = """
+Bar: __log__({_value: num[4]})
+
+@public
+def foo(barbaric: num[4]):
+    log.Bar(barbaric)
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    c.foo([4, 5, 6, 7])
+    assert get_last_log(t, c)["_value"] == [4, 5, 6, 7]
+
+
+def test_variable_decimal_list_packing(get_last_log):
+    code = """
+Bar: __log__({_value: decimal[4]})
+
+@public
+def foo():
+    log.Bar([1.11, 2.22, 3.33, 4.44])
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    c.foo()
+    assert get_last_log(t, c)["_value"] == [1.11, 2.22, 3.33, 4.44]
