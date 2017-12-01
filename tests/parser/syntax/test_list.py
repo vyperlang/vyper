@@ -109,6 +109,20 @@ b: num[5]
 def foo():
     x = self.b[0].cow
     """,
+    """
+@public
+def foo()->bool[2]:
+    a: decimal[2]
+    a[0] = 1
+    return a
+    """,
+    """
+@public
+def foo()->bool[2]:
+    a: bool[1000]
+    a[0] = 1
+    return a
+    """
 ]
 
 
