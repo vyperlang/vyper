@@ -91,6 +91,14 @@ def foo():
 @public
 def foo():
     x = as_num256(3.1415)
+    """,
+    """
+# Test decimal limit.
+a:decimal
+
+@public
+def foo():
+    self.a = 170141183460469231731687303715884105727.888
     """
 ]
 
