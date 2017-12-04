@@ -697,9 +697,19 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder):
     elif isinstance(typ, ListType):
             maxlen += (typ.count - 1) * 32
             typ = typ.subtype
-            holder, maxlen = pack_args_by_32(holder, maxlen, arg.elts[0], typ, context, placeholder)
-            for j, arg2 in enumerate(arg.elts[1:]):
-                holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, context.new_placeholder(BaseType(32)))
+
+            if isinstance(arg, ast.Name):
+                size = context.vars[arg.id].size
+                pos = context.vars[arg.id].pos
+                for i in range(0, size):
+                    offset = 32 * i
+                    arg2 = LLLnode.from_list(pos + offset, typ=typ, location='memory')
+                    holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, context.new_placeholder(BaseType(32)))
+            else:  # is list literal.
+                holder, maxlen = pack_args_by_32(holder, maxlen, arg.elts[0], typ, context, placeholder)
+                for j, arg2 in enumerate(arg.elts[1:]):
+                    holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, context.new_placeholder(BaseType(32)))
+
     return holder, maxlen
 
 
