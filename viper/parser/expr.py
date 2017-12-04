@@ -84,7 +84,7 @@ class Expr(object):
             return LLLnode.from_list(self.expr.n, typ=BaseType('num', None), pos=getpos(self.expr))
         elif isinstance(self.expr.n, float):
             numstring, num, den = get_number_as_fraction(self.expr, self.context)
-            if not (-2**127 * den < num < 2**127 * den):
+            if not (SizeLimits.MINNUM * den < num < SizeLimits.MAXNUM * den):
                 raise InvalidLiteralException("Number out of range: " + numstring, self.expr)
             if DECIMAL_DIVISOR % den:
                 raise InvalidLiteralException("Too many decimal places: " + numstring, self.expr)
