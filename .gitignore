@@ -29,3 +29,5 @@ htmlcov/
 docs/_build
 docs/modules.rst
 
+# IDEs
+.idea/
