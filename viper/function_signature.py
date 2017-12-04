@@ -34,13 +34,13 @@ class VariableRecord():
 
 # Function signature object
 class FunctionSignature():
-    def __init__(self, name, args, output_type, const, payable, internal, sig, method_id):
+    def __init__(self, name, args, output_type, const, payable, private, sig, method_id):
         self.name = name
         self.args = args
         self.output_type = output_type
         self.const = const
         self.payable = payable
-        self.internal = internal
+        self.private = private
         self.sig = sig
         self.method_id = method_id
         self.gas = None
@@ -70,22 +70,22 @@ class FunctionSignature():
                 pos += get_size_of_type(parsed_type) * 32
 
         # Apply decorators
-        const, payable, internal, public = False, False, False, False
+        const, payable, private, public = False, False, False, False
         for dec in code.decorator_list:
             if isinstance(dec, ast.Name) and dec.id == "constant":
                 const = True
             elif isinstance(dec, ast.Name) and dec.id == "payable":
                 payable = True
-            elif isinstance(dec, ast.Name) and dec.id == "internal":
-                internal = True
+            elif isinstance(dec, ast.Name) and dec.id == "private":
+                private = True
             elif isinstance(dec, ast.Name) and dec.id == "public":
                 public = True
             else:
                 raise StructureException("Bad decorator", dec)
-        if public and internal:
-            raise StructureException("Cannot use public and internal decorators on the same function")
-        if not public and not internal and not isinstance(code.body[0], ast.Pass):
-            raise StructureException("Function visibility must be declared (@public or @internal)", code)
+        if public and private:
+            raise StructureException("Cannot use public and private decorators on the same function", code)
+        if not public and not private and not isinstance(code.body[0], ast.Pass):
+            raise StructureException("Function visibility must be declared (@public or @private)", code)
         # Determine the return type and whether or not it's constant. Expects something
         # of the form:
         # def foo(): ...
@@ -105,7 +105,7 @@ class FunctionSignature():
         sig = name + '(' + ','.join([canonicalize_type(parse_type(arg.annotation, None)) for arg in code.args.args]) + ')'
         # Take the first 4 bytes of the hash of the sig to get the method ID
         method_id = fourbytes_to_int(sha3(bytes(sig, 'utf-8'))[:4])
-        return cls(name, args, output_type, const, payable, internal, sig, method_id)
+        return cls(name, args, output_type, const, payable, private, sig, method_id)
 
     def _generate_output_abi(self):
         t = self.output_type

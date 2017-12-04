@@ -313,7 +313,7 @@ def mk_full_signature(code):
         o.append(sig.to_abi_dict())
     for code in _defs:
         sig = FunctionSignature.from_definition(code)
-        if not sig.internal:
+        if not sig.private:
             o.append(sig.to_abi_dict())
     return o
 
@@ -445,7 +445,7 @@ def parse_func(code, _globals, sigs, origcode, _vars=None):
     # Add asserts for payable and internal
     if not sig.payable:
         clampers.append(['assert', ['iszero', 'callvalue']])
-    if sig.internal:
+    if sig.private:
         clampers.append(['assert', ['eq', 'caller', 'address']])
     # Fill in variable positions
     for arg in sig.args:
@@ -645,14 +645,15 @@ def parse_stmt(stmt, context):
     return Stmt(stmt, context).lll_node
 
 
-def pack_logging_topics(event_id, args, topics_types, context):
+def pack_logging_topics(event_id, args, expected_topics, context):
     topics = [event_id]
-    for pos, typ in enumerate(topics_types):
+    for pos, expected_topic in enumerate(expected_topics):
+        typ = expected_topic.typ
         arg = args[pos]
-        input = parse_expr(arg, context)
+        value = parse_expr(arg, context)
         if isinstance(typ, ByteArrayType) and (isinstance(arg, ast.Str) or (isinstance(arg, ast.Name) and arg.id not in reserved_words)):
-            if input.typ.maxlen > typ.maxlen:
-                raise TypeMismatchException("Topic input bytes are to big: %r %r" % (input.typ, typ))
+            if value.typ.maxlen > typ.maxlen:
+                raise TypeMismatchException("Topic input bytes are to big: %r %r" % (value.typ, typ))
             if isinstance(arg, ast.Str):
                 bytez, bytez_length = string_to_bytes(arg.s)
                 if len(bytez) > 32:
@@ -660,19 +661,19 @@ def pack_logging_topics(event_id, args, topics_types, context):
                 topics.append(bytes_to_int(bytez + b'\x00' * (32 - bytez_length)))
             else:
                 size = context.vars[arg.id].size
-                topics.append(byte_array_to_num(input, arg, 'num256', size))
+                topics.append(byte_array_to_num(value, arg, 'num256', size))
         else:
-            input = unwrap_location(input)
-            input = base_type_conversion(input, input.typ, typ, arg)
-            topics.append(input)
+            value = unwrap_location(value)
+            value = base_type_conversion(value, value.typ, typ)
+            topics.append(value)
     return topics
 
 
 def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder):
     if isinstance(typ, BaseType):
-        input = parse_expr(arg, context)
-        input = base_type_conversion(input, input.typ, typ, arg)
-        holder.append(LLLnode.from_list(['mstore', placeholder, input], typ=typ, location='memory'))
+        value = parse_expr(arg, context)
+        value = base_type_conversion(value, value.typ, typ)
+        holder.append(LLLnode.from_list(['mstore', placeholder, value], typ=typ, location='memory'))
     elif isinstance(typ, ByteArrayType):
         bytez = b''
         # String literals
@@ -689,12 +690,10 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder):
             holder.append(LLLnode.from_list(['mstore', placeholder, bytes_to_int(bytez + b'\x00' * (32 - bytez_length))], typ=typ, location='memory'))
         # Variables
         else:
-            input = parse_expr(arg, context)
-            if input.typ.maxlen > typ.maxlen:
-                raise TypeMismatchException("Data input bytes are to big: %r %r" % (input.typ, typ))
-            if arg.id in context.vars:
-                size = context.vars[arg.id].size
-                holder.append(LLLnode.from_list(['mstore', placeholder, byte_array_to_num(parse_expr(arg, context), arg, 'num256', size)], typ=typ, location='memory'))
+            value = parse_expr(arg, context)
+            if value.typ.maxlen > typ.maxlen:
+                raise TypeMismatchException("Data input bytes are to big: %r %r" % (value.typ, typ))
+            holder.append(LLLnode.from_list(['mstore', placeholder, ['mload', ['add', value, 32]]], typ=typ, location='memory'))
     elif isinstance(typ, ListType):
             maxlen += (typ.count - 1) * 32
             typ = typ.subtype
@@ -715,13 +714,14 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder):
 
 
 # Pack logging data arguments
-def pack_logging_data(types, args, context):
+def pack_logging_data(expected_data, args, context):
     # Checks to see if there's any data
     if not args:
         return ['seq'], 0, 0
     holder = ['seq']
     maxlen = len(args) * 32
-    for i, (arg, typ) in enumerate(zip(args, types)):
+    for i, (arg, data) in enumerate(zip(args, expected_data)):
+        typ = data.typ
         holder, maxlen = pack_args_by_32(holder, maxlen, arg, typ, context, context.new_placeholder(BaseType(32)))
     return holder, maxlen, holder[1].to_list()[1][0]
 

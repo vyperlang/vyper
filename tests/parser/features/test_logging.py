@@ -106,10 +106,6 @@ def bar():
 def test_event_logging_cannot_have_more_than_three_topics(assert_tx_failed):
     loggy_code = """
 MyLog: __log__({arg1: indexed(bytes <= 3), arg2: indexed(bytes <= 4), arg3: indexed(address), arg4: indexed(num)})
-
-@public
-def foo():
-    log.MyLog('bar', 'home', self)
     """
 
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
@@ -163,7 +159,7 @@ def foo():
     assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': [1, 2], 'arg2': [timestamp, timestamp + 1, timestamp + 2], 'arg3': [[1, 2], [1, 2]], '_event_type': b'MyLog'}
 
 
-def test_logging_with_input_bytes(bytes_helper):
+def test_logging_with_input_bytes_1(bytes_helper):
     loggy_code = """
 MyLog: __log__({arg1: indexed(bytes <= 4), arg2: indexed(bytes <= 29), arg3: bytes<=31})
 
@@ -171,6 +167,7 @@ MyLog: __log__({arg1: indexed(bytes <= 4), arg2: indexed(bytes <= 29), arg3: byt
 def foo(arg1: bytes <= 29, arg2: bytes <= 31):
     log.MyLog('bar', arg1, arg2)
 """
+
     c = get_contract_with_gas_estimation(loggy_code)
     c.foo('bar', 'foo')
     logs = s.head_state.receipts[-1].logs[-1]
@@ -183,6 +180,52 @@ def foo(arg1: bytes <= 29, arg2: bytes <= 31):
     assert c.translator.event_data[event_id] == {'types': ['bytes4', 'bytes29', 'bytes31'], 'name': 'MyLog', 'names': ['arg1', 'arg2', 'arg3'], 'indexed': [True, True, False], 'anonymous': False}
     # Event is decoded correctly
     assert c.translator.decode_event(logs.topics, logs.data) ==  {'arg1': b'bar\x00', 'arg2': bytes_helper('bar', 29), 'arg3': bytes_helper('foo', 31), '_event_type': b'MyLog'}
+
+
+def test_event_logging_with_bytes_input_2(t, bytes_helper):
+    loggy_code = """
+MyLog: __log__({arg1: bytes <= 20})
+
+@public
+def foo(_arg1: bytes <= 20):
+    log.MyLog(_arg1)
+    """
+
+    c = get_contract_with_gas_estimation(loggy_code)
+    c.foo('hello')
+    logs = s.head_state.receipts[-1].logs[-1]
+    event_id = u.bytes_to_int(u.sha3(bytes('MyLog(bytes20)', 'utf-8')))
+    # Event id is always the first topic
+    assert logs.topics[0] == event_id
+    # Event id is calculated correctly
+    assert c.translator.event_data[event_id]
+    # Event abi is created correctly
+    assert c.translator.event_data[event_id] == {'types': ['bytes20'], 'name': 'MyLog', 'names': ['arg1'], 'indexed': [False], 'anonymous': False}
+    # Event is decoded correctly
+    assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': bytes_helper('hello', 20), '_event_type': b'MyLog'}
+
+
+def test_event_logging_with_bytes_input_3(bytes_helper):
+    loggy_code = """
+MyLog: __log__({arg1: bytes <= 5})
+
+@public
+def foo(_arg1: bytes <= 5):
+    log.MyLog(_arg1)
+    """
+
+    c = get_contract(loggy_code)
+    c.foo('hello')
+    logs = s.head_state.receipts[-1].logs[-1]
+    event_id = u.bytes_to_int(u.sha3(bytes('MyLog(bytes5)', 'utf-8')))
+    # Event id is always the first topic
+    assert logs.topics[0] == event_id
+    # Event id is calculated correctly
+    assert c.translator.event_data[event_id]
+    # Event abi is created correctly
+    assert c.translator.event_data[event_id] == {'types': ['bytes5'], 'name': 'MyLog', 'names': ['arg1'], 'indexed': [False], 'anonymous': False}
+    # Event is decoded correctly
+    assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': b'hello', '_event_type': b'MyLog'}
 
 
 def test_event_logging_with_data_with_different_types():
@@ -208,7 +251,7 @@ def foo():
     assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': 123, 'arg2': b'home', 'arg3': b'bar', 'arg4': '0xc305c901078781c232a2a521c2af7980f8385ee9', 'arg5': '0x' + c.address.hex(), 'arg6': s.head_state.timestamp, '_event_type': b'MyLog'}
 
 
-def test_event_logging_with_topics_and_data():
+def test_event_logging_with_topics_and_data_1():
     loggy_code = """
 MyLog: __log__({arg1: indexed(num), arg2: bytes <= 3})
 
@@ -404,15 +447,35 @@ MyLog: __log__({arg1: bytes <= 3})
 
 def test_logging_fails_after_a_function_declaration(assert_tx_failed):
     loggy_code = """
-
 @public
 def foo():
     pass
 
 MyLog: __log__({arg1: bytes <= 3})
     """
-    t.s = s
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), StructureException)
+
+
+def test_logging_fails_when_number_of_arguments_is_greater_than_declaration(assert_tx_failed):
+    loggy_code = """
+MyLog: __log__({arg1: num})
+
+@public
+def foo():
+    log.MyLog(1, 2)
+"""
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
+
+
+def test_logging_fails_when_number_of_arguments_is_less_than_declaration(assert_tx_failed):
+    loggy_code = """
+MyLog: __log__({arg1: num, arg2: num})
+
+@public
+def foo():
+    log.MyLog(1)
+"""
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
 
 
 def test_loggy_code():
