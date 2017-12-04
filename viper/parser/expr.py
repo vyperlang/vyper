@@ -285,6 +285,8 @@ class Expr(object):
         elif isinstance(self.expr.op, ast.Pow):
             if left.typ.positional or right.typ.positional:
                 raise TypeMismatchException("Cannot use positional values as exponential arguments!", self.expr)
+            if right.typ.unit:
+                raise TypeMismatchException("Cannot use unit values as exponents", self.expr)
             new_unit = combine_units(left.typ.unit, right.typ.unit)
             if ltyp == rtyp == 'num':
                 o = LLLnode.from_list(['exp', left, right], typ=BaseType('num', new_unit), pos=getpos(self.expr))
