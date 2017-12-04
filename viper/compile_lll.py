@@ -27,6 +27,15 @@ def is_symbol(i):
     return isinstance(i, str) and i[:5] == '_sym_'
 
 
+def get_revert():
+    o = []
+    end_symbol = mksymbol()
+    o.extend([end_symbol, 'JUMPI'])
+    o.extend(['PUSH1', 0, 'DUP1', 'REVERT'])
+    o.extend([end_symbol, 'JUMPDEST'])
+    return o
+
+
 # Compiles LLL to assembly
 def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
     if withargs is None:
@@ -155,10 +164,7 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
     # Assert (if false, exit)
     elif code.value == 'assert':
         o = compile_to_assembly(code.args[0], withargs, break_dest, height)
-        end_symbol = mksymbol()
-        o.extend([end_symbol, 'JUMPI'])
-        o.extend(['PUSH1', 0, 'DUP1', 'REVERT'])
-        o.extend([end_symbol, 'JUMPDEST'])
+        o.extend(get_revert())
         return o
     # Unsigned/signed clamp, check less-than
     elif code.value in ('uclamplt', 'uclample', 'clamplt', 'clample', 'uclampgt', 'uclampge', 'clampgt', 'clampge'):
@@ -176,22 +182,22 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
         o.extend(['DUP2'])
         # Stack: num num bound
         if code.value == 'uclamplt':
-            o.extend(["LT", 'ISZERO'])
+            o.extend(['LT'])
         elif code.value == "clamplt":
-            o.extend(["SLT", 'ISZERO'])
+            o.extend(['SLT'])
         elif code.value == "uclample":
-            o.extend(["GT"])
+            o.extend(['GT', 'ISZERO'])
         elif code.value == "clample":
-            o.extend(["SGT"])
+            o.extend(['SGT', 'ISZERO'])
         elif code.value == 'uclampgt':
-            o.extend(["GT", 'ISZERO'])
+            o.extend(['GT'])
         elif code.value == "clampgt":
-            o.extend(["SGT", 'ISZERO'])
+            o.extend(['SGT'])
         elif code.value == "uclampge":
-            o.extend(["LT"])
+            o.extend(['LT', 'ISZERO'])
         elif code.value == "clampge":
-            o.extend(["SLT"])
-        o.extend(['PC', 'JUMPI'])
+            o.extend(['SLT', 'ISZERO'])
+        o.extend(get_revert())
         return o
     # Signed clamp, check against upper and lower bounds
     elif code.value in ('clamp', 'uclamp'):
@@ -202,12 +208,14 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
         o.extend(['DUP1'])
         o.extend(compile_to_assembly(code.args[2], withargs, break_dest, height + 3))
         o.extend(['SWAP1', comp1, 'PC', 'JUMPI'])
-        o.extend(['DUP1', 'SWAP2', 'SWAP1', comp2, 'PC', 'JUMPI'])
+        o.extend(['DUP1', 'SWAP2', 'SWAP1', comp2, 'ISZERO'])
+        o.extend(get_revert())
         return o
     # Checks that a value is nonzero
     elif code.value == 'clamp_nonzero':
         o = compile_to_assembly(code.args[0], withargs, break_dest, height)
-        o.extend(['DUP1', 'ISZERO', 'PC', 'JUMPI'])
+        o.extend(['DUP1'])
+        o.extend(get_revert())
         return o
     # SHA3 a single value
     elif code.value == 'sha3_32':
