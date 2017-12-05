@@ -465,7 +465,13 @@ class Expr(object):
             return external_contract_call_expr(self.expr, self.context, contract_name, contract_address)
         elif isinstance(self.expr.func.value, ast.Attribute) and self.expr.func.value.attr in self.context.sigs:
             contract_name = self.expr.func.value.attr
-            contract_address = Expr.parse_value_expr(ast.parse('self.token_address').body[0].value, self.context)
+            var = self.context.globals[self.expr.func.value.attr]
+            contract_address = unwrap_location(LLLnode.from_list(var.pos, typ=var.typ, location='storage', pos=getpos(self.expr), annotation='self.' + self.expr.func.value.attr))
+            return external_contract_call_expr(self.expr, self.context, contract_name, contract_address)
+        elif isinstance(self.expr.func.value, ast.Attribute) and self.expr.func.value.attr in self.context.globals:
+            contract_name = self.context.globals[self.expr.func.value.attr].typ.unit
+            var = self.context.globals[self.expr.func.value.attr]
+            contract_address = unwrap_location(LLLnode.from_list(var.pos, typ=var.typ, location='storage', pos=getpos(self.expr), annotation='self.' + self.expr.func.value.attr))
             return external_contract_call_expr(self.expr, self.context, contract_name, contract_address)
         else:
             raise StructureException("Unsupported operator: %r" % ast.dump(self.expr), self.expr)

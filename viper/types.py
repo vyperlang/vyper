@@ -14,6 +14,8 @@ from .utils import (
 def print_unit(unit):
     if unit is None:
         return '*'
+    if not isinstance(unit, dict):
+        return unit
     pos = ''
     for k in sorted([x for x in unit.keys() if unit[x] > 0]):
         if unit[k] > 1:
@@ -239,7 +241,7 @@ def parse_unit(item):
 
 # Parses an expression representing a type. Annotation refers to whether
 # the type is to be located in memory or storage
-def parse_type(item, location):
+def parse_type(item, location, sigs={}):
     # Base types, eg. num
     if isinstance(item, ast.Name):
         if item.id in base_types:
@@ -248,13 +250,19 @@ def parse_type(item, location):
             return special_types[item.id]
         else:
             raise InvalidTypeException("Invalid base type: " + item.id, item)
-    # Units, eg. num (1/sec)
+    # Units, eg. num (1/sec) or contracts
     elif isinstance(item, ast.Call):
+        # Contract_types
+        if item.func.id == 'contract' or item.func.id == 'address':
+            if sigs and item.args[0].id in sigs:
+                return BaseType('address', item.args[0].id)
+            else:
+                raise InvalidTypeException('Invalid contract declaration')
         if not isinstance(item.func, ast.Name):
             raise InvalidTypeException("Malformed unit type:", item)
         base_type = item.func.id
         if base_type not in ('num', 'decimal'):
-            raise InvalidTypeException("Base type with units can only be num and decimal", item)
+            raise InvalidTypeException("Base type with units can only be num, decimal", item)
         if len(item.args) == 0:
             raise InvalidTypeException("Malformed unit type", item)
         if isinstance(item.args[-1], ast.Name) and item.args[-1].id == "positional":

@@ -200,10 +200,15 @@ def add_globals_and_events(_contracts, _defs, _events, _getters, _globals, item)
         premade_contract = premade_contracts[item.annotation.args[0].id]
         _contracts[item.target.id] = add_contract(premade_contract.body)
         _globals[item.target.id] = VariableRecord(item.target.id, len(_globals), BaseType('address'), True)
+    elif isinstance(item, ast.AnnAssign) and isinstance(item.annotation, ast.Name) and item.annotation.id in _contracts:
+        _globals[item.target.id] = VariableRecord(item.target.id, len(_globals), BaseType('address', item.annotation.id), True)
     elif isinstance(item.annotation, ast.Call) and item.annotation.func.id == "public":
         if len(item.annotation.args) != 1:
             raise StructureException("Public expects one arg (the type)")
-        typ = parse_type(item.annotation.args[0], 'storage')
+        if isinstance(item.annotation.args[0], ast.Name) and item.annotation.args[0].id in _contracts:
+            typ = BaseType('address', item.annotation.args[0].id)
+        else:
+            typ = parse_type(item.annotation.args[0], 'storage')
         _globals[item.target.id] = VariableRecord(item.target.id, len(_globals), typ, True)
         # Adding getters here
         for getter in mk_getter(item.target.id, typ):
@@ -312,7 +317,7 @@ def mk_full_signature(code):
         sig = EventSignature.from_declaration(code)
         o.append(sig.to_abi_dict())
     for code in _defs:
-        sig = FunctionSignature.from_definition(code)
+        sig = FunctionSignature.from_definition(code, _contracts)
         if not sig.private:
             o.append(sig.to_abi_dict())
     return o
@@ -345,7 +350,7 @@ def parse_other_functions(o, otherfuncs, _globals, sigs, external_contracts, ori
         sub.append(parse_func(_def, _globals, {**{'self': sigs}, **external_contracts}, origcode))
         sub[-1].total_gas += add_gas
         add_gas += 30
-        sig = FunctionSignature.from_definition(_def)
+        sig = FunctionSignature.from_definition(_def, external_contracts)
         sig.gas = sub[-1].total_gas
         sigs[sig.name] = sig
     if runtime_only:
@@ -424,7 +429,7 @@ def make_clamper(datapos, mempos, typ, is_init=False):
 def parse_func(code, _globals, sigs, origcode, _vars=None):
     if _vars is None:
         _vars = {}
-    sig = FunctionSignature.from_definition(code)
+    sig = FunctionSignature.from_definition(code, sigs)
     # Check for duplicate variables with globals
     for arg in sig.args:
         if arg.name in _globals:
