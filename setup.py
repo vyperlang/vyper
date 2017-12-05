@@ -23,7 +23,7 @@ setup(
     license=license,
     packages=find_packages(exclude=('tests', 'docs')),
     install_requires=[
-        'ethereum==2.1.0',
+        'ethereum==2.1.3',
         'bumpversion',
         'pytest-cov',
         'pytest-runner', # Must be after pytest-cov or it will not work
