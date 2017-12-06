@@ -39,7 +39,7 @@ def return_hash_of_rzpadded_cow() -> bytes32:
     return self._hashy(0x636f770000000000000000000000000000000000000000000000000000000000)
     """
 
-    c = get_contract(selfcall_code_2)
+    c = get_contract_with_gas_estimation(selfcall_code_2)
     assert c.returnten() == 10
     assert c.return_hash_of_rzpadded_cow() == u.sha3(b'cow' + b'\x00' * 29)
 
@@ -107,7 +107,7 @@ def return_goose2() -> bytes <= 10:
     return self.slicey2(5, "goosedog")
     """
 
-    c = get_contract(selfcall_code_4)
+    c = get_contract_with_gas_estimation(selfcall_code_4)
     assert c.returnten() == 10
     assert c.return_mongoose() == b"mongoose"
     assert c.return_goose() == b"goose"
