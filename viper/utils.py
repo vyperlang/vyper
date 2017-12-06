@@ -120,7 +120,7 @@ valid_units = ['currency', 'wei', 'currency1', 'currency2', 'sec', 'm', 'kg']
 reserved_words = ['int128', 'int256', 'uint256', 'address', 'bytes32',
                   'real', 'real128x128', 'if', 'for', 'while', 'until',
                   'pass', 'def', 'push', 'dup', 'swap', 'send', 'call',
-                  'suicide', 'selfdestruct', 'assert', 'stop', 'throw',
+                  'selfdestruct', 'assert', 'stop', 'throw',
                   'raise', 'init', '_init_', '___init___', '____init____',
                   'true', 'false', 'self', 'this', 'continue', 'ether',
                   'wei', 'finney', 'szabo', 'shannon', 'lovelace', 'ada',

@@ -62,7 +62,7 @@ Note that not all programs that satisfy the following are valid; for example, th
         OR break
         OR return <expr>
         OR send(<expr>, <expr>)
-        OR selfdestruct(<expr>) # suicide(<expr>) is a synonym
+        OR selfdestruct(<expr>)
         OR [other functions, see full list in viper/functions.py]
     var = <varname>
         OR <var>.<membername>
