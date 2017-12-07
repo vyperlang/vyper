@@ -640,3 +640,21 @@ def set_list():
     c.set_list()
     c.foo()
     assert get_last_log(t, c)["_value"] == [1.33, 2.33, 3.33, 4.33]
+
+
+def test_logging_fails_when_declartation_is_too_big(assert_tx_failed):
+    code = """
+Bar: __log__({_value: indexed(bytes <= 33)})
+"""
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(code), VariableDeclarationException)
+
+
+def test_logging_fails_when_input_is_too_big(assert_tx_failed):
+    code = """
+Bar: __log__({_value: indexed(bytes <= 32)})
+
+@public
+def foo(inp: bytes <= 33):
+    log.Bar(inp)
+"""
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatchException)
