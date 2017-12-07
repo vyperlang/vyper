@@ -289,7 +289,7 @@ def concat(expr, context):
     # Memory location of the output
     seq.append(placeholder)
     return LLLnode.from_list(
-        ['with', '_poz', 0, ['seq'] + seq], typ=ByteArrayType(total_maxlen), location='memory', pos=getpos(expr)
+        ['with', '_poz', 0, ['seq'] + seq], typ=ByteArrayType(total_maxlen), location='memory', pos=getpos(expr), annotation='concat'
     )
 
 

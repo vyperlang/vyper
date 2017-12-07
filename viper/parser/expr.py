@@ -444,6 +444,7 @@ class Expr(object):
                 raise VariableDeclarationException("Function not declared yet (reminder: functions cannot "
                                                    "call functions later in code than themselves): %s" % self.expr.func.attr)
             sig = self.context.sigs['self'][self.expr.func.attr]
+            add_gas = self.context.sigs['self'][method_name].gas  # gas of call
             inargs, inargsize = pack_arguments(sig, [Expr(arg, self.context).lll_node for arg in self.expr.args], self.context)
             output_placeholder = self.context.new_placeholder(typ=sig.output_type)
             if isinstance(sig.output_type, BaseType):
@@ -456,7 +457,8 @@ class Expr(object):
                                         ['assert', ['call', ['gas'], ['address'], 0,
                                                         inargs, inargsize,
                                                         output_placeholder, get_size_of_type(sig.output_type) * 32]],
-                                        returner], typ=sig.output_type, location='memory', pos=getpos(self.expr))
+                                        returner], typ=sig.output_type, location='memory',
+                                        pos=getpos(self.expr), add_gas_estimate=add_gas, annotation='Internal Call: %s' % method_name)
             o.gas += sig.gas
             return o
         elif isinstance(self.expr.func, ast.Attribute) and isinstance(self.expr.func.value, ast.Call):
