@@ -130,7 +130,7 @@ def returnten() -> num:
         self.increment()
     return self.counter
     """
-    c = get_contract(selfcall_code_5)
+    c = get_contract_with_gas_estimation(selfcall_code_5)
     assert c.returnten() == 10
 
     print("Passed self-call statement test")
@@ -158,7 +158,7 @@ def return_mongoose_revolution_32_excls() -> bytes <= 201:
     return self.hardtest("megamongoose123", 4, 8, concat("russian revolution", self.excls), 8, 42)
     """
 
-    c = get_contract(selfcall_code_6)
+    c = get_contract_with_gas_estimation(selfcall_code_6)
     assert c.return_mongoose_revolution_32_excls() == b"mongoose_revolution" + b"!" * 32
 
     print("Passed composite self-call test")

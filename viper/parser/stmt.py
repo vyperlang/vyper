@@ -116,14 +116,16 @@ class Stmt(object):
         if isinstance(self.stmt.func, ast.Name) and self.stmt.func.id in stmt_dispatch_table:
                 return stmt_dispatch_table[self.stmt.func.id](self.stmt, self.context)
         elif isinstance(self.stmt.func, ast.Attribute) and isinstance(self.stmt.func.value, ast.Name) and self.stmt.func.value.id == "self":
-            if self.stmt.func.attr not in self.context.sigs['self']:
+            method_name = self.stmt.func.attr
+            if method_name not in self.context.sigs['self']:
                 raise VariableDeclarationException("Function not declared yet (reminder: functions cannot "
                                                     "call functions later in code than themselves): %s" % self.stmt.func.attr)
+            add_gas = self.context.sigs['self'][method_name].gas
             inargs, inargsize = pack_arguments(self.context.sigs['self'][self.stmt.func.attr],
                                                 [Expr(arg, self.context).lll_node for arg in self.stmt.args],
                                                 self.context)
             return LLLnode.from_list(['assert', ['call', ['gas'], ['address'], 0, inargs, inargsize, 0, 0]],
-                                        typ=None, pos=getpos(self.stmt))
+                                        typ=None, pos=getpos(self.stmt), add_gas_estimate=add_gas, annotation='Internal Call: %s' % method_name)
         elif isinstance(self.stmt.func, ast.Attribute) and isinstance(self.stmt.func.value, ast.Call):
             contract_name = self.stmt.func.value.func.id
             contract_address = Expr.parse_value_expr(self.stmt.func.value.args[0], self.context)

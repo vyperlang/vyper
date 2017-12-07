@@ -457,7 +457,8 @@ class Expr(object):
                                         ['assert', ['call', ['gas'], ['address'], 0,
                                                         inargs, inargsize,
                                                         output_placeholder, get_size_of_type(sig.output_type) * 32]],
-                                        returner], typ=sig.output_type, location='memory', pos=getpos(self.expr), add_gas_estimate=add_gas)
+                                        returner], typ=sig.output_type, location='memory',
+                                        pos=getpos(self.expr), add_gas_estimate=add_gas, annotation='Internal Call: %s' % method_name)
             o.gas += sig.gas
             return o
         elif isinstance(self.expr.func, ast.Attribute) and isinstance(self.expr.func.value, ast.Call):
