@@ -39,9 +39,9 @@ class EventSignature():
                     else:
                         raise VariableDeclarationException("Only indexed keyword is allowed", arg)
                 else:
-                    if hasattr(typ, 'left') and typ.left.id == 'bytes' and typ.comparators[0].n > 32:
-                        raise VariableDeclarationException("Can only log a maximum of 32 bytes at a time.")
                     indexed_list.append(False)
+                if hasattr(typ, 'left') and typ.left.id == 'bytes' and typ.comparators[0].n > 32:
+                    raise VariableDeclarationException("Can only log a maximum of 32 bytes at a time.")
                 if topics_count > 4:
                     raise VariableDeclarationException("Maximum of 3 topics {} given".format(topics_count - 1), arg)
                 if not isinstance(arg, str):
