@@ -363,14 +363,7 @@ class Stmt(object):
         elif isinstance(sub.typ, ListType):
             sub_base_type = re.split(r'\(|\[', str(sub.typ.subtype))[0]
             ret_base_type = re.split(r'\(|\[', str(self.context.return_type.subtype))[0]
-            if sub_base_type != ret_base_type and sub.value != 'multi':
-                raise TypeMismatchException(
-                    "List return type %r does not match specified return type, expecting %r" % (
-                        sub_base_type, ret_base_type
-                    ),
-                    self.stmt
-                )
-            if sub.location == "memory" and sub.value != "multi":
+            if sub_base_type == ret_base_type and sub.location == "memory" and sub.value != "multi":
                 return LLLnode.from_list(['return', sub, get_size_of_type(self.context.return_type) * 32],
                                             typ=None, pos=getpos(self.stmt))
             else:
