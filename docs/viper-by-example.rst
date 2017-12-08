@@ -119,10 +119,11 @@ design patterns and features of the Viper language.
 And of course, no smart contract tutorial is complete without a note on
 security.
 
-.. note:: It's always important to keep security in mind when designing a smart
-contract. As any application becomes more complex, the greater the potential for
-introducing new risks. Thus, it's always good practice to keep contracts as
-readable and simple as possible.
+.. note:: 
+  It's always important to keep security in mind when designing a smart
+  contract. As any application becomes more complex, the greater the potential for
+  introducing new risks. Thus, it's always good practice to keep contracts as
+  readable and simple as possible.
 
 Whenever you're ready, let's turn it up a notch in the next example.
 
@@ -314,10 +315,11 @@ period is over and that the balance has reached/passed its set goal. If those
 two conditions pass, the contract calls the ``selfdestruct()`` function and
 sends the collected funds to the beneficiary.
 
-.. note:: Notice that we have access to the total amount sent to the contract by
-calling ``self.balance``, a variable we never explicitly set. Similar to ``msg``
-and ``block``, ``self.balance`` is a built-in variable thats available in all
-Viper contracts.
+.. note:: 
+  Notice that we have access to the total amount sent to the contract by
+  calling ``self.balance``, a variable we never explicitly set. Similar to ``msg``
+  and ``block``, ``self.balance`` is a built-in variable thats available in all
+  Viper contracts.
 
 We can finalize the campaign if all goes well, but what happens if the
 crowdfunding campaign isn't successful? We're going to need a way to refund
