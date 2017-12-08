@@ -21,7 +21,7 @@ Some examples of what Viper does NOT have and why:
 * **Infinite-length loops** - cannot set an upper bound on gas limits, opening the door for gas limit attacks.
 * **Binary fixed point** - decimal fixed point is better, because any decimal fixed point value written as a literal in code has an exact representation, whereas with binary fixed point approximations are often required (eg. 0.2 -> 0.001100110011..., which needs to be truncated), leading to unintuitive results, eg. in python `0.3 + 0.3 + 0.3 + 0.1 != 1`.
 
-Some changes that may be considered after Metropolis when STATICCALL becomes available include:
+Some changes that may be considered after Metropolis when [STATICCALL](https://github.com/ethereum/EIPs/pull/214/files) becomes available include:
 
 * Forbidding state changes after non-static calls unless the address being non-statically called is explicitly marked "trusted". This would reduce risk of re-entrancy attacks.
 * Forbidding "inline" non-static calls, eg. `send(some_address, contract.do_something_and_return_a_weivalue())`, enforcing clear separation between "call to get a response" and "call to do something".
