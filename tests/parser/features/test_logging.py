@@ -542,6 +542,28 @@ def foo():
     assert get_last_log(t, c)["_value"] == [1, 2, 3, 4]
 
 
+def test_storage_list_packing(get_last_log):
+    code = """
+Bar: __log__({_value: num[4]})
+x: num[4]
+
+@public
+def foo():
+    log.Bar(self.x)
+
+@public
+def set_list():
+    self.x = [1, 2, 3, 4]
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    c.foo()
+    assert get_last_log(t, c)["_value"] == [0, 0, 0, 0]
+    c.set_list()
+    c.foo()
+    assert get_last_log(t, c)["_value"] == [1, 2, 3, 4]
+
+
 def test_passed_list_packing(get_last_log):
     code = """
 Bar: __log__({_value: num[4]})

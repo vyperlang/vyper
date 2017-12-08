@@ -703,9 +703,24 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder):
             maxlen += (typ.count - 1) * 32
             typ = typ.subtype
 
-            if isinstance(arg, ast.Name):
+            def check_list_type_match(provided):  # Check list types match.
+                if provided != typ:
+                    raise TypeMismatchException(
+                        "Log list type '%s' does not match provided, expected '%s'" % (provided, typ)
+                    )
+
+            if isinstance(arg, ast.Attribute) and arg.value.id == 'self':  # List from storage
+                stor_list = context.globals[arg.attr]
+                check_list_type_match(stor_list.typ.subtype)
+                size = stor_list.typ.count
+                for offset in range(0, size):
+                    arg2 = LLLnode.from_list(['sload', ['add', ['sha3_32', Expr(arg, context).lll_node], offset]],
+                                             typ=typ)
+                    holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, context.new_placeholder(BaseType(32)))
+            elif isinstance(arg, ast.Name):  # List from variable.
                 size = context.vars[arg.id].size
                 pos = context.vars[arg.id].pos
+                check_list_type_match(context.vars[arg.id].typ.subtype)
                 for i in range(0, size):
                     offset = 32 * i
                     arg2 = LLLnode.from_list(pos + offset, typ=typ, location='memory')
