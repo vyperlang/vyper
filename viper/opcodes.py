@@ -68,7 +68,6 @@ opcodes = {
     'SELFDESTRUCT': [0xff, 1, 0, 25000],
     'STATICCALL': [0xfa, 6, 1, 40],
     'REVERT': [0xfd, 2, 0, 0],
-    'SUICIDE': [0xff, 1, 0, 5000],
     'INVALID': [0xfe, 0, 0, 0],
 }
 

@@ -237,6 +237,13 @@ def foo():
     return 3
 """, TypeMismatchException)
 
+# We disabled these keywords
+# throws AttributeError in this case
+must_fail("""
+@public
+def foo():
+    suicide(msg.sender)
+    """, AttributeError)
 
 @pytest.mark.parametrize('bad_code,exception_type', fail_list)
 def test_compilation_fails_with_exception(bad_code, exception_type):

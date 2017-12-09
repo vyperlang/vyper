@@ -846,7 +846,6 @@ dispatch_table = {
 
 stmt_dispatch_table = {
     'send': send,
-    'suicide': selfdestruct,
     'selfdestruct': selfdestruct,
     'raw_call': raw_call,
     'raw_log': raw_log,
