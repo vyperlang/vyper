@@ -161,7 +161,7 @@ def quz(inp1: bytes <= 40, inp2: bytes <= 45):
     print('Passed string struct test')
 
 
-def test_bytes_to_num_code(get_contract_with_gas_estimation):
+def test_bytes_to_num_code(get_contract_with_gas_estimation, assert_tx_failed):
     bytes_to_num_code = """
 @public
 def foo(x: bytes <= 32) -> num:
@@ -170,32 +170,12 @@ def foo(x: bytes <= 32) -> num:
 
     c = get_contract_with_gas_estimation(bytes_to_num_code)
     assert c.foo(b"") == 0
-    try:
-        c.foo(b"\x00")
-        success = True
-    except:
-        success = False
-    assert not success
+    assert_tx_failed(lambda: c.foo(b"\x00"))
     assert c.foo(b"\x01") == 1
-    try:
-        c.foo(b"\x00\x01")
-        success = True
-    except:
-        success = False
-    assert not success
+    assert_tx_failed(lambda: c.foo(b"\x00\x01"))
     assert c.foo(b"\x01\x00") == 256
     assert c.foo(b"\x01\x00\x00\x00\x01") == 4294967297
     assert c.foo(b"\xff" * 32) == -1
-    try:
-        c.foo(b"\x80" + b"\xff" * 31)
-        success = True
-    except:
-        success = False
-    assert not success
-    try:
-        c.foo(b"\x01" * 33)
-        success = True
-    except:
-        success = False
-    assert not success
+    assert_tx_failed(lambda: c.foo(b"\x80" + b"\xff" * 31))
+    assert_tx_failed(lambda: c.foo(b"\x01" * 33))
     print('Passed bytes_to_num tests')
