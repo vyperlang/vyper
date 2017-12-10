@@ -1,9 +1,4 @@
-import pytest
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation, get_contract
-
-
-def test_multi_setter_test():
+def test_multi_setter_test(get_contract_with_gas_estimation):
     multi_setter_test = """
 foo: num[3]
 bar: num[3][3]
@@ -74,7 +69,7 @@ def jop() -> num:
     print('Passed multi-setter literal test')
 
 
-def test_multi_setter_struct_test():
+def test_multi_setter_struct_test(get_contract_with_gas_estimation):
     multi_setter_struct_test = """
 foo: {foo: num, bar: num}[3]
 z: {foo: num[3], bar: {a: num, b: num}[2]}[2]
@@ -126,7 +121,7 @@ def gop() -> num:
     print('Passed multi-setter struct test')
 
 
-def test_type_converter_setter_test():
+def test_type_converter_setter_test(get_contract_with_gas_estimation):
     type_converter_setter_test = """
 mom: {a: {c: num}[3], b: num}
 non: {a: {c: decimal}[3], b:num}
@@ -150,7 +145,7 @@ def goo() -> num:
     print('Passed type-conversion struct test')
 
 
-def test_composite_setter_test():
+def test_composite_setter_test(get_contract_with_gas_estimation):
     composite_setter_test = """
 mom: {a: {c: num}[3], b:num}
 qoq: {c: num}

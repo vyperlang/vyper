@@ -1,9 +1,7 @@
 import pytest
 
 from ethereum.tools import tester as t
-from ethereum import utils
 
-from tests.setup_transaction_tests import assert_tx_failed, ethereum_utils as u, get_logs
 from viper import compiler
 
 @pytest.fixture
@@ -90,7 +88,7 @@ def test_valuation(tester):
     tester.c.buy_stock(sender=t.k1, value=test_value)
     assert tester.c.debt() == test_value
 
-def test_logs(tester):
+def test_logs(tester, get_logs):
     # Buy is logged
     tester.c.buy_stock(sender=t.k1, value=7 * tester.c.get_price())
     receipt = tester.s.head_state.receipts[-1]

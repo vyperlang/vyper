@@ -1,7 +1,5 @@
-import pytest
 from ethereum.tools import tester as t
 from ethereum import utils
-from tests.setup_transaction_tests import assert_tx_failed
 t.s = t.Chain()
 t.s.head_state.gas_limit = 10**9
 

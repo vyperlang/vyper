@@ -1,9 +1,4 @@
-import pytest
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation, get_contract
-
-
-def test_caller_code():
+def test_caller_code(get_contract_with_gas_estimation):
     caller_code = """
 @public
 def foo() -> bytes <= 7:
@@ -27,7 +22,7 @@ def baz() -> bytes <= 7:
 
 
 
-def test_multiple_levels():
+def test_multiple_levels(get_contract_with_gas_estimation, chain):
     inner_code = """
 @public
 def returnten() -> num:
@@ -53,15 +48,15 @@ def create_and_return_forwarder(inp: address) -> address:
     assert c2.create_and_call_returnten(c.address) == 10
     expected_forwarder_code_mask = b'`.`\x0c`\x009`.`\x00\xf36`\x00`\x007a\x10\x00`\x006`\x00s\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00Z\xf4\x15XWa\x10\x00`\x00\xf3'[12:]
     c3 = c2.create_and_return_forwarder(c.address)
-    assert s.head_state.get_code(c3)[:15] == expected_forwarder_code_mask[:15]
-    assert s.head_state.get_code(c3)[35:] == expected_forwarder_code_mask[35:]
+    assert chain.head_state.get_code(c3)[:15] == expected_forwarder_code_mask[:15]
+    assert chain.head_state.get_code(c3)[35:] == expected_forwarder_code_mask[35:]
 
     print('Passed forwarder test')
     # TODO: This one is special
-    print('Gas consumed: %d' % (s.head_state.receipts[-1].gas_used - s.head_state.receipts[-2].gas_used - s.last_tx.intrinsic_gas_used))
+    print('Gas consumed: %d' % (chain.head_state.receipts[-1].gas_used - chain.head_state.receipts[-2].gas_used - chain.last_tx.intrinsic_gas_used))
 
 
-def test_multiple_levels2():
+def test_multiple_levels2(get_contract_with_gas_estimation):
     inner_code = """
 @public
 def returnten() -> num:

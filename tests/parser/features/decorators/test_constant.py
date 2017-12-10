@@ -1,9 +1,4 @@
-import pytest
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation_for_constants, get_contract
-
-
-def test_constant_test():
+def test_constant_test(get_contract_with_gas_estimation_for_constants):
     constant_test = """
 @public
 @constant

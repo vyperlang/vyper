@@ -1,9 +1,4 @@
-import pytest
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation, get_contract
-
-
-def test_conditional_return_code():
+def test_conditional_return_code(get_contract_with_gas_estimation):
     conditional_return_code = """
 @public
 def foo(i: bool) -> num:

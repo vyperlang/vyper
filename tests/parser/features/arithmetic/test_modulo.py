@@ -1,10 +1,6 @@
-import pytest
 from viper.exceptions import TypeMismatchException
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation, get_contract
 
-
-def test_modulo():
+def test_modulo(get_contract_with_gas_estimation):
     code = """
 @public
 def num_modulo_num() -> num:
@@ -30,7 +26,7 @@ def num_modulo_decimal() -> decimal:
     assert c.num_modulo_decimal() == .5
 
 
-def test_modulo_with_different_units(assert_compile_failed):
+def test_modulo_with_different_units(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
 @public
 def foo(a: currency_value, b: num):
@@ -39,7 +35,7 @@ def foo(a: currency_value, b: num):
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatchException)
 
 
-def test_modulo_with_positional_input(assert_compile_failed):
+def test_modulo_with_positional_input(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
 @public
 def foo(a: num(sec, positional), b: num):
@@ -48,7 +44,7 @@ def foo(a: num(sec, positional), b: num):
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatchException)
 
 
-def test_modulo_with_input_of_zero(assert_tx_failed):
+def test_modulo_with_input_of_zero(assert_tx_failed, get_contract_with_gas_estimation):
     code = """
 @public
 def foo(a: num, b: decimal) -> decimal:

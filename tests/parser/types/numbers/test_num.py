@@ -1,10 +1,7 @@
-import pytest
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation, get_contract, assert_tx_failed
 from viper.exceptions import TypeMismatchException
 
 
-def test_exponents_with_nums():
+def test_exponents_with_nums(get_contract_with_gas_estimation):
     exp_code = """
 @public
 def _num_exp(x: num, y: num) -> num:
@@ -20,7 +17,7 @@ def _num_exp(x: num, y: num) -> num:
     assert c._num_exp(72,19) == 72**19
 
 
-def test_negative_nums(assert_tx_failed):
+def test_negative_nums(t, get_contract_with_gas_estimation, chain):
     negative_nums_code = """
 @public
 def _negative_num() -> num:
@@ -32,12 +29,12 @@ def _negative_exp() -> num:
     """
 
     c = get_contract_with_gas_estimation(negative_nums_code)
-    t.s = s
+    t.s = chain
     assert c._negative_num() == -1
     assert c._negative_exp() == -3
 
 
-def test_exponents_with_units(assert_compile_failed):
+def test_exponents_with_units(get_contract_with_gas_estimation):
     code = """
 @public
 def foo() -> num(wei): 
@@ -53,7 +50,7 @@ def foo() -> num(wei):
     assert c.foo() == 4
 
 
-def test_num_bound(assert_tx_failed):
+def test_num_bound(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     num_bound_code = """
 @public
 def _num(x: num) -> num:
@@ -82,7 +79,7 @@ def _num_min() -> num:
 
     c = get_contract_with_gas_estimation(num_bound_code)
 
-    t.s = s
+    t.s = chain
     NUM_MAX =  2**127 - 1
     NUM_MIN = -2**127
     assert c._num_add(NUM_MAX, 0) == NUM_MAX
@@ -100,7 +97,7 @@ def _num_min() -> num:
     assert c._num_add3(NUM_MAX, -1, 1) == NUM_MAX
 
 
-def test_invalid_unit_exponent(assert_compile_failed):
+def test_invalid_unit_exponent(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
 @public
 def foo():

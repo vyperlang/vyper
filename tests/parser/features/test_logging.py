@@ -1,10 +1,7 @@
-import pytest
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation, get_contract, assert_tx_failed, get_last_log
 from viper.exceptions import VariableDeclarationException, TypeMismatchException, StructureException
 
 
-def test_empy_event_logging():
+def test_empy_event_logging(get_contract_with_gas_estimation, utils, chain):
     loggy_code = """
 MyLog: __log__({})
 
@@ -15,8 +12,8 @@ def foo():
 
     c = get_contract_with_gas_estimation(loggy_code)
     c.foo()
-    logs = s.head_state.receipts[-1].logs[-1]
-    event_id = u.bytes_to_int(u.sha3(bytes('MyLog()', 'utf-8')))
+    logs = chain.head_state.receipts[-1].logs[-1]
+    event_id = utils.bytes_to_int(utils.sha3(bytes('MyLog()', 'utf-8')))
     # Event id is always the first topic
     assert logs.topics[0] == event_id
     # Event id is calculated correctly
@@ -27,7 +24,7 @@ def foo():
     assert c.translator.decode_event(logs.topics, logs.data) == {'_event_type': b'MyLog'}
 
 
-def test_event_logging_with_topics():
+def test_event_logging_with_topics(get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
 MyLog: __log__({arg1: indexed(bytes <= 3)})
 
@@ -38,8 +35,8 @@ def foo():
 
     c = get_contract_with_gas_estimation(loggy_code)
     c.foo()
-    logs = s.head_state.receipts[-1].logs[-1]
-    event_id = u.bytes_to_int(u.sha3(bytes('MyLog(bytes3)', 'utf-8')))
+    logs = chain.head_state.receipts[-1].logs[-1]
+    event_id = utils.bytes_to_int(utils.sha3(bytes('MyLog(bytes3)', 'utf-8')))
     # Event id is always the first topic
     assert logs.topics[0] == event_id
     # Event id is calculated correctly
@@ -50,7 +47,7 @@ def foo():
     assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': b'bar', '_event_type': b'MyLog'}
 
 
-def test_event_logging_with_multiple_topics():
+def test_event_logging_with_multiple_topics(get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
 MyLog: __log__({arg1: indexed(bytes <= 3), arg2: indexed(bytes <= 4), arg3: indexed(address)})
 
@@ -61,8 +58,8 @@ def foo():
 
     c = get_contract_with_gas_estimation(loggy_code)
     c.foo()
-    logs = s.head_state.receipts[-1].logs[-1]
-    event_id = u.bytes_to_int(u.sha3(bytes('MyLog(bytes3,bytes4,address)', 'utf-8')))
+    logs = chain.head_state.receipts[-1].logs[-1]
+    event_id = utils.bytes_to_int(utils.sha3(bytes('MyLog(bytes3,bytes4,address)', 'utf-8')))
     # Event id is always the first topic
     assert logs.topics[0] == event_id
     # Event id is calculated correctly
@@ -73,7 +70,7 @@ def foo():
     assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': b'bar', 'arg2': b'home', 'arg3': '0x'+c.address.hex(), '_event_type': b'MyLog'}
 
 
-def test_logging_the_same_event_multiple_times_with_topics():
+def test_logging_the_same_event_multiple_times_with_topics(get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
 MyLog: __log__({arg1: indexed(num), arg2: indexed(address)})
 
@@ -91,8 +88,8 @@ def bar():
     c = get_contract_with_gas_estimation(loggy_code)
     c.foo()
     c.bar()
-    logs = s.head_state.receipts[-1].logs[-1]
-    event_id = u.bytes_to_int(u.sha3(bytes('MyLog(int128,address)', 'utf-8')))
+    logs = chain.head_state.receipts[-1].logs[-1]
+    event_id = utils.bytes_to_int(utils.sha3(bytes('MyLog(int128,address)', 'utf-8')))
     # Event id is always the first topic
     assert logs.topics[0] == event_id
     # Event id is calculated correctly
@@ -103,7 +100,7 @@ def bar():
     assert c.translator.decode_event(logs.topics, logs.data) == {'_event_type': b'MyLog', 'arg1': 1, 'arg2': '0x' + c.address.hex()}
 
 
-def test_event_logging_cannot_have_more_than_three_topics(assert_tx_failed):
+def test_event_logging_cannot_have_more_than_three_topics(assert_tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
 MyLog: __log__({arg1: indexed(bytes <= 3), arg2: indexed(bytes <= 4), arg3: indexed(address), arg4: indexed(num)})
     """
@@ -111,7 +108,7 @@ MyLog: __log__({arg1: indexed(bytes <= 3), arg2: indexed(bytes <= 4), arg3: inde
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
 
 
-def test_event_logging_with_data():
+def test_event_logging_with_data(get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
 MyLog: __log__({arg1: num})
 
@@ -122,8 +119,8 @@ def foo():
 
     c = get_contract_with_gas_estimation(loggy_code)
     c.foo()
-    logs = s.head_state.receipts[-1].logs[-1]
-    event_id = u.bytes_to_int(u.sha3(bytes('MyLog(int128)', 'utf-8')))
+    logs = chain.head_state.receipts[-1].logs[-1]
+    event_id = utils.bytes_to_int(utils.sha3(bytes('MyLog(int128)', 'utf-8')))
     # Event id is always the first topic
     assert logs.topics[0] == event_id
     # Event id is calculated correctly
@@ -134,7 +131,7 @@ def foo():
     assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': 123, '_event_type': b'MyLog'}
 
 
-def test_event_loggging_with_fixed_array_data():
+def test_event_loggging_with_fixed_array_data(get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
 MyLog: __log__({arg1: num[2], arg2: timestamp[3], arg3: num[2][2]})
 
@@ -146,8 +143,8 @@ def foo():
 
     c = get_contract_with_gas_estimation(loggy_code)
     c.foo()
-    logs = s.head_state.receipts[-1].logs[-1]
-    event_id = u.bytes_to_int(u.sha3(bytes('MyLog(int128[2],int128[3],int128[2][2])', 'utf-8')))
+    logs = chain.head_state.receipts[-1].logs[-1]
+    event_id = utils.bytes_to_int(utils.sha3(bytes('MyLog(int128[2],int128[3],int128[2][2])', 'utf-8')))
     # # Event id is always the first topic
     assert logs.topics[0] == event_id
     # # Event id is calculated correctly
@@ -155,11 +152,11 @@ def foo():
     # # Event abi is created correctly
     assert c.translator.event_data[event_id] == {'types': ['int128[2]', 'int128[3]', 'int128[2][2]'], 'name': 'MyLog', 'names': ['arg1', 'arg2', 'arg3'], 'indexed': [False, False, False], 'anonymous': False}
     # # Event is decoded correctly
-    timestamp = s.head_state.timestamp
+    timestamp = chain.head_state.timestamp
     assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': [1, 2], 'arg2': [timestamp, timestamp + 1, timestamp + 2], 'arg3': [[1, 2], [1, 2]], '_event_type': b'MyLog'}
 
 
-def test_logging_with_input_bytes_1(bytes_helper):
+def test_logging_with_input_bytes_1(bytes_helper, get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
 MyLog: __log__({arg1: indexed(bytes <= 4), arg2: indexed(bytes <= 29), arg3: bytes<=31})
 
@@ -170,8 +167,8 @@ def foo(arg1: bytes <= 29, arg2: bytes <= 31):
 
     c = get_contract_with_gas_estimation(loggy_code)
     c.foo('bar', 'foo')
-    logs = s.head_state.receipts[-1].logs[-1]
-    event_id = u.bytes_to_int(u.sha3(bytes('MyLog(bytes4,bytes29,bytes31)', 'utf-8')))
+    logs = chain.head_state.receipts[-1].logs[-1]
+    event_id = utils.bytes_to_int(utils.sha3(bytes('MyLog(bytes4,bytes29,bytes31)', 'utf-8')))
     # # Event id is always the first topic
     assert logs.topics[0] == event_id
     # # Event id is calculated correctly
@@ -182,7 +179,7 @@ def foo(arg1: bytes <= 29, arg2: bytes <= 31):
     assert c.translator.decode_event(logs.topics, logs.data) ==  {'arg1': b'bar\x00', 'arg2': bytes_helper('bar', 29), 'arg3': bytes_helper('foo', 31), '_event_type': b'MyLog'}
 
 
-def test_event_logging_with_bytes_input_2(t, bytes_helper):
+def test_event_logging_with_bytes_input_2(t, bytes_helper, get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
 MyLog: __log__({arg1: bytes <= 20})
 
@@ -193,8 +190,8 @@ def foo(_arg1: bytes <= 20):
 
     c = get_contract_with_gas_estimation(loggy_code)
     c.foo('hello')
-    logs = s.head_state.receipts[-1].logs[-1]
-    event_id = u.bytes_to_int(u.sha3(bytes('MyLog(bytes20)', 'utf-8')))
+    logs = chain.head_state.receipts[-1].logs[-1]
+    event_id = utils.bytes_to_int(utils.sha3(bytes('MyLog(bytes20)', 'utf-8')))
     # Event id is always the first topic
     assert logs.topics[0] == event_id
     # Event id is calculated correctly
@@ -205,7 +202,7 @@ def foo(_arg1: bytes <= 20):
     assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': bytes_helper('hello', 20), '_event_type': b'MyLog'}
 
 
-def test_event_logging_with_bytes_input_3(bytes_helper):
+def test_event_logging_with_bytes_input_3(get_contract, chain, utils):
     loggy_code = """
 MyLog: __log__({arg1: bytes <= 5})
 
@@ -216,8 +213,8 @@ def foo(_arg1: bytes <= 5):
 
     c = get_contract(loggy_code)
     c.foo('hello')
-    logs = s.head_state.receipts[-1].logs[-1]
-    event_id = u.bytes_to_int(u.sha3(bytes('MyLog(bytes5)', 'utf-8')))
+    logs = chain.head_state.receipts[-1].logs[-1]
+    event_id = utils.bytes_to_int(utils.sha3(bytes('MyLog(bytes5)', 'utf-8')))
     # Event id is always the first topic
     assert logs.topics[0] == event_id
     # Event id is calculated correctly
@@ -228,7 +225,7 @@ def foo(_arg1: bytes <= 5):
     assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': b'hello', '_event_type': b'MyLog'}
 
 
-def test_event_logging_with_data_with_different_types():
+def test_event_logging_with_data_with_different_types(get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
 MyLog: __log__({arg1: num, arg2: bytes <= 4, arg3: bytes <= 3, arg4: address, arg5: address, arg6: timestamp})
 
@@ -239,8 +236,8 @@ def foo():
 
     c = get_contract_with_gas_estimation(loggy_code)
     c.foo()
-    logs = s.head_state.receipts[-1].logs[-1]
-    event_id = u.bytes_to_int(u.sha3(bytes('MyLog(int128,bytes4,bytes3,address,address,int128)', 'utf-8')))
+    logs = chain.head_state.receipts[-1].logs[-1]
+    event_id = utils.bytes_to_int(utils.sha3(bytes('MyLog(int128,bytes4,bytes3,address,address,int128)', 'utf-8')))
     # Event id is always the first topic
     assert logs.topics[0] == event_id
     # Event id is calculated correctly
@@ -248,10 +245,10 @@ def foo():
     # Event abi is created correctly
     assert c.translator.event_data[event_id] == {'types': ['int128', 'bytes4', 'bytes3', 'address', 'address', 'int128'], 'name': 'MyLog', 'names': ['arg1', 'arg2', 'arg3', 'arg4', 'arg5', 'arg6'], 'indexed': [False, False, False, False, False, False], 'anonymous': False}
     # Event is decoded correctly
-    assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': 123, 'arg2': b'home', 'arg3': b'bar', 'arg4': '0xc305c901078781c232a2a521c2af7980f8385ee9', 'arg5': '0x' + c.address.hex(), 'arg6': s.head_state.timestamp, '_event_type': b'MyLog'}
+    assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': 123, 'arg2': b'home', 'arg3': b'bar', 'arg4': '0xc305c901078781c232a2a521c2af7980f8385ee9', 'arg5': '0x' + c.address.hex(), 'arg6': chain.head_state.timestamp, '_event_type': b'MyLog'}
 
 
-def test_event_logging_with_topics_and_data_1():
+def test_event_logging_with_topics_and_data_1(get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
 MyLog: __log__({arg1: indexed(num), arg2: bytes <= 3})
 
@@ -262,8 +259,8 @@ def foo():
 
     c = get_contract_with_gas_estimation(loggy_code)
     c.foo()
-    logs = s.head_state.receipts[-1].logs[-1]
-    event_id = u.bytes_to_int(u.sha3(bytes('MyLog(int128,bytes3)', 'utf-8')))
+    logs = chain.head_state.receipts[-1].logs[-1]
+    event_id = utils.bytes_to_int(utils.sha3(bytes('MyLog(int128,bytes3)', 'utf-8')))
     # Event id is always the first topic
     assert logs.topics[0] == event_id
     # Event id is calculated correctly
@@ -274,7 +271,7 @@ def foo():
     assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': 1, 'arg2': b'bar', '_event_type': b'MyLog'}
 
 
-def test_event_logging_with_multiple_logs_topics_and_data():
+def test_event_logging_with_multiple_logs_topics_and_data(get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
 MyLog: __log__({arg1: indexed(num), arg2: bytes <= 3})
 YourLog: __log__({arg1: indexed(address), arg2: bytes <= 5})
@@ -287,10 +284,10 @@ def foo():
 
     c = get_contract_with_gas_estimation(loggy_code)
     c.foo()
-    logs1 = s.head_state.receipts[-1].logs[-2]
-    logs2 = s.head_state.receipts[-1].logs[-1]
-    event_id1 = u.bytes_to_int(u.sha3(bytes('MyLog(int128,bytes3)', 'utf-8')))
-    event_id2 = u.bytes_to_int(u.sha3(bytes('YourLog(address,bytes5)', 'utf-8')))
+    logs1 = chain.head_state.receipts[-1].logs[-2]
+    logs2 = chain.head_state.receipts[-1].logs[-1]
+    event_id1 = utils.bytes_to_int(utils.sha3(bytes('MyLog(int128,bytes3)', 'utf-8')))
+    event_id2 = utils.bytes_to_int(utils.sha3(bytes('YourLog(address,bytes5)', 'utf-8')))
     # Event id is always the first topic
     assert logs1.topics[0] == event_id1
     assert logs2.topics[0] == event_id2
@@ -305,7 +302,7 @@ def foo():
     assert c.translator.decode_event(logs2.topics, logs2.data) == {'arg1': '0x' + c.address.hex(), 'arg2': b'house', '_event_type': b'YourLog'}
 
 
-def test_fails_when_input_is_the_wrong_type(assert_tx_failed):
+def test_fails_when_input_is_the_wrong_type(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     loggy_code = """
 MyLog: __log__({arg1: indexed(num)})
 
@@ -313,11 +310,11 @@ MyLog: __log__({arg1: indexed(num)})
 def foo_():
     log.MyLog('yo')
 """
-    t.s = s
+    t.s = chain
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatchException)
 
 
-def test_fails_when_topic_is_the_wrong_size(assert_tx_failed):
+def test_fails_when_topic_is_the_wrong_size(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     loggy_code = """
 MyLog: __log__({arg1: indexed(bytes <= 3)})
 
@@ -325,11 +322,11 @@ MyLog: __log__({arg1: indexed(bytes <= 3)})
 def foo():
     log.MyLog('bars')
 """
-    t.s = s
+    t.s = chain
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatchException)
 
 
-def test_fails_when_input_topic_is_the_wrong_size(assert_tx_failed):
+def test_fails_when_input_topic_is_the_wrong_size(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     loggy_code = """
 MyLog: __log__({arg1: indexed(bytes <= 3)})
 
@@ -337,11 +334,11 @@ MyLog: __log__({arg1: indexed(bytes <= 3)})
 def foo(arg1: bytes <= 4):
     log.MyLog(arg1)
 """
-    t.s = s
+    t.s = chain
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatchException)
 
 
-def test_fails_when_data_is_the_wrong_size(assert_tx_failed):
+def test_fails_when_data_is_the_wrong_size(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     loggy_code = """
 MyLog: __log__({arg1: bytes <= 3})
 
@@ -349,11 +346,11 @@ MyLog: __log__({arg1: bytes <= 3})
 def foo():
     log.MyLog('bars')
 """
-    t.s = s
+    t.s = chain
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatchException)
 
 
-def test_fails_when_input_data_is_the_wrong_size(assert_tx_failed):
+def test_fails_when_input_data_is_the_wrong_size(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     loggy_code = """
 MyLog: __log__({arg1: bytes <= 3})
 
@@ -361,11 +358,11 @@ MyLog: __log__({arg1: bytes <= 3})
 def foo(arg1: bytes <= 4):
     log.MyLog(arg1)
 """
-    t.s = s
+    t.s = chain
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatchException)
 
 
-def test_fails_when_log_data_is_over_32_bytes(assert_tx_failed):
+def test_fails_when_log_data_is_over_32_bytes(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     loggy_code = """
 MyLog: __log__({arg1: bytes <= 100})
 
@@ -373,22 +370,22 @@ MyLog: __log__({arg1: bytes <= 100})
 def foo():
     pass
     """
-    t.s = s
+    t.s = chain
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
 
 
-def test_logging_fails_with_over_three_topics(assert_tx_failed):
+def test_logging_fails_with_over_three_topics(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     loggy_code = """
 MyLog: __log__({arg1: indexed(num), arg2: indexed(num), arg3: indexed(num), arg4: indexed(num)})
 @public
 def __init__():
     log.MyLog(1, 2, 3, 4)
     """
-    t.s = s
+    t.s = chain
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
 
 
-def test_logging_fails_with_duplicate_log_names(assert_tx_failed):
+def test_logging_fails_with_duplicate_log_names(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     loggy_code = """
 MyLog: __log__({})
 MyLog: __log__({})
@@ -397,22 +394,22 @@ MyLog: __log__({})
 def foo():
     log.MyLog()
     """
-    t.s = s
+    t.s = chain
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
 
 
-def test_logging_fails_with_when_log_is_undeclared(assert_tx_failed):
+def test_logging_fails_with_when_log_is_undeclared(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     loggy_code = """
 
 @public
 def foo():
     log.MyLog()
     """
-    t.s = s
+    t.s = chain
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
 
 
-def test_logging_fails_with_topic_type_mismatch(assert_tx_failed):
+def test_logging_fails_with_topic_type_mismatch(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     loggy_code = """
 MyLog: __log__({arg1: indexed(num)})
 
@@ -420,11 +417,11 @@ MyLog: __log__({arg1: indexed(num)})
 def foo():
     log.MyLog(self)
     """
-    t.s = s
+    t.s = chain
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatchException)
 
 
-def test_logging_fails_with_data_type_mismatch(assert_tx_failed):
+def test_logging_fails_with_data_type_mismatch(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     loggy_code = """
 MyLog: __log__({arg1: bytes <= 3})
 
@@ -432,20 +429,20 @@ MyLog: __log__({arg1: bytes <= 3})
 def foo():
     log.MyLog(self)
     """
-    t.s = s
+    t.s = chain
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), AttributeError)
 
 
-def test_logging_fails_after_a_global_declaration(assert_tx_failed):
+def test_logging_fails_after_a_global_declaration(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     loggy_code = """
 age: num
 MyLog: __log__({arg1: bytes <= 3})
     """
-    t.s = s
+    t.s = chain
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), StructureException)
 
 
-def test_logging_fails_after_a_function_declaration(assert_tx_failed):
+def test_logging_fails_after_a_function_declaration(t, assert_tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
 @public
 def foo():
@@ -456,7 +453,7 @@ MyLog: __log__({arg1: bytes <= 3})
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), StructureException)
 
 
-def test_logging_fails_when_number_of_arguments_is_greater_than_declaration(assert_tx_failed):
+def test_logging_fails_when_number_of_arguments_is_greater_than_declaration(t, assert_tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
 MyLog: __log__({arg1: num})
 
@@ -467,7 +464,7 @@ def foo():
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
 
 
-def test_logging_fails_when_number_of_arguments_is_less_than_declaration(assert_tx_failed):
+def test_logging_fails_when_number_of_arguments_is_less_than_declaration(assert_tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
 MyLog: __log__({arg1: num, arg2: num})
 
@@ -478,7 +475,7 @@ def foo():
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
 
 
-def test_loggy_code():
+def test_loggy_code(get_contract_with_gas_estimation, chain):
     loggy_code = """
 s: bytes <= 100
 
@@ -502,18 +499,19 @@ def ioo(inp: bytes <= 100):
 
     c = get_contract_with_gas_estimation(loggy_code)
     c.foo()
-    assert s.head_state.receipts[-1].logs[0].data == b'moo'
+    assert chain.head_state.receipts[-1].logs[0].data == b'moo'
     c.goo()
-    assert s.head_state.receipts[-1].logs[0].data == b'moo2'
-    assert s.head_state.receipts[-1].logs[0].topics == [0x1234567812345678123456781234567812345678123456781234567812345678]
+    assert chain.head_state.receipts[-1].logs[0].data == b'moo2'
+    assert chain.head_state.receipts[-1].logs[0].topics == [0x1234567812345678123456781234567812345678123456781234567812345678]
     c.hoo()
-    assert s.head_state.receipts[-1].logs[0].data == b'moo3'
+    assert chain.head_state.receipts[-1].logs[0].data == b'moo3'
     c.ioo(b"moo4")
-    assert s.head_state.receipts[-1].logs[0].data == b'moo4'
+    assert chain.head_state.receipts[-1].logs[0].data == b'moo4'
     print("Passed raw log tests")
 
 
-def test_variable_list_packing(get_last_log):
+def test_variable_list_packing(t, get_last_log, get_contract_with_gas_estimation, chain):
+    t.s = chain
     code = """
 Bar: __log__({_value: num[4]})
 
@@ -528,7 +526,8 @@ def foo():
     assert get_last_log(t, c)["_value"] == [1, 2, 3, 4]
 
 
-def test_literal_list_packing(get_last_log):
+def test_literal_list_packing(t, get_last_log, get_contract_with_gas_estimation, chain):
+    t.s = chain
     code = """
 Bar: __log__({_value: num[4]})
 
@@ -542,7 +541,8 @@ def foo():
     assert get_last_log(t, c)["_value"] == [1, 2, 3, 4]
 
 
-def test_passed_list_packing(get_last_log):
+def test_passed_list_packing(t, get_last_log, get_contract_with_gas_estimation, chain):
+    t.s = chain
     code = """
 Bar: __log__({_value: num[4]})
 
@@ -556,7 +556,9 @@ def foo(barbaric: num[4]):
     assert get_last_log(t, c)["_value"] == [4, 5, 6, 7]
 
 
-def test_variable_decimal_list_packing(get_last_log):
+def test_variable_decimal_list_packing(t, get_last_log, get_contract_with_gas_estimation, chain):
+    t.s = chain
+
     code = """
 Bar: __log__({_value: decimal[4]})
 

@@ -1,10 +1,8 @@
 import pytest
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation, get_contract
 from viper.exceptions import TypeMismatchException
 
 
-def test_basic_bytes_keys():
+def test_basic_bytes_keys(get_contract):
     code = """
 mapped_bytes: num[bytes <= 5]
 
@@ -24,7 +22,7 @@ def get(k: bytes <= 5) -> num:
     assert c.get("test") == 54321
 
 
-def test_basic_bytes_literal_key():
+def test_basic_bytes_literal_key(get_contract):
     code = """
 mapped_bytes: num[bytes <= 5]
 
@@ -44,7 +42,7 @@ def get(k: bytes <= 5) -> num:
     assert c.get("test") == 54321
 
 
-def test_basic_long_bytes_as_keys():
+def test_basic_long_bytes_as_keys(get_contract):
     code = """
 mapped_bytes: num[bytes <= 34]
 
@@ -64,7 +62,7 @@ def get(k: bytes <= 34) -> num:
     assert c.get("a" * 34) == 6789
 
 
-def test_basic_very_long_bytes_as_keys():
+def test_basic_very_long_bytes_as_keys(get_contract):
     code = """
 mapped_bytes: num[bytes <= 4096]
 
@@ -84,7 +82,7 @@ def get(k: bytes <= 4096) -> num:
     assert c.get("test" * 1024) == 6789
 
 
-def test_mismatched_byte_length():
+def test_mismatched_byte_length(get_contract):
     code = """
 mapped_bytes: num[bytes <= 34]
 

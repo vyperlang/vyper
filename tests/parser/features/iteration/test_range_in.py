@@ -1,10 +1,7 @@
-import pytest
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation, get_contract, assert_tx_failed
 from viper.exceptions import TypeMismatchException
 
 
-def test_basic_in_list():
+def test_basic_in_list(get_contract_with_gas_estimation):
     code = """
 @public
 def testin(x: num) -> bool:
@@ -26,7 +23,7 @@ def testin(x: num) -> bool:
     assert c.testin(-1) is False
 
 
-def test_in_storage_list():
+def test_in_storage_list(get_contract_with_gas_estimation):
     code = """
 allowed: num[10]
 
@@ -47,7 +44,7 @@ def in_test(x: num) -> bool:
     assert c.in_test(32000) is False
 
 
-def test_cmp_in_list():
+def test_cmp_in_list(get_contract_with_gas_estimation):
     code = """
 @public
 def in_test(x: num) -> bool:
@@ -65,7 +62,7 @@ def in_test(x: num) -> bool:
     assert c.in_test(7) is True
 
 
-def test_mixed_in_list(assert_compile_failed):
+def test_mixed_in_list(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
 @public
 def testin() -> bool:
@@ -77,7 +74,7 @@ def testin() -> bool:
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatchException)
 
 
-def test_ownership(assert_tx_failed):
+def test_ownership(t, assert_tx_failed, get_contract_with_gas_estimation):
     code = """
 
 owners: address[2]
