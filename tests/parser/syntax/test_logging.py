@@ -21,6 +21,16 @@ Bar: __log__({_value: num[4]})
 def foo():
     x: decimal[4]
     log.Bar(x)
+    """,
+    """
+# larger than 32 bytes logging.
+
+MyLog: __log__({arg1: bytes <= 29})
+x:bytes<=55
+
+@public
+def foo(a:num):
+    log.MyLog(self.x)
     """
 ]
 
@@ -28,5 +38,9 @@ def foo():
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_logging_fail(bad_code):
 
-    with raises(TypeMismatchException):
-        compiler.compile(bad_code)
+    if isinstance(bad_code, tuple):
+        with raises(bad_code[1]):
+            compiler.compile(bad_code[0])
+    else:
+        with raises(TypeMismatchException):
+            compiler.compile(bad_code)

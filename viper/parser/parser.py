@@ -685,7 +685,7 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder):
         if isinstance(arg, ast.Attribute) and arg.value.id == 'self':
             stor_bytes = context.globals[arg.attr]
             if stor_bytes.typ.maxlen > 32:
-                    raise InvalidLiteralException("Can only log a maximum of 32 bytes at a time.")
+                    raise TypeMismatchException("Can only log a maximum of 32 bytes at a time.")
             arg2 = LLLnode.from_list(['sload', ['add', ['sha3_32', Expr(arg, context).lll_node], 1]], typ=BaseType(32))
             holder, maxlen = pack_args_by_32(holder, maxlen, arg2, BaseType(32), context, context.new_placeholder(BaseType(32)))
         # String literals
