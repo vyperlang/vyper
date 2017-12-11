@@ -75,7 +75,7 @@ other development environment set-up.
 
 To create a new virtual environment for Viper run the following commands:
 ::
-    virtualenv -p /usr/local/lib/python3.6/bin/python3 --no-site-packages ~/viper-venv
+    virtualenv -p python3.6 --no-site-packages ~/viper-venv
     source ~/viper-venv/bin/activate
 
 To find out more about virtual environments, check out:
