@@ -1,9 +1,4 @@
-import pytest
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation, get_contract
-
-
-def test_break_test():
+def test_break_test(get_contract_with_gas_estimation):
     break_test = """
 @public
 def log(n: num) -> num:
@@ -25,7 +20,7 @@ def log(n: num) -> num:
     print('Passed for-loop break test')
 
 
-def test_break_test_2():
+def test_break_test_2(get_contract_with_gas_estimation):
     break_test_2 = """
 @public
 def log(n: num) -> num:
@@ -53,7 +48,7 @@ def log(n: num) -> num:
     print('Passed for-loop break test 2')
 
 
-def test_break_test_3():
+def test_break_test_3(get_contract_with_gas_estimation):
     break_test_3 = """
 @public
 def log(n: num) -> num:

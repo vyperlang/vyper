@@ -1,9 +1,4 @@
-import pytest
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation, get_contract
-
-
-def test_null_code():
+def test_null_code(get_contract_with_gas_estimation):
     null_code = """
 @public
 def foo():
@@ -14,7 +9,7 @@ def foo():
     print('Successfully executed a null function')
 
 
-def test_basic_code():
+def test_basic_code(get_contract_with_gas_estimation):
     basic_code = """
 @public
 def foo(x: num) -> num:
@@ -26,7 +21,7 @@ def foo(x: num) -> num:
     print('Passed basic code test')
 
 
-def test_selfcall_code_3():
+def test_selfcall_code_3(get_contract_with_gas_estimation, utils):
     selfcall_code_3 = """
 @public
 def _hashy2(x: bytes <= 100) -> bytes32:
@@ -46,7 +41,7 @@ def returnten() -> num:
     """
 
     c = get_contract_with_gas_estimation(selfcall_code_3)
-    assert c.return_hash_of_cow_x_30() == u.sha3(b'cow' * 30)
+    assert c.return_hash_of_cow_x_30() == utils.sha3(b'cow' * 30)
     assert c.returnten() == 10
 
     print("Passed single variable-size argument self-call test")

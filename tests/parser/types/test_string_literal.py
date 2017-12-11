@@ -1,9 +1,4 @@
-import pytest
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation, get_contract
-
-
-def test_string_literal_code():
+def test_string_literal_code(get_contract_with_gas_estimation):
     string_literal_code = """
 @public
 def foo() -> bytes <= 5:
@@ -42,7 +37,7 @@ def baz4() -> bytes <= 100:
     print("Passed string literal test")
 
 
-def test_string_literal_splicing_fuzz():
+def test_string_literal_splicing_fuzz(get_contract_with_gas_estimation):
     for i in range(95, 96, 97):
         kode = """
 moo: bytes <= 100

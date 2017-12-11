@@ -1,10 +1,7 @@
-import pytest
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation, get_contract
 from viper.exceptions import ConstancyViolationException
 
 
-def test_augassign():
+def test_augassign(get_contract_with_gas_estimation):
     augassign_test = """
 @public
 def augadd(x: num, y: num) -> num:
@@ -47,7 +44,7 @@ def augmod(x: num, y: num) -> num:
     print('Passed aug-assignment test')
 
 
-def test_invalid_assign(assert_compile_failed):
+def test_invalid_assign(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
 @public
 def foo(x:num):
@@ -56,7 +53,7 @@ def foo(x:num):
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ConstancyViolationException)
 
 
-def test_invalid_augassign(assert_compile_failed):
+def test_invalid_augassign(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
 @public
 def foo(x:num):

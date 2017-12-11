@@ -1,12 +1,8 @@
-import pytest
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation, get_contract
-
 from viper.parser.parser import parse_to_lll
 from viper.parser import parser_utils
 
 
-def test_gas_call():
+def test_gas_call(get_contract_with_gas_estimation):
     gas_call = """
 @public
 def foo() -> num:

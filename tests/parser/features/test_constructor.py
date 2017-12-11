@@ -1,9 +1,4 @@
-import pytest
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation
-
-
-def test_init_argument_test():
+def test_init_argument_test(get_contract_with_gas_estimation):
     init_argument_test = """
 moose: num
 
@@ -21,7 +16,7 @@ def returnMoose() -> num:
     print('Passed init argument test')
 
 
-def test_constructor_advanced_code():
+def test_constructor_advanced_code(get_contract_with_gas_estimation):
     constructor_advanced_code = """
 twox: num
 
@@ -37,7 +32,7 @@ def get_twox() -> num:
     assert c.get_twox() == 10
 
 
-def test_constructor_advanced_code2():
+def test_constructor_advanced_code2(get_contract_with_gas_estimation):
     constructor_advanced_code2 = """
 comb: num
 
@@ -54,7 +49,7 @@ def get_comb() -> num:
     print("Passed advanced init argument tests")
 
 
-def test_large_input_code():
+def test_large_input_code(get_contract_with_gas_estimation):
     large_input_code = """
 @public
 def foo(x: num) -> num:
@@ -72,7 +67,7 @@ def foo(x: num) -> num:
     assert not success
 
 
-def test_large_input_code_2():
+def test_large_input_code_2(t, get_contract_with_gas_estimation):
     large_input_code_2 = """
 @public
 def __init__(x: num):

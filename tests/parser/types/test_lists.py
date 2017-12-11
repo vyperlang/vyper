@@ -1,9 +1,4 @@
-import pytest
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation, get_contract
-
-
-def test_list_tester_code():
+def test_list_tester_code(get_contract_with_gas_estimation):
     list_tester_code = """
 z: num[3]
 z2: num[2][2]
@@ -50,7 +45,7 @@ def loo(x: num[2][2]) -> num:
     print("Passed list tests")
 
 
-def test_list_output_tester_code():
+def test_list_output_tester_code(get_contract_with_gas_estimation):
     list_output_tester_code = """
 z: num[2]
 
@@ -121,7 +116,7 @@ def roo(inp: num[2]) -> decimal[2][2]:
     print("Passed list output tests")
 
 
-def test_array_accessor():
+def test_array_accessor(get_contract_with_gas_estimation):
     array_accessor = """
 @public
 def test_array(x: num, y: num, z: num, w: num) -> num:
@@ -138,7 +133,7 @@ def test_array(x: num, y: num, z: num, w: num) -> num:
     print('Passed basic array accessor test')
 
 
-def test_two_d_array_accessor():
+def test_two_d_array_accessor(get_contract_with_gas_estimation):
     two_d_array_accessor = """
 @public
 def test_array(x: num, y: num, z: num, w: num) -> num:

@@ -1,9 +1,4 @@
-import pytest
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation
-
-
-def test_method_id_test():
+def test_method_id_test(get_contract_with_gas_estimation):
     method_id_test = """
 @public
 def double(x: num) -> num:

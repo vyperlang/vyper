@@ -1,9 +1,4 @@
-import pytest
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation
-
-
-def test_extract32_code():
+def test_extract32_code(get_contract_with_gas_estimation):
     extract32_code = """
 y: bytes <= 100
 @public
@@ -56,7 +51,7 @@ def extrakt32_storage(index: num, inp: bytes <= 100) -> bytes32:
     print("Passed bytes32 extraction test")
 
 
-def test_extract32_code():
+def test_extract32_code(get_contract_with_gas_estimation):
     extract32_code = """
 @public
 def foo(inp: bytes <= 32) -> num:

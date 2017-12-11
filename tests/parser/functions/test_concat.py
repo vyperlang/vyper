@@ -1,9 +1,4 @@
-import pytest
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation
-
-
-def test_concat():
+def test_concat(get_contract_with_gas_estimation):
     test_concat = """
 @public
 def foo2(input1: bytes <= 50, input2: bytes <= 50) -> bytes <= 1000:
@@ -26,7 +21,7 @@ def foo3(input1: bytes <= 50, input2: bytes <= 50, input3: bytes <= 50) -> bytes
     print('Passed simple concat test')
 
 
-def test_concat2():
+def test_concat2(get_contract_with_gas_estimation):
     test_concat2 = """
 @public
 def foo(inp: bytes <= 50) -> bytes <= 1000:
@@ -39,7 +34,7 @@ def foo(inp: bytes <= 50) -> bytes <= 1000:
     print('Passed second concat test')
 
 
-def test_crazy_concat_code():
+def test_crazy_concat_code(get_contract_with_gas_estimation):
     crazy_concat_code = """
 y: bytes <= 10
 
@@ -57,7 +52,7 @@ def krazykonkat(z: bytes <= 10) -> bytes <= 25:
     print('Passed third concat test')
 
 
-def test_concat_bytes32():
+def test_concat_bytes32(get_contract_with_gas_estimation):
     test_concat_bytes32 = """
 @public
 def sandwich(inp: bytes <= 100, inp2: bytes32) -> bytes <= 164:
@@ -79,7 +74,7 @@ def fivetimes(inp: bytes32) -> bytes <= 160:
     print("Passed concat bytes32 test")
 
 
-def test_konkat_code():
+def test_konkat_code(get_contract_with_gas_estimation):
     konkat_code = """
 ecks: bytes32
 
