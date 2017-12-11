@@ -1,11 +1,7 @@
 import pytest
 
-from ethereum import utils
 from ethereum.abi import ValueOutOfBounds
 from ethereum.tools import tester
-
-from tests.setup_transaction_tests import assert_tx_failed, get_last_log
-
 
 TOKEN_NAME = "Vipercoin"
 TOKEN_SYMBOL = "FANG"

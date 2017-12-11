@@ -1,10 +1,7 @@
-import pytest
 from ethereum.abi import ValueOutOfBounds
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation, get_contract, assert_tx_failed
 
 
-def test_num256_code(assert_tx_failed):
+def test_num256_code(t, chain, assert_tx_failed, get_contract_with_gas_estimation):
     num256_code = """
 @public
 def _num256_add(x: num256, y: num256) -> num256:
@@ -43,7 +40,7 @@ def _num256_le(x: num256, y: num256) -> bool:
     x = 126416208461208640982146408124
     y = 7128468721412412459
 
-    t.s = s
+    t.s = chain
     NUM256_MAX = 2**256 -1  # Max possible num256 value
     assert c._num256_add(x, y) == x + y
     assert c._num256_add(0,y) == y
@@ -75,7 +72,7 @@ def _num256_le(x: num256, y: num256) -> bool:
     print("Passed num256 operation tests")
 
 
-def test_num256_mod(assert_tx_failed):
+def test_num256_mod(t, chain, assert_tx_failed, get_contract_with_gas_estimation):
     num256_code = """
 @public
 def _num256_mod(x: num256, y: num256) -> num256:
@@ -91,7 +88,7 @@ def _num256_mulmod(x: num256, y: num256, z: num256) -> num256:
     """
 
     c = get_contract_with_gas_estimation(num256_code)
-    t.s = s
+    t.s = chain
 
     assert c._num256_mod(3, 2) == 1
     assert c._num256_mod(34, 32) == 2
@@ -105,7 +102,7 @@ def _num256_mulmod(x: num256, y: num256, z: num256) -> num256:
     assert_tx_failed(lambda: c._num256_mulmod(2**255, 2, 1))
 
 
-def test_num256_with_exponents(assert_tx_failed):
+def test_num256_with_exponents(t, chain, assert_tx_failed, get_contract_with_gas_estimation):
     exp_code = """
 @public
 def _num256_exp(x: num256, y: num256) -> num256:
@@ -113,7 +110,7 @@ def _num256_exp(x: num256, y: num256) -> num256:
     """
 
     c = get_contract_with_gas_estimation(exp_code)
-    t.s = s
+    t.s = chain
 
     assert c._num256_exp(2, 0) == 1
     assert c._num256_exp(2, 1) == 2
@@ -123,7 +120,7 @@ def _num256_exp(x: num256, y: num256) -> num256:
     assert c._num256_exp(7**23, 3) == 7**69
 
 
-def test_num256_to_num_casting(assert_tx_failed):
+def test_num256_to_num_casting(t, chain, assert_tx_failed, get_contract_with_gas_estimation):
     code = """
 @public
 def _num256_to_num(x: num(num256)) -> num:
@@ -145,7 +142,7 @@ def built_in_conversion(x: num256) -> num:
 
     assert c._num256_to_num(1) == 1
     assert c._num256_to_num((2**127) - 1) == 2**127 - 1
-    t.s = s
+    t.s = chain
     assert_tx_failed(lambda: c._num256_to_num((2**128)) == 0)
     assert c._num256_to_num_call(1) == 1
 
@@ -158,7 +155,7 @@ def built_in_conversion(x: num256) -> num:
     assert_tx_failed(lambda: c._num256_to_num_call(2**127))
 
 
-def test_modmul():
+def test_modmul(get_contract_with_gas_estimation):
     modexper = """
 @public
 def exp(base: num256, exponent: num256, modulus: num256) -> num256:

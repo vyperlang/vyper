@@ -1,8 +1,4 @@
-import pytest
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation
-
-def test_permanent_variables_test():
+def test_permanent_variables_test(get_contract_with_gas_estimation):
     permanent_variables_test = """
 var: {a: num, b: num}
 

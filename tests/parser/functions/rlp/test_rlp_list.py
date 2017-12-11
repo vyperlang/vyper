@@ -1,9 +1,8 @@
-import pytest
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation, assert_tx_failed, rlp
+import rlp
 
+def test_rlp_decoder_code(assert_tx_failed, get_contract_with_gas_estimation, fake_tx):
+    fake_tx()
 
-def test_rlp_decoder_code(assert_tx_failed):
     rlp_decoder_code = """
 u: bytes <= 100
 

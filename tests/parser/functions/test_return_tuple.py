@@ -1,9 +1,4 @@
-import pytest
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation, get_contract
-
-
-def test_return_type():
+def test_return_type(get_contract_with_gas_estimation):
     long_string = 35 * "test"
 
     code = """
@@ -64,7 +59,7 @@ def out_very_long_bytes() -> (num, bytes <= 1024, num, address):
     assert c.out_very_long_bytes() == [5555, long_string.encode(), 6666, "0x0000000000000000000000000000000000001234"]
 
 
-def test_return_type_signatures():
+def test_return_type_signatures(get_contract_with_gas_estimation):
     code = """
 @public
 def out_literals() -> (num, address, bytes <= 4):

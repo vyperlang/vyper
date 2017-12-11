@@ -1,9 +1,4 @@
-import pytest
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation_for_constants
-
-
-def test_crowdfund():
+def test_crowdfund(t, chain, get_contract_with_gas_estimation_for_constants):
     crowdfund = """
 
 funders: {sender: address, value: wei_value}[num]
@@ -82,11 +77,11 @@ def refund():
     assert not c.reached()
     c.participate(value=49)
     assert c.reached()
-    pre_bal = s.head_state.get_balance(t.a1)
-    s.head_state.timestamp += 1000
+    pre_bal = chain.head_state.get_balance(t.a1)
+    chain.head_state.timestamp += 1000
     assert c.expired()
     c.finalize()
-    post_bal = s.head_state.get_balance(t.a1)
+    post_bal = chain.head_state.get_balance(t.a1)
     assert post_bal - pre_bal == 54
 
     c = get_contract_with_gas_estimation_for_constants(crowdfund, args=[t.a1, 50, 600])
@@ -94,18 +89,18 @@ def refund():
     c.participate(value=2, sender=t.k4)
     c.participate(value=3, sender=t.k5)
     c.participate(value=4, sender=t.k6)
-    s.head_state.timestamp += 1000
+    chain.head_state.timestamp += 1000
     assert c.expired()
     assert not c.reached()
-    pre_bals = [s.head_state.get_balance(x) for x in [t.a3, t.a4, t.a5, t.a6]]
+    pre_bals = [chain.head_state.get_balance(x) for x in [t.a3, t.a4, t.a5, t.a6]]
     c.refund()
-    post_bals = [s.head_state.get_balance(x) for x in [t.a3, t.a4, t.a5, t.a6]]
+    post_bals = [chain.head_state.get_balance(x) for x in [t.a3, t.a4, t.a5, t.a6]]
     assert [y - x for x, y in zip(pre_bals, post_bals)] == [1, 2, 3, 4]
 
     print('Passed composite crowdfund test')
 
 
-def test_crowdfund2():
+def test_crowdfund2(t, chain, get_contract_with_gas_estimation_for_constants):
     crowdfund2 = """
 
 funders: {sender: address, value: wei_value}[num]
@@ -183,11 +178,11 @@ def refund():
     assert not c.reached()
     c.participate(value=49)
     assert c.reached()
-    pre_bal = s.head_state.get_balance(t.a1)
-    s.head_state.timestamp += 1000
+    pre_bal = chain.head_state.get_balance(t.a1)
+    chain.head_state.timestamp += 1000
     assert c.expired()
     c.finalize()
-    post_bal = s.head_state.get_balance(t.a1)
+    post_bal = chain.head_state.get_balance(t.a1)
     assert post_bal - pre_bal == 54
 
     c = get_contract_with_gas_estimation_for_constants(crowdfund2, args=[t.a1, 50, 600])
@@ -195,12 +190,12 @@ def refund():
     c.participate(value=2, sender=t.k4)
     c.participate(value=3, sender=t.k5)
     c.participate(value=4, sender=t.k6)
-    s.head_state.timestamp += 1000
+    chain.head_state.timestamp += 1000
     assert c.expired()
     assert not c.reached()
-    pre_bals = [s.head_state.get_balance(x) for x in [t.a3, t.a4, t.a5, t.a6]]
+    pre_bals = [chain.head_state.get_balance(x) for x in [t.a3, t.a4, t.a5, t.a6]]
     c.refund()
-    post_bals = [s.head_state.get_balance(x) for x in [t.a3, t.a4, t.a5, t.a6]]
+    post_bals = [chain.head_state.get_balance(x) for x in [t.a3, t.a4, t.a5, t.a6]]
     assert [y - x for x, y in zip(pre_bals, post_bals)] == [1, 2, 3, 4]
 
     print('Passed second composite crowdfund test')

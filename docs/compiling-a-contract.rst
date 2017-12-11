@@ -6,7 +6,7 @@ To compile a contract, use:
     viper yourFileName.v.py
 
 .. note:: 
-    Since .vy is not official a language supported by any syntax highlighters or linters,
+    Since .vy is not officially a language supported by any syntax highlighters or linters,
     it is recommended to name your Viper file ending with `.v.py` in order to have Python syntax highlighting.
 
 An `online compiler <https://viper.tools/>`_ is available as well, which lets you experiment with

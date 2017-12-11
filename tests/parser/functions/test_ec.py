@@ -1,10 +1,23 @@
-import pytest
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation, G1, G1_times_two, G1_times_three, \
-    curve_order, negative_G1
+G1 = [1, 2]
 
+G1_times_two = [
+    1368015179489954701390400359078579693043519447331113978918064868415326638035,
+    9918110051302171585080402603319702774565515993150576347155970296011118125764
+]
 
-def test_ecadd():
+G1_times_three = [
+    3353031288059533942658390886683067124040920775575537747144343083137631628272,
+    19321533766552368860946552437480515441416830039777911637913418824951667761761
+]
+
+negative_G1 = [
+    1,
+    21888242871839275222246405745257275088696311157297823662689037894645226208581
+]
+
+curve_order = 21888242871839275222246405745257275088548364400416034343698204186575808495617
+
+def test_ecadd(get_contract_with_gas_estimation):
     ecadder = """
 x3: num256[2]
 y3: num256[2]
@@ -33,7 +46,7 @@ def _ecadd3(x: num256[2], y: num256[2]) -> num256[2]:
     assert c._ecadd3(G1, [0, 0]) == G1
     assert c._ecadd3(G1, negative_G1) == [0, 0]
 
-def test_ecmul():
+def test_ecmul(get_contract_with_gas_estimation):
     ecmuller = """
 x3: num256[2]
 y3: num256

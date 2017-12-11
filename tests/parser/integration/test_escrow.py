@@ -1,9 +1,4 @@
-import pytest
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation, get_contract
-
-
-def test_arbitration_code():
+def test_arbitration_code(t, get_contract_with_gas_estimation):
     arbitration_code = """
 buyer: address
 seller: address
@@ -41,7 +36,7 @@ def refund():
     print('Passed escrow test')
 
 
-def test_arbitration_code_with_init():
+def test_arbitration_code_with_init(t, get_contract_with_gas_estimation):
     arbitration_code_with_init = """
 buyer: address
 seller: address

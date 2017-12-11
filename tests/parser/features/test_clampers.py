@@ -1,9 +1,4 @@
-import pytest
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation, get_contract
-
-
-def test_clamper_test_code():
+def test_clamper_test_code(t, get_contract_with_gas_estimation):
     clamper_test_code = """
 @public
 def foo(s: bytes <= 3) -> bytes <= 3:

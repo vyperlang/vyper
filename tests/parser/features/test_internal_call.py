@@ -1,9 +1,4 @@
-import pytest
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation, get_contract
-
-
-def test_selfcall_code():
+def test_selfcall_code(get_contract_with_gas_estimation):
     selfcall_code = """
 @public
 def foo() -> num:
@@ -20,7 +15,7 @@ def bar() -> num:
     print("Passed no-argument self-call test")
 
 
-def test_selfcall_code_2():
+def test_selfcall_code_2(get_contract_with_gas_estimation, utils):
     selfcall_code_2 = """
 @public
 def double(x: num) -> num:
@@ -41,12 +36,12 @@ def return_hash_of_rzpadded_cow() -> bytes32:
 
     c = get_contract_with_gas_estimation(selfcall_code_2)
     assert c.returnten() == 10
-    assert c.return_hash_of_rzpadded_cow() == u.sha3(b'cow' + b'\x00' * 29)
+    assert c.return_hash_of_rzpadded_cow() == utils.sha3(b'cow' + b'\x00' * 29)
 
     print("Passed single fixed-size argument self-call test")
 
 
-def test_selfcall_code_3():
+def test_selfcall_code_3(get_contract_with_gas_estimation, utils):
     selfcall_code_3 = """
 @public
 def _hashy2(x: bytes <= 100) -> bytes32:
@@ -66,13 +61,13 @@ def returnten() -> num:
     """
 
     c = get_contract_with_gas_estimation(selfcall_code_3)
-    assert c.return_hash_of_cow_x_30() == u.sha3(b'cow' * 30)
+    assert c.return_hash_of_cow_x_30() == utils.sha3(b'cow' * 30)
     assert c.returnten() == 10
 
     print("Passed single variable-size argument self-call test")
 
 
-def test_selfcall_code_4():
+def test_selfcall_code_4(get_contract_with_gas_estimation):
     selfcall_code_4 = """
 @public
 def summy(x: num, y: num) -> num:
@@ -116,7 +111,7 @@ def return_goose2() -> bytes <= 10:
     print("Passed multi-argument self-call test")
 
 
-def test_selfcall_code_5():
+def test_selfcall_code_5(get_contract_with_gas_estimation):
     selfcall_code_5 = """
 counter: num
 
@@ -136,7 +131,7 @@ def returnten() -> num:
     print("Passed self-call statement test")
 
 
-def test_selfcall_code_6():
+def test_selfcall_code_6(get_contract_with_gas_estimation):
     selfcall_code_6 = """
 excls: bytes <= 32
 

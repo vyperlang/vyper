@@ -1,9 +1,4 @@
-import pytest
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation
-
-
-def test_hash_code():
+def test_hash_code(get_contract_with_gas_estimation, utils):
     hash_code = """
 @public
 def foo(inp: bytes <= 100) -> bytes32:
@@ -16,12 +11,12 @@ def bar() -> bytes32:
 
     c = get_contract_with_gas_estimation(hash_code)
     for inp in (b"", b"cow", b"s" * 31, b"\xff" * 32, b"\n" * 33, b"g" * 64, b"h" * 65):
-        assert c.foo(inp) == u.sha3(inp)
+        assert c.foo(inp) == utils.sha3(inp)
 
-    assert c.bar() == u.sha3("inp")
+    assert c.bar() == utils.sha3("inp")
 
 
-def test_hash_code2():
+def test_hash_code2(get_contract_with_gas_estimation):
     hash_code2 = """
 @public
 def foo(inp: bytes <= 100) -> bool:
@@ -32,7 +27,7 @@ def foo(inp: bytes <= 100) -> bool:
     assert c.foo(b"badminton") is True
 
 
-def test_hash_code3():
+def test_hash_code3(get_contract_with_gas_estimation):
     hash_code3 = """
 test: bytes <= 100
 

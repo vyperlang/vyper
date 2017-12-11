@@ -1,9 +1,4 @@
-import pytest
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation, get_contract
-
-
-def test_decimal_test():
+def test_decimal_test(chain, check_gas, get_contract_with_gas_estimation):
     decimal_test = """
 @public
 def foo() -> num:
@@ -64,7 +59,7 @@ def foop() -> num:
     """
 
     c = get_contract_with_gas_estimation(decimal_test)
-    pre_txs = len(s.head_state.receipts)
+    pre_txs = len(chain.head_state.receipts)
     assert c.foo() == 999
     assert c.fop() == 999
     assert c.foq() == 999
@@ -79,13 +74,13 @@ def foop() -> num:
     assert c.foom() == 999
     assert c.foon() == 999
     assert c.foop() == 999
-    post_txs = len(s.head_state.receipts)
+    post_txs = len(chain.head_state.receipts)
 
     print('Passed basic addition, subtraction and multiplication tests')
     check_gas(decimal_test, num_txs=(post_txs - pre_txs))
 
 
-def test_harder_decimal_test():
+def test_harder_decimal_test(get_contract_with_gas_estimation):
     harder_decimal_test = """
 @public
 def phooey(inp: decimal) -> decimal:

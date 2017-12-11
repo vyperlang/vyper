@@ -1,9 +1,4 @@
-import pytest
-from tests.setup_transaction_tests import chain as s, tester as t, ethereum_utils as u, check_gas, \
-    get_contract_with_gas_estimation
-
-
-def test_test_slice():
+def test_test_slice(get_contract_with_gas_estimation):
     test_slice = """
 
 @public
@@ -30,7 +25,7 @@ def bar(inp1: bytes <= 10) -> num:
     print('Passed slice test')
 
 
-def test_test_slice2():
+def test_test_slice2(get_contract_with_gas_estimation):
     test_slice2 = """
 @public
 def slice_tower_test(inp1: bytes <= 50) -> bytes <= 50:
@@ -47,7 +42,7 @@ def slice_tower_test(inp1: bytes <= 50) -> bytes <= 50:
     print('Passed advanced slice test')
 
 
-def test_test_slice3():
+def test_test_slice3(get_contract_with_gas_estimation):
     test_slice3 = """
 x: num
 s: bytes <= 50
@@ -76,7 +71,7 @@ def bar(inp1: bytes <= 50) -> num:
     print('Passed storage slice test')
 
 
-def test_test_slice4():
+def test_test_slice4(get_contract_with_gas_estimation):
     test_slice4 = """
 @public
 def foo(inp: bytes <= 10, start: num, len: num) -> bytes <= 10:

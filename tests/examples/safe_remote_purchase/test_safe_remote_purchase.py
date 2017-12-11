@@ -9,7 +9,6 @@
 import pytest
 from ethereum.tools import tester 
 from ethereum import utils
-from tests.setup_transaction_tests import assert_tx_failed
 
 contract_code = open("examples/safe_remote_purchase/safe_remote_purchase.v.py").read()
 #Inital balance of accounts
