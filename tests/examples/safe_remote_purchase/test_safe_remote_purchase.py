@@ -34,19 +34,18 @@ def check_balance(tester):
 
 def test_initial_state(srp_tester, assert_tx_failed):
     assert check_balance(srp_tester) == [INIT_BAL, INIT_BAL]
-    # Inital deposit has to be divisible by two
-    assert_tx_failed(lambda: srp_tester.s.contract(contract_code, language="viper", args=[], value=1))
-    # Seller puts item up for sale
-    srp_tester.c = tester.s.contract(contract_code, language="viper", args=[], value=2)
-    # Check that the seller is set correctly
-    assert utils.remove_0x_head(srp_tester.c.get_seller()) == srp_tester.accounts[0].hex()
-    # Check if item value is set correctly (Half of deposit)
-    assert srp_tester.c.get_value() == 1
-    # Check if unlocked() works correctly after initialization
-    assert srp_tester.c.get_unlocked()
-    # Check that sellers (and buyers) balance is correct
-    assert check_balance(srp_tester) == [INIT_BAL - 2, INIT_BAL]
-
+    #Inital deposit has to be divisible by two
+    assert_tx_failed(lambda: srp_tester.s.contract(contract_code, language = "viper", args = [], value = 1))
+    #Seller puts item up for sale
+    srp_tester.c = tester.s.contract(contract_code, language = "viper", args = [], value=2)
+    #Check that the seller is set correctly
+    assert utils.remove_0x_head(srp_tester.c.seller()) == srp_tester.accounts[0].hex()
+    #Check if item value is set correctly (Half of deposit)
+    assert srp_tester.c.value() == 1
+    #Check if unlocked() works correctly after initialization
+    assert srp_tester.c.unlocked() == True
+    #Check that sellers (and buyers) balance is correct
+    assert check_balance(srp_tester) == [INIT_BAL-2, INIT_BAL]
 
 def test_abort(srp_tester, assert_tx_failed):
     srp_tester.c = srp_tester.s.contract(contract_code, language="viper", args=[], value=2)
@@ -68,13 +67,13 @@ def test_purchase(srp_tester, assert_tx_failed):
     assert_tx_failed(lambda: srp_tester.c.purchase(value=3, sender=srp_tester.k1))
     # Purchase for the correct price
     srp_tester.c.purchase(value=2, sender=srp_tester.k1)
-    # Check if buyer is set correctly
-    assert utils.remove_0x_head(srp_tester.c.get_buyer()) == srp_tester.accounts[1].hex()
-    # Check if contract is locked correctly, should return False
-    assert not srp_tester.c.get_unlocked()
-    # Check balances, both deposits should have been deducted
-    assert check_balance(srp_tester) == [INIT_BAL - 2, INIT_BAL - 2]
-    # Allow nobody else to purchase
+    #Check if buyer is set correctly
+    assert utils.remove_0x_head(srp_tester.c.buyer()) == srp_tester.accounts[1].hex()
+    #Check if contract is locked correctly
+    assert srp_tester.c.unlocked() == False
+    #Check balances, both deposits should have been deducted
+    assert check_balance(srp_tester) == [INIT_BAL-2, INIT_BAL-2]
+    #Allow nobody else to purchase
     assert_tx_failed(lambda: srp_tester.c.purchase(value=2, sender=srp_tester.k3))
 
 

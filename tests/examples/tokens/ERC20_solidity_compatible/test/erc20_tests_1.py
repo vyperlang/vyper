@@ -56,9 +56,9 @@ class TestERC20(PyEthereumTestCase):
         # Check total supply is 0
         self.assertEqual(self.c.totalSupply(), 0)
         # Check several account balances as 0
-        self.assertEqual(self.c.balanceOf(self.t.a1), 0)
-        self.assertEqual(self.c.balanceOf(self.t.a2), 0)
-        self.assertEqual(self.c.balanceOf(self.t.a3), 0)
+        self.assertEqual(self.c.get_balanceOf(self.t.a1), 0)
+        self.assertEqual(self.c.get_balanceOf(self.t.a2), 0)
+        self.assertEqual(self.c.get_balanceOf(self.t.a3), 0)
         # Check several allowances as 0
         self.assertEqual(self.c.allowance(self.t.a1, self.t.a1), 0)
         self.assertEqual(self.c.allowance(self.t.a1, self.t.a2), 0)
@@ -69,22 +69,22 @@ class TestERC20(PyEthereumTestCase):
         initial_a1_balance = self.s.head_state.get_balance(self.t.a1)
         initial_a2_balance = self.s.head_state.get_balance(self.t.a2)
         # Test scenario where a1 deposits 2, withdraws twice (check balance consistency)
-        self.assertEqual(self.c.balanceOf(self.t.a1), 0)
+        self.assertEqual(self.c.get_balanceOf(self.t.a1), 0)
         self.assertIsNone(self.c.deposit(value=2, sender=self.t.k1))
-        self.assertEqual(self.c.balanceOf(self.t.a1), 2)
+        self.assertEqual(self.c.get_balanceOf(self.t.a1), 2)
         # Check that 2 Wei have been debited from a1
         self.assertEqual(initial_a1_balance - self.s.head_state.get_balance(self.t.a1), 2)
         # ... and added to the contract
         self.assertEqual(self.s.head_state.get_balance(self.c.address), 2)
         self.assertTrue(self.c.withdraw(2, sender=self.t.k1))
-        self.assertEqual(self.c.balanceOf(self.t.a1), 0)
+        self.assertEqual(self.c.get_balanceOf(self.t.a1), 0)
         # a1 should have all his money back
         self.assertEqual(self.s.head_state.get_balance(self.t.a1), initial_a1_balance)
         self.assert_tx_failed(lambda: self.c.withdraw(2, sender=self.t.k1))
-        self.assertEqual(self.c.balanceOf(self.t.a1), 0)
+        self.assertEqual(self.c.get_balanceOf(self.t.a1), 0)
         # Test scenario where a2 deposits 0, withdraws (check balance consistency, false withdraw)
         self.assertIsNone(self.c.deposit(value=0, sender=self.t.k2))
-        self.assertEqual(self.c.balanceOf(self.t.a2), 0)
+        self.assertEqual(self.c.get_balanceOf(self.t.a2), 0)
         self.assertEqual(self.s.head_state.get_balance(self.t.a2), initial_a2_balance)
         self.assert_tx_failed(lambda: self.c.withdraw(2, sender=self.t.k2))
         # Check that a1 cannot withdraw after depleting their balance
@@ -136,7 +136,7 @@ class TestERC20(PyEthereumTestCase):
         self.assertEqual(self.c.allowance(self.t.a2, self.t.a1, sender=self.t.k2), 0)
         # transferFrom should succeed when allowed, fail with wrong sender
         self.assert_tx_failed(lambda: self.c.transferFrom(self.t.a2, self.t.a3, 1, sender=self.t.k3))
-        self.assertEqual(self.c.balanceOf(self.t.a2), 1)
+        self.assertEqual(self.c.get_balanceOf(self.t.a2), 1)
         self.assertTrue(self.c.approve(self.t.a1, 1, sender=self.t.k2))
         self.assertTrue(self.c.transferFrom(self.t.a2, self.t.a3, 1, sender=self.t.k1))
         # Allowance should be correctly updated after transferFrom
@@ -173,7 +173,7 @@ class TestERC20(PyEthereumTestCase):
         # Check boundary conditions - a1 can deposit max amount
         self.assertIsNone(self.c.deposit(value=MAX_UINT256, sender=self.t.k1))
         self.assertEqual(initial_a1_balance - self.s.head_state.get_balance(self.t.a1), MAX_UINT256)
-        self.assertEqual(self.c.balanceOf(self.t.a1), MAX_UINT256)
+        self.assertEqual(self.c.get_balanceOf(self.t.a1), MAX_UINT256)
         self.assert_tx_failed(lambda: self.c.deposit(value=1, sender=self.t.k1))
         self.assert_tx_failed(lambda: self.c.deposit(value=MAX_UINT256, sender=self.t.k1))
         # Check that totalSupply cannot overflow, even when deposit from other sender
@@ -184,23 +184,23 @@ class TestERC20(PyEthereumTestCase):
         self.assert_tx_failed(lambda: self.c.deposit(value=1, sender=self.t.k2))
         self.assertTrue(self.c.transfer(self.t.a1, 1, sender=self.t.k2))
         # Assert that after obtaining max number of tokens, a1 can transfer those but no more
-        self.assertEqual(self.c.balanceOf(self.t.a1), MAX_UINT256)
+        self.assertEqual(self.c.get_balanceOf(self.t.a1), MAX_UINT256)
         self.assertTrue(self.c.transfer(self.t.a2, MAX_UINT256, sender=self.t.k1))
-        self.assertEqual(self.c.balanceOf(self.t.a2), MAX_UINT256)
-        self.assertEqual(self.c.balanceOf(self.t.a1), 0)
+        self.assertEqual(self.c.get_balanceOf(self.t.a2), MAX_UINT256)
+        self.assertEqual(self.c.get_balanceOf(self.t.a1), 0)
         # [ next line should never work in EVM ]
         self.assert_tx_failed(lambda: self.c.transfer(self.t.a1, MAX_UINT256 + 1, sender=self.t.k2), exception=abi.ValueOutOfBounds)
         # Check approve/allowance w max possible token values
-        self.assertEqual(self.c.balanceOf(self.t.a2), MAX_UINT256)
+        self.assertEqual(self.c.get_balanceOf(self.t.a2), MAX_UINT256)
         self.assertTrue(self.c.approve(self.t.a1, MAX_UINT256, sender=self.t.k2))
         self.assertTrue(self.c.transferFrom(self.t.a2, self.t.a1, MAX_UINT256, sender=self.t.k1))
-        self.assertEqual(self.c.balanceOf(self.t.a1), MAX_UINT256)
-        self.assertEqual(self.c.balanceOf(self.t.a2), 0)
+        self.assertEqual(self.c.get_balanceOf(self.t.a1), MAX_UINT256)
+        self.assertEqual(self.c.get_balanceOf(self.t.a2), 0)
         # Check that max amount can be withdrawn
         # (-1 because a1 withdrew from a2 transferring in)
         self.assertEqual(initial_a1_balance - MAX_UINT256, self.s.head_state.get_balance(self.t.a1) - 1)
         self.assertTrue(self.c.withdraw(MAX_UINT256, sender=self.t.k1))
-        self.assertEqual(self.c.balanceOf(self.t.a1), 0)
+        self.assertEqual(self.c.get_balanceOf(self.t.a1), 0)
         self.assertEqual(initial_a1_balance, self.s.head_state.get_balance(self.t.a1) - 1)
 
     def test_payability(self):
@@ -260,7 +260,7 @@ class TestERC20(PyEthereumTestCase):
         self.s.head_state.receipts[-1].logs = []
         self.assertEqual(self.c.totalSupply(), 1)
         self.assertEqual(self.s.head_state.receipts[-1].logs, [])
-        self.assertEqual(self.c.balanceOf(self.t.a1), 0)
+        self.assertEqual(self.c.get_balanceOf(self.t.a1), 0)
         self.assertEqual(self.s.head_state.receipts[-1].logs, [])
         self.assertEqual(self.c.allowance(self.t.a1, self.t.a2), 0)
         self.assertEqual(self.s.head_state.receipts[-1].logs, [])
@@ -361,9 +361,9 @@ class TestViperERC20(TestERC20):
 
     def test_bad_deposit(self):
         # Check that, in event when totalSupply is corrupted, it can't be underflowed
-        self.assertEqual(self.c_bad.balanceOf(self.t.a1), 0)
+        self.assertEqual(self.c_bad.get_balanceOf(self.t.a1), 0)
         self.assertIsNone(self.c_bad.deposit(value=2, sender=self.t.k1))
-        self.assertEqual(self.c_bad.balanceOf(self.t.a1), 2)
+        self.assertEqual(self.c_bad.get_balanceOf(self.t.a1), 2)
         self.assert_tx_failed(lambda: self.c_bad.withdraw(2, sender=self.t.k1))
 
     def test_bad_transferFrom(self):
