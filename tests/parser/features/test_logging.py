@@ -590,3 +590,26 @@ def foo():
 
     c.foo()
     assert get_last_log(t, c)["_value"] == [1.11, 2.22, 3.33, 4.44]
+
+
+def test_storage_byte_packing(get_last_log, bytes_helper):
+    code = """
+MyLog: __log__({arg1: bytes <= 29})
+x:bytes<=5
+
+@public
+def foo(a:num):
+    log.MyLog(self.x)
+
+@public
+def setbytez():
+    self.x = 'hello'
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    c.foo()
+    assert get_last_log(t, c)['arg1'] == bytes_helper('', 29)
+    c.setbytez()
+    c.foo()
+    assert get_last_log(t, c)['arg1'] == bytes_helper('hello', 29)
