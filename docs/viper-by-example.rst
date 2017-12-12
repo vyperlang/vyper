@@ -261,11 +261,6 @@ Like other examples, we begin by initiating our variables - except this time,
 we're not calling them with the ``public`` function. Variables initiated this
 way are, by default, private.
 
-..note ::
-Unlike the existence of the function ``public()``, there is no equivalent
-``private()`` function. Variables simply default to private if initiated
-without the ``public()`` function.
-
 The ``funders`` variable is initiated as a mapping where the key is a number,
 and the value is a struct representing the contribution of each participant.
 This struct contains each participant's public address and their respective
