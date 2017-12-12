@@ -748,6 +748,17 @@ def pack_arguments(signature, args, context):
                                                     make_byte_array_copier(target, arg_copy),
                                                     ['set', '_poz', ['add', 32, ['add', '_poz', get_length(arg_copy)]]]]])
             needpos = True
+        elif isinstance(typ, ListType):
+            setters.append(['mstore', placeholder + 32 + i * 32, '_poz'])
+            arg_copy = LLLnode.from_list('_s', typ=arg.typ, location=arg.location)
+            # len_target = LLLnode.from_list(['add', placeholder + 32, '_poz'], typ=typ, location='memory')
+            target = LLLnode.from_list(['add', placeholder, '_poz'], typ=typ, location='memory')
+            setters.append(['with', '_s', arg, ['seq',
+                                                    # make_setter(target, arg_copy, 'memory'),
+                                                    make_setter(target, arg_copy, 'memory'),
+                                                    # ['mstore', len_target, typ.count * 32],
+                                                    ['set', '_poz', ['add', 32, ['add', '_poz', typ.count * 32]]]]])
+            needpos = True
         else:
             raise TypeMismatchException("Cannot pack argument of type %r" % typ)
     if needpos:

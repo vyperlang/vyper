@@ -157,3 +157,37 @@ def return_mongoose_revolution_32_excls() -> bytes <= 201:
     assert c.return_mongoose_revolution_32_excls() == b"mongoose_revolution" + b"!" * 32
 
     print("Passed composite self-call test")
+
+
+def test_list_call(get_contract_with_gas_estimation):
+    code = """
+@public
+def foo0(x: num[2]) -> num:
+    return x[0]
+
+@public
+def foo1(x: num[2]) -> num:
+    return x[1]
+
+
+@public
+def bar() -> num:
+    x: num[2]
+    return self.foo0(x)
+
+@public
+def bar2() -> num:
+    x = [55, 66]
+    return self.foo0(x)
+
+@public
+def bar3() -> num:
+    x = [55, 66]
+    return self.foo1(x)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.bar() == 0
+    assert c.foo1() == 0
+    assert c.bar2() == 55
+    assert c.bar3() == 66
