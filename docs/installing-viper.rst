@@ -103,7 +103,9 @@ If everything works correctly, you are now able to compile your own smart contra
 However, please keep in mind that Viper is still experimental and not ready for production!
 
 .. note::
-    For MacOS users:
+    If you get the error `fatal error: openssl/aes.h: No such file or directory` in the output of `make`, then run `sudo apt-get install libssl-dev1`, then run `make` again.
+
+    **For MacOS users:**
 
     Apple has deprecated use of OpenSSL in favor of its own TLS and crypto
     libraries. This means that you will need to export some OpenSSL settings
