@@ -4,11 +4,11 @@
 voters: public({
     # weight is accumulated by delegation
     weight: num,
-    # if true, that person already voted (includes voting by delegating)
+    # if true, that person already voted (which includes voting by delegating)
     voted: bool,
     # person delegated to
     delegate: address,
-    # index of the voted proposal. not meaningful unless `voted` is True.
+    # index of the voted proposal, which is not meaningful unless `voted` is True.
     vote: num
 }[address])
 
@@ -27,13 +27,15 @@ num_proposals: public(num)
 @public
 @constant
 def delegated(addr: address) -> bool:
-    # equivalent to self.voters[addr].delegate != 0x0000000000000000000000000000000000000000
+    # equivalent to  
+        # self.voters[addr].delegate != 0x0000000000000000000000000000000000000000
     return not not self.voters[addr].delegate
 
 @public
 @constant
 def directly_voted(addr: address) -> bool:
-    # not <address> equivalent to <address> == 0x0000000000000000000000000000000000000000
+    # not <address> equivalent to 
+        # <address> == 0x0000000000000000000000000000000000000000
     return self.voters[addr].voted and not self.voters[addr].delegate
 
 # Setup global variables
@@ -108,7 +110,8 @@ def delegate(to: address):
     self.voters[msg.sender].voted = True
     self.voters[msg.sender].delegate = to
 
-    # this call will throw if and only if this delegation would cause a loop of length <= 5.
+    # this call will throw if and only if this delegation 
+        # would cause a loop of length <= 5.
     self.forward_weight(msg.sender)
 
 # Give your vote (including votes delegated to you)
