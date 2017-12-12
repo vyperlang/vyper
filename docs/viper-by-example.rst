@@ -255,7 +255,7 @@ previous examples. Let's dive right in.
 
 .. literalinclude:: ../examples/crowdfund.v.py
   :language: python
-  :lines: 1-7
+  :lines: 1-9
 
 Like other examples, we begin by initiating our variables - except this time,
 we're not calling them with the ``public`` function. Instead, we call them with the ``private`` function.
@@ -276,7 +276,7 @@ order to avoid gas limit issues in the scenario of a refund.
 
 .. literalinclude:: ../examples/crowdfund.v.py
   :language: python
-  :lines: 9-14
+  :lines: 11-17
 
 Our constructor function takes 3 arguments: the beneficiary's address, the goal
 in wei value, and the difference in time from start to finish of the
@@ -288,7 +288,7 @@ Now lets take a look at how a person can participate in the crowdfund.
 
 .. literalinclude:: ../examples/crowdfund.v.py
   :language: python
-  :lines: 16-22
+  :lines: 19-26
 
 Once again, we see the ``@payable`` decorator on a method, which allows a
 person to send some ether along with a call to the method. In this case,
@@ -301,7 +301,7 @@ each participant.
 
 .. literalinclude:: ../examples/crowdfund.v.py
   :language: python
-  :lines: 24-27
+  :lines: 28-32
 
 The ``finalize()`` method is used to complete the crowdfunding process. However,
 to complete the crowdfunding, the method first checks to see if the crowdfunding
@@ -321,7 +321,7 @@ all the participants.
 
 .. literalinclude:: ../examples/crowdfund.v.py
   :language: python
-  :lines: 29-40
+  :lines: 34-46
 
 In the ``refund()`` method, we first check that the crowdfunding period is
 indeed over and that the total collected balance is less than the ``goal`` with
