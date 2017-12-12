@@ -355,7 +355,7 @@ section by section. Let’s begin!
 
 .. literalinclude:: ../examples/voting/ballot.v.py
   :language: python
-  :lines: 3-21
+  :lines: 3-25
 
 The variable ``voters`` is initialized as a mapping where the key is
 the voter’s public address and the value is a struct describing the
@@ -369,13 +369,19 @@ access any value by key’ing into the mapping with a number just as one would
 with an index in an array.
 
 Then, ``voter_count`` and ``chairperson`` are initialized as ``public`` with
-their respective datatypes.
+their respective datatypes. 
+
+We then define the functions that determine whether a voter has delegated or directly voted. 
+
+.. literalinclude:: ../examples/voting/ballot.v.py
+  :language: python
+  :lines: 27-39
 
 Let’s move onto the constructor.
 
 .. literalinclude:: ../examples/voting/ballot.v.py
   :language: python
-  :lines: 26-34
+  :lines: 41-51
 
 .. warning:: Both ``msg.sender`` and ``msg.balance`` change between internal
   function calls so that if you're calling a function from the outside, it's
@@ -399,25 +405,21 @@ Now that the initial setup is done, lets take a look at the functionality.
 
 .. literalinclude:: ../examples/voting/ballot.v.py
   :language: python
-  :lines: 36-46
+  :lines: 53-64
 
 We need a way to control who has the ability to vote. The method
 ``give_right_to_vote()`` is a method callable by only the chairperson by taking
 a voter address and granting it the right to vote by incrementing the voter's
 ``weight`` property. We sequentially check for 3 conditions using ``assert``.
-The ``assert not`` function will check for falsy boolean values -
-in this case, we want to know that the voter has not already voted. To represent
+The ``assert not`` function will check for falsy boolean values—in this case, 
+we want to know that the voter has not already voted. To represent
 voting power, we will set their ``weight`` to ``1`` and we will keep track of the
 total number of voters by incrementing ``voter_count``.
 
-.. literalinclude:: ../examples/voting/ballot.v.py
-  :language: python
-  :lines: 48-71
-
-In the method ``delegate``, firstly, we check to see that ``msg.sender`` has not
+In the method ``delegate`` below, firstly, we check to see that ``msg.sender`` has not
 already voted and secondly, that the target delegate and the ``msg.sender`` are
-not the same. Voters shouldn’t be able to delegate votes to themselves. We,
-then, loop through all the voters to determine whether the person delegate to
+not the same. Voters shouldn’t be able to delegate votes to themselves. We
+then loop through all the voters to determine whether the person delegated to
 had further delegated their vote to someone else in order to follow the
 chain of delegation. We then mark the ``msg.sender`` as having voted if they
 delegated their vote. We increment the proposal’s ``vote_count`` directly if
@@ -426,13 +428,18 @@ if the delegate has not yet voted.
 
 .. literalinclude:: ../examples/voting/ballot.v.py
   :language: python
-  :lines: 73-82
+  :lines: 66-118
 
 Now, let’s take a look at the logic inside the ``vote()`` method, which is
 surprisingly simple. The method takes the key of the proposal in the ``proposals``
-mapping as an argument, check that the method caller had not already voted,
-sets the voter’s ``vote`` property to the proposal key, and increments the
-proposals ``vote_count`` by the voter’s ``weight``.
+mapping as an argument, checks that the method caller had not already voted, checks
+that the vote is for a legitimate proposal, votes by setting the voter’s ``vote``
+property to the proposal key and setting ``voted`` to 0, increments the proposals
+``vote_count`` by the voter’s ``weight``, and sets their ``weight`` to 0.
+
+.. literalinclude:: ../examples/voting/ballot.v.py
+  :language: python
+  :lines: 120-134
 
 With all the basic functionality complete, what’s left is simply returning
 the winning proposal. To do this, we have two methods: ``winning_proposal()``,
@@ -443,22 +450,24 @@ modify it. Remember, reading the blockchain state is free; modifying the state
 costs gas. By having the ``@constant`` decorator, we let the EVM know that this
 is a read-only function and we benefit by saving gas fees.
 
-.. literalinclude:: ../examples/voting/ballot.v.py
-  :language: python
-  :lines: 84-93
-
-The ``winning_proposal()`` method returns the key of proposal in the ``proposals``
-mapping. We will keep track of greatest number of votes and the winning
-proposal with the variables ``winning_vote_count`` and ``winning_proposal``,
+The ``winning_proposal()`` method returns the key of the proposal in the 
+``proposals`` mapping. We will keep track of the greatest number of votes and the
+winning proposal with the variables ``winning_vote_count`` and ``winning_proposal``,
 respectively by looping through all the proposals.
 
 .. literalinclude:: ../examples/voting/ballot.v.py
   :language: python
-  :lines: 95-100
+  :lines: 136-146
 
 And finally, the ``winner_name()`` method returns the name of the proposal by
 key’ing into the ``proposals`` mapping with the return result of the
 ``winning_proposal()`` method.
+
+.. literalinclude:: ../examples/voting/ballot.v.py
+  :language: python
+  :lines: 148-154
+
+
 
 And there you have it - a voting contract. Currently, many transactions
 are needed to assign the rights to vote to all participants. As an exercise,
