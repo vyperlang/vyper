@@ -258,8 +258,7 @@ previous examples. Let's dive right in.
   :lines: 1-7
 
 Like other examples, we begin by initiating our variables - except this time,
-we're not calling them with the ``public`` function. Variables initiated this
-way are, by default, private.
+we're not calling them with the ``public`` function. Instead, we call them with the ``private`` function.
 
 The ``funders`` variable is initiated as a mapping where the key is a number,
 and the value is a struct representing the contribution of each participant.
