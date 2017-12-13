@@ -272,9 +272,9 @@ This struct contains each participant's public address and their respective
 value contributed to the fund. The key corresponding to each struct in the
 mapping will be represented by the variable ``nextFunderIndex`` which is
 incremented with each additional contributing participant. Variables initialized
-with ``num`` type without an explicit value, such as ``nextFunderIndex``,
+with the ``num`` type without an explicit value, such as ``nextFunderIndex``,
 defaults to ``0``. The ``beneficiary`` will be the final receiver of the funds
-once the crowdfunding period is over - as determined by the ``deadline`` and
+once the crowdfunding period is over—as determined by the ``deadline`` and
 ``timelimit`` variables. The ``goal`` variable is the target total contribution
 of all participants. ``refundIndex`` is a variable for bookkeeping purposes in
 order to avoid gas limit issues in the scenario of a refund.
