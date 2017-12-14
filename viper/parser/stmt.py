@@ -182,7 +182,7 @@ class Stmt(object):
         # Type 1 for, eg. for i in range(10): ...
         if len(self.stmt.iter.args) == 1:
             if not isinstance(self.stmt.iter.args[0], ast.Num):
-                raise StructureException("Repeat must have a nonzero positive integral number of rounds", self.stmt.iter)
+                raise StructureException("Range only accepts literal values", self.stmt.iter)
             start = LLLnode.from_list(0, typ='num', pos=getpos(self.stmt))
             rounds = self.stmt.iter.args[0].n
         elif isinstance(self.stmt.iter.args[0], ast.Num) and isinstance(self.stmt.iter.args[1], ast.Num):
@@ -197,7 +197,7 @@ class Stmt(object):
             if ast.dump(self.stmt.iter.args[0]) != ast.dump(self.stmt.iter.args[1].left):
                 raise StructureException("Two-arg for statements of the form `for i in range(x, x + y): ...` must have x identical in both places: %r %r" % (ast.dump(self.stmt.iter.args[0]), ast.dump(self.stmt.iter.args[1].left)), self.stmt.iter)
             if not isinstance(self.stmt.iter.args[1].right, ast.Num):
-                raise StructureException("Repeat must have a nonzero positive integral number of rounds", self.stmt.iter.args[1])
+                raise StructureException("Range only accepts literal values", self.stmt.iter.args[1])
             start = Expr.parse_value_expr(self.stmt.iter.args[0], self.context)
             rounds = self.stmt.iter.args[1].right.n
         varname = self.stmt.target.id
