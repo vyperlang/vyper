@@ -278,9 +278,34 @@ def bar() -> (num, decimal):
     z = [55, 66]
     a = 66.77
 
-    b = self.fooz(x, y, z, a)
-    c = self.fooa(x, y, z, a)
-    return b, c
+    return self.fooz(x, y, z, a), self.fooa(x, y, z, a)
     """
     c = get_contract_with_gas_estimation(code)
     assert c.bar() == [66, 66.77]
+
+
+def test_multi_mixed_arg_list_bytes_call(get_contract_with_gas_estimation):
+    code = """
+@public
+def fooz(x: num[2], y: decimal, z: bytes <= 11, a: decimal) -> bytes <= 11:
+    return z
+
+@public
+def fooa(x: num[2], y: decimal, z: bytes <= 11, a: decimal) -> decimal:
+    return a
+
+@public
+def foox(x: num[2], y: decimal, z: bytes <= 11, a: decimal) -> num:
+    return x[1]
+
+@public
+def bar() -> (bytes <= 11, decimal, num):
+    x = [33, 44]
+    y = 55.44
+    z = "hello world"
+    a = 66.77
+
+    return self.fooz(x, y, z, a), self.fooa(x, y, z, a), self.foox(x, y, z, a)
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.bar() == [b"hello world", 66.77, 44]
