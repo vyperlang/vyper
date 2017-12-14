@@ -494,8 +494,9 @@ Let's get started.
   :linenos:
 
 The contract contains a number of methods that modify the contract state as
-well as a few 'getter' methods to read it. We first initiate several events 
-that the contract logs. We then initiate our variables.
+well as a few 'getter' methods to read it. We first declare several events 
+that the contract logs. We then declare our global variables, followed by
+function defintions.
 
 .. literalinclude:: ../examples/stock/company.v.py
   :language: python
