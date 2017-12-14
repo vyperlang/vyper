@@ -737,11 +737,12 @@ def pack_arguments(signature, args, context):
     placeholder = context.new_placeholder(placeholder_typ)
     setters = [['mstore', placeholder, signature.method_id]]
     needpos = False
+    staticarray_offset = 0
     for i, (arg, typ) in enumerate(zip(args, [arg.typ for arg in signature.args])):
         if isinstance(typ, BaseType):
-            setters.append(make_setter(LLLnode.from_list(placeholder + 32 + i * 32, typ=typ), arg, 'memory'))
+            setters.append(make_setter(LLLnode.from_list(placeholder + staticarray_offset + 32 + i * 32, typ=typ), arg, 'memory'))
         elif isinstance(typ, ByteArrayType):
-            setters.append(['mstore', placeholder + 32 + i * 32, '_poz'])
+            setters.append(['mstore', placeholder + staticarray_offset + 32 + i * 32, '_poz'])
             arg_copy = LLLnode.from_list('_s', typ=arg.typ, location=arg.location)
             target = LLLnode.from_list(['add', placeholder + 32, '_poz'], typ=typ, location='memory')
             setters.append(['with', '_s', arg, ['seq',
@@ -749,20 +750,13 @@ def pack_arguments(signature, args, context):
                                                     ['set', '_poz', ['add', 32, ['add', '_poz', get_length(arg_copy)]]]]])
             needpos = True
         elif isinstance(typ, ListType):
-            setters.append(['mstore', placeholder + 32 + i * 32, '_poz'])
-            arg_copy = LLLnode.from_list('_s', typ=arg.typ, location=arg.location)
-            # len_target = LLLnode.from_list(['add', placeholder + 32, '_poz'], typ=typ, location='memory')
-            target = LLLnode.from_list(['add', placeholder, '_poz'], typ=typ, location='memory')
-            setters.append(['with', '_s', arg, ['seq',
-                                                    # make_setter(target, arg_copy, 'memory'),
-                                                    make_setter(target, arg_copy, 'memory'),
-                                                    # ['mstore', len_target, typ.count * 32],
-                                                    ['set', '_poz', ['add', 32, ['add', '_poz', typ.count * 32]]]]])
-            needpos = True
+            target = LLLnode.from_list([placeholder + 32 + staticarray_offset + i * 32], typ=typ, location='memory')
+            setters.append(make_setter(target, arg, 'memory'))
+            staticarray_offset += 32 * (typ.count - 1)
         else:
             raise TypeMismatchException("Cannot pack argument of type %r" % typ)
     if needpos:
-        return LLLnode.from_list(['with', '_poz', len(args) * 32, ['seq'] + setters + [placeholder + 28]],
+        return LLLnode.from_list(['with', '_poz', len(args) * 32 + staticarray_offset, ['seq'] + setters + [placeholder + 28]],
                                  typ=placeholder_typ, location='memory'), \
             placeholder_typ.maxlen - 28
     else:

@@ -191,3 +191,96 @@ def bar3() -> num:
     assert c.foo1() == 0
     assert c.bar2() == 55
     assert c.bar3() == 66
+
+
+def test_multi_arg_list_call(get_contract_with_gas_estimation):
+    code = """
+@public
+def foo0(y: decimal, x: num[2]) -> num:
+    return x[0]
+
+@public
+def foo1(x: num[2], y: decimal) -> num:
+    return x[1]
+
+@public
+def foo2(y: decimal, x: num[2]) -> decimal:
+    return y
+
+@public
+def foo3(x: num[2], y: decimal) -> num:
+    return x[0]
+
+@public
+def foo4(x: num[2], y: num[2]) -> num:
+    return y[0]
+
+
+@public
+def bar() -> num:
+    x: num[2]
+    return self.foo0(0.3434, x)
+
+# list as second parameter
+@public
+def bar2() -> num:
+    x = [55, 66]
+    return self.foo0(0.01, x)
+
+@public
+def bar3() -> decimal:
+    x = [88, 77]
+    return self.foo2(1.33, x)
+
+# list as first parameter
+@public
+def bar4() -> num:
+    x = [88, 77]
+    return self.foo1(x, 1.33)
+
+@public
+def bar5() -> num:
+    x = [88, 77]
+    return self.foo3(x, 1.33)
+
+# two lists
+@public
+def bar6() -> num:
+    x = [88, 77]
+    y = [99, 66]
+    return self.foo4(x, y)
+
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.bar() == 0
+    assert c.foo1() == 0
+    assert c.bar2() == 55
+    assert c.bar3() == 1.33
+    assert c.bar4() == 77
+    assert c.bar5() == 88
+
+
+def test_multi_mixed_arg_list_call(get_contract_with_gas_estimation):
+    code = """
+@public
+def fooz(x: num[2], y: decimal, z: num[2], a: decimal) -> num:
+    return z[1]
+
+@public
+def fooa(x: num[2], y: decimal, z: num[2], a: decimal) -> decimal:
+    return a
+
+@public
+def bar() -> (num, decimal):
+    x = [33, 44]
+    y = 55.44
+    z = [55, 66]
+    a = 66.77
+
+    b = self.fooz(x, y, z, a)
+    c = self.fooa(x, y, z, a)
+    return b, c
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.bar() == [66, 66.77]
