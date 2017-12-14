@@ -68,8 +68,7 @@ def cash() -> wei_value:
 # Give stock back to the company and get money back as ETH.
 @public
 def sell_stock(sell_order: currency_value):
-    assert sell_order > 0 # Otherwise, this would fail at send() below, 
-        # due to an OOG error (there would be zero value available for gas).
+    assert sell_order > 0 # Otherwise, this would fail at send() below. 
     # You can only sell as much stock as you own.
     assert self.get_holding(msg.sender) >= sell_order
     # Check that the company can pay you.
