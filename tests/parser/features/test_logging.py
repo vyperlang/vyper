@@ -541,6 +541,29 @@ def foo():
     assert get_last_log(t, c)["_value"] == [1, 2, 3, 4]
 
 
+def test_storage_list_packing(t, get_last_log, bytes_helper, get_contract_with_gas_estimation, chain):
+    t.s = chain
+    code = """
+Bar: __log__({_value: num[4]})
+x: num[4]
+
+@public
+def foo():
+    log.Bar(self.x)
+
+@public
+def set_list():
+    self.x = [1, 2, 3, 4]
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    c.foo()
+    assert get_last_log(t, c)["_value"] == [0, 0, 0, 0]
+    c.set_list()
+    c.foo()
+    assert get_last_log(t, c)["_value"] == [1, 2, 3, 4]
+
+
 def test_passed_list_packing(t, get_last_log, get_contract_with_gas_estimation, chain):
     t.s = chain
     code = """
@@ -570,3 +593,50 @@ def foo():
 
     c.foo()
     assert get_last_log(t, c)["_value"] == [1.11, 2.22, 3.33, 4.44]
+
+
+def test_storage_byte_packing(t, get_last_log, bytes_helper, get_contract_with_gas_estimation, chain):
+    t.s = chain
+    code = """
+MyLog: __log__({arg1: bytes <= 29})
+x:bytes<=5
+
+@public
+def foo(a:num):
+    log.MyLog(self.x)
+
+@public
+def setbytez():
+    self.x = 'hello'
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    c.foo()
+    assert get_last_log(t, c)['arg1'] == bytes_helper('', 29)
+    c.setbytez()
+    c.foo()
+    assert get_last_log(t, c)['arg1'] == bytes_helper('hello', 29)
+
+
+def test_storage_decimal_list_packing(t, get_last_log, bytes_helper, get_contract_with_gas_estimation, chain):
+    t.s = chain
+    code = """
+Bar: __log__({_value: decimal[4]})
+x: decimal[4]
+
+@public
+def foo():
+    log.Bar(self.x)
+
+@public
+def set_list():
+    self.x = [1.33, 2.33, 3.33, 4.33]
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    c.foo()
+    assert get_last_log(t, c)["_value"] == [0, 0, 0, 0]
+    c.set_list()
+    c.foo()
+    assert get_last_log(t, c)["_value"] == [1.33, 2.33, 3.33, 4.33]
