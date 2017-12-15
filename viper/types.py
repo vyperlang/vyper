@@ -262,7 +262,8 @@ def parse_type(item, location, sigs={}):
             raise InvalidTypeException("Malformed unit type:", item)
         base_type = item.func.id
         if base_type not in ('num', 'decimal'):
-            raise InvalidTypeException("Base type with units can only be num, decimal", item)
+            raise InvalidTypeException("You must use num, decimal, address, contract, \
+                for variable declarations and indexed for logging topics ", item)
         if len(item.args) == 0:
             raise InvalidTypeException("Malformed unit type", item)
         if isinstance(item.args[-1], ast.Name) and item.args[-1].id == "positional":
