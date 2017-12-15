@@ -263,7 +263,7 @@ way are, by default, private.
 
 ..note ::
 Unlike the existence of the function ``public()``, there is no equivalent
-`private()`` function. Variables simply default to private if initiated
+``private()`` function. Variables simply default to private if initiated
 without the ``public()`` function.
 
 The ``funders`` variable is initiated as a mapping where the key is a number,
