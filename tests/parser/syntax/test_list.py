@@ -32,21 +32,21 @@ def foo() -> num[2]:
 y: num[3]
 
 @public
-def foo(x: num[3]) -> num:
+def foo(x: num[3]):
     self.y = x[0]
     """,
     """
 y: num[3]
 
 @public
-def foo(x: num[3]) -> num:
+def foo(x: num[3]):
     self.y[0] = x
     """,
     """
 y: num[4]
 
 @public
-def foo(x: num[3]) -> num:
+def foo(x: num[3]):
     self.y = x
     """,
     """
@@ -168,28 +168,28 @@ def foo(x: num[3]) -> num:
 y: num[3]
 
 @public
-def foo(x: num[3]) -> num:
+def foo(x: num[3]):
     self.y = x
     """,
     """
 y: decimal[3]
 
 @public
-def foo(x: num[3]) -> num:
+def foo(x: num[3]):
     self.y = x
     """,
     """
 y: decimal[2][2]
 
 @public
-def foo(x: num[2][2]) -> num:
+def foo(x: num[2][2]):
     self.y = x
     """,
     """
 y: decimal[2]
 
 @public
-def foo(x: num[2][2]) -> num:
+def foo(x: num[2][2]):
     self.y = x[1]
     """,
     """

@@ -154,14 +154,14 @@ def foo():
 must_succeed("""
 x: num
 @public
-def foo() -> num:
+def foo():
     self.x = 5
 """)
 
 must_succeed("""
 x: num
 @private
-def foo() -> num:
+def foo():
     self.x = 5
 """)
 
