@@ -346,7 +346,7 @@ Voting
 
 In this contract, we will implement a system for participants to vote on a list
 of proposals. The chairperson of the contract will be able to give each
-participant the right to vote and each participant may choose to vote or
+participant the right to vote, and each participant may choose to vote, or
 delegate their vote to another voter. Finally, a winning proposal will be
 determined upon calling the ``winning_proposals()`` method, which iterates through
 all the proposals and returns the one with the greatest number of votes.
@@ -361,7 +361,7 @@ section by section. Let’s begin!
 
 .. literalinclude:: ../examples/voting/ballot.v.py
   :language: python
-  :lines: 3-21
+  :lines: 3-25
 
 The variable ``voters`` is initialized as a mapping where the key is
 the voter’s public address and the value is a struct describing the
