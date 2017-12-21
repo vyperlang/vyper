@@ -79,6 +79,7 @@ pseudo_opcodes = {
     'ASSERT': [None, 1, 0, 85],
     'PASS': [None, 0, 0, 0],
     'BREAK': [None, 0, 0, 20],
+    'CONTINUE': [None, 0, 0, 20],
     'SHA3_32': [None, 1, 1, 72],
     'SLE': [None, 2, 1, 10],
     'SGE': [None, 2, 1, 10],

@@ -107,24 +107,30 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
         loops = num_to_bytearray(code.args[2].value)
         if not loops:
             raise Exception("Number of times repeated must be a constant nonzero positive integer: %r" % loops)
-        start, end = mksymbol(), mksymbol()
+        start, continue_dest, end = mksymbol(), mksymbol(), mksymbol()
         o.extend(compile_to_assembly(code.args[0], withargs, break_dest, height))
         o.extend(compile_to_assembly(code.args[1], withargs, break_dest, height + 1))
         o.extend(['PUSH' + str(len(loops))] + loops)
         # stack: memloc, startvalue, rounds
         o.extend(['DUP2', 'DUP4', 'MSTORE', 'ADD', start, 'JUMPDEST'])
         # stack: memloc, exit_index
-        o.extend(compile_to_assembly(code.args[3], withargs, (end, height + 2), height + 2))
+        o.extend(compile_to_assembly(code.args[3], withargs, (end, continue_dest, height + 2), height + 2))
         # stack: memloc, exit_index
-        o.extend(['DUP2', 'MLOAD', 'PUSH1', 1, 'ADD', 'DUP1', 'DUP4', 'MSTORE'])
+        o.extend([continue_dest, 'JUMPDEST', 'DUP2', 'MLOAD', 'PUSH1', 1, 'ADD', 'DUP1', 'DUP4', 'MSTORE'])
         # stack: len(loops), index memory address, new index
         o.extend(['DUP2', 'EQ', 'ISZERO', start, 'JUMPI', end, 'JUMPDEST', 'POP', 'POP'])
         return o
+    # Continue to the next iteration of the for loop
+    elif code.value == 'continue':
+        if not break_dest:
+            raise Exception("Invalid break")
+        dest, continue_dest, break_height = break_dest
+        return [continue_dest, 'JUMP']
     # Break from inside a for loop
     elif code.value == 'break':
         if not break_dest:
             raise Exception("Invalid break")
-        dest, break_height = break_dest
+        dest, continue_dest, break_height = break_dest
         return ['POP'] * (height - break_height) + [dest, 'JUMP']
     # With statements
     elif code.value == 'with':
