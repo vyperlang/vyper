@@ -275,6 +275,8 @@ class Context():
         self.origcode = origcode
         # In Loop status. Whether body is currently evaluating within a for-loop or not.
         self.in_for_loop = set()
+        # Current blockscope
+        self.blockscopes = []
 
     def set_in_for_loop(self, name_of_list):
         self.in_for_loop.add(name_of_list)
@@ -282,13 +284,29 @@ class Context():
     def remove_in_for_loop(self, name_of_list):
         self.in_for_loop.remove(name_of_list)
 
+    def start_blockscope(self, blockscope_id):
+        if blockscope_id not in self.blockscopes:
+            self.blockscopes.append(blockscope_id)
+
+    def end_blockscope(self, blockscope_id):
+        if blockscope_id not in self.blockscopes:
+            return
+        # Remove all variables that have specific blockscope_id attached.
+        poplist = []
+        for name, var_record in self.vars.items():
+            if blockscope_id in var_record.blockscopes:
+                poplist.append(name)
+        for name in poplist: self.vars.pop(name)
+        # Remove blockscopes
+        self.blockscopes = self.blockscopes[self.blockscopes.index(blockscope_id):]
+
     # Add a new variable
     def new_variable(self, name, typ):
         if not is_varname_valid(name):
             raise VariableDeclarationException("Variable name invalid or reserved: " + name)
         if name in self.vars or name in self.globals:
             raise VariableDeclarationException("Duplicate variable name: %s" % name)
-        self.vars[name] = VariableRecord(name, self.next_mem, typ, True)
+        self.vars[name] = VariableRecord(name, self.next_mem, typ, True, self.blockscopes.copy())
         pos = self.next_mem
         self.next_mem += 32 * get_size_of_type(typ)
         return pos

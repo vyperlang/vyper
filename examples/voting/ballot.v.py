@@ -132,6 +132,7 @@ def vote(proposal: num):
 @constant
 def winning_proposal() -> num:
     winning_vote_count = 0
+    winning_proposal = 0
     for i in range(2):
         if self.proposals[i].vote_count > winning_vote_count:
             winning_vote_count = self.proposals[i].vote_count
