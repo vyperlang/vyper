@@ -191,6 +191,8 @@ class Stmt(object):
                         len(self.stmt.iter.args) not in (1, 2):
             raise StructureException("For statements must be of the form `for i in range(rounds): ..` or `for i in range(start, start + rounds): ..`", self.stmt.iter)  # noqa
 
+        block_scope_id = id(self.stmt.orelse)
+        self.context.start_blockscope(block_scope_id)
         # Type 1 for, eg. for i in range(10): ...
         if len(self.stmt.iter.args) == 1:
             if not isinstance(self.stmt.iter.args[0], ast.Num):
@@ -218,6 +220,7 @@ class Stmt(object):
         o = LLLnode.from_list(['repeat', pos, start, rounds, parse_body(self.stmt.body, self.context)], typ=None, pos=getpos(self.stmt))
         del self.context.vars[varname]
         del self.context.forvars[varname]
+        self.context.end_blockscope(block_scope_id)
         return o
 
     def _is_list_iter(self):
