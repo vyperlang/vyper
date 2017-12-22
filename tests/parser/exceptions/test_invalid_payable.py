@@ -33,7 +33,7 @@ def foo() -> num:
 @public
 @payable
 def foo():
-    x = msg.value
+    x: wei_value = msg.value
     """
 ]
 
