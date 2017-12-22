@@ -79,7 +79,6 @@ class Stmt(object):
         o = LLLnode.from_list('pass', typ=None, pos=pos)
         if self.stmt.value is not None:
             sub = Expr(self.stmt.value, self.context).lll_node
-            import ipdb; ipdb.set_trace()
             variable_loc = LLLnode.from_list(pos, typ=sub.typ, location='memory', pos=getpos(self.stmt))
             o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
         return o
