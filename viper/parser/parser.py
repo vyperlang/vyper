@@ -275,6 +275,8 @@ class Context():
         self.origcode = origcode
         # In Loop status. Whether body is currently evaluating within a for-loop or not.
         self.in_for_loop = set()
+        # Count returns in function
+        self.function_return_count = 0
         # Current blockscope
         self.blockscopes = []
 
@@ -299,6 +301,9 @@ class Context():
         for name in poplist: self.vars.pop(name)
         # Remove blockscopes
         self.blockscopes = self.blockscopes[self.blockscopes.index(blockscope_id):]
+
+    def increment_return_counter(self):
+        self.function_return_count += 1
 
     # Add a new variable
     def new_variable(self, name, typ):
@@ -488,6 +493,13 @@ def parse_func(code, _globals, sigs, origcode, _vars=None):
                                   ['eq', ['mload', 0], method_id_node],
                                   ['seq'] + clampers + [parse_body(c, context) for c in code.body] + ['stop']
                                ], typ=None, pos=getpos(code))
+
+    # Check for at leasts one return statement if necessary.
+    if context.return_type and context.function_return_count == 0:
+        raise StructureException(
+            "Missing return statement in function '%s' " % sig.name, code
+        )
+
     o.context = context
     o.total_gas = o.gas + calc_mem_gas(o.context.next_mem)
     o.func_name = sig.name
