@@ -19,9 +19,6 @@ RUN apt-get update && \
 
 ADD . /code
 
-# download and install Viper
-# WORKDIR /code
-# RUN git clone https://github.com/ethereum/viper.git
 WORKDIR /code
 RUN python setup.py install && \
     apt-get purge -y --auto-remove apt-utils gcc libc6-dev libc-dev libssl-dev
