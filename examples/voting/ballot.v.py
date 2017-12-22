@@ -68,7 +68,7 @@ def forward_weight(delegate_with_weight_to_forward: address):
     # Throw if there is nothing to do:
     assert self.voters[delegate_with_weight_to_forward].weight > 0
 
-    target = self.voters[delegate_with_weight_to_forward].delegate
+    target: address = self.voters[delegate_with_weight_to_forward].delegate
     for i in range(4):
         if self.delegated(target):
             target = self.voters[target].delegate
@@ -84,7 +84,7 @@ def forward_weight(delegate_with_weight_to_forward: address):
             # hasn't voted
             break
 
-    weight_to_forward = self.voters[delegate_with_weight_to_forward].weight
+    weight_to_forward: num = self.voters[delegate_with_weight_to_forward].weight
     self.voters[delegate_with_weight_to_forward].weight = 0
     self.voters[target].weight += weight_to_forward
 
@@ -131,12 +131,11 @@ def vote(proposal: num):
 @public
 @constant
 def winning_proposal() -> num:
-    winning_vote_count = 0
-    winning_proposal = 0
+    winning_vote_count: num = 0
     for i in range(2):
         if self.proposals[i].vote_count > winning_vote_count:
             winning_vote_count = self.proposals[i].vote_count
-            winning_proposal = i
+            winning_proposal: num = i
     return winning_proposal
 
 # Calls winning_proposal() function to get the index
