@@ -70,12 +70,19 @@ class Stmt(object):
         return LLLnode.from_list('pass', typ=None, pos=getpos(self.stmt))
 
     def ann_assign(self):
-        if self.stmt.value is not None:
-            raise StructureException('May not assign value whilst defining type', self.stmt)
+        from .parser import (
+            make_setter,
+        )
         typ = parse_type(self.stmt.annotation, location='memory')
         varname = self.stmt.target.id
         pos = self.context.new_variable(varname, typ)
-        return LLLnode.from_list('pass', typ=None, pos=pos)
+        o = LLLnode.from_list('pass', typ=None, pos=pos)
+        if self.stmt.value is not None:
+            sub = Expr(self.stmt.value, self.context).lll_node
+            import ipdb; ipdb.set_trace()
+            variable_loc = LLLnode.from_list(pos, typ=sub.typ, location='memory', pos=getpos(self.stmt))
+            o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
+        return o
 
     def assign(self):
         from .parser import (
@@ -86,9 +93,7 @@ class Stmt(object):
             raise StructureException("Assignment statement must have one target", self.stmt)
         sub = Expr(self.stmt.value, self.context).lll_node
         if isinstance(self.stmt.targets[0], ast.Name) and self.stmt.targets[0].id not in self.context.vars:
-            pos = self.context.new_variable(self.stmt.targets[0].id, set_default_units(sub.typ))
-            variable_loc = LLLnode.from_list(pos, typ=sub.typ, location='memory', pos=getpos(self.stmt), annotation=self.stmt.targets[0].id)
-            o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
+            raise VariableDeclarationException("Variable not defined", self.stmt)
         else:
             # Checks to see if assignment is valid
             target = self.get_target(self.stmt.targets[0])
