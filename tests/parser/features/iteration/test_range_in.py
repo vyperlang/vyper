@@ -5,8 +5,8 @@ def test_basic_in_list(get_contract_with_gas_estimation):
     code = """
 @public
 def testin(x: num) -> bool:
-    y = 1
-    s = [1, 2, 3, 4]
+    y: num = 1
+    s: num[4]  = [1, 2, 3, 4]
     if (x + 1) in s:
         return True
     return False
@@ -66,7 +66,7 @@ def test_mixed_in_list(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
 @public
 def testin() -> bool:
-    s = [1, 2, 3, 4]
+    s: num[4] = [1, 2, 3, 4]
     if "test" in s:
         return True
     return False

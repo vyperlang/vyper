@@ -517,7 +517,7 @@ Bar: __log__({_value: num[4]})
 
 @public
 def foo():
-    a = [1, 2, 3, 4]
+    a: num[4] = [1, 2, 3, 4]
     log.Bar(a)
     """
     c = get_contract_with_gas_estimation(code)

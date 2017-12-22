@@ -30,7 +30,7 @@ def test_modulo_with_different_units(assert_compile_failed, get_contract_with_ga
     code = """
 @public
 def foo(a: currency_value, b: num):
-    x = a % b
+    x: num = a % b
 """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatchException)
 
@@ -39,7 +39,7 @@ def test_modulo_with_positional_input(assert_compile_failed, get_contract_with_g
     code = """
 @public
 def foo(a: num(sec, positional), b: num):
-    x = a % b
+    x: num = a % b
 """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatchException)
 

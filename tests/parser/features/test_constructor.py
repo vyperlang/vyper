@@ -71,7 +71,7 @@ def test_large_input_code_2(t, get_contract_with_gas_estimation):
     large_input_code_2 = """
 @public
 def __init__(x: num):
-    y = x
+    y: num = x
 
 @public
 def foo() -> num:
