@@ -27,6 +27,6 @@ docs:
 	open docs/_build/html/index.html
 
 docker-build:
-	@docker build \
+	@docker build -t viper \
 		--build-arg VCS_REF=`git rev-parse --short HEAD` \
 		--build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` .
