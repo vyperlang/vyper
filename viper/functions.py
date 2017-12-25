@@ -651,8 +651,8 @@ def bitwise_xor(expr, args, kwargs, context):
 @signature('num256', 'num256')
 def num256_add(expr, args, kwargs, context):
     return LLLnode.from_list(['seq',
-                                # Checks that: a + b > a
-                                ['assert', ['or', ['iszero', args[1]], ['gt', ['add', args[0], args[1]], args[0]]]],
+                                # Checks that: a + b >= a
+                                ['assert', ['ge', ['add', args[0], args[1]], args[0]]],
                                 ['add', args[0], args[1]]], typ=BaseType('num256'), pos=getpos(expr))
 
 
