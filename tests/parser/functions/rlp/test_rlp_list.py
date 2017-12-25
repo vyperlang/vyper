@@ -64,6 +64,16 @@ def too(inp: bytes <= 100) -> bool:
 def voo(inp: bytes <= 1024) -> num:
     x = RLPList(inp, [num, num, bytes32, num, bytes32, bytes])
     return x[1]
+
+@public
+def loo(inp: bytes <= 1024) -> num:
+    x = RLPList(inp, [num, num, num, num, num, num, num, num, num, num])
+    return x[0] + x[1] + x[2] + x[3] + x[4] + x[5] + x[6] + x[7] + x[8] + x[9]
+
+@public
+def woo(inp: bytes <= 1024) -> bytes <= 15360:
+    x = RLPList(inp, [bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes])
+    return concat(x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11], x[12], x[13], x[14])
     """
     c = get_contract_with_gas_estimation(rlp_decoder_code)
 
@@ -88,5 +98,7 @@ def voo(inp: bytes <= 1024) -> num:
     assert c.too(rlp.encode([b''])) is False
     assert_tx_failed(lambda: c.too(rlp.encode([b'\x02'])))
     assert_tx_failed(lambda: c.too(rlp.encode([b'\x00'])))
+    assert c.loo(rlp.encode([1, 2, 3, 4, 5, 6, 7,8 ,9, 10])) == 55
+    assert c.woo(rlp.encode([b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9', b'10', b'11', b'12', b'13', b'14', b'15'])) == b'123456789101112131415'
 
     print('Passed RLP decoder tests')
