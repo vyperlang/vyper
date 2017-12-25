@@ -30,14 +30,11 @@ class EventSignature():
             for i in range(len(keys)):
                 typ = values[i]
                 arg = keys[i].id
-                if isinstance(typ, ast.Call):
-                    # Check to see if argument is a topic
-                    if typ.func.id == 'indexed':
-                        typ = values[i].args[0]
-                        indexed_list.append(True)
-                        topics_count += 1
-                    else:
-                        raise VariableDeclarationException("Only indexed keyword is allowed", arg)
+                # Check to see if argument is a topic
+                if isinstance(typ, ast.Call) and typ.func.id == 'indexed':
+                    typ = values[i].args[0]
+                    indexed_list.append(True)
+                    topics_count += 1
                 else:
                     indexed_list.append(False)
                 if hasattr(typ, 'left') and typ.left.id == 'bytes' and typ.comparators[0].n > 32:
