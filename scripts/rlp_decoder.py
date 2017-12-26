@@ -15,7 +15,7 @@ def add(x, y):
 def sub(x, y):
     return ['sub', x, y]
 
-
+loop_memory_position = 544
 positions = 64
 data = 1088
 position_index = 2476
@@ -51,7 +51,7 @@ rlp_decoder_lll = LLLnode.from_list(['seq',
                 #     representing the start positions of each value
                 # (ii) starting from memory index 1088, the values, in format
                 #     <length as 32 byte int> <value>, packed one after the other
-                ['repeat', MemoryPositions.FREE_LOOP_INDEX, 1, 100,
+                ['repeat', loop_memory_position, 1, 100,
                     ['seq',
                         ['if', ['ge', ['mload', i], 'calldatasize'], 'break'],
                         ['mstore', c, call_data_char(['mload', i])],
@@ -92,7 +92,7 @@ rlp_decoder_lll = LLLnode.from_list(['seq',
                 ['assert', ['le', ['mload', position_index], 31]],
                 ['mstore', position_offset, add(['mul', ['mload', position_index], 32], 32)],
                 ['mstore', i, sub(['mload', position_offset], 32)],
-                ['repeat', MemoryPositions.FREE_LOOP_INDEX, 1, 100,
+                ['repeat', loop_memory_position, 1, 100,
                     ['seq',
                         ['if', ['slt', ['mload', i], 0], 'break'],
                         ['mstore', add(sub(data, ['mload', position_offset]), ['mload', i]), add(['mload', add(positions, ['mload', i])], ['mload', position_offset])],
