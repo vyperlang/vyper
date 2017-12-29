@@ -53,6 +53,7 @@ class Stmt(object):
             ast.For: self.parse_for,
             ast.AugAssign: self.aug_assign,
             ast.Break: self.parse_break,
+            ast.Continue: self.parse_continue,
             ast.Return: self.parse_return,
         }
         stmt_type = self.stmt.__class__
@@ -305,6 +306,9 @@ class Stmt(object):
             o = Expr.parse_value_expr(ast.BinOp(left=LLLnode.from_list(['mload', '_mloc'], typ=target.typ, pos=target.pos),
                                     right=sub, op=self.stmt.op, lineno=self.stmt.lineno, col_offset=self.stmt.col_offset), self.context)
             return LLLnode.from_list(['with', '_mloc', target, ['mstore', '_mloc', base_type_conversion(o, o.typ, target.typ)]], typ=None, pos=getpos(self.stmt))
+
+    def parse_continue(self):
+        return LLLnode.from_list('continue', typ=None, pos=getpos(self.stmt))
 
     def parse_break(self):
         return LLLnode.from_list('break', typ=None, pos=getpos(self.stmt))
