@@ -1,3 +1,5 @@
+from viper.exceptions import StructureException
+
 def test_selfcall_code(get_contract_with_gas_estimation):
     selfcall_code = """
 @public
@@ -157,3 +159,16 @@ def return_mongoose_revolution_32_excls() -> bytes <= 201:
     assert c.return_mongoose_revolution_32_excls() == b"mongoose_revolution" + b"!" * 32
 
     print("Passed composite self-call test")
+
+
+def test_selfcall_with_wrong_arg_count_fails(get_contract_with_gas_estimation, assert_tx_failed):
+    code = """
+@public
+def bar() -> num:
+    return 1
+
+@public
+def foo() -> num:
+    return self.bar(1)
+"""
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(code), StructureException)
