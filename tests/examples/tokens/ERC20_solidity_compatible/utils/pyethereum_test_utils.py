@@ -6,22 +6,26 @@ from ethereum import utils
 import os
 import unittest
 
+
 # Extract language from contract extension
 def extract_language(sourcefile):
     languages = {
         '.sol': 'solidity',
         '.vy': 'viper',
-        '.py': 'viper' # hack to handle new .v.py suggested Viper extension
+        '.py': 'viper'  # hack to handle new .v.py suggested Viper extension
     }
     _, ext = os.path.splitext(sourcefile)
     language = languages[ext]
     return language
 
+
 def bytes_to_int(bytez):
     return int(utils.encode_hex(bytez), 16)
 
+
 def int_to_bytes(i):
     return int(i).to_bytes(32, byteorder='big')
+
 
 class PyEthereumTestCase(unittest.TestCase):
 
@@ -52,8 +56,8 @@ class PyEthereumTestCase(unittest.TestCase):
         self.refunds_before = self.s.head_state.refunds
 
         from ethereum.slogging import get_logger
-        log_tx = get_logger('eth.pb.tx')
-        log_msg = get_logger('eth.pb.msg')
+        get_logger('eth.pb.tx')
+        get_logger('eth.pb.msg')
 
     def tearDown(self):
         gas_used_after = self.s.head_state.gas_used
