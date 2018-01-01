@@ -48,6 +48,7 @@ Following the principles and goals, Viper **does not** provide the following fea
 Compatibility-breaking Changelog
 ********************************
 
+* **2018.01.01**: Add ``//`` (floor and divide) to Vyper
 * **2017.12.25**: Change name from Viper to Vyper
 * **2017.12.22**: Add ``continue`` for loops
 * **2017.11.29**: ``@internal`` renamed to ``@private``.

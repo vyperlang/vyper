@@ -292,6 +292,17 @@ class Expr(object):
                 o = LLLnode.from_list(['exp', left, right], typ=BaseType('num', new_unit), pos=getpos(self.expr))
             else:
                 raise TypeMismatchException('Only whole number exponents are supported', self.expr)
+        elif isinstance(self.expr.op, ast.FloorDiv):
+            if left.typ.positional or right.typ.positional:
+                raise TypeMismatchException("Cannot use divide and floor positional values!", self.expr)
+            new_unit = combine_units(left.typ.unit, right.typ.unit, div=True)
+            if ltyp == rtyp == 'num' or ltyp == rtyp == 'decimal':
+                o = LLLnode.from_list(['sdiv', left, ['clamp_nonzero', right]], typ=BaseType('num', new_unit), pos=getpos(self.expr))
+            elif ltyp == 'decimal' and rtyp == 'num':
+                o = LLLnode.from_list(['sdiv', left, ['mul', ['clamp_nonzero', right], DECIMAL_DIVISOR]], typ=BaseType('num', new_unit), pos=getpos(self.expr))
+            elif ltyp == 'num' and rtyp == 'decimal':
+                o = LLLnode.from_list(['sdiv', ['mul', left, DECIMAL_DIVISOR], ['clamp_nonzero', right]],
+                                      typ=BaseType('num', new_unit), pos=getpos(self.expr))
         else:
             raise Exception("Unsupported binop: %r" % self.expr.op)
         if o.typ.typ == 'num':
