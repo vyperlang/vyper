@@ -44,7 +44,7 @@ def __init__(x: num[2], y: bytes <= 3, z: num):
 def get_comb() -> num:
     return self.comb
     """
-    c = get_contract_with_gas_estimation(constructor_advanced_code2, args=[[5,7], "dog", 8])
+    c = get_contract_with_gas_estimation(constructor_advanced_code2, args=[[5, 7], "dog", 8])
     assert c.get_comb() == 5738
     print("Passed advanced init argument tests")
 
@@ -78,9 +78,9 @@ def foo() -> num:
     return 5
     """
 
-    c = get_contract_with_gas_estimation(large_input_code_2, args=[17], sender=t.k0, value=0)
+    get_contract_with_gas_estimation(large_input_code_2, args=[17], sender=t.k0, value=0)
     try:
-        c = get_contract_with_gas_estimation(large_input_code_2, args=[2**130], sender=t.k0, value=0)
+        get_contract_with_gas_estimation(large_input_code_2, args=[2**130], sender=t.k0, value=0)
         success = True
     except:
         success = False

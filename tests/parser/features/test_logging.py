@@ -65,9 +65,15 @@ def foo():
     # Event id is calculated correctly
     assert c.translator.event_data[event_id]
     # Event abi is created correctly
-    assert c.translator.event_data[event_id] == {'types': ['bytes3','bytes4','address'], 'name': 'MyLog', 'names': ['arg1','arg2','arg3'], 'indexed': [True, True, True], 'anonymous': False}
+    assert c.translator.event_data[event_id] == (
+        {'types': ['bytes3', 'bytes4', 'address'],
+        'name': 'MyLog',
+        'names': ['arg1', 'arg2', 'arg3'],
+        'indexed': [True, True, True],
+        'anonymous': False}
+    )
     # Event is decoded correctly
-    assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': b'bar', 'arg2': b'home', 'arg3': '0x'+c.address.hex(), '_event_type': b'MyLog'}
+    assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': b'bar', 'arg2': b'home', 'arg3': '0x' + c.address.hex(), '_event_type': b'MyLog'}
 
 
 def test_logging_the_same_event_multiple_times_with_topics(get_contract_with_gas_estimation, chain, utils):
@@ -95,7 +101,7 @@ def bar():
     # Event id is calculated correctly
     assert c.translator.event_data[event_id]
     # Event abi is created correctly
-    assert c.translator.event_data[event_id] == {'types': ['int128','address'], 'name': 'MyLog', 'names': ['arg1','arg2'], 'indexed': [True,True], 'anonymous': False}
+    assert c.translator.event_data[event_id] == {'types': ['int128', 'address'], 'name': 'MyLog', 'names': ['arg1', 'arg2'], 'indexed': [True, True], 'anonymous': False}
     # Event is decoded correctly
     assert c.translator.decode_event(logs.topics, logs.data) == {'_event_type': b'MyLog', 'arg1': 1, 'arg2': '0x' + c.address.hex()}
 
@@ -140,6 +146,7 @@ def foo():
     log.MyLog(1, 2)
 """
     get_contract_with_gas_estimation(code)
+
 
 def test_event_loggging_with_fixed_array_data(get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
@@ -186,7 +193,7 @@ def foo(arg1: bytes <= 29, arg2: bytes <= 31):
     # # Event abi is created correctly
     assert c.translator.event_data[event_id] == {'types': ['bytes4', 'bytes29', 'bytes31'], 'name': 'MyLog', 'names': ['arg1', 'arg2', 'arg3'], 'indexed': [True, True, False], 'anonymous': False}
     # Event is decoded correctly
-    assert c.translator.decode_event(logs.topics, logs.data) ==  {'arg1': b'bar\x00', 'arg2': bytes_helper('bar', 29), 'arg3': bytes_helper('foo', 31), '_event_type': b'MyLog'}
+    assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': b'bar\x00', 'arg2': bytes_helper('bar', 29), 'arg3': bytes_helper('foo', 31), '_event_type': b'MyLog'}
 
 
 def test_event_logging_with_bytes_input_2(t, bytes_helper, get_contract_with_gas_estimation, chain, utils):
@@ -276,7 +283,7 @@ def foo():
     # Event id is calculated correctly
     assert c.translator.event_data[event_id]
     # Event abi is created correctly
-    assert c.translator.event_data[event_id] == {'types': ['int128','bytes3'], 'name': 'MyLog', 'names': ['arg1','arg2'], 'indexed': [True, False], 'anonymous': False}
+    assert c.translator.event_data[event_id] == {'types': ['int128', 'bytes3'], 'name': 'MyLog', 'names': ['arg1', 'arg2'], 'indexed': [True, False], 'anonymous': False}
     # Event is decoded correctly
     assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': 1, 'arg2': b'bar', '_event_type': b'MyLog'}
 
@@ -305,8 +312,8 @@ def foo():
     assert c.translator.event_data[event_id1]
     assert c.translator.event_data[event_id2]
     # Event abi is created correctly
-    assert c.translator.event_data[event_id1] == {'types': ['int128','bytes3'], 'name': 'MyLog', 'names': ['arg1','arg2'], 'indexed': [True, False], 'anonymous': False}
-    assert c.translator.event_data[event_id2] == {'types': ['address','bytes5'], 'name': 'YourLog', 'names': ['arg1','arg2'], 'indexed': [True, False], 'anonymous': False}
+    assert c.translator.event_data[event_id1] == {'types': ['int128', 'bytes3'], 'name': 'MyLog', 'names': ['arg1', 'arg2'], 'indexed': [True, False], 'anonymous': False}
+    assert c.translator.event_data[event_id2] == {'types': ['address', 'bytes5'], 'name': 'YourLog', 'names': ['arg1', 'arg2'], 'indexed': [True, False], 'anonymous': False}
     # Event is decoded correctly
     assert c.translator.decode_event(logs1.topics, logs1.data) == {'arg1': 1, 'arg2': b'bar', '_event_type': b'MyLog'}
     assert c.translator.decode_event(logs2.topics, logs2.data) == {'arg1': '0x' + c.address.hex(), 'arg2': b'house', '_event_type': b'YourLog'}
