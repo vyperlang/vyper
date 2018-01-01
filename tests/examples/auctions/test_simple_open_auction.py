@@ -3,6 +3,7 @@ import ethereum.utils as utils
 
 FIVE_DAYS = 432000
 
+
 @pytest.fixture
 def auction_tester(t):
     from viper import compiler
@@ -20,7 +21,7 @@ def test_initial_state(auction_tester):
     # Check start time is current block timestamp
     assert auction_tester.c.get_auction_start() == auction_tester.s.head_state.timestamp
     # Check auction has not ended
-    assert auction_tester.c.get_ended() == False
+    assert not auction_tester.c.get_ended()
     # Check highest bidder is empty
     assert auction_tester.c.get_highest_bidder() == '0x0000000000000000000000000000000000000000'
     # Check highest bid is 0
