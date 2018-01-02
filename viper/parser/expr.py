@@ -309,6 +309,8 @@ class Expr(object):
         left = Expr(self.expr.left, self.context).lll_node
         right = Expr(self.expr.comparators[0], self.context).lll_node
 
+        if left.typ.typ != right.typ.subtype.typ:
+            raise TypeMismatchException("%s cannot be in a list of %s" % (left.typ.typ, right.typ.subtype.typ))
         result_placeholder = self.context.new_placeholder(BaseType('bool'))
         setter = []
 

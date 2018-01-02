@@ -107,3 +107,15 @@ def is_owner() -> bool:
     # Owner in place 0 can be replaced.
     c.set_owner(0, t.a1)
     assert c.is_owner() is False
+
+
+def test_in_fails_when_types_dont_match(get_contract_with_gas_estimation, assert_tx_failed):
+    code = """
+@public
+def testin(x: address) -> bool:
+    s: num[4] = [1, 2, 3, 4]
+    if x in s:
+        return True
+    return False
+"""
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatchException)
