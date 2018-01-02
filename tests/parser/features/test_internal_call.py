@@ -193,6 +193,37 @@ def bar3() -> num:
     assert c.bar3() == 66
 
 
+def test_list_storage_call(get_contract_with_gas_estimation):
+    code = """
+y: num[2]
+
+@public
+def foo0(x: num[2]) -> num:
+    return x[0]
+
+@public
+def foo1(x: num[2]) -> num:
+    return x[1]
+
+@public
+def set():
+    self.y  = [88, 99]
+
+@public
+def bar0() -> num:
+    return self.foo0(self.y)
+
+@public
+def bar1() -> num:
+    return self.foo1(self.y)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    c.set()
+    assert c.bar0() == 88
+    assert c.bar1() == 99
+
+
 def test_multi_arg_list_call(get_contract_with_gas_estimation):
     code = """
 @public
