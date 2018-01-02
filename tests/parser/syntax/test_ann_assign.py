@@ -5,17 +5,15 @@ from viper import compiler
 from viper.exceptions import VariableDeclarationException
 
 
-fail_list = [
+valid_list = [
     """
 @public
 def test():
-    a = 1
+    a: num = 1
     """,
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
-def test_ann_assign_fail(bad_code):
-
-    with raises(VariableDeclarationException):
-        compiler.compile(bad_code)
+@pytest.mark.parametrize('good_code', valid_list)
+def test_ann_assign_success(good_code):
+    assert compiler.compile(good_code) is not None
