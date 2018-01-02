@@ -27,6 +27,7 @@ x: num
 @payable
 def foo() -> num:
     self.x = 5
+    return self.x
     """,
     """
 @public

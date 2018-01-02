@@ -651,8 +651,8 @@ def bitwise_xor(expr, args, kwargs, context):
 @signature('num256', 'num256')
 def num256_add(expr, args, kwargs, context):
     return LLLnode.from_list(['seq',
-                                # Checks that: a + b > a
-                                ['assert', ['or', ['iszero', args[1]], ['gt', ['add', args[0], args[1]], args[0]]]],
+                                # Checks that: a + b >= a
+                                ['assert', ['ge', ['add', args[0], args[1]], args[0]]],
                                 ['add', args[0], args[1]]], typ=BaseType('num256'), pos=getpos(expr))
 
 
@@ -691,12 +691,15 @@ def num256_exp(expr, args, kwargs, context):
 
 @signature('num256', 'num256')
 def num256_mod(expr, args, kwargs, context):
-    return LLLnode.from_list(['mod', args[0], args[1]], typ=BaseType('num256'), pos=getpos(expr))
+    return LLLnode.from_list(['seq',
+                                ['assert', args[1]],
+                                ['mod', args[0], args[1]]], typ=BaseType('num256'), pos=getpos(expr))
 
 
 @signature('num256', 'num256', 'num256')
 def num256_addmod(expr, args, kwargs, context):
     return LLLnode.from_list(['seq',
+                                ['assert', args[2]],
                                 ['assert', ['or', ['iszero', args[1]], ['gt', ['add', args[0], args[1]], args[0]]]],
                                 ['addmod', args[0], args[1], args[2]]], typ=BaseType('num256'), pos=getpos(expr))
 
@@ -704,6 +707,7 @@ def num256_addmod(expr, args, kwargs, context):
 @signature('num256', 'num256', 'num256')
 def num256_mulmod(expr, args, kwargs, context):
     return LLLnode.from_list(['seq',
+                                ['assert', args[2]],
                                 ['assert', ['or', ['iszero', args[0]],
                                 ['eq', ['div', ['mul', args[0], args[1]], args[0]], args[1]]]],
                                 ['mulmod', args[0], args[1], args[2]]], typ=BaseType('num256'), pos=getpos(expr))

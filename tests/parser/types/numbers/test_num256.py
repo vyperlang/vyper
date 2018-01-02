@@ -59,6 +59,7 @@ def _num256_le(x: num256, y: num256) -> bool:
     assert c._num256_div(x, y) == x // y
     assert_tx_failed(lambda: c._num256_div(NUM256_MAX, 0))
     assert c._num256_div(y, x) == 0
+    assert_tx_failed(lambda: c._num256_div(x, 0))
     assert c._num256_gt(x, y) is True
     assert c._num256_ge(x, y) is True
     assert c._num256_le(x, y) is False
@@ -92,14 +93,17 @@ def _num256_mulmod(x: num256, y: num256, z: num256) -> num256:
 
     assert c._num256_mod(3, 2) == 1
     assert c._num256_mod(34, 32) == 2
+    assert_tx_failed(lambda: c._num256_mod(3, 0))
     assert c._num256_addmod(1, 2, 2) == 1
     assert c._num256_addmod(32, 2, 32) == 2
     assert c._num256_addmod((2**256) - 1, 0, 2) == 1
     assert_tx_failed(lambda: c._num256_addmod((2**256) - 1, 1, 1))
+    assert_tx_failed(lambda: c._num256_addmod(1, 2, 0))
     assert c._num256_mulmod(3, 1, 2) == 1
     assert c._num256_mulmod(200, 3, 601) == 600
     assert c._num256_mulmod(2**255, 1, 3) == 2
     assert_tx_failed(lambda: c._num256_mulmod(2**255, 2, 1))
+    assert_tx_failed(lambda: c._num256_mulmod(2, 2, 0))
 
 
 def test_num256_with_exponents(t, chain, assert_tx_failed, get_contract_with_gas_estimation):

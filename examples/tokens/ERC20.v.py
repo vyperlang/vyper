@@ -19,6 +19,7 @@ balances: num[address]
 allowed: num[address][address]
 
 
+@public
 def __init__(_name: bytes32, _symbol: bytes32, _decimals: num, _initialSupply: num):
 
     self.name = _name
@@ -28,6 +29,7 @@ def __init__(_name: bytes32, _symbol: bytes32, _decimals: num, _initialSupply: n
     self.balances[msg.sender] = self.totalSupply
 
 
+@public
 @constant
 def symbol() -> bytes32:
 
@@ -35,6 +37,7 @@ def symbol() -> bytes32:
 
 
 # What is the balance of a particular account?
+@public
 @constant
 def balanceOf(_owner: address) -> num256:
 
@@ -42,6 +45,7 @@ def balanceOf(_owner: address) -> num256:
 
 
 # Return total supply of token.
+@public
 @constant
 def totalSupply() -> num256:
 
@@ -49,6 +53,7 @@ def totalSupply() -> num256:
 
 
 # Send `_value` tokens to `_to` from your account
+@public
 def transfer(_to: address, _amount: num(num256)) -> bool:
 
     if self.balances[msg.sender] >= _amount and \
@@ -64,6 +69,7 @@ def transfer(_to: address, _amount: num(num256)) -> bool:
 
 
 # Transfer allowed tokens from a specific account to another.
+@public
 def transferFrom(_from: address, _to: address, _value: num(num256)) -> bool:
 
     if _value <= self.allowed[_from][msg.sender] and \
@@ -81,6 +87,7 @@ def transferFrom(_from: address, _to: address, _value: num(num256)) -> bool:
 
 # Allow _spender to withdraw from your account, multiple times, up to the _value amount.
 # If this function is called again it overwrites the current allowance with _value.
+@public
 def approve(_spender: address, _amount: num(num256)) -> bool:
 
     self.allowed[msg.sender][_spender] = _amount
@@ -90,6 +97,7 @@ def approve(_spender: address, _amount: num(num256)) -> bool:
 
 
 # Get the allowence an address has to spend anothers' token.
+@public
 def allowance(_owner: address, _spender: address) -> num256:
 
     return as_num256(self.allowed[_owner][_spender])

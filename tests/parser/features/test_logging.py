@@ -131,6 +131,16 @@ def foo():
     assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': 123, '_event_type': b'MyLog'}
 
 
+def test_event_logging_with_units(get_contract_with_gas_estimation, chain, utils):
+    code = """
+MyLog: __log__({arg1: indexed(num(wei)), arg2: num(wei)})
+
+@public
+def foo():
+    log.MyLog(1, 2)
+"""
+    get_contract_with_gas_estimation(code)
+
 def test_event_loggging_with_fixed_array_data(get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
 MyLog: __log__({arg1: num[2], arg2: timestamp[3], arg3: num[2][2]})

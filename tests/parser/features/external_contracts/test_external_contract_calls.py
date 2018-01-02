@@ -495,7 +495,7 @@ class Bar():
 bar_contract: public(Bar)
 
 @public
-def foo(contract_address: contract(Bar)) -> num:
+def foo(contract_address: contract(Bar)):
     self.bar_contract = contract_address
 
 @public
