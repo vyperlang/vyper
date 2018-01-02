@@ -1,5 +1,6 @@
 import rlp
 
+
 def test_rlp_decoder_code(assert_tx_failed, get_contract_with_gas_estimation, fake_tx):
     fake_tx()
 
@@ -98,7 +99,7 @@ def woo(inp: bytes <= 1024) -> bytes <= 15360:
     assert c.too(rlp.encode([b''])) is False
     assert_tx_failed(lambda: c.too(rlp.encode([b'\x02'])))
     assert_tx_failed(lambda: c.too(rlp.encode([b'\x00'])))
-    assert c.loo(rlp.encode([1, 2, 3, 4, 5, 6, 7,8 ,9, 10])) == 55
+    assert c.loo(rlp.encode([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])) == 55
     assert c.woo(rlp.encode([b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9', b'10', b'11', b'12', b'13', b'14', b'15'])) == b'123456789101112131415'
 
     print('Passed RLP decoder tests')

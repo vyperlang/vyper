@@ -21,7 +21,6 @@ def baz() -> bytes <= 7:
     print('Passed raw call test')
 
 
-
 def test_multiple_levels(get_contract_with_gas_estimation, chain):
     inner_code = """
 @public
