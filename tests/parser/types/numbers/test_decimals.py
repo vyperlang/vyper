@@ -107,7 +107,7 @@ def harg() -> decimal:
 
 @public
 def iarg() -> wei_value:
-    x: wei_value = as_wei_value(7, wei)
+    x: wei_value = as_wei_value(7, "wei")
     x *= 2
     return x
     """
