@@ -74,6 +74,8 @@ class Stmt(object):
             make_setter,
         )
         typ = parse_type(self.stmt.annotation, location='memory')
+        if isinstance(self.stmt.target, ast.Attribute) and self.stmt.target.value.id == 'self':
+            raise TypeMismatchException('May not redefine storage variables.', self.stmt)
         varname = self.stmt.target.id
         pos = self.context.new_variable(varname, typ)
         o = LLLnode.from_list('pass', typ=None, pos=pos)
@@ -92,7 +94,7 @@ class Stmt(object):
             raise StructureException("Assignment statement must have one target", self.stmt)
         sub = Expr(self.stmt.value, self.context).lll_node
         # Determine if it's an RLPList assignment.
-        if isinstance(self.stmt.value, ast.Call) and self.stmt.value.func.id is 'RLPList':
+        if isinstance(self.stmt.value, ast.Call) and getattr(self.stmt.value.func, 'id', '') is 'RLPList':
             pos = self.context.new_variable(self.stmt.targets[0].id, set_default_units(sub.typ))
             variable_loc = LLLnode.from_list(pos, typ=sub.typ, location='memory', pos=getpos(self.stmt), annotation=self.stmt.targets[0].id)
             o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
