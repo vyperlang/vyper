@@ -44,26 +44,26 @@ moo: bytes <= 100
 
 @public
 def foo(s: num, L: num) -> bytes <= 100:
-        x = 27
-        r = slice("%s", start=s, len=L)
-        y = 37
+        x: num = 27
+        r: bytes <= 100 = slice("%s", start=s, len=L)
+        y: num = 37
         if x * y == 999:
             return r
 
 @public
 def bar(s: num, L: num) -> bytes <= 100:
         self.moo = "%s"
-        x = 27
-        r = slice(self.moo, start=s, len=L)
-        y = 37
+        x: num = 27
+        r: bytes <= 100 = slice(self.moo, start=s, len=L)
+        y: num  = 37
         if x * y == 999:
             return r
 
 @public
 def baz(s: num, L: num) -> bytes <= 100:
-        x = 27
+        x: num = 27
         self.moo = slice("%s", start=s, len=L)
-        y = 37
+        y: num = 37
         if x * y == 999:
             return self.moo
         """ % (("c" * i), ("c" * i), ("c" * i))
