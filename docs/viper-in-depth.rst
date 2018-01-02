@@ -16,6 +16,7 @@ If something is missing here, please contact us on
    grammar.rst
    units-and-global-variables.rst
    control-structures.rst
+   built-in-functions.rst
    contracts.rst
    assembly.rst
    miscellaneous.rst
