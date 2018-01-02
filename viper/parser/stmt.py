@@ -101,7 +101,6 @@ class Stmt(object):
         from .parser import (
             parse_body,
         )
-
         if self.stmt.orelse:
             block_scope_id = id(self.stmt.orelse)
             self.context.start_blockscope(block_scope_id)

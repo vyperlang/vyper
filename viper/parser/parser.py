@@ -277,8 +277,8 @@ class Context():
         self.in_for_loop = set()
         # Count returns in function
         self.function_return_count = 0
-        # Current blockscope
-        self.blockscopes = []
+        # Current block scope
+        self.blockscopes = set()
 
     def set_in_for_loop(self, name_of_list):
         self.in_for_loop.add(name_of_list)
@@ -287,20 +287,16 @@ class Context():
         self.in_for_loop.remove(name_of_list)
 
     def start_blockscope(self, blockscope_id):
-        if blockscope_id not in self.blockscopes:
-            self.blockscopes.append(blockscope_id)
+        self.blockscopes.add(blockscope_id)
 
     def end_blockscope(self, blockscope_id):
-        if blockscope_id not in self.blockscopes:
-            return
         # Remove all variables that have specific blockscope_id attached.
-        poplist = []
-        for name, var_record in self.vars.items():
-            if blockscope_id in var_record.blockscopes:
-                poplist.append(name)
-        for name in poplist: self.vars.pop(name)
-        # Remove blockscopes
-        self.blockscopes = self.blockscopes[self.blockscopes.index(blockscope_id):]
+        self.vars = {
+            name: var_record for name, var_record in self.vars.items()
+            if blockscope_id not in var_record.blockscopes
+        }
+        # Remove block scopes
+        self.blockscopes.remove(blockscope_id)
 
     def increment_return_counter(self):
         self.function_return_count += 1
