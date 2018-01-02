@@ -28,8 +28,8 @@ def _ecadd(x: num256[2], y: num256[2]) -> num256[2]:
 
 @public
 def _ecadd2(x: num256[2], y: num256[2]) -> num256[2]:
-    x2 = x
-    y2 = [y[0], y[1]]
+    x2: num256[2] = x
+    y2: num256[2] = [y[0], y[1]]
     return ecadd(x2, y2)
 
 @public
@@ -57,8 +57,8 @@ def _ecmul(x: num256[2], y: num256) -> num256[2]:
 
 @public
 def _ecmul2(x: num256[2], y: num256) -> num256[2]:
-    x2 = x
-    y2 = y
+    x2: num256[2] = x
+    y2: num256 = y
     return ecmul(x2, y2)
 
 @public
