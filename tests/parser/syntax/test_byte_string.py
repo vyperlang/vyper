@@ -14,7 +14,7 @@ def foo() -> bytes <= 10:
     """
 @public
 def foo():
-    x = "¡très bien!"
+    x: bytes <= 11 = "¡très bien!"
     """
 ]
 

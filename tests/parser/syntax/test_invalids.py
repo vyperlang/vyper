@@ -43,27 +43,27 @@ def foo():
 must_succeed("""
 @public
 def foo():
-    x = 5
+    x: num  = 5
 """)
 
 must_fail("""
 @public
 def foo():
-    x = 5
+    x: num = 5
     x = 0x1234567890123456789012345678901234567890
 """, TypeMismatchException)
 
 must_fail("""
 @public
 def foo():
-    x = 5
+    x: num = 5
     x = 3.5
 """, TypeMismatchException)
 
 must_succeed("""
 @public
 def foo():
-    x = 5
+    x: num = 5
     x = 3
 """)
 
@@ -106,21 +106,21 @@ must_succeed("""
 b: num[num]
 @public
 def foo():
-    x = self.b[5]
+    x: num = self.b[5]
 """)
 
 must_fail("""
 b: num[num]
 @public
 def foo():
-    x = self.b[5.7]
+    x: num = self.b[5.7]
 """, TypeMismatchException)
 
 must_succeed("""
 b: num[decimal]
 @public
 def foo():
-    x = self.b[5]
+    x: decimal = self.b[5]
 """)
 
 must_fail("""
@@ -148,7 +148,7 @@ must_succeed("""
 @public
 def foo():
     x: num[5]
-    z = x[2]
+    z: num = x[2]
 """)
 
 must_succeed("""
@@ -216,7 +216,7 @@ def goo():
 must_succeed("""
 @public
 def foo():
-    MOOSE = 45
+    MOOSE: num = 45
 """)
 
 must_fail("""
