@@ -1,4 +1,4 @@
-def test_extract32_code(get_contract_with_gas_estimation):
+def test_extract32_extraction(get_contract_with_gas_estimation):
     extract32_code = """
 y: bytes <= 100
 @public
@@ -38,7 +38,7 @@ def extrakt32_storage(index: num, inp: bytes <= 100) -> bytes32:
         expected_result = S[i: i + 32] if 0 <= i <= len(S) - 32 else None
         if expected_result is None:
             try:
-                o = c.extrakt32(S, i)
+                c.extrakt32(S, i)
                 success = True
             except:
                 success = False
@@ -96,4 +96,3 @@ def foq(inp: bytes <= 32) -> address:
     assert not success
 
     print('Passed extract32 test')
-
