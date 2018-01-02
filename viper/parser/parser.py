@@ -273,14 +273,19 @@ class Context():
         self.placeholder_count = 1
         # Original code (for error pretty-printing purposes)
         self.origcode = origcode
-        # In Loop status. Wether body is currently evaluating within a for-loop or not.
+        # In Loop status. Whether body is currently evaluating within a for-loop or not.
         self.in_for_loop = set()
+        # Count returns in function
+        self.function_return_count = 0
 
     def set_in_for_loop(self, name_of_list):
         self.in_for_loop.add(name_of_list)
 
     def remove_in_for_loop(self, name_of_list):
         self.in_for_loop.remove(name_of_list)
+
+    def increment_return_counter(self):
+        self.function_return_count += 1
 
     # Add a new variable
     def new_variable(self, name, typ):
@@ -364,7 +369,7 @@ def parse_other_functions(o, otherfuncs, _globals, sigs, external_contracts, ori
 def parse_tree_to_lll(code, origcode, runtime_only=False):
     _contracts, _events, _defs, _globals = get_contracts_and_defs_and_globals(code)
     _names = [_def.name for _def in _defs] + [_event.target.id for _event in _events]
-    # Checks for duplicate funciton / event names
+    # Checks for duplicate function / event names
     if len(set(_names)) < len(_names):
         raise VariableDeclarationException("Duplicate function or event name: %s" % [name for name in _names if _names.count(name) > 1][0])
     # Initialization function
@@ -470,6 +475,13 @@ def parse_func(code, _globals, sigs, origcode, _vars=None):
                                   ['eq', ['mload', 0], method_id_node],
                                   ['seq'] + clampers + [parse_body(c, context) for c in code.body] + ['stop']
                                ], typ=None, pos=getpos(code))
+
+    # Check for at leasts one return statement if necessary.
+    if context.return_type and context.function_return_count == 0:
+        raise StructureException(
+            "Missing return statement in function '%s' " % sig.name, code
+        )
+
     o.context = context
     o.total_gas = o.gas + calc_mem_gas(o.context.next_mem)
     o.func_name = sig.name
@@ -681,8 +693,15 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder):
         holder.append(LLLnode.from_list(['mstore', placeholder, value], typ=typ, location='memory'))
     elif isinstance(typ, ByteArrayType):
         bytez = b''
+        # Bytes from Storage
+        if isinstance(arg, ast.Attribute) and arg.value.id == 'self':
+            stor_bytes = context.globals[arg.attr]
+            if stor_bytes.typ.maxlen > 32:
+                    raise TypeMismatchException("Can only log a maximum of 32 bytes at a time.")
+            arg2 = LLLnode.from_list(['sload', ['add', ['sha3_32', Expr(arg, context).lll_node], 1]], typ=BaseType(32))
+            holder, maxlen = pack_args_by_32(holder, maxlen, arg2, BaseType(32), context, context.new_placeholder(BaseType(32)))
         # String literals
-        if isinstance(arg, ast.Str):
+        elif isinstance(arg, ast.Str):
             if len(arg.s) > typ.maxlen:
                 raise TypeMismatchException("Data input bytes are to big: %r %r" % (len(arg.s), typ))
             for c in arg.s:
@@ -703,14 +722,32 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder):
             maxlen += (typ.count - 1) * 32
             typ = typ.subtype
 
-            if isinstance(arg, ast.Name):
+            def check_list_type_match(provided):  # Check list types match.
+                if provided != typ:
+                    raise TypeMismatchException(
+                        "Log list type '%s' does not match provided, expected '%s'" % (provided, typ)
+                    )
+
+            # List from storage
+            if isinstance(arg, ast.Attribute) and arg.value.id == 'self':
+                stor_list = context.globals[arg.attr]
+                check_list_type_match(stor_list.typ.subtype)
+                size = stor_list.typ.count
+                for offset in range(0, size):
+                    arg2 = LLLnode.from_list(['sload', ['add', ['sha3_32', Expr(arg, context).lll_node], offset]],
+                                             typ=typ)
+                    holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, context.new_placeholder(BaseType(32)))
+            # List from variable.
+            elif isinstance(arg, ast.Name):
                 size = context.vars[arg.id].size
                 pos = context.vars[arg.id].pos
+                check_list_type_match(context.vars[arg.id].typ.subtype)
                 for i in range(0, size):
                     offset = 32 * i
                     arg2 = LLLnode.from_list(pos + offset, typ=typ, location='memory')
                     holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, context.new_placeholder(BaseType(32)))
-            else:  # is list literal.
+            # is list literal.
+            else:
                 holder, maxlen = pack_args_by_32(holder, maxlen, arg.elts[0], typ, context, placeholder)
                 for j, arg2 in enumerate(arg.elts[1:]):
                     holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, context.new_placeholder(BaseType(32)))

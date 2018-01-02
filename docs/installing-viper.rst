@@ -75,7 +75,7 @@ other development environment set-up.
 
 To create a new virtual environment for Viper run the following commands:
 ::
-    virtualenv -p /usr/local/lib/python3.6/bin/python3 --no-site-packages ~/viper-venv
+    virtualenv -p python3.6 --no-site-packages ~/viper-venv
     source ~/viper-venv/bin/activate
 
 To find out more about virtual environments, check out:
@@ -103,7 +103,9 @@ If everything works correctly, you are now able to compile your own smart contra
 However, please keep in mind that Viper is still experimental and not ready for production!
 
 .. note::
-    For MacOS users:
+    If you get the error `fatal error: openssl/aes.h: No such file or directory` in the output of `make`, then run `sudo apt-get install libssl-dev1`, then run `make` again.
+
+    **For MacOS users:**
 
     Apple has deprecated use of OpenSSL in favor of its own TLS and crypto
     libraries. This means that you will need to export some OpenSSL settings

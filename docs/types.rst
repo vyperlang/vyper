@@ -73,10 +73,10 @@ Comparisons return a boolean value.
 Operator    Description
 ==========  ================
 ``x < y``   Less than
-``x <= y``  Less or equal
+``x <= y``  Less than or equal to
 ``x == y``  Equals
 ``x != y``  Does not equal
-``x >= y``  Greater or equal
+``x >= y``  Greater than or equal to
 ``x > y``   Greater than
 ==========  ================
 ``x`` and ``y`` must be of the type ``num``.
@@ -91,7 +91,7 @@ Operator       Description
 ``x - y``      Subtraction
 ``-x``         Unary minus/Negation
 ``x * y``      Multiplication 
-``x / y``      Divison
+``x / y``      Division
 ``x**y``       Exponentiation
 ``x % y``      Modulo
 ``min(x, y)``  Minimum
@@ -108,7 +108,7 @@ An unsigned integer (256 bit) is a type to store non-negative integers.
 
 Values
 ------
-Integer values between 0 and (2\ :sup:`257`-1).
+Integer values between 0 and (2\ :sup:`256`-1).
 
 .. note::
     Integer literals are always interpreted as ``num``. In order to assign a literal to a ``num256`` use ``as_num256(_literal)``.
@@ -123,10 +123,10 @@ Comparisons return a boolean value.
 Operator             Description
 ===================  ================
 ``num256_lt(x, y)``  Less than
-``num256_le(x, y)``  Less or equal
+``num256_le(x, y)``  Less than or equal to
 ``x == y``           Equals
 ``x != y``           Does not equal
-``num256_ge(x, y)``  Greater or equal
+``num256_ge(x, y)``  Greater than or equal to
 ``num256_gt(x, y)``  Greater than
 ===================  ================
 ``x`` and ``y`` must be of the type ``num256``.
@@ -223,7 +223,7 @@ The address type holds an Ethereum address.
 
 Values
 ------
-An address type can hold an Ethereum address which equates to 20 bytes/160 bits. Returns in hexadecimal notation with a leading ``0x``.
+An address type can hold an Ethereum address which equates to 20 bytes or 160 bits. It returns in hexadecimal notation with a leading ``0x``.
 
 .. _members-of-addresses:
 Members
@@ -232,7 +232,7 @@ Members
 ============  ===================================================
 Member        Description
 ============  ===================================================
-``balance``   Query balance of an address. Returns ``wei_value``.
+``balance``   Query the balance of an address. Returns ``wei_value``.
 ``codesize``  Query the code size of an address. Returns ``num``.
 ============  ===================================================
 Syntax as follows: ``_address.<member>``, where ``_address`` is of the type ``address`` and ``<member>`` is one of the above keywords.
@@ -247,8 +247,8 @@ Time
 -----------------------------------------------------------
 Keyword        Unit   Base type  Description
 =============  =====  =========  ==========================
-``timestamp``  1 sec  ``num``    Represents a point in time
-``timedelta``  1 sec  ``num``    A number of seconds 
+``timestamp``  1 sec  ``num``    This represents a point in time.
+``timedelta``  1 sec  ``num``    This is a number of seconds.
 =============  =====  =========  ==========================
 
 .. note::
@@ -259,17 +259,16 @@ Currency
 ---------------------------------------------------------------------------------------------------------------------------------
 Keyword              Unit         Base type  Description
 ===================  ===========  =========  ====================================================================================
-``wei_value``        1 wei        ``num``    An amount of `Ether <http://ethdocs.org/en/latest/ether.html#denominations>`_ in wei
-``currency_value``   1 currency   ``num``    An amount of currency
-``currency1_value``  1 currency1  ``num``    An amount of currency1
-``currency2_value``  1 currency2  ``num``    An amount of currency2
+``wei_value``        1 wei        ``num``    This is an amount of `Ether <http://ethdocs.org/en/latest/ether.html#denominations>`_ in wei.
+``currency1_value``  1 currency1  ``num``    This is an amount of currency1.
+``currency2_value``  1 currency2  ``num``    This is an amount of currency2.
 ===================  ===========  =========  ====================================================================================
 
 .. index:: !bytes32
 32-bit-wide Byte Array
 ======================
 **Keyword:** ``bytes32``
-A 32-bit-wide byte array. Otherwise similiar to byte arrays.
+This is a 32-bit-wide byte array that is otherwise similiar to byte arrays.
 
 **Example:**
 ::
@@ -282,10 +281,10 @@ Operators
 ====================================  ============================================================ 
 Keyword                               Description
 ====================================  ============================================================ 
-``len(x)``                            Returns the length as an integer
-``sha3(x)``                           Returns the sha3 hash as bytes32
-``concat(x, ...)``                    Concatenates multiple inputs
-``slice(x, start=_start, len=_len)``  Returns a slice of ``_len`` starting at ``_start``
+``len(x)``                            Return the length as an integer.
+``sha3(x)``                           Return the sha3 hash as bytes32.
+``concat(x, ...)``                    Concatenate multiple inputs.
+``slice(x, start=_start, len=_len)``  Return a slice of ``_len`` starting at ``_start``.
 ====================================  ============================================================ 
 Where ``x`` is a byte array and ``_start`` as well as ``_len`` are integer values.
 
@@ -311,12 +310,12 @@ Operators
 ====================================  ============================================================ 
 Keyword                               Description
 ====================================  ============================================================ 
-``len(x)``                            Returns the length as an integer
-``sha3(x)``                           Returns the sha3 hash as bytes32
-``concat(x, ...)``                    Concatenates multiple inputs
-``slice(x, start=_start, len=_len)``  Returns a slice of ``_len`` starting at ``_start``
+``len(x)``                            Return the length as an integer.
+``sha3(x)``                           Return the sha3 hash as bytes32.
+``concat(x, ...)``                    Concatenate multiple inputs.
+``slice(x, start=_start, len=_len)``  Return a slice of ``_len`` starting at ``_start``.
 ====================================  ============================================================ 
-Where ``x`` is a byte array and ``_start`` as well as ``_len`` are integer values.
+Where ``x`` is a byte array while ``_start`` and ``_len`` are integers.
 
 .. index:: !reference
 
@@ -324,8 +323,8 @@ Where ``x`` is a byte array and ``_start`` as well as ``_len`` are integer value
 Reference Types
 ***************
 
-Reference types do not fit into 32 Bytes. Because of this, copying their value is not as feasible as
-with value types. Therefore only the location, the reference, of the data is passed.
+Reference types do not fit into 32 bytes. Because of this, copying their value is not as feasible as
+with value types. Therefore only the location, i.e. the reference, of the data is passed.
 
 .. index:: !arrays
 Fixed-size Lists
@@ -407,7 +406,7 @@ Here ``_KeyType`` can be almost any type except for mappings, a contract, or a s
 **********
 Conversion
 **********
-Following conversions are possible.
+The following conversions are possible.
 
 ===================  =====================================================================================================================  =============
 Keyword              Input                                                                                                                  Output

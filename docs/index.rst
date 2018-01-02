@@ -48,7 +48,9 @@ Following the principles and goals, Viper **does not** provide the following fea
 Compatibility-breaking Changelog
 ********************************
 
-* **2017.11.29**: ``@internal`` renamed to ``@private```.
+* **2017.12.25**: Change name from Viper to Vyper
+* **2017.12.22**: Add ``continue`` for loops
+* **2017.11.29**: ``@internal`` renamed to ``@private``.
 * **2017.11.15**: Functions require either ``@internal`` or ``@public`` decorators.
 * **2017.07.25**: The ``def foo() -> num(const): ...`` syntax no longer works; you now need to do ``def foo() -> num: ...`` with a ``@constant`` decorator on the previous line.
 * **2017.07.25**: Functions without a ``@payable`` decorator now fail when called with nonzero wei.
