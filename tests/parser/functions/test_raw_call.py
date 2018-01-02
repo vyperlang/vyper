@@ -36,13 +36,13 @@ def returnten() -> num:
     outer_code = """
 @public
 def create_and_call_returnten(inp: address) -> num:
-    x = create_with_code_of(inp)
-    o = extract32(raw_call(x, "\xd0\x1f\xb1\xb8", outsize=32, gas=50000), 0, type=num128)
+    x: address = create_with_code_of(inp)
+    o: num = extract32(raw_call(x, "\xd0\x1f\xb1\xb8", outsize=32, gas=50000), 0, type=num128)
     return o
 
 @public
 def create_and_return_forwarder(inp: address) -> address:
-    x = create_with_code_of(inp)
+    x: address = create_with_code_of(inp)
     return x
     """
 
@@ -71,8 +71,8 @@ def returnten() -> num:
     outer_code = """
 @public
 def create_and_call_returnten(inp: address) -> num:
-    x = create_with_code_of(inp)
-    o = extract32(raw_call(x, "\xd0\x1f\xb1\xb8", outsize=32, gas=50000), 0, type=num128)
+    x: address = create_with_code_of(inp)
+    o: num = extract32(raw_call(x, "\xd0\x1f\xb1\xb8", outsize=32, gas=50000), 0, type=num128)
     return o
 
 @public
