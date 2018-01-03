@@ -4,6 +4,7 @@ from ethereum.tools import tester as t
 
 from viper import compiler
 
+
 @pytest.fixture
 def tester():
     tester = t
@@ -13,9 +14,10 @@ def tester():
     contract_code = open('examples/stock/company.v.py').read()
     tester.company_address = t.a0
     # Company with 1000 shares @ 10^6 wei / share
-    tester.c = tester.s.contract(contract_code, language='viper', \
+    tester.c = tester.s.contract(contract_code, language='viper',
             args=[tester.company_address, 1000, 10**6])
     return tester
+
 
 def test_overbuy(tester, assert_tx_failed):
     # If all the stock has been bought, no one can buy more
@@ -28,6 +30,7 @@ def test_overbuy(tester, assert_tx_failed):
     one_stock = tester.c.get_price()
     assert_tx_failed(lambda: tester.c.buy_stock(sender=t.k1, value=one_stock))
     assert_tx_failed(lambda: tester.c.buy_stock(sender=t.k2, value=one_stock))
+
 
 def test_sell_without_stock(tester, assert_tx_failed):
     # If you don't have any stock, you can't sell
@@ -44,12 +47,14 @@ def test_sell_without_stock(tester, assert_tx_failed):
     # But only until you run out
     assert_tx_failed(lambda: tester.c.sell_stock(1, sender=t.k1))
 
+
 def test_oversell(tester, assert_tx_failed):
     # You can't sell more than you own
     test_shares = int(tester.c.get_total_shares())
     test_value = int(test_shares * tester.c.get_price())
     tester.c.buy_stock(sender=t.k1, value=test_value)
     assert_tx_failed(lambda: tester.c.sell_stock(test_shares + 1, sender=t.k1))
+
 
 def test_transfer(tester, assert_tx_failed):
     # If you don't have any stock, you can't transfer
@@ -67,6 +72,7 @@ def test_transfer(tester, assert_tx_failed):
     # But the other person does
     tester.c.sell_stock(test_shares, sender=t.k2)
 
+
 def test_paybill(tester, assert_tx_failed):
     # Only the company can authorize payments
     assert_tx_failed(lambda: tester.c.pay_bill(t.a2, 1, sender=t.k1))
@@ -81,12 +87,14 @@ def test_paybill(tester, assert_tx_failed):
     # Then no stockholders can sell their stock either
     assert_tx_failed(lambda: tester.c.sell_stock(1, sender=t.k1))
 
+
 def test_valuation(tester):
     # Valuation is number of shares held times price
     assert tester.c.debt() == 0
     test_value = int(tester.c.get_total_shares() * tester.c.get_price())
     tester.c.buy_stock(sender=t.k1, value=test_value)
     assert tester.c.debt() == test_value
+
 
 def test_logs(tester, get_logs):
     # Buy is logged
@@ -121,4 +129,3 @@ def test_logs(tester, get_logs):
     assert len(logs) == 1
     assert logs[0]["_event_type"] == b'Pay'
     assert logs[0]["_amount"] == amount
-

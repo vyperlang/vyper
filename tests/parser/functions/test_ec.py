@@ -17,6 +17,7 @@ negative_G1 = [
 
 curve_order = 21888242871839275222246405745257275088548364400416034343698204186575808495617
 
+
 def test_ecadd(get_contract_with_gas_estimation):
     ecadder = """
 x3: num256[2]
@@ -46,6 +47,7 @@ def _ecadd3(x: num256[2], y: num256[2]) -> num256[2]:
     assert c._ecadd3(G1, [0, 0]) == G1
     assert c._ecadd3(G1, negative_G1) == [0, 0]
 
+
 def test_ecmul(get_contract_with_gas_estimation):
     ecmuller = """
 x3: num256[2]
@@ -70,7 +72,7 @@ def _ecmul3(x: num256[2], y: num256) -> num256[2]:
 """
     c = get_contract_with_gas_estimation(ecmuller)
 
-    assert c._ecmul(G1, 0) == [0 ,0]
+    assert c._ecmul(G1, 0) == [0, 0]
     assert c._ecmul(G1, 1) == G1
     assert c._ecmul(G1, 3) == G1_times_three
     assert c._ecmul(G1, curve_order - 1) == negative_G1

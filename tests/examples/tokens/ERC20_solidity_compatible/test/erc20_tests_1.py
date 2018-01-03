@@ -7,13 +7,14 @@ from ethereum.tools import tester
 import ethereum.utils as utils
 import ethereum.abi as abi
 
-from utils.pyethereum_test_utils import PyEthereumTestCase, bytes_to_int, int_to_bytes
+from utils.pyethereum_test_utils import PyEthereumTestCase, bytes_to_int
 
 MAX_UINT256 = (2 ** 256) - 1  # Max num256 value
 MAX_UINT128 = (2 ** 128) - 1  # Max num128 value
 
 # Base path to contracts from current directory
 PATH_TO_CONTRACTS = "."
+
 
 class TestERC20(PyEthereumTestCase):
 
@@ -208,19 +209,19 @@ class TestERC20(PyEthereumTestCase):
         # Payable functions - ensure success
         self.assertIsNone(self.c.deposit(value=2, sender=self.t.k1))
         # Non payable functions - ensure all fail with value, succeed without
-        self.assert_tx_failed(lambda :self.c.withdraw(0, value=2, sender=self.t.k1))
+        self.assert_tx_failed(lambda: self.c.withdraw(0, value=2, sender=self.t.k1))
         self.assertTrue(self.c.withdraw(0, value=0, sender=self.t.k1))
-        self.assert_tx_failed(lambda :self.c.totalSupply(value=2, sender=self.t.k1))
+        self.assert_tx_failed(lambda: self.c.totalSupply(value=2, sender=self.t.k1))
         self.assertEqual(self.c.totalSupply(value=0, sender=self.t.k1), 2)
-        self.assert_tx_failed(lambda :self.c.balanceOf(self.t.a1, value=2, sender=self.t.k1))
+        self.assert_tx_failed(lambda: self.c.balanceOf(self.t.a1, value=2, sender=self.t.k1))
         self.assertEqual(self.c.balanceOf(self.t.a1, value=0, sender=self.t.k1), 2)
-        self.assert_tx_failed(lambda :self.c.transfer(self.t.a2, 0, value=2, sender=self.t.k1))
+        self.assert_tx_failed(lambda: self.c.transfer(self.t.a2, 0, value=2, sender=self.t.k1))
         self.assertTrue(self.c.transfer(self.t.a2, 0, value=0, sender=self.t.k1))
-        self.assert_tx_failed(lambda :self.c.approve(self.t.a2, 1, value=2, sender=self.t.k1))
+        self.assert_tx_failed(lambda: self.c.approve(self.t.a2, 1, value=2, sender=self.t.k1))
         self.assertTrue(self.c.approve(self.t.a2, 1, value=0, sender=self.t.k1))
-        self.assert_tx_failed(lambda :self.c.allowance(self.t.a1, self.t.a2, value=2, sender=self.t.k1))
+        self.assert_tx_failed(lambda: self.c.allowance(self.t.a1, self.t.a2, value=2, sender=self.t.k1))
         self.assertEqual(self.c.allowance(self.t.a1, self.t.a2, value=0, sender=self.t.k1), 1)
-        self.assert_tx_failed(lambda :self.c.transferFrom(self.t.a1, self.t.a2, 0, value=2, sender=self.t.k1))
+        self.assert_tx_failed(lambda: self.c.transferFrom(self.t.a1, self.t.a2, 0, value=2, sender=self.t.k1))
         self.assertTrue(self.c.transferFrom(self.t.a1, self.t.a2, 0, value=0, sender=self.t.k1))
 
     def test_raw_logs(self):
@@ -327,6 +328,7 @@ class TestERC20(PyEthereumTestCase):
         self.assertTrue(ext2.my_withdraw())
         self.check_logs([self.transfer_topic, bytes_to_int(ext2.address), 0], (2).to_bytes(32, byteorder='big'))
 
+
 class TestViperERC20(TestERC20):
 
     @classmethod
@@ -355,7 +357,7 @@ class TestViperERC20(TestERC20):
         self.assertIsNone(self.c_bad.deposit(value=MAX_UINT256, sender=self.t.k1))
         self.assertIsNone(self.c_bad.deposit(value=1, sender=self.t.k2))
         self.assert_tx_failed(lambda: self.c_bad.transfer(self.t.a1, 1, sender=self.t.k2))
-        self.assertTrue(self.c_bad.transfer(self.t.a2, MAX_UINT256-1, sender=self.t.k1))
+        self.assertTrue(self.c_bad.transfer(self.t.a2, MAX_UINT256 - 1, sender=self.t.k1))
 
     def test_bad_deposit(self):
         # Check that, in event when totalSupply is corrupted, it can't be underflowed
@@ -417,6 +419,7 @@ def load_tests(loader, tests, pattern):
         tests = loader.loadTestsFromTestCase(suite)
         full_suite.addTests(tests)
     return full_suite
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

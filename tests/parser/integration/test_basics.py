@@ -45,4 +45,3 @@ def returnten() -> num:
     assert c.returnten() == 10
 
     print("Passed single variable-size argument self-call test")
-

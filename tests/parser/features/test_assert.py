@@ -1,5 +1,6 @@
 import pytest
 
+
 def test_assert_refund(t, get_contract_with_gas_estimation):
     code = """
 @public

@@ -3,6 +3,7 @@ import rlp
 from viper import utils as viper_utils
 from ethereum import transactions, messages
 
+
 @pytest.fixture
 def inject_tx(utils, chain):
     def inject_tx(txhex):
@@ -17,6 +18,7 @@ def inject_tx(utils, chain):
         chain.head_state.gas_limit = 10**9
         return contract_address
     return inject_tx
+
 
 @pytest.fixture
 def fake_tx(inject_tx):

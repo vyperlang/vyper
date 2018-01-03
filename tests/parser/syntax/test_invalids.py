@@ -2,8 +2,7 @@ import pytest
 from pytest import raises
 
 from viper import compiler
-from viper.exceptions import StructureException, \
-    TypeMismatchException
+from viper.exceptions import TypeMismatchException
 
 
 # These functions register test cases
@@ -244,6 +243,7 @@ must_fail("""
 def foo():
     suicide(msg.sender)
     """, AttributeError)
+
 
 @pytest.mark.parametrize('bad_code,exception_type', fail_list)
 def test_compilation_fails_with_exception(bad_code, exception_type):
