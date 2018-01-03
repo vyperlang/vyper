@@ -8,7 +8,7 @@ def foo() -> bool:
     return True
 """
     c = get_contract_with_gas_estimation(code)
-    assert c.foo() == True
+    assert c.foo()
 
 
 def test_continue2(get_contract_with_gas_estimation):

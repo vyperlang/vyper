@@ -1,3 +1,6 @@
+from viper.exceptions import StructureException
+
+
 def test_selfcall_code(get_contract_with_gas_estimation):
     selfcall_code = """
 @public
@@ -340,3 +343,16 @@ def bar() -> (bytes <= 11, decimal, num):
     """
     c = get_contract_with_gas_estimation(code)
     assert c.bar() == [b"hello world", 66.77, 44]
+
+
+def test_selfcall_with_wrong_arg_count_fails(get_contract_with_gas_estimation, assert_tx_failed):
+    code = """
+@public
+def bar() -> num:
+    return 1
+
+@public
+def foo() -> num:
+    return self.bar(1)
+"""
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(code), StructureException)

@@ -155,7 +155,7 @@ def set_lucky(_lucky: num):
     lucky_number_1 = 7
     c = get_contract(contract_1)
 
-    contract_2 =  """
+    contract_2 = """
 lucky: public(num)
 
 @public
@@ -318,7 +318,7 @@ best_number: public(num)
 def __init__():
     pass
 """
-    assert_tx_failed(lambda: get_contract(contract), exception = StructureException)
+    assert_tx_failed(lambda: get_contract(contract), exception=StructureException)
 
 
 def test_invalid_contract_reference_call(assert_tx_failed, get_contract):
@@ -327,7 +327,7 @@ def test_invalid_contract_reference_call(assert_tx_failed, get_contract):
 def bar(arg1: address, arg2: num) -> num:
     return Foo(arg1).foo(arg2)
 """
-    assert_tx_failed(lambda: get_contract(contract), exception = VariableDeclarationException)
+    assert_tx_failed(lambda: get_contract(contract), exception=VariableDeclarationException)
 
 
 def test_invalid_contract_reference_return_type(assert_tx_failed, get_contract):
@@ -339,7 +339,7 @@ class Foo():
 def bar(arg1: address, arg2: num) -> num:
     return Foo(arg1).foo(arg2)
 """
-    assert_tx_failed(lambda: get_contract(contract), exception = InvalidTypeException)
+    assert_tx_failed(lambda: get_contract(contract), exception=InvalidTypeException)
 
 
 def test_external_contracts_must_be_declared_first_1(assert_tx_failed, get_contract):
@@ -350,7 +350,7 @@ item: public(num)
 class Foo():
     def foo(arg2: num) -> num: pass
 """
-    assert_tx_failed(lambda: get_contract(contract), exception = StructureException)
+    assert_tx_failed(lambda: get_contract(contract), exception=StructureException)
 
 
 def test_external_contracts_must_be_declared_first_2(assert_tx_failed, get_contract):
@@ -361,7 +361,7 @@ MyLog: __log__({})
 class Foo():
     def foo(arg2: num) -> num: pass
 """
-    assert_tx_failed(lambda: get_contract(contract), exception = StructureException)
+    assert_tx_failed(lambda: get_contract(contract), exception=StructureException)
 
 
 def test_external_contracts_must_be_declared_first_3(assert_tx_failed, get_contract):
@@ -373,7 +373,7 @@ def foo() -> num:
 class Foo():
     def foo(arg2: num) -> num: pass
 """
-    assert_tx_failed(lambda: get_contract(contract), exception = StructureException)
+    assert_tx_failed(lambda: get_contract(contract), exception=StructureException)
 
 
 def test_external_contract_call_declaration_expr(get_contract):
@@ -442,6 +442,7 @@ def get_lucky(contract_address: contract(Bar)) -> num:
     assert c1.get_lucky() == 1
     assert c2.get_lucky(c1.address) == 1
 
+
 def test_complex_external_contract_call_declaration(get_contract_with_gas_estimation):
     contract_1 = """
 @public
@@ -507,7 +508,6 @@ def get_bar() -> num:
     c2.foo(c1.address)
     assert utils.remove_0x_head(c2.get_bar_contract()) == c1.address.hex()
     assert c2.get_bar() == 1
-
 
 
 def test_invalid_external_contract_call_declaration_1(assert_compile_failed, get_contract):

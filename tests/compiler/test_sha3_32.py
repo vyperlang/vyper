@@ -1,6 +1,6 @@
-import pytest
 from viper.parser.parser_utils import LLLnode
 from viper import compile_lll, optimizer
+
 
 def test_sha3_32():
     lll = ['sha3_32', 0]

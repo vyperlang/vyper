@@ -1,3 +1,7 @@
+import pytest
+from ethereum.tools import tester
+
+
 def test_test_slice(get_contract_with_gas_estimation):
     test_slice = """
 
@@ -85,25 +89,14 @@ def foo(inp: bytes <= 10, start: num, len: num) -> bytes <= 10:
     assert c.foo(b"badminton", 1, 7) == b"adminto"
     assert c.foo(b"badminton", 1, 0) == b""
     assert c.foo(b"badminton", 9, 0) == b""
-    try:
+
+    with pytest.raises(tester.TransactionFailed):
         c.foo(b"badminton", 0, 10)
-        assert False
-    except:
-        pass
-    try:
+    with pytest.raises(tester.TransactionFailed):
         c.foo(b"badminton", 1, 9)
-        assert False
-    except:
-        pass
-    try:
+    with pytest.raises(tester.TransactionFailed):
         c.foo(b"badminton", 9, 1)
-        assert False
-    except:
-        pass
-    try:
+    with pytest.raises(tester.TransactionFailed):
         c.foo(b"badminton", 10, 0)
-        assert False
-    except:
-        pass
 
     print('Passed slice edge case test')

@@ -9,12 +9,12 @@ def _num_exp(x: num, y: num) -> num:
     """
 
     c = get_contract_with_gas_estimation(exp_code)
-    assert c._num_exp(2,2) == 4
-    assert c._num_exp(2,3) == 8
-    assert c._num_exp(2,4) == 16
-    assert c._num_exp(3,2) == 9
-    assert c._num_exp(3,3) == 27
-    assert c._num_exp(72,19) == 72**19
+    assert c._num_exp(2, 2) == 4
+    assert c._num_exp(2, 3) == 8
+    assert c._num_exp(2, 4) == 16
+    assert c._num_exp(3, 2) == 9
+    assert c._num_exp(3, 3) == 27
+    assert c._num_exp(72, 19) == 72 ** 19
 
 
 def test_negative_nums(t, get_contract_with_gas_estimation, chain):
@@ -37,7 +37,7 @@ def _negative_exp() -> num:
 def test_exponents_with_units(get_contract_with_gas_estimation):
     code = """
 @public
-def foo() -> num(wei): 
+def foo() -> num(wei):
     a: num(wei)
     b: num
     c: num(wei)
@@ -80,7 +80,7 @@ def _num_min() -> num:
     c = get_contract_with_gas_estimation(num_bound_code)
 
     t.s = chain
-    NUM_MAX =  2**127 - 1
+    NUM_MAX = 2**127 - 1
     NUM_MIN = -2**127
     assert c._num_add(NUM_MAX, 0) == NUM_MAX
     assert c._num_sub(NUM_MIN, 0) == NUM_MIN
@@ -106,4 +106,3 @@ def foo():
     c = a ** b
 """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatchException)
-

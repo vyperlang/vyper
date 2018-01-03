@@ -48,7 +48,7 @@ def test_invalid_assign(assert_compile_failed, get_contract_with_gas_estimation)
     code = """
 @public
 def foo(x:num):
-    x = 5   
+    x = 5
 """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ConstancyViolationException)
 
@@ -57,6 +57,6 @@ def test_invalid_augassign(assert_compile_failed, get_contract_with_gas_estimati
     code = """
 @public
 def foo(x:num):
-    x += 5     
+    x += 5
 """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ConstancyViolationException)

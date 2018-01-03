@@ -1,4 +1,3 @@
-import pytest
 
 
 def test_calldatacopy(get_contract_from_lll):
