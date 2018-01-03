@@ -21,11 +21,12 @@ from .utils import (
 
 # Function argument
 class VariableRecord():
-    def __init__(self, name, pos, typ, mutable):
+    def __init__(self, name, pos, typ, mutable, blockscopes=[]):
         self.name = name
         self.pos = pos
         self.typ = typ
         self.mutable = mutable
+        self.blockscopes = blockscopes
 
     @property
     def size(self):
