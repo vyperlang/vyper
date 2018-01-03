@@ -774,6 +774,10 @@ def pack_arguments(signature, args, context):
     placeholder = context.new_placeholder(placeholder_typ)
     setters = [['mstore', placeholder, signature.method_id]]
     needpos = False
+    expected_arg_count = len(signature.args)
+    actual_arg_count = len(args)
+    if actual_arg_count != expected_arg_count:
+        raise StructureException("Wrong number of args for: %s (%s args, expected %s)" % (signature.name, actual_arg_count, expected_arg_count))
     for i, (arg, typ) in enumerate(zip(args, [arg.typ for arg in signature.args])):
         if isinstance(typ, BaseType):
             setters.append(make_setter(LLLnode.from_list(placeholder + 32 + i * 32, typ=typ), arg, 'memory'))
