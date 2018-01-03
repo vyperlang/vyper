@@ -1,3 +1,6 @@
+from ethereum.tools import tester
+
+
 def test_arbitration_code(t, get_contract_with_gas_estimation):
     arbitration_code = """
 buyer: address
@@ -28,7 +31,7 @@ def refund():
     try:
         c.finalize(sender=t.k1)
         success = True
-    except:
+    except tester.TransactionFailed:
         success = False
     assert not success
     c.finalize(sender=t.k0)
