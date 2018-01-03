@@ -1,5 +1,6 @@
 from viper.exceptions import StructureException
 
+
 def test_selfcall_code(get_contract_with_gas_estimation):
     selfcall_code = """
 @public
