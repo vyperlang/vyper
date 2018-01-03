@@ -1,3 +1,6 @@
+from ethereum.tools import tester
+
+
 def test_extract32_extraction(get_contract_with_gas_estimation):
     extract32_code = """
 y: bytes <= 100
@@ -40,7 +43,7 @@ def extrakt32_storage(index: num, inp: bytes <= 100) -> bytes32:
             try:
                 c.extrakt32(S, i)
                 success = True
-            except:
+            except tester.TransactionFailed:
                 success = False
             assert not success
         else:
@@ -80,7 +83,7 @@ def foq(inp: bytes <= 32) -> address:
     try:
         c.foo(b"\x80" + b"\x00" * 30)
         success = True
-    except:
+    except tester.TransactionFailed:
         success = False
     assert not success
     assert c.bar(b"\x80" + b"\x00" * 31) == 2**255
@@ -91,7 +94,7 @@ def foq(inp: bytes <= 32) -> address:
     try:
         c.foq(b"crow" * 8)
         success = True
-    except:
+    except tester.TransactionFailed:
         success = False
     assert not success
 
