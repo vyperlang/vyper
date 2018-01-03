@@ -97,6 +97,35 @@ def _num_min() -> num:
     assert c._num_add3(NUM_MAX, -1, 1) == NUM_MAX
 
 
+def test_divide_minus_modulo(get_contract_with_gas_estimation):
+    code = """
+a: num
+b: num
+
+@public
+def __init__():
+    self.a = 5
+    self.b = 2
+
+@public
+def num_literals() -> num:
+    return 3 // 2
+
+@public
+def num_memory(x: num, y: num) -> num:
+    return x // y
+
+@public
+def num_storage() -> num:
+    return self.a // self.b
+
+"""
+    c = get_contract_with_gas_estimation(code)
+    assert c.num_literals()  == 1
+    assert c.num_memory(9, 3) == 3
+    assert c.num_storage() == 2
+
+
 def test_invalid_unit_exponent(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
 @public

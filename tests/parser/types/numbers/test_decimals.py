@@ -121,3 +121,42 @@ def iarg() -> wei_value:
     assert c.iarg() == 14
 
     print('Passed fractional multiplication test')
+
+
+def test_divide_minus_modulo(get_contract_with_gas_estimation):
+    code = """
+a: decimal
+b: decimal
+
+@public
+def __init__():
+    self.a = 10.19
+    self.b = .1
+
+@public
+def decimal_literals() -> num:
+    return 3.5 // .3
+
+@public
+def decimal_memory(x: decimal, y: decimal) -> num:
+    return x // y
+
+@public
+def decimal_storage() -> num:
+    return self.a // self.b
+
+@public
+def num_decimal_memory(x: num, y: decimal) -> num:
+    return x // y
+
+@public
+def decimal_num_memory(x: decimal, y: num) -> num:
+    return x // y
+"""
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.decimal_literals()  == 11
+    assert c.decimal_memory(9, 3.5) == 2
+    assert c.decimal_storage() == 101
+    assert c.num_decimal_memory(10, 3.1) == 3
+    assert c.decimal_num_memory(7.5, 2) == 3
