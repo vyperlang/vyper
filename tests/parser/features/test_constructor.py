@@ -1,3 +1,6 @@
+from ethereum.abi import ValueOutOfBounds
+
+
 def test_init_argument_test(get_contract_with_gas_estimation):
     init_argument_test = """
 moose: num
@@ -62,7 +65,7 @@ def foo(x: num) -> num:
     try:
         c.foo(2**130)
         success = True
-    except:
+    except ValueOutOfBounds:
         success = False
     assert not success
 
@@ -82,7 +85,7 @@ def foo() -> num:
     try:
         get_contract_with_gas_estimation(large_input_code_2, args=[2**130], sender=t.k0, value=0)
         success = True
-    except:
+    except ValueOutOfBounds:
         success = False
     assert not success
 
