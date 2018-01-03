@@ -287,8 +287,12 @@ class Expr(object):
                 raise TypeMismatchException("Cannot use positional values as exponential arguments!", self.expr)
             if right.typ.unit:
                 raise TypeMismatchException("Cannot use unit values as exponents", self.expr)
-            new_unit = combine_units(left.typ.unit, right.typ.unit)
+            if  ltyp != 'num' and isinstance(self.expr.right, ast.Name):
+                raise TypeMismatchException("Cannot use dynamic values as exponents, for unit base types", self.expr)
             if ltyp == rtyp == 'num':
+                new_unit = left.typ.unit
+                if left.typ.unit and not isinstance(self.expr.right, ast.Name):
+                    new_unit = {left.typ.unit.copy().popitem()[0]:  self.expr.right.n}
                 o = LLLnode.from_list(['exp', left, right], typ=BaseType('num', new_unit), pos=getpos(self.expr))
             else:
                 raise TypeMismatchException('Only whole number exponents are supported', self.expr)
