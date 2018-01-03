@@ -1,3 +1,6 @@
+from ethereum.tools import tester
+
+
 def test_caller_code(get_contract_with_gas_estimation):
     caller_code = """
 @public
@@ -81,7 +84,7 @@ def create_and_return_forwarder(inp: address) -> address:
     try:
         c2.create_and_call_returnten(c.address)
         success = True
-    except:
+    except tester.TransactionFailed:
         success = False
     assert not success
 
