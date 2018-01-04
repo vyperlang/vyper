@@ -162,6 +162,189 @@ def return_mongoose_revolution_32_excls() -> bytes <= 201:
     print("Passed composite self-call test")
 
 
+def test_list_call(get_contract_with_gas_estimation):
+    code = """
+@public
+def foo0(x: num[2]) -> num:
+    return x[0]
+
+@public
+def foo1(x: num[2]) -> num:
+    return x[1]
+
+
+@public
+def bar() -> num:
+    x: num[2]
+    return self.foo0(x)
+
+@public
+def bar2() -> num:
+    x = [55, 66]
+    return self.foo0(x)
+
+@public
+def bar3() -> num:
+    x = [55, 66]
+    return self.foo1(x)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.bar() == 0
+    assert c.foo1() == 0
+    assert c.bar2() == 55
+    assert c.bar3() == 66
+
+
+def test_list_storage_call(get_contract_with_gas_estimation):
+    code = """
+y: num[2]
+
+@public
+def foo0(x: num[2]) -> num:
+    return x[0]
+
+@public
+def foo1(x: num[2]) -> num:
+    return x[1]
+
+@public
+def set():
+    self.y  = [88, 99]
+
+@public
+def bar0() -> num:
+    return self.foo0(self.y)
+
+@public
+def bar1() -> num:
+    return self.foo1(self.y)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    c.set()
+    assert c.bar0() == 88
+    assert c.bar1() == 99
+
+
+def test_multi_arg_list_call(get_contract_with_gas_estimation):
+    code = """
+@public
+def foo0(y: decimal, x: num[2]) -> num:
+    return x[0]
+
+@public
+def foo1(x: num[2], y: decimal) -> num:
+    return x[1]
+
+@public
+def foo2(y: decimal, x: num[2]) -> decimal:
+    return y
+
+@public
+def foo3(x: num[2], y: decimal) -> num:
+    return x[0]
+
+@public
+def foo4(x: num[2], y: num[2]) -> num:
+    return y[0]
+
+
+@public
+def bar() -> num:
+    x: num[2]
+    return self.foo0(0.3434, x)
+
+# list as second parameter
+@public
+def bar2() -> num:
+    x = [55, 66]
+    return self.foo0(0.01, x)
+
+@public
+def bar3() -> decimal:
+    x = [88, 77]
+    return self.foo2(1.33, x)
+
+# list as first parameter
+@public
+def bar4() -> num:
+    x = [88, 77]
+    return self.foo1(x, 1.33)
+
+@public
+def bar5() -> num:
+    x = [88, 77]
+    return self.foo3(x, 1.33)
+
+# two lists
+@public
+def bar6() -> num:
+    x = [88, 77]
+    y = [99, 66]
+    return self.foo4(x, y)
+
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.bar() == 0
+    assert c.foo1() == 0
+    assert c.bar2() == 55
+    assert c.bar3() == 1.33
+    assert c.bar4() == 77
+    assert c.bar5() == 88
+
+
+def test_multi_mixed_arg_list_call(get_contract_with_gas_estimation):
+    code = """
+@public
+def fooz(x: num[2], y: decimal, z: num[2], a: decimal) -> num:
+    return z[1]
+
+@public
+def fooa(x: num[2], y: decimal, z: num[2], a: decimal) -> decimal:
+    return a
+
+@public
+def bar() -> (num, decimal):
+    x = [33, 44]
+    y = 55.44
+    z = [55, 66]
+    a = 66.77
+
+    return self.fooz(x, y, z, a), self.fooa(x, y, z, a)
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.bar() == [66, 66.77]
+
+
+def test_multi_mixed_arg_list_bytes_call(get_contract_with_gas_estimation):
+    code = """
+@public
+def fooz(x: num[2], y: decimal, z: bytes <= 11, a: decimal) -> bytes <= 11:
+    return z
+
+@public
+def fooa(x: num[2], y: decimal, z: bytes <= 11, a: decimal) -> decimal:
+    return a
+
+@public
+def foox(x: num[2], y: decimal, z: bytes <= 11, a: decimal) -> num:
+    return x[1]
+
+@public
+def bar() -> (bytes <= 11, decimal, num):
+    x = [33, 44]
+    y = 55.44
+    z = "hello world"
+    a = 66.77
+
+    return self.fooz(x, y, z, a), self.fooa(x, y, z, a), self.foox(x, y, z, a)
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.bar() == [b"hello world", 66.77, 44]
+
+
 def test_selfcall_with_wrong_arg_count_fails(get_contract_with_gas_estimation, assert_tx_failed):
     code = """
 @public
