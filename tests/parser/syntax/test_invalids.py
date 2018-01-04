@@ -119,7 +119,7 @@ must_succeed("""
 b: num[decimal]
 @public
 def foo():
-    x: decimal = self.b[5]
+    x: num = self.b[5]
 """)
 
 must_fail("""
