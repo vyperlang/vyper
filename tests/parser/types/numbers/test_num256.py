@@ -41,10 +41,10 @@ def _num256_le(x: num256, y: num256) -> bool:
     y = 7128468721412412459
 
     t.s = chain
-    NUM256_MAX = 2**256 -1  # Max possible num256 value
+    NUM256_MAX = 2 ** 256 - 1  # Max possible num256 value
     assert c._num256_add(x, y) == x + y
-    assert c._num256_add(0,y) == y
-    assert c._num256_add(y,0) == y
+    assert c._num256_add(0, y) == y
+    assert c._num256_add(y, 0) == y
     assert_tx_failed(lambda: c._num256_add(NUM256_MAX, NUM256_MAX))
     assert c._num256_sub(x, y) == x - y
     assert_tx_failed(lambda: c._num256_sub(y, x))

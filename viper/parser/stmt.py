@@ -114,10 +114,21 @@ class Stmt(object):
             parse_body,
         )
         if self.stmt.orelse:
+            block_scope_id = id(self.stmt.orelse)
+            self.context.start_blockscope(block_scope_id)
             add_on = [parse_body(self.stmt.orelse, self.context)]
+            self.context.end_blockscope(block_scope_id)
         else:
             add_on = []
-        return LLLnode.from_list(['if', Expr.parse_value_expr(self.stmt.test, self.context), parse_body(self.stmt.body, self.context)] + add_on, typ=None, pos=getpos(self.stmt))
+
+        block_scope_id = id(self.stmt)
+        self.context.start_blockscope(block_scope_id)
+        o = LLLnode.from_list(
+            ['if', Expr.parse_value_expr(self.stmt.test, self.context), parse_body(self.stmt.body, self.context)] + add_on,
+            typ=None, pos=getpos(self.stmt)
+        )
+        self.context.end_blockscope(block_scope_id)
+        return o
 
     def call(self):
         from .parser import (
@@ -192,6 +203,8 @@ class Stmt(object):
                         len(self.stmt.iter.args) not in (1, 2):
             raise StructureException("For statements must be of the form `for i in range(rounds): ..` or `for i in range(start, start + rounds): ..`", self.stmt.iter)  # noqa
 
+        block_scope_id = id(self.stmt.orelse)
+        self.context.start_blockscope(block_scope_id)
         # Type 1 for, eg. for i in range(10): ...
         if len(self.stmt.iter.args) == 1:
             if not isinstance(self.stmt.iter.args[0], ast.Num):
@@ -219,6 +232,7 @@ class Stmt(object):
         o = LLLnode.from_list(['repeat', pos, start, rounds, parse_body(self.stmt.body, self.context)], typ=None, pos=getpos(self.stmt))
         del self.context.vars[varname]
         del self.context.forvars[varname]
+        self.context.end_blockscope(block_scope_id)
         return o
 
     def _is_list_iter(self):

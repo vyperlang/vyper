@@ -1,4 +1,3 @@
-import pytest
 
 
 def test_uclamplt(t, get_contract_from_lll, assert_compile_failed):

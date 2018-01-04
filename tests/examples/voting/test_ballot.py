@@ -2,13 +2,14 @@ import unittest
 
 from ethereum.tools import tester
 import ethereum.utils as utils
-import ethereum.abi as abi
 
-def assert_tx_failed(ballot_tester, function_to_test, exception = tester.TransactionFailed):
+
+def assert_tx_failed(ballot_tester, function_to_test, exception=tester.TransactionFailed):
     """ Ensure that transaction fails, reverting state (to prevent gas exhaustion) """
     initial_state = ballot_tester.s.snapshot()
     ballot_tester.assertRaises(exception, function_to_test)
     ballot_tester.s.revert(initial_state)
+
 
 class TestVoting(unittest.TestCase):
     def setUp(self):
@@ -230,6 +231,7 @@ class TestVoting(unittest.TestCase):
         self.c.vote(1, sender=self.t.k1)
         # Proposal 2 is now winning
         self.assertEqual(self.c.winner_name(), b'Trump\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00')
+
 
 if __name__ == '__main__':
     unittest.main()

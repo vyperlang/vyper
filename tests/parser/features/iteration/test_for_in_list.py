@@ -89,6 +89,7 @@ def foo(x: num):
 """
     get_contract_with_gas_estimation(code)
 
+
 def test_multiple_for_loops_2(get_contract_with_gas_estimation):
     code = """
 @public
@@ -260,7 +261,7 @@ def foo(x: num):
         for i in range(5):
             pass
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code),VariableDeclarationException)
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), VariableDeclarationException)
 
 
 def test_invalid_nested_for_loop_2(assert_compile_failed, get_contract_with_gas_estimation):
@@ -271,7 +272,7 @@ def foo(x: num):
         for i in [1,2]:
             pass
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code),VariableDeclarationException)
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), VariableDeclarationException)
 
 
 def test_invalid_iterator_assignment_1(assert_compile_failed, get_contract_with_gas_estimation):

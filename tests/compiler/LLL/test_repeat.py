@@ -1,4 +1,4 @@
-import pytest
+
 
 def test_repeat(t, get_contract_from_lll, assert_compile_failed):
     good_lll = ['repeat', 0, 0, 1, ['seq']]

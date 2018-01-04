@@ -10,6 +10,7 @@ t.s.tx(sender=t.k1, to=x.address, value=10**17)
 
 print([utils.encode_hex(a) for a in [t.a1, t.a2, t.a3, t.a4, t.a5]])
 
+
 # Signs a transaction with a given key
 def sign(seq, to, value, data, key):
     h1 = utils.sha3(utils.encode_int32(seq) + b'\x00' * 12 + to + utils.encode_int32(value) + data)
@@ -45,14 +46,14 @@ def test_javascript_signatures():
     ]
 
     # Turns the raw sigs into sigs
-    sigs = [(utils.big_endian_to_int(x[64:]), utils.big_endian_to_int(x[:32]), utils.big_endian_to_int(x[32:64])) for x in 
+    sigs = [(utils.big_endian_to_int(x[64:]), utils.big_endian_to_int(x[:32]), utils.big_endian_to_int(x[32:64])) for x in
             map(lambda z: utils.decode_hex(z[2:]), raw_sigs)]
 
     h = utils.sha3(utils.encode_int32(0) + b'\x00' * 12 + utils.decode_hex(recipient[2:]) + utils.encode_int32(25) + b'')
     h2 = utils.sha3(b"\x19Ethereum Signed Message:\n32" + h)
     # Check to make sure the signatures are valid
-    assert '0x'+utils.encode_hex(utils.sha3(utils.ecrecover_to_pub(h2, sigs[0][0], sigs[0][1], sigs[0][2]))[12:]) == accounts[0]
-    assert '0x'+utils.encode_hex(utils.sha3(utils.ecrecover_to_pub(h2, sigs[1][0], sigs[1][1], sigs[1][2]))[12:]) == accounts[1]
+    assert '0x' + utils.encode_hex(utils.sha3(utils.ecrecover_to_pub(h2, sigs[0][0], sigs[0][1], sigs[0][2]))[12:]) == accounts[0]
+    assert '0x' + utils.encode_hex(utils.sha3(utils.ecrecover_to_pub(h2, sigs[1][0], sigs[1][1], sigs[1][2]))[12:]) == accounts[1]
 
     # Set the owners to zero addresses
     x2 = t.s.contract(open('examples/wallet/wallet.v.py').read(), args=[accounts + [t.a3, zero_address, zero_address], 2], language='viper')
