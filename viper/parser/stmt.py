@@ -119,7 +119,7 @@ class Stmt(object):
             o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
         # All other assignments are forbidden.
         elif isinstance(self.stmt.targets[0], ast.Name) and self.stmt.targets[0].id not in self.context.vars:
-            raise VariableDeclarationException("Variable not defined", self.stmt)
+            raise VariableDeclarationException("Variable type not defined", self.stmt)
         else:
             # Checks to see if assignment is valid
             target = self.get_target(self.stmt.targets[0])
