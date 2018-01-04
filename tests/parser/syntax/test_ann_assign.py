@@ -28,6 +28,7 @@ def test():
     """, TypeMismatchException)
 ]
 
+
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_as_wei_fail(bad_code):
     if isinstance(bad_code, tuple):
