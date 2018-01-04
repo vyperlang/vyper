@@ -21,7 +21,8 @@ from viper.types import (
     BaseType,
     ByteArrayType,
     ListType,
-    TupleType
+    TupleType,
+    StructType
 )
 from viper.types import (
     get_size_of_type,
@@ -70,6 +71,22 @@ class Stmt(object):
     def parse_pass(self):
         return LLLnode.from_list('pass', typ=None, pos=getpos(self.stmt))
 
+    def _check_valid_assign(self, sub):
+        if isinstance(self.stmt.annotation, ast.Call): # unit style: num(wei)
+            if self.stmt.annotation.func.id != sub.typ.typ:
+                raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.func.id, self.stmt)
+        elif isinstance(self.stmt.annotation, ast.Dict):
+            if not isinstance(sub.typ, StructType):
+                raise TypeMismatchException('Invalid type, expected a struct')
+        elif isinstance(self.stmt.annotation, ast.Compare):  # check bytes assign
+            if self.stmt.annotation.left.id == 'bytes' and not isinstance(sub.typ, ByteArrayType):
+                raise TypeMismatchException('Invalid type, expected bytes')
+        elif isinstance(self.stmt.annotation, ast.Subscript):
+            if not isinstance(sub.typ, ListType) : # check list assign.
+                raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.value.id, self.stmt)
+        elif self.stmt.annotation.id != sub.typ.typ and not sub.typ.unit:
+            raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.id, self.stmt)
+
     def ann_assign(self):
         from .parser import (
             make_setter,
@@ -82,6 +99,7 @@ class Stmt(object):
         o = LLLnode.from_list('pass', typ=None, pos=pos)
         if self.stmt.value is not None:
             sub = Expr(self.stmt.value, self.context).lll_node
+            self._check_valid_assign(sub)
             variable_loc = LLLnode.from_list(pos, typ=sub.typ, location='memory', pos=getpos(self.stmt))
             o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
         return o
