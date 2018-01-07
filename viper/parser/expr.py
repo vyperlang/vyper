@@ -440,8 +440,15 @@ class Expr(object):
         from viper.functions import (
             dispatch_table,
         )
-        if isinstance(self.expr.func, ast.Name) and self.expr.func.id in dispatch_table:
-            return dispatch_table[self.expr.func.id](self.expr, self.context)
+        if isinstance(self.expr.func, ast.Name):
+            function_name = self.expr.func.id
+            if function_name in dispatch_table:
+                return dispatch_table[function_name](self.expr, self.context)
+            else:
+                err_msg = "Not a top-level function: {}".format(function_name)
+                if function_name in self.context.sigs['self']:
+                    err_msg += ". Did you mean self.{}?".format(function_name)
+                raise StructureException(err_msg, self.expr)
         elif isinstance(self.expr.func, ast.Attribute) and isinstance(self.expr.func.value, ast.Name) and self.expr.func.value.id == "self":
             method_name = self.expr.func.attr
             if method_name not in self.context.sigs['self']:
