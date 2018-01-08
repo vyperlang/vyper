@@ -113,7 +113,10 @@ def signature(*argz, **kwargz):
                 elif isinstance(expected_arg, Optional):
                     subs.append(expected_arg.default)
                 else:
-                    raise StructureException("Not enough arguments for function %s", element)
+                    raise StructureException(
+                        "Not enough arguments for function: {}".format(element.func.id),
+                        element
+                    )
             kwsubs = {}
             element_kw = {k.arg: k.value for k in element.keywords}
             for k, expected_arg in kwargz.items():
