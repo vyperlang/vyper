@@ -135,7 +135,7 @@ def foo() -> num:
 
 @public
 def goo() -> num:
-    self.pap = [[1, 2], [3, 4.0]]
+    self.pap = [[1, 2], [3, 4]]
     return floor(self.pap[0][0] + self.pap[0][1] * 10 + self.pap[1][0] * 100 + self.pap[1][1] * 1000)
     """
 

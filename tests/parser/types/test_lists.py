@@ -81,7 +81,7 @@ def loo() -> num[2][2]:
 @public
 def moo() -> num[2][2]:
     x = [1,2]
-    return [x,[3,4]]
+    return [x, [3,4]]
 
 @public
 def noo(inp: num[2]) -> num[2]:
