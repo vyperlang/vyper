@@ -1,0 +1,1 @@
+*.vy linguist-language=Python
