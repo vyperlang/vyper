@@ -48,6 +48,7 @@ Following the principles and goals, Viper **does not** provide the following fea
 Compatibility-breaking Changelog
 ********************************
 
+* **2018.01.04**: Types need to be specified on assignment (`VIP545 <https://github.com/ethereum/vyper/issues/545>`_).
 * **2017.12.25**: Change name from Viper to Vyper
 * **2017.12.22**: Add ``continue`` for loops
 * **2017.11.29**: ``@internal`` renamed to ``@private``.

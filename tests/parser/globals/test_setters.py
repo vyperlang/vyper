@@ -103,8 +103,10 @@ def goo() -> num:
 
 @public
 def gop() -> num:
-    zed = [{foo: [1, 2, 3], bar: [{a: 4, b: 5}, {a: 2, b: 3}]},
-           {foo: [6, 7, 8], bar: [{a: 9, b: 1}, {a: 7, b: 8}]}]
+    zed: {foo: num[3], bar: {a: num, b: num}[2]}[2] = [
+        {foo: [1, 2, 3], bar: [{a: 4, b: 5}, {a: 2, b: 3}]},
+        {foo: [6, 7, 8], bar: [{a: 9, b: 1}, {a: 7, b: 8}]}
+    ]
     return zed[0].foo[0] + zed[0].foo[1] * 10 + zed[0].foo[2] * 100 + \
         zed[0].bar[0].a * 1000 + zed[0].bar[0].b * 10000 + zed[0].bar[1].a * 100000 + zed[0].bar[1].b * 1000000 + \
         zed[1].foo[0] * 10000000 + zed[1].foo[1] * 100000000 + zed[1].foo[2] * 1000000000 + \
@@ -153,7 +155,7 @@ qoq: {c: num}
 @public
 def foo() -> num:
     self.mom = {a: [{c: 1}, {c: 2}, {c: 3}], b: 4}
-    non = {c: 5}
+    non: {c: num}  = {c: 5}
     self.mom.a[0] = non
     non = {c: 6}
     self.mom.a[2] = non
@@ -161,7 +163,7 @@ def foo() -> num:
 
 @public
 def fop() -> num:
-    popp = {a: [{c: 1}, {c: 2}, {c: 3}], b: 4}
+    popp: {a: {c: num}[3], b:num} = {a: [{c: 1}, {c: 2}, {c: 3}], b: 4}
     self.qoq = {c: 5}
     popp.a[0] = self.qoq
     self.qoq = {c: 6}
@@ -170,7 +172,7 @@ def fop() -> num:
 
 @public
 def foq() -> num:
-    popp = {a: [{c: 1}, {c: 2}, {c: 3}], b: 4}
+    popp: {a: {c: num}[3], b:num} = {a: [{c: 1}, {c: 2}, {c: 3}], b: 4}
     popp.a[0] = None
     popp.a[2] = None
     return popp.a[0].c + popp.a[1].c * 10 + popp.a[2].c * 100 + popp.b * 1000

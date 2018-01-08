@@ -21,7 +21,8 @@ from viper.types import (
     BaseType,
     ByteArrayType,
     ListType,
-    TupleType
+    TupleType,
+    StructType
 )
 from viper.types import (
     get_size_of_type,
@@ -70,13 +71,38 @@ class Stmt(object):
     def parse_pass(self):
         return LLLnode.from_list('pass', typ=None, pos=getpos(self.stmt))
 
+    def _check_valid_assign(self, sub):
+        if isinstance(self.stmt.annotation, ast.Call): # unit style: num(wei)
+            if self.stmt.annotation.func.id != sub.typ.typ:
+                raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.func.id, self.stmt)
+        elif isinstance(self.stmt.annotation, ast.Dict):
+            if not isinstance(sub.typ, StructType):
+                raise TypeMismatchException('Invalid type, expected a struct')
+        elif isinstance(self.stmt.annotation, ast.Compare):  # check bytes assign
+            if self.stmt.annotation.left.id == 'bytes' and not isinstance(sub.typ, ByteArrayType):
+                raise TypeMismatchException('Invalid type, expected bytes')
+        elif isinstance(self.stmt.annotation, ast.Subscript):
+            if not isinstance(sub.typ, ListType) : # check list assign.
+                raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.value.id, self.stmt)
+        elif self.stmt.annotation.id != sub.typ.typ and not sub.typ.unit:
+            raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.id, self.stmt)
+
     def ann_assign(self):
-        if self.stmt.value is not None:
-            raise StructureException('May not assign value whilst defining type', self.stmt)
+        from .parser import (
+            make_setter,
+        )
         typ = parse_type(self.stmt.annotation, location='memory')
+        if isinstance(self.stmt.target, ast.Attribute) and self.stmt.target.value.id == 'self':
+            raise TypeMismatchException('May not redefine storage variables.', self.stmt)
         varname = self.stmt.target.id
         pos = self.context.new_variable(varname, typ)
-        return LLLnode.from_list('pass', typ=None, pos=pos)
+        o = LLLnode.from_list('pass', typ=None, pos=pos)
+        if self.stmt.value is not None:
+            sub = Expr(self.stmt.value, self.context).lll_node
+            self._check_valid_assign(sub)
+            variable_loc = LLLnode.from_list(pos, typ=sub.typ, location='memory', pos=getpos(self.stmt))
+            o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
+        return o
 
     def assign(self):
         from .parser import (
@@ -86,10 +112,14 @@ class Stmt(object):
         if len(self.stmt.targets) != 1:
             raise StructureException("Assignment statement must have one target", self.stmt)
         sub = Expr(self.stmt.value, self.context).lll_node
-        if isinstance(self.stmt.targets[0], ast.Name) and self.stmt.targets[0].id not in self.context.vars:
+        # Determine if it's an RLPList assignment.
+        if isinstance(self.stmt.value, ast.Call) and getattr(self.stmt.value.func, 'id', '') is 'RLPList':
             pos = self.context.new_variable(self.stmt.targets[0].id, set_default_units(sub.typ))
             variable_loc = LLLnode.from_list(pos, typ=sub.typ, location='memory', pos=getpos(self.stmt), annotation=self.stmt.targets[0].id)
             o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
+        # All other assignments are forbidden.
+        elif isinstance(self.stmt.targets[0], ast.Name) and self.stmt.targets[0].id not in self.context.vars:
+            raise VariableDeclarationException("Variable type not defined", self.stmt)
         else:
             # Checks to see if assignment is valid
             target = self.get_target(self.stmt.targets[0])

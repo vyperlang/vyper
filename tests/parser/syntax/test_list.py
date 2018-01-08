@@ -9,19 +9,19 @@ fail_list = [
     """
 @public
 def foo():
-    x = [1, 2, 3]
+    x: num[3] = [1, 2, 3]
     x = 4
     """,
     """
 @public
 def foo():
-    x = [1, 2, 3]
+    x: num[3] = [1, 2, 3]
     x = [4, 5, 6, 7]
     """,
     """
 @public
 def foo() -> num[2]:
-    return [3,5,7]
+    return [3, 5, 7]
     """,
     """
 @public
@@ -141,7 +141,7 @@ valid_list = [
     """
 @public
 def foo():
-    x = [1, 2, 3]
+    x: num[3] = [1, 2, 3]
     x = [4, 5, 6]
     """,
     """

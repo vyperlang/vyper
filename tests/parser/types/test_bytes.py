@@ -30,7 +30,7 @@ def test_test_bytes2(get_contract_with_gas_estimation):
     test_bytes2 = """
 @public
 def foo(x: bytes <= 100) -> bytes <= 100:
-    y = x
+    y: bytes <= 100 = x
     return y
     """
 
@@ -61,7 +61,7 @@ def set_maa(inp: bytes <= 60):
 
 @public
 def set_maa2(inp: bytes <= 60):
-    ay = inp
+    ay: bytes <= 60 = inp
     self.maa = ay
 
 @public
@@ -70,7 +70,7 @@ def get_maa() -> bytes <= 60:
 
 @public
 def get_maa2() -> bytes <= 60:
-    ay = self.maa
+    ay: bytes <= 60 = self.maa
     return ay
 
 @public
@@ -106,7 +106,7 @@ def foo(inp: bytes <= 60) -> bytes <= 60:
 
 @public
 def bar(inp: bytes <= 60) -> bytes <= 60:
-    b = inp
+    b: bytes <= 60 = inp
     b = None
     return b
     """
@@ -136,17 +136,17 @@ def check2() -> bytes <= 50:
 
 @public
 def bar(inp1: bytes <= 40, inp2: bytes <= 45) -> bytes <= 50:
-    h = {a: inp1, b: inp2}
+    h: {a: bytes <= 40, b: bytes <= 45} = {a: inp1, b: inp2}
     return h.a
 
 @public
 def bat(inp1: bytes <= 40, inp2: bytes <= 45) -> bytes <= 50:
-    h = {a: inp1, b: inp2}
+    h: {a: bytes <= 40, b: bytes <= 45} = {a: inp1, b: inp2}
     return h.b
 
 @public
 def quz(inp1: bytes <= 40, inp2: bytes <= 45):
-    h = {a: inp1, b: inp2}
+    h:  {a: bytes <= 40, b: bytes <= 45} = {a: inp1, b: inp2}
     self.g = h
     """
 

@@ -11,14 +11,14 @@ fail_list = [
 @public
 def foo(choice: bool):
     if (choice):
-        a = 1
+        a: num = 1
     a += 1
     """,
     """
 @public
 def foo(choice: bool):
     if (choice):
-        a = 0
+        a: num = 0
     else:
         a = 1
     a += 1
@@ -27,7 +27,7 @@ def foo(choice: bool):
 @public
 def foo(choice: bool):
     if (choice):
-        a = 0
+        a: num = 0
     else:
         a += 1
     """,
@@ -36,7 +36,7 @@ def foo(choice: bool):
 def foo(choice: bool):
 
     for i in range(4):
-        a = 0
+        a: num = 0
     a += 1
     """,
     """
@@ -44,7 +44,7 @@ def foo(choice: bool):
 def foo(choice: bool):
 
     for i in range(4):
-        a = 0
+        a: num = 0
     a += 1
     """,
     """
@@ -69,7 +69,7 @@ valid_list = [
 @public
 def foo(choice: bool, choice2: bool):
     if (choice):
-        a = 11
+        a: num = 11
         if choice2 and a > 1:
             a -= 1  # should be visible here.
     """
