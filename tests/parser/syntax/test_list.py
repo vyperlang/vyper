@@ -128,6 +128,12 @@ def foo()->bool[2]:
 def test() -> num:
     a = [1, 2, 3.0]
     return a[0]
+    """,
+    """
+@public
+def test() -> num:
+    a = [1, 2, true]
+    return a[0]
     """
 ]
 
