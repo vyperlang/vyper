@@ -6,16 +6,16 @@
 Types
 #####
 
-Viper is a statically typed language, which means that the type of each
+Vyper is a statically typed language, which means that the type of each
 variable (state and local) needs to be specified or at least known at
-compile-time. Viper provides several elementary types which can be combined
+compile-time. Vyper provides several elementary types which can be combined
 to form complex types.
 
 In addition, types can interact with each other in expressions containing
 operators.
 
 
-.. index:: ! value 
+.. index:: ! value
 
 ***********
 Value Types
@@ -40,13 +40,13 @@ The only possible values are the constants ``true`` and ``false``.
 Operators
 ---------
 
-====================  ===================  
+====================  ===================
 Operator              Description
-====================  ===================  
-``x not y``           Logical negation     
-``x and y``           Logical conjunction  
-``x or y``            Logical disjunction  
-``x == y``            Equality             
+====================  ===================
+``x not y``           Logical negation
+``x and y``           Logical conjunction
+``x or y``            Logical disjunction
+``x == y``            Equality
 ``x != y``            Inequality
 ====================  ===================
 
@@ -65,7 +65,7 @@ Signed integer values between -2\ :sup:`127` and (2\ :sup:`127` - 1), inclusive.
 
 Operators
 ---------
-Comparisons 
+Comparisons
 ^^^^^^^^^^^
 Comparisons return a boolean value.
 
@@ -90,7 +90,7 @@ Operator       Description
 ``x + y``      Addition
 ``x - y``      Subtraction
 ``-x``         Unary minus/Negation
-``x * y``      Multiplication 
+``x * y``      Multiplication
 ``x / y``      Division
 ``x**y``       Exponentiation
 ``x % y``      Modulo
@@ -104,7 +104,7 @@ Unsigned Integer (256 bit)
 ==========================
 **Keyword:** ``num256``
 
-An unsigned integer (256 bit) is a type to store non-negative integers. 
+An unsigned integer (256 bit) is a type to store non-negative integers.
 
 Values
 ------
@@ -115,7 +115,7 @@ Integer values between 0 and (2\ :sup:`256`-1).
 
 Operators
 ---------
-Comparisons 
+Comparisons
 ^^^^^^^^^^^
 Comparisons return a boolean value.
 
@@ -150,13 +150,13 @@ Operator                 Description
 =======================  ======================
 ``x`` and ``y`` must be of the type ``num256``.
 
-Bitwise Operators 
+Bitwise Operators
 ^^^^^^^^^^^^^^^^^
 
 ===================== =============
 Operator              Description
 ===================== =============
-``bitwise_and(x, y)`` AND 
+``bitwise_and(x, y)`` AND
 ``bitwise_not(x, y)`` NOT
 ``bitwise_or(x, y)``  OR
 ``bitwise_xor(x, y)`` XOR
@@ -164,7 +164,7 @@ Operator              Description
 ===================== =============
 ``x`` and ``y`` must be of the type ``num256``. ``_shift`` must be of the type ``num``.
 
-.. note:: 
+.. note::
     Positive ``_shift`` equals a left shift; negative ``_shift`` equals a right shift.
     Values shifted above/below the most/least significant bit get discarded.
 
@@ -180,7 +180,7 @@ A value with a precision of 10 decimal places between -2\ :sup:`127` and (2\ :su
 
 Operators
 ---------
-Comparisons 
+Comparisons
 ^^^^^^^^^^^
 Comparisons return a boolean value.
 
@@ -205,14 +205,14 @@ Operator       Description
 ``x + y``      Addition
 ``x - y``      Subtraction
 ``-x``         Unary minus/Negation
-``x * y``      Multiplication 
+``x * y``      Multiplication
 ``x / y``      Divison
 ``x % y``      Modulo
 ``min(x, y)``  Minimum
 ``max(x, y)``  Maximum
 ``floor(x)``   Largest integer <= ``x``. Returns ``num``.
 =============  ==========================================
-``x`` and ``y`` must be of the type ``decimal``. 
+``x`` and ``y`` must be of the type ``decimal``.
 
 .. _address:
 Address
@@ -239,8 +239,8 @@ Syntax as follows: ``_address.<member>``, where ``_address`` is of the type ``ad
 
 Unit Types
 ==========
-Viper allows the definition of types with discrete units e.g. meters, seconds, wei, ... . These types may only be based on either ``num`` or ``decimal``.
-Viper has multiple unit types built in, which are the following:
+Vyper allows the definition of types with discrete units e.g. meters, seconds, wei, ... . These types may only be based on either ``num`` or ``decimal``.
+Vyper has multiple unit types built in, which are the following:
 
 =============  =====  =========  ==========================
 Time
@@ -278,14 +278,14 @@ This is a 32-bit-wide byte array that is otherwise similiar to byte arrays.
     self.hash = _hash
 Operators
 ---------
-====================================  ============================================================ 
+====================================  ============================================================
 Keyword                               Description
-====================================  ============================================================ 
+====================================  ============================================================
 ``len(x)``                            Return the length as an integer.
 ``sha3(x)``                           Return the sha3 hash as bytes32.
 ``concat(x, ...)``                    Concatenate multiple inputs.
 ``slice(x, start=_start, len=_len)``  Return a slice of ``_len`` starting at ``_start``.
-====================================  ============================================================ 
+====================================  ============================================================
 Where ``x`` is a byte array and ``_start`` as well as ``_len`` are integer values.
 
 .. index:: !bytes
@@ -307,14 +307,14 @@ Fixed-size byte arrays can hold strings with equal or fewer characters than the 
 
 Operators
 ---------
-====================================  ============================================================ 
+====================================  ============================================================
 Keyword                               Description
-====================================  ============================================================ 
+====================================  ============================================================
 ``len(x)``                            Return the length as an integer.
 ``sha3(x)``                           Return the sha3 hash as bytes32.
 ``concat(x, ...)``                    Concatenate multiple inputs.
 ``slice(x, start=_start, len=_len)``  Return a slice of ``_len`` starting at ``_start``.
-====================================  ============================================================ 
+====================================  ============================================================
 Where ``x`` is a byte array while ``_start`` and ``_len`` are integers.
 
 .. index:: !reference
@@ -344,13 +344,13 @@ Lists can be declared with ``_name: _ValueType[_Integer]``. Multidimensional lis
     exampleList = [10, 11, 12]
     exampleList[2] = 42
     #Returning a value
-    return exampleList[0]  
+    return exampleList[0]
 
 .. index:: !structs
 Structs
 =======
 
-Structs are custom defined types that can group several variables. 
+Structs are custom defined types that can group several variables.
 
 Syntax
 ------
@@ -371,13 +371,13 @@ Structs can be accessed via ``struct.argname``.
 Mappings
 ========
 
-Mappings in Viper can be seen as `hash tables <https://en.wikipedia.org/wiki/Hash_table>`_ which are virtually initialized such that
+Mappings in Vyper can be seen as `hash tables <https://en.wikipedia.org/wiki/Hash_table>`_ which are virtually initialized such that
 every possible key exists and is mapped to a value whose byte-representation is
 all zeros: a type's default value. The similarity ends here, though: The key data is not actually stored
 in a mapping, only its ``keccak256`` hash used to look up the value. Because of this, mappings
 do not have a length or a concept of a key or value being "set".
 
-It is possible to mark mappings ``public`` and have Viper create a getter.
+It is possible to mark mappings ``public`` and have Vyper create a getter.
 The ``_KeyType`` will become a required parameter for the getter and it will
 return ``_ValueType``.
 
@@ -394,7 +394,7 @@ Here ``_KeyType`` can be almost any type except for mappings, a contract, or a s
 **Example:**
 ::
    #Defining a mapping
-   exampleMapping: decimal[num] 
+   exampleMapping: decimal[num]
    #Accessing a value
    exampleMapping[0] = 10.1
 

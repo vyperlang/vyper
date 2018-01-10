@@ -6,7 +6,7 @@
 Built in Functions
 ***********************
 
-Viper contains a set amount of built in functions that would be timely and/or unachievable to write in Viper.
+Vyper contains a set amount of built in functions that would be timely and/or unachievable to write in Vyper.
 
 .. _functions:
 
@@ -157,7 +157,7 @@ Takes a function declaration and returns its method_id (used in data field to ca
     """
     :param hash: a signed hash
     :type hash: bytes32
-    :param v: 
+    :param v:
     :type v: num256
     :param r: elliptic curve point
     :type r: num256
