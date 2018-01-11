@@ -15,3 +15,14 @@ def foo(x: num) -> num256:
 """
     c = get_contract_with_gas_estimation(code)
     assert_tx_failed(lambda: c.foo(-1))
+
+
+def test_as_num256_with_bytes32(get_contract_with_gas_estimation):
+    code = """
+@public
+def foo() -> num256:
+    return as_num256(as_bytes32(-1))
+"""
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.foo() == 2 ** 256 - 1
