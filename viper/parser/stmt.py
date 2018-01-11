@@ -72,7 +72,7 @@ class Stmt(object):
         return LLLnode.from_list('pass', typ=None, pos=getpos(self.stmt))
 
     def _check_valid_assign(self, sub):
-        if isinstance(self.stmt.annotation, ast.Call): # unit style: num(wei)
+        if isinstance(self.stmt.annotation, ast.Call):  # unit style: num(wei)
             if self.stmt.annotation.func.id != sub.typ.typ:
                 raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.func.id, self.stmt)
         elif isinstance(self.stmt.annotation, ast.Dict):
@@ -82,7 +82,7 @@ class Stmt(object):
             if self.stmt.annotation.left.id == 'bytes' and not isinstance(sub.typ, ByteArrayType):
                 raise TypeMismatchException('Invalid type, expected bytes')
         elif isinstance(self.stmt.annotation, ast.Subscript):
-            if not isinstance(sub.typ, ListType) : # check list assign.
+            if not isinstance(sub.typ, ListType):  # check list assign.
                 raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.value.id, self.stmt)
         elif self.stmt.annotation.id != sub.typ.typ and not sub.typ.unit:
             raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.id, self.stmt)
