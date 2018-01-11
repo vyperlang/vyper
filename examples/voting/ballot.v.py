@@ -132,10 +132,11 @@ def vote(proposal: num):
 @constant
 def winning_proposal() -> num:
     winning_vote_count: num = 0
+    winning_proposal: num = 0
     for i in range(2):
         if self.proposals[i].vote_count > winning_vote_count:
             winning_vote_count = self.proposals[i].vote_count
-            winning_proposal: num = i
+            winning_proposal = i
     return winning_proposal
 
 # Calls winning_proposal() function to get the index
