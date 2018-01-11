@@ -26,8 +26,8 @@ def initiate(token_addr: address, token_quantity: currency_value):
 def eth_to_tokens():
     fee: wei_value = msg.value / 500
     eth_in_purchase: wei_value = msg.value - fee
-    new_total_eth: num = self.total_eth_qty + eth_in_purchase
-    new_total_tokens: num = self.invariant / new_total_eth
+    new_total_eth: wei_value = self.total_eth_qty + eth_in_purchase
+    new_total_tokens: currency_value = self.invariant / new_total_eth
     self.token_address.transfer(msg.sender,
                                 as_num256(self.total_token_qty - new_total_tokens))
     self.total_eth_qty = new_total_eth
@@ -35,9 +35,9 @@ def eth_to_tokens():
 
 # Sells tokens to the contract in exchange for ether
 @public
-def tokens_to_eth(sell_quantity: num):
-    # self.token_address.transferFrom(msg.sender, self, as_num256(sell_quantity))
-    new_total_tokens: num = self.total_token_qty + sell_quantity
+def tokens_to_eth(sell_quantity: currency_value):
+    self.token_address.transferFrom(msg.sender, self, as_num256(sell_quantity))
+    new_total_tokens: currency_value = self.total_token_qty + sell_quantity
     new_total_eth: wei_value = self.invariant / new_total_tokens
     eth_to_send: wei_value = self.total_eth_qty - new_total_eth
     send(msg.sender, eth_to_send)
