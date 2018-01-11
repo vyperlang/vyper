@@ -15,7 +15,7 @@ def test_continue2(get_contract_with_gas_estimation):
     code = """
 @public
 def foo() -> num:
-    x = 0
+    x: num = 0
     for i in range(3):
         x += 1
         continue
@@ -30,7 +30,7 @@ def test_continue3(get_contract_with_gas_estimation):
     code = """
 @public
 def foo() -> num:
-    x = 0
+    x: num = 0
     for i in range(3):
         x += i
         continue
@@ -44,7 +44,7 @@ def test_continue4(get_contract_with_gas_estimation):
     code = """
 @public
 def foo() -> num:
-    x = 0
+    x: num = 0
     for i in range(6):
         if i % 2 == 0:
             continue

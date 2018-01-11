@@ -10,7 +10,7 @@ def extrakt32(inp: bytes <= 100, index: num) -> bytes32:
 
 @public
 def extrakt32_mem(inp: bytes <= 100, index: num) -> bytes32:
-    x = inp
+    x: bytes <= 100 = inp
     return extract32(x, index)
 
 @public
