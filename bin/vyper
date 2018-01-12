@@ -2,11 +2,9 @@
 import argparse
 import json
 
-import viper
-
-from viper import compiler, optimizer
-from viper.parser.parser import parse_to_lll
-from viper.parser import parser_utils
+from vyper import compiler, optimizer
+from vyper.parser.parser import parse_to_lll
+from vyper.parser import parser_utils
 
 
 parser = argparse.ArgumentParser(description='Viper {0} programming language for Ethereum'.format(viper.__version__))

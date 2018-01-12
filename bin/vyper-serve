@@ -7,10 +7,10 @@ import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
 
-import viper
+import vyper
 
-from viper.parser.parser import parse_to_lll
-from viper import compiler, optimizer
+from vyper.parser.parser import parse_to_lll
+from vyper import compiler, optimizer
 
 
 parser = argparse.ArgumentParser(
