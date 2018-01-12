@@ -134,12 +134,6 @@ class TupleType(NodeType):
         return '(' + ', '.join([repr(m) for m in self.members]) + ')'
 
 
-# Data structure for a "multi" object with a mixed type
-class MixedType(NodeType):
-    def __eq__(self, other):
-        return other.__class__ == MixedType
-
-
 # Data structure for the type used by None/null
 class NullType(NodeType):
     def __eq__(self, other):

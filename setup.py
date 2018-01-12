@@ -10,10 +10,10 @@ with open('LICENSE') as f:
     license = f.read()
 
 # *IMPORTANT*: Don't manually change the version here. Use the 'bumpversion' utility.
-version = '0.0.2'
+version = '0.0.3'
 
 setup(
-    name='vyper',
+    name='viper',
     version=version,
     description='Viper Programming Language for Ethereum',
     long_description=readme,

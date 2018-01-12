@@ -29,7 +29,6 @@ from viper.types import (
     ByteArrayType,
     ListType,
     MappingType,
-    MixedType,
     NullType,
     StructType,
     TupleType,
@@ -287,12 +286,12 @@ class Expr(object):
                 raise TypeMismatchException("Cannot use positional values as exponential arguments!", self.expr)
             if right.typ.unit:
                 raise TypeMismatchException("Cannot use unit values as exponents", self.expr)
-            if  ltyp != 'num' and isinstance(self.expr.right, ast.Name):
+            if ltyp != 'num' and isinstance(self.expr.right, ast.Name):
                 raise TypeMismatchException("Cannot use dynamic values as exponents, for unit base types", self.expr)
             if ltyp == rtyp == 'num':
                 new_unit = left.typ.unit
                 if left.typ.unit and not isinstance(self.expr.right, ast.Name):
-                    new_unit = {left.typ.unit.copy().popitem()[0]:  self.expr.right.n}
+                    new_unit = {left.typ.unit.copy().popitem()[0]: self.expr.right.n}
                 o = LLLnode.from_list(['exp', left, right], typ=BaseType('num', new_unit), pos=getpos(self.expr))
             else:
                 raise TypeMismatchException('Only whole number exponents are supported', self.expr)
@@ -498,8 +497,10 @@ class Expr(object):
             o.append(Expr(elt, self.context).lll_node)
             if not out_type:
                 out_type = o[-1].typ
-            elif len(o) > 1 and o[-1].typ != out_type:
-                out_type = MixedType()
+            previous_type = o[-1].typ.subtype.typ if hasattr(o[-1].typ, 'subtype') else o[-1].typ
+            current_type = out_type.subtype.typ if hasattr(out_type, 'subtype') else out_type
+            if len(o) > 1 and previous_type != current_type:
+                raise TypeMismatchException("Lists may only contain one type", self.expr)
         return LLLnode.from_list(["multi"] + o, typ=ListType(out_type, len(o)), pos=getpos(self.expr))
 
     def struct_literals(self):

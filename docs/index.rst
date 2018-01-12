@@ -48,7 +48,8 @@ Following the principles and goals, Vyper **does not** provide the following fea
 Compatibility-breaking Changelog
 ********************************
 
-* **2017.12.25**: Change name from Vyper to Vyper
+* **2018.01.11**: Change version from 0.0.2 to 0.0.3
+* **2017.12.25**: Change name from Viper to Vyper
 * **2017.12.22**: Add ``continue`` for loops
 * **2017.11.29**: ``@internal`` renamed to ``@private``.
 * **2017.11.15**: Functions require either ``@internal`` or ``@public`` decorators.

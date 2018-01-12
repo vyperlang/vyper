@@ -187,8 +187,10 @@ def as_num256(expr, args, kwargs, context):
         if not(0 <= args[0] <= 2**256 - 1):
             raise InvalidLiteralException("Number out of range: " + str(expr.args[0].n), expr.args[0])
         return LLLnode.from_list(args[0], typ=BaseType('num256'), pos=getpos(expr))
-    elif isinstance(args[0], LLLnode):
+    elif isinstance(args[0], LLLnode) and args[0].typ.typ in ('num', 'num_literal', 'address'):
         return LLLnode.from_list(['clampge', args[0], 0], typ=BaseType('num256'), pos=getpos(expr))
+    elif isinstance(args[0], LLLnode):
+        return LLLnode(value=args[0].value, args=args[0].args, typ=BaseType('num256'), pos=getpos(expr))
     else:
         raise InvalidLiteralException("Invalid input for num256: %r" % args[0], expr)
 
