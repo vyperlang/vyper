@@ -1,4 +1,4 @@
-from viper.exceptions import StructureException, VariableDeclarationException
+from vyper.exceptions import StructureException, VariableDeclarationException
 
 
 def test_basic_for_in_list(get_contract_with_gas_estimation):

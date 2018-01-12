@@ -2,10 +2,10 @@ import pytest
 from functools import wraps
 
 from ethereum.tools import tester
-from viper.parser.parser_utils import (
+from vyper.parser.parser_utils import (
     LLLnode
 )
-from viper import (
+from vyper import (
     compile_lll,
     optimizer
 )
@@ -16,9 +16,9 @@ from ethereum import utils as ethereum_utils
 def check_gas(chain):
     def check_gas(code, func=None, num_txs=1):
         if func:
-            gas_estimate = tester.languages['viper'].gas_estimate(code)[func]
+            gas_estimate = tester.languages['vyper'].gas_estimate(code)[func]
         else:
-            gas_estimate = sum(tester.languages['viper'].gas_estimate(code).values())
+            gas_estimate = sum(tester.languages['vyper'].gas_estimate(code).values())
         gas_actual = chain.head_state.receipts[-1].gas_used \
                      - chain.head_state.receipts[-1 - num_txs].gas_used \
                      - chain.last_tx.intrinsic_gas_used * num_txs
@@ -92,7 +92,7 @@ def get_contract_with_gas_estimation(chain):
     def get_contract_with_gas_estimation(
             source_code,
             *args, **kwargs):
-        contract = chain.contract(source_code, language="viper", *args, **kwargs)
+        contract = chain.contract(source_code, language="vyper", *args, **kwargs)
         for func_name in contract.translator.function_data:
             set_decorator_to_contract_function(
                 chain, contract, source_code, func_name
@@ -107,12 +107,12 @@ def get_contract_with_gas_estimation_for_constants(chain):
     def get_contract_with_gas_estimation_for_constants(
             source_code,
             *args, **kwargs):
-        abi = tester.languages['viper'].mk_full_signature(source_code)
+        abi = tester.languages['vyper'].mk_full_signature(source_code)
         # Take out constants from the abi for the purpose of gas estimation
         for func in abi:
             func['constant'] = False
         ct = tester.ContractTranslator(abi)
-        byte_code = tester.languages['viper'].compile(source_code) + (ct.encode_constructor_arguments(kwargs['args']) if kwargs else b'')
+        byte_code = tester.languages['vyper'].compile(source_code) + (ct.encode_constructor_arguments(kwargs['args']) if kwargs else b'')
         address = chain.tx(to=b'', data=byte_code)
         contract = tester.ABIContract(chain, abi, address)
         for func_name in contract.translator.function_data:
@@ -126,7 +126,7 @@ def get_contract_with_gas_estimation_for_constants(chain):
 @pytest.fixture
 def get_contract(chain):
     def get_contract(source_code, *args, **kwargs):
-        return chain.contract(source_code, language="viper", *args, **kwargs)
+        return chain.contract(source_code, language="vyper", *args, **kwargs)
     return get_contract
 
 

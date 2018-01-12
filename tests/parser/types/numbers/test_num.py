@@ -1,4 +1,4 @@
-from viper.exceptions import TypeMismatchException
+from vyper.exceptions import TypeMismatchException
 
 
 def test_exponents_with_nums(get_contract_with_gas_estimation):

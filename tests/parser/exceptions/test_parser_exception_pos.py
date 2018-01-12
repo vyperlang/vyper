@@ -1,6 +1,6 @@
 from pytest import raises
 
-from viper.exceptions import ParserException
+from vyper.exceptions import ParserException
 
 
 def test_type_exception_pos():

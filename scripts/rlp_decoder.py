@@ -1,6 +1,6 @@
-from viper import optimizer, compile_lll
-from viper.parser.parser_utils import LLLnode
-from viper.utils import MemoryPositions
+from vyper import optimizer, compile_lll
+from vyper.parser.parser_utils import LLLnode
+from vyper.utils import MemoryPositions
 
 def call_data_char(position):
     return ['div', ['calldataload', position], 2**248]

@@ -1,7 +1,7 @@
 from pytest import raises
 
-from viper import compiler
-from viper.exceptions import StructureException
+from vyper import compiler
+from vyper.exceptions import StructureException
 
 
 def test_undef_toplevel():

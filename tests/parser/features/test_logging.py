@@ -1,4 +1,4 @@
-from viper.exceptions import VariableDeclarationException, TypeMismatchException, StructureException
+from vyper.exceptions import VariableDeclarationException, TypeMismatchException, StructureException
 
 
 def test_empy_event_logging(get_contract_with_gas_estimation, utils, chain):

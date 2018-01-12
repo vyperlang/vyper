@@ -13,13 +13,13 @@ with open('LICENSE') as f:
 version = '0.0.3'
 
 setup(
-    name='viper',
+    name='vyper',
     version=version,
     description='Viper Programming Language for Ethereum',
     long_description=readme,
     author='Vitalik Buterin',
     author_email='',
-    url='https://github.com/ethereum/viper',
+    url='https://github.com/ethereum/vyper',
     license=license,
     packages=find_packages(exclude=('tests', 'docs')),
     install_requires=[
@@ -29,5 +29,5 @@ setup(
         'pytest-runner', # Must be after pytest-cov or it will not work
         #           due to https://github.com/pypa/setuptools/issues/196
     ],
-    scripts=['bin/viper', 'bin/viper-serve']
+    scripts=['bin/vyper', 'bin/vyper-serve']
 )

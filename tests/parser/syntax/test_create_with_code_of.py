@@ -1,7 +1,7 @@
 import pytest
 from pytest import raises
 
-from viper import compiler
+from vyper import compiler
 
 
 fail_list = [

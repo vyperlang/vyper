@@ -1,6 +1,6 @@
 import ast
 
-from viper.exceptions import (
+from vyper.exceptions import (
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
@@ -15,7 +15,7 @@ from .parser_utils import (
     get_number_as_fraction,
     add_variable_offset,
 )
-from viper.utils import (
+from vyper.utils import (
     MemoryPositions,
     SizeLimits,
     bytes_to_int,
@@ -24,7 +24,7 @@ from viper.utils import (
     checksum_encode,
     is_varname_valid,
 )
-from viper.types import (
+from vyper.types import (
     BaseType,
     ByteArrayType,
     ListType,
@@ -33,11 +33,11 @@ from viper.types import (
     StructType,
     TupleType,
 )
-from viper.types import (
+from vyper.types import (
     get_size_of_type,
     is_base_type,
 )
-from viper.types import (
+from vyper.types import (
     are_units_compatible,
     is_numeric_type,
     combine_units
@@ -305,7 +305,7 @@ class Expr(object):
             raise Exception("%r %r" % (o, o.typ))
 
     def build_in_comparator(self):
-        from viper.parser.parser import make_setter
+        from vyper.parser.parser import make_setter
         left = Expr(self.expr.left, self.context).lll_node
         right = Expr(self.expr.comparators[0], self.context).lll_node
 
@@ -436,7 +436,7 @@ class Expr(object):
             external_contract_call_expr,
             pack_arguments,
         )
-        from viper.functions import (
+        from vyper.functions import (
             dispatch_table,
         )
         if isinstance(self.expr.func, ast.Name):

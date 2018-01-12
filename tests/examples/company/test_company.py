@@ -2,7 +2,7 @@ import pytest
 
 from ethereum.tools import tester as t
 
-from viper import compiler
+from vyper import compiler
 
 
 @pytest.fixture
@@ -10,11 +10,11 @@ def tester():
     tester = t
     tester.s = t.Chain()
     tester.s.head_state.gas_limit = 10**9
-    tester.languages['viper'] = compiler.Compiler()
+    tester.languages['vyper'] = compiler.Compiler()
     contract_code = open('examples/stock/company.v.py').read()
     tester.company_address = t.a0
     # Company with 1000 shares @ 10^6 wei / share
-    tester.c = tester.s.contract(contract_code, language='viper',
+    tester.c = tester.s.contract(contract_code, language='vyper',
             args=[tester.company_address, 1000, 10**6])
     return tester
 

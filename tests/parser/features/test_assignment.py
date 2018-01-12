@@ -1,4 +1,4 @@
-from viper.exceptions import ConstancyViolationException
+from vyper.exceptions import ConstancyViolationException
 
 
 def test_augassign(get_contract_with_gas_estimation):

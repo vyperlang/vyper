@@ -1,6 +1,6 @@
 import pytest
 import rlp
-from viper import utils as viper_utils
+from vyper import utils as viper_utils
 from ethereum import transactions, messages
 
 

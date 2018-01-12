@@ -17,10 +17,10 @@ class TestVoting(unittest.TestCase):
         self.t = tester
         self.s = self.t.Chain()
         self.s.head_state.gas_limit = 10**7
-        from viper import compiler
-        self.t.languages['viper'] = compiler.Compiler()
+        from vyper import compiler
+        self.t.languages['vyper'] = compiler.Compiler()
         contract_code = open('examples/voting/ballot.v.py').read()
-        self.c = self.s.contract(contract_code, language='viper', args=[["Clinton", "Trump"]])
+        self.c = self.s.contract(contract_code, language='vyper', args=[["Clinton", "Trump"]])
 
     def test_initial_state(self):
         # Check chairperson is msg.sender

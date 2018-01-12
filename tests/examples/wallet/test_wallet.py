@@ -3,7 +3,7 @@ from ethereum import utils
 t.s = t.Chain()
 t.s.head_state.gas_limit = 10**9
 
-x = t.s.contract(open('examples/wallet/wallet.v.py').read(), args=[[t.a1, t.a2, t.a3, t.a4, t.a5], 3], language='viper')
+x = t.s.contract(open('examples/wallet/wallet.v.py').read(), args=[[t.a1, t.a2, t.a3, t.a4, t.a5], 3], language='vyper')
 print(t.s.last_tx.data[-192:])
 # Sends wei to the contract for future transactions gas costs
 t.s.tx(sender=t.k1, to=x.address, value=10**17)
@@ -56,7 +56,7 @@ def test_javascript_signatures():
     assert '0x' + utils.encode_hex(utils.sha3(utils.ecrecover_to_pub(h2, sigs[1][0], sigs[1][1], sigs[1][2]))[12:]) == accounts[1]
 
     # Set the owners to zero addresses
-    x2 = t.s.contract(open('examples/wallet/wallet.v.py').read(), args=[accounts + [t.a3, zero_address, zero_address], 2], language='viper')
+    x2 = t.s.contract(open('examples/wallet/wallet.v.py').read(), args=[accounts + [t.a3, zero_address, zero_address], 2], language='vyper')
     t.s.tx(sender=t.k1, to=x2.address, value=10**17)
 
     # There's no need to pass in signatures because the owners are 0 addresses causing them to default to valid signatures

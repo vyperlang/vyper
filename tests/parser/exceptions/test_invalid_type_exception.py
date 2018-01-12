@@ -1,8 +1,8 @@
 import pytest
 from pytest import raises
 
-from viper import compiler
-from viper.exceptions import InvalidTypeException
+from vyper import compiler
+from vyper.exceptions import InvalidTypeException
 
 fail_list = [
     """

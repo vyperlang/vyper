@@ -1,19 +1,19 @@
 import ast
 
-from viper.exceptions import (
+from vyper.exceptions import (
     InvalidLiteralException,
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
 )
-from viper.function_signature import (
+from vyper.function_signature import (
     FunctionSignature,
     VariableRecord,
 )
-from viper.signatures.event_signature import (
+from vyper.signatures.event_signature import (
     EventSignature
 )
-from viper.premade_contracts import (
+from vyper.premade_contracts import (
     premade_contracts
 )
 from .stmt import Stmt
@@ -28,7 +28,7 @@ from .parser_utils import (
     unwrap_location,
     byte_array_to_num,
 )
-from viper.types import (
+from vyper.types import (
     BaseType,
     ByteArrayType,
     ListType,
@@ -37,18 +37,18 @@ from viper.types import (
     StructType,
     TupleType,
 )
-from viper.types import (
+from vyper.types import (
     get_size_of_type,
     is_base_type,
     parse_type,
 )
-from viper.utils import (
+from vyper.utils import (
     MemoryPositions,
     LOADED_LIMIT_MAP,
     reserved_words,
     string_to_bytes
 )
-from viper.utils import (
+from vyper.utils import (
     bytes_to_int,
     calc_mem_gas,
     is_varname_valid,
