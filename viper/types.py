@@ -150,7 +150,7 @@ class NullType(NodeType):
 def canonicalize_type(t, is_event=False):
     if isinstance(t, ByteArrayType):
         # Check to see if maxlen is small enough for events
-        if is_event and t.maxlen <= 32:
+        if is_event:
             return 'bytes{}'.format(t.maxlen)
         else:
             return 'bytes'

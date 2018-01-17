@@ -169,6 +169,7 @@ class Stmt(object):
                     data.append(self.stmt.args[pos])
             topics = pack_logging_topics(event.event_id, topics, expected_topics, self.context)
             inargs, inargsize, inarg_start = pack_logging_data(expected_data, data, self.context)
+            import ipdb; ipdb.set_trace()
             return LLLnode.from_list(['seq', inargs, ["log" + str(len(topics)), inarg_start, inargsize] + topics], typ=None, pos=getpos(self.stmt))
         else:
             raise StructureException("Unsupported operator: %r" % ast.dump(self.stmt), self.stmt)

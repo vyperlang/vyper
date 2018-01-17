@@ -41,6 +41,7 @@ from viper.types import (
     get_size_of_type,
     is_base_type,
     parse_type,
+    ceil32
 )
 from viper.utils import (
     MemoryPositions,
@@ -710,8 +711,8 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder):
         # Bytes from Storage
         if isinstance(arg, ast.Attribute) and arg.value.id == 'self':
             stor_bytes = context.globals[arg.attr]
-            if stor_bytes.typ.maxlen > 32:
-                    raise TypeMismatchException("Can only log a maximum of 32 bytes at a time.")
+            # if stor_bytes.typ.maxlen > 32:
+            #         raise TypeMismatchException("Can only log a maximum of 32 bytes at a time.")
             arg2 = LLLnode.from_list(['sload', ['add', ['sha3_32', Expr(arg, context).lll_node], 1]], typ=BaseType(32))
             holder, maxlen = pack_args_by_32(holder, maxlen, arg2, BaseType(32), context, context.new_placeholder(BaseType(32)))
         # String literals
@@ -722,10 +723,12 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder):
                 if ord(c) >= 256:
                     raise InvalidLiteralException("Cannot insert special character %r into byte array" % c)
                 bytez += bytes([ord(c)])
-            bytez_length = len(bytez)
-            if len(bytez) > 32:
-                raise InvalidLiteralException("Can only log a maximum of 32 bytes at a time.")
-            holder.append(LLLnode.from_list(['mstore', placeholder, bytes_to_int(bytez + b'\x00' * (32 - bytez_length))], typ=typ, location='memory'))
+            source_expr = Expr(arg, context)
+            holder.append(source_expr.lll_node)
+            dest_placeholder = LLLnode(placeholder, typ=typ, location='memory')
+            source_placeholder = LLLnode(source_expr.lll_node.args[-1].value, typ=source_expr.lll_node.typ, location='memory')
+            copier = make_byte_array_copier(dest_placeholder, source_placeholder)
+            holder.append(copier)
         # Variables
         else:
             value = parse_expr(arg, context)
@@ -775,11 +778,34 @@ def pack_logging_data(expected_data, args, context):
     if not args:
         return ['seq'], 0, 0
     holder = ['seq']
-    maxlen = len(args) * 32
+    maxlen = 0
+
+    # Allocate data memory section.
+    placeholder_map = {}
     for i, (arg, data) in enumerate(zip(args, expected_data)):
         typ = data.typ
-        holder, maxlen = pack_args_by_32(holder, maxlen, arg, typ, context, context.new_placeholder(BaseType(32)))
-    return holder, maxlen, holder[1].to_list()[1][0]
+        if isinstance(typ, ByteArrayType):
+            placeholder_type = ByteArrayType(maxlen=typ.maxlen)
+            placeholder = context.new_placeholder(placeholder_type)
+            maxlen += 32 + ceil32(typ.maxlen)
+        else:
+            placeholder_type = BaseType(32)
+            placeholder = context.new_placeholder(placeholder_type)
+            maxlen += 32
+
+        placeholder_map[i] = placeholder
+
+    # Place into data memory section.
+    for i, (arg, data) in enumerate(zip(args, expected_data)):
+        typ = data.typ
+        holder, maxlen = pack_args_by_32(holder, maxlen, arg, typ, context, placeholder_map[i])
+
+    datamem_start = holder[1].to_list()[1][0]
+    # debugger:
+    holder.append(
+        LLLnode.from_list(['return', datamem_start, maxlen])
+    )
+    return holder, maxlen, datamem_start
 
 
 # Pack function arguments for a call
