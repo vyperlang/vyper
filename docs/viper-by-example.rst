@@ -494,12 +494,13 @@ Let's get started.
   :linenos:
 
 The contract contains a number of methods that modify the contract state as
-well as a few 'getter' methods to read it. As always, we begin by initiating
-our variables.
+well as a few 'getter' methods to read it. We first declare several events 
+that the contract logs. We then declare our global variables, followed by
+function defintions.
 
 .. literalinclude:: ../examples/stock/company.v.py
   :language: python
-  :lines: 1-7
+  :lines: 1-14
 
 We initiate the ``company`` variable to be of type ``address`` that's public.
 The ``total_shares`` variable is of type ``currency_value``, which in this case
@@ -509,7 +510,7 @@ address to the number of shares the address owns.
 
 .. literalinclude:: ../examples/stock/company.v.py
   :language: python
-  :lines: 9-21
+  :lines: 15-28
 
 In the constructor, we set up the contract to check for valid inputs during
 the initialization of the contract via the two ``assert`` statements. If the
@@ -519,14 +520,14 @@ company's address is initialized to hold all shares of the company in the
 
 .. literalinclude:: ../examples/stock/company.v.py
   :language: python
-  :lines: 23-25
+  :lines: 30-33
 
-We will be seeing a few ``@constant`` decorators in this contract - which is
+We will be seeing a few ``@constant`` decorators in this contract—which is
 used to decorate methods that simply read the contract state or return a simple
 calculation on the contract state without modifying it. Remember, reading the
 blockchain is free, writing on it is not. Since Viper is a statically typed
 language, we see an arrow following the definition of the ``stock_available()``
-method, which simply represents the datatype which the function is expected
+method, which simply represents the data type which the function is expected
 to return. In the method, we simply key into ``self.holdings`` with the
 company's address and check it's holdings.
 
@@ -535,7 +536,7 @@ company's holding.
 
 .. literalinclude:: ../examples/stock/company.v.py
   :language: python
-  :lines: 27-39
+  :lines: 35-54
 
 The ``buy_stock()`` method is a ``@payable`` method which takes an amount of
 ether sent and calculates the ``buy_order`` (the stock value equivalence at
@@ -546,21 +547,21 @@ Now that people can buy shares, how do we check someone's holdings?
 
 .. literalinclude:: ../examples/stock/company.v.py
   :language: python
-  :lines: 41-44
+  :lines: 56-60
 
 The ``get_holdings()`` is another ``@constant`` method that takes an ``address``
 and returns its corresponding stock holdings by keying into ``self.holdings``.
 
 .. literalinclude:: ../examples/stock/company.v.py
   :language: python
-  :lines: 46-49
+  :lines: 62-66
 
 To check the ether balance of the company, we can simply call the getter method
 ``cash()``.
 
 .. literalinclude:: ../examples/stock/company.v.py
   :language: python
-  :lines: 51-63
+  :lines: 68-85
 
 To sell a stock, we have the ``sell_stock()`` method which takes a number of
 stocks a person wishes to sell, and sends the equivalent value in ether to the
@@ -572,7 +573,7 @@ from the seller and given to the company. The ethers are then sent to the seller
 
 .. literalinclude:: ../examples/stock/company.v.py
   :language: python
-  :lines: 65-74
+  :lines: 87-100
 
 A stockholder can also transfer their stock to another stockholder with the
 ``transfer_stock()`` method. The method takes a receiver address and the number
@@ -582,7 +583,7 @@ both conditions are satisfied, the transfer is made.
 
 .. literalinclude:: ../examples/stock/company.v.py
   :language: python
-  :lines: 76-84
+  :lines: 102-114
 
 The company is also allowed to pay out an amount in ether to an address by
 calling the ``pay_bill()`` method. This method should only be callable by the
@@ -593,7 +594,7 @@ sends its ether to an address.
 
 .. literalinclude:: ../examples/stock/company.v.py
   :language: python
-  :lines: 86-89
+  :lines: 116-120
 
 We can also check how much the company has raised by multiplying the number of
 shares the company has sold and the price of each share. We can get this value
@@ -601,7 +602,7 @@ by calling the ``debt()`` method.
 
 .. literalinclude:: ../examples/stock/company.v.py
   :language: python
-  :lines: 91-94
+  :lines: 122-128
 
 Finally, in this ``worth()`` method, we can check the worth of a company by
 subtracting its debt from its ether balance.
