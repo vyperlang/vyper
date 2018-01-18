@@ -630,10 +630,10 @@ def setbytez():
     c = get_contract_with_gas_estimation(code)
 
     c.foo()
-    assert get_last_log(t, c)['arg1'] == bytes_helper('', 29)
+    assert get_last_log(t, c)['arg1'] == b''
     c.setbytez()
     c.foo()
-    assert get_last_log(t, c)['arg1'] == bytes_helper('hello', 29)
+    assert get_last_log(t, c)['arg1'] == b'hello'
 
 
 def test_storage_decimal_list_packing(t, get_last_log, bytes_helper, get_contract_with_gas_estimation, chain):

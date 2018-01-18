@@ -151,7 +151,7 @@ def canonicalize_type(t, is_event=False):
     if isinstance(t, ByteArrayType):
         # Check to see if maxlen is small enough for events
         if is_event:
-            return 'bytes{}'.format(t.maxlen)
+            return 'bytes'
         else:
             return 'bytes'
     if isinstance(t, ListType):
