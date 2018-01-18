@@ -185,15 +185,20 @@ def foo(arg1: bytes <= 29, arg2: bytes <= 31):
     c = get_contract_with_gas_estimation(loggy_code)
     c.foo('bar', 'foo')
     logs = chain.head_state.receipts[-1].logs[-1]
-    event_id = utils.bytes_to_int(utils.sha3(bytes('MyLog(bytes4,bytes29,bytes31)', 'utf-8')))
+    event_id = utils.bytes_to_int(utils.sha3(bytes('MyLog(bytes4,bytes29,bytes)', 'utf-8')))
     # # Event id is always the first topic
     assert logs.topics[0] == event_id
     # # Event id is calculated correctly
     assert c.translator.event_data[event_id]
     # # Event abi is created correctly
-    assert c.translator.event_data[event_id] == {'types': ['bytes4', 'bytes29', 'bytes31'], 'name': 'MyLog', 'names': ['arg1', 'arg2', 'arg3'], 'indexed': [True, True, False], 'anonymous': False}
+    assert c.translator.event_data[event_id] == {'types': ['bytes4', 'bytes29', 'bytes'], 'name': 'MyLog', 'names': ['arg1', 'arg2', 'arg3'], 'indexed': [True, True, False], 'anonymous': False}
     # Event is decoded correctly
-    assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': b'bar\x00', 'arg2': bytes_helper('bar', 29), 'arg3': bytes_helper('foo', 31), '_event_type': b'MyLog'}
+    assert c.translator.decode_event(logs.topics, logs.data) == {
+        'arg1': b'bar\x00',
+        'arg2': bytes_helper('bar', 29),
+        'arg3': b'foo',
+        '_event_type': b'MyLog'
+    }
 
 
 def test_event_logging_with_bytes_input_2(t, bytes_helper, get_contract_with_gas_estimation, chain, utils):
@@ -208,15 +213,15 @@ def foo(_arg1: bytes <= 20):
     c = get_contract_with_gas_estimation(loggy_code)
     c.foo('hello')
     logs = chain.head_state.receipts[-1].logs[-1]
-    event_id = utils.bytes_to_int(utils.sha3(bytes('MyLog(bytes20)', 'utf-8')))
+    event_id = utils.bytes_to_int(utils.sha3(bytes('MyLog(bytes)', 'utf-8')))
     # Event id is always the first topic
     assert logs.topics[0] == event_id
     # Event id is calculated correctly
     assert c.translator.event_data[event_id]
     # Event abi is created correctly
-    assert c.translator.event_data[event_id] == {'types': ['bytes20'], 'name': 'MyLog', 'names': ['arg1'], 'indexed': [False], 'anonymous': False}
+    assert c.translator.event_data[event_id] == {'types': ['bytes'], 'name': 'MyLog', 'names': ['arg1'], 'indexed': [False], 'anonymous': False}
     # Event is decoded correctly
-    assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': bytes_helper('hello', 20), '_event_type': b'MyLog'}
+    assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': b'hello', '_event_type': b'MyLog'}
 
 
 def test_event_logging_with_bytes_input_3(get_contract, chain, utils):
@@ -231,13 +236,13 @@ def foo(_arg1: bytes <= 5):
     c = get_contract(loggy_code)
     c.foo('hello')
     logs = chain.head_state.receipts[-1].logs[-1]
-    event_id = utils.bytes_to_int(utils.sha3(bytes('MyLog(bytes5)', 'utf-8')))
+    event_id = utils.bytes_to_int(utils.sha3(bytes('MyLog(bytes)', 'utf-8')))
     # Event id is always the first topic
     assert logs.topics[0] == event_id
     # Event id is calculated correctly
     assert c.translator.event_data[event_id]
     # Event abi is created correctly
-    assert c.translator.event_data[event_id] == {'types': ['bytes5'], 'name': 'MyLog', 'names': ['arg1'], 'indexed': [False], 'anonymous': False}
+    assert c.translator.event_data[event_id] == {'types': ['bytes'], 'name': 'MyLog', 'names': ['arg1'], 'indexed': [False], 'anonymous': False}
     # Event is decoded correctly
     assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': b'hello', '_event_type': b'MyLog'}
 
@@ -254,13 +259,13 @@ def foo():
     c = get_contract_with_gas_estimation(loggy_code)
     c.foo()
     logs = chain.head_state.receipts[-1].logs[-1]
-    event_id = utils.bytes_to_int(utils.sha3(bytes('MyLog(int128,bytes4,bytes3,address,address,int128)', 'utf-8')))
+    event_id = utils.bytes_to_int(utils.sha3(bytes('MyLog(int128,bytes,bytes,address,address,int128)', 'utf-8')))
     # Event id is always the first topic
     assert logs.topics[0] == event_id
     # Event id is calculated correctly
     assert c.translator.event_data[event_id]
     # Event abi is created correctly
-    assert c.translator.event_data[event_id] == {'types': ['int128', 'bytes4', 'bytes3', 'address', 'address', 'int128'], 'name': 'MyLog', 'names': ['arg1', 'arg2', 'arg3', 'arg4', 'arg5', 'arg6'], 'indexed': [False, False, False, False, False, False], 'anonymous': False}
+    assert c.translator.event_data[event_id] == {'types': ['int128', 'bytes', 'bytes', 'address', 'address', 'int128'], 'name': 'MyLog', 'names': ['arg1', 'arg2', 'arg3', 'arg4', 'arg5', 'arg6'], 'indexed': [False, False, False, False, False, False], 'anonymous': False}
     # Event is decoded correctly
     assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': 123, 'arg2': b'home', 'arg3': b'bar', 'arg4': '0xc305c901078781c232a2a521c2af7980f8385ee9', 'arg5': '0x' + c.address.hex(), 'arg6': chain.head_state.timestamp, '_event_type': b'MyLog'}
 
@@ -277,13 +282,13 @@ def foo():
     c = get_contract_with_gas_estimation(loggy_code)
     c.foo()
     logs = chain.head_state.receipts[-1].logs[-1]
-    event_id = utils.bytes_to_int(utils.sha3(bytes('MyLog(int128,bytes3)', 'utf-8')))
+    event_id = utils.bytes_to_int(utils.sha3(bytes('MyLog(int128,bytes)', 'utf-8')))
     # Event id is always the first topic
     assert logs.topics[0] == event_id
     # Event id is calculated correctly
     assert c.translator.event_data[event_id]
     # Event abi is created correctly
-    assert c.translator.event_data[event_id] == {'types': ['int128', 'bytes3'], 'name': 'MyLog', 'names': ['arg1', 'arg2'], 'indexed': [True, False], 'anonymous': False}
+    assert c.translator.event_data[event_id] == {'types': ['int128', 'bytes'], 'name': 'MyLog', 'names': ['arg1', 'arg2'], 'indexed': [True, False], 'anonymous': False}
     # Event is decoded correctly
     assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': 1, 'arg2': b'bar', '_event_type': b'MyLog'}
 
@@ -303,8 +308,8 @@ def foo():
     c.foo()
     logs1 = chain.head_state.receipts[-1].logs[-2]
     logs2 = chain.head_state.receipts[-1].logs[-1]
-    event_id1 = utils.bytes_to_int(utils.sha3(bytes('MyLog(int128,bytes3)', 'utf-8')))
-    event_id2 = utils.bytes_to_int(utils.sha3(bytes('YourLog(address,bytes5)', 'utf-8')))
+    event_id1 = utils.bytes_to_int(utils.sha3(bytes('MyLog(int128,bytes)', 'utf-8')))
+    event_id2 = utils.bytes_to_int(utils.sha3(bytes('YourLog(address,bytes)', 'utf-8')))
     # Event id is always the first topic
     assert logs1.topics[0] == event_id1
     assert logs2.topics[0] == event_id2
@@ -312,8 +317,8 @@ def foo():
     assert c.translator.event_data[event_id1]
     assert c.translator.event_data[event_id2]
     # Event abi is created correctly
-    assert c.translator.event_data[event_id1] == {'types': ['int128', 'bytes3'], 'name': 'MyLog', 'names': ['arg1', 'arg2'], 'indexed': [True, False], 'anonymous': False}
-    assert c.translator.event_data[event_id2] == {'types': ['address', 'bytes5'], 'name': 'YourLog', 'names': ['arg1', 'arg2'], 'indexed': [True, False], 'anonymous': False}
+    assert c.translator.event_data[event_id1] == {'types': ['int128', 'bytes'], 'name': 'MyLog', 'names': ['arg1', 'arg2'], 'indexed': [True, False], 'anonymous': False}
+    assert c.translator.event_data[event_id2] == {'types': ['address', 'bytes'], 'name': 'YourLog', 'names': ['arg1', 'arg2'], 'indexed': [True, False], 'anonymous': False}
     # Event is decoded correctly
     assert c.translator.decode_event(logs1.topics, logs1.data) == {'arg1': 1, 'arg2': b'bar', '_event_type': b'MyLog'}
     assert c.translator.decode_event(logs2.topics, logs2.data) == {'arg1': '0x' + c.address.hex(), 'arg2': b'house', '_event_type': b'YourLog'}
@@ -628,7 +633,6 @@ def setbytez():
     """
 
     c = get_contract_with_gas_estimation(code)
-
     c.foo()
     assert get_last_log(t, c)['arg1'] == b''
     c.setbytez()

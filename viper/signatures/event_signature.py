@@ -57,14 +57,14 @@ class EventSignature():
                     pos += ceil32(typ.comparators[0].n)
                 else:
                     pos += get_size_of_type(parsed_type) * 32
-        sig = name + '(' + ','.join([canonicalize_type(arg.typ, True) for arg in args]) + ')'
+        sig = name + '(' + ','.join([canonicalize_type(arg.typ, indexed_list[pos]) for pos, arg in enumerate(args)]) + ')'
         event_id = bytes_to_int(sha3(bytes(sig, 'utf-8')))
         return cls(name, args, indexed_list, event_id, sig)
 
     def to_abi_dict(self):
         return {
             "name": self.name,
-            "inputs": [{"type": canonicalize_type(arg.typ, True), "name": arg.name, "indexed": self.indexed_list[pos]} for pos, arg in enumerate(self.args)] if self.args else [],
+            "inputs": [{"type": canonicalize_type(arg.typ, self.indexed_list[pos]), "name": arg.name, "indexed": self.indexed_list[pos]} for pos, arg in enumerate(self.args)] if self.args else [],
             "anonymous": False,
             "type": "event"
         }
