@@ -9,7 +9,7 @@ fail_list = [
     """
 @public
 def foo() -> num:
-    x = create_with_code_of(0x1234567890123456789012345678901234567890, value=block.timestamp)
+    x: address = create_with_code_of(0x1234567890123456789012345678901234567890, value=block.timestamp)
     return 5
     """,
     """
@@ -25,20 +25,20 @@ def foo() -> timedelta[2]:
     """
 @public
 def foo() -> num(wei / sec):
-    x = as_wei_value(5, finney)
-    y = block.timestamp + 50
+    x: num(wei) = as_wei_value(5, finney)
+    y: num = block.timestamp + 50
     return x / y
     """,
     """
 @public
 def foo():
-    x = slice("cow", start=0, len=block.timestamp)
+    x: bytes <= 10 = slice("cow", start=0, len=block.timestamp)
     """,
     """
 @public
 def foo():
-    x = 7
-    y = min(x, block.timestamp)
+    x: num = 7
+    y: num = min(x, block.timestamp)
     """,
     """
 @public
@@ -62,8 +62,8 @@ def add_record():
     """
 @public
 def add_record():
-    a = {x: block.timestamp}
-    b = {y: 5}
+    a: {x: timestamp} = {x: block.timestamp}
+    b: {y: num} = {y: 5}
     a.x = b.y
     """,
     """
@@ -107,8 +107,8 @@ def add_record():
     """
 @public
 def foo() -> num(wei / sec):
-    x = as_wei_value(5, finney)
-    y = block.timestamp + 50 - block.timestamp
+    x: num(wei) = as_wei_value(5, finney)
+    y: num(sec) = block.timestamp + 50 - block.timestamp
     return x / y
     """,
     """
@@ -119,7 +119,7 @@ def foo() -> timestamp[2]:
     """
 @public
 def foo():
-    y = min(block.timestamp + 30, block.timestamp + 50)
+    y: timestamp = min(block.timestamp + 30, block.timestamp + 50)
     """,
     """
 @public
@@ -129,15 +129,15 @@ def foo() -> num:
     """
 @public
 def add_record():
-    a = {x: block.timestamp}
+    a: {x: timestamp} = {x: block.timestamp}
     a.x = 5
     """,
     """
 @public
 def foo():
-    x = block.difficulty + 185
+    x: num = block.difficulty + 185
     if tx.origin == self:
-        y = concat(block.prevhash, "dog")
+        y: bytes <= 35 = concat(block.prevhash, "dog")
     """
 ]
 

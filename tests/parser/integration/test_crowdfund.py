@@ -20,7 +20,7 @@ def __init__(_beneficiary: address, _goal: wei_value, _timelimit: timedelta):
 @payable
 def participate():
     # assert block.timestamp < self.deadline
-    nfi = self.nextFunderIndex
+    nfi: num = self.nextFunderIndex
     self.funders[nfi].sender = msg.sender
     self.funders[nfi].value = msg.value
     self.nextFunderIndex = nfi + 1
@@ -57,7 +57,7 @@ def finalize():
 
 @public
 def refund():
-    ind = self.refundIndex
+    ind: num = self.refundIndex
     for i in range(ind, ind + 30):
         if i >= self.nextFunderIndex:
             self.refundIndex = self.nextFunderIndex
@@ -122,7 +122,7 @@ def __init__(_beneficiary: address, _goal: wei_value, _timelimit: timedelta):
 @payable
 def participate():
     assert block.timestamp < self.deadline
-    nfi = self.nextFunderIndex
+    nfi: num = self.nextFunderIndex
     self.funders[nfi] = {sender: msg.sender, value: msg.value}
     self.nextFunderIndex = nfi + 1
 
@@ -158,7 +158,7 @@ def finalize():
 
 @public
 def refund():
-    ind = self.refundIndex
+    ind: num = self.refundIndex
     for i in range(ind, ind + 30):
         if i >= self.nextFunderIndex:
             self.refundIndex = self.nextFunderIndex
