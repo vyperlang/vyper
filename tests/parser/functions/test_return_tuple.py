@@ -68,4 +68,3 @@ def out_literals() -> (num, address, bytes <= 4):
 
     c = get_contract_with_gas_estimation(code)
     assert c.translator.function_data['out_literals']['decode_types'] == ['int128', 'address', 'bytes']
-

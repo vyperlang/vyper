@@ -21,7 +21,7 @@ def test_initial_state(auction_tester):
     # Check start time is current block timestamp
     assert auction_tester.c.auction_start() == auction_tester.s.head_state.timestamp
     # Check auction has not ended
-    assert auction_tester.c.ended() == False
+    assert auction_tester.c.ended() is False
     # Check highest bidder is empty
     assert auction_tester.c.highest_bidder() == '0x0000000000000000000000000000000000000000'
     # Check highest bid is 0
