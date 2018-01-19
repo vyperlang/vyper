@@ -148,7 +148,7 @@ def foo():
     get_contract_with_gas_estimation(code)
 
 
-def test_event_loggging_with_fixed_array_data(get_contract_with_gas_estimation, chain, utils):
+def test_event_logging_with_fixed_array_data(get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
 MyLog: __log__({arg1: num[2], arg2: timestamp[3], arg3: num[2][2]})
 
@@ -384,9 +384,9 @@ def foo(arg1: bytes <= 4):
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatchException)
 
 
-def test_fails_when_log_data_is_over_32_bytes(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
+def test_fails_when_topic_is_over_32_bytes(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     loggy_code = """
-MyLog: __log__({arg1: bytes <= 100})
+MyLog: __log__({arg1: indexed(bytes <= 100)})
 
 @public
 def foo():
@@ -452,7 +452,7 @@ def foo():
     log.MyLog(self)
     """
     t.s = chain
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), AttributeError)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatchException)
 
 
 def test_logging_fails_after_a_global_declaration(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
