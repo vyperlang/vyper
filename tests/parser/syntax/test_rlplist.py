@@ -27,13 +27,13 @@ def foo() -> bytes <= 500:
     ("""
 @public
 def foo() -> bytes <= 500:
-    x = 1
+    x: num = 1
     return RLPList('\xe0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
     """, StructureException),
     """
 @public
 def foo() -> bytes <= 500:
-    x = [1, 2, 3]
+    x: num[3] = [1, 2, 3]
     return RLPList(x, [bytes])
     """
 ]

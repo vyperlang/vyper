@@ -9,19 +9,19 @@ fail_list = [
     """
 @public
 def foo():
-    x = [1, 2, 3]
+    x: num[3] = [1, 2, 3]
     x = 4
     """,
     """
 @public
 def foo():
-    x = [1, 2, 3]
+    x: num[3] = [1, 2, 3]
     x = [4, 5, 6, 7]
     """,
     """
 @public
 def foo() -> num[2]:
-    return [3,5,7]
+    return [3, 5, 7]
     """,
     """
 @public
@@ -122,6 +122,18 @@ def foo()->bool[2]:
     a: bool[1000]
     a[0] = 1
     return a
+    """,
+    """
+@public
+def test() -> num:
+    a = [1, 2, 3.0]
+    return a[0]
+    """,
+    """
+@public
+def test() -> num:
+    a = [1, 2, true]
+    return a[0]
     """
 ]
 
@@ -141,7 +153,7 @@ valid_list = [
     """
 @public
 def foo():
-    x = [1, 2, 3]
+    x: num[3] = [1, 2, 3]
     x = [4, 5, 6]
     """,
     """
@@ -157,7 +169,7 @@ def foo() -> decimal[2][2]:
     """
 @public
 def foo() -> decimal[2][2]:
-    return [[1,2.0],[3.5,4]]
+    return [[1.0, 2.0], [3.5, 4.0]]
     """,
     """
 @public
@@ -201,7 +213,7 @@ def foo() -> num[2]:
 foo: decimal[3]
 @public
 def foo():
-    self.foo = [1, 2.1, 3]
+    self.foo = [1.0, 2.1, 3.0]
     """,
     """
 x: num[1][2][3][4][5]
