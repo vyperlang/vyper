@@ -705,6 +705,11 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder, dynamic_offs
     """
     Copy necessary variables to pre-allocated memory section.
 
+    :param holder: Complete holder for all args
+    :param maxlen: Total length in bytes of the full arg section (static + dynamic).
+    :param arg: Current arg to pack
+    :param context: Context of arg
+    :param placeholder: Static placeholder for static argument part.
     :param dynamic_offset_counter: position counter stored in static args.
     :param dynamic_placeholder: pointer to current position in memory to write dynamic values to.
     :param datamem_start: position where the whole datemem section starts.
@@ -726,7 +731,7 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder, dynamic_offs
                 bytez += bytes([ord(c)])
 
         source_expr = Expr(arg, context)
-        if  isinstance(arg, ast.Str):
+        if isinstance(arg, ast.Str):
             holder.append(source_expr.lll_node)
 
         # Set static offset, in arg slot.
@@ -791,18 +796,6 @@ def pack_logging_data(expected_data, args, context):
     dynamic_placeholder = context.new_placeholder(BaseType(32))
 
     # Populate static placeholders.
-
-    # for i, (arg, data) in enumerate(zip(args, expected_data)):
-    #     typ = data.typ
-    #     if isinstance(typ, ListType):
-    #         placeholder_type = ListType(subtype=typ.subtype, count=typ.count)
-    #         maxlen += typ.count * 32
-    #     else:
-    #         placeholder_type = BaseType(32)
-    #         maxlen += 32
-    #     placeholder = context.new_placeholder(placeholder_type)
-    #     placeholder_map[i] = placeholder
-
     placeholder_map = {}
     for i, (arg, data) in enumerate(zip(args, expected_data)):
         typ = data.typ
@@ -814,25 +807,19 @@ def pack_logging_data(expected_data, args, context):
     # Dynamic position starts right after the static args.
     holder.append(LLLnode.from_list(['mstore', dynamic_offset_counter, maxlen]))
 
-    # # Calculate maximum dynamic offset placeholders, used for gas estimation.
+    # Calculate maximum dynamic offset placeholders, used for gas estimation.
     for i, (arg, data) in enumerate(zip(args, expected_data)):
         typ = data.typ
         if isinstance(typ, ByteArrayType):
             maxlen += 32 + ceil32(typ.maxlen)
 
-    # # Copy necessary data into allocated dynamic section.
-    # datamem_start = placeholder_map[0]
-
-    # datamem_start = holder[1].to_list()[1][0]
-    # import ipdb; ipdb.set_trace()
-
+    # Obtain the start of the arg section.
     if isinstance(expected_data[0].typ, ListType):
-        # and \
-        # isinstance(arg, ast.Attribute) and arg.value.id == 'self':
         datamem_start = holder[1].to_list()[1][0]
     else:
         datamem_start = dynamic_placeholder + 32
 
+    # Copy necessary data into allocated dynamic section.
     for i, (arg, data) in enumerate(zip(args, expected_data)):
         typ = data.typ
         pack_args_by_32(

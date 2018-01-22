@@ -24,9 +24,9 @@ MyLog: __log__({arg1: bytes <= 64, arg2: bytes <= 64, arg3: bytes <= 64})
 
 @public
 def foo():
-    a = 'hellohellohellohellohellohellohellohellohello'
-    b = 'hellohellohellohellohellohellohellohello'
-    c = 'hellohellohellohellohellohellohello'
+    a: bytes <= 64 = 'hellohellohellohellohellohellohellohellohello'
+    b: bytes <= 64 = 'hellohellohellohellohellohellohellohello'
+    c: bytes <= 64 = 'hellohellohellohellohellohellohello'
     log.MyLog(a, b, c)
     """
 

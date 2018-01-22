@@ -204,10 +204,8 @@ class Stmt(object):
             else:
                 sz = ['mload', inargsize_node]
 
-            return LLLnode.from_list([
-                'seq',
-                    inargs,
-                    LLLnode.from_list(["log" + str(len(topics)), inarg_start, sz] + topics, add_gas_estimate=inargsize * 10)], typ=None, pos=getpos(self.stmt))
+            return LLLnode.from_list(['seq', inargs,
+                LLLnode.from_list(["log" + str(len(topics)), inarg_start, sz] + topics, add_gas_estimate=inargsize * 10)], typ=None, pos=getpos(self.stmt))
         else:
             raise StructureException("Unsupported operator: %r" % ast.dump(self.stmt), self.stmt)
 
