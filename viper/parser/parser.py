@@ -722,6 +722,7 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder, dynamic_offs
     elif isinstance(typ, ByteArrayType):
         bytez = b''
 
+        source_expr = Expr(arg, context)
         if isinstance(arg, ast.Str):
             if len(arg.s) > typ.maxlen:
                 raise TypeMismatchException("Data input bytes are to big: %r %r" % (len(arg.s), typ))
@@ -730,8 +731,6 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder, dynamic_offs
                     raise InvalidLiteralException("Cannot insert special character %r into byte array" % c)
                 bytez += bytes([ord(c)])
 
-        source_expr = Expr(arg, context)
-        if isinstance(arg, ast.Str):
             holder.append(source_expr.lll_node)
 
         # Set static offset, in arg slot.
