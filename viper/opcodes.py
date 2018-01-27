@@ -64,11 +64,12 @@ opcodes = {
     'CALLCODE': [0xf2, 7, 1, 700],
     'RETURN': [0xf3, 2, 0, 0],
     'DELEGATECALL': [0xf4, 6, 1, 700],
-    'CALLBLACKBOX': [0xf5, 7, 1, 700],
+    'PAYGAS': [0xf5, 1, 0, 0],
+    'SIGHASH': [0x3f, 0, 1, 0],
     'SELFDESTRUCT': [0xff, 1, 0, 25000],
     'STATICCALL': [0xfa, 6, 1, 40],
     'REVERT': [0xfd, 2, 0, 0],
-    'INVALID': [0xfe, 0, 0, 0],
+    'CREATE2': [0xfb, 4, 1, 32000],
 }
 
 pseudo_opcodes = {
