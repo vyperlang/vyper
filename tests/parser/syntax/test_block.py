@@ -25,7 +25,7 @@ def foo() -> timedelta[2]:
     """
 @public
 def foo() -> num(wei / sec):
-    x: num(wei) = as_wei_value(5, finney)
+    x: num(wei) = as_wei_value(5, "finney")
     y: num = block.timestamp + 50
     return x / y
     """,
@@ -107,7 +107,7 @@ def add_record():
     """
 @public
 def foo() -> num(wei / sec):
-    x: num(wei) = as_wei_value(5, finney)
+    x: num(wei) = as_wei_value(5, "finney")
     y: num(sec) = block.timestamp + 50 - block.timestamp
     return x / y
     """,
