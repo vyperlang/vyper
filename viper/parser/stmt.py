@@ -198,8 +198,14 @@ class Stmt(object):
                     expected_data.append(event.args[pos])
                     data.append(self.stmt.args[pos])
             topics = pack_logging_topics(event.event_id, topics, expected_topics, self.context)
-            inargs, inargsize, inarg_start = pack_logging_data(expected_data, data, self.context)
-            return LLLnode.from_list(['seq', inargs, ["log" + str(len(topics)), inarg_start, inargsize] + topics], typ=None, pos=getpos(self.stmt))
+            inargs, inargsize, inargsize_node, inarg_start = pack_logging_data(expected_data, data, self.context)
+            if inargsize_node is None:
+                sz = inargsize
+            else:
+                sz = ['mload', inargsize_node]
+
+            return LLLnode.from_list(['seq', inargs,
+                LLLnode.from_list(["log" + str(len(topics)), inarg_start, sz] + topics, add_gas_estimate=inargsize * 10)], typ=None, pos=getpos(self.stmt))
         else:
             raise StructureException("Unsupported operator: %r" % ast.dump(self.stmt), self.stmt)
 
