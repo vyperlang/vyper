@@ -119,8 +119,15 @@ However, please keep in mind that Viper is still experimental and not ready for 
 
     Now you can run the install and test commands again:
     ::
-        make install
+        make
         make test
+    
+    If you get the error `ld: library not found for -lyaml` in the output of `make`, make sure `libyaml` is installed using `brew info libyaml`. If it is installed, add its location to the compile flags as well:
+    ::
+        export CFLAGS="-I$(brew --prefix openssl)/include -I$(brew --prefix libyaml)/include"
+        export LDFLAGS="-L$(brew --prefix openssl)/lib -L$(brew --prefix libyaml)/lib"
+        
+    You can then run `make` and `make test` again.
 ******
 Docker
 ******
