@@ -173,7 +173,7 @@ def as_unitless_number(expr, args, kwargs, context):
     return LLLnode(value=args[0].value, args=args[0].args, typ=BaseType(args[0].typ.typ, {}), pos=getpos(expr))
 
 
-@signature(('num', 'bytes32', 'num256', 'address'))
+@signature(('num', 'bytes32', 'num256'))
 def as_num128(expr, args, kwargs, context):
     return LLLnode.from_list(
         ['clamp', ['mload', MemoryPositions.MINNUM], args[0], ['mload', MemoryPositions.MAXNUM]], typ=BaseType("num"), pos=getpos(expr)
