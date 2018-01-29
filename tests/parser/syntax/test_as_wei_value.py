@@ -9,12 +9,12 @@ fail_list = [
     """
 @public
 def foo():
-    x = as_wei_value(5, 'szabo')
+    x: num(wei) = as_wei_value(5, szabo)
     """,
     """
 @public
 def foo() -> num(wei):
-    x = 45
+    x: num(wei) = 45
     return x.balance
     """
 ]
@@ -22,7 +22,6 @@ def foo() -> num(wei):
 
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_as_wei_fail(bad_code):
-
     with raises(TypeMismatchException):
         compiler.compile(bad_code)
 
@@ -31,23 +30,23 @@ valid_list = [
     """
 @public
 def foo():
-    x = as_wei_value(5, finney) + as_wei_value(2, babbage) + as_wei_value(8, shannon)
+    x: num(wei) = as_wei_value(5, "finney") + as_wei_value(2, "babbage") + as_wei_value(8, "shannon")
     """,
     """
 @public
 def foo():
-    z = 2 + 3
-    x = as_wei_value(2 + 3, finney)
+    z: num = 2 + 3
+    x: num(wei) = as_wei_value(2 + 3, "finney")
     """,
     """
 @public
 def foo():
-    x = as_wei_value(5.182, ada)
+    x: num(wei) = as_wei_value(5.182, "ada")
     """,
     """
 @public
 def foo() -> num(wei):
-    x = 0x1234567890123456789012345678901234567890
+    x: address = 0x1234567890123456789012345678901234567890
     return x.balance
     """
 ]

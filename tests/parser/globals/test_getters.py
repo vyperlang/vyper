@@ -35,7 +35,7 @@ w: public({
 
 @public
 def __init__():
-    self.x = as_wei_value(7, wei)
+    self.x = as_wei_value(7, "wei")
     self.y[1] = 9
     self.z = "cow"
     self.w[1].a = 11

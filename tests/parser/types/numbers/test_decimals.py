@@ -18,7 +18,7 @@ def bar() -> num:
 
 @public
 def baz() -> num:
-    x = 27.0
+    x: decimal = 27.0
     return(floor(x * 37.0))
 
 @public
@@ -84,7 +84,7 @@ def test_harder_decimal_test(get_contract_with_gas_estimation):
     harder_decimal_test = """
 @public
 def phooey(inp: decimal) -> decimal:
-    x = 10000.0
+    x: decimal = 10000.0
     for i in range(4):
         x = x * inp
     return x
@@ -95,19 +95,19 @@ def arg(inp: decimal) -> decimal:
 
 @public
 def garg() -> decimal:
-    x = 4.5
+    x: decimal = 4.5
     x *= 1.5
     return x
 
 @public
 def harg() -> decimal:
-    x = 4.5
+    x: decimal = 4.5
     x *= 2
     return x
 
 @public
 def iarg() -> wei_value:
-    x = as_wei_value(7, wei)
+    x: wei_value = as_wei_value(7, "wei")
     x *= 2
     return x
     """

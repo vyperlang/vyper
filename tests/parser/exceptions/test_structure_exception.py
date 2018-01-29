@@ -42,15 +42,15 @@ def foo():
     """
 @public
 def foo():
-    x = 5
+    x: num = 5
     for i in range(x):
         pass
     """,
     """
 @public
 def foo():
-    x = 5
-    y = 7
+    x: num = 5
+    y: num = 7
     for i in range(x, x + y):
         pass
     """,
@@ -84,7 +84,7 @@ def foo():
     """
 @public
 def foo():
-    x = sha3("moose", 3)
+    x: bytes32 = sha3("moose", 3)
     """,
     """
 @public
@@ -132,19 +132,19 @@ def foo():
     """
 @public
 def foo() -> num(wei):
-    x = 0x1234567890123456789012345678901234567890
+    x: address = 0x1234567890123456789012345678901234567890
     return x.balance()
     """,
     """
 @public
 def foo() -> num:
-    x = 0x1234567890123456789012345678901234567890
+    x: address = 0x1234567890123456789012345678901234567890
     return x.codesize()
     """,
     """
 @public
 def foo():
-    x = ~self
+    x: address = ~self
     """,
     """
 @public

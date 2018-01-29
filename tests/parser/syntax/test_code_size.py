@@ -9,13 +9,13 @@ fail_list = [
     """
 @public
 def foo() -> num:
-    x = 45
+    x: num = 45
     return x.codesize
     """,
     """
 @public
 def foo() -> num(wei):
-    x = 0x1234567890123456789012345678901234567890
+    x: address = 0x1234567890123456789012345678901234567890
     return x.codesize
     """
 ]
@@ -32,7 +32,7 @@ valid_list = [
     """
 @public
 def foo() -> num:
-    x = 0x1234567890123456789012345678901234567890
+    x: address = 0x1234567890123456789012345678901234567890
     return x.codesize
     """
 ]

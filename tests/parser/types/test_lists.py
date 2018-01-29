@@ -14,13 +14,13 @@ def goo(x: num[2][2]) -> num:
 
 @public
 def hoo(x: num[3]) -> num:
-    y = x
+    y: num[3] = x
     return y[0] + x[1] + y[2]
 
 @public
 def joo(x: num[2][2]) -> num:
-    y = x
-    y2 = x[1]
+    y: num[2][2] = x
+    y2: num[2] = x[1]
     return y[0][0] + y[0][1] + y2[0] * 10 + y2[1] * 10
 
 @public
@@ -55,7 +55,7 @@ def foo() -> num[2]:
 
 @public
 def goo() -> num[2]:
-    x = [3, 5]
+    x: num[2] = [3, 5]
     return x
 
 @public
@@ -66,7 +66,7 @@ def hoo() -> num[2]:
 @public
 def joo() -> num[2]:
     self.z = [3, 5]
-    x = self.z
+    x: num[2] = self.z
     return x
 
 @public
@@ -75,12 +75,12 @@ def koo() -> num[2][2]:
 
 @public
 def loo() -> num[2][2]:
-    x = [[1,2],[3,4]]
+    x: num[2][2] = [[1, 2], [3, 4]]
     return x
 
 @public
 def moo() -> num[2][2]:
-    x = [1,2]
+    x: num[2] = [1,2]
     return [x, [3,4]]
 
 @public

@@ -21,16 +21,6 @@ Bar: __log__({_value: num[4]})
 def foo():
     x: decimal[4]
     log.Bar(x)
-    """,
-    """
-# larger than 32 bytes logging.
-
-MyLog: __log__({arg1: bytes <= 29})
-x:bytes<=55
-
-@public
-def foo(a:num):
-    log.MyLog(self.x)
     """
 ]
 
