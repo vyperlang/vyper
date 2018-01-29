@@ -402,14 +402,14 @@ def add_variable_offset(parent, key):
             if not isinstance(typ.keytype, ByteArrayType) or (typ.keytype.maxlen < key.typ.maxlen):
                 raise TypeMismatchException('Mapping keys of bytes cannot be cast, use exact same bytes type of: %s', str(typ.keytype))
             subtype = typ.valuetype
-            if len(key.args[0].args) == 3:  # handle bytes literal.
+            if len(key.args[0].args) >= 3:  # handle bytes literal.
                 sub = LLLnode.from_list([
                     'seq',
                     key,
-                    ['sha3', ['add', key.args[0].args[-1], 32], ceil32(key.typ.maxlen)]
+                    ['sha3', ['add', key.args[0].args[-1], 32], ['mload', key.args[0].args[-1]]]
                 ])
             else:
-                sub = LLLnode.from_list(['sha3', ['add', key.args[0].value, 32], ceil32(key.typ.maxlen)])
+                sub = LLLnode.from_list(['sha3', ['add', key.args[0].value, 32], ['mload', key.args[0].value]])
         else:
             subtype = typ.valuetype
             sub = base_type_conversion(key, key.typ, typ.keytype)

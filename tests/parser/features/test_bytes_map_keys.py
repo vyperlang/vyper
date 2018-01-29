@@ -93,3 +93,33 @@ def set(k: bytes <= 35, v: num):
 
     with pytest.raises(TypeMismatchException):
         get_contract(code)
+
+
+def test_extended_bytes_key_from_storage(get_contract):
+    code = """
+a:num[bytes<=100000]
+
+@public
+def __init__():
+    self.a["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"] = 1069
+
+@public
+def get_it1() -> num:
+    key: bytes <= 100000 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    return self.a[key]
+
+@public
+def get_it2() -> num:
+    return self.a["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+
+@public
+def get_it3(key: bytes<=100000) -> num:
+    return self.a[key]
+    """
+
+    c = get_contract(code)
+
+    assert c.get_it2() == 1069
+    assert c.get_it2() == 1069
+    assert c.get_it3(b"a" * 33) == 1069
+    assert c.get_it3(b"test") == 0
