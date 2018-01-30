@@ -1,24 +1,24 @@
 ################
-Installing Viper
+Installing Vyper
 ################
-Don't panic if the installation fails. Viper is still under development and
+Don't panic if the installation fails. Vyper is still under development and
 undergoes constant changes. Installation will be much more simplified and
 optimized after a stable version release.
 
 Take a deep breath, follow the instructions, and please
-`create an issue <https://github.com/ethereum/viper/issues>`_ if you encounter
+`create an issue <https://github.com/ethereum/vyper/issues>`_ if you encounter
 any errors.
 
 .. note::
    The easiest way to try out the language, experiment with examples, and compile code to ``bytecode``
-   or ``LLL`` is to use the online compiler at https://viper.tools.
+   or ``LLL`` is to use the online compiler at https://vyper.tools.
 
 *************
 Prerequisites
 *************
 Installing Python 3.6
 =====================
-Viper can only be built using Python 3.6 and higher. If you are already running
+Vyper can only be built using Python 3.6 and higher. If you are already running
 Python 3.6, skip to the next section, else follow the instructions here to make
 sure you have the correct Python version installed, and are using that version.
 
@@ -67,16 +67,16 @@ Also, ensure the GMP arithmetic library is installed using `brew`:
 
 Creating a virtual environment
 ==============================
-It is **strongly recommended** to install Viper in **a virtual Python
+It is **strongly recommended** to install Vyper in **a virtual Python
 environment**, so that new packages installed and dependencies built are
-strictly contained in your Viper project and will not alter or affect your
+strictly contained in your Vyper project and will not alter or affect your
 other development environment set-up.
 
 
-To create a new virtual environment for Viper run the following commands:
+To create a new virtual environment for Vyper run the following commands:
 ::
-    virtualenv -p python3.6 --no-site-packages ~/viper-venv
-    source ~/viper-venv/bin/activate
+    virtualenv -p python3.6 --no-site-packages ~/vyper-venv
+    source ~/vyper-venv/bin/activate
 
 To find out more about virtual environments, check out:
 `virtualenv guide <https://virtualenv.pypa.io/en/stable/>`_.
@@ -84,23 +84,23 @@ To find out more about virtual environments, check out:
 ************
 Installation
 ************
-Again, it is **strongly recommended to install Viper** in a **virtual Python environment**. 
+Again, it is **strongly recommended to install Vyper** in a **virtual Python environment**. 
 This guide assumes you are in a virtual environment containing Python 3.6. 
 
-Get the latest version of Viper by cloning the Github repository, and run the
+Get the latest version of Vyper by cloning the Github repository, and run the
 install and test commands:
 ::
-    git clone https://github.com/ethereum/viper.git
-    cd viper
+    git clone https://github.com/ethereum/vyper.git
+    cd vyper
     make
     make test
 
 Additionally, you may try to compile an example contract by running:
 ::
-    viper examples/crowdfund.v.py
+    vyper examples/crowdfund.v.py
 
-If everything works correctly, you are now able to compile your own smart contracts written in Viper.
-However, please keep in mind that Viper is still experimental and not ready for production!
+If everything works correctly, you are now able to compile your own smart contracts written in Vyper.
+However, please keep in mind that Vyper is still experimental and not ready for production!
 
 .. note::
     If you get the error `fatal error: openssl/aes.h: No such file or directory` in the output of `make`, then run `sudo apt-get install libssl-dev1`, then run `make` again.
@@ -109,7 +109,7 @@ However, please keep in mind that Viper is still experimental and not ready for 
 
     Apple has deprecated use of OpenSSL in favor of its own TLS and crypto
     libraries. This means that you will need to export some OpenSSL settings
-    yourself, before you can install Viper.
+    yourself, before you can install Vyper.
 
     Use the following commands:
     ::
@@ -133,19 +133,19 @@ Docker
 ******
 A Dockerfile is provided in the master branch of the repository. In order to build a Docker Image please run:
 ::
-    docker build https://github.com/ethereum/viper.git -t viper:1
-    docker run -it viper:1 /bin/bash 
+    docker build https://github.com/ethereum/vyper.git -t vyper:1
+    docker run -it vyper:1 /bin/bash
 To ensure that everything works correctly after the installtion, please run the test commands
 and try compiling a contract:
 ::
     make test
-    viper examples/crowdfund.v.py
+    vyper examples/crowdfund.v.py
 
 ****
 Snap
 ****
 
-Viper is published in the snap store. In any of the `supported Linux distros <https://snapcraft.io/docs/core/install>`_, install it with:
+Vyper is published in the snap store. In any of the `supported Linux distros <https://snapcraft.io/docs/core/install>`_, install it with:
 ::
     sudo snap install viper --edge
 
