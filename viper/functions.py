@@ -95,7 +95,6 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
     else:
         raise TypeMismatchException("Expecting one of %r for argument %r of %s" %
                                     (expected_arg_typelist, index, function_name), arg)
-        return arg.id
 
 
 def signature(*argz, **kwargz):
