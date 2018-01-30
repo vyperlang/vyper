@@ -1,5 +1,4 @@
 #Setup private variables (only callable from within the contract)
-@private
 funders: {sender: address, value: wei_value}[num]
 nextFunderIndex: num
 beneficiary: address
