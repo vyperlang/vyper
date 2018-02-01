@@ -173,8 +173,8 @@ class TestERC20(PyEthereumTestCase):
         # Check boundary conditions - a1 can deposit max amount
         # @TODO fix this, it's hacky and will cause divergences
         # we'd like to deposit MAX_UINT256: see https://github.com/ethereum/vyper/issues/653
-        self.assertIsNone(self.c.deposit(value=int(MAX_UINT256/2)-1, sender=self.t.k1))
-        self.assertIsNone(self.c.deposit(value=int(MAX_UINT256/2)-1, sender=self.t.k1))
+        self.assertIsNone(self.c.deposit(value=int(MAX_UINT256 / 2) - 1, sender=self.t.k1))
+        self.assertIsNone(self.c.deposit(value=int(MAX_UINT256 / 2) - 1, sender=self.t.k1))
         self.assertIsNone(self.c.deposit(value=1, sender=self.t.k1))
         self.assertEqual(initial_a1_balance - self.s.head_state.get_balance(self.t.a1), MAX_UINT256)
         self.assertEqual(self.c.balanceOf(self.t.a1), MAX_UINT256)
@@ -360,8 +360,8 @@ class TestViperERC20(TestERC20):
         # (bad contract is used or overflow checks on total supply would fail)
         # @TODO fix this, it's hacky and will cause divergences
         # we'd like to deposit MAX_UINT256: see https://github.com/ethereum/vyper/issues/653
-        self.assertIsNone(self.c_bad.deposit(value=int(MAX_UINT256/2)-1, sender=self.t.k1))
-        self.assertIsNone(self.c_bad.deposit(value=int(MAX_UINT256/2)-1, sender=self.t.k1))
+        self.assertIsNone(self.c_bad.deposit(value=int(MAX_UINT256 / 2) - 1, sender=self.t.k1))
+        self.assertIsNone(self.c_bad.deposit(value=int(MAX_UINT256 / 2) - 1, sender=self.t.k1))
         self.assertIsNone(self.c_bad.deposit(value=1, sender=self.t.k1))
         self.assertIsNone(self.c_bad.deposit(value=3, sender=self.t.k2))
         self.assert_tx_failed(lambda: self.c_bad.transfer(self.t.a1, 3, sender=self.t.k2))
@@ -378,8 +378,8 @@ class TestViperERC20(TestERC20):
         # Ensure transferFrom fails if it would otherwise overflow balance
         # @TODO fix this, it's hacky and will cause divergences
         # we'd like to deposit MAX_UINT256: see https://github.com/ethereum/vyper/issues/653
-        self.assertIsNone(self.c_bad.deposit(value=int(MAX_UINT256/2)-1, sender=self.t.k1))
-        self.assertIsNone(self.c_bad.deposit(value=int(MAX_UINT256/2)-1, sender=self.t.k1))
+        self.assertIsNone(self.c_bad.deposit(value=int(MAX_UINT256 / 2) - 1, sender=self.t.k1))
+        self.assertIsNone(self.c_bad.deposit(value=int(MAX_UINT256 / 2) - 1, sender=self.t.k1))
         self.assertIsNone(self.c_bad.deposit(value=1, sender=self.t.k1))
         self.assertIsNone(self.c_bad.deposit(value=1, sender=self.t.k2))
         self.assertTrue(self.c_bad.approve(self.t.a1, 1, sender=self.t.k2))
