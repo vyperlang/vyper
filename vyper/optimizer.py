@@ -61,7 +61,7 @@ def optimize(node):
             annotation = (argz[0].annotation or str(left)) + symb + (argz[1].annotation or str(right))
         else:
             annotation = ''
-        return LLLnode(new_value, [], node.typ, None, node.pos, annotation)
+        return LLLnode(new_value, [], node.typ, None, node.pos, annotation, add_gas_estimate=node.add_gas_estimate)
     elif node.value == "add" and int_at(argz, 0) and argz[1].value == "add" and int_at(argz[1].args, 0):
         calcer, symb = arith[node.value]
         if argz[0].annotation and argz[1].args[0].annotation:
@@ -71,11 +71,11 @@ def optimize(node):
         else:
             annotation = ''
         return LLLnode("add", [LLLnode(argz[0].value + argz[1].args[0].value, annotation=annotation), argz[1].args[1]],
-                       node.typ, None, node.annotation)
+                       node.typ, None, node.annotation, add_gas_estimate=node.add_gas_estimate)
     elif node.value == "add" and get_int_at(argz, 0) == 0:
-        return LLLnode(argz[1].value, argz[1].args, node.typ, node.location, node.pos, argz[1].annotation)
+        return LLLnode(argz[1].value, argz[1].args, node.typ, node.location, node.pos, argz[1].annotation, add_gas_estimate=node.add_gas_estimate)
     elif node.value == "add" and get_int_at(argz, 1) == 0:
-        return LLLnode(argz[0].value, argz[0].args, node.typ, node.location, node.pos, argz[0].annotation)
+        return LLLnode(argz[0].value, argz[0].args, node.typ, node.location, node.pos, argz[0].annotation, add_gas_estimate=node.add_gas_estimate)
     elif node.value == "clamp" and int_at(argz, 0) and int_at(argz, 1) and int_at(argz, 2):
         if get_int_at(argz, 0, True) > get_int_at(argz, 1, True):
             raise Exception("Clamp always fails")
@@ -87,10 +87,10 @@ def optimize(node):
         if get_int_at(argz, 0, True) > get_int_at(argz, 1, True):
             raise Exception("Clamp always fails")
         else:
-            return LLLnode("clample", [argz[1], argz[2]], node.typ, node.location, node.pos, node.annotation)
+            return LLLnode("clample", [argz[1], argz[2]], node.typ, node.location, node.pos, node.annotation, add_gas_estimate=node.add_gas_estimate)
     elif node.value == "clamp_nonzero" and int_at(argz, 0):
         if get_int_at(argz, 0) != 0:
-            return LLLnode(argz[0].value, [], node.typ, node.location, node.pos, node.annotation)
+            return LLLnode(argz[0].value, [], node.typ, node.location, node.pos, node.annotation, add_gas_estimate=node.add_gas_estimate)
         else:
             raise Exception("Clamp always fails")
     # Turns out this is actually not such a good optimization after all

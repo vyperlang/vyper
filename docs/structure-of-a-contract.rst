@@ -6,7 +6,7 @@
 Structure of a Contract
 ***********************
 
-Contracts in Viper are contained within files, with each file being one smart-contract.  Files in Viper are similar to classes in object-oriented languages.
+Contracts in Vyper are contained within files, with each file being one smart-contract.  Files in Vyper are similar to classes in object-oriented languages.
 Each file can contain declarations of :ref:`structure-state-variables`, :ref:`structure-functions`, and :ref:`structure-structs-types`.
 
 .. _structure-state-variables:

@@ -69,7 +69,7 @@ valid_list = [
 @public
 def foo(choice: bool, choice2: bool):
     if (choice):
-        a = 11
+        a: num = 11
         if choice2 and a > 1:
             a -= 1  # should be visible here.
     """

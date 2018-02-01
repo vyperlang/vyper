@@ -25,7 +25,7 @@ def test_concat2(get_contract_with_gas_estimation):
     test_concat2 = """
 @public
 def foo(inp: bytes <= 50) -> bytes <= 1000:
-    x = inp
+    x: bytes <= 50 = inp
     return concat(x, inp, x, inp, x, inp, x, inp, x, inp)
     """
 
@@ -40,7 +40,7 @@ y: bytes <= 10
 
 @public
 def krazykonkat(z: bytes <= 10) -> bytes <= 25:
-    x = "cow"
+    x: bytes <= 3 = "cow"
     self.y = "horse"
     return concat(x, " ", self.y, " ", z)
     """
@@ -80,8 +80,8 @@ ecks: bytes32
 
 @public
 def foo(x: bytes32, y: bytes32) -> bytes <= 64:
-    selfecks = x
-    return concat(selfecks, y)
+    self.ecks = x
+    return concat(self.ecks, y)
 
 @public
 def goo(x: bytes32, y: bytes32) -> bytes <= 64:

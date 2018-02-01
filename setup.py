@@ -26,8 +26,8 @@ setup(
         'ethereum==2.1.3',
         'bumpversion',
         'pytest-cov',
-        'pytest-runner', # Must be after pytest-cov or it will not work
-        #           due to https://github.com/pypa/setuptools/issues/196
+        'pytest-runner',  # Must be after pytest-cov or it will not work
+                          # due to https://github.com/pypa/setuptools/issues/196
     ],
     scripts=['bin/vyper', 'bin/vyper-serve']
 )

@@ -235,7 +235,7 @@ class Expr(object):
                 o = LLLnode.from_list([op, left, ['mul', right, DECIMAL_DIVISOR]],
                                       typ=BaseType('decimal', new_unit, new_positional), pos=getpos(self.expr))
             else:
-                raise Exception("How did I get here? %r %r" % (ltyp, rtyp))
+                raise Exception("Unsupported Operation '%r(%r, %r)'" % (op, ltyp, rtyp))
         elif isinstance(self.expr.op, ast.Mult):
             if left.typ.positional or right.typ.positional:
                 raise TypeMismatchException("Cannot multiply positional values!", self.expr)
@@ -254,6 +254,8 @@ class Expr(object):
                                             ['seq',
                                                 ['assert', ['or', ['eq', ['sdiv', 'ans', 'l'], 'r'], ['not', 'l']]],
                                                 'ans']]]], typ=BaseType('decimal', new_unit), pos=getpos(self.expr))
+            else:
+                raise Exception("Unsupported Operation 'mul(%r, %r)'" % (ltyp, rtyp))
         elif isinstance(self.expr.op, ast.Div):
             if left.typ.positional or right.typ.positional:
                 raise TypeMismatchException("Cannot divide positional values!", self.expr)
@@ -267,6 +269,8 @@ class Expr(object):
             elif ltyp == 'num' and rtyp == 'decimal':
                 o = LLLnode.from_list(['sdiv', ['mul', left, DECIMAL_DIVISOR ** 2], ['clamp_nonzero', right]],
                                       typ=BaseType('decimal', new_unit), pos=getpos(self.expr))
+            else:
+                raise Exception("Unsupported Operation 'div(%r, %r)'" % (ltyp, rtyp))
         elif isinstance(self.expr.op, ast.Mod):
             if left.typ.positional or right.typ.positional:
                 raise TypeMismatchException("Cannot use positional values as modulus arguments!", self.expr)
@@ -281,6 +285,8 @@ class Expr(object):
             elif ltyp == 'num' and rtyp == 'decimal':
                 o = LLLnode.from_list(['smod', ['mul', left, DECIMAL_DIVISOR], ['clamp_nonzero', right]],
                                       typ=BaseType('decimal', new_unit), pos=getpos(self.expr))
+            else:
+                raise Exception("Unsupported Operation 'mod(%r, %r)'" % (ltyp, rtyp))
         elif isinstance(self.expr.op, ast.Pow):
             if left.typ.positional or right.typ.positional:
                 raise TypeMismatchException("Cannot use positional values as exponential arguments!", self.expr)
@@ -309,6 +315,8 @@ class Expr(object):
         left = Expr(self.expr.left, self.context).lll_node
         right = Expr(self.expr.comparators[0], self.context).lll_node
 
+        if left.typ.typ != right.typ.subtype.typ:
+            raise TypeMismatchException("%s cannot be in a list of %s" % (left.typ.typ, right.typ.subtype.typ))
         result_placeholder = self.context.new_placeholder(BaseType('bool'))
         setter = []
 

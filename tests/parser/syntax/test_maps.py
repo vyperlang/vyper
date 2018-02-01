@@ -192,7 +192,7 @@ def foo():
 b: {foo: num, bar: num}
 @public
 def foo():
-    x = self.b.bar
+    x: num = self.b.bar
     """,
     """
 x: {bar: num, baz: num}

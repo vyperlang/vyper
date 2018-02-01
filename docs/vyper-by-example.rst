@@ -1,5 +1,5 @@
 ###################
-Viper by Example
+Vyper by Example
 ###################
 
 .. index:: auction;open, open auction
@@ -10,10 +10,10 @@ Simple Open Auction
 
 .. _simple_auction:
 
-As an introductory example of a smart contract written in Viper, we will begin
+As an introductory example of a smart contract written in Vyper, we will begin
 with a simple open auction contract. As we dive into the code,
-it is important to remember that all Viper syntax is valid Python3 syntax,
-however not all Python3 functionality is available in Viper.
+it is important to remember that all Vyper syntax is valid Python3 syntax,
+however not all Python3 functionality is available in Vyper.
 
 In this contract, we will be looking at a simple open auction contract where
 participants can submit bids during a limited time period. When the auction
@@ -62,7 +62,7 @@ The contract is initialized with two arguments: ``_beneficiary`` of type
 between the start and end of the auction. We then store these two pieces of
 information into the contract variables ``self.beneficiary`` and
 ``self.auction_end``. Notice that we have access to the current time by
-calling ``block.timestamp``. ``block`` is an object available within any Viper
+calling ``block.timestamp``. ``block`` is an object available within any Vyper
 contract and provides information about the block at the time of calling.
 Similar to ``block``, another important object available to us within the
 contract is ``msg``, which provides information on the method caller as we will
@@ -111,9 +111,9 @@ and sending the highest bid amount to the beneficiary.
 
 And there you have it - an open auction contract. Of course, this is a
 simplified example with barebones functionality and can be improved.
-Hopefully, this has provided some insight to the possibilities of Viper.
+Hopefully, this has provided some insight to the possibilities of Vyper.
 As we move on to exploring more complex examples, we will encounter more
-design patterns and features of the Viper language.
+design patterns and features of the Vyper language.
 
 
 And of course, no smart contract tutorial is complete without a note on
@@ -319,7 +319,7 @@ sends the collected funds to the beneficiary.
   Notice that we have access to the total amount sent to the contract by
   calling ``self.balance``, a variable we never explicitly set. Similar to ``msg``
   and ``block``, ``self.balance`` is a built-in variable thats available in all
-  Viper contracts.
+  Vyper contracts.
 
 We can finalize the campaign if all goes well, but what happens if the
 crowdfunding campaign isn't successful? We're going to need a way to refund
@@ -524,7 +524,7 @@ company's address is initialized to hold all shares of the company in the
 We will be seeing a few ``@constant`` decorators in this contract - which is
 used to decorate methods that simply read the contract state or return a simple
 calculation on the contract state without modifying it. Remember, reading the
-blockchain is free, writing on it is not. Since Viper is a statically typed
+blockchain is free, writing on it is not. Since Vyper is a statically typed
 language, we see an arrow following the definition of the ``stock_available()``
 method, which simply represents the datatype which the function is expected
 to return. In the method, we simply key into ``self.holdings`` with the
@@ -608,5 +608,5 @@ subtracting its debt from its ether balance.
 
 This contract has been the most thorough example so far in terms of its
 functionality and features. Yet despite the thoroughness of such a contract, the
-logic remained simple. Hopefully, by now, the Viper language has convinced you
+logic remained simple. Hopefully, by now, the Vyper language has convinced you
 of its capabilities and readability in writing smart contracts.

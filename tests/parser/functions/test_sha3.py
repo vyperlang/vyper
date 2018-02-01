@@ -41,7 +41,7 @@ def tryy(inp: bytes <= 100) -> bool:
 
 @public
 def trymem(inp: bytes <= 100) -> bool:
-    x = self.test
+    x: bytes <= 100 = self.test
     return sha3(inp) == sha3(x)
 
 @public

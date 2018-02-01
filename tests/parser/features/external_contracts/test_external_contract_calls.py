@@ -103,9 +103,9 @@ def set_lucky(arg1: address, arg2: num):
     """
     c2 = get_contract(contract_2)
 
-    assert c.get_lucky() == 0
+    assert c.lucky() == 0
     c2.set_lucky(c.address, lucky_number)
-    assert c.get_lucky() == lucky_number
+    assert c.lucky() == lucky_number
     print('Successfully executed an external contract call state change')
 
 
@@ -179,8 +179,8 @@ def set_lucky(arg1: address, arg2: num):
 
     c3.set_lucky(c.address, lucky_number_1)
     c3.set_lucky(c2.address, lucky_number_2)
-    assert c.get_lucky() == lucky_number_1
-    assert c2.get_lucky() == lucky_number_2
+    assert c.lucky() == lucky_number_1
+    assert c2.lucky() == lucky_number_2
     print('Successfully executed multiple external contract calls to different contracts based on address')
 
 
@@ -198,11 +198,11 @@ def __init__(_lucky: num):
 
     contract_2 = """
 class Foo():
-    def get_lucky() -> num: pass
+    def lucky() -> num: pass
 
 @public
 def bar(arg1: address) -> num:
-    return Foo(arg1).get_lucky()
+    return Foo(arg1).lucky()
     """
     c2 = get_contract(contract_2)
 
@@ -224,29 +224,29 @@ def __init__(_lucky: num):
 
     contract_2 = """
 class Foo():
-    def get_lucky() -> num: pass
+    def lucky() -> num: pass
 
 magic_number: public(num)
 
 @public
 def __init__(arg1: address):
-    self.magic_number = Foo(arg1).get_lucky()
+    self.magic_number = Foo(arg1).lucky()
     """
 
     c2 = get_contract(contract_2, args=[c.address])
     contract_3 = """
 class Bar():
-    def get_magic_number() -> num: pass
+    def magic_number() -> num: pass
 
 best_number: public(num)
 
 @public
 def __init__(arg1: address):
-    self.best_number = Bar(arg1).get_magic_number()
+    self.best_number = Bar(arg1).magic_number()
     """
 
     c3 = get_contract(contract_3, args=[c2.address])
-    assert c3.get_best_number() == lucky_number
+    assert c3.best_number() == lucky_number
     print('Successfully executed a multiple external contract calls')
 
 
@@ -506,7 +506,7 @@ def get_bar() -> num:
     c1 = get_contract(contract_1)
     c2 = get_contract(contract_2)
     c2.foo(c1.address)
-    assert utils.remove_0x_head(c2.get_bar_contract()) == c1.address.hex()
+    assert utils.remove_0x_head(c2.bar_contract()) == c1.address.hex()
     assert c2.get_bar() == 1
 
 

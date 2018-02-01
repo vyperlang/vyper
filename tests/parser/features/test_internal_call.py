@@ -180,12 +180,12 @@ def bar() -> num:
 
 @public
 def bar2() -> num:
-    x = [55, 66]
+    x: num[2] = [55, 66]
     return self.foo0(x)
 
 @public
 def bar3() -> num:
-    x = [55, 66]
+    x: num[2] = [55, 66]
     return self.foo1(x)
     """
 
@@ -258,30 +258,30 @@ def bar() -> num:
 # list as second parameter
 @public
 def bar2() -> num:
-    x = [55, 66]
+    x: num[2] = [55, 66]
     return self.foo0(0.01, x)
 
 @public
 def bar3() -> decimal:
-    x = [88, 77]
+    x: num[2] = [88, 77]
     return self.foo2(1.33, x)
 
 # list as first parameter
 @public
 def bar4() -> num:
-    x = [88, 77]
+    x: num[2] = [88, 77]
     return self.foo1(x, 1.33)
 
 @public
 def bar5() -> num:
-    x = [88, 77]
+    x: num[2] = [88, 77]
     return self.foo3(x, 1.33)
 
 # two lists
 @public
 def bar6() -> num:
-    x = [88, 77]
-    y = [99, 66]
+    x: num[2] = [88, 77]
+    y: num[2] = [99, 66]
     return self.foo4(x, y)
 
     """
@@ -307,10 +307,10 @@ def fooa(x: num[2], y: decimal, z: num[2], a: decimal) -> decimal:
 
 @public
 def bar() -> (num, decimal):
-    x = [33, 44]
-    y = 55.44
-    z = [55, 66]
-    a = 66.77
+    x: num[2] = [33, 44]
+    y: decimal = 55.44
+    z: num[2] = [55, 66]
+    a: decimal = 66.77
 
     return self.fooz(x, y, z, a), self.fooa(x, y, z, a)
     """
@@ -334,10 +334,10 @@ def foox(x: num[2], y: decimal, z: bytes <= 11, a: decimal) -> num:
 
 @public
 def bar() -> (bytes <= 11, decimal, num):
-    x = [33, 44]
-    y = 55.44
-    z = "hello world"
-    a = 66.77
+    x: num[2] = [33, 44]
+    y: decimal = 55.44
+    z: bytes <=11 = "hello world"
+    a: decimal = 66.77
 
     return self.fooz(x, y, z, a), self.fooa(x, y, z, a), self.foox(x, y, z, a)
     """

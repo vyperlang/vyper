@@ -141,10 +141,10 @@ class NullType(NodeType):
 
 
 # Convert type into common form used in ABI
-def canonicalize_type(t, is_event=False):
+def canonicalize_type(t, is_indexed=False):
     if isinstance(t, ByteArrayType):
         # Check to see if maxlen is small enough for events
-        if is_event and t.maxlen <= 32:
+        if is_indexed:
             return 'bytes{}'.format(t.maxlen)
         else:
             return 'bytes'

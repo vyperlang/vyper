@@ -60,17 +60,17 @@ def foo():
     """
 @public
 def foo():
-    x = as_wei_value(5.1824, ada)
+    x = as_wei_value(5.1824, "ada")
     """,
     """
 @public
 def foo():
-    x = as_wei_value(0x05, ada)
+    x = as_wei_value(0x05, "ada")
     """,
     """
 @public
 def foo():
-    x = as_wei_value(5, vader)
+    x = as_wei_value(5, "vader")
     """,
     """
 @public

@@ -95,7 +95,6 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
     else:
         raise TypeMismatchException("Expecting one of %r for argument %r of %s" %
                                     (expected_arg_typelist, index, function_name), arg)
-        return arg.id
 
 
 def signature(*argz, **kwargz):
@@ -173,7 +172,7 @@ def as_unitless_number(expr, args, kwargs, context):
     return LLLnode(value=args[0].value, args=args[0].args, typ=BaseType(args[0].typ.typ, {}), pos=getpos(expr))
 
 
-@signature(('num', 'bytes32', 'num256', 'address'))
+@signature(('num', 'bytes32', 'num256'))
 def as_num128(expr, args, kwargs, context):
     return LLLnode.from_list(
         ['clamp', ['mload', MemoryPositions.MINNUM], args[0], ['mload', MemoryPositions.MAXNUM]], typ=BaseType("num"), pos=getpos(expr)
@@ -438,22 +437,22 @@ def bytes_to_num(expr, args, kwargs, context):
     return byte_array_to_num(args[0], expr, 'num')
 
 
-@signature(('num_literal', 'num', 'decimal'), 'name_literal')
+@signature(('num_literal', 'num', 'decimal'), 'str_literal')
 def as_wei_value(expr, args, kwargs, context):
     # Denominations
-    if args[1] == "wei":
+    if args[1] == b"wei":
         denomination = 1
-    elif args[1] in ("kwei", "ada", "lovelace"):
+    elif args[1] in (b"kwei", b"ada", b"lovelace"):
         denomination = 10**3
-    elif args[1] == "babbage":
+    elif args[1] == b"babbage":
         denomination = 10**6
-    elif args[1] in ("shannon", "gwei"):
+    elif args[1] in (b"shannon", b"gwei"):
         denomination = 10**9
-    elif args[1] == "szabo":
+    elif args[1] == b"szabo":
         denomination = 10**12
-    elif args[1] == "finney":
+    elif args[1] == b"finney":
         denomination = 10**15
-    elif args[1] == "ether":
+    elif args[1] == b"ether":
         denomination = 10**18
     else:
         raise InvalidLiteralException("Invalid denomination: %s" % args[1], expr.args[1])

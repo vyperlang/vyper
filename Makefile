@@ -6,7 +6,7 @@ init:
 test:
 	python setup.py test
 
-clean: clean-build clean-pyc
+clean: clean-build clean-pyc clean-test
 
 clean-build:
 	rm -fr build/
@@ -17,6 +17,10 @@ clean-pyc:
 	find . -name '*.pyc' -exec rm -f {} +
 	find . -name '*.pyo' -exec rm -f {} +
 	find . -name '*~' -exec rm -f {} +
+	find . -name '__pycache__' -exec rmdir {} +
+
+clean-test:
+	find . -name 'htmlcov' -exec rm -rf {} +
 
 docs:
 	rm -f docs/vyper.rst

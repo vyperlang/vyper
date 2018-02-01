@@ -1,5 +1,9 @@
 from ethereum.tools import tester as t
 from ethereum import utils
+from vyper import compiler
+
+
+t.languages['vyper'] = compiler.Compiler()
 t.s = t.Chain()
 t.s.head_state.gas_limit = 10**9
 

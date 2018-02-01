@@ -44,7 +44,7 @@ def foo(x: timedelta, y: timedelta) -> timedelta:
     """
 @public
 def foo() -> timestamp:
-    x = 30
+    x: num = 30
     y: timestamp
     return x + y
     """,
@@ -119,7 +119,7 @@ def foo(x: timestamp) -> timestamp:
     """
 @public
 def foo(x: timestamp) -> timestamp:
-    y = x
+    y: timestamp = x
     return y
     """,
     """

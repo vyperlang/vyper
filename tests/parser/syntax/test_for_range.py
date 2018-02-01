@@ -18,7 +18,7 @@ def foo():
     """
 @public
 def foo():
-    x = 5
+    x: num = 5
     for i in range(x, x + 10):
         pass
     """

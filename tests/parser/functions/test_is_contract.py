@@ -2,7 +2,7 @@ def test_is_contract(t, get_contract_with_gas_estimation):
     contract_1 = """
 @public
 def foo(arg1: address) -> bool:
-    result = arg1.is_contract
+    result: bool = arg1.is_contract
     return result
 """
 

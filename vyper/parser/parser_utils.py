@@ -218,9 +218,9 @@ class LLLnode():
                 obj.location = location
             return obj
         elif not isinstance(obj, list):
-            return cls(obj, [], typ, location, pos, annotation, mutable, add_gas_estimate)
+            return cls(obj, [], typ, location, pos, annotation, mutable, add_gas_estimate=add_gas_estimate)
         else:
-            return cls(obj[0], [cls.from_list(o, pos=pos) for o in obj[1:]], typ, location, pos, annotation, mutable, add_gas_estimate)
+            return cls(obj[0], [cls.from_list(o, pos=pos) for o in obj[1:]], typ, location, pos, annotation, mutable, add_gas_estimate=add_gas_estimate)
 
 
 # Get a decimal number as a fraction with denominator multiple of 10
@@ -316,7 +316,7 @@ def make_byte_slice_copier(destination, source, length, max_length):
                 ['with', '_actual_len', length,
                     ['repeat', MemoryPositions.FREE_LOOP_INDEX, 0, (max_length + 31) // 32,
                         ['seq', checker, setter]]]]]
-    return LLLnode.from_list(o, typ=None, annotation='copy byte slice')
+    return LLLnode.from_list(o, typ=None, annotation='copy byte slice src: %s dst: %s' % (source, destination))
 
 
 # Takes a <32 byte array as input, and outputs a number.
