@@ -48,6 +48,7 @@ Following the principles and goals, Vyper **does not** provide the following fea
 Compatibility-breaking Changelog
 ********************************
 
+* **2018.02.01**: Functions cannot have the same name as globals.
 * **2018.01.27**: Change getter from get_var to var.
 * **2018.01.11**: Change version from 0.0.2 to 0.0.3
 * **2018.01.04**: Types need to be specified on assignment (`VIP545 <https://github.com/ethereum/vyper/issues/545>`_).
