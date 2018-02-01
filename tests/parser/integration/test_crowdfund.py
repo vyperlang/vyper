@@ -19,7 +19,7 @@ def __init__(_beneficiary: address, _goal: wei_value, _timelimit: timedelta):
 @public
 @payable
 def participate():
-    # assert block.timestamp < self.deadline
+    assert block.timestamp < self.deadline
     nfi: num = self.nextFunderIndex
     self.funders[nfi].sender = msg.sender
     self.funders[nfi].value = msg.value
