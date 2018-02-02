@@ -19,8 +19,8 @@ INIT_BAL = 1000000000000000000000000
 def srp_tester():
     t = tester
     tester.s = t.Chain()
-    from viper import compiler
-    t.languages["viper"] = compiler.Compiler()
+    from vyper import compiler
+    t.languages["vyper"] = compiler.Compiler()
     return tester
 
 
@@ -35,9 +35,9 @@ def check_balance(tester):
 def test_initial_state(srp_tester, assert_tx_failed):
     assert check_balance(srp_tester) == [INIT_BAL, INIT_BAL]
     # Inital deposit has to be divisible by two
-    assert_tx_failed(lambda: srp_tester.s.contract(contract_code, language="viper", args=[], value=1))
+    assert_tx_failed(lambda: srp_tester.s.contract(contract_code, language="vyper", args=[], value=1))
     # Seller puts item up for sale
-    srp_tester.c = tester.s.contract(contract_code, language="viper", args=[], value=2)
+    srp_tester.c = tester.s.contract(contract_code, language="vyper", args=[], value=2)
     # Check that the seller is set correctly
     assert utils.remove_0x_head(srp_tester.c.seller()) == srp_tester.accounts[0].hex()
     # Check if item value is set correctly (Half of deposit)
@@ -49,20 +49,20 @@ def test_initial_state(srp_tester, assert_tx_failed):
 
 
 def test_abort(srp_tester, assert_tx_failed):
-    srp_tester.c = srp_tester.s.contract(contract_code, language="viper", args=[], value=2)
+    srp_tester.c = srp_tester.s.contract(contract_code, language="vyper", args=[], value=2)
     # Only sender can trigger refund
     assert_tx_failed(lambda: srp_tester.c.abort(sender=srp_tester.k2))
     # Refund works correctly
     srp_tester.c.abort(sender=srp_tester.k0)
     assert check_balance(srp_tester) == [INIT_BAL, INIT_BAL]
     # Purchase in process, no refund possible
-    srp_tester.c = srp_tester.s.contract(contract_code, language="viper", args=[], value=2)
+    srp_tester.c = srp_tester.s.contract(contract_code, language="vyper", args=[], value=2)
     srp_tester.c.purchase(value=2, sender=srp_tester.k1)
     assert_tx_failed(lambda: srp_tester.c.abort(sender=srp_tester.k0))
 
 
 def test_purchase(srp_tester, assert_tx_failed):
-    srp_tester.c = srp_tester.s.contract(contract_code, language="viper", args=[], value=2)
+    srp_tester.c = srp_tester.s.contract(contract_code, language="vyper", args=[], value=2)
     # Purchase for too low/high price
     assert_tx_failed(lambda: srp_tester.c.purchase(value=1, sender=srp_tester.k1))
     assert_tx_failed(lambda: srp_tester.c.purchase(value=3, sender=srp_tester.k1))
@@ -79,7 +79,7 @@ def test_purchase(srp_tester, assert_tx_failed):
 
 
 def test_received(srp_tester, assert_tx_failed):
-    srp_tester.c = srp_tester.s.contract(contract_code, language="viper", args=[], value=2)
+    srp_tester.c = srp_tester.s.contract(contract_code, language="vyper", args=[], value=2)
     # Can only be called after purchase
     assert_tx_failed(lambda: srp_tester.c.received(sender=srp_tester.k1))
     # Purchase completed

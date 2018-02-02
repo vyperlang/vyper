@@ -6,10 +6,10 @@ FIVE_DAYS = 432000
 
 @pytest.fixture
 def auction_tester(t):
-    from viper import compiler
-    t.languages['viper'] = compiler.Compiler()
+    from vyper import compiler
+    t.languages['vyper'] = compiler.Compiler()
     contract_code = open('examples/auctions/simple_open_auction.v.py').read()
-    t.c = t.s.contract(contract_code, language='viper', args=[t.accounts[0], FIVE_DAYS])
+    t.c = t.s.contract(contract_code, language='vyper', args=[t.accounts[0], FIVE_DAYS])
     return t
 
 

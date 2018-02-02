@@ -13,7 +13,7 @@ with open('LICENSE') as f:
 version = '0.0.3'
 
 setup(
-    name='viper',
+    name='vyper',
     version=version,
     description='Viper Programming Language for Ethereum',
     long_description=readme,

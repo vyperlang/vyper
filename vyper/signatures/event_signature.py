@@ -1,9 +1,10 @@
-from viper.types import get_size_of_type, canonicalize_type, parse_type, \
-    ByteArrayType
-from viper.utils import sha3, is_varname_valid, bytes_to_int, ceil32
 import ast
-from viper.function_signature import VariableRecord
-from viper.exceptions import InvalidTypeException, VariableDeclarationException
+
+from vyper.types import get_size_of_type, canonicalize_type, parse_type, \
+    ByteArrayType
+from vyper.utils import sha3, is_varname_valid, bytes_to_int, ceil32
+from vyper.function_signature import VariableRecord
+from vyper.exceptions import InvalidTypeException, VariableDeclarationException
 
 
 # Event signature object

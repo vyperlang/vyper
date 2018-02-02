@@ -1,12 +1,12 @@
 import pytest
-from viper import compiler
+from vyper import compiler
 
 
 @pytest.fixture
 def market_maker(t, chain):
-    t.languages['viper'] = compiler.Compiler()
+    t.languages['vyper'] = compiler.Compiler()
     contract_code = open('examples/market_maker/on_chain_market_maker.v.py').read()
-    return chain.contract(contract_code, language='viper')
+    return chain.contract(contract_code, language='vyper')
 
 
 TOKEN_NAME = "Vipercoin"
@@ -18,9 +18,9 @@ TOKEN_TOTAL_SUPPLY = TOKEN_INITIAL_SUPPLY * (10 ** TOKEN_DECIMALS)
 
 @pytest.fixture
 def erc20(t, chain):
-    t.languages['viper'] = compiler.Compiler()
+    t.languages['vyper'] = compiler.Compiler()
     contract_code = open('examples/tokens/vipercoin.v.py').read()
-    return chain.contract(contract_code, language='viper', args=[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY])
+    return chain.contract(contract_code, language='vyper', args=[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY])
 
 
 def test_initial_statet(market_maker, utils):

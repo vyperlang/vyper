@@ -1,4 +1,4 @@
-from viper.compiler import mk_full_signature
+from vyper.compiler import mk_full_signature
 
 
 def test_only_init_function():

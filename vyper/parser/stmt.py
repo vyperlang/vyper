@@ -1,13 +1,13 @@
 import ast
 import re
 
-from viper.exceptions import (
+from vyper.exceptions import (
     ConstancyViolationException,
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
 )
-from viper.functions import (
+from vyper.functions import (
     stmt_dispatch_table,
 )
 from .parser_utils import LLLnode
@@ -17,19 +17,19 @@ from .parser_utils import (
     base_type_conversion,
     unwrap_location
 )
-from viper.types import (
+from vyper.types import (
     BaseType,
     ByteArrayType,
     ListType,
     TupleType,
     StructType
 )
-from viper.types import (
+from vyper.types import (
     get_size_of_type,
     is_base_type,
     parse_type,
 )
-from viper.types import (
+from vyper.types import (
     are_units_compatible,
     set_default_units,
 )

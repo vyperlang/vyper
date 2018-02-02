@@ -30,7 +30,7 @@ def foo(inp: bytes <= 50) -> bytes <= 1000:
     """
 
     c = get_contract_with_gas_estimation(test_concat2)
-    assert c.foo(b"horse" * 9 + b"viper") == (b"horse" * 9 + b"viper") * 10
+    assert c.foo(b"horse" * 9 + b"vyper") == (b"horse" * 9 + b"vyper") * 10
     print('Passed second concat test')
 
 

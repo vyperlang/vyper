@@ -13,7 +13,7 @@ install:
 
 script:
   - python setup.py test
-  - flake8 viper/ tests/
+  - flake8 vyper/ tests/
 
 after_success:
 - coveralls

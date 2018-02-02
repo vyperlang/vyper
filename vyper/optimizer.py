@@ -1,5 +1,5 @@
-from viper.parser.parser_utils import LLLnode
-from viper.utils import LOADED_LIMIT_MAP
+from vyper.parser.parser_utils import LLLnode
+from vyper.utils import LOADED_LIMIT_MAP
 
 
 def get_int_at(args, pos, signed=False):

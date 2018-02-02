@@ -23,9 +23,9 @@ clean-test:
 	find . -name 'htmlcov' -exec rm -rf {} +
 
 docs:
-	rm -f docs/viper.rst
+	rm -f docs/vyper.rst
 	rm -f docs/modules.rst
-	sphinx-apidoc -o docs/ -d 2 viper/
+	sphinx-apidoc -o docs/ -d 2 vyper/
 	$(MAKE) -C docs clean
 	$(MAKE) -C docs html
 	open docs/_build/html/index.html

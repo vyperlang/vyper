@@ -1,4 +1,4 @@
-name: viper
+name: vyper
 version: git
 summary: Experimental language for the Ethereum Virtual Machine
 description: |
@@ -9,7 +9,7 @@ confinement: devmode # use 'strict' once you have the right plugs and slots
 
 apps:
   viper:
-    command: viper
+    command: vyper
 
 parts:
   viper:

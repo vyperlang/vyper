@@ -1,4 +1,4 @@
-from viper.exceptions import StructureException, VariableDeclarationException, InvalidTypeException
+from vyper.exceptions import StructureException, VariableDeclarationException, InvalidTypeException
 
 
 def test_external_contract_calls(get_contract_with_gas_estimation):

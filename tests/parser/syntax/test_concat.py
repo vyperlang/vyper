@@ -1,6 +1,6 @@
 import pytest
 
-from viper import compiler
+from vyper import compiler
 
 
 fail_list = [

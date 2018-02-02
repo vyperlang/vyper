@@ -6,7 +6,7 @@ from .exceptions import (
     StructureException,
     TypeMismatchException,
 )
-from viper.parser.parser_utils import (
+from vyper.parser.parser_utils import (
     byte_array_to_num,
     LLLnode,
     get_length,
@@ -18,7 +18,7 @@ from viper.parser.parser_utils import (
     add_variable_offset,
     unwrap_location
 )
-from viper.parser.expr import (
+from vyper.parser.expr import (
     Expr,
 )
 from .types import (
@@ -33,7 +33,7 @@ from .types import (
     is_base_type,
     get_size_of_type,
 )
-from viper.utils import (
+from vyper.utils import (
     MemoryPositions,
     DECIMAL_DIVISOR,
     RLP_DECODER_ADDRESS

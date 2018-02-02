@@ -1,8 +1,8 @@
 import pytest
 from pytest import raises
 
-from viper import compiler
-from viper.exceptions import VariableDeclarationException
+from vyper import compiler
+from vyper.exceptions import VariableDeclarationException
 
 
 fail_list = [

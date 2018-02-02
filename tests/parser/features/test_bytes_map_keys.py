@@ -1,5 +1,5 @@
 import pytest
-from viper.exceptions import TypeMismatchException
+from vyper.exceptions import TypeMismatchException
 
 
 def test_basic_bytes_keys(get_contract):

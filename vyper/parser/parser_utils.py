@@ -2,9 +2,9 @@ import re
 
 from ethereum import opcodes
 
-from viper.exceptions import TypeMismatchException
-from viper.opcodes import comb_opcodes
-from viper.types import (
+from vyper.exceptions import TypeMismatchException
+from vyper.opcodes import comb_opcodes
+from vyper.types import (
     BaseType,
     ByteArrayType,
     NodeType,
@@ -14,13 +14,13 @@ from viper.types import (
     TupleType,
     ListType,
 )
-from viper.types import (
+from vyper.types import (
     is_base_type,
     are_units_compatible,
     get_size_of_type,
     ceil32
 )
-from viper.utils import MemoryPositions, DECIMAL_DIVISOR
+from vyper.utils import MemoryPositions, DECIMAL_DIVISOR
 
 
 class NullAttractor():
