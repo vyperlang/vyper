@@ -228,6 +228,9 @@ class Expr(object):
             op = 'add' if isinstance(self.expr.op, ast.Add) else 'sub'
             if ltyp == rtyp:
                 o = LLLnode.from_list([op, left, right], typ=BaseType(ltyp, new_unit, new_positional), pos=getpos(self.expr))
+            elif ltyp == 'num256' and rtyp == 'num' or ltyp == 'num' and rtyp == 'num256':
+                o = LLLnode.from_list([op, left, right],
+                                      typ=BaseType('num256', new_unit, new_positional), pos=getpos(self.expr))
             elif ltyp == 'num' and rtyp == 'decimal':
                 o = LLLnode.from_list([op, ['mul', left, DECIMAL_DIVISOR], right],
                                       typ=BaseType('decimal', new_unit, new_positional), pos=getpos(self.expr))
@@ -242,6 +245,8 @@ class Expr(object):
             new_unit = combine_units(left.typ.unit, right.typ.unit)
             if ltyp == rtyp == 'num':
                 o = LLLnode.from_list(['mul', left, right], typ=BaseType('num', new_unit), pos=getpos(self.expr))
+            elif ltyp == 'num256' and rtyp == 'num' or ltyp == 'num' and rtyp == 'num256':
+                o = LLLnode.from_list(['mul', left, right], typ=BaseType('num256', new_unit), pos=getpos(self.expr))
             elif ltyp == rtyp == 'decimal':
                 o = LLLnode.from_list(['with', 'r', right, ['with', 'l', left,
                                         ['with', 'ans', ['mul', 'l', 'r'],
@@ -307,6 +312,9 @@ class Expr(object):
             return LLLnode.from_list(['clamp', ['mload', MemoryPositions.MINNUM], o, ['mload', MemoryPositions.MAXNUM]], typ=o.typ, pos=getpos(self.expr))
         elif o.typ.typ == 'decimal':
             return LLLnode.from_list(['clamp', ['mload', MemoryPositions.MINDECIMAL], o, ['mload', MemoryPositions.MAXDECIMAL]], typ=o.typ, pos=getpos(self.expr))
+        elif o.typ.typ == 'num256':
+            # No clamping required, takes up full register
+            return LLLnode.from_list(o, typ=o.typ, pos=getpos(self.expr))
         else:
             raise Exception("%r %r" % (o, o.typ))
 
