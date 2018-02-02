@@ -171,7 +171,11 @@ class TestERC20(PyEthereumTestCase):
     def test_maxInts(self):
         initial_a1_balance = self.s.head_state.get_balance(self.t.a1)
         # Check boundary conditions - a1 can deposit max amount
-        self.assertIsNone(self.c.deposit(value=MAX_UINT256, sender=self.t.k1))
+        # @TODO fix this, it's hacky and will cause divergences
+        # we'd like to deposit MAX_UINT256: see https://github.com/ethereum/vyper/issues/653
+        self.assertIsNone(self.c.deposit(value=int(MAX_UINT256 / 2) - 1, sender=self.t.k1))
+        self.assertIsNone(self.c.deposit(value=int(MAX_UINT256 / 2) - 1, sender=self.t.k1))
+        self.assertIsNone(self.c.deposit(value=1, sender=self.t.k1))
         self.assertEqual(initial_a1_balance - self.s.head_state.get_balance(self.t.a1), MAX_UINT256)
         self.assertEqual(self.c.get_balanceOf(self.t.a1), MAX_UINT256)
         self.assert_tx_failed(lambda: self.c.deposit(value=1, sender=self.t.k1))
@@ -341,7 +345,7 @@ class TestViperERC20(TestERC20):
         cls.c = cls.s.contract(contract_code, language='viper')
         # Bad version of contract where totalSupply / num_issued never gets updated after init
         # (required for full decision/branch coverage)
-        bad_code = contract_code.replace("self.num_issued = num256_add", "x = num256_add")
+        bad_code = contract_code.replace("self.num_issued = num256_add(self.num_issued, _value)", "p:num = 5")
         cls.c_bad = cls.s.contract(bad_code, language='viper')
 
         cls.initial_state = cls.s.snapshot()
@@ -354,10 +358,14 @@ class TestViperERC20(TestERC20):
     def test_bad_transfer(self):
         # Ensure transfer fails if it would otherwise overflow balance
         # (bad contract is used or overflow checks on total supply would fail)
-        self.assertIsNone(self.c_bad.deposit(value=MAX_UINT256, sender=self.t.k1))
-        self.assertIsNone(self.c_bad.deposit(value=1, sender=self.t.k2))
-        self.assert_tx_failed(lambda: self.c_bad.transfer(self.t.a1, 1, sender=self.t.k2))
-        self.assertTrue(self.c_bad.transfer(self.t.a2, MAX_UINT256 - 1, sender=self.t.k1))
+        # @TODO fix this, it's hacky and will cause divergences
+        # we'd like to deposit MAX_UINT256: see https://github.com/ethereum/vyper/issues/653
+        self.assertIsNone(self.c_bad.deposit(value=int(MAX_UINT256 / 2) - 1, sender=self.t.k1))
+        self.assertIsNone(self.c_bad.deposit(value=int(MAX_UINT256 / 2) - 1, sender=self.t.k1))
+        self.assertIsNone(self.c_bad.deposit(value=1, sender=self.t.k1))
+        self.assertIsNone(self.c_bad.deposit(value=3, sender=self.t.k2))
+        self.assert_tx_failed(lambda: self.c_bad.transfer(self.t.a1, 3, sender=self.t.k2))
+        self.assertTrue(self.c_bad.transfer(self.t.a2, MAX_UINT256 - 3, sender=self.t.k1))
 
     def test_bad_deposit(self):
         # Check that, in event when totalSupply is corrupted, it can't be underflowed
@@ -368,7 +376,11 @@ class TestViperERC20(TestERC20):
 
     def test_bad_transferFrom(self):
         # Ensure transferFrom fails if it would otherwise overflow balance
-        self.assertIsNone(self.c_bad.deposit(value=MAX_UINT256, sender=self.t.k1))
+        # @TODO fix this, it's hacky and will cause divergences
+        # we'd like to deposit MAX_UINT256: see https://github.com/ethereum/vyper/issues/653
+        self.assertIsNone(self.c_bad.deposit(value=int(MAX_UINT256 / 2) - 1, sender=self.t.k1))
+        self.assertIsNone(self.c_bad.deposit(value=int(MAX_UINT256 / 2) - 1, sender=self.t.k1))
+        self.assertIsNone(self.c_bad.deposit(value=1, sender=self.t.k1))
         self.assertIsNone(self.c_bad.deposit(value=1, sender=self.t.k2))
         self.assertTrue(self.c_bad.approve(self.t.a1, 1, sender=self.t.k2))
         self.assert_tx_failed(lambda: self.c_bad.transferFrom(self.t.a2, self.t.a1, 1, sender=self.t.k1))
