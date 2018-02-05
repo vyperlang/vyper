@@ -1,11 +1,12 @@
 import ast
 
 from vyper.exceptions import (
+    ConstancyViolationException,
+    InvalidLiteralException,
+    NonPayableViolationException,
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
-    InvalidLiteralException,
-    NonPayableViolationException,
 )
 from .parser_utils import LLLnode
 from .parser_utils import (
@@ -461,7 +462,12 @@ class Expr(object):
             if method_name not in self.context.sigs['self']:
                 raise VariableDeclarationException("Function not declared yet (reminder: functions cannot "
                                                    "call functions later in code than themselves): %s" % self.expr.func.attr)
-            sig = self.context.sigs['self'][self.expr.func.attr]
+
+            sig = self.context.sigs['self'][method_name]
+            if self.context.is_constant and not sig.const:
+                raise  ConstancyViolationException(
+                    "May not call non-constant function '%s' within a constant function." % (method_name)
+                )
             add_gas = self.context.sigs['self'][method_name].gas  # gas of call
             inargs, inargsize = pack_arguments(sig, [Expr(arg, self.context).lll_node for arg in self.expr.args], self.context)
             output_placeholder = self.context.new_placeholder(typ=sig.output_type)
