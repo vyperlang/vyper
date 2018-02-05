@@ -138,8 +138,6 @@ def is_varname_valid(varname):
         return False
     if varname.lower() in reserved_words:
         return False
-    if varname[0] == '~':
-        return False
     if varname.upper() in opcodes:
         return False
     return True
