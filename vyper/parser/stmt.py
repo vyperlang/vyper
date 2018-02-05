@@ -164,7 +164,7 @@ class Stmt(object):
                                                     "call functions later in code than themselves): %s" % self.stmt.func.attr)
             sig = self.context.sigs['self'][method_name]
             if self.context.is_constant and not sig.const:
-                raise  ConstancyViolationException(
+                raise ConstancyViolationException(
                     "May not call non-constant function '%s' within a constant function." % (method_name)
                 )
             add_gas = self.context.sigs['self'][method_name].gas

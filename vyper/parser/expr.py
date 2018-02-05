@@ -465,7 +465,7 @@ class Expr(object):
 
             sig = self.context.sigs['self'][method_name]
             if self.context.is_constant and not sig.const:
-                raise  ConstancyViolationException(
+                raise ConstancyViolationException(
                     "May not call non-constant function '%s' within a constant function." % (method_name)
                 )
             add_gas = self.context.sigs['self'][method_name].gas  # gas of call
