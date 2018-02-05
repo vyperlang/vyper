@@ -99,6 +99,11 @@ a:decimal
 @public
 def foo():
     self.a = 170141183460469231731687303715884105727.888
+    """,
+    """
+@public
+def foo():
+    a: bytes <= 100 = "ѓtest"
     """
 ]
 
