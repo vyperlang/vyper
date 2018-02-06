@@ -80,6 +80,9 @@ x: num(wei ** -1)
 x: num(wei >> 3)
     """,
     """
+x: num()
+    """,
+    """
 x: bytes <= wei
     """,
     """
