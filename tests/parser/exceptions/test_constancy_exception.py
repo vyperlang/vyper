@@ -52,6 +52,31 @@ def foo() -> num:
 @public
 def foo(x: num):
     x = 5
+    """,
+    """
+f:num
+
+@public
+def a (x:num)->num:
+    self.f = 100
+    return x+5
+
+@constant
+@public
+def b():
+    p: num = self.a(10)
+    """,
+    """
+f:num
+
+@public
+def a (x:num):
+    self.f = 100
+
+@constant
+@public
+def b():
+    self.a(10)
     """
 ]
 
