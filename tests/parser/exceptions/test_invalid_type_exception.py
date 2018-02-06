@@ -60,6 +60,24 @@ def foo() -> num(wei / sec):
 @public
 def foo() -> {cow: num, dog: num}:
     return {cow: 5, dog: 7}
+    """,
+    """
+x: wei(wei)
+    """,
+    """
+x: num(address)
+    """,
+    """
+x: num(wei and sec)
+    """,
+    """
+x: num(2 ** 2)
+    """,
+    """
+x: num(wei ** -1)
+    """,
+    """
+x: num(wei >> 3)
     """
 ]
 
