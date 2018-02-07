@@ -179,6 +179,7 @@ def canonicalize_type(t, is_indexed=False):
         return 'real128x128'
     raise Exception("Invalid or unsupported type: " + repr(t))
 
+
 # Special types
 special_types = {
     'timestamp': BaseType('num', {'sec': 1}, True),

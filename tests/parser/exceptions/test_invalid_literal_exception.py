@@ -104,6 +104,11 @@ def foo():
 @public
 def foo():
     a: bytes <= 100 = "ѓtest"
+    """,
+    """
+@public
+def foo():
+    a: bytes32 = sha3("ѓtest")
     """
 ]
 
