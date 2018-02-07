@@ -18,7 +18,7 @@ allowed: num[address][address]
 
 @public
 def __init__(_name: bytes32, _symbol: bytes32, _decimals: num, _initialSupply: num):
-    
+
     self.name = _name
     self.symbol = _symbol
     self.decimals = _decimals
@@ -79,7 +79,7 @@ def transferFrom(_from: address, _to: address, _value: num(num256)) -> bool:
     self.allowed[_from][msg.sender] -= _value  # decrease allowance.
     self.balances[_to] += _value  # incease balance of to address.
     log.Transfer(_from, _to, as_num256(_value))  # log transfer event.
-    
+
     return True
 
 

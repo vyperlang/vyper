@@ -7,8 +7,8 @@ from vyper.parser.parser import parse_to_lll
 from vyper.parser import parser_utils
 
 
-parser = argparse.ArgumentParser(description='Viper {0} programming language for Ethereum'.format(viper.__version__))
-parser.add_argument('input_file', help='Viper sourcecode to compile')
+parser = argparse.ArgumentParser(description='Vyper {0} programming language for Ethereum'.format(vyper.__version__))
+parser.add_argument('input_file', help='Vyper sourcecode to compile')
 parser.add_argument('-f', help='Format to print', choices=['abi', 'json', 'bytecode', 'bytecode_runtime', 'ir'], default='bytecode', dest='format')
 parser.add_argument('--show-gas-estimates', help='Show gas estimates in ir output mode.', action="store_true")
 

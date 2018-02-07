@@ -1,5 +1,5 @@
-# Requires Python 3.6, Viper, and pyethereum dependencies
-# Manually verified for full branch/decision, statement coverage (on Viper contract)
+# Requires Python 3.6, Vyper, and pyethereum dependencies
+# Manually verified for full branch/decision, statement coverage (on Vyper contract)
 # Author: Philip Daian (contributions from Florian Tramer, Lorenz Breidenbach)
 
 import unittest
