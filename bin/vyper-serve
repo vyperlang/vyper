@@ -14,7 +14,7 @@ from vyper import compiler, optimizer
 
 
 parser = argparse.ArgumentParser(
-    description='Serve viper compiler as an HTTP Service, Viper {0}'.format(viper.__version__)
+    description='Serve vyper compiler as an HTTP Service, Viper {0}'.format(vyper.__version__)
 )
 parser.add_argument(
     '-b',
@@ -26,7 +26,7 @@ parser.add_argument(
 args = parser.parse_args()
 
 
-class ViperRequestHandler(BaseHTTPRequestHandler):
+class VyperRequestHandler(BaseHTTPRequestHandler):
 
     def send_404(self):
         self.send_response(404)
@@ -38,7 +38,7 @@ class ViperRequestHandler(BaseHTTPRequestHandler):
         if self.path == '/':
             self.send_response(200)
             self.end_headers()
-            self.wfile.write(b'Viper Compiler.\n')
+            self.wfile.write(b'Vyper Compiler.\n')
         else:
             self.send_404()
 
@@ -87,14 +87,14 @@ class ViperRequestHandler(BaseHTTPRequestHandler):
         return out_dict, 200
 
 
-class ViperHTTPServer(ThreadingMixIn, HTTPServer):
+class VyperHTTPServer(ThreadingMixIn, HTTPServer):
     """Handle requests in a separate thread."""
     pass
 
 
 def runserver(host='', port=8000):
     server_address = (host, int(port))
-    httpd = ViperHTTPServer(server_address, ViperRequestHandler)
+    httpd = VyperHTTPServer(server_address, VyperRequestHandler)
     print('Listening on http://{0}:{1}'.format(host, port))
     httpd.serve_forever()
 

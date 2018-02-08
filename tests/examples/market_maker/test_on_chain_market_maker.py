@@ -19,7 +19,7 @@ TOKEN_TOTAL_SUPPLY = TOKEN_INITIAL_SUPPLY * (10 ** TOKEN_DECIMALS)
 @pytest.fixture
 def erc20(t, chain):
     t.languages['vyper'] = compiler.Compiler()
-    contract_code = open('examples/tokens/vipercoin.v.py').read()
+    contract_code = open('examples/tokens/vypercoin.v.py').read()
     return chain.contract(contract_code, language='vyper', args=[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY])
 
 

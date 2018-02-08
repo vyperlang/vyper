@@ -1,4 +1,4 @@
-# An example of how you can do a wallet in Viper.
+# An example of how you can do a wallet in Vyper.
 # Warning: NOT AUDITED. Do not use to store substantial quantities of funds.
 
 # A list of the owners addresses (there are a maximum of 5 owners)
