@@ -1,22 +1,22 @@
-from viper.functions.signature import (
+from vyper.functions.signature import (
     signature
 )
-from viper.parser.parser_utils import (
+from vyper.parser.parser_utils import (
     LLLnode,
     getpos,
     byte_array_to_num
 )
-from viper.exceptions import (
+from vyper.exceptions import (
     InvalidLiteralException,
     TypeMismatchException,
 )
-from viper.types import (
+from vyper.types import (
     BaseType,
 )
-from viper.types import (
+from vyper.types import (
     get_type,
 )
-from viper.utils import (
+from vyper.utils import (
     DECIMAL_DIVISOR,
     MemoryPositions,
 )

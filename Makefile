@@ -7,7 +7,7 @@ test:
 	python setup.py test
 
 lint:
-	flake8 viper tests --ignore=E122,E124,E127,E128,E501,E731
+	flake8 vyper tests --ignore=E122,E124,E127,E128,E501,E731
 
 clean: clean-build clean-pyc clean-test
 
