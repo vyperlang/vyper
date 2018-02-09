@@ -184,8 +184,6 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
         o = compile_to_assembly(code.args[0], withargs, break_dest, height)
         o.extend(compile_to_assembly(code.args[1], withargs, break_dest, height + 1))
         o.extend(['DUP2'])
-        print(code.value)
-        print("^%^%^%^")
         # Stack: num num bound
         if code.value == 'uclamplt':
             o.extend(['LT'])
