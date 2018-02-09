@@ -1,10 +1,13 @@
-.PHONY: docsclean-pyc clean-build docs
+.PHONY: test link clean clean-pyc clean-build clean-test docs docker-build
 
 init:
 	python setup.py install
 
 test:
 	python setup.py test
+
+lint:
+	flake8 viper tests --ignore=E122,E124,E127,E128,E501,E731
 
 clean: clean-build clean-pyc clean-test
 
