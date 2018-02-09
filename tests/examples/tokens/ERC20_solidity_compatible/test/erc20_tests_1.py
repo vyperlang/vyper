@@ -384,7 +384,7 @@ class TestSolidity1ERC20(TestERC20):
     def setUpClass(cls):
         super(TestSolidity1ERC20, cls).setUpClass()
 
-        contract_code = open(PATH_TO_CONTRACTS + '/nonviper/ERC20_solidity_1.sol').read()
+        contract_code = open(PATH_TO_CONTRACTS + '/nonvyper/ERC20_solidity_1.sol').read()
         cls.c = cls.s.contract(contract_code, language='solidity')
 
         cls.initial_state = cls.s.snapshot()
@@ -401,7 +401,7 @@ class TestSolidity2ERC20(TestERC20):
     def setUpClass(cls):
         super(TestSolidity2ERC20, cls).setUpClass()
 
-        contract_code = open(PATH_TO_CONTRACTS + '/nonviper/ERC20_solidity_2.sol').read()
+        contract_code = open(PATH_TO_CONTRACTS + '/nonvyper/ERC20_solidity_2.sol').read()
         cls.c = cls.s.contract(contract_code, language='solidity')
 
         cls.initial_state = cls.s.snapshot()

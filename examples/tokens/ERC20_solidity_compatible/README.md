@@ -30,7 +30,7 @@ This set of ERC20s includes a test suite that achieves:
 - 100% branch and statement coverage (manually verified).
 - Independent tests from two test authors.
 - Differential testing against two example Solidity tokens, written independently
-    (available in the ``nonviper`` tests subfolder and annotated with comments).
+    (available in the ``nonvyper`` tests subfolder and annotated with comments).
 
 To run the tests, a local installation of pyethereum, Solidity, and Vyper is required.
 After installing the dependencies, run ``python run_tests.py`` in the test directory corresponding
