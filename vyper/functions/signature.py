@@ -1,22 +1,22 @@
 import ast
 
-from viper.parser.parser_utils import (
+from vyper.parser.parser_utils import (
     get_original_if_0x_prefixed,
 )
-from viper.exceptions import (
+from vyper.exceptions import (
     TypeMismatchException,
     StructureException,
     InvalidLiteralException,
 )
-from viper.types import (
+from vyper.types import (
     BaseType,
     ByteArrayType
 )
-from viper.types import (
+from vyper.types import (
     parse_type,
     is_base_type
 )
-from viper.parser.expr import (
+from vyper.parser.expr import (
     Expr,
 )
 
