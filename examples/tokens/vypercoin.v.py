@@ -22,8 +22,8 @@ def __init__(_name: bytes32, _symbol: bytes32, _decimals: num256, _initialSupply
     self.name = _name
     self.symbol = _symbol
     self.decimals = _decimals
-    self.totalSupply = num256_mul(_initialSupply, num256_exp(as_num256(10), _decimals))
-    self.balances[msg.sender] = as_num128(self.totalSupply)
+    self.totalSupply = num256_mul(_initialSupply, num256_exp(convert(10, 'num256'), _decimals))
+    self.balances[msg.sender] = convert(self.totalSupply, 'num')
 
 
 # What is the balance of a particular account?
