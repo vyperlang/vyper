@@ -84,7 +84,7 @@ def foo(x: bytes <= 100) -> bytes <= 150:
     """
 @public
 def convert2(inp: num256) -> bytes32:
-    return as_bytes32(inp)
+    return convert(inp, 'bytes32')
     """,
     """
 @public

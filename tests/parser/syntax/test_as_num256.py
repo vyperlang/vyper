@@ -9,7 +9,7 @@ fail_list = [
     """
 @public
 def convert2(inp: num256) -> address:
-    return as_bytes32(inp)
+    return convert(inp, 'bytes32')
     """,
     """
 @public
@@ -30,17 +30,17 @@ valid_list = [
     """
 @public
 def convert1(inp: bytes32) -> num256:
-    return as_num256(inp)
+    return convert(inp, 'num256')
     """,
     """
 @public
 def convert1(inp: bytes32) -> num256:
-    return as_num256(inp)
+    return convert(inp, 'num256')
     """,
     """
 @public
 def convert2(inp: num256) -> bytes32:
-    return as_bytes32(inp)
+    return convert(inp, 'bytes32')
     """
 ]
 

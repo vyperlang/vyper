@@ -6,8 +6,8 @@ def double(x: num) -> num:
 
 @public
 def returnten() -> num:
-    ans: bytes <= 32 = raw_call(self, concat(method_id("double(int128)"), as_bytes32(5)), gas=50000, outsize=32)
-    return as_num128(extract32(ans, 0))
+    ans: bytes <= 32 = raw_call(self, concat(method_id("double(int128)"), convert(5, 'bytes32')), gas=50000, outsize=32)
+    return convert(convert(ans, 'bytes32'), 'num')
     """
     c = get_contract_with_gas_estimation(method_id_test)
     assert c.returnten() == 10
