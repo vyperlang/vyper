@@ -76,10 +76,10 @@ def foo() -> num:
     pass
     """,
     """
-foo: num[3]
+bar: num[3]
 @public
 def foo():
-    self.foo = []
+    self.bar = []
     """,
     """
 @public

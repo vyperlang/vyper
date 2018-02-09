@@ -96,7 +96,14 @@ def foo():
     """,
     """
 num: num
+    """,
     """
+foo: num
+
+@public
+def foo():
+    pass
+    """,
 ]
 
 
