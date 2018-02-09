@@ -580,7 +580,8 @@ def _RLPlist(expr, args, kwargs, context):
                     ['seq', ['assert', ['or', ['eq', '_ans', 0], ['eq', '_ans', 257]]], ['div', '_ans', 257]]],
             typ, annotation='getting and checking bool'))
         else:
-            raise Exception("Type not yet supported")
+            # Should never reach because of top level base level check.
+            raise Exception("Type not yet supported")  # pragma: no cover
     # Copy the input data to memory
     if args[0].location == "memory":
         variable_pointer = args[0]
@@ -590,7 +591,8 @@ def _RLPlist(expr, args, kwargs, context):
         copier = make_byte_array_copier(placeholder_node, LLLnode.from_list('_ptr', typ=args[0].typ, location=args[0].location))
         variable_pointer = ['with', '_ptr', args[0], ['seq', copier, placeholder_node]]
     else:
-        raise Exception("Location not yet supported")
+        # Should never reach because of top level base level check.
+        raise Exception("Location not yet supported")  # pragma: no cover
     # Decode the input data
     initial_setter = LLLnode.from_list(
         ['seq',

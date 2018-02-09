@@ -35,6 +35,37 @@ def foo() -> bytes <= 500:
 def foo() -> bytes <= 500:
     x: num[3] = [1, 2, 3]
     return RLPList(x, [bytes])
+    """,
+    """
+@public
+def foo() -> bytes <= 500:
+    x: bytes <= 500 = '\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+    a: num = 1
+    return RLPList(x, a)
+    """,
+    """
+@public
+def foo() -> bytes <= 500:
+    x: bytes <= 500 = '\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+    return RLPList(x, [])
+    """,
+    """
+@public
+def foo() -> bytes32:
+    x = RLPList('\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', [address, num[2]])
+    return x[1]
+    """,
+    """
+@public
+def foo() -> bytes32:
+    x = RLPList('\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', [decimal])
+    return x[1]
+    """,
+    """
+@public
+def foo() -> bytes32:
+    x = RLPList('\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', [num(wei)])
+    return x[1]
     """
 ]
 
