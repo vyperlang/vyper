@@ -316,7 +316,8 @@ def _sha3(expr, args, kwargs, context):
     elif sub.location == "storage":
         lengetter = LLLnode.from_list(['sload', ['sha3_32', '_sub']], typ=BaseType('num'))
     else:
-        raise Exception("Unsupported location: %s" % sub.location)
+        # This should never happen, but just left here for future compiler-writers.
+        raise Exception("Unsupported location: %s" % sub.location)  # pragma: no test
     placeholder = context.new_placeholder(sub.typ)
     placeholder_node = LLLnode.from_list(placeholder, typ=sub.typ, location='memory')
     copier = make_byte_array_copier(placeholder_node, LLLnode.from_list('_sub', typ=sub.typ, location=sub.location))

@@ -1,3 +1,6 @@
+from pytest import raises
+from vyper.exceptions import VariableDeclarationException
+
 def test_permanent_variables_test(get_contract_with_gas_estimation):
     permanent_variables_test = """
 var: {a: num, b: num}
@@ -15,3 +18,14 @@ def returnMoose() -> num:
     c = get_contract_with_gas_estimation(permanent_variables_test, args=[5, 7])
     assert c.returnMoose() == 57
     print('Passed init argument and variable member test')
+
+
+def test_missing_global(get_contract):
+    code = """
+@public
+def a() -> num:
+    return self.b
+    """
+
+    with raises(VariableDeclarationException):
+        get_contract(code)
