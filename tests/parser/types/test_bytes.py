@@ -165,9 +165,16 @@ def quz(inp1: bytes <= 40, inp2: bytes <= 45):
 
 def test_bytes_to_num_code(get_contract_with_gas_estimation, assert_tx_failed):
     bytes_to_num_code = """
+astor: bytes <= 10
+
 @public
 def foo(x: bytes <= 32) -> num:
     return bytes_to_num(x)
+
+@public
+def bar_storage() -> num:
+    self.astor = "a"
+    return bytes_to_num(self.astor )
     """
 
     c = get_contract_with_gas_estimation(bytes_to_num_code)
@@ -180,4 +187,5 @@ def foo(x: bytes <= 32) -> num:
     assert c.foo(b"\xff" * 32) == -1
     assert_tx_failed(lambda: c.foo(b"\x80" + b"\xff" * 31))
     assert_tx_failed(lambda: c.foo(b"\x01" * 33))
+    assert c.bar_storage() == 97
     print('Passed bytes_to_num tests')

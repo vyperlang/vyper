@@ -98,6 +98,15 @@ def foo():
 num: num
     """,
     """
+CALLDATACOPY: num
+    """,
+    """
+int128: num
+    """,
+    """
+sec: num
+    """,
+    """
 foo: num
 
 @public

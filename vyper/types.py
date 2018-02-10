@@ -128,7 +128,7 @@ class TupleType(NodeType):
         self.members = copy.copy(members)
 
     def __eq__(self, other):
-        return other.__class__ == StructType and other.members == self.members
+        return other.__class__ == TupleType and other.members == self.members
 
     def __repr__(self):
         return '(' + ', '.join([repr(m) for m in self.members]) + ')'
@@ -154,7 +154,7 @@ def canonicalize_type(t, is_indexed=False):
         return canonicalize_type(t.subtype) + "[%d]" % t.count
     if isinstance(t, TupleType):
         return "({})".format(
-            ",".join(canonicalize_type(x) for x in t.subtypes)
+            ",".join(canonicalize_type(x) for x in t.members)
         )
     if not isinstance(t, BaseType):
         raise Exception("Cannot canonicalize non-base type: %r" % t)
@@ -177,22 +177,6 @@ def canonicalize_type(t, is_indexed=False):
         return t
     elif t == 'real':
         return 'real128x128'
-    raise Exception("Invalid or unsupported type: " + repr(t))
-
-
-def parse_abi_type(t):
-    if t == 'int128':
-        return 'num'
-    elif t == 'decimal10':
-        return 'decimal'
-    elif t == 'bool':
-        return 'bool'
-    elif t == 'uint256':
-        return 'num256'
-    elif t == 'int256':
-        return 'signed256'
-    elif t in ('address', 'bytes32'):
-        return t
     raise Exception("Invalid or unsupported type: " + repr(t))
 
 

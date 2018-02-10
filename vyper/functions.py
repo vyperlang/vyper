@@ -156,15 +156,12 @@ def floor(expr, args, kwargs, context):
     )
 
 
-@signature(('num', 'decimal'))
+@signature(('num'))
 def decimal(expr, args, kwargs, context):
-    if args[0].typ.typ == 'decimal':
-        return args[0]
-    else:
-        return LLLnode.from_list(
-            ['mul', args[0], DECIMAL_DIVISOR], typ=BaseType('decimal', args[0].typ.unit, args[0].typ.positional),
-            pos=getpos(expr)
-        )
+    return LLLnode.from_list(
+        ['mul', args[0], DECIMAL_DIVISOR], typ=BaseType('decimal', args[0].typ.unit, args[0].typ.positional),
+        pos=getpos(expr)
+    )
 
 
 @signature(('num', 'decimal'))
