@@ -15,7 +15,7 @@ version = '0.0.3'
 setup(
     name='vyper',
     version=version,
-    description='Viper Programming Language for Ethereum',
+    description='Vyper Programming Language for Ethereum',
     long_description=readme,
     author='Vitalik Buterin',
     author_email='',

@@ -1,11 +1,11 @@
 def test_multi_setter_test(get_contract_with_gas_estimation):
     multi_setter_test = """
-foo: num[3]
+dog: num[3]
 bar: num[3][3]
 @public
 def foo() -> num:
-    self.foo = [1, 2, 3]
-    return(self.foo[0] + self.foo[1] * 10 + self.foo[2] * 100)
+    self.dog = [1, 2, 3]
+    return(self.dog[0] + self.dog[1] * 10 + self.dog[2] * 100)
 
 @public
 def fop() -> num:
@@ -30,8 +30,8 @@ def gop() -> num: # Following a standard naming scheme; nothing to do with the U
 
 @public
 def hoo() -> num:
-    self.foo = None
-    return(self.foo[0] + self.foo[1] * 10 + self.foo[2] * 100)
+    self.dog = None
+    return(self.dog[0] + self.dog[1] * 10 + self.dog[2] * 100)
 
 @public
 def hop() -> num:
@@ -71,16 +71,16 @@ def jop() -> num:
 
 def test_multi_setter_struct_test(get_contract_with_gas_estimation):
     multi_setter_struct_test = """
-foo: {foo: num, bar: num}[3]
+dog: {foo: num, bar: num}[3]
 z: {foo: num[3], bar: {a: num, b: num}[2]}[2]
 
 @public
 def foo() -> num:
-    self.foo[0] = {foo: 1, bar: 2}
-    self.foo[1] = {foo: 3, bar: 4}
-    self.foo[2] = {foo: 5, bar: 6}
-    return self.foo[0].foo + self.foo[0].bar * 10 + self.foo[1].foo * 100 + \
-        self.foo[1].bar * 1000 + self.foo[2].foo * 10000 + self.foo[2].bar * 100000
+    self.dog[0] = {foo: 1, bar: 2}
+    self.dog[1] = {foo: 3, bar: 4}
+    self.dog[2] = {foo: 5, bar: 6}
+    return self.dog[0].foo + self.dog[0].bar * 10 + self.dog[1].foo * 100 + \
+        self.dog[1].bar * 1000 + self.dog[2].foo * 10000 + self.dog[2].bar * 100000
 
 @public
 def fop() -> num:

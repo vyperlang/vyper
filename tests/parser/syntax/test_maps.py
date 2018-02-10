@@ -82,16 +82,16 @@ def foo():
     self.nom = {a: [{c: 5}], b: 7}
     """,
     """
-foo: num[3]
+bar: num[3]
 @public
 def foo():
-    self.foo = {0: 5, 1: 7, 2: 9}
+    self.bar = {0: 5, 1: 7, 2: 9}
     """,
     """
-foo: num[3]
+bar: num[3]
 @public
 def foo():
-    self.foo = {a: 5, b: 7, c: 9}
+    self.bar = {a: 5, b: 7, c: 9}
     """,
     """
 @public

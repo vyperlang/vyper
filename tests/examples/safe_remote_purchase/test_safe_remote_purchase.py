@@ -1,4 +1,4 @@
-# Test for Safe Remote Purchase (https://github.com/ethereum/solidity/blob/develop/docs/solidity-by-example.rst) ported to viper and optimized
+# Test for Safe Remote Purchase (https://github.com/ethereum/solidity/blob/develop/docs/solidity-by-example.rst) ported to vyper and optimized
 
 # Rundown of the transaction:
 # 1. Seller posts item for sale and posts safety deposit of double the item value. Balance is 2*value.

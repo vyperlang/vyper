@@ -162,8 +162,13 @@ class Stmt(object):
             if method_name not in self.context.sigs['self']:
                 raise VariableDeclarationException("Function not declared yet (reminder: functions cannot "
                                                     "call functions later in code than themselves): %s" % self.stmt.func.attr)
+            sig = self.context.sigs['self'][method_name]
+            if self.context.is_constant and not sig.const:
+                raise ConstancyViolationException(
+                    "May not call non-constant function '%s' within a constant function." % (method_name)
+                )
             add_gas = self.context.sigs['self'][method_name].gas
-            inargs, inargsize = pack_arguments(self.context.sigs['self'][self.stmt.func.attr],
+            inargs, inargsize = pack_arguments(sig,
                                                 [Expr(arg, self.context).lll_node for arg in self.stmt.args],
                                                 self.context)
             return LLLnode.from_list(['assert', ['call', ['gas'], ['address'], 0, inargs, inargsize, 0, 0]],

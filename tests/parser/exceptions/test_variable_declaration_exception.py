@@ -105,7 +105,14 @@ int128: num
     """,
     """
 sec: num
+    """,
     """
+foo: num
+
+@public
+def foo():
+    pass
+    """,
 ]
 
 

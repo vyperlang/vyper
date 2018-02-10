@@ -84,8 +84,8 @@ To find out more about virtual environments, check out:
 ************
 Installation
 ************
-Again, it is **strongly recommended to install Vyper** in a **virtual Python environment**. 
-This guide assumes you are in a virtual environment containing Python 3.6. 
+Again, it is **strongly recommended to install Vyper** in a **virtual Python environment**.
+This guide assumes you are in a virtual environment containing Python 3.6.
 
 Get the latest version of Vyper by cloning the Github repository, and run the
 install and test commands:
@@ -121,12 +121,12 @@ However, please keep in mind that Vyper is still experimental and not ready for 
     ::
         make
         make test
-    
+
     If you get the error `ld: library not found for -lyaml` in the output of `make`, make sure `libyaml` is installed using `brew info libyaml`. If it is installed, add its location to the compile flags as well:
     ::
         export CFLAGS="-I$(brew --prefix openssl)/include -I$(brew --prefix libyaml)/include"
         export LDFLAGS="-L$(brew --prefix openssl)/lib -L$(brew --prefix libyaml)/lib"
-        
+
     You can then run `make` and `make test` again.
 ******
 Docker
@@ -147,7 +147,7 @@ Snap
 
 Vyper is published in the snap store. In any of the `supported Linux distros <https://snapcraft.io/docs/core/install>`_, install it with:
 ::
-    sudo snap install viper --edge
+    sudo snap install vyper --edge
 
 
 (Note that this is an experimental and unstable release, at the moment)
