@@ -1,7 +1,7 @@
 from vyper.exceptions import StructureException, VariableDeclarationException, InvalidTypeException
 
 
-def test_external_contract_calls(get_contract_with_gas_estimation):
+def test_external_contract_calls(get_contract, get_contract_with_gas_estimation):
     contract_1 = """
 @public
 def foo(arg1: num) -> num:
@@ -18,13 +18,13 @@ class Foo():
 def bar(arg1: address, arg2: num) -> num:
     return Foo(arg1).foo(arg2)
     """
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c2 = get_contract(contract_2)
 
     assert c2.bar(c.address, 1) == 1
     print('Successfully executed an external contract call')
 
 
-def test_complicated_external_contract_calls(get_contract_with_gas_estimation):
+def test_complicated_external_contract_calls(get_contract, get_contract_with_gas_estimation):
     contract_1 = """
 lucky: public(num)
 
@@ -53,13 +53,13 @@ class Foo():
 def bar(arg1: address) -> num:
     return Foo(arg1).foo()
     """
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c2 = get_contract(contract_2)
 
     assert c2.bar(c.address) == lucky_number
     print('Successfully executed a complicated external contract call')
 
 
-def test_external_contract_calls_with_bytes(get_contract_with_gas_estimation):
+def test_external_contract_calls_with_bytes(get_contract, get_contract_with_gas_estimation):
     contract_1 = """
 @public
 def array() -> bytes <= 3:
@@ -77,7 +77,7 @@ def get_array(arg1: address) -> bytes <= 3:
     return Foo(arg1).array()
 """
 
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c2 = get_contract(contract_2)
     assert c2.get_array(c.address) == b'dog'
 
 
@@ -387,7 +387,7 @@ def bar() -> num:
 class Bar():
     def bar() -> num: pass
 
-bar_contract: Bar
+bar_contract: modifiable(Bar)
 
 @public
 def foo(contract_address: contract(Bar)) -> num:
@@ -398,145 +398,3 @@ def foo(contract_address: contract(Bar)) -> num:
     c1 = get_contract(contract_1)
     c2 = get_contract(contract_2)
     assert c2.foo(c1.address) == 1
-
-
-def test_external_contract_call_declaration_stmt(get_contract):
-    contract_1 = """
-lucky: num
-
-@public
-def set_lucky(_lucky: num):
-    self.lucky = _lucky
-
-@public
-def get_lucky() -> num:
-    return self.lucky
-"""
-
-    contract_2 = """
-class Bar():
-    def set_lucky(arg1: num): pass
-    def get_lucky() -> num: pass
-
-bar_contract: Bar
-
-@public
-def set_lucky(contract_address: contract(Bar)):
-    self.bar_contract = contract_address
-    self.bar_contract.set_lucky(1)
-
-@public
-def get_lucky(contract_address: contract(Bar)) -> num:
-    self.bar_contract = contract_address
-    return self.bar_contract.get_lucky()
-    """
-
-    c1 = get_contract(contract_1)
-    c2 = get_contract(contract_2)
-    assert c1.get_lucky() == 0
-    assert c2.get_lucky(c1.address) == 0
-    c1.set_lucky(6)
-    assert c1.get_lucky() == 6
-    assert c2.get_lucky(c1.address) == 6
-    c2.set_lucky(c1.address)
-    assert c1.get_lucky() == 1
-    assert c2.get_lucky(c1.address) == 1
-
-
-def test_complex_external_contract_call_declaration(get_contract_with_gas_estimation):
-    contract_1 = """
-@public
-def get_lucky() -> num:
-    return 1
-"""
-
-    contract_2 = """
-@public
-def get_lucky() -> num:
-    return 2
-"""
-
-    contract_3 = """
-class Bar():
-    def set_lucky(arg1: num): pass
-    def get_lucky() -> num: pass
-
-bar_contract: Bar
-
-@public
-def set_contract(contract_address: contract(Bar)):
-    self.bar_contract = contract_address
-
-@public
-def get_lucky() -> num:
-    return self.bar_contract.get_lucky()
-"""
-
-    c1 = get_contract_with_gas_estimation(contract_1)
-    c2 = get_contract_with_gas_estimation(contract_2)
-    c3 = get_contract_with_gas_estimation(contract_3)
-    assert c1.get_lucky() == 1
-    assert c2.get_lucky() == 2
-    c3.set_contract(c1.address)
-    assert c3.get_lucky() == 1
-    c3.set_contract(c2.address)
-    assert c3.get_lucky() == 2
-
-
-def test_address_can_returned_from_contract_type(get_contract, utils):
-    contract_1 = """
-@public
-def bar() -> num:
-    return 1
-"""
-    contract_2 = """
-class Bar():
-    def bar() -> num: pass
-
-bar_contract: public(Bar)
-
-@public
-def foo(contract_address: contract(Bar)):
-    self.bar_contract = contract_address
-
-@public
-def get_bar() -> num:
-    return self.bar_contract.bar()
-"""
-    c1 = get_contract(contract_1)
-    c2 = get_contract(contract_2)
-    c2.foo(c1.address)
-    assert utils.remove_0x_head(c2.bar_contract()) == c1.address.hex()
-    assert c2.get_bar() == 1
-
-
-def test_invalid_external_contract_call_declaration_1(assert_compile_failed, get_contract):
-    contract_1 = """
-class Bar():
-    def bar() -> num: pass
-
-bar_contract: Bar
-
-@public
-def foo(contract_address: contract(Boo)) -> num:
-    self.bar_contract = contract_address
-    return self.bar_contract.bar()
-    """
-
-    assert_compile_failed(lambda: get_contract(contract_1), InvalidTypeException)
-
-
-def test_invalid_external_contract_call_declaration_2(assert_compile_failed, get_contract):
-    contract_1 = """
-class Bar():
-    def bar() -> num: pass
-
-bar_contract: Boo
-
-@public
-def foo(contract_address: contract(Bar)) -> num:
-    self.bar_contract = contract_address
-    return self.bar_contract.bar()
-    """
-
-    assert_compile_failed(lambda: get_contract(contract_1), InvalidTypeException)

@@ -48,6 +48,7 @@ Following the principles and goals, Vyper **does not** provide the following fea
 Compatibility-breaking Changelog
 ********************************
 
+* **2018.02.12**: Add modifiable and static keywords for external contract calls.
 * **2018.02.09**: Standardize type conversions.
 * **2018.02.01**: Functions cannot have the same name as globals.
 * **2018.01.27**: Change getter from get_var to var.
