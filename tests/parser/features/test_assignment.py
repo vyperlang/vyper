@@ -22,12 +22,6 @@ def augsub(x: num, y: num) -> num:
     return z
 
 @public
-def augdiv(x: num, y: num) -> num:
-    z: num = x
-    z /= y
-    return z
-
-@public
 def augmod(x: num, y: num) -> num:
     z: num = x
     z %= y
@@ -39,7 +33,6 @@ def augmod(x: num, y: num) -> num:
     assert c.augadd(5, 12) == 17
     assert c.augmul(5, 12) == 60
     assert c.augsub(5, 12) == -7
-    assert c.augdiv(5, 12) == 0
     assert c.augmod(5, 12) == 5
     print('Passed aug-assignment test')
 

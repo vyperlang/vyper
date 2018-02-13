@@ -271,7 +271,7 @@ class Expr(object):
                 o = LLLnode.from_list(['sdiv', ['mul', left, DECIMAL_DIVISOR ** 2], ['clamp_nonzero', right]],
                                       typ=BaseType('decimal', new_unit), pos=getpos(self.expr))
             elif ltyp == 'decimal' and rtyp == 'num':
-                o = LLLnode.from_list(['sdiv', left,  ['clamp_nonzero', right]], typ=BaseType('decimal', new_unit), pos=getpos(self.expr))
+                o = LLLnode.from_list(['sdiv', left, ['clamp_nonzero', right]], typ=BaseType('decimal', new_unit), pos=getpos(self.expr))
             else:
                 raise Exception("Unsupported Operation 'div(%r, %r)'" % (ltyp, rtyp))
         elif isinstance(self.expr.op, ast.Mod):

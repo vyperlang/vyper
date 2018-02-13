@@ -7,7 +7,8 @@ from vyper.parser.parser_utils import (
 )
 from vyper import (
     compile_lll,
-    optimizer
+    optimizer,
+    compiler,
 )
 from ethereum import utils as ethereum_utils
 
@@ -68,6 +69,7 @@ def t():
 
 @pytest.fixture(scope="module")
 def chain():
+    tester.languages['vyper'] = compiler.Compiler()
     s = tester.Chain()
     s.head_state.gas_limit = 10**9
     return s

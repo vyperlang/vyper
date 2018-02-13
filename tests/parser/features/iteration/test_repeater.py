@@ -20,7 +20,7 @@ def reverse_digits(x: num) -> num:
     z: num = x
     for i in range(6):
         dig[i] = z % 10
-        z = z / 10
+        z = floor(z / 10)
     o: num = 0
     for i in range(6):
         o = o * 10 + dig[i]
