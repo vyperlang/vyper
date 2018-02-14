@@ -19,7 +19,7 @@ num_issued: num256
 @public
 @payable
 def deposit():
-    _value = as_num256(msg.value)
+    _value = convert(msg.value, 'num256')
     _sender = msg.sender
     self.balances[_sender] = num256_add(self.balances[_sender], _value)
     self.num_issued = num256_add(self.num_issued, _value)
@@ -33,7 +33,7 @@ def withdraw(_value : num256) -> bool:
     # implicitly through overflow protection
     self.balances[_sender] = num256_sub(self.balances[_sender], _value)
     self.num_issued = num256_sub(self.num_issued, _value)
-    send(_sender, as_wei_value(as_num128(_value), wei))
+    send(_sender, as_wei_value(convert(_value, 'num'), 'wei'))
     # Fire withdraw event as transfer to 0x0
     log.Transfer(_sender, 0x0000000000000000000000000000000000000000, _value)
     return true

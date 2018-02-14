@@ -1,7 +1,7 @@
 import pytest
 from ethereum.abi import ValueOutOfBounds
 
-TOKEN_NAME = "Vipercoin"
+TOKEN_NAME = "Vypercoin"
 TOKEN_SYMBOL = "FANG"
 TOKEN_DECIMALS = 18
 TOKEN_INITIAL_SUPPLY = (21 * 10 ** 6)
@@ -10,7 +10,7 @@ TOKEN_TOTAL_SUPPLY = TOKEN_INITIAL_SUPPLY * (10 ** TOKEN_DECIMALS)
 
 @pytest.fixture
 def erc20(get_contract):
-    erc20_code = open('examples/tokens/vipercoin.v.py').read()
+    erc20_code = open('examples/tokens/vypercoin.v.py').read()
     return get_contract(erc20_code, args=[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY])
 
 

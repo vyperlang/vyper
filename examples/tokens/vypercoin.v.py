@@ -9,33 +9,21 @@ Approval: __log__({_owner: indexed(address), _spender: indexed(address), _value:
 
 
 # Variables of the token.
-name: bytes32
-symbol: bytes32
-totalSupply: num
-decimals: num
+name: public(bytes32)
+symbol: public(bytes32)
+totalSupply: public(num256)
+decimals: public(num256)
 balances: num[address]
 allowed: num[address][address]
 
 @public
-def __init__(_name: bytes32, _symbol: bytes32, _decimals: num, _initialSupply: num):
+def __init__(_name: bytes32, _symbol: bytes32, _decimals: num256, _initialSupply: num256):
     
     self.name = _name
     self.symbol = _symbol
     self.decimals = _decimals
-    self.totalSupply = _initialSupply * 10 ** _decimals
-    self.balances[msg.sender] = self.totalSupply
-
-@public
-@constant
-def symbol() -> bytes32:
-
-    return self.symbol
-
-@public
-@constant
-def name() -> bytes32:
-
-    return self.name
+    self.totalSupply = num256_mul(_initialSupply, num256_exp(convert(10, 'num256'), _decimals))
+    self.balances[msg.sender] = convert(self.totalSupply, 'num')
 
 
 # What is the balance of a particular account?
@@ -43,15 +31,7 @@ def name() -> bytes32:
 @constant
 def balanceOf(_owner: address) -> num256:
 
-    return as_num256(self.balances[_owner])
-
-
-# Return total supply of token.
-@public
-@constant
-def totalSupply() -> num256:
-
-    return as_num256(self.totalSupply)
+    return convert(self.balances[_owner], 'num256')
 
 
 # Send `_value` tokens to `_to` from your account
@@ -63,7 +43,7 @@ def transfer(_to: address, _amount: num(num256)) -> bool:
 
     self.balances[msg.sender] -= _amount  # Subtract from the sender
     self.balances[_to] += _amount  # Add the same to the recipient
-    log.Transfer(msg.sender, _to, as_num256(_amount))  # log transfer event.
+    log.Transfer(msg.sender, _to, convert(_amount, 'num256'))  # log transfer event.
 
     return True
 
@@ -78,7 +58,7 @@ def transferFrom(_from: address, _to: address, _value: num(num256)) -> bool:
     self.balances[_from] -= _value  # decrease balance of from address.
     self.allowed[_from][msg.sender] -= _value  # decrease allowance.
     self.balances[_to] += _value  # incease balance of to address.
-    log.Transfer(_from, _to, as_num256(_value))  # log transfer event.
+    log.Transfer(_from, _to, convert(_value, 'num256'))  # log transfer event.
     
     return True
 
@@ -99,7 +79,7 @@ def transferFrom(_from: address, _to: address, _value: num(num256)) -> bool:
 def approve(_spender: address, _amount: num(num256)) -> bool:
 
     self.allowed[msg.sender][_spender] = _amount
-    log.Approval(msg.sender, _spender, as_num256(_amount))
+    log.Approval(msg.sender, _spender, convert(_amount, 'num256'))
 
     return True
 
@@ -108,4 +88,4 @@ def approve(_spender: address, _amount: num(num256)) -> bool:
 @public
 def allowance(_owner: address, _spender: address) -> num256:
 
-    return as_num256(self.allowed[_owner][_spender])
+    return convert(self.allowed[_owner][_spender], 'num256')

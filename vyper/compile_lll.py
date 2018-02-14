@@ -296,7 +296,7 @@ def assembly_to_evm(assembly):
                     break
         else:
             # Should never reach because, assembly is create in compile_to_assembly.
-            raise Exception("Weird symbol in assembly: " + str(item)) # pragma: no cover
+            raise Exception("Weird symbol in assembly: " + str(item))  # pragma: no cover
 
     assert len(o) == pos
     return o

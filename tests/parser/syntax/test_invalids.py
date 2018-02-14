@@ -165,17 +165,17 @@ def foo():
 """)
 
 must_fail("""
-foo: num[3]
+bar: num[3]
 @public
 def foo():
-    self.foo = 5
+    self.bar = 5
 """, TypeMismatchException)
 
 must_succeed("""
-foo: num[3]
+bar: num[3]
 @public
 def foo():
-    self.foo[0] = 5
+    self.bar[0] = 5
 """)
 
 must_fail("""

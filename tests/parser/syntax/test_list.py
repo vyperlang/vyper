@@ -50,16 +50,16 @@ def foo(x: num[3]):
     self.y = x
     """,
     """
-foo: num[3]
+bar: num[3]
 @public
 def foo():
-    self.foo = [1, 2, 0x1234567890123456789012345678901234567890]
+    self.bar = [1, 2, 0x1234567890123456789012345678901234567890]
     """,
     ("""
-foo: num[3]
+bar: num[3]
 @public
 def foo():
-    self.foo = []
+    self.bar = []
     """, StructureException),
     """
 b: num[5]
@@ -68,10 +68,10 @@ def foo():
     x = self.b[0][1]
     """,
     """
-foo: num[3]
+bar: num[3]
 @public
 def foo():
-    self.foo = [1, [2], 3]
+    self.bar = [1, [2], 3]
     """,
     """
 bar: num[3][3]
@@ -86,16 +86,16 @@ def foo():
     self.bar = [2, 5]
     """,
     """
-foo: num[3]
+bar: num[3]
 @public
 def foo():
-    self.foo = [1, 2, 3, 4]
+    self.bar = [1, 2, 3, 4]
     """,
     """
-foo: num[3]
+bar: num[3]
 @public
 def foo():
-    self.foo = [1, 2]
+    self.bar = [1, 2]
     """,
     """
 b: num[5]
@@ -210,19 +210,19 @@ def foo() -> num[2]:
     return [3,5]
     """,
     """
-foo: decimal[3]
+bar: decimal[3]
 @public
 def foo():
-    self.foo = [1.0, 2.1, 3.0]
+    self.bar = [1.0, 2.1, 3.0]
     """,
     """
 x: num[1][2][3][4][5]
     """,
     """
-foo: num[3]
+bar: num[3]
 @public
 def foo():
-    self.foo = [1, 2, 3]
+    self.bar = [1, 2, 3]
     """,
     """
 b: num[5]

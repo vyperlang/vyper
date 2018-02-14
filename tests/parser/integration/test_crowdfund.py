@@ -4,10 +4,10 @@ def test_crowdfund(t, chain, get_contract_with_gas_estimation_for_constants):
 funders: {sender: address, value: wei_value}[num]
 nextFunderIndex: num
 beneficiary: address
-deadline: timestamp
+deadline: public(timestamp)
 goal: wei_value
 refundIndex: num
-timelimit: timedelta
+timelimit: public(timedelta)
 
 @public
 def __init__(_beneficiary: address, _goal: wei_value, _timelimit: timedelta):
@@ -34,16 +34,6 @@ def expired() -> bool:
 @constant
 def timestamp() -> timestamp:
     return block.timestamp
-
-@public
-@constant
-def deadline() -> timestamp:
-    return self.deadline
-
-@public
-@constant
-def timelimit() -> timedelta:
-    return self.timelimit
 
 @public
 @constant
@@ -106,10 +96,10 @@ def test_crowdfund2(t, chain, get_contract_with_gas_estimation_for_constants):
 funders: {sender: address, value: wei_value}[num]
 nextFunderIndex: num
 beneficiary: address
-deadline: timestamp
+deadline: public(timestamp)
 goal: wei_value
 refundIndex: num
-timelimit: timedelta
+timelimit: public(timedelta)
 
 @public
 def __init__(_beneficiary: address, _goal: wei_value, _timelimit: timedelta):
@@ -135,16 +125,6 @@ def expired() -> bool:
 @constant
 def timestamp() -> timestamp:
     return block.timestamp
-
-@public
-@constant
-def deadline() -> timestamp:
-    return self.deadline
-
-@public
-@constant
-def timelimit() -> timedelta:
-    return self.timelimit
 
 @public
 @constant

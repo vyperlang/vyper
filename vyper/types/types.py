@@ -1,8 +1,8 @@
 import ast
 import copy
 
-from .exceptions import InvalidTypeException
-from .utils import (
+from vyper.exceptions import InvalidTypeException
+from vyper.utils import (
     base_types,
     ceil32,
     is_varname_valid,
@@ -315,6 +315,16 @@ def get_size_of_type(typ):
         return sum([get_size_of_type(v) for v in typ.members])
     else:
         raise Exception("Unexpected type: %r" % repr(typ))
+
+
+def get_type(input):
+    if not hasattr(input, 'typ'):
+        typ, len = 'num_literal', 32
+    elif hasattr(input.typ, 'maxlen'):
+        typ, len = 'bytes', input.typ.maxlen
+    else:
+        typ, len = input.typ.typ, 32
+    return typ, len
 
 
 # Checks that the units of frm can be seamlessly converted into the units of to

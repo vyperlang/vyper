@@ -231,7 +231,7 @@ def get_contracts_and_defs_and_globals(code):
         # Contract references
         if isinstance(item, ast.ClassDef):
             if _events or _globals or _defs:
-                    raise StructureException("External contract declarations must come before event declarations, global declarations, and function definitions", item)
+                raise StructureException("External contract declarations must come before event declarations, global declarations, and function definitions", item)
             _contracts[item.name] = add_contract(item.body)
         # Statements of the form:
         # variable_name: type
@@ -239,6 +239,8 @@ def get_contracts_and_defs_and_globals(code):
             _contracts, _events, _globals, _getters = add_globals_and_events(_contracts, _defs, _events, _getters, _globals, item)
         # Function definitions
         elif isinstance(item, ast.FunctionDef):
+            if item.name in _globals:
+                raise VariableDeclarationException("Function name shadowing a variable name: %s" % item.name)
             _defs.append(item)
         else:
             raise StructureException("Invalid top-level statement", item)
@@ -367,7 +369,7 @@ def parse_other_functions(o, otherfuncs, _globals, sigs, external_contracts, ori
     sub = ['seq', initializer_lll]
     add_gas = initializer_lll.gas
     for _def in otherfuncs:
-        sub.append(parse_func(_def, _globals, {**{'self': sigs}, **external_contracts}, origcode))
+        sub.append(parse_func(_def, _globals, {**{'self': sigs}, **external_contracts}, origcode))  # noqa E999
         sub[-1].total_gas += add_gas
         add_gas += 30
         sig = FunctionSignature.from_definition(_def, external_contracts)

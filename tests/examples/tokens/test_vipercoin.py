@@ -16,7 +16,7 @@ def token_tester():
     tester.s = t.Chain()
     from vyper import compiler
     t.languages['vyper'] = compiler.Compiler()
-    contract_code = open('examples/tokens/vipercoin.v.py').read()
+    contract_code = open('examples/tokens/vypercoin.v.py').read()
     tester.c = tester.s.contract(
         contract_code,
         language='vyper',

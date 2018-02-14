@@ -6,7 +6,7 @@ def foo() -> decimal:
 
 @public
 def goo() -> num256:
-    return num256_add(min(as_num256(3), as_num256(5)), max(as_num256(40), as_num256(80)))
+    return num256_add(min(convert(3, 'num256'), convert(5, 'num256')), max(convert(40, 'num256'), convert(80, 'num256')))
     """
 
     c = get_contract_with_gas_estimation(minmax_test)

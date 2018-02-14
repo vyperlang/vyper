@@ -163,18 +163,18 @@ def quz(inp1: bytes <= 40, inp2: bytes <= 45):
     print('Passed string struct test')
 
 
-def test_bytes_to_num_code(get_contract_with_gas_estimation, assert_tx_failed):
+def test_convert_bytes_to_num_code(get_contract_with_gas_estimation, assert_tx_failed):
     bytes_to_num_code = """
 astor: bytes <= 10
 
 @public
 def foo(x: bytes <= 32) -> num:
-    return bytes_to_num(x)
+    return convert(x, 'num')
 
 @public
 def bar_storage() -> num:
     self.astor = "a"
-    return bytes_to_num(self.astor )
+    return convert(self.astor, 'num')
     """
 
     c = get_contract_with_gas_estimation(bytes_to_num_code)

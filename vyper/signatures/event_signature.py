@@ -58,7 +58,7 @@ class EventSignature():
                     pos += ceil32(typ.comparators[0].n)
                 else:
                     pos += get_size_of_type(parsed_type) * 32
-        sig = name + '(' + ','.join([canonicalize_type(arg.typ, indexed_list[pos]) for pos, arg in enumerate(args)]) + ')'
+        sig = name + '(' + ','.join([canonicalize_type(arg.typ, indexed_list[pos]) for pos, arg in enumerate(args)]) + ')'  # noqa F812
         event_id = bytes_to_int(sha3(bytes(sig, 'utf-8')))
         return cls(name, args, indexed_list, event_id, sig)
 

@@ -1,6 +1,7 @@
 from pytest import raises
 from vyper.exceptions import VariableDeclarationException
 
+
 def test_permanent_variables_test(get_contract_with_gas_estimation):
     permanent_variables_test = """
 var: {a: num, b: num}
