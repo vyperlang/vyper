@@ -369,7 +369,7 @@ def parse_other_functions(o, otherfuncs, _globals, sigs, external_contracts, ori
     sub = ['seq', initializer_lll]
     add_gas = initializer_lll.gas
     for _def in otherfuncs:
-        sub.append(parse_func(_def, _globals, {**{'self': sigs}, **external_contracts}, origcode))
+        sub.append(parse_func(_def, _globals, {**{'self': sigs}, **external_contracts}, origcode))  # noqa E999
         sub[-1].total_gas += add_gas
         add_gas += 30
         sig = FunctionSignature.from_definition(_def, external_contracts)

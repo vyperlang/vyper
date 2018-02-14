@@ -52,7 +52,7 @@ def test_break_test_3(get_contract_with_gas_estimation):
     break_test_3 = """
 @public
 def log(n: num) -> num:
-    c: decimal = decimal(n)
+    c: decimal = convert(n, 'decimal')
     output: num = 0
     for i in range(40):
         if c < 10:

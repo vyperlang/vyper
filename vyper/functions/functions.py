@@ -1,17 +1,20 @@
 import ast
 
-from .exceptions import (
+from vyper.exceptions import (
     ConstancyViolationException,
     InvalidLiteralException,
     StructureException,
     TypeMismatchException,
+)
+from .signature import (
+    signature,
+    Optional,
 )
 from vyper.parser.parser_utils import (
     byte_array_to_num,
     LLLnode,
     get_length,
     get_number_as_fraction,
-    get_original_if_0x_prefixed,
     getpos,
     make_byte_array_copier,
     make_byte_slice_copier,
@@ -21,13 +24,13 @@ from vyper.parser.parser_utils import (
 from vyper.parser.expr import (
     Expr,
 )
-from .types import (
+from vyper.types import (
     BaseType,
     ByteArrayType,
     TupleType,
     ListType
 )
-from .types import (
+from vyper.types import (
     are_units_compatible,
     parse_type,
     is_base_type,
@@ -38,102 +41,14 @@ from vyper.utils import (
     DECIMAL_DIVISOR,
     RLP_DECODER_ADDRESS
 )
-from .utils import (
+from vyper.utils import (
     bytes_to_int,
     fourbytes_to_int,
     sha3,
 )
-
-
-class Optional(object):
-    def __init__(self, typ, default):
-        self.typ = typ
-        self.default = default
-
-
-def process_arg(index, arg, expected_arg_typelist, function_name, context):
-    if isinstance(expected_arg_typelist, Optional):
-        expected_arg_typelist = expected_arg_typelist.typ
-    if not isinstance(expected_arg_typelist, tuple):
-        expected_arg_typelist = (expected_arg_typelist, )
-    vsub = None
-    for expected_arg in expected_arg_typelist:
-        if expected_arg == 'num_literal':
-            if isinstance(arg, ast.Num) and get_original_if_0x_prefixed(arg, context) is None:
-                return arg.n
-        elif expected_arg == 'str_literal':
-            if isinstance(arg, ast.Str) and get_original_if_0x_prefixed(arg, context) is None:
-                bytez = b''
-                for c in arg.s:
-                    if ord(c) >= 256:
-                        raise InvalidLiteralException("Cannot insert special character %r into byte array" % c, arg)
-                    bytez += bytes([ord(c)])
-                return bytez
-        elif expected_arg == 'name_literal':
-            if isinstance(arg, ast.Name):
-                return arg.id
-        elif expected_arg == '*':
-            return arg
-        elif expected_arg == 'bytes':
-            sub = Expr(arg, context).lll_node
-            if isinstance(sub.typ, ByteArrayType):
-                return sub
-        else:
-            # Does not work for unit-endowed types inside compound types, eg. timestamp[2]
-            parsed_expected_type = parse_type(ast.parse(expected_arg).body[0].value, 'memory')
-            if isinstance(parsed_expected_type, BaseType):
-                vsub = vsub or Expr.parse_value_expr(arg, context)
-                if is_base_type(vsub.typ, expected_arg):
-                    return vsub
-            else:
-                vsub = vsub or Expr(arg, context).lll_node
-                if vsub.typ == parsed_expected_type:
-                    return Expr(arg, context).lll_node
-    if len(expected_arg_typelist) == 1:
-        raise TypeMismatchException("Expecting %s for argument %r of %s" %
-                                    (expected_arg, index, function_name), arg)
-    else:
-        raise TypeMismatchException("Expecting one of %r for argument %r of %s" %
-                                    (expected_arg_typelist, index, function_name), arg)
-
-
-def signature(*argz, **kwargz):
-    def decorator(f):
-        def g(element, context):
-            function_name = element.func.id
-            if len(element.args) > len(argz):
-                raise StructureException("Expected %d arguments for %s, got %d" %
-                                         (len(argz), function_name, len(element.args)),
-                                         element)
-            subs = []
-            for i, expected_arg in enumerate(argz):
-                if len(element.args) > i:
-                    subs.append(process_arg(i + 1, element.args[i], expected_arg, function_name, context))
-                elif isinstance(expected_arg, Optional):
-                    subs.append(expected_arg.default)
-                else:
-                    raise StructureException(
-                        "Not enough arguments for function: {}".format(element.func.id),
-                        element
-                    )
-            kwsubs = {}
-            element_kw = {k.arg: k.value for k in element.keywords}
-            for k, expected_arg in kwargz.items():
-                if k not in element_kw:
-                    if isinstance(expected_arg, Optional):
-                        kwsubs[k] = expected_arg.default
-                    else:
-                        raise StructureException("Function %s requires argument %s" %
-                                                 (function_name, k), element)
-                else:
-                    kwsubs[k] = process_arg(k, element_kw[k], expected_arg, function_name, context)
-            for k, arg in element_kw.items():
-                if k not in kwargz:
-                    raise StructureException("Unexpected argument: %s"
-                                             % k, element)
-            return f(element, subs, kwsubs, context)
-        return g
-    return decorator
+from vyper.types.convert import (
+    convert,
+)
 
 
 def enforce_units(typ, obj, expected):
@@ -157,46 +72,61 @@ def floor(expr, args, kwargs, context):
 
 
 @signature(('num', 'decimal'))
-def decimal(expr, args, kwargs, context):
-    if args[0].typ.typ == 'decimal':
-        return args[0]
-    else:
-        return LLLnode.from_list(
-            ['mul', args[0], DECIMAL_DIVISOR], typ=BaseType('decimal', args[0].typ.unit, args[0].typ.positional),
-            pos=getpos(expr)
-        )
-
-
-@signature(('num', 'decimal'))
 def as_unitless_number(expr, args, kwargs, context):
     return LLLnode(value=args[0].value, args=args[0].args, typ=BaseType(args[0].typ.typ, {}), pos=getpos(expr))
 
 
-@signature(('num', 'bytes32', 'num256'))
-def as_num128(expr, args, kwargs, context):
-    return LLLnode.from_list(
-        ['clamp', ['mload', MemoryPositions.MINNUM], args[0], ['mload', MemoryPositions.MAXNUM]], typ=BaseType("num"), pos=getpos(expr)
-    )
-
-
-# Can take either a literal number or a num/bytes32/address as an input
-@signature(('num_literal', 'num', 'bytes32', 'address'))
-def as_num256(expr, args, kwargs, context):
-    if isinstance(args[0], int):
-        if not(0 <= args[0] <= 2**256 - 1):
-            raise InvalidLiteralException("Number out of range: " + str(expr.args[0].n), expr.args[0])
-        return LLLnode.from_list(args[0], typ=BaseType('num256'), pos=getpos(expr))
-    elif isinstance(args[0], LLLnode) and args[0].typ.typ in ('num', 'num_literal', 'address'):
-        return LLLnode.from_list(['clampge', args[0], 0], typ=BaseType('num256'), pos=getpos(expr))
-    elif isinstance(args[0], LLLnode):
-        return LLLnode(value=args[0].value, args=args[0].args, typ=BaseType('num256'), pos=getpos(expr))
-    else:
-        raise InvalidLiteralException("Invalid input for num256: %r" % args[0], expr)
-
-
-@signature(('num', 'num256', 'address'))
-def as_bytes32(expr, args, kwargs, context):
-    return LLLnode(value=args[0].value, args=args[0].args, typ=BaseType('bytes32'), pos=getpos(expr))
+# @signature(('num', 'decimal', 'num_literal', 'num256', 'bytes32', 'bytes', 'address'), 'str_literal')
+def _convert(expr, context):
+    return convert(expr, context)
+    # try:
+    #     typ = args[0].typ.typ
+    # except:
+    #     typ = 'bytes'
+    #     maxlen = args[0].typ.maxlen
+    # if args[1] == b'num':
+    #     assert typ in ('num', 'num256', 'bytes32', 'bytes')
+    #     if typ in ('num', 'num256', 'bytes32'):
+    #         return LLLnode.from_list(
+    #             ['clamp', ['mload', MemoryPositions.MINNUM], args[0], ['mload', MemoryPositions.MAXNUM]], typ=BaseType("num"), pos=getpos(expr)
+    #         )
+    #     else:
+    #         return byte_array_to_num(args[0], expr, 'num')
+    # elif args[1] == b'num256':
+    #     assert typ in ('num', 'num_literal', 'bytes32')
+    #     if isinstance(args[0], int):
+    #         if not(0 <= args[0] <= 2**256 - 1):
+    #             raise InvalidLiteralException("Number out of range: " + str(expr.args[0].n), expr.args[0])
+    #         return LLLnode.from_list(args[0], typ=BaseType('num256'), pos=getpos(expr))
+    #     elif isinstance(args[0], LLLnode) and typ in ('num', 'num_literal'):
+    #         return LLLnode.from_list(['clampge', args[0], 0], typ=BaseType('num256'), pos=getpos(expr))
+    #     elif isinstance(args[0], LLLnode) and typ in ('bytes32'):
+    #         return LLLnode(value=args[0].value, args=args[0].args, typ=BaseType('num256'), pos=getpos(expr))
+    #     else:
+    #         raise InvalidLiteralException("Invalid input for num256: %r" % args[0], expr)
+    # elif args[1] == b'decimal':
+    #     assert typ in ('num')
+    #     return LLLnode.from_list(
+    #         ['mul', args[0], DECIMAL_DIVISOR], typ=BaseType('decimal', args[0].typ.unit, args[0].typ.positional),
+    #         pos=getpos(expr)
+    #     )
+    # elif args[1] == b'bytes32':
+    #     assert typ in ('num', 'num256', 'address', 'bytes')
+    #     if typ == 'bytes':
+    #         if maxlen != 32:
+    #             raise TypeMismatchException("Unable to convert bytes <= {} to bytes32".format(maxlen))
+    #         if args[0].location == "memory":
+    #             return LLLnode.from_list(
+    #             ['mload', ['add', args[0], 32]], typ=BaseType('bytes32')
+    #             )
+    #         elif args[0].location == "storage":
+    #             return LLLnode.from_list(
+    #                 ['sload', ['add', ['sha3_32', args[0]], 1]], typ=BaseType('bytes32')
+    #             )
+    #     else:
+    #         return LLLnode(value=args[0].value, args=args[0].args, typ=BaseType('bytes32'), pos=getpos(expr))
+    # else:
+    #     raise Exception("Conversion of {} to {} is not allowed.".format(typ, args[1]))
 
 
 @signature('bytes', start='num', len='num')
@@ -430,11 +360,6 @@ def extract32(expr, args, kwargs, context):
         return LLLnode.from_list(['uclamplt', o, ['mload', MemoryPositions.ADDRSIZE]], typ=BaseType(ret_type), pos=getpos(expr))
     else:
         return o
-
-
-@signature('bytes')
-def bytes_to_num(expr, args, kwargs, context):
-    return byte_array_to_num(args[0], expr, 'num')
 
 
 @signature(('num_literal', 'num', 'decimal'), 'str_literal')
@@ -810,11 +735,8 @@ def minmax(expr, args, kwargs, context, is_min):
 
 dispatch_table = {
     'floor': floor,
-    'decimal': decimal,
     'as_unitless_number': as_unitless_number,
-    'as_num128': as_num128,
-    'as_num256': as_num256,
-    'as_bytes32': as_bytes32,
+    'convert': _convert,
     'slice': _slice,
     'len': _len,
     'concat': concat,
@@ -825,7 +747,6 @@ dispatch_table = {
     'ecadd': ecadd,
     'ecmul': ecmul,
     'extract32': extract32,
-    'bytes_to_num': bytes_to_num,
     'as_wei_value': as_wei_value,
     'raw_call': raw_call,
     'RLPList': _RLPlist,
