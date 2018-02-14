@@ -119,6 +119,9 @@ valid_call_keywords = ['num', 'decimal', 'address', 'contract', 'indexed']
 # Valid base units
 valid_units = ['currency', 'wei', 'currency1', 'currency2', 'sec', 'm', 'kg']
 
+# Valid attributes for global variables
+valid_global_keywords = ['public', 'modifiable', 'static', 'address', 'num']
+
 # Cannot be used for variable or member naming
 reserved_words = ['int128', 'int256', 'uint256', 'address', 'bytes32',
                   'real', 'real128x128', 'if', 'for', 'while', 'until',
