@@ -145,7 +145,9 @@ def get_keyword(expr, keyword):
     for kw in expr.keywords:
         if kw.arg == keyword:
             return kw.value
-    raise Exception("Keyword %s not found" % keyword)
+    # This should never happen, as kwargs['value'] will KeyError first.
+    # Leaving exception for other use cases.
+    raise Exception("Keyword %s not found" % keyword)  # pragma: no cover
 
 
 @signature('decimal')
