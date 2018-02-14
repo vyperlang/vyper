@@ -317,22 +317,6 @@ def get_size_of_type(typ):
         raise Exception("Unexpected type: %r" % repr(typ))
 
 
-def set_default_units(typ):
-    if isinstance(typ, BaseType):
-        if typ.unit is None:
-            return BaseType(typ.typ, {})
-        else:
-            return typ
-    elif isinstance(typ, StructType):
-        return StructType({k: set_default_units(v) for k, v in typ.members.items()})
-    elif isinstance(typ, ListType):
-        return ListType(set_default_units(typ.subtype), typ.count)
-    elif isinstance(typ, MappingType):
-        return MappingType(set_default_units(typ.keytype), set_default_units(typ.valuetype))
-    else:
-        return typ
-
-
 # Checks that the units of frm can be seamlessly converted into the units of to
 def are_units_compatible(frm, to):
     frm_unit = getattr(frm, 'unit', 0)
