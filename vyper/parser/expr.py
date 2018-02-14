@@ -261,8 +261,8 @@ class Expr(object):
             if left.typ.positional or right.typ.positional:
                 raise TypeMismatchException("Cannot divide positional values!", self.expr)
             new_unit = combine_units(left.typ.unit, right.typ.unit, div=True)
-            if rtyp == 'num':
-                o = LLLnode.from_list(['sdiv', left, ['clamp_nonzero', right]], typ=BaseType(ltyp, new_unit), pos=getpos(self.expr))
+            if ltyp == rtyp == 'num':
+                o = LLLnode.from_list(['sdiv', ['mul', left, DECIMAL_DIVISOR], ['clamp_nonzero', right]], typ=BaseType('decimal', new_unit), pos=getpos(self.expr))
             elif ltyp == rtyp == 'decimal':
                 o = LLLnode.from_list(['with', 'l', left, ['with', 'r', ['clamp_nonzero', right],
                                             ['sdiv', ['mul', 'l', DECIMAL_DIVISOR], 'r']]],
@@ -270,6 +270,8 @@ class Expr(object):
             elif ltyp == 'num' and rtyp == 'decimal':
                 o = LLLnode.from_list(['sdiv', ['mul', left, DECIMAL_DIVISOR ** 2], ['clamp_nonzero', right]],
                                       typ=BaseType('decimal', new_unit), pos=getpos(self.expr))
+            elif ltyp == 'decimal' and rtyp == 'num':
+                o = LLLnode.from_list(['sdiv', left, ['clamp_nonzero', right]], typ=BaseType('decimal', new_unit), pos=getpos(self.expr))
             else:
                 raise Exception("Unsupported Operation 'div(%r, %r)'" % (ltyp, rtyp))
         elif isinstance(self.expr.op, ast.Mod):

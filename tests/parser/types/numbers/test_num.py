@@ -17,6 +17,32 @@ def _num_exp(x: num, y: num) -> num:
     assert c._num_exp(72, 19) == 72 ** 19
 
 
+def test_num_divided_by_num(get_contract_with_gas_estimation):
+    code = """
+@public
+def foo(inp: num) -> decimal:
+    y: decimal = 5/inp
+    return y
+"""
+    c = get_contract_with_gas_estimation(code)
+    assert c.foo(2) == 2.5
+    assert c.foo(10) == .5
+    assert c.foo(50) == .1
+
+
+def test_decimal_divided_by_num(get_contract_with_gas_estimation):
+    code = """
+@public
+def foo(inp: decimal) -> decimal:
+    y: decimal = inp/5
+    return y
+"""
+    c = get_contract_with_gas_estimation(code)
+    assert c.foo(1) == .2
+    assert c.foo(.5) == .1
+    assert c.foo(.2) == .04
+
+
 def test_negative_nums(t, get_contract_with_gas_estimation, chain):
     negative_nums_code = """
 @public

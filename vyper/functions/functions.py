@@ -71,6 +71,14 @@ def floor(expr, args, kwargs, context):
     )
 
 
+@signature('decimal')
+def ceil(expr, args, kwards, context):
+    return LLLnode.from_list(
+        ['sdiv', ['add', args[0], DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR], typ=BaseType('num', args[0].typ.unit, args[0].typ.positional),
+        pos=getpos(expr)
+    )
+
+
 @signature(('num', 'decimal'))
 def as_unitless_number(expr, args, kwargs, context):
     return LLLnode(value=args[0].value, args=args[0].args, typ=BaseType(args[0].typ.typ, {}), pos=getpos(expr))
@@ -735,6 +743,7 @@ def minmax(expr, args, kwargs, context, is_min):
 
 dispatch_table = {
     'floor': floor,
+    'ceil': ceil,
     'as_unitless_number': as_unitless_number,
     'convert': _convert,
     'slice': _slice,
