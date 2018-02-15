@@ -17,12 +17,12 @@ This example is taken from the sample ERC20 contract and shows the basic flow of
     Approval: __log__({_owner: indexed(address), _spender: indexed(address), _value: num256})
 
     # Transfer some tokens from message sender to another address
-    def transfer(_to: address, _amount: num(num256)) -> bool:
+    def transfer(_to : address, _value : num256) -> bool:
 
        ... Logic here to do the real work ...
 
        # All done, log the event for listeners
-       log.Transfer(msg.sender, _to, convert(_amount, 'num256'))
+       log.Transfer(msg.sender, _to, _amount))
 
 Let's look at what this is doing. First, we declare two event types to log. The two events are similar in that they contain 
 two indexed address fields. Indexed fields do not make up part of the event data itself, but can be searched by clients that
@@ -30,7 +30,7 @@ want to catch the event. Also, each event contains one single data field, in eac
 
 Next, in the ``transfer`` function, after we do whatever work is necessary, we log the event. We pass three arguments, corresponding with the three arguments of the Transfer event declaration.
 
-Clients listening to the events will declare the events they are interested in using a library such as web3.js:
+Clients listening to the events will declare and handle the events they are interested in using a `library such as web3.js <http://solidity.readthedocs.io/en/develop/contracts.html#events>`_:
 
 ::
 
@@ -46,7 +46,31 @@ Clients listening to the events will declare the events they are interested in u
         }
     });
 
-In this example, the listening client declares the event to listen for. Any time the contract sends a log event, the callback will be invoked. The `result` arg passes a large amount of information, but here we're most interested in `result.args`. This is an object with properties that match the properties declared in the event. Note that this object does not contain the indexed properties, which can only be searched in the original `myToken.Transfer` that created the callback. (See https://github.com/ethereum/wiki/wiki/JavaScript-API#contract-events for more information.)
+In this example, the listening client declares the event to listen for. Any time the contract sends this log event, the callback will be invoked. The `result` arg passes a large amount of information, but here we're most interested in `result.args`. This is an object with properties that match the properties declared in the event. Note that this object does not contain the indexed properties, which can only be searched in the original `myToken.Transfer` that created the callback. (See https://github.com/ethereum/wiki/wiki/JavaScript-API#contract-events for more information.)
 
 Declaring Events
 ================
+
+Let's look at an event declaration in more detail.
+
+::
+
+    Transfer: __log__({_from: indexed(address), _to: indexed(address), _value: num256})
+
+Event declarations look like state variable declarations but use the dunder function __log__. __log__ takes a dictionary as its argument that consist of all the arguments to be passed as part of the event. Typical events will contain two kinds of arguments:
+
+* Indexed arguments, which can be searched for by listeners. Each indexed argument is identifier by the `indexed` keyword.  Here, each indexed argument is an address. You can have any number of indexed arguments, but indexed arguments are not passed directly to listeners, although some of this information (such as the sender) may be available in the listener's `results` object.
+* Value arguments, which are passed through to listeners. You can have any number of value arguments and they can have arbitrary names, but each is limited by the EVM to be no more than 32 bytes.
+
+Logging Events
+==============
+
+Once an event is declared, you can log (send) events. You can send events as many times as you want to. Please note that events sent do not take state storage and thus do not cost gas: this makes events a good way to save some information. However, the drawback is that events are not available to contracts, only to clients.
+
+Logging events is done using the magic keyword 'log`:
+
+::
+
+   log.Transfer(msg.sender, _to, _amount))
+
+The order and types of arguments sent needs to match up with the order of declarations in the dictionary.
