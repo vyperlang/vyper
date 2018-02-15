@@ -46,7 +46,7 @@ Clients listening to the events will declare and handle the events they are inte
         }
     });
 
-In this example, the listening client declares the event to listen for. Any time the contract sends this log event, the callback will be invoked. The `result` arg passes a large amount of information, but here we're most interested in `result.args`. This is an object with properties that match the properties declared in the event. Note that this object does not contain the indexed properties, which can only be searched in the original `myToken.Transfer` that created the callback. (See https://github.com/ethereum/wiki/wiki/JavaScript-API#contract-events for more information.)
+In this example, the listening client declares the event to listen for. Any time the contract sends this log event, the callback will be invoked.
 
 Declaring Events
 ================
@@ -69,10 +69,15 @@ Logging Events
 
 Once an event is declared, you can log (send) events. You can send events as many times as you want to. Please note that events sent do not take state storage and thus do not cost gas: this makes events a good way to save some information. However, the drawback is that events are not available to contracts, only to clients.
 
-Logging events is done using the magic keyword 'log`:
+Logging events is done using the magic keyword `log`:
 
 ::
 
    log.Transfer(msg.sender, _to, _amount)
 
 The order and types of arguments sent needs to match up with the order of declarations in the dictionary.
+
+Listening for Events
+====================
+
+In the example listener above, the `result` arg actually passes a `large amount of information<https://github.com/ethereum/wiki/wiki/JavaScript-API#contract-events>`_. Here we're most interested in `result.args`. This is an object with properties that match the properties declared in the event. Note that this object does not contain the indexed properties, which can only be searched in the original `myToken.Transfer` that created the callback.
