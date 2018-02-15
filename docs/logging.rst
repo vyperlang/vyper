@@ -80,4 +80,4 @@ The order and types of arguments sent needs to match up with the order of declar
 Listening for Events
 ====================
 
-In the example listener above, the `result` arg actually passes a `large amount of information<https://github.com/ethereum/wiki/wiki/JavaScript-API#contract-events>`_. Here we're most interested in `result.args`. This is an object with properties that match the properties declared in the event. Note that this object does not contain the indexed properties, which can only be searched in the original `myToken.Transfer` that created the callback.
+In the example listener above, the `result` arg actually passes a `large amount of information <https://github.com/ethereum/wiki/wiki/JavaScript-API#contract-events>`_. Here we're most interested in `result.args`. This is an object with properties that match the properties declared in the event. Note that this object does not contain the indexed properties, which can only be searched in the original `myToken.Transfer` that created the callback.
