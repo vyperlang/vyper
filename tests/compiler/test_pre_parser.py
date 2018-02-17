@@ -1,5 +1,5 @@
 from vyper.exceptions import StructureException
-from pytest import raises 
+from pytest import raises
 
 
 def test_semicolon_prohibited(get_contract):
@@ -14,7 +14,8 @@ def test() -> num:
 
 
 def test_valid_semicolons(get_contract):
-    code = """@public
+    code = """
+@public
 def test() -> num:
     a: num = 1
     b: num = 2
@@ -25,7 +26,6 @@ def test() -> num:
     s = "this should not be \\\"; because it's in a ;\\\"string;\\\";"
     return a + b
     """
-
     c = get_contract(code)
     assert c.test() == 3
 
