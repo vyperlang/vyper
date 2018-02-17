@@ -1,4 +1,8 @@
 import ast
+import tokenize
+import io
+
+from tokenize import OP, NAME, TokenInfo
 
 from vyper.exceptions import (
     InvalidLiteralException,
@@ -62,10 +66,29 @@ if not hasattr(ast, 'AnnAssign'):
 
 # Converts code to parse tree
 def parse(code):
+    code = pre_parser(code)
     o = ast.parse(code)
     decorate_ast_with_source(o, code)
     o = resolve_negative_literals(o)
     return o.body
+
+
+# Minor pre-parser checks.
+def pre_parser(code):
+    result = []
+
+    g = tokenize.tokenize(io.BytesIO(code.encode('utf-8')).readline)
+    for token in g:
+
+        # Alias contract definition to class definition.
+        if (token.type, token.string, token.start[1]) == (NAME, "contract", 0):
+            token = TokenInfo(token.type, "class", token.start, token.end, token.line)
+        # Prevent semi-colon line statements.
+        elif (token.type, token.string) == (OP, ";"):
+            raise StructureException("Semi-colon statements not allowed.", token.start)
+
+        result.append(token)
+    return tokenize.untokenize(result).decode('utf-8')
 
 
 # Parser for a single line
