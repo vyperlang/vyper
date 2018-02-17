@@ -8,7 +8,7 @@ Like Solidity and other EVM languages, Vyper can log events to be caught and dis
 Example of Logging
 ==================
 
-This example is taken from the sample ERC20 contract and shows the basic flow of event logging.
+This example is taken from the `sample ERC20 contract <https://github.com/ethereum/vyper/blob/master/examples/tokens/ERC20_solidity_compatible/ERC20.v.py>`_ and shows the basic flow of event logging.
 
 ::
 
@@ -62,7 +62,7 @@ Event declarations look like state variable declarations but use the dunder func
 * Indexed arguments, which can be searched for by listeners. Each indexed argument is identifier by the `indexed` keyword.  Here, each indexed argument is an address. You can have any number of indexed arguments, but indexed arguments are not passed directly to listeners, although some of this information (such as the sender) may be available in the listener's `results` object.
 * Value arguments, which are passed through to listeners. You can have any number of value arguments and they can have arbitrary names, but each is limited by the EVM to be no more than 32 bytes.
 
-Note that while the argument definition syntax looks like a Python dictionary, it's actually an order-sensitive definition. Thus, the first element (_from) will be matched up with the first argument passed in the log.Transfer call.
+Note that while the argument definition syntax looks like a Python dictionary, it's actually an order-sensitive definition. (Python dictionaries `maintain order starting with 3.7 <https://mail.python.org/pipermail/python-dev/2017-December/151283.html>`_.) Thus, the first element (_from) will be matched up with the first argument passed in the log.Transfer call.
 
 Logging Events
 ==============
