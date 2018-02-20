@@ -108,7 +108,7 @@ class Stmt(object):
         from .parser import (
             make_setter,
         )
-        # Assignment (eg. x[4] = y)
+        # Assignment (e.g. x[4] = y)
         if len(self.stmt.targets) != 1:
             raise StructureException("Assignment statement must have one target", self.stmt)
         sub = Expr(self.stmt.value, self.context).lll_node
@@ -221,7 +221,7 @@ class Stmt(object):
         from .parser import (
             parse_body,
         )
-        # Type 0 for, eg. for i in list(): ...
+        # Type 0 for, e.g. for i in list(): ...
         if self._is_list_iter():
             return self.parse_for_list()
 
@@ -234,18 +234,18 @@ class Stmt(object):
 
         block_scope_id = id(self.stmt.orelse)
         self.context.start_blockscope(block_scope_id)
-        # Type 1 for, eg. for i in range(10): ...
+        # Type 1 for, e.g. for i in range(10): ...
         if len(self.stmt.iter.args) == 1:
             if not isinstance(self.stmt.iter.args[0], ast.Num):
                 raise StructureException("Range only accepts literal values", self.stmt.iter)
             start = LLLnode.from_list(0, typ='int128', pos=getpos(self.stmt))
             rounds = self.stmt.iter.args[0].n
         elif isinstance(self.stmt.iter.args[0], ast.Num) and isinstance(self.stmt.iter.args[1], ast.Num):
-            # Type 2 for, eg. for i in range(100, 110): ...
+            # Type 2 for, e.g. for i in range(100, 110): ...
             start = LLLnode.from_list(self.stmt.iter.args[0].n, typ='int128', pos=getpos(self.stmt))
             rounds = LLLnode.from_list(self.stmt.iter.args[1].n - self.stmt.iter.args[0].n, typ='int128', pos=getpos(self.stmt))
         else:
-            # Type 3 for, eg. for i in range(x, x + 10): ...
+            # Type 3 for, e.g. for i in range(x, x + 10): ...
             if not isinstance(self.stmt.iter.args[1], ast.BinOp) or not isinstance(self.stmt.iter.args[1].op, ast.Add):
                 raise StructureException("Two-arg for statements must be of the form `for i in range(start, start + rounds): ...`",
                                             self.stmt.iter.args[1])

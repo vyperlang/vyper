@@ -10,7 +10,7 @@ from vyper.utils import (
 )
 
 
-# Pretty-print a unit (eg. wei/seconds**2)
+# Pretty-print a unit (e.g. wei/seconds**2)
 def print_unit(unit):
     if unit is None:
         return '*'
@@ -110,7 +110,7 @@ class MappingType(NodeType):
         return repr(self.valuetype) + '[' + repr(self.keytype) + ']'
 
 
-# Data structure for a struct, eg. {a: <type>, b: <type>}
+# Data structure for a struct, e.g. {a: <type>, b: <type>}
 class StructType(NodeType):
     def __init__(self, members):
         self.members = copy.copy(members)
@@ -122,7 +122,7 @@ class StructType(NodeType):
         return '{' + ', '.join([k + ': ' + repr(v) for k, v in self.members.items()]) + '}'
 
 
-# Data structure for a list with heterogeneous types, eg. [int128, bytes32, bytes]
+# Data structure for a list with heterogeneous types, e.g. [int128, bytes32, bytes]
 class TupleType(NodeType):
     def __init__(self, members):
         self.members = copy.copy(members)
@@ -236,7 +236,7 @@ def parse_unit(item):
 # Parses an expression representing a type. Annotation refers to whether
 # the type is to be located in memory or storage
 def parse_type(item, location, sigs={}):
-    # Base types, eg. num
+    # Base types, e.g. num
     if isinstance(item, ast.Name):
         if item.id in base_types:
             return BaseType(item.id)
@@ -244,7 +244,7 @@ def parse_type(item, location, sigs={}):
             return special_types[item.id]
         else:
             raise InvalidTypeException("Invalid base type: " + item.id, item)
-    # Units, eg. num (1/sec) or contracts
+    # Units, e.g. num (1/sec) or contracts
     elif isinstance(item, ast.Call):
         # Contract_types
         if item.func.id == 'contract' or item.func.id == 'address':
@@ -277,12 +277,12 @@ def parse_type(item, location, sigs={}):
     elif isinstance(item, ast.Subscript):
         if 'value' not in vars(item.slice):
             raise InvalidTypeException("Array access must access a single element, not a slice", item)
-        # Fixed size lists, eg. num[100]
+        # Fixed size lists, e.g. num[100]
         elif isinstance(item.slice.value, ast.Num):
             if not isinstance(item.slice.value.n, int) or item.slice.value.n <= 0:
                 raise InvalidTypeException("Arrays must have a positive integral number of elements", item.slice.value)
             return ListType(parse_type(item.value, location), item.slice.value.n)
-        # Mappings, eg. num[address]
+        # Mappings, e.g. num[address]
         else:
             if location == 'memory':
                 raise InvalidTypeException("No mappings allowed for in-memory types, only fixed-size arrays", item)
@@ -290,7 +290,7 @@ def parse_type(item, location, sigs={}):
             if not isinstance(keytype, (BaseType, ByteArrayType)):
                 raise InvalidTypeException("Mapping keys must be base or bytes types", item.slice.value)
             return MappingType(keytype, parse_type(item.value, location))
-    # Dicts, used to represent mappings, eg. {uint: uint}. Key must be a base type
+    # Dicts, used to represent mappings, e.g. {uint: uint}. Key must be a base type
     elif isinstance(item, ast.Dict):
         o = {}
         for key, value in zip(item.keys, item.values):
