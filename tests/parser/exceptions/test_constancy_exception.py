@@ -70,7 +70,7 @@ def b():
 f:num
 
 @public
-def a (x:num):
+def a(x:num):
     self.f = 100
 
 @constant

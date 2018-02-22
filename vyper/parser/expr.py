@@ -415,6 +415,9 @@ class Expr(object):
     def boolean_operations(self):
         if len(self.expr.values) != 2:
             raise StructureException("Expected two arguments for a bool op", self.expr)
+        if self.context.in_assignment and (isinstance(self.expr.values[0], ast.Call) or isinstance(self.expr.values[1], ast.Call)):
+            raise StructureException("Boolean operations with calls may not be performed on assignment", self.expr)
+
         left = Expr.parse_value_expr(self.expr.values[0], self.context)
         right = Expr.parse_value_expr(self.expr.values[1], self.context)
         if not is_base_type(left.typ, 'bool') or not is_base_type(right.typ, 'bool'):
@@ -468,7 +471,8 @@ class Expr(object):
             sig = self.context.sigs['self'][method_name]
             if self.context.is_constant and not sig.const:
                 raise ConstancyViolationException(
-                    "May not call non-constant function '%s' within a constant function." % (method_name)
+                    "May not call non-constant function '%s' within a constant function." % (method_name),
+                    getpos(self.expr)
                 )
             add_gas = self.context.sigs['self'][method_name].gas  # gas of call
             inargs, inargsize = pack_arguments(sig, [Expr(arg, self.context).lll_node for arg in self.expr.args], self.context)
