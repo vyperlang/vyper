@@ -2,7 +2,7 @@
 
 def test_bytes_logging_extended(t, get_contract_with_gas_estimation, get_logs, chain):
     code = """
-MyLog: __log__({arg1: num, arg2: bytes <= 64, arg3: num})
+MyLog: __log__({arg1: int128, arg2: bytes <= 64, arg3: int128})
 
 @public
 def foo():
@@ -41,10 +41,10 @@ def foo():
 
 def test_bytes_logging_extended_passthrough(t, get_contract_with_gas_estimation, get_logs, chain):
     code = """
-MyLog: __log__({arg1: num, arg2: bytes <= 64, arg3: num})
+MyLog: __log__({arg1: int128, arg2: bytes <= 64, arg3: int128})
 
 @public
-def foo(a: num, b: bytes <= 64, c: num):
+def foo(a: int128, b: bytes <= 64, c: int128):
     log.MyLog(a, b, c)
     """
 
@@ -59,17 +59,17 @@ def foo(a: num, b: bytes <= 64, c: num):
 
 def test_bytes_logging_extended_storage(t, get_contract_with_gas_estimation, get_logs, chain):
     code = """
-MyLog: __log__({arg1: num, arg2: bytes <= 64, arg3: num})
-a: num
+MyLog: __log__({arg1: int128, arg2: bytes <= 64, arg3: int128})
+a: int128
 b: bytes <= 64
-c: num
+c: int128
 
 @public
 def foo():
     log.MyLog(self.a, self.b, self.c)
 
 @public
-def set(x: num, y: bytes <= 64, z: num):
+def set(x: int128, y: bytes <= 64, z: int128):
     self.a = x
     self.b = y
     self.c = z
@@ -95,9 +95,9 @@ def set(x: num, y: bytes <= 64, z: num):
 def test_bytes_logging_extended_mixed_with_lists(t, get_contract_with_gas_estimation, get_logs, chain):
     code = """
 MyLog: __log__({
-    arg1: num[2][2],
+    arg1: int128[2][2],
     arg2: bytes <= 64,
-    arg3: num,
+    arg3: int128,
     arg4: bytes <= 64
 })
 

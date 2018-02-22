@@ -1,13 +1,13 @@
 def test_state_accessor(get_contract_with_gas_estimation_for_constants):
     state_accessor = """
-y: num[num]
+y: int128[int128]
 
 @public
 def oo():
     self.y[3] = 5
 
 @public
-def foo() -> num:
+def foo() -> int128:
     return self.y[3]
 
     """
@@ -21,17 +21,17 @@ def foo() -> num:
 def test_getter_code(get_contract_with_gas_estimation_for_constants):
     getter_code = """
 x: public(wei_value)
-y: public(num[5])
+y: public(int128[5])
 z: public(bytes <= 100)
 w: public({
     a: wei_value,
-    b: num[7],
+    b: int128[7],
     c: bytes <= 100,
-    d: num[address],
-    e: num[3][3],
+    d: int128[address],
+    e: int128[3][3],
     f: timestamp,
     g: wei_value
-}[num])
+}[int128])
 
 @public
 def __init__():

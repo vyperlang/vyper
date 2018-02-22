@@ -4,26 +4,26 @@ from vyper.exceptions import ConstancyViolationException
 def test_augassign(get_contract_with_gas_estimation):
     augassign_test = """
 @public
-def augadd(x: num, y: num) -> num:
-    z: num = x
+def augadd(x: int128, y: int128) -> int128:
+    z: int128 = x
     z += y
     return z
 
 @public
-def augmul(x: num, y: num) -> num:
-    z: num = x
+def augmul(x: int128, y: int128) -> int128:
+    z: int128 = x
     z *= y
     return z
 
 @public
-def augsub(x: num, y: num) -> num:
-    z: num = x
+def augsub(x: int128, y: int128) -> int128:
+    z: int128 = x
     z -= y
     return z
 
 @public
-def augmod(x: num, y: num) -> num:
-    z: num = x
+def augmod(x: int128, y: int128) -> int128:
+    z: int128 = x
     z %= y
     return z
     """
@@ -40,7 +40,7 @@ def augmod(x: num, y: num) -> num:
 def test_invalid_assign(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
 @public
-def foo(x: num):
+def foo(x: int128):
     x = 5
 """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ConstancyViolationException)
@@ -49,7 +49,7 @@ def foo(x: num):
 def test_invalid_augassign(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
 @public
-def foo(x: num):
+def foo(x: int128):
     x += 5
 """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ConstancyViolationException)

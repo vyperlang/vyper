@@ -8,13 +8,13 @@ from vyper.exceptions import TypeMismatchException
 fail_list = [
     """
 @public
-def foo() -> num:
+def foo() -> int128:
     x: address = create_with_code_of(0x1234567890123456789012345678901234567890, value=block.timestamp)
     return 5
     """,
     """
 @public
-def foo() -> num[2]:
+def foo() -> int128[2]:
     return [3,block.timestamp]
     """,
     """
@@ -25,8 +25,8 @@ def foo() -> timedelta[2]:
     """
 @public
 def foo() -> decimal(wei / sec):
-    x: num(wei) = as_wei_value(5, "finney")
-    y: num = block.timestamp + 50
+    x: int128(wei) = as_wei_value(5, "finney")
+    y: int128 = block.timestamp + 50
     return x / y
     """,
     """
@@ -37,8 +37,8 @@ def foo():
     """
 @public
 def foo():
-    x: num = 7
-    y: num = min(x, block.timestamp)
+    x: int128 = 7
+    y: int128 = min(x, block.timestamp)
     """,
     """
 @public
@@ -46,14 +46,14 @@ def foo():
     y = min(block.timestamp + 30 - block.timestamp, block.timestamp)
     """,
     """
-a: num[timestamp]
+a: int128[timestamp]
 
 @public
 def add_record():
     self.a[block.timestamp] = block.timestamp + 20
     """,
     """
-a: timestamp[num]
+a: timestamp[int128]
 
 @public
 def add_record():
@@ -63,7 +63,7 @@ def add_record():
 @public
 def add_record():
     a: {x: timestamp} = {x: block.timestamp}
-    b: {y: num} = {y: 5}
+    b: {y: int128} = {y: 5}
     a.x = b.y
     """,
     """
@@ -78,7 +78,7 @@ def foo() -> address:
     """,
     ("""
 @public
-def foo() -> num:
+def foo() -> int128:
     return block.fail
 """, Exception)
 ]
@@ -107,8 +107,8 @@ def add_record():
     """
 @public
 def foo() -> decimal(wei / sec):
-    x: num(wei) = as_wei_value(5, "finney")
-    y: num(sec) = block.timestamp + 50 - block.timestamp
+    x: int128(wei) = as_wei_value(5, "finney")
+    y: int128(sec) = block.timestamp + 50 - block.timestamp
     return x / y
     """,
     """
@@ -123,7 +123,7 @@ def foo():
     """,
     """
 @public
-def foo() -> num:
+def foo() -> int128:
     return as_unitless_number(block.timestamp)
     """,
     """
@@ -135,7 +135,7 @@ def add_record():
     """
 @public
 def foo():
-    x: num = block.difficulty + 185
+    x: int128 = block.difficulty + 185
     if tx.origin == self:
         y: bytes <= 35 = concat(block.prevhash, "dog")
     """

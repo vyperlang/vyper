@@ -1,8 +1,8 @@
 def test_basic_repeater(get_contract_with_gas_estimation):
     basic_repeater = """
 @public
-def repeat(z: num) -> num:
-    x: num = 0
+def repeat(z: int128) -> int128:
+    x: int128 = 0
     for i in range(6):
         x = x + z
     return(x)
@@ -15,13 +15,13 @@ def repeat(z: num) -> num:
 def test_digit_reverser(get_contract_with_gas_estimation):
     digit_reverser = """
 @public
-def reverse_digits(x: num) -> num:
-    dig: num[6]
-    z: num = x
+def reverse_digits(x: int128) -> int128:
+    dig: int128[6]
+    z: int128 = x
     for i in range(6):
         dig[i] = z % 10
         z = floor(z / 10)
-    o: num = 0
+    o: int128 = 0
     for i in range(6):
         o = o * 10 + dig[i]
     return o
@@ -36,8 +36,8 @@ def reverse_digits(x: num) -> num:
 def test_more_complex_repeater(get_contract_with_gas_estimation):
     more_complex_repeater = """
 @public
-def repeat() -> num:
-    out: num = 0
+def repeat() -> int128:
+    out: int128 = 0
     for i in range(6):
         out = out * 10
         for j in range(4):
@@ -52,8 +52,8 @@ def repeat() -> num:
 def test_offset_repeater(get_contract_with_gas_estimation):
     offset_repeater = """
 @public
-def sum() -> num:
-    out: num = 0
+def sum() -> int128:
+    out: int128 = 0
     for i in range(80, 121):
         out = out + i
     return(out)
@@ -68,8 +68,8 @@ def sum() -> num:
 def test_offset_repeater_2(get_contract_with_gas_estimation):
     offset_repeater_2 = """
 @public
-def sum(frm: num, to: num) -> num:
-    out: num = 0
+def sum(frm: int128, to: int128) -> int128:
+    out: int128 = 0
     for i in range(frm, frm + 101):
         if i == to:
             break

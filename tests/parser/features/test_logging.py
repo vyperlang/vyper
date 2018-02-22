@@ -78,7 +78,7 @@ def foo():
 
 def test_logging_the_same_event_multiple_times_with_topics(get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
-MyLog: __log__({arg1: indexed(num), arg2: indexed(address)})
+MyLog: __log__({arg1: indexed(int128), arg2: indexed(address)})
 
 @public
 def foo():
@@ -108,7 +108,7 @@ def bar():
 
 def test_event_logging_cannot_have_more_than_three_topics(assert_tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
-MyLog: __log__({arg1: indexed(bytes <= 3), arg2: indexed(bytes <= 4), arg3: indexed(address), arg4: indexed(num)})
+MyLog: __log__({arg1: indexed(bytes <= 3), arg2: indexed(bytes <= 4), arg3: indexed(address), arg4: indexed(int128)})
     """
 
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
@@ -116,7 +116,7 @@ MyLog: __log__({arg1: indexed(bytes <= 3), arg2: indexed(bytes <= 4), arg3: inde
 
 def test_event_logging_with_data(get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
-MyLog: __log__({arg1: num})
+MyLog: __log__({arg1: int128})
 
 @public
 def foo():
@@ -139,7 +139,7 @@ def foo():
 
 def test_event_logging_with_units(get_contract_with_gas_estimation, chain, utils):
     code = """
-MyLog: __log__({arg1: indexed(num(wei)), arg2: num(wei)})
+MyLog: __log__({arg1: indexed(int128(wei)), arg2: int128(wei)})
 
 @public
 def foo():
@@ -150,7 +150,7 @@ def foo():
 
 def test_event_logging_with_fixed_array_data(get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
-MyLog: __log__({arg1: num[2], arg2: timestamp[3], arg3: num[2][2]})
+MyLog: __log__({arg1: int128[2], arg2: timestamp[3], arg3: int128[2][2]})
 
 @public
 def foo():
@@ -249,7 +249,7 @@ def foo(_arg1: bytes <= 5):
 
 def test_event_logging_with_data_with_different_types(get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
-MyLog: __log__({arg1: num, arg2: bytes <= 4, arg3: bytes <= 3, arg4: address, arg5: address, arg6: timestamp})
+MyLog: __log__({arg1: int128, arg2: bytes <= 4, arg3: bytes <= 3, arg4: address, arg5: address, arg6: timestamp})
 
 @public
 def foo():
@@ -272,7 +272,7 @@ def foo():
 
 def test_event_logging_with_topics_and_data_1(get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
-MyLog: __log__({arg1: indexed(num), arg2: bytes <= 3})
+MyLog: __log__({arg1: indexed(int128), arg2: bytes <= 3})
 
 @public
 def foo():
@@ -295,7 +295,7 @@ def foo():
 
 def test_event_logging_with_multiple_logs_topics_and_data(get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
-MyLog: __log__({arg1: indexed(num), arg2: bytes <= 3})
+MyLog: __log__({arg1: indexed(int128), arg2: bytes <= 3})
 YourLog: __log__({arg1: indexed(address), arg2: bytes <= 5})
 
 @public
@@ -326,7 +326,7 @@ def foo():
 
 def test_fails_when_input_is_the_wrong_type(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     loggy_code = """
-MyLog: __log__({arg1: indexed(num)})
+MyLog: __log__({arg1: indexed(int128)})
 
 @public
 def foo_():
@@ -398,7 +398,7 @@ def foo():
 
 def test_logging_fails_with_over_three_topics(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     loggy_code = """
-MyLog: __log__({arg1: indexed(num), arg2: indexed(num), arg3: indexed(num), arg4: indexed(num)})
+MyLog: __log__({arg1: indexed(int128), arg2: indexed(int128), arg3: indexed(int128), arg4: indexed(int128)})
 @public
 def __init__():
     log.MyLog(1, 2, 3, 4)
@@ -433,7 +433,7 @@ def foo():
 
 def test_logging_fails_with_topic_type_mismatch(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     loggy_code = """
-MyLog: __log__({arg1: indexed(num)})
+MyLog: __log__({arg1: indexed(int128)})
 
 @public
 def foo():
@@ -457,7 +457,7 @@ def foo():
 
 def test_logging_fails_after_a_global_declaration(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     loggy_code = """
-age: num
+age: int128
 MyLog: __log__({arg1: bytes <= 3})
     """
     t.s = chain
@@ -477,7 +477,7 @@ MyLog: __log__({arg1: bytes <= 3})
 
 def test_logging_fails_when_number_of_arguments_is_greater_than_declaration(t, assert_tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
-MyLog: __log__({arg1: num})
+MyLog: __log__({arg1: int128})
 
 @public
 def foo():
@@ -488,7 +488,7 @@ def foo():
 
 def test_logging_fails_when_number_of_arguments_is_less_than_declaration(assert_tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
-MyLog: __log__({arg1: num, arg2: num})
+MyLog: __log__({arg1: int128, arg2: int128})
 
 @public
 def foo():
@@ -535,11 +535,11 @@ def ioo(inp: bytes <= 100):
 def test_variable_list_packing(t, get_last_log, get_contract_with_gas_estimation, chain):
     t.s = chain
     code = """
-Bar: __log__({_value: num[4]})
+Bar: __log__({_value: int128[4]})
 
 @public
 def foo():
-    a: num[4] = [1, 2, 3, 4]
+    a: int128[4] = [1, 2, 3, 4]
     log.Bar(a)
     """
     c = get_contract_with_gas_estimation(code)
@@ -551,7 +551,7 @@ def foo():
 def test_literal_list_packing(t, get_last_log, get_contract_with_gas_estimation, chain):
     t.s = chain
     code = """
-Bar: __log__({_value: num[4]})
+Bar: __log__({_value: int128[4]})
 
 @public
 def foo():
@@ -566,8 +566,8 @@ def foo():
 def test_storage_list_packing(t, get_last_log, bytes_helper, get_contract_with_gas_estimation, chain):
     t.s = chain
     code = """
-Bar: __log__({_value: num[4]})
-x: num[4]
+Bar: __log__({_value: int128[4]})
+x: int128[4]
 
 @public
 def foo():
@@ -589,10 +589,10 @@ def set_list():
 def test_passed_list_packing(t, get_last_log, get_contract_with_gas_estimation, chain):
     t.s = chain
     code = """
-Bar: __log__({_value: num[4]})
+Bar: __log__({_value: int128[4]})
 
 @public
-def foo(barbaric: num[4]):
+def foo(barbaric: int128[4]):
     log.Bar(barbaric)
     """
     c = get_contract_with_gas_estimation(code)
@@ -624,7 +624,7 @@ MyLog: __log__({arg1: bytes <= 29})
 x:bytes<=5
 
 @public
-def foo(a:num):
+def foo(a: int128):
     log.MyLog(self.x)
 
 @public

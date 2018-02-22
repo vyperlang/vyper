@@ -17,14 +17,14 @@ def baa():
 @public
 def baa():
     x: bytes <= 50
-    y: num
+    y: int128
     y = x
     """,
     """
 @public
 def baa():
     x: bytes <= 50
-    y: num
+    y: int128
     x = y
     """,
     """
@@ -41,12 +41,12 @@ def foo(x: bytes <= 100) -> bytes <= 75:
     """,
     """
 @public
-def foo(x: bytes <= 100) -> num:
+def foo(x: bytes <= 100) -> int128:
     return x
     """,
     """
 @public
-def foo(x: num) -> bytes <= 75:
+def foo(x: int128) -> bytes <= 75:
     return x
     """,
     """
@@ -83,7 +83,7 @@ def foo(x: bytes <= 100) -> bytes <= 150:
     """,
     """
 @public
-def convert2(inp: num256) -> bytes32:
+def convert2(inp: uint256) -> bytes32:
     return convert(inp, 'bytes32')
     """,
     """

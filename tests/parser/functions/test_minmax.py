@@ -5,8 +5,8 @@ def foo() -> decimal:
     return min(3, 5) + max(10, 20) + min(200.1, 400) + max(3000, 8000.02) + min(50000.003, 70000.004)
 
 @public
-def goo() -> num256:
-    return num256_add(min(convert(3, 'num256'), convert(5, 'num256')), max(convert(40, 'num256'), convert(80, 'num256')))
+def goo() -> uint256:
+    return uint256_add(min(convert(3, 'uint256'), convert(5, 'uint256')), max(convert(40, 'uint256'), convert(80, 'uint256')))
     """
 
     c = get_contract_with_gas_estimation(minmax_test)

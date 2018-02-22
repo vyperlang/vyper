@@ -4,7 +4,7 @@ from vyper.exceptions import TypeMismatchException
 def test_exponents_with_nums(get_contract_with_gas_estimation):
     exp_code = """
 @public
-def _num_exp(x: num, y: num) -> num:
+def _num_exp(x: int128, y: int128) -> int128:
     return x**y
     """
 
@@ -20,7 +20,7 @@ def _num_exp(x: num, y: num) -> num:
 def test_num_divided_by_num(get_contract_with_gas_estimation):
     code = """
 @public
-def foo(inp: num) -> decimal:
+def foo(inp: int128) -> decimal:
     y: decimal = 5/inp
     return y
 """
@@ -46,11 +46,11 @@ def foo(inp: decimal) -> decimal:
 def test_negative_nums(t, get_contract_with_gas_estimation, chain):
     negative_nums_code = """
 @public
-def _negative_num() -> num:
+def _negative_num() -> int128:
     return -1
 
 @public
-def _negative_exp() -> num:
+def _negative_exp() -> int128:
     return -(1+2)
     """
 
@@ -63,10 +63,10 @@ def _negative_exp() -> num:
 def test_exponents_with_units(get_contract_with_gas_estimation):
     code = """
 @public
-def foo() -> num(wei):
-    a: num(wei)
-    b: num
-    c: num(wei)
+def foo() -> int128(wei):
+    a: int128(wei)
+    b: int128
+    c: int128(wei)
     a = 2
     b = 2
     c = a ** b
@@ -79,27 +79,27 @@ def foo() -> num(wei):
 def test_num_bound(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     num_bound_code = """
 @public
-def _num(x: num) -> num:
+def _num(x: int128) -> int128:
     return x
 
 @public
-def _num_add(x: num, y: num) -> num:
+def _num_add(x: int128, y: int128) -> int128:
     return x + y
 
 @public
-def _num_sub(x: num, y: num) -> num:
+def _num_sub(x: int128, y: int128) -> int128:
     return x - y
 
 @public
-def _num_add3(x: num, y: num, z: num) -> num:
+def _num_add3(x: int128, y: int128, z: int128) -> int128:
     return x + y + z
 
 @public
-def _num_max() -> num:
+def _num_max() -> int128:
     return  170141183460469231731687303715884105727   #  2**127 - 1
 
 @public
-def _num_min() -> num:
+def _num_min() -> int128:
     return -170141183460469231731687303715884105728   # -2**127
     """
 
@@ -127,8 +127,8 @@ def test_invalid_unit_exponent(assert_compile_failed, get_contract_with_gas_esti
     code = """
 @public
 def foo():
-    a: num(wei)
-    b: num(wei)
+    a: int128(wei)
+    b: int128(wei)
     c = a ** b
 """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatchException)
