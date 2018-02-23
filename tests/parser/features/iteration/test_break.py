@@ -1,9 +1,9 @@
 def test_break_test(get_contract_with_gas_estimation):
     break_test = """
 @public
-def log(n: num) -> num:
+def log(n: int128) -> int128:
     c: decimal = n * 1.0
-    output: num = 0
+    output: int128 = 0
     for i in range(400):
         c = c / 1.2589
         if c < 1.0:
@@ -23,9 +23,9 @@ def log(n: num) -> num:
 def test_break_test_2(get_contract_with_gas_estimation):
     break_test_2 = """
 @public
-def log(n: num) -> num:
+def log(n: int128) -> int128:
     c: decimal = n * 1.0
-    output: num = 0
+    output: int128 = 0
     for i in range(40):
         if c < 10:
             output = i * 10
@@ -51,9 +51,9 @@ def log(n: num) -> num:
 def test_break_test_3(get_contract_with_gas_estimation):
     break_test_3 = """
 @public
-def log(n: num) -> num:
-    c: decimal = decimal(n)
-    output: num = 0
+def log(n: int128) -> int128:
+    c: decimal = convert(n, 'decimal')
+    output: int128 = 0
     for i in range(40):
         if c < 10:
             output = i * 10

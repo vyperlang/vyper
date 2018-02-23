@@ -2,23 +2,23 @@ def test_test_wei(get_contract_with_gas_estimation):
     test_wei = """
 @public
 def return_2_finney() -> wei_value:
-    return as_wei_value(2, finney)
+    return as_wei_value(2, "finney")
 
 @public
 def return_3_finney() -> wei_value:
-    return as_wei_value(2 + 1, finney)
+    return as_wei_value(2 + 1, "finney")
 
 @public
 def return_2p5_ether() -> wei_value:
-    return as_wei_value(2.5, ether)
+    return as_wei_value(2.5, "ether")
 
 @public
 def return_3p5_ether() -> wei_value:
-    return as_wei_value(2.5 + 1, ether)
+    return as_wei_value(2.5 + 1, "ether")
 
 @public
 def return_2pow64_wei() -> wei_value:
-    return as_wei_value(18446744.073709551616, szabo)
+    return as_wei_value(18446744.073709551616, "szabo")
     """
 
     c = get_contract_with_gas_estimation(test_wei)

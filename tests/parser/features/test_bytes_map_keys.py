@@ -1,17 +1,17 @@
 import pytest
-from viper.exceptions import TypeMismatchException
+from vyper.exceptions import TypeMismatchException
 
 
 def test_basic_bytes_keys(get_contract):
     code = """
-mapped_bytes: num[bytes <= 5]
+mapped_bytes: int128[bytes <= 5]
 
 @public
-def set(k: bytes <= 5, v: num):
+def set(k: bytes <= 5, v: int128):
     self.mapped_bytes[k] = v
 
 @public
-def get(k: bytes <= 5) -> num:
+def get(k: bytes <= 5) -> int128:
     return self.mapped_bytes[k]
     """
 
@@ -24,14 +24,14 @@ def get(k: bytes <= 5) -> num:
 
 def test_basic_bytes_literal_key(get_contract):
     code = """
-mapped_bytes: num[bytes <= 5]
+mapped_bytes: int128[bytes <= 5]
 
 @public
-def set(v: num):
+def set(v: int128):
     self.mapped_bytes["test"] = v
 
 @public
-def get(k: bytes <= 5) -> num:
+def get(k: bytes <= 5) -> int128:
     return self.mapped_bytes[k]
     """
 
@@ -44,14 +44,14 @@ def get(k: bytes <= 5) -> num:
 
 def test_basic_long_bytes_as_keys(get_contract):
     code = """
-mapped_bytes: num[bytes <= 34]
+mapped_bytes: int128[bytes <= 34]
 
 @public
-def set(k: bytes <= 34, v: num):
+def set(k: bytes <= 34, v: int128):
     self.mapped_bytes[k] = v
 
 @public
-def get(k: bytes <= 34) -> num:
+def get(k: bytes <= 34) -> int128:
     return self.mapped_bytes[k]
     """
 
@@ -64,14 +64,14 @@ def get(k: bytes <= 34) -> num:
 
 def test_basic_very_long_bytes_as_keys(get_contract):
     code = """
-mapped_bytes: num[bytes <= 4096]
+mapped_bytes: int128[bytes <= 4096]
 
 @public
-def set(k: bytes <= 4096, v: num):
+def set(k: bytes <= 4096, v: int128):
     self.mapped_bytes[k] = v
 
 @public
-def get(k: bytes <= 4096) -> num:
+def get(k: bytes <= 4096) -> int128:
     return self.mapped_bytes[k]
     """
 
@@ -84,10 +84,10 @@ def get(k: bytes <= 4096) -> num:
 
 def test_mismatched_byte_length(get_contract):
     code = """
-mapped_bytes: num[bytes <= 34]
+mapped_bytes: int128[bytes <= 34]
 
 @public
-def set(k: bytes <= 35, v: num):
+def set(k: bytes <= 35, v: int128):
     self.mapped_bytes[k] = v
     """
 

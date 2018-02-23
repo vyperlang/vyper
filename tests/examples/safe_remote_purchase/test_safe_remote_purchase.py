@@ -1,4 +1,4 @@
-# Test for Safe Remote Purchase (https://github.com/ethereum/solidity/blob/develop/docs/solidity-by-example.rst) ported to viper and optimized
+# Test for Safe Remote Purchase (https://github.com/ethereum/solidity/blob/develop/docs/solidity-by-example.rst) ported to vyper and optimized
 
 # Rundown of the transaction:
 # 1. Seller posts item for sale and posts safety deposit of double the item value. Balance is 2*value.
@@ -19,8 +19,8 @@ INIT_BAL = 1000000000000000000000000
 def srp_tester():
     t = tester
     tester.s = t.Chain()
-    from viper import compiler
-    t.languages["viper"] = compiler.Compiler()
+    from vyper import compiler
+    t.languages["vyper"] = compiler.Compiler()
     return tester
 
 
@@ -35,43 +35,43 @@ def check_balance(tester):
 def test_initial_state(srp_tester, assert_tx_failed):
     assert check_balance(srp_tester) == [INIT_BAL, INIT_BAL]
     # Inital deposit has to be divisible by two
-    assert_tx_failed(lambda: srp_tester.s.contract(contract_code, language="viper", args=[], value=1))
+    assert_tx_failed(lambda: srp_tester.s.contract(contract_code, language="vyper", args=[], value=1))
     # Seller puts item up for sale
-    srp_tester.c = tester.s.contract(contract_code, language="viper", args=[], value=2)
+    srp_tester.c = tester.s.contract(contract_code, language="vyper", args=[], value=2)
     # Check that the seller is set correctly
-    assert utils.remove_0x_head(srp_tester.c.get_seller()) == srp_tester.accounts[0].hex()
+    assert utils.remove_0x_head(srp_tester.c.seller()) == srp_tester.accounts[0].hex()
     # Check if item value is set correctly (Half of deposit)
-    assert srp_tester.c.get_value() == 1
+    assert srp_tester.c.value() == 1
     # Check if unlocked() works correctly after initialization
-    assert srp_tester.c.get_unlocked()
+    assert srp_tester.c.unlocked() is True
     # Check that sellers (and buyers) balance is correct
     assert check_balance(srp_tester) == [INIT_BAL - 2, INIT_BAL]
 
 
 def test_abort(srp_tester, assert_tx_failed):
-    srp_tester.c = srp_tester.s.contract(contract_code, language="viper", args=[], value=2)
+    srp_tester.c = srp_tester.s.contract(contract_code, language="vyper", args=[], value=2)
     # Only sender can trigger refund
     assert_tx_failed(lambda: srp_tester.c.abort(sender=srp_tester.k2))
     # Refund works correctly
     srp_tester.c.abort(sender=srp_tester.k0)
     assert check_balance(srp_tester) == [INIT_BAL, INIT_BAL]
     # Purchase in process, no refund possible
-    srp_tester.c = srp_tester.s.contract(contract_code, language="viper", args=[], value=2)
+    srp_tester.c = srp_tester.s.contract(contract_code, language="vyper", args=[], value=2)
     srp_tester.c.purchase(value=2, sender=srp_tester.k1)
     assert_tx_failed(lambda: srp_tester.c.abort(sender=srp_tester.k0))
 
 
 def test_purchase(srp_tester, assert_tx_failed):
-    srp_tester.c = srp_tester.s.contract(contract_code, language="viper", args=[], value=2)
+    srp_tester.c = srp_tester.s.contract(contract_code, language="vyper", args=[], value=2)
     # Purchase for too low/high price
     assert_tx_failed(lambda: srp_tester.c.purchase(value=1, sender=srp_tester.k1))
     assert_tx_failed(lambda: srp_tester.c.purchase(value=3, sender=srp_tester.k1))
     # Purchase for the correct price
     srp_tester.c.purchase(value=2, sender=srp_tester.k1)
     # Check if buyer is set correctly
-    assert utils.remove_0x_head(srp_tester.c.get_buyer()) == srp_tester.accounts[1].hex()
-    # Check if contract is locked correctly, should return False
-    assert not srp_tester.c.get_unlocked()
+    assert utils.remove_0x_head(srp_tester.c.buyer()) == srp_tester.accounts[1].hex()
+    # Check if contract is locked correctly
+    assert srp_tester.c.unlocked() is False
     # Check balances, both deposits should have been deducted
     assert check_balance(srp_tester) == [INIT_BAL - 2, INIT_BAL - 2]
     # Allow nobody else to purchase
@@ -79,7 +79,7 @@ def test_purchase(srp_tester, assert_tx_failed):
 
 
 def test_received(srp_tester, assert_tx_failed):
-    srp_tester.c = srp_tester.s.contract(contract_code, language="viper", args=[], value=2)
+    srp_tester.c = srp_tester.s.contract(contract_code, language="vyper", args=[], value=2)
     # Can only be called after purchase
     assert_tx_failed(lambda: srp_tester.c.received(sender=srp_tester.k1))
     # Purchase completed

@@ -1,13 +1,13 @@
 import pytest
 from pytest import raises
 
-from viper import compiler
-from viper.exceptions import StructureException
+from vyper import compiler
+from vyper.exceptions import StructureException
 
 fail_list = [
     """
 @public
-def foo() -> num:
+def foo() -> int128:
     return as_wei_value(10)
 """
 ]

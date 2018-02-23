@@ -3,38 +3,38 @@
 # Information about voters
 voters: public({
     # weight is accumulated by delegation
-    weight: num,
+    weight: int128,
     # if true, that person already voted (which includes voting by delegating)
     voted: bool,
     # person delegated to
     delegate: address,
     # index of the voted proposal, which is not meaningful unless `voted` is True.
-    vote: num
+    vote: int128
 }[address])
 
 # This is a type for a list of proposals.
 proposals: public({
     # short name (up to 32 bytes)
     name: bytes32,
-    # number of accumulated votes
-    vote_count: num
-}[num])
+    # int128ber of accumulated votes
+    vote_count: int128
+}[int128])
 
-voter_count: public(num)
+voter_count: public(int128)
 chairperson: public(address)
-num_proposals: public(num)
+int128_proposals: public(int128)
 
 @public
 @constant
 def delegated(addr: address) -> bool:
-    # equivalent to  
+    # equivalent to
         # self.voters[addr].delegate != 0x0000000000000000000000000000000000000000
     return not not self.voters[addr].delegate
 
 @public
 @constant
 def directly_voted(addr: address) -> bool:
-    # not <address> equivalent to 
+    # not <address> equivalent to
         # <address> == 0x0000000000000000000000000000000000000000
     return self.voters[addr].voted and not self.voters[addr].delegate
 
@@ -48,7 +48,7 @@ def __init__(_proposalNames: bytes32[2]):
             name: _proposalNames[i],
             vote_count: 0
         }
-        self.num_proposals += 1
+        self.int128_proposals += 1
 
 # Give a `voter` the right to vote on this ballot.
 # This may only be called by the `chairperson`.
@@ -76,7 +76,7 @@ def forward_weight(delegate_with_weight_to_forward: address):
             target = self.voters[target].delegate
             # The following effectively detects cycles of length <= 5,
             # in which the delegation is given back to the delegator.
-            # This could be done for any number of loops,
+            # This could be done for any int128ber of loops,
             # or even infinitely with a while loop.
             # However, cycles aren't actually problematic for correctness;
             # they just result in spoiled votes.
@@ -89,7 +89,7 @@ def forward_weight(delegate_with_weight_to_forward: address):
             # hasn't voted.
             break
 
-    weight_to_forward: num = self.voters[delegate_with_weight_to_forward].weight
+    weight_to_forward: int128 = self.voters[delegate_with_weight_to_forward].weight
     self.voters[delegate_with_weight_to_forward].weight = 0
     self.voters[target].weight += weight_to_forward
 
@@ -113,19 +113,19 @@ def delegate(to: address):
     self.voters[msg.sender].voted = True
     self.voters[msg.sender].delegate = to
 
-    # This call will throw if and only if this delegation would cause a loop 
+    # This call will throw if and only if this delegation would cause a loop
         # of length <= 5 that ends up delegating back to the delegator.
     self.forward_weight(msg.sender)
 
 # Give your vote (including votes delegated to you)
 # to proposal `proposals[proposal].name`.
 @public
-def vote(proposal: num):
+def vote(proposal: int128):
     # can't vote twice
     assert not self.voters[msg.sender].voted
     # can only vote on legitimate proposals
-    assert proposal < self.num_proposals
-    
+    assert proposal < self.int128_proposals
+
     self.voters[msg.sender].vote = proposal
     self.voters[msg.sender].voted = True
 
@@ -137,9 +137,9 @@ def vote(proposal: num):
 # previous votes into account.
 @public
 @constant
-def winning_proposal() -> num:
-    winning_vote_count: num = 0
-    winning_proposal: num = 0
+def winning_proposal() -> int128:
+    winning_vote_count: int128 = 0
+    winning_proposal: int128 = 0
     for i in range(2):
         if self.proposals[i].vote_count > winning_vote_count:
             winning_vote_count = self.proposals[i].vote_count

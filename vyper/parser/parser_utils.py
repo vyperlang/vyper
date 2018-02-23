@@ -2,9 +2,9 @@ import re
 
 from ethereum import opcodes
 
-from viper.exceptions import TypeMismatchException
-from viper.opcodes import comb_opcodes
-from viper.types import (
+from vyper.exceptions import TypeMismatchException
+from vyper.opcodes import comb_opcodes
+from vyper.types import (
     BaseType,
     ByteArrayType,
     NodeType,
@@ -14,13 +14,13 @@ from viper.types import (
     TupleType,
     ListType,
 )
-from viper.types import (
+from vyper.types import (
     is_base_type,
     are_units_compatible,
     get_size_of_type,
     ceil32
 )
-from viper.utils import MemoryPositions, DECIMAL_DIVISOR
+from vyper.utils import MemoryPositions, DECIMAL_DIVISOR
 
 
 class NullAttractor():
@@ -218,9 +218,9 @@ class LLLnode():
                 obj.location = location
             return obj
         elif not isinstance(obj, list):
-            return cls(obj, [], typ, location, pos, annotation, mutable, add_gas_estimate)
+            return cls(obj, [], typ, location, pos, annotation, mutable, add_gas_estimate=add_gas_estimate)
         else:
-            return cls(obj[0], [cls.from_list(o, pos=pos) for o in obj[1:]], typ, location, pos, annotation, mutable, add_gas_estimate)
+            return cls(obj[0], [cls.from_list(o, pos=pos) for o in obj[1:]], typ, location, pos, annotation, mutable, add_gas_estimate=add_gas_estimate)
 
 
 # Get a decimal number as a fraction with denominator multiple of 10
@@ -316,23 +316,23 @@ def make_byte_slice_copier(destination, source, length, max_length):
                 ['with', '_actual_len', length,
                     ['repeat', MemoryPositions.FREE_LOOP_INDEX, 0, (max_length + 31) // 32,
                         ['seq', checker, setter]]]]]
-    return LLLnode.from_list(o, typ=None, annotation='copy byte slice')
+    return LLLnode.from_list(o, typ=None, annotation='copy byte slice src: %s dst: %s' % (source, destination))
 
 
 # Takes a <32 byte array as input, and outputs a number.
 def byte_array_to_num(arg, expr, out_type, offset=32,):
     if arg.location == "memory":
-        lengetter = LLLnode.from_list(['mload', '_sub'], typ=BaseType('num'))
-        first_el_getter = LLLnode.from_list(['mload', ['add', 32, '_sub']], typ=BaseType('num'))
+        lengetter = LLLnode.from_list(['mload', '_sub'], typ=BaseType('int128'))
+        first_el_getter = LLLnode.from_list(['mload', ['add', 32, '_sub']], typ=BaseType('int128'))
     elif arg.location == "storage":
-        lengetter = LLLnode.from_list(['sload', ['sha3_32', '_sub']], typ=BaseType('num'))
-        first_el_getter = LLLnode.from_list(['sload', ['add', 1, ['sha3_32', '_sub']]], typ=BaseType('num'))
-    if out_type == 'num':
+        lengetter = LLLnode.from_list(['sload', ['sha3_32', '_sub']], typ=BaseType('int128'))
+        first_el_getter = LLLnode.from_list(['sload', ['add', 1, ['sha3_32', '_sub']]], typ=BaseType('int128'))
+    if out_type == 'int128':
         result = ['clamp',
                      ['mload', MemoryPositions.MINNUM],
                      ['div', '_el1', ['exp', 256, ['sub', 32, '_len']]],
                      ['mload', MemoryPositions.MAXNUM]]
-    elif out_type == 'num256':
+    elif out_type == 'uint256':
         result = ['div', '_el1', ['exp', 256, ['sub', offset, '_len']]]
     return LLLnode.from_list(['with', '_sub', arg,
                                  ['with', '_el1', first_el_getter,
@@ -345,9 +345,9 @@ def byte_array_to_num(arg, expr, out_type, offset=32,):
 
 def get_length(arg):
     if arg.location == "memory":
-        return LLLnode.from_list(['mload', arg], typ=BaseType('num'))
+        return LLLnode.from_list(['mload', arg], typ=BaseType('int128'))
     elif arg.location == "storage":
-        return LLLnode.from_list(['sload', ['sha3_32', arg]], typ=BaseType('num'))
+        return LLLnode.from_list(['sload', ['sha3_32', arg]], typ=BaseType('int128'))
 
 
 def getpos(node):
@@ -397,7 +397,7 @@ def add_variable_offset(parent, key):
     elif isinstance(typ, (ListType, MappingType)):
         if isinstance(typ, ListType):
             subtype = typ.subtype
-            sub = ['uclamplt', base_type_conversion(key, key.typ, BaseType('num')), typ.count]
+            sub = ['uclamplt', base_type_conversion(key, key.typ, BaseType('int128')), typ.count]
         elif isinstance(typ, MappingType) and isinstance(key.typ, ByteArrayType):
             if not isinstance(typ.keytype, ByteArrayType) or (typ.keytype.maxlen < key.typ.maxlen):
                 raise TypeMismatchException('Mapping keys of bytes cannot be cast, use exact same bytes type of: %s', str(typ.keytype))
@@ -442,12 +442,12 @@ def base_type_conversion(orig, frm, to, pos=None):
         raise TypeMismatchException("Base type conversion from or to non-base type: %r %r" % (frm, to), pos)
     elif is_base_type(frm, to.typ) and are_units_compatible(frm, to):
         return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
-    elif is_base_type(frm, 'num') and is_base_type(to, 'decimal') and are_units_compatible(frm, to):
+    elif is_base_type(frm, 'int128') and is_base_type(to, 'decimal') and are_units_compatible(frm, to):
         return LLLnode.from_list(['mul', orig, DECIMAL_DIVISOR], typ=BaseType('decimal', to.unit, to.positional))
-    elif is_base_type(frm, 'num256') and is_base_type(to, 'num') and are_units_compatible(frm, to):
-        return LLLnode.from_list(['uclample', orig, ['mload', MemoryPositions.MAXNUM]], typ=BaseType("num"))
+    elif is_base_type(frm, 'uint256') and is_base_type(to, 'int128') and are_units_compatible(frm, to):
+        return LLLnode.from_list(['uclample', orig, ['mload', MemoryPositions.MAXNUM]], typ=BaseType('int128'))
     elif isinstance(frm, NullType):
-        if to.typ not in ('num', 'bool', 'num256', 'address', 'bytes32', 'decimal'):
+        if to.typ not in ('int128', 'bool', 'uint256', 'address', 'bytes32', 'decimal'):
             raise TypeMismatchException("Cannot convert null-type object to type %r" % to, pos)
         return LLLnode.from_list(0, typ=to)
     else:

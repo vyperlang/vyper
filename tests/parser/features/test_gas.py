@@ -1,11 +1,11 @@
-from viper.parser.parser import parse_to_lll
-from viper.parser import parser_utils
+from vyper.parser.parser import parse_to_lll
+from vyper.parser import parser_utils
 
 
 def test_gas_call(get_contract_with_gas_estimation):
     gas_call = """
 @public
-def foo() -> num:
+def foo() -> int128:
     return msg.gas
     """
 
@@ -18,7 +18,7 @@ def foo() -> num:
 
 def test_gas_estimate_repr():
     code = """
-x: num
+x: int128
 
 @public
 def __init__():

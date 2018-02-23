@@ -1,8 +1,8 @@
 import pytest
 from pytest import raises
 
-from viper import compiler
-from viper.exceptions import TypeMismatchException, StructureException
+from vyper import compiler
+from vyper.exceptions import TypeMismatchException, StructureException
 
 
 fail_list = [
@@ -27,13 +27,13 @@ def foo() -> bytes <= 500:
     ("""
 @public
 def foo() -> bytes <= 500:
-    x: num = 1
+    x: int128 = 1
     return RLPList('\xe0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
     """, StructureException),
     """
 @public
 def foo() -> bytes <= 500:
-    x: num[3] = [1, 2, 3]
+    x: int128[3] = [1, 2, 3]
     return RLPList(x, [bytes])
     """
 ]

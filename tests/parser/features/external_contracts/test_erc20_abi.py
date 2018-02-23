@@ -1,7 +1,7 @@
 import pytest
 from ethereum.abi import ValueOutOfBounds
 
-TOKEN_NAME = "Vipercoin"
+TOKEN_NAME = "Vypercoin"
 TOKEN_SYMBOL = "FANG"
 TOKEN_DECIMALS = 18
 TOKEN_INITIAL_SUPPLY = (21 * 10 ** 6)
@@ -10,7 +10,7 @@ TOKEN_TOTAL_SUPPLY = TOKEN_INITIAL_SUPPLY * (10 ** TOKEN_DECIMALS)
 
 @pytest.fixture
 def erc20(get_contract):
-    erc20_code = open('examples/tokens/vipercoin.v.py').read()
+    erc20_code = open('examples/tokens/vypercoin.v.py').read()
     return get_contract(erc20_code, args=[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY])
 
 
@@ -28,23 +28,23 @@ def symbol() -> bytes32:
     return self.token_address.symbol()
 
 @public
-def balanceOf(_owner: address) -> num256:
+def balanceOf(_owner: address) -> uint256:
     return self.token_address.balanceOf(_owner)
 
 @public
-def totalSupply() -> num256:
+def totalSupply() -> uint256:
     return self.token_address.totalSupply()
 
 @public
-def transfer(_to: address, _value: num256) -> bool:
+def transfer(_to: address, _value: uint256) -> bool:
     return self.token_address.transfer(_to, _value)
 
 @public
-def transferFrom(_from: address, _to: address, _value: num(num256)) -> bool:
+def transferFrom(_from: address, _to: address, _value: int128(uint256)) -> bool:
     return self.token_address.transferFrom(_from, _to, _value)
 
 @public
-def allowance(_owner: address, _spender: address) -> num256:
+def allowance(_owner: address, _spender: address) -> uint256:
     return self.token_address.allowance(_owner, _spender)
     """
     return get_contract(erc20_caller_code, args=[erc20.address])

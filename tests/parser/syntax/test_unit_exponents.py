@@ -1,8 +1,8 @@
 import pytest
 from pytest import raises
 
-from viper import compiler
-from viper.exceptions import TypeMismatchException
+from vyper import compiler
+from vyper.exceptions import TypeMismatchException
 
 fail_list = [
     """
@@ -12,9 +12,9 @@ def baa() -> decimal:
     """,
     """
 @public
-def foo(a:num):
-    b:num(sec)
-    c:num(sec**2)
+def foo(a: int128):
+    b:int128(sec)
+    c:int128(sec**2)
     c = b ** a
     """
 ]
@@ -31,8 +31,8 @@ valid_list = [
     """
 @public
 def foo():
-    a : num(wei)
-    b : num(wei**2)
+    a : int128(wei)
+    b : int128(wei**2)
     a = 2
     b = a**2
     """,

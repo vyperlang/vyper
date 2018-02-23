@@ -1,8 +1,8 @@
 import pytest
 from pytest import raises
 
-from viper import compiler
-from viper.exceptions import TypeMismatchException
+from vyper import compiler
+from vyper.exceptions import TypeMismatchException
 
 
 fail_list = [
@@ -13,7 +13,7 @@ def foo(inp: bytes <= 10) -> bytes <= 2:
     """,
     """
 @public
-def foo(inp: num) -> bytes <= 3:
+def foo(inp: int128) -> bytes <= 3:
     return slice(inp, start=2, len=3)
     """,
     """

@@ -1,8 +1,8 @@
 import pytest
 from pytest import raises
 
-from viper import compiler
-from viper.exceptions import InvalidLiteralException
+from vyper import compiler
+from vyper.exceptions import InvalidLiteralException
 
 
 fail_list = [
@@ -60,17 +60,17 @@ def foo():
     """
 @public
 def foo():
-    x = as_wei_value(5.1824, ada)
+    x = as_wei_value(5.1824, "ada")
     """,
     """
 @public
 def foo():
-    x = as_wei_value(0x05, ada)
+    x = as_wei_value(0x05, "ada")
     """,
     """
 @public
 def foo():
-    x = as_wei_value(5, vader)
+    x = as_wei_value(5, "vader")
     """,
     """
 @public
@@ -80,17 +80,17 @@ def foo():
     """
 @public
 def foo():
-    x = as_num256(821649876217461872458712528745872158745214187264875632587324658732648753245328764872135671285218762145)
+    x: uint256 = convert(821649876217461872458712528745872158745214187264875632587324658732648753245328764872135671285218762145, 'uint256')
     """,
     """
 @public
 def foo():
-    x = as_num256(-1)
+    x = convert(-1, 'uint256')
     """,
     """
 @public
 def foo():
-    x = as_num256(3.1415)
+    x = convert(3.1415, 'uint256')
     """,
     """
 # Test decimal limit.

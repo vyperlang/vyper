@@ -1,4 +1,4 @@
-from viper import compiler
+from vyper import compiler
 
 
 def test_bytecode_runtime():

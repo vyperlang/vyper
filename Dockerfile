@@ -4,11 +4,11 @@ FROM python:3.6-slim
 ARG BUILD_DATE
 ARG VCS_REF
 LABEL org.label-schema.build-date=$BUILD_DATE \
-    org.label-schema.name="viper" \
-    org.label-schema.description="Viper is an experimental programming language" \
-    org.label-schema.url="https://viper.readthedocs.io/en/latest/" \
+    org.label-schema.name="Vyper" \
+    org.label-schema.description="Vyper is an experimental programming language" \
+    org.label-schema.url="https://vyperr.readthedocs.io/en/latest/" \
     org.label-schema.vcs-ref=$VCS_REF \
-    org.label-schema.vcs-url="https://github.com/ethereum/viper" \
+    org.label-schema.vcs-url="https://github.com/ethereum/vyper" \
     org.label-schema.vendor="Ethereum" \
     org.label-schema.schema-version="1.0"
 

@@ -1,4 +1,4 @@
-from viper.parser import parser
+from vyper.parser import parser
 from . import compile_lll
 from . import optimizer
 

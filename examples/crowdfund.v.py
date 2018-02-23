@@ -1,11 +1,10 @@
 #Setup private variables (only callable from within the contract)
-@private
-funders: {sender: address, value: wei_value}[num]
-nextFunderIndex: num
+funders: {sender: address, value: wei_value}[int128]
+nextFunderIndex: int128
 beneficiary: address
 deadline: timestamp
 goal: wei_value
-refundIndex: num
+refundIndex: int128
 timelimit: timedelta
 
 # Setup global variables
@@ -21,7 +20,7 @@ def __init__(_beneficiary: address, _goal: wei_value, _timelimit: timedelta):
 @payable
 def participate():
     assert block.timestamp < self.deadline
-    nfi: num = self.nextFunderIndex
+    nfi: int128 = self.nextFunderIndex
     self.funders[nfi] = {sender: msg.sender, value: msg.value}
     self.nextFunderIndex = nfi + 1
 
@@ -36,7 +35,7 @@ def finalize():
 @public
 def refund():
     assert block.timestamp >= self.deadline and self.balance < self.goal
-    ind: num = self.refundIndex
+    ind: int128 = self.refundIndex
     for i in range(ind, ind + 30):
         if i >= self.nextFunderIndex:
             self.refundIndex = self.nextFunderIndex

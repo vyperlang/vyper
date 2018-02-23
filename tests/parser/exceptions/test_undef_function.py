@@ -1,7 +1,7 @@
 from pytest import raises
 
-from viper import compiler
-from viper.exceptions import StructureException
+from vyper import compiler
+from vyper.exceptions import StructureException
 
 
 def test_undef_toplevel():
@@ -18,11 +18,11 @@ def foo():
 def test_undef_suggestion():
     code = """
 @public
-def bar(x: num) -> num:
+def bar(x: int128) -> int128:
     return 3 * x
 
 @public
-def foo() -> num:
+def foo() -> int128:
     return bar(20)
     """
     with raises(StructureException) as ex:

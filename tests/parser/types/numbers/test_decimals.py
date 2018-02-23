@@ -1,60 +1,60 @@
 def test_decimal_test(chain, check_gas, get_contract_with_gas_estimation):
     decimal_test = """
 @public
-def foo() -> num:
+def foo() -> int128:
     return(floor(999.0))
 
 @public
-def fop() -> num:
+def fop() -> int128:
     return(floor(333.0 + 666.0))
 
 @public
-def foq() -> num:
+def foq() -> int128:
     return(floor(1332.1 - 333.1))
 
 @public
-def bar() -> num:
+def bar() -> int128:
     return(floor(27.0 * 37.0))
 
 @public
-def baz() -> num:
+def baz() -> int128:
     x: decimal = 27.0
     return(floor(x * 37.0))
 
 @public
-def baffle() -> num:
+def baffle() -> int128:
     return(floor(27.0 * 37))
 
 @public
-def mok() -> num:
+def mok() -> int128:
     return(floor(999999.0 / 7.0 / 11.0 / 13.0))
 
 @public
-def mol() -> num:
+def mol() -> int128:
     return(floor(499.5 / 0.5))
 
 @public
-def mom() -> num:
+def mom() -> int128:
     return(floor(1498.5 / 1.5))
 
 @public
-def mon() -> num:
+def mon() -> int128:
     return(floor(2997.0 / 3))
 
 @public
-def moo() -> num:
+def moo() -> int128:
     return(floor(2997 / 3.0))
 
 @public
-def foom() -> num:
+def foom() -> int128:
     return(floor(1999.0 % 1000.0))
 
 @public
-def foon() -> num:
+def foon() -> int128:
     return(floor(1999.0 % 1000))
 
 @public
-def foop() -> num:
+def foop() -> int128:
     return(floor(1999 % 1000.0))
     """
 
@@ -107,7 +107,7 @@ def harg() -> decimal:
 
 @public
 def iarg() -> wei_value:
-    x: wei_value = as_wei_value(7, wei)
+    x: wei_value = as_wei_value(7, "wei")
     x *= 2
     return x
     """

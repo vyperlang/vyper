@@ -14,12 +14,12 @@ TOKEN_TOTAL_SUPPLY = TOKEN_INITIAL_SUPPLY * (10 ** TOKEN_DECIMALS)
 def token_tester():
     t = tester
     tester.s = t.Chain()
-    from viper import compiler
-    t.languages['viper'] = compiler.Compiler()
-    contract_code = open('examples/tokens/vipercoin.v.py').read()
+    from vyper import compiler
+    t.languages['vyper'] = compiler.Compiler()
+    contract_code = open('examples/tokens/vypercoin.v.py').read()
     tester.c = tester.s.contract(
         contract_code,
-        language='viper',
+        language='vyper',
         args=[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY]
     )
     return tester

@@ -1,14 +1,14 @@
 def test_permanent_variables_test(get_contract_with_gas_estimation):
     permanent_variables_test = """
-var: {a: num, b: num}
+var: {a: int128, b: int128}
 
 @public
-def __init__(a: num, b: num):
+def __init__(a: int128, b: int128):
     self.var.a = a
     self.var.b = b
 
 @public
-def returnMoose() -> num:
+def returnMoose() -> int128:
     return self.var.a * 10 + self.var.b
     """
 

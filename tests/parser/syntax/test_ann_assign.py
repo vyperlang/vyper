@@ -1,8 +1,8 @@
 import pytest
 from pytest import raises
 
-from viper import compiler
-from viper.exceptions import VariableDeclarationException, TypeMismatchException
+from vyper import compiler
+from vyper.exceptions import VariableDeclarationException, TypeMismatchException
 
 
 fail_list = [
@@ -24,7 +24,7 @@ def test():
     ("""
 @public
 def test():
-    a: num = 33.33
+    a: int128 = 33.33
     """, TypeMismatchException)
 ]
 
@@ -43,7 +43,7 @@ valid_list = [
     """
 @public
 def test():
-    a: num = 1
+    a: int128 = 1
     """,
 ]
 

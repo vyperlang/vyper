@@ -2,8 +2,8 @@
 import pytest
 from pytest import raises
 
-from viper import compiler
-from viper.exceptions import VariableDeclarationException
+from vyper import compiler
+from vyper.exceptions import VariableDeclarationException
 
 
 fail_list = [
@@ -48,7 +48,7 @@ def foo(choice: bool):
     a += 1
     """,
     """
-a: num
+a: int128
 
 @public
 def foo():
@@ -69,7 +69,7 @@ valid_list = [
 @public
 def foo(choice: bool, choice2: bool):
     if (choice):
-        a: num = 11
+        a: int128 = 11
         if choice2 and a > 1:
             a -= 1  # should be visible here.
     """

@@ -1,11 +1,11 @@
 def test_private_test(get_contract_with_gas_estimation):
     private_test_code = """
 @private
-def a() -> num:
+def a() -> int128:
     return 5
 
 @public
-def returnten() -> num:
+def returnten() -> int128:
     return self.a() * 2
     """
 

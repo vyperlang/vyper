@@ -32,12 +32,12 @@ class TestERC20Flo(PyEthereumTestCase):
         new_balance0 = self.s.head_state.get_balance(self.t.a0)
 
         self.assertEqual(self.c.totalSupply(), 1000, "Deposit not working")
-        self.assertEqual(self.c.balanceOf(self.t.a0), 1000,
+        self.assertEqual(self.c.get_balanceOf(self.t.a0), 1000,
                          "Deposit not working")
         self.assertEqual(new_balance0, orig_balance0 - 1000,
                          "Deposit did not use funds")
 
-        self.assertEqual(self.c.balanceOf(self.t.a1), 0,
+        self.assertEqual(self.c.get_balanceOf(self.t.a1), 0,
                          "Account balance not empty initially")
 
         # If this fails, transfer worked although funds were insufficient
@@ -50,9 +50,9 @@ class TestERC20Flo(PyEthereumTestCase):
                          bytes_to_int(self.t.a1)], int_to_bytes(500))
 
         self.assertEqual(self.c.totalSupply(), 1000, "Transfer changed balance")
-        self.assertEqual(self.c.balanceOf(self.t.a0), 500,
+        self.assertEqual(self.c.get_balanceOf(self.t.a0), 500,
                          "Transfer did not remove funds")
-        self.assertEqual(self.c.balanceOf(self.t.a1), 500,
+        self.assertEqual(self.c.get_balanceOf(self.t.a1), 500,
                          "Transfer did not add funds")
 
         self.assertTrue(self.c.approve(self.t.a0, 200, sender=self.t.k1),
@@ -91,7 +91,7 @@ class TestERC20Flo(PyEthereumTestCase):
         self.check_logs([log_sigs['Transfer'], bytes_to_int(self.t.a0), 0],
                         int_to_bytes(500))
 
-        self.assertEqual(self.c.balanceOf(self.t.a0), 100,
+        self.assertEqual(self.c.get_balanceOf(self.t.a0), 100,
                          "Withdraw did not reduce funds")
         new_balance0 = self.s.head_state.get_balance(self.t.a0)
         self.assertEqual(new_balance0, orig_balance0 - 500,
@@ -145,7 +145,7 @@ class TestSingleERC20(TestERC20Flo):
 
 
 test_suites = []
-for f in glob.glob(PATH_TO_CONTRACTS + "nonviper/*") + glob.glob(PATH_TO_CONTRACTS + "/../../../../examples/tokens/ERC20_solidity_compatible/ERC20.v.py"):
+for f in glob.glob(PATH_TO_CONTRACTS + "nonvyper/*") + glob.glob(PATH_TO_CONTRACTS + "/../../../../examples/tokens/ERC20_solidity_compatible/ERC20.v.py"):
     # ugly hack: copy the class instance to set a different file path
     # replace extension with underscore so that unittest parses it correctly
     cls_name = basename(f.replace('.', '_'))

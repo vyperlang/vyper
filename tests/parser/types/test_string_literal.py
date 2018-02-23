@@ -43,27 +43,27 @@ def test_string_literal_splicing_fuzz(get_contract_with_gas_estimation):
 moo: bytes <= 100
 
 @public
-def foo(s: num, L: num) -> bytes <= 100:
-        x: num = 27
+def foo(s: int128, L: int128) -> bytes <= 100:
+        x: int128 = 27
         r: bytes <= 100 = slice("%s", start=s, len=L)
-        y: num = 37
+        y: int128 = 37
         if x * y == 999:
             return r
 
 @public
-def bar(s: num, L: num) -> bytes <= 100:
+def bar(s: int128, L: int128) -> bytes <= 100:
         self.moo = "%s"
-        x: num = 27
+        x: int128 = 27
         r: bytes <= 100 = slice(self.moo, start=s, len=L)
-        y: num  = 37
+        y: int128  = 37
         if x * y == 999:
             return r
 
 @public
-def baz(s: num, L: num) -> bytes <= 100:
-        x: num = 27
+def baz(s: int128, L: int128) -> bytes <= 100:
+        x: int128 = 27
         self.moo = slice("%s", start=s, len=L)
-        y: num = 37
+        y: int128 = 37
         if x * y == 999:
             return self.moo
         """ % (("c" * i), ("c" * i), ("c" * i))

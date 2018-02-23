@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Viper documentation build configuration file, created by
+# Vyper documentation build configuration file, created by
 # sphinx-quickstart on Wed Jul 26 11:18:29 2017.
 #
 # This file is execfile()d with the current directory set to its
@@ -22,7 +22,7 @@
 # sys.path.insert(0, os.path.abspath('.'))
 from recommonmark.parser import CommonMarkParser
 
-# TO DO - Create and Implement Viper Lexer
+# TO DO - Create and Implement Vyper Lexer
 # def setup(sphinx):
 #     sys.path.insert(0, os.path.abspath('./utils'))
 #     from SolidityLexer import SolidityLexer
@@ -55,7 +55,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = 'Viper'
+project = 'Vyper'
 copyright = '2017, Vitalik Buterin'
 author = 'Vitalik Buterin'
 
@@ -124,7 +124,7 @@ html_sidebars = {
 # -- Options for HTMLHelp output ------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'Viperdoc'
+htmlhelp_basename = 'Vyperdoc'
 
 
 # -- Options for LaTeX output ---------------------------------------------
@@ -151,7 +151,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'Viper.tex', 'Viper Documentation',
+    (master_doc, 'Vyper.tex', 'Vyper Documentation',
      'Vitalik Buterin', 'manual'),
 ]
 
@@ -161,7 +161,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'viper', 'Viper Documentation',
+    (master_doc, 'vyper', 'Vyper Documentation',
      [author], 1)
 ]
 
@@ -172,8 +172,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'Viper', 'Viper Documentation',
-     author, 'Viper', 'One line description of project.',
+    (master_doc, 'Vyper', 'Vyper Documentation',
+     author, 'Vyper', 'One line description of project.',
      'Miscellaneous'),
 ]
 
@@ -182,5 +182,3 @@ source_parsers = {
 }
 
 source_suffix = ['.rst', '.md']
-
-

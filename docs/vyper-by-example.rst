@@ -1,5 +1,5 @@
 ###################
-Viper by Example
+Vyper by Example
 ###################
 
 .. index:: auction;open, open auction
@@ -10,10 +10,10 @@ Simple Open Auction
 
 .. _simple_auction:
 
-As an introductory example of a smart contract written in Viper, we will begin
+As an introductory example of a smart contract written in Vyper, we will begin
 with a simple open auction contract. As we dive into the code,
-it is important to remember that all Viper syntax is valid Python3 syntax,
-however not all Python3 functionality is available in Viper.
+it is important to remember that all Vyper syntax is valid Python3 syntax,
+however not all Python3 functionality is available in Vyper.
 
 In this contract, we will be looking at a simple open auction contract where
 participants can submit bids during a limited time period. When the auction
@@ -62,7 +62,7 @@ The contract is initialized with two arguments: ``_beneficiary`` of type
 between the start and end of the auction. We then store these two pieces of
 information into the contract variables ``self.beneficiary`` and
 ``self.auction_end``. Notice that we have access to the current time by
-calling ``block.timestamp``. ``block`` is an object available within any Viper
+calling ``block.timestamp``. ``block`` is an object available within any Vyper
 contract and provides information about the block at the time of calling.
 Similar to ``block``, another important object available to us within the
 contract is ``msg``, which provides information on the method caller as we will
@@ -111,15 +111,15 @@ and sending the highest bid amount to the beneficiary.
 
 And there you have it - an open auction contract. Of course, this is a
 simplified example with barebones functionality and can be improved.
-Hopefully, this has provided some insight to the possibilities of Viper.
+Hopefully, this has provided some insight to the possibilities of Vyper.
 As we move on to exploring more complex examples, we will encounter more
-design patterns and features of the Viper language.
+design patterns and features of the Vyper language.
 
 
 And of course, no smart contract tutorial is complete without a note on
 security.
 
-.. note:: 
+.. note::
   It's always important to keep security in mind when designing a smart
   contract. As any application becomes more complex, the greater the potential for
   introducing new risks. Thus, it's always good practice to keep contracts as
@@ -255,7 +255,7 @@ previous examples. Let's dive right in.
 
 .. literalinclude:: ../examples/crowdfund.v.py
   :language: python
-  :lines: 1-9
+  :lines: 1-7
 
 Like other examples, we begin by initiating our variables - except this time,
 we're not calling them with the ``public`` function. Variables initiated this
@@ -272,7 +272,7 @@ This struct contains each participant's public address and their respective
 value contributed to the fund. The key corresponding to each struct in the
 mapping will be represented by the variable ``nextFunderIndex`` which is
 incremented with each additional contributing participant. Variables initialized
-with the ``num`` type without an explicit value, such as ``nextFunderIndex``,
+with the ``int128`` type without an explicit value, such as ``nextFunderIndex``,
 defaults to ``0``. The ``beneficiary`` will be the final receiver of the funds
 once the crowdfunding period is over—as determined by the ``deadline`` and
 ``timelimit`` variables. The ``goal`` variable is the target total contribution
@@ -282,7 +282,7 @@ order to avoid gas limit issues in the scenario of a refund.
 
 .. literalinclude:: ../examples/crowdfund.v.py
   :language: python
-  :lines: 11-17
+  :lines: 9-14
 
 Our constructor function takes 3 arguments: the beneficiary's address, the goal
 in wei value, and the difference in time from start to finish of the
@@ -294,7 +294,7 @@ Now lets take a look at how a person can participate in the crowdfund.
 
 .. literalinclude:: ../examples/crowdfund.v.py
   :language: python
-  :lines: 19-26
+  :lines: 16-22
 
 Once again, we see the ``@payable`` decorator on a method, which allows a
 person to send some ether along with a call to the method. In this case,
@@ -307,7 +307,7 @@ each participant.
 
 .. literalinclude:: ../examples/crowdfund.v.py
   :language: python
-  :lines: 28-32
+  :lines: 24-27
 
 The ``finalize()`` method is used to complete the crowdfunding process. However,
 to complete the crowdfunding, the method first checks to see if the crowdfunding
@@ -315,11 +315,11 @@ period is over and that the balance has reached/passed its set goal. If those
 two conditions pass, the contract calls the ``selfdestruct()`` function and
 sends the collected funds to the beneficiary.
 
-.. note:: 
+.. note::
   Notice that we have access to the total amount sent to the contract by
   calling ``self.balance``, a variable we never explicitly set. Similar to ``msg``
   and ``block``, ``self.balance`` is a built-in variable thats available in all
-  Viper contracts.
+  Vyper contracts.
 
 We can finalize the campaign if all goes well, but what happens if the
 crowdfunding campaign isn't successful? We're going to need a way to refund
@@ -327,7 +327,7 @@ all the participants.
 
 .. literalinclude:: ../examples/crowdfund.v.py
   :language: python
-  :lines: 34-46
+  :lines: 29-40
 
 In the ``refund()`` method, we first check that the crowdfunding period is
 indeed over and that the total collected balance is less than the ``goal`` with
@@ -369,25 +369,19 @@ voter’s properties: ``weight``, ``voted``, ``delegate``, and ``vote``, along
 with their respective datatypes.
 
 Similarly, the ``proposals`` variable is initialized as a ``public`` mapping
-with ``num`` as the key’s datatype and a struct to represent each proposal
+with ``int128`` as the key’s datatype and a struct to represent each proposal
 with the properties ``name`` and ``vote_count``. Like our last example, we can
 access any value by key’ing into the mapping with a number just as one would
 with an index in an array.
 
 Then, ``voter_count`` and ``chairperson`` are initialized as ``public`` with
-their respective datatypes. 
-
-We then define the functions that determine whether a voter has delegated or directly voted. 
-
-.. literalinclude:: ../examples/voting/ballot.v.py
-  :language: python
-  :lines: 27-39
+their respective datatypes.
 
 Let’s move onto the constructor.
 
 .. literalinclude:: ../examples/voting/ballot.v.py
   :language: python
-  :lines: 41-51
+  :lines: 26-34
 
 .. warning:: Both ``msg.sender`` and ``msg.balance`` change between internal
   function calls so that if you're calling a function from the outside, it's
@@ -411,21 +405,25 @@ Now that the initial setup is done, lets take a look at the functionality.
 
 .. literalinclude:: ../examples/voting/ballot.v.py
   :language: python
-  :lines: 53-64
+  :lines: 36-46
 
 We need a way to control who has the ability to vote. The method
 ``give_right_to_vote()`` is a method callable by only the chairperson by taking
 a voter address and granting it the right to vote by incrementing the voter's
 ``weight`` property. We sequentially check for 3 conditions using ``assert``.
-The ``assert not`` function will check for falsy boolean values—in this case, 
-we want to know that the voter has not already voted. To represent
+The ``assert not`` function will check for falsy boolean values -
+in this case, we want to know that the voter has not already voted. To represent
 voting power, we will set their ``weight`` to ``1`` and we will keep track of the
 total number of voters by incrementing ``voter_count``.
 
-In the method ``delegate`` below, firstly, we check to see that ``msg.sender`` has not
+.. literalinclude:: ../examples/voting/ballot.v.py
+  :language: python
+  :lines: 48-71
+
+In the method ``delegate``, firstly, we check to see that ``msg.sender`` has not
 already voted and secondly, that the target delegate and the ``msg.sender`` are
-not the same. Voters shouldn’t be able to delegate votes to themselves. We
-then loop through all the voters to determine whether the person delegated to
+not the same. Voters shouldn’t be able to delegate votes to themselves. We,
+then, loop through all the voters to determine whether the person delegate to
 had further delegated their vote to someone else in order to follow the
 chain of delegation. We then mark the ``msg.sender`` as having voted if they
 delegated their vote. We increment the proposal’s ``vote_count`` directly if
@@ -434,18 +432,13 @@ if the delegate has not yet voted.
 
 .. literalinclude:: ../examples/voting/ballot.v.py
   :language: python
-  :lines: 66-118
+  :lines: 73-82
 
 Now, let’s take a look at the logic inside the ``vote()`` method, which is
 surprisingly simple. The method takes the key of the proposal in the ``proposals``
-mapping as an argument, checks that the method caller had not already voted, checks
-that the vote is for a legitimate proposal, votes by setting the voter’s ``vote``
-property to the proposal key and setting ``voted`` to 0, increments the proposals
-``vote_count`` by the voter’s ``weight``, and sets their ``weight`` to 0.
-
-.. literalinclude:: ../examples/voting/ballot.v.py
-  :language: python
-  :lines: 120-134
+mapping as an argument, check that the method caller had not already voted,
+sets the voter’s ``vote`` property to the proposal key, and increments the
+proposals ``vote_count`` by the voter’s ``weight``.
 
 With all the basic functionality complete, what’s left is simply returning
 the winning proposal. To do this, we have two methods: ``winning_proposal()``,
@@ -456,24 +449,22 @@ modify it. Remember, reading the blockchain state is free; modifying the state
 costs gas. By having the ``@constant`` decorator, we let the EVM know that this
 is a read-only function and we benefit by saving gas fees.
 
-The ``winning_proposal()`` method returns the key of the proposal in the 
-``proposals`` mapping. We will keep track of the greatest number of votes and the
-winning proposal with the variables ``winning_vote_count`` and ``winning_proposal``,
+.. literalinclude:: ../examples/voting/ballot.v.py
+  :language: python
+  :lines: 84-93
+
+The ``winning_proposal()`` method returns the key of proposal in the ``proposals``
+mapping. We will keep track of greatest number of votes and the winning
+proposal with the variables ``winning_vote_count`` and ``winning_proposal``,
 respectively by looping through all the proposals.
 
 .. literalinclude:: ../examples/voting/ballot.v.py
   :language: python
-  :lines: 136-146
+  :lines: 95-100
 
 And finally, the ``winner_name()`` method returns the name of the proposal by
 key’ing into the ``proposals`` mapping with the return result of the
 ``winning_proposal()`` method.
-
-.. literalinclude:: ../examples/voting/ballot.v.py
-  :language: python
-  :lines: 148-154
-
-
 
 And there you have it - a voting contract. Currently, many transactions
 are needed to assign the rights to vote to all participants. As an exercise,
@@ -533,7 +524,7 @@ company's address is initialized to hold all shares of the company in the
 We will be seeing a few ``@constant`` decorators in this contract - which is
 used to decorate methods that simply read the contract state or return a simple
 calculation on the contract state without modifying it. Remember, reading the
-blockchain is free, writing on it is not. Since Viper is a statically typed
+blockchain is free, writing on it is not. Since Vyper is a statically typed
 language, we see an arrow following the definition of the ``stock_available()``
 method, which simply represents the datatype which the function is expected
 to return. In the method, we simply key into ``self.holdings`` with the
@@ -617,5 +608,5 @@ subtracting its debt from its ether balance.
 
 This contract has been the most thorough example so far in terms of its
 functionality and features. Yet despite the thoroughness of such a contract, the
-logic remained simple. Hopefully, by now, the Viper language has convinced you
+logic remained simple. Hopefully, by now, the Vyper language has convinced you
 of its capabilities and readability in writing smart contracts.

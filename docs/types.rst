@@ -6,16 +6,16 @@
 Types
 #####
 
-Viper is a statically typed language, which means that the type of each
+Vyper is a statically typed language, which means that the type of each
 variable (state and local) needs to be specified or at least known at
-compile-time. Viper provides several elementary types which can be combined
+compile-time. Vyper provides several elementary types which can be combined
 to form complex types.
 
 In addition, types can interact with each other in expressions containing
 operators.
 
 
-.. index:: ! value 
+.. index:: ! value
 
 ***********
 Value Types
@@ -40,22 +40,22 @@ The only possible values are the constants ``true`` and ``false``.
 Operators
 ---------
 
-====================  ===================  
+====================  ===================
 Operator              Description
-====================  ===================  
-``x not y``           Logical negation     
-``x and y``           Logical conjunction  
-``x or y``            Logical disjunction  
-``x == y``            Equality             
+====================  ===================
+``x not y``           Logical negation
+``x and y``           Logical conjunction
+``x or y``            Logical disjunction
+``x == y``            Equality
 ``x != y``            Inequality
 ====================  ===================
 
 The operators ``or`` and ``and`` apply the common short-circuiting rules.
 
-.. index:: ! num, ! int, ! integer
+.. index:: ! int128, ! int, ! integer
 Signed Integer (128 bit)
 ========================
-**Keyword:** ``num``
+**Keyword:** ``int128``
 
 A signed integer (128 bit) is a type to store positive and negative integers.
 
@@ -65,7 +65,7 @@ Signed integer values between -2\ :sup:`127` and (2\ :sup:`127` - 1), inclusive.
 
 Operators
 ---------
-Comparisons 
+Comparisons
 ^^^^^^^^^^^
 Comparisons return a boolean value.
 
@@ -79,7 +79,7 @@ Operator    Description
 ``x >= y``  Greater than or equal to
 ``x > y``   Greater than
 ==========  ================
-``x`` and ``y`` must be of the type ``num``.
+``x`` and ``y`` must be of the type ``int128``.
 
 Arithmetic Operators
 ^^^^^^^^^^^^^^^^^^^^
@@ -90,46 +90,46 @@ Operator       Description
 ``x + y``      Addition
 ``x - y``      Subtraction
 ``-x``         Unary minus/Negation
-``x * y``      Multiplication 
+``x * y``      Multiplication
 ``x / y``      Division
 ``x**y``       Exponentiation
 ``x % y``      Modulo
 ``min(x, y)``  Minimum
 ``max(x, y)``  Maximum
 =============  ======================
-``x`` and ``y`` must be of the type ``num``.
+``x`` and ``y`` must be of the type ``int128``.
 
-.. index:: ! unit, ! num256
+.. index:: ! unit, ! uint256
 Unsigned Integer (256 bit)
 ==========================
-**Keyword:** ``num256``
+**Keyword:** ``uint256``
 
-An unsigned integer (256 bit) is a type to store non-negative integers. 
+An unsigned integer (256 bit) is a type to store non-negative integers.
 
 Values
 ------
 Integer values between 0 and (2\ :sup:`256`-1).
 
 .. note::
-    Integer literals are always interpreted as ``num``. In order to assign a literal to a ``num256`` use ``as_num256(_literal)``.
+    Integer literals are always interpreted as ``int128``. In order to assign a literal to a ``uint256`` use ``as_uint256(_literal)``.
 
 Operators
 ---------
-Comparisons 
+Comparisons
 ^^^^^^^^^^^
 Comparisons return a boolean value.
 
 ===================  ================
 Operator             Description
 ===================  ================
-``num256_lt(x, y)``  Less than
-``num256_le(x, y)``  Less than or equal to
+``uint256_lt(x, y)``  Less than
+``uint256_le(x, y)``  Less than or equal to
 ``x == y``           Equals
 ``x != y``           Does not equal
-``num256_ge(x, y)``  Greater than or equal to
-``num256_gt(x, y)``  Greater than
+``uint256_ge(x, y)``  Greater than or equal to
+``uint256_gt(x, y)``  Greater than
 ===================  ================
-``x`` and ``y`` must be of the type ``num256``.
+``x`` and ``y`` must be of the type ``uint256``.
 
 Arithmetic Operators
 ^^^^^^^^^^^^^^^^^^^^
@@ -137,34 +137,34 @@ Arithmetic Operators
 =======================  ======================
 Operator                 Description
 =======================  ======================
-``num256_add(x, y)``     Addition
-``num256_sub(x, y)``     Subtraction
-``num256_addmod(x, y)``  Modular addition
-``num256_mul(x, y)``     Multiplication
-``num256_mulmod(x, y)``  Modular multiplication
-``num256_div(x, y)``     Divison
-``num256_exp(x, y)``     Exponentiation
-``num256_mod(x, y)``     Modulo
+``uint256_add(x, y)``     Addition
+``uint256_sub(x, y)``     Subtraction
+``uint256_addmod(x, y)``  Modular addition
+``uint256_mul(x, y)``     Multiplication
+``uint256_mulmod(x, y)``  Modular multiplication
+``uint256_div(x, y)``     Divison
+``uint256_exp(x, y)``     Exponentiation
+``uint256_mod(x, y)``     Modulo
 ``min(x, y)``            Minimum
 ``max(x, y)``            Maximum
 =======================  ======================
-``x`` and ``y`` must be of the type ``num256``.
+``x`` and ``y`` must be of the type ``uint256``.
 
-Bitwise Operators 
+Bitwise Operators
 ^^^^^^^^^^^^^^^^^
 
 ===================== =============
 Operator              Description
 ===================== =============
-``bitwise_and(x, y)`` AND 
+``bitwise_and(x, y)`` AND
 ``bitwise_not(x, y)`` NOT
 ``bitwise_or(x, y)``  OR
 ``bitwise_xor(x, y)`` XOR
 ``shift(x, _shift)``  Bitwise Shift
 ===================== =============
-``x`` and ``y`` must be of the type ``num256``. ``_shift`` must be of the type ``num``.
+``x`` and ``y`` must be of the type ``uint256``. ``_shift`` must be of the type ``int128``.
 
-.. note:: 
+.. note::
     Positive ``_shift`` equals a left shift; negative ``_shift`` equals a right shift.
     Values shifted above/below the most/least significant bit get discarded.
 
@@ -180,7 +180,7 @@ A value with a precision of 10 decimal places between -2\ :sup:`127` and (2\ :su
 
 Operators
 ---------
-Comparisons 
+Comparisons
 ^^^^^^^^^^^
 Comparisons return a boolean value.
 
@@ -205,14 +205,14 @@ Operator       Description
 ``x + y``      Addition
 ``x - y``      Subtraction
 ``-x``         Unary minus/Negation
-``x * y``      Multiplication 
+``x * y``      Multiplication
 ``x / y``      Divison
 ``x % y``      Modulo
 ``min(x, y)``  Minimum
 ``max(x, y)``  Maximum
-``floor(x)``   Largest integer <= ``x``. Returns ``num``.
+``floor(x)``   Largest integer <= ``x``. Returns ``int128``.
 =============  ==========================================
-``x`` and ``y`` must be of the type ``decimal``. 
+``x`` and ``y`` must be of the type ``decimal``.
 
 .. _address:
 Address
@@ -233,22 +233,22 @@ Members
 Member        Description
 ============  ===================================================
 ``balance``   Query the balance of an address. Returns ``wei_value``.
-``codesize``  Query the code size of an address. Returns ``num``.
+``codesize``  Query the code size of an address. Returns ``int128``.
 ============  ===================================================
 Syntax as follows: ``_address.<member>``, where ``_address`` is of the type ``address`` and ``<member>`` is one of the above keywords.
 
 Unit Types
 ==========
-Viper allows the definition of types with discrete units e.g. meters, seconds, wei, ... . These types may only be based on either ``num`` or ``decimal``.
-Viper has multiple unit types built in, which are the following:
+Vyper allows the definition of types with discrete units e.g. meters, seconds, wei, ... . These types may only be based on either ``int128`` or ``decimal``.
+Vyper has multiple unit types built in, which are the following:
 
 =============  =====  =========  ==========================
 Time
 -----------------------------------------------------------
 Keyword        Unit   Base type  Description
 =============  =====  =========  ==========================
-``timestamp``  1 sec  ``num``    This represents a point in time.
-``timedelta``  1 sec  ``num``    This is a number of seconds.
+``timestamp``  1 sec  ``int128``    This represents a point in time.
+``timedelta``  1 sec  ``int128``    This is a number of seconds.
 =============  =====  =========  ==========================
 
 .. note::
@@ -259,9 +259,9 @@ Currency
 ---------------------------------------------------------------------------------------------------------------------------------
 Keyword              Unit         Base type  Description
 ===================  ===========  =========  ====================================================================================
-``wei_value``        1 wei        ``num``    This is an amount of `Ether <http://ethdocs.org/en/latest/ether.html#denominations>`_ in wei.
-``currency1_value``  1 currency1  ``num``    This is an amount of currency1.
-``currency2_value``  1 currency2  ``num``    This is an amount of currency2.
+``wei_value``        1 wei        ``int128``    This is an amount of `Ether <http://ethdocs.org/en/latest/ether.html#denominations>`_ in wei.
+``currency1_value``  1 currency1  ``int128``    This is an amount of currency1.
+``currency2_value``  1 currency2  ``int128``    This is an amount of currency2.
 ===================  ===========  =========  ====================================================================================
 
 .. index:: !bytes32
@@ -278,14 +278,14 @@ This is a 32-bit-wide byte array that is otherwise similiar to byte arrays.
     self.hash = _hash
 Operators
 ---------
-====================================  ============================================================ 
+====================================  ============================================================
 Keyword                               Description
-====================================  ============================================================ 
+====================================  ============================================================
 ``len(x)``                            Return the length as an integer.
 ``sha3(x)``                           Return the sha3 hash as bytes32.
 ``concat(x, ...)``                    Concatenate multiple inputs.
 ``slice(x, start=_start, len=_len)``  Return a slice of ``_len`` starting at ``_start``.
-====================================  ============================================================ 
+====================================  ============================================================
 Where ``x`` is a byte array and ``_start`` as well as ``_len`` are integer values.
 
 .. index:: !bytes
@@ -307,14 +307,14 @@ Fixed-size byte arrays can hold strings with equal or fewer characters than the 
 
 Operators
 ---------
-====================================  ============================================================ 
+====================================  ============================================================
 Keyword                               Description
-====================================  ============================================================ 
+====================================  ============================================================
 ``len(x)``                            Return the length as an integer.
 ``sha3(x)``                           Return the sha3 hash as bytes32.
 ``concat(x, ...)``                    Concatenate multiple inputs.
 ``slice(x, start=_start, len=_len)``  Return a slice of ``_len`` starting at ``_start``.
-====================================  ============================================================ 
+====================================  ============================================================
 Where ``x`` is a byte array while ``_start`` and ``_len`` are integers.
 
 .. index:: !reference
@@ -339,18 +339,18 @@ Lists can be declared with ``_name: _ValueType[_Integer]``. Multidimensional lis
 **Example:**
 ::
     #Defining a list
-    exampleList: num[3]
+    exampleList: int128[3]
     #Setting values
     exampleList = [10, 11, 12]
     exampleList[2] = 42
     #Returning a value
-    return exampleList[0]  
+    return exampleList[0]
 
 .. index:: !structs
 Structs
 =======
 
-Structs are custom defined types that can group several variables. 
+Structs are custom defined types that can group several variables.
 
 Syntax
 ------
@@ -359,7 +359,7 @@ Structs can be accessed via ``struct.argname``.
 ::
     #Defining a struct
     exampleStruct: {
-        value1: num,
+        value1: int128,
         value2: decimal,
     }
     #Accessing a value
@@ -371,13 +371,13 @@ Structs can be accessed via ``struct.argname``.
 Mappings
 ========
 
-Mappings in Viper can be seen as `hash tables <https://en.wikipedia.org/wiki/Hash_table>`_ which are virtually initialized such that
+Mappings in Vyper can be seen as `hash tables <https://en.wikipedia.org/wiki/Hash_table>`_ which are virtually initialized such that
 every possible key exists and is mapped to a value whose byte-representation is
 all zeros: a type's default value. The similarity ends here, though: The key data is not actually stored
 in a mapping, only its ``keccak256`` hash used to look up the value. Because of this, mappings
 do not have a length or a concept of a key or value being "set".
 
-It is possible to mark mappings ``public`` and have Viper create a getter.
+It is possible to mark mappings ``public`` and have Vyper create a getter.
 The ``_KeyType`` will become a required parameter for the getter and it will
 return ``_ValueType``.
 
@@ -394,7 +394,7 @@ Here ``_KeyType`` can be almost any type except for mappings, a contract, or a s
 **Example:**
 ::
    #Defining a mapping
-   exampleMapping: decimal[num] 
+   exampleMapping: decimal[int128]
    #Accessing a value
    exampleMapping[0] = 10.1
 
@@ -411,9 +411,9 @@ The following conversions are possible.
 ===========================  =====================================================================================================================  =============
 Keyword                      Input                                                                                                                  Output
 ===========================  =====================================================================================================================  =============
-``as_num128(x)``             ``num256``, ``address``, ``bytes32``                                                                                   ``num``
-``as_num256(x)``             ``num`` , ``address``, ``bytes32``                                                                                     ``num256``
-``as_bytes32(x)``            ``num``, ``num256``, ``address``                                                                                       ``bytes32``
-``bytes_to_num(x)``          ``bytes``                                                                                                              ``num``
-``as_wei_value(x, denom)``   ``num`` , ``decimal``; `denomination <http://ethdocs.org/en/latest/ether.html#denominations>`_ literal                 ``wei_value``
+``as_num128(x)``             ``uint256``, ``address``, ``bytes32``                                                                                   ``int128``
+``as_uint256(x)``             ``int128`` , ``address``, ``bytes32``                                                                                     ``uint256``
+``as_bytes32(x)``            ``int128``, ``uint256``, ``address``                                                                                       ``bytes32``
+``bytes_to_num(x)``          ``bytes``                                                                                                              ``int128``
+``as_wei_value(x, denom)``   ``int128`` , ``decimal``; `denomination <http://ethdocs.org/en/latest/ether.html#denominations>`_ literal                 ``wei_value``
 ===========================  =====================================================================================================================  =============

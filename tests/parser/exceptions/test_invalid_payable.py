@@ -1,8 +1,8 @@
 import pytest
 from pytest import raises
 
-from viper import compiler
-from viper.exceptions import NonPayableViolationException
+from vyper import compiler
+from vyper.exceptions import NonPayableViolationException
 
 
 fail_list = [
@@ -22,10 +22,10 @@ def test_variable_decleration_exception(bad_code):
 
 valid_list = [
     """
-x: num
+x: int128
 @public
 @payable
-def foo() -> num:
+def foo() -> int128:
     self.x = 5
     return self.x
     """,

@@ -1,8 +1,8 @@
 import pytest
 from pytest import raises
 
-from viper import compiler
-from viper.exceptions import TypeMismatchException
+from vyper import compiler
+from vyper.exceptions import TypeMismatchException
 
 
 fail_list = [
@@ -27,7 +27,7 @@ def foo():
     send(0x1234567890123456789012345678901234567890, 0x1234567890123456789012345678901234567890)
     """,
     """
-x: num
+x: int128
 
 @public
 def foo():
@@ -69,7 +69,7 @@ x: decimal
 
 @public
 def foo():
-    send(0x1234567890123456789012345678901234567890, as_wei_value(floor(self.x), wei))
+    send(0x1234567890123456789012345678901234567890, as_wei_value(floor(self.x), "wei"))
     """,
     """
 x: wei_value

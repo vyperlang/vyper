@@ -1,6 +1,6 @@
-from viper.parser.parser import LLLnode
+from vyper.parser.parser import LLLnode
 from .opcodes import opcodes
-from viper.utils import MemoryPositions
+from vyper.utils import MemoryPositions
 
 
 def num_to_bytearray(x):

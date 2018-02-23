@@ -1,8 +1,8 @@
 import ast
 import copy
 
-from .exceptions import InvalidTypeException
-from .utils import (
+from vyper.exceptions import InvalidTypeException
+from vyper.utils import (
     base_types,
     ceil32,
     is_varname_valid,
@@ -122,7 +122,7 @@ class StructType(NodeType):
         return '{' + ', '.join([k + ': ' + repr(v) for k, v in self.members.items()]) + '}'
 
 
-# Data structure for a list with heterogeneous types, eg. [num, bytes32, bytes]
+# Data structure for a list with heterogeneous types, eg. [int128, bytes32, bytes]
 class TupleType(NodeType):
     def __init__(self, members):
         self.members = copy.copy(members)
@@ -141,10 +141,10 @@ class NullType(NodeType):
 
 
 # Convert type into common form used in ABI
-def canonicalize_type(t, is_event=False):
+def canonicalize_type(t, is_indexed=False):
     if isinstance(t, ByteArrayType):
         # Check to see if maxlen is small enough for events
-        if is_event and t.maxlen <= 32:
+        if is_indexed:
             return 'bytes{}'.format(t.maxlen)
         else:
             return 'bytes'
@@ -158,18 +158,18 @@ def canonicalize_type(t, is_event=False):
         )
     if not isinstance(t, BaseType):
         raise Exception("Cannot canonicalize non-base type: %r" % t)
-    num256_override = True if t.override_signature == 'num256' else False
+    uint256_override = True if t.override_signature == 'uint256' else False
 
     t = t.typ
-    if t == 'num' and not num256_override:
+    if t == 'int128' and not uint256_override:
         return 'int128'
-    elif t == 'num' and num256_override:
+    elif t == 'int128' and uint256_override:
         return 'uint256'
     elif t == 'decimal':
         return 'decimal10'
     elif t == 'bool':
         return 'bool'
-    elif t == 'num256':
+    elif t == 'uint256':
         return 'uint256'
     elif t == 'signed256':
         return 'int256'
@@ -182,13 +182,13 @@ def canonicalize_type(t, is_event=False):
 
 def parse_abi_type(t):
     if t == 'int128':
-        return 'num'
+        return 'int128'
     elif t == 'decimal10':
         return 'decimal'
     elif t == 'bool':
         return 'bool'
     elif t == 'uint256':
-        return 'num256'
+        return 'uint256'
     elif t == 'int256':
         return 'signed256'
     elif t in ('address', 'bytes32'):
@@ -198,12 +198,12 @@ def parse_abi_type(t):
 
 # Special types
 special_types = {
-    'timestamp': BaseType('num', {'sec': 1}, True),
-    'timedelta': BaseType('num', {'sec': 1}, False),
-    'currency_value': BaseType('num', {'currency': 1}, False),
-    'currency1_value': BaseType('num', {'currency1': 1}, False),
-    'currency2_value': BaseType('num', {'currency2': 1}, False),
-    'wei_value': BaseType('num', {'wei': 1}, False),
+    'timestamp': BaseType('int128', {'sec': 1}, True),
+    'timedelta': BaseType('int128', {'sec': 1}, False),
+    'currency_value': BaseType('int128', {'currency': 1}, False),
+    'currency1_value': BaseType('int128', {'currency1': 1}, False),
+    'currency2_value': BaseType('int128', {'currency2': 1}, False),
+    'wei_value': BaseType('int128', {'wei': 1}, False),
 }
 
 
@@ -255,8 +255,8 @@ def parse_type(item, location, sigs={}):
         if not isinstance(item.func, ast.Name):
             raise InvalidTypeException("Malformed unit type:", item)
         base_type = item.func.id
-        if base_type not in ('num', 'decimal'):
-            raise InvalidTypeException("You must use num, decimal, address, contract, \
+        if base_type not in ('int128', 'decimal'):
+            raise InvalidTypeException("You must use int128, decimal, address, contract, \
                 for variable declarations and indexed for logging topics ", item)
         if len(item.args) == 0:
             raise InvalidTypeException("Malformed unit type", item)
@@ -268,9 +268,9 @@ def parse_type(item, location, sigs={}):
             argz = item.args
         if len(argz) != 1:
             raise InvalidTypeException("Malformed unit type", item)
-        # Check for num256 to num casting
-        if item.func.id == 'num' and getattr(item.args[0], 'id', '') == 'num256':
-            return BaseType('num', override_signature='num256')
+        # Check for uint256 to num casting
+        if item.func.id == 'int128' and getattr(item.args[0], 'id', '') == 'uint256':
+            return BaseType('int128', override_signature='uint256')
         unit = parse_unit(argz[0])
         return BaseType(base_type, unit, positional)
     # Subscripts
@@ -349,6 +349,16 @@ def set_default_units(typ):
         return typ
 
 
+def get_type(input):
+    if not hasattr(input, 'typ'):
+        typ, len = 'num_literal', 32
+    elif hasattr(input.typ, 'maxlen'):
+        typ, len = 'bytes', input.typ.maxlen
+    else:
+        typ, len = input.typ.typ, 32
+    return typ, len
+
+
 # Checks that the units of frm can be seamlessly converted into the units of to
 def are_units_compatible(frm, to):
     frm_unit = getattr(frm, 'unit', 0)
@@ -358,7 +368,7 @@ def are_units_compatible(frm, to):
 
 # Is a type representing a number?
 def is_numeric_type(typ):
-    return isinstance(typ, BaseType) and typ.typ in ('num', 'decimal')
+    return isinstance(typ, BaseType) and typ.typ in ('int128', 'decimal')
 
 
 # Is a type representing some particular base type?

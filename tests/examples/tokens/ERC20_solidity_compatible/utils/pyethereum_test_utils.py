@@ -11,8 +11,8 @@ import unittest
 def extract_language(sourcefile):
     languages = {
         '.sol': 'solidity',
-        '.vy': 'viper',
-        '.py': 'viper'  # hack to handle new .v.py suggested Viper extension
+        '.vy': 'vyper',
+        '.py': 'vyper'  # hack to handle new .v.py suggested Vyper extension
     }
     _, ext = os.path.splitext(sourcefile)
     language = languages[ext]

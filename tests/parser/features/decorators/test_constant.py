@@ -2,7 +2,7 @@ def test_constant_test(get_contract_with_gas_estimation_for_constants):
     constant_test = """
 @public
 @constant
-def foo() -> num:
+def foo() -> int128:
     return 5
     """
 

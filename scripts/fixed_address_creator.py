@@ -2,7 +2,7 @@ from ethereum import transactions, utils
 import rlp
 from ethereum.slogging import LogRecorder, configure_logging, set_level
 config_string = ':info,eth.vm.log:trace,eth.vm.op:trace,eth.vm.stack:trace,eth.vm.exit:trace,eth.pb.msg:trace,eth.pb.tx:debug'
-from viper import optimizer, compile_lll
+from vyper import optimizer, compile_lll
 from rlp_decoder import rlp_decoder_bytes
 
 def encode_vals(vals):

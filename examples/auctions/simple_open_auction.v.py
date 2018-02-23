@@ -43,7 +43,7 @@ def bid():
 # End the auction and send the highest bid
 # to the beneficiary.
 @public
-def auction_end():
+def end_auction():
     # It is a good guideline to structure functions that interact
     # with other contracts (i.e. they call functions or send Ether)
     # into three phases:

@@ -1,14 +1,14 @@
 import pytest
 from pytest import raises
 
-from viper import compiler
-from viper.exceptions import StructureException
+from vyper import compiler
+from vyper.exceptions import StructureException
 
 
 fail_list = [
     """
 @public
-def foo() -> num:
+def foo() -> int128:
     pass
     """,
 ]
@@ -23,12 +23,12 @@ def test_missing_return(bad_code):
 valid_list = [
     """
 @public
-def foo() -> num:
+def foo() -> int128:
     return 123
     """,
     """
 @public
-def foo() -> num:
+def foo() -> int128:
     if false:
         return 123
     """,  # For the time being this is valid code, even though it should not be.

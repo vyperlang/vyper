@@ -46,9 +46,9 @@ def foo(x: bytes <= 100) -> bytes <= 100:
 
 def test_test_bytes3(get_contract_with_gas_estimation):
     test_bytes3 = """
-x: num
+x: int128
 maa: bytes <= 60
-y: num
+y: int128
 
 @public
 def __init__():
@@ -74,7 +74,7 @@ def get_maa2() -> bytes <= 60:
     return ay
 
 @public
-def get_xy() -> num:
+def get_xy() -> int128:
     return self.x * self.y
     """
 
@@ -163,11 +163,11 @@ def quz(inp1: bytes <= 40, inp2: bytes <= 45):
     print('Passed string struct test')
 
 
-def test_bytes_to_num_code(get_contract_with_gas_estimation, assert_tx_failed):
+def test_convert_bytes_to_num_code(get_contract_with_gas_estimation, assert_tx_failed):
     bytes_to_num_code = """
 @public
-def foo(x: bytes <= 32) -> num:
-    return bytes_to_num(x)
+def foo(x: bytes <= 32) -> int128:
+    return convert(x, 'int128')
     """
 
     c = get_contract_with_gas_estimation(bytes_to_num_code)
