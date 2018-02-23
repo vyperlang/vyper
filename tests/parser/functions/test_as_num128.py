@@ -5,7 +5,7 @@ def test_convert_bytes32_to_num_overflow(assert_tx_failed, get_contract_with_gas
 @public
 def test1():
     y: bytes32 = 0x1000000000000000000000000000000000000000000000000000000000000000
-    x: num = convert(y, 'num')
+    x: int128 = convert(y, 'int128')
     """
 
     c = get_contract_with_gas_estimation(code)
@@ -16,7 +16,7 @@ def test_convert_address_to_num(assert_compile_failed, get_contract_with_gas_est
     code = """
 @public
 def test2():
-  x: num = convert(msg.sender, 'num')
+  x: int128 = convert(msg.sender, 'int128')
     """
 
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), Exception)

@@ -8,12 +8,12 @@ from vyper.exceptions import TypeMismatchException
 fail_list = [
     """
 @public
-def foo(inp: num) -> num:
+def foo(inp: int128) -> int128:
     return len(inp)
     """,
     """
 @public
-def foo(inp: num) -> address:
+def foo(inp: int128) -> address:
     return len(inp)
     """
 ]
@@ -33,7 +33,7 @@ def test_block_fail(bad_code):
 valid_list = [
     """
 @public
-def foo(inp: bytes <= 10) -> num:
+def foo(inp: bytes <= 10) -> int128:
     return len(inp)
     """
 ]

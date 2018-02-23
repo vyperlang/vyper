@@ -1,23 +1,23 @@
 def test_test_bitwise(get_contract_with_gas_estimation):
     test_bitwise = """
 @public
-def _bitwise_and(x: num256, y: num256) -> num256:
+def _bitwise_and(x: uint256, y: uint256) -> uint256:
     return bitwise_and(x, y)
 
 @public
-def _bitwise_or(x: num256, y: num256) -> num256:
+def _bitwise_or(x: uint256, y: uint256) -> uint256:
     return bitwise_or(x, y)
 
 @public
-def _bitwise_xor(x: num256, y: num256) -> num256:
+def _bitwise_xor(x: uint256, y: uint256) -> uint256:
     return bitwise_xor(x, y)
 
 @public
-def _bitwise_not(x: num256) -> num256:
+def _bitwise_not(x: uint256) -> uint256:
     return bitwise_not(x)
 
 @public
-def _shift(x: num256, y: num) -> num256:
+def _shift(x: uint256, y: int128) -> uint256:
     return shift(x, y)
     """
 

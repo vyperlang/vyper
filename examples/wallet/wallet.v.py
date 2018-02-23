@@ -4,12 +4,12 @@
 # A list of the owners addresses (there are a maximum of 5 owners)
 owners: address[5]
 # The number of owners required to approve a transaction
-threshold: num
+threshold: int128
 # The number of transactions that have been approved
-seq: num
+seq: int128
 
 @public
-def __init__(_owners: address[5], _threshold: num):
+def __init__(_owners: address[5], _threshold: int128):
     for i in range(5):
         if _owners[i]:
             self.owners[i] = _owners[i]
@@ -18,11 +18,11 @@ def __init__(_owners: address[5], _threshold: num):
 # `@payable` allows functions to receive ether
 @public
 @payable
-def approve(_seq: num, to: address, value: wei_value, data: bytes <= 4096, sigdata: num256[3][5]) -> bytes <= 4096:
+def approve(_seq: int128, to: address, value: wei_value, data: bytes <= 4096, sigdata: uint256[3][5]) -> bytes <= 4096:
     # Throws if the value sent to the contract is less than the sum of the value to be sent
     assert msg.value >= value
     # Every time the number of approvals starts at 0 (multiple signatures can be added through the sigdata argument)
-    approvals:num = 0
+    approvals: int128 = 0
     # Starts by combining:
     # 1) The number of transactions approved thus far.
     # 2) The address the transaction is going to be sent to (can be a contract or a user).

@@ -4,7 +4,7 @@ from vyper.exceptions import TypeMismatchException
 def test_modulo(get_contract_with_gas_estimation):
     code = """
 @public
-def num_modulo_num() -> num:
+def num_modulo_num() -> int128:
     return 1 % 2
 
 @public
@@ -30,8 +30,8 @@ def num_modulo_decimal() -> decimal:
 def test_modulo_with_different_units(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
 @public
-def foo(a: currency_value, b: num):
-    x: num = a % b
+def foo(a: currency_value, b: int128):
+    x: int128 = a % b
 """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatchException)
 
@@ -39,8 +39,8 @@ def foo(a: currency_value, b: num):
 def test_modulo_with_positional_input(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
 @public
-def foo(a: num(sec, positional), b: num):
-    x: num = a % b
+def foo(a: int128(sec, positional), b: int128):
+    x: int128 = a % b
 """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatchException)
 
@@ -48,7 +48,7 @@ def foo(a: num(sec, positional), b: num):
 def test_modulo_with_input_of_zero(assert_tx_failed, get_contract_with_gas_estimation):
     code = """
 @public
-def foo(a: num, b: decimal) -> decimal:
+def foo(a: int128, b: decimal) -> decimal:
     return a % b
 """
     c = get_contract_with_gas_estimation(code)

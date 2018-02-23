@@ -1,7 +1,7 @@
 def test_conditional_return_code(get_contract_with_gas_estimation):
     conditional_return_code = """
 @public
-def foo(i: bool) -> num:
+def foo(i: bool) -> int128:
     if i:
         return 5
     else:

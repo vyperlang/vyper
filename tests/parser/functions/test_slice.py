@@ -7,16 +7,16 @@ def test_test_slice(get_contract_with_gas_estimation):
 
 @public
 def foo(inp1: bytes <= 10) -> bytes <= 3:
-    x: num = 5
+    x: int128 = 5
     s: bytes <= 3 = slice(inp1, start=3, len=3)
-    y: num = 7
+    y: int128 = 7
     return s
 
 @public
-def bar(inp1: bytes <= 10) -> num:
-    x: num = 5
+def bar(inp1: bytes <= 10) -> int128:
+    x: int128 = 5
     s: bytes <= 3 = slice(inp1, start=3, len=3)
-    y: num = 7
+    y: int128 = 7
     return x * y
     """
 
@@ -48,9 +48,9 @@ def slice_tower_test(inp1: bytes <= 50) -> bytes <= 50:
 
 def test_test_slice3(get_contract_with_gas_estimation):
     test_slice3 = """
-x: num
+x: int128
 s: bytes <= 50
-y: num
+y: int128
 @public
 def foo(inp1: bytes <= 50) -> bytes <= 50:
     self.x = 5
@@ -59,7 +59,7 @@ def foo(inp1: bytes <= 50) -> bytes <= 50:
     return self.s
 
 @public
-def bar(inp1: bytes <= 50) -> num:
+def bar(inp1: bytes <= 50) -> int128:
     self.x = 5
     self.s = slice(inp1, start=3, len=3)
     self.y = 7
@@ -78,7 +78,7 @@ def bar(inp1: bytes <= 50) -> num:
 def test_test_slice4(get_contract_with_gas_estimation):
     test_slice4 = """
 @public
-def foo(inp: bytes <= 10, start: num, len: num) -> bytes <= 10:
+def foo(inp: bytes <= 10, start: int128, len: int128) -> bytes <= 10:
     return slice(inp, start=start, len=len)
     """
 

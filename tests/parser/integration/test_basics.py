@@ -12,7 +12,7 @@ def foo():
 def test_basic_code(get_contract_with_gas_estimation):
     basic_code = """
 @public
-def foo(x: num) -> num:
+def foo(x: int128) -> int128:
     return x * 2
 
     """
@@ -32,11 +32,11 @@ def return_hash_of_cow_x_30() -> bytes32:
     return self._hashy2("cowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcow")
 
 @public
-def _len(x: bytes <= 100) -> num:
+def _len(x: bytes <= 100) -> int128:
     return len(x)
 
 @public
-def returnten() -> num:
+def returnten() -> int128:
     return self._len("badminton!")
     """
 
