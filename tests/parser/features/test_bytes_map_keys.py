@@ -121,5 +121,5 @@ def get_it3(key: bytes<=100000) -> num:
 
     assert c.get_it2() == 1069
     assert c.get_it2() == 1069
-    assert c.get_it3(b"a"*33) == 1069
+    assert c.get_it3(b"a" * 33) == 1069
     assert c.get_it3(b"test") == 0
