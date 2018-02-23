@@ -1,35 +1,35 @@
 def test_list_tester_code(get_contract_with_gas_estimation):
     list_tester_code = """
-z: num[3]
-z2: num[2][2]
-z3: num[2]
+z: int128[3]
+z2: int128[2][2]
+z3: int128[2]
 
 @public
-def foo(x: num[3]) -> num:
+def foo(x: int128[3]) -> int128:
     return x[0] + x[1] + x[2]
 
 @public
-def goo(x: num[2][2]) -> num:
+def goo(x: int128[2][2]) -> int128:
     return x[0][0] + x[0][1] + x[1][0] * 10 + x[1][1] * 10
 
 @public
-def hoo(x: num[3]) -> num:
-    y: num[3] = x
+def hoo(x: int128[3]) -> int128:
+    y: int128[3] = x
     return y[0] + x[1] + y[2]
 
 @public
-def joo(x: num[2][2]) -> num:
-    y: num[2][2] = x
-    y2: num[2] = x[1]
+def joo(x: int128[2][2]) -> int128:
+    y: int128[2][2] = x
+    y2: int128[2] = x[1]
     return y[0][0] + y[0][1] + y2[0] * 10 + y2[1] * 10
 
 @public
-def koo(x: num[3]) -> num:
+def koo(x: int128[3]) -> int128:
     self.z = x
     return self.z[0] + x[1] + self.z[2]
 
 @public
-def loo(x: num[2][2]) -> num:
+def loo(x: int128[2][2]) -> int128:
     self.z2 = x
     self.z3 = x[1]
     return self.z2[0][0] + self.z2[0][1] + self.z3[0] * 10 + self.z3[1] * 10
@@ -47,56 +47,56 @@ def loo(x: num[2][2]) -> num:
 
 def test_list_output_tester_code(get_contract_with_gas_estimation):
     list_output_tester_code = """
-z: num[2]
+z: int128[2]
 
 @public
-def foo() -> num[2]:
+def foo() -> int128[2]:
     return [3, 5]
 
 @public
-def goo() -> num[2]:
-    x: num[2] = [3, 5]
+def goo() -> int128[2]:
+    x: int128[2] = [3, 5]
     return x
 
 @public
-def hoo() -> num[2]:
+def hoo() -> int128[2]:
     self.z = [3, 5]
     return self.z
 
 @public
-def joo() -> num[2]:
+def joo() -> int128[2]:
     self.z = [3, 5]
-    x: num[2] = self.z
+    x: int128[2] = self.z
     return x
 
 @public
-def koo() -> num[2][2]:
+def koo() -> int128[2][2]:
     return [[1,2],[3,4]]
 
 @public
-def loo() -> num[2][2]:
-    x: num[2][2] = [[1, 2], [3, 4]]
+def loo() -> int128[2][2]:
+    x: int128[2][2] = [[1, 2], [3, 4]]
     return x
 
 @public
-def moo() -> num[2][2]:
-    x: num[2] = [1,2]
+def moo() -> int128[2][2]:
+    x: int128[2] = [1,2]
     return [x, [3,4]]
 
 @public
-def noo(inp: num[2]) -> num[2]:
+def noo(inp: int128[2]) -> int128[2]:
     return inp
 
 @public
-def poo(inp: num[2][2]) -> num[2][2]:
+def poo(inp: int128[2][2]) -> int128[2][2]:
     return inp
 
 @public
-def qoo(inp: num[2]) -> num[2][2]:
+def qoo(inp: int128[2]) -> int128[2][2]:
     return [inp,[3,4]]
 
 @public
-def roo(inp: num[2]) -> decimal[2][2]:
+def roo(inp: int128[2]) -> decimal[2][2]:
     return [inp,[3,4]]
     """
 
@@ -119,8 +119,8 @@ def roo(inp: num[2]) -> decimal[2][2]:
 def test_array_accessor(get_contract_with_gas_estimation):
     array_accessor = """
 @public
-def test_array(x: num, y: num, z: num, w: num) -> num:
-    a: num[4]
+def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
+    a: int128[4]
     a[0] = x
     a[1] = y
     a[2] = z
@@ -136,8 +136,8 @@ def test_array(x: num, y: num, z: num, w: num) -> num:
 def test_two_d_array_accessor(get_contract_with_gas_estimation):
     two_d_array_accessor = """
 @public
-def test_array(x: num, y: num, z: num, w: num) -> num:
-    a: num[2][2]
+def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
+    a: int128[2][2]
     a[0][0] = x
     a[0][1] = y
     a[1][0] = z

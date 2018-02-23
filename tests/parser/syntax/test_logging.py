@@ -7,7 +7,7 @@ from vyper.exceptions import TypeMismatchException
 
 fail_list = [
     """
-Bar: __log__({_value: num[4]})
+Bar: __log__({_value: int128[4]})
 x: decimal[4]
 
 @public
@@ -15,7 +15,7 @@ def foo():
     log.Bar(self.x)
     """,
     """
-Bar: __log__({_value: num[4]})
+Bar: __log__({_value: int128[4]})
 
 @public
 def foo():

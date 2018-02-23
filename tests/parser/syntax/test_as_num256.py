@@ -8,12 +8,12 @@ from vyper.exceptions import TypeMismatchException
 fail_list = [
     """
 @public
-def convert2(inp: num256) -> address:
+def convert2(inp: uint256) -> address:
     return convert(inp, 'bytes32')
     """,
     """
 @public
-def modtest(x: num256, y: num) -> num256:
+def modtest(x: uint256, y: int128) -> uint256:
     return x % y
     """
 ]
@@ -29,17 +29,17 @@ def test_as_wei_fail(bad_code):
 valid_list = [
     """
 @public
-def convert1(inp: bytes32) -> num256:
-    return convert(inp, 'num256')
+def convert1(inp: bytes32) -> uint256:
+    return convert(inp, 'uint256')
     """,
     """
 @public
-def convert1(inp: bytes32) -> num256:
-    return convert(inp, 'num256')
+def convert1(inp: bytes32) -> uint256:
+    return convert(inp, 'uint256')
     """,
     """
 @public
-def convert2(inp: num256) -> bytes32:
+def convert2(inp: uint256) -> bytes32:
     return convert(inp, 'bytes32')
     """
 ]

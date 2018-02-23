@@ -28,7 +28,7 @@ def test():
     ("""
 @public
 def test():
-    a: num = 33.33
+    a: int128 = 33.33
     """, TypeMismatchException),
     ("""
 @private
@@ -65,7 +65,7 @@ valid_list = [
     """
 @public
 def test():
-    a: num = 1
+    a: int128 = 1
     """,
     """
 @private

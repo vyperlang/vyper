@@ -27,7 +27,7 @@ def baz() -> bytes <= 7:
 def test_multiple_levels(get_contract_with_gas_estimation, chain):
     inner_code = """
 @public
-def returnten() -> num:
+def returnten() -> int128:
     return 10
     """
 
@@ -35,9 +35,9 @@ def returnten() -> num:
 
     outer_code = """
 @public
-def create_and_call_returnten(inp: address) -> num:
+def create_and_call_returnten(inp: address) -> int128:
     x: address = create_with_code_of(inp)
-    o: num = extract32(raw_call(x, "\xd0\x1f\xb1\xb8", outsize=32, gas=50000), 0, type=num128)
+    o: int128 = extract32(raw_call(x, "\xd0\x1f\xb1\xb8", outsize=32, gas=50000), 0, type=int128)
     return o
 
 @public
@@ -61,7 +61,7 @@ def create_and_return_forwarder(inp: address) -> address:
 def test_multiple_levels2(get_contract_with_gas_estimation):
     inner_code = """
 @public
-def returnten() -> num:
+def returnten() -> int128:
     assert False
     return 10
     """
@@ -70,9 +70,9 @@ def returnten() -> num:
 
     outer_code = """
 @public
-def create_and_call_returnten(inp: address) -> num:
+def create_and_call_returnten(inp: address) -> int128:
     x: address = create_with_code_of(inp)
-    o: num = extract32(raw_call(x, "\xd0\x1f\xb1\xb8", outsize=32, gas=50000), 0, type=num128)
+    o: int128 = extract32(raw_call(x, "\xd0\x1f\xb1\xb8", outsize=32, gas=50000), 0, type=int128)
     return o
 
 @public

@@ -18,11 +18,11 @@ def foo():
 def test_undef_suggestion():
     code = """
 @public
-def bar(x: num) -> num:
+def bar(x: int128) -> int128:
     return 3 * x
 
 @public
-def foo() -> num:
+def foo() -> int128:
     return bar(20)
     """
     with raises(StructureException) as ex:

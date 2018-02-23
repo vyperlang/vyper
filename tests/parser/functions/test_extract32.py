@@ -5,16 +5,16 @@ def test_extract32_extraction(get_contract_with_gas_estimation):
     extract32_code = """
 y: bytes <= 100
 @public
-def extrakt32(inp: bytes <= 100, index: num) -> bytes32:
+def extrakt32(inp: bytes <= 100, index: int128) -> bytes32:
     return extract32(inp, index)
 
 @public
-def extrakt32_mem(inp: bytes <= 100, index: num) -> bytes32:
+def extrakt32_mem(inp: bytes <= 100, index: int128) -> bytes32:
     x: bytes <= 100 = inp
     return extract32(x, index)
 
 @public
-def extrakt32_storage(index: num, inp: bytes <= 100) -> bytes32:
+def extrakt32_storage(index: int128, inp: bytes <= 100) -> bytes32:
     self.y = inp
     return extract32(self.y, index)
     """
@@ -57,12 +57,12 @@ def extrakt32_storage(index: num, inp: bytes <= 100) -> bytes32:
 def test_extract32_code(get_contract_with_gas_estimation):
     extract32_code = """
 @public
-def foo(inp: bytes <= 32) -> num:
-    return extract32(inp, 0, type=num128)
+def foo(inp: bytes <= 32) -> int128:
+    return extract32(inp, 0, type=int128)
 
 @public
-def bar(inp: bytes <= 32) -> num256:
-    return extract32(inp, 0, type=num256)
+def bar(inp: bytes <= 32) -> uint256:
+    return extract32(inp, 0, type=uint256)
 
 @public
 def baz(inp: bytes <= 32) -> bytes32:

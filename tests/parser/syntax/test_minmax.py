@@ -14,7 +14,7 @@ def foo():
     """
 @public
 def foo():
-    y = min(7, convert(3, 'num256'))
+    y = min(7, convert(3, 'uint256'))
     """
 ]
 
