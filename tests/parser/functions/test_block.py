@@ -3,7 +3,7 @@ def test_block_number(get_contract_with_gas_estimation, chain):
 
     block_number_code = """
 @public
-def block_number() -> num:
+def block_number() -> int128:
     return block.number
 """
     c = get_contract_with_gas_estimation(block_number_code)

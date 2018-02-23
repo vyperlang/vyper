@@ -9,7 +9,7 @@ import ethereum.abi as abi
 
 from utils.pyethereum_test_utils import PyEthereumTestCase, bytes_to_int
 
-MAX_UINT256 = (2 ** 256) - 1  # Max num256 value
+MAX_UINT256 = (2 ** 256) - 1  # Max uint256 value
 MAX_UINT128 = (2 ** 128) - 1  # Max num128 value
 
 # Base path to contracts from current directory
@@ -341,7 +341,7 @@ class TestViperERC20(TestERC20):
         cls.c = cls.s.contract(contract_code, language='vyper')
         # Bad version of contract where totalSupply / num_issued never gets updated after init
         # (required for full decision/branch coverage)
-        bad_code = contract_code.replace("self.num_issued = num256_add", "x = num256_add")
+        bad_code = contract_code.replace("self.num_issued = uint256_add", "x = uint256_add")
         cls.c_bad = cls.s.contract(bad_code, language='vyper')
 
         cls.initial_state = cls.s.snapshot()

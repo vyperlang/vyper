@@ -5,15 +5,15 @@ from vyper import compiler
 
 valid_list = [
     """
-x: public(num)
+x: public(int128)
     """,
     """
-x: public(num(wei / sec))
-y: public(num(wei / sec ** 2))
-z: public(num(1 / sec))
+x: public(int128(wei / sec))
+y: public(int128(wei / sec ** 2))
+z: public(int128(1 / sec))
 
 @public
-def foo() -> num(sec ** 2):
+def foo() -> decimal(sec ** 2):
     return self.x / self.y / self.z
     """
 ]

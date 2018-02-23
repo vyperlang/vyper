@@ -19,17 +19,17 @@ def fop() -> bytes32:
 
 @public
 def foq() -> bytes <= 100:
-    x = RLPList('\xc5\x83cow\x03', [bytes, num])
+    x = RLPList('\xc5\x83cow\x03', [bytes, int128])
     return x[0]
 
 @public
-def fos() -> num:
-    x = RLPList('\xc5\x83cow\x03', [bytes, num])
+def fos() -> int128:
+    x = RLPList('\xc5\x83cow\x03', [bytes, int128])
     return x[1]
 
 @public
-def fot() -> num256:
-    x = RLPList('\xc5\x83cow\x03', [bytes, num256])
+def fot() -> uint256:
+    x = RLPList('\xc5\x83cow\x03', [bytes, uint256])
     return x[1]
 
 @public
@@ -38,17 +38,17 @@ def qoo(inp: bytes <= 100) -> address:
     return x[0]
 
 @public
-def qos(inp: bytes <= 100) -> num:
-    x = RLPList(inp, [num, num])
+def qos(inp: bytes <= 100) -> int128:
+    x = RLPList(inp, [int128, int128])
     return x[0] + x[1]
 
 @public
 def qot(inp: bytes <= 100):
-    x = RLPList(inp, [num, num])
+    x = RLPList(inp, [int128, int128])
 
 @public
-def qov(inp: bytes <= 100) -> (num256, num256):
-    x = RLPList(inp, [num256, num256])
+def qov(inp: bytes <= 100) -> (uint256, uint256):
+    x = RLPList(inp, [uint256, uint256])
     return x[0], x[1]
 
 @public
@@ -63,13 +63,13 @@ def too(inp: bytes <= 100) -> bool:
     return x[0]
 
 @public
-def voo(inp: bytes <= 1024) -> num:
-    x = RLPList(inp, [num, num, bytes32, num, bytes32, bytes])
+def voo(inp: bytes <= 1024) -> int128:
+    x = RLPList(inp, [int128, int128, bytes32, int128, bytes32, bytes])
     return x[1]
 
 @public
-def loo(inp: bytes <= 1024) -> num:
-    x = RLPList(inp, [num, num, num, num, num, num, num, num, num, num])
+def loo(inp: bytes <= 1024) -> int128:
+    x = RLPList(inp, [int128, int128, int128, int128, int128, int128, int128, int128, int128, int128])
     return x[0] + x[1] + x[2] + x[3] + x[4] + x[5] + x[6] + x[7] + x[8] + x[9]
 
 @public
@@ -78,8 +78,8 @@ def woo(inp: bytes <= 1024) -> bytes <= 15360:
     return concat(x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11], x[12], x[13], x[14])
 
 @public
-def yolo(raw_utxo: bytes <= 1024) -> (address, num, num):
-    utxo = RLPList(raw_utxo, [address, num, num])
+def yolo(raw_utxo: bytes <= 1024) -> (address, int128, int128):
+    utxo = RLPList(raw_utxo, [address, int128, int128])
     return utxo[0], utxo[1], utxo[2]
     """
     c = get_contract_with_gas_estimation(rlp_decoder_code)

@@ -32,8 +32,8 @@ def krazykonkat(z: bytes <= 10) -> bytes <= 24:
     """,
     """
 @public
-def cat_list(y: num) -> bytes <= 40:
-    x: num[1] = [y]
+def cat_list(y: int128) -> bytes <= 40:
+    x: int128[1] = [y]
     return concat("test", y)
     """,
 ]

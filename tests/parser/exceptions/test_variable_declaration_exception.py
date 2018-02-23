@@ -7,48 +7,48 @@ from vyper.exceptions import VariableDeclarationException
 
 fail_list = [
     """
-x: num
-x: num
+x: int128
+x: int128
     """,
     """
-x: num
+x: int128
 
 @public
-def foo(x: num): pass
+def foo(x: int128): pass
     """,
     """
 @public
-def foo(x: num, x: num): pass
+def foo(x: int128, x: int128): pass
     """,
     """
 @public
-def foo(num: num):
+def foo(int128: int128):
     pass
     """,
     """
 @public
 def foo():
     x = 5
-    x: num
+    x: int128
     """,
     """
 @public
 def foo():
-    x: num
-    x: num
+    x: int128
+    x: int128
     """,
     """
 @public
 def foo():
-    x: num
+    x: int128
 @public
 def foo():
-    y: num
+    y: int128
     """,
     """
 @public
 def foo():
-    num = 5
+    int128 = 5
     """,
     """
 @public
@@ -57,13 +57,13 @@ def foo():
     """,
 
     """
-x: num
+x: int128
 @public
 def foo():
     x = 5
     """,
     """
-b: num
+b: int128
 @public
 def foo():
     b = 7
@@ -95,23 +95,20 @@ def foo():
     BALANCE = 45
     """,
     """
-num: num
-    """,
-    """
-CALLDATACOPY: num
-    """,
-    """
-int128: num
-    """,
-    """
-sec: num
-    """,
-    """
-foo: num
+foo: int128
 
 @public
 def foo():
     pass
+    """,
+    """
+CALLDATACOPY: int128
+    """,
+    """
+int128: bytes <= 3
+    """,
+    """
+sec: int128
     """,
 ]
 

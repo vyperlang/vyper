@@ -27,20 +27,20 @@ def foo() -> bytes <= 500:
     ("""
 @public
 def foo() -> bytes <= 500:
-    x: num = 1
+    x: int128 = 1
     return RLPList('\xe0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
     """, StructureException),
     """
 @public
 def foo() -> bytes <= 500:
-    x: num[3] = [1, 2, 3]
+    x: int128[3] = [1, 2, 3]
     return RLPList(x, [bytes])
     """,
     """
 @public
 def foo() -> bytes <= 500:
     x: bytes <= 500 = '\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
-    a: num = 1
+    a: int128 = 1
     return RLPList(x, a)
     """,
     """
@@ -52,7 +52,7 @@ def foo() -> bytes <= 500:
     """
 @public
 def foo() -> bytes32:
-    x = RLPList('\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', [address, num[2]])
+    x = RLPList('\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', [address, int128[2]])
     return x[1]
     """,
     """
@@ -64,7 +64,7 @@ def foo() -> bytes32:
     """
 @public
 def foo() -> bytes32:
-    x = RLPList('\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', [num(wei)])
+    x = RLPList('\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', [int128(wei)])
     return x[1]
     """
 ]

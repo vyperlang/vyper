@@ -22,42 +22,42 @@ from vyper.utils import (
 )
 
 
-@signature(('num', 'num256', 'bytes32', 'bytes'), 'str_literal')
-def to_num(expr, args, kwargs, context):
+@signature(('int128', 'uint256', 'bytes32', 'bytes'), 'str_literal')
+def to_int128(expr, args, kwargs, context):
     input = args[0]
     typ, len = get_type(input)
-    if typ in ('num', 'num256', 'bytes32'):
+    if typ in ('int128', 'uint256', 'bytes32'):
         return LLLnode.from_list(
-            ['clamp', ['mload', MemoryPositions.MINNUM], input, ['mload', MemoryPositions.MAXNUM]], typ=BaseType("num"), pos=getpos(expr)
+            ['clamp', ['mload', MemoryPositions.MINNUM], input, ['mload', MemoryPositions.MAXNUM]], typ=BaseType('int128'), pos=getpos(expr)
         )
     else:
-        return byte_array_to_num(input, expr, 'num')
+        return byte_array_to_num(input, expr, 'int128')
 
 
-@signature(('num_literal', 'num', 'bytes32'), 'str_literal')
-def to_num256(expr, args, kwargs, context):
+@signature(('num_literal', 'int128', 'bytes32'), 'str_literal')
+def to_unint256(expr, args, kwargs, context):
     input = args[0]
     typ, len = get_type(input)
     if isinstance(input, int):
         if not(0 <= input <= 2**256 - 1):
             raise InvalidLiteralException("Number out of range: {}".format(input))
-        return LLLnode.from_list(input, typ=BaseType('num256'), pos=getpos(expr))
-    elif isinstance(input, LLLnode) and typ in ('num', 'num_literal'):
-        return LLLnode.from_list(['clampge', input, 0], typ=BaseType('num256'), pos=getpos(expr))
+        return LLLnode.from_list(input, typ=BaseType('uint256'), pos=getpos(expr))
+    elif isinstance(input, LLLnode) and typ in ('int128', 'num_literal'):
+        return LLLnode.from_list(['clampge', input, 0], typ=BaseType('uint256'), pos=getpos(expr))
     elif isinstance(input, LLLnode) and typ in ('bytes32'):
-        return LLLnode(value=input.value, args=input.args, typ=BaseType('num256'), pos=getpos(expr))
+        return LLLnode(value=input.value, args=input.args, typ=BaseType('uint256'), pos=getpos(expr))
     else:
-        raise InvalidLiteralException("Invalid input for num256: %r" % input, expr)
+        raise InvalidLiteralException("Invalid input for uint256: %r" % input, expr)
 
 
-@signature('num', 'str_literal')
+@signature('int128', 'str_literal')
 def to_decimal(expr, args, kwargs, context):
     input = args[0]
     return LLLnode.from_list(['mul', input, DECIMAL_DIVISOR], typ=BaseType('decimal', input.typ.unit, input.typ.positional),
                              pos=getpos(expr))
 
 
-@signature(('num', 'num256', 'address', 'bytes'), 'str_literal')
+@signature(('int128', 'uint256', 'address', 'bytes'), 'str_literal')
 def to_bytes32(expr, args, kwargs, context):
     input = args[0]
     typ, len = get_type(input)
@@ -85,8 +85,8 @@ def convert(expr, context):
 
 
 conversion_table = {
-    'num': to_num,
-    'num256': to_num256,
+    'int128': to_int128,
+    'uint256': to_unint256,
     'decimal': to_decimal,
     'bytes32': to_bytes32,
 }
