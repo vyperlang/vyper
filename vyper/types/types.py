@@ -49,7 +49,7 @@ class NodeType():
     pass
 
 
-# Data structure for a type that representsa 32-byte object
+# Data structure for a type that represents a 32-byte object
 class BaseType(NodeType):
 
     def __init__(self, typ, unit=False, positional=False, override_signature=False):
