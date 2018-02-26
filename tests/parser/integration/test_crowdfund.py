@@ -1,12 +1,12 @@
 def test_crowdfund(t, chain, get_contract_with_gas_estimation_for_constants):
     crowdfund = """
 
-funders: {sender: address, value: wei_value}[num]
-nextFunderIndex: num
+funders: {sender: address, value: wei_value}[int128]
+nextFunderIndex: int128
 beneficiary: address
 deadline: public(timestamp)
 goal: wei_value
-refundIndex: num
+refundIndex: int128
 timelimit: public(timedelta)
 
 @public
@@ -20,7 +20,7 @@ def __init__(_beneficiary: address, _goal: wei_value, _timelimit: timedelta):
 @payable
 def participate():
     assert block.timestamp < self.deadline
-    nfi: num = self.nextFunderIndex
+    nfi: int128 = self.nextFunderIndex
     self.funders[nfi].sender = msg.sender
     self.funders[nfi].value = msg.value
     self.nextFunderIndex = nfi + 1
@@ -47,7 +47,7 @@ def finalize():
 
 @public
 def refund():
-    ind: num = self.refundIndex
+    ind: int128 = self.refundIndex
     for i in range(ind, ind + 30):
         if i >= self.nextFunderIndex:
             self.refundIndex = self.nextFunderIndex
@@ -93,12 +93,12 @@ def refund():
 def test_crowdfund2(t, chain, get_contract_with_gas_estimation_for_constants):
     crowdfund2 = """
 
-funders: {sender: address, value: wei_value}[num]
-nextFunderIndex: num
+funders: {sender: address, value: wei_value}[int128]
+nextFunderIndex: int128
 beneficiary: address
 deadline: public(timestamp)
 goal: wei_value
-refundIndex: num
+refundIndex: int128
 timelimit: public(timedelta)
 
 @public
@@ -112,7 +112,7 @@ def __init__(_beneficiary: address, _goal: wei_value, _timelimit: timedelta):
 @payable
 def participate():
     assert block.timestamp < self.deadline
-    nfi: num = self.nextFunderIndex
+    nfi: int128 = self.nextFunderIndex
     self.funders[nfi] = {sender: msg.sender, value: msg.value}
     self.nextFunderIndex = nfi + 1
 
@@ -138,7 +138,7 @@ def finalize():
 
 @public
 def refund():
-    ind: num = self.refundIndex
+    ind: int128 = self.refundIndex
     for i in range(ind, ind + 30):
         if i >= self.nextFunderIndex:
             self.refundIndex = self.nextFunderIndex

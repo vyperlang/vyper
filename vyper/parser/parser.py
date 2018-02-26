@@ -133,15 +133,15 @@ def resolve_negative_literals(_ast):
 #
 # Here is an example:
 #
-# Input: my_variable: {foo: num, bar: decimal[5]}
+# Input: my_variable: {foo: int128, bar: decimal[5]}
 #
 # Output:
 #
-# [('__foo', '', '.foo', 'num'),
-#  ('__bar', 'arg0: num, ', '.bar[arg0]', 'decimal')]
+# [('__foo', '', '.foo', 'int128'),
+#  ('__bar', 'arg0: int128, ', '.bar[arg0]', 'decimal')]
 #
 # The getters will have code:
-# def get_my_variable__foo() -> num: return self.foo
+# def get_my_variable__foo() -> int128: return self.foo
 # def get_my_variable__bar(arg0: nun) -> decimal: return self.bar[arg0]
 
 def _mk_getter_helper(typ, depth=0):
@@ -157,7 +157,7 @@ def _mk_getter_helper(typ, depth=0):
     elif isinstance(typ, ListType):
         o = []
         for funname, head, tail, base in _mk_getter_helper(typ.subtype, depth + 1):
-            o.append((funname, ("arg%d: num, " % depth) + head, ("[arg%d]" % depth) + tail, base))
+            o.append((funname, ("arg%d: int128, " % depth) + head, ("[arg%d]" % depth) + tail, base))
         return o
     # Mapping type: do not extend the getter name, add an input argument for
     # the key in the map, add a value access to the return statement
@@ -443,9 +443,9 @@ def make_clamper(datapos, mempos, typ, is_init=False):
         data_decl = ['codeload', ['add', '~codelen', datapos]]
         copier = lambda pos, sz: ['codecopy', mempos, ['add', '~codelen', pos], sz]
     # Numbers: make sure they're in range
-    if is_base_type(typ, 'num'):
+    if is_base_type(typ, 'int128'):
         return LLLnode.from_list(['clamp', ['mload', MemoryPositions.MINNUM], data_decl, ['mload', MemoryPositions.MAXNUM]],
-                                 typ=typ, annotation='checking num input')
+                                 typ=typ, annotation='checking int128 input')
     # Booleans: make sure they're zero or one
     elif is_base_type(typ, 'bool'):
         return LLLnode.from_list(['uclamplt', data_decl, 2], typ=typ, annotation='checking bool input')
@@ -629,14 +629,14 @@ def make_setter(left, right, location, pos=None):
                 raise TypeMismatchException("Mismatched number of elements", pos)
             subs = []
             for i in range(left.typ.count):
-                subs.append(make_setter(add_variable_offset(left_token, LLLnode.from_list(i, typ='num')),
+                subs.append(make_setter(add_variable_offset(left_token, LLLnode.from_list(i, typ='int128')),
                                         right.args[i], location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If the right side is a null
         elif isinstance(right.typ, NullType):
             subs = []
             for i in range(left.typ.count):
-                subs.append(make_setter(add_variable_offset(left_token, LLLnode.from_list(i, typ='num')),
+                subs.append(make_setter(add_variable_offset(left_token, LLLnode.from_list(i, typ='int128')),
                                         LLLnode.from_list(None, typ=NullType()), location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If the right side is a variable
@@ -644,8 +644,8 @@ def make_setter(left, right, location, pos=None):
             right_token = LLLnode.from_list('_R', typ=right.typ, location=right.location)
             subs = []
             for i in range(left.typ.count):
-                subs.append(make_setter(add_variable_offset(left_token, LLLnode.from_list(i, typ='num')),
-                                        add_variable_offset(right_token, LLLnode.from_list(i, typ='num')), location, pos=pos))
+                subs.append(make_setter(add_variable_offset(left_token, LLLnode.from_list(i, typ='int128')),
+                                        add_variable_offset(right_token, LLLnode.from_list(i, typ='int128')), location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['with', '_R', right, ['seq'] + subs]], typ=None)
     # Structs
     elif isinstance(left.typ, (StructType, TupleType)):
@@ -718,7 +718,7 @@ def pack_logging_topics(event_id, args, expected_topics, context):
                 topics.append(bytes_to_int(bytez + b'\x00' * (32 - bytez_length)))
             else:
                 size = context.vars[arg.id].size
-                topics.append(byte_array_to_num(value, arg, 'num256', size))
+                topics.append(byte_array_to_num(value, arg, 'uint256', size))
         else:
             value = unwrap_location(value)
             value = base_type_conversion(value, value.typ, typ)

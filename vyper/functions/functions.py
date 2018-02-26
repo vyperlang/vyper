@@ -66,7 +66,7 @@ def get_keyword(expr, keyword):
 @signature('decimal')
 def floor(expr, args, kwargs, context):
     return LLLnode.from_list(
-        ['sdiv', args[0], DECIMAL_DIVISOR], typ=BaseType('num', args[0].typ.unit, args[0].typ.positional),
+        ['sdiv', args[0], DECIMAL_DIVISOR], typ=BaseType('int128', args[0].typ.unit, args[0].typ.positional),
         pos=getpos(expr)
     )
 
@@ -74,17 +74,17 @@ def floor(expr, args, kwargs, context):
 @signature('decimal')
 def ceil(expr, args, kwards, context):
     return LLLnode.from_list(
-        ['sdiv', ['add', args[0], DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR], typ=BaseType('num', args[0].typ.unit, args[0].typ.positional),
+        ['sdiv', ['add', args[0], DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR], typ=BaseType('int128', args[0].typ.unit, args[0].typ.positional),
         pos=getpos(expr)
     )
 
 
-@signature(('num', 'decimal'))
+@signature(('int128', 'decimal'))
 def as_unitless_number(expr, args, kwargs, context):
     return LLLnode(value=args[0].value, args=args[0].args, typ=BaseType(args[0].typ.typ, {}), pos=getpos(expr))
 
 
-# @signature(('num', 'decimal', 'num_literal', 'num256', 'bytes32', 'bytes', 'address'), 'str_literal')
+# @signature(('int128', 'decimal', 'num_literal', 'uint256', 'bytes32', 'bytes', 'address'), 'str_literal')
 def _convert(expr, context):
     return convert(expr, context)
     # try:
@@ -92,34 +92,34 @@ def _convert(expr, context):
     # except:
     #     typ = 'bytes'
     #     maxlen = args[0].typ.maxlen
-    # if args[1] == b'num':
-    #     assert typ in ('num', 'num256', 'bytes32', 'bytes')
-    #     if typ in ('num', 'num256', 'bytes32'):
+    # if args[1] == b'int128':
+    #     assert typ in ('int128', 'uint256', 'bytes32', 'bytes')
+    #     if typ in ('int128', 'uint256', 'bytes32'):
     #         return LLLnode.from_list(
-    #             ['clamp', ['mload', MemoryPositions.MINNUM], args[0], ['mload', MemoryPositions.MAXNUM]], typ=BaseType("num"), pos=getpos(expr)
+    #             ['clamp', ['mload', MemoryPositions.MINNUM], args[0], ['mload', MemoryPositions.MAXNUM]], typ=BaseType('int128'), pos=getpos(expr)
     #         )
     #     else:
-    #         return byte_array_to_num(args[0], expr, 'num')
-    # elif args[1] == b'num256':
-    #     assert typ in ('num', 'num_literal', 'bytes32')
+    #         return byte_array_to_num(args[0], expr, 'int128')
+    # elif args[1] == b'uint256':
+    #     assert typ in ('int128', 'num_literal', 'bytes32')
     #     if isinstance(args[0], int):
     #         if not(0 <= args[0] <= 2**256 - 1):
     #             raise InvalidLiteralException("Number out of range: " + str(expr.args[0].n), expr.args[0])
-    #         return LLLnode.from_list(args[0], typ=BaseType('num256'), pos=getpos(expr))
-    #     elif isinstance(args[0], LLLnode) and typ in ('num', 'num_literal'):
-    #         return LLLnode.from_list(['clampge', args[0], 0], typ=BaseType('num256'), pos=getpos(expr))
+    #         return LLLnode.from_list(args[0], typ=BaseType('uint256'), pos=getpos(expr))
+    #     elif isinstance(args[0], LLLnode) and typ in ('int128', 'num_literal'):
+    #         return LLLnode.from_list(['clampge', args[0], 0], typ=BaseType('uint256'), pos=getpos(expr))
     #     elif isinstance(args[0], LLLnode) and typ in ('bytes32'):
-    #         return LLLnode(value=args[0].value, args=args[0].args, typ=BaseType('num256'), pos=getpos(expr))
+    #         return LLLnode(value=args[0].value, args=args[0].args, typ=BaseType('uint256'), pos=getpos(expr))
     #     else:
-    #         raise InvalidLiteralException("Invalid input for num256: %r" % args[0], expr)
+    #         raise InvalidLiteralException("Invalid input for uint256: %r" % args[0], expr)
     # elif args[1] == b'decimal':
-    #     assert typ in ('num')
+    #     assert typ in ('int128')
     #     return LLLnode.from_list(
     #         ['mul', args[0], DECIMAL_DIVISOR], typ=BaseType('decimal', args[0].typ.unit, args[0].typ.positional),
     #         pos=getpos(expr)
     #     )
     # elif args[1] == b'bytes32':
-    #     assert typ in ('num', 'num256', 'address', 'bytes')
+    #     assert typ in ('int128', 'uint256', 'address', 'bytes')
     #     if typ == 'bytes':
     #         if maxlen != 32:
     #             raise TypeMismatchException("Unable to convert bytes <= {} to bytes32".format(maxlen))
@@ -137,13 +137,13 @@ def _convert(expr, context):
     #     raise Exception("Conversion of {} to {} is not allowed.".format(typ, args[1]))
 
 
-@signature('bytes', start='num', len='num')
+@signature('bytes', start='int128', len='int128')
 def _slice(expr, args, kwargs, context):
     sub, start, length = args[0], kwargs['start'], kwargs['len']
-    if not are_units_compatible(start.typ, BaseType("num")):
+    if not are_units_compatible(start.typ, BaseType('int128')):
         raise TypeMismatchException("Type for slice start index must be a unitless number")
     # Expression representing the length of the slice
-    if not are_units_compatible(length.typ, BaseType("num")):
+    if not are_units_compatible(length.typ, BaseType('int128')):
         raise TypeMismatchException("Type for slice length must be a unitless number")
     # Node representing the position of the output in memory
     np = context.new_placeholder(ByteArrayType(maxlen=sub.typ.maxlen + 32))
@@ -202,10 +202,10 @@ def concat(expr, context):
                 continue
             # Get the length of the current argument
             if arg.location == "memory":
-                length = LLLnode.from_list(['mload', '_arg'], typ=BaseType('num'))
+                length = LLLnode.from_list(['mload', '_arg'], typ=BaseType('int128'))
                 argstart = LLLnode.from_list(['add', '_arg', 32], typ=arg.typ, location=arg.location)
             elif arg.location == "storage":
-                length = LLLnode.from_list(['sload', ['sha3_32', '_arg']], typ=BaseType('num'))
+                length = LLLnode.from_list(['sload', ['sha3_32', '_arg']], typ=BaseType('int128'))
                 argstart = LLLnode.from_list(['add', ['sha3_32', '_arg'], 1], typ=arg.typ, location=arg.location)
             # Make a copier to copy over data from that argyument
             seq.append(['with', '_arg', arg,
@@ -255,7 +255,7 @@ def _sha3(expr, args, kwargs, context):
             pos=getpos(expr)
         )
     elif sub.location == "storage":
-        lengetter = LLLnode.from_list(['sload', ['sha3_32', '_sub']], typ=BaseType('num'))
+        lengetter = LLLnode.from_list(['sload', ['sha3_32', '_sub']], typ=BaseType('int128'))
     else:
         raise Exception("Unsupported location: %s" % sub.location)
     placeholder = context.new_placeholder(sub.typ)
@@ -273,7 +273,7 @@ def method_id(expr, args, kwargs, context):
     return LLLnode(method_id, typ=BaseType('method_id'), pos=getpos(expr))
 
 
-@signature('bytes32', 'num256', 'num256', 'num256')
+@signature('bytes32', 'uint256', 'uint256', 'uint256')
 def ecrecover(expr, args, kwargs, context):
     placeholder_node = LLLnode.from_list(
         context.new_placeholder(ByteArrayType(128)), typ=ByteArrayType(128), location='memory'
@@ -288,10 +288,10 @@ def ecrecover(expr, args, kwargs, context):
 
 
 def avo(arg, ind):
-    return unwrap_location(add_variable_offset(arg, LLLnode.from_list(ind, 'num')))
+    return unwrap_location(add_variable_offset(arg, LLLnode.from_list(ind, 'int128')))
 
 
-@signature('num256[2]', 'num256[2]')
+@signature('uint256[2]', 'uint256[2]')
 def ecadd(expr, args, kwargs, context):
     placeholder_node = LLLnode.from_list(
         context.new_placeholder(ByteArrayType(128)), typ=ByteArrayType(128), location='memory'
@@ -303,11 +303,11 @@ def ecadd(expr, args, kwargs, context):
                               ['mstore', ['add', placeholder_node, 64], avo(args[1], 0)],
                               ['mstore', ['add', placeholder_node, 96], avo(args[1], 1)],
                               ['assert', ['call', 500, 6, 0, placeholder_node, 128, placeholder_node, 64]],
-                              placeholder_node], typ=ListType(BaseType('num256'), 2), pos=getpos(expr), location='memory')
+                              placeholder_node], typ=ListType(BaseType('uint256'), 2), pos=getpos(expr), location='memory')
     return o
 
 
-@signature('num256[2]', 'num256')
+@signature('uint256[2]', 'uint256')
 def ecmul(expr, args, kwargs, context):
     placeholder_node = LLLnode.from_list(
         context.new_placeholder(ByteArrayType(128)), typ=ByteArrayType(128), location='memory'
@@ -318,24 +318,24 @@ def ecmul(expr, args, kwargs, context):
                               ['mstore', ['add', placeholder_node, 32], avo(args[0], 1)],
                               ['mstore', ['add', placeholder_node, 64], args[1]],
                               ['assert', ['call', 40000, 7, 0, placeholder_node, 96, placeholder_node, 64]],
-                              placeholder_node], typ=ListType(BaseType('num256'), 2), pos=getpos(expr), location='memory')
+                              placeholder_node], typ=ListType(BaseType('uint256'), 2), pos=getpos(expr), location='memory')
     return o
 
 
-@signature('bytes', 'num', type=Optional('name_literal', 'bytes32'))
+@signature('bytes', 'int128', type=Optional('name_literal', 'bytes32'))
 def extract32(expr, args, kwargs, context):
     sub, index = args
     ret_type = kwargs['type']
     # Get length and specific element
     if sub.location == "memory":
-        lengetter = LLLnode.from_list(['mload', '_sub'], typ=BaseType('num'))
+        lengetter = LLLnode.from_list(['mload', '_sub'], typ=BaseType('int128'))
         elementgetter = lambda index: LLLnode.from_list(
-            ['mload', ['add', '_sub', ['add', 32, ['mul', 32, index]]]], typ=BaseType('num')
+            ['mload', ['add', '_sub', ['add', 32, ['mul', 32, index]]]], typ=BaseType('int128')
         )
     elif sub.location == "storage":
-        lengetter = LLLnode.from_list(['sload', ['sha3_32', '_sub']], typ=BaseType('num'))
+        lengetter = LLLnode.from_list(['sload', ['sha3_32', '_sub']], typ=BaseType('int128'))
         elementgetter = lambda index: LLLnode.from_list(
-            ['sload', ['add', ['sha3_32', '_sub'], ['add', 1, index]]], typ=BaseType('num')
+            ['sload', ['add', ['sha3_32', '_sub'], ['add', 1, index]]], typ=BaseType('int128')
         )
     # Special case: index known to be a multiple of 32
     if isinstance(index.value, int) and not index.value % 32:
@@ -362,15 +362,15 @@ def extract32(expr, args, kwargs, context):
                     ['exp', 256, ['sub', 32, '_mi32']]]],
                   elementgetter('_di32')]]]]]],
         typ=BaseType(ret_type), pos=getpos(expr), annotation='extracting 32 bytes')
-    if ret_type == 'num128':
-        return LLLnode.from_list(['clamp', ['mload', MemoryPositions.MINNUM], o, ['mload', MemoryPositions.MAXNUM]], typ=BaseType("num"), pos=getpos(expr))
+    if ret_type == 'int128':
+        return LLLnode.from_list(['clamp', ['mload', MemoryPositions.MINNUM], o, ['mload', MemoryPositions.MAXNUM]], typ=BaseType('int128'), pos=getpos(expr))
     elif ret_type == 'address':
         return LLLnode.from_list(['uclamplt', o, ['mload', MemoryPositions.ADDRSIZE]], typ=BaseType(ret_type), pos=getpos(expr))
     else:
         return o
 
 
-@signature(('num_literal', 'num', 'decimal'), 'str_literal')
+@signature(('num_literal', 'int128', 'decimal'), 'str_literal')
 def as_wei_value(expr, args, kwargs, context):
     # Denominations
     if args[1] == b"wei":
@@ -395,17 +395,17 @@ def as_wei_value(expr, args, kwargs, context):
         if denomination % den:
             raise InvalidLiteralException("Too many decimal places: %s" % numstring, expr.args[0])
         sub = num * denomination // den
-    elif args[0].typ.typ == 'num':
+    elif args[0].typ.typ == 'int128':
         sub = ['mul', args[0], denomination]
     else:
         sub = ['div', ['mul', args[0], denomination], DECIMAL_DIVISOR]
-    return LLLnode.from_list(sub, typ=BaseType('num', {'wei': 1}), location=None, pos=getpos(expr))
+    return LLLnode.from_list(sub, typ=BaseType('int128', {'wei': 1}), location=None, pos=getpos(expr))
 
 
-zero_value = LLLnode.from_list(0, typ=BaseType('num', {'wei': 1}))
+zero_value = LLLnode.from_list(0, typ=BaseType('int128', {'wei': 1}))
 
 
-@signature('address', 'bytes', outsize='num_literal', gas='num', value=Optional('num', zero_value))
+@signature('address', 'bytes', outsize='num_literal', gas='int128', value=Optional('int128', zero_value))
 def raw_call(expr, args, kwargs, context):
     to, data = args
     gas, value, outsize = kwargs['gas'], kwargs['value'], kwargs['outsize']
@@ -413,7 +413,7 @@ def raw_call(expr, args, kwargs, context):
         raise ConstancyViolationException("Cannot make calls from a constant function", expr)
     if value != zero_value:
         enforce_units(value.typ, get_keyword(expr, 'value'),
-                      BaseType('num', {'wei': 1}))
+                      BaseType('int128', {'wei': 1}))
     placeholder = context.new_placeholder(data.typ)
     placeholder_node = LLLnode.from_list(placeholder, typ=data.typ, location='memory')
     copier = make_byte_array_copier(placeholder_node, data)
@@ -428,12 +428,12 @@ def raw_call(expr, args, kwargs, context):
     return z
 
 
-@signature('address', 'num')
+@signature('address', 'int128')
 def send(expr, args, kwargs, context):
     to, value = args
     if context.is_constant:
         raise ConstancyViolationException("Cannot send ether inside a constant function!", expr)
-    enforce_units(value.typ, expr.args[1], BaseType('num', {'wei': 1}))
+    enforce_units(value.typ, expr.args[1], BaseType('int128', {'wei': 1}))
     return LLLnode.from_list(['assert', ['call', 0, to, value, 0, 0, 0, 0]], typ=None, pos=getpos(expr))
 
 
@@ -444,7 +444,7 @@ def selfdestruct(expr, args, kwargs, context):
     return LLLnode.from_list(['selfdestruct', args[0]], typ=None, pos=getpos(expr))
 
 
-@signature('num')
+@signature('int128')
 def blockhash(expr, args, kwargs, contact):
     return LLLnode.from_list(['blockhash', ['uclamplt', ['clampge', args[0], ['sub', ['number'], 256]], 'number']],
                              typ=BaseType('bytes32'), pos=getpos(expr))
@@ -468,7 +468,7 @@ def _RLPlist(expr, args, kwargs, context):
             subtyp = parse_type(arg, 'memory')
             if not isinstance(subtyp, BaseType):
                 raise TypeMismatchException("RLP lists only accept BaseTypes and byte arrays", arg)
-            if not is_base_type(subtyp, ('num', 'num256', 'bytes32', 'address', 'bool')):
+            if not is_base_type(subtyp, ('int128', 'uint256', 'bytes32', 'address', 'bool')):
                 raise TypeMismatchException("Unsupported base type: %s" % subtyp.typ, arg)
         _format.append(subtyp)
     output_type = TupleType(_format)
@@ -499,8 +499,8 @@ def _RLPlist(expr, args, kwargs, context):
             decoder.append(LLLnode.from_list(
                 ['add', output_node, ['mload', ['add', output_node, 32 * i]]],
             typ, location='memory', annotation='getting byte array'))
-        # Decoder for num and num256
-        elif is_base_type(typ, ('num', 'num256')):
+        # Decoder for num and uint256
+        elif is_base_type(typ, ('int128', 'uint256')):
             bytez = LLLnode.from_list(
                 ['add', output_node, ['mload', ['add', output_node, 32 * i]]],
             typ, location='memory', annotation='getting and checking %s' % typ.typ)
@@ -570,112 +570,112 @@ def raw_log(expr, args, kwargs, context):
     typ=None, pos=getpos(expr))
 
 
-@signature('num256', 'num256')
+@signature('uint256', 'uint256')
 def bitwise_and(expr, args, kwargs, context):
-    return LLLnode.from_list(['and', args[0], args[1]], typ=BaseType('num256'), pos=getpos(expr))
+    return LLLnode.from_list(['and', args[0], args[1]], typ=BaseType('uint256'), pos=getpos(expr))
 
 
-@signature('num256', 'num256')
+@signature('uint256', 'uint256')
 def bitwise_or(expr, args, kwargs, context):
-    return LLLnode.from_list(['or', args[0], args[1]], typ=BaseType('num256'), pos=getpos(expr))
+    return LLLnode.from_list(['or', args[0], args[1]], typ=BaseType('uint256'), pos=getpos(expr))
 
 
-@signature('num256', 'num256')
+@signature('uint256', 'uint256')
 def bitwise_xor(expr, args, kwargs, context):
-    return LLLnode.from_list(['xor', args[0], args[1]], typ=BaseType('num256'), pos=getpos(expr))
+    return LLLnode.from_list(['xor', args[0], args[1]], typ=BaseType('uint256'), pos=getpos(expr))
 
 
-@signature('num256', 'num256')
-def num256_add(expr, args, kwargs, context):
+@signature('uint256', 'uint256')
+def uint256_add(expr, args, kwargs, context):
     return LLLnode.from_list(['seq',
                                 # Checks that: a + b >= a
                                 ['assert', ['ge', ['add', args[0], args[1]], args[0]]],
-                                ['add', args[0], args[1]]], typ=BaseType('num256'), pos=getpos(expr))
+                                ['add', args[0], args[1]]], typ=BaseType('uint256'), pos=getpos(expr))
 
 
-@signature('num256', 'num256')
-def num256_sub(expr, args, kwargs, context):
+@signature('uint256', 'uint256')
+def uint256_sub(expr, args, kwargs, context):
     return LLLnode.from_list(['seq',
                                 # Checks that: a >= b
                                 ['assert', ['ge', args[0], args[1]]],
-                                ['sub', args[0], args[1]]], typ=BaseType('num256'), pos=getpos(expr))
+                                ['sub', args[0], args[1]]], typ=BaseType('uint256'), pos=getpos(expr))
 
 
-@signature('num256', 'num256')
-def num256_mul(expr, args, kwargs, context):
+@signature('uint256', 'uint256')
+def uint256_mul(expr, args, kwargs, context):
     return LLLnode.from_list(['seq',
                                 # Checks that: a == 0 || a / b == b
                                 ['assert', ['or', ['iszero', args[0]],
                                 ['eq', ['div', ['mul', args[0], args[1]], args[0]], args[1]]]],
-                                ['mul', args[0], args[1]]], typ=BaseType('num256'), pos=getpos(expr))
+                                ['mul', args[0], args[1]]], typ=BaseType('uint256'), pos=getpos(expr))
 
 
-@signature('num256', 'num256')
-def num256_div(expr, args, kwargs, context):
+@signature('uint256', 'uint256')
+def uint256_div(expr, args, kwargs, context):
     return LLLnode.from_list(['seq',
                                 # Checks that:  b != 0
                                 ['assert', args[1]],
-                                ['div', args[0], args[1]]], typ=BaseType('num256'), pos=getpos(expr))
+                                ['div', args[0], args[1]]], typ=BaseType('uint256'), pos=getpos(expr))
 
 
-@signature('num256', 'num256')
-def num256_exp(expr, args, kwargs, context):
+@signature('uint256', 'uint256')
+def uint256_exp(expr, args, kwargs, context):
     return LLLnode.from_list(['seq',
                                 ['assert', ['or', ['or', ['eq', args[1], 1], ['iszero', args[1]]],
                                 ['lt', args[0], ['exp', args[0], args[1]]]]],
-                                ['exp', args[0], args[1]]], typ=BaseType('num256'), pos=getpos(expr))
+                                ['exp', args[0], args[1]]], typ=BaseType('uint256'), pos=getpos(expr))
 
 
-@signature('num256', 'num256')
-def num256_mod(expr, args, kwargs, context):
+@signature('uint256', 'uint256')
+def uint256_mod(expr, args, kwargs, context):
     return LLLnode.from_list(['seq',
                                 ['assert', args[1]],
-                                ['mod', args[0], args[1]]], typ=BaseType('num256'), pos=getpos(expr))
+                                ['mod', args[0], args[1]]], typ=BaseType('uint256'), pos=getpos(expr))
 
 
-@signature('num256', 'num256', 'num256')
-def num256_addmod(expr, args, kwargs, context):
+@signature('uint256', 'uint256', 'uint256')
+def uint256_addmod(expr, args, kwargs, context):
     return LLLnode.from_list(['seq',
                                 ['assert', args[2]],
                                 ['assert', ['or', ['iszero', args[1]], ['gt', ['add', args[0], args[1]], args[0]]]],
-                                ['addmod', args[0], args[1], args[2]]], typ=BaseType('num256'), pos=getpos(expr))
+                                ['addmod', args[0], args[1], args[2]]], typ=BaseType('uint256'), pos=getpos(expr))
 
 
-@signature('num256', 'num256', 'num256')
-def num256_mulmod(expr, args, kwargs, context):
+@signature('uint256', 'uint256', 'uint256')
+def uint256_mulmod(expr, args, kwargs, context):
     return LLLnode.from_list(['seq',
                                 ['assert', args[2]],
                                 ['assert', ['or', ['iszero', args[0]],
                                 ['eq', ['div', ['mul', args[0], args[1]], args[0]], args[1]]]],
-                                ['mulmod', args[0], args[1], args[2]]], typ=BaseType('num256'), pos=getpos(expr))
+                                ['mulmod', args[0], args[1], args[2]]], typ=BaseType('uint256'), pos=getpos(expr))
 
 
-@signature('num256')
+@signature('uint256')
 def bitwise_not(expr, args, kwargs, context):
-    return LLLnode.from_list(['not', args[0]], typ=BaseType('num256'), pos=getpos(expr))
+    return LLLnode.from_list(['not', args[0]], typ=BaseType('uint256'), pos=getpos(expr))
 
 
-@signature('num256', 'num256')
-def num256_gt(expr, args, kwargs, context):
+@signature('uint256', 'uint256')
+def uint256_gt(expr, args, kwargs, context):
     return LLLnode.from_list(['gt', args[0], args[1]], typ=BaseType('bool'), pos=getpos(expr))
 
 
-@signature('num256', 'num256')
-def num256_ge(expr, args, kwargs, context):
+@signature('uint256', 'uint256')
+def uint256_ge(expr, args, kwargs, context):
     return LLLnode.from_list(['ge', args[0], args[1]], typ=BaseType('bool'), pos=getpos(expr))
 
 
-@signature('num256', 'num256')
-def num256_lt(expr, args, kwargs, context):
+@signature('uint256', 'uint256')
+def uint256_lt(expr, args, kwargs, context):
     return LLLnode.from_list(['lt', args[0], args[1]], typ=BaseType('bool'), pos=getpos(expr))
 
 
-@signature('num256', 'num256')
-def num256_le(expr, args, kwargs, context):
+@signature('uint256', 'uint256')
+def uint256_le(expr, args, kwargs, context):
     return LLLnode.from_list(['le', args[0], args[1]], typ=BaseType('bool'), pos=getpos(expr))
 
 
-@signature('num256', 'num')
+@signature('uint256', 'int128')
 def shift(expr, args, kwargs, context):
     return LLLnode.from_list(['with', '_v', args[0],
                                 ['with', '_s', args[1],
@@ -686,15 +686,15 @@ def shift(expr, args, kwargs, context):
                                     ['if', ['sle', '_s', 0],
                                            ['div', '_v', ['exp', 2, ['sub', 0, '_s']]],
                                            ['mul', '_v', ['exp', 2, '_s']]]]],
-    typ=BaseType('num256'), pos=getpos(expr))
+    typ=BaseType('uint256'), pos=getpos(expr))
 
 
-@signature('address', value=Optional('num', zero_value))
+@signature('address', value=Optional('int128', zero_value))
 def create_with_code_of(expr, args, kwargs, context):
     value = kwargs['value']
     if value != zero_value:
         enforce_units(value.typ, get_keyword(expr, 'value'),
-                      BaseType('num', {'wei': 1}))
+                      BaseType('int128', {'wei': 1}))
     if context.is_constant:
         raise ConstancyViolationException("Cannot make calls from a constant function", expr)
     placeholder = context.new_placeholder(ByteArrayType(96))
@@ -709,12 +709,12 @@ def create_with_code_of(expr, args, kwargs, context):
                                 ['clamp_nonzero', ['create', value, placeholder, 64]]], typ=BaseType('address'), pos=getpos(expr), add_gas_estimate=10000)
 
 
-@signature(('num', 'decimal', 'num256'), ('num', 'decimal', 'num256'))
+@signature(('int128', 'decimal', 'uint256'), ('int128', 'decimal', 'uint256'))
 def _min(expr, args, kwargs, context):
     return minmax(expr, args, kwargs, context, True)
 
 
-@signature(('num', 'decimal', 'num256'), ('num', 'decimal', 'num256'))
+@signature(('int128', 'decimal', 'uint256'), ('int128', 'decimal', 'uint256'))
 def _max(expr, args, kwargs, context):
     return minmax(expr, args, kwargs, context, False)
 
@@ -723,17 +723,17 @@ def minmax(expr, args, kwargs, context, is_min):
     left, right = args[0], args[1]
     if not are_units_compatible(left.typ, right.typ) and not are_units_compatible(right.typ, left.typ):
         raise TypeMismatchException("Units must be compatible", expr)
-    if left.typ.typ == 'num256':
+    if left.typ.typ == 'uint256':
         comparator = 'gt' if is_min else 'lt'
     else:
         comparator = 'sgt' if is_min else 'slt'
     if left.typ.typ == right.typ.typ:
         o = ['if', [comparator, '_l', '_r'], '_r', '_l']
         otyp = left.typ
-    elif left.typ.typ == 'num' and right.typ.typ == 'decimal':
+    elif left.typ.typ == 'int128' and right.typ.typ == 'decimal':
         o = ['if', [comparator, ['mul', '_l', DECIMAL_DIVISOR], '_r'], '_r', ['mul', '_l', DECIMAL_DIVISOR]]
         otyp = 'decimal'
-    elif left.typ.typ == 'decimal' and right.typ.typ == 'num':
+    elif left.typ.typ == 'decimal' and right.typ.typ == 'int128':
         o = ['if', [comparator, '_l', ['mul', '_r', DECIMAL_DIVISOR]], ['mul', '_r', DECIMAL_DIVISOR], '_l']
         otyp = 'decimal'
     else:
@@ -764,18 +764,18 @@ dispatch_table = {
     'bitwise_or': bitwise_or,
     'bitwise_xor': bitwise_xor,
     'bitwise_not': bitwise_not,
-    'num256_add': num256_add,
-    'num256_sub': num256_sub,
-    'num256_mul': num256_mul,
-    'num256_div': num256_div,
-    'num256_exp': num256_exp,
-    'num256_mod': num256_mod,
-    'num256_addmod': num256_addmod,
-    'num256_mulmod': num256_mulmod,
-    'num256_gt': num256_gt,
-    'num256_ge': num256_ge,
-    'num256_lt': num256_lt,
-    'num256_le': num256_le,
+    'uint256_add': uint256_add,
+    'uint256_sub': uint256_sub,
+    'uint256_mul': uint256_mul,
+    'uint256_div': uint256_div,
+    'uint256_exp': uint256_exp,
+    'uint256_mod': uint256_mod,
+    'uint256_addmod': uint256_addmod,
+    'uint256_mulmod': uint256_mulmod,
+    'uint256_gt': uint256_gt,
+    'uint256_ge': uint256_ge,
+    'uint256_lt': uint256_lt,
+    'uint256_le': uint256_le,
     'shift': shift,
     'create_with_code_of': create_with_code_of,
     'min': _min,

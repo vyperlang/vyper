@@ -7,7 +7,7 @@ Pay: __log__({_vendor: indexed(address), _amount: wei_value})
 # Own shares of a company!
 company: public(address)
 total_shares: public(currency_value)
-price: public(num (wei / currency))
+price: public(int128 (wei / currency))
 
 # Store ledger of stockholder holdings
 holdings: currency_value[address]
@@ -15,7 +15,7 @@ holdings: currency_value[address]
 # Setup company
 @public
 def __init__(_company: address, _total_shares: currency_value,
-        initial_price: num(wei / currency) ):
+        initial_price: int128(wei / currency) ):
     assert _total_shares > 0
     assert initial_price > 0
 

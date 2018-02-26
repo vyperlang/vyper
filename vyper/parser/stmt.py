@@ -238,12 +238,12 @@ class Stmt(object):
         if len(self.stmt.iter.args) == 1:
             if not isinstance(self.stmt.iter.args[0], ast.Num):
                 raise StructureException("Range only accepts literal values", self.stmt.iter)
-            start = LLLnode.from_list(0, typ='num', pos=getpos(self.stmt))
+            start = LLLnode.from_list(0, typ='int128', pos=getpos(self.stmt))
             rounds = self.stmt.iter.args[0].n
         elif isinstance(self.stmt.iter.args[0], ast.Num) and isinstance(self.stmt.iter.args[1], ast.Num):
             # Type 2 for, eg. for i in range(100, 110): ...
-            start = LLLnode.from_list(self.stmt.iter.args[0].n, typ='num', pos=getpos(self.stmt))
-            rounds = LLLnode.from_list(self.stmt.iter.args[1].n - self.stmt.iter.args[0].n, typ='num', pos=getpos(self.stmt))
+            start = LLLnode.from_list(self.stmt.iter.args[0].n, typ='int128', pos=getpos(self.stmt))
+            rounds = LLLnode.from_list(self.stmt.iter.args[1].n - self.stmt.iter.args[0].n, typ='int128', pos=getpos(self.stmt))
         else:
             # Type 3 for, eg. for i in range(x, x + 10): ...
             if not isinstance(self.stmt.iter.args[1], ast.BinOp) or not isinstance(self.stmt.iter.args[1].op, ast.Add):
@@ -256,7 +256,7 @@ class Stmt(object):
             start = Expr.parse_value_expr(self.stmt.iter.args[0], self.context)
             rounds = self.stmt.iter.args[1].right.n
         varname = self.stmt.target.id
-        pos = self.context.new_variable(varname, BaseType('num'))
+        pos = self.context.new_variable(varname, BaseType('int128'))
         self.context.forvars[varname] = True
         o = LLLnode.from_list(['repeat', pos, start, rounds, parse_body(self.stmt.body, self.context)], typ=None, pos=getpos(self.stmt))
         del self.context.vars[varname]
@@ -388,7 +388,7 @@ class Stmt(object):
             if not are_units_compatible(sub.typ, self.context.return_type):
                 raise TypeMismatchException("Return type units mismatch %r %r" % (sub.typ, self.context.return_type), self.stmt.value)
             elif is_base_type(sub.typ, self.context.return_type.typ) or \
-                    (is_base_type(sub.typ, 'num') and is_base_type(self.context.return_type, 'signed256')):
+                    (is_base_type(sub.typ, 'int128') and is_base_type(self.context.return_type, 'signed256')):
                 return LLLnode.from_list(['seq', ['mstore', 0, sub], ['return', 0, 32]], typ=None, pos=getpos(self.stmt))
             else:
                 raise TypeMismatchException("Unsupported type conversion: %r to %r" % (sub.typ, self.context.return_type), self.stmt.value)

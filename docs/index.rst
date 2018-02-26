@@ -48,6 +48,7 @@ Following the principles and goals, Vyper **does not** provide the following fea
 Compatibility-breaking Changelog
 ********************************
 
+* **2018.02.22**: Renaming num to int128, and num256 to uint256.
 * **2018.02.12**: Division by num returns decimal type.
 * **2018.02.09**: Standardize type conversions.
 * **2018.02.01**: Functions cannot have the same name as globals.
@@ -72,7 +73,10 @@ Glossary
 
     installing-vyper.rst
     compiling-a-contract.rst
+    structure-of-a-contract.rst
     vyper-by-example.rst
     vyper-in-depth.rst
     contributing.rst
     frequently-asked-questions.rst
+    built-in-functions.rst
+    types.rst

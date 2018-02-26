@@ -119,7 +119,7 @@ design patterns and features of the Vyper language.
 And of course, no smart contract tutorial is complete without a note on
 security.
 
-.. note:: 
+.. note::
   It's always important to keep security in mind when designing a smart
   contract. As any application becomes more complex, the greater the potential for
   introducing new risks. Thus, it's always good practice to keep contracts as
@@ -272,7 +272,7 @@ This struct contains each participant's public address and their respective
 value contributed to the fund. The key corresponding to each struct in the
 mapping will be represented by the variable ``nextFunderIndex`` which is
 incremented with each additional contributing participant. Variables initialized
-with the ``num`` type without an explicit value, such as ``nextFunderIndex``,
+with the ``int128`` type without an explicit value, such as ``nextFunderIndex``,
 defaults to ``0``. The ``beneficiary`` will be the final receiver of the funds
 once the crowdfunding period is over—as determined by the ``deadline`` and
 ``timelimit`` variables. The ``goal`` variable is the target total contribution
@@ -315,7 +315,7 @@ period is over and that the balance has reached/passed its set goal. If those
 two conditions pass, the contract calls the ``selfdestruct()`` function and
 sends the collected funds to the beneficiary.
 
-.. note:: 
+.. note::
   Notice that we have access to the total amount sent to the contract by
   calling ``self.balance``, a variable we never explicitly set. Similar to ``msg``
   and ``block``, ``self.balance`` is a built-in variable thats available in all
@@ -369,7 +369,7 @@ voter’s properties: ``weight``, ``voted``, ``delegate``, and ``vote``, along
 with their respective datatypes.
 
 Similarly, the ``proposals`` variable is initialized as a ``public`` mapping
-with ``num`` as the key’s datatype and a struct to represent each proposal
+with ``int128`` as the key’s datatype and a struct to represent each proposal
 with the properties ``name`` and ``vote_count``. Like our last example, we can
 access any value by key’ing into the mapping with a number just as one would
 with an index in an array.

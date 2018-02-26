@@ -8,13 +8,13 @@ from vyper.exceptions import TypeMismatchException
 fail_list = [
     """
 @public
-def foo() -> num:
-    x: num = 45
+def foo() -> int128:
+    x: int128 = 45
     return x.codesize
     """,
     """
 @public
-def foo() -> num(wei):
+def foo() -> int128(wei):
     x: address = 0x1234567890123456789012345678901234567890
     return x.codesize
     """
@@ -31,7 +31,7 @@ def test_block_fail(bad_code):
 valid_list = [
     """
 @public
-def foo() -> num:
+def foo() -> int128:
     x: address = 0x1234567890123456789012345678901234567890
     return x.codesize
     """

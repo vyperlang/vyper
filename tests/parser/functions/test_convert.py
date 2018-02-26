@@ -1,80 +1,80 @@
 def test_convert_to_num(chain, get_contract_with_gas_estimation, assert_tx_failed):
     code = """
-a: num
-b: num256
+a: int128
+b: uint256
 c: bytes32
 d: bytes <= 1
 
 @public
-def num_to_num(inp: num) -> (num, num, num):
+def int128_to_num(inp: int128) -> (int128, int128, int128):
     self.a = inp
-    memory: num  = convert(inp, "num")
-    storage: num = convert(self.a, "num")
-    literal: num = convert(1, "num")
+    memory: int128  = convert(inp, 'int128')
+    storage: int128 = convert(self.a, 'int128')
+    literal: int128 = convert(1, 'int128')
     return  memory, storage, literal
 
 @public
-def num256_to_num(inp: num256) -> (num256, num256):
+def uint256_to_num(inp: uint256) -> (uint256, uint256):
     self.b = inp
-    memory: num  = convert(inp, "num")
-    storage: num = convert(self.b, "num")
+    memory: int128  = convert(inp, 'int128')
+    storage: int128 = convert(self.b, 'int128')
     return  memory, storage
 
 @public
-def bytes32_to_num() -> (num, num):
+def bytes32_to_num() -> (int128, int128):
     self.c = 0x0000000000000000000000000000000000000000000000000000000000000001
-    literal: num = convert(0x0000000000000000000000000000000000000000000000000000000000000001, "num")
-    storage: num = convert(self.c, "num")
+    literal: int128 = convert(0x0000000000000000000000000000000000000000000000000000000000000001, 'int128')
+    storage: int128 = convert(self.c, 'int128')
     return literal, storage
 
 @public
-def bytes_to_num() -> (num, num):
+def bytes_to_num() -> (int128, int128):
     self.d = 'a'
-    literal: num = convert('a', "num")
-    storage: num = convert(self.d, "num")
+    literal: int128 = convert('a', 'int128')
+    storage: int128 = convert(self.d, 'int128')
     return literal, storage
 """
     c = get_contract_with_gas_estimation(code)
-    assert c.num_to_num(1) == [1, 1, 1]
-    assert c.num256_to_num(1) == [1, 1]
+    assert c.int128_to_num(1) == [1, 1, 1]
+    assert c.uint256_to_num(1) == [1, 1]
     assert c.bytes32_to_num() == [1, 1]
     assert c.bytes_to_num() == [97, 97]
 
 
-def test_convert_to_num256(t, chain, get_contract, utils, assert_tx_failed):
+def test_convert_to_uint256(t, chain, get_contract, utils, assert_tx_failed):
     code = """
-a: num
+a: int128
 b: bytes32
-c: num256
+c: uint256
 d: address
 
 @public
-def num_to_num256(inp: num) -> (num256, num256, num256):
+def int128_to_uint256(inp: int128) -> (uint256, uint256, uint256):
     self.a = inp
-    memory: num256  = convert(inp, "num256")
-    storage: num256 = convert(self.a, "num256")
-    literal: num256 = convert(1, "num256")
+    memory: uint256  = convert(inp, "uint256")
+    storage: uint256 = convert(self.a, "uint256")
+    literal: uint256 = convert(1, "uint256")
     return  memory, storage, literal
 
 @public
-def bytes32_to_num256() -> (num256, num256):
+def bytes32_to_uint256() -> (uint256, uint256):
     self.b = 0x0000000000000000000000000000000000000000000000000000000000000001
-    literal: num256 = convert(0x0000000000000000000000000000000000000000000000000000000000000001, "num256")
-    storage: num256 = convert(self.b, "num256")
+    literal: uint256 = convert(0x0000000000000000000000000000000000000000000000000000000000000001, "uint256")
+    storage: uint256 = convert(self.b, "uint256")
     return literal, storage
 """
     c = get_contract(code)
-    assert c.num_to_num256(1) == [1, 1, 1]
-    assert c.bytes32_to_num256() == [1, 1]
+    assert c.int128_to_uint256(1) == [1, 1, 1]
+    assert c.bytes32_to_uint256() == [1, 1]
 
 
 def test_convert_to_decimal(t, chain, get_contract, utils, assert_tx_failed):
     code = """
-a: num
+a: int128
 b: decimal
 
 @public
-def num_to_decimal(inp: num) -> (decimal, decimal, decimal):
+def int128_to_decimal(inp: int128) -> (decimal, decimal, decimal):
     self.a = inp
     memory: decimal = convert(inp, "decimal")
     storage: decimal = convert(self.a, "decimal")
@@ -82,18 +82,18 @@ def num_to_decimal(inp: num) -> (decimal, decimal, decimal):
     return  memory, storage, literal
 """
     c = get_contract(code)
-    assert c.num_to_decimal(1) == [1.0, 1.0, 1.0]
+    assert c.int128_to_decimal(1) == [1.0, 1.0, 1.0]
 
 
 def test_convert_to_bytes32(t, get_contract_with_gas_estimation, bytes_helper):
     code = """
-a: num
-b: num256
+a: int128
+b: uint256
 c: address
 d: bytes <= 32
 
 @public
-def num_to_bytes32(inp: num) -> (bytes32, bytes32, bytes32):
+def int128_to_bytes32(inp: int128) -> (bytes32, bytes32, bytes32):
     self.a = inp
     memory: bytes32 = convert(inp, "bytes32")
     storage: bytes32 = convert(self.a, "bytes32")
@@ -101,7 +101,7 @@ def num_to_bytes32(inp: num) -> (bytes32, bytes32, bytes32):
     return  memory, storage, literal
 
 @public
-def num256_to_bytes32(inp: num256) -> (bytes32, bytes32, bytes32):
+def uint256_to_bytes32(inp: uint256) -> (bytes32, bytes32, bytes32):
     self.b = inp
     memory: bytes32 = convert(inp, "bytes32")
     storage: bytes32 = convert(self.b, "bytes32")
@@ -123,7 +123,7 @@ def bytes_to_bytes32(inp: bytes <= 32) -> (bytes32, bytes32):
     return  memory, storage
 """
     c = get_contract_with_gas_estimation(code)
-    assert c.num_to_bytes32(1) == [bytes_helper('', 31) + b'\x01'] * 3
-    assert c.num256_to_bytes32(1) == [bytes_helper('', 31) + b'\x01'] * 3
+    assert c.int128_to_bytes32(1) == [bytes_helper('', 31) + b'\x01'] * 3
+    assert c.uint256_to_bytes32(1) == [bytes_helper('', 31) + b'\x01'] * 3
     assert c.address_to_bytes32(t.a0) == [bytes_helper('', 12) + t.a0] * 2
     assert c.bytes_to_bytes32(bytes_helper('', 32)) == [bytes_helper('', 32)] * 2
