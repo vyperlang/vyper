@@ -63,10 +63,10 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
         return ['DUP' + str(height - withargs[code.value])]
     # Setting variables connected to with statements
     elif code.value == "set":
-        if height - withargs[code.args[0].value] > 16:
-            raise Exception("With statement too deep")
         if len(code.args) != 2 or code.args[0].value not in withargs:
             raise Exception("Set expects two arguments, the first being a stack variable")
+        if height - withargs[code.args[0].value] > 16:
+            raise Exception("With statement too deep")
         return compile_to_assembly(code.args[1], withargs, break_dest, height) + \
             ['SWAP' + str(height - withargs[code.args[0].value]), 'POP']
     # Pass statements
@@ -105,8 +105,6 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
     elif code.value == 'repeat':
         o = []
         loops = num_to_bytearray(code.args[2].value)
-        if not loops:
-            raise Exception("Number of times repeated must be a constant nonzero positive integer: %r" % loops)
         start, continue_dest, end = mksymbol(), mksymbol(), mksymbol()
         o.extend(compile_to_assembly(code.args[0], withargs, break_dest, height))
         o.extend(compile_to_assembly(code.args[1], withargs, break_dest, height + 1))
@@ -297,6 +295,8 @@ def assembly_to_evm(assembly):
                     o += codes[i]
                     break
         else:
-            raise Exception("Weird symbol in assembly: " + str(item))
+            # Should never reach because, assembly is create in compile_to_assembly.
+            raise Exception("Weird symbol in assembly: " + str(item))  # pragma: no cover
+
     assert len(o) == pos
     return o

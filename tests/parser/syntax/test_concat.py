@@ -1,6 +1,8 @@
 import pytest
 
+from pytest import raises
 from vyper import compiler
+from vyper.exceptions import TypeMismatchException
 
 
 fail_list = [
@@ -24,17 +26,25 @@ y: bytes <= 10
 
 @public
 def krazykonkat(z: bytes <= 10) -> bytes <= 24:
-    x = "cow"
+    x: bytes <= 10 = "cow"
     self.y = "horse"
     return concat(x, " ", self.y, " ", z)
     """,
     """
 @public
 def cat_list(y: int128) -> bytes <= 40:
-    x = [y]
+    x: int128[1] = [y]
     return concat("test", y)
     """,
 ]
+
+
+@pytest.mark.parametrize('bad_code', fail_list)
+def test_block_fail(bad_code):
+
+    with raises(TypeMismatchException):
+        compiler.compile(bad_code)
+
 
 valid_list = [
     """

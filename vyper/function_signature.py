@@ -55,8 +55,6 @@ class FunctionSignature():
         args = []
         for arg in code.args.args:
             typ = arg.annotation
-            if not isinstance(arg.arg, str):
-                raise VariableDeclarationException("Argument name invalid", arg)
             if not typ:
                 raise InvalidTypeException("Argument must have type", arg)
             if not is_varname_valid(arg.arg):

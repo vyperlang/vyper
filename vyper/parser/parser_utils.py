@@ -447,7 +447,8 @@ def base_type_conversion(orig, frm, to, pos=None):
         return LLLnode.from_list(['uclample', orig, ['mload', MemoryPositions.MAXNUM]], typ=BaseType('int128'))
     elif isinstance(frm, NullType):
         if to.typ not in ('int128', 'bool', 'uint256', 'address', 'bytes32', 'decimal'):
-            raise TypeMismatchException("Cannot convert null-type object to type %r" % to, pos)
+            # This is only to future proof the use of  base_type_conversion.
+            raise TypeMismatchException("Cannot convert null-type object to type %r" % to, pos)  # pragma: no cover
         return LLLnode.from_list(0, typ=to)
     else:
         raise TypeMismatchException("Typecasting from base type %r to %r unavailable" % (frm, to), pos)

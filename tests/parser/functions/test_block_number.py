@@ -1,3 +1,4 @@
+
 def test_block_number(get_contract_with_gas_estimation, chain):
     chain.mine(1)
 

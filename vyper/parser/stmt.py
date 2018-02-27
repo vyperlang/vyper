@@ -31,7 +31,6 @@ from vyper.types import (
 )
 from vyper.types import (
     are_units_compatible,
-    set_default_units,
 )
 from .expr import (
     Expr
@@ -117,7 +116,7 @@ class Stmt(object):
         sub = Expr(self.stmt.value, self.context).lll_node
         # Determine if it's an RLPList assignment.
         if isinstance(self.stmt.value, ast.Call) and getattr(self.stmt.value.func, 'id', '') is 'RLPList':
-            pos = self.context.new_variable(self.stmt.targets[0].id, set_default_units(sub.typ))
+            pos = self.context.new_variable(self.stmt.targets[0].id, sub.typ)
             variable_loc = LLLnode.from_list(pos, typ=sub.typ, location='memory', pos=getpos(self.stmt), annotation=self.stmt.targets[0].id)
             o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
         # All other assignments are forbidden.

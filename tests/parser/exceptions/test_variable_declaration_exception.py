@@ -95,14 +95,20 @@ def foo():
     BALANCE = 45
     """,
     """
-int128: int128
-    """,
-    """
 foo: int128
 
 @public
 def foo():
     pass
+    """,
+    """
+CALLDATACOPY: int128
+    """,
+    """
+int128: bytes <= 3
+    """,
+    """
+sec: int128
     """,
 ]
 

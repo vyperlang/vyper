@@ -60,7 +60,9 @@ def get_keyword(expr, keyword):
     for kw in expr.keywords:
         if kw.arg == keyword:
             return kw.value
-    raise Exception("Keyword %s not found" % keyword)
+    # This should never happen, as kwargs['value'] will KeyError first.
+    # Leaving exception for other use cases.
+    raise Exception("Keyword %s not found" % keyword)  # pragma: no cover
 
 
 @signature('decimal')
@@ -257,7 +259,8 @@ def _sha3(expr, args, kwargs, context):
     elif sub.location == "storage":
         lengetter = LLLnode.from_list(['sload', ['sha3_32', '_sub']], typ=BaseType('int128'))
     else:
-        raise Exception("Unsupported location: %s" % sub.location)
+        # This should never happen, but just left here for future compiler-writers.
+        raise Exception("Unsupported location: %s" % sub.location)  # pragma: no test
     placeholder = context.new_placeholder(sub.typ)
     placeholder_node = LLLnode.from_list(placeholder, typ=sub.typ, location='memory')
     copier = make_byte_array_copier(placeholder_node, LLLnode.from_list('_sub', typ=sub.typ, location=sub.location))
@@ -516,7 +519,8 @@ def _RLPlist(expr, args, kwargs, context):
                     ['seq', ['assert', ['or', ['eq', '_ans', 0], ['eq', '_ans', 257]]], ['div', '_ans', 257]]],
             typ, annotation='getting and checking bool'))
         else:
-            raise Exception("Type not yet supported")
+            # Should never reach because of top level base level check.
+            raise Exception("Type not yet supported")  # pragma: no cover
     # Copy the input data to memory
     if args[0].location == "memory":
         variable_pointer = args[0]
@@ -526,7 +530,8 @@ def _RLPlist(expr, args, kwargs, context):
         copier = make_byte_array_copier(placeholder_node, LLLnode.from_list('_ptr', typ=args[0].typ, location=args[0].location))
         variable_pointer = ['with', '_ptr', args[0], ['seq', copier, placeholder_node]]
     else:
-        raise Exception("Location not yet supported")
+        # Should never reach because of top level base level check.
+        raise Exception("Location not yet supported")  # pragma: no cover
     # Decode the input data
     initial_setter = LLLnode.from_list(
         ['seq',

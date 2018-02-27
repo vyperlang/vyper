@@ -128,7 +128,7 @@ class TupleType(NodeType):
         self.members = copy.copy(members)
 
     def __eq__(self, other):
-        return other.__class__ == StructType and other.members == self.members
+        return other.__class__ == TupleType and other.members == self.members
 
     def __repr__(self):
         return '(' + ', '.join([repr(m) for m in self.members]) + ')'
@@ -154,7 +154,7 @@ def canonicalize_type(t, is_indexed=False):
         return canonicalize_type(t.subtype) + "[%d]" % t.count
     if isinstance(t, TupleType):
         return "({})".format(
-            ",".join(canonicalize_type(x) for x in t.subtypes)
+            ",".join(canonicalize_type(x) for x in t.members)
         )
     if not isinstance(t, BaseType):
         raise Exception("Cannot canonicalize non-base type: %r" % t)
@@ -177,22 +177,6 @@ def canonicalize_type(t, is_indexed=False):
         return t
     elif t == 'real':
         return 'real128x128'
-    raise Exception("Invalid or unsupported type: " + repr(t))
-
-
-def parse_abi_type(t):
-    if t == 'int128':
-        return 'int128'
-    elif t == 'decimal10':
-        return 'decimal'
-    elif t == 'bool':
-        return 'bool'
-    elif t == 'uint256':
-        return 'uint256'
-    elif t == 'int256':
-        return 'signed256'
-    elif t in ('address', 'bytes32'):
-        return t
     raise Exception("Invalid or unsupported type: " + repr(t))
 
 
@@ -331,22 +315,6 @@ def get_size_of_type(typ):
         return sum([get_size_of_type(v) for v in typ.members])
     else:
         raise Exception("Unexpected type: %r" % repr(typ))
-
-
-def set_default_units(typ):
-    if isinstance(typ, BaseType):
-        if typ.unit is None:
-            return BaseType(typ.typ, {})
-        else:
-            return typ
-    elif isinstance(typ, StructType):
-        return StructType({k: set_default_units(v) for k, v in typ.members.items()})
-    elif isinstance(typ, ListType):
-        return ListType(set_default_units(typ.subtype), typ.count)
-    elif isinstance(typ, MappingType):
-        return MappingType(set_default_units(typ.keytype), set_default_units(typ.valuetype))
-    else:
-        return typ
 
 
 def get_type(input):
