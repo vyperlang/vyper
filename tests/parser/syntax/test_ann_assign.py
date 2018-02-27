@@ -2,7 +2,11 @@ import pytest
 from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import VariableDeclarationException, TypeMismatchException
+from vyper.exceptions import (
+    VariableDeclarationException,
+    TypeMismatchException,
+    StructureException
+)
 
 
 fail_list = [
@@ -25,7 +29,25 @@ def test():
 @public
 def test():
     a: int128 = 33.33
-    """, TypeMismatchException)
+    """, TypeMismatchException),
+    ("""
+@private
+def do_stuff() -> bool:
+    return True
+
+@public
+def test():
+    a: bool = self.do_stuff() or self.do_stuff()
+    """, StructureException),
+    ("""
+@private
+def do_stuff() -> bool:
+    return True
+
+@public
+def test():
+    a: bool = False or self.do_stuff()
+    """, StructureException)
 ]
 
 
@@ -45,6 +67,15 @@ valid_list = [
 def test():
     a: int128 = 1
     """,
+    """
+@private
+def do_stuff() -> bool:
+    return True
+
+@public
+def test():
+    a: bool = self.do_stuff()
+    """
 ]
 
 

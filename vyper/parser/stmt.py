@@ -91,6 +91,7 @@ class Stmt(object):
         from .parser import (
             make_setter,
         )
+        self.context.set_in_assignment(True)
         typ = parse_type(self.stmt.annotation, location='memory')
         if isinstance(self.stmt.target, ast.Attribute) and self.stmt.target.value.id == 'self':
             raise TypeMismatchException('May not redefine storage variables.', self.stmt)
@@ -102,6 +103,7 @@ class Stmt(object):
             self._check_valid_assign(sub)
             variable_loc = LLLnode.from_list(pos, typ=sub.typ, location='memory', pos=getpos(self.stmt))
             o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
+        self.context.set_in_assignment(False)
         return o
 
     def assign(self):
@@ -111,6 +113,7 @@ class Stmt(object):
         # Assignment (eg. x[4] = y)
         if len(self.stmt.targets) != 1:
             raise StructureException("Assignment statement must have one target", self.stmt)
+        self.context.set_in_assignment(True)
         sub = Expr(self.stmt.value, self.context).lll_node
         # Determine if it's an RLPList assignment.
         if isinstance(self.stmt.value, ast.Call) and getattr(self.stmt.value.func, 'id', '') is 'RLPList':
@@ -125,6 +128,7 @@ class Stmt(object):
             target = self.get_target(self.stmt.targets[0])
             o = make_setter(target, sub, target.location, pos=getpos(self.stmt))
         o.pos = getpos(self.stmt)
+        self.context.set_in_assignment(False)
         return o
 
     def parse_if(self):

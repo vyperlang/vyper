@@ -282,6 +282,11 @@ class Context():
         self.function_return_count = 0
         # Current block scope
         self.blockscopes = set()
+        # In assignment. Whether expressiong is currently evaluating an assignment expression.
+        self.in_assignment = False
+
+    def set_in_assignment(self, state: bool):
+        self.in_assignment = state
 
     def set_in_for_loop(self, name_of_list):
         self.in_for_loop.add(name_of_list)
