@@ -4,8 +4,8 @@ from pytest import raises
 
 def test_semicolon_prohibited(get_contract):
     code = """@public
-def test() -> num:
-    a: num = 1; b: num = 2
+def test() -> int128:
+    a: int128 = 1; b: int128 = 2
     return a + b
     """
 
@@ -16,9 +16,9 @@ def test() -> num:
 def test_valid_semicolons(get_contract):
     code = """
 @public
-def test() -> num:
-    a: num = 1
-    b: num = 2
+def test() -> int128:
+    a: int128 = 1
+    b: int128 = 2
     s: bytes <= 300 = "this should not be a problem; because it is in a string"
     s = \"\"\"this should not be a problem; because it's in a string\"\"\"
     s = 'this should not be a problem;;; because it\\\'s in a string'
@@ -33,18 +33,18 @@ def test() -> num:
 def test_external_contract_definition_alias(get_contract):
     contract_1 = """
 @public
-def bar() -> num:
+def bar() -> int128:
     return 1
     """
 
     contract_2 = """
 contract Bar():
-    def bar() -> num: pass
+    def bar() -> int128: pass
 
 bar_contract: Bar
 
 @public
-def foo(contract_address: contract(Bar)) -> num:
+def foo(contract_address: contract(Bar)) -> int128:
     self.bar_contract = contract_address
     return self.bar_contract.bar()
     """
