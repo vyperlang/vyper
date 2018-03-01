@@ -55,7 +55,7 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
             if isinstance(sub.typ, ByteArrayType):
                 return sub
         else:
-            # Does not work for unit-endowed types inside compound types, eg. timestamp[2]
+            # Does not work for unit-endowed types inside compound types, e.g. timestamp[2]
             parsed_expected_type = parse_type(ast.parse(expected_arg).body[0].value, 'memory')
             if isinstance(parsed_expected_type, BaseType):
                 vsub = vsub or Expr.parse_value_expr(arg, context)

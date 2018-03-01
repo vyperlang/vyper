@@ -59,7 +59,7 @@ class LLLnode():
             self.valency = 1
             self.gas = 5
         elif isinstance(self.value, str):
-            # Opcodes and pseudo-opcodes (eg. clamp)
+            # Opcodes and pseudo-opcodes (e.g. clamp)
             if self.value.upper() in comb_opcodes:
                 _, ins, outs, gas = comb_opcodes[self.value.upper()]
                 self.valency = outs
@@ -234,7 +234,7 @@ def get_number_as_fraction(expr, context):
     return context_slice[:t], top, bottom
 
 
-# Is a number of decimal form (eg. 65281) or 0x form (eg. 0xff01)
+# Is a number of decimal form (e.g. 65281) or 0x form (e.g. 0xff01)
 def get_original_if_0x_prefixed(expr, context):
     context_slice = context.origcode.splitlines()[expr.lineno - 1][expr.col_offset:]
     if context_slice[:2] != '0x':

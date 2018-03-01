@@ -264,7 +264,7 @@ class Context():
         self.globals = globals or {}
         # ABI objects, in the form {classname: ABI JSON}
         self.sigs = sigs or {}
-        # Variables defined in for loops, eg. for i in range(6): ...
+        # Variables defined in for loops, e.g. for i in range(6): ...
         self.forvars = forvars or {}
         # Return type of the function
         self.return_type = return_type
