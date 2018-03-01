@@ -381,6 +381,7 @@ class Stmt(object):
             return LLLnode.from_list(['return', 0, 0], typ=None, pos=getpos(self.stmt))
         if not self.stmt.value:
             raise TypeMismatchException("Expecting to return a value", self.stmt)
+
         sub = Expr(self.stmt.value, self.context).lll_node
         self.context.increment_return_counter()
         # Returning a value (most common case)
