@@ -45,7 +45,7 @@ it is recommended to name your vyper file into `.v.py` to have a python highligh
 
 **Alternative for GitHub syntax highlighting: Add a `.gitattributes` file with the line `*.vy linguist-language=Python`**
 
-There is also an [online compiler](https://viper.tools/) available you can use to experiment with
+There is also an [online compiler](https://vyper.online/) available you can use to experiment with
 the language and compile to ``bytecode`` and/or ``LLL``.
 
 **Note: While the vyper version of the online compiler is updated on a regular basis it might
