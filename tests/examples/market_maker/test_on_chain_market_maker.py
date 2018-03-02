@@ -9,7 +9,7 @@ def market_maker(t, chain):
     return chain.contract(contract_code, language='vyper')
 
 
-TOKEN_NAME = "Vipercoin"
+TOKEN_NAME = "Vypercoin"
 TOKEN_SYMBOL = "FANG"
 TOKEN_DECIMALS = 18
 TOKEN_INITIAL_SUPPLY = (21 * 10 ** 6)
