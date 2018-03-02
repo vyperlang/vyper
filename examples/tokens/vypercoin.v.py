@@ -1,4 +1,4 @@
-# Viper Port of MyToken
+# Vyper Port of MyToken
 # THIS CONTRACT HAS NOT BEEN AUDITED!
 # ERC20 details at:
 # https://theethereum.wiki/w/index.php/ERC20_Token_Standard
