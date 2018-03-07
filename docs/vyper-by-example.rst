@@ -55,7 +55,7 @@ Now, the constructor.
 
 .. literalinclude:: ../examples/auctions/simple_open_auction.v.py
   :language: python
-  :lines: 16-22
+  :pyobject: __init__
 
 The contract is initialized with two arguments: ``_beneficiary`` of type
 ``address`` and ``bidding_time`` with type ``timedelta``, the time difference
@@ -72,7 +72,7 @@ With initial setup out of the way, lets look at how our users can make bids.
 
 .. literalinclude:: ../examples/auctions/simple_open_auction.v.py
   :language: python
-  :lines: 24-38
+  :pyobject: bid
 
 The ``@payable`` decorator will allow a user to send some ether to the
 contract in order to call the decorated method. In this case, a user wanting
@@ -99,7 +99,7 @@ the previous ``highest_bid`` to the previous ``highest_bidder`` and set our new
 
 .. literalinclude:: ../examples/auctions/simple_open_auction.v.py
   :language: python
-  :lines: 41-67
+  :pyobject: end_auction
 
 With the ``auction_end()`` method, we check whether our current time is past
 the ``auction_end`` time we set upon initialization of the contract. We also
@@ -173,7 +173,7 @@ variables to be *readable* by an external caller, but not *writeable*.
 
 .. literalinclude:: ../examples/safe_remote_purchase/safe_remote_purchase.v.py
   :language: python
-  :lines: 24-31
+  :pyobject: __init__
 
 With a ``@payable`` decorator on the constructor, the contract creator will be
 required to make an initial deposit equal to twice the item's ``value`` to
@@ -187,7 +187,7 @@ in the contract variable ``self.value`` and saves the contract creator into
 
 .. literalinclude:: ../examples/safe_remote_purchase/safe_remote_purchase.v.py
   :language: python
-  :lines: 33-38
+  :pyobject: abort
 
 The ``abort()`` method is a method only callable by the seller and while the
 contract is still ``unlocked``—meaning it is callable only prior to any buyer
@@ -202,7 +202,7 @@ subsequently destroys the contract.
 
 .. literalinclude:: ../examples/safe_remote_purchase/safe_remote_purchase.v.py
   :language: python
-  :lines: 40-46
+  :pyobject: purchase
 
 Like the constructor, the ``purchase()`` method has a ``@payable`` decorator,
 meaning it can be called with a payment. For the buyer to make a valid
@@ -214,7 +214,7 @@ send the item to the buyer.
 
 .. literalinclude:: ../examples/safe_remote_purchase/safe_remote_purchase.v.py
   :language: python
-  :lines: 48-55
+  :pyobject: received
 
 Finally, upon the buyer's receipt of the item, the buyer can confirm their
 receipt by calling the ``received()`` method to distribute the funds as
@@ -255,7 +255,7 @@ previous examples. Let's dive right in.
 
 .. literalinclude:: ../examples/crowdfund.v.py
   :language: python
-  :lines: 1-7
+  :lines: 1-8
 
 Like other examples, we begin by initiating our variables - except this time,
 we're not calling them with the ``public`` function. Variables initiated this
@@ -282,7 +282,7 @@ order to avoid gas limit issues in the scenario of a refund.
 
 .. literalinclude:: ../examples/crowdfund.v.py
   :language: python
-  :lines: 9-14
+  :pyobject: __init__
 
 Our constructor function takes 3 arguments: the beneficiary's address, the goal
 in wei value, and the difference in time from start to finish of the
@@ -294,7 +294,7 @@ Now lets take a look at how a person can participate in the crowdfund.
 
 .. literalinclude:: ../examples/crowdfund.v.py
   :language: python
-  :lines: 16-22
+  :pyobject: participate
 
 Once again, we see the ``@payable`` decorator on a method, which allows a
 person to send some ether along with a call to the method. In this case,
@@ -307,7 +307,7 @@ each participant.
 
 .. literalinclude:: ../examples/crowdfund.v.py
   :language: python
-  :lines: 24-27
+  :pyobject: finalize
 
 The ``finalize()`` method is used to complete the crowdfunding process. However,
 to complete the crowdfunding, the method first checks to see if the crowdfunding
@@ -327,7 +327,7 @@ all the participants.
 
 .. literalinclude:: ../examples/crowdfund.v.py
   :language: python
-  :lines: 29-40
+  :pyobject: refund
 
 In the ``refund()`` method, we first check that the crowdfunding period is
 indeed over and that the total collected balance is less than the ``goal`` with
@@ -381,7 +381,7 @@ Let’s move onto the constructor.
 
 .. literalinclude:: ../examples/voting/ballot.v.py
   :language: python
-  :lines: 26-34
+  :pyobject: __init__
 
 .. warning:: Both ``msg.sender`` and ``msg.balance`` change between internal
   function calls so that if you're calling a function from the outside, it's
@@ -405,7 +405,7 @@ Now that the initial setup is done, lets take a look at the functionality.
 
 .. literalinclude:: ../examples/voting/ballot.v.py
   :language: python
-  :lines: 36-46
+  :pyobject: give_right_to_vote
 
 We need a way to control who has the ability to vote. The method
 ``give_right_to_vote()`` is a method callable by only the chairperson by taking
@@ -418,7 +418,7 @@ total number of voters by incrementing ``voter_count``.
 
 .. literalinclude:: ../examples/voting/ballot.v.py
   :language: python
-  :lines: 48-71
+  :pyobject: delegate
 
 In the method ``delegate``, firstly, we check to see that ``msg.sender`` has not
 already voted and secondly, that the target delegate and the ``msg.sender`` are
@@ -432,7 +432,7 @@ if the delegate has not yet voted.
 
 .. literalinclude:: ../examples/voting/ballot.v.py
   :language: python
-  :lines: 73-82
+  :pyobject: vote
 
 Now, let’s take a look at the logic inside the ``vote()`` method, which is
 surprisingly simple. The method takes the key of the proposal in the ``proposals``
@@ -451,7 +451,7 @@ is a read-only function and we benefit by saving gas fees.
 
 .. literalinclude:: ../examples/voting/ballot.v.py
   :language: python
-  :lines: 84-93
+  :pyobject: winning_proposal
 
 The ``winning_proposal()`` method returns the key of proposal in the ``proposals``
 mapping. We will keep track of greatest number of votes and the winning
@@ -460,7 +460,7 @@ respectively by looping through all the proposals.
 
 .. literalinclude:: ../examples/voting/ballot.v.py
   :language: python
-  :lines: 95-100
+  :pyobject: winner_name
 
 And finally, the ``winner_name()`` method returns the name of the proposal by
 key’ing into the ``proposals`` mapping with the return result of the
@@ -499,7 +499,7 @@ our variables.
 
 .. literalinclude:: ../examples/stock/company.v.py
   :language: python
-  :lines: 1-7
+  :lines: 7-13
 
 We initiate the ``company`` variable to be of type ``address`` that's public.
 The ``total_shares`` variable is of type ``currency_value``, which in this case
@@ -509,7 +509,7 @@ address to the number of shares the address owns.
 
 .. literalinclude:: ../examples/stock/company.v.py
   :language: python
-  :lines: 9-21
+  :pyobject: __init__
 
 In the constructor, we set up the contract to check for valid inputs during
 the initialization of the contract via the two ``assert`` statements. If the
@@ -519,7 +519,7 @@ company's address is initialized to hold all shares of the company in the
 
 .. literalinclude:: ../examples/stock/company.v.py
   :language: python
-  :lines: 23-25
+  :pyobject: stock_available
 
 We will be seeing a few ``@constant`` decorators in this contract - which is
 used to decorate methods that simply read the contract state or return a simple
@@ -535,7 +535,7 @@ company's holding.
 
 .. literalinclude:: ../examples/stock/company.v.py
   :language: python
-  :lines: 27-39
+  :pyobject: buy_stock
 
 The ``buy_stock()`` method is a ``@payable`` method which takes an amount of
 ether sent and calculates the ``buy_order`` (the stock value equivalence at
@@ -546,21 +546,21 @@ Now that people can buy shares, how do we check someone's holdings?
 
 .. literalinclude:: ../examples/stock/company.v.py
   :language: python
-  :lines: 41-44
+  :pyobject: get_holdings
 
 The ``get_holdings()`` is another ``@constant`` method that takes an ``address``
 and returns its corresponding stock holdings by keying into ``self.holdings``.
 
 .. literalinclude:: ../examples/stock/company.v.py
   :language: python
-  :lines: 46-49
+  :pyobject: cash
 
 To check the ether balance of the company, we can simply call the getter method
 ``cash()``.
 
 .. literalinclude:: ../examples/stock/company.v.py
   :language: python
-  :lines: 51-63
+  :pyobject: sell_stock
 
 To sell a stock, we have the ``sell_stock()`` method which takes a number of
 stocks a person wishes to sell, and sends the equivalent value in ether to the
@@ -572,7 +572,7 @@ from the seller and given to the company. The ethers are then sent to the seller
 
 .. literalinclude:: ../examples/stock/company.v.py
   :language: python
-  :lines: 65-74
+  :pyobject: transfer_stock
 
 A stockholder can also transfer their stock to another stockholder with the
 ``transfer_stock()`` method. The method takes a receiver address and the number
@@ -582,7 +582,7 @@ both conditions are satisfied, the transfer is made.
 
 .. literalinclude:: ../examples/stock/company.v.py
   :language: python
-  :lines: 76-84
+  :pyobject: pay_bill
 
 The company is also allowed to pay out an amount in ether to an address by
 calling the ``pay_bill()`` method. This method should only be callable by the
@@ -593,7 +593,7 @@ sends its ether to an address.
 
 .. literalinclude:: ../examples/stock/company.v.py
   :language: python
-  :lines: 86-89
+  :pyobject: debt
 
 We can also check how much the company has raised by multiplying the number of
 shares the company has sold and the price of each share. We can get this value
@@ -601,7 +601,7 @@ by calling the ``debt()`` method.
 
 .. literalinclude:: ../examples/stock/company.v.py
   :language: python
-  :lines: 91-94
+  :pyobject: worth
 
 Finally, in this ``worth()`` method, we can check the worth of a company by
 subtracting its debt from its ether balance.
