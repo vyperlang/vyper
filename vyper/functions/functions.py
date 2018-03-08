@@ -163,11 +163,12 @@ def _slice(expr, args, kwargs, context):
     copier = make_byte_slice_copier(placeholder_plus_32_node, adj_sub, ['add', '_length', 32], sub.typ.maxlen)
     # New maximum length in the type of the result
     newmaxlen = length.value if not len(length.args) else sub.typ.maxlen
+    maxlen = ['mload', Expr(sub, context=context).lll_node]  # Retrieve length of the bytes.
     out = ['with', '_start', start,
               ['with', '_length', length,
                   ['with', '_opos', ['add', placeholder_node, ['mod', '_start', 32]],
                        ['seq',
-                           ['assert', ['lt', ['add', '_start', '_length'], sub.typ.maxlen]],
+                           ['assert', ['le', ['add', '_start', '_length'], maxlen]],
                            copier,
                            ['mstore', '_opos', '_length'],
                            '_opos']]]]
