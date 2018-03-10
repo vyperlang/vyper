@@ -37,7 +37,6 @@ Functions are the executable units of code within a contract.
   @payable
   def bid(): // Function
     // ...
-  }
 
 :ref:`Function-calls` can happen internally or externally
 and have different levels of visibility (:ref:`visibility-and-getters`)
