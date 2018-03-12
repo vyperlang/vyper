@@ -37,7 +37,7 @@ for build instructions.
 # Compiling a contract
 To compile a contract, use:
 ```bash
-    vyper yourFileName.v.py
+    vyper your_file_name.v.py
 ```
 
 **Note: Since .vy is not official a language supported by any syntax highlights or linter,
