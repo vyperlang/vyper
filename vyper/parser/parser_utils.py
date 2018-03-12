@@ -231,6 +231,10 @@ def get_number_as_fraction(expr, context):
         t += 1
     top = int(context_slice[:t].replace('.', ''))
     bottom = 1 if '.' not in context_slice[:t] else 10**(t - context_slice[:t].index('.') - 1)
+
+    if expr.n < 0:
+        top *= -1
+
     return context_slice[:t], top, bottom
 
 
