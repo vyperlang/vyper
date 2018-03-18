@@ -200,7 +200,7 @@ def add_contract(code):
 def add_globals_and_events(_contracts, _defs, _events, _getters, _globals, item):
     if item.value is not None:
         raise StructureException('May not assign value whilst defining type', item)
-    elif isinstance(item.annotation, ast.Call) and item.annotation.func.id == "__log__":
+    elif isinstance(item.annotation, ast.Call) and item.annotation.func.id == "event":
         if _globals or len(_defs):
             raise StructureException("Events must all come before global declarations and function definitions", item)
         _events.append(item)

@@ -9,8 +9,8 @@
 # language interoperability and not for production use.
 
 # Events issued by the contract
-Transfer: __log__({_from: indexed(address), _to: indexed(address), _value: uint256})
-Approval: __log__({_owner: indexed(address), _spender: indexed(address), _value: uint256})
+Transfer: event({_from: indexed(address), _to: indexed(address), _value: uint256})
+Approval: event({_owner: indexed(address), _spender: indexed(address), _value: uint256})
 
 balances: uint256[address]
 allowances: (uint256[address])[address]
