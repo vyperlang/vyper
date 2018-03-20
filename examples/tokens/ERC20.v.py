@@ -11,22 +11,21 @@ Approval: __log__({_owner: indexed(address), _spender: indexed(address), _value:
 
 
 # Variables of the token.
-name: bytes32
+name: public(bytes32)
 symbol: public(bytes32)
-_totalSupply: int128
+totalSupply: public(uint256)
 decimals: int128
 balances: int128[address]
 allowed: int128[address][address]
 
 
 @public
-def __init__(_name: bytes32, _symbol: bytes32, _decimals: int128, _initialSupply: int128):
-
+def __init__(_name: bytes32, _symbol: bytes32, _decimals: uint256, _initialSupply: uint256):
     self.name = _name
     self.symbol = _symbol
     self.decimals = _decimals
-    self._totalSupply = _initialSupply * 10 ** _decimals
-    self.balances[msg.sender] = self._totalSupply
+    self.totalSupply = uint256_mul(_initialSupply, uint256_exp(convert(10, 'uint256'), _decimals))
+    self.balances[msg.sender] = convert(self.totalSupply, 'int128')
 
 
 # What is the balance of a particular account?
@@ -35,13 +34,6 @@ def __init__(_name: bytes32, _symbol: bytes32, _decimals: int128, _initialSupply
 def balanceOf(_owner: address) -> uint256:
 
     return convert(self.balances[_owner], 'uint256')
-
-
-# Return total supply of token.
-@public
-@constant
-def totalSupply() -> uint256:
-    return convert(self._totalSupply, 'uint256')
 
 
 # Send `_value` tokens to `_to` from your account

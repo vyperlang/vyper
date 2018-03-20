@@ -333,11 +333,11 @@ class TestERC20(PyEthereumTestCase):
         self.check_logs([self.transfer_topic, bytes_to_int(ext2.address), 0], (2).to_bytes(32, byteorder='big'))
 
 
-class TestViperERC20(TestERC20):
+class TestVyperERC20(TestERC20):
 
     @classmethod
     def setUpClass(cls):
-        super(TestViperERC20, cls).setUpClass()
+        super(TestVyperERC20, cls).setUpClass()
 
         from vyper import compiler
         cls.t.languages['vyper'] = compiler.Compiler()
@@ -427,7 +427,7 @@ class TestSolidity2ERC20(TestERC20):
 def load_tests(loader, tests, pattern):
     full_suite = unittest.TestSuite()
 
-    for suite in [TestViperERC20, TestSolidity1ERC20, TestSolidity2ERC20]:
+    for suite in [TestVyperERC20, TestSolidity1ERC20, TestSolidity2ERC20]:
         tests = loader.loadTestsFromTestCase(suite)
         full_suite.addTests(tests)
     return full_suite

@@ -31,7 +31,6 @@ from vyper.types import (
 )
 from vyper.types import (
     are_units_compatible,
-    set_default_units,
 )
 from .expr import (
     Expr
@@ -91,6 +90,7 @@ class Stmt(object):
         from .parser import (
             make_setter,
         )
+        self.context.set_in_assignment(True)
         typ = parse_type(self.stmt.annotation, location='memory')
         if isinstance(self.stmt.target, ast.Attribute) and self.stmt.target.value.id == 'self':
             raise TypeMismatchException('May not redefine storage variables.', self.stmt)
@@ -102,19 +102,21 @@ class Stmt(object):
             self._check_valid_assign(sub)
             variable_loc = LLLnode.from_list(pos, typ=sub.typ, location='memory', pos=getpos(self.stmt))
             o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
+        self.context.set_in_assignment(False)
         return o
 
     def assign(self):
         from .parser import (
             make_setter,
         )
-        # Assignment (eg. x[4] = y)
+        # Assignment (e.g. x[4] = y)
         if len(self.stmt.targets) != 1:
             raise StructureException("Assignment statement must have one target", self.stmt)
+        self.context.set_in_assignment(True)
         sub = Expr(self.stmt.value, self.context).lll_node
         # Determine if it's an RLPList assignment.
         if isinstance(self.stmt.value, ast.Call) and getattr(self.stmt.value.func, 'id', '') is 'RLPList':
-            pos = self.context.new_variable(self.stmt.targets[0].id, set_default_units(sub.typ))
+            pos = self.context.new_variable(self.stmt.targets[0].id, sub.typ)
             variable_loc = LLLnode.from_list(pos, typ=sub.typ, location='memory', pos=getpos(self.stmt), annotation=self.stmt.targets[0].id)
             o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
         # All other assignments are forbidden.
@@ -125,6 +127,7 @@ class Stmt(object):
             target = self.get_target(self.stmt.targets[0])
             o = make_setter(target, sub, target.location, pos=getpos(self.stmt))
         o.pos = getpos(self.stmt)
+        self.context.set_in_assignment(False)
         return o
 
     def parse_if(self):
@@ -221,7 +224,7 @@ class Stmt(object):
         from .parser import (
             parse_body,
         )
-        # Type 0 for, eg. for i in list(): ...
+        # Type 0 for, e.g. for i in list(): ...
         if self._is_list_iter():
             return self.parse_for_list()
 
@@ -234,18 +237,18 @@ class Stmt(object):
 
         block_scope_id = id(self.stmt.orelse)
         self.context.start_blockscope(block_scope_id)
-        # Type 1 for, eg. for i in range(10): ...
+        # Type 1 for, e.g. for i in range(10): ...
         if len(self.stmt.iter.args) == 1:
             if not isinstance(self.stmt.iter.args[0], ast.Num):
                 raise StructureException("Range only accepts literal values", self.stmt.iter)
             start = LLLnode.from_list(0, typ='int128', pos=getpos(self.stmt))
             rounds = self.stmt.iter.args[0].n
         elif isinstance(self.stmt.iter.args[0], ast.Num) and isinstance(self.stmt.iter.args[1], ast.Num):
-            # Type 2 for, eg. for i in range(100, 110): ...
+            # Type 2 for, e.g. for i in range(100, 110): ...
             start = LLLnode.from_list(self.stmt.iter.args[0].n, typ='int128', pos=getpos(self.stmt))
             rounds = LLLnode.from_list(self.stmt.iter.args[1].n - self.stmt.iter.args[0].n, typ='int128', pos=getpos(self.stmt))
         else:
-            # Type 3 for, eg. for i in range(x, x + 10): ...
+            # Type 3 for, e.g. for i in range(x, x + 10): ...
             if not isinstance(self.stmt.iter.args[1], ast.BinOp) or not isinstance(self.stmt.iter.args[1].op, ast.Add):
                 raise StructureException("Two-arg for statements must be of the form `for i in range(start, start + rounds): ...`",
                                             self.stmt.iter.args[1])
@@ -378,6 +381,7 @@ class Stmt(object):
             return LLLnode.from_list(['return', 0, 0], typ=None, pos=getpos(self.stmt))
         if not self.stmt.value:
             raise TypeMismatchException("Expecting to return a value", self.stmt)
+
         sub = Expr(self.stmt.value, self.context).lll_node
         self.context.increment_return_counter()
         # Returning a value (most common case)

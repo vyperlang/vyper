@@ -59,7 +59,7 @@ class LLLnode():
             self.valency = 1
             self.gas = 5
         elif isinstance(self.value, str):
-            # Opcodes and pseudo-opcodes (eg. clamp)
+            # Opcodes and pseudo-opcodes (e.g. clamp)
             if self.value.upper() in comb_opcodes:
                 _, ins, outs, gas = comb_opcodes[self.value.upper()]
                 self.valency = outs
@@ -234,7 +234,7 @@ def get_number_as_fraction(expr, context):
     return context_slice[:t], top, bottom
 
 
-# Is a number of decimal form (eg. 65281) or 0x form (eg. 0xff01)
+# Is a number of decimal form (e.g. 65281) or 0x form (e.g. 0xff01)
 def get_original_if_0x_prefixed(expr, context):
     context_slice = context.origcode.splitlines()[expr.lineno - 1][expr.col_offset:]
     if context_slice[:2] != '0x':
@@ -402,18 +402,19 @@ def add_variable_offset(parent, key):
             if not isinstance(typ.keytype, ByteArrayType) or (typ.keytype.maxlen < key.typ.maxlen):
                 raise TypeMismatchException('Mapping keys of bytes cannot be cast, use exact same bytes type of: %s', str(typ.keytype))
             subtype = typ.valuetype
-            if len(key.args[0].args) == 3:  # handle bytes literal.
+            if len(key.args[0].args) >= 3:  # handle bytes literal.
                 sub = LLLnode.from_list([
                     'seq',
                     key,
-                    ['sha3', ['add', key.args[0].args[-1], 32], ceil32(key.typ.maxlen)]
+                    ['sha3', ['add', key.args[0].args[-1], 32], ['mload', key.args[0].args[-1]]]
                 ])
             else:
-                sub = LLLnode.from_list(['sha3', ['add', key.args[0].value, 32], ceil32(key.typ.maxlen)])
+                sub = LLLnode.from_list(['sha3', ['add', key.args[0].value, 32], ['mload', key.args[0].value]])
         else:
             subtype = typ.valuetype
             sub = base_type_conversion(key, key.typ, typ.keytype)
         if location == 'storage':
+            # import ipdb; ipdb.set_trace()
             return LLLnode.from_list(['add', ['sha3_32', parent], sub],
                                      typ=subtype,
                                      location='storage')
@@ -447,7 +448,8 @@ def base_type_conversion(orig, frm, to, pos=None):
         return LLLnode.from_list(['uclample', orig, ['mload', MemoryPositions.MAXNUM]], typ=BaseType('int128'))
     elif isinstance(frm, NullType):
         if to.typ not in ('int128', 'bool', 'uint256', 'address', 'bytes32', 'decimal'):
-            raise TypeMismatchException("Cannot convert null-type object to type %r" % to, pos)
+            # This is only to future proof the use of  base_type_conversion.
+            raise TypeMismatchException("Cannot convert null-type object to type %r" % to, pos)  # pragma: no cover
         return LLLnode.from_list(0, typ=to)
     else:
         raise TypeMismatchException("Typecasting from base type %r to %r unavailable" % (frm, to), pos)

@@ -360,7 +360,7 @@ Structs can be accessed via ``struct.argname``.
     #Defining a struct
     exampleStruct: {
         value1: int128,
-        value2: decimal,
+        value2: decimal
     }
     #Accessing a value
     exampleStruct.value1 = 1

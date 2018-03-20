@@ -60,7 +60,9 @@ def get_keyword(expr, keyword):
     for kw in expr.keywords:
         if kw.arg == keyword:
             return kw.value
-    raise Exception("Keyword %s not found" % keyword)
+    # This should never happen, as kwargs['value'] will KeyError first.
+    # Leaving exception for other use cases.
+    raise Exception("Keyword %s not found" % keyword)  # pragma: no cover
 
 
 @signature('decimal')
@@ -161,11 +163,12 @@ def _slice(expr, args, kwargs, context):
     copier = make_byte_slice_copier(placeholder_plus_32_node, adj_sub, ['add', '_length', 32], sub.typ.maxlen)
     # New maximum length in the type of the result
     newmaxlen = length.value if not len(length.args) else sub.typ.maxlen
+    maxlen = ['mload', Expr(sub, context=context).lll_node]  # Retrieve length of the bytes.
     out = ['with', '_start', start,
               ['with', '_length', length,
                   ['with', '_opos', ['add', placeholder_node, ['mod', '_start', 32]],
                        ['seq',
-                           ['assert', ['lt', ['add', '_start', '_length'], sub.typ.maxlen]],
+                           ['assert', ['le', ['add', '_start', '_length'], maxlen]],
                            copier,
                            ['mstore', '_opos', '_length'],
                            '_opos']]]]
@@ -257,7 +260,8 @@ def _sha3(expr, args, kwargs, context):
     elif sub.location == "storage":
         lengetter = LLLnode.from_list(['sload', ['sha3_32', '_sub']], typ=BaseType('int128'))
     else:
-        raise Exception("Unsupported location: %s" % sub.location)
+        # This should never happen, but just left here for future compiler-writers.
+        raise Exception("Unsupported location: %s" % sub.location)  # pragma: no test
     placeholder = context.new_placeholder(sub.typ)
     placeholder_node = LLLnode.from_list(placeholder, typ=sub.typ, location='memory')
     copier = make_byte_array_copier(placeholder_node, LLLnode.from_list('_sub', typ=sub.typ, location=sub.location))
@@ -516,7 +520,8 @@ def _RLPlist(expr, args, kwargs, context):
                     ['seq', ['assert', ['or', ['eq', '_ans', 0], ['eq', '_ans', 257]]], ['div', '_ans', 257]]],
             typ, annotation='getting and checking bool'))
         else:
-            raise Exception("Type not yet supported")
+            # Should never reach because of top level base level check.
+            raise Exception("Type not yet supported")  # pragma: no cover
     # Copy the input data to memory
     if args[0].location == "memory":
         variable_pointer = args[0]
@@ -526,7 +531,8 @@ def _RLPlist(expr, args, kwargs, context):
         copier = make_byte_array_copier(placeholder_node, LLLnode.from_list('_ptr', typ=args[0].typ, location=args[0].location))
         variable_pointer = ['with', '_ptr', args[0], ['seq', copier, placeholder_node]]
     else:
-        raise Exception("Location not yet supported")
+        # Should never reach because of top level base level check.
+        raise Exception("Location not yet supported")  # pragma: no cover
     # Decode the input data
     initial_setter = LLLnode.from_list(
         ['seq',

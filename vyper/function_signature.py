@@ -55,8 +55,6 @@ class FunctionSignature():
         args = []
         for arg in code.args.args:
             typ = arg.annotation
-            if not isinstance(arg.arg, str):
-                raise VariableDeclarationException("Argument name invalid", arg)
             if not typ:
                 raise InvalidTypeException("Argument must have type", arg)
             if not is_varname_valid(arg.arg):
@@ -84,7 +82,9 @@ class FunctionSignature():
             else:
                 raise StructureException("Bad decorator", dec)
         if public and private:
-            raise StructureException("Cannot use public and private decorators on the same function", code)
+            raise StructureException("Cannot use public and private decorators on the same function: {}".format(name))
+        if payable and const:
+            raise StructureException("Function {} cannot be both constant and payable.".format(name))
         if not public and not private and not isinstance(code.body[0], ast.Pass):
             raise StructureException("Function visibility must be declared (@public or @private)", code)
         # Determine the return type and whether or not it's constant. Expects something

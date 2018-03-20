@@ -103,7 +103,7 @@ LOADED_LIMIT_MAP = OrderedDict((
 ))
 
 
-RLP_DECODER_ADDRESS = hex_to_int('0x5185D17c44699cecC3133114F8df70753b856709'[2:])
+RLP_DECODER_ADDRESS = hex_to_int('0x5185D17c44699cecC3133114F8df70753b856709')
 
 # Instructions for creating RLP decoder on other chains
 # First send 6270960000000000 wei to 0xd2c560282c9C02465C2dAcdEF3E859E730848761
@@ -127,7 +127,7 @@ reserved_words = ['int128', 'int256', 'uint256', 'address', 'bytes32',
                   'raise', 'init', '_init_', '___init___', '____init____',
                   'true', 'false', 'self', 'this', 'continue', 'ether',
                   'wei', 'finney', 'szabo', 'shannon', 'lovelace', 'ada',
-                  'babbage', 'gwei', 'kwei', 'mwei', 'twei', 'pwei']
+                  'babbage', 'gwei', 'kwei', 'mwei', 'twei', 'pwei', 'contract']
 
 
 # Is a variable or member variable name valid?
@@ -137,8 +137,6 @@ def is_varname_valid(varname):
     if varname.lower() in valid_units:
         return False
     if varname.lower() in reserved_words:
-        return False
-    if varname[0] == '~':
         return False
     if varname.upper() in opcodes:
         return False

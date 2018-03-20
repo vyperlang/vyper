@@ -3,7 +3,7 @@ import pytest
 from ethereum.abi import ValueOutOfBounds
 from ethereum.tools import tester
 
-TOKEN_NAME = "Vipercoin"
+TOKEN_NAME = "Vypercoin"
 TOKEN_SYMBOL = "FANG"
 TOKEN_DECIMALS = 18
 TOKEN_INITIAL_SUPPLY = (21 * 10 ** 6)
