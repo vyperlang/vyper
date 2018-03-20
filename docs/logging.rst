@@ -13,8 +13,8 @@ This example is taken from the `sample ERC20 contract <https://github.com/ethere
 ::
 
     # Events of the token.
-    Transfer: __log__({_from: indexed(address), _to: indexed(address), _value: num256})
-    Approval: __log__({_owner: indexed(address), _spender: indexed(address), _value: num256})
+    Transfer: event({_from: indexed(address), _to: indexed(address), _value: num256})
+    Approval: event({_owner: indexed(address), _spender: indexed(address), _value: num256})
 
     # Transfer some tokens from message sender to another address
     def transfer(_to : address, _value : num256) -> bool:
@@ -55,9 +55,9 @@ Let's look at an event declaration in more detail.
 
 ::
 
-    Transfer: __log__({_from: indexed(address), _to: indexed(address), _value: num256})
+    Transfer: event({_from: indexed(address), _to: indexed(address), _value: num256})
 
-Event declarations look like state variable declarations but use the dunder function __log__. __log__ takes a dictionary as its argument that consist of all the arguments to be passed as part of the event. Typical events will contain two kinds of arguments:
+Event declarations look like state variable declarations but use the special keyword event. event takes a as its argument that consist of all the arguments to be passed as part of the event. Typical events will contain two kinds of arguments:
 
 * Indexed arguments, which can be searched for by listeners. Each indexed argument is identifier by the `indexed` keyword.  Here, each indexed argument is an address. You can have any number of indexed arguments, but indexed arguments are not passed directly to listeners, although some of this information (such as the sender) may be available in the listener's `results` object.
 * Value arguments, which are passed through to listeners. You can have any number of value arguments and they can have arbitrary names, but each is limited by the EVM to be no more than 32 bytes.
