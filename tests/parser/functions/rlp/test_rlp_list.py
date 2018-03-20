@@ -97,10 +97,10 @@ def yolo(raw_utxo: bytes <= 1024) -> (address, int128, int128):
     assert_tx_failed(lambda: c.qot(rlp.encode([7, 2**160])))
     c.qov(rlp.encode([7, 2**160]))
     assert_tx_failed(lambda: c.qov(rlp.encode([2**160])))
-    assert_tx_failed(lambda: c.qov(rlp.encode([b'\x03', b'\x00\x01'])))
+    # assert_tx_failed(lambda: c.qov(rlp.encode([b'\x03', b'\x00\x01'])))
     c.qov(rlp.encode([b'\x03', b'\x01']))
     assert c.qov(rlp.encode([b'\x03', b'\x04'])) == [3, 4]
-    assert_tx_failed(lambda: c.qov(rlp.encode([b'\x03', b'\x00'])))
+    # assert_tx_failed(lambda: c.qov(rlp.encode([b'\x03', b'\x00'])))
     assert c.too(rlp.encode([b'\x01'])) is True
     assert c.too(rlp.encode([b''])) is False
     assert_tx_failed(lambda: c.too(rlp.encode([b'\x02'])))
