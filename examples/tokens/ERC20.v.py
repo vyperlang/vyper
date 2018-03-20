@@ -12,28 +12,21 @@ Approval: __log__({_owner: indexed(address), _spender: indexed(address), _value:
 
 # Variables of the token.
 name: bytes32
-symbol: bytes32
-totalSupply: num
-decimals: num
-balances: num[address]
-allowed: num[address][address]
+symbol: public(bytes32)
+_totalSupply: int128
+decimals: int128
+balances: int128[address]
+allowed: int128[address][address]
 
 
 @public
-def __init__(_name: bytes32, _symbol: bytes32, _decimals: num, _initialSupply: num):
+def __init__(_name: bytes32, _symbol: bytes32, _decimals: int128, _initialSupply: int128):
 
     self.name = _name
     self.symbol = _symbol
     self.decimals = _decimals
-    self.totalSupply = _initialSupply * 10 ** _decimals
-    self.balances[msg.sender] = self.totalSupply
-
-
-@public
-@constant
-def symbol() -> bytes32:
-
-    return self.symbol
+    self._totalSupply = _initialSupply * 10 ** _decimals
+    self.balances[msg.sender] = self._totalSupply
 
 
 # What is the balance of a particular account?
@@ -48,13 +41,12 @@ def balanceOf(_owner: address) -> uint256:
 @public
 @constant
 def totalSupply() -> uint256:
-
-    return convert(self.totalSupply, 'uint256')
+    return convert(self._totalSupply, 'uint256')
 
 
 # Send `_value` tokens to `_to` from your account
 @public
-def transfer(_to: address, _amount: num(uint256)) -> bool:
+def transfer(_to: address, _amount: int128(uint256)) -> bool:
 
     if self.balances[msg.sender] >= _amount and \
        self.balances[_to] + _amount >= self.balances[_to]:
@@ -70,7 +62,7 @@ def transfer(_to: address, _amount: num(uint256)) -> bool:
 
 # Transfer allowed tokens from a specific account to another.
 @public
-def transferFrom(_from: address, _to: address, _value: num(uint256)) -> bool:
+def transferFrom(_from: address, _to: address, _value: int128(uint256)) -> bool:
 
     if _value <= self.allowed[_from][msg.sender] and \
        _value <= self.balances[_from]:
@@ -88,7 +80,7 @@ def transferFrom(_from: address, _to: address, _value: num(uint256)) -> bool:
 # Allow _spender to withdraw from your account, multiple times, up to the _value amount.
 # If this function is called again it overwrites the current allowance with _value.
 @public
-def approve(_spender: address, _amount: num(uint256)) -> bool:
+def approve(_spender: address, _amount: int128(uint256)) -> bool:
 
     self.allowed[msg.sender][_spender] = _amount
     log.Approval(msg.sender, _spender, convert(_amount, 'uint256'))
