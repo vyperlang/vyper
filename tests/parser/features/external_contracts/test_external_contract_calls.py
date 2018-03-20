@@ -356,7 +356,7 @@ class Foo():
 def test_external_contracts_must_be_declared_first_2(assert_tx_failed, get_contract):
     contract = """
 
-MyLog: __log__({})
+MyLog: event({})
 
 class Foo():
     def foo(arg2: int128) -> int128: pass

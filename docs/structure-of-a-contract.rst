@@ -51,7 +51,7 @@ Events may be logged in specially indexed data structures that allow clients, in
 
 ::
 
-    Payment: __log__({amount: int128, arg2: indexed(address)})
+    Payment: event({amount: int128, arg2: indexed(address)})
 
     total_paid: int128
 

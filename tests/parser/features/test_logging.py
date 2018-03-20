@@ -3,7 +3,7 @@ from vyper.exceptions import VariableDeclarationException, TypeMismatchException
 
 def test_empy_event_logging(get_contract_with_gas_estimation, utils, chain):
     loggy_code = """
-MyLog: __log__({})
+MyLog: event({})
 
 @public
 def foo():
@@ -26,7 +26,7 @@ def foo():
 
 def test_event_logging_with_topics(get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
-MyLog: __log__({arg1: indexed(bytes <= 3)})
+MyLog: event({arg1: indexed(bytes <= 3)})
 
 @public
 def foo():
@@ -49,7 +49,7 @@ def foo():
 
 def test_event_logging_with_multiple_topics(get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
-MyLog: __log__({arg1: indexed(bytes <= 3), arg2: indexed(bytes <= 4), arg3: indexed(address)})
+MyLog: event({arg1: indexed(bytes <= 3), arg2: indexed(bytes <= 4), arg3: indexed(address)})
 
 @public
 def foo():
@@ -78,7 +78,7 @@ def foo():
 
 def test_logging_the_same_event_multiple_times_with_topics(get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
-MyLog: __log__({arg1: indexed(int128), arg2: indexed(address)})
+MyLog: event({arg1: indexed(int128), arg2: indexed(address)})
 
 @public
 def foo():
@@ -108,7 +108,7 @@ def bar():
 
 def test_event_logging_cannot_have_more_than_three_topics(assert_tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
-MyLog: __log__({arg1: indexed(bytes <= 3), arg2: indexed(bytes <= 4), arg3: indexed(address), arg4: indexed(int128)})
+MyLog: event({arg1: indexed(bytes <= 3), arg2: indexed(bytes <= 4), arg3: indexed(address), arg4: indexed(int128)})
     """
 
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
@@ -116,7 +116,7 @@ MyLog: __log__({arg1: indexed(bytes <= 3), arg2: indexed(bytes <= 4), arg3: inde
 
 def test_event_logging_with_data(get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
-MyLog: __log__({arg1: int128})
+MyLog: event({arg1: int128})
 
 @public
 def foo():
@@ -139,7 +139,7 @@ def foo():
 
 def test_event_logging_with_units(get_contract_with_gas_estimation, chain, utils):
     code = """
-MyLog: __log__({arg1: indexed(int128(wei)), arg2: int128(wei)})
+MyLog: event({arg1: indexed(int128(wei)), arg2: int128(wei)})
 
 @public
 def foo():
@@ -150,7 +150,7 @@ def foo():
 
 def test_event_logging_with_fixed_array_data(get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
-MyLog: __log__({arg1: int128[2], arg2: timestamp[3], arg3: int128[2][2]})
+MyLog: event({arg1: int128[2], arg2: timestamp[3], arg3: int128[2][2]})
 
 @public
 def foo():
@@ -175,7 +175,7 @@ def foo():
 
 def test_logging_with_input_bytes_1(bytes_helper, get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
-MyLog: __log__({arg1: indexed(bytes <= 4), arg2: indexed(bytes <= 29), arg3: bytes<=31})
+MyLog: event({arg1: indexed(bytes <= 4), arg2: indexed(bytes <= 29), arg3: bytes<=31})
 
 @public
 def foo(arg1: bytes <= 29, arg2: bytes <= 31):
@@ -203,7 +203,7 @@ def foo(arg1: bytes <= 29, arg2: bytes <= 31):
 
 def test_event_logging_with_bytes_input_2(t, bytes_helper, get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
-MyLog: __log__({arg1: bytes <= 20})
+MyLog: event({arg1: bytes <= 20})
 
 @public
 def foo(_arg1: bytes <= 20):
@@ -226,7 +226,7 @@ def foo(_arg1: bytes <= 20):
 
 def test_event_logging_with_bytes_input_3(get_contract, chain, utils):
     loggy_code = """
-MyLog: __log__({arg1: bytes <= 5})
+MyLog: event({arg1: bytes <= 5})
 
 @public
 def foo(_arg1: bytes <= 5):
@@ -249,7 +249,7 @@ def foo(_arg1: bytes <= 5):
 
 def test_event_logging_with_data_with_different_types(get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
-MyLog: __log__({arg1: int128, arg2: bytes <= 4, arg3: bytes <= 3, arg4: address, arg5: address, arg6: timestamp})
+MyLog: event({arg1: int128, arg2: bytes <= 4, arg3: bytes <= 3, arg4: address, arg5: address, arg6: timestamp})
 
 @public
 def foo():
@@ -272,7 +272,7 @@ def foo():
 
 def test_event_logging_with_topics_and_data_1(get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
-MyLog: __log__({arg1: indexed(int128), arg2: bytes <= 3})
+MyLog: event({arg1: indexed(int128), arg2: bytes <= 3})
 
 @public
 def foo():
@@ -295,8 +295,8 @@ def foo():
 
 def test_event_logging_with_multiple_logs_topics_and_data(get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
-MyLog: __log__({arg1: indexed(int128), arg2: bytes <= 3})
-YourLog: __log__({arg1: indexed(address), arg2: bytes <= 5})
+MyLog: event({arg1: indexed(int128), arg2: bytes <= 3})
+YourLog: event({arg1: indexed(address), arg2: bytes <= 5})
 
 @public
 def foo():
@@ -326,7 +326,7 @@ def foo():
 
 def test_fails_when_input_is_the_wrong_type(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     loggy_code = """
-MyLog: __log__({arg1: indexed(int128)})
+MyLog: event({arg1: indexed(int128)})
 
 @public
 def foo_():
@@ -338,7 +338,7 @@ def foo_():
 
 def test_fails_when_topic_is_the_wrong_size(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     loggy_code = """
-MyLog: __log__({arg1: indexed(bytes <= 3)})
+MyLog: event({arg1: indexed(bytes <= 3)})
 
 @public
 def foo():
@@ -350,7 +350,7 @@ def foo():
 
 def test_fails_when_input_topic_is_the_wrong_size(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     loggy_code = """
-MyLog: __log__({arg1: indexed(bytes <= 3)})
+MyLog: event({arg1: indexed(bytes <= 3)})
 
 @public
 def foo(arg1: bytes <= 4):
@@ -362,7 +362,7 @@ def foo(arg1: bytes <= 4):
 
 def test_fails_when_data_is_the_wrong_size(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     loggy_code = """
-MyLog: __log__({arg1: bytes <= 3})
+MyLog: event({arg1: bytes <= 3})
 
 @public
 def foo():
@@ -374,7 +374,7 @@ def foo():
 
 def test_fails_when_input_data_is_the_wrong_size(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     loggy_code = """
-MyLog: __log__({arg1: bytes <= 3})
+MyLog: event({arg1: bytes <= 3})
 
 @public
 def foo(arg1: bytes <= 4):
@@ -386,7 +386,7 @@ def foo(arg1: bytes <= 4):
 
 def test_fails_when_topic_is_over_32_bytes(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     loggy_code = """
-MyLog: __log__({arg1: indexed(bytes <= 100)})
+MyLog: event({arg1: indexed(bytes <= 100)})
 
 @public
 def foo():
@@ -398,7 +398,7 @@ def foo():
 
 def test_logging_fails_with_over_three_topics(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     loggy_code = """
-MyLog: __log__({arg1: indexed(int128), arg2: indexed(int128), arg3: indexed(int128), arg4: indexed(int128)})
+MyLog: event({arg1: indexed(int128), arg2: indexed(int128), arg3: indexed(int128), arg4: indexed(int128)})
 @public
 def __init__():
     log.MyLog(1, 2, 3, 4)
@@ -409,8 +409,8 @@ def __init__():
 
 def test_logging_fails_with_duplicate_log_names(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     loggy_code = """
-MyLog: __log__({})
-MyLog: __log__({})
+MyLog: event({})
+MyLog: event({})
 
 @public
 def foo():
@@ -433,7 +433,7 @@ def foo():
 
 def test_logging_fails_with_topic_type_mismatch(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     loggy_code = """
-MyLog: __log__({arg1: indexed(int128)})
+MyLog: event({arg1: indexed(int128)})
 
 @public
 def foo():
@@ -445,7 +445,7 @@ def foo():
 
 def test_logging_fails_with_data_type_mismatch(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     loggy_code = """
-MyLog: __log__({arg1: bytes <= 3})
+MyLog: event({arg1: bytes <= 3})
 
 @public
 def foo():
@@ -458,7 +458,7 @@ def foo():
 def test_logging_fails_after_a_global_declaration(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
     loggy_code = """
 age: int128
-MyLog: __log__({arg1: bytes <= 3})
+MyLog: event({arg1: bytes <= 3})
     """
     t.s = chain
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), StructureException)
@@ -470,14 +470,14 @@ def test_logging_fails_after_a_function_declaration(t, assert_tx_failed, get_con
 def foo():
     pass
 
-MyLog: __log__({arg1: bytes <= 3})
+MyLog: event({arg1: bytes <= 3})
     """
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), StructureException)
 
 
 def test_logging_fails_when_number_of_arguments_is_greater_than_declaration(t, assert_tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
-MyLog: __log__({arg1: int128})
+MyLog: event({arg1: int128})
 
 @public
 def foo():
@@ -488,7 +488,7 @@ def foo():
 
 def test_logging_fails_when_number_of_arguments_is_less_than_declaration(assert_tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
-MyLog: __log__({arg1: int128, arg2: int128})
+MyLog: event({arg1: int128, arg2: int128})
 
 @public
 def foo():
@@ -535,7 +535,7 @@ def ioo(inp: bytes <= 100):
 def test_variable_list_packing(t, get_last_log, get_contract_with_gas_estimation, chain):
     t.s = chain
     code = """
-Bar: __log__({_value: int128[4]})
+Bar: event({_value: int128[4]})
 
 @public
 def foo():
@@ -551,7 +551,7 @@ def foo():
 def test_literal_list_packing(t, get_last_log, get_contract_with_gas_estimation, chain):
     t.s = chain
     code = """
-Bar: __log__({_value: int128[4]})
+Bar: event({_value: int128[4]})
 
 @public
 def foo():
@@ -566,7 +566,7 @@ def foo():
 def test_storage_list_packing(t, get_last_log, bytes_helper, get_contract_with_gas_estimation, chain):
     t.s = chain
     code = """
-Bar: __log__({_value: int128[4]})
+Bar: event({_value: int128[4]})
 x: int128[4]
 
 @public
@@ -589,7 +589,7 @@ def set_list():
 def test_passed_list_packing(t, get_last_log, get_contract_with_gas_estimation, chain):
     t.s = chain
     code = """
-Bar: __log__({_value: int128[4]})
+Bar: event({_value: int128[4]})
 
 @public
 def foo(barbaric: int128[4]):
@@ -605,7 +605,7 @@ def test_variable_decimal_list_packing(t, get_last_log, get_contract_with_gas_es
     t.s = chain
 
     code = """
-Bar: __log__({_value: decimal[4]})
+Bar: event({_value: decimal[4]})
 
 @public
 def foo():
@@ -620,7 +620,7 @@ def foo():
 def test_storage_byte_packing(t, get_last_log, bytes_helper, get_contract_with_gas_estimation, chain):
     t.s = chain
     code = """
-MyLog: __log__({arg1: bytes <= 29})
+MyLog: event({arg1: bytes <= 29})
 x:bytes<=5
 
 @public
@@ -643,7 +643,7 @@ def setbytez():
 def test_storage_decimal_list_packing(t, get_last_log, bytes_helper, get_contract_with_gas_estimation, chain):
     t.s = chain
     code = """
-Bar: __log__({_value: decimal[4]})
+Bar: event({_value: decimal[4]})
 x: decimal[4]
 
 @public
@@ -665,14 +665,14 @@ def set_list():
 
 def test_logging_fails_when_declartation_is_too_big(assert_tx_failed, get_contract_with_gas_estimation):
     code = """
-Bar: __log__({_value: indexed(bytes <= 33)})
+Bar: event({_value: indexed(bytes <= 33)})
 """
     assert_tx_failed(lambda: get_contract_with_gas_estimation(code), VariableDeclarationException)
 
 
 def test_logging_fails_when_input_is_too_big(assert_tx_failed, get_contract_with_gas_estimation):
     code = """
-Bar: __log__({_value: indexed(bytes <= 32)})
+Bar: event({_value: indexed(bytes <= 32)})
 
 @public
 def foo(inp: bytes <= 33):
