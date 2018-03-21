@@ -5,7 +5,7 @@ def test_basic_for_in_list(get_contract_with_gas_estimation):
     code = """
 @public
 def data() -> int128:
-    s: int128[5] = [1, 2, 3, 4, 5, 6]
+    s: int128[5] = [1, 2, 3, 4, 5]
     for i in s:
         if i >= 3:
             return i
