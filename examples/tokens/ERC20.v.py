@@ -14,7 +14,7 @@ Approval: event({_owner: indexed(address), _spender: indexed(address), _value: u
 name: public(bytes32)
 symbol: public(bytes32)
 totalSupply: public(uint256)
-decimals: int128
+decimals: public(int128)
 balances: int128[address]
 allowed: int128[address][address]
 
