@@ -100,7 +100,7 @@ class Stmt(object):
         if self.stmt.value is not None:
             sub = Expr(self.stmt.value, self.context).lll_node
             self._check_valid_assign(sub)
-            variable_loc = LLLnode.from_list(pos, typ=sub.typ, location='memory', pos=getpos(self.stmt))
+            variable_loc = LLLnode.from_list(pos, typ=typ, location='memory', pos=getpos(self.stmt))
             o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
         self.context.set_in_assignment(False)
         return o
