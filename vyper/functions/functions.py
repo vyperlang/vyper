@@ -68,7 +68,12 @@ def get_keyword(expr, keyword):
 @signature('decimal')
 def floor(expr, args, kwargs, context):
     return LLLnode.from_list(
-        ['sdiv', args[0], DECIMAL_DIVISOR], typ=BaseType('int128', args[0].typ.unit, args[0].typ.positional),
+        ['if',
+            ['slt', args[0], 0],
+            ['sdiv', ['sub', args[0], DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR],
+            ['sdiv', args[0], DECIMAL_DIVISOR]
+        ],
+        typ=BaseType('int128', args[0].typ.unit, args[0].typ.positional),
         pos=getpos(expr)
     )
 
@@ -76,7 +81,12 @@ def floor(expr, args, kwargs, context):
 @signature('decimal')
 def ceil(expr, args, kwards, context):
     return LLLnode.from_list(
-        ['sdiv', ['add', args[0], DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR], typ=BaseType('int128', args[0].typ.unit, args[0].typ.positional),
+        ['if',
+            ['slt', args[0], 0],
+            ['sdiv', args[0], DECIMAL_DIVISOR],
+            ['sdiv', ['add', args[0], DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR]
+        ],
+        typ=BaseType('int128', args[0].typ.unit, args[0].typ.positional),
         pos=getpos(expr)
     )
 
