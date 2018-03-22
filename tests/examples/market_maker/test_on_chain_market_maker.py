@@ -37,6 +37,8 @@ def test_initiate(t, chain, utils, market_maker, erc20, assert_tx_failed):
     assert market_maker.total_token_qty() == 1 * 10**18
     assert market_maker.invariant() == 2 * 10**36
     assert utils.remove_0x_head(market_maker.owner()) == t.a0.hex()
+    assert erc20.name().split(b'\0',1)[0].decode() == TOKEN_NAME
+    assert erc20.decimals() == TOKEN_DECIMALS
     t.s = chain
     # Initiate cannot be called twice
     assert_tx_failed(lambda: market_maker.initiate(erc20.address, 1 * 10**18, value=2 * 10**18))
