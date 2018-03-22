@@ -13,6 +13,7 @@ from vyper.exceptions import (
 from vyper.function_signature import (
     FunctionSignature,
     VariableRecord,
+    ContractRecord
 )
 from vyper.signatures.event_signature import (
     EventSignature
@@ -22,6 +23,7 @@ from vyper.premade_contracts import (
 )
 from .stmt import Stmt
 from .expr import Expr
+from .context import Context
 from .parser_utils import LLLnode
 from .parser_utils import (
     get_length,
@@ -51,7 +53,8 @@ from vyper.utils import (
     MemoryPositions,
     LOADED_LIMIT_MAP,
     reserved_words,
-    string_to_bytes
+    string_to_bytes,
+    valid_global_keywords
 )
 from vyper.utils import (
     bytes_to_int,
@@ -197,7 +200,29 @@ def add_contract(code):
     return _defs
 
 
+def get_item_name_and_attributes(item, attributes):
+    if isinstance(item, ast.Name):
+        return item.id, attributes
+    elif isinstance(item, ast.AnnAssign):
+        return get_item_name_and_attributes(item.annotation, attributes)
+    elif isinstance(item, ast.Subscript):
+        return get_item_name_and_attributes(item.value, attributes)
+    # elif ist
+    elif isinstance(item, ast.Call):
+        attributes[item.func.id] = True
+        # Raise for multiple args
+        if len(item.args) != 1:
+            raise StructureException("%s expects one arg (the type)" % item.func.id)
+        return get_item_name_and_attributes(item.args[0], attributes)
+    return None, attributes
+
+
 def add_globals_and_events(_contracts, _defs, _events, _getters, _globals, item):
+    item_attributes = {"public": False, "modifiable": False, "static": False}
+    if not (isinstance(item.annotation, ast.Call) and item.annotation.func.id == "__log__"):
+        item_name, item_attributes = get_item_name_and_attributes(item, item_attributes)
+        if not all([attr in valid_global_keywords for attr in item_attributes.keys()]):
+            raise StructureException('Invalid global keyword used: %s' % item_attributes)
     if item.value is not None:
         raise StructureException('May not assign value whilst defining type', item)
     elif isinstance(item.annotation, ast.Call) and item.annotation.func.id == "event":
@@ -217,20 +242,23 @@ def add_globals_and_events(_contracts, _defs, _events, _getters, _globals, item)
     # If the type declaration is of the form public(<type here>), then proceed with
     # the underlying type but also add getters
     elif isinstance(item.annotation, ast.Call) and item.annotation.func.id == "address":
-        if len(item.annotation.args) != 1:
-            raise StructureException("Address expects one arg (the type)")
         if item.annotation.args[0].id not in premade_contracts:
             raise VariableDeclarationException("Unsupported premade contract declaration", item.annotation.args[0])
         premade_contract = premade_contracts[item.annotation.args[0].id]
         _contracts[item.target.id] = add_contract(premade_contract.body)
         _globals[item.target.id] = VariableRecord(item.target.id, len(_globals), BaseType('address'), True)
-    elif isinstance(item, ast.AnnAssign) and isinstance(item.annotation, ast.Name) and item.annotation.id in _contracts:
-        _globals[item.target.id] = VariableRecord(item.target.id, len(_globals), BaseType('address', item.annotation.id), True)
+    elif item_name in _contracts:
+        if not item_attributes["modifiable"] and not item_attributes["static"]:
+            raise StructureException("All contracts must have `modifiable` or `static` keywords: %s" % item_attributes)
+        _globals[item.target.id] = ContractRecord(item_attributes["modifiable"], item.target.id, len(_globals), BaseType('address', item_name), True)
+        if item_attributes["public"]:
+            typ = BaseType('address', item_name)
+            for getter in mk_getter(item.target.id, typ):
+                _getters.append(parse_line('\n' * (item.lineno - 1) + getter))
+                _getters[-1].pos = getpos(item)
     elif isinstance(item.annotation, ast.Call) and item.annotation.func.id == "public":
-        if len(item.annotation.args) != 1:
-            raise StructureException("Public expects one arg (the type)")
-        if isinstance(item.annotation.args[0], ast.Name) and item.annotation.args[0].id in _contracts:
-            typ = BaseType('address', item.annotation.args[0].id)
+        if isinstance(item.annotation.args[0], ast.Name) and item_name in _contracts:
+            typ = BaseType('address', item_name)
         else:
             typ = parse_type(item.annotation.args[0], 'storage')
         _globals[item.target.id] = VariableRecord(item.target.id, len(_globals), typ, True)
@@ -275,83 +303,6 @@ initializer_list = ['seq', ['mstore', 28, ['calldataload', 0]]]
 # Store limit constants at fixed addresses in memory.
 initializer_list += [['mstore', pos, limit_size] for pos, limit_size in LOADED_LIMIT_MAP.items()]
 initializer_lll = LLLnode.from_list(initializer_list, typ=None)
-
-
-# Contains arguments, variables, etc
-class Context():
-    def __init__(self, vars=None, globals=None, sigs=None, forvars=None, return_type=None, is_constant=False, is_payable=False, origcode=''):
-        # In-memory variables, in the form (name, memory location, type)
-        self.vars = vars or {}
-        self.next_mem = MemoryPositions.RESERVED_MEMORY
-        # Global variables, in the form (name, storage location, type)
-        self.globals = globals or {}
-        # ABI objects, in the form {classname: ABI JSON}
-        self.sigs = sigs or {}
-        # Variables defined in for loops, e.g. for i in range(6): ...
-        self.forvars = forvars or {}
-        # Return type of the function
-        self.return_type = return_type
-        # Is the function constant?
-        self.is_constant = is_constant
-        # Is the function payable?
-        self.is_payable = is_payable
-        # Number of placeholders generated (used to generate random names)
-        self.placeholder_count = 1
-        # Original code (for error pretty-printing purposes)
-        self.origcode = origcode
-        # In Loop status. Whether body is currently evaluating within a for-loop or not.
-        self.in_for_loop = set()
-        # Count returns in function
-        self.function_return_count = 0
-        # Current block scope
-        self.blockscopes = set()
-        # In assignment. Whether expressiong is currently evaluating an assignment expression.
-        self.in_assignment = False
-
-    def set_in_assignment(self, state: bool):
-        self.in_assignment = state
-
-    def set_in_for_loop(self, name_of_list):
-        self.in_for_loop.add(name_of_list)
-
-    def remove_in_for_loop(self, name_of_list):
-        self.in_for_loop.remove(name_of_list)
-
-    def start_blockscope(self, blockscope_id):
-        self.blockscopes.add(blockscope_id)
-
-    def end_blockscope(self, blockscope_id):
-        # Remove all variables that have specific blockscope_id attached.
-        self.vars = {
-            name: var_record for name, var_record in self.vars.items()
-            if blockscope_id not in var_record.blockscopes
-        }
-        # Remove block scopes
-        self.blockscopes.remove(blockscope_id)
-
-    def increment_return_counter(self):
-        self.function_return_count += 1
-
-    # Add a new variable
-    def new_variable(self, name, typ):
-        if not is_varname_valid(name):
-            raise VariableDeclarationException("Variable name invalid or reserved: " + name)
-        if name in self.vars or name in self.globals:
-            raise VariableDeclarationException("Duplicate variable name: %s" % name)
-        self.vars[name] = VariableRecord(name, self.next_mem, typ, True, self.blockscopes.copy())
-        pos = self.next_mem
-        self.next_mem += 32 * get_size_of_type(typ)
-        return pos
-
-    # Add an anonymous variable (used in some complex function definitions)
-    def new_placeholder(self, typ):
-        name = '_placeholder_' + str(self.placeholder_count)
-        self.placeholder_count += 1
-        return self.new_variable(name, typ)
-
-    # Get the next unused memory location
-    def get_next_mem(self):
-        return self.next_mem
 
 
 # Is a function the initializer?
@@ -543,52 +494,39 @@ def parse_body(code, context):
     return LLLnode.from_list(['seq'] + o, pos=getpos(code[0]) if code else None)
 
 
-def external_contract_call_stmt(stmt, context, contract_name, contract_address):
+def external_contract_call(node, context, contract_name, contract_address, is_modifiable):
     if contract_name not in context.sigs:
         raise VariableDeclarationException("Contract not declared yet: %s" % contract_name)
-    method_name = stmt.func.attr
+    method_name = node.func.attr
     if method_name not in context.sigs[contract_name]:
         raise VariableDeclarationException("Function not declared yet: %s (reminder: "
                                                     "function must be declared in the correct contract)" % method_name)
     sig = context.sigs[contract_name][method_name]
-    inargs, inargsize = pack_arguments(sig, [parse_expr(arg, context) for arg in stmt.args], context)
+    inargs, inargsize = pack_arguments(sig, [parse_expr(arg, context) for arg in node.args], context)
+    output_placeholder, output_size, returner = get_external_contract_call_output(sig, context)
     sub = ['seq', ['assert', ['extcodesize', contract_address]],
                     ['assert', ['ne', 'address', contract_address]]]
-    if context.is_constant:
-        sub.append(['assert', ['staticcall', 'gas', contract_address, inargs, inargsize, 0, 0]])
+    if context.is_constant or not is_modifiable:
+        sub.append(['assert', ['staticcall', 'gas', contract_address, inargs, inargsize, output_placeholder, output_size]])
     else:
-        sub.append(['assert', ['call', 'gas', contract_address, 0, inargs, inargsize, 0, 0]])
-    o = LLLnode.from_list(sub, typ=sig.output_type, location='memory', pos=getpos(stmt))
+        sub.append(['assert', ['call', 'gas', contract_address, 0, inargs, inargsize, output_placeholder, output_size]])
+    sub.extend(returner)
+    o = LLLnode.from_list(sub, typ=sig.output_type, location='memory', pos=getpos(node))
     return o
 
 
-def external_contract_call_expr(expr, context, contract_name, contract_address):
-    if contract_name not in context.sigs:
-        raise VariableDeclarationException("Contract not declared yet: %s" % contract_name)
-    method_name = expr.func.attr
-    if method_name not in context.sigs[contract_name]:
-        raise VariableDeclarationException("Function not declared yet: %s (reminder: "
-                                                    "function must be declared in the correct contract)" % method_name)
-    sig = context.sigs[contract_name][method_name]
-    inargs, inargsize = pack_arguments(sig, [parse_expr(arg, context) for arg in expr.args], context)
+def get_external_contract_call_output(sig, context):
+    if not sig.output_type:
+        return 0, 0, []
     output_placeholder = context.new_placeholder(typ=sig.output_type)
+    output_size = get_size_of_type(sig.output_type) * 32
     if isinstance(sig.output_type, BaseType):
-        returner = output_placeholder
+        returner = [0, output_placeholder]
     elif isinstance(sig.output_type, ByteArrayType):
-        returner = output_placeholder + 32
+        returner = [0, output_placeholder + 32]
     else:
-        raise TypeMismatchException("Invalid output type: %r" % sig.output_type, expr)
-    sub = ['seq', ['assert', ['extcodesize', contract_address]],
-                    ['assert', ['ne', 'address', contract_address]]]
-    if context.is_constant:
-        sub.append(['assert', ['staticcall', 'gas', contract_address, inargs, inargsize,
-                    output_placeholder, get_size_of_type(sig.output_type) * 32]])
-    else:
-        sub.append(['assert', ['call', 'gas', contract_address, 0, inargs, inargsize,
-            output_placeholder, get_size_of_type(sig.output_type) * 32]])
-    sub.extend([0, returner])
-    o = LLLnode.from_list(sub, typ=sig.output_type, location='memory', pos=getpos(expr))
-    return o
+        raise TypeMismatchException("Invalid output type: %s" % sig.output_type)
+    return output_placeholder, output_size, returner
 
 
 # Parse an expression
