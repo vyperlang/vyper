@@ -148,3 +148,32 @@ def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
     c = get_contract_with_gas_estimation(two_d_array_accessor)
     assert c.test_array(2, 7, 1, 8) == 2718
     print('Passed complex array accessor test')
+
+
+def test_returns_lists():
+    code = """
+@public
+def test_array_num_return() -> num[2][2]:
+    a = [[1,2],[3,4]]
+    return a
+
+@public
+def test_array_decimal_return1() -> decimal[2][2]:
+    a = [[1.0,2.0],[3.0,4.0]]
+    return a
+
+@public
+def test_array_decimal_return2() -> decimal[2][2]:
+    return [[1,2],[3,4]]
+
+@public
+def test_array_decimal_return3() -> decimal[2][2]:
+    a = [[1,2],[3,4]]
+    return a
+"""
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.test_array_num_return() == [[1, 2], [3, 4]]
+    assert c.test_array_decimal_return1() == [[1.0, 2.0], [3.0, 4.0]]
+    assert c.test_array_decimal_return2() == [[1.0, 2.0], [3.0, 4.0]]
+    assert c.test_array_decimal_return3() == [[1.0, 2.0], [3.0, 4.0]]
