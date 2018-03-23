@@ -55,6 +55,7 @@ class Stmt(object):
             ast.Break: self.parse_break,
             ast.Continue: self.parse_continue,
             ast.Return: self.parse_return,
+            ast.Delete: self.parse_delete
         }
         stmt_type = self.stmt.__class__
         if stmt_type in self.stmt_table:
@@ -62,7 +63,7 @@ class Stmt(object):
         elif isinstance(stmt, ast.Name) and stmt.id == "throw":
             self.lll_node = LLLnode.from_list(['assert', 0], typ=None, pos=getpos(stmt))
         else:
-            raise StructureException("Unsupported statement type", stmt)
+            raise StructureException("Unsupported statement type: %s" % type(stmt), stmt)
 
     def expr(self):
         return Stmt(self.stmt.value, self.context).lll_node
@@ -491,6 +492,18 @@ class Stmt(object):
                                         typ=None, pos=getpos(self.stmt))
         else:
             raise TypeMismatchException("Can only return base type!", self.stmt)
+
+    def parse_delete(self):
+        if len(self.stmt.targets) != 1:
+            raise StructureException("Can delete one variable at a time", self.stmt)
+        target = self.stmt.targets[0]
+        target_lll = Expr(self.stmt.targets[0], self.context).lll_node
+
+        if isinstance(target, ast.Subscript):
+            if target_lll.location == "storage":
+                return LLLnode.from_list(['seq', ['sstore', target_lll, 0]], typ=None)
+
+        raise StructureException("Deleting type not supported.", self.stmt)
 
     def get_target(self, target):
         if isinstance(target, ast.Subscript) and self.context.in_for_loop:  # Check if we are doing assignment of an iteration loop.
