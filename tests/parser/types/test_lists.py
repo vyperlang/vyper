@@ -71,7 +71,7 @@ def joo() -> int128[2]:
 
 @public
 def koo() -> int128[2][2]:
-    return [[1,2],[3,4]]
+    return [[1, 2], [3, 4]]
 
 @public
 def loo() -> int128[2][2]:
@@ -93,11 +93,11 @@ def poo(inp: int128[2][2]) -> int128[2][2]:
 
 @public
 def qoo(inp: int128[2]) -> int128[2][2]:
-    return [inp,[3,4]]
+    return [inp, [3,4]]
 
 @public
-def roo(inp: int128[2]) -> decimal[2][2]:
-    return [inp,[3,4]]
+def roo(inp: decimal[2]) -> decimal[2][2]:
+    return [inp, [3.0, 4.0]]
     """
 
     c = get_contract_with_gas_estimation(list_output_tester_code)
@@ -150,25 +150,25 @@ def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
     print('Passed complex array accessor test')
 
 
-def test_returns_lists():
+def test_returns_lists(get_contract_with_gas_estimation):
     code = """
 @public
-def test_array_num_return() -> num[2][2]:
-    a = [[1,2],[3,4]]
+def test_array_num_return() -> int128[2][2]:
+    a: int128[2][2] = [[1, 2], [3, 4]]
     return a
 
 @public
 def test_array_decimal_return1() -> decimal[2][2]:
-    a = [[1.0,2.0],[3.0,4.0]]
+    a: decimal[2][2] = [[1.0, 2.0], [3.0, 4.0]]
     return a
 
 @public
 def test_array_decimal_return2() -> decimal[2][2]:
-    return [[1,2],[3,4]]
+    return [[1.0, 2.0], [3.0, 4.0]]
 
 @public
 def test_array_decimal_return3() -> decimal[2][2]:
-    a = [[1,2],[3,4]]
+    a: decimal[2][2] = [[1.0, 2.0], [3.0, 4.0]]
     return a
 """
 
