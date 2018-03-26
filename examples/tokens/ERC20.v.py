@@ -21,7 +21,6 @@ allowed: int128[address][address]
 
 @public
 def __init__(_name: bytes32, _symbol: bytes32, _decimals: uint256, _initialSupply: uint256):
-
     self.name = _name
     self.symbol = _symbol
     self.decimals = _decimals
