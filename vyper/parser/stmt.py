@@ -392,7 +392,7 @@ class Stmt(object):
             if not are_units_compatible(sub.typ, self.context.return_type):
                 raise TypeMismatchException("Return type units mismatch %r %r" % (sub.typ, self.context.return_type), self.stmt.value)
             elif is_base_type(sub.typ, self.context.return_type.typ) or \
-                    (is_base_type(sub.typ, 'int128') and is_base_type(self.context.return_type, 'signed256')):
+                    (is_base_type(sub.typ, 'int128') and is_base_type(self.context.return_type, 'int256')):
                 return LLLnode.from_list(['seq', ['mstore', 0, sub], ['return', 0, 32]], typ=None, pos=getpos(self.stmt))
             else:
                 raise TypeMismatchException("Unsupported type conversion: %r to %r" % (sub.typ, self.context.return_type), self.stmt.value)
