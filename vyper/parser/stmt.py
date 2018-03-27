@@ -81,7 +81,7 @@ class Stmt(object):
             if self.stmt.annotation.left.id == 'bytes' and not isinstance(sub.typ, ByteArrayType):
                 raise TypeMismatchException('Invalid type, expected bytes')
         elif isinstance(self.stmt.annotation, ast.Subscript):
-            if not isinstance(sub.typ, ListType):  # check list assign.
+            if not isinstance(sub.typ, (ListType, ByteArrayType)):  # check list assign.
                 raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.value.id, self.stmt)
         elif self.stmt.annotation.id != sub.typ.typ and not sub.typ.unit:
             raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.id, self.stmt)

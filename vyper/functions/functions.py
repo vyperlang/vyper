@@ -134,7 +134,7 @@ def _convert(expr, context):
     #     assert typ in ('int128', 'uint256', 'address', 'bytes')
     #     if typ == 'bytes':
     #         if maxlen != 32:
-    #             raise TypeMismatchException("Unable to convert bytes <= {} to bytes32".format(maxlen))
+    #             raise TypeMismatchException("Unable to convert bytes[{}] to bytes32".format(maxlen))
     #         if args[0].location == "memory":
     #             return LLLnode.from_list(
     #             ['mload', ['add', args[0], 32]], typ=BaseType('bytes32')
