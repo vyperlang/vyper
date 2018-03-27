@@ -24,7 +24,7 @@ def foo(x: int128) -> int128:
 def test_selfcall_code_3(get_contract_with_gas_estimation, utils):
     selfcall_code_3 = """
 @public
-def _hashy2(x: bytes <= 100) -> bytes32:
+def _hashy2(x: bytes[100]) -> bytes32:
     return sha3(x)
 
 @public
@@ -32,7 +32,7 @@ def return_hash_of_cow_x_30() -> bytes32:
     return self._hashy2("cowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcow")
 
 @public
-def _len(x: bytes <= 100) -> int128:
+def _len(x: bytes[100]) -> int128:
     return len(x)
 
 @public

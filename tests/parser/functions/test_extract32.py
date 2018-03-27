@@ -3,18 +3,18 @@ from ethereum.tools import tester
 
 def test_extract32_extraction(get_contract_with_gas_estimation):
     extract32_code = """
-y: bytes <= 100
+y: bytes[100]
 @public
-def extrakt32(inp: bytes <= 100, index: int128) -> bytes32:
+def extrakt32(inp: bytes[100], index: int128) -> bytes32:
     return extract32(inp, index)
 
 @public
-def extrakt32_mem(inp: bytes <= 100, index: int128) -> bytes32:
-    x: bytes <= 100 = inp
+def extrakt32_mem(inp: bytes[100], index: int128) -> bytes32:
+    x: bytes[100] = inp
     return extract32(x, index)
 
 @public
-def extrakt32_storage(index: int128, inp: bytes <= 100) -> bytes32:
+def extrakt32_storage(index: int128, inp: bytes[100]) -> bytes32:
     self.y = inp
     return extract32(self.y, index)
     """
@@ -57,23 +57,23 @@ def extrakt32_storage(index: int128, inp: bytes <= 100) -> bytes32:
 def test_extract32_code(get_contract_with_gas_estimation):
     extract32_code = """
 @public
-def foo(inp: bytes <= 32) -> int128:
+def foo(inp: bytes[32]) -> int128:
     return extract32(inp, 0, type=int128)
 
 @public
-def bar(inp: bytes <= 32) -> uint256:
+def bar(inp: bytes[32]) -> uint256:
     return extract32(inp, 0, type=uint256)
 
 @public
-def baz(inp: bytes <= 32) -> bytes32:
+def baz(inp: bytes[32]) -> bytes32:
     return extract32(inp, 0, type=bytes32)
 
 @public
-def fop(inp: bytes <= 32) -> bytes32:
+def fop(inp: bytes[32]) -> bytes32:
     return extract32(inp, 0)
 
 @public
-def foq(inp: bytes <= 32) -> address:
+def foq(inp: bytes[32]) -> address:
     return extract32(inp, 0, type=address)
     """
 

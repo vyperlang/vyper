@@ -37,7 +37,7 @@ def foo() -> int128:
     return self.lucky
 
 @public
-def array() -> bytes <= 3:
+def array() -> bytes[3]:
     return 'dog'
     """
 
@@ -47,7 +47,7 @@ def array() -> bytes <= 3:
     contract_2 = """
 class Foo():
     def foo() -> int128: pass
-    def array() -> bytes <= 3: pass
+    def array() -> bytes[3]: pass
 
 @public
 def bar(arg1: address) -> int128:
@@ -62,7 +62,7 @@ def bar(arg1: address) -> int128:
 def test_external_contract_calls_with_bytes(get_contract_with_gas_estimation):
     contract_1 = """
 @public
-def array() -> bytes <= 3:
+def array() -> bytes[3]:
     return 'dog'
     """
 
@@ -70,10 +70,10 @@ def array() -> bytes <= 3:
 
     contract_2 = """
 class Foo():
-    def array() -> bytes <= 3: pass
+    def array() -> bytes[3]: pass
 
 @public
-def get_array(arg1: address) -> bytes <= 3:
+def get_array(arg1: address) -> bytes[3]:
     return Foo(arg1).array()
 """
 
