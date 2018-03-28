@@ -77,9 +77,6 @@ class Stmt(object):
         elif isinstance(self.stmt.annotation, ast.Dict):
             if not isinstance(sub.typ, StructType):
                 raise TypeMismatchException('Invalid type, expected a struct')
-        elif isinstance(self.stmt.annotation, ast.Compare):  # check bytes assign
-            if self.stmt.annotation.left.id == 'bytes' and not isinstance(sub.typ, ByteArrayType):
-                raise TypeMismatchException('Invalid type, expected bytes')
         elif isinstance(self.stmt.annotation, ast.Subscript):
             if not isinstance(sub.typ, (ListType, ByteArrayType)):  # check list assign.
                 raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.value.id, self.stmt)
