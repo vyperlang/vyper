@@ -1,0 +1,68 @@
+#!/usr/bin/env python3.6
+import argparse
+import json
+import vyper
+
+from pprint import pprint
+from ethereum.tools import tester
+from vyper import compiler
+
+
+parser = argparse.ArgumentParser(description='Vyper {0} quick CLI runner'.format(vyper.__version__))
+parser.add_argument('input_file', help='Vyper sourcecode to run')
+parser.add_argument('call_list', help='call list, without parameters: func, with parameters func(1, 2, 3). Semicolon seperated')
+parser.add_argument('-i', help='init args, comma seperated', default='', dest='init_args')
+
+args = parser.parse_args()
+
+
+def cast_types(args, abi_signature):
+    newargs = args.copy()
+    for idx, abi_arg in enumerate(abi_signature['inputs']):
+        if abi_arg['type'] in ('int128', 'uint256'):
+            newargs[idx] = int(args[idx])
+    return newargs
+
+
+if __name__ == '__main__':
+
+    with open(args.input_file) as fh:
+        code = fh.read()
+        init_args = args.init_args.split(',') if args.init_args else []
+        tester.languages['vyper'] = compiler.Compiler()
+        s = tester.Chain()  # initialize test chain
+
+        # Built list of calls to make.
+        calls = []
+        for signature in args.call_list.split(';'):
+            name = signature
+            args = []
+
+            if '(' in signature:
+                start_pos = signature.find('(')
+                name = signature[:start_pos]
+                args = signature[start_pos+1:-1].split(',')
+                args = [arg.strip() for arg in args]
+                args = [arg for arg in args if len(arg) > 0]
+
+            calls.append((name, args))
+
+        abi = compiler.mk_full_signature(code)
+
+        # Format init args.
+        if init_args:
+            init_abi = next(filter(lambda func: func["name"] == '__init__', abi))
+            init_args = cast_types(init_args, init_abi)
+
+        # Compile contract to chain.
+        contract = s.contract(code, args=init_args, language='vyper')
+
+        # Execute calls
+        for func_name, args in calls:
+            if not hasattr(contract, func_name):
+                print('No method {} found, skipping.'.format(func_name))
+            print('Calling {}({})'.format(func_name, ','.join(args)))
+            func_abi = next(filter(lambda func: func["name"] == func_name, abi))
+            cast_args = cast_types(args, func_abi)
+            pprint(getattr(contract, func_name)(*cast_args))
+            print()
