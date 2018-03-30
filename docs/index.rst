@@ -37,6 +37,8 @@ Following the principles and goals, Vyper **does not** provide the following fea
 * **Class inheritance:** Class inheritance requires people to jump between multiple files to understand what a program is doing, and requires people to understand the rules of precedence in case of conflicts
   ("Which class's function 'X' is the one that's actually used?"). Hence, it makes code too complicated to understand which negatively impacts auditability.
 * **Inline assembly:** Adding inline assembly would make it no longer possible to search for a variable name in order to find all instances where that variable is read or modified.
+* **Function overloading** - This can cause lots of confusion on which function is called at any given time. Thus it's easier to write missleading code (``foo("hello")`` logs "hello" but ``foo("hello", "world")`` steals you funds).
+  Another problem with function overloading is that it makes the code much harder to search through as you have to keep track on which call refers to which function.
 * **Operator overloading:** Operator overloading makes writing misleading code possible. For example "+" could be overloaded so that it executes commands the are not visible at first glance, such as sending funds the
   user did not want to send.
 * **Recursive calling:** Recursive calling makes it impossible to set an upper bound on gas limits, opening the door for gas limit attacks.
