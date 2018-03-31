@@ -1,9 +1,6 @@
 import re
-
-from ethereum import opcodes
-
 from vyper.exceptions import TypeMismatchException
-from vyper.opcodes import comb_opcodes
+from vyper.opcodes import comb_opcodes, GAS_IDENTITY, GAS_IDENTITYWORD
 from vyper.types import (
     BaseType,
     ByteArrayType,
@@ -257,8 +254,7 @@ def make_byte_array_copier(destination, source):
         raise TypeMismatchException("Cannot cast from greater max-length %d to shorter max-length %d" % (source.typ.maxlen, destination.typ.maxlen))
     # Special case: memory to memory
     if source.location == "memory" and destination.location == "memory":
-        gas_calculation = opcodes.GIDENTITYBASE + \
-            opcodes.GIDENTITYWORD * (ceil32(source.typ.maxlen) // 32)
+        gas_calculation = GAS_IDENTITY + GAS_IDENTITYWORD * (ceil32(source.typ.maxlen) // 32)
         o = LLLnode.from_list(
             ['with', '_source', source,
                 ['with', '_sz', ['add', 32, ['mload', '_source']],

@@ -90,6 +90,14 @@ pseudo_opcodes = {
     'NE': [None, 2, 1, 6],
 }
 
+#
+# Pre-compile contract gas costs
+#
+# Extracted from https://github.com/ethereum/py-evm/blob/master/evm/constants.py
+
+GAS_IDENTITY = 15
+GAS_IDENTITYWORD = 3
+
 comb_opcodes = {}
 for k in opcodes:
     comb_opcodes[k] = opcodes[k]
