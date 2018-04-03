@@ -10,8 +10,8 @@ from vyper import compiler
 
 parser = argparse.ArgumentParser(description='Vyper {0} quick CLI runner'.format(vyper.__version__))
 parser.add_argument('input_file', help='Vyper sourcecode to run')
-parser.add_argument('call_list', help='call list, without parameters: func, with parameters func(1, 2, 3). Semicolon seperated')
-parser.add_argument('-i', help='init args, comma seperated', default='', dest='init_args')
+parser.add_argument('call_list', help='call list, without parameters: func, with parameters func(1, 2, 3). Semicolon separated')
+parser.add_argument('-i', help='init args, comma separated', default='', dest='init_args')
 
 args = parser.parse_args()
 
@@ -35,7 +35,7 @@ if __name__ == '__main__':
         # Built list of calls to make.
         calls = []
         for signature in args.call_list.split(';'):
-            name = signature
+            name = signature.strip()
             args = []
 
             if '(' in signature:
@@ -60,9 +60,29 @@ if __name__ == '__main__':
         # Execute calls
         for func_name, args in calls:
             if not hasattr(contract, func_name):
-                print('No method {} found, skipping.'.format(func_name))
-            print('Calling {}({})'.format(func_name, ','.join(args)))
+                print('\n No method {} found, skipping.'.format(func_name))
+                continue
+
+            print('\n* Calling {}({})'.format(func_name, ','.join(args)))
             func_abi = next(filter(lambda func: func["name"] == func_name, abi))
+            if len(args) != len(func_abi['inputs']):
+                print('Argument mismatch, please provide correct arguments.')
+                break
+
+            print('- Returns:')
             cast_args = cast_types(args, func_abi)
-            pprint(getattr(contract, func_name)(*cast_args))
-            print()
+            pprint('{}'.format(getattr(contract, func_name)(*cast_args)))
+
+            # Detect any new log events, and print them.
+            event_data = contract.translator.event_data
+            contract_log_ids = event_data.keys()
+            receipt = s.head_state.receipts[-1]
+            logs = [log for log in receipt.logs
+                if log.topics[0] in contract_log_ids and
+                log.address == contract.address]
+            print('- Logs:')
+            if not logs:
+                print(' No events found.')
+            for log in logs:
+                event_info =  event_data[log.topics[0]]
+                pprint(contract.translator.decode_event(log.topics, log.data))
