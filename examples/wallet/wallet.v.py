@@ -18,7 +18,7 @@ def __init__(_owners: address[5], _threshold: int128):
 # `@payable` allows functions to receive ether
 @public
 @payable
-def approve(_seq: int128, to: address, value: wei_value, data: bytes <= 4096, sigdata: uint256[3][5]) -> bytes <= 4096:
+def approve(_seq: int128, to: address, value: wei_value, data: bytes[4096], sigdata: uint256[3][5]) -> bytes[4096]:
     # Throws if the value sent to the contract is less than the sum of the value to be sent
     assert msg.value >= value
     # Every time the number of approvals starts at 0 (multiple signatures can be added through the sigdata argument)

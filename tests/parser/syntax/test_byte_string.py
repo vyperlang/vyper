@@ -6,13 +6,13 @@ from vyper import compiler
 valid_list = [
     """
 @public
-def foo() -> bytes <= 10:
+def foo() -> bytes[10]:
     return "badminton"
     """,
     """
 @public
 def foo():
-    x: bytes <= 11 = "¡très bien!"
+    x: bytes[11] = "¡très bien!"
     """
 ]
 

@@ -3,7 +3,7 @@ def test_convert_to_num(chain, get_contract_with_gas_estimation, assert_tx_faile
 a: int128
 b: uint256
 c: bytes32
-d: bytes <= 1
+d: bytes[1]
 
 @public
 def int128_to_num(inp: int128) -> (int128, int128, int128):
@@ -90,7 +90,7 @@ def test_convert_to_bytes32(t, get_contract_with_gas_estimation, bytes_helper):
 a: int128
 b: uint256
 c: address
-d: bytes <= 32
+d: bytes[32]
 
 @public
 def int128_to_bytes32(inp: int128) -> (bytes32, bytes32, bytes32):
@@ -116,7 +116,7 @@ def address_to_bytes32(inp: address) -> (bytes32, bytes32):
     return  memory, storage
 
 @public
-def bytes_to_bytes32(inp: bytes <= 32) -> (bytes32, bytes32):
+def bytes_to_bytes32(inp: bytes[32]) -> (bytes32, bytes32):
     self.d = inp
     memory: bytes32 = convert(inp, "bytes32")
     storage: bytes32 = convert(self.d, "bytes32")

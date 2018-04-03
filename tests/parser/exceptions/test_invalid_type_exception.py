@@ -86,10 +86,10 @@ x: bytes <= wei
 x: string <= 33
     """,
     """
-x: 1 <= bytes <= 3
+x: bytes[1:3]
     """,
     """
-x: bytes <= 33.3
+x: bytes[33.3]
     """,
 ]
 

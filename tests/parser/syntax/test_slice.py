@@ -8,17 +8,17 @@ from vyper.exceptions import TypeMismatchException
 fail_list = [
     """
 @public
-def foo(inp: bytes <= 10) -> bytes <= 2:
+def foo(inp: bytes[10]) -> bytes[2]:
     return slice(inp, start=2, len=3)
     """,
     """
 @public
-def foo(inp: int128) -> bytes <= 3:
+def foo(inp: int128) -> bytes[3]:
     return slice(inp, start=2, len=3)
     """,
     """
 @public
-def foo(inp: bytes <= 10) -> bytes <= 3:
+def foo(inp: bytes[10]) -> bytes[3]:
     return slice(inp, start=4.0, len=3)
     """
 ]
@@ -34,17 +34,17 @@ def test_slice_fail(bad_code):
 valid_list = [
     """
 @public
-def foo(inp: bytes <= 10) -> bytes <= 3:
+def foo(inp: bytes[10]) -> bytes[3]:
     return slice(inp, start=2, len=3)
     """,
     """
 @public
-def foo(inp: bytes <= 10) -> bytes <= 4:
+def foo(inp: bytes[10]) -> bytes[4]:
     return slice(inp, start=2, len=3)
     """,
     """
 @public
-def foo() -> bytes <= 10:
+def foo() -> bytes[10]:
     return slice("badmintonzzz", start=1, len=10)
     """
 ]

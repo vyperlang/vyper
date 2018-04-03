@@ -1,27 +1,27 @@
 def test_string_literal_code(get_contract_with_gas_estimation):
     string_literal_code = """
 @public
-def foo() -> bytes <= 5:
+def foo() -> bytes[5]:
     return "horse"
 
 @public
-def bar() -> bytes <= 10:
+def bar() -> bytes[10]:
     return concat("b", "a", "d", "m", "i", "", "nton")
 
 @public
-def baz() -> bytes <= 40:
+def baz() -> bytes[40]:
     return concat("0123456789012345678901234567890", "12")
 
 @public
-def baz2() -> bytes <= 40:
+def baz2() -> bytes[40]:
     return concat("01234567890123456789012345678901", "12")
 
 @public
-def baz3() -> bytes <= 40:
+def baz3() -> bytes[40]:
     return concat("0123456789012345678901234567890", "1")
 
 @public
-def baz4() -> bytes <= 100:
+def baz4() -> bytes[100]:
     return concat("01234567890123456789012345678901234567890123456789",
                   "01234567890123456789012345678901234567890123456789")
     """
@@ -40,27 +40,27 @@ def baz4() -> bytes <= 100:
 def test_string_literal_splicing_fuzz(get_contract_with_gas_estimation):
     for i in range(95, 96, 97):
         kode = """
-moo: bytes <= 100
+moo: bytes[100]
 
 @public
-def foo(s: int128, L: int128) -> bytes <= 100:
+def foo(s: int128, L: int128) -> bytes[100]:
         x: int128 = 27
-        r: bytes <= 100 = slice("%s", start=s, len=L)
+        r: bytes[100] = slice("%s", start=s, len=L)
         y: int128 = 37
         if x * y == 999:
             return r
 
 @public
-def bar(s: int128, L: int128) -> bytes <= 100:
+def bar(s: int128, L: int128) -> bytes[100]:
         self.moo = "%s"
         x: int128 = 27
-        r: bytes <= 100 = slice(self.moo, start=s, len=L)
+        r: bytes[100] = slice(self.moo, start=s, len=L)
         y: int128  = 37
         if x * y == 999:
             return r
 
 @public
-def baz(s: int128, L: int128) -> bytes <= 100:
+def baz(s: int128, L: int128) -> bytes[100]:
         x: int128 = 27
         self.moo = slice("%s", start=s, len=L)
         y: int128 = 37

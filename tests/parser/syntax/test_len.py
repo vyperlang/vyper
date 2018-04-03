@@ -33,7 +33,7 @@ def test_block_fail(bad_code):
 valid_list = [
     """
 @public
-def foo(inp: bytes <= 10) -> int128:
+def foo(inp: bytes[10]) -> int128:
     return len(inp)
     """
 ]

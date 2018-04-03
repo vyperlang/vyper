@@ -2,7 +2,7 @@
 
 def test_bytes_logging_extended(t, get_contract_with_gas_estimation, get_logs, chain):
     code = """
-MyLog: event({arg1: int128, arg2: bytes <= 64, arg3: int128})
+MyLog: event({arg1: int128, arg2: bytes[64], arg3: int128})
 
 @public
 def foo():
@@ -20,13 +20,13 @@ def foo():
 
 def test_bytes_logging_extended_variables(t, get_contract_with_gas_estimation, get_logs, chain):
     code = """
-MyLog: event({arg1: bytes <= 64, arg2: bytes <= 64, arg3: bytes <= 64})
+MyLog: event({arg1: bytes[64], arg2: bytes[64], arg3: bytes[64]})
 
 @public
 def foo():
-    a: bytes <= 64 = 'hellohellohellohellohellohellohellohellohello'
-    b: bytes <= 64 = 'hellohellohellohellohellohellohellohello'
-    c: bytes <= 64 = 'hellohellohellohellohellohellohello'
+    a: bytes[64] = 'hellohellohellohellohellohellohellohellohello'
+    b: bytes[64] = 'hellohellohellohellohellohellohellohello'
+    c: bytes[64] = 'hellohellohellohellohellohellohello'
     log.MyLog(a, b, c)
     """
 
@@ -41,10 +41,10 @@ def foo():
 
 def test_bytes_logging_extended_passthrough(t, get_contract_with_gas_estimation, get_logs, chain):
     code = """
-MyLog: event({arg1: int128, arg2: bytes <= 64, arg3: int128})
+MyLog: event({arg1: int128, arg2: bytes[64], arg3: int128})
 
 @public
-def foo(a: int128, b: bytes <= 64, c: int128):
+def foo(a: int128, b: bytes[64], c: int128):
     log.MyLog(a, b, c)
     """
 
@@ -59,9 +59,9 @@ def foo(a: int128, b: bytes <= 64, c: int128):
 
 def test_bytes_logging_extended_storage(t, get_contract_with_gas_estimation, get_logs, chain):
     code = """
-MyLog: event({arg1: int128, arg2: bytes <= 64, arg3: int128})
+MyLog: event({arg1: int128, arg2: bytes[64], arg3: int128})
 a: int128
-b: bytes <= 64
+b: bytes[64]
 c: int128
 
 @public
@@ -69,7 +69,7 @@ def foo():
     log.MyLog(self.a, self.b, self.c)
 
 @public
-def set(x: int128, y: bytes <= 64, z: int128):
+def set(x: int128, y: bytes[64], z: int128):
     self.a = x
     self.b = y
     self.c = z
@@ -96,9 +96,9 @@ def test_bytes_logging_extended_mixed_with_lists(t, get_contract_with_gas_estima
     code = """
 MyLog: event({
     arg1: int128[2][2],
-    arg2: bytes <= 64,
+    arg2: bytes[64],
     arg3: int128,
-    arg4: bytes <= 64
+    arg4: bytes[64]
 })
 
 @public
