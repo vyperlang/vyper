@@ -5,7 +5,7 @@ def test_rlp_decoder_code(t, assert_tx_failed, get_contract_with_gas_estimation,
     fake_tx()
 
     rlp_decoder_code = """
-u: bytes <= 100
+u: bytes[100]
 
 @public
 def foo() -> address:
@@ -18,7 +18,7 @@ def fop() -> bytes32:
     return x[1]
 
 @public
-def foq() -> bytes <= 100:
+def foq() -> bytes[100]:
     x = RLPList('\xc5\x83cow\x03', [bytes, int128])
     return x[0]
 
@@ -33,52 +33,52 @@ def fot() -> uint256:
     return x[1]
 
 @public
-def qoo(inp: bytes <= 100) -> address:
+def qoo(inp: bytes[100]) -> address:
     x = RLPList(inp, [address, bytes32])
     return x[0]
 
 @public
-def qos(inp: bytes <= 100) -> int128:
+def qos(inp: bytes[100]) -> int128:
     x = RLPList(inp, [int128, int128])
     return x[0] + x[1]
 
 @public
-def qot(inp: bytes <= 100):
+def qot(inp: bytes[100]):
     x = RLPList(inp, [int128, int128])
 
 @public
-def qov(inp: bytes <= 100) -> (uint256, uint256):
+def qov(inp: bytes[100]) -> (uint256, uint256):
     x = RLPList(inp, [uint256, uint256])
     return x[0], x[1]
 
 @public
-def roo(inp: bytes <= 100) -> address:
+def roo(inp: bytes[100]) -> address:
     self.u = inp
     x = RLPList(self.u, [address, bytes32])
     return x[0]
 
 @public
-def too(inp: bytes <= 100) -> bool:
+def too(inp: bytes[100]) -> bool:
     x = RLPList(inp, [bool])
     return x[0]
 
 @public
-def voo(inp: bytes <= 1024) -> int128:
+def voo(inp: bytes[1024]) -> int128:
     x = RLPList(inp, [int128, int128, bytes32, int128, bytes32, bytes])
     return x[1]
 
 @public
-def loo(inp: bytes <= 1024) -> int128:
+def loo(inp: bytes[1024]) -> int128:
     x = RLPList(inp, [int128, int128, int128, int128, int128, int128, int128, int128, int128, int128])
     return x[0] + x[1] + x[2] + x[3] + x[4] + x[5] + x[6] + x[7] + x[8] + x[9]
 
 @public
-def woo(inp: bytes <= 1024) -> bytes <= 15360:
+def woo(inp: bytes[1024]) -> bytes[15360]:
     x = RLPList(inp, [bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes])
     return concat(x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11], x[12], x[13], x[14])
 
 @public
-def yolo(raw_utxo: bytes <= 1024) -> (address, int128, int128):
+def yolo(raw_utxo: bytes[1024]) -> (address, int128, int128):
     utxo = RLPList(raw_utxo, [address, int128, int128])
     return utxo[0], utxo[1], utxo[2]
     """
@@ -97,10 +97,10 @@ def yolo(raw_utxo: bytes <= 1024) -> (address, int128, int128):
     assert_tx_failed(lambda: c.qot(rlp.encode([7, 2**160])))
     c.qov(rlp.encode([7, 2**160]))
     assert_tx_failed(lambda: c.qov(rlp.encode([2**160])))
-    # assert_tx_failed(lambda: c.qov(rlp.encode([b'\x03', b'\x00\x01'])))
+    assert c.qov(rlp.encode([b'\x03', b'\x00\x01'])) == [3, 1]
     c.qov(rlp.encode([b'\x03', b'\x01']))
     assert c.qov(rlp.encode([b'\x03', b'\x04'])) == [3, 4]
-    # assert_tx_failed(lambda: c.qov(rlp.encode([b'\x03', b'\x00'])))
+    assert c.qov(rlp.encode([b'\x03', b'\x00'])) == [3, 0]
     assert c.too(rlp.encode([b'\x01'])) is True
     assert c.too(rlp.encode([b''])) is False
     assert_tx_failed(lambda: c.too(rlp.encode([b'\x02'])))

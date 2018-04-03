@@ -40,7 +40,7 @@ class EventSignature():
                     is_indexed = True
                 else:
                     indexed_list.append(False)
-                if hasattr(typ, 'left') and typ.left.id == 'bytes' and typ.comparators[0].n > 32 and is_indexed:
+                if isinstance(typ, ast.Subscript) and getattr(typ.value, 'id', None) == 'bytes' and typ.slice.value.n > 32 and is_indexed:
                     raise VariableDeclarationException("Indexed arguments are limited to 32 bytes")
                 if topics_count > 4:
                     raise VariableDeclarationException("Maximum of 3 topics {} given".format(topics_count - 1), arg)
@@ -55,7 +55,7 @@ class EventSignature():
                 parsed_type = parse_type(typ, None)
                 args.append(VariableRecord(arg, pos, parsed_type, False))
                 if isinstance(parsed_type, ByteArrayType):
-                    pos += ceil32(typ.comparators[0].n)
+                    pos += ceil32(typ.slice.value.n)
                 else:
                     pos += get_size_of_type(parsed_type) * 32
         sig = name + '(' + ','.join([canonicalize_type(arg.typ, indexed_list[pos]) for pos, arg in enumerate(args)]) + ')'  # noqa F812

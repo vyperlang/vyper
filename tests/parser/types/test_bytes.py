@@ -5,7 +5,7 @@ from ethereum.tools import tester
 def test_test_bytes(get_contract_with_gas_estimation):
     test_bytes = """
 @public
-def foo(x: bytes <= 100) -> bytes <= 100:
+def foo(x: bytes[100]) -> bytes[100]:
     return x
     """
 
@@ -29,8 +29,8 @@ def foo(x: bytes <= 100) -> bytes <= 100:
 def test_test_bytes2(get_contract_with_gas_estimation):
     test_bytes2 = """
 @public
-def foo(x: bytes <= 100) -> bytes <= 100:
-    y: bytes <= 100 = x
+def foo(x: bytes[100]) -> bytes[100]:
+    y: bytes[100] = x
     return y
     """
 
@@ -47,7 +47,7 @@ def foo(x: bytes <= 100) -> bytes <= 100:
 def test_test_bytes3(get_contract_with_gas_estimation):
     test_bytes3 = """
 x: int128
-maa: bytes <= 60
+maa: bytes[60]
 y: int128
 
 @public
@@ -56,21 +56,21 @@ def __init__():
     self.y = 37
 
 @public
-def set_maa(inp: bytes <= 60):
+def set_maa(inp: bytes[60]):
     self.maa = inp
 
 @public
-def set_maa2(inp: bytes <= 60):
-    ay: bytes <= 60 = inp
+def set_maa2(inp: bytes[60]):
+    ay: bytes[60] = inp
     self.maa = ay
 
 @public
-def get_maa() -> bytes <= 60:
+def get_maa() -> bytes[60]:
     return self.maa
 
 @public
-def get_maa2() -> bytes <= 60:
-    ay: bytes <= 60 = self.maa
+def get_maa2() -> bytes[60]:
+    ay: bytes[60] = self.maa
     return ay
 
 @public
@@ -97,16 +97,16 @@ def get_xy() -> int128:
 
 def test_test_bytes4(get_contract_with_gas_estimation):
     test_bytes4 = """
-a: bytes <= 60
+a: bytes[60]
 @public
-def foo(inp: bytes <= 60) -> bytes <= 60:
+def foo(inp: bytes[60]) -> bytes[60]:
     self.a = inp
     self.a = None
     return self.a
 
 @public
-def bar(inp: bytes <= 60) -> bytes <= 60:
-    b: bytes <= 60 = inp
+def bar(inp: bytes[60]) -> bytes[60]:
+    b: bytes[60] = inp
     b = None
     return b
     """
@@ -120,33 +120,33 @@ def bar(inp: bytes <= 60) -> bytes <= 60:
 
 def test_test_bytes5(get_contract_with_gas_estimation):
     test_bytes5 = """
-g: {a: bytes <= 50, b: bytes <= 50}
+g: {a: bytes[50], b: bytes[50]}
 
 @public
-def foo(inp1: bytes <= 40, inp2: bytes <= 45):
+def foo(inp1: bytes[40], inp2: bytes[45]):
     self.g = {a: inp1, b: inp2}
 
 @public
-def check1() -> bytes <= 50:
+def check1() -> bytes[50]:
     return self.g.a
 
 @public
-def check2() -> bytes <= 50:
+def check2() -> bytes[50]:
     return self.g.b
 
 @public
-def bar(inp1: bytes <= 40, inp2: bytes <= 45) -> bytes <= 50:
-    h: {a: bytes <= 40, b: bytes <= 45} = {a: inp1, b: inp2}
+def bar(inp1: bytes[40], inp2: bytes[45]) -> bytes[50]:
+    h: {a: bytes[40], b: bytes[45]} = {a: inp1, b: inp2}
     return h.a
 
 @public
-def bat(inp1: bytes <= 40, inp2: bytes <= 45) -> bytes <= 50:
-    h: {a: bytes <= 40, b: bytes <= 45} = {a: inp1, b: inp2}
+def bat(inp1: bytes[40], inp2: bytes[45]) -> bytes[50]:
+    h: {a: bytes[40], b: bytes[45]} = {a: inp1, b: inp2}
     return h.b
 
 @public
-def quz(inp1: bytes <= 40, inp2: bytes <= 45):
-    h:  {a: bytes <= 40, b: bytes <= 45} = {a: inp1, b: inp2}
+def quz(inp1: bytes[40], inp2: bytes[45]):
+    h:  {a: bytes[40], b: bytes[45]} = {a: inp1, b: inp2}
     self.g = h
     """
 
@@ -165,10 +165,10 @@ def quz(inp1: bytes <= 40, inp2: bytes <= 45):
 
 def test_convert_bytes_to_num_code(get_contract_with_gas_estimation, assert_tx_failed):
     bytes_to_num_code = """
-astor: bytes <= 10
+astor: bytes[10]
 
 @public
-def foo(x: bytes <= 32) -> int128:
+def foo(x: bytes[32]) -> int128:
     return convert(x, 'int128')
 
 @public

@@ -1,8 +1,8 @@
 # Financial events the contract logs
-Transfer: __log__({_from: indexed(address), _to: indexed(address), _value: currency_value})
-Buy: __log__({_buyer: indexed(address), _buy_order: currency_value})
-Sell: __log__({_seller: indexed(address), _sell_order: currency_value})
-Pay: __log__({_vendor: indexed(address), _amount: wei_value})
+Transfer: event({_from: indexed(address), _to: indexed(address), _value: currency_value})
+Buy: event({_buyer: indexed(address), _buy_order: currency_value})
+Sell: event({_seller: indexed(address), _sell_order: currency_value})
+Pay: event({_vendor: indexed(address), _amount: wei_value})
 
 # Own shares of a company!
 company: public(address)

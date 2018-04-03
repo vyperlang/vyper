@@ -16,12 +16,13 @@ Some examples of what Vyper does NOT have and why:
 * **Modifiers** - e.g. in Solidity you can do `function foo() mod1 { ... }`, where `mod1` can be defined elsewhere in the code to include a check that is done before execution, a check that is done after execution, some state changes, or possibly other things. Vyper does not have this, because it makes it too easy to write misleading code. `mod1` just _looks_ too innocuous for something that could add arbitrary pre-conditions, post-conditions or state changes. Also, it encourages people to write code where the execution jumps around the file, harming auditability. The usual use case for a modifier is something that performs a single check before execution of a program; our recommendation is to simply inline these checks as asserts.
 * **Class inheritance** - requires people to jump between multiple files to understand what a program is doing, and requires people to understand the rules of precedence in case of conflicts (which class's function X is the one that's actually used?). Hence, it makes code too complicated to understand.
 * **Inline assembly** - adding inline assembly would make it no longer possible to Ctrl+F for a variable name to find all instances where that variable is read or modified.
+* **Function overloading** - This can cause lots of confusion on which function is called at any given time. Thus it's easier to write missleading code (``foo("hello")`` logs "hello" but ``foo("hello", "world")`` steals you funds). Another problem with function overloading is that it makes the code much harder to search through as you have to keep track on which call refers to which function. 
 * **Operator overloading** - waaay too easy to write misleading code (what do you mean "+" means "send all my money to the developer"? I didn't catch the part of the code that says that!).
 * **Recursive calling** - cannot set an upper bound on gas limits, opening the door for gas limit attacks.
 * **Infinite-length loops** - cannot set an upper bound on gas limits, opening the door for gas limit attacks.
 * **Binary fixed point** - decimal fixed point is better, because any decimal fixed point value written as a literal in code has an exact representation, whereas with binary fixed point approximations are often required (e.g. 0.2 -> 0.001100110011..., which needs to be truncated), leading to unintuitive results, e.g. in python `0.3 + 0.3 + 0.3 + 0.1 != 1`.
 
-Some changes that may be considered after Metropolis when STATICCALL becomes available include:
+Some changes that may be considered after Metropolis when [STATICCALL](https://github.com/ethereum/EIPs/pull/214/files) becomes available include:
 
 * Forbidding state changes after non-static calls unless the address being non-statically called is explicitly marked "trusted". This would reduce risk of re-entrancy attacks.
 * Forbidding "inline" non-static calls, e.g. `send(some_address, contract.do_something_and_return_a_weivalue())`, enforcing clear separation between "call to get a response" and "call to do something".
@@ -37,7 +38,7 @@ for build instructions.
 # Compiling a contract
 To compile a contract, use:
 ```bash
-    vyper yourFileName.v.py
+    vyper your_file_name.v.py
 ```
 
 **Note: Since .vy is not official a language supported by any syntax highlights or linter,
@@ -55,8 +56,6 @@ be a bit behind the latest version found in the master branch of this repository
 ```bash
     python setup.py test
 ```
-
-For testing strategy, please see [Testing](no-link)
 
 # Contributing
 * See Issues tab, and feel free to submit your own issues

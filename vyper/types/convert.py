@@ -63,7 +63,7 @@ def to_bytes32(expr, args, kwargs, context):
     typ, len = get_type(input)
     if typ == 'bytes':
         if len != 32:
-            raise TypeMismatchException("Unable to convert bytes <= {} to bytes32".format(len))
+            raise TypeMismatchException("Unable to convert bytes[{}] to bytes32".format(len))
         if input.location == "memory":
             return LLLnode.from_list(
             ['mload', ['add', input, 32]], typ=BaseType('bytes32')

@@ -1,7 +1,7 @@
 from vyper.exceptions import StructureException, VariableDeclarationException, InvalidTypeException
 
 
-def test_external_contract_calls(get_contract_with_gas_estimation):
+def test_external_contract_calls(get_contract, get_contract_with_gas_estimation):
     contract_1 = """
 @public
 def foo(arg1: int128) -> int128:
@@ -18,13 +18,13 @@ class Foo():
 def bar(arg1: address, arg2: int128) -> int128:
     return Foo(arg1).foo(arg2)
     """
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c2 = get_contract(contract_2)
 
     assert c2.bar(c.address, 1) == 1
     print('Successfully executed an external contract call')
 
 
-def test_complicated_external_contract_calls(get_contract_with_gas_estimation):
+def test_complicated_external_contract_calls(get_contract, get_contract_with_gas_estimation):
     contract_1 = """
 lucky: public(int128)
 
@@ -37,7 +37,7 @@ def foo() -> int128:
     return self.lucky
 
 @public
-def array() -> bytes <= 3:
+def array() -> bytes[3]:
     return 'dog'
     """
 
@@ -47,22 +47,22 @@ def array() -> bytes <= 3:
     contract_2 = """
 class Foo():
     def foo() -> int128: pass
-    def array() -> bytes <= 3: pass
+    def array() -> bytes[3]: pass
 
 @public
 def bar(arg1: address) -> int128:
     return Foo(arg1).foo()
     """
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c2 = get_contract(contract_2)
 
     assert c2.bar(c.address) == lucky_number
     print('Successfully executed a complicated external contract call')
 
 
-def test_external_contract_calls_with_bytes(get_contract_with_gas_estimation):
+def test_external_contract_calls_with_bytes(get_contract, get_contract_with_gas_estimation):
     contract_1 = """
 @public
-def array() -> bytes <= 3:
+def array() -> bytes[3]:
     return 'dog'
     """
 
@@ -70,14 +70,14 @@ def array() -> bytes <= 3:
 
     contract_2 = """
 class Foo():
-    def array() -> bytes <= 3: pass
+    def array() -> bytes[3]: pass
 
 @public
-def get_array(arg1: address) -> bytes <= 3:
+def get_array(arg1: address) -> bytes[3]:
     return Foo(arg1).array()
 """
 
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c2 = get_contract(contract_2)
     assert c2.get_array(c.address) == b'dog'
 
 
@@ -356,7 +356,7 @@ class Foo():
 def test_external_contracts_must_be_declared_first_2(assert_tx_failed, get_contract):
     contract = """
 
-MyLog: __log__({})
+MyLog: event({})
 
 class Foo():
     def foo(arg2: int128) -> int128: pass
@@ -387,7 +387,7 @@ def bar() -> int128:
 class Bar():
     def bar() -> int128: pass
 
-bar_contract: Bar
+bar_contract: modifiable(Bar)
 
 @public
 def foo(contract_address: contract(Bar)) -> int128:
@@ -418,7 +418,7 @@ class Bar():
     def set_lucky(arg1: int128): pass
     def get_lucky() -> int128: pass
 
-bar_contract: Bar
+bar_contract: modifiable(Bar)
 
 @public
 def set_lucky(contract_address: contract(Bar)):
@@ -461,7 +461,7 @@ class Bar():
     def set_lucky(arg1: int128): pass
     def get_lucky() -> int128: pass
 
-bar_contract: Bar
+bar_contract: modifiable(Bar)
 
 @public
 def set_contract(contract_address: contract(Bar)):
@@ -493,7 +493,7 @@ def bar() -> int128:
 class Bar():
     def bar() -> int128: pass
 
-bar_contract: public(Bar)
+bar_contract: static(public(Bar))
 
 @public
 def foo(contract_address: contract(Bar)):
@@ -515,7 +515,7 @@ def test_invalid_external_contract_call_declaration_1(assert_compile_failed, get
 class Bar():
     def bar() -> int128: pass
 
-bar_contract: Bar
+bar_contract: static(Bar)
 
 @public
 def foo(contract_address: contract(Boo)) -> int128:
@@ -531,7 +531,7 @@ def test_invalid_external_contract_call_declaration_2(assert_compile_failed, get
 class Bar():
     def bar() -> int128: pass
 
-bar_contract: Boo
+bar_contract: static(Boo)
 
 @public
 def foo(contract_address: contract(Bar)) -> int128:

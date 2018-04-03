@@ -4,8 +4,8 @@
 # https://theethereum.wiki/w/index.php/ERC20_Token_Standard
 # https://github.com/ethereum/EIPs/blob/master/EIPS/eip-20-token-standard.md
 # Events of the token.
-Transfer: __log__({_from: indexed(address), _to: indexed(address), _value: uint256})
-Approval: __log__({_owner: indexed(address), _spender: indexed(address), _value: uint256})
+Transfer: event({_from: indexed(address), _to: indexed(address), _value: uint256})
+Approval: event({_owner: indexed(address), _spender: indexed(address), _value: uint256})
 
 
 # Variables of the token.

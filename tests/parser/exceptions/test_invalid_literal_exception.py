@@ -103,7 +103,7 @@ def foo():
     """
 @public
 def foo():
-    a: bytes <= 100 = "ѓtest"
+    a: bytes[100] = "ѓtest"
     """,
     """
 @public

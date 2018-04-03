@@ -105,7 +105,7 @@ def foo():
 CALLDATACOPY: int128
     """,
     """
-int128: bytes <= 3
+int128: bytes[3]
     """,
     """
 sec: int128

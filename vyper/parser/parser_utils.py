@@ -1,6 +1,6 @@
 import re
 
-from ethereum import opcodes
+from evm.constants import GAS_IDENTITY, GAS_IDENTITYWORD
 
 from vyper.exceptions import TypeMismatchException
 from vyper.opcodes import comb_opcodes
@@ -231,6 +231,10 @@ def get_number_as_fraction(expr, context):
         t += 1
     top = int(context_slice[:t].replace('.', ''))
     bottom = 1 if '.' not in context_slice[:t] else 10**(t - context_slice[:t].index('.') - 1)
+
+    if expr.n < 0:
+        top *= -1
+
     return context_slice[:t], top, bottom
 
 
@@ -253,8 +257,7 @@ def make_byte_array_copier(destination, source):
         raise TypeMismatchException("Cannot cast from greater max-length %d to shorter max-length %d" % (source.typ.maxlen, destination.typ.maxlen))
     # Special case: memory to memory
     if source.location == "memory" and destination.location == "memory":
-        gas_calculation = opcodes.GIDENTITYBASE + \
-            opcodes.GIDENTITYWORD * (ceil32(source.typ.maxlen) // 32)
+        gas_calculation = GAS_IDENTITY + GAS_IDENTITYWORD * (ceil32(source.typ.maxlen) // 32)
         o = LLLnode.from_list(
             ['with', '_source', source,
                 ['with', '_sz', ['add', 32, ['mload', '_source']],
@@ -337,12 +340,9 @@ def byte_array_to_num(arg, expr, out_type, offset=32,):
     return LLLnode.from_list(['with', '_sub', arg,
                                  ['with', '_el1', first_el_getter,
                                     ['with', '_len', ['clamp', 0, lengetter, 32],
-                                       # ['seq',
-                                          # ['assert', ['or', ['iszero', '_len'], ['div', '_el1', ['exp', 256, 31]]]],
-                                          # result]]]],
                                        result
                                        ]]],
-                             typ=BaseType(out_type), annotation='bytearray to number, verify no leading zbytes')
+                             typ=BaseType(out_type), annotation='bytearray to number (%s)' % out_type)
 
 
 def get_length(arg):

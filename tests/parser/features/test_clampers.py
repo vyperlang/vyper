@@ -1,7 +1,7 @@
 def test_clamper_test_code(t, get_contract_with_gas_estimation):
     clamper_test_code = """
 @public
-def foo(s: bytes <= 3) -> bytes <= 3:
+def foo(s: bytes[3]) -> bytes[3]:
     return s
     """
 

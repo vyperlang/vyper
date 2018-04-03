@@ -79,7 +79,7 @@ class ByteArrayType(NodeType):
         return other.__class__ == ByteArrayType and self.maxlen == other.maxlen
 
     def __repr__(self):
-        return 'bytes <= %d' % self.maxlen
+        return 'bytes[%d]' % self.maxlen
 
 
 # Data structure for a list with some fixed length
@@ -171,7 +171,7 @@ def canonicalize_type(t, is_indexed=False):
         return 'bool'
     elif t == 'uint256':
         return 'uint256'
-    elif t == 'signed256':
+    elif t == 'int256':
         return 'int256'
     elif t == 'address' or t == 'bytes32':
         return t
@@ -227,6 +227,7 @@ def parse_type(item, location, sigs={}):
         elif item.id in special_types:
             return special_types[item.id]
         else:
+            # import ipdb; ipdb.set_trace()
             raise InvalidTypeException("Invalid base type: " + item.id, item)
     # Units, e.g. num (1/sec) or contracts
     elif isinstance(item, ast.Call):
@@ -260,12 +261,17 @@ def parse_type(item, location, sigs={}):
     # Subscripts
     elif isinstance(item, ast.Subscript):
         if 'value' not in vars(item.slice):
-            raise InvalidTypeException("Array access must access a single element, not a slice", item)
-        # Fixed size lists, e.g. num[100]
+            raise InvalidTypeException("Array / ByteArray access must access a single element, not a slice", item)
+        # Fixed size lists or bytearrays, e.g. num[100]
         elif isinstance(item.slice.value, ast.Num):
             if not isinstance(item.slice.value.n, int) or item.slice.value.n <= 0:
-                raise InvalidTypeException("Arrays must have a positive integral number of elements", item.slice.value)
-            return ListType(parse_type(item.value, location), item.slice.value.n)
+                raise InvalidTypeException("Arrays / ByteArrays must have a positive integral number of elements", item.slice.value)
+            # ByteArray
+            if getattr(item.value, 'id', None) == 'bytes':
+                return ByteArrayType(item.slice.value.n)
+            # List
+            else:
+                return ListType(parse_type(item.value, location), item.slice.value.n)
         # Mappings, e.g. num[address]
         else:
             if location == 'memory':
@@ -282,16 +288,6 @@ def parse_type(item, location, sigs={}):
                 raise InvalidTypeException("Invalid member variable for struct", key)
             o[key.id] = parse_type(value, location)
         return StructType(o)
-    elif isinstance(item, ast.Compare):
-        if len(item.ops) != 1 or not isinstance(item.ops[0], ast.LtE):
-            raise InvalidTypeException("Invalid type", item)
-        if not isinstance(item.left, ast.Name) or item.left.id != "bytes":
-            raise InvalidTypeException("Invalid type", item.left)
-        if len(item.comparators) != 1 or not isinstance(item.comparators[0], ast.Num):
-            raise InvalidTypeException("Byte array length must be a number", item)
-        if not isinstance(item.comparators[0].n, int) or item.comparators[0].n <= 0:
-            raise InvalidTypeException("Bad byte array length: %r" % item.comparators[0].n, item.comparators[0])
-        return ByteArrayType(item.comparators[0].n)
     elif isinstance(item, ast.Tuple):
         members = [parse_type(x, location) for x in item.elts]
         return TupleType(members)

@@ -11,7 +11,7 @@ def get_int_at(args, pos, signed=False):
         o = LOADED_LIMIT_MAP[args[pos].args[0].value]
     else:
         return None
-    if signed:
+    if signed or o < 0:
         return ((o + 2**255) % 2**256) - 2**255
     else:
         return o % 2**256

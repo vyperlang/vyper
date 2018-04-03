@@ -32,7 +32,7 @@ def foo() -> decimal(wei / sec):
     """
 @public
 def foo():
-    x: bytes <= 10 = slice("cow", start=0, len=block.timestamp)
+    x: bytes[10] = slice("cow", start=0, len=block.timestamp)
     """,
     """
 @public
@@ -68,7 +68,7 @@ def add_record():
     """,
     """
 @public
-def foo(inp: bytes <= 10) -> bytes <= 3:
+def foo(inp: bytes[10]) -> bytes[3]:
     return slice(inp, start=block.timestamp, len=3)
     """,
     """
@@ -137,7 +137,7 @@ def add_record():
 def foo():
     x: int128 = block.difficulty + 185
     if tx.origin == self:
-        y: bytes <= 35 = concat(block.prevhash, "dog")
+        y: bytes[35] = concat(block.prevhash, "dog")
     """
 ]
 
