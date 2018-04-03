@@ -14,14 +14,13 @@ Approval: event({_owner: indexed(address), _spender: indexed(address), _value: u
 name: public(bytes32)
 symbol: public(bytes32)
 totalSupply: public(uint256)
-decimals: int128
+decimals: public(int128)
 balances: int128[address]
 allowed: int128[address][address]
 
 
 @public
 def __init__(_name: bytes32, _symbol: bytes32, _decimals: uint256, _initialSupply: uint256):
-
     self.name = _name
     self.symbol = _symbol
     self.decimals = _decimals

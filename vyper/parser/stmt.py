@@ -55,6 +55,7 @@ class Stmt(object):
             ast.Break: self.parse_break,
             ast.Continue: self.parse_continue,
             ast.Return: self.parse_return,
+            ast.Delete: self.parse_delete
         }
         stmt_type = self.stmt.__class__
         if stmt_type in self.stmt_table:
@@ -62,7 +63,7 @@ class Stmt(object):
         elif isinstance(stmt, ast.Name) and stmt.id == "throw":
             self.lll_node = LLLnode.from_list(['assert', 0], typ=None, pos=getpos(stmt))
         else:
-            raise StructureException("Unsupported statement type", stmt)
+            raise StructureException("Unsupported statement type: %s" % type(stmt), stmt)
 
     def expr(self):
         return Stmt(self.stmt.value, self.context).lll_node
@@ -100,7 +101,7 @@ class Stmt(object):
         if self.stmt.value is not None:
             sub = Expr(self.stmt.value, self.context).lll_node
             self._check_valid_assign(sub)
-            variable_loc = LLLnode.from_list(pos, typ=sub.typ, location='memory', pos=getpos(self.stmt))
+            variable_loc = LLLnode.from_list(pos, typ=typ, location='memory', pos=getpos(self.stmt))
             o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
         self.context.set_in_assignment(False)
         return o
@@ -392,7 +393,7 @@ class Stmt(object):
             if not are_units_compatible(sub.typ, self.context.return_type):
                 raise TypeMismatchException("Return type units mismatch %r %r" % (sub.typ, self.context.return_type), self.stmt.value)
             elif is_base_type(sub.typ, self.context.return_type.typ) or \
-                    (is_base_type(sub.typ, 'int128') and is_base_type(self.context.return_type, 'signed256')):
+                    (is_base_type(sub.typ, 'int128') and is_base_type(self.context.return_type, 'int256')):
                 return LLLnode.from_list(['seq', ['mstore', 0, sub], ['return', 0, 32]], typ=None, pos=getpos(self.stmt))
             else:
                 raise TypeMismatchException("Unsupported type conversion: %r to %r" % (sub.typ, self.context.return_type), self.stmt.value)
@@ -427,14 +428,14 @@ class Stmt(object):
         elif isinstance(sub.typ, ListType):
             sub_base_type = re.split(r'\(|\[', str(sub.typ.subtype))[0]
             ret_base_type = re.split(r'\(|\[', str(self.context.return_type.subtype))[0]
-            if sub_base_type != ret_base_type and sub.value != 'multi':
+            if sub_base_type != ret_base_type:
                 raise TypeMismatchException(
                     "List return type %r does not match specified return type, expecting %r" % (
                         sub_base_type, ret_base_type
                     ),
                     self.stmt
                 )
-            if sub.location == "memory" and sub.value != "multi":
+            elif sub.location == "memory" and sub.value != "multi":
                 return LLLnode.from_list(['return', sub, get_size_of_type(self.context.return_type) * 32],
                                             typ=None, pos=getpos(self.stmt))
             else:
@@ -491,6 +492,18 @@ class Stmt(object):
                                         typ=None, pos=getpos(self.stmt))
         else:
             raise TypeMismatchException("Can only return base type!", self.stmt)
+
+    def parse_delete(self):
+        if len(self.stmt.targets) != 1:
+            raise StructureException("Can delete one variable at a time", self.stmt)
+        target = self.stmt.targets[0]
+        target_lll = Expr(self.stmt.targets[0], self.context).lll_node
+
+        if isinstance(target, ast.Subscript):
+            if target_lll.location == "storage":
+                return LLLnode.from_list(['seq', ['sstore', target_lll, 0]], typ=None)
+
+        raise StructureException("Deleting type not supported.", self.stmt)
 
     def get_target(self, target):
         if isinstance(target, ast.Subscript) and self.context.in_for_loop:  # Check if we are doing assignment of an iteration loop.

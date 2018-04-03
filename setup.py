@@ -10,7 +10,7 @@ with open('LICENSE') as f:
     license = f.read()
 
 # *IMPORTANT*: Don't manually change the version here. Use the 'bumpversion' utility.
-version = '0.0.3'
+version = '0.0.4'
 
 setup(
     name='vyper',
@@ -22,12 +22,8 @@ setup(
     url='https://github.com/ethereum/vyper',
     license=license,
     packages=find_packages(exclude=('tests', 'docs')),
-    install_requires=[
-        'ethereum==2.1.3',
-        'bumpversion',
-        'pytest-cov',
-        'pytest-runner',  # Must be after pytest-cov or it will not work
-                          # due to https://github.com/pypa/setuptools/issues/196
-    ],
+    install_requires=['py-evm>=0.2.0a12'],
+    setup_requires=['pytest-runner'],
+    tests_require=['pytest', 'pytest-cov', 'ethereum==2.3.1'],
     scripts=['bin/vyper', 'bin/vyper-serve']
 )

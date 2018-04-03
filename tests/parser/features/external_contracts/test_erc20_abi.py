@@ -24,8 +24,16 @@ def __init__(token_addr: address):
     self.token_address = token_addr
 
 @public
+def name() -> bytes32:
+    return self.token_address.name()
+
+@public
 def symbol() -> bytes32:
     return self.token_address.symbol()
+
+@public
+def decimals() -> uint256:
+    return self.token_address.decimals()
 
 @public
 def balanceOf(_owner: address) -> uint256:
@@ -59,7 +67,9 @@ def pad_bytes32(instr):
 def test_initial_state(t, erc20_caller):
     assert erc20_caller.totalSupply() == TOKEN_TOTAL_SUPPLY == erc20_caller.balanceOf(t.a0)
     assert erc20_caller.balanceOf(t.a1) == 0
+    assert erc20_caller.name() == pad_bytes32(TOKEN_NAME)
     assert erc20_caller.symbol() == pad_bytes32(TOKEN_SYMBOL)
+    assert erc20_caller.decimals() == TOKEN_DECIMALS
 
 
 def test_call_transfer(t, chain, erc20, erc20_caller, assert_tx_failed):

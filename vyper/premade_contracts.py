@@ -2,7 +2,9 @@ import ast
 
 erc20 = """
 class ERC20():
+    def name() -> bytes32: pass
     def symbol() -> bytes32: pass
+    def decimals() -> uint256: pass
     def balanceOf(_owner: address) -> uint256: pass
     def totalSupply() -> uint256: pass
     def transfer(_to: address, _amount: uint256) -> bool: pass

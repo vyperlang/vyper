@@ -159,12 +159,12 @@ def foo():
     """
 @public
 def foo() -> int128[2][2]:
-    return [[1,2],[3,4]]
+    return [[1,2], [3,4]]
     """,
     """
 @public
 def foo() -> decimal[2][2]:
-    return [[1,2],[3,4]]
+    return [[1.0, 2.0], [3.0, 4.0]]
     """,
     """
 @public

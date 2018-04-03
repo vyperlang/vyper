@@ -111,7 +111,7 @@ RLP_DECODER_ADDRESS = hex_to_int('0x5185D17c44699cecC3133114F8df70753b856709')
 # This is the contract address: 0xCb969cAAad21A78a24083164ffa81604317Ab603
 
 # Available base types
-base_types = ['int128', 'decimal', 'bytes32', 'uint256', 'signed256', 'bool', 'address']
+base_types = ['int128', 'decimal', 'bytes32', 'uint256', 'int256', 'bool', 'address']
 
 # Keywords available for ast.Call type
 valid_call_keywords = ['int128', 'decimal', 'address', 'contract', 'indexed']
