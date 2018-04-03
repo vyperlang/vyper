@@ -20,33 +20,33 @@ def foo() -> address:
     """,
     """
 @public
-def foo() -> bytes <= 500:
+def foo() -> bytes[500]:
     x = RLPList('\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', [bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes])
     return x[1]
     """,
     ("""
 @public
-def foo() -> bytes <= 500:
+def foo() -> bytes[500]:
     x: int128 = 1
     return RLPList('\xe0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
     """, StructureException),
     """
 @public
-def foo() -> bytes <= 500:
+def foo() -> bytes[500]:
     x: int128[3] = [1, 2, 3]
     return RLPList(x, [bytes])
     """,
     """
 @public
-def foo() -> bytes <= 500:
-    x: bytes <= 500 = '\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+def foo() -> bytes[500]:
+    x: bytes[500] = '\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
     a: int128 = 1
     return RLPList(x, a)
     """,
     """
 @public
-def foo() -> bytes <= 500:
-    x: bytes <= 500 = '\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+def foo() -> bytes[500]:
+    x: bytes[500] = '\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
     return RLPList(x, [])
     """,
     """
@@ -84,7 +84,7 @@ def test_rlplist_fail(bad_code):
 valid_list = [
     """
 @public
-def foo() -> bytes <= 500:
+def foo() -> bytes[500]:
     x = RLPList('\xe0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', [bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes])
     return x[1]
     """,

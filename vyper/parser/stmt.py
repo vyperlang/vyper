@@ -55,6 +55,7 @@ class Stmt(object):
             ast.Break: self.parse_break,
             ast.Continue: self.parse_continue,
             ast.Return: self.parse_return,
+            ast.Delete: self.parse_delete
         }
         stmt_type = self.stmt.__class__
         if stmt_type in self.stmt_table:
@@ -62,7 +63,7 @@ class Stmt(object):
         elif isinstance(stmt, ast.Name) and stmt.id == "throw":
             self.lll_node = LLLnode.from_list(['assert', 0], typ=None, pos=getpos(stmt))
         else:
-            raise StructureException("Unsupported statement type", stmt)
+            raise StructureException("Unsupported statement type: %s" % type(stmt), stmt)
 
     def expr(self):
         return Stmt(self.stmt.value, self.context).lll_node
@@ -77,11 +78,8 @@ class Stmt(object):
         elif isinstance(self.stmt.annotation, ast.Dict):
             if not isinstance(sub.typ, StructType):
                 raise TypeMismatchException('Invalid type, expected a struct')
-        elif isinstance(self.stmt.annotation, ast.Compare):  # check bytes assign
-            if self.stmt.annotation.left.id == 'bytes' and not isinstance(sub.typ, ByteArrayType):
-                raise TypeMismatchException('Invalid type, expected bytes')
         elif isinstance(self.stmt.annotation, ast.Subscript):
-            if not isinstance(sub.typ, ListType):  # check list assign.
+            if not isinstance(sub.typ, (ListType, ByteArrayType)):  # check list assign.
                 raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.value.id, self.stmt)
         elif self.stmt.annotation.id != sub.typ.typ and not sub.typ.unit:
             raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.id, self.stmt)
@@ -156,7 +154,7 @@ class Stmt(object):
             pack_arguments,
             pack_logging_data,
             pack_logging_topics,
-            external_contract_call_stmt,
+            external_contract_call,
         )
         if isinstance(self.stmt.func, ast.Name) and self.stmt.func.id in stmt_dispatch_table:
                 return stmt_dispatch_table[self.stmt.func.id](self.stmt, self.context)
@@ -179,17 +177,17 @@ class Stmt(object):
         elif isinstance(self.stmt.func, ast.Attribute) and isinstance(self.stmt.func.value, ast.Call):
             contract_name = self.stmt.func.value.func.id
             contract_address = Expr.parse_value_expr(self.stmt.func.value.args[0], self.context)
-            return external_contract_call_stmt(self.stmt, self.context, contract_name, contract_address)
+            return external_contract_call(self.stmt, self.context, contract_name, contract_address, True)
         elif isinstance(self.stmt.func.value, ast.Attribute) and self.stmt.func.value.attr in self.context.sigs:
             contract_name = self.stmt.func.value.attr
             var = self.context.globals[self.stmt.func.value.attr]
             contract_address = unwrap_location(LLLnode.from_list(var.pos, typ=var.typ, location='storage', pos=getpos(self.stmt), annotation='self.' + self.stmt.func.value.attr))
-            return external_contract_call_stmt(self.stmt, self.context, contract_name, contract_address)
+            return external_contract_call(self.stmt, self.context, contract_name, contract_address, True)
         elif isinstance(self.stmt.func.value, ast.Attribute) and self.stmt.func.value.attr in self.context.globals:
             contract_name = self.context.globals[self.stmt.func.value.attr].typ.unit
             var = self.context.globals[self.stmt.func.value.attr]
             contract_address = unwrap_location(LLLnode.from_list(var.pos, typ=var.typ, location='storage', pos=getpos(self.stmt), annotation='self.' + self.stmt.func.value.attr))
-            return external_contract_call_stmt(self.stmt, self.context, contract_name, contract_address)
+            return external_contract_call(self.stmt, self.context, contract_name, contract_address, var.modifiable)
         elif isinstance(self.stmt.func, ast.Attribute) and self.stmt.func.value.id == 'log':
             if self.stmt.func.attr not in self.context.sigs['self']:
                 raise VariableDeclarationException("Event not declared yet: %s" % self.stmt.func.attr)
@@ -392,7 +390,7 @@ class Stmt(object):
             if not are_units_compatible(sub.typ, self.context.return_type):
                 raise TypeMismatchException("Return type units mismatch %r %r" % (sub.typ, self.context.return_type), self.stmt.value)
             elif is_base_type(sub.typ, self.context.return_type.typ) or \
-                    (is_base_type(sub.typ, 'int128') and is_base_type(self.context.return_type, 'signed256')):
+                    (is_base_type(sub.typ, 'int128') and is_base_type(self.context.return_type, 'int256')):
                 return LLLnode.from_list(['seq', ['mstore', 0, sub], ['return', 0, 32]], typ=None, pos=getpos(self.stmt))
             else:
                 raise TypeMismatchException("Unsupported type conversion: %r to %r" % (sub.typ, self.context.return_type), self.stmt.value)
@@ -491,6 +489,18 @@ class Stmt(object):
                                         typ=None, pos=getpos(self.stmt))
         else:
             raise TypeMismatchException("Can only return base type!", self.stmt)
+
+    def parse_delete(self):
+        if len(self.stmt.targets) != 1:
+            raise StructureException("Can delete one variable at a time", self.stmt)
+        target = self.stmt.targets[0]
+        target_lll = Expr(self.stmt.targets[0], self.context).lll_node
+
+        if isinstance(target, ast.Subscript):
+            if target_lll.location == "storage":
+                return LLLnode.from_list(['seq', ['sstore', target_lll, 0]], typ=None)
+
+        raise StructureException("Deleting type not supported.", self.stmt)
 
     def get_target(self, target):
         if isinstance(target, ast.Subscript) and self.context.in_for_loop:  # Check if we are doing assignment of an iteration loop.

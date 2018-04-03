@@ -19,7 +19,7 @@ def test_valid_semicolons(get_contract):
 def test() -> int128:
     a: int128 = 1
     b: int128 = 2
-    s: bytes <= 300 = "this should not be a problem; because it is in a string"
+    s: bytes[300] = "this should not be a problem; because it is in a string"
     s = \"\"\"this should not be a problem; because it's in a string\"\"\"
     s = 'this should not be a problem;;; because it\\\'s in a string'
     s = '''this should not ; \'cause it\'s in a string'''
@@ -41,7 +41,7 @@ def bar() -> int128:
 contract Bar():
     def bar() -> int128: pass
 
-bar_contract: Bar
+bar_contract: static(Bar)
 
 @public
 def foo(contract_address: contract(Bar)) -> int128:

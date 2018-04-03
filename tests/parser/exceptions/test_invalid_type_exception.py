@@ -65,22 +65,19 @@ def foo() -> {cow: int128, dog: int128}:
 x: wei(wei)
     """,
     """
-x: num(address)
+x: int128(address)
     """,
     """
-x: num(wei and sec)
+x: int128(wei and sec)
     """,
     """
-x: num(2 ** 2)
+x: int128(2 ** 2)
     """,
     """
-x: num(wei ** -1)
+x: int128(wei ** -1)
     """,
     """
-x: num(wei >> 3)
-    """,
-    """
-x: num()
+x: int128(wei >> 3)
     """,
     """
 x: bytes <= wei
@@ -89,10 +86,10 @@ x: bytes <= wei
 x: string <= 33
     """,
     """
-x: 1 <= bytes <= 3
+x: bytes[1:3]
     """,
     """
-x: bytes <= 33.3
+x: bytes[33.3]
     """,
 ]
 

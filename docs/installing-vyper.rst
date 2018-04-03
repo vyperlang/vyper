@@ -11,7 +11,7 @@ any errors.
 
 .. note::
    The easiest way to try out the language, experiment with examples, and compile code to ``bytecode``
-   or ``LLL`` is to use the online compiler at https://vyper.tools.
+   or ``LLL`` is to use the online compiler at https://vyper.online/.
 
 *************
 Prerequisites
