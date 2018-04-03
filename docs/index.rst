@@ -51,6 +51,7 @@ Compatibility-breaking Changelog
 ********************************
 
 * **2018.03.27**: Renaming ``signed256`` to ``int256``.
+* **2018.03.22**: Add modifiable and static keywords for external contract calls.
 * **2018.03.20**: Renaming ``__log__`` to ``event``.
 * **2018.02.22**: Renaming num to int128, and num256 to uint256.
 * **2018.02.13**: Ban functions with payable and constant decorators.
