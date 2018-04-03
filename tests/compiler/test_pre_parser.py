@@ -41,7 +41,7 @@ def bar() -> int128:
 contract Bar():
     def bar() -> int128: pass
 
-bar_contract: Bar
+bar_contract: static(Bar)
 
 @public
 def foo(contract_address: contract(Bar)) -> int128:

@@ -96,57 +96,8 @@ def as_unitless_number(expr, args, kwargs, context):
     return LLLnode(value=args[0].value, args=args[0].args, typ=BaseType(args[0].typ.typ, {}), pos=getpos(expr))
 
 
-# @signature(('int128', 'decimal', 'num_literal', 'uint256', 'bytes32', 'bytes', 'address'), 'str_literal')
 def _convert(expr, context):
     return convert(expr, context)
-    # try:
-    #     typ = args[0].typ.typ
-    # except:
-    #     typ = 'bytes'
-    #     maxlen = args[0].typ.maxlen
-    # if args[1] == b'int128':
-    #     assert typ in ('int128', 'uint256', 'bytes32', 'bytes')
-    #     if typ in ('int128', 'uint256', 'bytes32'):
-    #         return LLLnode.from_list(
-    #             ['clamp', ['mload', MemoryPositions.MINNUM], args[0], ['mload', MemoryPositions.MAXNUM]], typ=BaseType('int128'), pos=getpos(expr)
-    #         )
-    #     else:
-    #         return byte_array_to_num(args[0], expr, 'int128')
-    # elif args[1] == b'uint256':
-    #     assert typ in ('int128', 'num_literal', 'bytes32')
-    #     if isinstance(args[0], int):
-    #         if not(0 <= args[0] <= 2**256 - 1):
-    #             raise InvalidLiteralException("Number out of range: " + str(expr.args[0].n), expr.args[0])
-    #         return LLLnode.from_list(args[0], typ=BaseType('uint256'), pos=getpos(expr))
-    #     elif isinstance(args[0], LLLnode) and typ in ('int128', 'num_literal'):
-    #         return LLLnode.from_list(['clampge', args[0], 0], typ=BaseType('uint256'), pos=getpos(expr))
-    #     elif isinstance(args[0], LLLnode) and typ in ('bytes32'):
-    #         return LLLnode(value=args[0].value, args=args[0].args, typ=BaseType('uint256'), pos=getpos(expr))
-    #     else:
-    #         raise InvalidLiteralException("Invalid input for uint256: %r" % args[0], expr)
-    # elif args[1] == b'decimal':
-    #     assert typ in ('int128')
-    #     return LLLnode.from_list(
-    #         ['mul', args[0], DECIMAL_DIVISOR], typ=BaseType('decimal', args[0].typ.unit, args[0].typ.positional),
-    #         pos=getpos(expr)
-    #     )
-    # elif args[1] == b'bytes32':
-    #     assert typ in ('int128', 'uint256', 'address', 'bytes')
-    #     if typ == 'bytes':
-    #         if maxlen != 32:
-    #             raise TypeMismatchException("Unable to convert bytes[{}] to bytes32".format(maxlen))
-    #         if args[0].location == "memory":
-    #             return LLLnode.from_list(
-    #             ['mload', ['add', args[0], 32]], typ=BaseType('bytes32')
-    #             )
-    #         elif args[0].location == "storage":
-    #             return LLLnode.from_list(
-    #                 ['sload', ['add', ['sha3_32', args[0]], 1]], typ=BaseType('bytes32')
-    #             )
-    #     else:
-    #         return LLLnode(value=args[0].value, args=args[0].args, typ=BaseType('bytes32'), pos=getpos(expr))
-    # else:
-    #     raise Exception("Conversion of {} to {} is not allowed.".format(typ, args[1]))
 
 
 @signature('bytes', start='int128', len='int128')

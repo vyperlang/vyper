@@ -171,7 +171,7 @@ def canonicalize_type(t, is_indexed=False):
         return 'bool'
     elif t == 'uint256':
         return 'uint256'
-    elif t == 'signed256':
+    elif t == 'int256':
         return 'int256'
     elif t == 'address' or t == 'bytes32':
         return t

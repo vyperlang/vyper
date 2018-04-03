@@ -83,6 +83,7 @@ Turns input into a ``uint256`` (uint256).
     :output b: bytes32
     """
 Turns input into a ``bytes32``.
+
 * **slice**
 ::
 

@@ -165,6 +165,18 @@ def foo() -> int128:
 q:int128 = 111
 def foo() -> int128:
     return self.q
+    """,
+    """
+b: bytes32[int128]
+@public
+def foo():
+    del self.b[0], self.b[1]
+    """,
+    """
+@public
+def foo():
+    b: int128
+    del b
     """
 ]
 
