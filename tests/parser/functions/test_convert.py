@@ -47,6 +47,7 @@ def zero_bytes(inp: bytes[1]) -> int128:
     assert c.zero_bytes(b'\x01') == 1
     assert c.zero_bytes(b'\x00') == 0
 
+
 def test_convert_to_uint256(t, chain, get_contract, utils, assert_tx_failed):
     code = """
 a: int128
