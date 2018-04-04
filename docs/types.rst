@@ -294,7 +294,7 @@ Fixed-size Byte Arrays
 **Keyword:** ``bytes``
 
 A byte array with a fixed size.
-The syntax being ``bytes[maxLen]``, where ``maxLen`` is an integer which denotes the maximum number of bits.
+The syntax being ``bytes[maxLen]``, where ``maxLen`` is an integer which denotes the maximum number of bytes.
 
 .. index:: !string
 Strings
