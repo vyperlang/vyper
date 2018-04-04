@@ -787,10 +787,6 @@ def pack_logging_data(expected_data, args, context):
         if isinstance(typ, ByteArrayType):
             maxlen += 32 + ceil32(typ.maxlen)
 
-    # Obtain the start of the arg section.
-    # if isinstance(expected_data[0].typ, ListType):
-    #     datamem_start = holder[1].to_list()[1][0]
-    # else:
     if requires_dynamic_offset:
         datamem_start = dynamic_placeholder + 32
     else:
