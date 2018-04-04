@@ -679,3 +679,80 @@ def foo(inp: bytes[33]):
     log.Bar(inp)
 """
     assert_tx_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatchException)
+
+
+def test_2nd_var_list_packing(t, get_last_log, get_contract_with_gas_estimation, chain):
+    t.s = chain
+    code = """
+Bar: event({arg1: int128, arg2: int128[4]})
+
+@public
+def foo():
+    a: int128[4] = [1, 2, 3, 4]
+    log.Bar(10, a)
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    c.foo()
+    assert get_last_log(t, c)["arg2"] == [1, 2, 3, 4]
+
+
+def test_2nd_var_storage_list_packing(t, get_last_log, get_contract_with_gas_estimation, chain):
+    t.s = chain
+    code = """
+Bar: event({arg1: int128, arg2: int128[4]})
+x: int128[4]
+
+@public
+def foo():
+    log.Bar(10, self.x)
+
+@public
+def set_list():
+    self.x = [1, 2, 3, 4]
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    c.foo()
+    assert get_last_log(t, c)["arg2"] == [0, 0, 0, 0]
+    c.set_list()
+    c.foo()
+    assert get_last_log(t, c)["arg2"] == [1, 2, 3, 4]
+
+
+
+def test_mixed_var_list_packing(t, get_last_log, get_contract_with_gas_estimation, chain):
+    t.s = chain
+    code = """
+Bar: event({arg1: int128, arg2: int128[4], arg3 :bytes[4], arg4: int128[3], arg5: int128[2]})
+x: int128[4]
+y: int128[2]
+
+@public
+def __init__():
+    self.y = [1024, 2048]
+
+@public
+def foo():
+    v: int128[3] = [7, 8, 9]
+    log.Bar(10, self.x, "test", v, self.y)
+
+@public
+def set_list():
+    self.x = [1, 2, 3, 4]
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    c.foo()
+    log = get_last_log(t, c)
+    assert log["arg2"] == [0, 0, 0, 0]
+    assert log["arg3"] == b"test"
+    assert log["arg4"] == [7, 8, 9]
+    assert log["arg5"] == [1024, 2048]
+    c.set_list()
+    c.foo()
+    log = get_last_log(t, c)
+    assert log["arg2"] == [1, 2, 3, 4]
+    assert log["arg3"] == b"test"
+    assert log["arg4"] == [7, 8, 9]
+    assert log["arg5"] == [1024, 2048]

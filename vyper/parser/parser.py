@@ -733,7 +733,8 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder, dynamic_offs
             for offset in range(0, size):
                 arg2 = LLLnode.from_list(['sload', ['add', ['sha3_32', Expr(arg, context).lll_node], offset]],
                                          typ=typ)
-                holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, context.new_placeholder(BaseType(32)))
+                p_holder = context.new_placeholder(BaseType(32)) if offset > 0 else placeholder
+                holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, p_holder)
         # List from variable.
         elif isinstance(arg, ast.Name):
             size = context.vars[arg.id].size
@@ -742,7 +743,8 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder, dynamic_offs
             for i in range(0, size):
                 offset = 32 * i
                 arg2 = LLLnode.from_list(pos + offset, typ=typ, location='memory')
-                holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, context.new_placeholder(BaseType(32)))
+                p_holder = context.new_placeholder(BaseType(32)) if i > 0 else placeholder
+                holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, p_holder)
         # is list literal.
         else:
             holder, maxlen = pack_args_by_32(holder, maxlen, arg.elts[0], typ, context, placeholder)
@@ -759,8 +761,12 @@ def pack_logging_data(expected_data, args, context):
         return ['seq'], 0, None, 0
     holder = ['seq']
     maxlen = len(args) * 32  # total size of all packed args (upper limit)
-    dynamic_offset_counter = context.new_placeholder(BaseType(32))
-    dynamic_placeholder = context.new_placeholder(BaseType(32))
+    requires_dynamic_offset = any([isinstance(data.typ, ByteArrayType) for data in expected_data])
+    if requires_dynamic_offset:
+        dynamic_offset_counter = context.new_placeholder(BaseType(32))
+        dynamic_placeholder = context.new_placeholder(BaseType(32))
+    else:
+        dynamic_offset_counter = None
 
     # Populate static placeholders.
     placeholder_map = {}
@@ -772,7 +778,8 @@ def pack_logging_data(expected_data, args, context):
             holder, maxlen = pack_args_by_32(holder, maxlen, arg, typ, context, placeholder)
 
     # Dynamic position starts right after the static args.
-    holder.append(LLLnode.from_list(['mstore', dynamic_offset_counter, maxlen]))
+    if requires_dynamic_offset:
+        holder.append(LLLnode.from_list(['mstore', dynamic_offset_counter, maxlen]))
 
     # Calculate maximum dynamic offset placeholders, used for gas estimation.
     for i, (arg, data) in enumerate(zip(args, expected_data)):
@@ -781,24 +788,28 @@ def pack_logging_data(expected_data, args, context):
             maxlen += 32 + ceil32(typ.maxlen)
 
     # Obtain the start of the arg section.
-    if isinstance(expected_data[0].typ, ListType):
-        datamem_start = holder[1].to_list()[1][0]
-    else:
+    # if isinstance(expected_data[0].typ, ListType):
+    #     datamem_start = holder[1].to_list()[1][0]
+    # else:
+    if requires_dynamic_offset:
         datamem_start = dynamic_placeholder + 32
+    else:
+        datamem_start = placeholder_map[0]
 
     # Copy necessary data into allocated dynamic section.
     for i, (arg, data) in enumerate(zip(args, expected_data)):
         typ = data.typ
-        pack_args_by_32(
-            holder=holder,
-            maxlen=maxlen,
-            arg=arg,
-            typ=typ,
-            context=context,
-            placeholder=placeholder_map[i],
-            datamem_start=datamem_start,
-            dynamic_offset_counter=dynamic_offset_counter
-        )
+        if isinstance(typ, ByteArrayType):
+            pack_args_by_32(
+                holder=holder,
+                maxlen=maxlen,
+                arg=arg,
+                typ=typ,
+                context=context,
+                placeholder=placeholder_map[i],
+                datamem_start=datamem_start,
+                dynamic_offset_counter=dynamic_offset_counter
+            )
 
     return holder, maxlen, dynamic_offset_counter, datamem_start
 
