@@ -12,7 +12,8 @@ Vyper contains a set amount of built in functions that would be timely and/or un
 
 Functions
 =========
-* **floor**
+**floor**
+---------
 ::
 
   def floor(a) -> b:
@@ -24,7 +25,8 @@ Functions
     """
 Rounds a decimal down to the nearest integer.
 
-* **decimal**
+**decimal**
+-----------
 ::
 
   def decimal(a) -> b:
@@ -36,7 +38,8 @@ Rounds a decimal down to the nearest integer.
     """
 Turns a number into a decimal.
 
-* **as_unitless_number**
+**as_unitless_number**
+-------------------------
 ::
 
   def as_unitless_number(a) -> b:
@@ -48,7 +51,8 @@ Turns a number into a decimal.
     """
 Turns a ``int128`` or ``decimal`` with units into one without units (used for assignment and math).
 
-* **as_num128**
+**as_num128**
+---------------
 ::
 
   def as_num128(a) -> b:
@@ -60,7 +64,8 @@ Turns a ``int128`` or ``decimal`` with units into one without units (used for as
     """
 Turns input into a int128.
 
-* **as_uint256**
+**as_uint256**
+----------------
 ::
 
   def as_uint256(a) -> b:
@@ -72,7 +77,8 @@ Turns input into a int128.
     """
 Turns input into a ``uint256`` (uint256).
 
-* **as_bytes32**
+**as_bytes32**
+----------------
 ::
 
   def as_bytes32(a) -> b:
@@ -84,7 +90,8 @@ Turns input into a ``uint256`` (uint256).
     """
 Turns input into a ``bytes32``.
 
-* **slice**
+**slice**
+---------
 ::
 
   def slice(a, start=b, length=c) -> d:
@@ -100,7 +107,8 @@ Turns input into a ``bytes32``.
     """
 Takes a list of bytes and copies, then returns a specified chunk.
 
-* **len**
+**len**
+-------
 ::
 
   def len(a) -> b:
@@ -112,7 +120,8 @@ Takes a list of bytes and copies, then returns a specified chunk.
     """
 Returns the length of a given list of bytes.
 
-* **concat**
+**concat**
+----------
 ::
 
   def concat(a, b, ...) -> c:
@@ -127,6 +136,7 @@ Returns the length of a given list of bytes.
 Takes 2 or more bytes arrays of type ``bytes32`` or ``bytes`` and combines them into one.
 
 * **keccak256 (sha3)**
+----------------------
 ::
 
   def keccak256(a) -> b:
@@ -138,7 +148,8 @@ Takes 2 or more bytes arrays of type ``bytes32`` or ``bytes`` and combines them 
     """
 Returns ``keccak_256`` (Ethereums sha3) hash of input.
 
-* **method_id**
+**method_id**
+---------------
 ::
 
   def method_id(a) -> b:
@@ -151,7 +162,8 @@ Returns ``keccak_256`` (Ethereums sha3) hash of input.
 
 Takes a function declaration and returns its method_id (used in data field to call it).
 
-* **ecrecover**
+**ecrecover**
+---------------
 ::
 
   def ecrecover(hash, v, r, s) -> b:
@@ -170,7 +182,8 @@ Takes a function declaration and returns its method_id (used in data field to ca
 
 Takes a signed hash and vrs and returns the public key of the signer.
 
-* **ecadd**
+**ecadd**
+---------------
 ::
 
   def ecadd(a, b) -> sum:
@@ -185,7 +198,8 @@ Takes a signed hash and vrs and returns the public key of the signer.
 
 Takes two elliptical curves and adds them together.
 
-* **ecmul**
+**ecmul**
+---------------
 ::
 
   def ecmul(a, b) -> product:
@@ -200,7 +214,8 @@ Takes two elliptical curves and adds them together.
 
 Takes two elliptical curves and multiplies them together.
 
-* **extract32**
+**extract32**
+---------------
 ::
 
   def extract32(a, b, type=c) -> d:
