@@ -645,23 +645,22 @@ def parse_stmt(stmt, context):
     return Stmt(stmt, context).lll_node
 
 
-def pack_logging_topics(event_id, args, expected_topics, context):
+def pack_logging_topics(event_id, args, expected_topics, context, pos):
     topics = [event_id]
     for pos, expected_topic in enumerate(expected_topics):
         typ = expected_topic.typ
         arg = args[pos]
         value = parse_expr(arg, context)
-        if isinstance(typ, ByteArrayType) and (isinstance(arg, ast.Str) or (isinstance(arg, ast.Name) and arg.id not in reserved_words)):
+        if isinstance(typ, ByteArrayType) or (isinstance(arg, ast.Name) and arg.id not in reserved_words):
             if value.typ.maxlen > typ.maxlen:
-                raise TypeMismatchException("Topic input bytes are to big: %r %r" % (value.typ, typ))
+                raise TypeMismatchException("Topic input bytes are too big: %r %r" % (value.typ, typ), pos)
             if isinstance(arg, ast.Str):
                 bytez, bytez_length = string_to_bytes(arg.s)
                 if len(bytez) > 32:
-                    raise InvalidLiteralException("Can only log a maximum of 32 bytes at a time.")
+                    raise InvalidLiteralException("Can only log a maximum of 32 bytes at a time.", pos)
                 topics.append(bytes_to_int(bytez + b'\x00' * (32 - bytez_length)))
             else:
-                size = context.vars[arg.id].size
-                topics.append(byte_array_to_num(value, arg, 'uint256', size))
+                topics.append(byte_array_to_num(value, arg, 'uint256', value.typ.maxlen))
         else:
             value = unwrap_location(value)
             value = base_type_conversion(value, value.typ, typ)
