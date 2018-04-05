@@ -76,6 +76,34 @@ def foo():
     assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': b'bar', 'arg2': b'home', 'arg3': '0x' + c.address.hex(), '_event_type': b'MyLog'}
 
 
+def test_event_logging_with_multiple_topics_var_and_store(get_contract_with_gas_estimation, chain, get_logs):
+    code = """
+MyLog: event({arg1: indexed(bytes[3]), arg2: indexed(bytes[4]), arg3: indexed(address), arg4: bytes[10]})
+b: bytes[10]
+
+@public
+def foo(arg1: bytes[3]):
+    a: bytes[4] = 'home'
+    self.b = 'hellothere'
+    log.MyLog(arg1, a,  self, self.b)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    c.foo('hel')
+
+    # Event is decoded correctly
+    receipt = chain.head_state.receipts[-1]
+    log = get_logs(receipt, c)[0]
+
+    assert log == {
+        'arg1': b'hel',
+        'arg2': b'home',
+        'arg3': '0x' + c.address.hex(),
+        'arg4': b'hellothere',
+        '_event_type': b'MyLog'
+    }
+
+
 def test_logging_the_same_event_multiple_times_with_topics(get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
 MyLog: event({arg1: indexed(int128), arg2: indexed(address)})
