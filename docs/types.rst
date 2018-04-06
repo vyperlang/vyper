@@ -142,7 +142,7 @@ Operator                 Description
 ``uint256_addmod(x, y)``  Modular addition
 ``uint256_mul(x, y)``     Multiplication
 ``uint256_mulmod(x, y)``  Modular multiplication
-``uint256_div(x, y)``     Divison
+``uint256_div(x, y)``     Division
 ``uint256_exp(x, y)``     Exponentiation
 ``uint256_mod(x, y)``     Modulo
 ``min(x, y)``            Minimum
@@ -294,7 +294,7 @@ Fixed-size Byte Arrays
 **Keyword:** ``bytes``
 
 A byte array with a fixed size.
-The syntax being ``bytes[maxLen]``, where ``maxLen`` is an integer which denotes the maximum number of bits.
+The syntax being ``bytes[maxLen]``, where ``maxLen`` is an integer which denotes the maximum number of bytes.
 
 .. index:: !string
 Strings
