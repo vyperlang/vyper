@@ -52,7 +52,6 @@ from vyper.types import (
 from vyper.utils import (
     MemoryPositions,
     LOADED_LIMIT_MAP,
-    reserved_words,
     string_to_bytes,
     valid_global_keywords
 )
