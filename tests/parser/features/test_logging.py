@@ -720,7 +720,6 @@ def set_list():
     assert get_last_log(t, c)["arg2"] == [1, 2, 3, 4]
 
 
-
 def test_mixed_var_list_packing(t, get_last_log, get_contract_with_gas_estimation, chain):
     t.s = chain
     code = """
