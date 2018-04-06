@@ -28,7 +28,7 @@ def __init__():
     self.value = floor(msg.value / 2) #The seller initializes the contract by
         #posting a safety deposit of 2*value of the item up for sale.
     self.seller = msg.sender
-    self.unlocked = true
+    self.unlocked = True
 
 @public
 def abort():
@@ -41,9 +41,9 @@ def abort():
 @payable
 def purchase():
     assert self.unlocked #Is the contract still open (is the item still up for sale)?
-    assert msg.value == (2*self.value) #Is the deposit the correct value?
+    assert msg.value == (2 * self.value) #Is the deposit the correct value?
     self.buyer = msg.sender
-    self.unlocked = false
+    self.unlocked = False
 
 @public
 def received():

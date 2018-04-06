@@ -126,12 +126,6 @@ class Expr(object):
     def variables(self):
         if self.expr.id == 'self':
             return LLLnode.from_list(['address'], typ='address', pos=getpos(self.expr))
-        if self.expr.id == 'true':
-            return LLLnode.from_list(1, typ='bool', pos=getpos(self.expr))
-        if self.expr.id == 'false':
-            return LLLnode.from_list(0, typ='bool', pos=getpos(self.expr))
-        if self.expr.id == 'null':
-            return LLLnode.from_list(None, typ=NullType(), pos=getpos(self.expr))
         if self.expr.id in self.context.vars:
             var = self.context.vars[self.expr.id]
             return LLLnode.from_list(var.pos, typ=var.typ, location='memory', pos=getpos(self.expr), annotation=self.expr.id, mutable=var.mutable)

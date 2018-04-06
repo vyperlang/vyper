@@ -132,7 +132,7 @@ def test() -> int128:
     """
 @public
 def test() -> int128:
-    a = [1, 2, true]
+    a = [1, 2, True]
     return a[0]
     """
 ]

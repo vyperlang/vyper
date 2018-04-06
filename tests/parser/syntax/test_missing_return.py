@@ -29,7 +29,7 @@ def foo() -> int128:
     """
 @public
 def foo() -> int128:
-    if false:
+    if False:
         return 123
     """,  # For the time being this is valid code, even though it should not be.
 ]

@@ -9,7 +9,7 @@ fail_list = [
     """
 @public
 def foo():
-    x: bool = true
+    x: bool = True
     x = 5
     """,
     ("""
@@ -51,13 +51,13 @@ valid_list = [
     """
 @public
 def foo():
-    x: bool = true
-    z: bool = x and false
+    x: bool = True
+    z: bool = x and False
     """,
     """
 @public
 def foo():
-    x: bool = true
+    x: bool = True
     z: bool = x and False
     """,
     """
