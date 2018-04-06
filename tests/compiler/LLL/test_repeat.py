@@ -1,6 +1,6 @@
 
 
-def test_repeat(t, get_contract_from_lll, assert_compile_failed):
+def test_repeat(get_contract_from_lll, assert_compile_failed):
     good_lll = ['repeat', 0, 0, 1, ['seq']]
     bad_lll_1 = ['repeat', 0, 0, 0, ['seq']]
     bad_lll_2 = ['repeat', 0, 0, -1, ['seq']]

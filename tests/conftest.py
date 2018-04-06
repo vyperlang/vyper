@@ -38,8 +38,13 @@ from vyper import (
 
 
 @pytest.fixture(scope="module")
-def w3():
-    tester = EthereumTester()
+def tester()
+    t = EthereumTester()
+    return t
+
+
+@pytest.fixture(scope="module")
+def w3(tester):
     w3 = Web3(EthereumTesterProvider(tester))
     return w3
 
@@ -192,7 +197,7 @@ def assert_tx_failed(t):
 
 @pytest.fixture
 def assert_compile_failed(get_contract_from_lll):
-    def assert_compile_failed(function_to_test, exception=tester.TransactionFailed):
+    def assert_compile_failed(function_to_test, exception=Exception):
         with pytest.raises(exception):
             function_to_test()
     return assert_compile_failed
