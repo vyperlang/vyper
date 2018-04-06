@@ -1,16 +1,47 @@
 import pytest
-from functools import wraps
 
-from ethereum.tools import tester
+# from functools import wraps
+
+# from ethereum.tools import tester
+# from vyper.parser.parser_utils import (
+#     LLLnode
+# )
+# from vyper import (
+#     compile_lll,
+#     optimizer,
+#     compiler,
+# )
+# from ethereum import utils as ethereum_utils
+
+from eth_tester import (
+    EthereumTester,
+)
+
+from web3.providers.eth_tester import (
+    EthereumTesterProvider,
+)
+
+from web3 import (
+    Web3,
+)
+from web3.contract import (
+    ImplicitContract,
+)
 from vyper.parser.parser_utils import (
     LLLnode
 )
 from vyper import (
     compile_lll,
-    optimizer,
     compiler,
+    optimizer,
 )
-from ethereum import utils as ethereum_utils
+
+
+@pytest.fixture(scope="module")
+def w3():
+    tester = EthereumTester()
+    w3 = Web3(EthereumTesterProvider(tester))
+    return w3
 
 
 @pytest.fixture
@@ -81,12 +112,36 @@ def utils():
 
 
 @pytest.fixture
-def get_contract_from_lll(t):
-    def lll_compiler(lll):
+def get_contract_from_lll(w3):
+    def lll_compiler(lll, *args, **kwargs):
         lll = optimizer.optimize(LLLnode.from_list(lll))
-        byte_code = compile_lll.assembly_to_evm(compile_lll.compile_to_assembly(lll))
-        t.s.tx(to=b'', data=byte_code)
+        bytecode = compile_lll.assembly_to_evm(compile_lll.compile_to_assembly(lll))
+        abi = []
+        contract = w3.eth.contract(bytecode=bytecode, abi=abi)
+        deploy_transaction = {
+            'data': contract._encode_constructor_data(args, kwargs)
+        }
+        tx = w3.eth.sendTransaction(deploy_transaction)
+        address = w3.eth.getTransactionReceipt(tx)['contractAddress']
+        contract = w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=ImplicitContract)
+        return contract
     return lll_compiler
+
+
+@pytest.fixture
+def get_contract(w3):
+    def get_contract(source_code, *args, **kwargs):
+        abi = compiler.mk_full_signature(source_code)
+        bytecode = '0x' + compiler.compile(source_code).hex()
+        contract = w3.eth.contract(abi=abi, bytecode=bytecode)
+        deploy_transaction = {
+            'data': contract._encode_constructor_data(args, kwargs)
+        }
+        tx = w3.eth.sendTransaction(deploy_transaction)
+        address = w3.eth.getTransactionReceipt(tx)['contractAddress']
+        contract = w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=ImplicitContract)
+        return contract
+    return get_contract
 
 
 @pytest.fixture
@@ -123,13 +178,6 @@ def get_contract_with_gas_estimation_for_constants(chain):
             )
         return contract
     return get_contract_with_gas_estimation_for_constants
-
-
-@pytest.fixture
-def get_contract(chain):
-    def get_contract(source_code, *args, **kwargs):
-        return chain.contract(source_code, language="vyper", *args, **kwargs)
-    return get_contract
 
 
 @pytest.fixture
