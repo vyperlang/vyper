@@ -189,7 +189,7 @@ class Expr(object):
             attrs = sorted(sub.typ.members.keys())
             if self.expr.attr not in attrs:
                 raise TypeMismatchException("Member %s not found. Only the following available: %s" % (self.expr.attr, " ".join(attrs)), self.expr)
-            return add_variable_offset(sub, self.expr.attr)
+            return add_variable_offset(sub, self.expr.attr, pos=getpos(self.expr))
 
     def subscript(self):
         sub = Expr.parse_variable_location(self.expr.value, self.context)
@@ -203,7 +203,7 @@ class Expr(object):
             index = self.expr.slice.value.n
         else:
             raise TypeMismatchException("Bad subscript attempt", self.expr.value)
-        o = add_variable_offset(sub, index)
+        o = add_variable_offset(sub, index, pos=getpos(self.expr))
         o.mutable = sub.mutable
         return o
 
@@ -325,7 +325,7 @@ class Expr(object):
                 typ=ListType(right.typ.subtype, right.typ.count),
                 location='memory'
             )
-            setter = make_setter(tmp_list, right, 'memory')
+            setter = make_setter(tmp_list, right, 'memory', pos=getpos(self.expr))
             load_i_from_list = ['mload', ['add', tmp_list, ['mul', 32, ['mload', MemoryPositions.FREE_LOOP_INDEX]]]]
         elif right.location == "storage":
             load_i_from_list = ['sload', ['add', ['sha3_32', right], ['mload', MemoryPositions.FREE_LOOP_INDEX]]]
@@ -469,7 +469,7 @@ class Expr(object):
                     getpos(self.expr)
                 )
             add_gas = self.context.sigs['self'][method_name].gas  # gas of call
-            inargs, inargsize = pack_arguments(sig, [Expr(arg, self.context).lll_node for arg in self.expr.args], self.context)
+            inargs, inargsize = pack_arguments(sig, [Expr(arg, self.context).lll_node for arg in self.expr.args], self.context, pos=getpos(self.expr))
             output_placeholder = self.context.new_placeholder(typ=sig.output_type)
             if isinstance(sig.output_type, BaseType):
                 returner = output_placeholder
@@ -488,17 +488,17 @@ class Expr(object):
         elif isinstance(self.expr.func, ast.Attribute) and isinstance(self.expr.func.value, ast.Call):
             contract_name = self.expr.func.value.func.id
             contract_address = Expr.parse_value_expr(self.expr.func.value.args[0], self.context)
-            return external_contract_call(self.expr, self.context, contract_name, contract_address, True)
+            return external_contract_call(self.expr, self.context, contract_name, contract_address, True, pos=getpos(self.expr))
         elif isinstance(self.expr.func.value, ast.Attribute) and self.expr.func.value.attr in self.context.sigs:
             contract_name = self.expr.func.value.attr
             var = self.context.globals[self.expr.func.value.attr]
             contract_address = unwrap_location(LLLnode.from_list(var.pos, typ=var.typ, location='storage', pos=getpos(self.expr), annotation='self.' + self.expr.func.value.attr))
-            return external_contract_call(self.expr, self.context, contract_name, contract_address, True)
+            return external_contract_call(self.expr, self.context, contract_name, contract_address, True, pos=getpos(self.expr))
         elif isinstance(self.expr.func.value, ast.Attribute) and self.expr.func.value.attr in self.context.globals:
             contract_name = self.context.globals[self.expr.func.value.attr].typ.unit
             var = self.context.globals[self.expr.func.value.attr]
             contract_address = unwrap_location(LLLnode.from_list(var.pos, typ=var.typ, location='storage', pos=getpos(self.expr), annotation='self.' + self.expr.func.value.attr))
-            return external_contract_call(self.expr, self.context, contract_name, contract_address, var.modifiable)
+            return external_contract_call(self.expr, self.context, contract_name, contract_address, var.modifiable, pos=getpos(self.expr))
         else:
             raise StructureException("Unsupported operator: %r" % ast.dump(self.expr), self.expr)
 

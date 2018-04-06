@@ -358,24 +358,24 @@ def getpos(node):
 
 
 # Take a value representing a memory or storage location, and descend down to an element or member variable
-def add_variable_offset(parent, key):
+def add_variable_offset(parent, key, pos):
     typ, location = parent.typ, parent.location
     if isinstance(typ, (StructType, TupleType)):
         if isinstance(typ, StructType):
             if not isinstance(key, str):
-                raise TypeMismatchException("Expecting a member variable access; cannot access element %r" % key)
+                raise TypeMismatchException("Expecting a member variable access; cannot access element %r" % key, pos)
             if key not in typ.members:
-                raise TypeMismatchException("Object does not have member variable %s" % key)
+                raise TypeMismatchException("Object does not have member variable %s" % key, pos)
             subtype = typ.members[key]
             attrs = sorted(typ.members.keys())
 
             if key not in attrs:
-                raise TypeMismatchException("Member %s not found. Only the following available: %s" % (key, " ".join(attrs)))
+                raise TypeMismatchException("Member %s not found. Only the following available: %s" % (key, " ".join(attrs)), pos)
             index = attrs.index(key)
             annotation = key
         else:
             if not isinstance(key, int):
-                raise TypeMismatchException("Expecting a static index; cannot access element %r" % key)
+                raise TypeMismatchException("Expecting a static index; cannot access element %r" % key, pos)
             attrs = list(range(len(typ.members)))
             index = key
             annotation = None
@@ -400,7 +400,7 @@ def add_variable_offset(parent, key):
     elif isinstance(typ, (ListType, MappingType)):
         if isinstance(typ, ListType):
             subtype = typ.subtype
-            sub = ['uclamplt', base_type_conversion(key, key.typ, BaseType('int128')), typ.count]
+            sub = ['uclamplt', base_type_conversion(key, key.typ, BaseType('int128'), pos=pos), typ.count]
         elif isinstance(typ, MappingType) and isinstance(key.typ, ByteArrayType):
             if not isinstance(typ.keytype, ByteArrayType) or (typ.keytype.maxlen < key.typ.maxlen):
                 raise TypeMismatchException('Mapping keys of bytes cannot be cast, use exact same bytes type of: %s', str(typ.keytype))
@@ -415,7 +415,7 @@ def add_variable_offset(parent, key):
                 sub = LLLnode.from_list(['sha3', ['add', key.args[0].value, 32], ['mload', key.args[0].value]])
         else:
             subtype = typ.valuetype
-            sub = base_type_conversion(key, key.typ, typ.keytype)
+            sub = base_type_conversion(key, key.typ, typ.keytype, pos=pos)
         if location == 'storage':
             # import ipdb; ipdb.set_trace()
             return LLLnode.from_list(['add', ['sha3_32', parent], sub],
@@ -439,7 +439,7 @@ def add_variable_offset(parent, key):
 
 
 # Convert from one base type to another
-def base_type_conversion(orig, frm, to, pos=None):
+def base_type_conversion(orig, frm, to, pos):
     orig = unwrap_location(orig)
     if not isinstance(frm, (BaseType, NullType)) or not isinstance(to, BaseType):
         raise TypeMismatchException("Base type conversion from or to non-base type: %r %r" % (frm, to), pos)

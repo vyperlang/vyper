@@ -494,15 +494,15 @@ def parse_body(code, context):
     return LLLnode.from_list(['seq'] + o, pos=getpos(code[0]) if code else None)
 
 
-def external_contract_call(node, context, contract_name, contract_address, is_modifiable):
+def external_contract_call(node, context, contract_name, contract_address, is_modifiable, pos):
     if contract_name not in context.sigs:
         raise VariableDeclarationException("Contract not declared yet: %s" % contract_name)
     method_name = node.func.attr
     if method_name not in context.sigs[contract_name]:
         raise VariableDeclarationException("Function not declared yet: %s (reminder: "
-                                                    "function must be declared in the correct contract)" % method_name)
+                                                    "function must be declared in the correct contract)" % method_name, pos)
     sig = context.sigs[contract_name][method_name]
-    inargs, inargsize = pack_arguments(sig, [parse_expr(arg, context) for arg in node.args], context)
+    inargs, inargsize = pack_arguments(sig, [parse_expr(arg, context) for arg in node.args], context, pos=pos)
     output_placeholder, output_size, returner = get_external_contract_call_output(sig, context)
     sub = ['seq', ['assert', ['extcodesize', contract_address]],
                     ['assert', ['ne', 'address', contract_address]]]
@@ -535,7 +535,7 @@ def parse_expr(expr, context):
 
 
 # Create an x=y statement, where the types may be compound
-def make_setter(left, right, location, pos=None):
+def make_setter(left, right, location, pos):
     # Basic types
     if isinstance(left.typ, BaseType):
         right = base_type_conversion(right, right.typ, left.typ, pos)
@@ -572,14 +572,14 @@ def make_setter(left, right, location, pos=None):
                 raise TypeMismatchException("Mismatched number of elements", pos)
             subs = []
             for i in range(left.typ.count):
-                subs.append(make_setter(add_variable_offset(left_token, LLLnode.from_list(i, typ='int128')),
+                subs.append(make_setter(add_variable_offset(left_token, LLLnode.from_list(i, typ='int128'), pos=pos),
                                         right.args[i], location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If the right side is a null
         elif isinstance(right.typ, NullType):
             subs = []
             for i in range(left.typ.count):
-                subs.append(make_setter(add_variable_offset(left_token, LLLnode.from_list(i, typ='int128')),
+                subs.append(make_setter(add_variable_offset(left_token, LLLnode.from_list(i, typ='int128'), pos=pos),
                                         LLLnode.from_list(None, typ=NullType()), location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If the right side is a variable
@@ -587,8 +587,8 @@ def make_setter(left, right, location, pos=None):
             right_token = LLLnode.from_list('_R', typ=right.typ, location=right.location)
             subs = []
             for i in range(left.typ.count):
-                subs.append(make_setter(add_variable_offset(left_token, LLLnode.from_list(i, typ='int128')),
-                                        add_variable_offset(right_token, LLLnode.from_list(i, typ='int128')), location, pos=pos))
+                subs.append(make_setter(add_variable_offset(left_token, LLLnode.from_list(i, typ='int128'), pos=pos),
+                                        add_variable_offset(right_token, LLLnode.from_list(i, typ='int128'), pos=pos), location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['with', '_R', right, ['seq'] + subs]], typ=None)
     # Structs
     elif isinstance(left.typ, (StructType, TupleType)):
@@ -621,20 +621,25 @@ def make_setter(left, right, location, pos=None):
                 raise TypeMismatchException("Mismatched number of elements", pos)
             subs = []
             for i, typ in enumerate(keyz):
-                subs.append(make_setter(add_variable_offset(left_token, typ), right.args[i], location))
+                subs.append(make_setter(add_variable_offset(left_token, typ, pos=pos), right.args[i], location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If the right side is a null
         elif isinstance(right.typ, NullType):
             subs = []
             for typ in keyz:
-                subs.append(make_setter(add_variable_offset(left_token, typ), LLLnode.from_list(None, typ=NullType()), location, pos=pos))
+                subs.append(make_setter(add_variable_offset(left_token, typ, pos=pos), LLLnode.from_list(None, typ=NullType()), location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If the right side is a variable
         else:
             right_token = LLLnode.from_list('_R', typ=right.typ, location=right.location)
             subs = []
             for typ in keyz:
-                subs.append(make_setter(add_variable_offset(left_token, typ), add_variable_offset(right_token, typ), location, pos=pos))
+                subs.append(make_setter(
+                    add_variable_offset(left_token, typ, pos=pos),
+                    add_variable_offset(right_token, typ, pos=pos),
+                    location, 
+                    pos=pos
+                ))
             return LLLnode.from_list(['with', '_L', left, ['with', '_R', right, ['seq'] + subs]], typ=None)
     else:
         raise Exception("Invalid type for setters")
@@ -645,7 +650,7 @@ def parse_stmt(stmt, context):
     return Stmt(stmt, context).lll_node
 
 
-def pack_logging_topics(event_id, args, expected_topics, context):
+def pack_logging_topics(event_id, args, expected_topics, context, pos):
     topics = [event_id]
     for pos, expected_topic in enumerate(expected_topics):
         typ = expected_topic.typ
@@ -657,19 +662,21 @@ def pack_logging_topics(event_id, args, expected_topics, context):
             if isinstance(arg, ast.Str):
                 bytez, bytez_length = string_to_bytes(arg.s)
                 if len(bytez) > 32:
-                    raise InvalidLiteralException("Can only log a maximum of 32 bytes at a time.")
+                    raise InvalidLiteralException("Can only log a maximum of 32 bytes at a time.", pos)
                 topics.append(bytes_to_int(bytez + b'\x00' * (32 - bytez_length)))
             else:
                 size = context.vars[arg.id].size
                 topics.append(byte_array_to_num(value, arg, 'uint256', size))
         else:
             value = unwrap_location(value)
-            value = base_type_conversion(value, value.typ, typ)
+            value = base_type_conversion(value, value.typ, typ, pos=pos)
             topics.append(value)
     return topics
 
 
-def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder, dynamic_offset_counter=None, datamem_start=None):
+def pack_args_by_32(
+        holder, maxlen, arg, typ, context, placeholder, *,
+        pos, dynamic_offset_counter=None, datamem_start=None):
     """
     Copy necessary variables to pre-allocated memory section.
 
@@ -685,7 +692,7 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder, dynamic_offs
 
     if isinstance(typ, BaseType):
         value = parse_expr(arg, context)
-        value = base_type_conversion(value, value.typ, typ)
+        value = base_type_conversion(value, value.typ, typ, pos)
         holder.append(LLLnode.from_list(['mstore', placeholder, value], typ=typ, location='memory'))
     elif isinstance(typ, ByteArrayType):
         bytez = b''
@@ -693,10 +700,10 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder, dynamic_offs
         source_expr = Expr(arg, context)
         if isinstance(arg, ast.Str):
             if len(arg.s) > typ.maxlen:
-                raise TypeMismatchException("Data input bytes are to big: %r %r" % (len(arg.s), typ))
+                raise TypeMismatchException("Data input bytes are to big: %r %r" % (len(arg.s), typ), pos)
             for c in arg.s:
                 if ord(c) >= 256:
-                    raise InvalidLiteralException("Cannot insert special character %r into byte array" % c)
+                    raise InvalidLiteralException("Cannot insert special character %r into byte array" % c, pos)
                 bytez += bytes([ord(c)])
 
             holder.append(source_expr.lll_node)
@@ -733,7 +740,7 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder, dynamic_offs
             for offset in range(0, size):
                 arg2 = LLLnode.from_list(['sload', ['add', ['sha3_32', Expr(arg, context).lll_node], offset]],
                                          typ=typ)
-                holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, context.new_placeholder(BaseType(32)))
+                holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, context.new_placeholder(BaseType(32)), pos=pos)
         # List from variable.
         elif isinstance(arg, ast.Name):
             size = context.vars[arg.id].size
@@ -742,18 +749,18 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder, dynamic_offs
             for i in range(0, size):
                 offset = 32 * i
                 arg2 = LLLnode.from_list(pos + offset, typ=typ, location='memory')
-                holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, context.new_placeholder(BaseType(32)))
+                holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, context.new_placeholder(BaseType(32)),  pos=pos)
         # is list literal.
         else:
-            holder, maxlen = pack_args_by_32(holder, maxlen, arg.elts[0], typ, context, placeholder)
+            holder, maxlen = pack_args_by_32(holder, maxlen, arg.elts[0], typ, context, placeholder, pos=pos)
             for j, arg2 in enumerate(arg.elts[1:]):
-                holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, context.new_placeholder(BaseType(32)))
+                holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, context.new_placeholder(BaseType(32)), pos=pos)
 
     return holder, maxlen
 
 
 # Pack logging data arguments
-def pack_logging_data(expected_data, args, context):
+def pack_logging_data(expected_data, args, context, pos):
     # Checks to see if there's any data
     if not args:
         return ['seq'], 0, None, 0
@@ -769,7 +776,7 @@ def pack_logging_data(expected_data, args, context):
         placeholder = context.new_placeholder(BaseType(32))
         placeholder_map[i] = placeholder
         if not isinstance(typ, ByteArrayType):
-            holder, maxlen = pack_args_by_32(holder, maxlen, arg, typ, context, placeholder)
+            holder, maxlen = pack_args_by_32(holder, maxlen, arg, typ, context, placeholder, pos=pos)
 
     # Dynamic position starts right after the static args.
     holder.append(LLLnode.from_list(['mstore', dynamic_offset_counter, maxlen]))
@@ -797,14 +804,15 @@ def pack_logging_data(expected_data, args, context):
             context=context,
             placeholder=placeholder_map[i],
             datamem_start=datamem_start,
-            dynamic_offset_counter=dynamic_offset_counter
+            dynamic_offset_counter=dynamic_offset_counter,
+            pos=pos
         )
 
     return holder, maxlen, dynamic_offset_counter, datamem_start
 
 
 # Pack function arguments for a call
-def pack_arguments(signature, args, context):
+def pack_arguments(signature, args, context, pos):
     placeholder_typ = ByteArrayType(maxlen=sum([get_size_of_type(arg.typ) for arg in signature.args]) * 32 + 32)
     placeholder = context.new_placeholder(placeholder_typ)
     setters = [['mstore', placeholder, signature.method_id]]
@@ -817,7 +825,7 @@ def pack_arguments(signature, args, context):
 
     for i, (arg, typ) in enumerate(zip(args, [arg.typ for arg in signature.args])):
         if isinstance(typ, BaseType):
-            setters.append(make_setter(LLLnode.from_list(placeholder + staticarray_offset + 32 + i * 32, typ=typ), arg, 'memory'))
+            setters.append(make_setter(LLLnode.from_list(placeholder + staticarray_offset + 32 + i * 32, typ=typ), arg, 'memory', pos=pos))
         elif isinstance(typ, ByteArrayType):
             setters.append(['mstore', placeholder + staticarray_offset + 32 + i * 32, '_poz'])
             arg_copy = LLLnode.from_list('_s', typ=arg.typ, location=arg.location)
@@ -828,7 +836,7 @@ def pack_arguments(signature, args, context):
             needpos = True
         elif isinstance(typ, ListType):
             target = LLLnode.from_list([placeholder + 32 + staticarray_offset + i * 32], typ=typ, location='memory')
-            setters.append(make_setter(target, arg, 'memory'))
+            setters.append(make_setter(target, arg, 'memory', pos=pos))
             staticarray_offset += 32 * (typ.count - 1)
         else:
             raise TypeMismatchException("Cannot pack argument of type %r" % typ)
