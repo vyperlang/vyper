@@ -13,13 +13,13 @@ from vyper.exceptions import (
 from vyper.function_signature import (
     FunctionSignature,
     VariableRecord,
-    ContractRecord
+    ContractRecord,
 )
 from vyper.signatures.event_signature import (
-    EventSignature
+    EventSignature,
 )
 from vyper.premade_contracts import (
-    premade_contracts
+    premade_contracts,
 )
 from .stmt import Stmt
 from .expr import Expr
@@ -47,14 +47,14 @@ from vyper.types import (
     get_size_of_type,
     is_base_type,
     parse_type,
-    ceil32
+    ceil32,
 )
 from vyper.utils import (
     MemoryPositions,
     LOADED_LIMIT_MAP,
     reserved_words,
     string_to_bytes,
-    valid_global_keywords
+    valid_global_keywords,
 )
 from vyper.utils import (
     bytes_to_int,
@@ -219,7 +219,7 @@ def get_item_name_and_attributes(item, attributes):
 
 def add_globals_and_events(_contracts, _defs, _events, _getters, _globals, item):
     item_attributes = {"public": False, "modifiable": False, "static": False}
-    if not (isinstance(item.annotation, ast.Call) and item.annotation.func.id == "__log__"):
+    if not (isinstance(item.annotation, ast.Call) and item.annotation.func.id == "event"):
         item_name, item_attributes = get_item_name_and_attributes(item, item_attributes)
         if not all([attr in valid_global_keywords for attr in item_attributes.keys()]):
             raise StructureException('Invalid global keyword used: %s' % item_attributes)
