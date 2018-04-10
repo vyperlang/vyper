@@ -637,7 +637,7 @@ def make_setter(left, right, location, pos):
                 subs.append(make_setter(
                     add_variable_offset(left_token, typ, pos=pos),
                     add_variable_offset(right_token, typ, pos=pos),
-                    location, 
+                    location,
                     pos=pos
                 ))
             return LLLnode.from_list(['with', '_L', left, ['with', '_R', right, ['seq'] + subs]], typ=None)
@@ -749,7 +749,7 @@ def pack_args_by_32(
             for i in range(0, size):
                 offset = 32 * i
                 arg2 = LLLnode.from_list(pos + offset, typ=typ, location='memory')
-                holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, context.new_placeholder(BaseType(32)),  pos=pos)
+                holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, context.new_placeholder(BaseType(32)), pos=pos)
         # is list literal.
         else:
             holder, maxlen = pack_args_by_32(holder, maxlen, arg.elts[0], typ, context, placeholder, pos=pos)
