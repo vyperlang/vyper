@@ -172,23 +172,23 @@ class Stmt(object):
             add_gas = self.context.sigs['self'][method_name].gas
             inargs, inargsize = pack_arguments(sig,
                                                 [Expr(arg, self.context).lll_node for arg in self.stmt.args],
-                                                self.context)
+                                                self.context, pos=getpos(self.stmt))
             return LLLnode.from_list(['assert', ['call', ['gas'], ['address'], 0, inargs, inargsize, 0, 0]],
                                         typ=None, pos=getpos(self.stmt), add_gas_estimate=add_gas, annotation='Internal Call: %s' % method_name)
         elif isinstance(self.stmt.func, ast.Attribute) and isinstance(self.stmt.func.value, ast.Call):
             contract_name = self.stmt.func.value.func.id
             contract_address = Expr.parse_value_expr(self.stmt.func.value.args[0], self.context)
-            return external_contract_call(self.stmt, self.context, contract_name, contract_address, True)
+            return external_contract_call(self.stmt, self.context, contract_name, contract_address, True, pos=getpos(self.stmt))
         elif isinstance(self.stmt.func.value, ast.Attribute) and self.stmt.func.value.attr in self.context.sigs:
             contract_name = self.stmt.func.value.attr
             var = self.context.globals[self.stmt.func.value.attr]
             contract_address = unwrap_location(LLLnode.from_list(var.pos, typ=var.typ, location='storage', pos=getpos(self.stmt), annotation='self.' + self.stmt.func.value.attr))
-            return external_contract_call(self.stmt, self.context, contract_name, contract_address, True)
+            return external_contract_call(self.stmt, self.context, contract_name, contract_address, True, pos=getpos(self.stmt))
         elif isinstance(self.stmt.func.value, ast.Attribute) and self.stmt.func.value.attr in self.context.globals:
             contract_name = self.context.globals[self.stmt.func.value.attr].typ.unit
             var = self.context.globals[self.stmt.func.value.attr]
             contract_address = unwrap_location(LLLnode.from_list(var.pos, typ=var.typ, location='storage', pos=getpos(self.stmt), annotation='self.' + self.stmt.func.value.attr))
-            return external_contract_call(self.stmt, self.context, contract_name, contract_address, var.modifiable)
+            return external_contract_call(self.stmt, self.context, contract_name, contract_address, var.modifiable, pos=getpos(self.stmt))
         elif isinstance(self.stmt.func, ast.Attribute) and self.stmt.func.value.id == 'log':
             if self.stmt.func.attr not in self.context.sigs['self']:
                 raise VariableDeclarationException("Event not declared yet: %s" % self.stmt.func.attr)
@@ -205,7 +205,8 @@ class Stmt(object):
                     expected_data.append(event.args[pos])
                     data.append(self.stmt.args[pos])
             topics = pack_logging_topics(event.event_id, topics, expected_topics, self.context, pos=getpos(self.stmt))
-            inargs, inargsize, inargsize_node, inarg_start = pack_logging_data(expected_data, data, self.context)
+            inargs, inargsize, inargsize_node, inarg_start = pack_logging_data(expected_data, data, self.context, pos=getpos(self.stmt))
+
             if inargsize_node is None:
                 sz = inargsize
             else:
@@ -319,7 +320,7 @@ class Stmt(object):
                 typ=ListType(iter_list_node.typ.subtype, count),
                 location='memory'
             )
-            setter = make_setter(tmp_list, iter_list_node, 'memory')
+            setter = make_setter(tmp_list, iter_list_node, 'memory', pos=getpos(self.stmt))
             body = [
                 'seq',
                 ['mstore', value_pos, ['mload', ['add', tmp_list, ['mul', ['mload', i_pos], 32]]]],
@@ -358,11 +359,11 @@ class Stmt(object):
         if target.location == 'storage':
             o = Expr.parse_value_expr(ast.BinOp(left=LLLnode.from_list(['sload', '_stloc'], typ=target.typ, pos=target.pos),
                                     right=sub, op=self.stmt.op, lineno=self.stmt.lineno, col_offset=self.stmt.col_offset), self.context)
-            return LLLnode.from_list(['with', '_stloc', target, ['sstore', '_stloc', base_type_conversion(o, o.typ, target.typ)]], typ=None, pos=getpos(self.stmt))
+            return LLLnode.from_list(['with', '_stloc', target, ['sstore', '_stloc', base_type_conversion(o, o.typ, target.typ, pos=getpos(self.stmt))]], typ=None, pos=getpos(self.stmt))
         elif target.location == 'memory':
             o = Expr.parse_value_expr(ast.BinOp(left=LLLnode.from_list(['mload', '_mloc'], typ=target.typ, pos=target.pos),
                                     right=sub, op=self.stmt.op, lineno=self.stmt.lineno, col_offset=self.stmt.col_offset), self.context)
-            return LLLnode.from_list(['with', '_mloc', target, ['mstore', '_mloc', base_type_conversion(o, o.typ, target.typ)]], typ=None, pos=getpos(self.stmt))
+            return LLLnode.from_list(['with', '_mloc', target, ['mstore', '_mloc', base_type_conversion(o, o.typ, target.typ, pos=getpos(self.stmt))]], typ=None, pos=getpos(self.stmt))
 
     def parse_continue(self):
         return LLLnode.from_list('continue', typ=None, pos=getpos(self.stmt))
