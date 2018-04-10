@@ -204,7 +204,7 @@ class Stmt(object):
                 else:
                     expected_data.append(event.args[pos])
                     data.append(self.stmt.args[pos])
-            topics = pack_logging_topics(event.event_id, topics, expected_topics, self.context)
+            topics = pack_logging_topics(event.event_id, topics, expected_topics, self.context, pos=getpos(self.stmt))
             inargs, inargsize, inargsize_node, inarg_start = pack_logging_data(expected_data, data, self.context)
             if inargsize_node is None:
                 sz = inargsize

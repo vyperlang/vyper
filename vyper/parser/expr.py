@@ -109,7 +109,8 @@ class Expr(object):
         seq.append(['mstore', placeholder, bytez_length])
         for i in range(0, len(bytez), 32):
             seq.append(['mstore', ['add', placeholder, i + 32], bytes_to_int((bytez + b'\x00' * 31)[i: i + 32])])
-        return LLLnode.from_list(['seq'] + seq + [placeholder], typ=ByteArrayType(bytez_length), location='memory', pos=getpos(self.expr))
+        return LLLnode.from_list(['seq'] + seq + [placeholder],
+            typ=ByteArrayType(bytez_length), location='memory', pos=getpos(self.expr), annotation='Create ByteArray: %s' % bytez)
 
     # True, False, None constants
     def constants(self):
