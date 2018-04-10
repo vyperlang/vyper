@@ -24,6 +24,7 @@ setup(
     packages=find_packages(exclude=('tests', 'docs')),
     install_requires=['py-evm>=0.2.0a12'],
     setup_requires=['pytest-runner'],
+    python_requires='>=3.6',
     tests_require=['pytest', 'pytest-cov', 'ethereum==2.3.1'],
     scripts=['bin/vyper', 'bin/vyper-serve', 'bin/vyper-run']
 )
