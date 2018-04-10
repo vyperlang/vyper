@@ -76,6 +76,34 @@ def foo():
     assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': b'bar', 'arg2': b'home', 'arg3': '0x' + c.address.hex(), '_event_type': b'MyLog'}
 
 
+def test_event_logging_with_multiple_topics_var_and_store(get_contract_with_gas_estimation, chain, get_logs):
+    code = """
+MyLog: event({arg1: indexed(bytes[3]), arg2: indexed(bytes[4]), arg3: indexed(address), arg4: bytes[10]})
+b: bytes[10]
+
+@public
+def foo(arg1: bytes[3]):
+    a: bytes[4] = 'home'
+    self.b = 'hellothere'
+    log.MyLog(arg1, a,  self, self.b)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    c.foo('hel')
+
+    # Event is decoded correctly
+    receipt = chain.head_state.receipts[-1]
+    log = get_logs(receipt, c)[0]
+
+    assert log == {
+        'arg1': b'hel',
+        'arg2': b'home',
+        'arg3': '0x' + c.address.hex(),
+        'arg4': b'hellothere',
+        '_event_type': b'MyLog'
+    }
+
+
 def test_logging_the_same_event_multiple_times_with_topics(get_contract_with_gas_estimation, chain, utils):
     loggy_code = """
 MyLog: event({arg1: indexed(int128), arg2: indexed(address)})
@@ -679,3 +707,79 @@ def foo(inp: bytes[33]):
     log.Bar(inp)
 """
     assert_tx_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatchException)
+
+
+def test_2nd_var_list_packing(t, get_last_log, get_contract_with_gas_estimation, chain):
+    t.s = chain
+    code = """
+Bar: event({arg1: int128, arg2: int128[4]})
+
+@public
+def foo():
+    a: int128[4] = [1, 2, 3, 4]
+    log.Bar(10, a)
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    c.foo()
+    assert get_last_log(t, c)["arg2"] == [1, 2, 3, 4]
+
+
+def test_2nd_var_storage_list_packing(t, get_last_log, get_contract_with_gas_estimation, chain):
+    t.s = chain
+    code = """
+Bar: event({arg1: int128, arg2: int128[4]})
+x: int128[4]
+
+@public
+def foo():
+    log.Bar(10, self.x)
+
+@public
+def set_list():
+    self.x = [1, 2, 3, 4]
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    c.foo()
+    assert get_last_log(t, c)["arg2"] == [0, 0, 0, 0]
+    c.set_list()
+    c.foo()
+    assert get_last_log(t, c)["arg2"] == [1, 2, 3, 4]
+
+
+def test_mixed_var_list_packing(t, get_last_log, get_contract_with_gas_estimation, chain):
+    t.s = chain
+    code = """
+Bar: event({arg1: int128, arg2: int128[4], arg3 :bytes[4], arg4: int128[3], arg5: int128[2]})
+x: int128[4]
+y: int128[2]
+
+@public
+def __init__():
+    self.y = [1024, 2048]
+
+@public
+def foo():
+    v: int128[3] = [7, 8, 9]
+    log.Bar(10, self.x, "test", v, self.y)
+
+@public
+def set_list():
+    self.x = [1, 2, 3, 4]
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    c.foo()
+    log = get_last_log(t, c)
+    assert log["arg2"] == [0, 0, 0, 0]
+    assert log["arg3"] == b"test"
+    assert log["arg4"] == [7, 8, 9]
+    assert log["arg5"] == [1024, 2048]
+    c.set_list()
+    c.foo()
+    log = get_last_log(t, c)
+    assert log["arg2"] == [1, 2, 3, 4]
+    assert log["arg3"] == b"test"
+    assert log["arg4"] == [7, 8, 9]
+    assert log["arg5"] == [1024, 2048]

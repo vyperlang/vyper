@@ -13,13 +13,13 @@ from vyper.exceptions import (
 from vyper.function_signature import (
     FunctionSignature,
     VariableRecord,
-    ContractRecord
+    ContractRecord,
 )
 from vyper.signatures.event_signature import (
-    EventSignature
+    EventSignature,
 )
 from vyper.premade_contracts import (
-    premade_contracts
+    premade_contracts,
 )
 from .stmt import Stmt
 from .expr import Expr
@@ -47,14 +47,13 @@ from vyper.types import (
     get_size_of_type,
     is_base_type,
     parse_type,
-    ceil32
+    ceil32,
 )
 from vyper.utils import (
     MemoryPositions,
     LOADED_LIMIT_MAP,
-    reserved_words,
     string_to_bytes,
-    valid_global_keywords
+    valid_global_keywords,
 )
 from vyper.utils import (
     bytes_to_int,
@@ -219,7 +218,7 @@ def get_item_name_and_attributes(item, attributes):
 
 def add_globals_and_events(_contracts, _defs, _events, _getters, _globals, item):
     item_attributes = {"public": False, "modifiable": False, "static": False}
-    if not (isinstance(item.annotation, ast.Call) and item.annotation.func.id == "__log__"):
+    if not (isinstance(item.annotation, ast.Call) and item.annotation.func.id == "event"):
         item_name, item_attributes = get_item_name_and_attributes(item, item_attributes)
         if not all([attr in valid_global_keywords for attr in item_attributes.keys()]):
             raise StructureException('Invalid global keyword used: %s' % item_attributes)
@@ -653,24 +652,30 @@ def parse_stmt(stmt, context):
 def pack_logging_topics(event_id, args, expected_topics, context, pos):
     topics = [event_id]
     for pos, expected_topic in enumerate(expected_topics):
-        typ = expected_topic.typ
+        expected_type = expected_topic.typ
         arg = args[pos]
         value = parse_expr(arg, context)
-        if isinstance(typ, ByteArrayType) and (isinstance(arg, ast.Str) or (isinstance(arg, ast.Name) and arg.id not in reserved_words)):
-            if value.typ.maxlen > typ.maxlen:
-                raise TypeMismatchException("Topic input bytes are to big: %r %r" % (value.typ, typ))
+        arg_type = value.typ
+
+        if isinstance(arg_type, ByteArrayType) and isinstance(expected_type, ByteArrayType):
+            if arg_type.maxlen > expected_type.maxlen:
+                raise TypeMismatchException("Topic input bytes are too big: %r %r" % (arg_type, expected_type), pos)
             if isinstance(arg, ast.Str):
                 bytez, bytez_length = string_to_bytes(arg.s)
                 if len(bytez) > 32:
                     raise InvalidLiteralException("Can only log a maximum of 32 bytes at a time.", pos)
                 topics.append(bytes_to_int(bytez + b'\x00' * (32 - bytez_length)))
             else:
-                size = context.vars[arg.id].size
+                if value.location == "memory":
+                    size = ['mload', value]
+                elif value.location == "storage":
+                    size = ['sload', ['sha3_32', value]]
                 topics.append(byte_array_to_num(value, arg, 'uint256', size))
         else:
             value = unwrap_location(value)
-            value = base_type_conversion(value, value.typ, typ, pos=pos)
+            value = base_type_conversion(value, arg_type, expected_type, pos=pos)
             topics.append(value)
+
     return topics
 
 
@@ -740,7 +745,8 @@ def pack_args_by_32(
             for offset in range(0, size):
                 arg2 = LLLnode.from_list(['sload', ['add', ['sha3_32', Expr(arg, context).lll_node], offset]],
                                          typ=typ)
-                holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, context.new_placeholder(BaseType(32)), pos=pos)
+                p_holder = context.new_placeholder(BaseType(32)) if offset > 0 else placeholder
+                holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, p_holder, pos=pos)
         # List from variable.
         elif isinstance(arg, ast.Name):
             size = context.vars[arg.id].size
@@ -749,7 +755,8 @@ def pack_args_by_32(
             for i in range(0, size):
                 offset = 32 * i
                 arg2 = LLLnode.from_list(pos + offset, typ=typ, location='memory')
-                holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, context.new_placeholder(BaseType(32)),  pos=pos)
+                p_holder = context.new_placeholder(BaseType(32)) if i > 0 else placeholder
+                holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, p_holder, pos=pos)
         # is list literal.
         else:
             holder, maxlen = pack_args_by_32(holder, maxlen, arg.elts[0], typ, context, placeholder, pos=pos)
@@ -766,8 +773,12 @@ def pack_logging_data(expected_data, args, context, pos):
         return ['seq'], 0, None, 0
     holder = ['seq']
     maxlen = len(args) * 32  # total size of all packed args (upper limit)
-    dynamic_offset_counter = context.new_placeholder(BaseType(32))
-    dynamic_placeholder = context.new_placeholder(BaseType(32))
+    requires_dynamic_offset = any([isinstance(data.typ, ByteArrayType) for data in expected_data])
+    if requires_dynamic_offset:
+        dynamic_offset_counter = context.new_placeholder(BaseType(32))
+        dynamic_placeholder = context.new_placeholder(BaseType(32))
+    else:
+        dynamic_offset_counter = None
 
     # Populate static placeholders.
     placeholder_map = {}
@@ -779,7 +790,8 @@ def pack_logging_data(expected_data, args, context, pos):
             holder, maxlen = pack_args_by_32(holder, maxlen, arg, typ, context, placeholder, pos=pos)
 
     # Dynamic position starts right after the static args.
-    holder.append(LLLnode.from_list(['mstore', dynamic_offset_counter, maxlen]))
+    if requires_dynamic_offset:
+        holder.append(LLLnode.from_list(['mstore', dynamic_offset_counter, maxlen]))
 
     # Calculate maximum dynamic offset placeholders, used for gas estimation.
     for i, (arg, data) in enumerate(zip(args, expected_data)):
@@ -787,26 +799,26 @@ def pack_logging_data(expected_data, args, context, pos):
         if isinstance(typ, ByteArrayType):
             maxlen += 32 + ceil32(typ.maxlen)
 
-    # Obtain the start of the arg section.
-    if isinstance(expected_data[0].typ, ListType):
-        datamem_start = holder[1].to_list()[1][0]
-    else:
+    if requires_dynamic_offset:
         datamem_start = dynamic_placeholder + 32
+    else:
+        datamem_start = placeholder_map[0]
 
     # Copy necessary data into allocated dynamic section.
     for i, (arg, data) in enumerate(zip(args, expected_data)):
         typ = data.typ
-        pack_args_by_32(
-            holder=holder,
-            maxlen=maxlen,
-            arg=arg,
-            typ=typ,
-            context=context,
-            placeholder=placeholder_map[i],
-            datamem_start=datamem_start,
-            dynamic_offset_counter=dynamic_offset_counter,
-            pos=pos
-        )
+        if isinstance(typ, ByteArrayType):
+            pack_args_by_32(
+                holder=holder,
+                maxlen=maxlen,
+                arg=arg,
+                typ=typ,
+                context=context,
+                placeholder=placeholder_map[i],
+                datamem_start=datamem_start,
+                dynamic_offset_counter=dynamic_offset_counter,
+                pos=pos
+            )
 
     return holder, maxlen, dynamic_offset_counter, datamem_start
 
