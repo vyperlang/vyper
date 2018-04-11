@@ -416,8 +416,7 @@ def add_variable_offset(parent, key):
             subtype = typ.valuetype
             sub = base_type_conversion(key, key.typ, typ.keytype)
         if location == 'storage':
-            # import ipdb; ipdb.set_trace()
-            return LLLnode.from_list(['add', ['sha3_32', parent], sub],
+            return LLLnode.from_list(['sha3_64', parent, sub],
                                      typ=subtype,
                                      location='storage')
         elif location == 'storage_prehashed':
