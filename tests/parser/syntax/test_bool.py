@@ -84,7 +84,7 @@ def foo() -> bool:
     """
 @public
 def foo() -> bool:
-    return 1. >= 1
+    return 2 >= 1
     """,
     """
 @public
@@ -94,7 +94,7 @@ def foo() -> bool:
     """
 @public
 def foo() -> bool:
-    return 1 <= 1.
+    return 1 <= 1
     """
 ]
 
