@@ -130,11 +130,15 @@ reserved_words = ['int128', 'int256', 'uint256', 'address', 'bytes32',
                   'raise', 'init', '_init_', '___init___', '____init____',
                   'true', 'false', 'self', 'this', 'continue', 'ether',
                   'wei', 'finney', 'szabo', 'shannon', 'lovelace', 'ada',
-                  'babbage', 'gwei', 'kwei', 'mwei', 'twei', 'pwei', 'contract']
+                  'babbage', 'gwei', 'kwei', 'mwei', 'twei', 'pwei', 'contract', 'units']
 
 
 # Is a variable or member variable name valid?
-def is_varname_valid(varname):
+def is_varname_valid(varname, custom_units):
+    if custom_units is None:
+        custom_units = []
+    if varname.lower() in [cu.lower() for cu in custom_units]:
+        return False
     if varname.lower() in base_types:
         return False
     if varname.lower() in valid_units:
