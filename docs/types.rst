@@ -264,6 +264,26 @@ Keyword              Unit         Base type  Description
 ``currency2_value``  1 currency2  ``int128``    This is an amount of currency2.
 ===================  ===========  =========  ====================================================================================
 
+Custom Unit Types
+=================
+
+Vyper allows you to add additional not-provided unit label to either ``int128`` or ``decimal``.
+
+**Custom units example:**
+::
+    # specify units used in the contract.
+    units: {
+        cm: "centimeter",
+        km: "kilometer"
+    }
+
+Having defined the units they can be defined on variables as follows.
+
+**Custom units usage:**
+::
+    a: int128(cm)
+    b: int128(km)
+
 .. index:: !bytes32
 32-bit-wide Byte Array
 ======================
