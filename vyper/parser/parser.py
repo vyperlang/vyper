@@ -234,17 +234,19 @@ def add_globals_and_events(_custom_units, _contracts, _defs, _events, _getters, 
     elif item.target.id == 'units':
         if not _custom_units:
             if not isinstance(item.annotation, ast.Dict):
-                raise VariableDeclarationException("Define custom units using {}.", item.target)
+                raise VariableDeclarationException("Define custom units using units: { }.", item.target)
             for key, value in zip(item.annotation.keys, item.annotation.values):
-                if not isinstance(value, ast.Str) and value.s:
+                if not isinstance(value, ast.Str):
                     raise VariableDeclarationException("Custom unit description must be a valid string.", value)
-                if not isinstance(key, ast.Name) and key.id:
+                if not isinstance(key, ast.Name):
                     raise VariableDeclarationException("Custom unit name must be a valid string unquoted string.", key)
+                if key.id in _custom_units:
+                    raise VariableDeclarationException("Custom unit may only be defined once", key)
                 if not is_varname_valid(key.id, custom_units=_custom_units):
                     raise VariableDeclarationException("Custom unit may not be a reserved keyword", key)
                 _custom_units.append(key.id)
         else:
-            raise VariableDeclarationException("Can only define custom units once.", item.target)
+            raise VariableDeclarationException("Can units can only defined once.", item.target)
     # Check if variable name is reserved or invalid
     elif not is_varname_valid(item.target.id, custom_units=_custom_units):
         raise VariableDeclarationException("Variable name invalid or reserved: ", item.target)
@@ -403,7 +405,7 @@ def parse_tree_to_lll(code, origcode, runtime_only=False):
     # If there is an init func...
     if initfunc:
         o.append(['seq', initializer_lll])
-        o.append(parse_func(initfunc[0], _globals, {**{'self': sigs}, **external_contracts}, origcode))
+        o.append(parse_func(initfunc[0], _globals, {**{'self': sigs}, **external_contracts}, origcode, _custom_units))
     # If there are regular functions...
     if otherfuncs:
         o = parse_other_functions(o, otherfuncs, _globals, sigs, external_contracts, origcode, _custom_units, runtime_only)

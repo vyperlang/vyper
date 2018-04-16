@@ -522,7 +522,7 @@ class Expr(object):
         o = {}
         members = {}
         for key, value in zip(self.expr.keys, self.expr.values):
-            if not isinstance(key, ast.Name) or not is_varname_valid(key.id):
+            if not isinstance(key, ast.Name) or not is_varname_valid(key.id, self.context.custom_units):
                 raise TypeMismatchException("Invalid member variable for struct: %r" % vars(key).get('id', key), key)
             if key.id in o:
                 raise TypeMismatchException("Member variable duplicated: " + key.id, key)

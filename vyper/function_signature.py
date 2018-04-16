@@ -64,7 +64,7 @@ class FunctionSignature():
             typ = arg.annotation
             if not typ:
                 raise InvalidTypeException("Argument must have type", arg)
-            if not is_varname_valid(arg.arg, custom_units=self.custom_units):
+            if not is_varname_valid(arg.arg, custom_units=custom_units):
                 raise VariableDeclarationException("Argument name invalid or reserved: " + arg.arg, arg)
             if arg.arg in (x.name for x in args):
                 raise VariableDeclarationException("Duplicate function argument name: " + arg.arg, arg)
@@ -111,7 +111,7 @@ class FunctionSignature():
             assert isinstance(output_type, TupleType) or canonicalize_type(output_type)
         # Get the canonical function signature
         sig = name + '(' + ','.join([
-            canonicalize_type(parse_type(arg.annotation, None, _sigs, custom_units=custom_units))
+            canonicalize_type(parse_type(arg.annotation, None, sigs, custom_units=custom_units))
             for arg in code.args.args
         ]) + ')'
 

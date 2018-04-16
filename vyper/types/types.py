@@ -287,7 +287,7 @@ def parse_type(item, location, sigs=None, custom_units=None):
     elif isinstance(item, ast.Dict):
         o = {}
         for key, value in zip(item.keys, item.values):
-            if not isinstance(key, ast.Name) or not is_varname_valid(key.id):
+            if not isinstance(key, ast.Name) or not is_varname_valid(key.id, custom_units):
                 raise InvalidTypeException("Invalid member variable for struct", key)
             o[key.id] = parse_type(value, location)
         return StructType(o)
