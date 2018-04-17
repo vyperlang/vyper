@@ -525,6 +525,8 @@ class Stmt(object):
 
         if isinstance(target, ast.Name) and target.id in self.context.forvars:
             raise StructureException("Altering iterator '%s' which is in use!" % target.id, self.stmt)
+        if isinstance(target, ast.Tuple):
+            return Expr(target, self.context).lll_node
         target = Expr.parse_variable_location(target, self.context)
         if target.location == 'storage' and self.context.is_constant:
             raise ConstancyViolationException("Cannot modify storage inside a constant function: %s" % target.annotation)

@@ -591,7 +591,7 @@ def make_setter(left, right, location, pos):
             return LLLnode.from_list(['with', '_L', left, ['with', '_R', right, ['seq'] + subs]], typ=None)
     # Structs
     elif isinstance(left.typ, (StructType, TupleType)):
-        if left.value == "multi":
+        if left.value == "multi" and isinstance(left.typ, StructType):
             raise Exception("Target of set statement must be a single item")
         if not isinstance(right.typ, NullType):
             if not isinstance(right.typ, left.typ.__class__):
@@ -628,10 +628,31 @@ def make_setter(left, right, location, pos):
             for typ in keyz:
                 subs.append(make_setter(add_variable_offset(left_token, typ, pos=pos), LLLnode.from_list(None, typ=NullType()), location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
+        # If tuple assign.
+        elif isinstance(left.typ, TupleType) and isinstance(right.typ, TupleType):
+            right_token = LLLnode.from_list('_R', typ=right.typ, location="memory")
+            subs = []
+            for idx, (left_arg, right_arg) in enumerate(zip(left.args, right.typ.members)):
+                # if left_arg.typ.typ != right_arg.typ:
+                #     raise TypeMismatchException("Tuple assignment mismatch position %d, expected '%s'" % (idx, right.typ), pos)
+                if isinstance(right_arg, ByteArrayType):
+                    offset = LLLnode.from_list(['add', '_R', ['mload', ['add', '_R', idx * 32]]], 
+                        typ=ByteArrayType(right_arg.maxlen), location='memory')
+                else:
+                    offset = add_variable_offset(right_token, idx, pos=pos)
+                subs.append(
+                    make_setter(
+                        left_arg,
+                        offset,
+                        location="memory",
+                        pos=pos
+                    )
+                )
+            return LLLnode.from_list(['with', '_R', right, ['seq'] + subs], typ=None, annotation='Tuple assignment')
         # If the right side is a variable
         else:
+            import ipdb; ipdb.set_trace()
             right_token = LLLnode.from_list('_R', typ=right.typ, location=right.location)
-            subs = []
             for typ in keyz:
                 subs.append(make_setter(
                     add_variable_offset(left_token, typ, pos=pos),
