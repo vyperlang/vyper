@@ -92,7 +92,7 @@ using the ``assert`` function which takes any boolean statement. We also check
 to see if the new bid is greater than the highest bid. If the two ``assert``
 statements pass, we can safely continue to the next lines; otherwise, the
 ``bid()`` method will throw an error and revert the transaction. If the two
-``assert`` statements the check that the previous bid is not equal to zero pass,
+``assert`` statements and the check that the previous bid is not equal to zero pass,
 we can safely conclude that we have a valid new highest bid. We will send back
 the previous ``highest_bid`` to the previous ``highest_bidder`` and set our new
 ``highest_bid`` and ``highest_bidder``.
