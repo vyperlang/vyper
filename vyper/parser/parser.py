@@ -632,14 +632,17 @@ def make_setter(left, right, location, pos):
         elif isinstance(left.typ, TupleType) and isinstance(right.typ, TupleType):
             right_token = LLLnode.from_list('_R', typ=right.typ, location="memory")
             subs = []
+            static_offset_counter = 0
             for idx, (left_arg, right_arg) in enumerate(zip(left.args, right.typ.members)):
                 # if left_arg.typ.typ != right_arg.typ:
                 #     raise TypeMismatchException("Tuple assignment mismatch position %d, expected '%s'" % (idx, right.typ), pos)
                 if isinstance(right_arg, ByteArrayType):
-                    offset = LLLnode.from_list(['add', '_R', ['mload', ['add', '_R', idx * 32]]], 
+                    offset = LLLnode.from_list(['add', '_R', ['mload', ['add', '_R', static_offset_counter]]], 
                         typ=ByteArrayType(right_arg.maxlen), location='memory')
+                    static_offset_counter += 32
                 else:
-                    offset = add_variable_offset(right_token, idx, pos=pos)
+                    offset = LLLnode.from_list(['mload', ['add', '_R', static_offset_counter]], typ=right_arg.typ)
+                    static_offset_counter += get_size_of_type(right_arg) * 32
                 subs.append(
                     make_setter(
                         left_arg,
@@ -651,7 +654,7 @@ def make_setter(left, right, location, pos):
             return LLLnode.from_list(['with', '_R', right, ['seq'] + subs], typ=None, annotation='Tuple assignment')
         # If the right side is a variable
         else:
-            import ipdb; ipdb.set_trace()
+            subs = []
             right_token = LLLnode.from_list('_R', typ=right.typ, location=right.location)
             for typ in keyz:
                 subs.append(make_setter(
