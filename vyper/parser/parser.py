@@ -637,7 +637,7 @@ def make_setter(left, right, location, pos):
                 # if left_arg.typ.typ != right_arg.typ:
                 #     raise TypeMismatchException("Tuple assignment mismatch position %d, expected '%s'" % (idx, right.typ), pos)
                 if isinstance(right_arg, ByteArrayType):
-                    offset = LLLnode.from_list(['add', '_R', ['mload', ['add', '_R', static_offset_counter]]], 
+                    offset = LLLnode.from_list(['add', '_R', ['mload', ['add', '_R', static_offset_counter]]],
                         typ=ByteArrayType(right_arg.maxlen), location='memory')
                     static_offset_counter += 32
                 else:

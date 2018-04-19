@@ -92,28 +92,6 @@ def test() -> (int128, address, bytes[10]):
     assert c.out_literals() == c.test() == [1, "0x0000000000000000000000000000000000000000", b"random"]
 
 
-def test_return_tuple_assign(get_contract_with_gas_estimation):
-    code = """
-@public
-def out_literals() -> (int128, address, bytes[10]):
-    return 1, 0x0000000000000000000000000000000000000000, "random"
-
-
-@public
-def test() -> (int128, address, bytes[10]):
-    a: int128
-    b: address
-    c: bytes[10]
-    (a, b, c) = self.out_literals()
-    return a, b, c
-
-    """
-
-    c = get_contract_with_gas_estimation(code)
-
-    assert c.out_literals() == c.test() == [1, "0x0000000000000000000000000000000000000000", b"random"]
-
-
 def test_return_tuple_assign_storage(get_contract_with_gas_estimation):
     code = """
 a: int128
@@ -134,4 +112,4 @@ def test() -> (int128, bytes[20], address, bytes[20]):
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.out_literals() == [1,  b"testtesttest", "0x0000000000000000000000000000000000000000", b"random"]
+    assert c.out_literals() == [1, b"testtesttest", "0x0000000000000000000000000000000000000000", b"random"]

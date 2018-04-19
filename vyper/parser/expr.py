@@ -481,12 +481,13 @@ class Expr(object):
                 returner = output_placeholder
             else:
                 raise TypeMismatchException("Invalid output type: %r" % sig.output_type, self.expr)
-            o = LLLnode.from_list(multi_arg + ['seq',
-                                        ['assert', ['call', ['gas'], ['address'], 0,
-                                                        inargs, inargsize,
-                                                        output_placeholder, get_size_of_type(sig.output_type) * 32]],
-                                        returner], typ=sig.output_type, location='memory',
-                                        pos=getpos(self.expr), add_gas_estimate=add_gas, annotation='Internal Call: %s' % method_name)
+            o = LLLnode.from_list(multi_arg +
+                    ['seq',
+                        ['assert', ['call', ['gas'], ['address'], 0,
+                                        inargs, inargsize,
+                                        output_placeholder, get_size_of_type(sig.output_type) * 32]], returner],
+                typ=sig.output_type, location='memory',
+                pos=getpos(self.expr), add_gas_estimate=add_gas, annotation='Internal Call: %s' % method_name)
             o.gas += sig.gas
             return o
         elif isinstance(self.expr.func, ast.Attribute) and isinstance(self.expr.func.value, ast.Call):
