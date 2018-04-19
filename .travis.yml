@@ -1,19 +1,16 @@
 language: python
-
 python:
-  - "3.6"
-
+- '3.6'
 cache: pip
-
 install:
-  - pip install --upgrade pip setuptools
-  - pip install coveralls
-  - pip install flake8
-  - pip install .
-
+- pip install --upgrade pip setuptools
+- pip install coveralls
+- pip install flake8
+- pip install .
 script:
-  - python setup.py test
-  - flake8 vyper/ tests/
-
+- python setup.py test
+- flake8 vyper/ tests/
 after_success:
+- openssl aes-256-cbc -K $encrypted_6ed035d313c9_key -iv $encrypted_6ed035d313c9_iv
+  -in .snapcraft/travis_snapcraft.cfg -out .snapcraft/snapcraft.cfg -d
 - coveralls
