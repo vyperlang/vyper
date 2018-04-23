@@ -650,7 +650,7 @@ def shift(expr, args, kwargs, context):
                                     # If it is negative, divide by a power of two
                                     # node that if the abs of the second argument >= 256, then in the EVM
                                     # 2**(second arg) = 0, and multiplying OR dividing by 0 gives 0
-                                    ['if', ['sle', '_s', 0],
+                                    ['if', ['slt', '_s', 0],
                                            ['div', '_v', ['exp', 2, ['sub', 0, '_s']]],
                                            ['mul', '_v', ['exp', 2, '_s']]]]],
     typ=BaseType('uint256'), pos=getpos(expr))
