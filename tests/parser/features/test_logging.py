@@ -629,6 +629,45 @@ def foo(barbaric: int128[4]):
     assert get_last_log(t, c)["_value"] == [4, 5, 6, 7]
 
 
+def test_2nd_var_list_packing(t, get_last_log, get_contract_with_gas_estimation, chain):
+    t.s = chain
+    code = """
+Bar: event({arg1: int128, arg2: int128[4]})
+
+@public
+def foo():
+    a: int128[4] = [1, 2, 3, 4]
+    log.Bar(10, a)
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    c.foo()
+    assert get_last_log(t, c)["arg2"] == [1, 2, 3, 4]
+
+
+def test_2nd_var_storage_list_packing(t, get_last_log, get_contract_with_gas_estimation, chain):
+    t.s = chain
+    code = """
+Bar: event({arg1: int128, arg2: int128[4]})
+x: int128[4]
+
+@public
+def foo():
+    log.Bar(10, self.x)
+
+@public
+def set_list():
+    self.x = [1, 2, 3, 4]
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    c.foo()
+    assert get_last_log(t, c)["arg2"] == [0, 0, 0, 0]
+    c.set_list()
+    c.foo()
+    assert get_last_log(t, c)["arg2"] == [1, 2, 3, 4]
+
+
 def test_variable_decimal_list_packing(t, get_last_log, get_contract_with_gas_estimation, chain):
     t.s = chain
 
