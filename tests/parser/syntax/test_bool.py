@@ -32,6 +32,17 @@ def foo() -> bool:
 @public
 def foo() -> bool:
     return (1 == 2) or 3
+    """,
+    """
+@public
+def foo() -> bool:
+    return 1.0 == 1
+    """,
+    """
+@public
+def foo() -> bool:
+    a: address
+    return a == 1
     """
 ]
 
