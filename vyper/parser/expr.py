@@ -397,15 +397,16 @@ class Expr(object):
         if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
             if op not in ('eq', 'ne'):
                 raise TypeMismatchException("Invalid type for comparison op", self.expr)
-        ltyp, rtyp = left.typ.typ, right.typ.typ
-        if ltyp == rtyp:
+        left_type, right_type = left.typ.typ, right.typ.typ
+        if (left_type in ('decimal', 'int128') or right_type in ('decimal', 'int128')) and left_type != right_type:
+            raise TypeMismatchException(
+                'Implicit conversion from {} to {} disallowed, please convert.'.format(left_type, right_type),
+                self.expr
+            )
+        if left_type == right_type:
             return LLLnode.from_list([op, left, right], typ='bool', pos=getpos(self.expr))
-        elif ltyp == 'decimal' and rtyp == 'int128':
-            return LLLnode.from_list([op, left, ['mul', right, DECIMAL_DIVISOR]], typ='bool', pos=getpos(self.expr))
-        elif ltyp == 'int128' and rtyp == 'decimal':
-            return LLLnode.from_list([op, ['mul', left, DECIMAL_DIVISOR], right], typ='bool', pos=getpos(self.expr))
         else:
-            raise TypeMismatchException("Unsupported types for comparison: %r %r" % (ltyp, rtyp), self.expr)
+            raise TypeMismatchException("Unsupported types for comparison: %r %r" % (left_type, right_type), self.expr)
 
     def boolean_operations(self):
         if len(self.expr.values) != 2:
