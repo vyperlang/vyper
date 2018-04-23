@@ -450,24 +450,6 @@ class Stmt(object):
             if len(self.context.return_type.members) != len(sub.typ.members):
                 raise StructureException("Tuple lengths don't match!", self.stmt)
 
-            # Check each tuple member is the correct type.
-            for idx, (given_type, expected_type) in enumerate(zip(sub.typ.members, self.context.return_type.members)):
-
-                if isinstance(expected_type, ByteArrayType):
-                    if not isinstance(given_type.typ, ByteArrayType):
-                        raise TypeMismatchException('Tuple position {} has incorrect type, bytes expected.'.format(idx), self.stmt)
-                    if given_type.typ.maxlen > expected_type.maxlen:
-                        raise TypeMismatchException('Tuple position {} has incorrect byte type, bytes provided has a max length larger than {}'.format(
-                            idx, expected_type.maxlen
-                        ), self.stmt)
-                elif isinstance(given_type.typ, BaseType):
-                    given_base_type = re.split(r'\(|\[', str(given_type.typ.typ))[0]
-                    expected_base_type = expected_type.typ
-                    if given_base_type != expected_base_type:
-                        raise TypeMismatchException('Tuple position {} has incorrect type, {} given - expected {}'.format(
-                            idx, given_base_type, expected_base_type
-                        ), self.stmt)
-
             subs = []
             dynamic_offset_counter = LLLnode(self.context.get_next_mem(), typ=None, annotation="dynamic_offset_counter")  # dynamic offset position counter.
             new_sub = LLLnode.from_list(self.context.get_next_mem() + 32, typ=self.context.return_type, location='memory', annotation='new_sub')
