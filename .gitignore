@@ -9,6 +9,8 @@ build/
 dist/
 .eggs/
 
+.pytest_cache/
+
 # pyenv
 .python-version
 

@@ -175,8 +175,6 @@ def canonicalize_type(t, is_indexed=False):
         return 'int256'
     elif t == 'address' or t == 'bytes32':
         return t
-    elif t == 'real':
-        return 'real128x128'
     raise Exception("Invalid or unsupported type: " + repr(t))
 
 

@@ -125,7 +125,7 @@ valid_global_keywords = ['public', 'modifiable', 'static', 'event'] + valid_unit
 
 # Cannot be used for variable or member naming
 reserved_words = ['int128', 'int256', 'uint256', 'address', 'bytes32',
-                  'real', 'real128x128', 'if', 'for', 'while', 'until',
+                  'if', 'for', 'while', 'until',
                   'pass', 'def', 'push', 'dup', 'swap', 'send', 'call',
                   'selfdestruct', 'assert', 'stop', 'throw',
                   'raise', 'init', '_init_', '___init___', '____init____',

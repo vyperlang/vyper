@@ -5,6 +5,10 @@ To compile a contract, use:
 ::
     vyper yourFileName.v.py
 
+You can also compile to other formats such as ABI using the below format:
+::
+    vyper -f ['abi', 'json', 'bytecode', 'bytecode_runtime', 'ir'] yourFileName.v.py
+
 .. note::
     Since .vy is not officially a language supported by any syntax highlighters or linters,
     it is recommended to name your Vyper file ending with `.vy` or optionally `.v.py` in order to have Python syntax highlighting.

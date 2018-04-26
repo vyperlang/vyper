@@ -357,24 +357,24 @@ def getpos(node):
 
 
 # Take a value representing a memory or storage location, and descend down to an element or member variable
-def add_variable_offset(parent, key):
+def add_variable_offset(parent, key, pos):
     typ, location = parent.typ, parent.location
     if isinstance(typ, (StructType, TupleType)):
         if isinstance(typ, StructType):
             if not isinstance(key, str):
-                raise TypeMismatchException("Expecting a member variable access; cannot access element %r" % key)
+                raise TypeMismatchException("Expecting a member variable access; cannot access element %r" % key, pos)
             if key not in typ.members:
-                raise TypeMismatchException("Object does not have member variable %s" % key)
+                raise TypeMismatchException("Object does not have member variable %s" % key, pos)
             subtype = typ.members[key]
             attrs = sorted(typ.members.keys())
 
             if key not in attrs:
-                raise TypeMismatchException("Member %s not found. Only the following available: %s" % (key, " ".join(attrs)))
+                raise TypeMismatchException("Member %s not found. Only the following available: %s" % (key, " ".join(attrs)), pos)
             index = attrs.index(key)
             annotation = key
         else:
             if not isinstance(key, int):
-                raise TypeMismatchException("Expecting a static index; cannot access element %r" % key)
+                raise TypeMismatchException("Expecting a static index; cannot access element %r" % key, pos)
             attrs = list(range(len(typ.members)))
             index = key
             annotation = None
@@ -396,12 +396,13 @@ def add_variable_offset(parent, key):
                                      annotation=annotation)
         else:
             raise TypeMismatchException("Not expecting a member variable access")
+
     elif isinstance(typ, MappingType):
 
         if isinstance(key.typ, ByteArrayType):
             if not isinstance(typ.keytype, ByteArrayType) or (typ.keytype.maxlen < key.typ.maxlen):
                 raise TypeMismatchException(
-                    'Mapping keys of bytes cannot be cast, use exact same bytes type of: %s' % str(typ.keytype),
+                    'Mapping keys of bytes cannot be cast, use exact same bytes type of: %s' % str(typ.keytype), pos
                 )
             subtype = typ.valuetype
             if len(key.args[0].args) >= 3:  # handle bytes literal.
@@ -414,7 +415,7 @@ def add_variable_offset(parent, key):
                 sub = LLLnode.from_list(['sha3', ['add', key.args[0].value, 32], ['mload', key.args[0].value]])
         else:
             subtype = typ.valuetype
-            sub = base_type_conversion(key, key.typ, typ.keytype)
+            sub = base_type_conversion(key, key.typ, typ.keytype, pos=pos)
 
         if location == 'storage':
             return LLLnode.from_list(['sha3_64', parent, sub],
@@ -425,12 +426,12 @@ def add_variable_offset(parent, key):
                                      typ=subtype,
                                      location='storage')
         elif location == 'memory':
-            raise TypeMismatchException("Can only have fixed-side arrays in memory, not mappings")
+            raise TypeMismatchException("Can only have fixed-side arrays in memory, not mappings", pos)
 
     elif isinstance(typ, ListType):
 
         subtype = typ.subtype
-        sub = ['uclamplt', base_type_conversion(key, key.typ, BaseType('int128')), typ.count]
+        sub = ['uclamplt', base_type_conversion(key, key.typ, BaseType('int128'), pos=pos), typ.count]
 
         if location == 'storage':
             return LLLnode.from_list(['add', ['sha3_32', parent], sub],
@@ -446,13 +447,13 @@ def add_variable_offset(parent, key):
                                       typ=subtype,
                                       location='memory')
         else:
-            raise TypeMismatchException("Not expecting an array access ")
+            raise TypeMismatchException("Not expecting an array access ", pos)
     else:
-        raise TypeMismatchException("Cannot access the child of a constant variable! %r" % typ)
+        raise TypeMismatchException("Cannot access the child of a constant variable! %r" % typ, pos)
 
 
 # Convert from one base type to another
-def base_type_conversion(orig, frm, to, pos=None):
+def base_type_conversion(orig, frm, to, pos):
     orig = unwrap_location(orig)
     if not isinstance(frm, (BaseType, NullType)) or not isinstance(to, BaseType):
         raise TypeMismatchException("Base type conversion from or to non-base type: %r %r" % (frm, to), pos)

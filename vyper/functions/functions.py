@@ -252,8 +252,8 @@ def ecrecover(expr, args, kwargs, context):
                               ['mload', MemoryPositions.FREE_VAR_SPACE]], typ=BaseType('address'), pos=getpos(expr))
 
 
-def avo(arg, ind):
-    return unwrap_location(add_variable_offset(arg, LLLnode.from_list(ind, 'int128')))
+def avo(arg, ind, pos):
+    return unwrap_location(add_variable_offset(arg, LLLnode.from_list(ind, 'int128'), pos=pos))
 
 
 @signature('uint256[2]', 'uint256[2]')
@@ -261,12 +261,12 @@ def ecadd(expr, args, kwargs, context):
     placeholder_node = LLLnode.from_list(
         context.new_placeholder(ByteArrayType(128)), typ=ByteArrayType(128), location='memory'
     )
-
+    pos = getpos(expr)
     o = LLLnode.from_list(['seq',
-                              ['mstore', placeholder_node, avo(args[0], 0)],
-                              ['mstore', ['add', placeholder_node, 32], avo(args[0], 1)],
-                              ['mstore', ['add', placeholder_node, 64], avo(args[1], 0)],
-                              ['mstore', ['add', placeholder_node, 96], avo(args[1], 1)],
+                              ['mstore', placeholder_node, avo(args[0], 0, pos)],
+                              ['mstore', ['add', placeholder_node, 32], avo(args[0], 1, pos)],
+                              ['mstore', ['add', placeholder_node, 64], avo(args[1], 0, pos)],
+                              ['mstore', ['add', placeholder_node, 96], avo(args[1], 1, pos)],
                               ['assert', ['call', 500, 6, 0, placeholder_node, 128, placeholder_node, 64]],
                               placeholder_node], typ=ListType(BaseType('uint256'), 2), pos=getpos(expr), location='memory')
     return o
@@ -277,13 +277,13 @@ def ecmul(expr, args, kwargs, context):
     placeholder_node = LLLnode.from_list(
         context.new_placeholder(ByteArrayType(128)), typ=ByteArrayType(128), location='memory'
     )
-
+    pos = getpos(expr)
     o = LLLnode.from_list(['seq',
-                              ['mstore', placeholder_node, avo(args[0], 0)],
-                              ['mstore', ['add', placeholder_node, 32], avo(args[0], 1)],
+                              ['mstore', placeholder_node, avo(args[0], 0, pos)],
+                              ['mstore', ['add', placeholder_node, 32], avo(args[0], 1, pos)],
                               ['mstore', ['add', placeholder_node, 64], args[1]],
                               ['assert', ['call', 40000, 7, 0, placeholder_node, 96, placeholder_node, 64]],
-                              placeholder_node], typ=ListType(BaseType('uint256'), 2), pos=getpos(expr), location='memory')
+                              placeholder_node], typ=ListType(BaseType('uint256'), 2), pos=pos, location='memory')
     return o
 
 
@@ -650,7 +650,7 @@ def shift(expr, args, kwargs, context):
                                     # If it is negative, divide by a power of two
                                     # node that if the abs of the second argument >= 256, then in the EVM
                                     # 2**(second arg) = 0, and multiplying OR dividing by 0 gives 0
-                                    ['if', ['sle', '_s', 0],
+                                    ['if', ['slt', '_s', 0],
                                            ['div', '_v', ['exp', 2, ['sub', 0, '_s']]],
                                            ['mul', '_v', ['exp', 2, '_s']]]]],
     typ=BaseType('uint256'), pos=getpos(expr))
