@@ -227,7 +227,6 @@ def parse_type(item, location, sigs={}):
         elif item.id in special_types:
             return special_types[item.id]
         else:
-            # import ipdb; ipdb.set_trace()
             raise InvalidTypeException("Invalid base type: " + item.id, item)
     # Units, e.g. num (1/sec) or contracts
     elif isinstance(item, ast.Call):

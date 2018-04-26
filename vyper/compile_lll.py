@@ -226,6 +226,7 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
         o = compile_to_assembly(code.args[0], withargs, break_dest, height)
         o.extend(['PUSH1', MemoryPositions.FREE_VAR_SPACE, 'MSTORE', 'PUSH1', 32, 'PUSH1', MemoryPositions.FREE_VAR_SPACE, 'SHA3'])
         return o
+    # SHA3 a 64 byte value
     elif code.value == 'sha3_64':
         o = compile_to_assembly(code.args[0], withargs, break_dest, height)
         o.extend([

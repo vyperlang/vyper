@@ -81,6 +81,7 @@ pseudo_opcodes = {
     'BREAK': [None, 0, 0, 20],
     'CONTINUE': [None, 0, 0, 20],
     'SHA3_32': [None, 1, 1, 72],
+    'SHA3_64': [None, 2, 1, 109],
     'SLE': [None, 2, 1, 10],
     'SGE': [None, 2, 1, 10],
     'LE': [None, 2, 1, 10],
