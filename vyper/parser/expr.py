@@ -301,7 +301,11 @@ class Expr(object):
             if left.typ.unit != right.typ.unit and left.typ.unit is not None and right.typ.unit is not None:
                 raise TypeMismatchException("Modulus arguments must have same unit", self.expr)
             new_unit = left.typ.unit or right.typ.unit
-            if ltyp == rtyp:
+            if ltyp == rtyp == 'uint256':
+                o = LLLnode.from_list(['seq',
+                                ['assert', right],
+                                ['mod', left, right]], typ=BaseType('uint256'), pos=getpos(self.expr))
+            elif ltyp == rtyp:
                 o = LLLnode.from_list(['smod', left, ['clamp_nonzero', right]], typ=BaseType(ltyp, new_unit), pos=getpos(self.expr))
             elif ltyp == 'decimal' and rtyp == 'int128':
                 o = LLLnode.from_list(['smod', left, ['mul', ['clamp_nonzero', right], DECIMAL_DIVISOR]],
