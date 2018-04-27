@@ -228,12 +228,12 @@ class Expr(object):
             new_positional = left.typ.positional ^ right.typ.positional  # xor, as subtracting two positionals gives a delta
             op = 'add' if isinstance(self.expr.op, ast.Add) else 'sub'
             if ltyp == 'uint256' and isinstance(self.expr.op, ast.Add):
-                return LLLnode.from_list(['seq',
+                o = LLLnode.from_list(['seq',
                                 # Checks that: a + b >= a
                                 ['assert', ['ge', ['add', left, right], left]],
                                 ['add', left, right]], typ=BaseType('uint256'), pos=getpos(self.expr))
             elif ltyp == 'uint256' and isinstance(self.expr.op, ast.Sub):
-                return LLLnode.from_list(['seq',
+                o = LLLnode.from_list(['seq',
                                 # Checks that: a >= b
                                 ['assert', ['ge', left, right]],
                                 ['sub', left, right]], typ=BaseType('uint256'), pos=getpos(self.expr))
@@ -251,7 +251,13 @@ class Expr(object):
             if left.typ.positional or right.typ.positional:
                 raise TypeMismatchException("Cannot multiply positional values!", self.expr)
             new_unit = combine_units(left.typ.unit, right.typ.unit)
-            if ltyp == rtyp == 'int128':
+            if ltyp == rtyp == 'uint256':
+                o = LLLnode.from_list(['seq',
+                                # Checks that: a == 0 || a / b == b
+                                ['assert', ['or', ['iszero', left],
+                                ['eq', ['div', ['mul', left, right], left], right]]],
+                                ['mul', left, right]], typ=BaseType('uint256'), pos=getpos(self.expr))
+            elif ltyp == rtyp == 'int128':
                 o = LLLnode.from_list(['mul', left, right], typ=BaseType('int128', new_unit), pos=getpos(self.expr))
             elif ltyp == rtyp == 'decimal':
                 o = LLLnode.from_list(['with', 'r', right, ['with', 'l', left,
@@ -320,6 +326,8 @@ class Expr(object):
             return LLLnode.from_list(['clamp', ['mload', MemoryPositions.MINNUM], o, ['mload', MemoryPositions.MAXNUM]], typ=o.typ, pos=getpos(self.expr))
         elif o.typ.typ == 'decimal':
             return LLLnode.from_list(['clamp', ['mload', MemoryPositions.MINDECIMAL], o, ['mload', MemoryPositions.MAXDECIMAL]], typ=o.typ, pos=getpos(self.expr))
+        if o.typ.typ == 'uint256':
+            return o
         else:
             raise Exception("%r %r" % (o, o.typ))
 
