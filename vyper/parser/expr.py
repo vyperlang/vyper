@@ -316,9 +316,14 @@ class Expr(object):
                 raise TypeMismatchException("Cannot use positional values as exponential arguments!", self.expr)
             if right.typ.unit:
                 raise TypeMismatchException("Cannot use unit values as exponents", self.expr)
-            if ltyp != 'int128' and isinstance(self.expr.right, ast.Name):
+            if ltyp != 'int128' and ltyp != 'uint256' and isinstance(self.expr.right, ast.Name):
                 raise TypeMismatchException("Cannot use dynamic values as exponents, for unit base types", self.expr)
-            if ltyp == rtyp == 'int128':
+            if ltyp == rtyp == 'uint256':
+                o = LLLnode.from_list(['seq',
+                                ['assert', ['or', ['or', ['eq', right, 1], ['iszero', right]],
+                                ['lt', left, ['exp', left, right]]]],
+                                ['exp', left, right]], typ=BaseType('uint256'), pos=getpos(self.expr))
+            elif ltyp == rtyp == 'int128':
                 new_unit = left.typ.unit
                 if left.typ.unit and not isinstance(self.expr.right, ast.Name):
                     new_unit = {left.typ.unit.copy().popitem()[0]: self.expr.right.n}

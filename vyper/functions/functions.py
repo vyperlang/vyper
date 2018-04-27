@@ -553,14 +553,6 @@ def bitwise_xor(expr, args, kwargs, context):
 
 
 @signature('uint256', 'uint256')
-def uint256_exp(expr, args, kwargs, context):
-    return LLLnode.from_list(['seq',
-                                ['assert', ['or', ['or', ['eq', args[1], 1], ['iszero', args[1]]],
-                                ['lt', args[0], ['exp', args[0], args[1]]]]],
-                                ['exp', args[0], args[1]]], typ=BaseType('uint256'), pos=getpos(expr))
-
-
-@signature('uint256', 'uint256')
 def uint256_mod(expr, args, kwargs, context):
     return LLLnode.from_list(['seq',
                                 ['assert', args[1]],
@@ -698,7 +690,6 @@ dispatch_table = {
     'bitwise_or': bitwise_or,
     'bitwise_xor': bitwise_xor,
     'bitwise_not': bitwise_not,
-    'uint256_exp': uint256_exp,
     'uint256_mod': uint256_mod,
     'uint256_addmod': uint256_addmod,
     'uint256_mulmod': uint256_mulmod,
