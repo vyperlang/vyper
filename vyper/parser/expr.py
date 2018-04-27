@@ -227,11 +227,16 @@ class Expr(object):
             new_unit = left.typ.unit or right.typ.unit
             new_positional = left.typ.positional ^ right.typ.positional  # xor, as subtracting two positionals gives a delta
             op = 'add' if isinstance(self.expr.op, ast.Add) else 'sub'
-            if ltyp == 'uint256':
+            if ltyp == 'uint256' and isinstance(self.expr.op, ast.Add):
                 return LLLnode.from_list(['seq',
                                 # Checks that: a + b >= a
                                 ['assert', ['ge', ['add', left, right], left]],
                                 ['add', left, right]], typ=BaseType('uint256'), pos=getpos(self.expr))
+            elif ltyp == 'uint256' and isinstance(self.expr.op, ast.Sub):
+                return LLLnode.from_list(['seq',
+                                # Checks that: a >= b
+                                ['assert', ['ge', left, right]],
+                                ['sub', left, right]], typ=BaseType('uint256'), pos=getpos(self.expr))
             elif ltyp == rtyp:
                 o = LLLnode.from_list([op, left, right], typ=BaseType(ltyp, new_unit, new_positional), pos=getpos(self.expr))
             elif ltyp == 'int128' and rtyp == 'decimal':
