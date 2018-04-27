@@ -213,6 +213,11 @@ class Expr(object):
         right = Expr.parse_value_expr(self.expr.right, self.context)
         if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
             raise TypeMismatchException("Unsupported types for arithmetic op: %r %r" % (left.typ, right.typ), self.expr)
+
+        arithmetic_pair = (left.typ.typ,  right.typ.typ)
+        if 'uint256' in arithmetic_pair and arithmetic_pair != ('uint256', 'uint256'):
+            raise TypeMismatchException("Cannot Implicitly convert uint256 types", self.expr)
+
         ltyp, rtyp = left.typ.typ, right.typ.typ
         if isinstance(self.expr.op, (ast.Add, ast.Sub)):
             if left.typ.unit != right.typ.unit and left.typ.unit is not None and right.typ.unit is not None:
@@ -222,7 +227,12 @@ class Expr(object):
             new_unit = left.typ.unit or right.typ.unit
             new_positional = left.typ.positional ^ right.typ.positional  # xor, as subtracting two positionals gives a delta
             op = 'add' if isinstance(self.expr.op, ast.Add) else 'sub'
-            if ltyp == rtyp:
+            if ltyp == 'uint256':
+                return LLLnode.from_list(['seq',
+                                # Checks that: a + b >= a
+                                ['assert', ['ge', ['add', left, right], left]],
+                                ['add', left, right]], typ=BaseType('uint256'), pos=getpos(self.expr))
+            elif ltyp == rtyp:
                 o = LLLnode.from_list([op, left, right], typ=BaseType(ltyp, new_unit, new_positional), pos=getpos(self.expr))
             elif ltyp == 'int128' and rtyp == 'decimal':
                 o = LLLnode.from_list([op, ['mul', left, DECIMAL_DIVISOR], right],
