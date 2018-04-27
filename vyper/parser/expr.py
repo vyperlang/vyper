@@ -277,7 +277,12 @@ class Expr(object):
             if left.typ.positional or right.typ.positional:
                 raise TypeMismatchException("Cannot divide positional values!", self.expr)
             new_unit = combine_units(left.typ.unit, right.typ.unit, div=True)
-            if ltyp == rtyp == 'int128':
+            if ltyp == rtyp == 'uint256':
+                o = LLLnode.from_list(['seq',
+                                # Checks that:  b != 0
+                                ['assert', right],
+                                ['div', left, right]], typ=BaseType('uint256'), pos=getpos(self.expr))
+            elif ltyp == rtyp == 'int128':
                 o = LLLnode.from_list(['sdiv', ['mul', left, DECIMAL_DIVISOR], ['clamp_nonzero', right]], typ=BaseType('decimal', new_unit), pos=getpos(self.expr))
             elif ltyp == rtyp == 'decimal':
                 o = LLLnode.from_list(['with', 'l', left, ['with', 'r', ['clamp_nonzero', right],
