@@ -90,7 +90,7 @@ class Stmt(object):
             make_setter,
         )
         self.context.set_in_assignment(True)
-        typ = parse_type(self.stmt.annotation, location='memory')
+        typ = parse_type(self.stmt.annotation, location='memory', custom_units=self.context.custom_units)
         if isinstance(self.stmt.target, ast.Attribute) and self.stmt.target.value.id == 'self':
             raise TypeMismatchException('May not redefine storage variables.', self.stmt)
         varname = self.stmt.target.id

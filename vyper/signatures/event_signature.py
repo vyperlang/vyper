@@ -18,7 +18,7 @@ class EventSignature():
 
     # Get a signature from an event declaration
     @classmethod
-    def from_declaration(cls, code):
+    def from_declaration(cls, code, custom_units=None):
         name = code.target.id
         pos = 0
         # Determine the arguments, expects something of the form def foo(arg1: num, arg2: num ...
@@ -48,7 +48,7 @@ class EventSignature():
                     raise VariableDeclarationException("Argument name invalid", arg)
                 if not typ:
                     raise InvalidTypeException("Argument must have type", arg)
-                if not is_varname_valid(arg):
+                if not is_varname_valid(arg, custom_units):
                     raise VariableDeclarationException("Argument name invalid or reserved: " + arg, arg)
                 if arg in (x.name for x in args):
                     raise VariableDeclarationException("Duplicate function argument name: " + arg, arg)
