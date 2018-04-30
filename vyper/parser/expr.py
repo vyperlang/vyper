@@ -7,6 +7,7 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
+    ParserException,
 )
 from .parser_utils import LLLnode
 from .parser_utils import (
@@ -222,7 +223,7 @@ class Expr(object):
         if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
             raise TypeMismatchException("Unsupported types for arithmetic op: %r %r" % (left.typ, right.typ), self.expr)
 
-        arithmetic_pair = (left.typ.typ,  right.typ.typ)
+        arithmetic_pair = (left.typ.typ, right.typ.typ)
 
         # Special Case: Simplify any literal to literal arithmetic at compile time.
         if left.typ.is_literal and right.typ.is_literal and left.typ.typ in ('int128', 'uint256'):
@@ -249,7 +250,7 @@ class Expr(object):
         # Special case with uint256 where int literal may be casted.
         if arithmetic_pair == ('uint256', 'int128') and right.typ.is_literal and right.value >= 0:
             right = LLLnode.from_list(right.value, typ=BaseType('uint256', None, is_literal=True), pos=getpos(self.expr))
-            arithmetic_pair = (left.typ.typ,  right.typ.typ)
+            arithmetic_pair = (left.typ.typ, right.typ.typ)
 
         # not uint256 implicit conversion may occur.
         if 'uint256' in arithmetic_pair and arithmetic_pair != ('uint256', 'uint256'):
@@ -290,10 +291,10 @@ class Expr(object):
             new_unit = combine_units(left.typ.unit, right.typ.unit)
             if ltyp == rtyp == 'uint256':
                 o = LLLnode.from_list(['seq',
-                                # Checks that: a == 0 || a / b == b
-                                ['assert', ['or', ['iszero', left],
-                                ['eq', ['div', ['mul', left, right], left], right]]],
-                                ['mul', left, right]], typ=BaseType('uint256'), pos=getpos(self.expr))
+                                        # Checks that: a == 0 || a / b == b
+                                        ['assert', ['or', ['iszero', left],
+                                        ['eq', ['div', ['mul', left, right], left], right]]],
+                                        ['mul', left, right]], typ=BaseType('uint256'), pos=getpos(self.expr))
             elif ltyp == rtyp == 'int128':
                 o = LLLnode.from_list(['mul', left, right], typ=BaseType('int128', new_unit), pos=getpos(self.expr))
             elif ltyp == rtyp == 'decimal':
@@ -361,9 +362,9 @@ class Expr(object):
                 raise TypeMismatchException("Cannot use dynamic values as exponents, for unit base types", self.expr)
             if ltyp == rtyp == 'uint256':
                 o = LLLnode.from_list(['seq',
-                                ['assert', ['or', ['or', ['eq', right, 1], ['iszero', right]],
-                                ['lt', left, ['exp', left, right]]]],
-                                ['exp', left, right]], typ=BaseType('uint256'), pos=getpos(self.expr))
+                                        ['assert', ['or', ['or', ['eq', right, 1], ['iszero', right]],
+                                        ['lt', left, ['exp', left, right]]]],
+                                        ['exp', left, right]], typ=BaseType('uint256'), pos=getpos(self.expr))
             elif ltyp == rtyp == 'int128':
                 new_unit = left.typ.unit
                 if left.typ.unit and not isinstance(self.expr.right, ast.Name):
