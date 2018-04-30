@@ -78,10 +78,18 @@ class Expr(object):
 
     def number(self):
         orignum = get_original_if_0x_prefixed(self.expr, self.context)
+
         if orignum is None and isinstance(self.expr.n, int):
-            if not (SizeLimits.MINNUM <= self.expr.n <= SizeLimits.MAXNUM):
+
+            # Literal becomes int128
+            if (SizeLimits.MINNUM <= self.expr.n <= SizeLimits.MAXNUM):
+                return LLLnode.from_list(self.expr.n, typ=BaseType('int128', None, is_literal=True), pos=getpos(self.expr))
+            # Literal is large enough, becomes uint256.
+            elif 0 <= self.expr.n <= SizeLimits.MAX_UINT256:
+                return LLLnode.from_list(self.expr.n, typ=BaseType('uint256', None, is_literal=True), pos=getpos(self.expr))
+            else:
                 raise InvalidLiteralException("Number out of range: " + str(self.expr.n), self.expr)
-            return LLLnode.from_list(self.expr.n, typ=BaseType('int128', None), pos=getpos(self.expr))
+
         elif isinstance(self.expr.n, float):
             numstring, num, den = get_number_as_fraction(self.expr, self.context)
             if not (SizeLimits.MINNUM * den < num < SizeLimits.MAXNUM * den):
@@ -94,9 +102,9 @@ class Expr(object):
                 raise InvalidLiteralException("Address checksum mismatch. If you are sure this is the "
                                               "right address, the correct checksummed form is: " +
                                               checksum_encode(orignum), self.expr)
-            return LLLnode.from_list(self.expr.n, typ=BaseType('address'), pos=getpos(self.expr))
+            return LLLnode.from_list(self.expr.n, typ=BaseType('address', is_literal=True), pos=getpos(self.expr))
         elif len(orignum) == 66:
-            return LLLnode.from_list(self.expr.n, typ=BaseType('bytes32'), pos=getpos(self.expr))
+            return LLLnode.from_list(self.expr.n, typ=BaseType('bytes32', is_literal=True), pos=getpos(self.expr))
         else:
             raise InvalidLiteralException("Cannot read 0x value with length %d. Expecting 42 (address incl 0x) or 66 (bytes32 incl 0x)"
                                           % len(orignum), self.expr)
@@ -215,6 +223,35 @@ class Expr(object):
             raise TypeMismatchException("Unsupported types for arithmetic op: %r %r" % (left.typ, right.typ), self.expr)
 
         arithmetic_pair = (left.typ.typ,  right.typ.typ)
+
+        # Special Case: Simplify any literal to literal arithmetic at compile time.
+        if left.typ.is_literal and right.typ.is_literal and left.typ.typ in ('int128', 'uint256'):
+
+            if isinstance(self.expr.op, ast.Add):
+                num = ast.Num(left.value + right.value)
+            elif isinstance(self.expr.op, ast.Sub):
+                num = ast.Num(left.value - right.value)
+            elif isinstance(self.expr.op, ast.Mult):
+                num = ast.Num(left.value * right.value)
+            elif isinstance(self.expr.op, ast.Div):
+                num = ast.Num(left.value / right.value)
+            elif isinstance(self.expr.op, ast.Mod):
+                num = ast.Num(left.value % right.value)
+            else:
+                ParserException('Unsupported literal operator: %s' % str(type(self.expr.op)), self.expr)
+
+            num.source_code = self.expr.source_code
+            num.lineno = self.expr.lineno
+            num.col_offset = self.expr.col_offset
+
+            return Expr.parse_value_expr(num, self.context)
+
+        # Special case with uint256 where int literal may be casted.
+        if arithmetic_pair == ('uint256', 'int128') and right.typ.is_literal and right.value >= 0:
+            right = LLLnode.from_list(right.value, typ=BaseType('uint256', None, is_literal=True), pos=getpos(self.expr))
+            arithmetic_pair = (left.typ.typ,  right.typ.typ)
+
+        # not uint256 implicit conversion may occur.
         if 'uint256' in arithmetic_pair and arithmetic_pair != ('uint256', 'uint256'):
             raise TypeMismatchException("Cannot Implicitly convert uint256 types", self.expr)
 

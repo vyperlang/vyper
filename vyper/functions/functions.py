@@ -629,6 +629,7 @@ def minmax(expr, args, kwargs, context, is_min):
     if left.typ.typ == right.typ.typ:
         o = ['if', [comparator, '_l', '_r'], '_r', '_l']
         otyp = left.typ
+        otyp.is_literal = False
     elif left.typ.typ == 'int128' and right.typ.typ == 'decimal':
         o = ['if', [comparator, ['mul', '_l', DECIMAL_DIVISOR], '_r'], '_r', ['mul', '_l', DECIMAL_DIVISOR]]
         otyp = 'decimal'

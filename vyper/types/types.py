@@ -52,11 +52,12 @@ class NodeType():
 # Data structure for a type that represents a 32-byte object
 class BaseType(NodeType):
 
-    def __init__(self, typ, unit=False, positional=False, override_signature=False):
+    def __init__(self, typ, unit=False, positional=False, override_signature=False, is_literal=False):
         self.typ = typ
         self.unit = {} if unit is False else unit
         self.positional = positional
         self.override_signature = override_signature
+        self.is_literal = is_literal
 
     def __eq__(self, other):
         return other.__class__ == BaseType and self.typ == other.typ and self.unit == other.unit and self.positional == other.positional
