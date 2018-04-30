@@ -261,7 +261,9 @@ def make_byte_array_copier(destination, source):
         o = LLLnode.from_list(
             ['with', '_source', source,
                 ['with', '_sz', ['add', 32, ['mload', '_source']],
-                    ['assert', ['call', ['add', 18, ['div', '_sz', 10]], 4, 0, '_source', '_sz', destination, '_sz']]]], typ=None, add_gas_estimate=gas_calculation)
+                    ['assert', ['call', ['add', 18, ['div', '_sz', 10]], 4, 0, '_source', '_sz', destination, '_sz']]]],
+            typ=None, add_gas_estimate=gas_calculation, annotation='Memory copy'
+        )
         return o
 
     pos_node = LLLnode.from_list('_pos', typ=source.typ, location=source.location)

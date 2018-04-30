@@ -473,18 +473,22 @@ class Expr(object):
             add_gas = self.context.sigs['self'][method_name].gas  # gas of call
             inargs, inargsize = pack_arguments(sig, [Expr(arg, self.context).lll_node for arg in self.expr.args], self.context, pos=getpos(self.expr))
             output_placeholder = self.context.new_placeholder(typ=sig.output_type)
+            multi_arg = []
             if isinstance(sig.output_type, BaseType):
                 returner = output_placeholder
             elif isinstance(sig.output_type, ByteArrayType):
                 returner = output_placeholder + 32
+            elif self.context.in_assignment and isinstance(sig.output_type, TupleType):
+                returner = output_placeholder
             else:
                 raise TypeMismatchException("Invalid output type: %r" % sig.output_type, self.expr)
-            o = LLLnode.from_list(['seq',
-                                        ['assert', ['call', ['gas'], ['address'], 0,
-                                                        inargs, inargsize,
-                                                        output_placeholder, get_size_of_type(sig.output_type) * 32]],
-                                        returner], typ=sig.output_type, location='memory',
-                                        pos=getpos(self.expr), add_gas_estimate=add_gas, annotation='Internal Call: %s' % method_name)
+            o = LLLnode.from_list(multi_arg +
+                    ['seq',
+                        ['assert', ['call', ['gas'], ['address'], 0,
+                                        inargs, inargsize,
+                                        output_placeholder, get_size_of_type(sig.output_type) * 32]], returner],
+                typ=sig.output_type, location='memory',
+                pos=getpos(self.expr), add_gas_estimate=add_gas, annotation='Internal Call: %s' % method_name)
             o.gas += sig.gas
             return o
         elif isinstance(self.expr.func, ast.Attribute) and isinstance(self.expr.func.value, ast.Call):

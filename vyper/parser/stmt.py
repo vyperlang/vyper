@@ -121,6 +121,8 @@ class Stmt(object):
         # All other assignments are forbidden.
         elif isinstance(self.stmt.targets[0], ast.Name) and self.stmt.targets[0].id not in self.context.vars:
             raise VariableDeclarationException("Variable type not defined", self.stmt)
+        elif isinstance(self.stmt.targets[0], ast.Tuple) and isinstance(self.stmt.value, ast.Tuple):
+            raise VariableDeclarationException("Tuple to tuple assignment not supported", self.stmt)
         else:
             # Checks to see if assignment is valid
             target = self.get_target(self.stmt.targets[0])
@@ -446,7 +448,8 @@ class Stmt(object):
         # Returning a tuple.
         elif isinstance(sub.typ, TupleType):
             if len(self.context.return_type.members) != len(sub.typ.members):
-                raise StructureException("Tuple lengths don't match!")
+                raise StructureException("Tuple lengths don't match!", self.stmt)
+
             subs = []
             dynamic_offset_counter = LLLnode(self.context.get_next_mem(), typ=None, annotation="dynamic_offset_counter")  # dynamic offset position counter.
             new_sub = LLLnode.from_list(self.context.get_next_mem() + 32, typ=self.context.return_type, location='memory', annotation='new_sub')
@@ -525,6 +528,8 @@ class Stmt(object):
 
         if isinstance(target, ast.Name) and target.id in self.context.forvars:
             raise StructureException("Altering iterator '%s' which is in use!" % target.id, self.stmt)
+        if isinstance(target, ast.Tuple):
+            return Expr(target, self.context).lll_node
         target = Expr.parse_variable_location(target, self.context)
         if target.location == 'storage' and self.context.is_constant:
             raise ConstancyViolationException("Cannot modify storage inside a constant function: %s" % target.annotation)

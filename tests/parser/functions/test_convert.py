@@ -14,7 +14,7 @@ def int128_to_num(inp: int128) -> (int128, int128, int128):
     return  memory, storage, literal
 
 @public
-def uint256_to_num(inp: uint256) -> (uint256, uint256):
+def uint256_to_num(inp: uint256) -> (int128, int128):
     self.b = inp
     memory: int128  = convert(inp, 'int128')
     storage: int128 = convert(self.b, 'int128')
