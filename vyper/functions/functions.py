@@ -574,26 +574,6 @@ def bitwise_not(expr, args, kwargs, context):
     return LLLnode.from_list(['not', args[0]], typ=BaseType('uint256'), pos=getpos(expr))
 
 
-@signature('uint256', 'uint256')
-def uint256_gt(expr, args, kwargs, context):
-    return LLLnode.from_list(['gt', args[0], args[1]], typ=BaseType('bool'), pos=getpos(expr))
-
-
-@signature('uint256', 'uint256')
-def uint256_ge(expr, args, kwargs, context):
-    return LLLnode.from_list(['ge', args[0], args[1]], typ=BaseType('bool'), pos=getpos(expr))
-
-
-@signature('uint256', 'uint256')
-def uint256_lt(expr, args, kwargs, context):
-    return LLLnode.from_list(['lt', args[0], args[1]], typ=BaseType('bool'), pos=getpos(expr))
-
-
-@signature('uint256', 'uint256')
-def uint256_le(expr, args, kwargs, context):
-    return LLLnode.from_list(['le', args[0], args[1]], typ=BaseType('bool'), pos=getpos(expr))
-
-
 @signature('uint256', 'int128')
 def shift(expr, args, kwargs, context):
     return LLLnode.from_list(['with', '_v', args[0],
@@ -685,10 +665,6 @@ dispatch_table = {
     'bitwise_not': bitwise_not,
     'uint256_addmod': uint256_addmod,
     'uint256_mulmod': uint256_mulmod,
-    'uint256_gt': uint256_gt,
-    'uint256_ge': uint256_ge,
-    'uint256_lt': uint256_lt,
-    'uint256_le': uint256_le,
     'shift': shift,
     'create_with_code_of': create_with_code_of,
     'min': _min,
