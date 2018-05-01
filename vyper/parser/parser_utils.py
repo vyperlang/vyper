@@ -416,7 +416,6 @@ def add_variable_offset(parent, key, pos):
             subtype = typ.valuetype
             sub = base_type_conversion(key, key.typ, typ.keytype, pos=pos)
         if location == 'storage':
-            # import ipdb; ipdb.set_trace()
             return LLLnode.from_list(['add', ['sha3_32', parent], sub],
                                      typ=subtype,
                                      location='storage')
@@ -453,6 +452,9 @@ def base_type_conversion(orig, frm, to, pos):
             # This is only to future proof the use of  base_type_conversion.
             raise TypeMismatchException("Cannot convert null-type object to type %r" % to, pos)  # pragma: no cover
         return LLLnode.from_list(0, typ=to)
+    # Integer literal conversion.
+    elif (frm.typ, to.typ, frm.is_literal) == ('int128', 'uint256', True):
+        return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
     else:
         raise TypeMismatchException("Typecasting from base type %r to %r unavailable" % (frm, to), pos)
 

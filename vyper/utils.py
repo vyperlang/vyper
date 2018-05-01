@@ -90,7 +90,7 @@ class SizeLimits:
     MINNUM = -2**127
     MAXDECIMAL = (2**127 - 1) * DECIMAL_DIVISOR
     MINDECIMAL = (-2**127) * DECIMAL_DIVISOR
-    MAX_UINT256 = 2**256
+    MAX_UINT256 = 2**256 - 1
 
 
 # Map representing all limits loaded into a contract as part of the initializer

@@ -1,4 +1,4 @@
-from vyper.exceptions import ConstancyViolationException
+from vyper.exceptions import ConstancyViolationException, InvalidLiteralException
 
 
 def test_augassign(get_contract_with_gas_estimation):
@@ -53,3 +53,45 @@ def foo(x: int128):
     x += 5
 """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ConstancyViolationException)
+
+
+def test_valid_literal_increment(get_contract_with_gas_estimation):
+    code = """
+storx: uint256
+
+@public
+def foo1() -> int128:
+    x: int128 = 122
+    x += 1
+    return x
+
+@public
+def foo2() -> uint256:
+    x: uint256 = 122
+    x += 1
+    return x
+
+@public
+def foo3(y: uint256) -> uint256:
+    self.storx = y
+    self.storx += 1
+    return self.storx
+"""
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.foo1() == 123
+    assert c.foo2() == 123
+    assert c.foo3(11) == 12
+
+
+def test_invalid_uin256_assignment(assert_compile_failed, get_contract_with_gas_estimation):
+    code = """
+storx: uint256
+
+@public
+def foo2() -> uint256:
+    x: uint256 = -1
+    x += 1
+    return x
+"""
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidLiteralException)
