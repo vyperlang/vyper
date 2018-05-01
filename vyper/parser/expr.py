@@ -229,18 +229,23 @@ class Expr(object):
         if left.typ.is_literal and right.typ.is_literal and left.typ.typ in ('int128', 'uint256'):
 
             if isinstance(self.expr.op, ast.Add):
-                num = ast.Num(left.value + right.value)
+                val = left.value + right.value
             elif isinstance(self.expr.op, ast.Sub):
-                num = ast.Num(left.value - right.value)
+                val = left.value - right.value
             elif isinstance(self.expr.op, ast.Mult):
-                num = ast.Num(left.value * right.value)
+                val = left.value * right.value
             elif isinstance(self.expr.op, ast.Div):
-                num = ast.Num(left.value / right.value)
+                val = left.value / right.value
             elif isinstance(self.expr.op, ast.Mod):
-                num = ast.Num(left.value % right.value)
+                val = left.value % right.value
             else:
-                ParserException('Unsupported literal operator: %s' % str(type(self.expr.op)), self.expr)
+                raise ParserException('Unsupported literal operator: %s' % str(type(self.expr.op)), self.expr)
 
+            # For scenario where mul and div produce a whole number:
+            if isinstance(val, float) and val.is_integer():
+                val = int(val)
+
+            num = ast.Num(val)
             num.source_code = self.expr.source_code
             num.lineno = self.expr.lineno
             num.col_offset = self.expr.col_offset
