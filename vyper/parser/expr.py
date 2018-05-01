@@ -12,7 +12,7 @@ from .parser_utils import LLLnode
 from .parser_utils import (
     getpos,
     unwrap_location,
-    get_original_if_0x_prefixed,
+    get_original_if_0_prefixed,
     get_number_as_fraction,
     add_variable_offset,
 )
@@ -77,7 +77,7 @@ class Expr(object):
         return self.expr
 
     def number(self):
-        orignum = get_original_if_0x_prefixed(self.expr, self.context)
+        orignum = get_original_if_0_prefixed(self.expr, self.context)
         if orignum is None and isinstance(self.expr.n, int):
             if not (SizeLimits.MINNUM <= self.expr.n <= SizeLimits.MAXNUM):
                 raise InvalidLiteralException("Number out of range: " + str(self.expr.n), self.expr)
@@ -89,6 +89,22 @@ class Expr(object):
             if DECIMAL_DIVISOR % den:
                 raise InvalidLiteralException("Too many decimal places: " + numstring, self.expr)
             return LLLnode.from_list(num * DECIMAL_DIVISOR // den, typ=BaseType('decimal', None), pos=getpos(self.expr))
+        # Binary literal.
+        elif orignum[:2] == '0b':
+            str_val = orignum[2:]
+            total_bits = len(orignum[2:])
+            total_bits = total_bits if total_bits % 8 == 0 else total_bits + 8 - (total_bits % 8)  # ceil8 to get byte length.
+            byte_len = int(total_bits / 8)
+            placeholder = self.context.new_placeholder(ByteArrayType(byte_len))
+            seq = []
+            seq.append(['mstore', placeholder, byte_len])
+            for i in range(0, total_bits, 256):
+                section = str_val[i:i + 256]
+                int_val = int(section, 2) << 256 - len(section)  # bytes are right padded.
+                seq.append(
+                    ['mstore', ['add', placeholder, i + 32], int_val])
+            return LLLnode.from_list(['seq'] + seq + [placeholder],
+                typ=ByteArrayType(byte_len), location='memory', pos=getpos(self.expr), annotation='Create ByteArray (Binary literal): %s' % str_val)
         elif len(orignum) == 42:
             if checksum_encode(orignum) != orignum:
                 raise InvalidLiteralException("Address checksum mismatch. If you are sure this is the "
