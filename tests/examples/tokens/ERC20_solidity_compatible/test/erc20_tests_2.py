@@ -72,11 +72,11 @@ class TestERC20Flo(PyEthereumTestCase):
         self.check_logs([log_sigs['Transfer'], bytes_to_int(self.t.a1),
                          bytes_to_int(self.t.a0)], int_to_bytes(100))
 
-        self.assertEqual( self.c.totalSupply(), 1000,
+        self.assertEqual(self.c.totalSupply(), 1000,
                           "TransferFrom changed balance")
-        self.assertEqual( self.c.balanceOf(self.t.a0), 600,
+        self.assertEqual(self.c.balanceOf(self.t.a0), 600,
                           "TransferFrom did not add funds")
-        self.assertEqual( self.c.balanceOf(self.t.a1), 400,
+        self.assertEqual(self.c.balanceOf(self.t.a1), 400,
                           "TransferFrom did not remove funds")
 
         # Check TransferFrom did not reduce allowance
@@ -88,7 +88,7 @@ class TestERC20Flo(PyEthereumTestCase):
         self.assertTrue(self.c.withdraw(500, sender=self.t.k0),
                         "Withdraw did not work")
 
-        self.check_logs([log_sigs['Transfer'],bytes_to_int(self.t.a0),0],
+        self.check_logs([log_sigs['Transfer'], bytes_to_int(self.t.a0), 0],
                         int_to_bytes(500))
 
         self.assertEqual(self.c.balanceOf(self.t.a0), 100,
@@ -145,7 +145,7 @@ class TestSingleERC20(TestERC20Flo):
 
 
 test_suites = []
-for f in glob.glob(PATH_TO_CONTRACTS + "nonviper/*") + glob.glob(PATH_TO_CONTRACTS + "/../../../../examples/tokens/ERC20_solidity_compatible/ERC20.v.py"):
+for f in glob.glob(PATH_TO_CONTRACTS + "nonvyper/*") + glob.glob(PATH_TO_CONTRACTS + "/../../../../examples/tokens/ERC20_solidity_compatible/ERC20.v.py"):
     # ugly hack: copy the class instance to set a different file path
     # replace extension with underscore so that unittest parses it correctly
     cls_name = basename(f.replace('.', '_'))
@@ -153,6 +153,7 @@ for f in glob.glob(PATH_TO_CONTRACTS + "nonviper/*") + glob.glob(PATH_TO_CONTRAC
     globals()[cls_name] = suite
     suite.in_file = f
     test_suites.append(suite)
+
 
 def load_tests(loader, tests, pattern):
     full_suite = unittest.TestSuite()

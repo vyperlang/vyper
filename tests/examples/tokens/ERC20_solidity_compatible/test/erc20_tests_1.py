@@ -1,5 +1,5 @@
-# Requires Python 3.6, Viper, and pyethereum dependencies
-# Manually verified for full branch/decision, statement coverage (on Viper contract)
+# Requires Python 3.6, Vyper, and pyethereum dependencies
+# Manually verified for full branch/decision, statement coverage (on Vyper contract)
 # Author: Philip Daian (contributions from Florian Tramer, Lorenz Breidenbach)
 
 import unittest
@@ -7,13 +7,14 @@ from ethereum.tools import tester
 import ethereum.utils as utils
 import ethereum.abi as abi
 
-from utils.pyethereum_test_utils import PyEthereumTestCase, bytes_to_int, int_to_bytes
+from utils.pyethereum_test_utils import PyEthereumTestCase, bytes_to_int
 
-MAX_UINT256 = (2 ** 256) - 1  # Max num256 value
+MAX_UINT256 = (2 ** 256) - 1  # Max uint256 value
 MAX_UINT128 = (2 ** 128) - 1  # Max num128 value
 
 # Base path to contracts from current directory
 PATH_TO_CONTRACTS = "."
+
 
 class TestERC20(PyEthereumTestCase):
 
@@ -170,7 +171,11 @@ class TestERC20(PyEthereumTestCase):
     def test_maxInts(self):
         initial_a1_balance = self.s.head_state.get_balance(self.t.a1)
         # Check boundary conditions - a1 can deposit max amount
-        self.assertIsNone(self.c.deposit(value=MAX_UINT256, sender=self.t.k1))
+        # @TODO fix this, it's hacky and will cause divergences
+        # we'd like to deposit MAX_UINT256: see https://github.com/ethereum/vyper/issues/653
+        self.assertIsNone(self.c.deposit(value=int(MAX_UINT256 / 2) - 1, sender=self.t.k1))
+        self.assertIsNone(self.c.deposit(value=int(MAX_UINT256 / 2) - 1, sender=self.t.k1))
+        self.assertIsNone(self.c.deposit(value=1, sender=self.t.k1))
         self.assertEqual(initial_a1_balance - self.s.head_state.get_balance(self.t.a1), MAX_UINT256)
         self.assertEqual(self.c.balanceOf(self.t.a1), MAX_UINT256)
         self.assert_tx_failed(lambda: self.c.deposit(value=1, sender=self.t.k1))
@@ -208,19 +213,19 @@ class TestERC20(PyEthereumTestCase):
         # Payable functions - ensure success
         self.assertIsNone(self.c.deposit(value=2, sender=self.t.k1))
         # Non payable functions - ensure all fail with value, succeed without
-        self.assert_tx_failed(lambda :self.c.withdraw(0, value=2, sender=self.t.k1))
+        self.assert_tx_failed(lambda: self.c.withdraw(0, value=2, sender=self.t.k1))
         self.assertTrue(self.c.withdraw(0, value=0, sender=self.t.k1))
-        self.assert_tx_failed(lambda :self.c.totalSupply(value=2, sender=self.t.k1))
+        self.assert_tx_failed(lambda: self.c.totalSupply(value=2, sender=self.t.k1))
         self.assertEqual(self.c.totalSupply(value=0, sender=self.t.k1), 2)
-        self.assert_tx_failed(lambda :self.c.balanceOf(self.t.a1, value=2, sender=self.t.k1))
+        self.assert_tx_failed(lambda: self.c.balanceOf(self.t.a1, value=2, sender=self.t.k1))
         self.assertEqual(self.c.balanceOf(self.t.a1, value=0, sender=self.t.k1), 2)
-        self.assert_tx_failed(lambda :self.c.transfer(self.t.a2, 0, value=2, sender=self.t.k1))
+        self.assert_tx_failed(lambda: self.c.transfer(self.t.a2, 0, value=2, sender=self.t.k1))
         self.assertTrue(self.c.transfer(self.t.a2, 0, value=0, sender=self.t.k1))
-        self.assert_tx_failed(lambda :self.c.approve(self.t.a2, 1, value=2, sender=self.t.k1))
+        self.assert_tx_failed(lambda: self.c.approve(self.t.a2, 1, value=2, sender=self.t.k1))
         self.assertTrue(self.c.approve(self.t.a2, 1, value=0, sender=self.t.k1))
-        self.assert_tx_failed(lambda :self.c.allowance(self.t.a1, self.t.a2, value=2, sender=self.t.k1))
+        self.assert_tx_failed(lambda: self.c.allowance(self.t.a1, self.t.a2, value=2, sender=self.t.k1))
         self.assertEqual(self.c.allowance(self.t.a1, self.t.a2, value=0, sender=self.t.k1), 1)
-        self.assert_tx_failed(lambda :self.c.transferFrom(self.t.a1, self.t.a2, 0, value=2, sender=self.t.k1))
+        self.assert_tx_failed(lambda: self.c.transferFrom(self.t.a1, self.t.a2, 0, value=2, sender=self.t.k1))
         self.assertTrue(self.c.transferFrom(self.t.a1, self.t.a2, 0, value=0, sender=self.t.k1))
 
     def test_raw_logs(self):
@@ -327,20 +332,21 @@ class TestERC20(PyEthereumTestCase):
         self.assertTrue(ext2.my_withdraw())
         self.check_logs([self.transfer_topic, bytes_to_int(ext2.address), 0], (2).to_bytes(32, byteorder='big'))
 
-class TestViperERC20(TestERC20):
+
+class TestVyperERC20(TestERC20):
 
     @classmethod
     def setUpClass(cls):
-        super(TestViperERC20, cls).setUpClass()
+        super(TestVyperERC20, cls).setUpClass()
 
-        from viper import compiler
-        cls.t.languages['viper'] = compiler.Compiler()
+        from vyper import compiler
+        cls.t.languages['vyper'] = compiler.Compiler()
         contract_code = open(PATH_TO_CONTRACTS + '/../../../../examples/tokens/ERC20_solidity_compatible/ERC20.v.py').read()
-        cls.c = cls.s.contract(contract_code, language='viper')
+        cls.c = cls.s.contract(contract_code, language='vyper')
         # Bad version of contract where totalSupply / num_issued never gets updated after init
         # (required for full decision/branch coverage)
-        bad_code = contract_code.replace("self.num_issued = num256_add", "x = num256_add")
-        cls.c_bad = cls.s.contract(bad_code, language='viper')
+        bad_code = contract_code.replace("self.num_issued = uint256_add", "x: uint256 = uint256_add")
+        cls.c_bad = cls.s.contract(bad_code, language='vyper')
 
         cls.initial_state = cls.s.snapshot()
         cls.strict_log_mode = True
@@ -352,10 +358,14 @@ class TestViperERC20(TestERC20):
     def test_bad_transfer(self):
         # Ensure transfer fails if it would otherwise overflow balance
         # (bad contract is used or overflow checks on total supply would fail)
-        self.assertIsNone(self.c_bad.deposit(value=MAX_UINT256, sender=self.t.k1))
-        self.assertIsNone(self.c_bad.deposit(value=1, sender=self.t.k2))
-        self.assert_tx_failed(lambda: self.c_bad.transfer(self.t.a1, 1, sender=self.t.k2))
-        self.assertTrue(self.c_bad.transfer(self.t.a2, MAX_UINT256-1, sender=self.t.k1))
+        # @TODO fix this, it's hacky and will cause divergences
+        # we'd like to deposit MAX_UINT256: see https://github.com/ethereum/vyper/issues/653
+        self.assertIsNone(self.c_bad.deposit(value=int(MAX_UINT256 / 2) - 1, sender=self.t.k1))
+        self.assertIsNone(self.c_bad.deposit(value=int(MAX_UINT256 / 2) - 1, sender=self.t.k1))
+        self.assertIsNone(self.c_bad.deposit(value=1, sender=self.t.k1))
+        self.assertIsNone(self.c_bad.deposit(value=3, sender=self.t.k2))
+        self.assert_tx_failed(lambda: self.c_bad.transfer(self.t.a1, 3, sender=self.t.k2))
+        self.assertTrue(self.c_bad.transfer(self.t.a2, MAX_UINT256 - 3, sender=self.t.k1))
 
     def test_bad_deposit(self):
         # Check that, in event when totalSupply is corrupted, it can't be underflowed
@@ -366,7 +376,11 @@ class TestViperERC20(TestERC20):
 
     def test_bad_transferFrom(self):
         # Ensure transferFrom fails if it would otherwise overflow balance
-        self.assertIsNone(self.c_bad.deposit(value=MAX_UINT256, sender=self.t.k1))
+        # @TODO fix this, it's hacky and will cause divergences
+        # we'd like to deposit MAX_UINT256: see https://github.com/ethereum/vyper/issues/653
+        self.assertIsNone(self.c_bad.deposit(value=int(MAX_UINT256 / 2) - 1, sender=self.t.k1))
+        self.assertIsNone(self.c_bad.deposit(value=int(MAX_UINT256 / 2) - 1, sender=self.t.k1))
+        self.assertIsNone(self.c_bad.deposit(value=1, sender=self.t.k1))
         self.assertIsNone(self.c_bad.deposit(value=1, sender=self.t.k2))
         self.assertTrue(self.c_bad.approve(self.t.a1, 1, sender=self.t.k2))
         self.assert_tx_failed(lambda: self.c_bad.transferFrom(self.t.a2, self.t.a1, 1, sender=self.t.k1))
@@ -382,7 +396,7 @@ class TestSolidity1ERC20(TestERC20):
     def setUpClass(cls):
         super(TestSolidity1ERC20, cls).setUpClass()
 
-        contract_code = open(PATH_TO_CONTRACTS + '/nonviper/ERC20_solidity_1.sol').read()
+        contract_code = open(PATH_TO_CONTRACTS + '/nonvyper/ERC20_solidity_1.sol').read()
         cls.c = cls.s.contract(contract_code, language='solidity')
 
         cls.initial_state = cls.s.snapshot()
@@ -399,7 +413,7 @@ class TestSolidity2ERC20(TestERC20):
     def setUpClass(cls):
         super(TestSolidity2ERC20, cls).setUpClass()
 
-        contract_code = open(PATH_TO_CONTRACTS + '/nonviper/ERC20_solidity_2.sol').read()
+        contract_code = open(PATH_TO_CONTRACTS + '/nonvyper/ERC20_solidity_2.sol').read()
         cls.c = cls.s.contract(contract_code, language='solidity')
 
         cls.initial_state = cls.s.snapshot()
@@ -413,10 +427,11 @@ class TestSolidity2ERC20(TestERC20):
 def load_tests(loader, tests, pattern):
     full_suite = unittest.TestSuite()
 
-    for suite in [TestViperERC20, TestSolidity1ERC20, TestSolidity2ERC20]:
+    for suite in [TestVyperERC20, TestSolidity1ERC20, TestSolidity2ERC20]:
         tests = loader.loadTestsFromTestCase(suite)
         full_suite.addTests(tests)
     return full_suite
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

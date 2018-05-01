@@ -1,14 +1,13 @@
-# Initiate financial events that the contract logs,
-#       which are used at the end of each corresponding method.
-Transfer: __log__({_from: indexed(address), _to: indexed(address), _value: currency_value})
-Buy: __log__({_buyer: indexed(address), _buy_order: currency_value})
-Sell: __log__({_seller: indexed(address), _sell_order: currency_value})
-Pay: __log__({_vendor: indexed(address), _amount: wei_value})
+# Financial events the contract logs
+Transfer: event({_from: indexed(address), _to: indexed(address), _value: currency_value})
+Buy: event({_buyer: indexed(address), _buy_order: currency_value})
+Sell: event({_seller: indexed(address), _sell_order: currency_value})
+Pay: event({_vendor: indexed(address), _amount: wei_value})
 
 # Initiate the variables for the company and it's own shares.
 company: public(address)
 total_shares: public(currency_value)
-price: public(num (wei / currency))
+price: public(int128 (wei / currency))
 
 # Store a ledger of stockholder holdings.
 holdings: currency_value[address]
@@ -16,7 +15,7 @@ holdings: currency_value[address]
 # Set up the company.
 @public
 def __init__(_company: address, _total_shares: currency_value,
-        initial_price: num(wei / currency) ):
+        initial_price: int128(wei / currency) ):
     assert _total_shares > 0
     assert initial_price > 0
 
@@ -37,11 +36,8 @@ def stock_available() -> currency_value:
 @payable
 def buy_stock():
     # Note: full amount is given to company (no fractional shares),
-    #       so be sure to send the exact amount to buy shares.
-    # Note that this could be implemented as a check for the buyer, 
-    #       that throws if the amount is not equal to a whole 
-    #       number of shares.
-    buy_order = msg.value / self.price # rounds down
+    #       so be sure to send exact amount to buy shares
+    buy_order: currency_value = floor(msg.value / self.price) # rounds down
 
     # Check that there are enough shares to buy.
     assert self.stock_available() >= buy_order

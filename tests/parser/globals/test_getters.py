@@ -1,13 +1,13 @@
 def test_state_accessor(get_contract_with_gas_estimation_for_constants):
     state_accessor = """
-y: num[num]
+y: int128[int128]
 
 @public
 def oo():
     self.y[3] = 5
 
 @public
-def foo() -> num:
+def foo() -> int128:
     return self.y[3]
 
     """
@@ -21,21 +21,21 @@ def foo() -> num:
 def test_getter_code(get_contract_with_gas_estimation_for_constants):
     getter_code = """
 x: public(wei_value)
-y: public(num[5])
-z: public(bytes <= 100)
+y: public(int128[5])
+z: public(bytes[100])
 w: public({
     a: wei_value,
-    b: num[7],
-    c: bytes <= 100,
-    d: num[address],
-    e: num[3][3],
+    b: int128[7],
+    c: bytes[100],
+    d: int128[address],
+    e: int128[3][3],
     f: timestamp,
     g: wei_value
-}[num])
+}[int128])
 
 @public
 def __init__():
-    self.x = as_wei_value(7, wei)
+    self.x = as_wei_value(7, "wei")
     self.y[1] = 9
     self.z = "cow"
     self.w[1].a = 11
@@ -48,15 +48,15 @@ def __init__():
     """
 
     c = get_contract_with_gas_estimation_for_constants(getter_code)
-    assert c.get_x() == 7
-    assert c.get_y(1) == 9
-    assert c.get_z() == b"cow"
-    assert c.get_w__a(1) == 11
-    assert c.get_w__b(1, 2) == 13
-    assert c.get_w__c(1) == b"horse"
-    assert c.get_w__d(1, "0x1234567890123456789012345678901234567890") == 15
-    assert c.get_w__e(2, 1, 2) == 17
-    assert c.get_w__f(3) == 750
-    assert c.get_w__g(3) == 751
+    assert c.x() == 7
+    assert c.y(1) == 9
+    assert c.z() == b"cow"
+    assert c.w__a(1) == 11
+    assert c.w__b(1, 2) == 13
+    assert c.w__c(1) == b"horse"
+    assert c.w__d(1, "0x1234567890123456789012345678901234567890") == 15
+    assert c.w__e(2, 1, 2) == 17
+    assert c.w__f(3) == 750
+    assert c.w__g(3) == 751
 
     print('Passed getter tests')

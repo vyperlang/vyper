@@ -1,12 +1,12 @@
 def test_packing_test(get_contract_with_gas_estimation):
     packing_test = """
-x: num
-y: num[5]
-z: {foo: num[3], bar: {a: num, b: num}[2]}
-a: num
+x: int128
+y: int128[5]
+z: {foo: int128[3], bar: {a: int128, b: int128}[2]}
+a: int128
 
 @public
-def foo() -> num:
+def foo() -> int128:
     self.x = 1
     self.y[0] = 2
     self.y[4] = 4
@@ -21,11 +21,11 @@ def foo() -> num:
         self.z.bar[0].a + self.z.bar[0].b + self.z.bar[1].a + self.z.bar[1].b + self.a
 
 @public
-def fop() -> num:
-    _x: num
-    _y: num[5]
-    _z: {foo: num[3], bar: {a: num, b: num}[2]}
-    _a: num
+def fop() -> int128:
+    _x: int128
+    _y: int128[5]
+    _z: {foo: int128[3], bar: {a: int128, b: int128}[2]}
+    _a: int128
     _x = 1
     _y[0] = 2
     _y[4] = 4

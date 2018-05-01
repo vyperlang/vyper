@@ -1,15 +1,18 @@
+from ethereum.tools import tester
+
+
 def test_caller_code(get_contract_with_gas_estimation):
     caller_code = """
 @public
-def foo() -> bytes <= 7:
+def foo() -> bytes[7]:
     return raw_call(0x0000000000000000000000000000000000000004, "moose", gas=50000, outsize=5)
 
 @public
-def bar() -> bytes <= 7:
+def bar() -> bytes[7]:
     return raw_call(0x0000000000000000000000000000000000000004, "moose", gas=50000, outsize=3)
 
 @public
-def baz() -> bytes <= 7:
+def baz() -> bytes[7]:
     return raw_call(0x0000000000000000000000000000000000000004, "moose", gas=50000, outsize=7)
     """
 
@@ -21,11 +24,10 @@ def baz() -> bytes <= 7:
     print('Passed raw call test')
 
 
-
 def test_multiple_levels(get_contract_with_gas_estimation, chain):
     inner_code = """
 @public
-def returnten() -> num:
+def returnten() -> int128:
     return 10
     """
 
@@ -33,14 +35,14 @@ def returnten() -> num:
 
     outer_code = """
 @public
-def create_and_call_returnten(inp: address) -> num:
-    x = create_with_code_of(inp)
-    o = extract32(raw_call(x, "\xd0\x1f\xb1\xb8", outsize=32, gas=50000), 0, type=num128)
+def create_and_call_returnten(inp: address) -> int128:
+    x: address = create_with_code_of(inp)
+    o: int128 = extract32(raw_call(x, "\xd0\x1f\xb1\xb8", outsize=32, gas=50000), 0, type=int128)
     return o
 
 @public
 def create_and_return_forwarder(inp: address) -> address:
-    x = create_with_code_of(inp)
+    x: address = create_with_code_of(inp)
     return x
     """
 
@@ -59,7 +61,7 @@ def create_and_return_forwarder(inp: address) -> address:
 def test_multiple_levels2(get_contract_with_gas_estimation):
     inner_code = """
 @public
-def returnten() -> num:
+def returnten() -> int128:
     assert False
     return 10
     """
@@ -68,9 +70,9 @@ def returnten() -> num:
 
     outer_code = """
 @public
-def create_and_call_returnten(inp: address) -> num:
-    x = create_with_code_of(inp)
-    o = extract32(raw_call(x, "\xd0\x1f\xb1\xb8", outsize=32, gas=50000), 0, type=num128)
+def create_and_call_returnten(inp: address) -> int128:
+    x: address = create_with_code_of(inp)
+    o: int128 = extract32(raw_call(x, "\xd0\x1f\xb1\xb8", outsize=32, gas=50000), 0, type=int128)
     return o
 
 @public
@@ -82,7 +84,7 @@ def create_and_return_forwarder(inp: address) -> address:
     try:
         c2.create_and_call_returnten(c.address)
         success = True
-    except:
+    except tester.TransactionFailed:
         success = False
     assert not success
 

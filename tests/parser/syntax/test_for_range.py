@@ -1,6 +1,6 @@
 import pytest
 
-from viper import compiler
+from vyper import compiler
 
 valid_list = [
     """
@@ -18,7 +18,7 @@ def foo():
     """
 @public
 def foo():
-    x = 5
+    x: int128 = 5
     for i in range(x, x + 10):
         pass
     """

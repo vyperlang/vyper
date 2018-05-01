@@ -1,11 +1,11 @@
 def test_concat(get_contract_with_gas_estimation):
     test_concat = """
 @public
-def foo2(input1: bytes <= 50, input2: bytes <= 50) -> bytes <= 1000:
+def foo2(input1: bytes[50], input2: bytes[50]) -> bytes[1000]:
     return concat(input1, input2)
 
 @public
-def foo3(input1: bytes <= 50, input2: bytes <= 50, input3: bytes <= 50) -> bytes <= 1000:
+def foo3(input1: bytes[50], input2: bytes[50], input3: bytes[50]) -> bytes[1000]:
     return concat(input1, input2, input3)
     """
 
@@ -24,23 +24,23 @@ def foo3(input1: bytes <= 50, input2: bytes <= 50, input3: bytes <= 50) -> bytes
 def test_concat2(get_contract_with_gas_estimation):
     test_concat2 = """
 @public
-def foo(inp: bytes <= 50) -> bytes <= 1000:
-    x = inp
+def foo(inp: bytes[50]) -> bytes[1000]:
+    x: bytes[50] = inp
     return concat(x, inp, x, inp, x, inp, x, inp, x, inp)
     """
 
     c = get_contract_with_gas_estimation(test_concat2)
-    assert c.foo(b"horse" * 9 + b"viper") == (b"horse" * 9 + b"viper") * 10
+    assert c.foo(b"horse" * 9 + b"vyper") == (b"horse" * 9 + b"vyper") * 10
     print('Passed second concat test')
 
 
 def test_crazy_concat_code(get_contract_with_gas_estimation):
     crazy_concat_code = """
-y: bytes <= 10
+y: bytes[10]
 
 @public
-def krazykonkat(z: bytes <= 10) -> bytes <= 25:
-    x = "cow"
+def krazykonkat(z: bytes[10]) -> bytes[25]:
+    x: bytes[3] = "cow"
     self.y = "horse"
     return concat(x, " ", self.y, " ", z)
     """
@@ -55,11 +55,11 @@ def krazykonkat(z: bytes <= 10) -> bytes <= 25:
 def test_concat_bytes32(get_contract_with_gas_estimation):
     test_concat_bytes32 = """
 @public
-def sandwich(inp: bytes <= 100, inp2: bytes32) -> bytes <= 164:
+def sandwich(inp: bytes[100], inp2: bytes32) -> bytes[164]:
     return concat(inp2, inp, inp2)
 
 @public
-def fivetimes(inp: bytes32) -> bytes <= 160:
+def fivetimes(inp: bytes32) -> bytes[160]:
     return concat(inp, inp, inp, inp, inp)
     """
 
@@ -79,17 +79,17 @@ def test_konkat_code(get_contract_with_gas_estimation):
 ecks: bytes32
 
 @public
-def foo(x: bytes32, y: bytes32) -> bytes <= 64:
-    selfecks = x
-    return concat(selfecks, y)
-
-@public
-def goo(x: bytes32, y: bytes32) -> bytes <= 64:
+def foo(x: bytes32, y: bytes32) -> bytes[64]:
     self.ecks = x
     return concat(self.ecks, y)
 
 @public
-def hoo(x: bytes32, y: bytes32) -> bytes <= 64:
+def goo(x: bytes32, y: bytes32) -> bytes[64]:
+    self.ecks = x
+    return concat(self.ecks, y)
+
+@public
+def hoo(x: bytes32, y: bytes32) -> bytes[64]:
     return concat(x, y)
     """
 

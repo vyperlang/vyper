@@ -1,14 +1,19 @@
 from ethereum.tools import tester as t
 from ethereum import utils
+from vyper import compiler
+
+
+t.languages['vyper'] = compiler.Compiler()
 t.s = t.Chain()
 t.s.head_state.gas_limit = 10**9
 
-x = t.s.contract(open('examples/wallet/wallet.v.py').read(), args=[[t.a1, t.a2, t.a3, t.a4, t.a5], 3], language='viper')
+x = t.s.contract(open('examples/wallet/wallet.v.py').read(), args=[[t.a1, t.a2, t.a3, t.a4, t.a5], 3], language='vyper')
 print(t.s.last_tx.data[-192:])
 # Sends wei to the contract for future transactions gas costs
 t.s.tx(sender=t.k1, to=x.address, value=10**17)
 
 print([utils.encode_hex(a) for a in [t.a1, t.a2, t.a3, t.a4, t.a5]])
+
 
 # Signs a transaction with a given key
 def sign(seq, to, value, data, key):
@@ -45,17 +50,17 @@ def test_javascript_signatures():
     ]
 
     # Turns the raw sigs into sigs
-    sigs = [(utils.big_endian_to_int(x[64:]), utils.big_endian_to_int(x[:32]), utils.big_endian_to_int(x[32:64])) for x in 
+    sigs = [(utils.big_endian_to_int(x[64:]), utils.big_endian_to_int(x[:32]), utils.big_endian_to_int(x[32:64])) for x in
             map(lambda z: utils.decode_hex(z[2:]), raw_sigs)]
 
     h = utils.sha3(utils.encode_int32(0) + b'\x00' * 12 + utils.decode_hex(recipient[2:]) + utils.encode_int32(25) + b'')
     h2 = utils.sha3(b"\x19Ethereum Signed Message:\n32" + h)
     # Check to make sure the signatures are valid
-    assert '0x'+utils.encode_hex(utils.sha3(utils.ecrecover_to_pub(h2, sigs[0][0], sigs[0][1], sigs[0][2]))[12:]) == accounts[0]
-    assert '0x'+utils.encode_hex(utils.sha3(utils.ecrecover_to_pub(h2, sigs[1][0], sigs[1][1], sigs[1][2]))[12:]) == accounts[1]
+    assert '0x' + utils.encode_hex(utils.sha3(utils.ecrecover_to_pub(h2, sigs[0][0], sigs[0][1], sigs[0][2]))[12:]) == accounts[0]
+    assert '0x' + utils.encode_hex(utils.sha3(utils.ecrecover_to_pub(h2, sigs[1][0], sigs[1][1], sigs[1][2]))[12:]) == accounts[1]
 
     # Set the owners to zero addresses
-    x2 = t.s.contract(open('examples/wallet/wallet.v.py').read(), args=[accounts + [t.a3, zero_address, zero_address], 2], language='viper')
+    x2 = t.s.contract(open('examples/wallet/wallet.v.py').read(), args=[accounts + [t.a3, zero_address, zero_address], 2], language='vyper')
     t.s.tx(sender=t.k1, to=x2.address, value=10**17)
 
     # There's no need to pass in signatures because the owners are 0 addresses causing them to default to valid signatures

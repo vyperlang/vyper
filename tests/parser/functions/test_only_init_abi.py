@@ -1,16 +1,16 @@
-from viper.compiler import mk_full_signature
+from vyper.compiler import mk_full_signature
 
 
 def test_only_init_function():
     code = """
-x: num
+x: int128
 
 @public
 def __init__():
     self.x = 1
     """
     code_init_empty = """
-x: num
+x: int128
 
 @public
 def __init__():

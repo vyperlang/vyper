@@ -6,7 +6,7 @@
 Structure of a Contract
 ***********************
 
-Contracts in Viper are contained within files, with each file being one smart-contract.  Files in Viper are similar to classes in object-oriented languages.
+Contracts in Vyper are contained within files, with each file being one smart-contract.  Files in Vyper are similar to classes in object-oriented languages.
 Each file can contain declarations of :ref:`structure-state-variables`, :ref:`structure-functions`, and :ref:`structure-structs-types`.
 
 .. _structure-state-variables:
@@ -18,7 +18,7 @@ State variables are values which are permanently stored in contract storage.
 
 ::
 
-  storedData: num
+  storedData: int128
 
 See the :ref:`types` section for valid state variable types and
 :ref:`visibility-and-getters` for possible choices for
@@ -37,9 +37,8 @@ Functions are the executable units of code within a contract.
   @payable
   def bid(): // Function
     // ...
-  }
 
-:ref:`function-calls` can happen internally or externally
+:ref:`Function-calls` can happen internally or externally
 and have different levels of visibility (:ref:`visibility-and-getters`)
 towards other contracts. Functions must be decorated with either @public or @private.
 
@@ -52,9 +51,9 @@ Events may be logged in specially indexed data structures that allow clients, in
 
 ::
 
-    Payment: __log__({amount: num, arg2: indexed(address)})
+    Payment: event({amount: int128, arg2: indexed(address)})
 
-    total_paid: num
+    total_paid: int128
 
     @public
     def pay():

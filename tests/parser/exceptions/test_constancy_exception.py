@@ -1,57 +1,82 @@
 import pytest
 from pytest import raises
 
-from viper import compiler
-from viper.exceptions import ConstancyViolationException
+from vyper import compiler
+from vyper.exceptions import ConstancyViolationException
 
 
 fail_list = [
     """
-x: num
+x: int128
 @public
 @constant
-def foo() -> num:
+def foo() -> int128:
     self.x = 5
     """,
     """
 @public
 @constant
-def foo() -> num:
+def foo() -> int128:
     send(0x1234567890123456789012345678901234567890, 5)
     """,
     """
 @public
 @constant
-def foo() -> num:
+def foo() -> int128:
     selfdestruct(0x1234567890123456789012345678901234567890)
     """,
     """
 x: timedelta
-y: num
+y: int128
 @public
 @constant
-def foo() -> num(sec):
+def foo() -> int128(sec):
     self.y = 9
     return 5
     """,
     """
 @public
 @constant
-def foo() -> num:
+def foo() -> int128:
     x = raw_call(0x1234567890123456789012345678901234567890, "cow", outsize=4, gas=595757, value=9)
     return 5
     """,
     """
 @public
 @constant
-def foo() -> num:
+def foo() -> int128:
     x = create_with_code_of(0x1234567890123456789012345678901234567890, value=9)
     return 5
     """,
     """
 @public
-def foo(x: num):
+def foo(x: int128):
     x = 5
+    """,
+    """
+f:int128
+
+@public
+def a (x:int128)->int128:
+    self.f = 100
+    return x+5
+
+@constant
+@public
+def b():
+    p: int128 = self.a(10)
+    """,
+    """
+f:int128
+
+@public
+def a (x:int128):
+    self.f = 100
+
+@constant
+@public
+def b():
+    self.a(10)
     """
 ]
 

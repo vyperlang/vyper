@@ -4,9 +4,9 @@ Contributing
 
 Help is always appreciated!
 
-To get started, you can try `installing Viper <https://viper.readthedocs.io/en/latest/installing-viper.html>`_ in order to familiarize
-yourself with the components of Viper and the build process. Also, it may be
-useful to become well-versed at writing smart-contracts in Viper.
+To get started, you can try `installing Vyper <https://vyper.readthedocs.io/en/latest/installing-vyper.html>`_ in order to familiarize
+yourself with the components of Vyper and the build process. Also, it may be
+useful to become well-versed at writing smart-contracts in Vyper.
 
 Types of Contributions
 ======================
@@ -15,27 +15,27 @@ In particular, we need help in the following areas:
 
 * Improving the documentation
 * Responding to questions from other users on `StackExchange
-  <https://ethereum.stackexchange.com>`_ and the `Viper Gitter
-  <https://gitter.im/ethereum/viper>`_
+  <https://ethereum.stackexchange.com>`_ and the `Vyper Gitter
+  <https://gitter.im/ethereum/vyper>`_
 * Suggesting Improvements
-* Fixing and responding to `Viper's GitHub issues <https://github.com/ethereum/viper/issues>`_
+* Fixing and responding to `Vyper's GitHub issues <https://github.com/ethereum/vyper/issues>`_
 
 
 
 How to Suggest Improvements
 ===========================
 
-To suggest an improvement, please create a Viper Improvement Proposal (VIP for short)
-using the `VIP Template <https://github.com/ethereum/viper/tree/master/.github/VIP_TEMPLATE.md>`_.
+To suggest an improvement, please create a Vyper Improvement Proposal (VIP for short)
+using the `VIP Template <https://github.com/ethereum/vyper/tree/master/.github/VIP_TEMPLATE.md>`_.
 
 How to Report Issues
 ====================
 
 To report an issue, please use the
-`GitHub issues tracker <https://github.com/ethereum/viper/issues>`_. When
+`GitHub issues tracker <https://github.com/ethereum/vyper/issues>`_. When
 reporting issues, please mention the following details:
 
-* Which version of Viper you are using
+* Which version of Vyper you are using
 * What was the source code (if applicable)
 * Which platform are you running on
 * Your operating system name and version
@@ -49,7 +49,7 @@ very helpful and sometimes even clarifies a misunderstanding.
 Fix Bugs
 ========
 
-Find or report bugs at our `issues page <https://github.com/ethereum/viper/issues>`_. Anything tagged with "bug" is open to whoever wants to implement it.
+Find or report bugs at our `issues page <https://github.com/ethereum/vyper/issues>`_. Anything tagged with "bug" is open to whoever wants to implement it.
 
 Workflow for Pull Requests
 ==========================

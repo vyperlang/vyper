@@ -1,14 +1,14 @@
 import pytest
 from pytest import raises
 
-from viper import compiler
-from viper.exceptions import TypeMismatchException
+from vyper import compiler
+from vyper.exceptions import TypeMismatchException
 
 
 fail_list = [
     """
 @public
-def foo(x: timestamp) -> num:
+def foo(x: timestamp) -> int128:
     return x
     """,
     """
@@ -44,18 +44,18 @@ def foo(x: timedelta, y: timedelta) -> timedelta:
     """
 @public
 def foo() -> timestamp:
-    x = 30
+    x: int128 = 30
     y: timestamp
     return x + y
     """,
     """
 @public
-def foo(x: timedelta, y: num (wei/sec)) -> num:
+def foo(x: timedelta, y: int128 (wei/sec)) -> int128:
     return x * y
     """,
     """
 @public
-def foo(x: timestamp, y: num (wei/sec)) -> wei_value:
+def foo(x: timestamp, y: int128 (wei/sec)) -> wei_value:
     return x * y
     """
 ]
@@ -107,7 +107,7 @@ def foo(x: timestamp) -> timestamp:
     """
 @public
 @constant
-def foo(x: timestamp) -> num:
+def foo(x: timestamp) -> int128:
     return 5
     """,
     """
@@ -119,7 +119,7 @@ def foo(x: timestamp) -> timestamp:
     """
 @public
 def foo(x: timestamp) -> timestamp:
-    y = x
+    y: timestamp = x
     return y
     """,
     """
@@ -156,33 +156,33 @@ def foo(x: timedelta) -> timedelta:
     """,
     """
 @public
-def foo(x: timedelta, y: num (wei/sec)) -> wei_value:
+def foo(x: timedelta, y: int128 (wei/sec)) -> wei_value:
     return x * y
     """,
     """
 @public
-def foo(x: num(sec, positional)) -> timestamp:
+def foo(x: int128(sec, positional)) -> timestamp:
     return x
     """,
     """
 x: timedelta
 @public
-def foo() -> num(sec):
+def foo() -> int128(sec):
     return self.x
     """,
     """
 x: timedelta
-y: num
+y: int128
 @public
 @constant
-def foo() -> num(sec):
+def foo() -> int128(sec):
     return self.x
     """,
     """
 x: timedelta
-y: num
+y: int128
 @public
-def foo() -> num(sec):
+def foo() -> int128(sec):
     self.y = 9
     return 5
     """,

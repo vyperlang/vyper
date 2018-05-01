@@ -1,7 +1,7 @@
 def test_hash_code(get_contract_with_gas_estimation, utils):
     hash_code = """
 @public
-def foo(inp: bytes <= 100) -> bytes32:
+def foo(inp: bytes[100]) -> bytes32:
     return sha3(inp)
 
 @public
@@ -19,7 +19,7 @@ def bar() -> bytes32:
 def test_hash_code2(get_contract_with_gas_estimation):
     hash_code2 = """
 @public
-def foo(inp: bytes <= 100) -> bool:
+def foo(inp: bytes[100]) -> bool:
     return sha3(inp) == sha3("badminton")
     """
     c = get_contract_with_gas_estimation(hash_code2)
@@ -29,19 +29,19 @@ def foo(inp: bytes <= 100) -> bool:
 
 def test_hash_code3(get_contract_with_gas_estimation):
     hash_code3 = """
-test: bytes <= 100
+test: bytes[100]
 
 @public
-def set_test(inp: bytes <= 100):
+def set_test(inp: bytes[100]):
     self.test = inp
 
 @public
-def tryy(inp: bytes <= 100) -> bool:
+def tryy(inp: bytes[100]) -> bool:
     return sha3(inp) == sha3(self.test)
 
 @public
-def trymem(inp: bytes <= 100) -> bool:
-    x = self.test
+def trymem(inp: bytes[100]) -> bool:
+    x: bytes[100] = self.test
     return sha3(inp) == sha3(x)
 
 @public

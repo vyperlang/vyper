@@ -1,54 +1,54 @@
 def test_multi_setter_test(get_contract_with_gas_estimation):
     multi_setter_test = """
-foo: num[3]
-bar: num[3][3]
+dog: int128[3]
+bar: int128[3][3]
 @public
-def foo() -> num:
-    self.foo = [1, 2, 3]
-    return(self.foo[0] + self.foo[1] * 10 + self.foo[2] * 100)
+def foo() -> int128:
+    self.dog = [1, 2, 3]
+    return(self.dog[0] + self.dog[1] * 10 + self.dog[2] * 100)
 
 @public
-def fop() -> num:
+def fop() -> int128:
     self.bar[0] = [1, 2, 3]
     self.bar[1] = [4, 5, 6]
     return self.bar[0][0] + self.bar[0][1] * 10 + self.bar[0][2] * 100 + \
         self.bar[1][0] * 1000 + self.bar[1][1] * 10000 + self.bar[1][2] * 100000
 
 @public
-def goo() -> num:
-    goo: num[3]
+def goo() -> int128:
+    goo: int128[3]
     goo = [1, 2, 3]
     return(goo[0] + goo[1] * 10 + goo[2] * 100)
 
 @public
-def gop() -> num: # Following a standard naming scheme; nothing to do with the US republican party
-    gar: num[3][3]
+def gop() -> int128: # Following a standard naming scheme; nothing to do with the US republican party
+    gar: int128[3][3]
     gar[0] = [1, 2, 3]
     gar[1] = [4, 5, 6]
     return gar[0][0] + gar[0][1] * 10 + gar[0][2] * 100 + \
         gar[1][0] * 1000 + gar[1][1] * 10000 + gar[1][2] * 100000
 
 @public
-def hoo() -> num:
-    self.foo = None
-    return(self.foo[0] + self.foo[1] * 10 + self.foo[2] * 100)
+def hoo() -> int128:
+    self.dog = None
+    return(self.dog[0] + self.dog[1] * 10 + self.dog[2] * 100)
 
 @public
-def hop() -> num:
+def hop() -> int128:
     self.bar[1] = None
     return self.bar[0][0] + self.bar[0][1] * 10 + self.bar[0][2] * 100 + \
         self.bar[1][0] * 1000 + self.bar[1][1] * 10000 + self.bar[1][2] * 100000
 
 @public
-def joo() -> num:
-    goo: num[3]
+def joo() -> int128:
+    goo: int128[3]
     goo = [1, 2, 3]
     goo = None
     return(goo[0] + goo[1] * 10 + goo[2] * 100)
 
 @public
-def jop() -> num:
-    gar: num[3][3]
+def jop() -> int128:
+    gar: int128[3][3]
     gar[0] = [1, 2, 3]
     gar[1] = [4, 5, 6]
     gar[1] = None
@@ -71,19 +71,19 @@ def jop() -> num:
 
 def test_multi_setter_struct_test(get_contract_with_gas_estimation):
     multi_setter_struct_test = """
-foo: {foo: num, bar: num}[3]
-z: {foo: num[3], bar: {a: num, b: num}[2]}[2]
+dog: {foo: int128, bar: int128}[3]
+z: {foo: int128[3], bar: {a: int128, b: int128}[2]}[2]
 
 @public
-def foo() -> num:
-    self.foo[0] = {foo: 1, bar: 2}
-    self.foo[1] = {foo: 3, bar: 4}
-    self.foo[2] = {foo: 5, bar: 6}
-    return self.foo[0].foo + self.foo[0].bar * 10 + self.foo[1].foo * 100 + \
-        self.foo[1].bar * 1000 + self.foo[2].foo * 10000 + self.foo[2].bar * 100000
+def foo() -> int128:
+    self.dog[0] = {foo: 1, bar: 2}
+    self.dog[1] = {foo: 3, bar: 4}
+    self.dog[2] = {foo: 5, bar: 6}
+    return self.dog[0].foo + self.dog[0].bar * 10 + self.dog[1].foo * 100 + \
+        self.dog[1].bar * 1000 + self.dog[2].foo * 10000 + self.dog[2].bar * 100000
 
 @public
-def fop() -> num:
+def fop() -> int128:
     self.z = [{foo: [1, 2, 3], bar: [{a: 4, b: 5}, {a: 2, b: 3}]},
               {foo: [6, 7, 8], bar: [{a: 9, b: 1}, {a: 7, b: 8}]}]
     return self.z[0].foo[0] + self.z[0].foo[1] * 10 + self.z[0].foo[2] * 100 + \
@@ -93,8 +93,8 @@ def fop() -> num:
         self.z[1].bar[1].a * 1000000000000 + self.z[1].bar[1].b * 10000000000000
 
 @public
-def goo() -> num:
-    goo: {foo: num, bar: num}[3]
+def goo() -> int128:
+    goo: {foo: int128, bar: int128}[3]
     goo[0] = {foo: 1, bar: 2}
     goo[1] = {foo: 3, bar: 4}
     goo[2] = {foo: 5, bar: 6}
@@ -102,9 +102,11 @@ def goo() -> num:
         goo[1].bar * 1000 + goo[2].foo * 10000 + goo[2].bar * 100000
 
 @public
-def gop() -> num:
-    zed = [{foo: [1, 2, 3], bar: [{a: 4, b: 5}, {a: 2, b: 3}]},
-           {foo: [6, 7, 8], bar: [{a: 9, b: 1}, {a: 7, b: 8}]}]
+def gop() -> int128:
+    zed: {foo: int128[3], bar: {a: int128, b: int128}[2]}[2] = [
+        {foo: [1, 2, 3], bar: [{a: 4, b: 5}, {a: 2, b: 3}]},
+        {foo: [6, 7, 8], bar: [{a: 9, b: 1}, {a: 7, b: 8}]}
+    ]
     return zed[0].foo[0] + zed[0].foo[1] * 10 + zed[0].foo[2] * 100 + \
         zed[0].bar[0].a * 1000 + zed[0].bar[0].b * 10000 + zed[0].bar[1].a * 100000 + zed[0].bar[1].b * 1000000 + \
         zed[1].foo[0] * 10000000 + zed[1].foo[1] * 100000000 + zed[1].foo[2] * 1000000000 + \
@@ -123,19 +125,19 @@ def gop() -> num:
 
 def test_type_converter_setter_test(get_contract_with_gas_estimation):
     type_converter_setter_test = """
-mom: {a: {c: num}[3], b: num}
-non: {a: {c: decimal}[3], b:num}
+mom: {a: {c: int128}[3], b: int128}
+non: {a: {c: decimal}[3], b:int128}
 pap: decimal[2][2]
 
 @public
-def foo() -> num:
+def foo() -> int128:
     self.mom = {a: [{c: 1}, {c: 2}, {c: 3}], b: 4}
     self.non = self.mom
     return floor(self.non.a[0].c + self.non.a[1].c * 10 + self.non.a[2].c * 100 + self.non.b * 1000)
 
 @public
-def goo() -> num:
-    self.pap = [[1, 2], [3, 4.0]]
+def goo() -> int128:
+    self.pap = [[1, 2], [3, 4]]
     return floor(self.pap[0][0] + self.pap[0][1] * 10 + self.pap[1][0] * 100 + self.pap[1][1] * 1000)
     """
 
@@ -147,21 +149,21 @@ def goo() -> num:
 
 def test_composite_setter_test(get_contract_with_gas_estimation):
     composite_setter_test = """
-mom: {a: {c: num}[3], b:num}
-qoq: {c: num}
+mom: {a: {c: int128}[3], b:int128}
+qoq: {c: int128}
 
 @public
-def foo() -> num:
+def foo() -> int128:
     self.mom = {a: [{c: 1}, {c: 2}, {c: 3}], b: 4}
-    non = {c: 5}
+    non: {c: int128}  = {c: 5}
     self.mom.a[0] = non
     non = {c: 6}
     self.mom.a[2] = non
     return self.mom.a[0].c + self.mom.a[1].c * 10 + self.mom.a[2].c * 100 + self.mom.b * 1000
 
 @public
-def fop() -> num:
-    popp = {a: [{c: 1}, {c: 2}, {c: 3}], b: 4}
+def fop() -> int128:
+    popp: {a: {c: int128}[3], b:int128} = {a: [{c: 1}, {c: 2}, {c: 3}], b: 4}
     self.qoq = {c: 5}
     popp.a[0] = self.qoq
     self.qoq = {c: 6}
@@ -169,8 +171,8 @@ def fop() -> num:
     return popp.a[0].c + popp.a[1].c * 10 + popp.a[2].c * 100 + popp.b * 1000
 
 @public
-def foq() -> num:
-    popp = {a: [{c: 1}, {c: 2}, {c: 3}], b: 4}
+def foq() -> int128:
+    popp: {a: {c: int128}[3], b:int128} = {a: [{c: 1}, {c: 2}, {c: 3}], b: 4}
     popp.a[0] = None
     popp.a[2] = None
     return popp.a[0].c + popp.a[1].c * 10 + popp.a[2].c * 100 + popp.b * 1000

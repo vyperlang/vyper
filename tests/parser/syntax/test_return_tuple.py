@@ -1,14 +1,14 @@
 import pytest
 from pytest import raises
 
-from viper import compiler
-from viper.exceptions import StructureException
+from vyper import compiler
+from vyper.exceptions import StructureException
 
 
 fail_list = [
     """
 @public
-def unmatched_tupl_length() -> (bytes <= 8, num, bytes <= 8):
+def unmatched_tupl_length() -> (bytes[8], int128, bytes[8]):
     return "test", 123
     """
 ]

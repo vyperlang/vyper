@@ -1,8 +1,8 @@
 import pytest
 from pytest import raises
 
-from viper import compiler
-from viper.exceptions import StructureException
+from vyper import compiler
+from vyper.exceptions import StructureException
 
 
 fail_list = [
@@ -13,7 +13,7 @@ x[5] = 4
 @public
 def foo(): pass
 
-x: num
+x: int128
     """,
     """
 send(0x1234567890123456789012345678901234567890, 5)
@@ -22,13 +22,13 @@ send(0x1234567890123456789012345678901234567890, 5)
 send(0x1234567890123456789012345678901234567890, 5)
     """,
     """
-x: num[5]
+x: int128[5]
 @public
 def foo():
     self.x[2:4] = 3
     """,
     """
-x: num[5]
+x: int128[5]
 @public
 def foo():
     z = self.x[2:4]
@@ -36,55 +36,55 @@ def foo():
     """
 @public
 def foo():
-    x: num[5]
+    x: int128[5]
     z = x[2:4]
     """,
     """
 @public
 def foo():
-    x = 5
+    x: int128 = 5
     for i in range(x):
         pass
     """,
     """
 @public
 def foo():
-    x = 5
-    y = 7
+    x: int128 = 5
+    y: int128 = 7
     for i in range(x, x + y):
         pass
     """,
     """
-x: num
+x: int128
 @public
 @const
-def foo() -> num:
+def foo() -> int128:
     pass
     """,
     """
-x: num
+x: int128
 @public
 @monkeydoodledoo
-def foo() -> num:
+def foo() -> int128:
     pass
     """,
     """
-x: num
+x: int128
 @public
 @constant(123)
-def foo() -> num:
+def foo() -> int128:
     pass
     """,
     """
-foo: num[3]
+bar: int128[3]
 @public
 def foo():
-    self.foo = []
+    self.bar = []
     """,
     """
 @public
 def foo():
-    x = sha3("moose", 3)
+    x: bytes32 = sha3("moose", 3)
     """,
     """
 @public
@@ -131,20 +131,20 @@ def foo():
     """,
     """
 @public
-def foo() -> num(wei):
-    x = 0x1234567890123456789012345678901234567890
+def foo() -> int128(wei):
+    x: address = 0x1234567890123456789012345678901234567890
     return x.balance()
     """,
     """
 @public
-def foo() -> num:
-    x = 0x1234567890123456789012345678901234567890
+def foo() -> int128:
+    x: address = 0x1234567890123456789012345678901234567890
     return x.codesize()
     """,
     """
 @public
 def foo():
-    x = ~self
+    x: address = ~self
     """,
     """
 @public
@@ -157,14 +157,26 @@ def foo():
     x = y = 3
     """,
     """
-def foo() -> num:
-    q:num = 111
+def foo() -> int128:
+    q:int128 = 111
     return q
     """,
     """
-q:num = 111
-def foo() -> num:
+q:int128 = 111
+def foo() -> int128:
     return self.q
+    """,
+    """
+b: bytes32[int128]
+@public
+def foo():
+    del self.b[0], self.b[1]
+    """,
+    """
+@public
+def foo():
+    b: int128
+    del b
     """
 ]
 

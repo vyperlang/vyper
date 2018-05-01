@@ -1,15 +1,15 @@
 import pytest
 from pytest import raises
 
-from viper import compiler
-from viper.exceptions import TypeMismatchException
+from vyper import compiler
+from vyper.exceptions import TypeMismatchException
 
 
 fail_list = [
     """
 @public
 def foo():
-    x = true
+    x: bool = True
     x = 5
     """,
     ("""
@@ -20,7 +20,7 @@ def foo():
     """
 @public
 def foo():
-    x = True
+    x: bool = True
     x = 129
     """,
     """
@@ -32,6 +32,17 @@ def foo() -> bool:
 @public
 def foo() -> bool:
     return (1 == 2) or 3
+    """,
+    """
+@public
+def foo() -> bool:
+    return 1.0 == 1
+    """,
+    """
+@public
+def foo() -> bool:
+    a: address
+    return a == 1
     """
 ]
 
@@ -51,19 +62,19 @@ valid_list = [
     """
 @public
 def foo():
-    x = true
-    z = x and false
+    x: bool = True
+    z: bool = x and False
     """,
     """
 @public
 def foo():
-    x = true
-    z = x and False
+    x: bool = True
+    z: bool = x and False
     """,
     """
 @public
 def foo():
-    x = True
+    x: bool = True
     x = False
     """,
     """
@@ -84,7 +95,7 @@ def foo() -> bool:
     """
 @public
 def foo() -> bool:
-    return 1. >= 1
+    return 2 >= 1
     """,
     """
 @public
@@ -94,7 +105,7 @@ def foo() -> bool:
     """
 @public
 def foo() -> bool:
-    return 1 <= 1.
+    return 1 <= 1
     """
 ]
 

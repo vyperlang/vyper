@@ -1,17 +1,20 @@
-def test_extract32_code(get_contract_with_gas_estimation):
+from ethereum.tools import tester
+
+
+def test_extract32_extraction(get_contract_with_gas_estimation):
     extract32_code = """
-y: bytes <= 100
+y: bytes[100]
 @public
-def extrakt32(inp: bytes <= 100, index: num) -> bytes32:
+def extrakt32(inp: bytes[100], index: int128) -> bytes32:
     return extract32(inp, index)
 
 @public
-def extrakt32_mem(inp: bytes <= 100, index: num) -> bytes32:
-    x = inp
+def extrakt32_mem(inp: bytes[100], index: int128) -> bytes32:
+    x: bytes[100] = inp
     return extract32(x, index)
 
 @public
-def extrakt32_storage(index: num, inp: bytes <= 100) -> bytes32:
+def extrakt32_storage(index: int128, inp: bytes[100]) -> bytes32:
     self.y = inp
     return extract32(self.y, index)
     """
@@ -38,9 +41,9 @@ def extrakt32_storage(index: num, inp: bytes <= 100) -> bytes32:
         expected_result = S[i: i + 32] if 0 <= i <= len(S) - 32 else None
         if expected_result is None:
             try:
-                o = c.extrakt32(S, i)
+                c.extrakt32(S, i)
                 success = True
-            except:
+            except tester.TransactionFailed:
                 success = False
             assert not success
         else:
@@ -54,23 +57,23 @@ def extrakt32_storage(index: num, inp: bytes <= 100) -> bytes32:
 def test_extract32_code(get_contract_with_gas_estimation):
     extract32_code = """
 @public
-def foo(inp: bytes <= 32) -> num:
-    return extract32(inp, 0, type=num128)
+def foo(inp: bytes[32]) -> int128:
+    return extract32(inp, 0, type=int128)
 
 @public
-def bar(inp: bytes <= 32) -> num256:
-    return extract32(inp, 0, type=num256)
+def bar(inp: bytes[32]) -> uint256:
+    return extract32(inp, 0, type=uint256)
 
 @public
-def baz(inp: bytes <= 32) -> bytes32:
+def baz(inp: bytes[32]) -> bytes32:
     return extract32(inp, 0, type=bytes32)
 
 @public
-def fop(inp: bytes <= 32) -> bytes32:
+def fop(inp: bytes[32]) -> bytes32:
     return extract32(inp, 0)
 
 @public
-def foq(inp: bytes <= 32) -> address:
+def foq(inp: bytes[32]) -> address:
     return extract32(inp, 0, type=address)
     """
 
@@ -80,7 +83,7 @@ def foq(inp: bytes <= 32) -> address:
     try:
         c.foo(b"\x80" + b"\x00" * 30)
         success = True
-    except:
+    except tester.TransactionFailed:
         success = False
     assert not success
     assert c.bar(b"\x80" + b"\x00" * 31) == 2**255
@@ -91,9 +94,8 @@ def foq(inp: bytes <= 32) -> address:
     try:
         c.foq(b"crow" * 8)
         success = True
-    except:
+    except tester.TransactionFailed:
         success = False
     assert not success
 
     print('Passed extract32 test')
-

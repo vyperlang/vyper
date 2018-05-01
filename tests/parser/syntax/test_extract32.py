@@ -1,13 +1,13 @@
 import pytest
 from pytest import raises
 
-from viper import compiler
-from viper.exceptions import TypeMismatchException
+from vyper import compiler
+from vyper.exceptions import TypeMismatchException
 
 fail_list = [
     """
 @public
-def foo() -> num256:
+def foo() -> uint256:
     return extract32("cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc", 0)
     """
 ]
@@ -23,22 +23,22 @@ def test_extract32_fail(bad_code):
 valid_list = [
     """
 @public
-def foo() -> num256:
-    return extract32("cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc", 0, type=num256)
+def foo() -> uint256:
+    return extract32("cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc", 0, type=uint256)
     """,
     """
-x: bytes <= 100
+x: bytes[100]
 @public
-def foo() -> num256:
+def foo() -> uint256:
     self.x = "cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc"
-    return extract32(self.x, 0, type=num256)
+    return extract32(self.x, 0, type=uint256)
     """,
     """
-x: bytes <= 100
+x: bytes[100]
 @public
-def foo() -> num256:
+def foo() -> uint256:
     self.x = "cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc"
-    return extract32(self.x, 1, type=num256)
+    return extract32(self.x, 1, type=uint256)
 """
 ]
 

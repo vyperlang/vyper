@@ -1,45 +1,45 @@
 import pytest
 from pytest import raises
 
-from viper import compiler
-from viper.exceptions import TypeMismatchException, StructureException
+from vyper import compiler
+from vyper.exceptions import TypeMismatchException, StructureException
 
 
 fail_list = [
     """
-bar: num[3][3]
+bar: int128[3][3]
 @public
 def foo():
     self.bar = [[1, 2], [3, 4, 5], [6, 7, 8]]
     """,
     """
-bar: num[3][3]
+bar: int128[3][3]
 @public
 def foo():
-    self.bar = [[1, 2, 3], [4, 5, 6], [7, 8, 9.0]]
+    self.bar = [[1, 2, 3], [4, 5, 6], [7.0, 8.0, 9.0]]
     """,
     """
 @public
-def foo() -> num[2]:
+def foo() -> int128[2]:
     return [[1,2],[3,4]]
     """,
     """
 @public
-def foo() -> num[2][2]:
+def foo() -> int128[2][2]:
     return [1,2]
     """,
     """
 y: address[2][2]
 
 @public
-def foo(x: num[2][2]) -> num:
+def foo(x: int128[2][2]) -> int128:
     self.y = x
     """,
     ("""
-bar: num[3][3]
+bar: int128[3][3]
 
 @public
-def foo() -> num[3]:
+def foo() -> int128[3]:
     self.bar = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
     for x in self.bar:
         if x == [4, 5, 6]:
@@ -61,7 +61,7 @@ def test_nested_list_fail(bad_code):
 
 valid_list = [
     """
-bar: num[3][3]
+bar: int128[3][3]
 @public
 def foo():
     self.bar = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
@@ -70,7 +70,7 @@ def foo():
 bar: decimal[3][3]
 @public
 def foo():
-    self.bar = [[1, 2, 3], [4, 5, 6], [7, 8, 9.0]]
+    self.bar = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
     """
 ]
 

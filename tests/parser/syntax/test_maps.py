@@ -1,123 +1,123 @@
 import pytest
 from pytest import raises
 
-from viper import compiler
-from viper.exceptions import TypeMismatchException
+from vyper import compiler
+from vyper.exceptions import TypeMismatchException
 
 
 fail_list = [
     """
-mom: {a: {c: num}[3], b: num}
-nom: {a: {c: num}[2], b: num}
+mom: {a: {c: int128}[3], b: int128}
+nom: {a: {c: int128}[2], b: int128}
 @public
 def foo():
     self.nom = self.mom
     """,
     """
-mom: {a: {c: num}[3], b: num}
-nom: {a: {c: decimal}[2], b: num}
+mom: {a: {c: int128}[3], b: int128}
+nom: {a: {c: decimal}[2], b: int128}
 @public
 def foo():
     self.nom = self.mom
     """,
     """
-mom: {a: {c: num}[3], b: num}
-nom: {a: {c: num}[3], b: num, c: num}
+mom: {a: {c: int128}[3], b: int128}
+nom: {a: {c: int128}[3], b: int128, c: int128}
 @public
 def foo():
     self.nom = self.mom
     """,
     """
-mom: {a: {c: num}[3], b: num}
-nom: {a: {c: num}[3]}
+mom: {a: {c: int128}[3], b: int128}
+nom: {a: {c: int128}[3]}
 @public
 def foo():
     self.nom = self.mom
     """,
     """
-mom: {a: {c: num}[3], b: num}
-nom: {a: {c: num}, b: num}
+mom: {a: {c: int128}[3], b: int128}
+nom: {a: {c: int128}, b: int128}
 @public
 def foo():
     self.nom = self.mom
     """,
     """
-mom: {a: {c: num}[3], b: num}
-nom: {c: num}[3]
+mom: {a: {c: int128}[3], b: int128}
+nom: {c: int128}[3]
 @public
 def foo():
     self.nom = self.mom.b
     """,
     """
-mom: {a: {c: num}[3], b: num}
-nom: {c: num}[3]
+mom: {a: {c: int128}[3], b: int128}
+nom: {c: int128}[3]
 @public
 def foo():
     self.mom = {a: self.nom, b: 5.5}
     """,
     """
-mom: {a: {c: num}[3], b: num}
+mom: {a: {c: int128}[3], b: int128}
 nom: {c: decimal}[3]
 @public
 def foo():
     self.mom = {a: self.nom, b: 5}
     """,
     """
-mom: {a: {c: num}[3], b: num}
-nom: {c: num}[3]
+mom: {a: {c: int128}[3], b: int128}
+nom: {c: int128}[3]
 @public
 def foo():
     self.mom = {a: self.nom, b: self.nom}
     """,
     """
-nom: {a: {c: num}[num], b: num}
+nom: {a: {c: int128}[int128], b: int128}
 @public
 def foo():
     self.nom = None
     """,
     """
-nom: {a: {c: num}[num], b: num}
+nom: {a: {c: int128}[int128], b: int128}
 @public
 def foo():
     self.nom = {a: [{c: 5}], b: 7}
     """,
     """
-foo: num[3]
+bar: int128[3]
 @public
 def foo():
-    self.foo = {0: 5, 1: 7, 2: 9}
+    self.bar = {0: 5, 1: 7, 2: 9}
     """,
     """
-foo: num[3]
+bar: int128[3]
 @public
 def foo():
-    self.foo = {a: 5, b: 7, c: 9}
+    self.bar = {a: 5, b: 7, c: 9}
     """,
     """
 @public
-def foo() -> num:
+def foo() -> int128:
     return {cow: 5, dog: 7}
     """,
     """
-x: {cow: num, cor: num}
+x: {cow: int128, cor: int128}
 @public
 def foo():
     self.x.cof = 1
     """,
     """
-b: {foo: num}
+b: {foo: int128}
 @public
 def foo():
     self.b = {foo: 1, foo: 2}
     """,
     """
-b: {foo: num, bar: num}
+b: {foo: int128, bar: int128}
 @public
 def foo():
     x = self.b.cow
     """,
     """
-b: {foo: num, bar: num}
+b: {foo: int128, bar: int128}
 @public
 def foo():
     x = self.b[0]
@@ -133,69 +133,69 @@ def test_block_fail(bad_code):
 
 valid_list = [
     """
-mom: {a: {c: num}[3], b: num}
-nom: {a: {c: decimal}[3], b: num}
+mom: {a: {c: int128}[3], b: int128}
+nom: {a: {c: decimal}[3], b: int128}
 @public
 def foo():
     self.nom = self.mom
     """,
     """
-mom: {a: {c: num}[3], b: num}
-nom: {c: num}[3]
+mom: {a: {c: int128}[3], b: int128}
+nom: {c: int128}[3]
 @public
 def foo():
     self.nom = self.mom.a
     """,
     """
-nom: {a: {c: num}[num], b: num}
+nom: {a: {c: int128}[int128], b: int128}
 @public
 def foo():
     self.nom.a[135] = {c: 6}
     self.nom.b = 9
     """,
     """
-nom: {c: num}[3]
+nom: {c: int128}[3]
 @public
 def foo():
-    mom: {a: {c: num}[3], b: num}
+    mom: {a: {c: int128}[3], b: int128}
     mom.a = self.nom
     """,
     """
-mom: {a: {c: num}[3], b: num}
-nom: {c: num}[3]
+mom: {a: {c: int128}[3], b: int128}
+nom: {c: int128}[3]
 @public
 def foo():
     self.mom = {a: self.nom, b: 5}
     """,
     """
-mom: {a: {c: num}[3], b: num}
-nom: {c: num}[3]
+mom: {a: {c: int128}[3], b: int128}
+nom: {c: int128}[3]
 @public
 def foo():
-    self.mom = {a: null, b: 5}
+    self.mom = {a: None, b: 5}
     """,
     """
-mom: {a: {c: num}[3], b: num}
+mom: {a: {c: int128}[3], b: int128}
 @public
 def foo():
-    nom: {c: num}[3]
+    nom: {c: int128}[3]
     self.mom = {a: nom, b: 5}
     """,
     """
-mom: {a: {c: decimal}[3], b: num}
-nom: {c: num}[3]
+mom: {a: {c: decimal}[3], b: int128}
+nom: {c: int128}[3]
 @public
 def foo():
     self.mom = {a: self.nom, b: 5}
     """,
     """
-b: {foo: num, bar: num}
+b: {foo: int128, bar: int128}
 @public
 def foo():
-    x = self.b.bar
+    x: int128 = self.b.bar
     """,
     """
-x: {bar: num, baz: num}
+x: {bar: int128, baz: int128}
     """,
 ]
 

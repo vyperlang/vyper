@@ -1,15 +1,15 @@
 import pytest
 from pytest import raises
 
-from viper import compiler
-from viper.exceptions import TypeMismatchException
+from vyper import compiler
+from vyper.exceptions import TypeMismatchException
 
 
 fail_list = [
     """
 @public
 def foo():
-    x = sha3(3)
+    x: bytes32 = sha3(3)
     """
 ]
 
@@ -24,12 +24,12 @@ valid_list = [
     """
 @public
 def foo():
-    x = sha3("moose")
+    x: bytes32 = sha3("moose")
     """,
     """
 @public
 def foo():
-    x = sha3(0x1234567890123456789012345678901234567890123456789012345678901234)
+    x: bytes32 = sha3(0x1234567890123456789012345678901234567890123456789012345678901234)
     """
 ]
 

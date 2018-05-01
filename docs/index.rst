@@ -1,25 +1,25 @@
-.. Viper documentation master file, created by
+.. Vyper documentation master file, created by
    sphinx-quickstart on Wed Jul 26 11:18:29 2017.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
 #####
-Viper
+Vyper
 #####
 
-Viper is an **experimental**, contract-oriented, pythonic programming language that targets the `Ethereum Virtual Machine (EVM) <http://ethdocs.org/en/latest/introduction/what-is-ethereum.html#ethereum-virtual-machine>`_
+Vyper is an **experimental**, contract-oriented, pythonic programming language that targets the `Ethereum Virtual Machine (EVM) <http://ethdocs.org/en/latest/introduction/what-is-ethereum.html#ethereum-virtual-machine>`_
 
 ********************
 Principles and Goals
 ********************
 
-* **Security:** It should be possible and natural to build secure smart-contracts in Viper.
+* **Security:** It should be possible and natural to build secure smart-contracts in Vyper.
 * **Language and compiler simplicity:** The language and the compiler implementation should strive to be simple.
-* **Auditability:** Viper code should be maximally human-readable. Furthermore, it should be maximally difficult to write misleading code. Simplicity for the reader
-  is more important than simplicity for the writer, and simplicity for readers with low prior experience with Viper (and low prior experience with programming in
+* **Auditability:** Vyper code should be maximally human-readable. Furthermore, it should be maximally difficult to write misleading code. Simplicity for the reader
+  is more important than simplicity for the writer, and simplicity for readers with low prior experience with Vyper (and low prior experience with programming in
   general) is particularly important.
 
-Because of this Viper aims to provide the following features:
+Because of this Vyper aims to provide the following features:
 
 * **Bounds and overflow checking:** On array accesses as well as on arithmetic level.
 * **Support for signed integers and decimal fixed point numbers**
@@ -28,15 +28,17 @@ Because of this Viper aims to provide the following features:
 * **Small and understandable compiler code**
 * **Limited support for pure functions:** Anything marked constant is not allowed to change the state.
 
-Following the principles and goals, Viper **does not** provide the following features:
+Following the principles and goals, Vyper **does not** provide the following features:
 
 * **Modifiers**: For example in Solidity you can define a ``function foo() mod1 { ... }``, where ``mod1`` can be defined elsewhere in the code to include a check that is done before execution,
-  a check that is done after execution, some state changes, or possibly other things. Viper does not have this, because it makes it too easy to write misleading code. ``mod1`` just looks
+  a check that is done after execution, some state changes, or possibly other things. Vyper does not have this, because it makes it too easy to write misleading code. ``mod1`` just looks
   too innocuous for something that could add arbitrary pre-conditions, post-conditions or state changes. Also, it encourages people to write code where the execution jumps around the file,
   harming auditability. The usual use case for a modifier is something that performs a single check before execution of a program; our recommendation is to simply inline these checks as asserts.
 * **Class inheritance:** Class inheritance requires people to jump between multiple files to understand what a program is doing, and requires people to understand the rules of precedence in case of conflicts
   ("Which class's function 'X' is the one that's actually used?"). Hence, it makes code too complicated to understand which negatively impacts auditability.
 * **Inline assembly:** Adding inline assembly would make it no longer possible to search for a variable name in order to find all instances where that variable is read or modified.
+* **Function overloading** - This can cause lots of confusion on which function is called at any given time. Thus it's easier to write missleading code (``foo("hello")`` logs "hello" but ``foo("hello", "world")`` steals you funds).
+  Another problem with function overloading is that it makes the code much harder to search through as you have to keep track on which call refers to which function.
 * **Operator overloading:** Operator overloading makes writing misleading code possible. For example "+" could be overloaded so that it executes commands the are not visible at first glance, such as sending funds the
   user did not want to send.
 * **Recursive calling:** Recursive calling makes it impossible to set an upper bound on gas limits, opening the door for gas limit attacks.
@@ -48,6 +50,21 @@ Following the principles and goals, Viper **does not** provide the following fea
 Compatibility-breaking Changelog
 ********************************
 
+* **2018.04.03**: Changed bytes declaration from 'bytes <= n' to 'bytes[n]'.
+* **2018.03.27**: Renaming ``signed256`` to ``int256``.
+* **2018.03.22**: Add modifiable and static keywords for external contract calls.
+* **2018.03.20**: Renaming ``__log__`` to ``event``.
+* **2018.02.22**: Renaming num to int128, and num256 to uint256.
+* **2018.02.13**: Ban functions with payable and constant decorators.
+* **2018.02.12**: Division by num returns decimal type.
+* **2018.02.09**: Standardize type conversions.
+* **2018.02.01**: Functions cannot have the same name as globals.
+* **2018.01.27**: Change getter from get_var to var.
+* **2018.01.11**: Change version from 0.0.2 to 0.0.3
+* **2018.01.04**: Types need to be specified on assignment (`VIP545 <https://github.com/ethereum/vyper/issues/545>`_).
+* **2017.01.02** Change ``as_wei_value`` to use quotes for units.
+* **2017.12.25**: Change name from Viper to Vyper.
+* **2017.12.22**: Add ``continue`` for loops
 * **2017.11.29**: ``@internal`` renamed to ``@private``.
 * **2017.11.15**: Functions require either ``@internal`` or ``@public`` decorators.
 * **2017.07.25**: The ``def foo() -> num(const): ...`` syntax no longer works; you now need to do ``def foo() -> num: ...`` with a ``@constant`` decorator on the previous line.
@@ -61,9 +78,12 @@ Glossary
 .. toctree::
     :maxdepth: 2
 
-    installing-viper.rst
+    installing-vyper.rst
     compiling-a-contract.rst
-    viper-by-example.rst
-    viper-in-depth.rst
+    structure-of-a-contract.rst
+    vyper-by-example.rst
+    vyper-in-depth.rst
     contributing.rst
     frequently-asked-questions.rst
+    built-in-functions.rst
+    types.rst

@@ -1,8 +1,8 @@
 import pytest
 from pytest import raises
 
-from viper import compiler
-from viper.exceptions import TypeMismatchException
+from vyper import compiler
+from vyper.exceptions import TypeMismatchException
 
 
 fail_list = [
@@ -14,7 +14,7 @@ def foo():
     """
 @public
 def foo():
-    y = min(7, as_num256(3))
+    y = min(7, convert(3, 'uint256'))
     """
 ]
 
