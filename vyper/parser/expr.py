@@ -94,13 +94,16 @@ class Expr(object):
             str_val = orignum[2:]
             total_bits = len(orignum[2:])
             total_bits = total_bits if total_bits % 8 == 0 else total_bits + 8 - (total_bits % 8)  # ceil8 to get byte length.
+            if total_bits != len(orignum[2:]):  # add necessary zero padding.
+                pad_len = total_bits - len(orignum[2:])
+                str_val = pad_len * '0' + str_val
             byte_len = int(total_bits / 8)
             placeholder = self.context.new_placeholder(ByteArrayType(byte_len))
             seq = []
             seq.append(['mstore', placeholder, byte_len])
             for i in range(0, total_bits, 256):
                 section = str_val[i:i + 256]
-                int_val = int(section, 2) << 256 - len(section)  # bytes are right padded.
+                int_val = int(section, 2) << (256 - len(section))  # bytes are right padded.
                 seq.append(
                     ['mstore', ['add', placeholder, i + 32], int_val])
             return LLLnode.from_list(['seq'] + seq + [placeholder],
@@ -386,7 +389,13 @@ class Expr(object):
     def compare(self):
         left = Expr.parse_value_expr(self.expr.left, self.context)
         right = Expr.parse_value_expr(self.expr.comparators[0], self.context)
-        if isinstance(self.expr.ops[0], ast.In) and \
+
+        if isinstance(left.typ, ByteArrayType) and  isinstance(right.typ, ByteArrayType):
+            if left.typ.maxlen != right.typ.maxlen:
+                raise TypeMismatchException('Can only compare bytes of the same length', self.expr)
+            if left.typ.maxlen > 32 or right.typ.maxlen > 32:
+                raise ParserException('Can only compare bytes of length shorter than 32 bytes', self.expr)
+        elif isinstance(self.expr.ops[0], ast.In) and \
            isinstance(right.typ, ListType):
             if not are_units_compatible(left.typ, right.typ.subtype) and not are_units_compatible(right.typ.subtype, left.typ):
                 raise TypeMismatchException("Can't use IN comparison with different types!", self.expr)
@@ -394,6 +403,7 @@ class Expr(object):
         else:
             if not are_units_compatible(left.typ, right.typ) and not are_units_compatible(right.typ, left.typ):
                 raise TypeMismatchException("Can't compare values with different units!", self.expr)
+
         if len(self.expr.ops) != 1:
             raise StructureException("Cannot have a comparison with more than two elements", self.expr)
         if isinstance(self.expr.ops[0], ast.Gt):
@@ -410,6 +420,22 @@ class Expr(object):
             op = 'ne'
         else:
             raise Exception("Unsupported comparison operator")
+
+        # Compare (limited to 32) byte arrays.
+        if isinstance(left.typ, ByteArrayType) and  isinstance(left.typ, ByteArrayType):
+            left = Expr(self.expr.left, self.context).lll_node
+            right =  Expr(self.expr.comparators[0], self.context).lll_node
+
+            def load_bytearray(side):
+                if side.location == 'memory':
+                    return ['mload', ['add', 32, side]]
+                elif side.location == 'storage':
+                    return ['sload', ['add', 1, ['sha3_32', side]]]
+
+            return LLLnode.from_list(
+                [op, load_bytearray(left), load_bytearray(right)], typ='bool', pos=getpos(self.expr))
+
+        # Compare other types.
         if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
             if op not in ('eq', 'ne'):
                 raise TypeMismatchException("Invalid type for comparison op", self.expr)

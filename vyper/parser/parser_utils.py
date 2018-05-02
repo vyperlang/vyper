@@ -51,6 +51,7 @@ class LLLnode():
         self.annotation = annotation
         self.mutable = mutable
         self.add_gas_estimate = add_gas_estimate
+
         # Determine this node's valency (1 if it pushes a value on the stack,
         # 0 otherwise) and checks to make sure the number and valencies of
         # children are correct. Also, find an upper bound on gas consumption

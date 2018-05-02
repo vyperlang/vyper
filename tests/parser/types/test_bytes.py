@@ -189,3 +189,36 @@ def bar_storage() -> int128:
     assert_tx_failed(lambda: c.foo(b"\x01" * 33))
     assert c.bar_storage() == 97
     print('Passed bytes_to_num tests')
+
+
+def test_convert_bytes_to_num_code(get_contract_with_gas_estimation):
+    bytes_to_num_code = """
+r: bytes[1]
+
+@public
+def get(a: bytes[1]) -> bytes[2]:
+    return concat(a, 0b0001)
+
+@public
+def getsome() -> bytes[1]:
+    return 0b1110
+
+@public
+def testsome(a: bytes[1]) -> bool:
+    return a == 0b1100001
+
+@public
+def testsome_storage(y: bytes[1]) -> bool:
+    self.r = 0b1100001
+    return self.r == y
+    """
+
+    c = get_contract_with_gas_estimation(bytes_to_num_code)
+
+    assert c.getsome() == b'\x0e'
+    assert c.testsome('a')
+    assert c.testsome('\x61')
+    assert c.testsome(0b1100001.to_bytes(1, 'big'))
+    assert not c.testsome('b')
+    assert c.testsome_storage('a')
+    assert not c.testsome_storage('x')
