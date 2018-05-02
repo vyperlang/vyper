@@ -7,6 +7,7 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
+    ParserException
 )
 from .parser_utils import LLLnode
 from .parser_utils import (
@@ -390,7 +391,7 @@ class Expr(object):
         left = Expr.parse_value_expr(self.expr.left, self.context)
         right = Expr.parse_value_expr(self.expr.comparators[0], self.context)
 
-        if isinstance(left.typ, ByteArrayType) and  isinstance(right.typ, ByteArrayType):
+        if isinstance(left.typ, ByteArrayType) and isinstance(right.typ, ByteArrayType):
             if left.typ.maxlen != right.typ.maxlen:
                 raise TypeMismatchException('Can only compare bytes of the same length', self.expr)
             if left.typ.maxlen > 32 or right.typ.maxlen > 32:
@@ -422,9 +423,9 @@ class Expr(object):
             raise Exception("Unsupported comparison operator")
 
         # Compare (limited to 32) byte arrays.
-        if isinstance(left.typ, ByteArrayType) and  isinstance(left.typ, ByteArrayType):
+        if isinstance(left.typ, ByteArrayType) and isinstance(left.typ, ByteArrayType):
             left = Expr(self.expr.left, self.context).lll_node
-            right =  Expr(self.expr.comparators[0], self.context).lll_node
+            right = Expr(self.expr.comparators[0], self.context).lll_node
 
             def load_bytearray(side):
                 if side.location == 'memory':
