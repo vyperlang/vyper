@@ -602,7 +602,6 @@ def get_lucky(amount_to_send: int128) -> int128:
     assert chain.head_state.get_balance(c2.address) == 250
 
 
-
 def test_external_call_with_gas(assert_tx_failed, get_contract_with_gas_estimation):
     contract_1 = """
 @public
