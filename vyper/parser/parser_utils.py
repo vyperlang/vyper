@@ -421,10 +421,6 @@ def add_variable_offset(parent, key, pos):
             return LLLnode.from_list(['sha3_64', parent, sub],
                                      typ=subtype,
                                      location='storage')
-        elif location == 'storage_prehashed':
-            return LLLnode.from_list(['add', parent, sub],
-                                     typ=subtype,
-                                     location='storage')
         elif location == 'memory':
             raise TypeMismatchException("Can only have fixed-side arrays in memory, not mappings", pos)
 
