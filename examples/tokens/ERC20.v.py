@@ -24,7 +24,7 @@ def __init__(_name: bytes32, _symbol: bytes32, _decimals: uint256, _initialSuppl
     self.name = _name
     self.symbol = _symbol
     self.decimals = _decimals
-    self.totalSupply = uint256_mul(_initialSupply, uint256_exp(convert(10, 'uint256'), _decimals))
+    self.totalSupply =_initialSupply * convert(10, 'uint256') ** _decimals
     self.balances[msg.sender] = convert(self.totalSupply, 'int128')
 
 

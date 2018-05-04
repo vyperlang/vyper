@@ -19,19 +19,22 @@ from vyper.types import (
 from vyper.utils import (
     DECIMAL_DIVISOR,
     MemoryPositions,
+    SizeLimits
 )
 
 
 @signature(('int128', 'uint256', 'bytes32', 'bytes'), 'str_literal')
 def to_int128(expr, args, kwargs, context):
-    input = args[0]
-    typ, len = get_type(input)
+    in_node = args[0]
+    typ, len = get_type(in_node)
     if typ in ('int128', 'uint256', 'bytes32'):
+        if in_node.typ.is_literal and not SizeLimits.MINNUM <= in_node.value <= SizeLimits.MAXNUM:
+            raise InvalidLiteralException("Number out of range: {}".format(in_node.value), expr)
         return LLLnode.from_list(
-            ['clamp', ['mload', MemoryPositions.MINNUM], input, ['mload', MemoryPositions.MAXNUM]], typ=BaseType('int128'), pos=getpos(expr)
+            ['clamp', ['mload', MemoryPositions.MINNUM], in_node, ['mload', MemoryPositions.MAXNUM]], typ=BaseType('int128'), pos=getpos(expr)
         )
     else:
-        return byte_array_to_num(input, expr, 'int128')
+        return byte_array_to_num(in_node, expr, 'int128')
 
 
 @signature(('num_literal', 'int128', 'bytes32'), 'str_literal')
