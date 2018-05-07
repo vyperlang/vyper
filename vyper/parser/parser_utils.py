@@ -398,13 +398,14 @@ def add_variable_offset(parent, key, pos):
                                      annotation=annotation)
         else:
             raise TypeMismatchException("Not expecting a member variable access")
-    elif isinstance(typ, (ListType, MappingType)):
-        if isinstance(typ, ListType):
-            subtype = typ.subtype
-            sub = ['uclamplt', base_type_conversion(key, key.typ, BaseType('int128'), pos=pos), typ.count]
-        elif isinstance(typ, MappingType) and isinstance(key.typ, ByteArrayType):
+
+    elif isinstance(typ, MappingType):
+
+        if isinstance(key.typ, ByteArrayType):
             if not isinstance(typ.keytype, ByteArrayType) or (typ.keytype.maxlen < key.typ.maxlen):
-                raise TypeMismatchException('Mapping keys of bytes cannot be cast, use exact same bytes type of: %s', str(typ.keytype))
+                raise TypeMismatchException(
+                    'Mapping keys of bytes cannot be cast, use exact same bytes type of: %s' % str(typ.keytype), pos
+                )
             subtype = typ.valuetype
             if len(key.args[0].args) >= 3:  # handle bytes literal.
                 sub = LLLnode.from_list([
@@ -417,6 +418,19 @@ def add_variable_offset(parent, key, pos):
         else:
             subtype = typ.valuetype
             sub = base_type_conversion(key, key.typ, typ.keytype, pos=pos)
+
+        if location == 'storage':
+            return LLLnode.from_list(['sha3_64', parent, sub],
+                                     typ=subtype,
+                                     location='storage')
+        elif location == 'memory':
+            raise TypeMismatchException("Can only have fixed-side arrays in memory, not mappings", pos)
+
+    elif isinstance(typ, ListType):
+
+        subtype = typ.subtype
+        sub = ['uclamplt', base_type_conversion(key, key.typ, BaseType('int128'), pos=pos), typ.count]
+
         if location == 'storage':
             return LLLnode.from_list(['add', ['sha3_32', parent], sub],
                                      typ=subtype,
@@ -426,16 +440,14 @@ def add_variable_offset(parent, key, pos):
                                      typ=subtype,
                                      location='storage')
         elif location == 'memory':
-            if isinstance(typ, MappingType):
-                raise TypeMismatchException("Can only have fixed-side arrays in memory, not mappings")
             offset = 32 * get_size_of_type(subtype)
             return LLLnode.from_list(['add', ['mul', offset, sub], parent],
                                       typ=subtype,
                                       location='memory')
         else:
-            raise TypeMismatchException("Not expecting an array access ")
+            raise TypeMismatchException("Not expecting an array access ", pos)
     else:
-        raise TypeMismatchException("Cannot access the child of a constant variable! %r" % typ)
+        raise TypeMismatchException("Cannot access the child of a constant variable! %r" % typ, pos)
 
 
 # Convert from one base type to another
