@@ -131,8 +131,16 @@ def _slice(expr, args, kwargs, context):
                        ['seq',
                            ['assert', ['le', ['add', '_start', '_length'], maxlen]],
                            copier,
+                           ['repeat', MemoryPositions.FREE_LOOP_INDEX, 0, newmaxlen,  # Zero remaining pad bytes.
+                                ['seq',
+                                    ['if',
+                                        ['ge', ['mload', MemoryPositions.FREE_LOOP_INDEX], ['sub', newmaxlen, '_length']], 'break'],
+                                    ['mstore8', ['add', ['add', ['add', '_opos', 32], '_length'], ['mload', MemoryPositions.FREE_LOOP_INDEX]], 0],
+                                ]
+                           ],
                            ['mstore', '_opos', '_length'],
                            '_opos']]]]
+    # import ipdb; ipdb.set_trace()
     return LLLnode.from_list(out, typ=ByteArrayType(newmaxlen), location='memory', pos=getpos(expr))
 
 
