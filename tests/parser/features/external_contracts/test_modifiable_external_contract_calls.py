@@ -32,11 +32,11 @@ def static_set_lucky(_lucky: int128):
     """
 
     c1 = get_contract(contract_1)
-    c2 = get_contract(contract_2, args=[c1.address])
-    c2.modifiable_set_lucky(7)
+    c2 = get_contract(contract_2, *[c1.address])
+    c2.modifiable_set_lucky(7, transact={})
     assert c1.lucky() == 7
     # Fails attempting a state change after a call to a static address
-    assert_tx_failed(lambda: c2.static_set_lucky(5))
+    assert_tx_failed(lambda: c2.static_set_lucky(5, transact={}))
     assert c1.lucky() == 7
 
 
@@ -73,11 +73,11 @@ def static_set_lucky(_lucky: int128):
     """
 
     c1 = get_contract(contract_1)
-    c2 = get_contract(contract_2, args=[c1.address])
-    c2.modifiable_set_lucky(7)
+    c2 = get_contract(contract_2, *[c1.address])
+    c2.modifiable_set_lucky(7, transact={})
     assert c1.lucky() == 7
     # Fails attempting a state change after a call to a static address
-    assert_tx_failed(lambda: c2.static_set_lucky(5))
+    assert_tx_failed(lambda: c2.static_set_lucky(5, transact={}))
     assert c1.lucky() == 7
 
 
@@ -142,19 +142,19 @@ def static_modifiable_set_lucky(_lucky: int128):
     """
 
     c1 = get_contract(contract_1)
-    c2 = get_contract(contract_2, args=[c1.address])
-    c3 = get_contract(contract_3, args=[c2.address])
+    c2 = get_contract(contract_2, *[c1.address])
+    c3 = get_contract(contract_3, *[c2.address])
 
     assert c1.lucky() == 0
-    c3.modifiable_modifiable_set_lucky(7)
+    c3.modifiable_modifiable_set_lucky(7, transact={})
     assert c1.lucky() == 7
-    assert_tx_failed(lambda: c3.modifiable_static_set_lucky(6))
-    assert_tx_failed(lambda: c3.static_modifiable_set_lucky(6))
-    assert_tx_failed(lambda: c3.static_static_set_lucky(6))
+    assert_tx_failed(lambda: c3.modifiable_static_set_lucky(6, transact={}))
+    assert_tx_failed(lambda: c3.static_modifiable_set_lucky(6, transact={}))
+    assert_tx_failed(lambda: c3.static_static_set_lucky(6, transact={}))
     assert c1.lucky() == 7
 
 
-def test_address_can_returned_from_contract_type(get_contract, utils):
+def test_address_can_returned_from_contract_type(get_contract):
     contract_1 = """
 @public
 def bar() -> int128:
@@ -176,8 +176,8 @@ def get_bar() -> int128:
 """
     c1 = get_contract(contract_1)
     c2 = get_contract(contract_2)
-    c2.foo(c1.address)
-    assert utils.remove_0x_head(c2.bar_contract()) == c1.address.hex()
+    c2.foo(c1.address, transact={})
+    assert c2.bar_contract() == c1.address
     assert c2.get_bar() == 1
 
 

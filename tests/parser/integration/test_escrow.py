@@ -1,4 +1,4 @@
-from ethereum.tools import tester
+# from ethereum.tools import tester
 
 
 def test_arbitration_code(t, get_contract_with_gas_estimation):

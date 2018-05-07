@@ -1,5 +1,4 @@
 import pytest
-from ethereum.tools import tester
 
 
 def test_test_slice(get_contract_with_gas_estimation):
@@ -75,7 +74,7 @@ def bar(inp1: bytes[50]) -> int128:
     print('Passed storage slice test')
 
 
-def test_test_slice4(get_contract_with_gas_estimation):
+def test_test_slice4(get_contract_with_gas_estimation, assert_tx_failed):
     test_slice4 = """
 @public
 def foo(inp: bytes[10], start: int128, len: int128) -> bytes[10]:
@@ -90,14 +89,10 @@ def foo(inp: bytes[10], start: int128, len: int128) -> bytes[10]:
     assert c.foo(b"badminton", 1, 0) == b""
     assert c.foo(b"badminton", 9, 0) == b""
 
-    with pytest.raises(tester.TransactionFailed):
-        c.foo(b"badminton", 0, 10)
-    with pytest.raises(tester.TransactionFailed):
-        c.foo(b"badminton", 1, 9)
-    with pytest.raises(tester.TransactionFailed):
-        c.foo(b"badminton", 9, 1)
-    with pytest.raises(tester.TransactionFailed):
-        c.foo(b"badminton", 10, 0)
+    assert_tx_failed(lambda: c.foo(b"badminton", 0, 10))
+    assert_tx_failed(c.foo(b"badminton", 1, 9))
+    assert_tx_failed(c.foo(b"badminton", 9, 1))
+    assert_tx_failed(c.foo(b"badminton", 10, 0))
 
     print('Passed slice edge case test')
 

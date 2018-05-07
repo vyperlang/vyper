@@ -2,21 +2,12 @@ import pytest
 
 # from functools import wraps
 
-# from ethereum.tools import tester
-# from vyper.parser.parser_utils import (
-#     LLLnode
-# )
-# from vyper import (
-#     compile_lll,
-#     optimizer,
-#     compiler,
-# )
-# from ethereum import utils as ethereum_utils
-
 from eth_tester import (
     EthereumTester,
 )
-
+from eth_tester.exceptions import (
+    TransactionFailed
+)
 from web3.providers.eth_tester import (
     EthereumTesterProvider,
 )
@@ -25,7 +16,8 @@ from web3 import (
     Web3,
 )
 from web3.contract import (
-    ImplicitContract,
+    ConciseContract,
+    ConciseMethod
 )
 from vyper.parser.parser_utils import (
     LLLnode
@@ -35,10 +27,25 @@ from vyper import (
     compiler,
     optimizer,
 )
+from vyper.utils import (
+    sha3
+)
+
+
+# class VyperMethod(ConciseMethod):
+
+#     def __call__(self, *args, **kwargs):
+#         ret = super().__call__(*args, **kwargs)
+#         return ret
+
+# class VyperContract(ConciseContract):
+
+#     def __init__(self, classic_contract, method_class=VyperMethod):
+#         super().__init__(classic_contract, method_class=method_class)
 
 
 @pytest.fixture(scope="module")
-def tester()
+def tester():
     t = EthereumTester()
     return t
 
@@ -96,13 +103,6 @@ def bytes_helper():
         return bytes(str, 'utf-8') + bytearray(length - len(str))
     return bytes_helper
 
-
-@pytest.fixture
-def t():
-    tester.s = tester.Chain()
-    return tester
-
-
 @pytest.fixture(scope="module")
 def chain():
     tester.languages['vyper'] = compiler.Compiler()
@@ -112,8 +112,8 @@ def chain():
 
 
 @pytest.fixture
-def utils():
-    return ethereum_utils
+def sha3():
+    return Web3.sha3
 
 
 @pytest.fixture
@@ -128,70 +128,53 @@ def get_contract_from_lll(w3):
         }
         tx = w3.eth.sendTransaction(deploy_transaction)
         address = w3.eth.getTransactionReceipt(tx)['contractAddress']
-        contract = w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=ImplicitContract)
+        contract = w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=ConciseContract)
         return contract
     return lll_compiler
 
+def _get_contract(w3, source_code, *args, **kwargs):
+    abi = compiler.mk_full_signature(source_code)
+    bytecode = '0x' + compiler.compile(source_code).hex()
+    contract = w3.eth.contract(abi=abi, bytecode=bytecode)
+    deploy_transaction = {
+        'data': contract._encode_constructor_data(args, kwargs)
+    }
+    tx = w3.eth.sendTransaction(deploy_transaction)
+    address = w3.eth.getTransactionReceipt(tx)['contractAddress']
+    contract = w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=ConciseContract)
+    return contract
 
 @pytest.fixture
 def get_contract(w3):
     def get_contract(source_code, *args, **kwargs):
-        abi = compiler.mk_full_signature(source_code)
-        bytecode = '0x' + compiler.compile(source_code).hex()
-        contract = w3.eth.contract(abi=abi, bytecode=bytecode)
-        deploy_transaction = {
-            'data': contract._encode_constructor_data(args, kwargs)
-        }
-        tx = w3.eth.sendTransaction(deploy_transaction)
-        address = w3.eth.getTransactionReceipt(tx)['contractAddress']
-        contract = w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=ImplicitContract)
-        return contract
+        return _get_contract(w3, source_code, *args, **kwargs)
     return get_contract
 
 
 @pytest.fixture
-def get_contract_with_gas_estimation(chain):
-    def get_contract_with_gas_estimation(
-            source_code,
-            *args, **kwargs):
-        contract = chain.contract(source_code, language="vyper", *args, **kwargs)
-        for func_name in contract.translator.function_data:
-            set_decorator_to_contract_function(
-                chain, contract, source_code, func_name
-            )
-        return contract
+def get_contract_with_gas_estimation(w3):
+    def get_contract_with_gas_estimation(source_code, *args, **kwargs):
+        return _get_contract(w3, source_code, *args, **kwargs)
 
     return get_contract_with_gas_estimation
 
 
 @pytest.fixture
-def get_contract_with_gas_estimation_for_constants(chain):
+def get_contract_with_gas_estimation_for_constants(w3):
     def get_contract_with_gas_estimation_for_constants(
             source_code,
             *args, **kwargs):
-        abi = tester.languages['vyper'].mk_full_signature(source_code)
-        # Take out constants from the abi for the purpose of gas estimation
-        for func in abi:
-            func['constant'] = False
-        ct = tester.ContractTranslator(abi)
-        byte_code = tester.languages['vyper'].compile(source_code) + (ct.encode_constructor_arguments(kwargs['args']) if kwargs else b'')
-        address = chain.tx(to=b'', data=byte_code)
-        contract = tester.ABIContract(chain, abi, address)
-        for func_name in contract.translator.function_data:
-            set_decorator_to_contract_function(
-                chain, contract, source_code, func_name
-            )
-        return contract
+        return _get_contract(w3, source_code, *args, **kwargs)
     return get_contract_with_gas_estimation_for_constants
 
 
 @pytest.fixture
-def assert_tx_failed(t):
-    def assert_tx_failed(function_to_test, exception=tester.TransactionFailed):
-        initial_state = t.s.snapshot()
+def assert_tx_failed(tester):
+    def assert_tx_failed(function_to_test, exception=TransactionFailed):
+        snapshot_id = tester.take_snapshot()
         with pytest.raises(exception):
             function_to_test()
-        t.s.revert(initial_state)
+        tester.revert_to_snapshot(snapshot_id)
     return assert_tx_failed
 
 

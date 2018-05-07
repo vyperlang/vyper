@@ -1,8 +1,5 @@
 import pytest
 
-from ethereum.abi import ValueOutOfBounds
-from ethereum.tools import tester
-
 TOKEN_NAME = "Vypercoin"
 TOKEN_SYMBOL = "FANG"
 TOKEN_DECIMALS = 18
@@ -11,18 +8,11 @@ TOKEN_TOTAL_SUPPLY = TOKEN_INITIAL_SUPPLY * (10 ** TOKEN_DECIMALS)
 
 
 @pytest.fixture
-def token_tester():
-    t = tester
-    tester.s = t.Chain()
-    from vyper import compiler
-    t.languages['vyper'] = compiler.Compiler()
-    contract_code = open('examples/tokens/vypercoin.v.py').read()
-    tester.c = tester.s.contract(
-        contract_code,
-        language='vyper',
+def c(get_contract):
+    return get_contract(
+        open('examples/tokens/vypercoin.v.py').read(),
         args=[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY]
     )
-    return tester
 
 
 def pad_bytes32(instr):
@@ -31,7 +21,7 @@ def pad_bytes32(instr):
     return bstr + (32 - len(bstr)) * b'\x00'
 
 
-def test_initial_state(token_tester):
+def test_initial_state(c):
     assert token_tester.c.totalSupply() == TOKEN_TOTAL_SUPPLY == token_tester.c.balanceOf(token_tester.accounts[0])
     assert token_tester.c.balanceOf(token_tester.accounts[1]) == 0
     assert token_tester.c.symbol() == pad_bytes32(TOKEN_SYMBOL)
@@ -55,7 +45,7 @@ def test_transfer(token_tester, assert_tx_failed):
     )
 
 
-def test_approve_allowance(token_tester):
+def test_approve_allowance(c):
     assert token_tester.c.allowance(token_tester.accounts[0], token_tester.accounts[1]) == 0
     assert token_tester.c.approve(token_tester.accounts[1], 10) is True
     assert token_tester.c.allowance(token_tester.accounts[0], token_tester.accounts[1]) == 10

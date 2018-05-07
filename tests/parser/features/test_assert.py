@@ -1,17 +1,17 @@
-import pytest
 
 
-def test_assert_refund(t, get_contract_with_gas_estimation):
+def test_assert_refund(w3, tester, get_contract_with_gas_estimation, assert_tx_failed):
     code = """
 @public
 def foo():
     assert 1 == 2
 """
     c = get_contract_with_gas_estimation(code)
-    pre_balance = t.s.head_state.get_balance(t.a0)
-    with pytest.raises(t.TransactionFailed):
-        c.foo(startgas=10**6, gasprice=10)
-    post_balance = t.s.head_state.get_balance(t.a0)
+    a0 =  w3.eth.accounts[0]
+    pre_balance = tester.get_balance(a0)
+    # assert_tx_failed(lambda: c.foo(transact={'from': a0, 'gas': 10**6, 'gasPrice': 10}))
+    assert_tx_failed(lambda: c.foo())
+    post_balance = tester.get_balance(a0)
     # Checks for gas refund from revert
     # 10**5 is added to account for gas used before the transactions fails
     assert pre_balance < post_balance + 10**5

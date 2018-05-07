@@ -1,18 +1,17 @@
-from ethereum.tools import tester as t
-from ethereum import utils
+# from ethereum.tools import tester as t
+# from ethereum import utils
 from vyper import compiler
 
+# t.languages['vyper'] = compiler.Compiler()
+# t.s = t.Chain()
+# t.s.head_state.gas_limit = 10**9
 
-t.languages['vyper'] = compiler.Compiler()
-t.s = t.Chain()
-t.s.head_state.gas_limit = 10**9
+# x = t.s.contract(open('examples/wallet/wallet.v.py').read(), args=[[t.a1, t.a2, t.a3, t.a4, t.a5], 3], language='vyper')
+# print(t.s.last_tx.data[-192:])
+# # Sends wei to the contract for future transactions gas costs
+# t.s.tx(sender=t.k1, to=x.address, value=10**17)
 
-x = t.s.contract(open('examples/wallet/wallet.v.py').read(), args=[[t.a1, t.a2, t.a3, t.a4, t.a5], 3], language='vyper')
-print(t.s.last_tx.data[-192:])
-# Sends wei to the contract for future transactions gas costs
-t.s.tx(sender=t.k1, to=x.address, value=10**17)
-
-print([utils.encode_hex(a) for a in [t.a1, t.a2, t.a3, t.a4, t.a5]])
+# print([utils.encode_hex(a) for a in [t.a1, t.a2, t.a3, t.a4, t.a5]])
 
 
 # Signs a transaction with a given key

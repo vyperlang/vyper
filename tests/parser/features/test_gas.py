@@ -11,8 +11,9 @@ def foo() -> int128:
 
     c = get_contract_with_gas_estimation(gas_call)
 
-    assert c.foo(startgas=50000) < 50000
-    assert c.foo(startgas=50000) > 25000
+    assert c.foo(call={"gas": 50000}) < 50000
+    assert c.foo(call={"gas": 50000}) > 25000
+
     print('Passed gas test')
 
 

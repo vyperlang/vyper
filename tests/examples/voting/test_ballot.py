@@ -1,10 +1,11 @@
 import unittest
 
-from ethereum.tools import tester
-import ethereum.utils as utils
+
+def remove_0x_head(s):
+    return s[2:] if s[:2] in (b'0x', '0x') else s
 
 
-def assert_tx_failed(ballot_tester, function_to_test, exception=tester.TransactionFailed):
+def assert_tx_failed(ballot_tester, function_to_test, exception=Exception):
     """ Ensure that transaction fails, reverting state (to prevent gas exhaustion) """
     initial_state = ballot_tester.s.snapshot()
     ballot_tester.assertRaises(exception, function_to_test)

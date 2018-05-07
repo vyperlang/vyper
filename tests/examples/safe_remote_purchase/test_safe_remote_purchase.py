@@ -7,8 +7,7 @@
 # 3. Seller ships item
 # 4. Buyer confirms receiving the item. Buyer's deposit (value) is returned. Seller's deposit (2*value) + items value is returned. Balance is 0.
 import pytest
-from ethereum.tools import tester
-from ethereum import utils
+
 
 contract_code = open("examples/safe_remote_purchase/safe_remote_purchase.v.py").read()
 # Inital balance of accounts
@@ -39,7 +38,7 @@ def test_initial_state(srp_tester, assert_tx_failed):
     # Seller puts item up for sale
     srp_tester.c = tester.s.contract(contract_code, language="vyper", args=[], value=2)
     # Check that the seller is set correctly
-    assert utils.remove_0x_head(srp_tester.c.seller()) == srp_tester.accounts[0].hex()
+    assert srp_tester.c.seller()[:2] == srp_tester.accounts[0].hex()
     # Check if item value is set correctly (Half of deposit)
     assert srp_tester.c.value() == 1
     # Check if unlocked() works correctly after initialization
@@ -69,7 +68,7 @@ def test_purchase(srp_tester, assert_tx_failed):
     # Purchase for the correct price
     srp_tester.c.purchase(value=2, sender=srp_tester.k1)
     # Check if buyer is set correctly
-    assert utils.remove_0x_head(srp_tester.c.buyer()) == srp_tester.accounts[1].hex()
+    assert srp_tester.c.buyer()[:2] == srp_tester.accounts[1].hex()
     # Check if contract is locked correctly
     assert srp_tester.c.unlocked() is False
     # Check balances, both deposits should have been deducted

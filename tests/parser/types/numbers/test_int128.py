@@ -1,4 +1,5 @@
 from vyper.exceptions import TypeMismatchException
+from decimal import Decimal
 
 
 def test_exponents_with_nums(get_contract_with_gas_estimation):
@@ -25,9 +26,9 @@ def foo(inp: int128) -> decimal:
     return y
 """
     c = get_contract_with_gas_estimation(code)
-    assert c.foo(2) == 2.5
-    assert c.foo(10) == .5
-    assert c.foo(50) == .1
+    assert c.foo(2) == Decimal('2.5')
+    assert c.foo(10) == Decimal('.5')
+    assert c.foo(50) == Decimal('0.1')
 
 
 def test_decimal_divided_by_num(get_contract_with_gas_estimation):
@@ -38,9 +39,9 @@ def foo(inp: decimal) -> decimal:
     return y
 """
     c = get_contract_with_gas_estimation(code)
-    assert c.foo(1) == .2
-    assert c.foo(.5) == .1
-    assert c.foo(.2) == .04
+    assert c.foo(1) == Decimal('0.2')
+    assert c.foo(.5) == Decimal('0.1')
+    assert c.foo(.2) == Decimal('.04')
 
 
 def test_negative_nums(t, get_contract_with_gas_estimation, chain):

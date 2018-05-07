@@ -1,4 +1,3 @@
-from ethereum.tools import tester
 
 
 def test_caller_code(get_contract_with_gas_estimation):
@@ -58,7 +57,7 @@ def create_and_return_forwarder(inp: address) -> address:
     print('Gas consumed: %d' % (chain.head_state.receipts[-1].gas_used - chain.head_state.receipts[-2].gas_used - chain.last_tx.intrinsic_gas_used))
 
 
-def test_multiple_levels2(get_contract_with_gas_estimation):
+def test_multiple_levels2(assert_tx_failed, get_contract_with_gas_estimation):
     inner_code = """
 @public
 def returnten() -> int128:
@@ -81,11 +80,7 @@ def create_and_return_forwarder(inp: address) -> address:
     """
 
     c2 = get_contract_with_gas_estimation(outer_code)
-    try:
-        c2.create_and_call_returnten(c.address)
-        success = True
-    except tester.TransactionFailed:
-        success = False
-    assert not success
+
+    assert_tx_failed(lambda: c2.create_and_call_returnten(c.address))
 
     print('Passed forwarder exception test')

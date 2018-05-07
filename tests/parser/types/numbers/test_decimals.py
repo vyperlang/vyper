@@ -1,3 +1,6 @@
+from decimal import Decimal
+
+
 def test_decimal_test(chain, check_gas, get_contract_with_gas_estimation):
     decimal_test = """
 @public
@@ -112,12 +115,12 @@ def iarg() -> wei_value:
     return x
     """
     c = get_contract_with_gas_estimation(harder_decimal_test)
-    assert c.phooey(1.2) == 20736.0
-    assert c.phooey(-1.2) == 20736.0
-    assert c.arg(-3.7) == -3.7
-    assert c.arg(3.7) == 3.7
-    assert c.garg() == 6.75
-    assert c.harg() == 9.0
-    assert c.iarg() == 14
+    assert c.phooey(1.2) == Decimal('20736.0')
+    assert c.phooey(-1.2) == Decimal('20736.0')
+    assert c.arg(-3.7) == Decimal('-3.7')
+    assert c.arg(3.7) == Decimal('3.7')
+    assert c.garg() == Decimal('6.75')
+    assert c.harg() == Decimal('9.0')
+    assert c.iarg() == Decimal('14')
 
     print('Passed fractional multiplication test')
