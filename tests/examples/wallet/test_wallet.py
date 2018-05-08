@@ -1,27 +1,30 @@
-# from ethereum.tools import tester as t
-# from ethereum import utils
-from vyper import compiler
+import pytest
 
-# t.languages['vyper'] = compiler.Compiler()
-# t.s = t.Chain()
-# t.s.head_state.gas_limit = 10**9
-
-# x = t.s.contract(open('examples/wallet/wallet.v.py').read(), args=[[t.a1, t.a2, t.a3, t.a4, t.a5], 3], language='vyper')
 # print(t.s.last_tx.data[-192:])
-# # Sends wei to the contract for future transactions gas costs
-# t.s.tx(sender=t.k1, to=x.address, value=10**17)
-
 # print([utils.encode_hex(a) for a in [t.a1, t.a2, t.a3, t.a4, t.a5]])
+
+@pytest.fixture
+def c(get_contract):
+    with open('examples/wallet/wallet.v.py') as f:
+        c = get_contract(f.read(), *[[t.a1, t.a2, t.a3, t.a4, t.a5], 3])
+
+    # Sends wei to the contract for future transactions gas costs
+    # t.s.tx(sender=t.k1, to=x.address, value=10**17)
+
+    return c
 
 
 # Signs a transaction with a given key
+@pytest.fixture
 def sign(seq, to, value, data, key):
-    h1 = utils.sha3(utils.encode_int32(seq) + b'\x00' * 12 + to + utils.encode_int32(value) + data)
-    h2 = utils.sha3(b"\x19Ethereum Signed Message:\n32" + h1)
+    from web3 import Web3
+    h1 = Web3.sha3(utils.encode_int32(seq) + b'\x00' * 12 + to + utils.encode_int32(value) + data)
+    h2 = Web3.sha3(b"\x19Ethereum Signed Message:\n32" + h1)
     return list(utils.ecsign(h2, key))
 
 
-def test_approve(assert_tx_failed):
+def test_approve(w3, assert_tx_failed):
+    a0, a1, a2, a3, a4, a5, a6 = w3.eth.accounts[:7]
     to, value, data = b'\x35' * 20, 10**16, b""
     assert x.approve(0, to, value, data, [sign(0, to, value, data, k) if k else [0, 0, 0] for k in (t.k1, 0, t.k3, 0, t.k5)], value=value, sender=t.k1)
     # Approve fails if only 2 signatures are given

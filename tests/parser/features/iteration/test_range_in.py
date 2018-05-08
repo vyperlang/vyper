@@ -74,7 +74,7 @@ def testin() -> bool:
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatchException)
 
 
-def test_ownership(t, assert_tx_failed, get_contract_with_gas_estimation):
+def test_ownership(w3, assert_tx_failed, get_contract_with_gas_estimation):
     code = """
 
 owners: address[2]
@@ -92,20 +92,20 @@ def set_owner(i: int128, new_owner: address):
 def is_owner() -> bool:
     return msg.sender in self.owners
     """
-
+    a1 = w3.eth.accounts[1]
     c = get_contract_with_gas_estimation(code)
 
     assert c.is_owner() is True  # contract creator is owner.
-    assert c.is_owner(sender=t.k1) is False  # no one else is.
+    assert c.is_owner(call={'from': a1}) is False  # no one else is.
 
     # only an owner may set another owner.
-    assert_tx_failed(lambda: c.set_owner(1, t.a1, sender=t.k1))
+    assert_tx_failed(lambda: c.set_owner(1, a1, call={'from': a1}))
 
-    c.set_owner(1, t.a1)
-    assert c.is_owner(sender=t.k1) is True
+    c.set_owner(1, a1, transact={})
+    assert c.is_owner(call={'from': a1}) is True
 
     # Owner in place 0 can be replaced.
-    c.set_owner(0, t.a1)
+    c.set_owner(0, a1, transact={})
     assert c.is_owner() is False
 
 

@@ -59,7 +59,9 @@ def jop() -> int128:
 
     c = get_contract_with_gas_estimation(multi_setter_test)
     assert c.foo() == 321
+    c.foo(transact={})
     assert c.fop() == 654321
+    c.fop(transact={})
     assert c.goo() == 321
     assert c.gop() == 654321
     assert c.hoo() == 0

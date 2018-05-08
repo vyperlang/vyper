@@ -2,6 +2,8 @@ import pytest
 
 # from functools import wraps
 import eth_tester
+import web3
+
 from eth_tester import (
     EthereumTester,
 )
@@ -18,6 +20,9 @@ from web3 import (
 from web3.contract import (
     ConciseContract,
     ConciseMethod
+)
+from web3.exceptions import (
+    ValidationError
 )
 from vyper.parser.parser_utils import (
     LLLnode
@@ -58,6 +63,31 @@ def Filter_remove(self, *values):
             continue
         self.queue.put_nowait(value)
 eth_tester.utils.filters.Filter.remove = Filter_remove
+
+
+original_is_encodable = web3.utils.abi.is_encodable
+def utils_abi_is_encodable(_type, value):
+    from eth_utils import is_integer
+    from eth_abi.abi import process_type
+    try:
+        base, sub, arrlist = _type
+    except ValueError:
+        base, sub, arrlist = process_type(_type)
+
+    if not arrlist:
+        if base == 'fixed' and not arrlist:
+            return True
+        elif base == 'int':
+            if not is_integer(value):
+                return False
+            exp = int(sub)
+            if value < -1 * 2**(exp - 1) or value > 2**(exp - 1) + 1:
+                return False
+            return True
+
+    # default behaviour
+    return original_is_encodable(_type, value)
+web3.utils.abi.is_encodable = utils_abi_is_encodable
 
 
 @pytest.fixture(scope="module")
@@ -200,8 +230,16 @@ def assert_tx_failed(tester):
 
 
 @pytest.fixture
-def assert_compile_failed(get_contract_from_lll):
+def assert_compile_failed():
     def assert_compile_failed(function_to_test, exception=Exception):
+        with pytest.raises(exception):
+            function_to_test()
+    return assert_compile_failed
+
+
+@pytest.fixture
+def assert_validation_error():
+    def assert_compile_failed(function_to_test, exception=ValidationError):
         with pytest.raises(exception):
             function_to_test()
     return assert_compile_failed

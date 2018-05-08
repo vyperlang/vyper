@@ -24,7 +24,7 @@ def foo():
     assert c.translator.decode_event(logs.topics, logs.data) == {'_event_type': b'MyLog'}
 
 
-def test_event_logging_with_topics(get_contract_with_gas_estimation, chain, utils):
+def test_event_logging_with_topics(get_contract_with_gas_estimation, ):
     loggy_code = """
 MyLog: event({arg1: indexed(bytes[3])})
 
@@ -47,7 +47,7 @@ def foo():
     assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': b'bar', '_event_type': b'MyLog'}
 
 
-def test_event_logging_with_multiple_topics(get_contract_with_gas_estimation, chain, utils):
+def test_event_logging_with_multiple_topics(get_contract_with_gas_estimation):
     loggy_code = """
 MyLog: event({arg1: indexed(bytes[3]), arg2: indexed(bytes[4]), arg3: indexed(address)})
 
@@ -76,7 +76,7 @@ def foo():
     assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': b'bar', 'arg2': b'home', 'arg3': '0x' + c.address.hex(), '_event_type': b'MyLog'}
 
 
-def test_logging_the_same_event_multiple_times_with_topics(get_contract_with_gas_estimation, chain, utils):
+def test_logging_the_same_event_multiple_times_with_topics(get_contract_with_gas_estimation, ):
     loggy_code = """
 MyLog: event({arg1: indexed(int128), arg2: indexed(address)})
 
@@ -114,7 +114,7 @@ MyLog: event({arg1: indexed(bytes[3]), arg2: indexed(bytes[4]), arg3: indexed(ad
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
 
 
-def test_event_logging_with_data(get_contract_with_gas_estimation, chain, utils):
+def test_event_logging_with_data(get_contract_with_gas_estimation, ):
     loggy_code = """
 MyLog: event({arg1: int128})
 
@@ -137,7 +137,7 @@ def foo():
     assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': 123, '_event_type': b'MyLog'}
 
 
-def test_event_logging_with_units(get_contract_with_gas_estimation, chain, utils):
+def test_event_logging_with_units(get_contract_with_gas_estimation, ):
     code = """
 MyLog: event({arg1: indexed(int128(wei)), arg2: int128(wei)})
 
@@ -148,7 +148,7 @@ def foo():
     get_contract_with_gas_estimation(code)
 
 
-def test_event_logging_with_fixed_array_data(get_contract_with_gas_estimation, chain, utils):
+def test_event_logging_with_fixed_array_data(get_contract_with_gas_estimation, ):
     loggy_code = """
 MyLog: event({arg1: int128[2], arg2: timestamp[3], arg3: int128[2][2]})
 
@@ -173,7 +173,7 @@ def foo():
     assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': [1, 2], 'arg2': [timestamp, timestamp + 1, timestamp + 2], 'arg3': [[1, 2], [1, 2]], '_event_type': b'MyLog'}
 
 
-def test_logging_with_input_bytes_1(bytes_helper, get_contract_with_gas_estimation, chain, utils):
+def test_logging_with_input_bytes_1(bytes_helper, get_contract_with_gas_estimation, ):
     loggy_code = """
 MyLog: event({arg1: indexed(bytes[4]), arg2: indexed(bytes[29]), arg3: bytes[31]})
 
@@ -201,7 +201,7 @@ def foo(arg1: bytes[29], arg2: bytes[31]):
     }
 
 
-def test_event_logging_with_bytes_input_2(t, bytes_helper, get_contract_with_gas_estimation, chain, utils):
+def test_event_logging_with_bytes_input_2(t, bytes_helper, get_contract_with_gas_estimation, ):
     loggy_code = """
 MyLog: event({arg1: bytes[20]})
 
@@ -224,7 +224,7 @@ def foo(_arg1: bytes[20]):
     assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': b'hello', '_event_type': b'MyLog'}
 
 
-def test_event_logging_with_bytes_input_3(get_contract, chain, utils):
+def test_event_logging_with_bytes_input_3(get_contract, ):
     loggy_code = """
 MyLog: event({arg1: bytes[5]})
 
@@ -247,7 +247,7 @@ def foo(_arg1: bytes[5]):
     assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': b'hello', '_event_type': b'MyLog'}
 
 
-def test_event_logging_with_data_with_different_types(get_contract_with_gas_estimation, chain, utils):
+def test_event_logging_with_data_with_different_types(get_contract_with_gas_estimation, ):
     loggy_code = """
 MyLog: event({arg1: int128, arg2: bytes[4], arg3: bytes[3], arg4: address, arg5: address, arg6: timestamp})
 
@@ -270,7 +270,7 @@ def foo():
     assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': 123, 'arg2': b'home', 'arg3': b'bar', 'arg4': '0xc305c901078781c232a2a521c2af7980f8385ee9', 'arg5': '0x' + c.address.hex(), 'arg6': chain.head_state.timestamp, '_event_type': b'MyLog'}
 
 
-def test_event_logging_with_topics_and_data_1(get_contract_with_gas_estimation, chain, utils):
+def test_event_logging_with_topics_and_data_1(get_contract_with_gas_estimation, ):
     loggy_code = """
 MyLog: event({arg1: indexed(int128), arg2: bytes[3]})
 
@@ -293,7 +293,7 @@ def foo():
     assert c.translator.decode_event(logs.topics, logs.data) == {'arg1': 1, 'arg2': b'bar', '_event_type': b'MyLog'}
 
 
-def test_event_logging_with_multiple_logs_topics_and_data(get_contract_with_gas_estimation, chain, utils):
+def test_event_logging_with_multiple_logs_topics_and_data(get_contract_with_gas_estimation, ):
     loggy_code = """
 MyLog: event({arg1: indexed(int128), arg2: bytes[3]})
 YourLog: event({arg1: indexed(address), arg2: bytes[5]})

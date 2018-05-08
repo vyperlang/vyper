@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 
-def test_decimal_test(chain, check_gas, get_contract_with_gas_estimation):
+def test_decimal_test(get_contract_with_gas_estimation):
     decimal_test = """
 @public
 def foo() -> int128:
@@ -62,7 +62,7 @@ def foop() -> int128:
     """
 
     c = get_contract_with_gas_estimation(decimal_test)
-    pre_txs = len(chain.head_state.receipts)
+
     assert c.foo() == 999
     assert c.fop() == 999
     assert c.foq() == 999
@@ -77,10 +77,8 @@ def foop() -> int128:
     assert c.foom() == 999
     assert c.foon() == 999
     assert c.foop() == 999
-    post_txs = len(chain.head_state.receipts)
 
     print('Passed basic addition, subtraction and multiplication tests')
-    check_gas(decimal_test, num_txs=(post_txs - pre_txs))
 
 
 def test_harder_decimal_test(get_contract_with_gas_estimation):
@@ -115,10 +113,10 @@ def iarg() -> wei_value:
     return x
     """
     c = get_contract_with_gas_estimation(harder_decimal_test)
-    assert c.phooey(1.2) == Decimal('20736.0')
-    assert c.phooey(-1.2) == Decimal('20736.0')
-    assert c.arg(-3.7) == Decimal('-3.7')
-    assert c.arg(3.7) == Decimal('3.7')
+    assert c.phooey(Decimal('1.2')) == Decimal('20736.0')
+    assert c.phooey(Decimal('-1.2')) == Decimal('20736.0')
+    assert c.arg(Decimal('-3.7')) == Decimal('-3.7')
+    assert c.arg(Decimal('3.7')) == Decimal('3.7')
     assert c.garg() == Decimal('6.75')
     assert c.harg() == Decimal('9.0')
     assert c.iarg() == Decimal('14')

@@ -39,12 +39,12 @@ def foo(inp: decimal) -> decimal:
     return y
 """
     c = get_contract_with_gas_estimation(code)
-    assert c.foo(1) == Decimal('0.2')
-    assert c.foo(.5) == Decimal('0.1')
-    assert c.foo(.2) == Decimal('.04')
+    assert c.foo(Decimal('1')) == Decimal('0.2')
+    assert c.foo(Decimal('.5')) == Decimal('0.1')
+    assert c.foo(Decimal('.2')) == Decimal('.04')
 
 
-def test_negative_nums(t, get_contract_with_gas_estimation, chain):
+def test_negative_nums(get_contract_with_gas_estimation):
     negative_nums_code = """
 @public
 def _negative_num() -> int128:
@@ -56,7 +56,6 @@ def _negative_exp() -> int128:
     """
 
     c = get_contract_with_gas_estimation(negative_nums_code)
-    t.s = chain
     assert c._negative_num() == -1
     assert c._negative_exp() == -3
 
@@ -77,7 +76,7 @@ def foo() -> int128(wei):
     assert c.foo() == 4
 
 
-def test_num_bound(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
+def test_num_bound(assert_tx_failed, get_contract_with_gas_estimation):
     num_bound_code = """
 @public
 def _num(x: int128) -> int128:
@@ -106,11 +105,10 @@ def _num_min() -> int128:
 
     c = get_contract_with_gas_estimation(num_bound_code)
 
-    t.s = chain
     NUM_MAX = 2**127 - 1
     NUM_MIN = -2**127
     assert c._num_add(NUM_MAX, 0) == NUM_MAX
-    assert c._num_sub(NUM_MIN, 0) == NUM_MIN
+    assert c._num_sub(NUM_MIN, 0) == NUM_MIN 
     assert c._num_add(NUM_MAX - 1, 1) == NUM_MAX
     assert c._num_sub(NUM_MIN + 1, 1) == NUM_MIN
     assert_tx_failed(lambda: c._num_add(NUM_MAX, 1))

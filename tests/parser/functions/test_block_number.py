@@ -1,6 +1,6 @@
 
-def test_block_number(get_contract_with_gas_estimation, chain):
-    chain.mine(1)
+def test_block_number(get_contract_with_gas_estimation, tester):
+    tester.mine_blocks(1)
 
     block_number_code = """
 @public

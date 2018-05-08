@@ -291,7 +291,7 @@ def bar6() -> int128:
     assert c.bar() == 0
     assert c.foo1([0, 0], Decimal('0')) == 0
     assert c.bar2() == 55
-    assert c.bar3() == 1.33
+    assert c.bar3() == Decimal('1.33')
     assert c.bar4() == 77
     assert c.bar5() == 88
 
@@ -316,7 +316,7 @@ def bar() -> (int128, decimal):
     return self.fooz(x, y, z, a), self.fooa(x, y, z, a)
     """
     c = get_contract_with_gas_estimation(code)
-    assert c.bar() == [66, 66.77]
+    assert c.bar() == [66, Decimal('66.77')]
 
 
 def test_multi_mixed_arg_list_bytes_call(get_contract_with_gas_estimation):

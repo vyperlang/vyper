@@ -13,7 +13,7 @@ def foo() -> int128:
     """
 
     c = get_contract_with_gas_estimation_for_constants(state_accessor)
-    c.oo()
+    c.oo(transact={})
     assert c.foo() == 5
     print('Passed basic state accessor test')
 
