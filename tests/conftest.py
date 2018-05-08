@@ -1,7 +1,7 @@
 import pytest
 
 # from functools import wraps
-
+import eth_tester
 from eth_tester import (
     EthereumTester,
 )
@@ -31,17 +31,33 @@ from vyper.utils import (
     sha3
 )
 
+############
+# PATCHING #
+############
 
-# class VyperMethod(ConciseMethod):
 
-#     def __call__(self, *args, **kwargs):
-#         ret = super().__call__(*args, **kwargs)
-#         return ret
+def Filter_remove(self, *values):
 
-# class VyperContract(ConciseContract):
+    def get_key(v):
+        return v.get('transaction_hash'), v.get('log_index'), v.get('transaction_index')
 
-#     def __init__(self, classic_contract, method_class=VyperMethod):
-#         super().__init__(classic_contract, method_class=method_class)
+    values_to_remove = set([
+        get_key(value)
+        for value in values
+    ])
+
+    queued_values = self.get_changes()
+    self.values = [
+        value
+        for value
+        in self.get_all()
+        if get_key(value) not in values_to_remove
+    ]
+    for value in queued_values:
+        if get_key(value) in values_to_remove:
+            continue
+        self.queue.put_nowait(value)
+eth_tester.utils.filters.Filter.remove = Filter_remove
 
 
 @pytest.fixture(scope="module")
@@ -142,6 +158,11 @@ def _get_contract(w3, source_code, *args, **kwargs):
     tx = w3.eth.sendTransaction(deploy_transaction)
     address = w3.eth.getTransactionReceipt(tx)['contractAddress']
     contract = w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=ConciseContract)
+    # Filter logs.
+    contract._logfilter = w3.eth.filter({
+        'fromBlock': w3.eth.blockNumber - 1,
+        'address': contract.address
+    })
     return contract
 
 @pytest.fixture
@@ -187,19 +208,11 @@ def assert_compile_failed(get_contract_from_lll):
 
 
 @pytest.fixture
-def get_logs():
-    def get_logs(receipt, contract, event_name=None):
-        contract_log_ids = contract.translator.event_data.keys()  # All the log ids contract has
-        # All logs originating from contract, and matching event_name (if specified)
-        logs = [log for log in receipt.logs
-                if log.topics[0] in contract_log_ids and
-                log.address == contract.address and
-                (not event_name or
-                 contract.translator.event_data[log.topics[0]]['name'] == event_name)]
-        assert len(logs) > 0, "No logs in last receipt"
-
-        # Return all events decoded in the receipt
-        return [contract.translator.decode_event(log.topics, log.data) for log in logs]
+def get_logs(w3, c):
+    def get_logs(tx_hash, event_name):
+        tx_receipt = w3.eth.getTransactionReceipt(tx_hash)
+        logs = getattr(c._classic_contract.events, event_name,)().processReceipt(tx_receipt)
+        return logs
     return get_logs
 
 
