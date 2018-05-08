@@ -42,7 +42,7 @@ def test_sell_without_stock(w3, c, assert_tx_failed):
     assert_tx_failed(lambda: c.sell_stock(1, transact={'from': a1}))
 
 
-def test_oversell(w3, c, tester, assert_tx_failed):
+def test_oversell(w3, c, assert_tx_failed):
     a0, a1, a2 = w3.eth.accounts[:3]
     # You can't sell more than you own
     test_shares = int(c.total_shares())
@@ -94,18 +94,16 @@ def test_valuation(w3, c):
     assert c.debt() == test_value
 
 
-def test_logs(w3, c, tester, get_logs):
+def test_logs(w3, c, get_logs):
     a0, a1, a2, a3 = w3.eth.accounts[:4]
     # Buy is logged
     logs = get_logs(c.buy_stock(transact={'from': a1, 'value': 7 * c.price()}), 'Buy')
     assert len(logs) == 1
-    assert logs[0].event == 'Buy'
     assert logs[0].args._buy_order == 7
 
     # Sell is logged
     logs = get_logs(c.sell_stock(3, transact={'from': a1}), 'Sell')
     assert len(logs) == 1
-    assert logs[0].event == 'Sell'
     assert logs[0].args._sell_order == 3
 
     # Transfer is logged
@@ -118,5 +116,4 @@ def test_logs(w3, c, tester, get_logs):
     amount = 10**4
     logs = get_logs(c.pay_bill(a3, amount, transact={'from': a1}), 'Pay')
     assert len(logs) == 1
-    assert logs[0].event == 'Pay'
     assert logs[0].args._amount == amount
