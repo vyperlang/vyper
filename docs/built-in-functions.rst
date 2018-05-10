@@ -248,7 +248,7 @@ Takes encoded RLP data and an unencoded list of types. Usage::
 
    vote_msg: bytes <= 1024 = ...
    
-   values = RLPData(vote_msg, [int128, int128, bytes32, bytes, bytes])
+   values = RLPList(vote_msg, [int128, int128, bytes32, bytes, bytes])
 
    var1: int128 = values[0]
    var2: int128 = values[1]
