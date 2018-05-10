@@ -38,7 +38,7 @@ for build instructions.
 # Compiling a contract
 To compile a contract, use:
 ```bash
-    vyper your_file_name.v.py
+vyper your_file_name.v.py
 ```
 
 **Note: Since .vy is not official a language supported by any syntax highlights or linter,
@@ -54,7 +54,7 @@ be a bit behind the latest version found in the master branch of this repository
 
 ## Testing (using pytest)
 ```bash
-    python setup.py test
+python setup.py test
 ```
 
 # Contributing
