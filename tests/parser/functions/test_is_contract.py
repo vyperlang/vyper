@@ -11,7 +11,7 @@ def foo(arg1: address) -> bool:
 def foo(arg1: address) -> bool:
     return arg1.is_contract
 """
-    a0, a1 = w3.accounts[:2]
+    a0, a1 = w3.eth.accounts[:2]
     c1 = get_contract_with_gas_estimation(contract_1)
     c2 = get_contract_with_gas_estimation(contract_2)
 

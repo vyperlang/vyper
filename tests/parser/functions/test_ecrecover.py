@@ -1,3 +1,5 @@
+from eth_keys import keys
+
 def test_ecrecover_test(get_contract_with_gas_estimation):
     ecrecover_test = """
 @public

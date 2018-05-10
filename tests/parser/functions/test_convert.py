@@ -125,5 +125,5 @@ def bytes_to_bytes32(inp: bytes[32]) -> (bytes32, bytes32):
     c = get_contract_with_gas_estimation(code)
     assert c.int128_to_bytes32(1) == [bytes_helper('', 31) + b'\x01'] * 3
     assert c.uint256_to_bytes32(1) == [bytes_helper('', 31) + b'\x01'] * 3
-    assert c.address_to_bytes32(w3.eth.accounts[0]) == [bytes_helper('', 12) + w3.eth.accounts[0]] * 2
+    assert c.address_to_bytes32(w3.eth.accounts[0]) == [bytes_helper('', 12) + w3.toBytes(hexstr=w3.eth.accounts[0])] * 2
     assert c.bytes_to_bytes32(bytes_helper('', 32)) == [bytes_helper('', 32)] * 2
