@@ -229,3 +229,30 @@ Takes two elliptical curves and multiplies them together.
 
     :output d: either bytes32, num128, or address
     """
+
+**RLPList**
+---------------
+::
+
+   def RLPList(a, b) -> c:
+     """
+     :param a: encoded data
+     :type a: bytes
+     :param b: RLP list
+     :type b: list
+
+     :output c: LLLnode
+     """
+
+Takes encoded RLP data and an unencoded list of types. Usage::
+
+   vote_msg: bytes <= 1024 = ...
+   
+   values = RLPData(vote_msg, [int128, int128, bytes32, bytes, bytes])
+
+   var1: int128 = values[0]
+   var2: int128 = values[1]
+   var3: bytes32 = values[2]
+   var4: bytes <= 1024 = values[3]
+   var5: bytes <= 1024 = values[4]
+
