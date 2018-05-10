@@ -74,12 +74,9 @@ def foq(inp: bytes[32]) -> address:
     c = get_contract_with_gas_estimation(extract32_code)
     assert c.foo(b"\x00" * 30 + b"\x01\x01") == 257
     assert c.bar(b"\x00" * 30 + b"\x01\x01") == 257
-    try:
-        c.foo(b"\x80" + b"\x00" * 30)
-        success = True
-    except tester.TransactionFailed:
-        success = False
-    assert not success
+
+    assert_tx_failed(lambda: c.foo(b"\x80" + b"\x00" * 30))
+
     assert c.bar(b"\x80" + b"\x00" * 31) == 2**255
 
     assert c.baz(b"crow" * 8) == b"crow" * 8

@@ -97,23 +97,23 @@ def test_valuation(w3, c):
 def test_logs(w3, c, get_logs):
     a0, a1, a2, a3 = w3.eth.accounts[:4]
     # Buy is logged
-    logs = get_logs(c.buy_stock(transact={'from': a1, 'value': 7 * c.price()}), 'Buy')
+    logs = get_logs(c.buy_stock(transact={'from': a1, 'value': 7 * c.price()}), c, 'Buy')
     assert len(logs) == 1
     assert logs[0].args._buy_order == 7
 
     # Sell is logged
-    logs = get_logs(c.sell_stock(3, transact={'from': a1}), 'Sell')
+    logs = get_logs(c.sell_stock(3, transact={'from': a1}), c, 'Sell')
     assert len(logs) == 1
     assert logs[0].args._sell_order == 3
 
     # Transfer is logged
-    logs = get_logs(c.transfer_stock(a2, 4, transact={'from': a1}), 'Transfer')
+    logs = get_logs(c.transfer_stock(a2, 4, transact={'from': a1}), c, 'Transfer')
     assert len(logs) == 1
     assert logs[0].event == 'Transfer'
     assert logs[0].args._value == 4
 
     # Pay is logged
     amount = 10**4
-    logs = get_logs(c.pay_bill(a3, amount, transact={'from': a1}), 'Pay')
+    logs = get_logs(c.pay_bill(a3, amount, transact={}), c, 'Pay')
     assert len(logs) == 1
     assert logs[0].args._amount == amount

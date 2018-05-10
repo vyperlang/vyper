@@ -90,6 +90,7 @@ def test_call_transfer(w3, erc20, erc20_caller, assert_tx_failed):
         exception=ValidationError
     )
 
+
 def test_caller_approve_allowance(w3, erc20, erc20_caller):
     assert erc20_caller.allowance(erc20.address, erc20_caller.address) == 0
     assert erc20.approve(erc20_caller.address, 10, transact={})

@@ -1,4 +1,4 @@
-def test_ecrecover_test(get_contract_with_gas_estimation, utils):
+def test_ecrecover_test(get_contract_with_gas_estimation):
     ecrecover_test = """
 @public
 def test_ecrecover(h: bytes32, v:uint256, r:uint256, s:uint256) -> address:

@@ -19,7 +19,6 @@ from web3 import (
 )
 from web3.contract import (
     ConciseContract,
-    ConciseMethod
 )
 from web3.exceptions import (
     ValidationError
@@ -96,10 +95,20 @@ def tester():
     return t
 
 
+def zero_gas_price_strategy(web3, transaction_params=None):
+    return 0  # zero gas price makes testing simpler.
+
+
 @pytest.fixture(scope="module")
 def w3(tester):
     w3 = Web3(EthereumTesterProvider(tester))
+    w3.eth.setGasPriceStrategy(zero_gas_price_strategy)
     return w3
+
+
+@pytest.fixture
+def sha3():
+    return Web3.sha3
 
 
 @pytest.fixture
@@ -149,18 +158,6 @@ def bytes_helper():
         return bytes(str, 'utf-8') + bytearray(length - len(str))
     return bytes_helper
 
-@pytest.fixture(scope="module")
-def chain():
-    tester.languages['vyper'] = compiler.Compiler()
-    s = tester.Chain()
-    s.head_state.gas_limit = 10**9
-    return s
-
-
-@pytest.fixture
-def sha3():
-    return Web3.sha3
-
 
 @pytest.fixture
 def get_contract_from_lll(w3):
@@ -178,12 +175,21 @@ def get_contract_from_lll(w3):
         return contract
     return lll_compiler
 
+
 def _get_contract(w3, source_code, *args, **kwargs):
     abi = compiler.mk_full_signature(source_code)
     bytecode = '0x' + compiler.compile(source_code).hex()
     contract = w3.eth.contract(abi=abi, bytecode=bytecode)
+
+    value = kwargs.pop('value', 0)
+    value_in_eth = kwargs.pop('value_in_eth', 0)
+    value = value_in_eth * 10**18 if value_in_eth else value  # Handle deploying with an eth value.
+    gasPrice = kwargs.pop('gasPrice', 0)
     deploy_transaction = {
-        'data': contract._encode_constructor_data(args, kwargs)
+        'from': w3.eth.accounts[0],
+        'data': contract._encode_constructor_data(args, kwargs),
+        'value': value,
+        'gasPrice': gasPrice
     }
     tx = w3.eth.sendTransaction(deploy_transaction)
     address = w3.eth.getTransactionReceipt(tx)['contractAddress']
@@ -194,6 +200,7 @@ def _get_contract(w3, source_code, *args, **kwargs):
         'address': contract.address
     })
     return contract
+
 
 @pytest.fixture
 def get_contract(w3):
@@ -246,10 +253,10 @@ def assert_validation_error():
 
 
 @pytest.fixture
-def get_logs(w3, c):
-    def get_logs(tx_hash, event_name):
+def get_logs(w3):
+    def get_logs(tx_hash, c, event_name):
         tx_receipt = w3.eth.getTransactionReceipt(tx_hash)
-        logs = getattr(c._classic_contract.events, event_name,)().processReceipt(tx_receipt)
+        logs = getattr(c._classic_contract.events, event_name)().processReceipt(tx_receipt)
         return logs
     return get_logs
 

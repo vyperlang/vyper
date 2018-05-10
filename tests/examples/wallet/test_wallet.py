@@ -1,32 +1,34 @@
 import pytest
 
-# print(t.s.last_tx.data[-192:])
-# print([utils.encode_hex(a) for a in [t.a1, t.a2, t.a3, t.a4, t.a5]])
 
 @pytest.fixture
-def c(get_contract):
+def c(w3, tester, get_contract):
+    a0, a1, a2, a3, a4, a5, a6 = w3.eth.accounts[:7]
     with open('examples/wallet/wallet.v.py') as f:
-        c = get_contract(f.read(), *[[t.a1, t.a2, t.a3, t.a4, t.a5], 3])
-
+        code = f.read()
     # Sends wei to the contract for future transactions gas costs
-    # t.s.tx(sender=t.k1, to=x.address, value=10**17)
-
-    return c
-
+    import ipdb; ipdb.set_trace()
+    return get_contract(code, *[[a1, a2, a3, a4, a5], 3], value=10**17)
 
 # Signs a transaction with a given key
-@pytest.fixture
-def sign(seq, to, value, data, key):
-    from web3 import Web3
-    h1 = Web3.sha3(utils.encode_int32(seq) + b'\x00' * 12 + to + utils.encode_int32(value) + data)
-    h2 = Web3.sha3(b"\x19Ethereum Signed Message:\n32" + h1)
-    return list(utils.ecsign(h2, key))
+# @pytest.fixture
+# def sign():
+#     def _sign(seq, to, value, data, key):
+#         from web3 import Web3
+#         from eth_account.messages import defunct_hash_message
+#         h1 = Web3.sha3(utils.encode_int32(seq) + b'\x00' * 12 + to + utils.encode_int32(value) + data)
+#         h2 = Web3.sha3(b"\x19Ethereum Signed Message:\n32" + h1)
+#         import ipdb; ipdb.set_trace()
+#         return list(utils.ecsign(h2, key))
+#     return _sign
 
 
-def test_approve(w3, assert_tx_failed):
+def test_approve(w3, c, assert_tx_failed):
     a0, a1, a2, a3, a4, a5, a6 = w3.eth.accounts[:7]
     to, value, data = b'\x35' * 20, 10**16, b""
-    assert x.approve(0, to, value, data, [sign(0, to, value, data, k) if k else [0, 0, 0] for k in (t.k1, 0, t.k3, 0, t.k5)], value=value, sender=t.k1)
+    import ipdb; ipdb.set_trace()
+    assert c.approve(0, to, value, data, [sign(0, to, value, data, k) if k else [0, 0, 0] for k in (t.k1, 0, t.k3, 0, t.k5)], value=value, sender=t.k1)
+
     # Approve fails if only 2 signatures are given
     assert_tx_failed(lambda: x.approve(1, to, value, data, [sign(1, to, value, data, k) if k else [0, 0, 0] for k in (t.k1, 0, 0, 0, t.k5)], value=value, sender=t.k1))
     # Approve fails if an invalid signature is given
