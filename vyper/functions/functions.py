@@ -102,6 +102,7 @@ def _convert(expr, context):
 
 @signature('bytes', start='int128', len='int128')
 def _slice(expr, args, kwargs, context):
+    from vyper.utils import ceil32
     sub, start, length = args[0], kwargs['start'], kwargs['len']
     if not are_units_compatible(start.typ, BaseType('int128')):
         raise TypeMismatchException("Type for slice start index must be a unitless number")
@@ -110,6 +111,7 @@ def _slice(expr, args, kwargs, context):
         raise TypeMismatchException("Type for slice length must be a unitless number")
     # Node representing the position of the output in memory
     np = context.new_placeholder(ByteArrayType(maxlen=sub.typ.maxlen + 32))
+    zero_pad_i = context.new_placeholder(BaseType('uint256'))
     placeholder_node = LLLnode.from_list(np, typ=sub.typ, location='memory')
     placeholder_plus_32_node = LLLnode.from_list(np + 32, typ=sub.typ, location='memory')
     # Copies over bytearray data
@@ -131,13 +133,6 @@ def _slice(expr, args, kwargs, context):
                        ['seq',
                            ['assert', ['le', ['add', '_start', '_length'], maxlen]],
                            copier,
-                           ['repeat', MemoryPositions.FREE_LOOP_INDEX, 0, newmaxlen,  # Zero remaining pad bytes.
-                                ['seq',
-                                    ['if',
-                                        ['ge', ['mload', MemoryPositions.FREE_LOOP_INDEX], ['sub', newmaxlen, '_length']], 'break'],
-                                    ['mstore8', ['add', ['add', ['add', '_opos', 32], '_length'], ['mload', MemoryPositions.FREE_LOOP_INDEX]], 0],
-                                ]
-                           ],
                            ['mstore', '_opos', '_length'],
                            '_opos']]]]
     # import ipdb; ipdb.set_trace()
