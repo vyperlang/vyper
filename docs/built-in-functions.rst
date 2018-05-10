@@ -234,15 +234,15 @@ Takes two elliptical curves and multiplies them together.
 ---------------
 ::
 
-   def RLPList(a, b) -> c:
-     """
-     :param a: encoded data
-     :type a: bytes
-     :param b: RLP list
-     :type b: list
+ def _RLPList(a, b) -> c:
+   """
+   :param a: encoded data
+   :type a: bytes
+   :param b: RLP list
+   :type b: list
 
-     :output c: LLLnode
-     """
+   :output c: LLLnode
+   """
 
 Takes encoded RLP data and an unencoded list of types. Usage::
 
