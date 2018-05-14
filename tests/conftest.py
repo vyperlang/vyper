@@ -39,6 +39,7 @@ from vyper.utils import (
 # PATCHING #
 ############
 
+eth_tester.backends.pyevm.main.GENESIS_GAS_LIMIT = 10**9
 
 def Filter_remove(self, *values):
 
