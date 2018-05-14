@@ -323,7 +323,7 @@ def foo():
     assert args.arg1 == 123
     assert args.arg2 == b'home'
     assert args.arg3 == b'bar'
-    assert args.arg4 == '0xc305c901078781c232a2a521c2af7980f8385ee9'
+    assert args.arg4 == '0xc305c901078781C232A2a521C2aF7980f8385ee9'
     assert args.arg5 == c.address
     assert args.arg6 == timestamp
 

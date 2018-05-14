@@ -4,6 +4,7 @@ from eth_keys import KeyAPI
 from eth_account import Account
 from web3 import Web3
 
+
 @pytest.fixture
 def c(w3, get_contract):
     a0, a1, a2, a3, a4, a5, a6 = w3.eth.accounts[:7]
