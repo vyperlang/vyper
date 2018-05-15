@@ -9,7 +9,7 @@ fail_list = [
     """
 @public
 def foo():
-    x: bool = true
+    x: bool = True
     x = 5
     """,
     ("""
@@ -32,6 +32,17 @@ def foo() -> bool:
 @public
 def foo() -> bool:
     return (1 == 2) or 3
+    """,
+    """
+@public
+def foo() -> bool:
+    return 1.0 == 1
+    """,
+    """
+@public
+def foo() -> bool:
+    a: address
+    return a == 1
     """
 ]
 
@@ -51,13 +62,13 @@ valid_list = [
     """
 @public
 def foo():
-    x: bool = true
-    z: bool = x and false
+    x: bool = True
+    z: bool = x and False
     """,
     """
 @public
 def foo():
-    x: bool = true
+    x: bool = True
     z: bool = x and False
     """,
     """
@@ -84,7 +95,7 @@ def foo() -> bool:
     """
 @public
 def foo() -> bool:
-    return 1. >= 1
+    return 2 >= 1
     """,
     """
 @public
@@ -94,7 +105,7 @@ def foo() -> bool:
     """
 @public
 def foo() -> bool:
-    return 1 <= 1.
+    return 1 <= 1
     """
 ]
 

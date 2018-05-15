@@ -122,3 +122,20 @@ def iarg() -> wei_value:
     assert c.iarg() == Decimal('14')
 
     print('Passed fractional multiplication test')
+
+
+def test_mul_overflow(assert_tx_failed, get_contract_with_gas_estimation):
+    mul_code = """
+
+@public
+def _num_mul(x: decimal, y: int128) -> decimal:
+    return x * y
+
+    """
+
+    c = get_contract_with_gas_estimation(mul_code)
+
+    NUM_1 = Decimal('85070591730234615865843651857942052864.0')
+    NUM_2 = 136112946768375385385349842973
+
+    assert_tx_failed(lambda: c._num_mul(NUM_1, NUM_2))

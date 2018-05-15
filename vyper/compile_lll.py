@@ -211,7 +211,8 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
         o.extend(compile_to_assembly(code.args[1], withargs, break_dest, height + 1))
         o.extend(['DUP1'])
         o.extend(compile_to_assembly(code.args[2], withargs, break_dest, height + 3))
-        o.extend(['SWAP1', comp1, 'PC', 'JUMPI'])
+        o.extend(['SWAP1', comp1, 'ISZERO'])
+        o.extend(get_revert())
         o.extend(['DUP1', 'SWAP2', 'SWAP1', comp2, 'ISZERO'])
         o.extend(get_revert())
         return o
@@ -225,6 +226,20 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
     elif code.value == 'sha3_32':
         o = compile_to_assembly(code.args[0], withargs, break_dest, height)
         o.extend(['PUSH1', MemoryPositions.FREE_VAR_SPACE, 'MSTORE', 'PUSH1', 32, 'PUSH1', MemoryPositions.FREE_VAR_SPACE, 'SHA3'])
+        return o
+    # SHA3 a 64 byte value
+    elif code.value == 'sha3_64':
+        o = compile_to_assembly(code.args[0], withargs, break_dest, height)
+        o.extend([
+            'PUSH1', MemoryPositions.FREE_VAR_SPACE,
+            'MSTORE'
+        ])
+        o.extend(compile_to_assembly(code.args[1], withargs, break_dest, height))
+        o.extend([
+            'PUSH1', MemoryPositions.FREE_VAR_SPACE2,
+            'MSTORE',
+            'PUSH1', 64, 'PUSH1', MemoryPositions.FREE_VAR_SPACE, 'SHA3'
+        ])
         return o
     # <= operator
     elif code.value == 'le':

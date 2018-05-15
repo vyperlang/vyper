@@ -92,7 +92,7 @@ using the ``assert`` function which takes any boolean statement. We also check
 to see if the new bid is greater than the highest bid. If the two ``assert``
 statements pass, we can safely continue to the next lines; otherwise, the
 ``bid()`` method will throw an error and revert the transaction. If the two
-``assert`` statements the check that the previous bid is not equal to zero pass,
+``assert`` statements and the check that the previous bid is not equal to zero pass,
 we can safely conclude that we have a valid new highest bid. We will send back
 the previous ``highest_bid`` to the previous ``highest_bidder`` and set our new
 ``highest_bid`` and ``highest_bidder``.
@@ -494,8 +494,9 @@ Let's get started.
   :linenos:
 
 The contract contains a number of methods that modify the contract state as
-well as a few 'getter' methods to read it. As always, we begin by initiating
-our variables.
+well as a few 'getter' methods to read it. We first declare several events 
+that the contract logs. We then declare our global variables, followed by
+function defintions.
 
 .. literalinclude:: ../examples/stock/company.v.py
   :language: python
@@ -521,12 +522,12 @@ company's address is initialized to hold all shares of the company in the
   :language: python
   :pyobject: stock_available
 
-We will be seeing a few ``@constant`` decorators in this contract - which is
+We will be seeing a few ``@constant`` decorators in this contract—which is
 used to decorate methods that simply read the contract state or return a simple
 calculation on the contract state without modifying it. Remember, reading the
 blockchain is free, writing on it is not. Since Vyper is a statically typed
 language, we see an arrow following the definition of the ``stock_available()``
-method, which simply represents the datatype which the function is expected
+method, which simply represents the data type which the function is expected
 to return. In the method, we simply key into ``self.holdings`` with the
 company's address and check it's holdings.
 

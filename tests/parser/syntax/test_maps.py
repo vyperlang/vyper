@@ -172,7 +172,7 @@ mom: {a: {c: int128}[3], b: int128}
 nom: {c: int128}[3]
 @public
 def foo():
-    self.mom = {a: null, b: 5}
+    self.mom = {a: None, b: 5}
     """,
     """
 mom: {a: {c: int128}[3], b: int128}

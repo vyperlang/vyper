@@ -176,9 +176,9 @@ def bar_storage() -> int128:
 
     c = get_contract_with_gas_estimation(bytes_to_num_code)
     assert c.foo(b"") == 0
-    assert_tx_failed(lambda: c.foo(b"\x00"))
+    assert c.foo(b"\x00") == 0
     assert c.foo(b"\x01") == 1
-    assert_tx_failed(lambda: c.foo(b"\x00\x01"))
+    assert c.foo(b"\x00\x01") == 1
     assert c.foo(b"\x01\x00") == 256
     assert c.foo(b"\x01\x00\x00\x00\x01") == 4294967297
     assert c.foo(b"\xff" * 32) == -1

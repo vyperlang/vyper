@@ -255,8 +255,8 @@ def ecrecover(expr, args, kwargs, context):
                               ['mload', MemoryPositions.FREE_VAR_SPACE]], typ=BaseType('address'), pos=getpos(expr))
 
 
-def avo(arg, ind):
-    return unwrap_location(add_variable_offset(arg, LLLnode.from_list(ind, 'int128')))
+def avo(arg, ind, pos):
+    return unwrap_location(add_variable_offset(arg, LLLnode.from_list(ind, 'int128'), pos=pos))
 
 
 @signature('uint256[2]', 'uint256[2]')
@@ -264,12 +264,12 @@ def ecadd(expr, args, kwargs, context):
     placeholder_node = LLLnode.from_list(
         context.new_placeholder(ByteArrayType(128)), typ=ByteArrayType(128), location='memory'
     )
-
+    pos = getpos(expr)
     o = LLLnode.from_list(['seq',
-                              ['mstore', placeholder_node, avo(args[0], 0)],
-                              ['mstore', ['add', placeholder_node, 32], avo(args[0], 1)],
-                              ['mstore', ['add', placeholder_node, 64], avo(args[1], 0)],
-                              ['mstore', ['add', placeholder_node, 96], avo(args[1], 1)],
+                              ['mstore', placeholder_node, avo(args[0], 0, pos)],
+                              ['mstore', ['add', placeholder_node, 32], avo(args[0], 1, pos)],
+                              ['mstore', ['add', placeholder_node, 64], avo(args[1], 0, pos)],
+                              ['mstore', ['add', placeholder_node, 96], avo(args[1], 1, pos)],
                               ['assert', ['call', 500, 6, 0, placeholder_node, 128, placeholder_node, 64]],
                               placeholder_node], typ=ListType(BaseType('uint256'), 2), pos=getpos(expr), location='memory')
     return o
@@ -280,13 +280,13 @@ def ecmul(expr, args, kwargs, context):
     placeholder_node = LLLnode.from_list(
         context.new_placeholder(ByteArrayType(128)), typ=ByteArrayType(128), location='memory'
     )
-
+    pos = getpos(expr)
     o = LLLnode.from_list(['seq',
-                              ['mstore', placeholder_node, avo(args[0], 0)],
-                              ['mstore', ['add', placeholder_node, 32], avo(args[0], 1)],
+                              ['mstore', placeholder_node, avo(args[0], 0, pos)],
+                              ['mstore', ['add', placeholder_node, 32], avo(args[0], 1, pos)],
                               ['mstore', ['add', placeholder_node, 64], args[1]],
                               ['assert', ['call', 40000, 7, 0, placeholder_node, 96, placeholder_node, 64]],
-                              placeholder_node], typ=ListType(BaseType('uint256'), 2), pos=getpos(expr), location='memory')
+                              placeholder_node], typ=ListType(BaseType('uint256'), 2), pos=pos, location='memory')
     return o
 
 
@@ -555,54 +555,6 @@ def bitwise_xor(expr, args, kwargs, context):
     return LLLnode.from_list(['xor', args[0], args[1]], typ=BaseType('uint256'), pos=getpos(expr))
 
 
-@signature('uint256', 'uint256')
-def uint256_add(expr, args, kwargs, context):
-    return LLLnode.from_list(['seq',
-                                # Checks that: a + b >= a
-                                ['assert', ['ge', ['add', args[0], args[1]], args[0]]],
-                                ['add', args[0], args[1]]], typ=BaseType('uint256'), pos=getpos(expr))
-
-
-@signature('uint256', 'uint256')
-def uint256_sub(expr, args, kwargs, context):
-    return LLLnode.from_list(['seq',
-                                # Checks that: a >= b
-                                ['assert', ['ge', args[0], args[1]]],
-                                ['sub', args[0], args[1]]], typ=BaseType('uint256'), pos=getpos(expr))
-
-
-@signature('uint256', 'uint256')
-def uint256_mul(expr, args, kwargs, context):
-    return LLLnode.from_list(['seq',
-                                # Checks that: a == 0 || a / b == b
-                                ['assert', ['or', ['iszero', args[0]],
-                                ['eq', ['div', ['mul', args[0], args[1]], args[0]], args[1]]]],
-                                ['mul', args[0], args[1]]], typ=BaseType('uint256'), pos=getpos(expr))
-
-
-@signature('uint256', 'uint256')
-def uint256_div(expr, args, kwargs, context):
-    return LLLnode.from_list(['seq',
-                                # Checks that:  b != 0
-                                ['assert', args[1]],
-                                ['div', args[0], args[1]]], typ=BaseType('uint256'), pos=getpos(expr))
-
-
-@signature('uint256', 'uint256')
-def uint256_exp(expr, args, kwargs, context):
-    return LLLnode.from_list(['seq',
-                                ['assert', ['or', ['or', ['eq', args[1], 1], ['iszero', args[1]]],
-                                ['lt', args[0], ['exp', args[0], args[1]]]]],
-                                ['exp', args[0], args[1]]], typ=BaseType('uint256'), pos=getpos(expr))
-
-
-@signature('uint256', 'uint256')
-def uint256_mod(expr, args, kwargs, context):
-    return LLLnode.from_list(['seq',
-                                ['assert', args[1]],
-                                ['mod', args[0], args[1]]], typ=BaseType('uint256'), pos=getpos(expr))
-
-
 @signature('uint256', 'uint256', 'uint256')
 def uint256_addmod(expr, args, kwargs, context):
     return LLLnode.from_list(['seq',
@@ -625,26 +577,6 @@ def bitwise_not(expr, args, kwargs, context):
     return LLLnode.from_list(['not', args[0]], typ=BaseType('uint256'), pos=getpos(expr))
 
 
-@signature('uint256', 'uint256')
-def uint256_gt(expr, args, kwargs, context):
-    return LLLnode.from_list(['gt', args[0], args[1]], typ=BaseType('bool'), pos=getpos(expr))
-
-
-@signature('uint256', 'uint256')
-def uint256_ge(expr, args, kwargs, context):
-    return LLLnode.from_list(['ge', args[0], args[1]], typ=BaseType('bool'), pos=getpos(expr))
-
-
-@signature('uint256', 'uint256')
-def uint256_lt(expr, args, kwargs, context):
-    return LLLnode.from_list(['lt', args[0], args[1]], typ=BaseType('bool'), pos=getpos(expr))
-
-
-@signature('uint256', 'uint256')
-def uint256_le(expr, args, kwargs, context):
-    return LLLnode.from_list(['le', args[0], args[1]], typ=BaseType('bool'), pos=getpos(expr))
-
-
 @signature('uint256', 'int128')
 def shift(expr, args, kwargs, context):
     return LLLnode.from_list(['with', '_v', args[0],
@@ -653,7 +585,7 @@ def shift(expr, args, kwargs, context):
                                     # If it is negative, divide by a power of two
                                     # node that if the abs of the second argument >= 256, then in the EVM
                                     # 2**(second arg) = 0, and multiplying OR dividing by 0 gives 0
-                                    ['if', ['sle', '_s', 0],
+                                    ['if', ['slt', '_s', 0],
                                            ['div', '_v', ['exp', 2, ['sub', 0, '_s']]],
                                            ['mul', '_v', ['exp', 2, '_s']]]]],
     typ=BaseType('uint256'), pos=getpos(expr))
@@ -700,6 +632,7 @@ def minmax(expr, args, kwargs, context, is_min):
     if left.typ.typ == right.typ.typ:
         o = ['if', [comparator, '_l', '_r'], '_r', '_l']
         otyp = left.typ
+        otyp.is_literal = False
     elif left.typ.typ == 'int128' and right.typ.typ == 'decimal':
         o = ['if', [comparator, ['mul', '_l', DECIMAL_DIVISOR], '_r'], '_r', ['mul', '_l', DECIMAL_DIVISOR]]
         otyp = 'decimal'
@@ -734,18 +667,8 @@ dispatch_table = {
     'bitwise_or': bitwise_or,
     'bitwise_xor': bitwise_xor,
     'bitwise_not': bitwise_not,
-    'uint256_add': uint256_add,
-    'uint256_sub': uint256_sub,
-    'uint256_mul': uint256_mul,
-    'uint256_div': uint256_div,
-    'uint256_exp': uint256_exp,
-    'uint256_mod': uint256_mod,
     'uint256_addmod': uint256_addmod,
     'uint256_mulmod': uint256_mulmod,
-    'uint256_gt': uint256_gt,
-    'uint256_ge': uint256_ge,
-    'uint256_lt': uint256_lt,
-    'uint256_le': uint256_le,
     'shift': shift,
     'create_with_code_of': create_with_code_of,
     'min': _min,

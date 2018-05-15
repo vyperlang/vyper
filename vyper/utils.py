@@ -72,15 +72,16 @@ DECIMAL_DIVISOR = 10000000000
 
 # Number of bytes in memory used for system purposes, not for variables
 class MemoryPositions:
-    RESERVED_MEMORY = 320
     ADDRSIZE = 32
     MAXNUM = 64
     MINNUM = 96
     MAXDECIMAL = 128
     MINDECIMAL = 160
     FREE_VAR_SPACE = 192
-    BLANK_SPACE = 224
-    FREE_LOOP_INDEX = 256
+    FREE_VAR_SPACE2 = 224
+    BLANK_SPACE = 256
+    FREE_LOOP_INDEX = 288
+    RESERVED_MEMORY = 320
 
 
 # Sizes of different data types. Used to clamp types.
@@ -90,6 +91,7 @@ class SizeLimits:
     MINNUM = -2**127
     MAXDECIMAL = (2**127 - 1) * DECIMAL_DIVISOR
     MINDECIMAL = (-2**127) * DECIMAL_DIVISOR
+    MAX_UINT256 = 2**256 - 1
 
 
 # Map representing all limits loaded into a contract as part of the initializer
@@ -124,17 +126,21 @@ valid_global_keywords = ['public', 'modifiable', 'static', 'event'] + valid_unit
 
 # Cannot be used for variable or member naming
 reserved_words = ['int128', 'int256', 'uint256', 'address', 'bytes32',
-                  'real', 'real128x128', 'if', 'for', 'while', 'until',
+                  'if', 'for', 'while', 'until',
                   'pass', 'def', 'push', 'dup', 'swap', 'send', 'call',
                   'selfdestruct', 'assert', 'stop', 'throw',
                   'raise', 'init', '_init_', '___init___', '____init____',
                   'true', 'false', 'self', 'this', 'continue', 'ether',
                   'wei', 'finney', 'szabo', 'shannon', 'lovelace', 'ada',
-                  'babbage', 'gwei', 'kwei', 'mwei', 'twei', 'pwei', 'contract']
+                  'babbage', 'gwei', 'kwei', 'mwei', 'twei', 'pwei', 'contract', 'units']
 
 
 # Is a variable or member variable name valid?
-def is_varname_valid(varname):
+def is_varname_valid(varname, custom_units):
+    if custom_units is None:
+        custom_units = []
+    if varname.lower() in [cu.lower() for cu in custom_units]:
+        return False
     if varname.lower() in base_types:
         return False
     if varname.lower() in valid_units:

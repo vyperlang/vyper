@@ -14,7 +14,6 @@ to form complex types.
 In addition, types can interact with each other in expressions containing
 operators.
 
-
 .. index:: ! value
 
 ***********
@@ -264,6 +263,26 @@ Keyword              Unit         Base type  Description
 ``currency2_value``  1 currency2  ``int128``    This is an amount of currency2.
 ===================  ===========  =========  ====================================================================================
 
+Custom Unit Types
+=================
+
+Vyper allows you to add additional not-provided unit label to either ``int128`` or ``decimal``.
+
+**Custom units example:**
+::
+    # specify units used in the contract.
+    units: {
+        cm: "centimeter",
+        km: "kilometer"
+    }
+
+Having defined the units they can be defined on variables as follows.
+
+**Custom units usage:**
+::
+    a: int128(cm)
+    b: int128(km)
+
 .. index:: !bytes32
 32-bit-wide Byte Array
 ======================
@@ -400,6 +419,42 @@ Here ``_KeyType`` can be almost any type except for mappings, a contract, or a s
 
 .. note::
     Mappings can only be accessed, not iterated over.
+
+.. index:: !initial
+
+**********
+Initial Values and None
+**********
+In Vyper, there is no ``null`` option like most programing languages have. Thus, every variable type has a default value.
+Nevertheless Vyper has the option to declare ``None`` which represent the default value of the type. Note that there is no option to assign ``None`` when initiating a variable. Also, note that you can't make comparisons to None. In order to check if a variable is empty, you will need to compare it to its type's default value.
+
+Here you can find a list of all types and default values:
+
+.. list-table:: Default Variable Values
+   :header-rows: 1
+
+   * - Type
+     - Default Value
+   * - ``bool``
+     - ``False``
+   * - ``int128``
+     - ``0``
+   * - ``int256``
+     - ``0``
+   * - ``uint256``
+     - ``0``
+   * - ``decimal``
+     - ``0.0``
+   * - ``address``
+     - ``0x0000000000000000000000000000000000000000``
+   * - ``bytes32``
+     - ``'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'``
+
+.. note::
+    In ``bytes`` the array starts with the bytes all set to ``'\x00'``
+    
+.. note::
+    In reference types all the type's members are set to their initial values.
 
 .. index:: !conversion
 

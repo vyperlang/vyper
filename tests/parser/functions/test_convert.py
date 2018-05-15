@@ -14,7 +14,7 @@ def int128_to_num(inp: int128) -> (int128, int128, int128):
     return  memory, storage, literal
 
 @public
-def uint256_to_num(inp: uint256) -> (uint256, uint256):
+def uint256_to_num(inp: uint256) -> (int128, int128):
     self.b = inp
     memory: int128  = convert(inp, 'int128')
     storage: int128 = convert(self.b, 'int128')
@@ -33,12 +33,19 @@ def bytes_to_num() -> (int128, int128):
     literal: int128 = convert('a', 'int128')
     storage: int128 = convert(self.d, 'int128')
     return literal, storage
+
+@public
+def zero_bytes(inp: bytes[1]) -> int128:
+    return convert(inp, 'int128')
 """
     c = get_contract_with_gas_estimation(code)
     assert c.int128_to_num(1) == [1, 1, 1]
     assert c.uint256_to_num(1) == [1, 1]
     assert c.bytes32_to_num() == [1, 1]
     assert c.bytes_to_num() == [97, 97]
+
+    assert c.zero_bytes(b'\x01') == 1
+    assert c.zero_bytes(b'\x00') == 0
 
 
 def test_convert_to_uint256(get_contract, assert_tx_failed):

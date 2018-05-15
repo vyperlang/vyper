@@ -17,7 +17,7 @@ from vyper.function_signature import (
 
 # Contains arguments, variables, etc
 class Context():
-    def __init__(self, vars=None, globals=None, sigs=None, forvars=None, return_type=None, is_constant=False, is_payable=False, origcode=''):
+    def __init__(self, vars=None, globals=None, custom_units=None, sigs=None, forvars=None, return_type=None, is_constant=False, is_payable=False, origcode=''):
         # In-memory variables, in the form (name, memory location, type)
         self.vars = vars or {}
         self.next_mem = MemoryPositions.RESERVED_MEMORY
@@ -45,6 +45,8 @@ class Context():
         self.blockscopes = set()
         # In assignment. Whether expressiong is currently evaluating an assignment expression.
         self.in_assignment = False
+        # List of custom units that have been defined.
+        self.custom_units = custom_units
 
     def set_in_assignment(self, state: bool):
         self.in_assignment = state
@@ -72,7 +74,7 @@ class Context():
 
     # Add a new variable
     def new_variable(self, name, typ):
-        if not is_varname_valid(name):
+        if not is_varname_valid(name, custom_units=self.custom_units):
             raise VariableDeclarationException("Variable name invalid or reserved: " + name)
         if name in self.vars or name in self.globals:
             raise VariableDeclarationException("Duplicate variable name: %s" % name)

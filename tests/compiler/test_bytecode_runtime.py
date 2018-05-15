@@ -5,7 +5,7 @@ def test_bytecode_runtime():
     code = """
 @public
 def a() -> bool:
-    return true
+    return True
     """
 
     bytecode = compiler.compile(code)

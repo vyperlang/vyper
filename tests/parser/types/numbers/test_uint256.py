@@ -5,35 +5,35 @@ def test_uint256_code(assert_tx_failed, get_contract_with_gas_estimation):
     uint256_code = """
 @public
 def _uint256_add(x: uint256, y: uint256) -> uint256:
-    return uint256_add(x, y)
+    return x + y
 
 @public
 def _uint256_sub(x: uint256, y: uint256) -> uint256:
-    return uint256_sub(x, y)
+    return x - y
 
 @public
 def _uint256_mul(x: uint256, y: uint256) -> uint256:
-    return uint256_mul(x, y)
+    return x * y
 
 @public
 def _uint256_div(x: uint256, y: uint256) -> uint256:
-    return uint256_div(x, y)
+    return x / y
 
 @public
 def _uint256_gt(x: uint256, y: uint256) -> bool:
-    return uint256_gt(x, y)
+    return x > y
 
 @public
 def _uint256_ge(x: uint256, y: uint256) -> bool:
-    return uint256_ge(x, y)
+    return x >= y
 
 @public
 def _uint256_lt(x: uint256, y: uint256) -> bool:
-    return uint256_lt(x, y)
+    return x < y
 
 @public
 def _uint256_le(x: uint256, y: uint256) -> bool:
-    return uint256_le(x, y)
+    return x <= y
     """
 
     c = get_contract_with_gas_estimation(uint256_code)
@@ -76,7 +76,7 @@ def test_uint256_mod(assert_tx_failed, get_contract_with_gas_estimation):
     uint256_code = """
 @public
 def _uint256_mod(x: uint256, y: uint256) -> uint256:
-    return uint256_mod(x, y)
+    return x % y
 
 @public
 def _uint256_addmod(x: uint256, y: uint256, z: uint256) -> uint256:
@@ -108,7 +108,7 @@ def test_uint256_with_exponents(assert_tx_failed, get_contract_with_gas_estimati
     exp_code = """
 @public
 def _uint256_exp(x: uint256, y: uint256) -> uint256:
-        return uint256_exp(x,y)
+        return x ** y
     """
 
     c = get_contract_with_gas_estimation(exp_code)
@@ -170,3 +170,16 @@ def exp(base: uint256, exponent: uint256, modulus: uint256) -> uint256:
     c = get_contract_with_gas_estimation(modexper)
     assert c.exp(3, 5, 100) == 43
     assert c.exp(2, 997, 997) == 2
+
+
+def test_uint256_literal(get_contract_with_gas_estimation):
+    modexper = """
+@public
+def test() -> uint256:
+    o: uint256
+    o = 340282366920938463463374607431768211459
+    return o
+    """
+
+    c = get_contract_with_gas_estimation(modexper)
+    assert c.test() == 340282366920938463463374607431768211459
