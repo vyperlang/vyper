@@ -861,9 +861,9 @@ def set_list():
     assert log.args["arg4"] == [7, 8, 9]
     assert log.args["arg5"] == [1024, 2048]
     c.set_list(transact={})
-    c.foo(transact={})
+    tx_hash = c.foo(transact={})
     log = get_logs(tx_hash, c, 'Bar')[0]
     assert log.args["arg2"] == [1, 2, 3, 4]
     assert log.args["arg3"] == b"test"
     assert log.args["arg4"] == [7, 8, 9]
-    assert log["arg5"] == [1024, 2048]
+    assert log.args["arg5"] == [1024, 2048]

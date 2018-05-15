@@ -833,9 +833,9 @@ def pack_logging_data(expected_data, args, context, pos):
 
     requires_dynamic_offset = any([isinstance(data.typ, ByteArrayType) for data in expected_data])
     if requires_dynamic_offset:
+        zero_pad_i = context.new_placeholder(BaseType('uint256'))  # Iterator used to zero pad memory.
         dynamic_offset_counter = context.new_placeholder(BaseType(32))
         dynamic_placeholder = context.new_placeholder(BaseType(32))
-        zero_pad_i = context.new_placeholder(BaseType('uint256'))  # Iterator used to zero pad memory.
     else:
         dynamic_offset_counter = None
         zero_pad_i = None
