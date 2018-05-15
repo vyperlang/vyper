@@ -111,7 +111,6 @@ def _slice(expr, args, kwargs, context):
         raise TypeMismatchException("Type for slice length must be a unitless number")
     # Node representing the position of the output in memory
     np = context.new_placeholder(ByteArrayType(maxlen=sub.typ.maxlen + 32))
-    zero_pad_i = context.new_placeholder(BaseType('uint256'))
     placeholder_node = LLLnode.from_list(np, typ=sub.typ, location='memory')
     placeholder_plus_32_node = LLLnode.from_list(np + 32, typ=sub.typ, location='memory')
     # Copies over bytearray data
@@ -135,7 +134,6 @@ def _slice(expr, args, kwargs, context):
                            copier,
                            ['mstore', '_opos', '_length'],
                            '_opos']]]]
-    # import ipdb; ipdb.set_trace()
     return LLLnode.from_list(out, typ=ByteArrayType(newmaxlen), location='memory', pos=getpos(expr))
 
 

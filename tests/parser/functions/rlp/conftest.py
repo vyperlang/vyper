@@ -1,4 +1,5 @@
 import pytest
+import eth_tester
 
 from vyper import utils as vyper_utils
 from eth_utils import is_same_address
@@ -21,6 +22,11 @@ from eth_utils import is_same_address
 #     return inject_tx
 
 
+@pytest.fixture(autouse=True)
+def patch_large_gas_limit(monkeypatch):
+    monkeypatch.setattr(eth_tester.backends.pyevm.main, 'GENESIS_GAS_LIMIT', 10**9)
+
+
 @pytest.fixture
 def fake_tx(tester, w3):
     def fake_tx():
@@ -31,7 +37,6 @@ def fake_tx(tester, w3):
         receipt = w3.eth.getTransactionReceipt(tx_hash)
         contract_address = receipt.contractAddress
         t = tester
-        # import ipdb; ipdb.set_trace()
         # t.backend.chain.header.gas_limit = 10**9
         assert vyper_utils.RLP_DECODER_ADDRESS == w3.toInt(hexstr=contract_address)
         return contract_address
