@@ -66,14 +66,14 @@ def test_tokens_to_eth(w3, tester, market_maker, erc20):
     erc20.transfer(a1, 2 * 10**18, transact={})
     erc20.approve(market_maker.address, 2 * 10**18, transact={'from': a1})
     market_maker.initiate(erc20.address, 1 * 10**18, transact={'value': 2 * 10**18, 'from': a1})
-    assert tester.get_balance(market_maker.address) == 2000000000000000000
-    assert tester.get_balance(a1) == 999997999999999999999900
+    assert w3.eth.getBalance(market_maker.address) == 2000000000000000000
+    assert w3.eth.getBalance(a1) == 999997999999999999999900
     assert market_maker.total_token_qty() == 1000000000000000000
 
     erc20.approve(market_maker.address, 1 * 10**18, transact={'from': a1})
     market_maker.tokens_to_eth(1 * 10**18, transact={'from': a1})
-    assert tester.get_balance(market_maker.address) == 1000000000000000000
-    assert tester.get_balance(a1) == 999998999999999999999900
+    assert w3.eth.getBalance(market_maker.address) == 1000000000000000000
+    assert w3.eth.getBalance(a1) == 999998999999999999999900
     assert market_maker.total_token_qty() == 2000000000000000000
     assert market_maker.total_eth_qty() == 1000000000000000000
 
@@ -82,11 +82,11 @@ def test_owner_withdraw(w3, tester, market_maker, erc20, assert_tx_failed):
     a0, a1 = w3.eth.accounts[:2]
     erc20.approve(market_maker.address, 2 * 10**18, transact={})
     market_maker.initiate(erc20.address, 1 * 10**18, transact={'value': 2 * 10**18})
-    assert tester.get_balance(a0) == 999994000000000000000000
+    assert w3.eth.getBalance(a0) == 999994000000000000000000
     assert erc20.balanceOf(a0) == 20999999000000000000000000
 
     # Only owner can call owner_withdraw
     assert_tx_failed(lambda: market_maker.owner_withdraw(transact={'from': a1}))
     market_maker.owner_withdraw(transact={})
-    assert tester.get_balance(a0) == 999996000000000000000000
+    assert w3.eth.getBalance(a0) == 999996000000000000000000
     assert erc20.balanceOf(a0) == 21000000000000000000000000

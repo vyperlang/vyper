@@ -2,7 +2,7 @@ import pytest
 
 from eth_keys import KeyAPI
 from eth_account import Account
-from web3 import Web3
+from eth_utils import is_same_address
 
 
 @pytest.fixture
@@ -16,16 +16,19 @@ def c(w3, get_contract):
     return c
 
 
-def sign(seq, to, value, data, key):
-    keys = KeyAPI()
-    comb = seq.to_bytes(32, "big") + b'\x00' * 12 + to + value.to_bytes(32, "big") + data
-    h1 = Web3.sha3(comb)
-    h2 = Web3.sha3(b"\x19Ethereum Signed Message:\n32" + h1)
-    sig = keys.ecdsa_sign(h2, key)
-    return [28 if sig.v == 1 else 27, sig.r, sig.s]
+@pytest.fixture
+def sign(keccak):
+    def _sign(seq, to, value, data, key):
+        keys = KeyAPI()
+        comb = seq.to_bytes(32, "big") + b'\x00' * 12 + to + value.to_bytes(32, "big") + data
+        h1 = keccak(comb)
+        h2 = keccak(b"\x19Ethereum Signed Message:\n32" + h1)
+        sig = keys.ecdsa_sign(h2, key)
+        return [28 if sig.v == 1 else 27, sig.r, sig.s]
+    return _sign
 
 
-def test_approve(w3, c, tester, assert_tx_failed):
+def test_approve(w3, c, tester, assert_tx_failed, sign):
     a0, a1, a2, a3, a4, a5, a6 = w3.eth.accounts[:7]
     k0, k1, k2, k3, k4, k5, k6, k7 = tester.backend.account_keys[:8]
 
@@ -90,9 +93,8 @@ def test_javascript_signatures(w3, get_contract):
     h2 = w3.sha3(b"\x19Ethereum Signed Message:\n32" + h)
 
     # Check to make sure the signatures are valid
-    assert Account.recoverHash(h2, sigs[0]).lower() == accounts[0]
-    assert Account.recoverHash(h2, sigs[1]).lower() == accounts[1]
-
+    assert is_same_address(Account.recoverHash(h2, sigs[0]), accounts[0])
+    assert is_same_address(Account.recoverHash(h2, sigs[1]), accounts[1])
 
     # Set the owners to zero addresses
     with open('examples/wallet/wallet.v.py') as f:

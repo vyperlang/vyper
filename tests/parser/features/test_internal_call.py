@@ -19,7 +19,7 @@ def bar() -> int128:
     print("Passed no-argument self-call test")
 
 
-def test_selfcall_code_2(get_contract_with_gas_estimation, sha3):
+def test_selfcall_code_2(get_contract_with_gas_estimation, keccak):
     selfcall_code_2 = """
 @public
 def double(x: int128) -> int128:
@@ -40,12 +40,12 @@ def return_hash_of_rzpadded_cow() -> bytes32:
 
     c = get_contract_with_gas_estimation(selfcall_code_2)
     assert c.returnten() == 10
-    assert c.return_hash_of_rzpadded_cow() == sha3(b'cow' + b'\x00' * 29)
+    assert c.return_hash_of_rzpadded_cow() == keccak(b'cow' + b'\x00' * 29)
 
     print("Passed single fixed-size argument self-call test")
 
 
-def test_selfcall_code_3(get_contract_with_gas_estimation, sha3):
+def test_selfcall_code_3(get_contract_with_gas_estimation, keccak):
     selfcall_code_3 = """
 @public
 def _hashy2(x: bytes[100]) -> bytes32:
@@ -65,7 +65,7 @@ def returnten() -> int128:
     """
 
     c = get_contract_with_gas_estimation(selfcall_code_3)
-    assert c.return_hash_of_cow_x_30() == sha3(b'cow' * 30)
+    assert c.return_hash_of_cow_x_30() == keccak(b'cow' * 30)
     assert c.returnten() == 10
 
     print("Passed single variable-size argument self-call test")

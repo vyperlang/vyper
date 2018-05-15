@@ -4,23 +4,6 @@ import eth_tester
 from vyper import utils as vyper_utils
 from eth_utils import is_same_address
 
-# from ethereum import transactions, messages
-
-# @pytest.fixture
-# def inject_tx(w3):
-#     def inject_tx(txhex):
-#         tx = rlp.decode(utils.decode_hex(txhex[2:]), transactions.Transaction)
-#         chain.head_state.set_balance(tx.sender, tx.startgas * tx.gasprice)
-#         chain.chain.state.set_balance(tx.sender, tx.startgas * tx.gasprice)
-#         messages.apply_transaction(chain.head_state, tx)
-#         chain.block.transactions.append(tx)
-#         contract_address = utils.sha3(rlp.encode([tx.sender, 0]))[12:]
-#         assert chain.head_state.get_code(contract_address)
-#         chain.mine(1)
-#         chain.head_state.gas_limit = 10**9
-#         return contract_address
-#     return inject_tx
-
 
 @pytest.fixture(autouse=True)
 def patch_large_gas_limit(monkeypatch):

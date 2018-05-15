@@ -67,11 +67,11 @@ def refund():
     assert not c.reached()
     c.participate(transact={'value': 49})
     assert c.reached()
-    pre_bal = tester.get_balance(a1)
-    tester.mine_blocks(100)
+    pre_bal = w3.eth.getBalance(a1)
+    w3.testing.mine(100)
     assert c.expired()
     c.finalize(transact={})
-    post_bal = tester.get_balance(a1)
+    post_bal = w3.eth.getBalance(a1)
     assert post_bal - pre_bal == 54
 
     c = get_contract_with_gas_estimation_for_constants(crowdfund, *[a1, 50, 60])
@@ -79,12 +79,12 @@ def refund():
     c.participate(transact={'value': 2, 'from': a4})
     c.participate(transact={'value': 3, 'from': a5})
     c.participate(transact={'value': 4, 'from': a6})
-    tester.mine_blocks(100)
+    w3.testing.mine(100)
     assert c.expired()
     assert not c.reached()
-    pre_bals = [tester.get_balance(x) for x in [a3, a4, a5, a6]]
+    pre_bals = [w3.eth.getBalance(x) for x in [a3, a4, a5, a6]]
     c.refund(transact={})
-    post_bals = [tester.get_balance(x) for x in [a3, a4, a5, a6]]
+    post_bals = [w3.eth.getBalance(x) for x in [a3, a4, a5, a6]]
     assert [y - x for x, y in zip(pre_bals, post_bals)] == [1, 2, 3, 4]
 
     print('Passed composite crowdfund test')
@@ -158,11 +158,11 @@ def refund():
     assert not c.reached()
     c.participate(transact={'value': 49})
     assert c.reached()
-    pre_bal = tester.get_balance(a1)
-    tester.mine_blocks(100)
+    pre_bal = w3.eth.getBalance(a1)
+    w3.testing.mine(100)
     assert c.expired()
     c.finalize(transact={})
-    post_bal = tester.get_balance(a1)
+    post_bal = w3.eth.getBalance(a1)
     assert post_bal - pre_bal == 54
 
     c = get_contract_with_gas_estimation_for_constants(crowdfund2, *[a1, 50, 60])
@@ -170,12 +170,12 @@ def refund():
     c.participate(transact={'value': 2, 'from': a4})
     c.participate(transact={'value': 3, 'from': a5})
     c.participate(transact={'value': 4, 'from': a6})
-    tester.mine_blocks(100)
+    w3.testing.mine(100)
     assert c.expired()
     assert not c.reached()
-    pre_bals = [tester.get_balance(x) for x in [a3, a4, a5, a6]]
+    pre_bals = [w3.eth.getBalance(x) for x in [a3, a4, a5, a6]]
     c.refund(transact={})
-    post_bals = [tester.get_balance(x) for x in [a3, a4, a5, a6]]
+    post_bals = [w3.eth.getBalance(x) for x in [a3, a4, a5, a6]]
     assert [y - x for x, y in zip(pre_bals, post_bals)] == [1, 2, 3, 4]
 
     print('Passed second composite crowdfund test')

@@ -118,7 +118,7 @@ def w3(tester):
 
 
 @pytest.fixture
-def sha3():
+def keccak():
     return Web3.sha3
 
 
@@ -256,27 +256,9 @@ def assert_compile_failed():
 
 
 @pytest.fixture
-def assert_validation_error():
-    def assert_compile_failed(function_to_test, exception=ValidationError):
-        with pytest.raises(exception):
-            function_to_test()
-    return assert_compile_failed
-
-
-@pytest.fixture
 def get_logs(w3):
     def get_logs(tx_hash, c, event_name):
         tx_receipt = w3.eth.getTransactionReceipt(tx_hash)
-        logs = getattr(c._classic_contract.events, event_name)().processReceipt(tx_receipt)
+        logs = c._classic_contract.events[event_name]().processReceipt(tx_receipt)
         return logs
     return get_logs
-
-
-@pytest.fixture
-def get_last_log(get_logs):
-    def get_last_log(tester, contract, event_name=None):
-        receipt = tester.s.head_state.receipts[-1]  # Only the receipts for the last block
-        # Get last log event with correct name and return the decoded event
-        print(get_logs(receipt, contract, event_name=event_name))
-        return get_logs(receipt, contract, event_name=event_name)[-1]
-    return get_last_log

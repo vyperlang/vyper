@@ -15,9 +15,9 @@ def test_initial_state(w3, tester, auction_contract):
     # Check beneficiary is correct
     assert auction_contract.beneficiary() == w3.eth.accounts[0]
     # Check bidding time is 5 days
-    assert auction_contract.auction_end() == tester.backend.chain.header.timestamp + EXPIRY - 1
+    assert auction_contract.auction_end() == tester.get_block_by_number('latest')['timestamp'] + EXPIRY
     # Check start time is current block timestamp
-    assert auction_contract.auction_start() == tester.backend.chain.header.timestamp - 1
+    assert auction_contract.auction_start() == tester.get_block_by_number('latest')['timestamp']
     # Check auction has not ended
     assert auction_contract.ended() is False
     # Check highest bidder is empty
@@ -50,9 +50,9 @@ def test_bid(w3, tester, auction_contract, assert_tx_failed):
     assert auction_contract.highest_bidder() == k5
     assert auction_contract.highest_bid() == 5
     auction_contract.bid(transact={"value": 1 * 10**10, "from": k1})
-    balance_before_out_bid = tester.get_balance(k1)
+    balance_before_out_bid = w3.eth.getBalance(k1)
     auction_contract.bid(transact={"value": 2 * 10**10, "from": k2})
-    balance_after_out_bid = tester.get_balance(k1)
+    balance_after_out_bid = w3.eth.getBalance(k1)
     # Account has more money after its bid is out bid
     assert balance_after_out_bid > balance_before_out_bid
 
@@ -63,11 +63,11 @@ def test_end_auction(w3, tester, auction_contract, assert_tx_failed):
     assert_tx_failed(lambda: auction_contract.end_auction())
     auction_contract.bid(transact={"value": 1 * 10**10, "from": k2})
     # Move block timestamp foreward to reach auction end time
-    # tester.time_travel(tester.backend.chain.header.timestamp + EXPIRY)
-    tester.mine_blocks(EXPIRY)
-    balance_before_end = tester.get_balance(k1)
+    # tester.time_travel(tester.get_block_by_number('latest')['timestamp'] + EXPIRY)
+    w3.testing.mine(EXPIRY)
+    balance_before_end = w3.eth.getBalance(k1)
     auction_contract.end_auction(transact={"from": k2})
-    balance_after_end = tester.get_balance(k1)
+    balance_after_end = w3.eth.getBalance(k1)
     # Beneficiary receives the highest bid
     assert balance_after_end == balance_before_end + 1 * 10 ** 10
     # Bidder cannot bid after auction end time has been reached

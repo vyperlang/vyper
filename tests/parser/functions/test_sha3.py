@@ -1,4 +1,4 @@
-def test_hash_code(get_contract_with_gas_estimation, sha3):
+def test_hash_code(get_contract_with_gas_estimation, keccak):
     hash_code = """
 @public
 def foo(inp: bytes[100]) -> bytes32:
@@ -11,9 +11,9 @@ def bar() -> bytes32:
 
     c = get_contract_with_gas_estimation(hash_code)
     for inp in (b"", b"cow", b"s" * 31, b"\xff" * 32, b"\n" * 33, b"g" * 64, b"h" * 65):
-        assert '0x' + c.foo(inp).hex() == sha3(inp).hex()
+        assert '0x' + c.foo(inp).hex() == keccak(inp).hex()
 
-    assert '0x' + c.bar().hex() == sha3(b"inp").hex()
+    assert '0x' + c.bar().hex() == keccak(b"inp").hex()
 
 
 def test_hash_code2(get_contract_with_gas_estimation):

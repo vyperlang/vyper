@@ -21,7 +21,7 @@ def c(get_contract):
 
 def pad_bytes32(instr):
     """ Pad a string \x00 bytes to return correct bytes32 representation. """
-    return instr + (32 - len(instr)) * b'\x00'
+    return instr.ljust(32, b'\x00')
 
 
 def test_initial_state(c, w3):

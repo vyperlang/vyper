@@ -14,9 +14,6 @@ INIT_BAL_a0 = 1000000000000000000000000
 INIT_BAL_a1 = 1000000000000000000000000
 
 
-def ETH(x):
-    return x * 10**18
-
 @pytest.fixture
 def contract_code(get_contract):
     with open("examples/safe_remote_purchase/safe_remote_purchase.v.py") as f:
@@ -29,7 +26,7 @@ def check_balance(w3, tester):
     def check_balance():
         a0, a1 = w3.eth.accounts[:2]
         # balance of a1 = seller, a2 = buyer
-        return tester.get_balance(a0), tester.get_balance(a1)
+        return w3.eth.getBalance(a0), w3.eth.getBalance(a1)
     return check_balance
 
 
@@ -43,11 +40,11 @@ def test_initial_state(w3, assert_tx_failed, get_contract, check_balance, contra
     # Check that the seller is set correctly
     assert c.seller() == w3.eth.accounts[0]
     # Check if item value is set correctly (Half of deposit)
-    assert c.value() == ETH(1)
+    assert c.value() == w3.toWei(1, 'ether')
     # Check if unlocked() works correctly after initialization
     assert c.unlocked() is True
     # Check that sellers (and buyers) balance is correct
-    assert check_balance() == ((INIT_BAL_a0 - ETH(2)), INIT_BAL_a1)
+    assert check_balance() == ((INIT_BAL_a0 - w3.toWei(2, 'ether')), INIT_BAL_a1)
 
 
 def test_abort(w3, assert_tx_failed, check_balance, get_contract, contract_code):
@@ -57,7 +54,7 @@ def test_abort(w3, assert_tx_failed, check_balance, get_contract, contract_code)
     assert_tx_failed(lambda: c.abort(transact={'from': a2}))
     # Refund works correctly
     c.abort(transact={'from': a0, 'gasPrice': 0})
-    assert check_balance() == (INIT_BAL_a0 - ETH(2), INIT_BAL_a1)
+    assert check_balance() == (INIT_BAL_a0 - w3.toWei(2, 'ether'), INIT_BAL_a1)
     # Purchase in process, no refund possible
     c = get_contract(contract_code, value=2)
     c.purchase(transact={'value': 2, 'from': a1, 'gasPrice': 0})

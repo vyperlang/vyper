@@ -3,7 +3,7 @@ from decimal import Decimal
 from vyper.exceptions import VariableDeclarationException, TypeMismatchException, StructureException
 
 
-def test_empy_event_logging(w3, tester, sha3, get_contract_with_gas_estimation):
+def test_empy_event_logging(w3, tester, keccak, get_contract_with_gas_estimation):
     loggy_code = """
 MyLog: event({})
 
@@ -16,7 +16,7 @@ def foo():
     tx_hash = c.foo(transact={})
     receipt = tester.get_transaction_receipt(tx_hash.hex())
 
-    event_id = sha3(bytes('MyLog()', 'utf-8'))
+    event_id = keccak(bytes('MyLog()', 'utf-8'))
 
     # Event id is always the first topic
     assert receipt['logs'][0]['topics'][0] == event_id.hex()
@@ -26,7 +26,7 @@ def foo():
     assert hasattr(c._classic_contract.events, 'MyLog')
 
 
-def test_event_logging_with_topics(w3, tester, sha3, get_logs, get_contract_with_gas_estimation):
+def test_event_logging_with_topics(w3, tester, keccak, get_logs, get_contract_with_gas_estimation):
     loggy_code = """
 MyLog: event({arg1: indexed(bytes[3])})
 
@@ -38,7 +38,7 @@ def foo():
     c = get_contract_with_gas_estimation(loggy_code)
     tx_hash = c.foo(transact={})
     receipt = tester.get_transaction_receipt(tx_hash.hex())
-    event_id = sha3(bytes('MyLog(bytes3)', 'utf-8'))
+    event_id = keccak(bytes('MyLog(bytes3)', 'utf-8'))
 
     # Event id is always the first topic
     assert receipt['logs'][0]['topics'][0] == event_id.hex()
@@ -50,7 +50,7 @@ def foo():
     assert logs[0].args.arg1 == b'bar'
 
 
-def test_event_logging_with_multiple_topics(w3, tester, sha3, get_logs, get_contract_with_gas_estimation):
+def test_event_logging_with_multiple_topics(w3, tester, keccak, get_logs, get_contract_with_gas_estimation):
     loggy_code = """
 MyLog: event({arg1: indexed(bytes[3]), arg2: indexed(bytes[4]), arg3: indexed(address)})
 
@@ -63,7 +63,7 @@ def foo():
     tx_hash = c.foo(transact={})
     receipt = tester.get_transaction_receipt(tx_hash.hex())
 
-    event_id = sha3(bytes('MyLog(bytes3,bytes4,address)', 'utf-8'))
+    event_id = keccak(bytes('MyLog(bytes3,bytes4,address)', 'utf-8'))
     # Event id is always the first topic
     assert receipt['logs'][0]['topics'][0] == event_id.hex()
     # Event abi is created correctly
@@ -109,7 +109,7 @@ def foo(arg1: bytes[3]):
     assert log.args.arg4 == b'hellothere'
 
 
-def test_logging_the_same_event_multiple_times_with_topics(w3, tester, sha3, get_logs, get_contract_with_gas_estimation):
+def test_logging_the_same_event_multiple_times_with_topics(w3, tester, keccak, get_logs, get_contract_with_gas_estimation):
     loggy_code = """
 MyLog: event({arg1: indexed(int128), arg2: indexed(address)})
 
@@ -130,7 +130,7 @@ def bar():
     receipt1 = tester.get_transaction_receipt(tx_hash1.hex())
     receipt2 = tester.get_transaction_receipt(tx_hash2.hex())
 
-    event_id = sha3(bytes('MyLog(int128,address)', 'utf-8'))
+    event_id = keccak(bytes('MyLog(int128,address)', 'utf-8'))
     # Event id is always the first topic
     assert receipt1['logs'][0]['topics'][0] == event_id.hex()
     assert receipt2['logs'][0]['topics'][0] == event_id.hex()
@@ -160,7 +160,7 @@ MyLog: event({arg1: indexed(bytes[3]), arg2: indexed(bytes[4]), arg3: indexed(ad
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
 
 
-def test_event_logging_with_data(w3, tester, sha3, get_logs, get_contract_with_gas_estimation):
+def test_event_logging_with_data(w3, tester, keccak, get_logs, get_contract_with_gas_estimation):
     loggy_code = """
 MyLog: event({arg1: int128})
 
@@ -173,7 +173,7 @@ def foo():
     tx_hash = c.foo(transact={})
     receipt = tester.get_transaction_receipt(tx_hash.hex())
 
-    event_id =sha3(bytes('MyLog(int128)', 'utf-8'))
+    event_id =keccak(bytes('MyLog(int128)', 'utf-8'))
     # Event id is always the first topic
     assert receipt['logs'][0]['topics'][0] == event_id.hex()
     # Event abi is created correctly
@@ -195,7 +195,7 @@ def foo():
     get_contract_with_gas_estimation(code)
 
 
-def test_event_logging_with_fixed_array_data(w3, tester, sha3, get_logs, get_contract_with_gas_estimation):
+def test_event_logging_with_fixed_array_data(w3, tester, keccak, get_logs, get_contract_with_gas_estimation):
     loggy_code = """
 MyLog: event({arg1: int128[2], arg2: timestamp[3], arg3: int128[2][2]})
 
@@ -209,7 +209,7 @@ def foo():
     tx_hash = c.foo(transact={})
     receipt = tester.get_transaction_receipt(tx_hash.hex())
 
-    event_id = sha3(bytes('MyLog(int128[2],int128[3],int128[2][2])', 'utf-8'))
+    event_id = keccak(bytes('MyLog(int128[2],int128[3],int128[2][2])', 'utf-8'))
     # Event id is always the first topic
     assert receipt['logs'][0]['topics'][0] == event_id.hex()
     # Event abi is created correctly
@@ -233,7 +233,7 @@ def foo():
     assert logs[0].args.arg3== [[1, 2], [1, 2]]
 
 
-def test_logging_with_input_bytes_1(w3, tester, sha3, get_logs, bytes_helper, get_contract_with_gas_estimation):
+def test_logging_with_input_bytes_1(w3, tester, keccak, get_logs, bytes_helper, get_contract_with_gas_estimation):
     loggy_code = """
 MyLog: event({arg1: indexed(bytes[4]), arg2: indexed(bytes[29]), arg3: bytes[31]})
 
@@ -246,7 +246,7 @@ def foo(arg1: bytes[29], arg2: bytes[31]):
     tx_hash = c.foo(b'bar', b'foo', transact={})
     receipt = tester.get_transaction_receipt(tx_hash.hex())
 
-    event_id =sha3(bytes('MyLog(bytes4,bytes29,bytes)', 'utf-8'))
+    event_id =keccak(bytes('MyLog(bytes4,bytes29,bytes)', 'utf-8'))
     # Event id is always the first topic
     assert receipt['logs'][0]['topics'][0] == event_id.hex()
     # Event abi is created correctly
@@ -266,7 +266,7 @@ def foo(arg1: bytes[29], arg2: bytes[31]):
     assert logs[0].args.arg3 ==  b'foo'
 
 
-def test_event_logging_with_bytes_input_2(w3, tester, sha3, get_logs, get_contract_with_gas_estimation):
+def test_event_logging_with_bytes_input_2(w3, tester, keccak, get_logs, get_contract_with_gas_estimation):
     loggy_code = """
 MyLog: event({arg1: bytes[20]})
 
@@ -279,7 +279,7 @@ def foo(_arg1: bytes[20]):
     tx_hash = c.foo(b'hello', transact={})
     receipt = tester.get_transaction_receipt(tx_hash.hex())
 
-    event_id = sha3(bytes('MyLog(bytes)', 'utf-8'))
+    event_id = keccak(bytes('MyLog(bytes)', 'utf-8'))
     # Event id is always the first topic
     assert receipt['logs'][0]['topics'][0] == event_id.hex()
     # Event abi is created correctly
@@ -289,7 +289,7 @@ def foo(_arg1: bytes[20]):
     assert logs[0].args.arg1 ==  b'hello'
 
 
-def test_event_logging_with_bytes_input_3(w3, tester, sha3, get_logs, get_contract):
+def test_event_logging_with_bytes_input_3(w3, tester, keccak, get_logs, get_contract):
     loggy_code = """
 MyLog: event({arg1: bytes[5]})
 
@@ -302,7 +302,7 @@ def foo(_arg1: bytes[5]):
     tx_hash = c.foo(b'hello', transact={})
     receipt = tester.get_transaction_receipt(tx_hash.hex())
 
-    event_id = sha3(bytes('MyLog(bytes)', 'utf-8'))
+    event_id = keccak(bytes('MyLog(bytes)', 'utf-8'))
     # Event id is always the first topic
     assert receipt['logs'][0]['topics'][0] == event_id.hex()
     # Event abi is created correctly
@@ -312,7 +312,7 @@ def foo(_arg1: bytes[5]):
     assert logs[0].args.arg1 ==  b'hello'
 
 
-def test_event_logging_with_data_with_different_types(w3, tester, sha3, get_logs, get_contract_with_gas_estimation):
+def test_event_logging_with_data_with_different_types(w3, tester, keccak, get_logs, get_contract_with_gas_estimation):
     loggy_code = """
 MyLog: event({arg1: int128, arg2: bytes[4], arg3: bytes[3], arg4: address, arg5: address, arg6: timestamp})
 
@@ -325,7 +325,7 @@ def foo():
     tx_hash = c.foo(transact={})
     receipt = tester.get_transaction_receipt(tx_hash.hex())
 
-    event_id =sha3(bytes('MyLog(int128,bytes,bytes,address,address,int128)', 'utf-8'))
+    event_id =keccak(bytes('MyLog(int128,bytes,bytes,address,address,int128)', 'utf-8'))
     # Event id is always the first topic
     assert receipt['logs'][0]['topics'][0] == event_id.hex()
     # Event abi is created correctly
@@ -353,7 +353,7 @@ def foo():
     assert args.arg6 == timestamp
 
 
-def test_event_logging_with_topics_and_data_1(w3, tester, sha3, get_logs, get_contract_with_gas_estimation):
+def test_event_logging_with_topics_and_data_1(w3, tester, keccak, get_logs, get_contract_with_gas_estimation):
     loggy_code = """
 MyLog: event({arg1: indexed(int128), arg2: bytes[3]})
 
@@ -366,7 +366,7 @@ def foo():
     tx_hash = c.foo(transact={})
     receipt = tester.get_transaction_receipt(tx_hash.hex())
 
-    event_id = sha3(bytes('MyLog(int128,bytes)', 'utf-8'))
+    event_id = keccak(bytes('MyLog(int128,bytes)', 'utf-8'))
     # Event id is always the first topic
     assert receipt['logs'][0]['topics'][0] == event_id.hex()
     # Event abi is created correctly
@@ -381,7 +381,7 @@ def foo():
     assert args.arg1 == 1
     assert args.arg2 == b'bar'
 
-def test_event_logging_with_multiple_logs_topics_and_data(w3, tester, sha3, get_logs, get_contract_with_gas_estimation):
+def test_event_logging_with_multiple_logs_topics_and_data(w3, tester, keccak, get_logs, get_contract_with_gas_estimation):
     loggy_code = """
 MyLog: event({arg1: indexed(int128), arg2: bytes[3]})
 YourLog: event({arg1: indexed(address), arg2: bytes[5]})
@@ -398,8 +398,8 @@ def foo():
 
     logs1 = receipt['logs'][0]
     logs2 = receipt['logs'][1]
-    event_id1 = sha3(bytes('MyLog(int128,bytes)', 'utf-8'))
-    event_id2 = sha3(bytes('YourLog(address,bytes)', 'utf-8'))
+    event_id1 = keccak(bytes('MyLog(int128,bytes)', 'utf-8'))
+    event_id2 = keccak(bytes('YourLog(address,bytes)', 'utf-8'))
 
     # Event id is always the first topic
     assert logs1['topics'][0] == event_id1.hex()
