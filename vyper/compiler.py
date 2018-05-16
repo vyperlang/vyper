@@ -34,16 +34,3 @@ def mk_full_signature(code, *args, **kwargs):
         if func_name in gas_estimates and func_name != '__init__':
             abi[idx]['gas'] = gas_estimates[func_name]
     return abi
-
-
-# Dummy object, as some tools expect this interface
-class Compiler(object):
-
-    def compile(self, code, *args, **kwargs):
-        return compile(code, *args, **kwargs)
-
-    def mk_full_signature(self, code, *args, **kwargs):
-        return mk_full_signature(code, *args, **kwargs)
-
-    def gas_estimate(self, code, *args, **kwargs):
-        return gas_estimate(code, *args, **kwargs)  # pragma: no test

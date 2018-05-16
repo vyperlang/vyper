@@ -123,12 +123,14 @@ def check_gas(chain):
     def check_gas(code, func=None, num_txs=1):
         if func:
             gas_estimate = tester.languages['vyper'].gas_estimate(code)[func]
+            gas_estimate = compiler.gas_estimate(code)[func]
         else:
-            gas_estimate = sum(tester.languages['vyper'].gas_estimate(code).values())
-        gas_actual = chain.head_state.receipts[-1].gas_used \
-                     - chain.head_state.receipts[-1 - num_txs].gas_used \
-                     - chain.last_tx.intrinsic_gas_used * num_txs
+            gas_estimate = sum(compiler.gas_estimate(code).values())
 
+        # gas_actual = chain.head_state.receipts[-1].gas_used \
+        #              - chain.head_state.receipts[-1 - num_txs].gas_used \
+        #              - chain.last_tx.intrinsic_gas_used * num_txs
+        import ipdb; ipdb.set_trace()
         # Computed upper bound on the gas consumption should
         # be greater than or equal to the amount of gas used
         if gas_estimate < gas_actual:
