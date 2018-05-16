@@ -1,4 +1,9 @@
-from vyper.exceptions import StructureException, VariableDeclarationException, InvalidTypeException
+from vyper.exceptions import (
+    StructureException,
+    VariableDeclarationException,
+    InvalidTypeException,
+    TypeMismatchException
+)
 
 
 def test_external_contract_calls(get_contract, get_contract_with_gas_estimation):
@@ -540,3 +545,106 @@ def foo(contract_address: contract(Bar)) -> int128:
     """
 
     assert_compile_failed(lambda: get_contract(contract_1), InvalidTypeException)
+
+
+def test_external_with_payble_value(chain, get_contract_with_gas_estimation):
+    contract_1 = """
+@payable
+@public
+def get_lucky() -> int128:
+    return 1
+
+@public
+def get_balance() -> int128(wei):
+    return self.balance
+"""
+
+    contract_2 = """
+class Bar():
+    def set_lucky(arg1: int128): pass
+    def get_lucky() -> int128: pass
+
+bar_contract: modifiable(Bar)
+
+@public
+def set_contract(contract_address: contract(Bar)):
+    self.bar_contract = contract_address
+
+@payable
+@public
+def get_lucky(amount_to_send: int128) -> int128:
+    if amount_to_send != 0:
+        return self.bar_contract.get_lucky(value=amount_to_send)
+    else: # send it all
+        return self.bar_contract.get_lucky(value=msg.value)
+"""
+
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    # Set address.
+    assert c1.get_lucky() == 1
+    assert c1.get_balance() == 0
+    c2.set_contract(c1.address)
+
+    # Send some eth
+    assert c2.get_lucky(value=500) == 1
+    # Contract 1 received money.
+    assert c1.get_balance() == 500
+    assert chain.head_state.get_balance(c1.address) == 500
+    assert chain.head_state.get_balance(c2.address) == 0
+
+    # Send subset of amount
+    assert c2.get_lucky(250, value=500) == 1
+    # Contract 1 received more money.
+    assert c1.get_balance() == 750
+    assert chain.head_state.get_balance(c1.address) == 750
+    assert chain.head_state.get_balance(c2.address) == 250
+
+
+def test_external_call_with_gas(assert_tx_failed, get_contract_with_gas_estimation):
+    contract_1 = """
+@public
+def get_lucky() -> int128:
+    return 656598
+"""
+
+    contract_2 = """
+class Bar():
+    def set_lucky(arg1: int128): pass
+    def get_lucky() -> int128: pass
+
+bar_contract: modifiable(Bar)
+
+@public
+def set_contract(contract_address: contract(Bar)):
+    self.bar_contract = contract_address
+
+@public
+def get_lucky(gas_amount: int128) -> int128:
+    return self.bar_contract.get_lucky(gas=gas_amount)
+"""
+
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+    c2.set_contract(c1.address)
+
+    assert c2.get_lucky(1000) == 656598
+    assert_tx_failed(lambda: c2.get_lucky(100))  # too little gas.
+
+
+def test_invalid_keyword_on_call(assert_compile_failed, get_contract_with_gas_estimation):
+
+    contract_1 = """
+class Bar():
+    def set_lucky(arg1: int128): pass
+    def get_lucky() -> int128: pass
+
+bar_contract: modifiable(Bar)
+
+@public
+def get_lucky(amount_to_send: int128) -> int128:
+    return self.bar_contract.get_lucky(gass=1)
+    """
+
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), TypeMismatchException)

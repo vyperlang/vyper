@@ -516,7 +516,11 @@ def parse_body(code, context):
     return LLLnode.from_list(['seq'] + o, pos=getpos(code[0]) if code else None)
 
 
-def external_contract_call(node, context, contract_name, contract_address, is_modifiable, pos):
+def external_contract_call(node, context, contract_name, contract_address, is_modifiable, pos, value=None, gas=None):
+    if value is None:
+        value = 0
+    if gas is None:
+        gas = 'gas'
     if contract_name not in context.sigs:
         raise VariableDeclarationException("Contract not declared yet: %s" % contract_name)
     method_name = node.func.attr
@@ -529,9 +533,9 @@ def external_contract_call(node, context, contract_name, contract_address, is_mo
     sub = ['seq', ['assert', ['extcodesize', contract_address]],
                     ['assert', ['ne', 'address', contract_address]]]
     if context.is_constant or not is_modifiable:
-        sub.append(['assert', ['staticcall', 'gas', contract_address, inargs, inargsize, output_placeholder, output_size]])
+        sub.append(['assert', ['staticcall', gas, contract_address, inargs, inargsize, output_placeholder, output_size]])
     else:
-        sub.append(['assert', ['call', 'gas', contract_address, 0, inargs, inargsize, output_placeholder, output_size]])
+        sub.append(['assert', ['call', gas, contract_address, value, inargs, inargsize, output_placeholder, output_size]])
     sub.extend(returner)
     o = LLLnode.from_list(sub, typ=sig.output_type, location='memory', pos=getpos(node))
     return o
