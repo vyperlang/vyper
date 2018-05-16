@@ -1,11 +1,6 @@
 import pytest
 
 
-def setUp(self):
-    # Initialize tester, contract and expose relevant objects
-    self.s.head_state.gas_limit = 10**7
-
-
 @pytest.fixture
 def c(get_contract):
     with open('examples/voting/ballot.v.py') as f:

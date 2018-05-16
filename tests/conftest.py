@@ -36,6 +36,7 @@ from vyper import (
 
 
 setattr(eth_tester.backends.pyevm.main, 'GENESIS_GAS_LIMIT', 10**9)
+setattr(eth_tester.backends.pyevm.main, 'GENESIS_DIFFICULTY', 1)
 
 
 @pytest.fixture(autouse=True)

@@ -615,6 +615,7 @@ def ioo(inp: bytes[100]):
     """
 
     c = get_contract_with_gas_estimation(loggy_code)
+
     tx_hash = c.foo(transact={})
     receipt = tester.get_transaction_receipt(tx_hash.hex())
     logs = receipt['logs']
