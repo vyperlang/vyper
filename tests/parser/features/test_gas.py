@@ -27,5 +27,5 @@ def __init__():
     """
     parser_utils.LLLnode.repr_show_gas = True
     out = parse_to_lll(code)
-    assert str(out)[:30] == '\x1b[94m{\x1b[0m20303\x1b[94m} \x1b[0m[seq'
+    assert str(out)[:30] == '\x1b[94m{\x1b[0m35303\x1b[94m} \x1b[0m[seq'
     parser_utils.LLLnode.repr_show_gas = False

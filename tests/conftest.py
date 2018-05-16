@@ -119,49 +119,6 @@ def keccak():
 
 
 @pytest.fixture
-def check_gas(chain):
-    def check_gas(code, func=None, num_txs=1):
-        if func:
-            gas_estimate = tester.languages['vyper'].gas_estimate(code)[func]
-            gas_estimate = compiler.gas_estimate(code)[func]
-        else:
-            gas_estimate = sum(compiler.gas_estimate(code).values())
-
-        # gas_actual = chain.head_state.receipts[-1].gas_used \
-        #              - chain.head_state.receipts[-1 - num_txs].gas_used \
-        #              - chain.last_tx.intrinsic_gas_used * num_txs
-        import ipdb; ipdb.set_trace()
-        # Computed upper bound on the gas consumption should
-        # be greater than or equal to the amount of gas used
-        if gas_estimate < gas_actual:
-            raise Exception("Gas upper bound fail: bound %d actual %d" % (gas_estimate, gas_actual))
-
-        print('Function name: {} - Gas estimate {}, Actual: {}'.format(
-            func, gas_estimate, gas_actual)
-        )
-    return check_gas
-
-
-def gas_estimation_decorator(chain, fn, source_code, func):
-    def decorator(*args, **kwargs):
-        @wraps(fn)
-        def decorated_function(*args, **kwargs):
-            result = fn(*args, **kwargs)
-            check_gas(chain)(source_code, func)
-            return result
-        return decorated_function(*args, **kwargs)
-    return decorator
-
-
-def set_decorator_to_contract_function(chain, contract, source_code, func):
-    func_definition = getattr(contract, func)
-    func_with_decorator = gas_estimation_decorator(
-        chain, func_definition, source_code, func
-    )
-    setattr(contract, func, func_with_decorator)
-
-
-@pytest.fixture
 def bytes_helper():
     def bytes_helper(str, length):
         return bytes(str, 'utf-8') + bytearray(length - len(str))
@@ -218,11 +175,57 @@ def get_contract(w3):
     return get_contract
 
 
-@pytest.fixture
-def get_contract_with_gas_estimation(w3):
-    def get_contract_with_gas_estimation(source_code, *args, **kwargs):
-        return _get_contract(w3, source_code, *args, **kwargs)
+def get_compiler_gas_estimate(code, func):
+    if func:
+        return compiler.gas_estimate(code)[func] + 22000
+    else:
+        return sum(compiler.gas_estimate(code).values()) + 22000
 
+
+def check_gas_on_chain(w3, tester, code, func=None, res=None):
+    gas_estimate = get_compiler_gas_estimate(code, func)
+    gas_actual = tester.get_block_by_number('latest')['gas_used']
+    # Computed upper bound on the gas consumption should
+    # be greater than or equal to the amount of gas used
+    if gas_estimate < gas_actual:
+        raise Exception("Gas upper bound fail: bound %d actual %d" % (gas_estimate, gas_actual))
+
+    print('Function name: {} - Gas estimate {}, Actual: {}'.format(
+        func, gas_estimate, gas_actual)
+    )
+
+
+def gas_estimation_decorator(w3, tester, fn, source_code, func):
+    def decorator(*args, **kwargs):
+        @wraps(fn)
+        def decorated_function(*args, **kwargs):
+            result = fn(*args, **kwargs)
+            if 'transact' in kwargs:
+                check_gas_on_chain(w3, tester, source_code, func, res=result)
+            return result
+        return decorated_function(*args, **kwargs)
+    return decorator
+
+
+def set_decorator_to_contract_function(w3, tester, contract, source_code, func):
+    func_definition = getattr(contract, func)
+    func_with_decorator = gas_estimation_decorator(
+        w3, tester, func_definition, source_code, func
+    )
+    setattr(contract, func, func_with_decorator)
+
+
+@pytest.fixture
+def get_contract_with_gas_estimation(tester, w3):
+    def get_contract_with_gas_estimation(source_code, *args, **kwargs):
+
+        contract = _get_contract(w3, source_code, *args, **kwargs)
+        for abi in contract._classic_contract.functions.abi:
+            if abi['type'] == 'function':
+                set_decorator_to_contract_function(
+                    w3, tester, contract, source_code, abi['name']
+                )
+        return contract
     return get_contract_with_gas_estimation
 
 
