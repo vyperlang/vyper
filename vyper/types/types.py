@@ -52,11 +52,12 @@ class NodeType():
 # Data structure for a type that represents a 32-byte object
 class BaseType(NodeType):
 
-    def __init__(self, typ, unit=False, positional=False, override_signature=False):
+    def __init__(self, typ, unit=False, positional=False, override_signature=False, is_literal=False):
         self.typ = typ
         self.unit = {} if unit is False else unit
         self.positional = positional
         self.override_signature = override_signature
+        self.is_literal = is_literal
 
     def __eq__(self, other):
         return other.__class__ == BaseType and self.typ == other.typ and self.unit == other.unit and self.positional == other.positional
@@ -228,7 +229,6 @@ def parse_type(item, location, sigs=None, custom_units=None):
         elif item.id in special_types:
             return special_types[item.id]
         else:
-            # import ipdb; ipdb.set_trace()
             raise InvalidTypeException("Invalid base type: " + item.id, item)
     # Units, e.g. num (1/sec) or contracts
     elif isinstance(item, ast.Call):
@@ -333,7 +333,7 @@ def are_units_compatible(frm, to):
 
 # Is a type representing a number?
 def is_numeric_type(typ):
-    return isinstance(typ, BaseType) and typ.typ in ('int128', 'decimal')
+    return isinstance(typ, BaseType) and typ.typ in ('int128', 'uint256', 'decimal')
 
 
 # Is a type representing some particular base type?

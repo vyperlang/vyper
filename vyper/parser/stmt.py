@@ -6,12 +6,13 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
+    InvalidLiteralException
 )
 from vyper.functions import (
     stmt_dispatch_table,
 )
-from .parser_utils import LLLnode
-from .parser_utils import (
+from vyper.parser.parser_utils import LLLnode
+from vyper.parser.parser_utils import (
     getpos,
     make_byte_array_copier,
     base_type_conversion,
@@ -32,6 +33,9 @@ from vyper.types import (
 )
 from vyper.types import (
     are_units_compatible,
+)
+from vyper.utils import (
+    SizeLimits
 )
 from .expr import (
     Expr
@@ -82,6 +86,10 @@ class Stmt(object):
         elif isinstance(self.stmt.annotation, ast.Subscript):
             if not isinstance(sub.typ, (ListType, ByteArrayType)):  # check list assign.
                 raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.value.id, self.stmt)
+        # Check that the integer literal, can be assigned to uint256 if necessary.
+        elif (self.stmt.annotation.id, sub.typ.typ) == ('uint256', 'int128') and sub.typ.is_literal:
+            if not 0 <= sub.value <= SizeLimits.MAX_UINT256:
+                raise InvalidLiteralException('Invalid uint256 assignment, value not in uint256 range.', self.stmt)
         elif self.stmt.annotation.id != sub.typ.typ and not sub.typ.unit:
             raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.id, self.stmt)
 
