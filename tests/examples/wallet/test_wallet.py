@@ -58,7 +58,7 @@ def test_approve(w3, c, tester, assert_tx_failed, sign):
     # Approve fails if not enough value is sent
     sigs = pack_and_sign(1, k1, 0, k3, 0, k5)
     assert_tx_failed(lambda: c.approve(1, to_address, value, data, sigs, transact={'value': 0, 'from': a1}))
-    ssigs = pack_and_sign(1, k1, 0, k3, 0, k5)
+    sigs = pack_and_sign(1, k1, 0, k3, 0, k5)
     assert c.approve(1, to_address, value, data, sigs, call={'value': value, 'from': a1})
 
     print("Basic tests passed")
@@ -98,12 +98,12 @@ def test_javascript_signatures(w3, get_contract):
 
     # Set the owners to zero addresses
     with open('examples/wallet/wallet.v.py') as f:
-        owners = [w3.toChecksumAddress(x) for x in  accounts + [a3, zero_address, zero_address]]
+        owners = [w3.toChecksumAddress(x) for x in accounts + [a3, zero_address, zero_address]]
         x2 = get_contract(f.read(), *[owners, 2])
 
     w3.eth.sendTransaction({'to': x2.address, 'value': 10**17})
 
     # There's no need to pass in signatures because the owners are 0 addresses causing them to default to valid signatures
-    assert x2.approve(0, recipient, 25, "", sigs + [[0, 0, 0]] * 3, call={'to': x2.address, 'value': 10**17})
+    assert x2.approve(0, recipient, 25, b"", sigs + [[0, 0, 0]] * 3, call={'to': x2.address, 'value': 10**17})
 
     print("Javascript signature tests passed")

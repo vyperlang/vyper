@@ -48,7 +48,7 @@ def foo(a: int128, b: bytes[64], c: int128):
 
     c = get_contract_with_gas_estimation(code)
 
-    log = get_logs( c.foo(333, b"flower" * 8, 444, transact={}), c, 'MyLog')
+    log = get_logs(c.foo(333, b"flower" * 8, 444, transact={}), c, 'MyLog')
 
     assert log[0].args.arg1 == 333
     assert log[0].args.arg2 == b"flower" * 8

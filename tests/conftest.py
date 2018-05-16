@@ -1,6 +1,6 @@
 import pytest
 
-# from functools import wraps
+from functools import wraps
 import eth_tester
 import web3
 
@@ -20,9 +20,6 @@ from web3 import (
 from web3.contract import (
     ConciseContract,
 )
-from web3.exceptions import (
-    ValidationError
-)
 from vyper.parser.parser_utils import (
     LLLnode
 )
@@ -31,9 +28,7 @@ from vyper import (
     compiler,
     optimizer,
 )
-from vyper.utils import (
-    sha3
-)
+
 
 ############
 # PATCHING #

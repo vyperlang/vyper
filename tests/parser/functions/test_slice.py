@@ -1,4 +1,3 @@
-import pytest
 
 
 def test_test_slice(get_contract_with_gas_estimation):

@@ -12,7 +12,9 @@ def c(get_contract):
         contract_code = f.read()
     return get_contract(contract_code, *[[b"Clinton", b"Trump"]])
 
+
 z0 = '0x0000000000000000000000000000000000000000'
+
 
 def test_initial_state(w3, c):
     a0 = w3.eth.accounts[0]
@@ -23,13 +25,13 @@ def test_initial_state(w3, c):
     assert c.proposals__name(1)[:5] == b'Trump'
     # Check proposal vote_count is 0
     assert c.proposals__vote_count(0) == 0
-    assert c.proposals__vote_count(1)== 0
+    assert c.proposals__vote_count(1) == 0
     # Check voter_count is 0
     assert c.voter_count() == 0
     # Check voter starts empty
-    assert c.voters__delegate(z0) == None
+    assert c.voters__delegate(z0) is None
     assert c.voters__vote(z0) == 0
-    assert c.voters__voted(z0) == False
+    assert c.voters__voted(z0) is False
     assert c.voters__weight(z0) == 0
 
 
@@ -39,9 +41,9 @@ def test_give_the_right_to_vote(w3, c, assert_tx_failed):
     # Check voter given right has weight of 1
     assert c.voters__weight(a1) == 1
     # Check no other voter attributes have changed
-    assert c.voters__delegate(a1) == None
+    assert c.voters__delegate(a1) is None
     assert c.voters__vote(a1) == 0
-    assert c.voters__voted(a1) == False
+    assert c.voters__voted(a1) is False
     # Chairperson can give themselves the right to vote
     c.give_right_to_vote(a0, transact={})
     # Check chairperson has weight of 1
@@ -163,7 +165,7 @@ def test_delegate(w3, c, assert_tx_failed):
     # Voter's weight is now 0
     assert c.voters__weight(a1) == 0
     # Voter has voted
-    assert c.voters__voted(a1) == True
+    assert c.voters__voted(a1) is True
     # Delegate's weight is 2
     assert c.voters__weight(a0) == 2
     # Voter cannot delegate twice
@@ -238,7 +240,3 @@ def test_winner_namer(w3, c):
     c.vote(1, transact={'from': a1})
     # Proposal 2 is now winning
     assert c.winner_name()[:5], b'Trump'
-
-
-if __name__ == '__main__':
-    unittest.main()

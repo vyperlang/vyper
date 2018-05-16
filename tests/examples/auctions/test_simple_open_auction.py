@@ -5,7 +5,7 @@ EXPIRY = 16
 
 @pytest.fixture
 def auction_contract(w3, get_contract):
-    with  open('examples/auctions/simple_open_auction.v.py') as f:
+    with open('examples/auctions/simple_open_auction.v.py') as f:
         contract_code = f.read()
         contract = get_contract(contract_code, *[w3.eth.accounts[0], EXPIRY])
     return contract
@@ -21,7 +21,7 @@ def test_initial_state(w3, tester, auction_contract):
     # Check auction has not ended
     assert auction_contract.ended() is False
     # Check highest bidder is empty
-    assert auction_contract.highest_bidder() == None
+    assert auction_contract.highest_bidder() is None
     # Check highest bid is 0
     assert auction_contract.highest_bid() == 0
 

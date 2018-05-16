@@ -17,8 +17,7 @@ def get(k: bytes[5]) -> int128:
 
     c = get_contract(code)
 
-    ret = c.set(b"test", 54321, transact={})
-
+    c.set(b"test", 54321, transact={})
 
     assert c.get(b"test") == 54321
 

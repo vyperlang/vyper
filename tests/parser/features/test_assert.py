@@ -7,7 +7,7 @@ def foo():
     assert 1 == 2
 """
     c = get_contract_with_gas_estimation(code)
-    a0 =  w3.eth.accounts[0]
+    a0 = w3.eth.accounts[0]
     pre_balance = w3.eth.getBalance(a0)
     # assert_tx_failed(lambda: c.foo(transact={'from': a0, 'gas': 10**6, 'gasPrice': 10}))
     assert_tx_failed(lambda: c.foo())

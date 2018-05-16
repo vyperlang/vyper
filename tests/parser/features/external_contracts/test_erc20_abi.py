@@ -1,5 +1,5 @@
 import pytest
-from web3.exceptions import  ValidationError
+from web3.exceptions import ValidationError
 
 
 TOKEN_NAME = b"Vypercoin"
@@ -14,6 +14,7 @@ def erc20(get_contract):
     with open('examples/tokens/vypercoin.v.py') as f:
         contract = get_contract(f.read(), *[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY])
     return contract
+
 
 @pytest.fixture
 def erc20_caller(erc20, get_contract):

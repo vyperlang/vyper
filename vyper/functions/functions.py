@@ -102,7 +102,6 @@ def _convert(expr, context):
 
 @signature('bytes', start='int128', len='int128')
 def _slice(expr, args, kwargs, context):
-    from vyper.utils import ceil32
     sub, start, length = args[0], kwargs['start'], kwargs['len']
     if not are_units_compatible(start.typ, BaseType('int128')):
         raise TypeMismatchException("Type for slice start index must be a unitless number")

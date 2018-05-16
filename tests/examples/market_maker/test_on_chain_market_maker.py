@@ -1,5 +1,4 @@
 import pytest
-from vyper import compiler
 
 
 @pytest.fixture
@@ -27,7 +26,7 @@ def test_initial_statet(market_maker):
     assert market_maker.total_eth_qty() == 0
     assert market_maker.total_token_qty() == 0
     assert market_maker.invariant() == 0
-    assert market_maker.owner() == None
+    assert market_maker.owner() is None
 
 
 def test_initiate(w3, market_maker, erc20, assert_tx_failed):

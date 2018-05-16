@@ -1,7 +1,5 @@
 import pytest
 
-from vyper import compiler
-
 
 @pytest.fixture
 def c(w3, get_contract):

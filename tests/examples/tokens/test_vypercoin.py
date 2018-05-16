@@ -108,7 +108,7 @@ def test_transfer_event(w3, c, get_logs):
 
     # Test event using transferFrom
     c.approve(a1, 10, transact={})  # approve 10 token transfers to a1.
-    logs = get_logs(c.transferFrom(a0, a2, 4, transact={'from': a1}), c, 'Transfer') # transfer to a2, as a1, from a0's funds.
+    logs = get_logs(c.transferFrom(a0, a2, 4, transact={'from': a1}), c, 'Transfer')  # transfer to a2, as a1, from a0's funds.
 
     args = logs[0].args
     assert args._from == a0
@@ -119,7 +119,7 @@ def test_transfer_event(w3, c, get_logs):
 def test_approval_event(w3, c, get_logs):
     a0, a1 = w3.eth.accounts[:2]
 
-    logs = get_logs(c.approve(a1, 10, transact={}), c, 'Approval') # approve 10 token transfers to a1.
+    logs = get_logs(c.approve(a1, 10, transact={}), c, 'Approval')  # approve 10 token transfers to a1.
 
     args = logs[0].args
     assert args._owner == a0

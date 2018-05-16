@@ -35,19 +35,3 @@ valid_list = [
 @pytest.mark.parametrize('good_lll', valid_list)
 def test_compile_lll_good(good_lll, get_contract_from_lll):
     get_contract_from_lll(LLLnode.from_list(good_lll))
-
-
-def test_ninja(get_contract_from_lll):
-
-    ninja_lll = LLLnode.from_list(
-        ['seq',
-          ['return',
-            0,
-            ['lll',
-              ['seq',
-                  ['calldatacopy', 0, 4, 32],
-                  ['return', 0, 32],
-                  'stop'
-                ],
-              0]]])
-    c = get_contract_from_lll(ninja_lll)

@@ -66,10 +66,10 @@ def test_purchase(w3, get_contract, assert_tx_failed, check_balance, contract_co
     init_bal_a0, init_bal_a1 = check_balance()
     c = get_contract(contract_code, value=2)
     # Purchase for too low/high price
-    assert_tx_failed(lambda: c.purchase(transact={'value': 1,'from': a1}))
-    assert_tx_failed(lambda: c.purchase(transact={'value': 3,'from': a1}))
+    assert_tx_failed(lambda: c.purchase(transact={'value': 1, 'from': a1}))
+    assert_tx_failed(lambda: c.purchase(transact={'value': 3, 'from': a1}))
     # Purchase for the correct price
-    c.purchase(transact={'value': 2, 'from' : a1, 'gasPrice': 0})
+    c.purchase(transact={'value': 2, 'from': a1, 'gasPrice': 0})
     # Check if buyer is set correctly
     assert c.buyer() == a1
     # Check if contract is locked correctly

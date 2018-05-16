@@ -17,7 +17,7 @@ def foo(x: bytes[100]) -> bytes[100]:
 
     print('Passed max-length bytes test')
 
-    # test for greater than 100 bytes, should raise exception 
+    # test for greater than 100 bytes, should raise exception
     assert_tx_failed(lambda: c.foo(b'\x35' * 101))
 
     print('Passed input-too-long test')

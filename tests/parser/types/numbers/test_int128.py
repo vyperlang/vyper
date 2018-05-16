@@ -108,7 +108,7 @@ def _num_min() -> int128:
     NUM_MAX = 2**127 - 1
     NUM_MIN = -2**127
     assert c._num_add(NUM_MAX, 0) == NUM_MAX
-    assert c._num_sub(NUM_MIN, 0) == NUM_MIN 
+    assert c._num_sub(NUM_MIN, 0) == NUM_MIN
     assert c._num_add(NUM_MAX - 1, 1) == NUM_MAX
     assert c._num_sub(NUM_MIN + 1, 1) == NUM_MIN
     assert_tx_failed(lambda: c._num_add(NUM_MAX, 1))
