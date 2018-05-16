@@ -552,7 +552,7 @@ def ioo(inp: bytes[100]):
     assert chain.head_state.receipts[-1].logs[0].data == b'moo'
     c.goo()
     assert chain.head_state.receipts[-1].logs[0].data == b'moo2'
-    assert chain.head_state.receipts[-1].logs[0].topics == [0x1234567812345678123456781234567812345678123456781234567812345678]
+    assert tuple(chain.head_state.receipts[-1].logs[0].topics) == (0x1234567812345678123456781234567812345678123456781234567812345678,)
     c.hoo()
     assert chain.head_state.receipts[-1].logs[0].data == b'moo3'
     c.ioo(b"moo4")
