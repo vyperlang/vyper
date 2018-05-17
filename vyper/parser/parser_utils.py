@@ -306,7 +306,7 @@ def make_byte_slice_copier(destination, source, length, max_length):
     if source.location == "memory" and destination.location == "memory":
         return LLLnode.from_list(['with', '_l', max_length,
                                     ['pop', ['call', 18 + max_length // 10, 4, 0, source,
-                                             '_l', destination, '_l']]], typ=None, annotation='copy byte slice')
+                                             '_l', destination, '_l']]], typ=None, annotation='copy byte slice dest: %s' % str(destination))
     # Copy over data
     if isinstance(source.typ, NullType):
         loader = 0

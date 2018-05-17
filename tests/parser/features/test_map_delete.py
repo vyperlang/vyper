@@ -19,11 +19,11 @@ def delete(key: bytes32):
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.get("test") == b'\x00' * 32
-    c.set("test", "value")
-    assert c.get("test")[:5] == b"value"
-    c.delete("test")
-    assert c.get("test") == b'\x00' * 32
+    assert c.get(b"test") == b'\x00' * 32
+    c.set(b"test", b"value", transact={})
+    assert c.get(b"test")[:5] == b"value"
+    c.delete(b"test", transact={})
+    assert c.get(b"test") == b'\x00' * 32
 
 
 def test_map_delete_nested(get_contract_with_gas_estimation):
@@ -45,11 +45,11 @@ def delete(key1: bytes32, key2: bytes32):
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.get("test1", "test2") == b'\x00' * 32
-    c.set("test1", "test2", "value")
-    assert c.get("test1", "test2")[:5] == b"value"
-    c.delete("test1", "test2")
-    assert c.get("test1", "test2") == b'\x00' * 32
+    assert c.get(b"test1", b"test2") == b'\x00' * 32
+    c.set(b"test1", b"test2", b"value", transact={})
+    assert c.get(b"test1", b"test2")[:5] == b"value"
+    c.delete(b"test1", b"test2", transact={})
+    assert c.get(b"test1", b"test2") == b'\x00' * 32
 
 
 def test_map_delete_struct(get_contract_with_gas_estimation):
@@ -79,7 +79,7 @@ def delete():
     c = get_contract_with_gas_estimation(code)
 
     assert c.get() == [0, 0]
-    c.set()
+    c.set(transact={})
     assert c.get() == [333, 444]
-    c.delete()
+    c.delete(transact={})
     assert c.get() == [0, 0]

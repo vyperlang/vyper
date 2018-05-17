@@ -1,3 +1,6 @@
+from decimal import Decimal
+
+
 def test_minmax(get_contract_with_gas_estimation):
     minmax_test = """
 @public
@@ -10,7 +13,7 @@ def goo() -> uint256:
     """
 
     c = get_contract_with_gas_estimation(minmax_test)
-    assert c.foo() == 58223.123
+    assert c.foo() == Decimal('58223.123')
     assert c.goo() == 83
 
     print("Passed min/max test")

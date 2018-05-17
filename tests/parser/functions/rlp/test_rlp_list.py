@@ -1,7 +1,7 @@
 import rlp
 
 
-def test_rlp_decoder_code(t, assert_tx_failed, get_contract_with_gas_estimation, fake_tx):
+def test_rlp_decoder_code(w3, assert_tx_failed, get_contract_with_gas_estimation, fake_tx):
     fake_tx()
 
     rlp_decoder_code = """
@@ -107,5 +107,5 @@ def yolo(raw_utxo: bytes[1024]) -> (address, int128, int128):
     assert_tx_failed(lambda: c.too(rlp.encode([b'\x00'])))
     assert c.loo(rlp.encode([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])) == 55
     assert c.woo(rlp.encode([b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9', b'10', b'11', b'12', b'13', b'14', b'15'])) == b'123456789101112131415'
-    assert c.yolo(rlp.encode([t.a0, 1, 2])) == ['0x82a978b3f5962a5b0957d9ee9eef472ee55b42f1', 1, 2]
+    assert c.yolo(rlp.encode([w3.toBytes(hexstr=w3.eth.accounts[0]), 1, 2])) == [w3.eth.accounts[0], 1, 2]
     print('Passed RLP decoder tests')

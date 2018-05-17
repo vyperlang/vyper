@@ -1,9 +1,10 @@
-import pytest
-from ethereum.tools import tester
-from vyper.exceptions import ParserException, TypeMismatchException
+from vyper.exceptions import (
+    ParserException,
+    TypeMismatchException
+)
 
 
-def test_test_bytes(get_contract_with_gas_estimation):
+def test_test_bytes(get_contract_with_gas_estimation, assert_tx_failed):
     test_bytes = """
 @public
 def foo(x: bytes[100]) -> bytes[100]:
@@ -21,8 +22,7 @@ def foo(x: bytes[100]) -> bytes[100]:
     print('Passed max-length bytes test')
 
     # test for greater than 100 bytes, should raise exception
-    with pytest.raises(tester.TransactionFailed):
-        c.foo(b'\x35' * 101)
+    assert_tx_failed(lambda: c.foo(b'\x35' * 101))
 
     print('Passed input-too-long test')
 
@@ -80,16 +80,16 @@ def get_xy() -> int128:
     """
 
     c = get_contract_with_gas_estimation(test_bytes3)
-    c.set_maa(b"pig")
+    c.set_maa(b"pig", transact={})
     assert c.get_maa() == b"pig"
     assert c.get_maa2() == b"pig"
-    c.set_maa2(b"")
+    c.set_maa2(b"", transact={})
     assert c.get_maa() == b""
     assert c.get_maa2() == b""
-    c.set_maa(b"\x44" * 60)
+    c.set_maa(b"\x44" * 60, transact={})
     assert c.get_maa() == b"\x44" * 60
     assert c.get_maa2() == b"\x44" * 60
-    c.set_maa2(b"mongoose")
+    c.set_maa2(b"mongoose", transact={})
     assert c.get_maa() == b"mongoose"
     assert c.get_xy() == 999
 
@@ -113,8 +113,8 @@ def bar(inp: bytes[60]) -> bytes[60]:
     """
 
     c = get_contract_with_gas_estimation(test_bytes4)
-    assert c.foo() == b"", c.foo()
-    assert c.bar() == b""
+    assert c.foo(b"") == b"", c.foo()
+    assert c.bar(b"") == b""
 
     print('Passed string deleting test')
 
@@ -152,12 +152,12 @@ def quz(inp1: bytes[40], inp2: bytes[45]):
     """
 
     c = get_contract_with_gas_estimation(test_bytes5)
-    c.foo(b"cow", b"horse")
+    c.foo(b"cow", b"horse", transact={})
     assert c.check1() == b"cow"
     assert c.check2() == b"horse"
     assert c.bar(b"pig", b"moose") == b"pig"
     assert c.bat(b"pig", b"moose") == b"moose"
-    c.quz(b"badminton", b"fluffysheep")
+    c.quz(b"badminton", b"fluffysheep", transact={})
     assert c.check1() == b"badminton"
     assert c.check2() == b"fluffysheep"
 
@@ -217,12 +217,12 @@ def testsome_storage(y: bytes[1]) -> bool:
     c = get_contract_with_gas_estimation(bytes_to_num_code)
 
     assert c.getsome() == b'\x0e'
-    assert c.testsome('a')
-    assert c.testsome('\x61')
+    assert c.testsome(b'a')
+    assert c.testsome(b'\x61')
     assert c.testsome(0b1100001.to_bytes(1, 'big'))
-    assert not c.testsome('b')
-    assert c.testsome_storage('a')
-    assert not c.testsome_storage('x')
+    assert not c.testsome(b'b')
+    assert c.testsome_storage(b'a')
+    assert not c.testsome_storage(b'x')
 
 
 def test_bytes_comparison_fail_size_mismatch(assert_compile_failed, get_contract_with_gas_estimation):

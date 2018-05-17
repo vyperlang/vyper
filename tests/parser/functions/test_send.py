@@ -1,4 +1,4 @@
-def test_send(assert_tx_failed, chain):
+def test_send(assert_tx_failed, get_contract):
     send_test = """
 @public
 def foo():
@@ -8,7 +8,7 @@ def foo():
 def fop():
     send(msg.sender, 10)
     """
-    c = chain.contract(send_test, language='vyper', value=10)
-    assert_tx_failed(lambda: c.foo())
-    c.fop()
-    assert_tx_failed(lambda: c.fop())
+    c = get_contract(send_test, value=10)
+    assert_tx_failed(lambda: c.foo(transact={}))
+    c.fop(transact={})
+    assert_tx_failed(lambda: c.fop(transact={}))

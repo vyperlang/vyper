@@ -1,4 +1,4 @@
-def test_hash_code(get_contract_with_gas_estimation, utils):
+def test_hash_code(get_contract_with_gas_estimation, keccak):
     hash_code = """
 @public
 def foo(inp: bytes[100]) -> bytes32:
@@ -11,9 +11,9 @@ def bar() -> bytes32:
 
     c = get_contract_with_gas_estimation(hash_code)
     for inp in (b"", b"cow", b"s" * 31, b"\xff" * 32, b"\n" * 33, b"g" * 64, b"h" * 65):
-        assert c.foo(inp) == utils.sha3(inp)
+        assert '0x' + c.foo(inp).hex() == keccak(inp).hex()
 
-    assert c.bar() == utils.sha3("inp")
+    assert '0x' + c.bar().hex() == keccak(b"inp").hex()
 
 
 def test_hash_code2(get_contract_with_gas_estimation):
@@ -49,19 +49,19 @@ def try32(inp: bytes32) -> bool:
     return sha3(inp) == sha3(self.test)
     """
     c = get_contract_with_gas_estimation(hash_code3)
-    c.set_test(b"")
+    c.set_test(b"", transact={})
     assert c.tryy(b"") is True
     assert c.trymem(b"") is True
     assert c.tryy(b"cow") is False
-    c.set_test(b"cow")
+    c.set_test(b"cow", transact={})
     assert c.tryy(b"") is False
     assert c.tryy(b"cow") is True
-    c.set_test(b"\x35" * 32)
+    c.set_test(b"\x35" * 32, transact={})
     assert c.tryy(b"\x35" * 32) is True
     assert c.trymem(b"\x35" * 32) is True
     assert c.try32(b"\x35" * 32) is True
     assert c.tryy(b"\x35" * 33) is False
-    c.set_test(b"\x35" * 33)
+    c.set_test(b"\x35" * 33, transact={})
     assert c.tryy(b"\x35" * 32) is False
     assert c.trymem(b"\x35" * 32) is False
     assert c.try32(b"\x35" * 32) is False

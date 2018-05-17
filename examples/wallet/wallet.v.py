@@ -2,11 +2,12 @@
 # Warning: NOT AUDITED. Do not use to store substantial quantities of funds.
 
 # A list of the owners addresses (there are a maximum of 5 owners)
-owners: address[5]
+owners: public(address[5])
 # The number of owners required to approve a transaction
 threshold: int128
 # The number of transactions that have been approved
-seq: int128
+seq: public(int128)
+
 
 @public
 def __init__(_owners: address[5], _threshold: int128):
@@ -14,6 +15,12 @@ def __init__(_owners: address[5], _threshold: int128):
         if _owners[i]:
             self.owners[i] = _owners[i]
     self.threshold = _threshold
+
+
+@public
+def test_ecrecover(h: bytes32, v:uint256, r:uint256, s:uint256) -> address:
+    return ecrecover(h, v, r, s)
+
 
 # `@payable` allows functions to receive ether
 @public
@@ -35,8 +42,8 @@ def approve(_seq: int128, to: address, value: wei_value, data: bytes[4096], sigd
     h2: bytes32 = sha3(concat("\x19Ethereum Signed Message:\n32", h))
     # Verifies that the caller of approve has entered the correct transaction number
     assert self.seq == _seq
-    # Iterates through all the owners and verifies that there signatures,
-    # given as the sigdata argument are correct
+    # # Iterates through all the owners and verifies that there signatures,
+    # # given as the sigdata argument are correct
     for i in range(5):
         if sigdata[i][0]:
             # If an invalid signature is given for an owner then the contract throws

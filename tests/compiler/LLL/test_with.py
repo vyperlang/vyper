@@ -1,6 +1,6 @@
 
 
-def test_with_depth(t, get_contract_from_lll, assert_compile_failed):
+def test_with_depth(get_contract_from_lll, assert_compile_failed):
     _16_with_statements = ['with', 'var_1', 0,
                           ['with', 'var_2', 0,
                           ['with', 'var_3', 0,
@@ -37,7 +37,7 @@ def test_with_depth(t, get_contract_from_lll, assert_compile_failed):
     assert_compile_failed(lambda: get_contract_from_lll(_17_with_statements), Exception)
 
 
-def test_with_set_depth(t, get_contract_from_lll, assert_compile_failed):
+def test_with_set_depth(get_contract_from_lll, assert_compile_failed):
     _16_with_statements = ['with', 'var_1', 0,
                           ['with', 'var_2', 0,
                           ['with', 'var_3', 0,

@@ -175,10 +175,12 @@ class Expr(object):
             if not is_base_type(addr.typ, 'address'):
                 raise TypeMismatchException("Type mismatch: codesize keyword expects an address as input", self.expr)
             if self.expr.attr == 'codesize':
+                eval_code = ['extcodesize', addr]
                 output_type = 'int128'
             else:
+                eval_code = ['gt', ['extcodesize', addr], 0]
                 output_type = 'bool'
-            return LLLnode.from_list(['extcodesize', addr], typ=BaseType(output_type), location=None, pos=getpos(self.expr))
+            return LLLnode.from_list(eval_code, typ=BaseType(output_type), location=None, pos=getpos(self.expr))
         # self.x: global attribute
         elif isinstance(self.expr.value, ast.Name) and self.expr.value.id == "self":
             if self.expr.attr not in self.context.globals:

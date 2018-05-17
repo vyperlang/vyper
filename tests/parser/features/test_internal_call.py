@@ -1,3 +1,4 @@
+from decimal import Decimal
 from vyper.exceptions import StructureException
 
 
@@ -18,7 +19,7 @@ def bar() -> int128:
     print("Passed no-argument self-call test")
 
 
-def test_selfcall_code_2(get_contract_with_gas_estimation, utils):
+def test_selfcall_code_2(get_contract_with_gas_estimation, keccak):
     selfcall_code_2 = """
 @public
 def double(x: int128) -> int128:
@@ -39,12 +40,12 @@ def return_hash_of_rzpadded_cow() -> bytes32:
 
     c = get_contract_with_gas_estimation(selfcall_code_2)
     assert c.returnten() == 10
-    assert c.return_hash_of_rzpadded_cow() == utils.sha3(b'cow' + b'\x00' * 29)
+    assert c.return_hash_of_rzpadded_cow() == keccak(b'cow' + b'\x00' * 29)
 
     print("Passed single fixed-size argument self-call test")
 
 
-def test_selfcall_code_3(get_contract_with_gas_estimation, utils):
+def test_selfcall_code_3(get_contract_with_gas_estimation, keccak):
     selfcall_code_3 = """
 @public
 def _hashy2(x: bytes[100]) -> bytes32:
@@ -64,7 +65,7 @@ def returnten() -> int128:
     """
 
     c = get_contract_with_gas_estimation(selfcall_code_3)
-    assert c.return_hash_of_cow_x_30() == utils.sha3(b'cow' * 30)
+    assert c.return_hash_of_cow_x_30() == keccak(b'cow' * 30)
     assert c.returnten() == 10
 
     print("Passed single variable-size argument self-call test")
@@ -191,7 +192,7 @@ def bar3() -> int128:
 
     c = get_contract_with_gas_estimation(code)
     assert c.bar() == 0
-    assert c.foo1() == 0
+    assert c.foo1([0, 0]) == 0
     assert c.bar2() == 55
     assert c.bar3() == 66
 
@@ -222,7 +223,7 @@ def bar1() -> int128:
     """
 
     c = get_contract_with_gas_estimation(code)
-    c.set()
+    c.set(transact={})
     assert c.bar0() == 88
     assert c.bar1() == 99
 
@@ -288,9 +289,9 @@ def bar6() -> int128:
 
     c = get_contract_with_gas_estimation(code)
     assert c.bar() == 0
-    assert c.foo1() == 0
+    assert c.foo1([0, 0], Decimal('0')) == 0
     assert c.bar2() == 55
-    assert c.bar3() == 1.33
+    assert c.bar3() == Decimal('1.33')
     assert c.bar4() == 77
     assert c.bar5() == 88
 
@@ -315,7 +316,7 @@ def bar() -> (int128, decimal):
     return self.fooz(x, y, z, a), self.fooa(x, y, z, a)
     """
     c = get_contract_with_gas_estimation(code)
-    assert c.bar() == [66, 66.77]
+    assert c.bar() == [66, Decimal('66.77')]
 
 
 def test_multi_mixed_arg_list_bytes_call(get_contract_with_gas_estimation):
@@ -342,7 +343,7 @@ def bar() -> (bytes[11], decimal, int128):
     return self.fooz(x, y, z, a), self.fooa(x, y, z, a), self.foox(x, y, z, a)
     """
     c = get_contract_with_gas_estimation(code)
-    assert c.bar() == [b"hello world", 66.77, 44]
+    assert c.bar() == [b"hello world", Decimal('66.77'), 44]
 
 
 def test_selfcall_with_wrong_arg_count_fails(get_contract_with_gas_estimation, assert_tx_failed):

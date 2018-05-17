@@ -1,8 +1,9 @@
 import pytest
-from ethereum.abi import ValueOutOfBounds
+from web3.exceptions import ValidationError
 
-TOKEN_NAME = "Vypercoin"
-TOKEN_SYMBOL = "FANG"
+
+TOKEN_NAME = b"Vypercoin"
+TOKEN_SYMBOL = b"FANG"
 TOKEN_DECIMALS = 18
 TOKEN_INITIAL_SUPPLY = (21 * 10 ** 6)
 TOKEN_TOTAL_SUPPLY = TOKEN_INITIAL_SUPPLY * (10 ** TOKEN_DECIMALS)
@@ -10,8 +11,9 @@ TOKEN_TOTAL_SUPPLY = TOKEN_INITIAL_SUPPLY * (10 ** TOKEN_DECIMALS)
 
 @pytest.fixture
 def erc20(get_contract):
-    erc20_code = open('examples/tokens/vypercoin.v.py').read()
-    return get_contract(erc20_code, args=[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY])
+    with open('examples/tokens/vypercoin.v.py') as f:
+        contract = get_contract(f.read(), *[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY])
+    return contract
 
 
 @pytest.fixture
@@ -55,57 +57,55 @@ def transferFrom(_from: address, _to: address, _value: int128(uint256)) -> bool:
 def allowance(_owner: address, _spender: address) -> uint256:
     return self.token_address.allowance(_owner, _spender)
     """
-    return get_contract(erc20_caller_code, args=[erc20.address])
+    return get_contract(erc20_caller_code, *[erc20.address])
 
 
 def pad_bytes32(instr):
     """ Pad a string \x00 bytes to return correct bytes32 representation. """
-    bstr = instr.encode()
-    return bstr + (32 - len(bstr)) * b'\x00'
+    return instr + (32 - len(instr)) * b'\x00'
 
 
-def test_initial_state(t, erc20_caller):
-    assert erc20_caller.totalSupply() == TOKEN_TOTAL_SUPPLY == erc20_caller.balanceOf(t.a0)
-    assert erc20_caller.balanceOf(t.a1) == 0
+def test_initial_state(w3, erc20_caller):
+    assert erc20_caller.totalSupply() == TOKEN_TOTAL_SUPPLY == erc20_caller.balanceOf(w3.eth.accounts[0])
+    assert erc20_caller.balanceOf(w3.eth.accounts[1]) == 0
     assert erc20_caller.name() == pad_bytes32(TOKEN_NAME)
     assert erc20_caller.symbol() == pad_bytes32(TOKEN_SYMBOL)
     assert erc20_caller.decimals() == TOKEN_DECIMALS
 
 
-def test_call_transfer(t, chain, erc20, erc20_caller, assert_tx_failed):
+def test_call_transfer(w3, erc20, erc20_caller, assert_tx_failed):
 
     # Basic transfer.
-    erc20.transfer(erc20_caller.address, 10)
+    erc20.transfer(erc20_caller.address, 10, transact={})
     assert erc20.balanceOf(erc20_caller.address) == 10
-    erc20_caller.transfer(t.a1, 10)
+    erc20_caller.transfer(w3.eth.accounts[1], 10, transact={})
     assert erc20.balanceOf(erc20_caller.address) == 0
-    assert erc20.balanceOf(t.a1) == 10
+    assert erc20.balanceOf(w3.eth.accounts[1]) == 10
 
     # more than allowed
-    assert_tx_failed(lambda: erc20_caller.transfer(t.a1, TOKEN_TOTAL_SUPPLY))
+    assert_tx_failed(lambda: erc20_caller.transfer(w3.eth.accounts[1], TOKEN_TOTAL_SUPPLY))
 
-    t.s = chain
     # Negative transfer value.
     assert_tx_failed(
-        function_to_test=lambda: erc20_caller.transfer(t.a1, -1),
-        exception=ValueOutOfBounds
+        function_to_test=lambda: erc20_caller.transfer(w3.eth.accounts[1], -1),
+        exception=ValidationError
     )
 
 
-def test_caller_approve_allowance(t, erc20, erc20_caller):
+def test_caller_approve_allowance(w3, erc20, erc20_caller):
     assert erc20_caller.allowance(erc20.address, erc20_caller.address) == 0
-    assert erc20.approve(erc20_caller.address, 10)
-    assert erc20_caller.allowance(t.a0, erc20_caller.address) == 10
+    assert erc20.approve(erc20_caller.address, 10, transact={})
+    assert erc20_caller.allowance(w3.eth.accounts[0], erc20_caller.address) == 10
 
 
-def test_caller_tranfer_from(t, erc20, erc20_caller, assert_tx_failed):
+def test_caller_tranfer_from(w3, erc20, erc20_caller, assert_tx_failed):
     # Cannot transfer tokens that are unavailable
-    assert_tx_failed(lambda: erc20_caller.transferFrom(t.a0, erc20_caller.address, 10))
+    assert_tx_failed(lambda: erc20_caller.transferFrom(w3.eth.accounts[0], erc20_caller.address, 10))
     assert erc20.balanceOf(erc20_caller.address) == 0
-    assert erc20.approve(erc20_caller.address, 10)
-    erc20_caller.transferFrom(t.a0, erc20_caller.address, 5)
+    assert erc20.approve(erc20_caller.address, 10, transact={})
+    erc20_caller.transferFrom(w3.eth.accounts[0], erc20_caller.address, 5, transact={})
     assert erc20.balanceOf(erc20_caller.address) == 5
-    assert erc20_caller.allowance(t.a0, erc20_caller.address) == 5
-    erc20_caller.transferFrom(t.a0, erc20_caller.address, 3)
+    assert erc20_caller.allowance(w3.eth.accounts[0], erc20_caller.address) == 5
+    erc20_caller.transferFrom(w3.eth.accounts[0], erc20_caller.address, 3, transact={})
     assert erc20.balanceOf(erc20_caller.address) == 8
-    assert erc20_caller.allowance(t.a0, erc20_caller.address) == 2
+    assert erc20_caller.allowance(w3.eth.accounts[0], erc20_caller.address) == 2

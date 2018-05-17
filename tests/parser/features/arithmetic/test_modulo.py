@@ -1,4 +1,5 @@
 from vyper.exceptions import TypeMismatchException
+from decimal import Decimal
 
 
 def test_modulo(get_contract_with_gas_estimation):
@@ -22,9 +23,9 @@ def num_modulo_decimal() -> decimal:
 """
     c = get_contract_with_gas_estimation(code)
     assert c.num_modulo_num() == 1
-    assert c.decimal_modulo_decimal() == .18
-    assert c.decimal_modulo_num() == .5
-    assert c.num_modulo_decimal() == .5
+    assert c.decimal_modulo_decimal() == Decimal('.18')
+    assert c.decimal_modulo_num() == Decimal('.5')
+    assert c.num_modulo_decimal() == Decimal('.5')
 
 
 def test_modulo_with_different_units(assert_compile_failed, get_contract_with_gas_estimation):

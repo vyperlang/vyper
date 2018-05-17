@@ -1,4 +1,7 @@
-from ethereum.abi import ValueOutOfBounds
+import pytest
+from web3.exceptions import (
+    ValidationError
+)
 
 
 def test_init_argument_test(get_contract_with_gas_estimation):
@@ -14,7 +17,7 @@ def returnMoose() -> int128:
     return self.moose
     """
 
-    c = get_contract_with_gas_estimation(init_argument_test, args=[5])
+    c = get_contract_with_gas_estimation(init_argument_test, *[5])
     assert c.returnMoose() == 5
     print('Passed init argument test')
 
@@ -31,7 +34,7 @@ def __init__(x: int128):
 def get_twox() -> int128:
     return self.twox
     """
-    c = get_contract_with_gas_estimation(constructor_advanced_code, args=[5])
+    c = get_contract_with_gas_estimation(constructor_advanced_code, *[5])
     assert c.get_twox() == 10
 
 
@@ -47,7 +50,7 @@ def __init__(x: int128[2], y: bytes[3], z: int128):
 def get_comb() -> int128:
     return self.comb
     """
-    c = get_contract_with_gas_estimation(constructor_advanced_code2, args=[[5, 7], "dog", 8])
+    c = get_contract_with_gas_estimation(constructor_advanced_code2, *[[5, 7], b"dog", 8])
     assert c.get_comb() == 5738
     print("Passed advanced init argument tests")
 
@@ -62,15 +65,12 @@ def foo(x: int128) -> int128:
     c = get_contract_with_gas_estimation(large_input_code)
     c.foo(1274124)
     c.foo(2**120)
-    try:
+
+    with pytest.raises(ValidationError):
         c.foo(2**130)
-        success = True
-    except ValueOutOfBounds:
-        success = False
-    assert not success
 
 
-def test_large_input_code_2(t, get_contract_with_gas_estimation):
+def test_large_input_code_2(w3, get_contract_with_gas_estimation):
     large_input_code_2 = """
 @public
 def __init__(x: int128):
@@ -81,12 +81,9 @@ def foo() -> int128:
     return 5
     """
 
-    get_contract_with_gas_estimation(large_input_code_2, args=[17], sender=t.k0, value=0)
-    try:
-        get_contract_with_gas_estimation(large_input_code_2, args=[2**130], sender=t.k0, value=0)
-        success = True
-    except ValueOutOfBounds:
-        success = False
-    assert not success
+    get_contract_with_gas_estimation(large_input_code_2, *[17])
+
+    with pytest.raises(TypeError):
+        get_contract_with_gas_estimation(large_input_code_2, *[2**130])
 
     print('Passed invalid input tests')
