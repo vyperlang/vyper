@@ -516,7 +516,11 @@ def parse_body(code, context):
     return LLLnode.from_list(['seq'] + o, pos=getpos(code[0]) if code else None)
 
 
-def external_contract_call(node, context, contract_name, contract_address, is_modifiable, pos):
+def external_contract_call(node, context, contract_name, contract_address, is_modifiable, pos, value=None, gas=None):
+    if value is None:
+        value = 0
+    if gas is None:
+        gas = 'gas'
     if contract_name not in context.sigs:
         raise VariableDeclarationException("Contract not declared yet: %s" % contract_name)
     method_name = node.func.attr
@@ -529,9 +533,9 @@ def external_contract_call(node, context, contract_name, contract_address, is_mo
     sub = ['seq', ['assert', ['extcodesize', contract_address]],
                     ['assert', ['ne', 'address', contract_address]]]
     if context.is_constant or not is_modifiable:
-        sub.append(['assert', ['staticcall', 'gas', contract_address, inargs, inargsize, output_placeholder, output_size]])
+        sub.append(['assert', ['staticcall', gas, contract_address, inargs, inargsize, output_placeholder, output_size]])
     else:
-        sub.append(['assert', ['call', 'gas', contract_address, 0, inargs, inargsize, output_placeholder, output_size]])
+        sub.append(['assert', ['call', gas, contract_address, value, inargs, inargsize, output_placeholder, output_size]])
     sub.extend(returner)
     o = LLLnode.from_list(sub, typ=sig.output_type, location='memory', pos=getpos(node))
     return o
@@ -726,9 +730,8 @@ def pack_logging_topics(event_id, args, expected_topics, context, pos):
     return topics
 
 
-def pack_args_by_32(
-        holder, maxlen, arg, typ, context, placeholder, *,
-        pos, dynamic_offset_counter=None, datamem_start=None):
+def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder,
+                    dynamic_offset_counter=None, datamem_start=None, zero_pad_i=None, pos=None):
     """
     Copy necessary variables to pre-allocated memory section.
 
@@ -768,6 +771,17 @@ def pack_args_by_32(
             typ=typ, location='memory', annotation="pack_args_by_32:dest_placeholder")
         copier = make_byte_array_copier(dest_placeholder, source_expr.lll_node)
         holder.append(copier)
+        # Add zero padding.
+        new_maxlen = ceil32(source_expr.lll_node.typ.maxlen)
+
+        holder.append(
+            ['with', '_bytearray_loc', dest_placeholder,
+                ['seq',
+                    ['repeat', zero_pad_i, ['mload', '_bytearray_loc'], new_maxlen,
+                        ['seq',
+                            ['if', ['ge', ['mload', zero_pad_i], new_maxlen], 'break'],  # stay within allocated bounds
+                            ['mstore8', ['add', ['add', '_bytearray_loc', 32], ['mload', zero_pad_i]], 0]]]]]
+        )
         # Increment offset counter.
         increment_counter = LLLnode.from_list(
             ['mstore', dynamic_offset_counter,
@@ -820,12 +834,15 @@ def pack_logging_data(expected_data, args, context, pos):
         return ['seq'], 0, None, 0
     holder = ['seq']
     maxlen = len(args) * 32  # total size of all packed args (upper limit)
+
     requires_dynamic_offset = any([isinstance(data.typ, ByteArrayType) for data in expected_data])
     if requires_dynamic_offset:
+        zero_pad_i = context.new_placeholder(BaseType('uint256'))  # Iterator used to zero pad memory.
         dynamic_offset_counter = context.new_placeholder(BaseType(32))
         dynamic_placeholder = context.new_placeholder(BaseType(32))
     else:
         dynamic_offset_counter = None
+        zero_pad_i = None
 
     # Populate static placeholders.
     placeholder_map = {}
@@ -834,7 +851,7 @@ def pack_logging_data(expected_data, args, context, pos):
         placeholder = context.new_placeholder(BaseType(32))
         placeholder_map[i] = placeholder
         if not isinstance(typ, ByteArrayType):
-            holder, maxlen = pack_args_by_32(holder, maxlen, arg, typ, context, placeholder, pos=pos)
+            holder, maxlen = pack_args_by_32(holder, maxlen, arg, typ, context, placeholder, zero_pad_i=zero_pad_i, pos=pos)
 
     # Dynamic position starts right after the static args.
     if requires_dynamic_offset:
@@ -864,6 +881,7 @@ def pack_logging_data(expected_data, args, context, pos):
                 placeholder=placeholder_map[i],
                 datamem_start=datamem_start,
                 dynamic_offset_counter=dynamic_offset_counter,
+                zero_pad_i=zero_pad_i,
                 pos=pos
             )
 

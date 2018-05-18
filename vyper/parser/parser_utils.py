@@ -51,6 +51,7 @@ class LLLnode():
         self.annotation = annotation
         self.mutable = mutable
         self.add_gas_estimate = add_gas_estimate
+
         # Determine this node's valency (1 if it pushes a value on the stack,
         # 0 otherwise) and checks to make sure the number and valencies of
         # children are correct. Also, find an upper bound on gas consumption
@@ -238,15 +239,24 @@ def get_number_as_fraction(expr, context):
     return context_slice[:t], top, bottom
 
 
-# Is a number of decimal form (e.g. 65281) or 0x form (e.g. 0xff01)
-def get_original_if_0x_prefixed(expr, context):
+# Is a number of decimal form (e.g. 65281) or 0x form (e.g. 0xff01) or 0b binary form (e.g. 0b0001)
+def get_original_if_0_prefixed(expr, context):
     context_slice = context.origcode.splitlines()[expr.lineno - 1][expr.col_offset:]
-    if context_slice[:2] != '0x':
+    type_prefix = context_slice[:2]
+
+    if type_prefix not in ('0x', '0b'):
         return None
-    t = 0
-    while t + 2 < len(context_slice) and context_slice[t + 2] in '0123456789abcdefABCDEF':
-        t += 1
-    return context_slice[:t + 2]
+
+    if type_prefix == '0x':
+        t = 0
+        while t + 2 < len(context_slice) and context_slice[t + 2] in '0123456789abcdefABCDEF':
+            t += 1
+        return context_slice[:t + 2]
+    elif type_prefix == '0b':
+        t = 0
+        while t + 2 < len(context_slice) and context_slice[t + 2] in '01':
+            t += 1
+        return context_slice[:t + 2]
 
 
 # Copies byte array
@@ -296,7 +306,7 @@ def make_byte_slice_copier(destination, source, length, max_length):
     if source.location == "memory" and destination.location == "memory":
         return LLLnode.from_list(['with', '_l', max_length,
                                     ['pop', ['call', 18 + max_length // 10, 4, 0, source,
-                                             '_l', destination, '_l']]], typ=None, annotation='copy byte slice')
+                                             '_l', destination, '_l']]], typ=None, annotation='copy byte slice dest: %s' % str(destination))
     # Copy over data
     if isinstance(source.typ, NullType):
         loader = 0

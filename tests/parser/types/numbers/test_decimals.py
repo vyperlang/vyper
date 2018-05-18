@@ -1,4 +1,7 @@
-def test_decimal_test(chain, check_gas, get_contract_with_gas_estimation):
+from decimal import Decimal
+
+
+def test_decimal_test(get_contract_with_gas_estimation):
     decimal_test = """
 @public
 def foo() -> int128:
@@ -59,7 +62,7 @@ def foop() -> int128:
     """
 
     c = get_contract_with_gas_estimation(decimal_test)
-    pre_txs = len(chain.head_state.receipts)
+
     assert c.foo() == 999
     assert c.fop() == 999
     assert c.foq() == 999
@@ -74,10 +77,8 @@ def foop() -> int128:
     assert c.foom() == 999
     assert c.foon() == 999
     assert c.foop() == 999
-    post_txs = len(chain.head_state.receipts)
 
     print('Passed basic addition, subtraction and multiplication tests')
-    check_gas(decimal_test, num_txs=(post_txs - pre_txs))
 
 
 def test_harder_decimal_test(get_contract_with_gas_estimation):
@@ -112,18 +113,18 @@ def iarg() -> wei_value:
     return x
     """
     c = get_contract_with_gas_estimation(harder_decimal_test)
-    assert c.phooey(1.2) == 20736.0
-    assert c.phooey(-1.2) == 20736.0
-    assert c.arg(-3.7) == -3.7
-    assert c.arg(3.7) == 3.7
-    assert c.garg() == 6.75
-    assert c.harg() == 9.0
-    assert c.iarg() == 14
+    assert c.phooey(Decimal('1.2')) == Decimal('20736.0')
+    assert c.phooey(Decimal('-1.2')) == Decimal('20736.0')
+    assert c.arg(Decimal('-3.7')) == Decimal('-3.7')
+    assert c.arg(Decimal('3.7')) == Decimal('3.7')
+    assert c.garg() == Decimal('6.75')
+    assert c.harg() == Decimal('9.0')
+    assert c.iarg() == Decimal('14')
 
     print('Passed fractional multiplication test')
 
 
-def test_mul_overflow(t, assert_tx_failed, get_contract_with_gas_estimation, chain):
+def test_mul_overflow(assert_tx_failed, get_contract_with_gas_estimation):
     mul_code = """
 
 @public
@@ -134,8 +135,7 @@ def _num_mul(x: decimal, y: int128) -> decimal:
 
     c = get_contract_with_gas_estimation(mul_code)
 
-    t.s = chain
-    NUM_1 = 85070591730234615865843651857942052864.0
+    NUM_1 = Decimal('85070591730234615865843651857942052864.0')
     NUM_2 = 136112946768375385385349842973
 
     assert_tx_failed(lambda: c._num_mul(NUM_1, NUM_2))

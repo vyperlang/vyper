@@ -2,7 +2,7 @@ import pytest
 from vyper.exceptions import TypeMismatchException
 
 
-def test_basic_bytes_keys(get_contract):
+def test_basic_bytes_keys(w3, get_contract):
     code = """
 mapped_bytes: int128[bytes[5]]
 
@@ -17,9 +17,9 @@ def get(k: bytes[5]) -> int128:
 
     c = get_contract(code)
 
-    c.set("test", 54321)
+    c.set(b"test", 54321, transact={})
 
-    assert c.get("test") == 54321
+    assert c.get(b"test") == 54321
 
 
 def test_basic_bytes_literal_key(get_contract):
@@ -37,9 +37,9 @@ def get(k: bytes[5]) -> int128:
 
     c = get_contract(code)
 
-    c.set(54321)
+    c.set(54321, transact={})
 
-    assert c.get("test") == 54321
+    assert c.get(b"test") == 54321
 
 
 def test_basic_long_bytes_as_keys(get_contract):
@@ -57,29 +57,9 @@ def get(k: bytes[34]) -> int128:
 
     c = get_contract(code)
 
-    c.set("a" * 34, 6789)
+    c.set(b"a" * 34, 6789, transact={'gas': 10**6})
 
-    assert c.get("a" * 34) == 6789
-
-
-def test_basic_very_long_bytes_as_keys(get_contract):
-    code = """
-mapped_bytes: int128[bytes[4096]]
-
-@public
-def set(k: bytes[4096], v: int128):
-    self.mapped_bytes[k] = v
-
-@public
-def get(k: bytes[4096]) -> int128:
-    return self.mapped_bytes[k]
-    """
-
-    c = get_contract(code)
-
-    c.set("test" * 1024, 6789)
-
-    assert c.get("test" * 1024) == 6789
+    assert c.get(b"a" * 34) == 6789
 
 
 def test_mismatched_byte_length(get_contract):

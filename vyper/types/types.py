@@ -167,7 +167,7 @@ def canonicalize_type(t, is_indexed=False):
     elif t == 'int128' and uint256_override:
         return 'uint256'
     elif t == 'decimal':
-        return 'decimal10'
+        return 'fixed168x10'
     elif t == 'bool':
         return 'bool'
     elif t == 'uint256':

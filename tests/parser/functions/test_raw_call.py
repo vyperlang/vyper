@@ -1,4 +1,3 @@
-from ethereum.tools import tester
 
 
 def test_caller_code(get_contract_with_gas_estimation):
@@ -24,7 +23,7 @@ def baz() -> bytes[7]:
     print('Passed raw call test')
 
 
-def test_multiple_levels(get_contract_with_gas_estimation, chain):
+def test_multiple_levels(w3, get_contract_with_gas_estimation):
     inner_code = """
 @public
 def returnten() -> int128:
@@ -48,17 +47,21 @@ def create_and_return_forwarder(inp: address) -> address:
 
     c2 = get_contract_with_gas_estimation(outer_code)
     assert c2.create_and_call_returnten(c.address) == 10
+    c2.create_and_call_returnten(c.address, transact={})
     expected_forwarder_code_mask = b'`.`\x0c`\x009`.`\x00\xf36`\x00`\x007a\x10\x00`\x006`\x00s\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00Z\xf4\x15XWa\x10\x00`\x00\xf3'[12:]
-    c3 = c2.create_and_return_forwarder(c.address)
-    assert chain.head_state.get_code(c3)[:15] == expected_forwarder_code_mask[:15]
-    assert chain.head_state.get_code(c3)[35:] == expected_forwarder_code_mask[35:]
+    c3 = c2.create_and_return_forwarder(c.address, call={})
+    c2.create_and_return_forwarder(c.address, transact={})
+
+    c3_contract_code = w3.toBytes(w3.eth.getCode(c3))
+    assert c3_contract_code[:15] == expected_forwarder_code_mask[:15]
+    assert c3_contract_code[35:] == expected_forwarder_code_mask[35:]
 
     print('Passed forwarder test')
     # TODO: This one is special
-    print('Gas consumed: %d' % (chain.head_state.receipts[-1].gas_used - chain.head_state.receipts[-2].gas_used - chain.last_tx.intrinsic_gas_used))
+    # print('Gas consumed: %d' % (chain.head_state.receipts[-1].gas_used - chain.head_state.receipts[-2].gas_used - chain.last_tx.intrinsic_gas_used))
 
 
-def test_multiple_levels2(get_contract_with_gas_estimation):
+def test_multiple_levels2(assert_tx_failed, get_contract_with_gas_estimation):
     inner_code = """
 @public
 def returnten() -> int128:
@@ -81,11 +84,7 @@ def create_and_return_forwarder(inp: address) -> address:
     """
 
     c2 = get_contract_with_gas_estimation(outer_code)
-    try:
-        c2.create_and_call_returnten(c.address)
-        success = True
-    except tester.TransactionFailed:
-        success = False
-    assert not success
+
+    assert_tx_failed(lambda: c2.create_and_call_returnten(c.address))
 
     print('Passed forwarder exception test')

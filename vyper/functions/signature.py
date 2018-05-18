@@ -1,7 +1,7 @@
 import ast
 
 from vyper.parser.parser_utils import (
-    get_original_if_0x_prefixed,
+    get_original_if_0_prefixed,
 )
 from vyper.exceptions import (
     TypeMismatchException,
@@ -35,10 +35,10 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
     vsub = None
     for expected_arg in expected_arg_typelist:
         if expected_arg == 'num_literal':
-            if isinstance(arg, ast.Num) and get_original_if_0x_prefixed(arg, context) is None:
+            if isinstance(arg, ast.Num) and get_original_if_0_prefixed(arg, context) is None:
                 return arg.n
         elif expected_arg == 'str_literal':
-            if isinstance(arg, ast.Str) and get_original_if_0x_prefixed(arg, context) is None:
+            if isinstance(arg, ast.Str) and get_original_if_0_prefixed(arg, context) is None:
                 bytez = b''
                 for c in arg.s:
                     if ord(c) >= 256:

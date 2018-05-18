@@ -1,4 +1,4 @@
-def test_convert_to_num(chain, get_contract_with_gas_estimation, assert_tx_failed):
+def test_convert_to_num(get_contract_with_gas_estimation, assert_tx_failed):
     code = """
 a: int128
 b: uint256
@@ -48,7 +48,7 @@ def zero_bytes(inp: bytes[1]) -> int128:
     assert c.zero_bytes(b'\x00') == 0
 
 
-def test_convert_to_uint256(t, chain, get_contract, utils, assert_tx_failed):
+def test_convert_to_uint256(get_contract, assert_tx_failed):
     code = """
 a: int128
 b: bytes32
@@ -75,7 +75,7 @@ def bytes32_to_uint256() -> (uint256, uint256):
     assert c.bytes32_to_uint256() == [1, 1]
 
 
-def test_convert_to_decimal(t, chain, get_contract, utils, assert_tx_failed):
+def test_convert_to_decimal(get_contract, assert_tx_failed):
     code = """
 a: int128
 b: decimal
@@ -92,7 +92,7 @@ def int128_to_decimal(inp: int128) -> (decimal, decimal, decimal):
     assert c.int128_to_decimal(1) == [1.0, 1.0, 1.0]
 
 
-def test_convert_to_bytes32(t, get_contract_with_gas_estimation, bytes_helper):
+def test_convert_to_bytes32(w3, get_contract_with_gas_estimation, bytes_helper):
     code = """
 a: int128
 b: uint256
@@ -132,5 +132,5 @@ def bytes_to_bytes32(inp: bytes[32]) -> (bytes32, bytes32):
     c = get_contract_with_gas_estimation(code)
     assert c.int128_to_bytes32(1) == [bytes_helper('', 31) + b'\x01'] * 3
     assert c.uint256_to_bytes32(1) == [bytes_helper('', 31) + b'\x01'] * 3
-    assert c.address_to_bytes32(t.a0) == [bytes_helper('', 12) + t.a0] * 2
+    assert c.address_to_bytes32(w3.eth.accounts[0]) == [bytes_helper('', 12) + w3.toBytes(hexstr=w3.eth.accounts[0])] * 2
     assert c.bytes_to_bytes32(bytes_helper('', 32)) == [bytes_helper('', 32)] * 2

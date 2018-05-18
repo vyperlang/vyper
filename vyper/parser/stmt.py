@@ -413,23 +413,42 @@ class Stmt(object):
             if sub.typ.maxlen > self.context.return_type.maxlen:
                 raise TypeMismatchException("Cannot cast from greater max-length %d to shorter max-length %d" %
                                             (sub.typ.maxlen, self.context.return_type.maxlen), self.stmt.value)
+
+            zero_padder = LLLnode.from_list(['pass'])
+            if sub.typ.maxlen > 0:
+                zero_pad_i = self.context.new_placeholder(BaseType('uint256'))  # Iterator used to zero pad memory.
+                zero_padder = LLLnode.from_list(
+                    ['repeat', zero_pad_i, ['mload', '_loc'], sub.typ.maxlen,
+                        ['seq',
+                            ['if', ['gt', ['mload', zero_pad_i], sub.typ.maxlen], 'break'],  # stay within allocated bounds
+                            ['mstore8', ['add', ['add', 32, '_loc'], ['mload', zero_pad_i]], 0]]],
+                    annotation="Zero pad"
+                )
+
             # Returning something already in memory
             if sub.location == 'memory':
-                return LLLnode.from_list(['with', '_loc', sub,
-                                            ['seq',
-                                                ['mstore', ['sub', '_loc', 32], 32],
-                                                ['return', ['sub', '_loc', 32], ['ceil32', ['add', ['mload', '_loc'], 64]]]]], typ=None, pos=getpos(self.stmt))
+                return LLLnode.from_list(
+                    ['with', '_loc', sub,
+                        ['seq',
+                            ['mstore', ['sub', '_loc', 32], 32],
+                            zero_padder,
+                            ['return', ['sub', '_loc', 32], ['ceil32', ['add', ['mload', '_loc'], 64]]]]], typ=None, pos=getpos(self.stmt))
+
             # Copying from storage
             elif sub.location == 'storage':
                 # Instantiate a byte array at some index
                 fake_byte_array = LLLnode(self.context.get_next_mem() + 32, typ=sub.typ, location='memory', pos=getpos(self.stmt))
-                o = ['seq',
+                o = [
+                    'with', '_loc', self.context.get_next_mem() + 32,
+                    ['seq',
                         # Copy the data to this byte array
                         make_byte_array_copier(fake_byte_array, sub),
                         # Store the number 32 before it for ABI formatting purposes
                         ['mstore', self.context.get_next_mem(), 32],
+                        zero_padder,
                         # Return it
                         ['return', self.context.get_next_mem(), ['add', ['ceil32', ['mload', self.context.get_next_mem() + 32]], 64]]]
+                ]
                 return LLLnode.from_list(o, typ=None, pos=getpos(self.stmt))
             else:
                 raise Exception("Invalid location: %s" % sub.location)

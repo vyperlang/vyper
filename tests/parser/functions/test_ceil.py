@@ -1,3 +1,6 @@
+from decimal import Decimal
+
+
 def test_ceil(get_contract_with_gas_estimation):
     code = """
 x: decimal
@@ -94,5 +97,5 @@ def ceil_param(p: decimal) -> int128:
     assert c.fos() == -5472
     assert c.fot() == -170141183460469231731687303715884105727
     assert c.fou() == -3
-    assert c.ceil_param(-0.5) == 0
-    assert c.ceil_param(-7777777.7777777) == -7777777
+    assert c.ceil_param(Decimal('-0.5')) == 0
+    assert c.ceil_param(Decimal('-7777777.7777777')) == -7777777
