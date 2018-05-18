@@ -116,7 +116,7 @@ RLP_DECODER_ADDRESS = hex_to_int('0x5185D17c44699cecC3133114F8df70753b856709')
 base_types = ['int128', 'decimal', 'bytes32', 'uint256', 'int256', 'bool', 'address']
 
 # Keywords available for ast.Call type
-valid_call_keywords = ['int128', 'decimal', 'address', 'contract', 'indexed']
+valid_call_keywords = ['int128', 'uint256', 'decimal', 'address', 'contract', 'indexed']
 
 # Valid base units
 valid_units = ['currency', 'wei', 'sec', 'm', 'kg']
