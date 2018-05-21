@@ -19,7 +19,7 @@ This is the suggested template for new VIPs.
 A short description of the technical issue being addressed.
 
 ## Motivation
-The motivation is critical for VIPs that add or change Vyper's functionality. It should clearly explain why the existing Vyper functionality is inadequate to address the problem that the VIP solves as well as how the VIP is in line with Vyper's goals and design philosopy.
+The motivation is critical for VIPs that add or change Vyper's functionality. It should clearly explain why the existing Vyper functionality is inadequate to address the problem that the VIP solves as well as how the VIP is in line with Vyper's goals and design philosophy.
 
 ## Specification
 The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow any developer to implement the functionality
