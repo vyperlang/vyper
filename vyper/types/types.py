@@ -272,7 +272,7 @@ def parse_type(item, location, sigs=None, custom_units=None):
                 return ByteArrayType(item.slice.value.n)
             # List
             else:
-                return ListType(parse_type(item.value, location), item.slice.value.n)
+                return ListType(parse_type(item.value, location, custom_units=custom_units), item.slice.value.n)
         # Mappings, e.g. num[address]
         else:
             if location == 'memory':
@@ -280,17 +280,17 @@ def parse_type(item, location, sigs=None, custom_units=None):
             keytype = parse_type(item.slice.value, None)
             if not isinstance(keytype, (BaseType, ByteArrayType)):
                 raise InvalidTypeException("Mapping keys must be base or bytes types", item.slice.value)
-            return MappingType(keytype, parse_type(item.value, location))
+            return MappingType(keytype, parse_type(item.value, location, custom_units=custom_units))
     # Dicts, used to represent mappings, e.g. {uint: uint}. Key must be a base type
     elif isinstance(item, ast.Dict):
         o = {}
         for key, value in zip(item.keys, item.values):
             if not isinstance(key, ast.Name) or not is_varname_valid(key.id, custom_units):
                 raise InvalidTypeException("Invalid member variable for struct", key)
-            o[key.id] = parse_type(value, location)
+            o[key.id] = parse_type(value, location, custom_units=custom_units)
         return StructType(o)
     elif isinstance(item, ast.Tuple):
-        members = [parse_type(x, location) for x in item.elts]
+        members = [parse_type(x, location, custom_units=custom_units) for x in item.elts]
         return TupleType(members)
     else:
         raise InvalidTypeException("Invalid type: %r" % ast.dump(item), item)
