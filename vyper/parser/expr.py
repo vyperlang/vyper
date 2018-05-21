@@ -259,6 +259,8 @@ class Expr(object):
                 val = left.value / right.value
             elif isinstance(self.expr.op, ast.Mod):
                 val = left.value % right.value
+            elif isinstance(self.expr.op, ast.Pow):
+                val = left.value ** right.value
             else:
                 raise ParserException('Unsupported literal operator: %s' % str(type(self.expr.op)), self.expr)
 

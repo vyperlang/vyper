@@ -1,4 +1,4 @@
-from vyper.exceptions import TypeMismatchException
+from vyper.exceptions import TypeMismatchException, InvalidLiteralException
 from decimal import Decimal
 
 
@@ -131,3 +131,80 @@ def foo():
     c = a ** b
 """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatchException)
+
+
+def test_overflow_out_of_range(get_contract, assert_compile_failed):
+    code = """
+@public
+def num_sub() -> int128:
+    return 1-2**256
+    """
+
+    assert_compile_failed(lambda: get_contract(code), InvalidLiteralException)
+
+
+def test_overflow_add(get_contract, assert_tx_failed):
+    code = """
+@public
+def num_add(i: int128) -> int128:
+    return (2**127-1) + i
+    """
+    c = get_contract(code)
+
+    assert c.num_add(0) == 2**127 - 1
+    assert c.num_add(-1) == 2**127 - 2
+
+    assert_tx_failed(lambda: c.num_add(1))
+    assert_tx_failed(lambda: c.num_add(2))
+
+
+def test_overflow_add_vars(get_contract, assert_tx_failed):
+    code = """
+@public
+def num_add(a: int128, b: int128) -> int128:
+    return a + b
+    """
+    c = get_contract(code)
+
+    assert_tx_failed(lambda: c.num_add(2**127 - 1, 1))
+    assert_tx_failed(lambda: c.num_add(1, 2**127 - 1))
+
+
+def test_overflow_sub_vars(get_contract, assert_tx_failed):
+    code = """
+@public
+def num_sub(a: int128, b: int128) -> int128:
+    return a - b
+    """
+
+    c = get_contract(code)
+
+    assert c.num_sub(-2**127, -1) == (-2**127) + 1
+    assert_tx_failed(lambda: c.num_sub(-2**127, 1))
+
+
+def test_overflow_mul_vars(get_contract, assert_tx_failed):
+    code = """
+@public
+def num_mul(a: int128, b: int128) -> int128:
+    return a * b
+    """
+
+    c = get_contract(code)
+
+    assert c.num_mul(-2**127, 1) == -2**127
+    assert_tx_failed(lambda: c.num_mul(2**126, 2))
+
+
+def test_overflow_pow_vars(get_contract, assert_tx_failed):
+    code = """
+@public
+def num_pow(a: int128, b: int128) -> int128:
+    return a ** b
+    """
+
+    c = get_contract(code)
+
+    assert c.num_pow(-2, 127) == (-2**127)
+    assert c.num_pow(2, 126) == (2**126)
+    assert_tx_failed(lambda: c.num_pow(2**126, 2))
