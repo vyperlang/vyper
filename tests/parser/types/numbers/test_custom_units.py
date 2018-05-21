@@ -42,3 +42,24 @@ def test() -> int128(cm):
     c = get_contract_with_gas_estimation(code)
 
     assert c.test() == 101
+
+
+def test_custom_units_public(get_contract_with_gas_estimation):
+    code = """
+units: {
+    mm: "millimeter"
+}
+
+a: int128(mm)
+b: public(int128(mm))
+
+
+@public
+def test() -> int128(mm):
+    self.a = 111
+    return self.a
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.test() == 111

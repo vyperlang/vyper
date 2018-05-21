@@ -276,7 +276,7 @@ def add_globals_and_events(_custom_units, _contracts, _defs, _events, _getters, 
         if isinstance(item.annotation.args[0], ast.Name) and item_name in _contracts:
             typ = BaseType('address', item_name)
         else:
-            typ = parse_type(item.annotation.args[0], 'storage')
+            typ = parse_type(item.annotation.args[0], 'storage', custom_units=_custom_units)
         _globals[item.target.id] = VariableRecord(item.target.id, len(_globals), typ, True)
         # Adding getters here
         for getter in mk_getter(item.target.id, typ):
