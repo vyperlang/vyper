@@ -22,8 +22,17 @@ setup(
     url='https://github.com/ethereum/vyper',
     license=license,
     packages=find_packages(exclude=('tests', 'docs')),
-    install_requires=['py-evm==0.2.0a16'],
+    install_requires=['py-evm>=0.2.0a16,<1.0.0'],
     setup_requires=['pytest-runner'],
-    tests_require=['pytest', 'pytest-cov', 'eth-tester==0.1.0b24'],
-    scripts=['bin/vyper', 'bin/vyper-serve', 'bin/vyper-run']
+    tests_require=[
+        'pytest',
+        'pytest-cov',
+        'eth-tester==0.1.0b24',
+        'py-evm==0.2.0a16',
+    ],
+    scripts=[
+        'bin/vyper',
+        'bin/vyper-serve',
+        'bin/vyper-run',
+    ]
 )
