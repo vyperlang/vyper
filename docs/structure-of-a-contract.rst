@@ -56,6 +56,7 @@ Events may be logged in specially indexed data structures that allow clients, in
     total_paid: int128
 
     @public
+    @payable
     def pay():
         self.total_paid += msg.value
         log.Payment(msg.value, msg.sender)
