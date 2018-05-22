@@ -8,6 +8,6 @@ if (sys.version_info.major, sys.version_info.minor) < (3, 6):
 
 
 try:
-	__version__ = pkg_resources.get_distribution('vyper').version
+    __version__ = pkg_resources.get_distribution('vyper').version
 except pkg_resources.DistributionNotFound:
-	__version__ = 'development'
+    __version__ = 'development'

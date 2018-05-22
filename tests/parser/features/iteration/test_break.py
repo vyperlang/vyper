@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+
 def test_break_test(get_contract_with_gas_estimation):
     break_test = """
 @public
