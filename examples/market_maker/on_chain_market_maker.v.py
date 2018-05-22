@@ -24,10 +24,10 @@ def initiate(token_addr: address, token_quantity: currency_value):
 @public
 @payable
 def eth_to_tokens():
-    fee: wei_value = floor(msg.value / 500)
+    fee: wei_value = msg.value / 500
     eth_in_purchase: wei_value = msg.value - fee
     new_total_eth: wei_value = self.total_eth_qty + eth_in_purchase
-    new_total_tokens: currency_value = floor(self.invariant / new_total_eth)
+    new_total_tokens: currency_value = self.invariant / new_total_eth
     self.token_address.transfer(msg.sender,
                                 convert(self.total_token_qty - new_total_tokens, 'uint256'))
     self.total_eth_qty = new_total_eth
@@ -38,7 +38,7 @@ def eth_to_tokens():
 def tokens_to_eth(sell_quantity: currency_value):
     self.token_address.transferFrom(msg.sender, self, convert(sell_quantity, 'uint256'))
     new_total_tokens: currency_value = self.total_token_qty + sell_quantity
-    new_total_eth: wei_value = floor(self.invariant / new_total_tokens)
+    new_total_eth: wei_value = self.invariant / new_total_tokens
     eth_to_send: wei_value = self.total_eth_qty - new_total_eth
     send(msg.sender, eth_to_send)
     self.total_eth_qty = new_total_eth

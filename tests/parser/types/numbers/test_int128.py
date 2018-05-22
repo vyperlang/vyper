@@ -21,21 +21,22 @@ def _num_exp(x: int128, y: int128) -> int128:
 def test_num_divided_by_num(get_contract_with_gas_estimation):
     code = """
 @public
-def foo(inp: int128) -> decimal:
-    y: decimal = 5/inp
+def foo(inp: int128) -> int128:
+    y: int128 = 5/inp
     return y
 """
     c = get_contract_with_gas_estimation(code)
-    assert c.foo(2) == Decimal('2.5')
-    assert c.foo(10) == Decimal('.5')
-    assert c.foo(50) == Decimal('0.1')
+    assert c.foo(2) == 2
+    assert c.foo(5) == 1
+    assert c.foo(10) == 0
+    assert c.foo(50) == 0
 
 
 def test_decimal_divided_by_num(get_contract_with_gas_estimation):
     code = """
 @public
 def foo(inp: decimal) -> decimal:
-    y: decimal = inp/5
+    y: decimal = inp/5.0
     return y
 """
     c = get_contract_with_gas_estimation(code)

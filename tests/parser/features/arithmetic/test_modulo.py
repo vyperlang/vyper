@@ -14,12 +14,12 @@ def decimal_modulo_decimal() -> decimal:
 
 @public
 def decimal_modulo_num() -> decimal:
-    return .5 % 1
+    return .5 % 1.0
 
 
 @public
 def num_modulo_decimal() -> decimal:
-    return 1.5 % 1
+    return 1.5 % 1.0
 """
     c = get_contract_with_gas_estimation(code)
     assert c.num_modulo_num() == 1
@@ -49,8 +49,8 @@ def foo(a: int128(sec, positional), b: int128):
 def test_modulo_with_input_of_zero(assert_tx_failed, get_contract_with_gas_estimation):
     code = """
 @public
-def foo(a: int128, b: decimal) -> decimal:
+def foo(a: decimal, b: decimal) -> decimal:
     return a % b
 """
     c = get_contract_with_gas_estimation(code)
-    assert_tx_failed(lambda: c.foo(1, 0))
+    assert_tx_failed(lambda: c.foo(Decimal('1'), Decimal('0')))

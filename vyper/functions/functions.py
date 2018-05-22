@@ -630,12 +630,12 @@ def minmax(expr, args, kwargs, context, is_min):
         o = ['if', [comparator, '_l', '_r'], '_r', '_l']
         otyp = left.typ
         otyp.is_literal = False
-    elif left.typ.typ == 'int128' and right.typ.typ == 'decimal':
-        o = ['if', [comparator, ['mul', '_l', DECIMAL_DIVISOR], '_r'], '_r', ['mul', '_l', DECIMAL_DIVISOR]]
-        otyp = 'decimal'
-    elif left.typ.typ == 'decimal' and right.typ.typ == 'int128':
-        o = ['if', [comparator, '_l', ['mul', '_r', DECIMAL_DIVISOR]], ['mul', '_r', DECIMAL_DIVISOR], '_l']
-        otyp = 'decimal'
+    # elif left.typ.typ == 'int128' and right.typ.typ == 'decimal':
+    #     o = ['if', [comparator, ['mul', '_l', DECIMAL_DIVISOR], '_r'], '_r', ['mul', '_l', DECIMAL_DIVISOR]]
+    #     otyp = 'decimal'
+    # elif left.typ.typ == 'decimal' and right.typ.typ == 'int128':
+    #     o = ['if', [comparator, '_l', ['mul', '_r', DECIMAL_DIVISOR]], ['mul', '_r', DECIMAL_DIVISOR], '_l']
+    #     otyp = 'decimal'
     else:
         raise TypeMismatchException("Minmax types incompatible: %s %s" % (left.typ.typ, right.typ.typ))
     return LLLnode.from_list(['with', '_l', left, ['with', '_r', right, o]], typ=otyp, pos=getpos(expr))
