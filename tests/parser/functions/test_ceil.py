@@ -33,10 +33,12 @@ def fos() -> int128:
 def fou() -> int128:
     a: int128 = 305
     b: int128 = 100
-    c: decimal = a / b
+    c: decimal = convert(a, 'decimal') / convert(b, 'decimal')
     return ceil(c)
-"""
+    """
+
     c = get_contract_with_gas_estimation(code)
+
     assert c.x_ceil() == 505
     assert c.foo() == 1
     assert c.fop() == 1
@@ -80,16 +82,18 @@ def fot() -> int128:
 
 @public
 def fou() -> int128:
-    a: int128 = -305
-    b: int128 = 100
+    a: decimal = -305.0
+    b: decimal = 100.0
     c: decimal = a / b
     return ceil(c)
 
 @public
 def ceil_param(p: decimal) -> int128:
     return ceil(p)
-"""
+    """
+
     c = get_contract_with_gas_estimation(code)
+
     assert c.x_ceil() == -504
     assert c.foo() == -11
     assert c.fop() == -5

@@ -264,7 +264,7 @@ class Expr(object):
             else:
                 raise ParserException('Unsupported literal operator: %s' % str(type(self.expr.op)), self.expr)
 
-            # For scenario where mul and div produce a whole number:
+            # For scenario were mul and div produce a whole number:
             if isinstance(val, float) and val.is_integer():
                 val = int(val)
 
@@ -275,14 +275,14 @@ class Expr(object):
 
             return Expr.parse_value_expr(num, self.context)
 
-        # Special case with uint256 where int literal may be casted.
+        # Special case with uint256 were int literal may be casted.
         if arithmetic_pair == ('uint256', 'int128') and right.typ.is_literal and right.value >= 0:
             right = LLLnode.from_list(right.value, typ=BaseType('uint256', None, is_literal=True), pos=getpos(self.expr))
             arithmetic_pair = (left.typ.typ, right.typ.typ)
 
-        # not uint256 implicit conversion may occur.
-        if 'uint256' in arithmetic_pair and arithmetic_pair != ('uint256', 'uint256'):
-            raise TypeMismatchException("Cannot Implicitly convert uint256 types", self.expr)
+        # Only allow explicit conversions to occur.
+        if left.typ.typ != right.typ.typ:
+            raise TypeMismatchException("Cannot implicitly convert {} to {}.".format(left.typ.typ, right.typ.typ), self.expr)
 
         ltyp, rtyp = left.typ.typ, right.typ.typ
         if isinstance(self.expr.op, (ast.Add, ast.Sub)):
@@ -305,12 +305,6 @@ class Expr(object):
                                 ['sub', left, right]], typ=BaseType('uint256', new_unit, new_positional), pos=getpos(self.expr))
             elif ltyp == rtyp:
                 o = LLLnode.from_list([op, left, right], typ=BaseType(ltyp, new_unit, new_positional), pos=getpos(self.expr))
-            elif ltyp == 'int128' and rtyp == 'decimal':
-                o = LLLnode.from_list([op, ['mul', left, DECIMAL_DIVISOR], right],
-                                      typ=BaseType('decimal', new_unit, new_positional), pos=getpos(self.expr))
-            elif ltyp == 'decimal' and rtyp == 'int128':
-                o = LLLnode.from_list([op, left, ['mul', right, DECIMAL_DIVISOR]],
-                                      typ=BaseType('decimal', new_unit, new_positional), pos=getpos(self.expr))
             else:
                 raise Exception("Unsupported Operation '%r(%r, %r)'" % (op, ltyp, rtyp))
         elif isinstance(self.expr.op, ast.Mult):
@@ -331,12 +325,6 @@ class Expr(object):
                                             ['seq',
                                                 ['assert', ['or', ['eq', ['sdiv', 'ans', 'l'], 'r'], ['iszero', 'l']]],
                                                 ['sdiv', 'ans', DECIMAL_DIVISOR]]]]], typ=BaseType('decimal', new_unit), pos=getpos(self.expr))
-            elif (ltyp == 'int128' and rtyp == 'decimal') or (ltyp == 'decimal' and rtyp == 'int128'):
-                o = LLLnode.from_list(['with', 'r', right, ['with', 'l', left,
-                                        ['with', 'ans', ['mul', 'l', 'r'],
-                                            ['seq',
-                                                ['assert', ['or', ['eq', ['sdiv', 'ans', 'l'], 'r'], ['iszero', 'l']]],
-                                                'ans']]]], typ=BaseType('decimal', new_unit), pos=getpos(self.expr))
             else:
                 raise Exception("Unsupported Operation 'mul(%r, %r)'" % (ltyp, rtyp))
         elif isinstance(self.expr.op, ast.Div):
@@ -349,16 +337,11 @@ class Expr(object):
                                 ['assert', right],
                                 ['div', left, right]], typ=BaseType('uint256', new_unit), pos=getpos(self.expr))
             elif ltyp == rtyp == 'int128':
-                o = LLLnode.from_list(['sdiv', ['mul', left, DECIMAL_DIVISOR], ['clamp_nonzero', right]], typ=BaseType('decimal', new_unit), pos=getpos(self.expr))
+                o = LLLnode.from_list(['sdiv', left, ['clamp_nonzero', right]], typ=BaseType('int128', new_unit), pos=getpos(self.expr))
             elif ltyp == rtyp == 'decimal':
                 o = LLLnode.from_list(['with', 'l', left, ['with', 'r', ['clamp_nonzero', right],
                                             ['sdiv', ['mul', 'l', DECIMAL_DIVISOR], 'r']]],
                                       typ=BaseType('decimal', new_unit), pos=getpos(self.expr))
-            elif ltyp == 'int128' and rtyp == 'decimal':
-                o = LLLnode.from_list(['sdiv', ['mul', left, DECIMAL_DIVISOR ** 2], ['clamp_nonzero', right]],
-                                      typ=BaseType('decimal', new_unit), pos=getpos(self.expr))
-            elif ltyp == 'decimal' and rtyp == 'int128':
-                o = LLLnode.from_list(['sdiv', left, ['clamp_nonzero', right]], typ=BaseType('decimal', new_unit), pos=getpos(self.expr))
             else:
                 raise Exception("Unsupported Operation 'div(%r, %r)'" % (ltyp, rtyp))
         elif isinstance(self.expr.op, ast.Mod):
@@ -373,12 +356,6 @@ class Expr(object):
                                 ['mod', left, right]], typ=BaseType('uint256', new_unit), pos=getpos(self.expr))
             elif ltyp == rtyp:
                 o = LLLnode.from_list(['smod', left, ['clamp_nonzero', right]], typ=BaseType(ltyp, new_unit), pos=getpos(self.expr))
-            elif ltyp == 'decimal' and rtyp == 'int128':
-                o = LLLnode.from_list(['smod', left, ['mul', ['clamp_nonzero', right], DECIMAL_DIVISOR]],
-                                      typ=BaseType('decimal', new_unit), pos=getpos(self.expr))
-            elif ltyp == 'int128' and rtyp == 'decimal':
-                o = LLLnode.from_list(['smod', ['mul', left, DECIMAL_DIVISOR], ['clamp_nonzero', right]],
-                                      typ=BaseType('decimal', new_unit), pos=getpos(self.expr))
             else:
                 raise Exception("Unsupported Operation 'mod(%r, %r)'" % (ltyp, rtyp))
         elif isinstance(self.expr.op, ast.Pow):

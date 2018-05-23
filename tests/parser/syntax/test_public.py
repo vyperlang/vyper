@@ -13,7 +13,7 @@ y: public(int128(wei / sec ** 2))
 z: public(int128(1 / sec))
 
 @public
-def foo() -> decimal(sec ** 2):
+def foo() -> int128(sec ** 2):
     return self.x / self.y / self.z
     """
 ]

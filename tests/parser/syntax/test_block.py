@@ -106,7 +106,7 @@ def add_record():
     """,
     """
 @public
-def foo() -> decimal(wei / sec):
+def foo() -> int128(wei / sec):
     x: int128(wei) = as_wei_value(5, "finney")
     y: int128(sec) = block.timestamp + 50 - block.timestamp
     return x / y

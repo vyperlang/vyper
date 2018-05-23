@@ -25,10 +25,6 @@ def baz() -> int128:
     return(floor(x * 37.0))
 
 @public
-def baffle() -> int128:
-    return(floor(27.0 * 37))
-
-@public
 def mok() -> int128:
     return(floor(999999.0 / 7.0 / 11.0 / 13.0))
 
@@ -41,24 +37,16 @@ def mom() -> int128:
     return(floor(1498.5 / 1.5))
 
 @public
-def mon() -> int128:
-    return(floor(2997.0 / 3))
-
-@public
 def moo() -> int128:
-    return(floor(2997 / 3.0))
+    return(floor(2997.0 / 3.0))
 
 @public
 def foom() -> int128:
     return(floor(1999.0 % 1000.0))
 
 @public
-def foon() -> int128:
-    return(floor(1999.0 % 1000))
-
-@public
 def foop() -> int128:
-    return(floor(1999 % 1000.0))
+    return(floor(1999.0 % 1000.0))
     """
 
     c = get_contract_with_gas_estimation(decimal_test)
@@ -68,14 +56,11 @@ def foop() -> int128:
     assert c.foq() == 999
     assert c.bar() == 999
     assert c.baz() == 999
-    assert c.baffle() == 999
     assert c.mok() == 999
     assert c.mol() == 999
     assert c.mom() == 999
-    assert c.mon() == 999
     assert c.moo() == 999
     assert c.foom() == 999
-    assert c.foon() == 999
     assert c.foop() == 999
 
     print('Passed basic addition, subtraction and multiplication tests')
@@ -103,7 +88,7 @@ def garg() -> decimal:
 @public
 def harg() -> decimal:
     x: decimal = 4.5
-    x *= 2
+    x *= 2.0
     return x
 
 @public
@@ -112,6 +97,7 @@ def iarg() -> wei_value:
     x *= 2
     return x
     """
+
     c = get_contract_with_gas_estimation(harder_decimal_test)
     assert c.phooey(Decimal('1.2')) == Decimal('20736.0')
     assert c.phooey(Decimal('-1.2')) == Decimal('20736.0')
@@ -128,14 +114,14 @@ def test_mul_overflow(assert_tx_failed, get_contract_with_gas_estimation):
     mul_code = """
 
 @public
-def _num_mul(x: decimal, y: int128) -> decimal:
+def _num_mul(x: decimal, y: decimal) -> decimal:
     return x * y
 
     """
 
     c = get_contract_with_gas_estimation(mul_code)
 
-    NUM_1 = Decimal('85070591730234615865843651857942052864.0')
-    NUM_2 = 136112946768375385385349842973
+    NUM_1 = Decimal('85070591730234615865843651857942052864')
+    NUM_2 = Decimal('136112946768375385385349842973')
 
     assert_tx_failed(lambda: c._num_mul(NUM_1, NUM_2))
