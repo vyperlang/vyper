@@ -276,7 +276,7 @@ def add_globals_and_events(_custom_units, _contracts, _defs, _events, _getters, 
         if isinstance(item.annotation.args[0], ast.Name) and item_name in _contracts:
             typ = BaseType('address', item_name)
         else:
-            typ = parse_type(item.annotation.args[0], 'storage')
+            typ = parse_type(item.annotation.args[0], 'storage', custom_units=_custom_units)
         _globals[item.target.id] = VariableRecord(item.target.id, len(_globals), typ, True)
         # Adding getters here
         for getter in mk_getter(item.target.id, typ):
@@ -337,7 +337,7 @@ def mk_full_signature(code):
     o = []
     _contracts, _events, _defs, _globals, _custom_units = get_contracts_and_defs_and_globals(code)
     for code in _events:
-        sig = EventSignature.from_declaration(code)
+        sig = EventSignature.from_declaration(code, custom_units=_custom_units)
         o.append(sig.to_abi_dict())
     for code in _defs:
         sig = FunctionSignature.from_definition(code, sigs=_contracts, custom_units=_custom_units)
@@ -346,9 +346,9 @@ def mk_full_signature(code):
     return o
 
 
-def parse_events(sigs, _events):
+def parse_events(sigs, _events, custom_units=None):
     for event in _events:
-        sigs[event.target.id] = EventSignature.from_declaration(event)
+        sigs[event.target.id] = EventSignature.from_declaration(event, custom_units=custom_units)
     return sigs
 
 
@@ -399,7 +399,7 @@ def parse_tree_to_lll(code, origcode, runtime_only=False):
     # Create the main statement
     o = ['seq']
     if _events:
-        sigs = parse_events(sigs, _events)
+        sigs = parse_events(sigs, _events, _custom_units)
     if _contracts:
         external_contracts = parse_external_contracts(external_contracts, _contracts)
     # If there is an init func...

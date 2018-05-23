@@ -68,7 +68,7 @@ class FunctionSignature():
                 raise VariableDeclarationException("Argument name invalid or reserved: " + arg.arg, arg)
             if arg.arg in (x.name for x in args):
                 raise VariableDeclarationException("Duplicate function argument name: " + arg.arg, arg)
-            parsed_type = parse_type(typ, None, sigs)
+            parsed_type = parse_type(typ, None, sigs, custom_units=custom_units)
             args.append(VariableRecord(arg.arg, pos, parsed_type, False))
             if isinstance(parsed_type, ByteArrayType):
                 pos += 32
