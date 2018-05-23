@@ -335,7 +335,7 @@ def extract32(expr, args, kwargs, context):
         return o
 
 
-@signature(('num_literal', 'uint256', 'decimal'), 'str_literal')
+@signature(('num_literal', 'int128', 'uint256', 'decimal'), 'str_literal')
 def as_wei_value(expr, args, kwargs, context):
     # Denominations
     names_denom = {
@@ -349,7 +349,7 @@ def as_wei_value(expr, args, kwargs, context):
         (b"kether", b"grand"): 10**21,
     }
 
-    for names, denom in names_denom:
+    for names, denom in names_denom.items():
         if args[1] in names:
             denomination = denom
             break
@@ -361,17 +361,22 @@ def as_wei_value(expr, args, kwargs, context):
         if denomination % den:
             raise InvalidLiteralException("Too many decimal places: %s" % numstring, expr.args[0])
         sub = num * denomination // den
+    elif args[0].typ.is_literal:
+        if args[0].value <= 0:
+            raise InvalidLiteralException("Negative wei value not allowed", expr)
+        sub = ['mul', args[0].value, denomination]
     elif args[0].typ.typ == 'uint256':
         sub = ['mul', args[0], denomination]
     else:
         sub = ['div', ['mul', args[0], denomination], DECIMAL_DIVISOR]
+
     return LLLnode.from_list(sub, typ=BaseType('uint256', {'wei': 1}), location=None, pos=getpos(expr))
 
 
 zero_value = LLLnode.from_list(0, typ=BaseType('uint256', {'wei': 1}))
 
 
-@signature('address', 'bytes', outsize='num_literal', gas='int128', value=Optional('int128', zero_value))
+@signature('address', 'bytes', outsize='num_literal', gas='uint256', value=Optional('uint256', zero_value))
 def raw_call(expr, args, kwargs, context):
     to, data = args
     gas, value, outsize = kwargs['gas'], kwargs['value'], kwargs['outsize']
@@ -379,7 +384,7 @@ def raw_call(expr, args, kwargs, context):
         raise ConstancyViolationException("Cannot make calls from a constant function", expr)
     if value != zero_value:
         enforce_units(value.typ, get_keyword(expr, 'value'),
-                      BaseType('int128', {'wei': 1}))
+                        BaseType('uint256', {'wei': 1}))
     placeholder = context.new_placeholder(data.typ)
     placeholder_node = LLLnode.from_list(placeholder, typ=data.typ, location='memory')
     copier = make_byte_array_copier(placeholder_node, data)
@@ -399,7 +404,7 @@ def send(expr, args, kwargs, context):
     to, value = args
     if context.is_constant:
         raise ConstancyViolationException("Cannot send ether inside a constant function!", expr)
-    enforce_units(value.typ, expr.args[1], BaseType('int128', {'wei': 1}))
+    enforce_units(value.typ, expr.args[1], BaseType('uint256', {'wei': 1}))
     return LLLnode.from_list(['assert', ['call', 0, to, value, 0, 0, 0, 0]], typ=None, pos=getpos(expr))
 
 
@@ -410,7 +415,7 @@ def selfdestruct(expr, args, kwargs, context):
     return LLLnode.from_list(['selfdestruct', args[0]], typ=None, pos=getpos(expr))
 
 
-@signature('int128')
+@signature(('int128', 'uint256'))
 def blockhash(expr, args, kwargs, contact):
     return LLLnode.from_list(['blockhash', ['uclamplt', ['clampge', args[0], ['sub', ['number'], 256]], 'number']],
                              typ=BaseType('bytes32'), pos=getpos(expr))
@@ -589,12 +594,12 @@ def shift(expr, args, kwargs, context):
     typ=BaseType('uint256'), pos=getpos(expr))
 
 
-@signature('address', value=Optional('int128', zero_value))
+@signature('address', value=Optional('uint256', zero_value))
 def create_with_code_of(expr, args, kwargs, context):
     value = kwargs['value']
     if value != zero_value:
         enforce_units(value.typ, get_keyword(expr, 'value'),
-                      BaseType('int128', {'wei': 1}))
+                      BaseType('uint256', {'wei': 1}))
     if context.is_constant:
         raise ConstancyViolationException("Cannot make calls from a constant function", expr)
     placeholder = context.new_placeholder(ByteArrayType(96))

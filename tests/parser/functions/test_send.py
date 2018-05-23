@@ -2,7 +2,7 @@ def test_send(assert_tx_failed, get_contract):
     send_test = """
 @public
 def foo():
-    send(msg.sender, self.balance+1)
+    send(msg.sender, self.balance + 1)
 
 @public
 def fop():

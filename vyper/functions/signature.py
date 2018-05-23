@@ -19,6 +19,9 @@ from vyper.types import (
 from vyper.parser.expr import (
     Expr,
 )
+from vyper.utils import (
+    SizeLimits
+)
 
 
 class Optional(object):
@@ -60,6 +63,9 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
             if isinstance(parsed_expected_type, BaseType):
                 vsub = vsub or Expr.parse_value_expr(arg, context)
                 if is_base_type(vsub.typ, expected_arg):
+                    return vsub
+                elif expected_arg in ('int128', 'uint256') and isinstance(vsub.typ, BaseType) and \
+                    vsub.typ.is_literal and SizeLimits.in_bounds(expected_arg, vsub.value):
                     return vsub
             else:
                 vsub = vsub or Expr(arg, context).lll_node

@@ -185,8 +185,11 @@ def foo() -> address:
 """, TypeMismatchException)
 
 must_succeed("""
+units: {
+    currency: "currency"
+}
 @public
-def foo(x: wei_value, y: currency_value, z: int128 (wei*currency/sec**2)) -> int128(sec**2):
+def foo(x: wei_value, y: uint256(currency), z: uint256(wei*currency/sec**2)) -> uint256(sec**2):
     return x * y / z
 """)
 

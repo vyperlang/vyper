@@ -156,33 +156,33 @@ def foo(x: timedelta) -> timedelta:
     """,
     """
 @public
-def foo(x: timedelta, y: int128 (wei/sec)) -> wei_value:
+def foo(x: timedelta, y: uint256(wei/sec)) -> wei_value:
     return x * y
     """,
     """
 @public
-def foo(x: int128(sec, positional)) -> timestamp:
+def foo(x: uint256(sec, positional)) -> timestamp:
     return x
     """,
     """
 x: timedelta
 @public
-def foo() -> int128(sec):
+def foo() -> uint256(sec):
     return self.x
     """,
     """
 x: timedelta
-y: int128
+y: uint256
 @public
 @constant
-def foo() -> int128(sec):
+def foo() -> uint256(sec):
     return self.x
     """,
     """
 x: timedelta
-y: int128
+y: uint256
 @public
-def foo() -> int128(sec):
+def foo() -> uint256(sec):
     self.y = 9
     return 5
     """,

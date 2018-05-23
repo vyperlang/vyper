@@ -5,7 +5,7 @@ from vyper.parser import parser_utils
 def test_gas_call(get_contract_with_gas_estimation):
     gas_call = """
 @public
-def foo() -> int128:
+def foo() -> uint256:
     return msg.gas
     """
 

@@ -244,10 +244,11 @@ class Expr(object):
         if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
             raise TypeMismatchException("Unsupported types for arithmetic op: %r %r" % (left.typ, right.typ), self.expr)
 
-        arithmetic_pair = (left.typ.typ, right.typ.typ)
+        arithmetic_pair = {left.typ.typ, right.typ.typ}
 
         # Special Case: Simplify any literal to literal arithmetic at compile time.
-        if left.typ.is_literal and right.typ.is_literal and left.typ.typ in ('int128', 'uint256'):
+        if left.typ.is_literal and right.typ.is_literal and \
+            isinstance(right.value, int) and isinstance(left.value, int):
 
             if isinstance(self.expr.op, ast.Add):
                 val = left.value + right.value
@@ -276,9 +277,15 @@ class Expr(object):
             return Expr.parse_value_expr(num, self.context)
 
         # Special case with uint256 were int literal may be casted.
-        if arithmetic_pair == ('uint256', 'int128') and right.typ.is_literal and right.value >= 0:
-            right = LLLnode.from_list(right.value, typ=BaseType('uint256', None, is_literal=True), pos=getpos(self.expr))
-            arithmetic_pair = (left.typ.typ, right.typ.typ)
+        if arithmetic_pair == {'uint256', 'int128'}:
+            # Check right side literal.
+            if right.typ.is_literal and SizeLimits.in_bounds('uint256', right.value):
+                right = LLLnode.from_list(right.value, typ=BaseType('uint256', None, is_literal=True), pos=getpos(self.expr))
+                arithmetic_pair = {left.typ.typ, right.typ.typ}
+            # Check left side literal.
+            elif left.typ.is_literal and SizeLimits.in_bounds('uint256', left.value):
+                left = LLLnode.from_list(left.value, typ=BaseType('uint256', None, is_literal=True), pos=getpos(self.expr))
+                arithmetic_pair = {left.typ.typ, right.typ.typ}
 
         # Only allow explicit conversions to occur.
         if left.typ.typ != right.typ.typ:
@@ -515,7 +522,6 @@ class Expr(object):
                 return LLLnode.from_list([op, left, right], typ='bool', pos=getpos(self.expr))
 
         elif (left_type in ('decimal', 'int128') or right_type in ('decimal', 'int128')) and left_type != right_type:
-            import ipdb; ipdb.set_trace()
             raise TypeMismatchException(
                 'Implicit conversion from {} to {} disallowed, please convert.'.format(left_type, right_type),
                 self.expr
