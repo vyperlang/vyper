@@ -52,7 +52,7 @@ class EventSignature():
                     raise VariableDeclarationException("Argument name invalid or reserved: " + arg, arg)
                 if arg in (x.name for x in args):
                     raise VariableDeclarationException("Duplicate function argument name: " + arg, arg)
-                parsed_type = parse_type(typ, None)
+                parsed_type = parse_type(typ, None, custom_units=custom_units)
                 args.append(VariableRecord(arg, pos, parsed_type, False))
                 if isinstance(parsed_type, ByteArrayType):
                     pos += ceil32(typ.slice.value.n)

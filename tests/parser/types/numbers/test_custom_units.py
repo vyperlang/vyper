@@ -63,3 +63,21 @@ def test() -> int128(mm):
     c = get_contract_with_gas_estimation(code)
 
     assert c.test() == 111
+
+
+def test_custom_units_events_and_func(get_contract_with_gas_estimation):
+    code = """
+units: {
+    stock: "how much stock there is",
+    token: "amount of token"
+}
+
+
+Transfer: event({_from: indexed(address), _to: indexed(address), _value: uint256(stock)})
+
+
+def initiate(token_addr: address, token_quantity: uint256(token)):
+    pass
+    """
+
+    assert get_contract_with_gas_estimation(code)
