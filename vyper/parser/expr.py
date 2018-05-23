@@ -83,10 +83,10 @@ class Expr(object):
         if orignum is None and isinstance(self.expr.n, int):
 
             # Literal becomes int128
-            if (SizeLimits.MINNUM <= self.expr.n <= SizeLimits.MAXNUM):
+            if SizeLimits.in_bounds('int128', self.expr.n):
                 return LLLnode.from_list(self.expr.n, typ=BaseType('int128', None, is_literal=True), pos=getpos(self.expr))
             # Literal is large enough, becomes uint256.
-            elif 0 <= self.expr.n <= SizeLimits.MAX_UINT256:
+            elif SizeLimits.in_bounds('uint256', self.expr.n):
                 return LLLnode.from_list(self.expr.n, typ=BaseType('uint256', None, is_literal=True), pos=getpos(self.expr))
             else:
                 raise InvalidLiteralException("Number out of range: " + str(self.expr.n), self.expr)
@@ -168,7 +168,7 @@ class Expr(object):
             addr = Expr.parse_value_expr(self.expr.value, self.context)
             if not is_base_type(addr.typ, 'address'):
                 raise TypeMismatchException("Type mismatch: balance keyword expects an address as input", self.expr)
-            return LLLnode.from_list(['balance', addr], typ=BaseType('int128', {'wei': 1}), location=None, pos=getpos(self.expr))
+            return LLLnode.from_list(['balance', addr], typ=BaseType('uint256', {'wei': 1}), location=None, pos=getpos(self.expr))
         # x.codesize: codesize of address x
         elif self.expr.attr == 'codesize' or self.expr.attr == 'is_contract':
             addr = Expr.parse_value_expr(self.expr.value, self.context)
@@ -195,17 +195,17 @@ class Expr(object):
             elif key == "msg.value":
                 if not self.context.is_payable:
                     raise NonPayableViolationException("Cannot use msg.value in a non-payable function", self.expr)
-                return LLLnode.from_list(['callvalue'], typ=BaseType('int128', {'wei': 1}), pos=getpos(self.expr))
+                return LLLnode.from_list(['callvalue'], typ=BaseType('uint256', {'wei': 1}), pos=getpos(self.expr))
             elif key == "msg.gas":
-                return LLLnode.from_list(['gas'], typ='int128', pos=getpos(self.expr))
+                return LLLnode.from_list(['gas'], typ='uint256', pos=getpos(self.expr))
             elif key == "block.difficulty":
-                return LLLnode.from_list(['difficulty'], typ='int128', pos=getpos(self.expr))
+                return LLLnode.from_list(['difficulty'], typ='uint256', pos=getpos(self.expr))
             elif key == "block.timestamp":
-                return LLLnode.from_list(['timestamp'], typ=BaseType('int128', {'sec': 1}, True), pos=getpos(self.expr))
+                return LLLnode.from_list(['timestamp'], typ=BaseType('uint256', {'sec': 1}, True), pos=getpos(self.expr))
             elif key == "block.coinbase":
                 return LLLnode.from_list(['coinbase'], typ='address', pos=getpos(self.expr))
             elif key == "block.number":
-                return LLLnode.from_list(['number'], typ='int128', pos=getpos(self.expr))
+                return LLLnode.from_list(['number'], typ='uint256', pos=getpos(self.expr))
             elif key == "block.prevhash":
                 return LLLnode.from_list(['blockhash', ['sub', 'number', 1]], typ='bytes32', pos=getpos(self.expr))
             elif key == "tx.origin":
@@ -297,12 +297,12 @@ class Expr(object):
                 o = LLLnode.from_list(['seq',
                                 # Checks that: a + b >= a
                                 ['assert', ['ge', ['add', left, right], left]],
-                                ['add', left, right]], typ=BaseType('uint256'), pos=getpos(self.expr))
+                                ['add', left, right]], typ=BaseType('uint256', new_unit, new_positional), pos=getpos(self.expr))
             elif ltyp == 'uint256' and isinstance(self.expr.op, ast.Sub):
                 o = LLLnode.from_list(['seq',
                                 # Checks that: a >= b
                                 ['assert', ['ge', left, right]],
-                                ['sub', left, right]], typ=BaseType('uint256'), pos=getpos(self.expr))
+                                ['sub', left, right]], typ=BaseType('uint256', new_unit, new_positional), pos=getpos(self.expr))
             elif ltyp == rtyp:
                 o = LLLnode.from_list([op, left, right], typ=BaseType(ltyp, new_unit, new_positional), pos=getpos(self.expr))
             elif ltyp == 'int128' and rtyp == 'decimal':
@@ -322,7 +322,7 @@ class Expr(object):
                                         # Checks that: a == 0 || a / b == b
                                         ['assert', ['or', ['iszero', left],
                                         ['eq', ['div', ['mul', left, right], left], right]]],
-                                        ['mul', left, right]], typ=BaseType('uint256'), pos=getpos(self.expr))
+                                        ['mul', left, right]], typ=BaseType('uint256', new_unit), pos=getpos(self.expr))
             elif ltyp == rtyp == 'int128':
                 o = LLLnode.from_list(['mul', left, right], typ=BaseType('int128', new_unit), pos=getpos(self.expr))
             elif ltyp == rtyp == 'decimal':
@@ -347,7 +347,7 @@ class Expr(object):
                 o = LLLnode.from_list(['seq',
                                 # Checks that:  b != 0
                                 ['assert', right],
-                                ['div', left, right]], typ=BaseType('uint256'), pos=getpos(self.expr))
+                                ['div', left, right]], typ=BaseType('uint256', new_unit), pos=getpos(self.expr))
             elif ltyp == rtyp == 'int128':
                 o = LLLnode.from_list(['sdiv', ['mul', left, DECIMAL_DIVISOR], ['clamp_nonzero', right]], typ=BaseType('decimal', new_unit), pos=getpos(self.expr))
             elif ltyp == rtyp == 'decimal':
@@ -370,7 +370,7 @@ class Expr(object):
             if ltyp == rtyp == 'uint256':
                 o = LLLnode.from_list(['seq',
                                 ['assert', right],
-                                ['mod', left, right]], typ=BaseType('uint256'), pos=getpos(self.expr))
+                                ['mod', left, right]], typ=BaseType('uint256', new_unit), pos=getpos(self.expr))
             elif ltyp == rtyp:
                 o = LLLnode.from_list(['smod', left, ['clamp_nonzero', right]], typ=BaseType(ltyp, new_unit), pos=getpos(self.expr))
             elif ltyp == 'decimal' and rtyp == 'int128':
@@ -524,11 +524,26 @@ class Expr(object):
             if op not in ('eq', 'ne'):
                 raise TypeMismatchException("Invalid type for comparison op", self.expr)
         left_type, right_type = left.typ.typ, right.typ.typ
-        if (left_type in ('decimal', 'int128') or right_type in ('decimal', 'int128')) and left_type != right_type:
+
+        # Special Case: comparison of a literal integer. If in valid range allow it to be compared.
+        if {left_type, right_type} == {'int128', 'uint256'} and {left.typ.is_literal, right.typ.is_literal} == {True, False}:
+
+            comparison_allowed = False
+            if left.typ.is_literal and SizeLimits.in_bounds(right_type, left.value):
+                comparison_allowed = True
+            elif right.typ.is_literal and SizeLimits.in_bounds(left_type, right.value):
+                comparison_allowed = True
+
+            if comparison_allowed:
+                return LLLnode.from_list([op, left, right], typ='bool', pos=getpos(self.expr))
+
+        elif (left_type in ('decimal', 'int128') or right_type in ('decimal', 'int128')) and left_type != right_type:
+            import ipdb; ipdb.set_trace()
             raise TypeMismatchException(
                 'Implicit conversion from {} to {} disallowed, please convert.'.format(left_type, right_type),
                 self.expr
             )
+
         if left_type == right_type:
             return LLLnode.from_list([op, left, right], typ='bool', pos=getpos(self.expr))
         else:

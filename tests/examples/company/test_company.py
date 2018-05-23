@@ -28,8 +28,6 @@ def test_sell_without_stock(w3, c, assert_tx_failed):
     # If you don't have any stock, you can't sell
     assert_tx_failed(lambda: c.sell_stock(1, transact={'from': a1}))
     assert_tx_failed(lambda: c.sell_stock(1, transact={'from': a2}))
-    # Negative stock doesn't work either
-    assert_tx_failed(lambda: c.sell_stock(-1, transact={'from': a1}))
     # But if you do, you can!
     test_shares = int(c.total_shares())
     test_value = int(test_shares * c.price())
@@ -54,8 +52,6 @@ def test_transfer(w3, c, assert_tx_failed):
     a1, a2 = w3.eth.accounts[1:3]
     assert_tx_failed(lambda: c.transfer_stock(a2, 1, transact={'from': a1}))
     assert_tx_failed(lambda: c.transfer_stock(a1, 1, transact={'from': a2}))
-    # You can't do negative transfers to gain stock
-    assert_tx_failed(lambda: c.transfer_stock(a2, -1, transact={'from': a1}))
     # If you transfer, you don't have the stock anymore
     test_shares = int(c.total_shares())
     test_value = int(test_shares * c.price())

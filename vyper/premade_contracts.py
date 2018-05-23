@@ -8,8 +8,8 @@ class ERC20():
     def balanceOf(_owner: address) -> uint256: pass
     def totalSupply() -> uint256: pass
     def transfer(_to: address, _amount: uint256) -> bool: pass
-    def transferFrom(_from: address, _to: address, _value: int128(uint256)) -> bool: pass
-    def approve(_spender: address, _amount: int128(uint256)) -> bool: pass
+    def transferFrom(_from: address, _to: address, _value: uint256) -> bool: pass
+    def approve(_spender: address, _amount: uint256) -> bool: pass
     def allowance(_owner: address, _spender: address) -> uint256: pass
 """
 
