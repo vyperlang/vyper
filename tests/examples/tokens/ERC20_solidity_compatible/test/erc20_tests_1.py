@@ -68,7 +68,7 @@ class TestERC20(PyEthereumTestCase):
     def test_deposit_and_withdraw(self):
         initial_a1_balance = self.s.head_state.get_balance(self.t.a1)
         initial_a2_balance = self.s.head_state.get_balance(self.t.a2)
-        # Test scenario where a1 deposits 2, withdraws twice (check balance consistency)
+        # Test scenario were a1 deposits 2, withdraws twice (check balance consistency)
         self.assertEqual(self.c.balanceOf(self.t.a1), 0)
         self.assertIsNone(self.c.deposit(value=2, sender=self.t.k1))
         self.assertEqual(self.c.balanceOf(self.t.a1), 2)
@@ -82,7 +82,7 @@ class TestERC20(PyEthereumTestCase):
         self.assertEqual(self.s.head_state.get_balance(self.t.a1), initial_a1_balance)
         self.assert_tx_failed(lambda: self.c.withdraw(2, sender=self.t.k1))
         self.assertEqual(self.c.balanceOf(self.t.a1), 0)
-        # Test scenario where a2 deposits 0, withdraws (check balance consistency, false withdraw)
+        # Test scenario were a2 deposits 0, withdraws (check balance consistency, false withdraw)
         self.assertIsNone(self.c.deposit(value=0, sender=self.t.k2))
         self.assertEqual(self.c.balanceOf(self.t.a2), 0)
         self.assertEqual(self.s.head_state.get_balance(self.t.a2), initial_a2_balance)
@@ -343,7 +343,7 @@ class TestVyperERC20(TestERC20):
         cls.t.languages['vyper'] = compiler.Compiler()
         contract_code = open(PATH_TO_CONTRACTS + '/../../../../examples/tokens/ERC20_solidity_compatible/ERC20.v.py').read()
         cls.c = cls.s.contract(contract_code, language='vyper')
-        # Bad version of contract where totalSupply / num_issued never gets updated after init
+        # Bad version of contract were totalSupply / num_issued never gets updated after init
         # (required for full decision/branch coverage)
         bad_code = contract_code.replace("self.num_issued = uint256_add", "x: uint256 = uint256_add")
         cls.c_bad = cls.s.contract(bad_code, language='vyper')

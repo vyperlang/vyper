@@ -20,7 +20,7 @@ def reverse_digits(x: int128) -> int128:
     z: int128 = x
     for i in range(6):
         dig[i] = z % 10
-        z = floor(z / 10)
+        z = z / 10
     o: int128 = 0
     for i in range(6):
         o = o * 10 + dig[i]
@@ -44,8 +44,10 @@ def repeat() -> int128:
             out = out + j
     return(out)
     """
+
     c = get_contract_with_gas_estimation(more_complex_repeater)
     assert c.repeat() == 666666
+
     print('Passed complex repeater test')
 
 

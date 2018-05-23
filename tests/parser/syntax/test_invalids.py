@@ -186,7 +186,7 @@ def foo() -> address:
 
 must_succeed("""
 @public
-def foo(x: wei_value, y: currency_value, z: int128 (wei*currency/sec**2)) -> decimal(sec**2):
+def foo(x: wei_value, y: currency_value, z: int128 (wei*currency/sec**2)) -> int128(sec**2):
     return x * y / z
 """)
 

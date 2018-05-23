@@ -37,7 +37,7 @@ def stock_available() -> currency_value:
 def buy_stock():
     # Note: full amount is given to company (no fractional shares),
     #       so be sure to send exact amount to buy shares
-    buy_order: currency_value = floor(msg.value / self.price) # rounds down
+    buy_order: currency_value = msg.value / self.price  # rounds down
 
     # Check that there are enough shares to buy.
     assert self.stock_available() >= buy_order
