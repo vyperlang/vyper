@@ -248,7 +248,7 @@ class Expr(object):
 
         # Special Case: Simplify any literal to literal arithmetic at compile time.
         if left.typ.is_literal and right.typ.is_literal and \
-            isinstance(right.value, int) and isinstance(left.value, int):
+           isinstance(right.value, int) and isinstance(left.value, int):
 
             if isinstance(self.expr.op, ast.Add):
                 val = left.value + right.value

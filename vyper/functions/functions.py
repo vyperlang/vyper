@@ -339,10 +339,10 @@ def extract32(expr, args, kwargs, context):
 def as_wei_value(expr, args, kwargs, context):
     # Denominations
     names_denom = {
-        (b"wei", ) : 1,
+        (b"wei", ): 1,
         (b"femtoether", b"kwei", b"babbage"): 10**3,
-        (b"picoether", b"mwei", b"lovelace"):  10**6,
-        (b"nanoether", b"gwei", b"shannon"):  10**9,
+        (b"picoether", b"mwei", b"lovelace"): 10**6,
+        (b"nanoether", b"gwei", b"shannon"): 10**9,
         (b"microether", b"szabo", ): 10**12,
         (b"milliether", b"finney", ): 10**15,
         (b"ether", ): 10**18,
