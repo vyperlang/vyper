@@ -44,15 +44,15 @@ def set_evm_verbose_logging():
 
 
 def set_evm_opcode_debugger():
-    def debug_opcode(computation):
-        print('YOUR ARE HERE!')
-        from eth_utils import to_hex
-        import ipdb; ipdb.set_trace()
-
     import evm
     from evm.vm.opcode import as_opcode
     from vyper.opcodes import opcodes as vyper_opcodes
     from evm.vm.forks.byzantium.computation import ByzantiumComputation
+
+    def debug_opcode(computation):
+        from eth_utils import to_hex  # noqa
+        import ipdb; ipdb.set_trace()  # noqa
+
     opcodes = ByzantiumComputation.opcodes.copy()
     opcodes[vyper_opcodes['DEBUG'][0]] = as_opcode(
         logic_fn=debug_opcode,
@@ -64,6 +64,7 @@ def set_evm_opcode_debugger():
 # Useful options to comment out whilst working:
 # set_evm_verbose_logging()
 # set_evm_opcode_debugger()
+
 
 @pytest.fixture(autouse=True)
 def patch_log_filter_remove(monkeypatch):

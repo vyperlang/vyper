@@ -126,8 +126,8 @@ def foo2() -> uint256:
 """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ParserException)
 
-# See #838. Confirm that nested keys and structs work properly.
 
+# See #838. Confirm that nested keys and structs work properly.
 def test_nested_map_key_works(get_contract_with_gas_estimation):
     code = """
 test_map1: {a: int128, b: int128 }[int128]
@@ -147,6 +147,7 @@ def get(i: int128) -> int128:
     c = get_contract_with_gas_estimation(code)
     assert c.set(transact={})
     assert c.get(1) == 111
+
 
 def test_nested_map_key_problem(get_contract_with_gas_estimation):
     code = """
