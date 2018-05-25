@@ -125,3 +125,44 @@ def foo2() -> uint256:
     return x
 """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ParserException)
+
+# See #838. Confirm that nested keys and structs work properly.
+
+def test_nested_map_key_works(get_contract_with_gas_estimation):
+    code = """
+test_map1: {a: int128, b: int128 }[int128]
+test_map2: {c: int128, d: int128}[int128]
+
+@public
+def set():
+    self.test_map1[1].a = 333
+    self.test_map2[333].c = 111
+
+
+@public
+def get(i: int128) -> int128:
+    idx: int128 = self.test_map1[i].a
+    return self.test_map2[idx].c
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.set(transact={})
+    assert c.get(1) == 111
+
+def test_nested_map_key_problem(get_contract_with_gas_estimation):
+    code = """
+test_map1: {a: int128, b: int128 }[int128]
+test_map2: {c: int128, d: int128}[int128]
+
+@public
+def set():
+    self.test_map1[1].a = 333
+    self.test_map2[333].c = 111
+
+
+@public
+def get() -> int128:
+    return self.test_map2[self.test_map1[1].a].c
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.set(transact={})
+    assert c.get() == 111
