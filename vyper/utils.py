@@ -119,7 +119,7 @@ base_types = ['int128', 'decimal', 'bytes32', 'uint256', 'int256', 'bool', 'addr
 valid_call_keywords = ['int128', 'decimal', 'address', 'contract', 'indexed']
 
 # Valid base units
-valid_units = ['currency', 'wei', 'currency1', 'currency2', 'sec', 'm', 'kg']
+valid_units = ['currency', 'wei', 'sec', 'm', 'kg']
 
 # Valid attributes for global variables
 valid_global_keywords = ['public', 'modifiable', 'static', 'event'] + valid_units + valid_call_keywords
