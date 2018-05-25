@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.6
+#!/usr/bin/env python
 import argparse
 import json
 
@@ -7,14 +7,33 @@ import vyper
 from vyper import compiler, optimizer
 from vyper.parser.parser import parse_to_lll
 from vyper.parser import parser_utils
-
+from vyper import compile_lll
 
 parser = argparse.ArgumentParser(description='Vyper {0} programming language for Ethereum'.format(vyper.__version__))
 parser.add_argument('input_file', help='Vyper sourcecode to compile')
-parser.add_argument('-f', help='Format to print', choices=['abi', 'json', 'bytecode', 'bytecode_runtime', 'ir'], default='bytecode', dest='format')
+parser.add_argument('-f', help='Format to print', choices=['abi', 'json', 'bytecode', 'bytecode_runtime', 'ir', 'asm'], default='bytecode', dest='format')
 parser.add_argument('--show-gas-estimates', help='Show gas estimates in ir output mode.', action="store_true")
 
 args = parser.parse_args()
+
+
+def print_asm(asm_list):
+    skip_newlines = 0
+    for node in asm_list:
+        if isinstance(node, list):
+            print_asm(node)
+            continue
+
+        is_push = isinstance(node, str) and node.startswith('PUSH')
+
+        print(str(node) + ' ', end='')
+        if skip_newlines:
+            skip_newlines -= 1
+        elif is_push:
+            skip_newlines = int(node[4:]) - 1
+        else:
+            print('')
+
 
 if __name__ == '__main__':
 
@@ -33,3 +52,6 @@ if __name__ == '__main__':
             print('0x' + compiler.compile(code, bytecode_runtime=True).hex())
         elif args.format == 'ir':
             print(optimizer.optimize(parse_to_lll(code)))
+        elif args.format == 'asm':
+            lll = optimizer.optimize(parse_to_lll(code))
+            print_asm(compile_lll.compile_to_assembly(lll))
