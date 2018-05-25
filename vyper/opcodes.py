@@ -69,6 +69,7 @@ opcodes = {
     'STATICCALL': [0xfa, 6, 1, 40],
     'REVERT': [0xfd, 2, 0, 0],
     'INVALID': [0xfe, 0, 0, 0],
+    'DEBUG': [0xa5, 0, 0, 0]
 }
 
 pseudo_opcodes = {

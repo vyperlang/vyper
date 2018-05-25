@@ -1,8 +1,9 @@
+import eth_tester
+import logging
 import pytest
+import web3
 
 from functools import wraps
-import eth_tester
-import web3
 
 from eth_tester import (
     EthereumTester,
@@ -29,15 +30,40 @@ from vyper import (
     optimizer,
 )
 
-
 ############
 # PATCHING #
 ############
 
-
 setattr(eth_tester.backends.pyevm.main, 'GENESIS_GAS_LIMIT', 10**9)
 setattr(eth_tester.backends.pyevm.main, 'GENESIS_DIFFICULTY', 1)
 
+
+def set_evm_verbose_logging():
+    logger = logging.getLogger('evm')
+    logger.setLevel('TRACE')
+
+
+def set_evm_opcode_debugger():
+    def debug_opcode(computation):
+        print('YOUR ARE HERE!')
+        from eth_utils import to_hex
+        import ipdb; ipdb.set_trace()
+
+    import evm
+    from evm.vm.opcode import as_opcode
+    from vyper.opcodes import opcodes as vyper_opcodes
+    from evm.vm.forks.byzantium.computation import ByzantiumComputation
+    opcodes = ByzantiumComputation.opcodes.copy()
+    opcodes[vyper_opcodes['DEBUG'][0]] = as_opcode(
+        logic_fn=debug_opcode,
+        mnemonic="DEBUG",
+        gas_cost=0
+    )
+    setattr(evm.vm.forks.byzantium.computation.ByzantiumComputation, 'opcodes', opcodes)
+
+# Useful options to comment out whilst working:
+# set_evm_verbose_logging()
+# set_evm_opcode_debugger()
 
 @pytest.fixture(autouse=True)
 def patch_log_filter_remove(monkeypatch):
