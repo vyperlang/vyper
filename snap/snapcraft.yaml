@@ -39,3 +39,5 @@ parts:
       - libffi-dev
     stage:
       - -usr/lib/python3.6/test
+      - -usr/bin/pydoc3
+      - -usr/bin/python3
