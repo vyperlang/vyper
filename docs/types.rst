@@ -259,8 +259,7 @@ Currency
 Keyword              Unit         Base type  Description
 ===================  ===========  =========  ====================================================================================
 ``wei_value``        1 wei        ``int128``    This is an amount of `Ether <http://ethdocs.org/en/latest/ether.html#denominations>`_ in wei.
-``currency1_value``  1 currency1  ``int128``    This is an amount of currency1.
-``currency2_value``  1 currency2  ``int128``    This is an amount of currency2.
+``currency_value``   1 currency   ``int128``    This is an amount of currency.
 ===================  ===========  =========  ====================================================================================
 
 Custom Unit Types
@@ -452,7 +451,7 @@ Here you can find a list of all types and default values:
 
 .. note::
     In ``bytes`` the array starts with the bytes all set to ``'\x00'``
-    
+
 .. note::
     In reference types all the type's members are set to their initial values.
 

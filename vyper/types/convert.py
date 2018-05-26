@@ -38,7 +38,7 @@ def to_int128(expr, args, kwargs, context):
 
 
 @signature(('num_literal', 'int128', 'bytes32'), 'str_literal')
-def to_unint256(expr, args, kwargs, context):
+def to_uint256(expr, args, kwargs, context):
     input = args[0]
     typ, len = get_type(input)
     if isinstance(input, int):
@@ -89,7 +89,7 @@ def convert(expr, context):
 
 conversion_table = {
     'int128': to_int128,
-    'uint256': to_unint256,
+    'uint256': to_uint256,
     'decimal': to_decimal,
     'bytes32': to_bytes32,
 }

@@ -239,7 +239,7 @@ def parse_type(item, location, sigs=None, custom_units=None):
             raise InvalidTypeException("Malformed unit type:", item)
         base_type = item.func.id
         if base_type not in ('int128', 'uint256', 'decimal'):
-            raise InvalidTypeException("You must use int128, decimal, address, contract, \
+            raise InvalidTypeException("You must use int128, uint256, decimal, address, contract, \
                 for variable declarations and indexed for logging topics ", item)
         if len(item.args) == 0:
             raise InvalidTypeException("Malformed unit type", item)
