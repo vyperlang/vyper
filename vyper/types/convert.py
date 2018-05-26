@@ -28,7 +28,7 @@ def to_int128(expr, args, kwargs, context):
     in_node = args[0]
     typ, len = get_type(in_node)
     if typ in ('int128', 'uint256', 'bytes32'):
-        if in_node.typ.is_literal and not SizeLimits.MINNUM <= in_node.value <= SizeLimits.MAXNUM:
+        if in_node.typ.is_literal and not SizeLimits.in_bounds('int128', in_node.value):
             raise InvalidLiteralException("Number out of range: {}".format(in_node.value), expr)
         return LLLnode.from_list(
             ['clamp', ['mload', MemoryPositions.MINNUM], in_node, ['mload', MemoryPositions.MAXNUM]], typ=BaseType('int128'), pos=getpos(expr)

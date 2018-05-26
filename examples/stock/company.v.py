@@ -1,21 +1,25 @@
+units: {
+    currency_value: "Currency Value"
+}
+
 # Financial events the contract logs
-Transfer: event({_from: indexed(address), _to: indexed(address), _value: currency_value})
-Buy: event({_buyer: indexed(address), _buy_order: currency_value})
-Sell: event({_seller: indexed(address), _sell_order: currency_value})
+Transfer: event({_from: indexed(address), _to: indexed(address), _value: uint256(currency_value)})
+Buy: event({_buyer: indexed(address), _buy_order: uint256(currency_value)})
+Sell: event({_seller: indexed(address), _sell_order: uint256(currency_value)})
 Pay: event({_vendor: indexed(address), _amount: wei_value})
 
 # Initiate the variables for the company and it's own shares.
 company: public(address)
-total_shares: public(currency_value)
-price: public(int128 (wei / currency))
+total_shares: public(uint256(currency_value))
+price: public(uint256 (wei / currency_value))
 
 # Store a ledger of stockholder holdings.
-holdings: currency_value[address]
+holdings: uint256(currency_value)[address]
 
 # Set up the company.
 @public
-def __init__(_company: address, _total_shares: currency_value,
-        initial_price: int128(wei / currency) ):
+def __init__(_company: address, _total_shares: uint256(currency_value),
+        initial_price: uint256(wei / currency_value) ):
     assert _total_shares > 0
     assert initial_price > 0
 
@@ -28,7 +32,7 @@ def __init__(_company: address, _total_shares: currency_value,
 
 @public
 @constant
-def stock_available() -> currency_value:
+def stock_available() -> uint256(currency_value):
     return self.holdings[self.company]
 
 # Give some value to the company and get stock in return.
@@ -37,7 +41,7 @@ def stock_available() -> currency_value:
 def buy_stock():
     # Note: full amount is given to company (no fractional shares),
     #       so be sure to send exact amount to buy shares
-    buy_order: currency_value = msg.value / self.price  # rounds down
+    buy_order: uint256(currency_value) = msg.value / self.price # rounds down
 
     # Check that there are enough shares to buy.
     assert self.stock_available() >= buy_order
@@ -52,7 +56,7 @@ def buy_stock():
 # Find out how much stock any address (that's owned by someone) has.
 @public
 @constant
-def get_holding(_stockholder: address) -> currency_value:
+def get_holding(_stockholder: address) -> uint256(currency_value):
     return self.holdings[_stockholder]
 
 # Return the amount the company has on hand in cash.
@@ -63,8 +67,8 @@ def cash() -> wei_value:
 
 # Give stock back to the company and get money back as ETH.
 @public
-def sell_stock(sell_order: currency_value):
-    assert sell_order > 0 # Otherwise, this would fail at send() below, 
+def sell_stock(sell_order: uint256(currency_value)):
+    assert sell_order > 0 # Otherwise, this would fail at send() below,
         # due to an OOG error (there would be zero value available for gas).
     # You can only sell as much stock as you own.
     assert self.get_holding(msg.sender) >= sell_order
@@ -83,7 +87,7 @@ def sell_stock(sell_order: currency_value):
 # Transfer stock from one stockholder to another. (Assume that the
 # receiver is given some compensation, but this is not enforced.)
 @public
-def transfer_stock(receiver: address, transfer_order: currency_value):
+def transfer_stock(receiver: address, transfer_order: uint256(currency_value)):
     assert transfer_order > 0 # This is similar to sell_stock above.
     # Similarly, you can only trade as much stock as you own.
     assert self.get_holding(msg.sender) >= transfer_order
@@ -116,7 +120,7 @@ def debt() -> wei_value:
     return (self.total_shares - self.holdings[self.company]) * self.price
 
 # Return the cash holdings minus the debt of the company.
-# The share debt or liability only is included here,  
+# The share debt or liability only is included here,
 # but of course all other liabilities can be included.
 @public
 @constant

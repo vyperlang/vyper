@@ -221,7 +221,7 @@ def add_globals_and_events(_custom_units, _contracts, _defs, _events, _getters, 
     if not (isinstance(item.annotation, ast.Call) and item.annotation.func.id == "event"):
         item_name, item_attributes = get_item_name_and_attributes(item, item_attributes)
         if not all([attr in valid_global_keywords for attr in item_attributes.keys()]):
-            raise StructureException('Invalid global keyword used: %s' % item_attributes)
+            raise StructureException('Invalid global keyword used: %s' % item_attributes, item)
     if item.value is not None:
         raise StructureException('May not assign value whilst defining type', item)
     elif isinstance(item.annotation, ast.Call) and item.annotation.func.id == "event":

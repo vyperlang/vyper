@@ -106,9 +106,9 @@ def add_record():
     """,
     """
 @public
-def foo() -> int128(wei / sec):
-    x: int128(wei) = as_wei_value(5, "finney")
-    y: int128(sec) = block.timestamp + 50 - block.timestamp
+def foo() -> uint256(wei / sec):
+    x: uint256(wei) = as_wei_value(5, "finney")
+    y: uint256(sec) = block.timestamp + 50 - block.timestamp
     return x / y
     """,
     """
@@ -123,7 +123,7 @@ def foo():
     """,
     """
 @public
-def foo() -> int128:
+def foo() -> uint256:
     return as_unitless_number(block.timestamp)
     """,
     """
@@ -135,7 +135,7 @@ def add_record():
     """
 @public
 def foo():
-    x: int128 = block.difficulty + 185
+    x: uint256 = block.difficulty + 185
     if tx.origin == self:
         y: bytes[35] = concat(block.prevhash, "dog")
     """

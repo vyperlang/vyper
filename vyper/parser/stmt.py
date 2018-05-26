@@ -88,7 +88,7 @@ class Stmt(object):
                 raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.value.id, self.stmt)
         # Check that the integer literal, can be assigned to uint256 if necessary.
         elif (self.stmt.annotation.id, sub.typ.typ) == ('uint256', 'int128') and sub.typ.is_literal:
-            if not 0 <= sub.value <= SizeLimits.MAX_UINT256:
+            if not SizeLimits.in_bounds('uint256', sub.value):
                 raise InvalidLiteralException('Invalid uint256 assignment, value not in uint256 range.', self.stmt)
         elif self.stmt.annotation.id != sub.typ.typ and not sub.typ.unit:
             raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.id, self.stmt)
@@ -403,6 +403,8 @@ class Stmt(object):
                 raise TypeMismatchException("Return type units mismatch %r %r" % (sub.typ, self.context.return_type), self.stmt.value)
             elif is_base_type(sub.typ, self.context.return_type.typ) or \
                     (is_base_type(sub.typ, 'int128') and is_base_type(self.context.return_type, 'int256')):
+                return LLLnode.from_list(['seq', ['mstore', 0, sub], ['return', 0, 32]], typ=None, pos=getpos(self.stmt))
+            if sub.typ.is_literal and SizeLimits.in_bounds(self.context.return_type.typ, sub.value):
                 return LLLnode.from_list(['seq', ['mstore', 0, sub], ['return', 0, 32]], typ=None, pos=getpos(self.stmt))
             else:
                 raise TypeMismatchException("Unsupported type conversion: %r to %r" % (sub.typ, self.context.return_type), self.stmt.value)

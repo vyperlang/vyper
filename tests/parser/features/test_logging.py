@@ -208,7 +208,7 @@ def foo():
     tx_hash = c.foo(transact={})
     receipt = tester.get_transaction_receipt(tx_hash.hex())
 
-    event_id = keccak(bytes('MyLog(int128[2],int128[3],int128[2][2])', 'utf-8'))
+    event_id = keccak(bytes('MyLog(int128[2],uint256[3],int128[2][2])', 'utf-8'))
     # Event id is always the first topic
     assert receipt['logs'][0]['topics'][0] == event_id.hex()
     # Event abi is created correctly
@@ -217,7 +217,7 @@ def foo():
         'name': 'MyLog',
         'inputs': [
             {'type': 'int128[2]', 'name': 'arg1', 'indexed': False},
-            {'type': 'int128[3]', 'name': 'arg2', 'indexed': False},
+            {'type': 'uint256[3]', 'name': 'arg2', 'indexed': False},
             {'type': 'int128[2][2]', 'name': 'arg3', 'indexed': False}],
         'anonymous': False,
         'type': 'event'
@@ -324,7 +324,7 @@ def foo():
     tx_hash = c.foo(transact={})
     receipt = tester.get_transaction_receipt(tx_hash.hex())
 
-    event_id = keccak(bytes('MyLog(int128,bytes,bytes,address,address,int128)', 'utf-8'))
+    event_id = keccak(bytes('MyLog(int128,bytes,bytes,address,address,uint256)', 'utf-8'))
     # Event id is always the first topic
     assert receipt['logs'][0]['topics'][0] == event_id.hex()
     # Event abi is created correctly
@@ -335,7 +335,7 @@ def foo():
                    {'type': 'bytes', 'name': 'arg3', 'indexed': False},
                    {'type': 'address', 'name': 'arg4', 'indexed': False},
                    {'type': 'address', 'name': 'arg5', 'indexed': False},
-                   {'type': 'int128', 'name': 'arg6', 'indexed': False}],
+                   {'type': 'uint256', 'name': 'arg6', 'indexed': False}],
         'anonymous': False,
         'type': 'event'
     }

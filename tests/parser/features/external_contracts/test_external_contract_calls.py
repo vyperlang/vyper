@@ -555,7 +555,7 @@ def get_lucky() -> int128:
     return 1
 
 @public
-def get_balance() -> int128(wei):
+def get_balance() -> uint256(wei):
     return self.balance
 """
 

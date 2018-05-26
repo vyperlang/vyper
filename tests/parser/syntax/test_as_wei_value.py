@@ -30,22 +30,22 @@ valid_list = [
     """
 @public
 def foo():
-    x: int128(wei) = as_wei_value(5, "finney") + as_wei_value(2, "babbage") + as_wei_value(8, "shannon")
+    x: uint256(wei) = as_wei_value(5, "finney") + as_wei_value(2, "babbage") + as_wei_value(8, "shannon")
     """,
     """
 @public
 def foo():
     z: int128 = 2 + 3
-    x: int128(wei) = as_wei_value(2 + 3, "finney")
+    x: uint256(wei) = as_wei_value(2 + 3, "finney")
     """,
     """
 @public
 def foo():
-    x: int128(wei) = as_wei_value(5.182, "ada")
+    x: uint256(wei) = as_wei_value(5.182, "babbage")
     """,
     """
 @public
-def foo() -> int128(wei):
+def foo() -> uint256(wei):
     x: address = 0x1234567890123456789012345678901234567890
     return x.balance
     """

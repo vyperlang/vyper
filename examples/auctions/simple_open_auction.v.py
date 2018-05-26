@@ -35,7 +35,7 @@ def bid():
     assert msg.value > self.highest_bid
     if not self.highest_bid == 0:
         # Sends money back to the previous highest bidder
-        send(self.highest_bidder,self.highest_bid)
+        send(self.highest_bidder, self.highest_bid)
     self.highest_bidder = msg.sender
     self.highest_bid = msg.value
 
