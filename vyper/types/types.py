@@ -181,10 +181,9 @@ def canonicalize_type(t, is_indexed=False):
 
 # Special types
 special_types = {
-    'timestamp': BaseType('int128', {'sec': 1}, True),
-    'timedelta': BaseType('int128', {'sec': 1}, False),
-    'currency_value': BaseType('int128', {'currency': 1}, False),
-    'wei_value': BaseType('int128', {'wei': 1}, False),
+    'timestamp': BaseType('uint256', {'sec': 1}, True),
+    'timedelta': BaseType('uint256', {'sec': 1}, False),
+    'wei_value': BaseType('uint256', {'wei': 1}, False),
 }
 
 

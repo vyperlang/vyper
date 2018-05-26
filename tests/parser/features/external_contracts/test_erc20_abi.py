@@ -50,7 +50,7 @@ def transfer(_to: address, _value: uint256) -> bool:
     return self.token_address.transfer(_to, _value)
 
 @public
-def transferFrom(_from: address, _to: address, _value: int128(uint256)) -> bool:
+def transferFrom(_from: address, _to: address, _value: uint256) -> bool:
     return self.token_address.transferFrom(_from, _to, _value)
 
 @public

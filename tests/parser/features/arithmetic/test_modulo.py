@@ -30,8 +30,11 @@ def num_modulo_decimal() -> decimal:
 
 def test_modulo_with_different_units(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
+units: {
+    currency_value: "a currency amount"
+}
 @public
-def foo(a: currency_value, b: int128):
+def foo(a: int128(currency_value), b: int128):
     x: int128 = a % b
 """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatchException)

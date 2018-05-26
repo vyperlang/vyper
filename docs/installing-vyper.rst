@@ -61,9 +61,9 @@ to get Homebrew on your system.
 To install Python 3.6, follow the instructions here:
 `Installing Python 3 on Mac OS X <http://python-guide.readthedocs.io/en/latest/starting/install3/osx/>`_
 
-Also, ensure the GMP arithmetic library is installed using `brew`:
+Also, ensure the following libraries are installed using `brew`:
 ::
-    brew install gmp
+    brew install gmp leveldb
 
 Creating a virtual environment
 ==============================

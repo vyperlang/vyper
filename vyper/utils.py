@@ -93,6 +93,18 @@ class SizeLimits:
     MINDECIMAL = (-2**127) * DECIMAL_DIVISOR
     MAX_UINT256 = 2**256 - 1
 
+    @classmethod
+    def in_bounds(cls, type_str, value):
+        assert isinstance(type_str, str)
+        if type_str == 'decimal':
+            return cls.MINDECIMAL <= value <= cls.MAXDECIMAL
+        if type_str == 'uint256':
+            return 0 <= value <= cls.MAX_UINT256
+        elif type_str == 'int128':
+            return cls.MINNUM <= value <= cls.MAXNUM
+        else:
+            raise Exception('Unknow type "%s" supplied.' % type_str)
+
 
 # Map representing all limits loaded into a contract as part of the initializer
 # code.
@@ -116,10 +128,10 @@ RLP_DECODER_ADDRESS = hex_to_int('0x5185D17c44699cecC3133114F8df70753b856709')
 base_types = ['int128', 'decimal', 'bytes32', 'uint256', 'int256', 'bool', 'address']
 
 # Keywords available for ast.Call type
-valid_call_keywords = ['int128', 'decimal', 'address', 'contract', 'indexed']
+valid_call_keywords = ['uint256', 'int128', 'decimal', 'address', 'contract', 'indexed']
 
 # Valid base units
-valid_units = ['currency', 'wei', 'sec', 'm', 'kg']
+valid_units = ['wei', 'sec']
 
 # Valid attributes for global variables
 valid_global_keywords = ['public', 'modifiable', 'static', 'event'] + valid_units + valid_call_keywords
