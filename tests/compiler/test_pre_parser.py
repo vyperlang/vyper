@@ -44,7 +44,7 @@ contract Bar():
 bar_contract: static(Bar)
 
 @public
-def foo(contract_address: contract(Bar)) -> int128:
+def foo(contract_address: address) -> int128:
     self.bar_contract = contract_address
     return self.bar_contract.bar()
     """
