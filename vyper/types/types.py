@@ -70,6 +70,11 @@ class BaseType(NodeType):
             subs.append('positional')
         return str(self.typ) + (('(' + ', '.join(subs) + ')') if subs else '')
 
+class ContractType(BaseType):
+
+    def __init__(self, name):
+        super().__init__('address', name)
+
 
 # Data structure for a byte array
 class ByteArrayType(NodeType):
@@ -230,11 +235,11 @@ def parse_type(item, location, sigs=None, custom_units=None):
     # Units, e.g. num (1/sec) or contracts
     elif isinstance(item, ast.Call):
         # Contract_types
-        if item.func.id == 'contract' or item.func.id == 'address':
-            if sigs and item.args[0].id in sigs:
-                return BaseType('address', item.args[0].id)
-            else:
-                raise InvalidTypeException('Invalid contract declaration')
+        # if item.func.id == 'contract' or item.func.id == 'address':
+        #     if sigs and item.args[0].id in sigs:
+        #         return ContractType(item.args[0].id)
+        #     else:
+        #         raise InvalidTypeException('Invalid contract declaration')
         if not isinstance(item.func, ast.Name):
             raise InvalidTypeException("Malformed unit type:", item)
         base_type = item.func.id

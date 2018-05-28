@@ -29,6 +29,7 @@ from vyper.utils import (
 from vyper.types import (
     BaseType,
     ByteArrayType,
+    ContractType,
     ListType,
     MappingType,
     NullType,
