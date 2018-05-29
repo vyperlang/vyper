@@ -135,8 +135,8 @@ Returns the length of a given list of bytes.
     """
 Takes 2 or more bytes arrays of type ``bytes32`` or ``bytes`` and combines them into one.
 
-* **keccak256 (sha3)**
-----------------------
+**keccak256 (sha3)**
+--------------------
 ::
 
   def keccak256(a) -> b:
