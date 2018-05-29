@@ -652,3 +652,16 @@ def get_lucky(amount_to_send: int128) -> int128:
     """
 
     assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), TypeMismatchException)
+
+
+def test_invalid_contract_declaration(assert_compile_failed, get_contract_with_gas_estimation):
+
+    contract_1 = """
+class Bar():
+    def set_lucky(arg1: int128): pass
+
+bar_contract: modifiable(Barr)
+
+    """
+
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), InvalidTypeException)

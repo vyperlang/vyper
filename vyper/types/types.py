@@ -239,8 +239,6 @@ def parse_type(item, location, sigs=None, custom_units=None):
         if item.func.id == 'address':
             if sigs and item.args[0].id in sigs:
                 return ContractType(item.args[0].id)
-            else:
-                raise InvalidTypeException('Invalid contract declaration')
         if not isinstance(item.func, ast.Name):
             raise InvalidTypeException("Malformed unit type:", item)
         base_type = item.func.id
