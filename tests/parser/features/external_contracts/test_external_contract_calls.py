@@ -395,7 +395,7 @@ class Bar():
 bar_contract: modifiable(Bar)
 
 @public
-def foo(contract_address: contract(Bar)) -> int128:
+def foo(contract_address: address) -> int128:
     self.bar_contract = contract_address
     return self.bar_contract.bar()
     """
@@ -426,12 +426,12 @@ class Bar():
 bar_contract: modifiable(Bar)
 
 @public
-def set_lucky(contract_address: contract(Bar)):
+def set_lucky(contract_address: address):
     self.bar_contract = contract_address
     self.bar_contract.set_lucky(1)
 
 @public
-def get_lucky(contract_address: contract(Bar)) -> int128:
+def get_lucky(contract_address: address) -> int128:
     self.bar_contract = contract_address
     return self.bar_contract.get_lucky()
     """
@@ -469,7 +469,7 @@ class Bar():
 bar_contract: modifiable(Bar)
 
 @public
-def set_contract(contract_address: contract(Bar)):
+def set_contract(contract_address: address):
     self.bar_contract = contract_address
 
 @public
@@ -501,8 +501,8 @@ class Bar():
 bar_contract: static(public(Bar))
 
 @public
-def foo(contract_address: contract(Bar)):
-    self.bar_contract = contract_address
+def foo(contract_address: address):
+    self.bar_contract.address = contract_address
 
 @public
 def get_bar() -> int128:
@@ -539,7 +539,7 @@ class Bar():
 bar_contract: static(Boo)
 
 @public
-def foo(contract_address: contract(Bar)) -> int128:
+def foo(contract_address: address) -> int128:
     self.bar_contract = contract_address
     return self.bar_contract.bar()
     """
@@ -567,7 +567,7 @@ class Bar():
 bar_contract: modifiable(Bar)
 
 @public
-def set_contract(contract_address: contract(Bar)):
+def set_contract(contract_address: address):
     self.bar_contract = contract_address
 
 @payable
@@ -621,7 +621,7 @@ class Bar():
 bar_contract: modifiable(Bar)
 
 @public
-def set_contract(contract_address: contract(Bar)):
+def set_contract(contract_address: address):
     self.bar_contract = contract_address
 
 @public
@@ -652,3 +652,16 @@ def get_lucky(amount_to_send: int128) -> int128:
     """
 
     assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), TypeMismatchException)
+
+
+def test_invalid_contract_declaration(assert_compile_failed, get_contract_with_gas_estimation):
+
+    contract_1 = """
+class Bar():
+    def set_lucky(arg1: int128): pass
+
+bar_contract: modifiable(Barr)
+
+    """
+
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), InvalidTypeException)

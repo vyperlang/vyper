@@ -37,6 +37,7 @@ from .parser_utils import (
 from vyper.types import (
     BaseType,
     ByteArrayType,
+    ContractType,
     ListType,
     MappingType,
     NullType,
@@ -266,15 +267,15 @@ def add_globals_and_events(_custom_units, _contracts, _defs, _events, _getters, 
     elif item_name in _contracts:
         if not item_attributes["modifiable"] and not item_attributes["static"]:
             raise StructureException("All contracts must have `modifiable` or `static` keywords: %s" % item_attributes)
-        _globals[item.target.id] = ContractRecord(item_attributes["modifiable"], item.target.id, len(_globals), BaseType('address', item_name), True)
+        _globals[item.target.id] = ContractRecord(item_attributes["modifiable"], item.target.id, len(_globals), ContractType(item_name), True)
         if item_attributes["public"]:
-            typ = BaseType('address', item_name)
+            typ = ContractType(item_name)
             for getter in mk_getter(item.target.id, typ):
                 _getters.append(parse_line('\n' * (item.lineno - 1) + getter))
                 _getters[-1].pos = getpos(item)
     elif isinstance(item.annotation, ast.Call) and item.annotation.func.id == "public":
         if isinstance(item.annotation.args[0], ast.Name) and item_name in _contracts:
-            typ = BaseType('address', item_name)
+            typ = ContractType(item_name)
         else:
             typ = parse_type(item.annotation.args[0], 'storage', custom_units=_custom_units)
         _globals[item.target.id] = VariableRecord(item.target.id, len(_globals), typ, True)

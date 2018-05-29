@@ -29,6 +29,7 @@ from vyper.utils import (
 from vyper.types import (
     BaseType,
     ByteArrayType,
+    ContractType,
     ListType,
     MappingType,
     NullType,
@@ -215,6 +216,9 @@ class Expr(object):
         # Other variables
         else:
             sub = Expr.parse_variable_location(self.expr.value, self.context)
+            # contract type
+            if isinstance(sub.typ, ContractType) and self.expr.attr == 'address':
+                return sub
             if not isinstance(sub.typ, StructType):
                 raise TypeMismatchException("Type mismatch: member variable access not expected", self.expr.value)
             attrs = sorted(sub.typ.members.keys())

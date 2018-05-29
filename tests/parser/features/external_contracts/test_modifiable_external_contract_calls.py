@@ -18,7 +18,7 @@ modifiable_bar_contract: modifiable(Bar)
 static_bar_contract: static(Bar)
 
 @public
-def __init__(contract_address: contract(Bar)):
+def __init__(contract_address: address):
     self.modifiable_bar_contract = contract_address
     self.static_bar_contract = contract_address
 
@@ -58,7 +58,7 @@ modifiable_bar_contract: modifiable(Bar)
 static_bar_contract: static(Bar)
 
 @public
-def __init__(contract_address: contract(Bar)):
+def __init__(contract_address: address):
     self.modifiable_bar_contract = contract_address
     self.static_bar_contract = contract_address
 
@@ -98,7 +98,7 @@ modifiable_bar_contract: modifiable(Bar)
 static_bar_contract: static(Bar)
 
 @public
-def __init__(contract_address: contract(Bar)):
+def __init__(contract_address: address):
     self.modifiable_bar_contract = contract_address
     self.static_bar_contract = contract_address
 
@@ -120,7 +120,7 @@ modifiable_bar_contract: modifiable(Bar)
 static_bar_contract: static(Bar)
 
 @public
-def __init__(contract_address: contract(Bar)):
+def __init__(contract_address: address):
     self.modifiable_bar_contract = contract_address
     self.static_bar_contract = contract_address
 
@@ -167,7 +167,7 @@ class Bar():
 bar_contract: public(static(Bar))
 
 @public
-def foo(contract_address: contract(Bar)):
+def foo(contract_address: address):
     self.bar_contract = contract_address
 
 @public
@@ -205,7 +205,7 @@ class Bar():
 bar_contract: static(Boo)
 
 @public
-def foo(contract_address: contract(Bar)) -> int128:
+def foo(contract_address: address) -> int128:
     self.bar_contract = contract_address
     return self.bar_contract.bar()
     """
