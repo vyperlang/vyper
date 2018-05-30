@@ -458,6 +458,19 @@ class Expr(object):
 
         return o
 
+    @staticmethod
+    def _signed_to_unsigned_comparision_op(op):
+        translation_map = {
+            'sgt': 'gt',
+            'sge': 'ge',
+            'sle': 'le',
+            'slt': 'lt',
+        }
+        if op in translation_map:
+            return translation_map[op]
+        else:
+            return op
+
     def compare(self):
         left = Expr.parse_value_expr(self.expr.left, self.context)
         right = Expr.parse_value_expr(self.expr.comparators[0], self.context)
@@ -521,10 +534,13 @@ class Expr(object):
                 comparison_allowed = True
             elif right.typ.is_literal and SizeLimits.in_bounds(left_type, right.value):
                 comparison_allowed = True
+            op = self._signed_to_unsigned_comparision_op(op)
 
             if comparison_allowed:
                 return LLLnode.from_list([op, left, right], typ='bool', pos=getpos(self.expr))
 
+        elif {left_type, right_type} == {'uint256', 'uint256'}:
+            op = self._signed_to_unsigned_comparision_op(op)
         elif (left_type in ('decimal', 'int128') or right_type in ('decimal', 'int128')) and left_type != right_type:
             raise TypeMismatchException(
                 'Implicit conversion from {} to {} disallowed, please convert.'.format(left_type, right_type),
