@@ -86,6 +86,8 @@ class Stmt(object):
         elif isinstance(self.stmt.annotation, ast.Subscript):
             if not isinstance(sub.typ, (ListType, ByteArrayType)):  # check list assign.
                 raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.value.id, self.stmt)
+        elif self.stmt.annotation.id in ('uint256', 'int128') and sub.typ is None:
+            raise TypeMismatchException('Not allowed to assign None to %s' % self.stmt.annotation.id, self.stmt)
         # Check that the integer literal, can be assigned to uint256 if necessary.
         elif (self.stmt.annotation.id, sub.typ.typ) == ('uint256', 'int128') and sub.typ.is_literal:
             if not SizeLimits.in_bounds('uint256', sub.value):
@@ -188,17 +190,17 @@ class Stmt(object):
         elif isinstance(self.stmt.func, ast.Attribute) and isinstance(self.stmt.func.value, ast.Call):
             contract_name = self.stmt.func.value.func.id
             contract_address = Expr.parse_value_expr(self.stmt.func.value.args[0], self.context)
-            return external_contract_call(self.stmt, self.context, contract_name, contract_address, True, pos=getpos(self.stmt))
+            return external_contract_call(self.stmt, self.context, contract_name, contract_address, pos=getpos(self.stmt))
         elif isinstance(self.stmt.func.value, ast.Attribute) and self.stmt.func.value.attr in self.context.sigs:
             contract_name = self.stmt.func.value.attr
             var = self.context.globals[self.stmt.func.value.attr]
             contract_address = unwrap_location(LLLnode.from_list(var.pos, typ=var.typ, location='storage', pos=getpos(self.stmt), annotation='self.' + self.stmt.func.value.attr))
-            return external_contract_call(self.stmt, self.context, contract_name, contract_address, True, pos=getpos(self.stmt))
+            return external_contract_call(self.stmt, self.context, contract_name, contract_address, pos=getpos(self.stmt))
         elif isinstance(self.stmt.func.value, ast.Attribute) and self.stmt.func.value.attr in self.context.globals:
             contract_name = self.context.globals[self.stmt.func.value.attr].typ.unit
             var = self.context.globals[self.stmt.func.value.attr]
             contract_address = unwrap_location(LLLnode.from_list(var.pos, typ=var.typ, location='storage', pos=getpos(self.stmt), annotation='self.' + self.stmt.func.value.attr))
-            return external_contract_call(self.stmt, self.context, contract_name, contract_address, var.modifiable, pos=getpos(self.stmt))
+            return external_contract_call(self.stmt, self.context, contract_name, contract_address, pos=getpos(self.stmt))
         elif isinstance(self.stmt.func, ast.Attribute) and self.stmt.func.value.id == 'log':
             if self.stmt.func.attr not in self.context.sigs['self']:
                 raise VariableDeclarationException("Event not declared yet: %s" % self.stmt.func.attr)

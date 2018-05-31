@@ -75,7 +75,7 @@ units: {
 
 Transfer: event({_from: indexed(address), _to: indexed(address), _value: uint256(stock)})
 
-
+@public
 def initiate(token_addr: address, token_quantity: uint256(token)):
     pass
     """

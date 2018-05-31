@@ -634,19 +634,19 @@ class Expr(object):
             contract_name = self.expr.func.value.func.id
             contract_address = Expr.parse_value_expr(self.expr.func.value.args[0], self.context)
             value, gas = self._get_external_contract_keywords()
-            return external_contract_call(self.expr, self.context, contract_name, contract_address, True, pos=getpos(self.expr), value=value, gas=gas)
+            return external_contract_call(self.expr, self.context, contract_name, contract_address, pos=getpos(self.expr), value=value, gas=gas)
         elif isinstance(self.expr.func.value, ast.Attribute) and self.expr.func.value.attr in self.context.sigs:
             contract_name = self.expr.func.value.attr
             var = self.context.globals[self.expr.func.value.attr]
             contract_address = unwrap_location(LLLnode.from_list(var.pos, typ=var.typ, location='storage', pos=getpos(self.expr), annotation='self.' + self.expr.func.value.attr))
             value, gas = self._get_external_contract_keywords()
-            return external_contract_call(self.expr, self.context, contract_name, contract_address, True, pos=getpos(self.expr), value=value, gas=gas)
+            return external_contract_call(self.expr, self.context, contract_name, contract_address, pos=getpos(self.expr), value=value, gas=gas)
         elif isinstance(self.expr.func.value, ast.Attribute) and self.expr.func.value.attr in self.context.globals:
             contract_name = self.context.globals[self.expr.func.value.attr].typ.unit
             var = self.context.globals[self.expr.func.value.attr]
             contract_address = unwrap_location(LLLnode.from_list(var.pos, typ=var.typ, location='storage', pos=getpos(self.expr), annotation='self.' + self.expr.func.value.attr))
             value, gas = self._get_external_contract_keywords()
-            return external_contract_call(self.expr, self.context, contract_name, contract_address, var.modifiable, pos=getpos(self.expr), value=value, gas=gas)
+            return external_contract_call(self.expr, self.context, contract_name, contract_address, pos=getpos(self.expr), value=value, gas=gas)
         else:
             raise StructureException("Unsupported operator: %r" % ast.dump(self.expr), self.expr)
 
