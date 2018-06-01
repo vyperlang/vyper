@@ -183,3 +183,41 @@ def test() -> uint256:
 
     c = get_contract_with_gas_estimation(modexper)
     assert c.test() == 340282366920938463463374607431768211459
+
+
+def test_uint256_comparison(get_contract_with_gas_estimation):
+    code = """
+max_uint_256: public(uint256)
+
+@public
+def __init__():
+    self.max_uint_256 = 2*(2**255-1)+1
+
+@public
+def max_lt() -> (bool):
+  return 30 < self.max_uint_256
+
+@public
+def max_lte() -> (bool):
+  return 30  <= self.max_uint_256
+
+@public
+def max_gte() -> (bool):
+  return 30 >=  self.max_uint_256
+
+@public
+def max_gt() -> (bool):
+  return 30 > self.max_uint_256
+
+@public
+def max_ne() -> (bool):
+  return 30 != self.max_uint_256
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.max_lt() is True
+    assert c.max_lte() is True
+    assert c.max_gte() is False
+    assert c.max_gt() is False
+    assert c.max_ne() is True
