@@ -146,13 +146,16 @@ reserved_words = ['int128', 'int256', 'uint256', 'address', 'bytes32',
                   'wei', 'finney', 'szabo', 'shannon', 'lovelace', 'ada',
                   'babbage', 'gwei', 'kwei', 'mwei', 'twei', 'pwei', 'contract', 'units']
 
-built_in_functions = ['floor', 'ceil','as_unitless_number','convert','slice',
-                      'len','concat','sha3','method_id','keccak256', 'ecrecover',
-                      'ecadd', 'ecmul', 'extract32', 'as_wei_value', 'raw_call',
-                      'RLPList', 'blockhash', 'bitwise_and', 'bitwise_or',
-                      'bitwise_xor', 'bitwise_not', 'uint256_addmod', 'uint256_mulmod',
-                      'shift', 'create_with_code_of', 'min', 'max', 'send', 
-                      'selfdestruct', 'raw_call', 'raw_log', 'create_with_code_of',]
+built_in_functions = ['floor', 'ceil', 'as_unitless_number',
+                      'convert', 'slice', 'len', 'concat',
+                      'sha3', 'method_id', 'keccak256', 'ecrecover',
+                      'ecadd', 'ecmul', 'extract32', 'as_wei_value',
+                      'raw_call', 'RLPList', 'blockhash', 'bitwise_and',
+                      'bitwise_or', 'bitwise_xor', 'bitwise_not',
+                      'uint256_addmod', 'uint256_mulmod', 'shift',
+                      'create_with_code_of', 'min', 'max', 'send',
+                      'selfdestruct', 'raw_log']
+
 
 # Is a variable or member variable name valid?
 def is_varname_valid(varname, custom_units):
