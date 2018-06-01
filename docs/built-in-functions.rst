@@ -19,24 +19,54 @@ Functions
   def floor(a) -> b:
     """
     :param a: value to round down
-    :type a: either decimal or int128
+    :type a: decimal
 
-    :output b: integer
+    :output b: int128
     """
 Rounds a decimal down to the nearest integer.
 
-**decimal**
------------
+**ceil**
+---------
 ::
 
-  def decimal(a) -> b:
+  def ceil(a) -> b:
     """
-    :param a: value to turn into decimal
-    :type a: either decimal or int128
+    :param a: value to round up
+    :type a: decimal
 
-    :output b: decimal
+    :output b: int128
     """
-Turns a number into a decimal.
+Rounds a decimal up to the nearest integer.
+
+**convert**
+-------------------------
+::
+
+  def convert(a, b) -> c:
+    """
+    :param a: value to convert
+    :type a: either decimal, int128, uint256 or bytes32
+    :param b: the destination type to convert to
+    :type b: str_literal
+
+    :output c: either decimal, int128, uint256 or bytes32
+    """
+Converts a variable/ literal from one type to another.
+
+**as_wei_value**
+-------------------------
+::
+
+  def as_wei_value(a, b) -> c:
+    """
+    :param a: value for the ether unit
+    :type a: uint256 or int128 or decimal
+    :param b: ether unit name (e.g. ``"wei"``)
+    :type b: str_literal
+
+    :output c: wei_value
+    """
+The value of the input number as ``wei``, converted based on the specified unit.
 
 **as_unitless_number**
 -------------------------
@@ -49,46 +79,7 @@ Turns a number into a decimal.
 
     :output b: either decimal or int128
     """
-Turns a ``int128`` or ``decimal`` with units into one without units (used for assignment and math).
-
-**as_num128**
----------------
-::
-
-  def as_num128(a) -> b:
-    """
-    :param a: value to turn into int128
-    :type a: either int128, bytes32, uint256, or bytes
-
-    :output b: int128
-    """
-Turns input into a int128.
-
-**as_uint256**
-----------------
-::
-
-  def as_uint256(a) -> b:
-    """
-    :param a: value to turn into uint256
-    :type a: either num_literal, int128, bytes32, or address
-
-    :output b: uint256
-    """
-Turns input into a ``uint256`` (uint256).
-
-**as_bytes32**
-----------------
-::
-
-  def as_bytes32(a) -> b:
-    """
-    :param a: value to turn into bytes32
-    :type a: either int128, uint256, address
-
-    :output b: bytes32
-    """
-Turns input into a ``bytes32``.
+Turns a ``int128``, ``uint256``, ``decimal`` with units into one without units (used for assignment and math).
 
 **slice**
 ---------
@@ -135,18 +126,19 @@ Returns the length of a given list of bytes.
     """
 Takes 2 or more bytes arrays of type ``bytes32`` or ``bytes`` and combines them into one.
 
-**keccak256 (sha3)**
+**sha3/ keccak256**
 --------------------
 ::
 
-  def keccak256(a) -> b:
+  def sha3(a) -> b:
     """
     :param a: value to hash
     :type a: either str_literal, bytes, bytes32
 
     :output b: bytes32
     """
-Returns ``keccak_256`` (Ethereums sha3) hash of input.
+Returns ``keccak256``(Ethereum's sha3) hash of input.
+Note that it can be called either by using ``sha3`` or ``keccak256``.
 
 **method_id**
 ---------------
