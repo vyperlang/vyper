@@ -20,6 +20,6 @@ def foo(len: int128, sha3: int128) -> int128:
 
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_variable_naming_fail(bad_code):
-    
+
     with raises(VariableDeclarationException):
         compiler.compile(bad_code)
