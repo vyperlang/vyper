@@ -42,3 +42,30 @@ def __default__():
     c = get_contract_with_gas_estimation(code)
 
     assert_tx_failed(lambda: w3.eth.sendTransaction({'to': c.address, 'value': 10**17}))
+
+
+def test_multi_arg_default(assert_compile_failed, get_contract_with_gas_estimation):
+    code = """
+@payble
+@public
+def __default__(arg1: int1):
+    pass
+    """
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code))
+
+
+def test_always_public(assert_compile_failed, get_contract_with_gas_estimation):
+    code = """
+@private
+def __default__(arg1: int1):
+    pass
+    """
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code))
+
+
+def test_always_public_2(assert_compile_failed, get_contract_with_gas_estimation):
+    code = """
+def __default__(arg1: int1):
+    pass
+    """
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code))
