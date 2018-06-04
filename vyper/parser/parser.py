@@ -367,7 +367,7 @@ def parse_external_contracts(external_contracts, _contracts):
     return external_contracts
 
 
-def parse_other_functions(o, otherfuncs, _globals, sigs, external_contracts, origcode, _custom_units, runtime_only=False):
+def parse_other_functions(o, otherfuncs, _globals, sigs, external_contracts, origcode, _custom_units, fallback_function=None, runtime_only=False):
     sub = ['seq', initializer_lll]
     add_gas = initializer_lll.gas
     for _def in otherfuncs:
@@ -377,6 +377,11 @@ def parse_other_functions(o, otherfuncs, _globals, sigs, external_contracts, ori
         sig = FunctionSignature.from_definition(_def, external_contracts, custom_units=_custom_units)
         sig.gas = sub[-1].total_gas
         sigs[sig.name] = sig
+    # Add fallback function
+    if fallback_function:
+        pass
+    else:
+        sub.append(LLLnode.from_list(['revert', 0, 0], typ=None, annotation='Default function'))
     if runtime_only:
         return sub
     else:
