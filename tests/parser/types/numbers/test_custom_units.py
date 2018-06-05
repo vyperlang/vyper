@@ -81,8 +81,8 @@ def initiate(token_addr: address, token_quantity: uint256(token)):
     """
 
     assert get_contract_with_gas_estimation(code)
-    
-    
+
+
 def test_custom_units_after_convert(get_contract_with_gas_estimation):
     code = """
 units: {
