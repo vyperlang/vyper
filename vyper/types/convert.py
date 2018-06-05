@@ -46,7 +46,8 @@ def to_uint256(expr, args, kwargs, context):
             raise InvalidLiteralException("Number out of range: {}".format(input))
         return LLLnode.from_list(input, typ=BaseType('uint256'), pos=getpos(expr))
     elif isinstance(input, LLLnode) and typ in ('int128', 'num_literal'):
-        return LLLnode.from_list(['clampge', input, 0], typ=BaseType('uint256'), pos=getpos(expr))
+        _unit = input.typ.unit if typ == 'int128' else None
+        return LLLnode.from_list(['clampge', input, 0], typ=BaseType('uint256', _unit), pos=getpos(expr))
     elif isinstance(input, LLLnode) and typ in ('bytes32'):
         return LLLnode(value=input.value, args=input.args, typ=BaseType('uint256'), pos=getpos(expr))
     else:
