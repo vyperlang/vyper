@@ -78,7 +78,7 @@ class Stmt(object):
 
     def _check_valid_assign(self, sub):
         if isinstance(self.stmt.annotation, ast.Call):  # unit style: num(wei)
-            if self.stmt.annotation.func.id != sub.typ.typ:
+            if self.stmt.annotation.func.id != sub.typ.typ and not sub.typ.is_literal:
                 raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.func.id, self.stmt)
         elif isinstance(self.stmt.annotation, ast.Dict):
             if not isinstance(sub.typ, StructType):

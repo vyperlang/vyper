@@ -134,3 +134,37 @@ def bytes_to_bytes32(inp: bytes[32]) -> (bytes32, bytes32):
     assert c.uint256_to_bytes32(1) == [bytes_helper('', 31) + b'\x01'] * 3
     assert c.address_to_bytes32(w3.eth.accounts[0]) == [bytes_helper('', 12) + w3.toBytes(hexstr=w3.eth.accounts[0])] * 2
     assert c.bytes_to_bytes32(bytes_helper('', 32)) == [bytes_helper('', 32)] * 2
+
+
+def test_convert_to_uint256_units(get_contract, assert_tx_failed):
+    code = """
+units: {
+    meter: "Meter"
+}
+
+@public
+def test() -> int128(meter):
+    b: uint256(meter) = 1234
+    a: int128(meter) = convert(b, "int128") # should work
+    return a
+    """
+
+    c = get_contract(code)
+    assert c.test() == 1234
+
+
+def test_convert_to_int128_units(get_contract, assert_tx_failed):
+    code = """
+units: {
+    meter: "Meter"
+}
+
+@public
+def test() -> uint256(meter):
+    b: int128(meter) = 4321
+    a: uint256(meter) = convert(b, "uint256") # should work
+    return a
+    """
+
+    c = get_contract(code)
+    assert c.test() == 4321
