@@ -58,7 +58,7 @@ Now, the constructor.
   :pyobject: __init__
 
 The contract is initialized with two arguments: ``_beneficiary`` of type
-``address`` and ``bidding_time`` with type ``timedelta``, the time difference
+``address`` and ``_bidding_time`` with type ``timedelta``, the time difference
 between the start and end of the auction. We then store these two pieces of
 information into the contract variables ``self.beneficiary`` and
 ``self.auction_end``. Notice that we have access to the current time by
