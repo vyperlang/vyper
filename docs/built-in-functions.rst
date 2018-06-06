@@ -25,70 +25,20 @@ Functions
     """
 Rounds a decimal down to the nearest integer.
 
-**decimal**
+**convert**
 -----------
 ::
 
-  def decimal(a) -> b:
+  def convert(inp, out) -> b:
     """
-    :param a: value to turn into decimal
-    :type a: either decimal or int128
+    :param inp: variable to be converted
+    :type inp: type of the variable
+    :param out: type to convert(e.g. 'int128', 'uint256', 'decimal', 'bytes32')
+    :type out: String
 
-    :output b: decimal
+    :output b: converted variable
     """
-Turns a number into a decimal.
-
-**as_unitless_number**
--------------------------
-::
-
-  def as_unitless_number(a) -> b:
-    """
-    :param a: value to remove units from
-    :type a: either decimal or int128
-
-    :output b: either decimal or int128
-    """
-Turns a ``int128`` or ``decimal`` with units into one without units (used for assignment and math).
-
-**as_num128**
----------------
-::
-
-  def as_num128(a) -> b:
-    """
-    :param a: value to turn into int128
-    :type a: either int128, bytes32, uint256, or bytes
-
-    :output b: int128
-    """
-Turns input into a int128.
-
-**as_uint256**
-----------------
-::
-
-  def as_uint256(a) -> b:
-    """
-    :param a: value to turn into uint256
-    :type a: either num_literal, int128, bytes32, or address
-
-    :output b: uint256
-    """
-Turns input into a ``uint256`` (uint256).
-
-**as_bytes32**
-----------------
-::
-
-  def as_bytes32(a) -> b:
-    """
-    :param a: value to turn into bytes32
-    :type a: either int128, uint256, address
-
-    :output b: bytes32
-    """
-Turns input into a ``bytes32``.
+Converts a variable's type.
 
 **slice**
 ---------
