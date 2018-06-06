@@ -17,7 +17,7 @@ def foo(arg1: int128) -> int128:
 
     contract_2 = """
 class Foo():
-        def foo(arg1: int128) -> int128: pass
+        def foo(arg1: int128) -> int128: constant
 
 @public
 def bar(arg1: address, arg2: int128) -> int128:
@@ -51,8 +51,8 @@ def array() -> bytes[3]:
 
     contract_2 = """
 class Foo():
-    def foo() -> int128: pass
-    def array() -> bytes[3]: pass
+    def foo() -> int128: modifying
+    def array() -> bytes[3]: constant
 
 @public
 def bar(arg1: address) -> int128:
@@ -75,7 +75,7 @@ def array() -> bytes[3]:
 
     contract_2 = """
 class Foo():
-    def array() -> bytes[3]: pass
+    def array() -> bytes[3]: constant
 
 @public
 def get_array(arg1: address) -> bytes[3]:
@@ -100,7 +100,7 @@ def set_lucky(_lucky: int128):
 
     contract_2 = """
 class Foo():
-    def set_lucky(_lucky: int128): pass
+    def set_lucky(_lucky: int128): modifying
 
 @public
 def set_lucky(arg1: address, arg2: int128):
@@ -129,7 +129,7 @@ def set_lucky(_lucky: int128) -> int128:
 
     contract_2 = """
 class Foo():
-    def set_lucky(_lucky: int128) -> int128: pass
+    def set_lucky(_lucky: int128) -> int128: modifying
 
 @public
 @constant
@@ -174,7 +174,7 @@ def set_lucky(_lucky: int128) -> int128:
 
     contract_3 = """
 class Foo():
-    def set_lucky(_lucky: int128): pass
+    def set_lucky(_lucky: int128): modifying
 
 @public
 def set_lucky(arg1: address, arg2: int128):
@@ -203,7 +203,7 @@ def __init__(_lucky: int128):
 
     contract_2 = """
 class Foo():
-    def lucky() -> int128: pass
+    def lucky() -> int128: constant
 
 @public
 def bar(arg1: address) -> int128:
@@ -229,7 +229,7 @@ def __init__(_lucky: int128):
 
     contract_2 = """
 class Foo():
-    def lucky() -> int128: pass
+    def lucky() -> int128: constant
 
 magic_number: public(int128)
 
@@ -241,7 +241,7 @@ def __init__(arg1: address):
     c2 = get_contract(contract_2, *[c.address])
     contract_3 = """
 class Bar():
-    def magic_number() -> int128: pass
+    def magic_number() -> int128: constant
 
 best_number: public(int128)
 
@@ -264,7 +264,7 @@ def bar() -> int128:
 
     contract_2 = """
 class Bar():
-    def bar() -> int128: pass
+    def bar() -> int128: constant
 
 @public
 def bar() -> int128:
@@ -297,7 +297,7 @@ def bar() -> int128:
 
     contract_2 = """
 class Bar():
-    def bar() -> int128: pass
+    def bar() -> int128: constant
 
 @public
 def foo(x: address) -> int128:
@@ -338,7 +338,7 @@ def bar(arg1: address, arg2: int128) -> int128:
 def test_invalid_contract_reference_return_type(assert_tx_failed, get_contract):
     contract = """
 class Foo():
-    def foo(arg2: int128) -> invalid: pass
+    def foo(arg2: int128) -> invalid: constant
 
 @public
 def bar(arg1: address, arg2: int128) -> int128:
@@ -353,7 +353,7 @@ def test_external_contracts_must_be_declared_first_1(assert_tx_failed, get_contr
 item: public(int128)
 
 class Foo():
-    def foo(arg2: int128) -> int128: pass
+    def foo(arg2: int128) -> int128: constant
 """
     assert_tx_failed(lambda: get_contract(contract), exception=StructureException)
 
@@ -364,7 +364,7 @@ def test_external_contracts_must_be_declared_first_2(assert_tx_failed, get_contr
 MyLog: event({})
 
 class Foo():
-    def foo(arg2: int128) -> int128: pass
+    def foo(arg2: int128) -> int128: constant
 """
     assert_tx_failed(lambda: get_contract(contract), exception=StructureException)
 
@@ -376,7 +376,7 @@ def foo() -> int128:
     return 1
 
 class Foo():
-    def foo(arg2: int128) -> int128: pass
+    def foo(arg2: int128) -> int128: constant
 """
     assert_tx_failed(lambda: get_contract(contract), exception=StructureException)
 
@@ -390,9 +390,9 @@ def bar() -> int128:
 
     contract_2 = """
 class Bar():
-    def bar() -> int128: pass
+    def bar() -> int128: constant
 
-bar_contract: modifiable(Bar)
+bar_contract: Bar
 
 @public
 def foo(contract_address: address) -> int128:
@@ -420,10 +420,10 @@ def get_lucky() -> int128:
 
     contract_2 = """
 class Bar():
-    def set_lucky(arg1: int128): pass
-    def get_lucky() -> int128: pass
+    def set_lucky(arg1: int128): modifying
+    def get_lucky() -> int128: constant
 
-bar_contract: modifiable(Bar)
+bar_contract: Bar
 
 @public
 def set_lucky(contract_address: address):
@@ -463,10 +463,10 @@ def get_lucky() -> int128:
 
     contract_3 = """
 class Bar():
-    def set_lucky(arg1: int128): pass
-    def get_lucky() -> int128: pass
+    def set_lucky(arg1: int128): modifying
+    def get_lucky() -> int128: constant
 
-bar_contract: modifiable(Bar)
+bar_contract: Bar
 
 @public
 def set_contract(contract_address: address):
@@ -496,9 +496,9 @@ def bar() -> int128:
 """
     contract_2 = """
 class Bar():
-    def bar() -> int128: pass
+    def bar() -> int128: constant
 
-bar_contract: static(public(Bar))
+bar_contract: public(Bar)
 
 @public
 def foo(contract_address: address):
@@ -518,9 +518,9 @@ def get_bar() -> int128:
 def test_invalid_external_contract_call_declaration_1(assert_compile_failed, get_contract):
     contract_1 = """
 class Bar():
-    def bar() -> int128: pass
+    def bar() -> int128: constant
 
-bar_contract: static(Bar)
+bar_contract: Bar
 
 @public
 def foo(contract_address: contract(Boo)) -> int128:
@@ -534,9 +534,9 @@ def foo(contract_address: contract(Boo)) -> int128:
 def test_invalid_external_contract_call_declaration_2(assert_compile_failed, get_contract):
     contract_1 = """
 class Bar():
-    def bar() -> int128: pass
+    def bar() -> int128: constant
 
-bar_contract: static(Boo)
+bar_contract: Boo
 
 @public
 def foo(contract_address: address) -> int128:
@@ -561,10 +561,9 @@ def get_balance() -> uint256(wei):
 
     contract_2 = """
 class Bar():
-    def set_lucky(arg1: int128): pass
-    def get_lucky() -> int128: pass
+    def get_lucky() -> int128: modifying
 
-bar_contract: modifiable(Bar)
+bar_contract: Bar
 
 @public
 def set_contract(contract_address: address):
@@ -615,10 +614,10 @@ def get_lucky() -> int128:
 
     contract_2 = """
 class Bar():
-    def set_lucky(arg1: int128): pass
-    def get_lucky() -> int128: pass
+    def set_lucky(arg1: int128): modifying
+    def get_lucky() -> int128: constant
 
-bar_contract: modifiable(Bar)
+bar_contract: Bar
 
 @public
 def set_contract(contract_address: address):
@@ -641,10 +640,10 @@ def test_invalid_keyword_on_call(assert_compile_failed, get_contract_with_gas_es
 
     contract_1 = """
 class Bar():
-    def set_lucky(arg1: int128): pass
-    def get_lucky() -> int128: pass
+    def set_lucky(arg1: int128): modifying
+    def get_lucky() -> int128: constant
 
-bar_contract: modifiable(Bar)
+bar_contract: Bar
 
 @public
 def get_lucky(amount_to_send: int128) -> int128:
@@ -658,10 +657,32 @@ def test_invalid_contract_declaration(assert_compile_failed, get_contract_with_g
 
     contract_1 = """
 class Bar():
-    def set_lucky(arg1: int128): pass
+    def set_lucky(arg1: int128): modifying
 
-bar_contract: modifiable(Barr)
+bar_contract: Barr
 
     """
 
     assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), InvalidTypeException)
+
+
+def test_invalid_contract_declaration_pass(assert_compile_failed, get_contract_with_gas_estimation):
+
+    contract_1 = """
+class Bar():
+    def set_lucky(arg1: int128): pass
+    """
+
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), StructureException)
+
+
+def test_invalid_contract_declaration_assign(assert_compile_failed, get_contract_with_gas_estimation):
+
+    contract_1 = """
+class Bar():
+    def set_lucky(arg1: int128):
+        arg1 = 1
+        arg1 = 3
+    """
+
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), StructureException)

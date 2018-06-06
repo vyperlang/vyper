@@ -39,9 +39,9 @@ def bar() -> int128:
 
     contract_2 = """
 contract Bar():
-    def bar() -> int128: pass
+    def bar() -> int128: modifying
 
-bar_contract: static(Bar)
+bar_contract: Bar
 
 @public
 def foo(contract_address: address) -> int128:
