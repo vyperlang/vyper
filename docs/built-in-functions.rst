@@ -288,23 +288,26 @@ Note that the amount to send should be specified in wei.
 ---------------
 ::
 
-  def raw_call(a, b, outsize=c, gas=d, value=e):
+  def raw_call(a, b, outsize=c, gas=d, value=e) -> f:
     """
     :param a: the destination address to call to
     :type a: address
     :param b: the data to send the called address
     :type b: bytes
-    :param c: the destination address to send ether to
-    :type c: address
-    :param d: the wei value to send to the address
+    :param c: the max-length for the bytes array returned from the call.
+    :type c: fixed literal value
+    :param d: the gas amount to attach to the call.
     :type d: uint256
-    :param e: the destination address to send ether to
-    :type e: address
+    :param e: the wei value to send to the address (Optional)
+    :type e: uint256
+    
+    :output f: bytes[outsize]
     """
 
 Calls to the specified Ethereum address.
 The call should pass data and may optionaly send eth value (specified in wei) as well.
 The call must specify a gas amount to attach the call and and the outsize.
+Returns the data returned by the call as a bytes array with the outsize as the max length.
 
 **selfdestruct**
 ---------------
@@ -336,7 +339,15 @@ Otherwise, the OPCODE ``REVERT`` (0xfd) will be triggered, the code will stop it
 ---------------
 ::
 
-Docs for this function are under maintainance.
+  def raw_log(a, b):
+    """
+    :param a: the address of the contract to duplicate.
+    :type a: * (any input)
+    :param b: the name of the logged event.
+    :type b: bytes
+    """
+
+Emits a log without specifying the abi type, with the arguments entered as the first input.
 
 **create_with_code_of**
 ---------------
