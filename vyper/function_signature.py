@@ -34,9 +34,8 @@ class VariableRecord():
 
 
 class ContractRecord(VariableRecord):
-    def __init__(self, modifiable, *args):
+    def __init__(self, *args):
         super(ContractRecord, self).__init__(*args)
-        self.modifiable = modifiable
 
 
 # Function signature object
@@ -55,7 +54,7 @@ class FunctionSignature():
 
     # Get a signature from a function definition
     @classmethod
-    def from_definition(cls, code, sigs=None, custom_units=None):
+    def from_definition(cls, code, sigs=None, custom_units=None, contract_def=False, constant=False):
         name = code.name
         pos = 0
         # Determine the arguments, expects something of the form def foo(arg1: int128, arg2: int128 ...
@@ -92,8 +91,10 @@ class FunctionSignature():
             raise StructureException("Cannot use public and private decorators on the same function: {}".format(name))
         if payable and const:
             raise StructureException("Function {} cannot be both constant and payable.".format(name))
-        if not public and not private and not isinstance(code.body[0], ast.Pass):
+        if (not public and not private) and not contract_def:
             raise StructureException("Function visibility must be declared (@public or @private)", code)
+        if constant:
+            const = True
         # Determine the return type and whether or not it's constant. Expects something
         # of the form:
         # def foo(): ...

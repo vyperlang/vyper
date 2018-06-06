@@ -218,7 +218,7 @@ def get_item_name_and_attributes(item, attributes):
 
 
 def add_globals_and_events(_custom_units, _contracts, _defs, _events, _getters, _globals, item):
-    item_attributes = {"public": False, "modifiable": False, "static": False}
+    item_attributes = {"public": False}
     if not (isinstance(item.annotation, ast.Call) and item.annotation.func.id == "event"):
         item_name, item_attributes = get_item_name_and_attributes(item, item_attributes)
         if not all([attr in valid_global_keywords for attr in item_attributes.keys()]):
@@ -265,9 +265,7 @@ def add_globals_and_events(_custom_units, _contracts, _defs, _events, _getters, 
         _contracts[item.target.id] = add_contract(premade_contract.body)
         _globals[item.target.id] = VariableRecord(item.target.id, len(_globals), BaseType('address'), True)
     elif item_name in _contracts:
-        if not item_attributes["modifiable"] and not item_attributes["static"]:
-            raise StructureException("All contracts must have `modifiable` or `static` keywords: %s" % item_attributes)
-        _globals[item.target.id] = ContractRecord(item_attributes["modifiable"], item.target.id, len(_globals), ContractType(item_name), True)
+        _globals[item.target.id] = ContractRecord(item.target.id, len(_globals), ContractType(item_name), True)
         if item_attributes["public"]:
             typ = ContractType(item_name)
             for getter in mk_getter(item.target.id, typ):
@@ -360,8 +358,18 @@ def parse_external_contracts(external_contracts, _contracts):
         contract = {}
         if len(set(_defnames)) < len(_contract_defs):
             raise VariableDeclarationException("Duplicate function name: %s" % [name for name in _defnames if _defnames.count(name) > 1][0])
+
         for _def in _contract_defs:
-            sig = FunctionSignature.from_definition(_def)
+            constant = False
+            # test for valid call type keyword.
+            if len(_def.body) == 1 and \
+               isinstance(_def.body[0], ast.Expr) and \
+               isinstance(_def.body[0].value, ast.Name) and \
+               _def.body[0].value.id in ('modifying', 'constant'):
+                constant = True if _def.body[0].value.id == 'constant' else False
+            else:
+                raise StructureException('constant or modifying call type must be specified', _def)
+            sig = FunctionSignature.from_definition(_def, contract_def=True, constant=constant)
             contract[sig.name] = sig
         external_contracts[_contractname] = contract
     return external_contracts
@@ -517,7 +525,7 @@ def parse_body(code, context):
     return LLLnode.from_list(['seq'] + o, pos=getpos(code[0]) if code else None)
 
 
-def external_contract_call(node, context, contract_name, contract_address, is_modifiable, pos, value=None, gas=None):
+def external_contract_call(node, context, contract_name, contract_address, pos, value=None, gas=None):
     if value is None:
         value = 0
     if gas is None:
@@ -533,7 +541,7 @@ def external_contract_call(node, context, contract_name, contract_address, is_mo
     output_placeholder, output_size, returner = get_external_contract_call_output(sig, context)
     sub = ['seq', ['assert', ['extcodesize', contract_address]],
                     ['assert', ['ne', 'address', contract_address]]]
-    if context.is_constant or not is_modifiable:
+    if context.is_constant or sig.const:
         sub.append(['assert', ['staticcall', gas, contract_address, inargs, inargsize, output_placeholder, output_size]])
     else:
         sub.append(['assert', ['call', gas, contract_address, value, inargs, inargsize, output_placeholder, output_size]])

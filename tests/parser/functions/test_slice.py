@@ -75,8 +75,8 @@ def bar(inp1: bytes[50]) -> int128:
 def test_test_slice4(get_contract_with_gas_estimation, assert_tx_failed):
     test_slice4 = """
 @public
-def foo(inp: bytes[10], start: int128, len: int128) -> bytes[10]:
-    return slice(inp, start=start, len=len)
+def foo(inp: bytes[10], start: int128, _len: int128) -> bytes[10]:
+    return slice(inp, start=start, len=_len)
     """
 
     c = get_contract_with_gas_estimation(test_slice4)

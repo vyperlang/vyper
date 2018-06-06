@@ -11,11 +11,14 @@ def set_lucky(_lucky: int128):
 """
 
     contract_2 = """
-class Bar():
-    def set_lucky(_lucky: int128): pass
+class ModBar():
+    def set_lucky(_lucky: int128): modifying
 
-modifiable_bar_contract: modifiable(Bar)
-static_bar_contract: static(Bar)
+class ConstBar():
+    def set_lucky(_lucky: int128): constant
+
+modifiable_bar_contract: ModBar
+static_bar_contract: ConstBar
 
 @public
 def __init__(contract_address: address):
@@ -51,11 +54,14 @@ def set_lucky(_lucky: int128) -> int128:
 """
 
     contract_2 = """
-class Bar():
-    def set_lucky(_lucky: int128) -> int128: pass
+class ModBar():
+    def set_lucky(_lucky: int128) -> int128: modifying
 
-modifiable_bar_contract: modifiable(Bar)
-static_bar_contract: static(Bar)
+class ConstBar():
+    def set_lucky(_lucky: int128) -> int128: constant
+
+modifiable_bar_contract: ModBar
+static_bar_contract: ConstBar
 
 @public
 def __init__(contract_address: address):
@@ -64,7 +70,7 @@ def __init__(contract_address: address):
 
 @public
 def modifiable_set_lucky(_lucky: int128) -> int128:
-    x:int128 = self.modifiable_bar_contract.set_lucky(_lucky)
+    x: int128 = self.modifiable_bar_contract.set_lucky(_lucky)
     return x
 
 @public
@@ -91,11 +97,14 @@ def set_lucky(_lucky: int128):
 """
 
     contract_2 = """
-class Bar():
-    def set_lucky(_lucky: int128): pass
+class ModBar():
+    def set_lucky(_lucky: int128): modifying
 
-modifiable_bar_contract: modifiable(Bar)
-static_bar_contract: static(Bar)
+class ConstBar():
+    def set_lucky(_lucky: int128): constant
+
+modifiable_bar_contract: ModBar
+static_bar_contract: ConstBar
 
 @public
 def __init__(contract_address: address):
@@ -112,12 +121,16 @@ def static_set_lucky(_lucky: int128):
 """
 
     contract_3 = """
-class Bar():
-    def modifiable_set_lucky(_lucky: int128): pass
-    def static_set_lucky(_lucky: int128): pass
+class ModBar():
+    def modifiable_set_lucky(_lucky: int128): modifying
+    def static_set_lucky(_lucky: int128): modifying
 
-modifiable_bar_contract: modifiable(Bar)
-static_bar_contract: static(Bar)
+class ConstBar():
+    def modifiable_set_lucky(_lucky: int128): constant
+    def static_set_lucky(_lucky: int128): constant
+
+modifiable_bar_contract: ModBar
+static_bar_contract: ConstBar
 
 @public
 def __init__(contract_address: address):
@@ -162,9 +175,9 @@ def bar() -> int128:
 """
     contract_2 = """
 class Bar():
-    def bar() -> int128: pass
+    def bar() -> int128: constant
 
-bar_contract: public(static(Bar))
+bar_contract: public(Bar)
 
 @public
 def foo(contract_address: address):
@@ -186,7 +199,7 @@ def test_invalid_external_contract_call_declaration_1(assert_compile_failed, get
 class Bar():
     def bar() -> int128: pass
 
-bar_contract: static(Bar)
+bar_contract: Bar
 
 @public
 def foo(contract_address: contract(Boo)) -> int128:
@@ -200,9 +213,9 @@ def foo(contract_address: contract(Boo)) -> int128:
 def test_invalid_external_contract_call_declaration_2(assert_compile_failed, get_contract):
     contract_1 = """
 class Bar():
-    def bar() -> int128: pass
+    def bar() -> int128: constant
 
-bar_contract: static(Boo)
+bar_contract: Boo
 
 @public
 def foo(contract_address: address) -> int128:
@@ -215,7 +228,7 @@ def foo(contract_address: address) -> int128:
 
 def test_invalid_if_external_contract_doesnt_exist(get_contract, assert_compile_failed):
     code = """
-modifiable_bar_contract: modifiable(Bar)
+modifiable_bar_contract: Bar
 """
 
     assert_compile_failed(lambda: get_contract(code), InvalidTypeException)
@@ -224,7 +237,7 @@ modifiable_bar_contract: modifiable(Bar)
 def test_invalid_if_not_in_valid_global_keywords(get_contract, assert_compile_failed):
     code = """
 class Bar():
-    def set_lucky(_lucky: int128): pass
+    def set_lucky(_lucky: int128): modifying
 
 modifiable_bar_contract: trusted(Bar)
     """
