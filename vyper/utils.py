@@ -149,6 +149,9 @@ reserved_words = ['int128', 'int256', 'uint256', 'address', 'bytes32',
 
 # Is a variable or member variable name valid?
 def is_varname_valid(varname, custom_units):
+    from vyper.functions import dispatch_table, stmt_dispatch_table
+    built_in_functions = [x for x in stmt_dispatch_table.keys()] + \
+      [x for x in dispatch_table.keys()]
     if custom_units is None:
         custom_units = []
     if varname.lower() in [cu.lower() for cu in custom_units]:
@@ -160,5 +163,7 @@ def is_varname_valid(varname, custom_units):
     if varname.lower() in reserved_words:
         return False
     if varname.upper() in opcodes:
+        return False
+    if varname.lower() in built_in_functions:
         return False
     return True
