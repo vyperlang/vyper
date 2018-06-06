@@ -210,6 +210,7 @@ Operator       Description
 ``min(x, y)``  Minimum
 ``max(x, y)``  Maximum
 ``floor(x)``   Largest integer <= ``x``. Returns ``int128``.
+``ceil(x)``   Smallest integer >= ``x``. Returns ``int128``.
 =============  ==========================================
 ``x`` and ``y`` must be of the type ``decimal``.
 
@@ -238,34 +239,33 @@ Syntax as follows: ``_address.<member>``, where ``_address`` is of the type ``ad
 
 Unit Types
 ==========
-Vyper allows the definition of types with discrete units e.g. meters, seconds, wei, ... . These types may only be based on either ``int128`` or ``decimal``.
-Vyper has multiple unit types built in, which are the following:
+Vyper allows the definition of types with discrete units e.g. meters, seconds, wei, ... . These types may only be based on either ``uint256``, ``int128`` or ``decimal``.
+Vyper has 3 unit types built in, which are the following:
 
 =============  =====  =========  ==========================
 Time
 -----------------------------------------------------------
 Keyword        Unit   Base type  Description
 =============  =====  =========  ==========================
-``timestamp``  1 sec  ``int128``    This represents a point in time.
-``timedelta``  1 sec  ``int128``    This is a number of seconds.
+``timestamp``  1 sec  ``uint256``    This represents a point in time.
+``timedelta``  1 sec  ``uint256``    This is a number of seconds.
 =============  =====  =========  ==========================
 
 .. note::
     Two ``timedelta`` can be added together, as can a ``timedelta`` and a ``timestamp``, but not two ``timestamps``.
 
 ===================  ===========  =========  ====================================================================================
-Currency
+Wei 
 ---------------------------------------------------------------------------------------------------------------------------------
 Keyword              Unit         Base type  Description
 ===================  ===========  =========  ====================================================================================
-``wei_value``        1 wei        ``int128``    This is an amount of `Ether <http://ethdocs.org/en/latest/ether.html#denominations>`_ in wei.
-``currency_value``   1 currency   ``int128``    This is an amount of currency.
+``wei_value``        1 wei        ``uint256``    This is an amount of `Ether <http://ethdocs.org/en/latest/ether.html#denominations>`_ in wei.
 ===================  ===========  =========  ====================================================================================
 
 Custom Unit Types
 =================
 
-Vyper allows you to add additional not-provided unit label to either ``int128`` or ``decimal``.
+Vyper allows you to add additional not-provided unit label to either ``uint256``, ``int128`` or ``decimal``.
 
 **Custom units example:**
 ::
@@ -280,7 +280,7 @@ Having defined the units they can be defined on variables as follows.
 **Custom units usage:**
 ::
     a: int128(cm)
-    b: int128(km)
+    b: uint256(km)
 
 .. index:: !bytes32
 32-bit-wide Byte Array
@@ -456,18 +456,3 @@ Here you can find a list of all types and default values:
     In reference types all the type's members are set to their initial values.
 
 .. index:: !conversion
-
-**********
-Conversion
-**********
-The following conversions are possible.
-
-===========================  =====================================================================================================================  =============
-Keyword                      Input                                                                                                                  Output
-===========================  =====================================================================================================================  =============
-``as_num128(x)``             ``uint256``, ``address``, ``bytes32``                                                                                   ``int128``
-``as_uint256(x)``             ``int128`` , ``address``, ``bytes32``                                                                                     ``uint256``
-``as_bytes32(x)``            ``int128``, ``uint256``, ``address``                                                                                       ``bytes32``
-``bytes_to_num(x)``          ``bytes``                                                                                                              ``int128``
-``as_wei_value(x, denom)``   ``int128`` , ``decimal``; `denomination <http://ethdocs.org/en/latest/ether.html#denominations>`_ literal                 ``wei_value``
-===========================  =====================================================================================================================  =============
