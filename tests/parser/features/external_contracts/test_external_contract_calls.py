@@ -664,3 +664,24 @@ bar_contract: Barr
     """
 
     assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), InvalidTypeException)
+
+
+def test_invalid_contract_declaration_pass(assert_compile_failed, get_contract_with_gas_estimation):
+
+    contract_1 = """
+class Bar():
+    def set_lucky(arg1: int128): pass
+    """
+
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), StructureException)
+
+
+def test_invalid_contract_declaration_assign(assert_compile_failed, get_contract_with_gas_estimation):
+
+    contract_1 = """
+class Bar():
+    def set_lucky(arg1: int128):
+        arg1 = 1
+    """
+
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), StructureException)

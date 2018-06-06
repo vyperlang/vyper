@@ -65,8 +65,8 @@ static_bar_contract: ConstBar
 
 @public
 def __init__(contract_address: address):
-    self.modifiable_bar_contract.address = contract_address
-    self.static_bar_contract.address = contract_address
+    self.modifiable_bar_contract = contract_address
+    self.static_bar_contract = contract_address
 
 @public
 def modifiable_set_lucky(_lucky: int128) -> int128:
