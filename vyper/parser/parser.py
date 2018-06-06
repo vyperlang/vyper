@@ -361,12 +361,12 @@ def parse_external_contracts(external_contracts, _contracts):
 
         for _def in _contract_defs:
             constant = False
-            if len(_def.body) > 1:
-                raise StructureException('Only constant or modifying call type must be specified in contract definition', _def)
-            if isinstance(_def.body[0], ast.Expr) and \
-                    isinstance(_def.body[0].value, ast.Name) and _def.body[0].value.id in ('modifying', 'constant'):
-                if _def.body[0].value.id == 'constant':
-                    constant = True
+            # test for valid call type keyword.
+            if len(_def.body) == 1 and \
+               isinstance(_def.body[0], ast.Expr) and \
+               isinstance(_def.body[0].value, ast.Name) and \
+               _def.body[0].value.id in ('modifying', 'constant'):
+                constant = True if _def.body[0].value.id == 'constant' else False
             else:
                 raise StructureException('constant or modifying call type must be specified', _def)
             sig = FunctionSignature.from_definition(_def, contract_def=True, constant=constant)

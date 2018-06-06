@@ -682,6 +682,7 @@ def test_invalid_contract_declaration_assign(assert_compile_failed, get_contract
 class Bar():
     def set_lucky(arg1: int128):
         arg1 = 1
+        arg1 = 3
     """
 
     assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), StructureException)
