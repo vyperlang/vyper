@@ -110,7 +110,7 @@ Values
 Integer values between 0 and (2\ :sup:`256`-1).
 
 .. note::
-    Integer literals are always interpreted as ``int128``. In order to assign a literal to a ``uint256`` use ``as_uint256(_literal)``.
+    Integer literals are interpreted as ``int128`` by default. In cases where ``uint256`` is more appropriate, such as assignment, the literal might be interpreted as ``uint256``. Example: ``_variable: uint256 = _literal``. In order to explicitly cast a literal to a ``uint256`` use ``convert(_literal, 'uint256')``.
 
 Operators
 ---------
