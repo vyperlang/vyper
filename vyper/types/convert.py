@@ -53,11 +53,20 @@ def to_uint256(expr, args, kwargs, context):
         raise InvalidLiteralException("Invalid input for uint256: %r" % input, expr)
 
 
-@signature('int128', 'str_literal')
+@signature(('int128', 'uint256'), 'str_literal')
 def to_decimal(expr, args, kwargs, context):
     input = args[0]
-    return LLLnode.from_list(['mul', input, DECIMAL_DIVISOR], typ=BaseType('decimal', input.typ.unit, input.typ.positional),
-                             pos=getpos(expr))
+    if input.typ.typ == 'uint256':
+        return LLLnode.from_list(
+            ['uclample', ['mul', input, DECIMAL_DIVISOR], ['mload', MemoryPositions.MAXDECIMAL]],
+            typ=BaseType('decimal', input.typ.unit, input.typ.positional), pos=getpos(expr)
+        )
+    else:
+        return LLLnode.from_list(
+            ['mul', input, DECIMAL_DIVISOR],
+            typ=BaseType('decimal', input.typ.unit, input.typ.positional),
+            pos=getpos(expr)
+        )
 
 
 @signature(('int128', 'uint256', 'address', 'bytes'), 'str_literal')

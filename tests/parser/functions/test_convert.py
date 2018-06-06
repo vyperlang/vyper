@@ -1,3 +1,6 @@
+from decimal import Decimal
+
+
 def test_convert_to_num(get_contract_with_gas_estimation, assert_tx_failed):
     code = """
 a: int128
@@ -134,3 +137,24 @@ def bytes_to_bytes32(inp: bytes[32]) -> (bytes32, bytes32):
     assert c.uint256_to_bytes32(1) == [bytes_helper('', 31) + b'\x01'] * 3
     assert c.address_to_bytes32(w3.eth.accounts[0]) == [bytes_helper('', 12) + w3.toBytes(hexstr=w3.eth.accounts[0])] * 2
     assert c.bytes_to_bytes32(bytes_helper('', 32)) == [bytes_helper('', 32)] * 2
+
+
+def test_uint256_decimal(assert_tx_failed, get_contract_with_gas_estimation):
+    code = """
+@public
+def test_variable() -> bool:
+    a: uint256 = 1000
+    return convert(a, 'decimal') == 1000.0
+
+@public
+def test_passed_variable(a: uint256) -> decimal:
+    return convert(a, 'decimal')
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.test_variable() is True
+    assert c.test_passed_variable(256) == 256
+    max_decimal = (2**127 - 1)
+    assert c.test_passed_variable(max_decimal) == Decimal(max_decimal)
+    assert_tx_failed(lambda: c.test_passed_variable(max_decimal + 1))
