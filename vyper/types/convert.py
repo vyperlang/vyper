@@ -37,7 +37,7 @@ def to_int128(expr, args, kwargs, context):
         return byte_array_to_num(in_node, expr, 'int128')
 
 
-@signature(('num_literal', 'int128', 'bytes32'), 'str_literal')
+@signature(('num_literal', 'int128', 'bytes32', 'uint256'), 'str_literal')
 def to_uint256(expr, args, kwargs, context):
     input = args[0]
     typ, len = get_type(input)
@@ -45,7 +45,7 @@ def to_uint256(expr, args, kwargs, context):
         if not(0 <= input <= 2**256 - 1):
             raise InvalidLiteralException("Number out of range: {}".format(input))
         return LLLnode.from_list(input, typ=BaseType('uint256'), pos=getpos(expr))
-    elif isinstance(input, LLLnode) and typ in ('int128', 'num_literal'):
+    elif isinstance(input, LLLnode) and typ in ('int128', 'num_literal', 'uint256'):
         return LLLnode.from_list(['clampge', input, 0], typ=BaseType('uint256'), pos=getpos(expr))
     elif isinstance(input, LLLnode) and typ in ('bytes32'):
         return LLLnode(value=input.value, args=input.args, typ=BaseType('uint256'), pos=getpos(expr))
