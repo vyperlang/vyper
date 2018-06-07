@@ -67,7 +67,7 @@ def test():
 
 def test_version_empty_version(assert_compile_failed, get_contract):
     code = """
-# @version
+#@version
 
 @public
 def test():
@@ -79,6 +79,17 @@ def test():
 def test_version_empty_version_mismatch(assert_compile_failed, get_contract):
     code = """
 # @version 0.1.0
+
+@public
+def test():
+    pass
+    """
+    assert_compile_failed(lambda: get_contract(code))
+
+
+def test_version_empty_invalid_version_string(assert_compile_failed, get_contract):
+    code = """
+# @version hello
 
 @public
 def test():

@@ -102,9 +102,10 @@ def pre_parser(code):
         result.append(token)
     return tokenize.untokenize(result).decode('utf-8')
 
+
 def _parser_version_str(version_str):
     version_regex = re.compile(r'^(\d+\.)?(\d+\.)?(\w*)$')
-    if not version_regex.match(version_str):
+    if None in version_regex.match(version_str).groups():
         raise Exception('Could not parse given version: %s' % version_str)
     return version_regex.match(version_str).groups()
 
@@ -112,8 +113,6 @@ def _parser_version_str(version_str):
 # Do a version check.
 def parse_version_pragma(version_str):
     version_arr = version_str.split('@version')
-    if len(version_arr) != 2:
-        raise Excpetion('Invalid version string, no version found.')
 
     file_version = version_arr[1].strip()
     file_major, file_minor, file_patch = _parser_version_str(file_version)
