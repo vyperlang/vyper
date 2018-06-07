@@ -15,7 +15,7 @@ parts:
   vyper:
     source: .
     plugin: python
-    python-version: python3
+    python-version: python3.6
     after: [python]
   python:
     source: https://www.python.org/ftp/python/3.6.3/Python-3.6.3.tar.xz
@@ -37,7 +37,8 @@ parts:
       - libbluetooth-dev
       - libsqlite3-dev
       - libffi-dev
+    stage-packages:
+      - libc6
     stage:
       - -usr/lib/python3.6/test
       - -usr/bin/pydoc3
-      - -usr/bin/python3

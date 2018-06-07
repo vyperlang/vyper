@@ -1,8 +1,14 @@
 import ast
 import tokenize
 import io
+import re
 
-from tokenize import OP, NAME, TokenInfo
+from tokenize import (
+    OP,
+    NAME,
+    TokenInfo,
+    COMMENT
+)
 
 from vyper.exceptions import (
     InvalidLiteralException,
@@ -61,6 +67,7 @@ from vyper.utils import (
     calc_mem_gas,
     is_varname_valid,
 )
+from vyper import __version__
 
 
 if not hasattr(ast, 'AnnAssign'):
@@ -84,6 +91,8 @@ def pre_parser(code):
     for token in g:
 
         # Alias contract definition to class definition.
+        if token.type == COMMENT and "@version" in token.string:
+            parse_version_pragma(token.string[1:])
         if (token.type, token.string, token.start[1]) == (NAME, "contract", 0):
             token = TokenInfo(token.type, "class", token.start, token.end, token.line)
         # Prevent semi-colon line statements.
@@ -92,6 +101,28 @@ def pre_parser(code):
 
         result.append(token)
     return tokenize.untokenize(result).decode('utf-8')
+
+def _parser_version_str(version_str):
+    version_regex = re.compile(r'^(\d+\.)?(\d+\.)?(\w*)$')
+    if not version_regex.match(version_str):
+        raise Exception('Could not parse given version: %s' % version_str)
+    return version_regex.match(version_str).groups()
+
+
+# Do a version check.
+def parse_version_pragma(version_str):
+    version_arr = version_str.split('@version')
+    if len(version_arr) != 2:
+        raise Excpetion('Invalid version string, no version found.')
+
+    file_version = version_arr[1].strip()
+    file_major, file_minor, file_patch = _parser_version_str(file_version)
+    compiler_major, compiler_minor, compiler_patch = _parser_version_str(__version__)
+
+    if (file_major, file_minor) != (compiler_major, compiler_minor):
+        raise Exception('Given version "{}" is not compatible with the compiler ({}): '.format(
+            file_version, __version__
+        ))
 
 
 # Parser for a single line
