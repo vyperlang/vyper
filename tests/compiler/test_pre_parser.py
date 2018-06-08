@@ -52,3 +52,47 @@ def foo(contract_address: address) -> int128:
     c1 = get_contract(contract_1)
     c2 = get_contract(contract_2)
     assert c2.foo(c1.address) == 1
+
+
+def test_version_pragma(get_contract):
+    code = """
+# @version 0.0.4
+
+@public
+def test():
+    pass
+    """
+    assert get_contract(code)
+
+
+def test_version_empty_version(assert_compile_failed, get_contract):
+    code = """
+#@version
+
+@public
+def test():
+    pass
+    """
+    assert_compile_failed(lambda: get_contract(code))
+
+
+def test_version_empty_version_mismatch(assert_compile_failed, get_contract):
+    code = """
+# @version 9.9.9
+
+@public
+def test():
+    pass
+    """
+    assert_compile_failed(lambda: get_contract(code))
+
+
+def test_version_empty_invalid_version_string(assert_compile_failed, get_contract):
+    code = """
+# @version hello
+
+@public
+def test():
+    pass
+    """
+    assert_compile_failed(lambda: get_contract(code))
