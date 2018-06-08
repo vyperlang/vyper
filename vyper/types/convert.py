@@ -43,7 +43,8 @@ def to_uint256(expr, args, kwargs, context):
     in_node = args[0]
     typ, len = get_type(in_node)
     if isinstance(in_node, int):
-        if not(0 <= in_node <= 2**256 - 1):
+
+        if not SizeLimits.in_bounds('uint256', in_node):
             raise InvalidLiteralException("Number out of range: {}".format(in_node))
         _unit = in_node.typ.unit if typ == 'int128' else None
         return LLLnode.from_list(in_node, typ=BaseType('uint256', _unit), pos=getpos(expr))

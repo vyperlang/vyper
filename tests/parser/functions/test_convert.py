@@ -1,3 +1,6 @@
+from decimal import Decimal
+
+
 def test_convert_to_num(get_contract_with_gas_estimation, assert_tx_failed):
     code = """
 a: int128
@@ -145,7 +148,7 @@ units: {
 @public
 def test() -> int128(meter):
     b: uint256(meter) = 1234
-    a: int128(meter) = convert(b, "int128") # should work
+    a: int128(meter) = convert(b, "int128")
     return a
     """
 
@@ -162,9 +165,32 @@ units: {
 @public
 def test() -> uint256(meter):
     b: int128(meter) = 4321
-    a: uint256(meter) = convert(b, "uint256") # should work
+    a: uint256(meter) = convert(b, "uint256")
     return a
     """
 
     c = get_contract(code)
     assert c.test() == 4321
+
+
+def test_convert_to_int128_decimal_units(get_contract, assert_tx_failed):
+    code = """
+units: {
+    meter: "Meter"
+}
+
+@public
+def test() -> decimal(meter):
+    a: decimal(meter) = convert(5001, "decimal")
+    return a
+
+@public
+def test2() -> decimal(meter):
+    b: int128(meter) = 1234
+    a: decimal(meter) = convert(b, "decimal")
+    return a
+    """
+
+    c = get_contract(code)
+    assert c.test() == Decimal('5001')
+    assert c.test2() == Decimal('1234')
