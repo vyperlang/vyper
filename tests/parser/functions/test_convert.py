@@ -139,6 +139,27 @@ def bytes_to_bytes32(inp: bytes[32]) -> (bytes32, bytes32):
     assert c.bytes_to_bytes32(bytes_helper('', 32)) == [bytes_helper('', 32)] * 2
 
 
+def test_uint256_decimal(assert_tx_failed, get_contract_with_gas_estimation):
+    code = """
+@public
+def test_variable() -> bool:
+    a: uint256 = 1000
+    return convert(a, 'decimal') == 1000.0
+
+@public
+def test_passed_variable(a: uint256) -> decimal:
+    return convert(a, 'decimal')
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.test_variable() is True
+    assert c.test_passed_variable(256) == 256
+    max_decimal = (2**127 - 1)
+    assert c.test_passed_variable(max_decimal) == Decimal(max_decimal)
+    assert_tx_failed(lambda: c.test_passed_variable(max_decimal + 1))
+
+
 def test_convert_to_uint256_units(get_contract, assert_tx_failed):
     code = """
 units: {
