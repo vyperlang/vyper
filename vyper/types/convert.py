@@ -31,7 +31,8 @@ def to_int128(expr, args, kwargs, context):
         if in_node.typ.is_literal and not SizeLimits.in_bounds('int128', in_node.value):
             raise InvalidLiteralException("Number out of range: {}".format(in_node.value), expr)
         return LLLnode.from_list(
-            ['clamp', ['mload', MemoryPositions.MINNUM], in_node, ['mload', MemoryPositions.MAXNUM]], typ=BaseType('int128'), pos=getpos(expr)
+            ['clamp', ['mload', MemoryPositions.MINNUM], in_node,
+                        ['mload', MemoryPositions.MAXNUM]], typ=BaseType('int128', in_node.typ.unit), pos=getpos(expr)
         )
     else:
         return byte_array_to_num(in_node, expr, 'int128')
@@ -39,18 +40,21 @@ def to_int128(expr, args, kwargs, context):
 
 @signature(('num_literal', 'int128', 'bytes32'), 'str_literal')
 def to_uint256(expr, args, kwargs, context):
-    input = args[0]
-    typ, len = get_type(input)
-    if isinstance(input, int):
-        if not(0 <= input <= 2**256 - 1):
-            raise InvalidLiteralException("Number out of range: {}".format(input))
-        return LLLnode.from_list(input, typ=BaseType('uint256'), pos=getpos(expr))
-    elif isinstance(input, LLLnode) and typ in ('int128', 'num_literal'):
-        return LLLnode.from_list(['clampge', input, 0], typ=BaseType('uint256'), pos=getpos(expr))
-    elif isinstance(input, LLLnode) and typ in ('bytes32'):
-        return LLLnode(value=input.value, args=input.args, typ=BaseType('uint256'), pos=getpos(expr))
+    in_node = args[0]
+    typ, len = get_type(in_node)
+    if isinstance(in_node, int):
+
+        if not SizeLimits.in_bounds('uint256', in_node):
+            raise InvalidLiteralException("Number out of range: {}".format(in_node))
+        _unit = in_node.typ.unit if typ == 'int128' else None
+        return LLLnode.from_list(in_node, typ=BaseType('uint256', _unit), pos=getpos(expr))
+    elif isinstance(in_node, LLLnode) and typ in ('int128', 'num_literal'):
+        _unit = in_node.typ.unit if typ == 'int128' else None
+        return LLLnode.from_list(['clampge', in_node, 0], typ=BaseType('uint256', _unit), pos=getpos(expr))
+    elif isinstance(in_node, LLLnode) and typ in ('bytes32'):
+        return LLLnode(value=in_node.value, args=in_node.args, typ=BaseType('uint256'), pos=getpos(expr))
     else:
-        raise InvalidLiteralException("Invalid input for uint256: %r" % input, expr)
+        raise InvalidLiteralException("Invalid input for uint256: %r" % in_node, expr)
 
 
 @signature('int128', 'str_literal')
