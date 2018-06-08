@@ -46,9 +46,9 @@ def __default__():
 
 def test_multi_arg_default(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
-@payble
+@payable
 @public
-def __default__(arg1: int1):
+def __default__(arg1: int128):
     pass
     """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code))
@@ -57,7 +57,7 @@ def __default__(arg1: int1):
 def test_always_public(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
 @private
-def __default__(arg1: int1):
+def __default__():
     pass
     """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code))
@@ -65,7 +65,9 @@ def __default__(arg1: int1):
 
 def test_always_public_2(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
-def __default__(arg1: int1):
-    pass
+Sent: event({sender: indexed(address)})
+
+def __default__():
+    log.Sent(msg.sender)
     """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code))
