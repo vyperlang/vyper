@@ -32,6 +32,30 @@ It requires ``pyethereum>=2.0.0`` for the ``tester`` module
 Note: We are working on integration with `ethereum-tester <https://github.com/ethereum/ethereum-tester>`_,
 so this example will change.
 
+##################
+Testing Using vyper-run Command
+##################
+
+To allow quickly testing contracts, Vyper provides a command line tool for instantly executing a function:
+::
+    vyper-run yourFileName.v.py "your_function();" -i some_init_param, another_init_param
+
+The vyper-run command is composed of 4 parts:
+
+- vyper-run
+
+- the name of the contract file you want to execute (for example: coolContract.vy)
+
+- a string (wrapped in doubble quotes) with the function you want to trigger, you can trigger multiple functions by adding a semicolon at the end of each function and then call the next function (for example: ``"my_function1(100,4);my_function2()"``) +
+
+- (Optional) the parameters for the ``__init__`` function of the contract (for example: given ``__init__(a: int128, b: int128)`` the syntax would be ``-i 8,27``).
+
+Putting it all together:
+::
+    vyper-run myContract.v.py "my_function1();my_function2()" -i 1,3
+
+The vyper-run command will print out the returned value of the called functions as well as all the logged events emitted during the function's execution.
+
 ####################
 Deploying a Contract
 ####################
