@@ -57,3 +57,9 @@ def approve(_seq: int128, to: address, value: wei_value, data: bytes[4096], sigd
     self.seq += 1
     # Use raw_call to send the transaction
     return raw_call(to, data, outsize=4096, gas=3000000, value=value)
+
+
+@public
+@payable
+def __default__():
+    pass

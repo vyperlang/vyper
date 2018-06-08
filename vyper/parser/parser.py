@@ -331,6 +331,11 @@ def is_initializer(code):
     return code.name == '__init__'
 
 
+# Is a function the default function?
+def is_default_func(code):
+    return code.name == '__default__'
+
+
 # Get ABI signature
 def mk_full_signature(code):
     o = []
@@ -375,7 +380,7 @@ def parse_external_contracts(external_contracts, _contracts):
     return external_contracts
 
 
-def parse_other_functions(o, otherfuncs, _globals, sigs, external_contracts, origcode, _custom_units, runtime_only=False):
+def parse_other_functions(o, otherfuncs, _globals, sigs, external_contracts, origcode, _custom_units, fallback_function, runtime_only):
     sub = ['seq', initializer_lll]
     add_gas = initializer_lll.gas
     for _def in otherfuncs:
@@ -385,6 +390,12 @@ def parse_other_functions(o, otherfuncs, _globals, sigs, external_contracts, ori
         sig = FunctionSignature.from_definition(_def, external_contracts, custom_units=_custom_units)
         sig.gas = sub[-1].total_gas
         sigs[sig.name] = sig
+    # Add fallback function
+    if fallback_function:
+        fallback_func = parse_func(fallback_function[0], _globals, {**{'self': sigs}, **external_contracts}, origcode, _custom_units)
+        sub.append(fallback_func)
+    else:
+        sub.append(LLLnode.from_list(['revert', 0, 0], typ=None, annotation='Default function'))
     if runtime_only:
         return sub
     else:
@@ -401,8 +412,10 @@ def parse_tree_to_lll(code, origcode, runtime_only=False):
         raise VariableDeclarationException("Duplicate function or event name: %s" % [name for name in _names if _names.count(name) > 1][0])
     # Initialization function
     initfunc = [_def for _def in _defs if is_initializer(_def)]
+    # Default function
+    defaultfunc = [_def for _def in _defs if is_default_func(_def)]
     # Regular functions
-    otherfuncs = [_def for _def in _defs if not is_initializer(_def)]
+    otherfuncs = [_def for _def in _defs if not is_initializer(_def) and not is_default_func(_def)]
     sigs = {}
     external_contracts = {}
     # Create the main statement
@@ -416,8 +429,10 @@ def parse_tree_to_lll(code, origcode, runtime_only=False):
         o.append(['seq', initializer_lll])
         o.append(parse_func(initfunc[0], _globals, {**{'self': sigs}, **external_contracts}, origcode, _custom_units))
     # If there are regular functions...
-    if otherfuncs:
-        o = parse_other_functions(o, otherfuncs, _globals, sigs, external_contracts, origcode, _custom_units, runtime_only)
+    if otherfuncs or defaultfunc:
+        o = parse_other_functions(
+            o, otherfuncs, _globals, sigs, external_contracts, origcode, _custom_units, defaultfunc, runtime_only
+        )
     return LLLnode.from_list(o, typ=None)
 
 
@@ -495,6 +510,12 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
     # Create "clampers" (input well-formedness checkers)
     # Return function body
     if sig.name == '__init__':
+        o = LLLnode.from_list(['seq'] + clampers + [parse_body(code.body, context)], pos=getpos(code))
+    elif is_default_func(sig):
+        if len(sig.args) > 0:
+            raise StructureException('Default function may not receive any arguments.', code)
+        if sig.private:
+            raise StructureException('Default function may only be public.', code)
         o = LLLnode.from_list(['seq'] + clampers + [parse_body(code.body, context)], pos=getpos(code))
     else:
         method_id_node = LLLnode.from_list(sig.method_id, pos=getpos(code), annotation='%s' % sig.name)
