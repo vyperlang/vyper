@@ -9,12 +9,12 @@ with open('README.md') as f:
 with open('LICENSE') as f:
     license = f.read()
 
-# *IMPORTANT*: Don't manually change the version here. Use the 'bumpversion' utility.
-version = '0.0.4'
+
 
 setup(
     name='vyper',
-    version=version,
+    # *IMPORTANT*: Don't manually change the version here. Use the 'bumpversion' utility.
+    version='0.1.0-beta.1',
     description='Vyper Programming Language for Ethereum',
     long_description=readme,
     author='Vitalik Buterin',
