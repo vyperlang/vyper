@@ -78,7 +78,7 @@ def test():
 
 def test_version_empty_version_mismatch(assert_compile_failed, get_contract):
     code = """
-# @version 0.1.0
+# @version 9.9.9
 
 @public
 def test():
