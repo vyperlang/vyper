@@ -158,3 +158,60 @@ def test_passed_variable(a: uint256) -> decimal:
     max_decimal = (2**127 - 1)
     assert c.test_passed_variable(max_decimal) == Decimal(max_decimal)
     assert_tx_failed(lambda: c.test_passed_variable(max_decimal + 1))
+
+
+def test_convert_to_uint256_units(get_contract, assert_tx_failed):
+    code = """
+units: {
+    meter: "Meter"
+}
+
+@public
+def test() -> int128(meter):
+    b: uint256(meter) = 1234
+    a: int128(meter) = convert(b, "int128")
+    return a
+    """
+
+    c = get_contract(code)
+    assert c.test() == 1234
+
+
+def test_convert_to_int128_units(get_contract, assert_tx_failed):
+    code = """
+units: {
+    meter: "Meter"
+}
+
+@public
+def test() -> uint256(meter):
+    b: int128(meter) = 4321
+    a: uint256(meter) = convert(b, "uint256")
+    return a
+    """
+
+    c = get_contract(code)
+    assert c.test() == 4321
+
+
+def test_convert_to_int128_decimal_units(get_contract, assert_tx_failed):
+    code = """
+units: {
+    meter: "Meter"
+}
+
+@public
+def test() -> decimal(meter):
+    a: decimal(meter) = convert(5001, "decimal")
+    return a
+
+@public
+def test2() -> decimal(meter):
+    b: int128(meter) = 1234
+    a: decimal(meter) = convert(b, "decimal")
+    return a
+    """
+
+    c = get_contract(code)
+    assert c.test() == Decimal('5001')
+    assert c.test2() == Decimal('1234')

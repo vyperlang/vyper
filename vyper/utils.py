@@ -12,7 +12,7 @@ except ImportError:
     sha3 = lambda x: _sha3.sha3_256(x).digest()
 
 
-# Converts for bytes to an integer
+# Converts four bytes to an integer
 def fourbytes_to_int(inp):
     return (inp[0] << 24) + (inp[1] << 16) + (inp[2] << 8) + inp[3]
 

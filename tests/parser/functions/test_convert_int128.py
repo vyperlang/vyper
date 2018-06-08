@@ -16,7 +16,7 @@ def test_convert_address_to_num(assert_compile_failed, get_contract_with_gas_est
     code = """
 @public
 def test2():
-  x: int128 = convert(msg.sender, 'int128')
+    x: int128 = convert(msg.sender, 'int128')
     """
 
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), Exception)
