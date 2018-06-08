@@ -1,3 +1,5 @@
+import binascii
+
 from vyper.functions.signature import (
     signature
 )
@@ -34,6 +36,8 @@ def to_int128(expr, args, kwargs, context):
             ['clamp', ['mload', MemoryPositions.MINNUM], in_node,
                         ['mload', MemoryPositions.MAXNUM]], typ=BaseType('int128', in_node.typ.unit), pos=getpos(expr)
         )
+    if in_node.typ.is_literal and in_node[:2] == '0x':
+      return byte_array_to_num(binascii.unhexlify(in_node[2:]),expr,'int128')
     else:
         return byte_array_to_num(in_node, expr, 'int128')
 
@@ -88,6 +92,13 @@ def to_bytes32(expr, args, kwargs, context):
             return LLLnode.from_list(
                 ['sload', ['add', ['sha3_32', input], 1]], typ=BaseType('bytes32')
             )
+    if input.typ.is_literal:
+      bytez = b''
+      for c in input:
+        if ord(c) >= 256:
+            raise InvalidLiteralException("Cannot insert special character %r into byte array" % c)
+        bytez += bytes([ord(c)])
+      return bytez
     else:
         return LLLnode(value=input.value, args=input.args, typ=BaseType('bytes32'), pos=getpos(expr))
 
