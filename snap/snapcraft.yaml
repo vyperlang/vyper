@@ -15,8 +15,10 @@ parts:
   vyper:
     source: .
     plugin: python
-    python-version: python3.6
+    python-version: python3
     after: [python]
+    stage:
+      - -usr/bin/python3
   python:
     source: https://www.python.org/ftp/python/3.6.3/Python-3.6.3.tar.xz
     plugin: autotools
