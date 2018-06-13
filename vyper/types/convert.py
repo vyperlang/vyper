@@ -23,11 +23,11 @@ from vyper.utils import (
 )
 
 
-@signature(('int128', 'uint256', 'bytes32', 'bytes'), 'str_literal')
+@signature(('uint256', 'bytes32', 'bytes'), 'str_literal')
 def to_int128(expr, args, kwargs, context):
     in_node = args[0]
     typ, len = get_type(in_node)
-    if typ in ('int128', 'uint256', 'bytes32'):
+    if typ in ('uint256', 'bytes32'):
         if in_node.typ.is_literal and not SizeLimits.in_bounds('int128', in_node.value):
             raise InvalidLiteralException("Number out of range: {}".format(in_node.value), expr)
         return LLLnode.from_list(
