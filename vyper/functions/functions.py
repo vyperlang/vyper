@@ -38,6 +38,7 @@ from vyper.types import (
 )
 from vyper.utils import (
     MemoryPositions,
+    SizeLimits,
     DECIMAL_DIVISOR,
     RLP_DECODER_ADDRESS
 )
@@ -625,6 +626,13 @@ def _max(expr, args, kwargs, context):
 
 
 def minmax(expr, args, kwargs, context, is_min):
+    def _can_compare_with_uint256(operand):
+        if operand.typ.typ == 'uint256':
+            return True
+        elif operand.typ.typ == 'int128' and operand.typ.is_literal and SizeLimits.in_bounds('uint256', operand.value):
+            return True
+        return False
+
     left, right = args[0], args[1]
     if not are_units_compatible(left.typ, right.typ) and not are_units_compatible(right.typ, left.typ):
         raise TypeMismatchException("Units must be compatible", expr)
@@ -636,12 +644,13 @@ def minmax(expr, args, kwargs, context, is_min):
         o = ['if', [comparator, '_l', '_r'], '_r', '_l']
         otyp = left.typ
         otyp.is_literal = False
-    # elif left.typ.typ == 'int128' and right.typ.typ == 'decimal':
-    #     o = ['if', [comparator, ['mul', '_l', DECIMAL_DIVISOR], '_r'], '_r', ['mul', '_l', DECIMAL_DIVISOR]]
-    #     otyp = 'decimal'
-    # elif left.typ.typ == 'decimal' and right.typ.typ == 'int128':
-    #     o = ['if', [comparator, '_l', ['mul', '_r', DECIMAL_DIVISOR]], ['mul', '_r', DECIMAL_DIVISOR], '_l']
-    #     otyp = 'decimal'
+    elif _can_compare_with_uint256(left) and _can_compare_with_uint256(right):
+        o = ['if', [comparator, '_l', '_r'], '_r', '_l']
+        if right.typ.typ == 'uint256':
+            otyp = right.typ
+        else:
+            otyp = left.typ
+        otyp.is_literal = False
     else:
         raise TypeMismatchException("Minmax types incompatible: %s %s" % (left.typ.typ, right.typ.typ))
     return LLLnode.from_list(['with', '_l', left, ['with', '_r', right, o]], typ=otyp, pos=getpos(expr))
