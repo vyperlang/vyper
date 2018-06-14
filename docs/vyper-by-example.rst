@@ -20,7 +20,7 @@ participants can submit bids during a limited time period. When the auction
 period ends, a predetermined beneficiary will receive the amount of the highest
 bid.
 
-.. literalinclude:: ../examples/auctions/simple_open_auction.v.py
+.. literalinclude:: ../examples/auctions/simple_open_auction.vy
   :language: python
   :linenos:
 
@@ -30,7 +30,7 @@ need for a basic implementation of an auction smart contract.
 
 Let's get started!
 
-.. literalinclude:: ../examples/auctions/simple_open_auction.v.py
+.. literalinclude:: ../examples/auctions/simple_open_auction.vy
   :language: python
   :lines: 3-14
 
@@ -53,7 +53,7 @@ within the same contract. The ``public`` function additionally creates a
 
 Now, the constructor.
 
-.. literalinclude:: ../examples/auctions/simple_open_auction.v.py
+.. literalinclude:: ../examples/auctions/simple_open_auction.vy
   :language: python
   :pyobject: __init__
 
@@ -70,7 +70,7 @@ soon see.
 
 With initial setup out of the way, lets look at how our users can make bids.
 
-.. literalinclude:: ../examples/auctions/simple_open_auction.v.py
+.. literalinclude:: ../examples/auctions/simple_open_auction.vy
   :language: python
   :pyobject: bid
 
@@ -97,7 +97,7 @@ we can safely conclude that we have a valid new highest bid. We will send back
 the previous ``highest_bid`` to the previous ``highest_bidder`` and set our new
 ``highest_bid`` and ``highest_bidder``.
 
-.. literalinclude:: ../examples/auctions/simple_open_auction.v.py
+.. literalinclude:: ../examples/auctions/simple_open_auction.vy
   :language: python
   :pyobject: end_auction
 
@@ -156,14 +156,14 @@ we want to explore one way how an escrow system can be implemented trustlessly.
 
 Let's go!
 
-.. literalinclude:: ../examples/safe_remote_purchase/safe_remote_purchase.v.py
+.. literalinclude:: ../examples/safe_remote_purchase/safe_remote_purchase.vy
   :language: python
   :linenos:
 
 This is also a moderately short contract, however a little more complex in
 logic. Let's break down this contract bit by bit.
 
-.. literalinclude:: ../examples/safe_remote_purchase/safe_remote_purchase.v.py
+.. literalinclude:: ../examples/safe_remote_purchase/safe_remote_purchase.vy
   :language: python
   :lines: 16-19
 
@@ -171,7 +171,7 @@ Like the other contracts, we begin by declaring our global variables public with
 their respective datatypes. Remember that the ``public`` function allows the
 variables to be *readable* by an external caller, but not *writeable*.
 
-.. literalinclude:: ../examples/safe_remote_purchase/safe_remote_purchase.v.py
+.. literalinclude:: ../examples/safe_remote_purchase/safe_remote_purchase.vy
   :language: python
   :pyobject: __init__
 
@@ -185,7 +185,7 @@ in the contract variable ``self.value`` and saves the contract creator into
 ``self.seller``. The contract variable ``self.unlocked`` is initialized to
 ``True``.
 
-.. literalinclude:: ../examples/safe_remote_purchase/safe_remote_purchase.v.py
+.. literalinclude:: ../examples/safe_remote_purchase/safe_remote_purchase.vy
   :language: python
   :pyobject: abort
 
@@ -200,7 +200,7 @@ When the seller calls ``abort()`` and if the ``assert`` statements pass, the
 contract will call the ``selfdestruct()`` function and refunds the seller and
 subsequently destroys the contract.
 
-.. literalinclude:: ../examples/safe_remote_purchase/safe_remote_purchase.v.py
+.. literalinclude:: ../examples/safe_remote_purchase/safe_remote_purchase.vy
   :language: python
   :pyobject: purchase
 
@@ -212,7 +212,7 @@ set the buyer to the ``msg.sender`` and lock the contract. At this point, the
 contract has a balance equal to 4 times the item value and the seller must
 send the item to the buyer.
 
-.. literalinclude:: ../examples/safe_remote_purchase/safe_remote_purchase.v.py
+.. literalinclude:: ../examples/safe_remote_purchase/safe_remote_purchase.vy
   :language: python
   :pyobject: received
 
@@ -246,14 +246,14 @@ Participants will be refunded their respective contributions if the total
 funding does not reach its target goal.
 
 
-.. literalinclude:: ../examples/crowdfund.v.py
+.. literalinclude:: ../examples/crowdfund.vy
   :language: python
   :linenos:
 
 Most of this code should be relatively straightforward after going through our
 previous examples. Let's dive right in.
 
-.. literalinclude:: ../examples/crowdfund.v.py
+.. literalinclude:: ../examples/crowdfund.vy
   :language: python
   :lines: 1-8
 
@@ -280,7 +280,7 @@ of all participants. ``refundIndex`` is a variable for bookkeeping purposes in
 order to avoid gas limit issues in the scenario of a refund.
 
 
-.. literalinclude:: ../examples/crowdfund.v.py
+.. literalinclude:: ../examples/crowdfund.vy
   :language: python
   :pyobject: __init__
 
@@ -292,7 +292,7 @@ a definitive end time for the crowdfunding period.
 
 Now lets take a look at how a person can participate in the crowdfund.
 
-.. literalinclude:: ../examples/crowdfund.v.py
+.. literalinclude:: ../examples/crowdfund.vy
   :language: python
   :pyobject: participate
 
@@ -305,7 +305,7 @@ into a struct and then saved into the ``funders`` mapping with
 mapping, ``self.nextFunderIndex`` increments appropriately to properly index
 each participant.
 
-.. literalinclude:: ../examples/crowdfund.v.py
+.. literalinclude:: ../examples/crowdfund.vy
   :language: python
   :pyobject: finalize
 
@@ -325,7 +325,7 @@ We can finalize the campaign if all goes well, but what happens if the
 crowdfunding campaign isn't successful? We're going to need a way to refund
 all the participants.
 
-.. literalinclude:: ../examples/crowdfund.v.py
+.. literalinclude:: ../examples/crowdfund.vy
   :language: python
   :pyobject: refund
 
@@ -352,14 +352,14 @@ determined upon calling the ``winning_proposals()`` method, which iterates throu
 all the proposals and returns the one with the greatest number of votes.
 
 
-.. literalinclude:: ../examples/voting/ballot.v.py
+.. literalinclude:: ../examples/voting/ballot.vy
   :language: python
   :linenos:
 
 As we can see, this is contract of moderate length which we will dissect
 section by section. Let’s begin!
 
-.. literalinclude:: ../examples/voting/ballot.v.py
+.. literalinclude:: ../examples/voting/ballot.vy
   :language: python
   :lines: 3-25
 
@@ -379,7 +379,7 @@ their respective datatypes.
 
 Let’s move onto the constructor.
 
-.. literalinclude:: ../examples/voting/ballot.v.py
+.. literalinclude:: ../examples/voting/ballot.vy
   :language: python
   :pyobject: __init__
 
@@ -403,7 +403,7 @@ their respective index in the original array as its key.
 
 Now that the initial setup is done, lets take a look at the functionality.
 
-.. literalinclude:: ../examples/voting/ballot.v.py
+.. literalinclude:: ../examples/voting/ballot.vy
   :language: python
   :pyobject: give_right_to_vote
 
@@ -416,7 +416,7 @@ in this case, we want to know that the voter has not already voted. To represent
 voting power, we will set their ``weight`` to ``1`` and we will keep track of the
 total number of voters by incrementing ``voter_count``.
 
-.. literalinclude:: ../examples/voting/ballot.v.py
+.. literalinclude:: ../examples/voting/ballot.vy
   :language: python
   :pyobject: delegate
 
@@ -430,7 +430,7 @@ delegated their vote. We increment the proposal’s ``vote_count`` directly if
 the delegate had already voted or increase the  delegate’s vote ``weight``
 if the delegate has not yet voted.
 
-.. literalinclude:: ../examples/voting/ballot.v.py
+.. literalinclude:: ../examples/voting/ballot.vy
   :language: python
   :pyobject: vote
 
@@ -449,7 +449,7 @@ modify it. Remember, reading the blockchain state is free; modifying the state
 costs gas. By having the ``@constant`` decorator, we let the EVM know that this
 is a read-only function and we benefit by saving gas fees.
 
-.. literalinclude:: ../examples/voting/ballot.v.py
+.. literalinclude:: ../examples/voting/ballot.vy
   :language: python
   :pyobject: winning_proposal
 
@@ -458,7 +458,7 @@ mapping. We will keep track of greatest number of votes and the winning
 proposal with the variables ``winning_vote_count`` and ``winning_proposal``,
 respectively by looping through all the proposals.
 
-.. literalinclude:: ../examples/voting/ballot.v.py
+.. literalinclude:: ../examples/voting/ballot.vy
   :language: python
   :pyobject: winner_name
 
@@ -489,7 +489,7 @@ contract, holds all shares of the company at first but can sell them all.
 
 Let's get started.
 
-.. literalinclude:: ../examples/stock/company.v.py
+.. literalinclude:: ../examples/stock/company.vy
   :language: python
   :linenos:
 
@@ -498,7 +498,7 @@ well as a few 'getter' methods to read it. We first declare several events
 that the contract logs. We then declare our global variables, followed by
 function defintions.
 
-.. literalinclude:: ../examples/stock/company.v.py
+.. literalinclude:: ../examples/stock/company.vy
   :language: python
   :lines: 7-13
 
@@ -508,7 +508,7 @@ represents the total available shares of the company. The ``price`` variable
 represents the wei value of a share and ``holdings`` is a mapping that maps an
 address to the number of shares the address owns.
 
-.. literalinclude:: ../examples/stock/company.v.py
+.. literalinclude:: ../examples/stock/company.vy
   :language: python
   :pyobject: __init__
 
@@ -518,7 +518,7 @@ inputs are valid, the contract variables are set accordingly and the
 company's address is initialized to hold all shares of the company in the
 ``holdings`` mapping.
 
-.. literalinclude:: ../examples/stock/company.v.py
+.. literalinclude:: ../examples/stock/company.vy
   :language: python
   :pyobject: stock_available
 
@@ -534,7 +534,7 @@ company's address and check it's holdings.
 Now, lets take a look at a method that lets a person buy stock from the
 company's holding.
 
-.. literalinclude:: ../examples/stock/company.v.py
+.. literalinclude:: ../examples/stock/company.vy
   :language: python
   :pyobject: buy_stock
 
@@ -545,21 +545,21 @@ and transferred to the sender's in the ``holdings`` mapping.
 
 Now that people can buy shares, how do we check someone's holdings?
 
-.. literalinclude:: ../examples/stock/company.v.py
+.. literalinclude:: ../examples/stock/company.vy
   :language: python
   :pyobject: get_holdings
 
 The ``get_holdings()`` is another ``@constant`` method that takes an ``address``
 and returns its corresponding stock holdings by keying into ``self.holdings``.
 
-.. literalinclude:: ../examples/stock/company.v.py
+.. literalinclude:: ../examples/stock/company.vy
   :language: python
   :pyobject: cash
 
 To check the ether balance of the company, we can simply call the getter method
 ``cash()``.
 
-.. literalinclude:: ../examples/stock/company.v.py
+.. literalinclude:: ../examples/stock/company.vy
   :language: python
   :pyobject: sell_stock
 
@@ -571,7 +571,7 @@ the user can only sell as much as the user owns and that the company has enough
 ether to complete the sale. If all conditions are met, the holdings are deducted
 from the seller and given to the company. The ethers are then sent to the seller.
 
-.. literalinclude:: ../examples/stock/company.v.py
+.. literalinclude:: ../examples/stock/company.vy
   :language: python
   :pyobject: transfer_stock
 
@@ -581,7 +581,7 @@ of shares to send. It first ``asserts`` that the amount being sent is greater
 than ``0`` and ``asserts`` whether the sender has enough stocks to send. If
 both conditions are satisfied, the transfer is made.
 
-.. literalinclude:: ../examples/stock/company.v.py
+.. literalinclude:: ../examples/stock/company.vy
   :language: python
   :pyobject: pay_bill
 
@@ -592,7 +592,7 @@ of the company. Another important condition to check is that the company has
 enough funds to pay the amount. If both conditions satisfy, the contract
 sends its ether to an address.
 
-.. literalinclude:: ../examples/stock/company.v.py
+.. literalinclude:: ../examples/stock/company.vy
   :language: python
   :pyobject: debt
 
@@ -600,7 +600,7 @@ We can also check how much the company has raised by multiplying the number of
 shares the company has sold and the price of each share. We can get this value
 by calling the ``debt()`` method.
 
-.. literalinclude:: ../examples/stock/company.v.py
+.. literalinclude:: ../examples/stock/company.vy
   :language: python
   :pyobject: worth
 

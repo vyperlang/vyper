@@ -38,11 +38,8 @@ for build instructions.
 # Compiling a contract
 To compile a contract, use:
 ```bash
-vyper your_file_name.v.py
+vyper your_file_name.vy
 ```
-
-**Note: Since .vy is not official a language supported by any syntax highlights or linter,
-it is recommended to name your vyper file into `.v.py` to have a python highlights.**
 
 **Alternative for GitHub syntax highlighting: Add a `.gitattributes` file with the line `*.vy linguist-language=Python`**
 
