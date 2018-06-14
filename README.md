@@ -42,7 +42,7 @@ vyper your_file_name.v.py
 ```
 
 **Note: Since .vy is not official a language supported by any syntax highlights or linter,
-it is recommended to name your vyper file into `.v.py` to have a python highlights.**
+it is recommended to name your vyper file into `.v.py` to have python highlights.**
 
 **Alternative for GitHub syntax highlighting: Add a `.gitattributes` file with the line `*.vy linguist-language=Python`**
 
