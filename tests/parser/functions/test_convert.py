@@ -215,3 +215,29 @@ def test2() -> decimal(meter):
     c = get_contract(code)
     assert c.test() == Decimal('5001')
     assert c.test2() == Decimal('1234')
+
+
+def test_convert_address_to_uint256(w3, get_contract):
+    a = w3.eth.accounts[0]
+    code = """
+stor_a: address
+
+@public
+def conv1(a: address) -> uint256:
+    return convert(a, 'uint256')
+
+@public
+def conv2() -> uint256:
+    self.stor_a = 0x744d70FDBE2Ba4CF95131626614a1763DF805B9E
+    return convert(self.stor_a, 'uint256')
+
+@public
+def conv3() -> uint256:
+    return convert(0x744d70FDBE2Ba4CF95131626614a1763DF805B9E, 'uint256')
+    """
+
+    c = get_contract(code)
+
+    assert c.conv1(a) == int(a, 0)
+    assert c.conv2() == 663969929716095361663590611662499625636445838238
+    assert c.conv3() == 663969929716095361663590611662499625636445838238
