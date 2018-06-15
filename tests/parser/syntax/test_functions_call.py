@@ -8,7 +8,7 @@ fail_list = [
     """
 @public
 def foo() -> uint256:
-    cconvert(2, 'uint256')
+    doesnotexist(2, 'uint256')
     return convert(2, 'uint256')
     """,
     """
