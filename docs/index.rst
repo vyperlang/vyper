@@ -83,7 +83,6 @@ Glossary
     compiling-a-contract.rst
     structure-of-a-contract.rst
     vyper-by-example.rst
-    vyper-in-depth.rst
     contributing.rst
     frequently-asked-questions.rst
     built-in-functions.rst
