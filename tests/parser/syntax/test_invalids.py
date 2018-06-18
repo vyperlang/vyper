@@ -2,7 +2,7 @@ import pytest
 from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import TypeMismatchException
+from vyper.exceptions import TypeMismatchException, StructureException
 
 
 # These functions register test cases
@@ -245,7 +245,7 @@ must_fail("""
 @public
 def foo():
     suicide(msg.sender)
-    """, AttributeError)
+    """, StructureException)
 
 
 @pytest.mark.parametrize('bad_code,exception_type', fail_list)
