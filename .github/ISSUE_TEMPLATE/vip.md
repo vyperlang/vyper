@@ -1,5 +1,7 @@
-This is the suggested template for new VIPs.
-
+---
+name: Vyper Improvement Proposal (VIP)
+about: This is the suggested template for new VIPs.
+---
 ## Preamble
 
     VIP: <to be assigned>
