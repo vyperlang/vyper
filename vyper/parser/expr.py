@@ -104,9 +104,8 @@ class Expr(object):
             str_val = orignum[2:]
             total_bits = len(orignum[2:])
             total_bits = total_bits if total_bits % 8 == 0 else total_bits + 8 - (total_bits % 8)  # ceil8 to get byte length.
-            if total_bits != len(orignum[2:]):  # add necessary zero padding.
-                pad_len = total_bits - len(orignum[2:])
-                str_val = pad_len * '0' + str_val
+            if len(orignum[2:]) != total_bits:  # Support only full formed bit definitions.
+                raise InvalidLiteralException("Bit notation requires a multiple of 8 bits / 1 byte. {} bit(s) are missing.".format(total_bits - len(orignum[2:])), self.expr)
             byte_len = int(total_bits / 8)
             placeholder = self.context.new_placeholder(ByteArrayType(byte_len))
             seq = []
