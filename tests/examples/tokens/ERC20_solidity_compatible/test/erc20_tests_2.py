@@ -145,7 +145,7 @@ class TestSingleERC20(TestERC20Flo):
 
 
 test_suites = []
-for f in glob.glob(PATH_TO_CONTRACTS + "nonvyper/*") + glob.glob(PATH_TO_CONTRACTS + "/../../../../examples/tokens/ERC20_solidity_compatible/ERC20.v.py"):
+for f in glob.glob(PATH_TO_CONTRACTS + "nonvyper/*") + glob.glob(PATH_TO_CONTRACTS + "/../../../../examples/tokens/ERC20_solidity_compatible/ERC20.vy"):
     # ugly hack: copy the class instance to set a different file path
     # replace extension with underscore so that unittest parses it correctly
     cls_name = basename(f.replace('.', '_'))

@@ -3,7 +3,7 @@ import pytest
 
 @pytest.fixture
 def c(get_contract):
-    with open('examples/voting/ballot.v.py') as f:
+    with open('examples/voting/ballot.vy') as f:
         contract_code = f.read()
     return get_contract(contract_code, *[[b"Clinton", b"Trump"]])
 

@@ -97,7 +97,7 @@ install and test commands:
 
 Additionally, you may try to compile an example contract by running:
 ::
-    vyper examples/crowdfund.v.py
+    vyper examples/crowdfund.vy
 
 If everything works correctly, you are now able to compile your own smart contracts written in Vyper.
 However, please keep in mind that Vyper is still experimental and not ready for production!
@@ -139,7 +139,7 @@ To ensure that everything works correctly after the installtion, please run the 
 and try compiling a contract:
 ::
     make test
-    vyper examples/crowdfund.v.py
+    vyper examples/crowdfund.vy
 
 ****
 Snap

@@ -12,7 +12,7 @@ def extract_language(sourcefile):
     languages = {
         '.sol': 'solidity',
         '.vy': 'vyper',
-        '.py': 'vyper'  # hack to handle new .v.py suggested Vyper extension
+        '.py': 'vyper'  # hack to handle new .vy suggested Vyper extension
     }
     _, ext = os.path.splitext(sourcefile)
     language = languages[ext]

@@ -38,7 +38,7 @@ Testing Using vyper-run Command
 
 To allow quickly testing contracts, Vyper provides a command line tool for instantly executing a function:
 ::
-    vyper-run yourFileName.v.py "your_function();" -i some_init_param, another_init_param
+    vyper-run yourFileName.vy "your_function();" -i some_init_param, another_init_param
 
 The vyper-run command is composed of 4 parts:
 
@@ -52,7 +52,7 @@ The vyper-run command is composed of 4 parts:
 
 Putting it all together:
 ::
-    vyper-run myContract.v.py "my_function1();my_function2()" -i 1,3
+    vyper-run myContract.vy "my_function1();my_function2()" -i 1,3
 
 The vyper-run command will print out the returned value of the called functions as well as all the logged events emitted during the function's execution.
 

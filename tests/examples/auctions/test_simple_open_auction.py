@@ -5,7 +5,7 @@ EXPIRY = 16
 
 @pytest.fixture
 def auction_contract(w3, get_contract):
-    with open('examples/auctions/simple_open_auction.v.py') as f:
+    with open('examples/auctions/simple_open_auction.vy') as f:
         contract_code = f.read()
         contract = get_contract(contract_code, *[w3.eth.accounts[0], EXPIRY])
     return contract

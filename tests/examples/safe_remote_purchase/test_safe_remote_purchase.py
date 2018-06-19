@@ -16,7 +16,7 @@ INIT_BAL_a1 = 1000000000000000000000000
 
 @pytest.fixture
 def contract_code(get_contract):
-    with open("examples/safe_remote_purchase/safe_remote_purchase.v.py") as f:
+    with open("examples/safe_remote_purchase/safe_remote_purchase.vy") as f:
         contract_code = f.read()
     return contract_code
 
