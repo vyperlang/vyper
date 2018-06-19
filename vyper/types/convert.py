@@ -23,11 +23,11 @@ from vyper.utils import (
 )
 
 
-@signature(('int128', 'uint256', 'bytes32', 'bytes'), 'str_literal')
+@signature(('uint256', 'bytes32', 'bytes'), 'str_literal')
 def to_int128(expr, args, kwargs, context):
     in_node = args[0]
     typ, len = get_type(in_node)
-    if typ in ('int128', 'uint256', 'bytes32'):
+    if typ in ('uint256', 'bytes32'):
         if in_node.typ.is_literal and not SizeLimits.in_bounds('int128', in_node.value):
             raise InvalidLiteralException("Number out of range: {}".format(in_node.value), expr)
         return LLLnode.from_list(
@@ -38,21 +38,24 @@ def to_int128(expr, args, kwargs, context):
         return byte_array_to_num(in_node, expr, 'int128')
 
 
-@signature(('num_literal', 'int128', 'bytes32'), 'str_literal')
+@signature(('num_literal', 'int128', 'bytes32', 'address'), 'str_literal')
 def to_uint256(expr, args, kwargs, context):
     in_node = args[0]
-    typ, len = get_type(in_node)
-    if isinstance(in_node, int):
+    input_type, len = get_type(in_node)
 
+    if isinstance(in_node, int):
         if not SizeLimits.in_bounds('uint256', in_node):
             raise InvalidLiteralException("Number out of range: {}".format(in_node))
-        _unit = in_node.typ.unit if typ == 'int128' else None
+        _unit = in_node.typ.unit if input_type == 'int128' else None
         return LLLnode.from_list(in_node, typ=BaseType('uint256', _unit), pos=getpos(expr))
-    elif isinstance(in_node, LLLnode) and typ in ('int128', 'num_literal'):
-        _unit = in_node.typ.unit if typ == 'int128' else None
+
+    elif isinstance(in_node, LLLnode) and input_type in ('int128', 'num_literal'):
+        _unit = in_node.typ.unit if input_type == 'int128' else None
         return LLLnode.from_list(['clampge', in_node, 0], typ=BaseType('uint256', _unit), pos=getpos(expr))
-    elif isinstance(in_node, LLLnode) and typ in ('bytes32'):
+
+    elif isinstance(in_node, LLLnode) and input_type in ('bytes32', 'address'):
         return LLLnode(value=in_node.value, args=in_node.args, typ=BaseType('uint256'), pos=getpos(expr))
+
     else:
         raise InvalidLiteralException("Invalid input for uint256: %r" % in_node, expr)
 

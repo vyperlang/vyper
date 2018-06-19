@@ -348,7 +348,9 @@ CAUTION! This method will delete the contract from the Ethereum blockchain. All 
     """
 
 Asserts the specified condition, if the condition is equals to true the code will continue to run.
-Otherwise, the OPCODE ``REVERT`` (0xfd) will be triggered, the code will stop it's operation, the contract's state will be reverted to the state before the transaction took place and the remaining gas will be returned to the transaction's sender. 
+Otherwise, the OPCODE ``REVERT`` (0xfd) will be triggered, the code will stop it's operation, the contract's state will be reverted to the state before the transaction took place and the remaining gas will be returned to the transaction's sender.
+
+Note: To give it a more Python like syntax, the assert function can be called without parenthesis, the syntax would be ``assert your_bool_condition``. Even though both options will compile, it's recommended to use the Pythonic version without parenthesis.
 
 **raw_log**
 ---------------

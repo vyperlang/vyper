@@ -3,38 +3,29 @@ from decimal import Decimal
 
 def test_convert_to_num(get_contract_with_gas_estimation, assert_tx_failed):
     code = """
-a: int128
-b: uint256
-c: bytes32
-d: bytes[1]
-
-@public
-def int128_to_num(inp: int128) -> (int128, int128, int128):
-    self.a = inp
-    memory: int128  = convert(inp, 'int128')
-    storage: int128 = convert(self.a, 'int128')
-    literal: int128 = convert(1, 'int128')
-    return  memory, storage, literal
+a: uint256
+b: bytes32
+c: bytes[1]
 
 @public
 def uint256_to_num(inp: uint256) -> (int128, int128):
-    self.b = inp
+    self.a = inp
     memory: int128  = convert(inp, 'int128')
-    storage: int128 = convert(self.b, 'int128')
+    storage: int128 = convert(self.a, 'int128')
     return  memory, storage
 
 @public
 def bytes32_to_num() -> (int128, int128):
-    self.c = 0x0000000000000000000000000000000000000000000000000000000000000001
+    self.b = 0x0000000000000000000000000000000000000000000000000000000000000001
     literal: int128 = convert(0x0000000000000000000000000000000000000000000000000000000000000001, 'int128')
-    storage: int128 = convert(self.c, 'int128')
+    storage: int128 = convert(self.b, 'int128')
     return literal, storage
 
 @public
 def bytes_to_num() -> (int128, int128):
-    self.d = 'a'
+    self.c = 'a'
     literal: int128 = convert('a', 'int128')
-    storage: int128 = convert(self.d, 'int128')
+    storage: int128 = convert(self.c, 'int128')
     return literal, storage
 
 @public
@@ -42,7 +33,6 @@ def zero_bytes(inp: bytes[1]) -> int128:
     return convert(inp, 'int128')
 """
     c = get_contract_with_gas_estimation(code)
-    assert c.int128_to_num(1) == [1, 1, 1]
     assert c.uint256_to_num(1) == [1, 1]
     assert c.bytes32_to_num() == [1, 1]
     assert c.bytes_to_num() == [97, 97]
@@ -215,3 +205,29 @@ def test2() -> decimal(meter):
     c = get_contract(code)
     assert c.test() == Decimal('5001')
     assert c.test2() == Decimal('1234')
+
+
+def test_convert_address_to_uint256(w3, get_contract):
+    a = w3.eth.accounts[0]
+    code = """
+stor_a: address
+
+@public
+def conv1(a: address) -> uint256:
+    return convert(a, 'uint256')
+
+@public
+def conv2() -> uint256:
+    self.stor_a = 0x744d70FDBE2Ba4CF95131626614a1763DF805B9E
+    return convert(self.stor_a, 'uint256')
+
+@public
+def conv3() -> uint256:
+    return convert(0x744d70FDBE2Ba4CF95131626614a1763DF805B9E, 'uint256')
+    """
+
+    c = get_contract(code)
+
+    assert c.conv1(a) == int(a, 0)
+    assert c.conv2() == 663969929716095361663590611662499625636445838238
+    assert c.conv3() == 663969929716095361663590611662499625636445838238

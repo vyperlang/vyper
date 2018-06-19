@@ -10,6 +10,7 @@ from vyper.exceptions import (
 )
 from vyper.functions import (
     stmt_dispatch_table,
+    dispatch_table
 )
 from vyper.parser.parser_utils import LLLnode
 from vyper.parser.parser_utils import (
@@ -167,8 +168,13 @@ class Stmt(object):
             pack_logging_topics,
             external_contract_call,
         )
-        if isinstance(self.stmt.func, ast.Name) and self.stmt.func.id in stmt_dispatch_table:
+        if isinstance(self.stmt.func, ast.Name):
+            if self.stmt.func.id in stmt_dispatch_table:
                 return stmt_dispatch_table[self.stmt.func.id](self.stmt, self.context)
+            elif self.stmt.func.id in dispatch_table:
+                raise StructureException("Function {} can not be called without being used.".format(self.stmt.func.id), self.stmt)
+            else:
+                raise StructureException("Unknow function: '{}'.".format(self.stmt.func.id), self.stmt)
         elif isinstance(self.stmt.func, ast.Attribute) and isinstance(self.stmt.func.value, ast.Name) and self.stmt.func.value.id == "self":
             method_name = self.stmt.func.attr
             if method_name not in self.context.sigs['self']:
