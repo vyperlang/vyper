@@ -7,6 +7,11 @@
 Vyper
 #####
 
+.. image:: vyper-logo-transparent.svg
+    :width: 140px
+    :alt: Vyper logo
+    :align: center
+
 Vyper is an **experimental**, contract-oriented, pythonic programming language that targets the `Ethereum Virtual Machine (EVM) <http://ethdocs.org/en/latest/introduction/what-is-ethereum.html#ethereum-virtual-machine>`_
 
 ********************
