@@ -255,7 +255,7 @@ Keyword        Unit   Base type  Description
     Two ``timedelta`` can be added together, as can a ``timedelta`` and a ``timestamp``, but not two ``timestamps``.
 
 ===================  ===========  =========  ====================================================================================
-Wei 
+Wei
 ---------------------------------------------------------------------------------------------------------------------------------
 Keyword              Unit         Base type  Description
 ===================  ===========  =========  ====================================================================================
@@ -420,6 +420,23 @@ Here ``_KeyType`` can be almost any type except for mappings, a contract, or a s
     Mappings can only be accessed, not iterated over.
 
 .. index:: !initial
+
+**********
+Builtin Constants
+**********
+
+Vyper has a few convenience constants builtin.
+
+======= ============ ==========================================
+Type    Name         Value
+======= ============ ==========================================
+address ZERO_ADDRESS 0x0000000000000000000000000000000000000000
+int128  MAX_INT128   2**127 - 1
+int128  MIN_INT128   -2**127
+decimal MAX_DECIMAL  (2**127 - 1)
+decimal MIN_DECIMAL  (-2**127)
+uint256 MAX_UINT256  2**256 - 1
+======= ============ ==========================================
 
 **********
 Initial Values and None

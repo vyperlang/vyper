@@ -154,11 +154,22 @@ class Expr(object):
 
     # Variable names
     def variables(self):
+        constants = {
+            'ZERO_ADDRESS': LLLnode.from_list([0], typ=BaseType('address', None, is_literal=True), pos=getpos(self.expr)),
+            'MAX_INT128': LLLnode.from_list(['mload', MemoryPositions.MAXNUM], typ=BaseType('int128', None, is_literal=True), pos=getpos(self.expr)),
+            'MIN_INT128': LLLnode.from_list(['mload', MemoryPositions.MINNUM], typ=BaseType('int128', None, is_literal=True), pos=getpos(self.expr)),
+            'MAX_DECIMAL': LLLnode.from_list(['mload', MemoryPositions.MAXDECIMAL], typ=BaseType('decimal', None, is_literal=True), pos=getpos(self.expr)),
+            'MIN_DECIMAL': LLLnode.from_list(['mload', MemoryPositions.MINDECIMAL], typ=BaseType('decimal', None, is_literal=True), pos=getpos(self.expr)),
+            'MAX_UINT256': LLLnode.from_list([2**256 - 1], typ=BaseType('uint256', None, is_literal=True), pos=getpos(self.expr)),
+        }
+
         if self.expr.id == 'self':
             return LLLnode.from_list(['address'], typ='address', pos=getpos(self.expr))
-        if self.expr.id in self.context.vars:
+        elif self.expr.id in self.context.vars:
             var = self.context.vars[self.expr.id]
             return LLLnode.from_list(var.pos, typ=var.typ, location='memory', pos=getpos(self.expr), annotation=self.expr.id, mutable=var.mutable)
+        elif self.expr.id in constants:
+            return constants[self.expr.id]
         else:
             raise VariableDeclarationException("Undeclared variable: " + self.expr.id, self.expr)
 
