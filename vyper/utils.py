@@ -103,7 +103,7 @@ class SizeLimits:
         elif type_str == 'int128':
             return cls.MINNUM <= value <= cls.MAXNUM
         else:
-            raise Exception('Unknow type "%s" supplied.' % type_str)
+            raise Exception('Unknown type "%s" supplied.' % type_str)
 
 
 # Map representing all limits loaded into a contract as part of the initializer
