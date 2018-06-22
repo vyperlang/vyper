@@ -61,11 +61,14 @@ class Stmt(object):
             ast.Break: self.parse_break,
             ast.Continue: self.parse_continue,
             ast.Return: self.parse_return,
-            ast.Delete: self.parse_delete
+            ast.Delete: self.parse_delete,
+            ast.Str: self.parse_docblock  # docblock
         }
         stmt_type = self.stmt.__class__
         if stmt_type in self.stmt_table:
-            self.lll_node = self.stmt_table[stmt_type]()
+            lll_node = self.stmt_table[stmt_type]()
+            if lll_node:
+                self.lll_node = lll_node
         elif isinstance(stmt, ast.Name) and stmt.id == "throw":
             self.lll_node = LLLnode.from_list(['assert', 0], typ=None, pos=getpos(stmt))
         else:
@@ -571,3 +574,8 @@ class Stmt(object):
         if not target.mutable:
             raise ConstancyViolationException("Cannot modify function argument: %s" % target.annotation)
         return target
+
+    def parse_docblock(self):
+        if '"""' not in self.context.origcode.splitlines()[self.stmt.lineno - 1]:
+            raise InvalidLiteralException('Only valid """ docblocks allowed', self.stmt)
+        return LLLnode.from_list('pass', typ=None, pos=getpos(self.stmt))

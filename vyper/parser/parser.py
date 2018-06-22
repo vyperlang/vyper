@@ -572,7 +572,9 @@ def parse_body(code, context):
         return parse_stmt(code, context)
     o = []
     for stmt in code:
-        o.append(parse_stmt(stmt, context))
+        lll = parse_stmt(stmt, context)
+        if lll:
+            o.append(lll)
     return LLLnode.from_list(['seq'] + o, pos=getpos(code[0]) if code else None)
 
 
