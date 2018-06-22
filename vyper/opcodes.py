@@ -78,6 +78,7 @@ pseudo_opcodes = {
     'UCLAMPLE': [None, 2, 1, 30],
     'CLAMP_NONZERO': [None, 1, 1, 19],
     'ASSERT': [None, 1, 0, 85],
+    'ASSERT_REASON': [None, 3, 0, 85],
     'PASS': [None, 0, 0, 0],
     'BREAK': [None, 0, 0, 20],
     'CONTINUE': [None, 0, 0, 20],
