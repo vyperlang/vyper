@@ -4,6 +4,10 @@ import vyper
 
 from pprint import pprint
 from vyper import compiler
+from vyper.vdb import (
+    set_evm_opcode_debugger,
+    set_evm_opcode_pass
+)
 from eth_tester import (
     EthereumTester,
 )
@@ -14,13 +18,13 @@ from web3 import (
     Web3,
 )
 
-
 parser = argparse.ArgumentParser(description='Vyper {0} quick CLI runner'.format(vyper.__version__))
 parser.add_argument('input_file', help='Vyper sourcecode to run')
 parser.add_argument('call_list', help='call list, without parameters: func, with parameters func(1, 2, 3). Semicolon separated')
 parser.add_argument('-i', help='init args, comma separated', default='', dest='init_args')
 
 args = parser.parse_args()
+set_evm_opcode_pass()  # by default just pass over the debug opcode.
 
 
 def cast_types(args, abi_signature):
@@ -72,6 +76,7 @@ if __name__ == '__main__':
 
     with open(args.input_file) as fh:
         code = fh.read()
+        # Patch in vdb.
         init_args = args.init_args.split(',') if args.init_args else []
         tester, w3 = get_tester()
 
@@ -114,9 +119,12 @@ if __name__ == '__main__':
 
             print('- Returns:')
             cast_args = cast_types(args, func_abi)
-
             res = getattr(contract.functions, func_name)(*cast_args).call()
+
+            set_evm_opcode_debugger(source_code=code)
             tx_hash = getattr(contract.functions, func_name)(*cast_args).transact()
+            set_evm_opcode_pass()
+
             pprint('{}'.format(res))
 
             # Detect any new log events, and print them.

@@ -61,7 +61,8 @@ class Stmt(object):
             ast.Break: self.parse_break,
             ast.Continue: self.parse_continue,
             ast.Return: self.parse_return,
-            ast.Delete: self.parse_delete
+            ast.Delete: self.parse_delete,
+            ast.Name: self.parse_name
         }
         stmt_type = self.stmt.__class__
         if stmt_type in self.stmt_table:
@@ -76,6 +77,12 @@ class Stmt(object):
 
     def parse_pass(self):
         return LLLnode.from_list('pass', typ=None, pos=getpos(self.stmt))
+
+    def parse_name(self):
+        if self.stmt.id == 'vdb':
+            return LLLnode('debugger', typ=None, pos=getpos(self.stmt))
+        else:
+            raise StructureException("Unsupported statement type: %s" % type(self.stmt), self.stmt)
 
     def _check_valid_assign(self, sub):
         if isinstance(self.stmt.annotation, ast.Call):  # unit style: num(wei)
