@@ -30,12 +30,15 @@ __     __
 
 
 class VyperDebugCmd(cmd.Cmd):
-    def __init__(self, computation, line_no=None, source_code=None):
+    def __init__(self, computation, line_no=None, source_code=None, source_map=None):
+        if source_map is None:
+            source_map = {}
         self.computation = computation
         self.prompt = '\033[92mvdb\033[0m> '
-        # self.intro = logo
+        self.intro = logo
         self.source_code = source_code
         self.line_no = line_no
+        self.globals = source_map.get("globals")
         super().__init__()
 
     def _print_code_position(self):
@@ -62,18 +65,22 @@ class VyperDebugCmd(cmd.Cmd):
         print('Exiting vdb')
         super().postloop()
 
-    def do_continue(self, line):
+    def do_continue(self, *args):
         return True
 
-    def do(self, *args):
-        print('%%%%')
-        pass
+    def do_globals(self, *args):
+        if not self.globals:
+            print('No globals found.')
 
-    def do_pdb(self):
+        print('Name\tType')
+        for name, info in self.globals.items():
+            print('self.{}\t{}'.format(name, info['type']))
+
+    def do_pdb(self, *args):
         # Break out to pdb for vdb debugging.
         import pdb; pdb.set_trace()  # noqa
 
-    def do_history(self, line):
+    def do_history(self, *args):
         history()
 
     def emptyline(self):
@@ -86,6 +93,10 @@ class VyperDebugCmd(cmd.Cmd):
         """ Exit vdb """
         return True
 
+    def do(self, *args):
+        print('%%%%')
+        pass
+
     def do_EOF(self, line):
         return True
 
@@ -93,12 +104,11 @@ class VyperDebugCmd(cmd.Cmd):
 original_opcodes = evm.vm.forks.byzantium.computation.ByzantiumComputation.opcodes
 
 
-def set_evm_opcode_debugger(source_code=None):
+def set_evm_opcode_debugger(source_code=None, source_map=None):
 
     def debug_opcode(computation):
-        print('IN DEBUG OPCODE')
         line_no = computation.stack_pop(num_items=1, type_hint=constants.UINT256)
-        VyperDebugCmd(computation, line_no=line_no, source_code=source_code).cmdloop()
+        VyperDebugCmd(computation, line_no=line_no, source_code=source_code, source_map=source_map).cmdloop()
 
     opcodes = original_opcodes.copy()
     opcodes[vyper_opcodes['DEBUG'][0]] = as_opcode(
@@ -113,7 +123,6 @@ def set_evm_opcode_debugger(source_code=None):
 def set_evm_opcode_pass():
 
     def debug_opcode(computation):
-        print('PASS OPCODE')
         computation.stack_pop(num_items=1, type_hint=constants.UINT256)
 
     opcodes = original_opcodes.copy()
