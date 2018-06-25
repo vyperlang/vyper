@@ -55,12 +55,12 @@ If the function is annotated as `@payable`, this function is executed whenever t
 
 ::
 
-    Sent: event({sender: indexed(address)})
+    Payment: event({amount: int128, from: indexed(address)})
     
     @public
     @payable
     def __default__():
-        log.Sent(msg.sender)
+        log.Payment(msg.value, msg.sender)
 
 
 Considerations
@@ -68,7 +68,9 @@ Considerations
 
 Unlike Solidity, Vyper generates a default function is one isn't found, in the form of a REVERT call. Note that this still `generates an exception <https://github.com/ethereum/wiki/wiki/Subtleties>`_ and thus will not succeed in receiving funds. 
 
-Send calls to the contract give it a maximum stipend of 2300 gas, leaving not much room to perform other operations except basic logging. The following operations will consume more gas than the 2300 gas stipend:
+Ethereum specifies that the operations will be rolled back if the contract runs out of gas in execution. `send` calls to the contract come with a free stipend of 2300 gas, which does not leave much room to perform other operations except basic logging. **However**, if the sender includes a higher gas amount through a `call` instead of `send`, then more complex functionality can be run.
+
+The following operations will consume more gas than the 2300 gas stipend:
 
 - Writing to storage
 - Creating a contract
