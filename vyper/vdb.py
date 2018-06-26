@@ -1,8 +1,15 @@
 import cmd
 import evm
 
+# from eth_hash.auto import keccak
+from eth_utils import to_hex
 from evm import constants
 from evm.vm.opcode import as_opcode
+# from evm.utils.numeric import (
+#     int_to_big_endian,
+#     big_endian_to_int,
+#     ceil32
+# )
 from vyper.opcodes import opcodes as vyper_opcodes
 
 
@@ -11,6 +18,7 @@ commands = [
     'locals',
     'globals'
 ]
+base_types = ('int128', 'int256', 'uint256', 'address', 'bytes32')
 
 
 def history():
@@ -50,8 +58,8 @@ class VyperDebugCmd(cmd.Cmd):
         lines = self.source_code.splitlines()
         begin = self.line_no - 1 if self.line_no > 1 else 0
         end = self.line_no + 1 if self.line_no < len(lines) else self.line_no
-        for idx, line in enumerate(lines[begin:end]):
-            line_number = begin + idx + 1
+        for idx, line in enumerate(lines[begin - 1:end]):
+            line_number = begin + idx
             if line_number == self.line_no:
                 print("--> \033[92m{}\033[0m\t{}".format(line_number, line))
             else:
@@ -65,16 +73,56 @@ class VyperDebugCmd(cmd.Cmd):
         print('Exiting vdb')
         super().postloop()
 
-    def do_continue(self, *args):
-        return True
+    def do_state(self, *args):
+        """ Show current EVM state information. """
+        print('Block Number => {}'.format(self.computation.state.block_number))
+        print('Program Counter => {}'.format(self.computation.code.pc))
+        print('Memory Size => {}'.format(len(self.computation._memory)))
+        print('Gas Remaining => {}'.format(self.computation.get_gas_remaining()))
 
     def do_globals(self, *args):
         if not self.globals:
             print('No globals found.')
-
         print('Name\tType')
         for name, info in self.globals.items():
             print('self.{}\t{}'.format(name, info['type']))
+
+    def default(self, line):
+        if not self.globals:
+            print('No globals found.')
+        if line.startswith('self.') and len(line) > 5:
+            # print global value.
+            name = line.split('.')[1]
+            if name not in self.globals:
+                print('Global named "{}" not found.'.format(name))
+            else:
+                global_type = self.globals[name]['type']
+                slot = None
+
+                if global_type in base_types:
+                    slot = self.globals[name]['position']
+                elif global_type == 'mapping':
+                    # location_hash= keccak(int_to_big_endian(self.globals[name]['position']).rjust(32, b'\0'))
+                    # slot = big_endian_to_int(location_hash)
+                    pass
+                else:
+                    print('Can not read global with type "{}".'.format(global_type))
+
+                if slot:
+                    value = self.computation.state.account_db.get_storage(
+                        address=self.computation.msg.storage_address,
+                        slot=slot,
+                    )
+                    print(value)
+        else:
+            self.stdout.write('*** Unknown syntax: %s\n' % line)
+
+    def do_stack(self, *args):
+        """ Show contents of the stack """
+        for idx, value in enumerate(self.computation._stack.values):
+            print("{}\t{}".format(idx, to_hex(value)))
+        else:
+            print("Stack is empty")
 
     def do_pdb(self, *args):
         # Break out to pdb for vdb debugging.
@@ -93,11 +141,12 @@ class VyperDebugCmd(cmd.Cmd):
         """ Exit vdb """
         return True
 
-    def do(self, *args):
-        print('%%%%')
-        pass
+    def do_continue(self, *args):
+        """ Exit vdb """
+        return True
 
     def do_EOF(self, line):
+        """ Exit vdb """
         return True
 
 
