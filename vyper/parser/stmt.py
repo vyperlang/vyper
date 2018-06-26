@@ -67,8 +67,7 @@ class Stmt(object):
         stmt_type = self.stmt.__class__
         if stmt_type in self.stmt_table:
             lll_node = self.stmt_table[stmt_type]()
-            if lll_node:
-                self.lll_node = lll_node
+            self.lll_node = lll_node
         elif isinstance(stmt, ast.Name) and stmt.id == "throw":
             self.lll_node = LLLnode.from_list(['assert', 0], typ=None, pos=getpos(stmt))
         else:
