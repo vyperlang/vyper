@@ -20,6 +20,7 @@ from web3 import (
 )
 from web3.contract import (
     ConciseContract,
+    ConciseMethod
 )
 from vyper.parser.parser_utils import (
     LLLnode
@@ -29,6 +30,35 @@ from vyper import (
     compiler,
     optimizer,
 )
+
+
+class VyperMethod(ConciseMethod):
+    ALLOWED_MODIFIERS = {'call', 'estimateGas', 'transact', 'buildTransaction'}
+
+    def __call__(self, *args, **kwargs):
+        return self.__prepared_function(*args, **kwargs)
+
+    def __prepared_function(self, *args, **kwargs):
+        if not kwargs:
+            modifier, modifier_dict = 'call', {}
+            fn_abi = [x for x in self._function.contract_abi if x['name'] == self._function.function_identifier].pop()
+            modifier_dict.update({'gas': fn_abi['gas'] * 1000})  # To make tests faster just supply some high gas value.
+        elif len(kwargs) == 1:
+            modifier, modifier_dict = kwargs.popitem()
+            if modifier not in self.ALLOWED_MODIFIERS:
+                raise TypeError(
+                    "The only allowed keyword arguments are: %s" % self.ALLOWED_MODIFIERS)
+        else:
+            raise TypeError("Use up to one keyword argument, one of: %s" % self.ALLOWED_MODIFIERS)
+
+        return getattr(self._function(*args), modifier)(modifier_dict)
+
+
+class VyperContract(ConciseContract):
+
+    def __init__(self, classic_contract, method_class=VyperMethod):
+        super().__init__(classic_contract, method_class)
+
 
 ############
 # PATCHING #
@@ -164,7 +194,7 @@ def get_contract_from_lll(w3):
         }
         tx = w3.eth.sendTransaction(deploy_transaction)
         address = w3.eth.getTransactionReceipt(tx)['contractAddress']
-        contract = w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=ConciseContract)
+        contract = w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract)
         return contract
     return lll_compiler
 
@@ -182,11 +212,11 @@ def _get_contract(w3, source_code, *args, **kwargs):
         'from': w3.eth.accounts[0],
         'data': contract._encode_constructor_data(args, kwargs),
         'value': value,
-        'gasPrice': gasPrice
+        'gasPrice': gasPrice,
     }
     tx = w3.eth.sendTransaction(deploy_transaction)
     address = w3.eth.getTransactionReceipt(tx)['contractAddress']
-    contract = w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=ConciseContract)
+    contract = w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract)
     # Filter logs.
     contract._logfilter = w3.eth.filter({
         'fromBlock': w3.eth.blockNumber - 1,
