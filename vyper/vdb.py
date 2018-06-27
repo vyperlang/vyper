@@ -5,11 +5,11 @@ import evm
 from eth_utils import to_hex
 from evm import constants
 from evm.vm.opcode import as_opcode
-# from evm.utils.numeric import (
-#     int_to_big_endian,
-#     big_endian_to_int,
-#     ceil32
-# )
+from evm.utils.numeric import (
+    int_to_big_endian,
+    big_endian_to_int,
+    # ceil32
+)
 from vyper.opcodes import opcodes as vyper_opcodes
 
 
@@ -18,7 +18,7 @@ commands = [
     'locals',
     'globals'
 ]
-base_types = ('int128', 'int256', 'uint256', 'address', 'bytes32')
+base_types = ('int128', 'uint256', 'address', 'bytes32')
 
 
 def history():
@@ -37,6 +37,24 @@ __     __
 """
 
 
+def print_var(value, var_typ):
+
+    if isinstance(value, int):
+        v = int_to_big_endian(value)
+    else:
+        v = value
+
+    if isinstance(v, bytes):
+        if var_typ == 'uint256':
+            print(big_endian_to_int(v))
+        elif var_typ == 'int128':
+            print('TODO!')
+        elif var_typ == 'address':
+            print(to_hex(v[12:]))
+    else:
+        print(v)
+
+
 class VyperDebugCmd(cmd.Cmd):
     def __init__(self, computation, line_no=None, source_code=None, source_map=None):
         if source_map is None:
@@ -47,6 +65,7 @@ class VyperDebugCmd(cmd.Cmd):
         self.source_code = source_code
         self.line_no = line_no
         self.globals = source_map.get("globals")
+        self.locals = source_map.get("locals")
         super().__init__()
 
     def _print_code_position(self):
@@ -83,14 +102,30 @@ class VyperDebugCmd(cmd.Cmd):
     def do_globals(self, *args):
         if not self.globals:
             print('No globals found.')
-        print('Name\tType')
+        print('Name\t\tType')
         for name, info in self.globals.items():
-            print('self.{}\t{}'.format(name, info['type']))
+            print('self.{}\t\t{}'.format(name, info['type']))
+
+    def _get_fn_name_locals(self):
+        for fn_name, info in self.locals.items():
+            if info['from_lineno'] < self.line_no < info['to_lineno']:
+                return fn_name, info['variables']
+        return '', {}
+
+    def do_locals(self, *args):
+        if not self.locals:
+            print('No locals found.')
+        fn_name, variables = self._get_fn_name_locals()
+        print('Function: {}'.format(fn_name))
+        print('Name\t\tType')
+        for name, info in variables.items():
+            print('{}\t\t{}'.format(name, info['type']))
 
     def default(self, line):
+        fn_name, local_variables = self._get_fn_name_locals()
         if not self.globals:
             print('No globals found.')
-        if line.startswith('self.') and len(line) > 5:
+        if line.startswith('self.') and len(line) > 4:
             # print global value.
             name = line.split('.')[1]
             if name not in self.globals:
@@ -106,14 +141,23 @@ class VyperDebugCmd(cmd.Cmd):
                     # slot = big_endian_to_int(location_hash)
                     pass
                 else:
-                    print('Can not read global with type "{}".'.format(global_type))
+                    print('Can not read global of type "{}".'.format(global_type))
 
-                if slot:
+                if slot is not None:
                     value = self.computation.state.account_db.get_storage(
                         address=self.computation.msg.storage_address,
                         slot=slot,
                     )
-                    print(value)
+                    print_var(value, global_type)
+        elif line in local_variables:
+            var_info = local_variables[line]
+            local_type = var_info['type']
+            if local_type in base_types:
+                start_position = var_info['position']
+                value = self.computation.memory_read(start_position, 32)
+                print_var(value, local_type)
+            else:
+                print('Can not read local of type ')
         else:
             self.stdout.write('*** Unknown syntax: %s\n' % line)
 
