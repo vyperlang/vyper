@@ -168,6 +168,6 @@ def is_varname_valid(varname, custom_units):
         return False
     if varname.lower() in built_in_functions:
         return False
-    if not re.match('^[_a-z][a-zA-Z0-9_]*$', varname.lower()):
+    if not re.match('^[_a-zA-Z][a-zA-Z0-9_]*$', varname):
         return False
     return True

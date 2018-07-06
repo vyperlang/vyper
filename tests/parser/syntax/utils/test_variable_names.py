@@ -8,26 +8,8 @@ fail_list = [
     """
 @public
 def foo(i: int128) -> int128:
-    ő1qwerty : int128 = i
-    return ő1qwerty
-    """,
-    """
-@public
-def foo(i: int128) -> int128:
-    fő1234 : int128 = i
-    return fő1234
-    """,
-    """
-@public
-def foo(i: int128) -> int128:
     varő : int128 = i
     return varő
-    """,
-    """
-@public
-def foo(i: int128) -> int128:
-    ő : int128 = i
-    return ő
     """,
 """
 @public
