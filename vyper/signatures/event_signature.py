@@ -4,7 +4,7 @@ from vyper.types import get_size_of_type, canonicalize_type, parse_type, \
     ByteArrayType
 from vyper.utils import sha3, is_varname_valid, bytes_to_int, ceil32
 from vyper.function_signature import VariableRecord
-from vyper.exceptions import InvalidTypeException, VariableDeclarationException
+from vyper.exceptions import InvalidTypeException, VariableDeclarationException, EventDeclarationException
 
 
 # Event signature object
@@ -21,6 +21,9 @@ class EventSignature():
     def from_declaration(cls, code, custom_units=None):
         name = code.target.id
         pos = 0
+
+        if not is_varname_valid(name, custom_units=custom_units):
+            raise EventDeclarationException("Event name invalid: " + name)
         # Determine the arguments, expects something of the form def foo(arg1: num, arg2: num ...
         args = []
         indexed_list = []

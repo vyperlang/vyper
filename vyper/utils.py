@@ -1,4 +1,5 @@
 import binascii
+import re
 
 from collections import OrderedDict
 from . exceptions import InvalidLiteralException
@@ -148,6 +149,7 @@ reserved_words = ['int128', 'int256', 'uint256', 'address', 'bytes32',
 
 
 # Is a variable or member variable name valid?
+# Same conditions apply for function names and events
 def is_varname_valid(varname, custom_units):
     from vyper.functions import dispatch_table, stmt_dispatch_table
     built_in_functions = [x for x in stmt_dispatch_table.keys()] + \
@@ -165,5 +167,7 @@ def is_varname_valid(varname, custom_units):
     if varname.upper() in opcodes:
         return False
     if varname.lower() in built_in_functions:
+        return False
+    if not re.match('^[_a-z][a-zA-Z0-9_]*$', varname.lower()):
         return False
     return True

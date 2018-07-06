@@ -4,6 +4,7 @@ from .exceptions import (
     InvalidTypeException,
     StructureException,
     VariableDeclarationException,
+    FunctionDeclarationException
 )
 from .types import ByteArrayType
 from .types import (
@@ -57,6 +58,9 @@ class FunctionSignature():
     def from_definition(cls, code, sigs=None, custom_units=None, contract_def=False, constant=False):
         name = code.name
         pos = 0
+
+        if not is_varname_valid(name, custom_units=custom_units):
+            raise FunctionDeclarationException("Function name invalid: " + name)
         # Determine the arguments, expects something of the form def foo(arg1: int128, arg2: int128 ...
         args = []
         for arg in code.args.args:
