@@ -8,7 +8,7 @@
 
 # Principles and Goals
 
-Vyper is a programming language that includes the following goals:
+Vyper is a smart contract development language that includes the following goals:
 
 * **Security** - it should be possible and natural to build secure smart contracts in Vyper.
 * **Language and compiler simplicity** - the language and the compiler implementation should strive to be simple.
