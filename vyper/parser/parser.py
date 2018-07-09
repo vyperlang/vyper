@@ -16,7 +16,7 @@ from vyper.exceptions import (
     TypeMismatchException,
     VariableDeclarationException,
 )
-from vyper.function_signature import (
+from vyper.signatures.function_signature import (
     FunctionSignature,
     VariableRecord,
     ContractRecord,

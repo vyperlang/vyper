@@ -3,7 +3,7 @@ import ast
 from vyper.types import get_size_of_type, canonicalize_type, parse_type, \
     ByteArrayType
 from vyper.utils import sha3, is_varname_valid, bytes_to_int, ceil32
-from vyper.function_signature import VariableRecord
+from vyper.signatures.function_signature import VariableRecord
 from vyper.exceptions import InvalidTypeException, VariableDeclarationException
 
 
