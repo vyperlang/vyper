@@ -8,7 +8,7 @@
 
 # Principles and Goals
 
-Vyper is an experimental programming language that aims for some of the following goals:
+Vyper is a smart contract development language built with the following goals:
 
 * **Security** - it should be possible and natural to build secure smart contracts in Vyper.
 * **Language and compiler simplicity** - the language and the compiler implementation should strive to be simple.
@@ -32,7 +32,7 @@ Some changes that may be considered after Metropolis when [STATICCALL](https://g
 
 Vyper does NOT strive to be a 100% replacement for everything that can be done in Solidity; it will deliberately forbid things or make things harder if it deems fit to do so for the goal of increasing security.
 
-**Note: Vyper is still alpha software, use with care**
+**Note: Vyper is beta software, use with care**
 
 # Installation
 See the [Vyper documentation](https://vyper.readthedocs.io/en/latest/installing-vyper.html)
