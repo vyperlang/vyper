@@ -7,7 +7,7 @@ Basic Questions
 ***************
 
 ** What is Vyper? 
-Vyper is a smart contract development language. Vyper aims to be human-readable. Being simple to read is more important than being simple to write. 
+Vyper is a smart contract development language. Vyper aims to be auditable, secure, and human-readable. Being simple to read is more important than being simple to write. 
 
 ** Vyper or Solidity? 
 For the majority of use-cases, this is personal preference. To support the aims of being secure, auditable, and human-readable, a number of programming constructs included in Solidity are not includeed in Vyper.  If your use-case requires these, use Solidity not Vyper. 
