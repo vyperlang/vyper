@@ -1,0 +1,11 @@
+<svg id="Flat_Logo" data-name="Flat Logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2048 1773.62">
+  <title>vyper-logo-flat</title>
+  <polyline points="1024 886.81 768 1330.22 1024 1773.62 1280 1330.22 1024 886.81" style="fill:#333"/>
+  <polyline points="1280 443.41 1024 886.81 1280 1330.22 1536 886.81 1280 443.41" style="fill:#666"/>
+  <polyline points="768 443.41 512 886.81 768 1330.22 1024 886.81 768 443.41" style="fill:#666"/>
+  <polyline points="1536 0 1280 443.41 1536 886.81 1792 443.41 1536 0" style="fill:#8c8c8c"/>
+  <polyline points="1152 221.7 896 221.7 768 443.41 1024 886.81 1280 443.41 1152 221.7" style="fill:#8c8c8c"/>
+  <polyline points="512 0 256 443.41 512 886.81 768 443.41 512 0" style="fill:#8c8c8c"/>
+  <polyline points="2048 0 1536 0 1792 443.4 2048 0" style="fill:#b2b2b2"/>
+  <polyline points="512 0 0 0 256 443.4 512 0" style="fill:#b2b2b2"/>
+</svg>
