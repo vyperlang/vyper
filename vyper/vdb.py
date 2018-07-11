@@ -123,9 +123,10 @@ class VyperDebugCmd(cmd.Cmd):
 
     def default(self, line):
         fn_name, local_variables = self._get_fn_name_locals()
-        if not self.globals:
-            print('No globals found.')
+
         if line.startswith('self.') and len(line) > 4:
+            if not self.globals:
+                print('No globals found.')
             # print global value.
             name = line.split('.')[1]
             if name not in self.globals:

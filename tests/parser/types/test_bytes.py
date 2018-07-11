@@ -198,19 +198,19 @@ r: bytes[1]
 
 @public
 def get(a: bytes[1]) -> bytes[2]:
-    return concat(a, 0b0001)
+    return concat(a, 0b00000001)
 
 @public
 def getsome() -> bytes[1]:
-    return 0b1110
+    return 0b00001110
 
 @public
 def testsome(a: bytes[1]) -> bool:
-    return a == 0b1100001
+    return a == 0b01100001
 
 @public
 def testsome_storage(y: bytes[1]) -> bool:
-    self.r = 0b1100001
+    self.r = 0b01100001
     return self.r == y
     """
 

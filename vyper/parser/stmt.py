@@ -67,8 +67,6 @@ class Stmt(object):
         stmt_type = self.stmt.__class__
         if stmt_type in self.stmt_table:
             self.lll_node = self.stmt_table[stmt_type]()
-        elif isinstance(stmt, ast.Name) and stmt.id == "throw":
-            self.lll_node = LLLnode.from_list(['assert', 0], typ=None, pos=getpos(stmt))
         else:
             raise StructureException("Unsupported statement type: %s" % type(stmt), stmt)
 
@@ -79,8 +77,10 @@ class Stmt(object):
         return LLLnode.from_list('pass', typ=None, pos=getpos(self.stmt))
 
     def parse_name(self):
-        if self.stmt.id == 'vdb':
+        if self.stmt.id == "vdb":
             return LLLnode('debugger', typ=None, pos=getpos(self.stmt))
+        elif self.stmt.id == "throw":
+            return LLLnode.from_list(['assert', 0], typ=None, pos=getpos(self.stmt))
         else:
             raise StructureException("Unsupported statement type: %s" % type(self.stmt), self.stmt)
 
