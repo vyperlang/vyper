@@ -1,0 +1,11 @@
+<svg id="Transparent_Logo" data-name="Transparent Logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2048 1773.62">
+  <title>vyper-logo-transparent</title>
+  <polygon points="1024 886.81 768 1330.22 768 1330.22 1024 1773.62 1280 1330.22 1280 1330.22 1024 886.81" style="opacity:0.8"/>
+  <polygon points="1280 443.41 1024 886.81 1024 886.81 1280 1330.22 1536 886.81 1536 886.81 1280 443.41" style="opacity:0.6"/>
+  <polygon points="768 443.41 512 886.81 512 886.81 768 1330.22 1024 886.81 1024 886.81 768 443.41" style="opacity:0.6"/>
+  <polygon points="1536 0 1280 443.41 1280 443.41 1536 886.81 1792 443.41 1792 443.41 1536 0" style="opacity:0.45"/>
+  <polygon points="1152 221.7 896 221.7 768 443.41 768 443.41 1024 886.81 1280 443.41 1152 221.7" style="opacity:0.45"/>
+  <polygon points="512 0 256 443.41 256 443.41 512 886.81 768 443.41 768 443.41 512 0" style="opacity:0.45"/>
+  <polygon points="1792 443.4 2048 0 1536 0 1792 443.4" style="opacity:0.3"/>
+  <polygon points="256 443.4 512 0 0 0 256 443.4" style="opacity:0.3"/>
+</svg>
