@@ -26,6 +26,9 @@ setup(
     install_requires=[
         'pycryptodome>=3.5.1,<4',
     ],
+    setup_requires=[
+        'pytest-runner'
+    ],
     tests_require=[
         'pytest',
         'pytest-cov',
