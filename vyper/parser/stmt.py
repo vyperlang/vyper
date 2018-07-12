@@ -62,7 +62,8 @@ class Stmt(object):
             ast.Continue: self.parse_continue,
             ast.Return: self.parse_return,
             ast.Delete: self.parse_delete,
-            ast.Name: self.parse_name
+            ast.Str: self.parse_docblock,  # docblock
+            ast.Name: self.parse_name,
         }
         stmt_type = self.stmt.__class__
         if stmt_type in self.stmt_table:
@@ -181,7 +182,7 @@ class Stmt(object):
             elif self.stmt.func.id in dispatch_table:
                 raise StructureException("Function {} can not be called without being used.".format(self.stmt.func.id), self.stmt)
             else:
-                raise StructureException("Unknow function: '{}'.".format(self.stmt.func.id), self.stmt)
+                raise StructureException("Unknown function: '{}'.".format(self.stmt.func.id), self.stmt)
         elif isinstance(self.stmt.func, ast.Attribute) and isinstance(self.stmt.func.value, ast.Name) and self.stmt.func.value.id == "self":
             method_name = self.stmt.func.attr
             if method_name not in self.context.sigs['self']:
@@ -578,3 +579,8 @@ class Stmt(object):
         if not target.mutable:
             raise ConstancyViolationException("Cannot modify function argument: %s" % target.annotation)
         return target
+
+    def parse_docblock(self):
+        if '"""' not in self.context.origcode.splitlines()[self.stmt.lineno - 1]:
+            raise InvalidLiteralException('Only valid """ docblocks allowed', self.stmt)
+        return LLLnode.from_list('pass', typ=None, pos=getpos(self.stmt))

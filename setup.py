@@ -10,7 +10,6 @@ with open('LICENSE') as f:
     license = f.read()
 
 
-
 setup(
     name='vyper',
     # *IMPORTANT*: Don't manually change the version here. Use the 'bumpversion' utility.
@@ -27,10 +26,10 @@ setup(
         'pycryptodome>=3.5.1,<4',
     ],
     tests_require=[
-        'pytest',
-        'pytest-cov',
-        'eth-tester==0.1.0b24',
-        'py-evm==0.2.0a16',
+       'pytest',
+       'pytest-cov',
+       'eth-tester==0.1.0b26',
+       'py-evm==0.2.0a18',
     ],
     scripts=[
         'bin/vyper',
