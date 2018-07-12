@@ -4,6 +4,13 @@ import vyper
 
 from pprint import pprint
 from vyper import compiler
+from vyper.parser import (
+    parser,
+)
+from vyper.vdb import (
+    set_evm_opcode_debugger,
+    set_evm_opcode_pass
+)
 from eth_tester import (
     EthereumTester,
 )
@@ -14,13 +21,13 @@ from web3 import (
     Web3,
 )
 
+aparser = argparse.ArgumentParser(description='Vyper {0} quick CLI runner'.format(vyper.__version__))
+aparser.add_argument('input_file', help='Vyper sourcecode to run')
+aparser.add_argument('call_list', help='call list, without parameters: func, with parameters func(1, 2, 3). Semicolon separated')
+aparser.add_argument('-i', help='init args, comma separated', default='', dest='init_args')
 
-parser = argparse.ArgumentParser(description='Vyper {0} quick CLI runner'.format(vyper.__version__))
-parser.add_argument('input_file', help='Vyper sourcecode to run')
-parser.add_argument('call_list', help='call list, without parameters: func, with parameters func(1, 2, 3). Semicolon separated')
-parser.add_argument('-i', help='init args, comma separated', default='', dest='init_args')
-
-args = parser.parse_args()
+args = aparser.parse_args()
+set_evm_opcode_pass()  # by default just pass over the debug opcode.
 
 
 def cast_types(args, abi_signature):
@@ -72,6 +79,7 @@ if __name__ == '__main__':
 
     with open(args.input_file) as fh:
         code = fh.read()
+        # Patch in vdb.
         init_args = args.init_args.split(',') if args.init_args else []
         tester, w3 = get_tester()
 
@@ -90,7 +98,51 @@ if __name__ == '__main__':
 
             calls.append((name, args))
 
-        abi = compiler.mk_full_signature(code)
+            abi = compiler.mk_full_signature(code)
+
+        def serialise_var_rec(var_rec):
+            return {
+                'type': var_rec.typ.typ,
+                'size': var_rec.size * 32,
+                'position': var_rec.pos
+            }
+
+        _contracts, _events, _defs, _globals, _custom_units = parser.get_contracts_and_defs_and_globals(parser.parse(code))
+        source_map = {
+            'globals': {},
+            'locals': {}
+        }
+        source_map['globals'] = {
+            name: serialise_var_rec(var_record)
+            for name, var_record in _globals.items()
+        }
+        # Fetch context for each function.
+        lll = parser.parse_tree_to_lll(parser.parse(code), code, runtime_only=True)
+        contexts = {
+            f.func_name: f.context
+            for f in lll.args[1:] if hasattr(f, 'context')
+        }
+
+        prev_func_name = None
+        for _def in _defs:
+            func_info = {
+                'from_lineno': _def.lineno,
+                'variables': {}
+            }
+            # set local variables for specific function.
+            context = contexts[_def.name]
+            func_info['variables'] = {
+                var_name: serialise_var_rec(var_rec)
+                for var_name, var_rec in context.vars.items()
+            }
+
+            source_map['locals'][_def.name] = func_info
+            # set to_lineno
+            if prev_func_name:
+                source_map['locals'][prev_func_name]['to_lineno'] = _def.lineno
+            prev_func_name = _def.name
+
+        source_map['locals'][_def.name]['to_lineno'] = len(code.splitlines())
 
         # Format init args.
         if init_args:
@@ -112,11 +164,14 @@ if __name__ == '__main__':
                 print('Argument mismatch, please provide correct arguments.')
                 break
 
-            print('- Returns:')
             cast_args = cast_types(args, func_abi)
+            res = getattr(contract.functions, func_name)(*cast_args).call({'gas': func_abi['gas']})
 
-            res = getattr(contract.functions, func_name)(*cast_args).call()
-            tx_hash = getattr(contract.functions, func_name)(*cast_args).transact()
+            set_evm_opcode_debugger(source_code=code, source_map=source_map)
+            tx_hash = getattr(contract.functions, func_name)(*cast_args).transact({'gas': func_abi['gas']})
+            set_evm_opcode_pass()
+
+            print('- Returns:')
             pprint('{}'.format(res))
 
             # Detect any new log events, and print them.

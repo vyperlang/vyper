@@ -62,14 +62,12 @@ class Stmt(object):
             ast.Continue: self.parse_continue,
             ast.Return: self.parse_return,
             ast.Delete: self.parse_delete,
-            ast.Str: self.parse_docblock  # docblock
+            ast.Str: self.parse_docblock,  # docblock
+            ast.Name: self.parse_name,
         }
         stmt_type = self.stmt.__class__
         if stmt_type in self.stmt_table:
-            lll_node = self.stmt_table[stmt_type]()
-            self.lll_node = lll_node
-        elif isinstance(stmt, ast.Name) and stmt.id == "throw":
-            self.lll_node = LLLnode.from_list(['assert', 0], typ=None, pos=getpos(stmt))
+            self.lll_node = self.stmt_table[stmt_type]()
         else:
             raise StructureException("Unsupported statement type: %s" % type(stmt), stmt)
 
@@ -78,6 +76,14 @@ class Stmt(object):
 
     def parse_pass(self):
         return LLLnode.from_list('pass', typ=None, pos=getpos(self.stmt))
+
+    def parse_name(self):
+        if self.stmt.id == "vdb":
+            return LLLnode('debugger', typ=None, pos=getpos(self.stmt))
+        elif self.stmt.id == "throw":
+            return LLLnode.from_list(['assert', 0], typ=None, pos=getpos(self.stmt))
+        else:
+            raise StructureException("Unsupported statement type: %s" % type(self.stmt), self.stmt)
 
     def _check_valid_assign(self, sub):
         if isinstance(self.stmt.annotation, ast.Call):  # unit style: num(wei)
@@ -176,7 +182,7 @@ class Stmt(object):
             elif self.stmt.func.id in dispatch_table:
                 raise StructureException("Function {} can not be called without being used.".format(self.stmt.func.id), self.stmt)
             else:
-                raise StructureException("Unknow function: '{}'.".format(self.stmt.func.id), self.stmt)
+                raise StructureException("Unknown function: '{}'.".format(self.stmt.func.id), self.stmt)
         elif isinstance(self.stmt.func, ast.Attribute) and isinstance(self.stmt.func.value, ast.Name) and self.stmt.func.value.id == "self":
             method_name = self.stmt.func.attr
             if method_name not in self.context.sigs['self']:

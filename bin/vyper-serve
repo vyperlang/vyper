@@ -68,7 +68,7 @@ class VyperRequestHandler(BaseHTTPRequestHandler):
         if not code:
             return {'status': 'failed', 'message': 'No "code" key supplied'}, 400
         if not isinstance(code, str):
-            return {'status': 'failed', 'message': '"code" must be a non-emtpy string'}, 400
+            return {'status': 'failed', 'message': '"code" must be a non-empty string'}, 400
 
         try:
             code = data['code']

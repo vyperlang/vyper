@@ -1,3 +1,4 @@
+from decimal import Decimal
 
 
 def test_custom_units(get_contract_with_gas_estimation):
@@ -81,3 +82,21 @@ def initiate(token_addr: address, token_quantity: uint256(token)):
     """
 
     assert get_contract_with_gas_estimation(code)
+
+
+def test_ms(get_contract_with_gas_estimation):
+    code = """
+units: {
+    m: "Meter",
+    s: "Second"
+}
+
+
+@public
+def velocity(d: decimal(m), t: decimal(s)) -> decimal(m/s):
+    return d / t
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.velocity(15, 10) == Decimal('1.5')
+    assert c.velocity(12, 4) == Decimal('3')
