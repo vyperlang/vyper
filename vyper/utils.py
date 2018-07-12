@@ -66,6 +66,10 @@ def calc_mem_gas(memsize):
     return (memsize // 32) * 3 + (memsize // 32) ** 2 // 512
 
 
+# Specific gas usage
+GAS_IDENTITY = 15
+GAS_IDENTITYWORD = 3
+
 # A decimal value can store multiples of 1/DECIMAL_DIVISOR
 DECIMAL_DIVISOR = 10000000000
 

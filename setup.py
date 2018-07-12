@@ -23,8 +23,9 @@ setup(
     license=license,
     packages=find_packages(exclude=('tests', 'docs')),
     python_requires='>=3.6',
-    install_requires=['py-evm>=0.2.0a16,<1.0.0'],
-    setup_requires=['pytest-runner'],
+    install_requires=[
+        'pycryptodome>=3.5.1,<4',
+    ],
     tests_require=[
         'pytest',
         'pytest-cov',
@@ -34,6 +35,5 @@ setup(
     scripts=[
         'bin/vyper',
         'bin/vyper-serve',
-        'bin/vyper-run',
     ]
 )
