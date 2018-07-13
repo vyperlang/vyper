@@ -141,14 +141,17 @@ valid_units = ['wei', 'sec']
 valid_global_keywords = ['public', 'modifying', 'event'] + valid_units + valid_call_keywords
 
 # Cannot be used for variable or member naming
-reserved_words = ['int128', 'int256', 'uint256', 'address', 'bytes32',
-                  'if', 'for', 'while', 'until',
-                  'pass', 'def', 'push', 'dup', 'swap', 'send', 'call',
-                  'selfdestruct', 'assert', 'stop', 'throw',
-                  'raise', 'init', '_init_', '___init___', '____init____',
-                  'true', 'false', 'self', 'this', 'continue', 'ether',
-                  'wei', 'finney', 'szabo', 'shannon', 'lovelace', 'ada',
-                  'babbage', 'gwei', 'kwei', 'mwei', 'twei', 'pwei', 'contract', 'units']
+reserved_words = [
+    'int128', 'int256', 'uint256', 'address', 'bytes32',
+    'if', 'for', 'while', 'until',
+    'pass', 'def', 'push', 'dup', 'swap', 'send', 'call',
+    'selfdestruct', 'assert', 'stop', 'throw',
+    'raise', 'init', '_init_', '___init___', '____init____',
+    'true', 'false', 'self', 'this', 'continue',
+    'ether', 'wei', 'finney', 'szabo', 'shannon', 'lovelace', 'ada', 'babbage', 'gwei', 'kwei', 'mwei', 'twei', 'pwei', 'contract',
+    'units',
+    'zero_address', 'max_int128', 'min_int128', 'max_decimal', 'min_decimal', 'max_uint256',  # constants
+]
 
 
 # Is a variable or member variable name valid?
