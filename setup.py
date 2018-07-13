@@ -13,7 +13,7 @@ with open('LICENSE') as f:
 setup(
     name='eth-vyper',
     # *IMPORTANT*: Don't manually change the version here. Use the 'bumpversion' utility.
-    version='0.1.0-beta.1',
+    version='0.1.0-beta.2',
     description='Vyper Programming Language for Ethereum',
     long_description=readme,
     author='Vitalik Buterin',
