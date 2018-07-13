@@ -44,3 +44,12 @@ def test_arithmetic(a: int128) -> int128:
     assert c.test_uint256(2**256 - 1) is True
 
     assert c.test_arithmetic(5000) == 2**127 - 1 - 5000
+
+
+def test_reserved_keyword(get_contract, assert_compile_failed):
+    code = """
+@public
+def test():
+    ZERO_ADDRESS: address
+    """
+    assert_compile_failed(lambda: get_contract(code))

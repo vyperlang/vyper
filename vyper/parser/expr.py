@@ -271,17 +271,13 @@ class Expr(object):
             elif isinstance(self.expr.op, ast.Mult):
                 val = left.value * right.value
             elif isinstance(self.expr.op, ast.Div):
-                val = left.value / right.value
+                val = left.value // right.value
             elif isinstance(self.expr.op, ast.Mod):
                 val = left.value % right.value
             elif isinstance(self.expr.op, ast.Pow):
                 val = left.value ** right.value
             else:
                 raise ParserException('Unsupported literal operator: %s' % str(type(self.expr.op)), self.expr)
-
-            # For scenario were mul and div produce a whole number:
-            if isinstance(val, float) and val.is_integer():
-                val = int(val)
 
             num = ast.Num(val)
             num.source_code = self.expr.source_code
