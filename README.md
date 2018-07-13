@@ -6,6 +6,10 @@
 [![Documentation Status](https://readthedocs.org/projects/vyper/badge/?version=latest)](http://vyper.readthedocs.io/en/latest/?badge=latest)
 [![Coverage Status](https://coveralls.io/repos/github/ethereum/vyper/badge.svg?branch=master)](https://coveralls.io/github/ethereum/vyper?branch=master)
 
+# Getting Started
+See [Installing Vyper](http://vyper.readthedocs.io/en/latest/installing-vyper.html) to install vyper.  
+See [Tools and Resources](https://github.com/ethereum/vyper/wiki/Vyper-tools-and-resources) for an additional list of framework and tools with vyper support.
+
 # Principles and Goals
 
 Vyper is a smart contract development language built with the following goals:
