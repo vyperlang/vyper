@@ -11,7 +11,7 @@ with open('LICENSE') as f:
 
 
 setup(
-    name='vyper',
+    name='eth-vyper',
     # *IMPORTANT*: Don't manually change the version here. Use the 'bumpversion' utility.
     version='0.1.0-beta.1',
     description='Vyper Programming Language for Ethereum',
@@ -22,6 +22,7 @@ setup(
     license=license,
     packages=find_packages(exclude=('tests', 'docs')),
     python_requires='>=3.6',
+    py_modules=['vyper'],
     install_requires=[
         'pycryptodome>=3.5.1,<4',
     ],
