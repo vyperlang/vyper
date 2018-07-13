@@ -209,3 +209,16 @@ def num_pow(a: int128, b: int128) -> int128:
     assert c.num_pow(-2, 127) == (-2**127)
     assert c.num_pow(2, 126) == (2**126)
     assert_tx_failed(lambda: c.num_pow(2**126, 2))
+
+
+def test_literal_int_division(get_contract, assert_tx_failed):
+    code = """
+@public
+def foo() -> int128:
+    z: int128 = 5 / 2
+    return z
+    """
+
+    c = get_contract(code)
+
+    assert c.foo() == 2
