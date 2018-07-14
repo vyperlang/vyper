@@ -3,7 +3,6 @@ import ast
 from .exceptions import (
     InvalidTypeException,
     StructureException,
-    VariableDeclarationException,
     FunctionDeclarationException
 )
 from .types import ByteArrayType
