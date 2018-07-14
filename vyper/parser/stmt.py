@@ -6,6 +6,8 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
+    EventDeclarationException,
+    FunctionDeclarationException,
     InvalidLiteralException
 )
 from vyper.functions import (
@@ -186,7 +188,7 @@ class Stmt(object):
         elif isinstance(self.stmt.func, ast.Attribute) and isinstance(self.stmt.func.value, ast.Name) and self.stmt.func.value.id == "self":
             method_name = self.stmt.func.attr
             if method_name not in self.context.sigs['self']:
-                raise VariableDeclarationException("Function not declared yet (reminder: functions cannot "
+                raise FunctionDeclarationException("Function not declared yet (reminder: functions cannot "
                                                     "call functions later in code than themselves): %s" % self.stmt.func.attr)
             sig = self.context.sigs['self'][method_name]
             if self.context.is_constant and not sig.const:
@@ -215,10 +217,10 @@ class Stmt(object):
             return external_contract_call(self.stmt, self.context, contract_name, contract_address, pos=getpos(self.stmt))
         elif isinstance(self.stmt.func, ast.Attribute) and self.stmt.func.value.id == 'log':
             if self.stmt.func.attr not in self.context.sigs['self']:
-                raise VariableDeclarationException("Event not declared yet: %s" % self.stmt.func.attr)
+                raise EventDeclarationException("Event not declared yet: %s" % self.stmt.func.attr)
             event = self.context.sigs['self'][self.stmt.func.attr]
             if len(event.indexed_list) != len(self.stmt.args):
-                raise VariableDeclarationException("%s received %s arguments but expected %s" % (event.name, len(self.stmt.args), len(event.indexed_list)))
+                raise EventDeclarationException("%s received %s arguments but expected %s" % (event.name, len(self.stmt.args), len(event.indexed_list)))
             expected_topics, topics = [], []
             expected_data, data = [], []
             for pos, is_indexed in enumerate(event.indexed_list):

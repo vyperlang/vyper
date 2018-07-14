@@ -44,9 +44,9 @@ class EventSignature():
                 else:
                     indexed_list.append(False)
                 if isinstance(typ, ast.Subscript) and getattr(typ.value, 'id', None) == 'bytes' and typ.slice.value.n > 32 and is_indexed:
-                    raise VariableDeclarationException("Indexed arguments are limited to 32 bytes")
+                    raise EventDeclarationException("Indexed arguments are limited to 32 bytes")
                 if topics_count > 4:
-                    raise VariableDeclarationException("Maximum of 3 topics {} given".format(topics_count - 1), arg)
+                    raise EventDeclarationException("Maximum of 3 topics {} given".format(topics_count - 1), arg)
                 if not isinstance(arg, str):
                     raise VariableDeclarationException("Argument name invalid", arg)
                 if not typ:
