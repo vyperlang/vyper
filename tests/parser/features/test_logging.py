@@ -3,7 +3,7 @@ from decimal import Decimal
 from vyper.exceptions import VariableDeclarationException, TypeMismatchException, StructureException
 
 
-def test_empy_event_logging(w3, tester, keccak, get_contract_with_gas_estimation):
+def test_empty_event_logging(w3, tester, keccak, get_contract_with_gas_estimation):
     loggy_code = """
 MyLog: event({})
 

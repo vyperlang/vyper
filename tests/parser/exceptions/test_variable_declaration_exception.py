@@ -114,6 +114,6 @@ sec: int128
 
 
 @pytest.mark.parametrize('bad_code', fail_list)
-def test_variable_decleration_exception(bad_code):
+def test_variable_declaration_exception(bad_code):
         with raises(VariableDeclarationException):
             compiler.compile(bad_code)
