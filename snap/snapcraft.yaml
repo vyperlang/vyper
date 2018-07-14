@@ -2,7 +2,7 @@ name: vyper
 version: git
 summary: Experimental language for the Ethereum Virtual Machine
 description: |
-  Vyper is an experimental, contract-oriented, pythonic programming language that targets the Ethereum Virtual Machine (EVM)
+  Vyper is an contract-oriented, pythonic programming language that targets the Ethereum Virtual Machine (EVM)
 
 grade: devel # must be 'stable' to release into candidate/stable channels
 confinement: devmode # use 'strict' once you have the right plugs and slots

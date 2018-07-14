@@ -420,7 +420,10 @@ class Stmt(object):
             elif is_base_type(sub.typ, self.context.return_type.typ) or \
                     (is_base_type(sub.typ, 'int128') and is_base_type(self.context.return_type, 'int256')):
                 return LLLnode.from_list(['seq', ['mstore', 0, sub], ['return', 0, 32]], typ=None, pos=getpos(self.stmt))
-            if sub.typ.is_literal and SizeLimits.in_bounds(self.context.return_type.typ, sub.value):
+            if sub.typ.is_literal and SizeLimits.in_bounds(self.context.return_type.typ, sub.value) and (
+                    self.context.return_type.typ == sub.typ or
+                    'int' in self.context.return_type.typ and
+                    'int' in sub.typ.typ):
                 return LLLnode.from_list(['seq', ['mstore', 0, sub], ['return', 0, 32]], typ=None, pos=getpos(self.stmt))
             else:
                 raise TypeMismatchException("Unsupported type conversion: %r to %r" % (sub.typ, self.context.return_type), self.stmt.value)

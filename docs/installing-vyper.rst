@@ -52,6 +52,11 @@ Run the following commands to install:
     sudo apt-get update
     sudo apt-get install python3.6
 
+.. note::
+   If you get the error `Python.h: No such file or directory` you need to install the python header files for the Python C API with
+   ::
+       sudo apt-get install python3-dev
+
 MacOS
 -----
 Make sure you have Homebrew installed. If you don't have the `brew` command
