@@ -182,10 +182,6 @@ def concat(expr, context):
                                 # Change the position to start at the correct
                                 # place to paste the next value
                                 ['set', '_poz', ['add', '_poz', length]]]])
-        elif isinstance(arg.typ, BaseType) and arg.typ.typ == "method_id":
-            seq.append(['seq',
-                            ['mstore', ['add', placeholder_node, 32], arg.value * 2**224],
-                            ['set', '_poz', ['add', '_poz', 4]]])
         else:
             seq.append(['seq',
                             ['mstore', ['add', placeholder_node, 32], unwrap_location(arg)],
@@ -233,10 +229,22 @@ def _sha3(expr, args, kwargs, context):
     )
 
 
-@signature('str_literal')
+@signature('str_literal', 'name_literal')
 def method_id(expr, args, kwargs, context):
+    if b' ' in args[0]:
+        raise TypeMismatchException('Invalid function signature no spaces allowed.')
     method_id = fourbytes_to_int(sha3(args[0])[:4])
-    return LLLnode(method_id, typ=BaseType('method_id'), pos=getpos(expr))
+    if args[1] == 'bytes32':
+        return LLLnode(method_id, typ=BaseType('bytes32'), pos=getpos(expr))
+    elif args[1] == 'bytes[4]':
+        placeholder = LLLnode.from_list(context.new_placeholder(ByteArrayType(4)))
+        return LLLnode.from_list(
+            ['seq',
+                ['mstore', ['add', placeholder, 4], method_id],
+                ['mstore', placeholder, 4], placeholder],
+            typ=ByteArrayType(4), location='memory', pos=getpos(expr))
+    else:
+        raise StructureException('Can only produce bytes32 or bytes[4] as outputs')
 
 
 @signature('bytes32', 'uint256', 'uint256', 'uint256')
