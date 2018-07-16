@@ -68,16 +68,21 @@ Considerations
 
 Unlike Solidity, Vyper generates a default function if one isn't found, in the form of a REVERT call. Note that this still `generates an exception <https://github.com/ethereum/wiki/wiki/Subtleties>`_ and thus will not succeed in receiving funds. 
 
-Ethereum specifies that the operations will be rolled back if the contract runs out of gas in execution. ``send`` calls to the contract come with a free stipend of 2300 gas, which does not leave much room to perform other operations except basic logging. **However**, if the sender includes a higher gas amount through a ``call`` instead of ``send``, then more complex functionality can be run.
+Ethereum specifies that the operations will be rolled back if the contract runs out of gas in execution. ``send`` calls to the contract come with a free stipend of 2300 gas, which does not leave much room to perform other operations except basic logging. **However**, if the sender includes a higher gas amount through a ``call`` instead of ``send``, then more complex functionality can be run. 
 
-The following operations will consume more gas than the 2300 gas stipend:
+It is considered a best practice to ensure your payable default function is compatible with this stipend. The following operations will consume more than 2300 gas:
 
 - Writing to storage
 - Creating a contract
 - Calling an external function which consumes a large amount of gas
 - Sending Ether
 
-Although the default function receives no arguments, it can still access the ``msg`` global, including the address of who is interacting with the contract (``msg.sender``), the amount of ETH sent (``msg.value``), and the gas (``msg.gas``).
+Lastly, although the default function receives no arguments, it can still access the ``msg`` global, including:
+
+- the address of who is interacting with the contract (``msg.sender``)
+- the amount of ETH sent (``msg.value``)
+- the gas provided (``msg.gas``).
+
 
 .. _structure-events:
 
