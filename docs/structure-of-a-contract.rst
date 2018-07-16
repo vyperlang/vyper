@@ -77,7 +77,7 @@ The following operations will consume more gas than the 2300 gas stipend:
 - Calling an external function which consumes a large amount of gas
 - Sending Ether
 
-Since global variables are still accessible, you can pass data to the default function through the raw byte buffer provided to EVM's CALL (``msg.data``).
+Although the default function receives no arguments, it can still access the ``msg`` global, including the address of who is interacting with the contract (``msg.sender``), the amount of ETH sent (``msg.value``), and the gas (``msg.gas``).
 
 .. _structure-events:
 
