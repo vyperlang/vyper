@@ -7,6 +7,7 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
+    FunctionDeclarationException,
     ParserException
 )
 from .parser_utils import LLLnode
@@ -622,7 +623,7 @@ class Expr(object):
         elif isinstance(self.expr.func, ast.Attribute) and isinstance(self.expr.func.value, ast.Name) and self.expr.func.value.id == "self":
             method_name = self.expr.func.attr
             if method_name not in self.context.sigs['self']:
-                raise VariableDeclarationException("Function not declared yet (reminder: functions cannot "
+                raise FunctionDeclarationException("Function not declared yet (reminder: functions cannot "
                                                    "call functions later in code than themselves): %s" % self.expr.func.attr)
 
             sig = self.context.sigs['self'][method_name]

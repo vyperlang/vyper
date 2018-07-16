@@ -3,7 +3,7 @@ import ast
 from .exceptions import (
     InvalidTypeException,
     StructureException,
-    VariableDeclarationException,
+    FunctionDeclarationException
 )
 from .types import ByteArrayType
 from .types import (
@@ -57,6 +57,9 @@ class FunctionSignature():
     def from_definition(cls, code, sigs=None, custom_units=None, contract_def=False, constant=False):
         name = code.name
         pos = 0
+
+        if not is_varname_valid(name, custom_units=custom_units):
+            raise FunctionDeclarationException("Function name invalid: " + name)
         # Determine the arguments, expects something of the form def foo(arg1: int128, arg2: int128 ...
         args = []
         for arg in code.args.args:
@@ -64,9 +67,9 @@ class FunctionSignature():
             if not typ:
                 raise InvalidTypeException("Argument must have type", arg)
             if not is_varname_valid(arg.arg, custom_units=custom_units):
-                raise VariableDeclarationException("Argument name invalid or reserved: " + arg.arg, arg)
+                raise FunctionDeclarationException("Argument name invalid or reserved: " + arg.arg, arg)
             if arg.arg in (x.name for x in args):
-                raise VariableDeclarationException("Duplicate function argument name: " + arg.arg, arg)
+                raise FunctionDeclarationException("Duplicate function argument name: " + arg.arg, arg)
             parsed_type = parse_type(typ, None, sigs, custom_units=custom_units)
             args.append(VariableRecord(arg.arg, pos, parsed_type, False))
             if isinstance(parsed_type, ByteArrayType):

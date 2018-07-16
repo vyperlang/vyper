@@ -2,7 +2,7 @@ import pytest
 from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import StructureException
+from vyper.exceptions import FunctionDeclarationException
 
 
 fail_list = [
@@ -16,7 +16,7 @@ def foo() -> int128:
 
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_missing_return(bad_code):
-    with raises(StructureException):
+    with raises(FunctionDeclarationException):
         compiler.compile(bad_code)
 
 
