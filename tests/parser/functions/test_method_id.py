@@ -52,7 +52,7 @@ def sig() -> bytes32:
 def test_method_id_invalid_type(get_contract, assert_compile_failed):
     code = """
 @public
-def sig() -> bytes32:
-    return method_id('transfer(address, uint256)', int128)
+def sig() -> int128:
+    return method_id('transfer(address,uint256)', int128)
     """
     assert_compile_failed(lambda: get_contract(code))

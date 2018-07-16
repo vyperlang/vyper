@@ -147,7 +147,7 @@ def concat(expr, context):
     if len(args) < 2:
         raise StructureException("Concat expects at least two arguments", expr)
     for expr_arg, arg in zip(expr.args, args):
-        if not isinstance(arg.typ, ByteArrayType) and not is_base_type(arg.typ, 'bytes32') and not is_base_type(arg.typ, 'method_id'):
+        if not isinstance(arg.typ, ByteArrayType) and not is_base_type(arg.typ, 'bytes32'):
             raise TypeMismatchException("Concat expects byte arrays or bytes32 objects", expr_arg)
     # Maximum length of the output
     total_maxlen = sum([arg.typ.maxlen if isinstance(arg.typ, ByteArrayType) else 32 for arg in args])
