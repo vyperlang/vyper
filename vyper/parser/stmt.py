@@ -534,7 +534,7 @@ class Stmt(object):
                     # list lefthand side types
                     sub_list_types = LLLnode.from_list(self.context.new_placeholder(arg.typ), typ=arg.typ, location='memory')
                     # left k & right values
-                    setter = make_setter(sub_list_types, arg, location = 'memory', pos=getpos(self.stmt))
+                    setter = make_setter(sub_list_types, arg, location='memory', pos=getpos(self.stmt))
                     # build inner list argument
                     list_arg = LLLnode.from_list(['seq', setter, ['return', sub_list_types, get_size_of_type(self.context.return_type) * 32]], typ=None, pos=getpos(self.stmt))
                     # append to tuples list args
