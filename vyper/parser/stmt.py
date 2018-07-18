@@ -530,6 +530,15 @@ class Stmt(object):
 
                 elif isinstance(arg.typ, BaseType):
                     subs.append(make_setter(variable_offset, arg, "memory", pos=getpos(self.stmt)))
+                elif isinstance(arg.typ, ListType):
+                    # list lefthand side types
+                    sub_list_types = LLLnode.from_list(self.context.new_placeholder(arg.typ), typ=arg.typ, location='memory')
+                    # left k & right values
+                    setter = make_setter(sub_list_types, arg, location = 'memory', pos=getpos(self.stmt))
+                    # build inner list argument
+                    list_arg = LLLnode.from_list(['seq', setter, ['return', sub_list_types, get_size_of_type(self.context.return_type) * 32]], typ=None, pos=getpos(self.stmt))
+                    # append to tuples list args
+                    subs.append(list_arg)
                 else:
                     raise Exception("Can't return type %s as part of tuple", type(arg.typ))
 
