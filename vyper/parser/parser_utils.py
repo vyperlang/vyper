@@ -1,6 +1,6 @@
 import re
 
-from evm.constants import GAS_IDENTITY, GAS_IDENTITYWORD
+from vyper.utils import GAS_IDENTITY, GAS_IDENTITYWORD
 
 from vyper.exceptions import TypeMismatchException
 from vyper.opcodes import comb_opcodes

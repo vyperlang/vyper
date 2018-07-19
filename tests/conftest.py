@@ -73,27 +73,9 @@ def set_evm_verbose_logging():
     logger.setLevel('TRACE')
 
 
-def set_evm_opcode_debugger():
-    import evm
-    from evm.vm.opcode import as_opcode
-    from vyper.opcodes import opcodes as vyper_opcodes
-    from evm.vm.forks.byzantium.computation import ByzantiumComputation
-
-    def debug_opcode(computation):
-        from eth_utils import to_hex  # noqa
-        import ipdb; ipdb.set_trace()  # noqa
-
-    opcodes = ByzantiumComputation.opcodes.copy()
-    opcodes[vyper_opcodes['DEBUG'][0]] = as_opcode(
-        logic_fn=debug_opcode,
-        mnemonic="DEBUG",
-        gas_cost=0
-    )
-    setattr(evm.vm.forks.byzantium.computation.ByzantiumComputation, 'opcodes', opcodes)
-
 # Useful options to comment out whilst working:
 # set_evm_verbose_logging()
-# set_evm_opcode_debugger()
+# vdb.set_evm_opcode_debugger()
 
 
 @pytest.fixture(autouse=True)

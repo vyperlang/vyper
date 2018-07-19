@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from vyper.exceptions import VariableDeclarationException, TypeMismatchException, StructureException
+from vyper.exceptions import TypeMismatchException, EventDeclarationException
 
 
 def test_empy_event_logging(w3, tester, keccak, get_contract_with_gas_estimation):
@@ -156,7 +156,7 @@ def test_event_logging_cannot_have_more_than_three_topics(assert_tx_failed, get_
 MyLog: event({arg1: indexed(bytes[3]), arg2: indexed(bytes[4]), arg3: indexed(address), arg4: indexed(int128)})
     """
 
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), EventDeclarationException)
 
 
 def test_event_logging_with_data(w3, tester, keccak, get_logs, get_contract_with_gas_estimation):
@@ -488,7 +488,7 @@ def foo():
     pass
     """
 
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), EventDeclarationException)
 
 
 def test_logging_fails_with_over_three_topics(assert_tx_failed, get_contract_with_gas_estimation):
@@ -499,7 +499,7 @@ def __init__():
     log.MyLog(1, 2, 3, 4)
     """
 
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), EventDeclarationException)
 
 
 def test_logging_fails_with_duplicate_log_names(assert_tx_failed, get_contract_with_gas_estimation):
@@ -512,7 +512,7 @@ def foo():
     log.MyLog()
     """
 
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), EventDeclarationException)
 
 
 def test_logging_fails_with_when_log_is_undeclared(assert_tx_failed, get_contract_with_gas_estimation):
@@ -523,7 +523,7 @@ def foo():
     log.MyLog()
     """
 
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), EventDeclarationException)
 
 
 def test_logging_fails_with_topic_type_mismatch(assert_tx_failed, get_contract_with_gas_estimation):
@@ -556,7 +556,7 @@ age: int128
 MyLog: event({arg1: bytes[3]})
     """
 
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), StructureException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), EventDeclarationException)
 
 
 def test_logging_fails_after_a_function_declaration(assert_tx_failed, get_contract_with_gas_estimation):
@@ -567,7 +567,7 @@ def foo():
 
 MyLog: event({arg1: bytes[3]})
     """
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), StructureException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), EventDeclarationException)
 
 
 def test_logging_fails_when_number_of_arguments_is_greater_than_declaration(assert_tx_failed, get_contract_with_gas_estimation):
@@ -578,7 +578,7 @@ MyLog: event({arg1: int128})
 def foo():
     log.MyLog(1, 2)
 """
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), EventDeclarationException)
 
 
 def test_logging_fails_when_number_of_arguments_is_less_than_declaration(assert_tx_failed, get_contract_with_gas_estimation):
@@ -589,7 +589,7 @@ MyLog: event({arg1: int128, arg2: int128})
 def foo():
     log.MyLog(1)
 """
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), VariableDeclarationException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), EventDeclarationException)
 
 
 def test_loggy_code(w3, tester, get_contract_with_gas_estimation):
@@ -783,7 +783,7 @@ def test_logging_fails_when_declartation_is_too_big(assert_tx_failed, get_contra
     code = """
 Bar: event({_value: indexed(bytes[33])})
 """
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(code), VariableDeclarationException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(code), EventDeclarationException)
 
 
 def test_logging_fails_when_input_is_too_big(assert_tx_failed, get_contract_with_gas_estimation):

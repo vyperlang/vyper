@@ -267,6 +267,8 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
         return compile_to_assembly(LLLnode.from_list(['with', '_val', code.args[0],
                                                         ['sub', ['add', '_val', 31],
                                                                 ['mod', ['sub', '_val', 1], 32]]]), withargs, break_dest, height)
+    elif code.value == 'debugger':
+        return ['PUSH1', code.pos[0], 'DEBUG']
     else:
         raise Exception("Weird code element: " + repr(code))
 

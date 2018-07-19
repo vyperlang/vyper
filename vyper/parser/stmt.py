@@ -6,6 +6,8 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
+    EventDeclarationException,
+    FunctionDeclarationException,
     InvalidLiteralException
 )
 from vyper.functions import (
@@ -62,14 +64,12 @@ class Stmt(object):
             ast.Continue: self.parse_continue,
             ast.Return: self.parse_return,
             ast.Delete: self.parse_delete,
-            ast.Str: self.parse_docblock  # docblock
+            ast.Str: self.parse_docblock,  # docblock
+            ast.Name: self.parse_name,
         }
         stmt_type = self.stmt.__class__
         if stmt_type in self.stmt_table:
-            lll_node = self.stmt_table[stmt_type]()
-            self.lll_node = lll_node
-        elif isinstance(stmt, ast.Name) and stmt.id == "throw":
-            self.lll_node = LLLnode.from_list(['assert', 0], typ=None, pos=getpos(stmt))
+            self.lll_node = self.stmt_table[stmt_type]()
         else:
             raise StructureException("Unsupported statement type: %s" % type(stmt), stmt)
 
@@ -78,6 +78,14 @@ class Stmt(object):
 
     def parse_pass(self):
         return LLLnode.from_list('pass', typ=None, pos=getpos(self.stmt))
+
+    def parse_name(self):
+        if self.stmt.id == "vdb":
+            return LLLnode('debugger', typ=None, pos=getpos(self.stmt))
+        elif self.stmt.id == "throw":
+            return LLLnode.from_list(['assert', 0], typ=None, pos=getpos(self.stmt))
+        else:
+            raise StructureException("Unsupported statement type: %s" % type(self.stmt), self.stmt)
 
     def _check_valid_assign(self, sub):
         if isinstance(self.stmt.annotation, ast.Call):  # unit style: num(wei)
@@ -176,11 +184,11 @@ class Stmt(object):
             elif self.stmt.func.id in dispatch_table:
                 raise StructureException("Function {} can not be called without being used.".format(self.stmt.func.id), self.stmt)
             else:
-                raise StructureException("Unknow function: '{}'.".format(self.stmt.func.id), self.stmt)
+                raise StructureException("Unknown function: '{}'.".format(self.stmt.func.id), self.stmt)
         elif isinstance(self.stmt.func, ast.Attribute) and isinstance(self.stmt.func.value, ast.Name) and self.stmt.func.value.id == "self":
             method_name = self.stmt.func.attr
             if method_name not in self.context.sigs['self']:
-                raise VariableDeclarationException("Function not declared yet (reminder: functions cannot "
+                raise FunctionDeclarationException("Function not declared yet (reminder: functions cannot "
                                                     "call functions later in code than themselves): %s" % self.stmt.func.attr)
             sig = self.context.sigs['self'][method_name]
             if self.context.is_constant and not sig.const:
@@ -209,10 +217,10 @@ class Stmt(object):
             return external_contract_call(self.stmt, self.context, contract_name, contract_address, pos=getpos(self.stmt))
         elif isinstance(self.stmt.func, ast.Attribute) and self.stmt.func.value.id == 'log':
             if self.stmt.func.attr not in self.context.sigs['self']:
-                raise VariableDeclarationException("Event not declared yet: %s" % self.stmt.func.attr)
+                raise EventDeclarationException("Event not declared yet: %s" % self.stmt.func.attr)
             event = self.context.sigs['self'][self.stmt.func.attr]
             if len(event.indexed_list) != len(self.stmt.args):
-                raise VariableDeclarationException("%s received %s arguments but expected %s" % (event.name, len(self.stmt.args), len(event.indexed_list)))
+                raise EventDeclarationException("%s received %s arguments but expected %s" % (event.name, len(self.stmt.args), len(event.indexed_list)))
             expected_topics, topics = [], []
             expected_data, data = [], []
             for pos, is_indexed in enumerate(event.indexed_list):
@@ -412,7 +420,10 @@ class Stmt(object):
             elif is_base_type(sub.typ, self.context.return_type.typ) or \
                     (is_base_type(sub.typ, 'int128') and is_base_type(self.context.return_type, 'int256')):
                 return LLLnode.from_list(['seq', ['mstore', 0, sub], ['return', 0, 32]], typ=None, pos=getpos(self.stmt))
-            if sub.typ.is_literal and SizeLimits.in_bounds(self.context.return_type.typ, sub.value):
+            if sub.typ.is_literal and SizeLimits.in_bounds(self.context.return_type.typ, sub.value) and (
+                    self.context.return_type.typ == sub.typ or
+                    'int' in self.context.return_type.typ and
+                    'int' in sub.typ.typ):
                 return LLLnode.from_list(['seq', ['mstore', 0, sub], ['return', 0, 32]], typ=None, pos=getpos(self.stmt))
             else:
                 raise TypeMismatchException("Unsupported type conversion: %r to %r" % (sub.typ, self.context.return_type), self.stmt.value)

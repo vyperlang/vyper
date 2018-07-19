@@ -15,6 +15,8 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
+    FunctionDeclarationException,
+    EventDeclarationException
 )
 from vyper.signatures.function_signature import (
     FunctionSignature,
@@ -257,7 +259,7 @@ def add_globals_and_events(_custom_units, _contracts, _defs, _events, _getters, 
         raise StructureException('May not assign value whilst defining type', item)
     elif isinstance(item.annotation, ast.Call) and item.annotation.func.id == "event":
         if _globals or len(_defs):
-            raise StructureException("Events must all come before global declarations and function definitions", item)
+            raise EventDeclarationException("Events must all come before global declarations and function definitions", item)
         _events.append(item)
     elif not isinstance(item.target, ast.Name):
         raise StructureException("Can only assign type to variable in top-level statement", item)
@@ -342,7 +344,7 @@ def get_contracts_and_defs_and_globals(code):
         # Function definitions
         elif isinstance(item, ast.FunctionDef):
             if item.name in _globals:
-                raise VariableDeclarationException("Function name shadowing a variable name: %s" % item.name)
+                raise FunctionDeclarationException("Function name shadowing a variable name: %s" % item.name)
             _defs.append(item)
         else:
             raise StructureException("Invalid top-level statement", item)
@@ -392,7 +394,7 @@ def parse_external_contracts(external_contracts, _contracts):
         _defnames = [_def.name for _def in _contract_defs]
         contract = {}
         if len(set(_defnames)) < len(_contract_defs):
-            raise VariableDeclarationException("Duplicate function name: %s" % [name for name in _defnames if _defnames.count(name) > 1][0])
+            raise FunctionDeclarationException("Duplicate function name: %s" % [name for name in _defnames if _defnames.count(name) > 1][0])
 
         for _def in _contract_defs:
             constant = False
@@ -436,10 +438,14 @@ def parse_other_functions(o, otherfuncs, _globals, sigs, external_contracts, ori
 # Main python parse tree => LLL method
 def parse_tree_to_lll(code, origcode, runtime_only=False):
     _contracts, _events, _defs, _globals, _custom_units = get_contracts_and_defs_and_globals(code)
-    _names = [_def.name for _def in _defs] + [_event.target.id for _event in _events]
-    # Checks for duplicate function / event names
-    if len(set(_names)) < len(_names):
-        raise VariableDeclarationException("Duplicate function or event name: %s" % [name for name in _names if _names.count(name) > 1][0])
+    _names_def = [_def.name for _def in _defs]
+    # Checks for duplicate function names
+    if len(set(_names_def)) < len(_names_def):
+        raise FunctionDeclarationException("Duplicate function name: %s" % [name for name in _names_def if _names_def.count(name) > 1][0])
+    _names_events = [_event.target.id for _event in _events]
+    # Checks for duplicate event names
+    if len(set(_names_events)) < len(_names_events):
+        raise EventDeclarationException("Duplicate event name: %s" % [name for name in _names_events if _names_events.count(name) > 1][0])
     # Initialization function
     initfunc = [_def for _def in _defs if is_initializer(_def)]
     # Default function
@@ -510,7 +516,7 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
     # Check for duplicate variables with globals
     for arg in sig.args:
         if arg.name in _globals:
-            raise VariableDeclarationException("Variable name duplicated between function arguments and globals: " + arg.name)
+            raise FunctionDeclarationException("Variable name duplicated between function arguments and globals: " + arg.name)
     # Create a context
     context = Context(vars=_vars, globals=_globals, sigs=sigs,
                       return_type=sig.output_type, is_constant=sig.const, is_payable=sig.payable, origcode=origcode, custom_units=_custom_units)
@@ -543,9 +549,9 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
         o = LLLnode.from_list(['seq'] + clampers + [parse_body(code.body, context)], pos=getpos(code))
     elif is_default_func(sig):
         if len(sig.args) > 0:
-            raise StructureException('Default function may not receive any arguments.', code)
+            raise FunctionDeclarationException('Default function may not receive any arguments.', code)
         if sig.private:
-            raise StructureException('Default function may only be public.', code)
+            raise FunctionDeclarationException('Default function may only be public.', code)
         o = LLLnode.from_list(['seq'] + clampers + [parse_body(code.body, context)], pos=getpos(code))
     else:
         method_id_node = LLLnode.from_list(sig.method_id, pos=getpos(code), annotation='%s' % sig.name)
@@ -556,7 +562,7 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
 
     # Check for at leasts one return statement if necessary.
     if context.return_type and context.function_return_count == 0:
-        raise StructureException(
+        raise FunctionDeclarationException(
             "Missing return statement in function '%s' " % sig.name, code
         )
 
@@ -586,7 +592,7 @@ def external_contract_call(node, context, contract_name, contract_address, pos, 
         raise VariableDeclarationException("Contract not declared yet: %s" % contract_name)
     method_name = node.func.attr
     if method_name not in context.sigs[contract_name]:
-        raise VariableDeclarationException("Function not declared yet: %s (reminder: "
+        raise FunctionDeclarationException("Function not declared yet: %s (reminder: "
                                                     "function must be declared in the correct contract)" % method_name, pos)
     sig = context.sigs[contract_name][method_name]
     inargs, inargsize = pack_arguments(sig, [parse_expr(arg, context) for arg in node.args], context, pos=pos)
