@@ -18,7 +18,7 @@ from vyper.exceptions import (
     FunctionDeclarationException,
     EventDeclarationException
 )
-from vyper.function_signature import (
+from vyper.signatures.function_signature import (
     FunctionSignature,
     VariableRecord,
     ContractRecord,

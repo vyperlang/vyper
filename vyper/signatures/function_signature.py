@@ -1,18 +1,18 @@
 import ast
 
-from .exceptions import (
+from vyper.exceptions import (
     InvalidTypeException,
     StructureException,
     FunctionDeclarationException
 )
-from .types import ByteArrayType
-from .types import (
+from vyper.types import ByteArrayType
+from vyper.types import (
     canonicalize_type,
     get_size_of_type,
     parse_type,
     TupleType
 )
-from .utils import (
+from vyper.utils import (
     fourbytes_to_int,
     is_varname_valid,
     sha3,
