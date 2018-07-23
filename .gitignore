@@ -4,7 +4,7 @@ __pycache__/
 *$py.class
 
 # egg-related
-vyper.egg-info/
+eth_vyper.egg-info/
 build/
 dist/
 .eggs/
