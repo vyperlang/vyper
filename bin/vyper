@@ -39,28 +39,20 @@ def get_asm(asm_list):
     return output_string
 
 
-def format_output(code, return_format):
-    if return_format == 'abi':
-        return compiler.mk_full_signature(code)
-    elif return_format == 'json':
-        return json.dumps(compiler.mk_full_signature(code))
-    elif return_format == 'bytecode':
-        return '0x' + compiler.compile(code).hex()
-    elif return_format == 'bytecode_runtime':
-        return '0x' + compiler.compile(code, bytecode_runtime=True).hex()
-    elif return_format == 'ir':
-        return optimizer.optimize(parse_to_lll(code))
-    elif return_format == 'asm':
-        lll = optimizer.optimize(parse_to_lll(code))
-        return get_asm(compile_lll.compile_to_assembly(lll))
-
-
 if __name__ == '__main__':
+
+    output_format = {}
+    output_format['abi'] = lambda code: compiler.mk_full_signature(code)
+    output_format['json'] = lambda code: json.dumps(compiler.mk_full_signature(code))
+    output_format['bytecode'] = lambda code: '0x' + compiler.compile(code).hex()
+    output_format['bytecode_runtime'] = lambda code: '0x' + compiler.compile(code, bytecode_runtime=True).hex()
+    output_format['ir'] = lambda code: optimizer.optimize(parse_to_lll(code))
+    output_format['asm'] = lambda code: get_asm(compile_lll.compile_to_assembly(optimizer.optimize(parse_to_lll(code))))
 
     with open(args.input_file) as fh:
         code = fh.read()
         if args.show_gas_estimates:
             parser_utils.LLLnode.repr_show_gas = True
 
-        for i in args.format:
-            print(format_output(code, i))
+        for i in list(dict.fromkeys(args.format)):
+            print(output_format[i](code))
