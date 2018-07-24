@@ -111,7 +111,7 @@ def foo():
     a: bytes32 = sha3("ѓtest")
     """,
     """
-    @public
+@public
 def overflow() -> uint256:
     return 2**256
     """,
