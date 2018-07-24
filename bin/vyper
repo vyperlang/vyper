@@ -13,47 +13,46 @@ sys.tracebacklimit = 0
 
 parser = argparse.ArgumentParser(description='Vyper {0} programming language for Ethereum'.format(vyper.__version__))
 parser.add_argument('input_file', help='Vyper sourcecode to compile')
-parser.add_argument('-f', help='Format to print', choices=['abi', 'json', 'bytecode', 'bytecode_runtime', 'ir', 'asm'], default='bytecode', dest='format')
+parser.add_argument('-f', help='Format to print', choices=['abi', 'json', 'bytecode', 'bytecode_runtime', 'ir', 'asm'], default=['bytecode'], dest='format', nargs='+')
 parser.add_argument('--show-gas-estimates', help='Show gas estimates in ir output mode.', action="store_true")
 
 args = parser.parse_args()
 
 
-def print_asm(asm_list):
+def get_asm(asm_list):
+    output_string = ''
     skip_newlines = 0
     for node in asm_list:
         if isinstance(node, list):
-            print_asm(node)
+            output_string += get_asm(node)
             continue
 
         is_push = isinstance(node, str) and node.startswith('PUSH')
 
-        print(str(node) + ' ', end='')
+        output_string += str(node) + ' '
         if skip_newlines:
             skip_newlines -= 1
         elif is_push:
             skip_newlines = int(node[4:]) - 1
         else:
-            print('')
+            output_string += '\n'
+    return output_string
 
 
 if __name__ == '__main__':
+
+    output_format = {}
+    output_format['abi'] = lambda code: compiler.mk_full_signature(code)
+    output_format['json'] = lambda code: json.dumps(compiler.mk_full_signature(code))
+    output_format['bytecode'] = lambda code: '0x' + compiler.compile(code).hex()
+    output_format['bytecode_runtime'] = lambda code: '0x' + compiler.compile(code, bytecode_runtime=True).hex()
+    output_format['ir'] = lambda code: optimizer.optimize(parse_to_lll(code))
+    output_format['asm'] = lambda code: get_asm(compile_lll.compile_to_assembly(optimizer.optimize(parse_to_lll(code))))
 
     with open(args.input_file) as fh:
         code = fh.read()
         if args.show_gas_estimates:
             parser_utils.LLLnode.repr_show_gas = True
 
-        if args.format == 'abi':
-            print(compiler.mk_full_signature(code))
-        elif args.format == 'json':
-            print(json.dumps(compiler.mk_full_signature(code)))
-        elif args.format == 'bytecode':
-            print('0x' + compiler.compile(code).hex())
-        elif args.format == 'bytecode_runtime':
-            print('0x' + compiler.compile(code, bytecode_runtime=True).hex())
-        elif args.format == 'ir':
-            print(optimizer.optimize(parse_to_lll(code)))
-        elif args.format == 'asm':
-            lll = optimizer.optimize(parse_to_lll(code))
-            print_asm(compile_lll.compile_to_assembly(lll))
+        for i in list(dict.fromkeys(args.format)):
+            print(output_format[i](code))
