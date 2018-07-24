@@ -24,7 +24,7 @@ def foo():
     """
 @public
 def foo():
-    x = -170141183460469231731687303715884105729 # -2**127 - 1
+    x: int128 = -170141183460469231731687303715884105729 # -2**127 - 1
     """,
     """
 @public
@@ -109,6 +109,17 @@ def foo():
 @public
 def foo():
     a: bytes32 = sha3("ѓtest")
+    """,
+    """
+    @public
+def overflow() -> uint256:
+    return 2**256
+    """,
+    """
+@public
+def overflow2() -> uint256:
+    a: uint256 = 2**256
+    return a
     """
 ]
 
