@@ -54,11 +54,17 @@ def _negative_num() -> int128:
 @public
 def _negative_exp() -> int128:
     return -(1+2)
+
+@public
+def _negative_exp_var() -> int128:
+    a: int128 = 2
+    return -(a+2)
     """
 
     c = get_contract_with_gas_estimation(negative_nums_code)
     assert c._negative_num() == -1
     assert c._negative_exp() == -3
+    assert c._negative_exp_var() == -4
 
 
 def test_exponents_with_units(get_contract_with_gas_estimation):
