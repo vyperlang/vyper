@@ -13,7 +13,7 @@ sys.tracebacklimit = 0
 
 parser = argparse.ArgumentParser(description='Vyper {0} programming language for Ethereum'.format(vyper.__version__))
 parser.add_argument('input_file', help='Vyper sourcecode to compile')
-parser.add_argument('-f', help='Format to print', choices=['abi', 'json', 'bytecode', 'bytecode_runtime', 'ir', 'asm'], default=['bytecode'], dest='format', nargs='+')
+parser.add_argument('-f', help='Format to print', default=['bytecode'], dest='format')
 parser.add_argument('--show-gas-estimates', help='Show gas estimates in ir output mode.', action="store_true")
 
 args = parser.parse_args()
@@ -51,8 +51,11 @@ if __name__ == '__main__':
 
     with open(args.input_file) as fh:
         code = fh.read()
+
         if args.show_gas_estimates:
             parser_utils.LLLnode.repr_show_gas = True
 
-        for i in list(dict.fromkeys(args.format)):
+        for i in set(dict.fromkeys(args.format.split(','))):
+            if i not in output_format:
+                print('Format {} option not supported, use any csv list of {}.'.format(i, ','.join(output_format.keys())))
             print(output_format[i](code))
