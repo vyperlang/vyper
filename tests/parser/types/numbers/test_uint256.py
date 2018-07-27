@@ -221,3 +221,20 @@ def max_ne() -> (bool):
     assert c.max_gte() is False
     assert c.max_gt() is False
     assert c.max_ne() is True
+
+
+def test_uint256_constant_folding(get_contract_with_gas_estimation):
+    code = """
+@public
+def maximum() -> uint256:
+    return 2**256 - 1
+
+
+@public
+def minimum() -> uint256:
+    return 2**256 - 2**256
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.maximum() == 2**256 - 1
+    assert c.minimum() == 0

@@ -2,7 +2,10 @@ import re
 
 from vyper.utils import GAS_IDENTITY, GAS_IDENTITYWORD
 
-from vyper.exceptions import TypeMismatchException
+from vyper.exceptions import (
+    InvalidLiteralException,
+    TypeMismatchException
+)
 from vyper.opcodes import comb_opcodes
 from vyper.types import (
     BaseType,
@@ -21,7 +24,11 @@ from vyper.types import (
     get_size_of_type,
     ceil32
 )
-from vyper.utils import MemoryPositions, DECIMAL_DIVISOR
+from vyper.utils import (
+    SizeLimits,
+    MemoryPositions,
+    DECIMAL_DIVISOR
+)
 
 
 class NullAttractor():
@@ -464,6 +471,8 @@ def add_variable_offset(parent, key, pos):
 # Convert from one base type to another
 def base_type_conversion(orig, frm, to, pos):
     orig = unwrap_location(orig)
+    if getattr(frm, 'is_literal', False) and frm.typ in ('int128', 'uint256') and not SizeLimits.in_bounds(frm.typ, orig.value):
+        raise InvalidLiteralException("Number out of range: " + str(orig.value), pos)
     if not isinstance(frm, (BaseType, NullType)) or not isinstance(to, BaseType):
         raise TypeMismatchException("Base type conversion from or to non-base type: %r %r" % (frm, to), pos)
     elif is_base_type(frm, to.typ) and are_units_compatible(frm, to):
