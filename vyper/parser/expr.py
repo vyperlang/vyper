@@ -331,8 +331,8 @@ class Expr(object):
             if ltyp == rtyp == 'uint256':
                 o = LLLnode.from_list(['if', ['eq', left, 0], 
                                        [0], ['seq',
-                                       ['assert', ['eq', ['div', ['mul', left, right], left], right] ]],
-                                       ['mul', left, right]]], typ=BaseType('uint256', new_unit), pos=getpos(self.expr))
+                                       ['assert', ['eq', ['div', ['mul', left, right], left], right]]],
+                                       ['mul', left, right]], typ=BaseType('uint256', new_unit), pos=getpos(self.expr))
             elif ltyp == rtyp == 'int128':
                 o = LLLnode.from_list(['mul', left, right], typ=BaseType('int128', new_unit), pos=getpos(self.expr))
             elif ltyp == rtyp == 'decimal':
