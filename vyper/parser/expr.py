@@ -330,9 +330,10 @@ class Expr(object):
             new_unit = combine_units(left.typ.unit, right.typ.unit)
             if ltyp == rtyp == 'uint256':
                 o = LLLnode.from_list(['seq',
-                                        # Checks that: a == 0 || a / b == b
-                                        ['assert', ['or', ['iszero', left],
-                                        ['eq', ['div', ['mul', left, right], left], right]]],
+                                        # Checks that: a == 0
+                                        # Gas optimization: this is cheaper than asserting 'a' not being zero, but the
+                                        # benefit is lost if 'b' is also tested.
+                                        ['assert', ['iszero', left]],
                                         ['mul', left, right]], typ=BaseType('uint256', new_unit), pos=getpos(self.expr))
             elif ltyp == rtyp == 'int128':
                 o = LLLnode.from_list(['mul', left, right], typ=BaseType('int128', new_unit), pos=getpos(self.expr))
