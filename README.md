@@ -6,6 +6,10 @@
 [![Documentation Status](https://readthedocs.org/projects/vyper/badge/?version=latest)](http://vyper.readthedocs.io/en/latest/?badge=latest)
 [![Coverage Status](https://coveralls.io/repos/github/ethereum/vyper/badge.svg?branch=master)](https://coveralls.io/github/ethereum/vyper?branch=master)
 
+# Getting Started
+See [Installing Vyper](http://vyper.readthedocs.io/en/latest/installing-vyper.html) to install vyper.  
+See [Tools and Resources](https://github.com/ethereum/vyper/wiki/Vyper-tools-and-resources) for an additional list of framework and tools with vyper support.
+
 # Principles and Goals
 
 Vyper is a smart contract development language built with the following goals:
@@ -17,9 +21,9 @@ Vyper is a smart contract development language built with the following goals:
 Some examples of what Vyper does NOT have and why:
 
 * **Modifiers** - e.g. in Solidity you can do `function foo() mod1 { ... }`, where `mod1` can be defined elsewhere in the code to include a check that is done before execution, a check that is done after execution, some state changes, or possibly other things. Vyper does not have this, because it makes it too easy to write misleading code. `mod1` just _looks_ too innocuous for something that could add arbitrary pre-conditions, post-conditions or state changes. Also, it encourages people to write code where the execution jumps around the file, harming auditability. The usual use case for a modifier is something that performs a single check before execution of a program; our recommendation is to simply inline these checks as asserts.
-* **Class inheritance** - requires people to jump between multiple files to understand what a program is doing, and requires people to understand the rules of precedence in case of conflicts (which class's function X is the one that's actually used?). Hence, it makes code too complicated to understand.
+* **Class inheritance** - requires people to jump between multiple files to understand what a program is doing, and requires people to understand the rules of precedence in case of conflicts (which class' function X is the one that's actually used?). Hence, it makes code too complicated to understand.
 * **Inline assembly** - adding inline assembly would make it no longer possible to Ctrl+F for a variable name to find all instances where that variable is read or modified.
-* **Function overloading** - This can cause lots of confusion on which function is called at any given time. Thus it's easier to write missleading code (``foo("hello")`` logs "hello" but ``foo("hello", "world")`` steals you funds). Another problem with function overloading is that it makes the code much harder to search through as you have to keep track on which call refers to which function. 
+* **Function overloading** - This can cause lots of confusion on which function is called at any given time. Thus it's easier to write missleading code (``foo("hello")`` logs "hello" but ``foo("hello", "world")`` steals your funds). Another problem with function overloading is that it makes the code much harder to search through as you have to keep track on which call refers to which function. 
 * **Operator overloading** - waaay too easy to write misleading code (what do you mean "+" means "send all my money to the developer"? I didn't catch the part of the code that says that!).
 * **Recursive calling** - cannot set an upper bound on gas limits, opening the door for gas limit attacks.
 * **Infinite-length loops** - cannot set an upper bound on gas limits, opening the door for gas limit attacks.

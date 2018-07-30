@@ -158,7 +158,7 @@ def built_in_conversion(x: uint256) -> int128:
 def test_modmul(get_contract_with_gas_estimation):
     modexper = """
 @public
-def exp(base: uint256, exponent: uint256, modulus: uint256) -> uint256:
+def exponential(base: uint256, exponent: uint256, modulus: uint256) -> uint256:
     o: uint256 = convert(1, 'uint256')
     for i in range(256):
         o = uint256_mulmod(o, o, modulus)
@@ -168,8 +168,8 @@ def exp(base: uint256, exponent: uint256, modulus: uint256) -> uint256:
     """
 
     c = get_contract_with_gas_estimation(modexper)
-    assert c.exp(3, 5, 100) == 43
-    assert c.exp(2, 997, 997) == 2
+    assert c.exponential(3, 5, 100) == 43
+    assert c.exponential(2, 997, 997) == 2
 
 
 def test_uint256_literal(get_contract_with_gas_estimation):
@@ -221,3 +221,20 @@ def max_ne() -> (bool):
     assert c.max_gte() is False
     assert c.max_gt() is False
     assert c.max_ne() is True
+
+
+def test_uint256_constant_folding(get_contract_with_gas_estimation):
+    code = """
+@public
+def maximum() -> uint256:
+    return 2**256 - 1
+
+
+@public
+def minimum() -> uint256:
+    return 2**256 - 2**256
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.maximum() == 2**256 - 1
+    assert c.minimum() == 0

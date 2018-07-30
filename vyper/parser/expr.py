@@ -7,6 +7,7 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
+    FunctionDeclarationException,
     ParserException
 )
 from .parser_utils import LLLnode
@@ -82,23 +83,22 @@ class Expr(object):
         orignum = get_original_if_0_prefixed(self.expr, self.context)
 
         if orignum is None and isinstance(self.expr.n, int):
-
-            # Literal becomes int128
-            if SizeLimits.in_bounds('int128', self.expr.n):
-                return LLLnode.from_list(self.expr.n, typ=BaseType('int128', None, is_literal=True), pos=getpos(self.expr))
-            # Literal is large enough, becomes uint256.
-            elif SizeLimits.in_bounds('uint256', self.expr.n):
-                return LLLnode.from_list(self.expr.n, typ=BaseType('uint256', None, is_literal=True), pos=getpos(self.expr))
+            # Literal (mostly likely) becomes int128
+            if SizeLimits.in_bounds('int128', self.expr.n) or self.expr.n < 0:
+                return LLLnode.from_list(self.expr.n, typ=BaseType('int128', unit=None, is_literal=True), pos=getpos(self.expr))
+            # Literal is large enough (mostly likely) becomes uint256.
             else:
-                raise InvalidLiteralException("Number out of range: " + str(self.expr.n), self.expr)
+                return LLLnode.from_list(self.expr.n, typ=BaseType('uint256', unit=None, is_literal=True), pos=getpos(self.expr))
 
         elif isinstance(self.expr.n, float):
             numstring, num, den = get_number_as_fraction(self.expr, self.context)
+            # if not SizeLimits.in_bounds('decimal', num // den):
+            # if not SizeLimits.MINDECIMAL * den <= num <= SizeLimits.MAXDECIMAL * den:
             if not (SizeLimits.MINNUM * den < num < SizeLimits.MAXNUM * den):
                 raise InvalidLiteralException("Number out of range: " + numstring, self.expr)
             if DECIMAL_DIVISOR % den:
                 raise InvalidLiteralException("Too many decimal places: " + numstring, self.expr)
-            return LLLnode.from_list(num * DECIMAL_DIVISOR // den, typ=BaseType('decimal', None), pos=getpos(self.expr))
+            return LLLnode.from_list(num * DECIMAL_DIVISOR // den, typ=BaseType('decimal', unit=None), pos=getpos(self.expr))
         # Binary literal.
         elif orignum[:2] == '0b':
             str_val = orignum[2:]
@@ -271,17 +271,13 @@ class Expr(object):
             elif isinstance(self.expr.op, ast.Mult):
                 val = left.value * right.value
             elif isinstance(self.expr.op, ast.Div):
-                val = left.value / right.value
+                val = left.value // right.value
             elif isinstance(self.expr.op, ast.Mod):
                 val = left.value % right.value
             elif isinstance(self.expr.op, ast.Pow):
                 val = left.value ** right.value
             else:
                 raise ParserException('Unsupported literal operator: %s' % str(type(self.expr.op)), self.expr)
-
-            # For scenario were mul and div produce a whole number:
-            if isinstance(val, float) and val.is_integer():
-                val = int(val)
 
             num = ast.Num(val)
             num.source_code = self.expr.source_code
@@ -590,6 +586,14 @@ class Expr(object):
         elif isinstance(self.expr.op, ast.USub):
             if not is_numeric_type(operand.typ):
                 raise TypeMismatchException("Unsupported type for negation: %r" % operand.typ, operand)
+
+            if operand.typ.is_literal and 'int' in operand.typ.typ:
+                num = ast.Num(0 - operand.value)
+                num.source_code = self.expr.source_code
+                num.lineno = self.expr.lineno
+                num.col_offset = self.expr.col_offset
+                return Expr.parse_value_expr(num, self.context)
+
             return LLLnode.from_list(["sub", 0, operand], typ=operand.typ, pos=getpos(self.expr))
         else:
             raise StructureException("Only the 'not' unary operator is supported")
@@ -626,7 +630,7 @@ class Expr(object):
         elif isinstance(self.expr.func, ast.Attribute) and isinstance(self.expr.func.value, ast.Name) and self.expr.func.value.id == "self":
             method_name = self.expr.func.attr
             if method_name not in self.context.sigs['self']:
-                raise VariableDeclarationException("Function not declared yet (reminder: functions cannot "
+                raise FunctionDeclarationException("Function not declared yet (reminder: functions cannot "
                                                    "call functions later in code than themselves): %s" % self.expr.func.attr)
 
             sig = self.context.sigs['self'][method_name]

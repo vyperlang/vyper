@@ -3,36 +3,44 @@
 from setuptools import setup, find_packages
 
 
-with open('README.md') as f:
-    readme = f.read()
-
-with open('LICENSE') as f:
-    license = f.read()
-
-
 setup(
-    name='vyper',
+    name='eth-vyper',
     # *IMPORTANT*: Don't manually change the version here. Use the 'bumpversion' utility.
-    version='0.1.0-beta.1',
+    version='0.1.0-beta.2',
     description='Vyper Programming Language for Ethereum',
-    long_description=readme,
+    long_description_markdown_filename='README.md',
     author='Vitalik Buterin',
     author_email='',
     url='https://github.com/ethereum/vyper',
-    license=license,
+    license="MIT",
+    keywords='ethereum',
+    include_package_data=True,
     packages=find_packages(exclude=('tests', 'docs')),
     python_requires='>=3.6',
-    install_requires=['py-evm==0.2.0a18'],
-    setup_requires=['pytest-runner'],
+    py_modules=['vyper'],
+    install_requires=[
+        'pycryptodome>=3.5.1,<4',
+    ],
+    setup_requires=[
+        'pytest-runner'
+    ],
     tests_require=[
        'pytest',
        'pytest-cov',
-       'eth-tester==0.1.0b26',
-       'py-evm==0.2.0a18',
+       'eth-tester[py-evm]==0.1.0b28',
+       'web3==4.3.0',
+       # 'py-evm==0.2.0a26',
+       # 'py-evm==0.2.0a18',
+       # 'py-evm==0.2.0-alpha.26',
+       # 'eth-tester==0.1.0-beta.29',
     ],
     scripts=[
-       'bin/vyper',
-       'bin/vyper-serve',
-       'bin/vyper-run',
+        'bin/vyper',
+        'bin/vyper-serve',
+    ],
+    classifiers=[
+        'Intended Audience :: Developers',
+        'License :: OSI Approved :: MIT License',
+        'Programming Language :: Python :: 3.6',
     ]
 )
