@@ -14,7 +14,7 @@ Vyper is a smart contract development language. Vyper aims to be auditable, secu
 ==================
 Vyper or Solidity?
 ================== 
-For the majority of use-cases, this is personal preference. To support the aims of being secure, auditable, and human-readable, a number of programming constructs included in Solidity are not includeed in Vyper.  If your use-case requires these, use Solidity not Vyper. 
+For the majority of use-cases, this is personal preference. To support the aims of being secure, auditable, and human-readable, a number of programming constructs included in Solidity are not included in Vyper.  If your use-case requires these, use Solidity not Vyper. 
 
 ==============================
 What is not included in Vyper?
@@ -28,12 +28,12 @@ The following constructs are not included because their use can lead to misleadi
 * Operator overloading
 * Binary fixed point. 
 
-Recursive calling and infinite-length loops are not included because they cannot set an upper bound on gas limits. An upper bound is required to prevent gas limit attacks and ensure the security of smart contracts build in Vyper. 
+Recursive calling and infinite-length loops are not included because they cannot set an upper bound on gas limits. An upper bound is required to prevent gas limit attacks and ensure the security of smart contracts built in Vyper. 
 
 ======================
 How do for loops work?
 ======================
-Like Python for loops but with one significant difference. Vyper does not allow looping over variable lengths. Looping over variables introduces the possibility of infinite-length loops which allow gas limit attacks. 
+Like Python for loops but with one significant difference. Vyper does not allow looping over variable lengths. Looping over variables introduces the possibility of infinite-length loops which make gas limit attacks possible. 
 
 ========================
 How are values assigned?
@@ -43,7 +43,7 @@ With a colon.
 ====================
 How do structs work?
 ==================== 
-Structs group variables and are accessed using struct.argname. They are similar to Python dictionaries:: 
+Structs group variables and are accessed using ``struct.argname``. They are similar to Python dictionaries:: 
 
 
  struct: { # define the struct
