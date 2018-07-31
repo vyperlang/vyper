@@ -121,40 +121,6 @@ def _uint256_exp(x: uint256, y: uint256) -> uint256:
     assert c._uint256_exp(7**23, 3) == 7**69
 
 
-def test_uint256_to_num_casting(assert_tx_failed, get_contract_with_gas_estimation):
-    code = """
-@public
-def _uint256_to_num(x: int128(uint256)) -> int128:
-    return x
-
-@public
-def _uint256_to_num_call(x: uint256) -> int128:
-    return self._uint256_to_num(x)
-
-@public
-def built_in_conversion(x: uint256) -> int128:
-    return convert(x, 'int128')
-    """
-
-    c = get_contract_with_gas_estimation(code)
-
-    # Ensure uint256 function signature.
-    assert c._classic_contract.functions.abi[0]['inputs'][0]['type'] == 'uint256'
-
-    assert c._uint256_to_num(1) == 1
-    assert c._uint256_to_num((2**127) - 1) == 2**127 - 1
-    assert_tx_failed(lambda: c._uint256_to_num((2**128)) == 0)
-    assert c._uint256_to_num_call(1) == 1
-
-    # Check that casting matches manual conversion
-    assert c._uint256_to_num_call(2**127 - 1) == c.built_in_conversion(2**127 - 1)
-
-    # Pass in negative int.
-    # assert_tx_failed(lambda: c._uint256_to_num(-1) != -1, ValueOutOfBounds)
-    # Make sure it can't be coherced into a negative number.
-    assert_tx_failed(lambda: c._uint256_to_num_call(2**127))
-
-
 def test_modmul(get_contract_with_gas_estimation):
     modexper = """
 @public
