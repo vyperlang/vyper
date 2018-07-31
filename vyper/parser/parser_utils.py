@@ -479,8 +479,6 @@ def base_type_conversion(orig, frm, to, pos):
         return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
     elif is_base_type(frm, 'int128') and is_base_type(to, 'decimal') and are_units_compatible(frm, to):
         return LLLnode.from_list(['mul', orig, DECIMAL_DIVISOR], typ=BaseType('decimal', to.unit, to.positional))
-    elif is_base_type(frm, 'uint256') and is_base_type(to, 'int128') and are_units_compatible(frm, to):
-        return LLLnode.from_list(['uclample', orig, ['mload', MemoryPositions.MAXNUM]], typ=BaseType('int128'))
     elif isinstance(frm, NullType):
         if to.typ not in ('int128', 'bool', 'uint256', 'address', 'bytes32', 'decimal'):
             # This is only to future proof the use of  base_type_conversion.

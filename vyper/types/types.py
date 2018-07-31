@@ -165,13 +165,10 @@ def canonicalize_type(t, is_indexed=False):
         )
     if not isinstance(t, BaseType):
         raise Exception("Cannot canonicalize non-base type: %r" % t)
-    uint256_override = True if t.override_signature == 'uint256' else False
 
     t = t.typ
-    if t == 'int128' and not uint256_override:
+    if t == 'int128':
         return 'int128'
-    elif t == 'int128' and uint256_override:
-        return 'uint256'
     elif t == 'decimal':
         return 'fixed168x10'
     elif t == 'bool':
