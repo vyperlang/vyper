@@ -35,20 +35,18 @@ How do for loops work?
 ======================
 Like Python for loops but with one significant difference. Vyper does not allow looping over variable lengths. Looping over variables introduces the possibility of infinite-length loops which make gas limit attacks possible. 
 
-========================
-How are values assigned?
-======================== 
-With a colon. 
-
 ====================
 How do structs work?
 ==================== 
 Structs group variables and are accessed using ``struct.argname``. They are similar to Python dictionaries:: 
 
-
- struct: { # define the struct
+ # define the struct
+ struct: { 
   arg1: int128, arg2: decimal
- } struct.arg1 = 1 #access arg1 in struct
+ } 
+ 
+ #access arg1 in struct
+ struct.arg1 = 1 
 
 
 
