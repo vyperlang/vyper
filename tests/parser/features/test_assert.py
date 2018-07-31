@@ -26,5 +26,4 @@ def test(a: int128):
     c = get_contract_with_gas_estimation(code)
 
     assert c.test(2) == []
-    assert c.test(-1) == []
-    # assert_tx_failed(lambda: c.test(0))
+    assert_tx_failed(lambda: c.test(0))
