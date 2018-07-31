@@ -22,3 +22,5 @@ ADD . /code
 WORKDIR /code
 RUN python setup.py install && \
     apt-get purge -y --auto-remove apt-utils gcc libc6-dev libc-dev libssl-dev
+
+ENTRYPOINT ["/usr/local/bin/vyper"]
