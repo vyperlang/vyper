@@ -28,7 +28,7 @@ setup(
        'pytest',
        'pytest-cov',
        'eth-tester[py-evm]==0.1.0b28',
-       'web3==4.3.0',
+       'web3==4.5.0',
        # 'py-evm==0.2.0a26',
        # 'py-evm==0.2.0a18',
        # 'py-evm==0.2.0-alpha.26',
