@@ -105,7 +105,7 @@ Additionally, you may try to compile an example contract by running:
     vyper examples/crowdfund.vy
 
 If everything works correctly, you are now able to compile your own smart contracts written in Vyper.
-However, please keep in mind that Vyper is still experimental and not ready for production!
+If any unexpected errors or exceptions are encountered, please feel free create an issue <https://github.com/ethereum/vyper/issues/new>.
 
 .. note::
     If you get the error `fatal error: openssl/aes.h: No such file or directory` in the output of `make`, then run `sudo apt-get install libssl-dev1`, then run `make` again.
@@ -133,9 +133,31 @@ However, please keep in mind that Vyper is still experimental and not ready for 
         export LDFLAGS="-L$(brew --prefix openssl)/lib -L$(brew --prefix libyaml)/lib"
 
     You can then run `make` and `make test` again.
+
 ******
 Docker
 ******
+
+Dockerhub
+=========
+
+Vyper can be downloaded as docker image from dockerhub:
+::
+    docker pull ethereum/vyper
+
+To run the compiler use the `docker run` command:
+::
+    docker run vyper <contract_file.vy>
+
+The normal paramaters are also supported, for example:
+::
+    docker run vyper -f abi a.vy
+    [{'name': 'test1', 'outputs': [], 'inputs': [{'type': 'uint256', 'name': 'a'}, {'type': 'bytes', 'name': 'b'}], 'constant': False, 'payable': False, 'type': 'function', 'gas': 441}, {'name': 'test2', 'outputs': [], 'inputs': [{'type': 'uint256', 'name': 'a'}], 'constant': False, 'payable': False, 'type': 'function', 'gas': 316}]
+
+
+Dockerfile
+==========
+
 A Dockerfile is provided in the master branch of the repository. In order to build a Docker Image please run:
 ::
     docker build https://github.com/ethereum/vyper.git -t vyper:1
@@ -155,4 +177,4 @@ Vyper is published in the snap store. In any of the `supported Linux distros <ht
     sudo snap install vyper --edge --devmode
 
 
-(Note that this is an experimental and unstable release, at the moment)
+(Note that installing the above snap is the latest master)
