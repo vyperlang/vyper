@@ -10,8 +10,8 @@ from vyper.exceptions import (
     FunctionDeclarationException,
     ParserException
 )
-from .parser_utils import LLLnode
-from .parser_utils import (
+from vyper.parser.lll_node import LLLnode
+from vyper.parser.parser_utils import (
     getpos,
     unwrap_location,
     get_original_if_0_prefixed,
