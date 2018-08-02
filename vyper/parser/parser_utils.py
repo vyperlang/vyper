@@ -30,6 +30,9 @@ from vyper.utils import (
     DECIMAL_DIVISOR
 )
 
+# Set default string representation for ints in LLL output.
+AS_HEX_DEFAULT = True
+
 
 class NullAttractor():
     def __add__(self, other):
@@ -59,6 +62,7 @@ class LLLnode():
         self.annotation = annotation
         self.mutable = mutable
         self.add_gas_estimate = add_gas_estimate
+        self.as_hex = AS_HEX_DEFAULT
 
         # Determine this node's valency (1 if it pushes a value on the stack,
         # 0 otherwise) and checks to make sure the number and valencies of
@@ -173,12 +177,21 @@ class LLLnode():
     def to_list(self):
         return [self.value] + [a.to_list() for a in self.args]
 
+    @property
+    def repr_value(self):
+        if isinstance(self.value, int) and self.as_hex:
+            return hex(self.value)
+        if not isinstance(self.value, str):
+            return str(self.value)
+        return self.value
+
     def repr(self):
         if not len(self.args):
+
             if self.annotation:
-                return '%r <%s>' % (self.value, self.annotation)
+                return '%r <%s>' % (self.repr_value, self.annotation)
             else:
-                return str(self.value)
+                return str(self.repr_value)
         # x = repr(self.to_list())
         # if len(x) < 80:
         #     return x
@@ -189,7 +202,7 @@ class LLLnode():
             OKBLUE = '\033[94m'
             ENDC = '\033[0m'
             o += OKBLUE + "{" + ENDC + str(self.gas) + OKBLUE + "} " + ENDC  # add gas for info.
-        o += '[' + str(self.value)
+        o += '[' + self.repr_value
         prev_lineno = self.pos[0] if self.pos else None
         arg_lineno = None
         annotated = False
