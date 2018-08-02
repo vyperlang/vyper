@@ -9,9 +9,16 @@ from vyper.types import (
 from vyper.opcodes import (
     comb_opcodes
 )
+from vyper.utils import valid_lll_macros
 
 # Set default string representation for ints in LLL output.
 AS_HEX_DEFAULT = True
+# Terminal color types
+OKBLUE = '\033[94m'
+OKMAGENTA = '\033[35m'
+OKLIGHTMAGENTA = '\033[95m'
+OKLIGHTBLUE = '\033[94m'
+ENDC = '\033[0m'
 
 
 class NullAttractor():
@@ -165,11 +172,19 @@ class LLLnode():
             return str(self.value)
         return self.value
 
+    @staticmethod
+    def _colorise_keywords(val):
+        if val.lower() in valid_lll_macros:  # highlight macro
+            return OKLIGHTMAGENTA + val + ENDC
+        elif val.upper() in comb_opcodes.keys():
+            return OKMAGENTA + val + ENDC
+        return val
+
     def repr(self):
         if not len(self.args):
 
             if self.annotation:
-                return '%r <%s>' % (self.repr_value, self.annotation)
+                return '%r ' % self.repr_value + OKLIGHTBLUE + '<%s>' % self.annotation + ENDC
             else:
                 return str(self.repr_value)
         # x = repr(self.to_list())
@@ -179,10 +194,8 @@ class LLLnode():
         if self.annotation:
             o += '/* %s */ \n' % self.annotation
         if self.repr_show_gas and self.gas:
-            OKBLUE = '\033[94m'
-            ENDC = '\033[0m'
             o += OKBLUE + "{" + ENDC + str(self.gas) + OKBLUE + "} " + ENDC  # add gas for info.
-        o += '[' + self.repr_value
+        o += '[' + self._colorise_keywords(self.repr_value)
         prev_lineno = self.pos[0] if self.pos else None
         arg_lineno = None
         annotated = False
@@ -198,7 +211,7 @@ class LLLnode():
             if '\n' in arg_repr:
                 has_inner_newlines = True
             sub = arg_repr.replace('\n', '\n  ').strip(' ')
-            o += sub
+            o += self._colorise_keywords(sub)
         output = o.rstrip(' ') + ']'
         output_on_one_line = re.sub(r',\n *', ', ', output).replace('\n', '')
         if (len(output_on_one_line) < 80 or len(self.args) == 1) and not annotated and not has_inner_newlines:
