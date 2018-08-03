@@ -26,7 +26,7 @@ How to Suggest Improvements
 ===========================
 
 To suggest an improvement, please create a Vyper Improvement Proposal (VIP for short)
-using the `VIP Template <https://github.com/ethereum/vyper/tree/master/.github/VIP_TEMPLATE.md>`_.
+using the `VIP Template <https://github.com/ethereum/vyper/blob/master/.github/ISSUE_TEMPLATE/vip.md>`_.
 
 How to Report Issues
 ====================
