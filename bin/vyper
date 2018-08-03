@@ -9,7 +9,7 @@ from vyper.parser.parser import parse_to_lll
 from vyper.parser import parser_utils
 from vyper import compile_lll
 
-sys.tracebacklimit = 0
+sys.tracebacklimit = 10
 
 parser = argparse.ArgumentParser(description='Vyper {0} programming language for Ethereum'.format(vyper.__version__))
 parser.add_argument('input_file', help='Vyper sourcecode to compile')
