@@ -1,6 +1,6 @@
 from vyper.parser import parser
-from . import compile_lll
-from . import optimizer
+from vyper import compile_lll
+from vyper import optimizer
 
 
 def compile(code, *args, **kwargs):

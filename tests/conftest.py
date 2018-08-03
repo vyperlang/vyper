@@ -169,7 +169,7 @@ def get_contract_from_lll(w3):
     def lll_compiler(lll, *args, **kwargs):
         lll = optimizer.optimize(LLLnode.from_list(lll))
         bytecode = compile_lll.assembly_to_evm(compile_lll.compile_to_assembly(lll))
-        abi = []
+        abi = kwargs.get('abi') or []
         contract = w3.eth.contract(bytecode=bytecode, abi=abi)
         deploy_transaction = {
             'data': contract._encode_constructor_data(args, kwargs)

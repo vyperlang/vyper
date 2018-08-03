@@ -37,6 +37,7 @@ setup(
     scripts=[
         'bin/vyper',
         'bin/vyper-serve',
+        'bin/vyper-lll'
     ],
     classifiers=[
         'Intended Audience :: Developers',
