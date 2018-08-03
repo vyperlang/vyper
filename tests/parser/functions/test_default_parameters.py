@@ -15,3 +15,18 @@ def safeTransferFrom(_data: bytes[100] = "test", _b: int128 = 1):
     assert abi[1]['inputs'] == [{'type': 'int128', 'name': '_b'}]
     assert abi[2]['inputs'] == [{'type': 'bytes', 'name': '_data'}]
     assert abi[3]['inputs'] == [{'type': 'bytes', 'name': '_data'}, {'type': 'int128', 'name': '_b'}]
+
+
+def test_basic_default_param_passthrough(get_contract):
+    code = """
+@public
+def fooBar(_data: bytes[100] = "test", _b: int128 = 1) -> int128:
+    return 12321
+    """
+
+    c = get_contract(code)
+
+    assert c.fooBar() == 12321
+    assert c.fooBar(2) == 12321
+    assert c.fooBar(b"drum drum") == 12321
+    assert c.fooBar(b"drum drum", 2) == 12321

@@ -373,6 +373,35 @@ def is_default_func(code):
     return code.name == '__default__'
 
 
+# Generate default argument function signatures.
+def generate_default_arg_sigs(code, _contracts, _custom_units):
+    # generate all sigs, and attach.
+    total_default_args = len(code.args.defaults)
+    base_args = code.args.args[:-total_default_args]
+    default_args = code.args.args[-total_default_args:]
+    truth_table = list(itertools.product([False, True], repeat=total_default_args))
+
+    default_sig_strs = []
+    sig_fun_defs = []
+    for truth_row in truth_table:
+        new_code = copy.deepcopy(code)
+        new_code.args.args = copy.deepcopy(base_args)
+        new_code.args.default = []
+        # Add necessary default args.
+        for idx, val in enumerate(truth_row):
+            if val is True:
+                new_code.args.args.append(default_args[idx])
+        sig = FunctionSignature.from_definition(new_code, sigs=_contracts, custom_units=_custom_units)
+        default_sig_strs.append(sig.sig)
+        sig_fun_defs.append(sig)
+
+    if len(default_sig_strs) != len(set(default_sig_strs)):
+        violations = [item for item, count in Counter(default_sig_strs).items() if count > 1]
+        raise FunctionDeclarationException('Default variables are causing a conflict: {}'.format(','.join(violations)), code)
+
+    return sig_fun_defs
+
+
 # Get ABI signature
 def mk_full_signature(code):
     o = []
@@ -383,30 +412,9 @@ def mk_full_signature(code):
     for code in _defs:
         sig = FunctionSignature.from_definition(code, sigs=_contracts, custom_units=_custom_units)
         if not sig.private:
-            if code.args.defaults:
-                # generate all sigs, and attach.
-                total_default_args = len(code.args.defaults)
-                base_args = code.args.args[:-total_default_args]
-                default_args = code.args.args[-total_default_args:]
-                truth_table = list(itertools.product([False, True], repeat=total_default_args))
-
-                default_sigs = []
-                for truth_row in truth_table:
-                    new_code = copy.deepcopy(code)
-                    new_code.args.args = copy.deepcopy(base_args)
-                    new_code.args.default = []
-                    # Add necessary default args.
-                    for idx, val in enumerate(truth_row):
-                        if val is True:
-                            new_code.args.args.append(default_args[idx])
-                    sig = FunctionSignature.from_definition(new_code, sigs=_contracts, custom_units=_custom_units)
-                    default_sigs.append(sig.sig)
-                    o.append(sig.to_abi_dict())
-                if len(default_sigs) != len(set(default_sigs)):
-                    violations = [item for item, count in Counter(default_sigs).items() if count > 1]
-                    raise FunctionDeclarationException('Default variables are causing a conflict: {}'.format(','.join(violations)), code)
-            else:
-                o.append(sig.to_abi_dict())
+            default_sigs = generate_default_arg_sigs(code, _contracts, _custom_units)
+            for s in default_sigs:
+                o.append(s.to_abi_dict())
     return o
 
 
@@ -582,11 +590,28 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
             raise FunctionDeclarationException('Default function may only be public.', code)
         o = LLLnode.from_list(['seq'] + clampers + [parse_body(code.body, context)], pos=getpos(code))
     else:
-        method_id_node = LLLnode.from_list(sig.method_id, pos=getpos(code), annotation='%s' % sig.name)
-        o = LLLnode.from_list(['if',
-                                  ['eq', ['mload', 0], method_id_node],
-                                  ['seq'] + clampers + [parse_body(c, context) for c in code.body] + ['stop']
-                               ], typ=None, pos=getpos(code))
+        # Handle default args if present.
+        function_routine = sig.name
+        if code.args.defaults:
+            default_sigs = generate_default_arg_sigs(code, sigs, _custom_units)
+            sig_chain = ['seq']
+            for default_sig in default_sigs:
+                method_id_node = LLLnode.from_list(default_sig.method_id, pos=getpos(code), annotation='%s' % default_sig.sig)
+                sig_chain.append(
+                    ['if',
+                        ['eq', ['mload', 0], method_id_node],
+                        ['seq', ['goto', function_routine]]
+                    ])
+            o = LLLnode.from_list(['seq', sig_chain,
+                                          ['label', function_routine],
+                                          ['seq'] + [parse_body(c, context) for c in code.body] + ['stop']
+                                   ], typ=None, pos=getpos(code))
+        else:
+            method_id_node = LLLnode.from_list(sig.method_id, pos=getpos(code), annotation='%s' % sig.sig)
+            o = LLLnode.from_list(['if',
+                                      ['eq', ['mload', 0], method_id_node],
+                                      ['seq'] + clampers + [parse_body(c, context) for c in code.body] + ['stop']
+                                   ], typ=None, pos=getpos(code))
 
     # Check for at leasts one return statement if necessary.
     if context.return_type and context.function_return_count == 0:
