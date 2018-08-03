@@ -1,8 +1,13 @@
 import ast
+import copy
 import tokenize
 import io
+import itertools
 import re
 
+from collections import (
+    Counter
+)
 from tokenize import (
     OP,
     NAME,
@@ -378,7 +383,30 @@ def mk_full_signature(code):
     for code in _defs:
         sig = FunctionSignature.from_definition(code, sigs=_contracts, custom_units=_custom_units)
         if not sig.private:
-            o.append(sig.to_abi_dict())
+            if code.args.defaults:
+                # generate all sigs, and attach.
+                total_default_args = len(code.args.defaults)
+                base_args = code.args.args[:-total_default_args]
+                default_args = code.args.args[-total_default_args:]
+                truth_table = list(itertools.product([False, True], repeat=total_default_args))
+
+                default_sigs = []
+                for truth_row in truth_table:
+                    new_code = copy.deepcopy(code)
+                    new_code.args.args = copy.deepcopy(base_args)
+                    new_code.args.default = []
+                    # Add necessary default args.
+                    for idx, val in enumerate(truth_row):
+                        if val is True:
+                            new_code.args.args.append(default_args[idx])
+                    sig = FunctionSignature.from_definition(new_code, sigs=_contracts, custom_units=_custom_units)
+                    default_sigs.append(sig.sig)
+                    o.append(sig.to_abi_dict())
+                if len(default_sigs) != len(set(default_sigs)):
+                    violations = [item for item, count in Counter(default_sigs).items() if count > 1]
+                    raise FunctionDeclarationException('Default variables are causing a conflict: {}'.format(','.join(violations)), code)
+            else:
+                o.append(sig.to_abi_dict())
     return o
 
 
