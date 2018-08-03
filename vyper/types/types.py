@@ -165,13 +165,10 @@ def canonicalize_type(t, is_indexed=False):
         )
     if not isinstance(t, BaseType):
         raise Exception("Cannot canonicalize non-base type: %r" % t)
-    uint256_override = True if t.override_signature == 'uint256' else False
 
     t = t.typ
-    if t == 'int128' and not uint256_override:
+    if t == 'int128':
         return 'int128'
-    elif t == 'int128' and uint256_override:
-        return 'uint256'
     elif t == 'decimal':
         return 'fixed168x10'
     elif t == 'bool':
@@ -255,9 +252,6 @@ def parse_type(item, location, sigs=None, custom_units=None):
             argz = item.args
         if len(argz) != 1:
             raise InvalidTypeException("Malformed unit type", item)
-        # Check for uint256 to num casting
-        if item.func.id == 'int128' and getattr(item.args[0], 'id', '') == 'uint256':
-            return BaseType('int128', override_signature='uint256')
         unit = parse_unit(argz[0], custom_units=custom_units)
         return BaseType(base_type, unit, positional)
     # Subscripts
