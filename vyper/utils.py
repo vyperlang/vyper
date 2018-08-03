@@ -2,8 +2,8 @@ import binascii
 import re
 
 from collections import OrderedDict
-from . exceptions import InvalidLiteralException
-from .opcodes import opcodes
+from vyper.exceptions import InvalidLiteralException
+from vyper.opcodes import opcodes
 
 try:
     from Crypto.Hash import keccak
@@ -152,6 +152,15 @@ reserved_words = [
     'ether', 'wei', 'finney', 'szabo', 'shannon', 'lovelace', 'ada', 'babbage', 'gwei', 'kwei', 'mwei', 'twei', 'pwei', 'contract',
     'units',
     'zero_address', 'max_int128', 'min_int128', 'max_decimal', 'min_decimal', 'max_uint256',  # constants
+]
+
+# List of valid LLL macros.
+valid_lll_macros = [
+    'assert', 'break', 'ceil32', 'clamp', 'clamp', 'clamp_nonzero', 'clampge',
+    'clampgt', 'clample', 'clamplt', 'codeload', 'continue', 'debugger', 'ge',
+    'if', 'le', 'lll', 'ne', 'pass', 'repeat', 'seq', 'set', 'sge', 'sha3_32',
+    'sha3_64', 'sle', 'uclampge', 'uclampgt', 'uclample', 'uclamplt', 'with',
+    '~codelen'
 ]
 
 

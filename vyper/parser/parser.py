@@ -29,11 +29,11 @@ from vyper.signatures.event_signature import (
 from vyper.premade_contracts import (
     premade_contracts,
 )
-from .stmt import Stmt
-from .expr import Expr
-from .context import Context
-from .parser_utils import LLLnode
-from .parser_utils import (
+from vyper.parser.stmt import Stmt
+from vyper.parser.expr import Expr
+from vyper.parser.context import Context
+from vyper.parser.lll_node import LLLnode
+from vyper.parser.parser_utils import (
     get_length,
     getpos,
     make_byte_array_copier,
