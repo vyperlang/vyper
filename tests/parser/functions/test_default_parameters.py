@@ -30,3 +30,14 @@ def fooBar(_data: bytes[100] = "test", _b: int128 = 1) -> int128:
     assert c.fooBar(2) == 12321
     assert c.fooBar(b"drum drum") == 12321
     assert c.fooBar(b"drum drum", 2) == 12321
+
+
+def test_basic_default_param_set(get_contract):
+    code = """
+@public
+def fooBar(a:int128, b: uint256 = 333) -> (int128, uint256):
+    return a, b
+    """
+
+    c = get_contract(code)
+    assert c.fooBar(456, 444) == [456, 444]

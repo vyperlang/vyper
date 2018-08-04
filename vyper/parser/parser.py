@@ -549,17 +549,24 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
     if _vars is None:
         _vars = {}
     sig = FunctionSignature.from_definition(code, sigs=sigs, custom_units=_custom_units)
+    # Get base args for function.
+    total_default_args = len(code.args.defaults)
+    base_args = sig.args[:-total_default_args] if total_default_args > 0 else sig.args
+    default_args = code.args.args[-total_default_args:]
+    default_values = dict(zip([arg.arg for arg in default_args], code.args.defaults))
     # Check for duplicate variables with globals
     for arg in sig.args:
         if arg.name in _globals:
             raise FunctionDeclarationException("Variable name duplicated between function arguments and globals: " + arg.name)
+
     # Create a context
     context = Context(vars=_vars, globals=_globals, sigs=sigs,
                       return_type=sig.output_type, is_constant=sig.const, is_payable=sig.payable, origcode=origcode, custom_units=_custom_units)
     # Copy calldata to memory for fixed-size arguments
-    copy_size = sum([32 if isinstance(arg.typ, ByteArrayType) else get_size_of_type(arg.typ) * 32 for arg in sig.args])
+    copy_size = sum([32 if isinstance(arg.typ, ByteArrayType) else get_size_of_type(arg.typ) * 32 for arg in base_args])
     context.next_mem += copy_size
-    if not len(sig.args):
+
+    if not len(base_args):
         copier = 'pass'
     elif sig.name == '__init__':
         copier = ['codecopy', MemoryPositions.RESERVED_MEMORY, '~codelen', copy_size]
@@ -571,14 +578,17 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
         clampers.append(['assert', ['iszero', 'callvalue']])
     if sig.private:
         clampers.append(['assert', ['eq', 'caller', 'address']])
-    # Fill in variable positions
-    for arg in sig.args:
-        clampers.append(make_clamper(arg.pos, context.next_mem, arg.typ, sig.name == '__init__'))
+
+    # Fill variable positions
+    for i, arg in enumerate(sig.args):
+        if i < len(base_args):
+            clampers.append(make_clamper(arg.pos, context.next_mem, arg.typ, sig.name == '__init__'))
         if isinstance(arg.typ, ByteArrayType):
             context.vars[arg.name] = VariableRecord(arg.name, context.next_mem, arg.typ, False)
             context.next_mem += 32 * get_size_of_type(arg.typ)
         else:
             context.vars[arg.name] = VariableRecord(arg.name, MemoryPositions.RESERVED_MEMORY + arg.pos, arg.typ, False)
+
     # Create "clampers" (input well-formedness checkers)
     # Return function body
     if sig.name == '__init__':
@@ -592,19 +602,55 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
     else:
         # Handle default args if present.
         function_routine = sig.name
-        if code.args.defaults:
+        if total_default_args > 0:
             default_sigs = generate_default_arg_sigs(code, sigs, _custom_units)
             sig_chain = ['seq']
-            for default_sig in default_sigs:
+            for i, default_sig in enumerate(default_sigs):
                 method_id_node = LLLnode.from_list(default_sig.method_id, pos=getpos(code), annotation='%s' % default_sig.sig)
-                sig_chain.append(
-                    ['if',
+
+                # Populate unset default variables
+                populate_arg_count = len(sig.args) - len(default_sig.args)
+                set_defaults = []
+                if populate_arg_count > 0:
+                    current_sig_arg_names = {x.name for x in default_sig.args}
+                    missing_arg_names = [arg.arg for arg in default_args if arg.arg not in current_sig_arg_names]
+                    for arg_name in missing_arg_names:
+                        value = Expr(default_values[arg_name], context).lll_node
+                        var = context.vars[arg_name]
+                        left = LLLnode.from_list(var.pos, typ=var.typ, location='memory',
+                                                 pos=getpos(code), mutable=var.mutable)
+                        set_defaults.append(make_setter(left, value, 'memory', pos=getpos(code)))
+                # Variables to be populated from calldata
+                copier_arg_count = len(default_sig.args) - len(base_args)
+                copiers = []
+                if copier_arg_count > 0:
+                    current_sig_arg_names = {x.name for x in default_sig.args}
+                    base_arg_names = {arg.name for arg in base_args}
+                    copier_arg_names = current_sig_arg_names - base_arg_names
+                    # Get map of variables in calldata.
+                    offset = 4
+                    calldata_offset_map = {}
+                    for arg in default_sig.args:
+                        calldata_offset_map[arg.name] = offset
+                        offset += 32 if isinstance(arg.typ, ByteArrayType) else get_size_of_type(arg.typ) * 32
+
+                    for arg_name in copier_arg_names:
+                        var = context.vars[arg_name]
+                        # copiers.append(['calldatacopy', var.pos, calldata_offset_map[arg_name], var.size * 32])
+                        ['mstore', var.pos, 11111]
+                        # TODO: ADD CLAMP HERE!!
+                len(sig.args) - populate_arg_count
+                t = ['if',
                         ['eq', ['mload', 0], method_id_node],
-                        ['seq', ['goto', function_routine]]
-                    ])
+                        ['seq',
+                            ['seq'] + set_defaults if set_defaults else ['pass'],
+                            ['seq'] + copiers if copiers else ['pass'],
+                            ['goto', function_routine] if i < total_default_args else ['pass']]
+                        ]
+                sig_chain.append(t)
             o = LLLnode.from_list(['seq', sig_chain,
                                           ['label', function_routine],
-                                          ['seq'] + [parse_body(c, context) for c in code.body] + ['stop']
+                                          ['seq'] + clampers + [parse_body(c, context) for c in code.body] + ['stop']
                                    ], typ=None, pos=getpos(code))
         else:
             method_id_node = LLLnode.from_list(sig.method_id, pos=getpos(code), annotation='%s' % sig.sig)
