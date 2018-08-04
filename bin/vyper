@@ -11,7 +11,8 @@ from vyper import compile_lll
 
 sys.tracebacklimit = 0
 
-parser = argparse.ArgumentParser(description='Vyper {0} programming language for Ethereum'.format(vyper.__version__))
+parser = argparse.ArgumentParser(description='Vyper programming language for Ethereum')
+parser.add_argument('--version', action='version', version='{0}'.format(vyper.__version__))
 parser.add_argument('input_file', help='Vyper sourcecode to compile')
 parser.add_argument('-f', help='Format to print', default='bytecode', dest='format')
 parser.add_argument('--show-gas-estimates', help='Show gas estimates in ir output mode.', action="store_true")
