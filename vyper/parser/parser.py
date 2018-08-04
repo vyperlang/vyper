@@ -377,6 +377,8 @@ def is_default_func(code):
 def generate_default_arg_sigs(code, _contracts, _custom_units):
     # generate all sigs, and attach.
     total_default_args = len(code.args.defaults)
+    if total_default_args == 0:
+        return [FunctionSignature.from_definition(code, sigs=_contracts, custom_units=_custom_units)]
     base_args = code.args.args[:-total_default_args]
     default_args = code.args.args[-total_default_args:]
     truth_table = list(itertools.product([False, True], repeat=total_default_args))
@@ -563,15 +565,16 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
     context = Context(vars=_vars, globals=_globals, sigs=sigs,
                       return_type=sig.output_type, is_constant=sig.const, is_payable=sig.payable, origcode=origcode, custom_units=_custom_units)
     # Copy calldata to memory for fixed-size arguments
-    copy_size = sum([32 if isinstance(arg.typ, ByteArrayType) else get_size_of_type(arg.typ) * 32 for arg in base_args])
-    context.next_mem += copy_size
+    max_copy_size = sum([32 if isinstance(arg.typ, ByteArrayType) else get_size_of_type(arg.typ) * 32 for arg in sig.args])
+    base_copy_size = sum([32 if isinstance(arg.typ, ByteArrayType) else get_size_of_type(arg.typ) * 32 for arg in base_args])
+    context.next_mem += max_copy_size
 
     if not len(base_args):
         copier = 'pass'
     elif sig.name == '__init__':
-        copier = ['codecopy', MemoryPositions.RESERVED_MEMORY, '~codelen', copy_size]
+        copier = ['codecopy', MemoryPositions.RESERVED_MEMORY, '~codelen', base_copy_size]
     else:
-        copier = ['calldatacopy', MemoryPositions.RESERVED_MEMORY, 4, copy_size]
+        copier = ['calldatacopy', MemoryPositions.RESERVED_MEMORY, 4, base_copy_size]
     clampers = [copier]
     # Add asserts for payable and internal
     if not sig.payable:
@@ -605,7 +608,8 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
         if total_default_args > 0:
             default_sigs = generate_default_arg_sigs(code, sigs, _custom_units)
             sig_chain = ['seq']
-            for i, default_sig in enumerate(default_sigs):
+
+            for default_sig_idx, default_sig in enumerate(default_sigs):
                 method_id_node = LLLnode.from_list(default_sig.method_id, pos=getpos(code), annotation='%s' % default_sig.sig)
 
                 # Populate unset default variables
@@ -622,7 +626,8 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
                         set_defaults.append(make_setter(left, value, 'memory', pos=getpos(code)))
                 # Variables to be populated from calldata
                 copier_arg_count = len(default_sig.args) - len(base_args)
-                copiers = []
+                default_copiers = []
+
                 if copier_arg_count > 0:
                     current_sig_arg_names = {x.name for x in default_sig.args}
                     base_arg_names = {arg.name for arg in base_args}
@@ -636,28 +641,29 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
 
                     for arg_name in copier_arg_names:
                         var = context.vars[arg_name]
-                        # copiers.append(['calldatacopy', var.pos, calldata_offset_map[arg_name], var.size * 32])
-                        ['mstore', var.pos, 11111]
+                        default_copiers.append(['calldatacopy', var.pos, calldata_offset_map[arg_name], var.size * 32])
                         # TODO: ADD CLAMP HERE!!
-                len(sig.args) - populate_arg_count
-                t = ['if',
-                        ['eq', ['mload', 0], method_id_node],
-                        ['seq',
-                            ['seq'] + set_defaults if set_defaults else ['pass'],
-                            ['seq'] + copiers if copiers else ['pass'],
-                            ['goto', function_routine] if i < total_default_args else ['pass']]
-                        ]
+                t = [
+                    'if', ['eq', ['mload', 0], method_id_node],
+                    ['seq',
+                        ['seq'] + set_defaults if set_defaults else ['pass'],
+                        ['seq'] + default_copiers if default_copiers else ['pass'],
+                        ['goto', function_routine]]
+                ]
                 sig_chain.append(t)
-            o = LLLnode.from_list(['seq', sig_chain,
-                                          ['label', function_routine],
-                                          ['seq'] + clampers + [parse_body(c, context) for c in code.body] + ['stop']
-                                   ], typ=None, pos=getpos(code))
+            o = LLLnode.from_list(
+                ['seq',
+                    sig_chain,
+                    ['if', 0,  # can only be jumped into
+                        ['seq',
+                            ['label', function_routine],
+                            ['seq'] + clampers + [parse_body(c, context) for c in code.body] + ['stop']]]], typ=None, pos=getpos(code))
         else:
             method_id_node = LLLnode.from_list(sig.method_id, pos=getpos(code), annotation='%s' % sig.sig)
-            o = LLLnode.from_list(['if',
-                                      ['eq', ['mload', 0], method_id_node],
-                                      ['seq'] + clampers + [parse_body(c, context) for c in code.body] + ['stop']
-                                   ], typ=None, pos=getpos(code))
+            o = LLLnode.from_list(
+                ['if',
+                    ['eq', ['mload', 0], method_id_node],
+                    ['seq'] + clampers + [parse_body(c, context) for c in code.body] + ['stop']], typ=None, pos=getpos(code))
 
     # Check for at leasts one return statement if necessary.
     if context.return_type and context.function_return_count == 0:
