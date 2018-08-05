@@ -14,8 +14,9 @@ from vyper import compiler, optimizer
 
 
 parser = argparse.ArgumentParser(
-    description='Serve Vyper compiler as an HTTP Service, Vyper {0}'.format(vyper.__version__)
+    description='Serve Vyper compiler as an HTTP Service'
 )
+parser.add_argument('--version', action='version', version='{0}'.format(vyper.__version__))
 parser.add_argument(
     '-b',
     help='Address to bind JSON server on, default: localhost:8000',

@@ -9,7 +9,8 @@ from vyper import (
 from vyper.parser.s_expressions import parse_s_exp
 from vyper.parser.parser_utils import LLLnode
 from vyper import compile_lll
-parser = argparse.ArgumentParser(description='Vyper {0} LLL for Ethereum'.format(vyper.__version__))
+parser = argparse.ArgumentParser(description='Vyper LLL for Ethereum')
+parser.add_argument('--version', action='version', version='{0}'.format(vyper.__version__))
 parser.add_argument('input_file', help='Vyper sourcecode to compile')
 parser.add_argument('-f', help='Format to print csv list of ir,opt_ir,asm,bytecode', default='bytecode', dest='format')
 parser.add_argument('--show-gas-estimates', help='Show gas estimates in ir output mode.', action="store_true")
