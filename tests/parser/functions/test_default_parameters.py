@@ -64,3 +64,23 @@ def fooBar(a:int128, b: uint256 = 999, c: address = 0x00000000000000000000000000
     assert c.fooBar(555, addr2) == [555, b_default_value, addr2]
     # no default values
     assert c.fooBar(6789, 4567, addr2) == [6789, 4567, addr2]
+
+
+def test_default_param_bytes(get_contract):
+    code = """
+@public
+def fooBar(a: bytes[100], b: int128, c: bytes[100] = "testing", d: uint256 = 999) -> (bytes[100], int128, bytes[100], uint256):
+    return a, b, c, d
+    """
+    c = get_contract(code)
+    c_default = b"testing"
+    d_default = 999
+
+    # c set, d default value
+    assert c.fooBar(b"booo", 12321, b'woo') == [b"booo", 12321, b'woo', d_default]
+    # d set, c default value
+    assert c.fooBar(b"booo", 12321, 888) == [b"booo", 12321, c_default, 888]
+    # d set, c set
+    assert c.fooBar(b"booo", 12321, b"lucky", 777) == [b"booo", 12321, b"lucky", 777]
+    # no default values
+    assert c.fooBar(b"booo", 12321) == [b"booo", 12321, c_default, d_default]

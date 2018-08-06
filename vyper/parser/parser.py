@@ -604,7 +604,7 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
         o = LLLnode.from_list(['seq'] + clampers + [parse_body(code.body, context)], pos=getpos(code))
     else:
         # Handle default args if present.
-        function_routine = sig.name
+        function_routine = "{}_{}".format(sig.name, sig.method_id)
         if total_default_args > 0:
             default_sigs = generate_default_arg_sigs(code, sigs, _custom_units)
             sig_chain = ['seq']
@@ -641,7 +641,11 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
 
                     for arg_name in copier_arg_names:
                         var = context.vars[arg_name]
-                        default_copiers.append(['calldatacopy', var.pos, calldata_offset_map[arg_name], var.size * 32])
+                        calldata_offset = calldata_offset_map[arg_name]
+                        if isinstance(var.typ, ByteArrayType):
+                            default_copiers.append(['calldatacopy', var.pos, ['add', 4, ['calldataload', calldata_offset]], var.size * 32])
+                        else:
+                            default_copiers.append(['calldatacopy', var.pos, calldata_offset, var.size * 32])
                         # TODO: ADD CLAMP HERE!!
                 t = [
                     'if', ['eq', ['mload', 0], method_id_node],
