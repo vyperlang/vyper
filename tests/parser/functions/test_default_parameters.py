@@ -104,3 +104,24 @@ def fooBar(a: bytes[100], b: uint256[2], c: bytes[6] = "hello", d: int128[3] = [
     assert c.fooBar(b"booo", [22, 11], b"lucky", [24, 25, 26]) == [b"booo", 11, b"lucky", 26]
     # no default values
     assert c.fooBar(b"booo", [55, 66]) == [b"booo", 66, c_default, d_default]
+
+
+def test_default_param_private(get_contract):
+    code = """
+@private
+def fooBar(a: bytes[100], b: uint256, c: bytes[20] = "crazy") -> (bytes[100], uint256, bytes[20]):
+    return a, b, c
+
+@public
+def callMe() -> (bytes[100], uint256, bytes[20], int128):
+    return self.fooBar('I just met you', 123456)
+
+@public
+def callMeMaybe() -> (bytes[100], uint256, bytes[20]):
+    return self.fooBar('here is my number', 555123456, 'baby')
+    """
+
+    c = get_contract(code)
+
+    assert c.callMe() == [b'hello there', 123456, b'crazy']
+    assert c.callMeMaybe() == [b'here is my number', 555123456, b'baby']
