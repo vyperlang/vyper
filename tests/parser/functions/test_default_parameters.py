@@ -104,3 +104,24 @@ def fooBar(a: bytes[100], b: uint256[2], c: bytes[6] = "hello", d: int128[3] = [
     assert c.fooBar(b"booo", [22, 11], b"lucky", [24, 25, 26]) == [b"booo", 11, b"lucky", 26]
     # no default values
     assert c.fooBar(b"booo", [55, 66]) == [b"booo", 66, c_default, d_default]
+
+
+def test_default_param_clamp(get_contract, monkeypatch):
+    code = """
+@public
+def bar(a: int128, b: int128 = -1) -> (int128, int128):
+    return a, b
+    """
+    import web3
+
+    c = get_contract(code)
+
+    assert c.bar(-123) == [-123, -1]
+    assert c.bar(100, 100) == [100, 100]
+
+    # bypass abi encoding checking:
+    def utils_abi_is_encodable(_type, value):
+        return True
+
+    monkeypatch.setattr(web3.utils.abi, 'is_encodable', utils_abi_is_encodable)
+    assert c.bar(200, 2**127) == [200, 2**127]
