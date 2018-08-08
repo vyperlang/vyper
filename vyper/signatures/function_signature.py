@@ -17,6 +17,7 @@ from vyper.utils import (
     is_varname_valid,
     sha3,
 )
+from vyper.parser.lll_node import LLLnode
 
 
 # Function argument
@@ -51,6 +52,17 @@ class FunctionSignature():
         self.method_id = method_id
         self.gas = None
         self.custom_units = custom_units
+
+    # Get the canonical function signature
+    @staticmethod
+    def get_full_sig(func_name, args, sigs, custom_units):
+
+        def get_type(arg):
+            if isinstance(arg, LLLnode):
+                return canonicalize_type(arg.typ)
+            elif hasattr(arg, 'annotation'):
+                return canonicalize_type(parse_type(arg.annotation, None, sigs, custom_units=custom_units))
+        return func_name + '(' + ','.join([get_type(arg) for arg in args]) + ')'
 
     # Get a signature from a function definition
     @classmethod
@@ -114,10 +126,7 @@ class FunctionSignature():
         if output_type is not None:
             assert isinstance(output_type, TupleType) or canonicalize_type(output_type)
         # Get the canonical function signature
-        sig = name + '(' + ','.join([
-            canonicalize_type(parse_type(arg.annotation, None, sigs, custom_units=custom_units))
-            for arg in code.args.args
-        ]) + ')'
+        sig = cls.get_full_sig(name, code.args.args, sigs, custom_units)
 
         # Take the first 4 bytes of the hash of the sig to get the method ID
         method_id = fourbytes_to_int(sha3(bytes(sig, 'utf-8'))[:4])

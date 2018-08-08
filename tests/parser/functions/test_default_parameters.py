@@ -125,3 +125,24 @@ def bar(a: int128, b: int128 = -1) -> (int128, int128):
 
     monkeypatch.setattr(web3.utils.abi, 'is_encodable', utils_abi_is_encodable)
     assert c.bar(200, 2**127) == [200, 2**127]
+
+
+def test_default_param_private(get_contract):
+    code = """
+@private
+def fooBar(a: bytes[100], b: uint256, c: bytes[20] = "crazy") -> (bytes[100], uint256, bytes[20]):
+    return a, b, c
+
+@public
+def callMe() -> (bytes[100], uint256, bytes[20], int128):
+    return self.fooBar('I just met you', 123456)
+
+@public
+def callMeMaybe() -> (bytes[100], uint256, bytes[20]):
+    return self.fooBar('here is my number', 555123456, 'baby')
+    """
+
+    c = get_contract(code)
+
+    assert c.callMe() == [b'hello there', 123456, b'crazy']
+    assert c.callMeMaybe() == [b'here is my number', 555123456, b'baby']
