@@ -76,7 +76,7 @@ def fooBar(a: bytes[100], b: int128, c: bytes[100] = "testing", d: uint256 = 999
     c_default = b"testing"
     d_default = 999
 
-    # c set, d default value
+    # c set, 7d default value
     assert c.fooBar(b"booo", 12321, b'woo') == [b"booo", 12321, b'woo', d_default]
     # d set, c default value
     assert c.fooBar(b"booo", 12321, 888) == [b"booo", 12321, c_default, 888]
@@ -106,13 +106,12 @@ def fooBar(a: bytes[100], b: uint256[2], c: bytes[6] = "hello", d: int128[3] = [
     assert c.fooBar(b"booo", [55, 66]) == [b"booo", 66, c_default, d_default]
 
 
-def test_default_param_clamp(get_contract, monkeypatch):
+def test_default_param_clamp(get_contract, monkeypatch, assert_tx_failed):
     code = """
 @public
 def bar(a: int128, b: int128 = -1) -> (int128, int128):
     return a, b
     """
-    import web3
 
     c = get_contract(code)
 
@@ -123,8 +122,14 @@ def bar(a: int128, b: int128 = -1) -> (int128, int128):
     def utils_abi_is_encodable(_type, value):
         return True
 
-    monkeypatch.setattr(web3.utils.abi, 'is_encodable', utils_abi_is_encodable)
-    assert c.bar(200, 2**127) == [200, 2**127]
+    def validate_value(cls, value):
+        pass
+
+    monkeypatch.setattr('eth_abi.encoding.NumberEncoder.validate_value', validate_value)
+    monkeypatch.setattr('web3.utils.abi.is_encodable', utils_abi_is_encodable)
+
+    assert c.bar(200, 2**127 - 1) == [200, 2**127 - 1]
+    assert_tx_failed(lambda: c.bar(200, 2**127))
 
 
 def test_default_param_private(get_contract):
@@ -134,15 +139,20 @@ def fooBar(a: bytes[100], b: uint256, c: bytes[20] = "crazy") -> (bytes[100], ui
     return a, b, c
 
 @public
-def callMe() -> (bytes[100], uint256, bytes[20], int128):
+def callMe() -> (bytes[100], uint256, bytes[20]):
     return self.fooBar('I just met you', 123456)
 
 @public
 def callMeMaybe() -> (bytes[100], uint256, bytes[20]):
-    return self.fooBar('here is my number', 555123456, 'baby')
+    # return self.fooBar('here is my number', 555123456, 'baby')
+    a: bytes[100]
+    b: uint256
+    c: bytes[20]
+    a, b, c = self.fooBar('here is my number', 555123456, 'baby')
+    return a, b, c
     """
 
     c = get_contract(code)
 
-    assert c.callMe() == [b'hello there', 123456, b'crazy']
+    # assert c.callMe() == [b'hello there', 123456, b'crazy']
     assert c.callMeMaybe() == [b'here is my number', 555123456, b'baby']
