@@ -457,7 +457,7 @@ def parse_other_functions(o, otherfuncs, _globals, sigs, external_contracts, ori
         sub.append(parse_func(_def, _globals, {**{'self': sigs}, **external_contracts}, origcode, _custom_units))  # noqa E999
         sub[-1].total_gas += add_gas
         add_gas += 30
-        for sig in generate_default_arg_sigs(_def, sigs, _custom_units):
+        for sig in generate_default_arg_sigs(_def, external_contracts, _custom_units):
             sig.gas = sub[-1].total_gas
             sigs[sig.sig] = sig
 
