@@ -100,7 +100,7 @@ Converts a variable's type.
 ---------
 ::
 
-  def slice(a, start=b, length=c) -> d:
+  def slice(a, start=b, len=c) -> d:
     """
     :param a: bytes to be sliced
     :type a: either bytes or bytes32
