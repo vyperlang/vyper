@@ -457,7 +457,7 @@ def parse_other_functions(o, otherfuncs, _globals, sigs, external_contracts, ori
         sub.append(parse_func(_def, _globals, {**{'self': sigs}, **external_contracts}, origcode, _custom_units))  # noqa E999
         sub[-1].total_gas += add_gas
         add_gas += 30
-        for sig in generate_default_arg_sigs(_def, sigs, _custom_units):
+        for sig in generate_default_arg_sigs(_def, external_contracts, _custom_units):
             sig.gas = sub[-1].total_gas
             sigs[sig.sig] = sig
 
@@ -557,6 +557,9 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
     base_args = sig.args[:-total_default_args] if total_default_args > 0 else sig.args
     default_args = code.args.args[-total_default_args:]
     default_values = dict(zip([arg.arg for arg in default_args], code.args.defaults))
+    # __init__ function may not have defaults.
+    if sig.name == '__init__' and total_default_args > 0:
+        raise FunctionDeclarationException("__init__ function may not have default parameters.")
     # Check for duplicate variables with globals
     for arg in sig.args:
         if arg.name in _globals:
@@ -633,13 +636,14 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
                     current_sig_arg_names = {x.name for x in default_sig.args}
                     base_arg_names = {arg.name for arg in base_args}
                     copier_arg_names = current_sig_arg_names - base_arg_names
-                    # Get map of variables in calldata.
+
+                    # Get map of variables in calldata, with thier offsets
                     offset = 4
                     calldata_offset_map = {}
                     for arg in default_sig.args:
                         calldata_offset_map[arg.name] = offset
                         offset += 32 if isinstance(arg.typ, ByteArrayType) else get_size_of_type(arg.typ) * 32
-
+                    # Copy set default parameters from calldata
                     for arg_name in copier_arg_names:
                         var = context.vars[arg_name]
                         calldata_offset = calldata_offset_map[arg_name]
@@ -647,15 +651,17 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
                             default_copiers.append(['calldatacopy', var.pos, ['add', 4, ['calldataload', calldata_offset]], var.size * 32])
                         else:
                             default_copiers.append(['calldatacopy', var.pos, calldata_offset, var.size * 32])
-                        # TODO: ADD CLAMP HERE!!
-                t = [
+                        # Add clampers.
+                        default_copiers.append(make_clamper(calldata_offset - 4, var.pos, var.typ))
+
+                sig_chain.append([
                     'if', ['eq', ['mload', 0], method_id_node],
                     ['seq',
                         ['seq'] + set_defaults if set_defaults else ['pass'],
                         ['seq'] + default_copiers if default_copiers else ['pass'],
                         ['goto', function_routine]]
-                ]
-                sig_chain.append(t)
+                ])
+
             o = LLLnode.from_list(
                 ['seq',
                     sig_chain,

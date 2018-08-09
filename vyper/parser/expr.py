@@ -625,7 +625,7 @@ class Expr(object):
             )
 
         if method_names_dict[method_name] == 1:
-            return next([sig for name, sig in self.context.sigs['self'] if name.split('(')[0] == method_name])
+            return next(sig for name, sig in self.context.sigs['self'].items() if name.split('(')[0] == method_name)
         if full_sig in self.context.sigs['self']:
             return self.contex['self'][full_sig]
         else:
@@ -661,7 +661,7 @@ class Expr(object):
                 return dispatch_table[function_name](self.expr, self.context)
             else:
                 err_msg = "Not a top-level function: {}".format(function_name)
-                if function_name in self.context.sigs['self']:
+                if function_name in [x.split('(')[0] for x, _ in self.context.sigs['self'].items()]:
                     err_msg += ". Did you mean self.{}?".format(function_name)
                 raise StructureException(err_msg, self.expr)
         elif isinstance(self.expr.func, ast.Attribute) and isinstance(self.expr.func.value, ast.Name) and self.expr.func.value.id == "self":
@@ -681,10 +681,11 @@ class Expr(object):
                 returner = output_placeholder
             elif isinstance(sig.output_type, ByteArrayType):
                 returner = output_placeholder + 32
-            elif self.context.in_assignment and isinstance(sig.output_type, TupleType):
+            elif isinstance(sig.output_type, TupleType):
                 returner = output_placeholder
             else:
                 raise TypeMismatchException("Invalid output type: %r" % sig.output_type, self.expr)
+
             o = LLLnode.from_list(multi_arg +
                     ['seq',
                         ['assert', ['call', ['gas'], ['address'], 0,
