@@ -81,21 +81,6 @@ The value of the input number as ``wei``, converted based on the specified unit.
     """
 Turns a ``int128``, ``uint256``, ``decimal`` with units into one without units (used for assignment and math).
 
-**convert**
------------
-::
-
-  def convert(inp, out) -> b:
-    """
-    :param inp: variable to be converted
-    :type inp: type of the variable
-    :param out: type to convert(e.g. 'int128', 'uint256', 'decimal', 'bytes32')
-    :type out: String
-
-    :output b: converted variable
-    """
-Converts a variable's type.
-
 **slice**
 ---------
 ::
