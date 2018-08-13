@@ -380,3 +380,20 @@ Emits a log without specifying the abi type, with the arguments entered as the f
 
 Duplicates a contract's code and deploys it as a new instance.
 You can also specify wei value to send to the new contract as ``value=the_value``.
+
+
+**blockhash**
+---------------
+::
+
+  def blockhash(a) -> hash:
+    """
+    :param a: the number of the block to get
+    :type a: uint256
+    
+    :output hash: bytes32
+    """
+
+Returns the hash of the block at the specified height. 
+
+**Note: The EVM only provides access to the most 256 blocks. This function will return 0 if the block number is greater than or equal to the current block number or more than 256 blocks behind the current block.**
