@@ -34,7 +34,7 @@ A boolean is a type to store a logical/truth value.
 
 Values
 ------
-The only possible values are the constants ``true`` and ``false``.
+The only possible values are the constants ``True`` and ``False``.
 
 Operators
 ---------
