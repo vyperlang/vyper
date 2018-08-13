@@ -2,12 +2,8 @@ import ast
 import copy
 import tokenize
 import io
-import itertools
 import re
 
-from collections import (
-    Counter
-)
 from tokenize import (
     OP,
     NAME,
@@ -381,11 +377,17 @@ def generate_default_arg_sigs(code, _contracts, _custom_units):
         return [FunctionSignature.from_definition(code, sigs=_contracts, custom_units=_custom_units)]
     base_args = code.args.args[:-total_default_args]
     default_args = code.args.args[-total_default_args:]
-    truth_table = list(itertools.product([False, True], repeat=total_default_args))
+
+    # Generate a list of default function combinations.
+    row = [False] * (total_default_args)
+    table = [row.copy()]
+    for i in range(total_default_args):
+        row[i] = True
+        table.append(row.copy())
 
     default_sig_strs = []
     sig_fun_defs = []
-    for truth_row in truth_table:
+    for truth_row in table:
         new_code = copy.deepcopy(code)
         new_code.args.args = copy.deepcopy(base_args)
         new_code.args.default = []
@@ -396,10 +398,6 @@ def generate_default_arg_sigs(code, _contracts, _custom_units):
         sig = FunctionSignature.from_definition(new_code, sigs=_contracts, custom_units=_custom_units)
         default_sig_strs.append(sig.sig)
         sig_fun_defs.append(sig)
-
-    if len(default_sig_strs) != len(set(default_sig_strs)):
-        violations = [item for item, count in Counter(default_sig_strs).items() if count > 1]
-        raise FunctionDeclarationException('Default variables are causing a conflict: {}'.format(','.join(violations)), code)
 
     return sig_fun_defs
 
@@ -631,7 +629,6 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
                 # Variables to be populated from calldata
                 copier_arg_count = len(default_sig.args) - len(base_args)
                 default_copiers = []
-
                 if copier_arg_count > 0:
                     current_sig_arg_names = {x.name for x in default_sig.args}
                     base_arg_names = {arg.name for arg in base_args}
@@ -647,12 +644,13 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
                     for arg_name in copier_arg_names:
                         var = context.vars[arg_name]
                         calldata_offset = calldata_offset_map[arg_name]
+                        # Add clampers.
+                        default_copiers.append(make_clamper(calldata_offset - 4, var.pos, var.typ))
+                        # Add copying code.
                         if isinstance(var.typ, ByteArrayType):
                             default_copiers.append(['calldatacopy', var.pos, ['add', 4, ['calldataload', calldata_offset]], var.size * 32])
                         else:
                             default_copiers.append(['calldatacopy', var.pos, calldata_offset, var.size * 32])
-                        # Add clampers.
-                        default_copiers.append(make_clamper(calldata_offset - 4, var.pos, var.typ))
 
                 sig_chain.append([
                     'if', ['eq', ['mload', 0], method_id_node],
@@ -669,7 +667,9 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
                         ['seq',
                             ['label', function_routine],
                             ['seq'] + clampers + [parse_body(c, context) for c in code.body] + ['stop']]]], typ=None, pos=getpos(code))
+
         else:
+            # Function without default parameters.
             method_id_node = LLLnode.from_list(sig.method_id, pos=getpos(code), annotation='%s' % sig.sig)
             o = LLLnode.from_list(
                 ['if',

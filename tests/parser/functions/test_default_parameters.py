@@ -9,12 +9,11 @@ def safeTransferFrom(_data: bytes[100] = "test", _b: int128 = 1):
     """
     abi = get_contract(code)._classic_contract.abi
 
-    assert len(abi) == 4
+    assert len(abi) == 3
     assert set([fdef['name'] for fdef in abi]) == {'safeTransferFrom'}
     assert abi[0]['inputs'] == []
-    assert abi[1]['inputs'] == [{'type': 'int128', 'name': '_b'}]
-    assert abi[2]['inputs'] == [{'type': 'bytes', 'name': '_data'}]
-    assert abi[3]['inputs'] == [{'type': 'bytes', 'name': '_data'}, {'type': 'int128', 'name': '_b'}]
+    assert abi[1]['inputs'] == [{'type': 'bytes', 'name': '_data'}]
+    assert abi[2]['inputs'] == [{'type': 'bytes', 'name': '_data'}, {'type': 'int128', 'name': '_b'}]
 
 
 def test_basic_default_param_passthrough(get_contract):
@@ -27,7 +26,6 @@ def fooBar(_data: bytes[100] = "test", _b: int128 = 1) -> int128:
     c = get_contract(code)
 
     assert c.fooBar() == 12321
-    assert c.fooBar(2) == 12321
     assert c.fooBar(b"drum drum") == 12321
     assert c.fooBar(b"drum drum", 2) == 12321
 
@@ -60,8 +58,6 @@ def fooBar(a:int128, b: uint256 = 999, c: address = 0x00000000000000000000000000
     assert c.fooBar(123) == [123, b_default_value, c_default_value]
     # c default_value, b set from param
     assert c.fooBar(456, 444) == [456, 444, c_default_value]
-    # b default set, c set from param
-    assert c.fooBar(555, addr2) == [555, b_default_value, addr2]
     # no default values
     assert c.fooBar(6789, 4567, addr2) == [6789, 4567, addr2]
 
@@ -78,8 +74,6 @@ def fooBar(a: bytes[100], b: int128, c: bytes[100] = "testing", d: uint256 = 999
 
     # c set, 7d default value
     assert c.fooBar(b"booo", 12321, b'woo') == [b"booo", 12321, b'woo', d_default]
-    # d set, c default value
-    assert c.fooBar(b"booo", 12321, 888) == [b"booo", 12321, c_default, 888]
     # d set, c set
     assert c.fooBar(b"booo", 12321, b"lucky", 777) == [b"booo", 12321, b"lucky", 777]
     # no default values
@@ -98,8 +92,6 @@ def fooBar(a: bytes[100], b: uint256[2], c: bytes[6] = "hello", d: int128[3] = [
 
     # c set, d default value
     assert c.fooBar(b"booo", [99, 88], b'woo') == [b"booo", 88, b'woo', d_default]
-    # d set, c default value
-    assert c.fooBar(b"booo", [99, 88], [34, 35, 36]) == [b"booo", 88, c_default, 36]
     # d set, c set
     assert c.fooBar(b"booo", [22, 11], b"lucky", [24, 25, 26]) == [b"booo", 11, b"lucky", 26]
     # no default values
