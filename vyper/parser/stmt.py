@@ -33,6 +33,7 @@ from vyper.types import (
     get_size_of_type,
     is_base_type,
     parse_type,
+    NodeType
 )
 from vyper.types import (
     are_units_compatible,
@@ -40,9 +41,10 @@ from vyper.types import (
 from vyper.utils import (
     SizeLimits
 )
-from .expr import (
+from vyper.parser.expr import (
     Expr
 )
+from vyper.signatures.function_signature import FunctionSignature
 
 
 class Stmt(object):
@@ -187,20 +189,22 @@ class Stmt(object):
                 raise StructureException("Unknown function: '{}'.".format(self.stmt.func.id), self.stmt)
         elif isinstance(self.stmt.func, ast.Attribute) and isinstance(self.stmt.func.value, ast.Name) and self.stmt.func.value.id == "self":
             method_name = self.stmt.func.attr
-            if method_name not in self.context.sigs['self']:
+            expr_args = [Expr(arg, self.context).lll_node for arg in self.stmt.args]
+            full_sig = FunctionSignature.get_full_sig(method_name, expr_args, self.context.sigs, self.context.custom_units)
+            if full_sig not in self.context.sigs['self']:
                 raise FunctionDeclarationException("Function not declared yet (reminder: functions cannot "
                                                     "call functions later in code than themselves): %s" % self.stmt.func.attr)
-            sig = self.context.sigs['self'][method_name]
+            sig = self.context.sigs['self'][full_sig]
             if self.context.is_constant and not sig.const:
                 raise ConstancyViolationException(
-                    "May not call non-constant function '%s' within a constant function." % (method_name)
+                    "May not call non-constant function '%s' within a constant function." % (full_sig)
                 )
-            add_gas = self.context.sigs['self'][method_name].gas
+            add_gas = self.context.sigs['self'][full_sig].gas
             inargs, inargsize = pack_arguments(sig,
-                                                [Expr(arg, self.context).lll_node for arg in self.stmt.args],
+                                                expr_args,
                                                 self.context, pos=getpos(self.stmt))
             return LLLnode.from_list(['assert', ['call', ['gas'], ['address'], 0, inargs, inargsize, 0, 0]],
-                                        typ=None, pos=getpos(self.stmt), add_gas_estimate=add_gas, annotation='Internal Call: %s' % method_name)
+                                        typ=None, pos=getpos(self.stmt), add_gas_estimate=add_gas, annotation='Internal Call: %s' % full_sig)
         elif isinstance(self.stmt.func, ast.Attribute) and isinstance(self.stmt.func.value, ast.Call):
             contract_name = self.stmt.func.value.func.id
             contract_address = Expr.parse_value_expr(self.stmt.func.value.args[0], self.context)
@@ -498,7 +502,22 @@ class Stmt(object):
         elif isinstance(sub.typ, TupleType):
             if len(self.context.return_type.members) != len(sub.typ.members):
                 raise StructureException("Tuple lengths don't match!", self.stmt)
-
+            # check return type matches, sub type.
+            for i, ret_x in enumerate(self.context.return_type.members):
+                s_member = sub.typ.members[i]
+                sub_type = s_member if isinstance(s_member, NodeType) else s_member.typ
+                if type(sub_type) is not type(ret_x):
+                    raise StructureException(
+                        "Tuple return type does not match annotated return. {} != {}".format(
+                            type(sub_type), type(ret_x)
+                        ),
+                        self.stmt
+                    )
+            # Is from a call expression.
+            if len(sub.args[0].args) > 0 and sub.args[0].args[0].value == 'call':
+                mem_pos = sub.args[0].args[-1]
+                mem_size = get_size_of_type(sub.typ) * 32
+                return LLLnode.from_list(['return', mem_pos, mem_size], typ=sub.typ)
             subs = []
             dynamic_offset_counter = LLLnode(self.context.get_next_mem(), typ=None, annotation="dynamic_offset_counter")  # dynamic offset position counter.
             new_sub = LLLnode.from_list(self.context.get_next_mem() + 32, typ=self.context.return_type, location='memory', annotation='new_sub')
