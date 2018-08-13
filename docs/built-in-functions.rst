@@ -217,9 +217,9 @@ Takes two elliptical curves and multiplies them together.
     :param b: start point of bytes to be extracted
     :type b: int128
     :param c: type of output
-    :type c: either bytes32, num128, or address
+    :type c: either bytes32, int128, or address
 
-    :output d: either bytes32, num128, or address
+    :output d: either bytes32, int128, or address
     """
 
 **RLPList**
