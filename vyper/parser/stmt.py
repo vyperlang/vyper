@@ -7,7 +7,6 @@ from vyper.exceptions import (
     TypeMismatchException,
     VariableDeclarationException,
     EventDeclarationException,
-    FunctionDeclarationException,
     InvalidLiteralException
 )
 from vyper.functions import (
@@ -190,21 +189,18 @@ class Stmt(object):
         elif isinstance(self.stmt.func, ast.Attribute) and isinstance(self.stmt.func.value, ast.Name) and self.stmt.func.value.id == "self":
             method_name = self.stmt.func.attr
             expr_args = [Expr(arg, self.context).lll_node for arg in self.stmt.args]
-            full_sig = FunctionSignature.get_full_sig(method_name, expr_args, self.context.sigs, self.context.custom_units)
-            if full_sig not in self.context.sigs['self']:
-                raise FunctionDeclarationException("Function not declared yet (reminder: functions cannot "
-                                                    "call functions later in code than themselves): %s" % self.stmt.func.attr)
-            sig = self.context.sigs['self'][full_sig]
+            # full_sig = FunctionSignature.get_full_sig(method_name, expr_args, self.context.sigs, self.context.custom_units)
+            sig = FunctionSignature.lookup_sig(self.context.sigs, method_name, expr_args, self.stmt, self.context)
             if self.context.is_constant and not sig.const:
                 raise ConstancyViolationException(
-                    "May not call non-constant function '%s' within a constant function." % (full_sig)
+                    "May not call non-constant function '%s' within a constant function." % (sig.sig)
                 )
-            add_gas = self.context.sigs['self'][full_sig].gas
+            add_gas = self.context.sigs['self'][sig.sig].gas
             inargs, inargsize = pack_arguments(sig,
                                                 expr_args,
                                                 self.context, pos=getpos(self.stmt))
             return LLLnode.from_list(['assert', ['call', ['gas'], ['address'], 0, inargs, inargsize, 0, 0]],
-                                        typ=None, pos=getpos(self.stmt), add_gas_estimate=add_gas, annotation='Internal Call: %s' % full_sig)
+                                        typ=None, pos=getpos(self.stmt), add_gas_estimate=add_gas, annotation='Internal Call: %s' % sig.sig)
         elif isinstance(self.stmt.func, ast.Attribute) and isinstance(self.stmt.func.value, ast.Call):
             contract_name = self.stmt.func.value.func.id
             contract_address = Expr.parse_value_expr(self.stmt.func.value.args[0], self.context)

@@ -1,4 +1,5 @@
 import ast
+from collections import Counter
 
 from vyper.exceptions import (
     InvalidTypeException,
@@ -153,3 +154,39 @@ class FunctionSignature():
             "payable": self.payable,
             "type": "constructor" if self.name == "__init__" else "function"
         }
+
+    @classmethod
+    def lookup_sig(cls, sigs, method_name, expr_args, stmt_or_expr, context):
+        """ Using a list of args, determine the most accurate signature to use from the given context """
+
+        def synonymise(s):
+            return s.replace('int128', 'num').replace('uint256', 'num')
+        # for sig in sigs['self']
+        full_sig = cls.get_full_sig(stmt_or_expr.func.attr, expr_args, None, context.custom_units)
+        method_names_dict = dict(Counter([x.split('(')[0] for x in context.sigs['self']]))
+        if method_name not in method_names_dict:
+            raise FunctionDeclarationException(
+                "Function not declared yet (reminder: functions cannot "
+                "call functions later in code than themselves): %s" % method_name
+            )
+
+        if method_names_dict[method_name] == 1:
+            return next(sig for name, sig in context.sigs['self'].items() if name.split('(')[0] == method_name)
+        if full_sig in context.sigs['self']:
+            return stmt_or_expr.contex['self'][full_sig]
+        else:
+            synonym_sig = synonymise(full_sig)
+            syn_sigs_test = [synonymise(k) for k in context.sigs.keys()]
+            if len(syn_sigs_test) != len(set(syn_sigs_test)):
+                raise Exception(
+                    'Incompatible default parameter signature,'
+                    'can not tell the number type of literal', stmt_or_expr
+                )
+            synonym_sigs = [(synonymise(k), v) for k, v in context.sigs['self'].items()]
+            ssig = [s[1] for s in synonym_sigs if s[0] == synonym_sig]
+            if len(ssig) == 0:
+                raise FunctionDeclarationException(
+                    "Function not declared yet (reminder: functions cannot "
+                    "call functions later in code than themselves): %s" % method_name
+                )
+            return ssig[0]

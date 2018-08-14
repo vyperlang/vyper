@@ -1,5 +1,4 @@
 import ast
-from collections import Counter
 
 from vyper.exceptions import (
     ConstancyViolationException,
@@ -8,7 +7,6 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
-    FunctionDeclarationException,
     ParserException
 )
 from vyper.parser.lll_node import LLLnode
@@ -47,6 +45,7 @@ from vyper.types import (
     is_numeric_type,
     combine_units
 )
+from vyper.signatures.function_signature import FunctionSignature
 
 
 class Expr(object):
@@ -608,42 +607,42 @@ class Expr(object):
                 value = Expr.parse_value_expr(kw.value, self.context)
         return value, gas
 
-    def _get_sig(self, sigs, method_name, expr_args):
-        from vyper.signatures.function_signature import (
-            FunctionSignature
-        )
+    # def _get_sig(self, sigs, method_name, expr_args):
+    #     from vyper.signatures.function_signature import (
+    #         FunctionSignature
+    #     )
 
-        def synonymise(s):
-            return s.replace('int128', 'num').replace('uint256', 'num')
-        # for sig in sigs['self']
-        full_sig = FunctionSignature.get_full_sig(self.expr.func.attr, expr_args, None, self.context.custom_units)
-        method_names_dict = dict(Counter([x.split('(')[0] for x in self.context.sigs['self']]))
-        if method_name not in method_names_dict:
-            raise FunctionDeclarationException(
-                "Function not declared yet (reminder: functions cannot "
-                "call functions later in code than themselves): %s" % method_name
-            )
+    #     def synonymise(s):
+    #         return s.replace('int128', 'num').replace('uint256', 'num')
+    #     # for sig in sigs['self']
+    #     full_sig = FunctionSignature.get_full_sig(self.expr.func.attr, expr_args, None, self.context.custom_units)
+    #     method_names_dict = dict(Counter([x.split('(')[0] for x in self.context.sigs['self']]))
+    #     if method_name not in method_names_dict:
+    #         raise FunctionDeclarationException(
+    #             "Function not declared yet (reminder: functions cannot "
+    #             "call functions later in code than themselves): %s" % method_name
+    #         )
 
-        if method_names_dict[method_name] == 1:
-            return next(sig for name, sig in self.context.sigs['self'].items() if name.split('(')[0] == method_name)
-        if full_sig in self.context.sigs['self']:
-            return self.contex['self'][full_sig]
-        else:
-            synonym_sig = synonymise(full_sig)
-            syn_sigs_test = [synonymise(k) for k in self.context.sigs.keys()]
-            if len(syn_sigs_test) != len(set(syn_sigs_test)):
-                raise Exception(
-                    'Incompatible default parameter signature,'
-                    'can not tell the number type of literal', self.expr
-                )
-            synonym_sigs = [(synonymise(k), v) for k, v in self.context.sigs['self'].items()]
-            ssig = [s[1] for s in synonym_sigs if s[0] == synonym_sig]
-            if len(ssig) == 0:
-                raise FunctionDeclarationException(
-                    "Function not declared yet (reminder: functions cannot "
-                    "call functions later in code than themselves): %s" % method_name
-                )
-            return ssig[0]
+    #     if method_names_dict[method_name] == 1:
+    #         return next(sig for name, sig in self.context.sigs['self'].items() if name.split('(')[0] == method_name)
+    #     if full_sig in self.context.sigs['self']:
+    #         return self.contex['self'][full_sig]
+    #     else:
+    #         synonym_sig = synonymise(full_sig)
+    #         syn_sigs_test = [synonymise(k) for k in self.context.sigs.keys()]
+    #         if len(syn_sigs_test) != len(set(syn_sigs_test)):
+    #             raise Exception(
+    #                 'Incompatible default parameter signature,'
+    #                 'can not tell the number type of literal', self.expr
+    #             )
+    #         synonym_sigs = [(synonymise(k), v) for k, v in self.context.sigs['self'].items()]
+    #         ssig = [s[1] for s in synonym_sigs if s[0] == synonym_sig]
+    #         if len(ssig) == 0:
+    #             raise FunctionDeclarationException(
+    #                 "Function not declared yet (reminder: functions cannot "
+    #                 "call functions later in code than themselves): %s" % method_name
+    #             )
+    #         return ssig[0]
 
     # Function calls
     def call(self):
@@ -667,7 +666,7 @@ class Expr(object):
         elif isinstance(self.expr.func, ast.Attribute) and isinstance(self.expr.func.value, ast.Name) and self.expr.func.value.id == "self":
             expr_args = [Expr(arg, self.context).lll_node for arg in self.expr.args]
             method_name = self.expr.func.attr
-            sig = self._get_sig(self.context.sigs, method_name, expr_args)
+            sig = FunctionSignature.lookup_sig(self.context.sigs, method_name, expr_args, self.expr, self.context)
             if self.context.is_constant and not sig.const:
                 raise ConstancyViolationException(
                     "May not call non-constant function '%s' within a constant function." % (method_name),
