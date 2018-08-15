@@ -581,8 +581,8 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
     # Add asserts for payable and internal
     if not sig.payable:
         clampers.append(['assert', ['iszero', 'callvalue']])
-    if sig.private:
-        clampers.append(['assert', ['eq', 'caller', 'address']])
+    # if sig.private:
+    #     clampers.append(['assert', ['eq', 'caller', 'address']])
 
     # Fill variable positions
     for i, arg in enumerate(sig.args):
@@ -607,6 +607,19 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
     else:
         # Handle default args if present.
         function_routine = "{}_{}".format(sig.name, sig.method_id)
+        method_id_node = LLLnode.from_list(sig.method_id, pos=getpos(code), annotation='%s' % sig.sig)
+
+        if sig.private:
+            sig_compare = 0
+            private_label = [
+                LLLnode.from_list(
+                    ['label', 'priv_{}'.format(sig.method_id)],
+                    pos=getpos(code), annotation='%s' % sig.sig)
+            ]
+        else:
+            sig_compare = ['eq', ['mload', 0], method_id_node]
+            private_label = []
+
         if total_default_args > 0:
             default_sigs = generate_default_arg_sigs(code, sigs, _custom_units)
             sig_chain = ['seq']
@@ -653,7 +666,7 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
                             default_copiers.append(['calldatacopy', var.pos, calldata_offset, var.size * 32])
 
                 sig_chain.append([
-                    'if', ['eq', ['mload', 0], method_id_node],
+                    'if', sig_compare,
                     ['seq',
                         ['seq'] + set_defaults if set_defaults else ['pass'],
                         ['seq'] + default_copiers if default_copiers else ['pass'],
@@ -670,11 +683,10 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
 
         else:
             # Function without default parameters.
-            method_id_node = LLLnode.from_list(sig.method_id, pos=getpos(code), annotation='%s' % sig.sig)
             o = LLLnode.from_list(
                 ['if',
-                    ['eq', ['mload', 0], method_id_node],
-                    ['seq'] + clampers + [parse_body(c, context) for c in code.body] + ['stop']], typ=None, pos=getpos(code))
+                    sig_compare,
+                    ['seq'] + private_label + clampers + [parse_body(c, context) for c in code.body] + ['stop']], typ=None, pos=getpos(code))
 
     # Check for at leasts one return statement if necessary.
     if context.return_type and context.function_return_count == 0:

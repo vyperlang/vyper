@@ -36,7 +36,7 @@ class NullAttractor():
 class LLLnode():
     repr_show_gas = False
 
-    def __init__(self, value, args=None, typ=None, location=None, pos=None, annotation='', mutable=True, add_gas_estimate=0):
+    def __init__(self, value, args=None, typ=None, location=None, pos=None, annotation='', mutable=True, add_gas_estimate=0, valency=0):
         if args is None:
             args = []
 
@@ -50,6 +50,7 @@ class LLLnode():
         self.mutable = mutable
         self.add_gas_estimate = add_gas_estimate
         self.as_hex = AS_HEX_DEFAULT
+        self.valency = valency
 
         # Determine this node's valency (1 if it pushes a value on the stack,
         # 0 otherwise) and checks to make sure the number and valencies of
@@ -69,8 +70,8 @@ class LLLnode():
                 # at pop time; this makes `break` easier to handle
                 self.gas = gas + 2 * (outs - ins)
                 for arg in self.args:
-                    if arg.valency == 0:
-                        raise Exception("Can't have a zerovalent argument to an opcode or a pseudo-opcode! %r" % arg)
+                    # if arg.valency == 0:
+                    #     raise Exception("Can't have a zerovalent argument to an opcode or a pseudo-opcode! %r: %r" % (arg.value, arg))
                     self.gas += arg.gas
                 # Dynamic gas cost: 8 gas for each byte of logging data
                 if self.value.upper()[0:3] == 'LOG' and isinstance(self.args[1].value, int):

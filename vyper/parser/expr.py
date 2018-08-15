@@ -607,48 +607,11 @@ class Expr(object):
                 value = Expr.parse_value_expr(kw.value, self.context)
         return value, gas
 
-    # def _get_sig(self, sigs, method_name, expr_args):
-    #     from vyper.signatures.function_signature import (
-    #         FunctionSignature
-    #     )
-
-    #     def synonymise(s):
-    #         return s.replace('int128', 'num').replace('uint256', 'num')
-    #     # for sig in sigs['self']
-    #     full_sig = FunctionSignature.get_full_sig(self.expr.func.attr, expr_args, None, self.context.custom_units)
-    #     method_names_dict = dict(Counter([x.split('(')[0] for x in self.context.sigs['self']]))
-    #     if method_name not in method_names_dict:
-    #         raise FunctionDeclarationException(
-    #             "Function not declared yet (reminder: functions cannot "
-    #             "call functions later in code than themselves): %s" % method_name
-    #         )
-
-    #     if method_names_dict[method_name] == 1:
-    #         return next(sig for name, sig in self.context.sigs['self'].items() if name.split('(')[0] == method_name)
-    #     if full_sig in self.context.sigs['self']:
-    #         return self.contex['self'][full_sig]
-    #     else:
-    #         synonym_sig = synonymise(full_sig)
-    #         syn_sigs_test = [synonymise(k) for k in self.context.sigs.keys()]
-    #         if len(syn_sigs_test) != len(set(syn_sigs_test)):
-    #             raise Exception(
-    #                 'Incompatible default parameter signature,'
-    #                 'can not tell the number type of literal', self.expr
-    #             )
-    #         synonym_sigs = [(synonymise(k), v) for k, v in self.context.sigs['self'].items()]
-    #         ssig = [s[1] for s in synonym_sigs if s[0] == synonym_sig]
-    #         if len(ssig) == 0:
-    #             raise FunctionDeclarationException(
-    #                 "Function not declared yet (reminder: functions cannot "
-    #                 "call functions later in code than themselves): %s" % method_name
-    #             )
-    #         return ssig[0]
-
     # Function calls
     def call(self):
         from .parser import (
             external_contract_call,
-            pack_arguments,
+            # pack_arguments,
         )
         from vyper.functions import (
             dispatch_table,
@@ -672,26 +635,54 @@ class Expr(object):
                     "May not call non-constant function '%s' within a constant function." % (method_name),
                     getpos(self.expr)
                 )
-            add_gas = sig.gas  # gas of call
-            inargs, inargsize = pack_arguments(sig, expr_args, self.context, pos=getpos(self.expr))
-            output_placeholder = self.context.new_placeholder(typ=sig.output_type)
-            multi_arg = []
-            if isinstance(sig.output_type, BaseType):
-                returner = output_placeholder
-            elif isinstance(sig.output_type, ByteArrayType):
-                returner = output_placeholder + 32
-            elif isinstance(sig.output_type, TupleType):
-                returner = output_placeholder
-            else:
-                raise TypeMismatchException("Invalid output type: %r" % sig.output_type, self.expr)
+            # output_placeholder = self.context.new_placeholder(typ=sig.output_type)
 
-            o = LLLnode.from_list(multi_arg +
-                    ['seq',
-                        ['assert', ['call', ['gas'], ['address'], 0,
-                                        inargs, inargsize,
-                                        output_placeholder, get_size_of_type(sig.output_type) * 32]], returner],
-                typ=sig.output_type, location='memory',
-                pos=getpos(self.expr), add_gas_estimate=add_gas, annotation='Internal Call: %s' % method_name)
+            # Private Call:
+            # (o) push current local variables
+            # ( ) push arguments
+            # (o) jump to label
+            # ( ) pop return values
+            # ( ) pop local variables
+
+            # Push local variables.
+            var_slots = [(v.pos, v.size) for name, v in self.context.vars.items()]
+            var_slots.sort(key=lambda x: x[0])
+            mem_from, mem_to = var_slots[0][0], var_slots[-1][0] + var_slots[-1][1] * 32
+            local_var_size = mem_to - mem_from
+            push_local_vars = []
+            if self.context.vars:
+                push_local_vars = [['mload', pos] for pos in range(0, local_var_size, 32)]
+
+            # LLLnode(label, valency=1)
+            jump_to_func = [['pc'], ['goto', 'priv_{}'.format(sig.method_id)]]
+            push_call_args = []
+            out_size = get_size_of_type(sig.output_type) * 32  # noqa
+            o = LLLnode.from_list(
+                ['seq_unchecked'] + push_local_vars + push_call_args + jump_to_func + [['mstore', var_slots[0][0], ['pop', 1]]],
+                typ=sig.output_type, pos=getpos(self.expr), annotation='Internal Call: %s' % method_name
+            )
+
+            # add_gas = sig.gas  # gas of call
+            # inargs, inargsize = pack_arguments(sig, expr_args, self.context, pos=getpos(self.expr))
+            # output_placeholder = self.context.new_placeholder(typ=sig.output_type)
+            # multi_arg = []
+            # if isinstance(sig.output_type, BaseType):
+            #     returner = output_placeholder
+            # elif isinstance(sig.output_type, ByteArrayType):
+            #     returner = output_placeholder + 32
+            # elif isinstance(sig.output_type, TupleType):
+            #     returner = output_placeholder
+            # else:
+            #     raise TypeMismatchException("Invalid output type: %r" % sig.output_type, self.expr)
+
+            # o = LLLnode.from_list(multi_arg +
+            #         ['seq',
+            #             ['assert', ['call', ['gas'], ['address'], 0,
+            #                             inargs, inargsize,
+            #                             output_placeholder, get_size_of_type(sig.output_type) * 32]], returner],
+            #     typ=sig.output_type, location='memory',
+            #     pos=getpos(self.expr), add_gas_estimate=add_gas, annotation='Internal Call: %s' % method_name)
+
             o.gas += sig.gas
             return o
         elif isinstance(self.expr.func, ast.Attribute) and isinstance(self.expr.func.value, ast.Call):

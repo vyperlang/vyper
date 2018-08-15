@@ -165,6 +165,14 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
             if arg.valency == 1 and arg != code.args[-1]:
                 o.append('POP')
         return o
+    # Seq without popping.
+    elif code.value == 'seq_unchecked':
+        o = []
+        for arg in code.args:
+            o.extend(compile_to_assembly(arg, withargs, break_dest, height))
+            # if arg.valency == 1 and arg != code.args[-1]:
+            #     o.append('POP')
+        return o
     # Assert (if false, exit)
     elif code.value == 'assert':
         o = compile_to_assembly(code.args[0], withargs, break_dest, height)
