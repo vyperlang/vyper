@@ -44,8 +44,9 @@ def get_asm(asm_list):
 if __name__ == '__main__':
 
     output_format = {}
-    output_format['abi'] = lambda code: compiler.mk_full_signature(code)
-    output_format['json'] = lambda code: json.dumps(compiler.mk_full_signature(code))
+    output_format['abi_python'] = lambda code: compiler.mk_full_signature(code)
+    output_format['abi'] = lambda code: json.dumps(compiler.mk_full_signature(code))
+    output_format['json'] = output_format['abi']  # for backwards compatibility
     output_format['bytecode'] = lambda code: '0x' + compiler.compile(code).hex()
     output_format['bytecode_runtime'] = lambda code: '0x' + compiler.compile(code, bytecode_runtime=True).hex()
     output_format['ir'] = lambda code: optimizer.optimize(parse_to_lll(code))
