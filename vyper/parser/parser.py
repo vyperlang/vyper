@@ -564,22 +564,29 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
             raise FunctionDeclarationException("Variable name duplicated between function arguments and globals: " + arg.name)
 
     # Create a context
-    context = Context(vars=_vars, globals=_globals, sigs=sigs,
-                      return_type=sig.output_type, is_constant=sig.const, is_payable=sig.payable, origcode=origcode, custom_units=_custom_units)
+    context = Context(
+        vars=_vars, globals=_globals, sigs=sigs,
+        return_type=sig.output_type, is_constant=sig.const, is_payable=sig.payable, origcode=origcode, custom_units=_custom_units,
+        is_private=sig.private
+    )
     # Copy calldata to memory for fixed-size arguments
     max_copy_size = sum([32 if isinstance(arg.typ, ByteArrayType) else get_size_of_type(arg.typ) * 32 for arg in sig.args])
     base_copy_size = sum([32 if isinstance(arg.typ, ByteArrayType) else get_size_of_type(arg.typ) * 32 for arg in base_args])
     context.next_mem += max_copy_size
 
+    clampers = []
+    if sig.private:
+        clampers.append(['mstore', MemoryPositions.CALLBACK_PTR, 'pass'])
     if not len(base_args):
         copier = 'pass'
     elif sig.name == '__init__':
         copier = ['codecopy', MemoryPositions.RESERVED_MEMORY, '~codelen', base_copy_size]
     else:
         copier = ['calldatacopy', MemoryPositions.RESERVED_MEMORY, 4, base_copy_size]
-    clampers = [copier]
+    clampers.append(copier)
+
     # Add asserts for payable and internal
-    if not sig.payable:
+    if not sig.payable and not sig.private:
         clampers.append(['assert', ['iszero', 'callvalue']])
     # if sig.private:
     #     clampers.append(['assert', ['eq', 'caller', 'address']])

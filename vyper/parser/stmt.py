@@ -38,6 +38,7 @@ from vyper.types import (
     are_units_compatible,
 )
 from vyper.utils import (
+    MemoryPositions,
     SizeLimits
 )
 from vyper.parser.expr import (
@@ -397,6 +398,14 @@ class Stmt(object):
     def parse_break(self):
         return LLLnode.from_list('break', typ=None, pos=getpos(self.stmt))
 
+    def make_return_stmt(self, begin_pos, _size):
+        if self.context.is_private:
+            mloads = [['mload', pos] for pos in range(begin_pos, _size, 32)]
+            return ['seq_unchecked'] + mloads + [['jump', ['mload', MemoryPositions.CALLBACK_PTR]]]
+            # return ['return', begin_pos, _size]
+        else:
+            return ['return', begin_pos, _size]
+
     def parse_return(self):
         from .parser import (
             make_setter
@@ -422,10 +431,11 @@ class Stmt(object):
                     'int' in sub.typ.typ):
                 if not SizeLimits.in_bounds(self.context.return_type.typ, sub.value):
                     raise InvalidLiteralException("Number out of range: " + str(sub.value), self.stmt)
-                return LLLnode.from_list(['seq', ['mstore', 0, sub], ['return', 0, 32]], typ=None, pos=getpos(self.stmt))
+                else:
+                    return LLLnode.from_list(['seq', ['mstore', 0, sub], self.make_return_stmt(0, 32)], typ=None, pos=getpos(self.stmt))
             elif is_base_type(sub.typ, self.context.return_type.typ) or \
                     (is_base_type(sub.typ, 'int128') and is_base_type(self.context.return_type, 'int256')):
-                return LLLnode.from_list(['seq', ['mstore', 0, sub], ['return', 0, 32]], typ=None, pos=getpos(self.stmt))
+                return LLLnode.from_list(['seq', ['mstore', 0, sub], self.make_return_stmt(0, 32)], typ=None, pos=getpos(self.stmt))
             else:
                 raise TypeMismatchException("Unsupported type conversion: %r to %r" % (sub.typ, self.context.return_type), self.stmt.value)
         # Returning a byte array

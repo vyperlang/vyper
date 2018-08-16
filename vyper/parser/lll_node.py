@@ -12,7 +12,7 @@ from vyper.opcodes import (
 from vyper.utils import valid_lll_macros
 
 # Set default string representation for ints in LLL output.
-AS_HEX_DEFAULT = True
+AS_HEX_DEFAULT = False
 # Terminal color types
 OKBLUE = '\033[94m'
 OKMAGENTA = '\033[35m'

@@ -630,36 +630,63 @@ class Expr(object):
             expr_args = [Expr(arg, self.context).lll_node for arg in self.expr.args]
             method_name = self.expr.func.attr
             sig = FunctionSignature.lookup_sig(self.context.sigs, method_name, expr_args, self.expr, self.context)
+
             if self.context.is_constant and not sig.const:
                 raise ConstancyViolationException(
                     "May not call non-constant function '%s' within a constant function." % (method_name),
                     getpos(self.expr)
                 )
-            # output_placeholder = self.context.new_placeholder(typ=sig.output_type)
 
-            # Private Call:
-            # (o) push current local variables
+            # ** Private Call **
+            # Steps:
+            # (x) push current local variables
             # ( ) push arguments
-            # (o) jump to label
-            # ( ) pop return values
-            # ( ) pop local variables
+            # (x) jump to label
+            # (x) pop return values
+            # (x) pop local variables
+
+            pop_local_vars = []
+            push_local_vars = []
+            pop_return_values = []
 
             # Push local variables.
             var_slots = [(v.pos, v.size) for name, v in self.context.vars.items()]
             var_slots.sort(key=lambda x: x[0])
             mem_from, mem_to = var_slots[0][0], var_slots[-1][0] + var_slots[-1][1] * 32
-            local_var_size = mem_to - mem_from
-            push_local_vars = []
             if self.context.vars:
-                push_local_vars = [['mload', pos] for pos in range(0, local_var_size, 32)]
+                push_local_vars = [
+                    ['mload', pos] for pos in range(mem_from, mem_to, 32)
+                ]
+                pop_local_vars = [
+                    ['mstore', pos, 'pass'] for pos in reversed(range(mem_from, mem_to, 32))
+                ]
 
-            # LLLnode(label, valency=1)
-            jump_to_func = [['pc'], ['goto', 'priv_{}'.format(sig.method_id)]]
+            # Jump to function label.
+            jump_to_func = [
+                ['add', ['pc'], 6],
+                ['goto', 'priv_{}'.format(sig.method_id)],
+                ['jumpdest'],
+                # ['debugger']
+            ]
+
+            # Pop return values.
+            output_placeholder = self.context.new_placeholder(typ=sig.output_type)
+            if isinstance(sig.output_type, BaseType):
+                returner = output_placeholder
+            elif isinstance(sig.output_type, ByteArrayType):
+                returner = output_placeholder + 32
+            elif isinstance(sig.output_type, TupleType):
+                returner = output_placeholder
+
+            output_size = get_size_of_type(sig.output_type)
+            if output_size > 0:
+                pop_return_values = [['mstore', ['add', output_placeholder, pos], 'pass'] for pos in range(0, output_size, 32)]
             push_call_args = []
             out_size = get_size_of_type(sig.output_type) * 32  # noqa
             o = LLLnode.from_list(
-                ['seq_unchecked'] + push_local_vars + push_call_args + jump_to_func + [['mstore', var_slots[0][0], ['pop', 1]]],
-                typ=sig.output_type, pos=getpos(self.expr), annotation='Internal Call: %s' % method_name
+                ['seq_unchecked'] + push_local_vars + push_call_args + jump_to_func + pop_return_values + pop_local_vars + [returner],
+                typ=sig.output_type, location='memory', pos=getpos(self.expr), annotation='Internal Call: %s' % method_name,
+                add_gas_estimate=sig.gas
             )
 
             # add_gas = sig.gas  # gas of call

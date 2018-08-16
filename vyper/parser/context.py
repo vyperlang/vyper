@@ -17,7 +17,7 @@ from vyper.signatures.function_signature import (
 
 # Contains arguments, variables, etc
 class Context():
-    def __init__(self, vars=None, globals=None, custom_units=None, sigs=None, forvars=None, return_type=None, is_constant=False, is_payable=False, origcode=''):
+    def __init__(self, vars=None, globals=None, custom_units=None, sigs=None, forvars=None, return_type=None, is_constant=False, is_payable=False, origcode='', is_private=False):
         # In-memory variables, in the form (name, memory location, type)
         self.vars = vars or {}
         self.next_mem = MemoryPositions.RESERVED_MEMORY
@@ -47,6 +47,7 @@ class Context():
         self.in_assignment = False
         # List of custom units that have been defined.
         self.custom_units = custom_units
+        self.is_private = is_private
 
     def set_in_assignment(self, state: bool):
         self.in_assignment = state
