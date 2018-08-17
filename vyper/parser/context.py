@@ -48,6 +48,8 @@ class Context():
         # List of custom units that have been defined.
         self.custom_units = custom_units
         self.is_private = is_private
+        # Callback pointer to jump back to, used in private functions.
+        self.callback_ptr = None
 
     def set_in_assignment(self, state: bool):
         self.in_assignment = state

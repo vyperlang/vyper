@@ -576,7 +576,9 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
 
     clampers = []
     if sig.private:
-        clampers.append(['mstore', MemoryPositions.CALLBACK_PTR, 'pass'])
+        output_placeholder = context.new_placeholder(typ=BaseType('uint256'))
+        context.callback_ptr = output_placeholder
+        clampers.append(['mstore', output_placeholder, 'pass'])
     if not len(base_args):
         copier = 'pass'
     elif sig.name == '__init__':

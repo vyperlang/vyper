@@ -38,7 +38,6 @@ from vyper.types import (
     are_units_compatible,
 )
 from vyper.utils import (
-    MemoryPositions,
     SizeLimits
 )
 from vyper.parser.expr import (
@@ -401,8 +400,7 @@ class Stmt(object):
     def make_return_stmt(self, begin_pos, _size):
         if self.context.is_private:
             mloads = [['mload', pos] for pos in range(begin_pos, _size, 32)]
-            return ['seq_unchecked'] + mloads + [['jump', ['mload', MemoryPositions.CALLBACK_PTR]]]
-            # return ['return', begin_pos, _size]
+            return ['seq_unchecked'] + mloads + [['jump', ['mload', self.context.callback_ptr]]]
         else:
             return ['return', begin_pos, _size]
 

@@ -666,7 +666,6 @@ class Expr(object):
                 ['add', ['pc'], 6],
                 ['goto', 'priv_{}'.format(sig.method_id)],
                 ['jumpdest'],
-                # ['debugger']
             ]
 
             # Pop return values.
@@ -677,12 +676,11 @@ class Expr(object):
                 returner = output_placeholder + 32
             elif isinstance(sig.output_type, TupleType):
                 returner = output_placeholder
-
-            output_size = get_size_of_type(sig.output_type)
+            output_size = get_size_of_type(sig.output_type) * 32
             if output_size > 0:
                 pop_return_values = [['mstore', ['add', output_placeholder, pos], 'pass'] for pos in range(0, output_size, 32)]
             push_call_args = []
-            out_size = get_size_of_type(sig.output_type) * 32  # noqa
+
             o = LLLnode.from_list(
                 ['seq_unchecked'] + push_local_vars + push_call_args + jump_to_func + pop_return_values + pop_local_vars + [returner],
                 typ=sig.output_type, location='memory', pos=getpos(self.expr), annotation='Internal Call: %s' % method_name,
