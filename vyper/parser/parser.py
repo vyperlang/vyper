@@ -575,15 +575,17 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
     context.next_mem += max_copy_size
 
     clampers = []
-    # MSTORE arguments and callback pointer from the stack.
+    copier = []
+    # For private function, MSTORE arguments and callback pointer from the stack.
     if sig.private:
-        output_placeholder = context.new_placeholder(typ=BaseType('uint256'))
-        context.callback_ptr = output_placeholder
-        clampers.append(['mstore', output_placeholder, 'pass'])
+        context.callback_ptr = context.new_placeholder(typ=BaseType('uint256'))
+        clampers.append(['mstore', context.callback_ptr, 'pass'])
         if len(base_args):
             copier = ['seq']
             for pos in range(0, base_copy_size, 32):
                 copier.append(['mstore', MemoryPositions.RESERVED_MEMORY + pos, 'pass'])
+        else:
+            copier = 'pass'
     else:
         if not len(base_args):
             copier = 'pass'

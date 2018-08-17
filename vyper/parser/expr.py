@@ -641,7 +641,7 @@ class Expr(object):
             # ** Private Call **
             # Steps:
             # (x) push current local variables
-            # ( ) push arguments
+            # (x) push arguments
             # (x) push jumpdest (callback ptr)
             # (x) jump to label
             # (x) pop return values
@@ -650,6 +650,7 @@ class Expr(object):
             pop_local_vars = []
             push_local_vars = []
             pop_return_values = []
+            push_args = []
 
             # Push local variables.
             var_slots = [(v.pos, v.size) for name, v in self.context.vars.items()]
@@ -664,8 +665,6 @@ class Expr(object):
                 ]
 
             # Push Arguments
-
-            push_args = []
             if expr_args:
                 inargs, inargsize = pack_arguments(sig, expr_args, self.context, pos=getpos(self.expr))
                 push_args += inargs.args[:-1]
@@ -694,11 +693,10 @@ class Expr(object):
                 pop_return_values = [
                     ['mstore', ['add', output_placeholder, pos], 'pass'] for pos in range(0, output_size, 32)
                 ]
-            push_call_args = []
 
             o = LLLnode.from_list(
                 ['seq_unchecked'] +
-                push_local_vars + push_call_args + push_args +
+                push_local_vars + push_args +
                 jump_to_func +
                 pop_return_values + pop_local_vars + [returner],
                 typ=sig.output_type, location='memory', pos=getpos(self.expr), annotation='Internal Call: %s' % method_name,
