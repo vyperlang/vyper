@@ -39,6 +39,7 @@ from vyper.types import (
 from vyper.types import (
     get_size_of_type,
     is_base_type,
+    ceil32
 )
 from vyper.types import (
     are_units_compatible,
@@ -611,7 +612,7 @@ class Expr(object):
     def call(self):
         from .parser import (
             external_contract_call,
-            # pack_arguments,
+            pack_arguments,
         )
         from vyper.functions import (
             dispatch_table,
@@ -641,6 +642,7 @@ class Expr(object):
             # Steps:
             # (x) push current local variables
             # ( ) push arguments
+            # (x) push jumpdest (callback ptr)
             # (x) jump to label
             # (x) pop return values
             # (x) pop local variables
@@ -661,6 +663,17 @@ class Expr(object):
                     ['mstore', pos, 'pass'] for pos in reversed(range(mem_from, mem_to, 32))
                 ]
 
+            # Push Arguments
+
+            push_args = []
+            if expr_args:
+                inargs, inargsize = pack_arguments(sig, expr_args, self.context, pos=getpos(self.expr))
+                push_args += inargs.args[:-1]
+                arg_pos = inargs.args[-1].value + 4
+                push_args += [
+                    ['mload', pos] for pos in range(arg_pos, arg_pos + ceil32(inargsize - 4), 32)
+                ]
+
             # Jump to function label.
             jump_to_func = [
                 ['add', ['pc'], 6],
@@ -678,36 +691,19 @@ class Expr(object):
                 returner = output_placeholder
             output_size = get_size_of_type(sig.output_type) * 32
             if output_size > 0:
-                pop_return_values = [['mstore', ['add', output_placeholder, pos], 'pass'] for pos in range(0, output_size, 32)]
+                pop_return_values = [
+                    ['mstore', ['add', output_placeholder, pos], 'pass'] for pos in range(0, output_size, 32)
+                ]
             push_call_args = []
 
             o = LLLnode.from_list(
-                ['seq_unchecked'] + push_local_vars + push_call_args + jump_to_func + pop_return_values + pop_local_vars + [returner],
+                ['seq_unchecked'] +
+                push_local_vars + push_call_args + push_args +
+                jump_to_func +
+                pop_return_values + pop_local_vars + [returner],
                 typ=sig.output_type, location='memory', pos=getpos(self.expr), annotation='Internal Call: %s' % method_name,
                 add_gas_estimate=sig.gas
             )
-
-            # add_gas = sig.gas  # gas of call
-            # inargs, inargsize = pack_arguments(sig, expr_args, self.context, pos=getpos(self.expr))
-            # output_placeholder = self.context.new_placeholder(typ=sig.output_type)
-            # multi_arg = []
-            # if isinstance(sig.output_type, BaseType):
-            #     returner = output_placeholder
-            # elif isinstance(sig.output_type, ByteArrayType):
-            #     returner = output_placeholder + 32
-            # elif isinstance(sig.output_type, TupleType):
-            #     returner = output_placeholder
-            # else:
-            #     raise TypeMismatchException("Invalid output type: %r" % sig.output_type, self.expr)
-
-            # o = LLLnode.from_list(multi_arg +
-            #         ['seq',
-            #             ['assert', ['call', ['gas'], ['address'], 0,
-            #                             inargs, inargsize,
-            #                             output_placeholder, get_size_of_type(sig.output_type) * 32]], returner],
-            #     typ=sig.output_type, location='memory',
-            #     pos=getpos(self.expr), add_gas_estimate=add_gas, annotation='Internal Call: %s' % method_name)
-
             o.gas += sig.gas
             return o
         elif isinstance(self.expr.func, ast.Attribute) and isinstance(self.expr.func.value, ast.Call):

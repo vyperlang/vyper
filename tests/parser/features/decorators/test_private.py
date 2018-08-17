@@ -66,3 +66,21 @@ def return_it() -> int128:
 
     c = get_contract_with_gas_estimation(private_test_code)
     assert c.return_it() == 999
+
+
+def test_private_with_args(get_contract_with_gas_estimation):
+    private_test_code = """
+@private
+def add_times2(a: uint256, b: uint256) -> uint256:
+    return 2 * (a + b)
+
+@public
+def return_it() -> uint256:
+    a: uint256 = 111
+    b: uint256 = 222
+    c: uint256 = self.add_times2(100, 11)
+    return a + b + c
+    """
+
+    c = get_contract_with_gas_estimation(private_test_code)
+    assert c.return_it() == 555
