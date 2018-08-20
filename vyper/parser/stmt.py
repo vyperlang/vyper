@@ -13,12 +13,14 @@ from vyper.functions import (
     stmt_dispatch_table,
     dispatch_table
 )
-from vyper.parser.parser_utils import LLLnode
 from vyper.parser.parser_utils import (
-    getpos,
-    make_byte_array_copier,
     base_type_conversion,
-    unwrap_location
+    getpos,
+    LLLnode,
+    make_byte_array_copier,
+    make_setter,
+    pack_arguments,
+    unwrap_location,
 )
 from vyper.types import (
     BaseType,
@@ -106,9 +108,6 @@ class Stmt(object):
             raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.id, self.stmt)
 
     def ann_assign(self):
-        from .parser import (
-            make_setter,
-        )
         self.context.set_in_assignment(True)
         typ = parse_type(self.stmt.annotation, location='memory', custom_units=self.context.custom_units)
         if isinstance(self.stmt.target, ast.Attribute) and self.stmt.target.value.id == 'self':
@@ -125,9 +124,6 @@ class Stmt(object):
         return o
 
     def assign(self):
-        from .parser import (
-            make_setter,
-        )
         # Assignment (e.g. x[4] = y)
         if len(self.stmt.targets) != 1:
             raise StructureException("Assignment statement must have one target", self.stmt)
@@ -174,7 +170,6 @@ class Stmt(object):
 
     def call(self):
         from .parser import (
-            pack_arguments,
             pack_logging_data,
             pack_logging_topics,
             external_contract_call,
@@ -196,7 +191,7 @@ class Stmt(object):
                     "May not call non-constant function '%s' within a constant function." % (sig.sig)
                 )
             add_gas = self.context.sigs['self'][sig.sig].gas
-            inargs, inargsize = pack_arguments(sig,
+            inargs, inargsize, _ = pack_arguments(sig,
                                                 expr_args,
                                                 self.context, pos=getpos(self.stmt))
             return LLLnode.from_list(['assert', ['call', ['gas'], ['address'], 0, inargs, inargsize, 0, 0]],
@@ -405,9 +400,6 @@ class Stmt(object):
             return ['return', begin_pos, _size]
 
     def parse_return(self):
-        from .parser import (
-            make_setter
-        )
         if self.context.return_type is None:
             if self.stmt.value:
                 raise TypeMismatchException("Not expecting to return a value", self.stmt)
