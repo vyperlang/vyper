@@ -37,14 +37,19 @@ def make_call(stmt_expr, context):
 
 
 def call_make_placeholder(stmt_expr, context, sig):
+    if sig.output_type is None:
+        return 0, 0, 0
+
     output_placeholder = context.new_placeholder(typ=sig.output_type)
+    out_size = get_size_of_type(sig.output_type) * 32
+
     if isinstance(sig.output_type, BaseType):
         returner = output_placeholder
     elif isinstance(sig.output_type, ByteArrayType):
         returner = output_placeholder + 32
     elif isinstance(sig.output_type, TupleType):
         returner = output_placeholder
-    return output_placeholder, returner
+    return output_placeholder, returner, out_size
 
 
 def call_self_private(stmt_expr, context, sig):
@@ -99,8 +104,7 @@ def call_self_private(stmt_expr, context, sig):
     # Pop return values.
     returner = ['pass']
     if sig.output_type:
-        output_size = get_size_of_type(sig.output_type) * 32
-        output_placeholder, returner = call_make_placeholder(stmt_expr, context, sig)
+        output_placeholder, returner, output_size = call_make_placeholder(stmt_expr, context, sig)
         if output_size > 0:
             pop_return_values = [
                 ['mstore', ['add', output_placeholder, pos], 'pass'] for pos in range(0, output_size, 32)
@@ -128,17 +132,13 @@ def call_self_public(stmt_expr, context, sig):
         )
     add_gas = sig.gas  # gas of call
     inargs, inargsize, _ = pack_arguments(sig, expr_args, context, pos=getpos(stmt_expr))
-    output_placeholder = context.new_placeholder(typ=sig.output_type)
-    multi_arg = []
-    output_placeholder, returner = call_make_placeholder(stmt_expr, context, sig)
+    output_placeholder, returner, output_size = call_make_placeholder(stmt_expr, context, sig)
     o = LLLnode.from_list(
-        multi_arg +
         ['seq',
-            ['assert',
-                ['call',
-                    ['gas'], ['address'], 0, inargs, inargsize, output_placeholder, get_size_of_type(sig.output_type) * 32]], returner],
+            ['assert', ['call', ['gas'], ['address'], 0,
+                            inargs, inargsize,
+                            output_placeholder, output_size]], returner],
         typ=sig.output_type, location='memory',
-        pos=getpos(stmt_expr), add_gas_estimate=add_gas, annotation='Internal Call: %s' % method_name
-    )
+        pos=getpos(stmt_expr), add_gas_estimate=add_gas, annotation='Internal Call: %s' % method_name)
     o.gas += sig.gas
     return o

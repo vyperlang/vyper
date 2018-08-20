@@ -144,7 +144,12 @@ def __init__():
 
 @private
 def set_greeting(_greeting: bytes[20]):
-    self.greeting = _greeting
+    a: uint256 = 333
+    b: uint256 = 334
+    c: uint256 = 335
+    d: uint256 = 336
+    if a + b + c + d == 1338:
+        self.greeting = _greeting
 
 @public
 def construct(greet: bytes[20]) -> bytes[40]:
@@ -153,9 +158,10 @@ def construct(greet: bytes[20]) -> bytes[40]:
 @public
 def iprefer(_greeting: bytes[20]):
     a: uint256 = 112
+    b: uint256 = 211
     self.set_greeting(_greeting)
     assert a == 112
-    assert self.greeting == _greeting
+    assert b == 211
 
 @public
 def hithere(name: bytes[20]) -> bytes[40]:
