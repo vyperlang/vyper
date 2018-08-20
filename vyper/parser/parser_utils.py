@@ -303,7 +303,7 @@ def unwrap_location(orig):
 
 
 # Pack function arguments for a call
-def pack_arguments(signature, args, context, pos):
+def pack_arguments(signature, args, context, pos, return_placeholder=False):
     placeholder_typ = ByteArrayType(maxlen=sum([get_size_of_type(arg.typ) for arg in signature.args]) * 32 + 32)
     placeholder = context.new_placeholder(placeholder_typ)
     setters = [['mstore', placeholder, signature.method_id]]
@@ -331,16 +331,19 @@ def pack_arguments(signature, args, context, pos):
             staticarray_offset += 32 * (typ.count - 1)
         else:
             raise TypeMismatchException("Cannot pack argument of type %r" % typ)
+
+    # For private call usage, doesn't use a returner.
+    returner = [[placeholder + 28]] if return_placeholder else []
     if needpos:
         return (
-            LLLnode.from_list(['with', '_poz', len(args) * 32 + staticarray_offset, ['seq'] + setters + [placeholder + 28]],
+            LLLnode.from_list(['with', '_poz', len(args) * 32 + staticarray_offset, ['seq'] + setters + returner],
                                  typ=placeholder_typ, location='memory'),
             placeholder_typ.maxlen - 28,
             placeholder + 32
         )
     else:
         return (
-            LLLnode.from_list(['seq'] + setters + [placeholder + 28], typ=placeholder_typ, location='memory'),
+            LLLnode.from_list(['seq'] + setters + returner, typ=placeholder_typ, location='memory'),
             placeholder_typ.maxlen - 28,
             placeholder + 32
         )

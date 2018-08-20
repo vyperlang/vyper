@@ -708,8 +708,8 @@ class Expr(object):
 
         # Push Arguments
         if expr_args:
-            inargs, inargsize, arg_pos = pack_arguments(sig, expr_args, self.context, pos=getpos(self.expr))
-            push_args += inargs.args[:-1]
+            inargs, inargsize, arg_pos = pack_arguments(sig, expr_args, self.context, return_placeholder=False, pos=getpos(self.expr))
+            push_args += [inargs]
             push_args += [
                 ['mload', pos] for pos in range(arg_pos, arg_pos + ceil32(inargsize - 4), 32)
             ]
