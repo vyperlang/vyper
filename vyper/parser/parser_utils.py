@@ -303,7 +303,7 @@ def unwrap_location(orig):
 
 
 # Pack function arguments for a call
-def pack_arguments(signature, args, context, pos, return_placeholder=False):
+def pack_arguments(signature, args, context, pos, return_placeholder=True):
     placeholder_typ = ByteArrayType(maxlen=sum([get_size_of_type(arg.typ) for arg in signature.args]) * 32 + 32)
     placeholder = context.new_placeholder(placeholder_typ)
     setters = [['mstore', placeholder, signature.method_id]]

@@ -1,7 +1,6 @@
 import ast
 
 from vyper.exceptions import (
-    ConstancyViolationException,
     InvalidLiteralException,
     NonPayableViolationException,
     StructureException,
@@ -10,13 +9,13 @@ from vyper.exceptions import (
     ParserException
 )
 from vyper.parser.lll_node import LLLnode
+from vyper.parser import self_call
 from vyper.parser.parser_utils import (
     getpos,
     unwrap_location,
     get_original_if_0_prefixed,
     get_number_as_fraction,
     add_variable_offset,
-    pack_arguments,
 )
 from vyper.utils import (
     MemoryPositions,
@@ -38,16 +37,13 @@ from vyper.types import (
     TupleType,
 )
 from vyper.types import (
-    get_size_of_type,
     is_base_type,
-    ceil32
 )
 from vyper.types import (
     are_units_compatible,
     is_numeric_type,
     combine_units
 )
-from vyper.signatures.function_signature import FunctionSignature
 
 
 class Expr(object):
@@ -628,10 +624,7 @@ class Expr(object):
                     err_msg += ". Did you mean self.{}?".format(function_name)
                 raise StructureException(err_msg, self.expr)
         elif isinstance(self.expr.func, ast.Attribute) and isinstance(self.expr.func.value, ast.Name) and self.expr.func.value.id == "self":
-            if self.call_is_private():
-                return self.call_self_private()
-            else:
-                return self.call_self_public()
+            return self_call.make_call(self.expr, self.context)
         elif isinstance(self.expr.func, ast.Attribute) and isinstance(self.expr.func.value, ast.Call):
             contract_name = self.expr.func.value.func.id
             contract_address = Expr.parse_value_expr(self.expr.func.value.args[0], self.context)
@@ -651,119 +644,6 @@ class Expr(object):
             return external_contract_call(self.expr, self.context, contract_name, contract_address, pos=getpos(self.expr), value=value, gas=gas)
         else:
             raise StructureException("Unsupported operator: %r" % ast.dump(self.expr), self.expr)
-
-    def call_lookup_specs(self):
-        method_name = self.expr.func.attr
-        expr_args = [Expr(arg, self.context).lll_node for arg in self.expr.args]
-        sig = FunctionSignature.lookup_sig(self.context.sigs, method_name, expr_args, self.expr, self.context)
-        return method_name, expr_args, sig
-
-    def call_is_private(self):
-        _, _, sig = self.call_lookup_specs()
-        return sig.private
-
-    def call_make_placeholder(self, sig):
-        output_placeholder = self.context.new_placeholder(typ=sig.output_type)
-        if isinstance(sig.output_type, BaseType):
-            returner = output_placeholder
-        elif isinstance(sig.output_type, ByteArrayType):
-            returner = output_placeholder + 32
-        elif isinstance(sig.output_type, TupleType):
-            returner = output_placeholder
-        return output_placeholder, returner
-
-    def call_self_private(self):
-        # ** Private Call **
-        # Steps:
-        # (x) push current local variables
-        # (x) push arguments
-        # (x) push jumpdest (callback ptr)
-        # (x) jump to label
-        # (x) pop return values
-        # (x) pop local variables
-
-        method_name, expr_args, sig = self.call_lookup_specs()
-        pop_local_vars = []
-        push_local_vars = []
-        pop_return_values = []
-        push_args = []
-
-        if self.context.is_constant and not sig.const:
-            raise ConstancyViolationException(
-                "May not call non-constant function '%s' within a constant function." % (method_name),
-                getpos(self.expr)
-            )
-
-        # Push local variables.
-        if self.context.vars:
-            var_slots = [(v.pos, v.size) for name, v in self.context.vars.items()]
-            var_slots.sort(key=lambda x: x[0])
-            mem_from, mem_to = var_slots[0][0], var_slots[-1][0] + var_slots[-1][1] * 32
-            push_local_vars = [
-                ['mload', pos] for pos in range(mem_from, mem_to, 32)
-            ]
-            pop_local_vars = [
-                ['mstore', pos, 'pass'] for pos in reversed(range(mem_from, mem_to, 32))
-            ]
-
-        # Push Arguments
-        if expr_args:
-            inargs, inargsize, arg_pos = pack_arguments(sig, expr_args, self.context, return_placeholder=False, pos=getpos(self.expr))
-            push_args += [inargs]
-            push_args += [
-                ['mload', pos] for pos in range(arg_pos, arg_pos + ceil32(inargsize - 4), 32)
-            ]
-
-        # Jump to function label.
-        jump_to_func = [
-            ['add', ['pc'], 6],
-            ['goto', 'priv_{}'.format(sig.method_id)],
-            ['jumpdest'],
-        ]
-
-        # Pop return values.
-        output_size = get_size_of_type(sig.output_type) * 32
-        output_placeholder, returner = self.call_make_placeholder(sig)
-        if output_size > 0:
-            pop_return_values = [
-                ['mstore', ['add', output_placeholder, pos], 'pass'] for pos in range(0, output_size, 32)
-            ]
-
-        o = LLLnode.from_list(
-            ['seq_unchecked'] +
-            push_local_vars + push_args +
-            jump_to_func +
-            pop_return_values + pop_local_vars + [returner],
-            typ=sig.output_type, location='memory', pos=getpos(self.expr), annotation='Internal Call: %s' % method_name,
-            add_gas_estimate=sig.gas
-        )
-        o.gas += sig.gas
-        return o
-
-    def call_self_public(self):
-        # self.* call to a public function.
-        method_name, expr_args, sig = self.call_lookup_specs()
-        if self.context.is_constant and not sig.const:
-            raise ConstancyViolationException(
-                "May not call non-constant function '%s' within a constant function." % (method_name),
-                getpos(self.expr)
-            )
-        add_gas = sig.gas  # gas of call
-        inargs, inargsize, _ = pack_arguments(sig, expr_args, self.context, pos=getpos(self.expr))
-        output_placeholder = self.context.new_placeholder(typ=sig.output_type)
-        multi_arg = []
-        output_placeholder, returner = self.call_make_placeholder(sig)
-        o = LLLnode.from_list(
-            multi_arg +
-            ['seq',
-                ['assert',
-                    ['call',
-                        ['gas'], ['address'], 0, inargs, inargsize, output_placeholder, get_size_of_type(sig.output_type) * 32]], returner],
-            typ=sig.output_type, location='memory',
-            pos=getpos(self.expr), add_gas_estimate=add_gas, annotation='Internal Call: %s' % method_name
-        )
-        o.gas += sig.gas
-        return o
 
     def list_literals(self):
         if not len(self.expr.elts):

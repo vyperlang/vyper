@@ -132,3 +132,38 @@ def hithere(name: bytes[100]) -> bytes[200]:
     c = get_contract_with_gas_estimation(private_test_code)
     assert c.hithere(b"bob") == b"Hello bob"
     assert c.hithere(b"alice") == b"Hello alice"
+
+
+def test_private_statement(get_contract_with_gas_estimation):
+    private_test_code = """
+greeting: public(bytes[20])
+
+@public
+def __init__():
+    self.greeting = "Hello "
+
+@private
+def set_greeting(_greeting: bytes[20]):
+    self.greeting = _greeting
+
+@public
+def construct(greet: bytes[20]) -> bytes[40]:
+    return concat(self.greeting, greet)
+
+@public
+def iprefer(_greeting: bytes[20]):
+    a: uint256 = 112
+    self.set_greeting(_greeting)
+    assert a == 112
+    assert self.greeting == _greeting
+
+@public
+def hithere(name: bytes[20]) -> bytes[40]:
+    d: bytes[40] = self.construct(name)
+    return d
+    """
+
+    c = get_contract_with_gas_estimation(private_test_code)
+    assert c.hithere(b"Bob") == b"Hello Bob"
+    c.iprefer(b'Hi there, ', transact={})
+    assert c.hithere(b"Alice") == b"Hi there, Alice"
