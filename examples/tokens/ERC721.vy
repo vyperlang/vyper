@@ -78,7 +78,7 @@ def __init__(_recipients: address[64], _tokenIds: uint256[64]):
 @public
 @constant
 def balanceOf(_owner: address) -> uint256:
-    assert _owner != 0x0000000000000000000000000000000000000000
+    assert _owner != ZERO_ADDRESS
     return self.ownerToNFTokenCount[_owner]
 
 
@@ -88,7 +88,7 @@ def balanceOf(_owner: address) -> uint256:
 @public
 @constant
 def ownerOf(_tokenId: uint256) -> address:
-    assert self.idToOwner[_tokenId] != 0x0000000000000000000000000000000000000000
+    assert self.idToOwner[_tokenId] != ZERO_ADDRESS
     return self.idToOwner[_tokenId]
 
 
@@ -104,8 +104,8 @@ def ownerOf(_tokenId: uint256) -> address:
 @private
 def _validateTransferFrom(_from: address, _to: address, _tokenId: uint256, _sender: address):
     # Check that _to and _from are valid addresses
-    assert _from != 0x0000000000000000000000000000000000000000
-    assert _to != 0x0000000000000000000000000000000000000000
+    assert _from != ZERO_ADDRESS
+    assert _to != ZERO_ADDRESS
     # Throws if `_from` is not the current owner
     assert self.idToOwner[_tokenId] == _from
     # Throws unless `msg.sender` is the current owner, an authorized operator, or the approved
@@ -121,7 +121,7 @@ def _doTransfer(_from: address, _to: address, _tokenId: uint256):
     # Change the owner
     self.idToOwner[_tokenId] = _to
     # Reset approvals
-    self.idToApprovals[_tokenId] = 0x0000000000000000000000000000000000000000
+    self.idToApprovals[_tokenId] = ZERO_ADDRESS
     # Change count tracking
     self.ownerToNFTokenCount[_to] += 1
     self.ownerToNFTokenCount[_from] -= 1
@@ -166,7 +166,7 @@ def safeTransferFrom(
     ):
     self._validateTransferFrom(_from, _to, _tokenId, msg.sender)
     self._doTransfer(_from, _to, _tokenId)
-    _operator: address = 0x0000000000000000000000000000000000000000
+    _operator: address = ZERO_ADDRESS
     if(_to.codesize > 0):
         returnValue: bytes32 = NFTReceiver(_to).onERC721Received(_operator, _from, _tokenId, _data)
         assert returnValue == 0xf0b9e5ba00000000000000000000000000000000000000000000000000000000
@@ -197,7 +197,7 @@ def approve(_approved: address, _tokenId: uint256):
 # @param _approved True if the operators is approved, false to revoke approval.
 @public
 def setApprovalForAll(_operator: address, _approved: bool):
-    assert _operator != 0x0000000000000000000000000000000000000000
+    assert _operator != ZERO_ADDRESS
     self.ownerToOperators[msg.sender][_operator] = _approved
     log.ApprovalForAll(msg.sender, _operator, _approved)
 
@@ -208,7 +208,7 @@ def setApprovalForAll(_operator: address, _approved: bool):
 @public
 @constant
 def getApproved(_tokenId: uint256) -> address:
-    assert self.idToOwner[_tokenId] != 0x0000000000000000000000000000000000000000
+    assert self.idToOwner[_tokenId] != ZERO_ADDRESS
     return self.idToApprovals[_tokenId]
 
 
@@ -219,6 +219,6 @@ def getApproved(_tokenId: uint256) -> address:
 @constant
 def isApprovedForAll( _owner: address, _operator: address) -> bool:
     # TODO: check original for _owner == 0x0
-    if (_owner == 0x0000000000000000000000000000000000000000):
+    if (_owner == ZERO_ADDRESS):
         return False
     return (self.ownerToOperators[_owner])[_operator]
