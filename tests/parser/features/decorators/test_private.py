@@ -173,3 +173,48 @@ def hithere(name: bytes[20]) -> bytes[40]:
     assert c.hithere(b"Bob") == b"Hello Bob"
     c.iprefer(b'Hi there, ', transact={})
     assert c.hithere(b"Alice") == b"Hi there, Alice"
+
+
+def test_private_default_parameter(get_contract_with_gas_estimation):
+    private_test_code = """
+@private
+def addition(a: uint256, b: uint256 = 1) -> uint256:
+    return a + b
+
+
+@public
+def add_one(a: uint256) -> uint256:
+    return self.addition(a)
+
+@public
+def added(a: uint256, b: uint256) -> uint256:
+    c: int128 = 333
+    d: uint256 = self.addition(a, b)
+    assert c == 333
+
+    return d
+    """
+
+    c = get_contract_with_gas_estimation(private_test_code)
+
+    assert c.add_one(20) == 21
+    assert c.added(10, 20) == 30
+
+
+def test_private_return_tuple(get_contract_with_gas_estimation):
+    code = """
+
+@private
+# @public
+def _test(a: int128) -> (int128, int128):
+    return a + 2, 2
+
+
+@public
+def test(a: int128) -> (int128, int128):
+    return self._test(a)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.test(11) == [13, 2]

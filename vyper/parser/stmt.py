@@ -380,8 +380,16 @@ class Stmt(object):
 
     def make_return_stmt(self, begin_pos, _size):
         if self.context.is_private:
-            mloads = [['mload', pos] for pos in range(begin_pos, _size, 32)]
-            return ['seq_unchecked'] + mloads + [['jump', ['mload', self.context.callback_ptr]]]
+            # mloads = [['mload', pos] for pos in range(begin_pos, _size, 32)]
+            loop_memory_position = self.context.new_placeholder(typ=BaseType('uint256'))
+            pos = ['add', begin_pos, ['mul', 32, ['mload', loop_memory_position]]]
+            mloads = ['repeat_unchecked', loop_memory_position, 0, 1000,
+                        ['seq',
+                            ['if', ['ge', ['mload', loop_memory_position], _size], 'break'],
+                            ['mload', pos]
+                        ]
+                    ]
+            return ['seq_unchecked'] + [mloads] + [['debugger']] + [['jump', ['mload', self.context.callback_ptr]]]
         else:
             return ['return', begin_pos, _size]
 
@@ -496,10 +504,12 @@ class Stmt(object):
                         self.stmt
                     )
             # Is from a call expression.
-            if len(sub.args[0].args) > 0 and sub.args[0].args[0].value == 'call':
+            if (len(sub.args[0].args) > 0 and sub.args[0].args[0].value == 'call') or \
+               (sub.annotation and 'Internal Call' in sub.annotation):
                 mem_pos = sub.args[0].args[-1]
                 mem_size = get_size_of_type(sub.typ) * 32
-                return LLLnode.from_list(['return', mem_pos, mem_size], typ=sub.typ)
+                return LLLnode.from_list(self.make_return_stmt(mem_pos, mem_size), typ=sub.typ)
+
             subs = []
             dynamic_offset_counter = LLLnode(self.context.get_next_mem(), typ=None, annotation="dynamic_offset_counter")  # dynamic offset position counter.
             new_sub = LLLnode.from_list(self.context.get_next_mem() + 32, typ=self.context.return_type, location='memory', annotation='new_sub')
@@ -540,7 +550,7 @@ class Stmt(object):
                 ['with', '_loc', new_sub, ['seq'] + subs]], typ=None
             )
 
-            return LLLnode.from_list(['seq', setter, ['return', new_sub, get_dynamic_offset_value()]],
+            return LLLnode.from_list(['seq', setter, self.make_return_stmt(new_sub, get_dynamic_offset_value())],
                                         typ=None, pos=getpos(self.stmt))
         else:
             raise TypeMismatchException("Can only return base type!", self.stmt)

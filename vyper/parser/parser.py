@@ -559,6 +559,19 @@ def get_sig_statements(sig, pos):
     return sig_compare, private_label
 
 
+def get_arg_copier(sig, total_size, memory_dest, offset=4):
+    # Copy arguments.
+    # For private function, MSTORE arguments and callback pointer from the stack.
+    if sig.private:
+        copier = ['seq']
+        for pos in range(0, total_size, 32):
+            copier.append(['mstore', memory_dest + pos, 'pass'])
+    else:
+        copier = ['calldatacopy', memory_dest, offset, total_size]
+
+    return copier
+
+
 # Parses a function declaration
 def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
     if _vars is None:
@@ -589,24 +602,26 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
     context.next_mem += max_copy_size
 
     clampers = []
-    copier = []
-    # For private function, MSTORE arguments and callback pointer from the stack.
+
     if sig.private:
+        _post_callback_ptr = "{}_{}_post_callback_ptr".format(sig.name, sig.method_id)
         context.callback_ptr = context.new_placeholder(typ=BaseType('uint256'))
-        clampers.append(['mstore', context.callback_ptr, 'pass'])
-        if len(base_args):
-            copier = ['seq']
-            for pos in range(0, base_copy_size, 32):
-                copier.append(['mstore', MemoryPositions.RESERVED_MEMORY + pos, 'pass'])
-        else:
-            copier = 'pass'
+        clampers.append(
+            LLLnode.from_list(['mstore', context.callback_ptr, 'pass'], annotation='pop callback pointer')
+        )
+        if total_default_args > 0:
+            clampers.append(['label', _post_callback_ptr])
+
+    if sig.name == '__init__':
+        copier = ['codecopy', MemoryPositions.RESERVED_MEMORY, '~codelen', base_copy_size]
+    elif not len(base_args):
+        copier = 'pass'
     else:
-        if not len(base_args):
-            copier = 'pass'
-        elif sig.name == '__init__':
-            copier = ['codecopy', MemoryPositions.RESERVED_MEMORY, '~codelen', base_copy_size]
-        else:
-            copier = ['calldatacopy', MemoryPositions.RESERVED_MEMORY, 4, base_copy_size]
+        copier = get_arg_copier(
+            sig=sig,
+            total_size=base_copy_size,
+            memory_dest=MemoryPositions.RESERVED_MEMORY
+        )
     clampers.append(copier)
 
     # Add asserts for payable and internal
@@ -679,17 +694,23 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
                         default_copiers.append(make_clamper(calldata_offset - 4, var.pos, var.typ))
                         # Add copying code.
                         if isinstance(var.typ, ByteArrayType):
-                            default_copiers.append(['calldatacopy', var.pos, ['add', 4, ['calldataload', calldata_offset]], var.size * 32])
+                            _offset = ['add', 4, ['calldataload', calldata_offset]]
+                            # default_copiers.append(['calldatacopy', var.pos, ['add', 4, ['calldataload', calldata_offset]], var.size * 32])
                         else:
-                            default_copiers.append(['calldatacopy', var.pos, calldata_offset, var.size * 32])
+                            _offset = calldata_offset
+                            # default_copiers.append(['calldatacopy', var.pos, calldata_offset, var.size * 32])
+                        cp = get_arg_copier(sig=sig, memory_dest=var.pos, total_size=var.size * 32, offset=_offset)
+
+                        default_copiers.append(cp)
 
                 sig_chain.append([
                     'if', sig_compare,
                     ['seq',
                         private_label,
+                        LLLnode.from_list(['mstore', context.callback_ptr, 'pass'], annotation='pop callback pointer') if sig.private else ['pass'],
                         ['seq'] + set_defaults if set_defaults else ['pass'],
                         ['seq'] + default_copiers if default_copiers else ['pass'],
-                        ['goto', function_routine]]
+                        ['goto', _post_callback_ptr if sig.private else function_routine]]
                 ])
 
             o = LLLnode.from_list(
@@ -697,7 +718,7 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
                     sig_chain,
                     ['if', 0,  # can only be jumped into
                         ['seq',
-                            ['label', function_routine],
+                            ['label', _post_callback_ptr if sig.private else function_routine],
                             ['seq'] + clampers + [parse_body(c, context) for c in code.body] + ['stop']]]], typ=None, pos=getpos(code))
 
         else:
