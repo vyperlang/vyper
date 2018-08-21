@@ -543,6 +543,22 @@ def make_clamper(datapos, mempos, typ, is_init=False):
         return LLLnode.from_list('pass')
 
 
+def get_sig_statements(sig, pos):
+    method_id_node = LLLnode.from_list(sig.method_id, pos=pos, annotation='%s' % sig.sig)
+
+    if sig.private:
+        sig_compare = 0
+        private_label = LLLnode.from_list(
+            ['label', 'priv_{}'.format(sig.method_id)],
+            pos=pos, annotation='%s' % sig.sig
+        )
+    else:
+        sig_compare = ['eq', ['mload', 0], method_id_node]
+        private_label = ['pass']
+
+    return sig_compare, private_label
+
+
 # Parses a function declaration
 def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
     if _vars is None:
@@ -619,26 +635,14 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
         o = LLLnode.from_list(['seq'] + clampers + [parse_body(code.body, context)], pos=getpos(code))
     else:
         # Handle default args if present.
-        function_routine = "{}_{}".format(sig.name, sig.method_id)
-        method_id_node = LLLnode.from_list(sig.method_id, pos=getpos(code), annotation='%s' % sig.sig)
-
-        if sig.private:
-            sig_compare = 0
-            private_label = [
-                LLLnode.from_list(
-                    ['label', 'priv_{}'.format(sig.method_id)],
-                    pos=getpos(code), annotation='%s' % sig.sig)
-            ]
-        else:
-            sig_compare = ['eq', ['mload', 0], method_id_node]
-            private_label = []
 
         if total_default_args > 0:
+            function_routine = "{}_{}".format(sig.name, sig.method_id)
             default_sigs = generate_default_arg_sigs(code, sigs, _custom_units)
             sig_chain = ['seq']
 
-            for default_sig_idx, default_sig in enumerate(default_sigs):
-                method_id_node = LLLnode.from_list(default_sig.method_id, pos=getpos(code), annotation='%s' % default_sig.sig)
+            for default_sig in default_sigs:
+                sig_compare, private_label = get_sig_statements(default_sig, getpos(code))
 
                 # Populate unset default variables
                 populate_arg_count = len(sig.args) - len(default_sig.args)
@@ -652,7 +656,8 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
                         left = LLLnode.from_list(var.pos, typ=var.typ, location='memory',
                                                  pos=getpos(code), mutable=var.mutable)
                         set_defaults.append(make_setter(left, value, 'memory', pos=getpos(code)))
-                # Variables to be populated from calldata
+
+                # Variables to be populated from calldata/stack.
                 copier_arg_count = len(default_sig.args) - len(base_args)
                 default_copiers = []
                 if copier_arg_count > 0:
@@ -681,6 +686,7 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
                 sig_chain.append([
                     'if', sig_compare,
                     ['seq',
+                        private_label,
                         ['seq'] + set_defaults if set_defaults else ['pass'],
                         ['seq'] + default_copiers if default_copiers else ['pass'],
                         ['goto', function_routine]]
@@ -696,10 +702,11 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
 
         else:
             # Function without default parameters.
+            sig_compare, private_label = get_sig_statements(sig, getpos(code))
             o = LLLnode.from_list(
                 ['if',
                     sig_compare,
-                    ['seq'] + private_label + clampers + [parse_body(c, context) for c in code.body] + ['stop']], typ=None, pos=getpos(code))
+                    ['seq'] + [private_label] + clampers + [parse_body(c, context) for c in code.body] + ['stop']], typ=None, pos=getpos(code))
 
     # Check for at leasts one return statement if necessary.
     if context.return_type and context.function_return_count == 0:

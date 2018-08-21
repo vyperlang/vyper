@@ -173,7 +173,7 @@ class FunctionSignature():
         if method_names_dict[method_name] == 1:
             return next(sig for name, sig in context.sigs['self'].items() if name.split('(')[0] == method_name)
         if full_sig in context.sigs['self']:
-            return stmt_or_expr.contex['self'][full_sig]
+            return context.sigs['self'][full_sig]
         else:
             synonym_sig = synonymise(full_sig)
             syn_sigs_test = [synonymise(k) for k in context.sigs.keys()]
