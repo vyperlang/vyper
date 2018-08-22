@@ -80,6 +80,7 @@ other development environment set-up.
 
 To create a new virtual environment for Vyper run the following commands:
 ::
+    sudo apt install virtualenv
     virtualenv -p python3.6 --no-site-packages ~/vyper-venv
     source ~/vyper-venv/bin/activate
 
