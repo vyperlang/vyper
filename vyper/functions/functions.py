@@ -424,7 +424,7 @@ def selfdestruct(expr, args, kwargs, context):
     return LLLnode.from_list(['selfdestruct', args[0]], typ=None, pos=getpos(expr))
 
 
-@signature(('int128', 'uint256'))
+@signature(('uint256'))
 def blockhash(expr, args, kwargs, contact):
     return LLLnode.from_list(['blockhash', ['uclamplt', ['clampge', args[0], ['sub', ['number'], 256]], 'number']],
                              typ=BaseType('bytes32'), pos=getpos(expr))
