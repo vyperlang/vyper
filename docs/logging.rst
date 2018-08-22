@@ -1,6 +1,6 @@
 
 *************
-Event logging
+Event Logging
 *************
 
 Like Solidity and other EVM languages, Vyper can log events to be caught and displayed by user interfaces.
