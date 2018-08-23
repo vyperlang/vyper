@@ -133,11 +133,13 @@ def call_self_public(stmt_expr, context, sig):
     add_gas = sig.gas  # gas of call
     inargs, inargsize, _ = pack_arguments(sig, expr_args, context, pos=getpos(stmt_expr))
     output_placeholder, returner, output_size = call_make_placeholder(stmt_expr, context, sig)
+    assert_call = [
+        'assert', ['call', ['gas'], ['address'], 0, inargs, inargsize, output_placeholder, output_size]
+    ]
+    if output_size > 0:
+        assert_call = ['seq', assert_call, returner]
     o = LLLnode.from_list(
-        ['seq',
-            ['assert', ['call', ['gas'], ['address'], 0,
-                            inargs, inargsize,
-                            output_placeholder, output_size]], returner],
+        assert_call,
         typ=sig.output_type, location='memory',
         pos=getpos(stmt_expr), add_gas_estimate=add_gas, annotation='Internal Call: %s' % method_name)
     o.gas += sig.gas
