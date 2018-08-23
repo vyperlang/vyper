@@ -102,7 +102,7 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
         return o
     # Repeat statements (compiled from for loops)
     # Repeat(memloc, start, rounds, body)
-    elif code.value == 'repeat' or code.value == 'repeat_unchecked':
+    elif code.value == 'repeat':
         o = []
         loops = num_to_bytearray(code.args[2].value)
         start, continue_dest, end = mksymbol(), mksymbol(), mksymbol()

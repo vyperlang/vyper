@@ -203,7 +203,6 @@ def added(a: uint256, b: uint256) -> uint256:
 
 def test_private_return_tuple(get_contract_with_gas_estimation):
     code = """
-
 @private
 # @public
 def _test(a: int128) -> (int128, int128):
@@ -212,9 +211,17 @@ def _test(a: int128) -> (int128, int128):
 
 @public
 def test(a: int128) -> (int128, int128):
-    return self._test(a)
+    b: int128
+    c: int128
+    b, c = self._test(a)
+    return b, c
     """
 
     c = get_contract_with_gas_estimation(code)
 
     assert c.test(11) == [13, 2]
+
+# Return types to test:
+# 1.) ListType
+# 2.) BytesArray
+# 3.) Straight tuple return `return self.priv_call() -> (int128, bytes[10]`

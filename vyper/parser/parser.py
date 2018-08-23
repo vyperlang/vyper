@@ -594,7 +594,7 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
     context = Context(
         vars=_vars, globals=_globals, sigs=sigs,
         return_type=sig.output_type, is_constant=sig.const, is_payable=sig.payable, origcode=origcode, custom_units=_custom_units,
-        is_private=sig.private
+        is_private=sig.private, method_id=sig.method_id
     )
     # Copy calldata to memory for fixed-size arguments
     max_copy_size = sum([32 if isinstance(arg.typ, ByteArrayType) else get_size_of_type(arg.typ) * 32 for arg in sig.args])
@@ -612,10 +612,10 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
         if total_default_args > 0:
             clampers.append(['label', _post_callback_ptr])
 
-    if sig.name == '__init__':
-        copier = ['codecopy', MemoryPositions.RESERVED_MEMORY, '~codelen', base_copy_size]
-    elif not len(base_args):
+    if not len(base_args):
         copier = 'pass'
+    elif sig.name == '__init__':
+        copier = ['codecopy', MemoryPositions.RESERVED_MEMORY, '~codelen', base_copy_size]
     else:
         copier = get_arg_copier(
             sig=sig,

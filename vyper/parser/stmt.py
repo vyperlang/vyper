@@ -378,18 +378,29 @@ class Stmt(object):
     def parse_break(self):
         return LLLnode.from_list('break', typ=None, pos=getpos(self.stmt))
 
-    def make_return_stmt(self, begin_pos, _size):
+    def make_return_stmt(self, begin_pos, _size, loop_memory_position=None):
         if self.context.is_private:
-            # mloads = [['mload', pos] for pos in range(begin_pos, _size, 32)]
-            loop_memory_position = self.context.new_placeholder(typ=BaseType('uint256'))
-            pos = ['add', begin_pos, ['mul', 32, ['mload', loop_memory_position]]]
-            mloads = ['repeat_unchecked', loop_memory_position, 0, 1000,
-                        ['seq',
-                            ['if', ['ge', ['mload', loop_memory_position], _size], 'break'],
-                            ['mload', pos]
-                        ]
-                    ]
-            return ['seq_unchecked'] + [mloads] + [['debugger']] + [['jump', ['mload', self.context.callback_ptr]]]
+            if loop_memory_position is None:
+                loop_memory_position = self.context.new_placeholder(typ=BaseType('uint256'))
+            exit_label = 'make_return_loop_exit_%d' % self.context.method_id
+            start_label = 'make_return_loop_start_%d' % self.context.method_id
+            # Push prepared data onto the stack,
+            # in reverse order so it can be popped of in order.
+            if _size == 0:
+                mloads = []
+            else:
+                mloads = [
+                    'seq_unchecked',
+                    ['mstore', loop_memory_position, _size],
+                    ['label', start_label],
+                    ['if',
+                        ['le', ['mload', loop_memory_position], 0], ['goto', exit_label]],  # exit loop / break.
+                    ['mload', ['add', begin_pos, ['sub', ['mload', loop_memory_position], 32]]],  # push onto stack
+                    ['mstore', loop_memory_position, ['sub', ['mload', loop_memory_position], 32]],  # decrement i by 32.
+                    ['goto', start_label],
+                    ['label', exit_label]
+                ]
+            return ['seq_unchecked'] + [mloads] + [['jump', ['mload', self.context.callback_ptr]]]
         else:
             return ['return', begin_pos, _size]
 
@@ -511,8 +522,16 @@ class Stmt(object):
                 return LLLnode.from_list(self.make_return_stmt(mem_pos, mem_size), typ=sub.typ)
 
             subs = []
-            dynamic_offset_counter = LLLnode(self.context.get_next_mem(), typ=None, annotation="dynamic_offset_counter")  # dynamic offset position counter.
-            new_sub = LLLnode.from_list(self.context.get_next_mem() + 32, typ=self.context.return_type, location='memory', annotation='new_sub')
+            # Pre-allocate loop_memory_position if required for private function returning.
+            loop_memory_position = self.context.new_placeholder(typ=BaseType('uint256')) if self.context.is_private else None
+            # Allocate dynamic off set counter, to keep track of the total packed dynamic data size.
+            dynamic_offset_counter_placeholder = self.context.new_placeholder(typ=BaseType('uint256'))
+            dynamic_offset_counter = LLLnode(
+                dynamic_offset_counter_placeholder, typ=None, annotation="dynamic_offset_counter"  # dynamic offset position counter.
+            )
+            new_sub = LLLnode.from_list(
+                self.context.new_placeholder(typ=BaseType('uint256')), typ=self.context.return_type, location='memory', annotation='new_sub'
+            )
             keyz = list(range(len(sub.typ.members)))
             dynamic_offset_start = 32 * len(sub.args)  # The static list of args end.
             left_token = LLLnode.from_list('_loc', typ=new_sub.typ, location="memory")
@@ -523,10 +542,12 @@ class Stmt(object):
 
             def increment_dynamic_offset(dynamic_spot):
                 # Increment dyanmic offset counter in memory.
-                return ['mstore', dynamic_offset_counter,
-                                 ['add',
-                                        ['add', ['ceil32', ['mload', dynamic_spot]], 32],
-                                        ['mload', dynamic_offset_counter]]]
+                return [
+                    'mstore', dynamic_offset_counter,
+                    ['add',
+                        ['add', ['ceil32', ['mload', dynamic_spot]], 32],
+                        ['mload', dynamic_offset_counter]]
+                ]
 
             for i, typ in enumerate(keyz):
                 arg = sub.args[i]
@@ -545,13 +566,19 @@ class Stmt(object):
                 else:
                     raise Exception("Can't return type %s as part of tuple", type(arg.typ))
 
-            setter = LLLnode.from_list(['seq',
-                ['mstore', dynamic_offset_counter, dynamic_offset_start],
-                ['with', '_loc', new_sub, ['seq'] + subs]], typ=None
+            setter = LLLnode.from_list(
+                ['seq',
+                    ['mstore', dynamic_offset_counter, dynamic_offset_start],
+                    ['with', '_loc', new_sub, ['seq'] + subs]],
+                typ=None
             )
 
-            return LLLnode.from_list(['seq', setter, self.make_return_stmt(new_sub, get_dynamic_offset_value())],
-                                        typ=None, pos=getpos(self.stmt))
+            return LLLnode.from_list(
+                ['seq',
+                    setter,
+                    self.make_return_stmt(new_sub, get_dynamic_offset_value(), loop_memory_position)],
+                typ=None, pos=getpos(self.stmt)
+            )
         else:
             raise TypeMismatchException("Can only return base type!", self.stmt)
 
