@@ -67,9 +67,9 @@ def get_original_if_0_prefixed(expr, context):
 
 
 # Copies byte array
-def make_byte_array_copier(destination, source):
+def make_byte_array_copier(destination, source, pos=None):
     if not isinstance(source.typ, (ByteArrayType, NullType)):
-        raise TypeMismatchException("Can only set a byte array to another byte array")
+        raise TypeMismatchException("Can only set a byte array to another byte array", pos)
     if isinstance(source.typ, ByteArrayType) and source.typ.maxlen > destination.typ.maxlen:
         raise TypeMismatchException("Cannot cast from greater max-length %d to shorter max-length %d" % (source.typ.maxlen, destination.typ.maxlen))
     # Special case: memory to memory
@@ -322,7 +322,7 @@ def pack_arguments(signature, args, context, pos, return_placeholder=True):
             arg_copy = LLLnode.from_list('_s', typ=arg.typ, location=arg.location)
             target = LLLnode.from_list(['add', placeholder + 32, '_poz'], typ=typ, location='memory')
             setters.append(['with', '_s', arg, ['seq',
-                                                    make_byte_array_copier(target, arg_copy),
+                                                    make_byte_array_copier(target, arg_copy, pos),
                                                     ['set', '_poz', ['add', 32, ['add', '_poz', get_length(arg_copy)]]]]])
             needpos = True
         elif isinstance(typ, ListType):
@@ -360,7 +360,7 @@ def make_setter(left, right, location, pos):
             return LLLnode.from_list(['mstore', left, right], typ=None)
     # Byte arrays
     elif isinstance(left.typ, ByteArrayType):
-        return make_byte_array_copier(left, right)
+        return make_byte_array_copier(left, right, pos)
     # Can't copy mappings
     elif isinstance(left.typ, MappingType):
         raise TypeMismatchException("Cannot copy mappings; can only copy individual elements", pos)

@@ -445,38 +445,47 @@ class Stmt(object):
             if sub.typ.maxlen > 0:
                 zero_pad_i = self.context.new_placeholder(BaseType('uint256'))  # Iterator used to zero pad memory.
                 zero_padder = LLLnode.from_list(
-                    ['repeat', zero_pad_i, ['mload', '_loc'], sub.typ.maxlen,
+                    ['repeat', zero_pad_i, ['mload', sub], sub.typ.maxlen,
                         ['seq',
                             ['if', ['gt', ['mload', zero_pad_i], sub.typ.maxlen], 'break'],  # stay within allocated bounds
-                            ['mstore8', ['add', ['add', 32, '_loc'], ['mload', zero_pad_i]], 0]]],
+                            ['mstore8', ['add', ['add', 32, sub], ['mload', zero_pad_i]], 0]]],
                     annotation="Zero pad"
                 )
 
             # Returning something already in memory
             if sub.location == 'memory':
-                return LLLnode.from_list(
-                    ['with', '_loc', sub,
-                        ['seq',
-                            ['mstore', ['sub', '_loc', 32], 32],
-                            zero_padder,
-                            ['return', ['sub', '_loc', 32], ['ceil32', ['add', ['mload', '_loc'], 64]]]]], typ=None, pos=getpos(self.stmt))
+                loop_memory_position = self.context.new_placeholder(typ=BaseType('uint256'))
+                # len & bytez placeholder have to be declared after each other at all times.
+                len_placeholder = self.context.new_placeholder(typ=BaseType('uint256'))
+                bytez_placeholder = self.context.new_placeholder(typ=sub.typ)
+                return LLLnode.from_list([
+                    'seq_unchecked',
+                    zero_padder,
+                    ['mstore', len_placeholder, 32],
+                    make_byte_array_copier(
+                        LLLnode(bytez_placeholder, location='memory', typ=sub.typ),
+                        sub
+                    ),
+                    self.make_return_stmt(len_placeholder, ['ceil32', ['add', ['mload', sub], 64]])
+                ], typ=None, pos=getpos(self.stmt))
 
             # Copying from storage
             elif sub.location == 'storage':
-                # Instantiate a byte array at some index
-                fake_byte_array = LLLnode(self.context.get_next_mem() + 32, typ=sub.typ, location='memory', pos=getpos(self.stmt))
-                o = [
-                    'with', '_loc', self.context.get_next_mem() + 32,
-                    ['seq',
-                        # Copy the data to this byte array
-                        make_byte_array_copier(fake_byte_array, sub),
-                        # Store the number 32 before it for ABI formatting purposes
-                        ['mstore', self.context.get_next_mem(), 32],
-                        zero_padder,
-                        # Return it
-                        ['return', self.context.get_next_mem(), ['add', ['ceil32', ['mload', self.context.get_next_mem() + 32]], 64]]]
-                ]
-                return LLLnode.from_list(o, typ=None, pos=getpos(self.stmt))
+                raise Exception('TODO')
+                # # Instantiate a byte array at some index
+                # fake_byte_array = LLLnode(self.context.get_next_mem() + 32, typ=sub.typ, location='memory', pos=getpos(self.stmt))
+                # o = [
+                #     'with', '_loc', self.context.get_next_mem() + 32,
+                #     ['seq',
+                #         # Copy the data to this byte array
+                #         make_byte_array_copier(fake_byte_array, sub),
+                #         # Store the number 32 before it for ABI formatting purposes
+                #         ['mstore', self.context.get_next_mem(), 32],
+                #         zero_padder,
+                #         # Return it
+                #         ['return', self.context.get_next_mem(), ['add', ['ceil32', ['mload', self.context.get_next_mem() + 32]], 64]]]
+                # ]
+                # return LLLnode.from_list(o, typ=None, pos=getpos(self.stmt))
             else:
                 raise Exception("Invalid location: %s" % sub.location)
 
@@ -514,12 +523,13 @@ class Stmt(object):
                         ),
                         self.stmt
                     )
+
             # Is from a call expression.
             if (len(sub.args[0].args) > 0 and sub.args[0].args[0].value == 'call') or \
                (sub.annotation and 'Internal Call' in sub.annotation):
-                mem_pos = sub.args[0].args[-1]
+                mem_pos = sub.args[-1].value if sub.value == 'seq_unchecked' else sub.args[0].args[-1]
                 mem_size = get_size_of_type(sub.typ) * 32
-                return LLLnode.from_list(self.make_return_stmt(mem_pos, mem_size), typ=sub.typ)
+                return LLLnode.from_list(['seq'] + [sub] + [self.make_return_stmt(mem_pos, mem_size)], typ=sub.typ)
 
             subs = []
             # Pre-allocate loop_memory_position if required for private function returning.

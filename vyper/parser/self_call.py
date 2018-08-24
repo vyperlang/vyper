@@ -14,6 +14,7 @@ from vyper.signatures.function_signature import (
 from vyper.types import (
     BaseType,
     ByteArrayType,
+    ListType,
     TupleType,
     ceil32,
     get_size_of_type,
@@ -43,13 +44,7 @@ def call_make_placeholder(stmt_expr, context, sig):
     output_placeholder = context.new_placeholder(typ=sig.output_type)
     out_size = get_size_of_type(sig.output_type) * 32
 
-    if isinstance(sig.output_type, BaseType):
-        returner = output_placeholder
-    elif isinstance(sig.output_type, ByteArrayType):
-        returner = output_placeholder + 32
-    elif isinstance(sig.output_type, TupleType):
-        returner = output_placeholder
-    return output_placeholder, returner, out_size
+    return output_placeholder, output_placeholder, out_size
 
 
 def call_self_private(stmt_expr, context, sig):
@@ -106,9 +101,55 @@ def call_self_private(stmt_expr, context, sig):
     if sig.output_type:
         output_placeholder, returner, output_size = call_make_placeholder(stmt_expr, context, sig)
         if output_size > 0:
-            pop_return_values = [
-                ['mstore', ['add', output_placeholder, pos], 'pass'] for pos in range(0, output_size, 32)
-            ]
+            dynamic_offsets = []
+            if isinstance(sig.output_type, (BaseType, ListType)):
+                pop_return_values = [
+                    ['mstore', ['add', output_placeholder, pos], 'pass'] for pos in range(0, output_size, 32)
+                ]
+            elif isinstance(sig.output_type, ByteArrayType):
+                dynamic_offsets = [(0, sig.output_type)]
+                pop_return_values = [
+                    ['pop', 'pass'],
+                ]
+            elif isinstance(sig.output_type, TupleType):
+                in_memory_offset = 0
+                pop_return_values = []
+                for out_type in sig.output_type.members:
+                    if isinstance(out_type, ByteArrayType):
+                        dynamic_offsets.append((in_memory_offset, out_type))
+                    pop_return_values.append(['mstore', ['add', output_placeholder, in_memory_offset], 'pass'])
+                    in_memory_offset += 32 * get_size_of_type(out_type)
+
+            # append dynamic unpacker.
+            for in_memory_offset, out_type in dynamic_offsets:
+                ident = str(stmt_expr.lineno)
+                start_label = 'dyn_unpack_start_' + ident
+                end_label = 'dyn_unpack_end_' + ident
+                i_placeholder = context.new_placeholder(typ=BaseType('uint256'))
+                begin_pos = ['add', output_placeholder, in_memory_offset]
+                # loop until length.
+                pop_return_values.append(LLLnode.from_list(
+                    ['seq_unchecked',
+                        ['mstore', begin_pos, 'pass'],  # get len
+                        ['mstore', i_placeholder, 0],
+                        ['label', start_label],
+                            ['if',
+                                ['ge', ['mload', i_placeholder], ['ceil32', ['mload', begin_pos]]], ['goto', end_label]],  # break
+                            ['mstore',
+                                ['add', ['add', begin_pos, 32], ['mload', i_placeholder]], 'pass'],  # pop into correct memory slot.
+                            ['mstore', i_placeholder, ['add', 32, ['mload', i_placeholder]]],  # increment i
+                        ['goto', start_label],
+                        ['label', end_label]],
+                    typ=None, annotation='dynamic unpacker'))
+            # pop_return_values.append(['debugger'])
+                # pop_return_values.append(['mstore'])
+
+                # pop_return_values.append(
+                #     ['mstore', ['add', output_placeholder, pos], ['add', dynamic_start_pos, ['mload', offset_placeholder]]]
+                # )
+            # pop_return_values = [
+            #     ['mstore', ['add', output_placeholder, pos], 'pass'] for pos in range(0, output_size, 32)
+            # ]
 
     o = LLLnode.from_list(
         ['seq_unchecked'] +

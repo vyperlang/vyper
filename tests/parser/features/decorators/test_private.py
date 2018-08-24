@@ -211,17 +211,60 @@ def _test(a: int128) -> (int128, int128):
 
 @public
 def test(a: int128) -> (int128, int128):
-    b: int128
-    c: int128
-    b, c = self._test(a)
-    return b, c
+    return self._test(a)
     """
 
     c = get_contract_with_gas_estimation(code)
 
     assert c.test(11) == [13, 2]
 
+
+def test_private_return_bytes(get_contract_with_gas_estimation):
+    code = """
+@private
+def _test() -> (bytes[100]):
+    b: bytes[50] = "hello                   1           2"
+    return b
+
+
+@public
+def test() -> (bytes[100]):
+    d: bytes[100]
+    d = self._test()
+    return d
+
+@public
+def test2() -> (bytes[100]):
+    d: bytes[100]
+    return self._test()
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.test() == b"hello                   1           2"
+    # assert c.test2() == b"hello                   1           2"
+
+
+def test_private_return_tuple_bytes(get_contract_with_gas_estimation):
+    code = """
+@private
+# @public
+def _test(a: int128, b: bytes[50]) -> (int128, bytes[100]):
+    return a + 2, concat("badabing:", b)
+
+@public
+def test(a: int128, b: bytes[50]) -> (int128, bytes[100], bytes[50]):
+    c: int128
+    d: bytes[100]
+    c, d = self._test(a, b)
+    return c, d, b
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.test(11, b"test") == [13, b"badabing:test", b"test"]
+
 # Return types to test:
 # 1.) ListType
 # 2.) BytesArray
 # 3.) Straight tuple return `return self.priv_call() -> (int128, bytes[10]`
+# 4.) Add test to copy bytearray from storage and return
