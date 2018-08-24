@@ -452,9 +452,9 @@ class Stmt(object):
                     annotation="Zero pad"
                 )
 
+            loop_memory_position = self.context.new_placeholder(typ=BaseType('uint256'))
             # Returning something already in memory
             if sub.location == 'memory':
-                loop_memory_position = self.context.new_placeholder(typ=BaseType('uint256'))
                 # len & bytez placeholder have to be declared after each other at all times.
                 len_placeholder = self.context.new_placeholder(typ=BaseType('uint256'))
                 bytez_placeholder = self.context.new_placeholder(typ=sub.typ)
@@ -471,21 +471,21 @@ class Stmt(object):
 
             # Copying from storage
             elif sub.location == 'storage':
-                raise Exception('TODO')
-                # # Instantiate a byte array at some index
-                # fake_byte_array = LLLnode(self.context.get_next_mem() + 32, typ=sub.typ, location='memory', pos=getpos(self.stmt))
-                # o = [
-                #     'with', '_loc', self.context.get_next_mem() + 32,
-                #     ['seq',
-                #         # Copy the data to this byte array
-                #         make_byte_array_copier(fake_byte_array, sub),
-                #         # Store the number 32 before it for ABI formatting purposes
-                #         ['mstore', self.context.get_next_mem(), 32],
-                #         zero_padder,
-                #         # Return it
-                #         ['return', self.context.get_next_mem(), ['add', ['ceil32', ['mload', self.context.get_next_mem() + 32]], 64]]]
-                # ]
-                # return LLLnode.from_list(o, typ=None, pos=getpos(self.stmt))
+                # Instantiate a byte array at some index
+                fake_byte_array = LLLnode(self.context.get_next_mem() + 32, typ=sub.typ, location='memory', pos=getpos(self.stmt))
+                o = [
+                    'with', '_loc', self.context.get_next_mem() + 32,
+                    ['seq',
+                        # Copy the data to this byte array
+                        make_byte_array_copier(fake_byte_array, sub),
+                        # Store the number 32 before it for ABI formatting purposes
+                        ['mstore', self.context.get_next_mem(), 32],
+                        zero_padder,
+                        # Return it
+                        self.make_return_stmt(
+                            self.context.get_next_mem(), ['add', ['ceil32', ['mload', self.context.get_next_mem() + 32]], 64], loop_memory_position)]
+                ]
+                return LLLnode.from_list(o, typ=None, pos=getpos(self.stmt))
             else:
                 raise Exception("Invalid location: %s" % sub.location)
 
