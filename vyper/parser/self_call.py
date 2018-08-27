@@ -121,8 +121,9 @@ def call_self_private(stmt_expr, context, sig):
                     in_memory_offset += 32 * get_size_of_type(out_type)
 
             # append dynamic unpacker.
+            dyn_idx = 0
             for in_memory_offset, out_type in dynamic_offsets:
-                ident = str(stmt_expr.lineno)
+                ident = "%d_%d_arg_%d" % (stmt_expr.lineno, stmt_expr.col_offset, dyn_idx)
                 start_label = 'dyn_unpack_start_' + ident
                 end_label = 'dyn_unpack_end_' + ident
                 i_placeholder = context.new_placeholder(typ=BaseType('uint256'))
@@ -139,6 +140,8 @@ def call_self_private(stmt_expr, context, sig):
                         ['goto', start_label],
                         ['label', end_label]],
                     typ=None, annotation='dynamic unpacker'))
+                dyn_idx += 1
+
             # pop_return_values.append(['debugger'])
                 # pop_return_values.append(['mstore'])
 
