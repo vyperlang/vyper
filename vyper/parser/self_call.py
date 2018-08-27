@@ -58,6 +58,7 @@ def call_self_private(stmt_expr, context, sig):
     # (x) pop local variables
 
     method_name, expr_args, sig = call_lookup_specs(stmt_expr, context)
+    pre_init = []
     pop_local_vars = []
     push_local_vars = []
     pop_return_values = []
@@ -80,18 +81,17 @@ def call_self_private(stmt_expr, context, sig):
         pop_local_vars = [
             ['mstore', pos, 'pass'] for pos in reversed(range(mem_from, mem_to, 32))
         ]
-
     # Push Arguments
     if expr_args:
         inargs, inargsize, arg_pos = pack_arguments(sig, expr_args, context, return_placeholder=False, pos=getpos(stmt_expr))
-        push_args += [inargs]
+        push_args += [inargs]  # copy arguments first, to not mess up the push/pop sequencing.
         push_args += [
             ['mload', pos] for pos in range(arg_pos, arg_pos + ceil32(inargsize - 4), 32)
         ]
 
     # Jump to function label.
     jump_to_func = [
-        ['add', ['pc'], 6],
+        ['add', ['pc'], 6],  # set callback pointer.
         ['goto', 'priv_{}'.format(sig.method_id)],
         ['jumpdest'],
     ]
@@ -133,11 +133,9 @@ def call_self_private(stmt_expr, context, sig):
                         ['mstore', begin_pos, 'pass'],  # get len
                         ['mstore', i_placeholder, 0],
                         ['label', start_label],
-                            ['if',
-                                ['ge', ['mload', i_placeholder], ['ceil32', ['mload', begin_pos]]], ['goto', end_label]],  # break
-                            ['mstore',
-                                ['add', ['add', begin_pos, 32], ['mload', i_placeholder]], 'pass'],  # pop into correct memory slot.
-                            ['mstore', i_placeholder, ['add', 32, ['mload', i_placeholder]]],  # increment i
+                        ['if', ['ge', ['mload', i_placeholder], ['ceil32', ['mload', begin_pos]]], ['goto', end_label]],  # break
+                        ['mstore', ['add', ['add', begin_pos, 32], ['mload', i_placeholder]], 'pass'],  # pop into correct memory slot.
+                        ['mstore', i_placeholder, ['add', 32, ['mload', i_placeholder]]],  # increment i
                         ['goto', start_label],
                         ['label', end_label]],
                     typ=None, annotation='dynamic unpacker'))
@@ -152,7 +150,7 @@ def call_self_private(stmt_expr, context, sig):
             # ]
 
     o = LLLnode.from_list(
-        ['seq_unchecked'] +
+        ['seq_unchecked'] + pre_init +
         push_local_vars + push_args +
         jump_to_func +
         pop_return_values + pop_local_vars + [returner],

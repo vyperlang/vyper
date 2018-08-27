@@ -226,6 +226,13 @@ def _test() -> (bytes[100]):
     b: bytes[50] = "hello                   1           2"
     return b
 
+@private
+def _test_b(a: bytes[100]) -> (bytes[100]):
+    b: bytes[50] = "hello there"
+    if len(a) > 1:
+        return a
+    else:
+        return b
 
 @public
 def test() -> (bytes[100]):
@@ -235,13 +242,20 @@ def test() -> (bytes[100]):
 
 @public
 def test2() -> (bytes[100]):
-    d: bytes[100]
+    d: bytes[100] = 'xyzxyzxyzxyz'
     return self._test()
+
+@public
+def test3(a: bytes[50]) -> (bytes[100]):
+    d: bytes[100] = 'xyzxyzxyzxyz'
+    return self._test_b(a)
     """
+
     c = get_contract_with_gas_estimation(code)
 
     assert c.test() == b"hello                   1           2"
-    # assert c.test2() == b"hello                   1           2"
+    assert c.test2() == b"hello                   1           2"
+    assert c.test3(b"alice") == b"alice"
 
 
 def test_private_return_tuple_bytes(get_contract_with_gas_estimation):

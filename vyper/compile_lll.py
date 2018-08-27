@@ -287,11 +287,12 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
     # set a symbol as a location.
     elif code.value == 'label':
         label_name = str(code.args[0])
-        print(label_name, existing_labels)
+
         if label_name in existing_labels:
             raise Exception('Label with name %s already exists!', label_name)
         else:
             existing_labels.add(label_name)
+
         return [
             '_sym_' + label_name,
             'JUMPDEST'

@@ -382,8 +382,12 @@ class Stmt(object):
         if self.context.is_private:
             if loop_memory_position is None:
                 loop_memory_position = self.context.new_placeholder(typ=BaseType('uint256'))
-            exit_label = 'make_return_loop_exit_%d' % self.context.method_id
-            start_label = 'make_return_loop_start_%d' % self.context.method_id
+
+            # Make label for stack push loop.
+            label_id = '_'.join([str(x) for x in (self.context.method_id, self.stmt.lineno, self.stmt.col_offset)])
+            exit_label = 'make_return_loop_exit_%s' % label_id
+            start_label = 'make_return_loop_start_%s' % label_id
+
             # Push prepared data onto the stack,
             # in reverse order so it can be popped of in order.
             if _size == 0:
@@ -408,7 +412,7 @@ class Stmt(object):
         if self.context.return_type is None:
             if self.stmt.value:
                 raise TypeMismatchException("Not expecting to return a value", self.stmt)
-            return LLLnode.from_list(['return', 0, 0], typ=None, pos=getpos(self.stmt))
+            return LLLnode.from_list(self.make_return_stmt(0, 0), typ=None, pos=getpos(self.stmt))
         if not self.stmt.value:
             raise TypeMismatchException("Expecting to return a value", self.stmt)
 
@@ -441,18 +445,20 @@ class Stmt(object):
                 raise TypeMismatchException("Cannot cast from greater max-length %d to shorter max-length %d" %
                                             (sub.typ.maxlen, self.context.return_type.maxlen), self.stmt.value)
 
-            zero_padder = LLLnode.from_list(['pass'])
-            if sub.typ.maxlen > 0:
-                zero_pad_i = self.context.new_placeholder(BaseType('uint256'))  # Iterator used to zero pad memory.
-                zero_padder = LLLnode.from_list(
-                    ['repeat', zero_pad_i, ['mload', sub], sub.typ.maxlen,
-                        ['seq',
-                            ['if', ['gt', ['mload', zero_pad_i], sub.typ.maxlen], 'break'],  # stay within allocated bounds
-                            ['mstore8', ['add', ['add', 32, sub], ['mload', zero_pad_i]], 0]]],
-                    annotation="Zero pad"
-                )
+            def zero_pad(bytez_placeholder, maxlen):
+                zero_padder = LLLnode.from_list(['pass'])
+                if maxlen > 0:
+                    zero_pad_i = self.context.new_placeholder(BaseType('uint256'))  # Iterator used to zero pad memory.
+                    zero_padder = LLLnode.from_list(
+                        ['repeat', zero_pad_i, ['mload', bytez_placeholder], maxlen,
+                            ['seq',
+                                ['if', ['gt', ['mload', zero_pad_i], maxlen], 'break'],  # stay within allocated bounds
+                                ['mstore8', ['add', ['add', 32, bytez_placeholder], ['mload', zero_pad_i]], 0]]],
+                        annotation="Zero pad"
+                    )
+                return zero_padder
 
-            loop_memory_position = self.context.new_placeholder(typ=BaseType('uint256'))
+            loop_memory_position = self.context.new_placeholder(typ=BaseType('uint256'))  # loop memory has to be allocated first.
             # Returning something already in memory
             if sub.location == 'memory':
                 # len & bytez placeholder have to be declared after each other at all times.
@@ -460,13 +466,13 @@ class Stmt(object):
                 bytez_placeholder = self.context.new_placeholder(typ=sub.typ)
                 return LLLnode.from_list([
                     'seq_unchecked',
-                    zero_padder,
+                    zero_pad(bytez_placeholder, sub.typ.maxlen),
                     ['mstore', len_placeholder, 32],
                     make_byte_array_copier(
                         LLLnode(bytez_placeholder, location='memory', typ=sub.typ),
                         sub
                     ),
-                    self.make_return_stmt(len_placeholder, ['ceil32', ['add', ['mload', sub], 64]])
+                    self.make_return_stmt(len_placeholder, ['ceil32', ['add', ['mload', bytez_placeholder], 64]], loop_memory_position=loop_memory_position)
                 ], typ=None, pos=getpos(self.stmt))
 
             # Copying from storage
@@ -480,7 +486,7 @@ class Stmt(object):
                         make_byte_array_copier(fake_byte_array, sub),
                         # Store the number 32 before it for ABI formatting purposes
                         ['mstore', self.context.get_next_mem(), 32],
-                        zero_padder,
+                        zero_pad(fake_byte_array, sub.typ.maxlen),
                         # Return it
                         self.make_return_stmt(
                             self.context.get_next_mem(), ['add', ['ceil32', ['mload', self.context.get_next_mem() + 32]], 64], loop_memory_position)]
