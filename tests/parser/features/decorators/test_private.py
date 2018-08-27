@@ -221,6 +221,8 @@ def test(a: int128) -> (int128, int128):
 
 def test_private_return_bytes(get_contract_with_gas_estimation):
     code = """
+a_message: bytes[50]
+
 @private
 def _test() -> (bytes[100]):
     b: bytes[50] = "hello                   1           2"
@@ -233,6 +235,10 @@ def _test_b(a: bytes[100]) -> (bytes[100]):
         return a
     else:
         return b
+
+@private
+def get_msg() -> (bytes[100]):
+    return self.a_message
 
 @public
 def test() -> (bytes[100]):
@@ -249,6 +255,15 @@ def test2() -> (bytes[100]):
 def test3(a: bytes[50]) -> (bytes[100]):
     d: bytes[100] = 'xyzxyzxyzxyz'
     return self._test_b(a)
+
+@public
+def set(a: bytes[50]):
+    self.a_message = a
+
+@public
+def test4() -> (bytes[100]):
+    d: bytes[100] = 'xyzxyzxyzxyz'
+    return self.get_msg()
     """
 
     c = get_contract_with_gas_estimation(code)
@@ -256,6 +271,8 @@ def test3(a: bytes[50]) -> (bytes[100]):
     assert c.test() == b"hello                   1           2"
     assert c.test2() == b"hello                   1           2"
     assert c.test3(b"alice") == b"alice"
+    c.set(b"hello daar", transact={})
+    assert c.test4() == b"hello daar"
 
 
 def test_private_return_tuple_bytes(get_contract_with_gas_estimation):
@@ -281,4 +298,3 @@ def test(a: int128, b: bytes[50]) -> (int128, bytes[100], bytes[50]):
 # 1.) ListType
 # 2.) BytesArray
 # 3.) Straight tuple return `return self.priv_call() -> (int128, bytes[10]`
-# 4.) Add test to copy bytearray from storage and return

@@ -609,8 +609,6 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
         clampers.append(
             LLLnode.from_list(['mstore', context.callback_ptr, 'pass'], annotation='pop callback pointer')
         )
-        if total_default_args > 0:
-            clampers.append(['label', _post_callback_ptr])
 
     if not len(base_args):
         copier = 'pass'
