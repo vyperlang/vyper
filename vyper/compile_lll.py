@@ -16,6 +16,7 @@ DUP_OFFSET = 0x7f
 SWAP_OFFSET = 0x8f
 
 next_symbol = [0]
+existing_labels = set()
 
 
 def mksymbol():
@@ -285,8 +286,14 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
         return code.value
     # set a symbol as a location.
     elif code.value == 'label':
+        label_name = str(code.args[0])
+        print(label_name, existing_labels)
+        if label_name in existing_labels:
+            raise Exception('Label with name %s already exists!', label_name)
+        else:
+            existing_labels.add(label_name)
         return [
-            '_sym_' + str(code.args[0]),
+            '_sym_' + label_name,
             'JUMPDEST'
         ]
     # inject debug opcode.
