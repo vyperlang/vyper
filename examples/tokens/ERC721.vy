@@ -162,7 +162,7 @@ def safeTransferFrom(
         _from: address,
         _to: address,
         _tokenId: uint256,
-        _data: bytes[1024]=b""
+        _data: bytes[1024]=""
     ):
     self._validateTransferFrom(_from, _to, _tokenId, msg.sender)
     self._doTransfer(_from, _to, _tokenId)
