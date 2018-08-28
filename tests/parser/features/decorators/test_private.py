@@ -170,6 +170,7 @@ def hithere(name: bytes[20]) -> bytes[40]:
     """
 
     c = get_contract_with_gas_estimation(private_test_code)
+    assert c.greeting() == b"Hello "
     assert c.hithere(b"Bob") == b"Hello Bob"
     c.iprefer(b'Hi there, ', transact={})
     assert c.hithere(b"Alice") == b"Hi there, Alice"

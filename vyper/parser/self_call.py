@@ -43,8 +43,12 @@ def call_make_placeholder(stmt_expr, context, sig):
 
     output_placeholder = context.new_placeholder(typ=sig.output_type)
     out_size = get_size_of_type(sig.output_type) * 32
+    returner = output_placeholder
 
-    return output_placeholder, output_placeholder, out_size
+    if not sig.private and isinstance(sig.output_type, ByteArrayType):
+            returner = output_placeholder + 32
+
+    return output_placeholder, returner, out_size
 
 
 def call_self_private(stmt_expr, context, sig):
@@ -141,16 +145,6 @@ def call_self_private(stmt_expr, context, sig):
                         ['label', end_label]],
                     typ=None, annotation='dynamic unpacker'))
                 dyn_idx += 1
-
-            # pop_return_values.append(['debugger'])
-                # pop_return_values.append(['mstore'])
-
-                # pop_return_values.append(
-                #     ['mstore', ['add', output_placeholder, pos], ['add', dynamic_start_pos, ['mload', offset_placeholder]]]
-                # )
-            # pop_return_values = [
-            #     ['mstore', ['add', output_placeholder, pos], 'pass'] for pos in range(0, output_size, 32)
-            # ]
 
     o = LLLnode.from_list(
         ['seq_unchecked'] + pre_init +

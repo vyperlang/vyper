@@ -603,12 +603,14 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
 
     clampers = []
 
+    _post_callback_ptr = "{}_{}_post_callback_ptr".format(sig.name, sig.method_id)
     if sig.private:
-        _post_callback_ptr = "{}_{}_post_callback_ptr".format(sig.name, sig.method_id)
         context.callback_ptr = context.new_placeholder(typ=BaseType('uint256'))
         clampers.append(
             LLLnode.from_list(['mstore', context.callback_ptr, 'pass'], annotation='pop callback pointer')
         )
+        if total_default_args > 0:
+            clampers.append(['label', _post_callback_ptr])
 
     if not len(base_args):
         copier = 'pass'
@@ -716,7 +718,7 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
                     sig_chain,
                     ['if', 0,  # can only be jumped into
                         ['seq',
-                            ['label', _post_callback_ptr if sig.private else function_routine],
+                            ['label', function_routine] if not sig.private else ['pass'],
                             ['seq'] + clampers + [parse_body(c, context) for c in code.body] + ['stop']]]], typ=None, pos=getpos(code))
 
         else:
