@@ -9,7 +9,7 @@ contract NFTReceiver:
             _from: address,
             _tokenId: uint256,
             _data: bytes[1024]
-        ) -> bytes32: constant
+        ) -> bytes[4]: constant
 
 
 # @dev Emits when ownership of any NFT changes by any mechanism. This event emits when NFTs are
@@ -168,8 +168,8 @@ def safeTransferFrom(
     self._doTransfer(_from, _to, _tokenId)
     _operator: address = ZERO_ADDRESS
     if(_to.codesize > 0):
-        returnValue: bytes32 = NFTReceiver(_to).onERC721Received(_operator, _from, _tokenId, _data)
-        assert returnValue == 0xf0b9e5ba00000000000000000000000000000000000000000000000000000000
+        returnValue: bytes[4] = NFTReceiver(_to).onERC721Received(_operator, _from, _tokenId, _data)
+        assert returnValue == method_id("onERC721Received(address,address,uint256,bytes)", bytes[4])
   
 
 # @dev Set or reaffirm the approved address for an NFT.
