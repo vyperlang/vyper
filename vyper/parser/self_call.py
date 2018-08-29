@@ -122,9 +122,12 @@ def call_self_private(stmt_expr, context, sig):
                 pop_return_values = []
                 for out_type in sig.output_type.members:
                     if isinstance(out_type, ByteArrayType):
-                        dynamic_offsets.append((in_memory_offset, out_type))
-                    pop_return_values.append(['mstore', ['add', output_placeholder, in_memory_offset], 'pass'])
-                    in_memory_offset += 32 * get_size_of_type(out_type)
+                        dynamic_offsets.append((in_memory_offset + 32, out_type))
+                        pop_return_values.append(['mstore', ['add', output_placeholder, in_memory_offset], 'pass'])
+                        in_memory_offset += 32 * get_size_of_type(out_type) + 32
+                    else:
+                        pop_return_values.append(['mstore', ['add', output_placeholder, in_memory_offset], 'pass'])
+                        in_memory_offset += 32 * get_size_of_type(out_type)
 
             # append dynamic unpacker.
             dyn_idx = 0

@@ -559,7 +559,7 @@ def get_sig_statements(sig, pos):
     return sig_compare, private_label
 
 
-def get_arg_copier(sig, total_size, memory_dest, args, offset=4):
+def get_arg_copier(sig, total_size, memory_dest, offset=4):
     # Copy arguments.
     # For private function, MSTORE arguments and callback pointer from the stack.
     if sig.private:
@@ -619,7 +619,6 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
     else:
         copier = get_arg_copier(
             sig=sig,
-            args=base_args,
             total_size=base_copy_size,
             memory_dest=MemoryPositions.RESERVED_MEMORY
         )
