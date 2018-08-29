@@ -276,6 +276,33 @@ def test4() -> (bytes[100]):
     assert c.test4() == b"hello daar"
 
 
+def test_private_return_tuple_base_types(get_contract_with_gas_estimation):
+    code = """
+@private
+def _test(a: bytes32) -> (bytes32, uint256, int128):
+    b: uint256 = 1000
+    return a, b, -1200
+
+@public
+def test(a: bytes32) -> (bytes32, uint256, int128):
+    b: uint256 = 1
+    c: int128 = 1
+    d: int128 = 123
+    a, b, c = self._test(a)
+    assert d == 123
+    return a, b, c
+
+@public
+def test2(a: bytes32) -> (bytes32, uint256, int128):
+    return self._test(a)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.test(b"test") == [b"test" + 28 * b'\x00', 1000, -1200]
+    assert c.test2(b"test") == [b"test" + 28 * b'\x00', 1000, -1200]
+
+
 def test_private_return_tuple_bytes(get_contract_with_gas_estimation):
     code = """
 @private
@@ -297,5 +324,4 @@ def test(a: int128, b: bytes[50]) -> (int128, bytes[100], bytes[50]):
 
 # Return types to test:
 # 1.) ListType
-# 2.) BytesArray
 # 3.) Straight tuple return `return self.priv_call() -> (int128, bytes[10]`
