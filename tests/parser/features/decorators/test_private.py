@@ -72,6 +72,8 @@ def test_private_with_args(get_contract_with_gas_estimation):
     private_test_code = """
 @private
 def add_times2(a: uint256, b: uint256) -> uint256:
+    assert a == 100
+    assert b == 11
     return 2 * (a + b)
 
 @public
@@ -276,6 +278,30 @@ def test4() -> (bytes[100]):
     assert c.test4() == b"hello daar"
 
 
+def test_private_bytes_as_args(get_contract_with_gas_estimation):
+    code = """
+@private
+def _test(a: bytes[40]) -> (bytes[100]):
+    b: bytes[40] = "hello "
+    return concat(b, a)
+
+@public
+def test(a: bytes[10]) -> bytes[100]:
+    b: bytes[40] = concat(a, ", jack attack")
+    out: bytes[100] = self._test(b)
+    return out
+
+@public
+def test2() -> bytes[100]:
+    c: bytes[10] = "alice"
+    return self._test(c)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.test(b"bob") == b"hello bob, jack attack"
+    assert c.test2() == b"hello alice"
+
+
 def test_private_return_tuple_base_types(get_contract_with_gas_estimation):
     code = """
 @private
@@ -306,7 +332,6 @@ def test2(a: bytes32) -> (bytes32, uint256, int128):
 def test_private_return_tuple_bytes(get_contract_with_gas_estimation):
     code = """
 @private
-# @public
 def _test(a: int128, b: bytes[50]) -> (int128, bytes[100]):
     return a + 2, concat("badabing:", b)
 

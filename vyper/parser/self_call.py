@@ -85,12 +85,14 @@ def call_self_private(stmt_expr, context, sig):
         pop_local_vars = [
             ['mstore', pos, 'pass'] for pos in reversed(range(mem_from, mem_to, 32))
         ]
+
     # Push Arguments
     if expr_args:
         inargs, inargsize, arg_pos = pack_arguments(sig, expr_args, context, return_placeholder=False, pos=getpos(stmt_expr))
         push_args += [inargs]  # copy arguments first, to not mess up the push/pop sequencing.
+        # Variables are pushed on in reverse, so they are popped of in sequence.
         push_args += [
-            ['mload', pos] for pos in range(arg_pos, arg_pos + ceil32(inargsize - 4), 32)
+            ['mload', pos] for pos in reversed(range(arg_pos, arg_pos + ceil32(inargsize - 4), 32))
         ]
 
     # Jump to function label.

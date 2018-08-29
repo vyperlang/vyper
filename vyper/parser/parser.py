@@ -559,7 +559,7 @@ def get_sig_statements(sig, pos):
     return sig_compare, private_label
 
 
-def get_arg_copier(sig, total_size, memory_dest, offset=4):
+def get_arg_copier(sig, total_size, memory_dest, args, offset=4):
     # Copy arguments.
     # For private function, MSTORE arguments and callback pointer from the stack.
     if sig.private:
@@ -619,6 +619,7 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
     else:
         copier = get_arg_copier(
             sig=sig,
+            args=base_args,
             total_size=base_copy_size,
             memory_dest=MemoryPositions.RESERVED_MEMORY
         )
@@ -630,13 +631,36 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
 
     # Fill variable positions
     for i, arg in enumerate(sig.args):
-        if i < len(base_args):
+        if i < len(base_args) and not sig.private:
             clampers.append(make_clamper(arg.pos, context.next_mem, arg.typ, sig.name == '__init__'))
         if isinstance(arg.typ, ByteArrayType):
             context.vars[arg.name] = VariableRecord(arg.name, context.next_mem, arg.typ, False)
             context.next_mem += 32 * get_size_of_type(arg.typ)
         else:
             context.vars[arg.name] = VariableRecord(arg.name, MemoryPositions.RESERVED_MEMORY + arg.pos, arg.typ, False)
+
+    # Private function copiers. No clamping for private functions.
+    if sig.private:
+        dyn_variable_names = [a.name for a in base_args if isinstance(a.typ, ByteArrayType)]
+        for idx, var_name in enumerate(dyn_variable_names):
+            var = context.vars[var_name]
+            ident = "_load_args_%d_dynarg%d" % (sig.method_id, idx)
+            start_label = 'dyn_unpack_start_' + ident
+            end_label = 'dyn_unpack_end_' + ident
+            i_placeholder = context.new_placeholder(typ=BaseType('uint256'))
+            begin_pos = var.pos
+            o = LLLnode.from_list(
+                ['seq_unchecked',
+                        ['mstore', begin_pos, 'pass'],  # get len
+                        ['mstore', i_placeholder, 0],
+                        ['label', start_label],
+                        ['if', ['ge', ['mload', i_placeholder], ['ceil32', ['mload', begin_pos]]], ['goto', end_label]],  # break
+                        ['mstore', ['add', ['add', begin_pos, 32], ['mload', i_placeholder]], 'pass'],  # pop into correct memory slot.
+                        ['mstore', i_placeholder, ['add', 32, ['mload', i_placeholder]]],  # increment i
+                        ['goto', start_label],
+                        ['label', end_label]], typ=None, annotation='dynamic unpacker'
+            )
+            clampers.append(o)
 
     # Create "clampers" (input well-formedness checkers)
     # Return function body

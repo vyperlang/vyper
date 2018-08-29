@@ -466,11 +466,11 @@ class Stmt(object):
                 return LLLnode.from_list([
                     'seq_unchecked',
                     zero_pad(bytez_placeholder, sub.typ.maxlen),
-                    ['mstore', len_placeholder, 32],
                     make_byte_array_copier(
                         LLLnode(bytez_placeholder, location='memory', typ=sub.typ),
                         sub
                     ),
+                    ['mstore', len_placeholder, 32],
                     self.make_return_stmt(len_placeholder, ['ceil32', ['add', ['mload', bytez_placeholder], 64]], loop_memory_position=loop_memory_position)],
                     typ=None, pos=getpos(self.stmt)
                 )
