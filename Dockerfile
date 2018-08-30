@@ -20,7 +20,10 @@ RUN apt-get update && \
 ADD . /code
 
 WORKDIR /code
+
+# Pass `--addopts "--version"` because want to execute `python setup.py test` to include test dependencies in built docker-image, but avoid to execute the whole test suite here.
 RUN python setup.py install && \
+    python setup.py test --addopts "--version" && \
     apt-get purge -y --auto-remove apt-utils gcc libc6-dev libc-dev libssl-dev
 
 ENTRYPOINT ["/usr/local/bin/vyper"]
