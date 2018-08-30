@@ -166,7 +166,7 @@ A Dockerfile is provided in the master branch of the repository. In order to bui
 To ensure that everything works correctly after the installtion, please run the test commands
 and try compiling a contract:
 ::
-    make test
+    python setup.py test
     vyper examples/crowdfund.vy
 
 ****
