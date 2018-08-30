@@ -135,6 +135,19 @@ If any unexpected errors or exceptions are encountered, please feel free create 
 
     You can then run `make` and `make test` again.
 
+***
+PIP
+***
+
+Each tagged version of vyper is also uploaded to pypi, and can be installed using pip.
+::
+    pip install vyper
+
+To install a specific version use:
+::
+    pip install vyper==0.1.0b2
+
+
 ******
 Docker
 ******
