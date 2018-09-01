@@ -217,8 +217,8 @@ def parse_unit(item, custom_units):
 # Parses an expression representing a type. Annotation refers to whether
 # the type is to be located in memory or storage
 def parse_type(item, location, sigs=None, custom_units=None):
-    custom_units = [] if custom_units is None else custom_units
-    sigs = {} if sigs is None else sigs
+    custom_units = custom_units or []
+    sigs = sigs or {}
 
     # Base types, e.g. num
     if isinstance(item, ast.Name):
