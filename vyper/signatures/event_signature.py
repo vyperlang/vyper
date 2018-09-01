@@ -1,10 +1,23 @@
 import ast
 
-from vyper.types import get_size_of_type, canonicalize_type, parse_type, \
+from vyper.types import (
+    get_size_of_type,
+    canonicalize_type,
+    parse_type,
     ByteArrayType
-from vyper.utils import sha3, is_varname_valid, bytes_to_int, ceil32
+)
+from vyper.utils import (
+    sha3,
+    is_varname_valid,
+    bytes_to_int,
+    ceil32
+)
 from vyper.signatures.function_signature import VariableRecord
-from vyper.exceptions import InvalidTypeException, VariableDeclarationException, EventDeclarationException
+from vyper.exceptions import (
+    InvalidTypeException,
+    VariableDeclarationException,
+    EventDeclarationException
+)
 
 
 # Event signature object
