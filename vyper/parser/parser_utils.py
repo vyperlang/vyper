@@ -323,7 +323,7 @@ def pack_arguments(signature, args, context, pos, return_placeholder=True):
             target = LLLnode.from_list(['add', placeholder + 32, '_poz'], typ=typ, location='memory')
             setters.append(['with', '_s', arg, ['seq',
                                                     make_byte_array_copier(target, arg_copy, pos),
-                                                    ['set', '_poz', ['add', 32, ['add', '_poz', get_length(arg_copy)]]]]])
+                                                    ['set', '_poz', ['add', 32, ['ceil32', ['add', '_poz', get_length(arg_copy)]]]]]])
             needpos = True
         elif isinstance(typ, ListType):
             target = LLLnode.from_list([placeholder + 32 + staticarray_offset + i * 32], typ=typ, location='memory')
