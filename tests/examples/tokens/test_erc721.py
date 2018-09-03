@@ -123,7 +123,7 @@ def onERC721Received(
         _from: address,
         _tokenId: uint256,
         _data: bytes[1024]
-    ) -> bytes[4]:
-    return method_id("onERC721Received(address,address,uint256,bytes)", bytes[4])
+    ) -> bytes32:
+    return method_id("onERC721Received(address,address,uint256,bytes)", bytes32)
     """)
     c.safeTransferFrom(a0, receiver.address, IDS[0], transact={'from': a0})
