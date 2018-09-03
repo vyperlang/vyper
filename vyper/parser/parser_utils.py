@@ -455,10 +455,10 @@ def make_setter(left, right, location, pos):
                 if isinstance(right_arg, ByteArrayType):
                     offset = LLLnode.from_list(
                         ['add', '_R', ['mload', ['add', '_R', static_offset_counter]]],
-                        typ=ByteArrayType(right_arg.maxlen), location='memory')
+                        typ=ByteArrayType(right_arg.maxlen), location='memory', pos=pos)
                     static_offset_counter += 32
                 else:
-                    offset = LLLnode.from_list(['mload', ['add', '_R', static_offset_counter]], typ=right_arg.typ)
+                    offset = LLLnode.from_list(['mload', ['add', '_R', static_offset_counter]], typ=right_arg.typ, pos=pos)
                     static_offset_counter += get_size_of_type(right_arg) * 32
                 subs.append(
                     make_setter(

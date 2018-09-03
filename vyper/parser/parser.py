@@ -602,8 +602,6 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
     context.next_mem += max_copy_size
 
     clampers = []
-    # if sig.private:
-    #     clampers.append(['debugger'])
 
     _post_callback_ptr = "{}_{}_post_callback_ptr".format(sig.name, sig.method_id)
     if sig.private:
@@ -641,8 +639,8 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
             context.vars[arg.name] = VariableRecord(arg.name, MemoryPositions.RESERVED_MEMORY + arg.pos, arg.typ, False)
 
     # Private function copiers. No clamping for private functions.
-    if sig.private:
-        dyn_variable_names = [a.name for a in base_args if isinstance(a.typ, ByteArrayType)]
+    dyn_variable_names = [a.name for a in base_args if isinstance(a.typ, ByteArrayType)]
+    if sig.private and dyn_variable_names:
         i_placeholder = context.new_placeholder(typ=BaseType('uint256'))
         unpackers = []
         for idx, var_name in enumerate(dyn_variable_names):
@@ -662,8 +660,15 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
                     ['label', end_label]]
             unpackers.append(o)
 
-        if unpackers:
-            clampers.append(LLLnode.from_list(['seq_unchecked'] + unpackers, typ=None, annotation='dynamic unpacker', pos=getpos(code)))
+        if not unpackers:
+            unpackers = ['pass']
+
+        clampers.append(LLLnode.from_list(
+            ['seq_unchecked'] +
+            unpackers +
+            [0],  # [0] to complete full overarching 'seq' statement, see private_label.
+            typ=None, annotation='dynamic unpacker', pos=getpos(code))
+        )
 
     # Create "clampers" (input well-formedness checkers)
     # Return function body

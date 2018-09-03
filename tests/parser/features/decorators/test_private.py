@@ -336,9 +336,9 @@ def _test(a: int128, b: bytes[50]) -> (int128, bytes[100]):
     return a + 2, concat("badabing:", b)
 
 @private
-def _test_combined(a: bytes[50], x: int128, c:bytes[50]) -> (int128, bytes[100]):
+def _test_combined(a: bytes[50], x: int128, c:bytes[50]) -> (int128, bytes[100], bytes[100]):
     assert x == 8
-    return x + 2, a
+    return x + 2, a, concat(c, '_two')
 
 @public
 def test(a: int128, b: bytes[40]) -> (int128, bytes[100], bytes[50]):
@@ -356,17 +356,20 @@ def test2(b: bytes[40]) -> (int128, bytes[100]):
     return self._test(a, x)
 
 @public
-def test3(a: bytes[40]) -> (int128, bytes[100]):
+def test3(a: bytes[32]) -> (int128, bytes[100], bytes[100]):
+    q: bytes[100] = "random data1"
+    w: bytes[100] = "random data2"
     x: int128 = 8
-    b: bytes[50] = concat(a, "_one")
-    return self._test_combined('sss', x, 'test')
+    b: bytes[32] = a
+    x, q, w = self._test_combined(a, x, b)
+    return x, q, w
     """
 
     c = get_contract_with_gas_estimation(code)
 
     assert c.test(11, b"jill") == [14, b'badabing:jill_one', b'jill_one']
     assert c.test2(b"jack") == [6, b'badabing:jack_one']
-    # assert c.test3(b"hill") == [10, b'hillhill_one']
+    assert c.test3(b"hill") == [10, b'hill', b'hill_two']
 
 # Return types to test:
 # 1.) ListType

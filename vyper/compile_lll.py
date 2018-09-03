@@ -85,7 +85,7 @@ def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=No
         return compile_to_assembly(LLLnode.from_list(['seq', ['codecopy', MemoryPositions.FREE_VAR_SPACE, code.args[0], 32], ['mload', MemoryPositions.FREE_VAR_SPACE]]),
                                    withargs, break_dest, height)
     # If statements (2 arguments, ie. if x: y)
-    elif code.value == 'if' and len(code.args) == 2:
+    elif code.value in ('if', 'if_unchecked') and len(code.args) == 2:
         o = []
         o.extend(compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height))
         end_symbol = mksymbol()

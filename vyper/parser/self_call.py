@@ -90,9 +90,27 @@ def call_self_private(stmt_expr, context, sig):
     if expr_args:
         inargs, inargsize, arg_pos = pack_arguments(sig, expr_args, context, return_placeholder=False, pos=getpos(stmt_expr))
         push_args += [inargs]  # copy arguments first, to not mess up the push/pop sequencing.
-        # Variables are pushed on in reverse, so they are popped of in sequence.
+        static_arg_count = len(expr_args) * 32
+        static_pos = arg_pos + static_arg_count
+        total_arg_size = ceil32(inargsize - 4)
+        if len(expr_args) * 32 != inargsize:  # requires dynamic section.
+            ident = 'push_args_%d_%d_%d' % (sig.method_id, stmt_expr.lineno, stmt_expr.col_offset)
+            start_label = ident + '_start'
+            end_label = ident + '_end'
+            i_placeholder = context.new_placeholder(BaseType('uint256'))
+            push_args += [
+                ['mstore', i_placeholder, arg_pos + total_arg_size],
+                ['label', start_label],
+                ['if', ['lt', ['mload', i_placeholder], static_pos], ['goto', end_label]],
+                ['if_unchecked', ['ne', ['mload', ['mload', i_placeholder]], 0], ['mload', ['mload', i_placeholder]]],
+                ['mstore', i_placeholder, ['sub', ['mload', i_placeholder], 32]],  # decrease i
+                ['goto', start_label],
+                ['label', end_label]
+            ]
+
+        # push static section
         push_args += [
-            ['mload', pos] for pos in reversed(range(arg_pos, arg_pos + ceil32(inargsize - 4), 32))
+            ['mload', pos] for pos in reversed(range(arg_pos, static_pos, 32))
         ]
 
     # Jump to function label.
@@ -118,27 +136,27 @@ def call_self_private(stmt_expr, context, sig):
                     ['pop', 'pass'],
                 ]
             elif isinstance(sig.output_type, TupleType):
-                in_memory_offset = 0
+                static_offset = 0
                 pop_return_values = []
                 for out_type in sig.output_type.members:
                     if isinstance(out_type, ByteArrayType):
-                        dynamic_offsets.append((in_memory_offset + 32, out_type))
-                        pop_return_values.append(['mstore', ['add', output_placeholder, in_memory_offset], 'pass'])
-                        in_memory_offset += 32 * get_size_of_type(out_type) + 32
+                        pop_return_values.append(['mstore', ['add', output_placeholder, static_offset], 'pass'])
+                        dynamic_offsets.append((['mload', ['add', output_placeholder, static_offset]], out_type))
                     else:
-                        pop_return_values.append(['mstore', ['add', output_placeholder, in_memory_offset], 'pass'])
-                        in_memory_offset += 32 * get_size_of_type(out_type)
+                        pop_return_values.append(['mstore', ['add', output_placeholder, static_offset], 'pass'])
+                    static_offset += 32
 
             # append dynamic unpacker.
             dyn_idx = 0
             for in_memory_offset, out_type in dynamic_offsets:
                 ident = "%d_%d_arg_%d" % (stmt_expr.lineno, stmt_expr.col_offset, dyn_idx)
+                dyn_idx += 1
                 start_label = 'dyn_unpack_start_' + ident
                 end_label = 'dyn_unpack_end_' + ident
                 i_placeholder = context.new_placeholder(typ=BaseType('uint256'))
                 begin_pos = ['add', output_placeholder, in_memory_offset]
                 # loop until length.
-                pop_return_values.append(LLLnode.from_list(
+                o = LLLnode.from_list(
                     ['seq_unchecked',
                         ['mstore', begin_pos, 'pass'],  # get len
                         ['mstore', i_placeholder, 0],
@@ -148,8 +166,8 @@ def call_self_private(stmt_expr, context, sig):
                         ['mstore', i_placeholder, ['add', 32, ['mload', i_placeholder]]],  # increment i
                         ['goto', start_label],
                         ['label', end_label]],
-                    typ=None, annotation='dynamic unpacker'))
-                dyn_idx += 1
+                    typ=None, annotation='dynamic unpacker', pos=getpos(stmt_expr))
+                pop_return_values.append(o)
 
     o = LLLnode.from_list(
         ['seq_unchecked'] + pre_init +
