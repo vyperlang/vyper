@@ -363,6 +363,11 @@ def test3(a: bytes[32]) -> (int128, bytes[100], bytes[100]):
     b: bytes[32] = a
     x, q, w = self._test_combined(a, x, b)
     return x, q, w
+
+@public
+def test4(a: bytes[40]) -> (int128, bytes[100], bytes[100]):
+    b: bytes[50] = concat(a, "_one")
+    return self._test_combined(a, 8, b)
     """
 
     c = get_contract_with_gas_estimation(code)
@@ -370,6 +375,7 @@ def test3(a: bytes[32]) -> (int128, bytes[100], bytes[100]):
     assert c.test(11, b"jill") == [14, b'badabing:jill_one', b'jill_one']
     assert c.test2(b"jack") == [6, b'badabing:jack_one']
     assert c.test3(b"hill") == [10, b'hill', b'hill_two']
+    assert c.test4(b"bucket") ==  [10, b'bucket', b'bucket_one_two']
 
 # Return types to test:
 # 1.) ListType

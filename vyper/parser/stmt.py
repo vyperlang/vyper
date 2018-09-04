@@ -416,6 +416,19 @@ class Stmt(object):
         if not self.stmt.value:
             raise TypeMismatchException("Expecting to return a value", self.stmt)
 
+        def zero_pad(bytez_placeholder, maxlen):
+            zero_padder = LLLnode.from_list(['pass'])
+            if maxlen > 0:
+                zero_pad_i = self.context.new_placeholder(BaseType('uint256'))  # Iterator used to zero pad memory.
+                zero_padder = LLLnode.from_list(
+                    ['repeat', zero_pad_i, ['mload', bytez_placeholder], maxlen,
+                        ['seq',
+                            ['if', ['gt', ['mload', zero_pad_i], maxlen], 'break'],  # stay within allocated bounds
+                            ['mstore8', ['add', ['add', 32, bytez_placeholder], ['mload', zero_pad_i]], 0]]],
+                    annotation="Zero pad"
+                )
+            return zero_padder
+
         sub = Expr(self.stmt.value, self.context).lll_node
         self.context.increment_return_counter()
         # Returning a value (most common case)
@@ -444,19 +457,6 @@ class Stmt(object):
             if sub.typ.maxlen > self.context.return_type.maxlen:
                 raise TypeMismatchException("Cannot cast from greater max-length %d to shorter max-length %d" %
                                             (sub.typ.maxlen, self.context.return_type.maxlen), self.stmt.value)
-
-            def zero_pad(bytez_placeholder, maxlen):
-                zero_padder = LLLnode.from_list(['pass'])
-                if maxlen > 0:
-                    zero_pad_i = self.context.new_placeholder(BaseType('uint256'))  # Iterator used to zero pad memory.
-                    zero_padder = LLLnode.from_list(
-                        ['repeat', zero_pad_i, ['mload', bytez_placeholder], maxlen,
-                            ['seq',
-                                ['if', ['gt', ['mload', zero_pad_i], maxlen], 'break'],  # stay within allocated bounds
-                                ['mstore8', ['add', ['add', 32, bytez_placeholder], ['mload', zero_pad_i]], 0]]],
-                        annotation="Zero pad"
-                    )
-                return zero_padder
 
             loop_memory_position = self.context.new_placeholder(typ=BaseType('uint256'))  # loop memory has to be allocated first.
             len_placeholder = self.context.new_placeholder(typ=BaseType('uint256'))  # len & bytez placeholder have to be declared after each other at all times.
@@ -515,9 +515,22 @@ class Stmt(object):
             # Is from a call expression.
             if (len(sub.args[0].args) > 0 and sub.args[0].args[0].value == 'call') or \
                (sub.annotation and 'Internal Call' in sub.annotation):
+
                 mem_pos = sub.args[-1].value if sub.value == 'seq_unchecked' else sub.args[0].args[-1]
                 mem_size = get_size_of_type(sub.typ) * 32
-                return LLLnode.from_list(['seq'] + [sub] + [self.make_return_stmt(mem_pos, mem_size)], typ=sub.typ)
+                # Add zero padder if bytes are present in output.
+                zero_padder = ['pass']
+                byte_arrays = [(i, x) for i, x in enumerate(sub.typ.members) if isinstance(x, ByteArrayType)]
+                if byte_arrays:
+                    i, x = byte_arrays[-1]
+                    zero_padder = zero_pad(bytez_placeholder=['add', mem_pos, ['mload', mem_pos + i*32]], maxlen=x.maxlen)
+
+                return LLLnode.from_list(
+                    ['seq'] +
+                    [sub] +
+                    [zero_padder] +
+                    [self.make_return_stmt(mem_pos, mem_size)
+                ], typ=sub.typ, pos=getpos(self.stmt))
 
             subs = []
             # Pre-allocate loop_memory_position if required for private function returning.
