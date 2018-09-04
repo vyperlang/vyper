@@ -377,7 +377,24 @@ def test4(a: bytes[40]) -> (int128, bytes[100], bytes[100]):
     assert c.test3(b"hill") == [10, b'hill', b'hill_two']
     assert c.test4(b"bucket") ==  [10, b'bucket', b'bucket_one_two']
 
+def test_private_return_list_types(get_contract_with_gas_estimation):
+    code = """
+@private
+def _test(b: int128[4]) -> int128[4]:
+    assert b[1] == 2
+    assert b[2] == 3
+    assert b[3] == 4
+    return [0, 1, 0, 1]
+
+@public
+def test() -> int128[4]:
+    b: int128[4] = [1, 2, 3, 4]
+    c: int128[2] = [11, 22]
+    return self._test(b)
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.test() == [0, 1, 0, 1]
+
 # Return types to test:
-# 1.) ListType
 # 2.) Default parameters with bytes
-# 3.) Straight tuple return `return self.priv_call() -> (int128, bytes[10]`

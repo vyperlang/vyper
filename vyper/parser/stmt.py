@@ -480,6 +480,7 @@ class Stmt(object):
         elif isinstance(sub.typ, ListType):
             sub_base_type = re.split(r'\(|\[', str(sub.typ.subtype))[0]
             ret_base_type = re.split(r'\(|\[', str(self.context.return_type.subtype))[0]
+            loop_memory_position = self.context.new_placeholder(typ=BaseType('uint256'))
             if sub_base_type != ret_base_type:
                 raise TypeMismatchException(
                     "List return type %r does not match specified return type, expecting %r" % (
@@ -488,12 +489,12 @@ class Stmt(object):
                     self.stmt
                 )
             elif sub.location == "memory" and sub.value != "multi":
-                return LLLnode.from_list(['return', sub, get_size_of_type(self.context.return_type) * 32],
+                return LLLnode.from_list(self.make_return_stmt(sub, get_size_of_type(self.context.return_type) * 32, loop_memory_position=loop_memory_position),
                                             typ=None, pos=getpos(self.stmt))
             else:
                 new_sub = LLLnode.from_list(self.context.new_placeholder(self.context.return_type), typ=self.context.return_type, location='memory')
                 setter = make_setter(new_sub, sub, 'memory', pos=getpos(self.stmt))
-                return LLLnode.from_list(['seq', setter, ['return', new_sub, get_size_of_type(self.context.return_type) * 32]],
+                return LLLnode.from_list(['seq', setter, self.make_return_stmt(new_sub, get_size_of_type(self.context.return_type) * 32, loop_memory_position=loop_memory_position)],
                                             typ=None, pos=getpos(self.stmt))
 
         # Returning a tuple.
