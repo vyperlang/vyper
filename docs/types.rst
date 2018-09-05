@@ -455,8 +455,6 @@ Here you can find a list of all types and default values:
      - ``False``
    * - ``int128``
      - ``0``
-   * - ``int256``
-     - ``0``
    * - ``uint256``
      - ``0``
    * - ``decimal``
