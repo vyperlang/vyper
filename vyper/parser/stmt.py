@@ -248,7 +248,7 @@ class Stmt(object):
     def parse_assert(self):
         if self.stmt.msg:
             if len(self.stmt.msg.s.strip()) == 0:
-                raise StructureException('Invalid reason string not allow', self.stmt)
+                raise StructureException('Empty reason string not allowed.', self.stmt)
             reason_str = self.stmt.msg.s.strip()
             sig_placeholder = self.context.new_placeholder(BaseType(32))
             arg_placeholder = self.context.new_placeholder(BaseType(32))

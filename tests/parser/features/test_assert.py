@@ -1,5 +1,8 @@
 import pytest
 
+from vyper.exceptions import (
+    StructureException
+)
 from eth_tester.exceptions import (
     TransactionFailed
 )
@@ -53,3 +56,13 @@ def test2(a: int128, b: int128) -> int128:
     assert e_info.value.args[0] == b'b may only be 1'
     # return correct value
     assert c.test2(5, 1) == 17
+
+
+def test_assert_reason_empty(get_contract, assert_compile_failed):
+    code = """
+@public
+def test(a: int128) -> int128:
+    assert a > 1, ""
+    return 1 + a
+    """
+    assert_compile_failed(lambda: get_contract(code), StructureException)
