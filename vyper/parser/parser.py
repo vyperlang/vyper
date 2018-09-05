@@ -1,4 +1,5 @@
 import ast
+import copy
 import tokenize
 import io
 import re
@@ -15,8 +16,10 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
+    FunctionDeclarationException,
+    EventDeclarationException
 )
-from vyper.function_signature import (
+from vyper.signatures.function_signature import (
     FunctionSignature,
     VariableRecord,
     ContractRecord,
@@ -27,11 +30,11 @@ from vyper.signatures.event_signature import (
 from vyper.premade_contracts import (
     premade_contracts,
 )
-from .stmt import Stmt
-from .expr import Expr
-from .context import Context
-from .parser_utils import LLLnode
-from .parser_utils import (
+from vyper.parser.stmt import Stmt
+from vyper.parser.expr import Expr
+from vyper.parser.context import Context
+from vyper.parser.lll_node import LLLnode
+from vyper.parser.parser_utils import (
     get_length,
     getpos,
     make_byte_array_copier,
@@ -257,7 +260,7 @@ def add_globals_and_events(_custom_units, _contracts, _defs, _events, _getters, 
         raise StructureException('May not assign value whilst defining type', item)
     elif isinstance(item.annotation, ast.Call) and item.annotation.func.id == "event":
         if _globals or len(_defs):
-            raise StructureException("Events must all come before global declarations and function definitions", item)
+            raise EventDeclarationException("Events must all come before global declarations and function definitions", item)
         _events.append(item)
     elif not isinstance(item.target, ast.Name):
         raise StructureException("Can only assign type to variable in top-level statement", item)
@@ -342,7 +345,7 @@ def get_contracts_and_defs_and_globals(code):
         # Function definitions
         elif isinstance(item, ast.FunctionDef):
             if item.name in _globals:
-                raise VariableDeclarationException("Function name shadowing a variable name: %s" % item.name)
+                raise FunctionDeclarationException("Function name shadowing a variable name: %s" % item.name)
             _defs.append(item)
         else:
             raise StructureException("Invalid top-level statement", item)
@@ -366,6 +369,39 @@ def is_default_func(code):
     return code.name == '__default__'
 
 
+# Generate default argument function signatures.
+def generate_default_arg_sigs(code, _contracts, _custom_units):
+    # generate all sigs, and attach.
+    total_default_args = len(code.args.defaults)
+    if total_default_args == 0:
+        return [FunctionSignature.from_definition(code, sigs=_contracts, custom_units=_custom_units)]
+    base_args = code.args.args[:-total_default_args]
+    default_args = code.args.args[-total_default_args:]
+
+    # Generate a list of default function combinations.
+    row = [False] * (total_default_args)
+    table = [row.copy()]
+    for i in range(total_default_args):
+        row[i] = True
+        table.append(row.copy())
+
+    default_sig_strs = []
+    sig_fun_defs = []
+    for truth_row in table:
+        new_code = copy.deepcopy(code)
+        new_code.args.args = copy.deepcopy(base_args)
+        new_code.args.default = []
+        # Add necessary default args.
+        for idx, val in enumerate(truth_row):
+            if val is True:
+                new_code.args.args.append(default_args[idx])
+        sig = FunctionSignature.from_definition(new_code, sigs=_contracts, custom_units=_custom_units)
+        default_sig_strs.append(sig.sig)
+        sig_fun_defs.append(sig)
+
+    return sig_fun_defs
+
+
 # Get ABI signature
 def mk_full_signature(code):
     o = []
@@ -376,7 +412,9 @@ def mk_full_signature(code):
     for code in _defs:
         sig = FunctionSignature.from_definition(code, sigs=_contracts, custom_units=_custom_units)
         if not sig.private:
-            o.append(sig.to_abi_dict())
+            default_sigs = generate_default_arg_sigs(code, _contracts, _custom_units)
+            for s in default_sigs:
+                o.append(s.to_abi_dict())
     return o
 
 
@@ -392,7 +430,7 @@ def parse_external_contracts(external_contracts, _contracts):
         _defnames = [_def.name for _def in _contract_defs]
         contract = {}
         if len(set(_defnames)) < len(_contract_defs):
-            raise VariableDeclarationException("Duplicate function name: %s" % [name for name in _defnames if _defnames.count(name) > 1][0])
+            raise FunctionDeclarationException("Duplicate function name: %s" % [name for name in _defnames if _defnames.count(name) > 1][0])
 
         for _def in _contract_defs:
             constant = False
@@ -417,9 +455,10 @@ def parse_other_functions(o, otherfuncs, _globals, sigs, external_contracts, ori
         sub.append(parse_func(_def, _globals, {**{'self': sigs}, **external_contracts}, origcode, _custom_units))  # noqa E999
         sub[-1].total_gas += add_gas
         add_gas += 30
-        sig = FunctionSignature.from_definition(_def, external_contracts, custom_units=_custom_units)
-        sig.gas = sub[-1].total_gas
-        sigs[sig.name] = sig
+        for sig in generate_default_arg_sigs(_def, external_contracts, _custom_units):
+            sig.gas = sub[-1].total_gas
+            sigs[sig.sig] = sig
+
     # Add fallback function
     if fallback_function:
         fallback_func = parse_func(fallback_function[0], _globals, {**{'self': sigs}, **external_contracts}, origcode, _custom_units)
@@ -436,10 +475,14 @@ def parse_other_functions(o, otherfuncs, _globals, sigs, external_contracts, ori
 # Main python parse tree => LLL method
 def parse_tree_to_lll(code, origcode, runtime_only=False):
     _contracts, _events, _defs, _globals, _custom_units = get_contracts_and_defs_and_globals(code)
-    _names = [_def.name for _def in _defs] + [_event.target.id for _event in _events]
-    # Checks for duplicate function / event names
-    if len(set(_names)) < len(_names):
-        raise VariableDeclarationException("Duplicate function or event name: %s" % [name for name in _names if _names.count(name) > 1][0])
+    _names_def = [_def.name for _def in _defs]
+    # Checks for duplicate function names
+    if len(set(_names_def)) < len(_names_def):
+        raise FunctionDeclarationException("Duplicate function name: %s" % [name for name in _names_def if _names_def.count(name) > 1][0])
+    _names_events = [_event.target.id for _event in _events]
+    # Checks for duplicate event names
+    if len(set(_names_events)) < len(_names_events):
+        raise EventDeclarationException("Duplicate event name: %s" % [name for name in _names_events if _names_events.count(name) > 1][0])
     # Initialization function
     initfunc = [_def for _def in _defs if is_initializer(_def)]
     # Default function
@@ -507,56 +550,135 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
     if _vars is None:
         _vars = {}
     sig = FunctionSignature.from_definition(code, sigs=sigs, custom_units=_custom_units)
+    # Get base args for function.
+    total_default_args = len(code.args.defaults)
+    base_args = sig.args[:-total_default_args] if total_default_args > 0 else sig.args
+    default_args = code.args.args[-total_default_args:]
+    default_values = dict(zip([arg.arg for arg in default_args], code.args.defaults))
+    # __init__ function may not have defaults.
+    if sig.name == '__init__' and total_default_args > 0:
+        raise FunctionDeclarationException("__init__ function may not have default parameters.")
     # Check for duplicate variables with globals
     for arg in sig.args:
         if arg.name in _globals:
-            raise VariableDeclarationException("Variable name duplicated between function arguments and globals: " + arg.name)
+            raise FunctionDeclarationException("Variable name duplicated between function arguments and globals: " + arg.name)
+
     # Create a context
     context = Context(vars=_vars, globals=_globals, sigs=sigs,
                       return_type=sig.output_type, is_constant=sig.const, is_payable=sig.payable, origcode=origcode, custom_units=_custom_units)
     # Copy calldata to memory for fixed-size arguments
-    copy_size = sum([32 if isinstance(arg.typ, ByteArrayType) else get_size_of_type(arg.typ) * 32 for arg in sig.args])
-    context.next_mem += copy_size
-    if not len(sig.args):
+    max_copy_size = sum([32 if isinstance(arg.typ, ByteArrayType) else get_size_of_type(arg.typ) * 32 for arg in sig.args])
+    base_copy_size = sum([32 if isinstance(arg.typ, ByteArrayType) else get_size_of_type(arg.typ) * 32 for arg in base_args])
+    context.next_mem += max_copy_size
+
+    if not len(base_args):
         copier = 'pass'
     elif sig.name == '__init__':
-        copier = ['codecopy', MemoryPositions.RESERVED_MEMORY, '~codelen', copy_size]
+        copier = ['codecopy', MemoryPositions.RESERVED_MEMORY, '~codelen', base_copy_size]
     else:
-        copier = ['calldatacopy', MemoryPositions.RESERVED_MEMORY, 4, copy_size]
+        copier = ['calldatacopy', MemoryPositions.RESERVED_MEMORY, 4, base_copy_size]
     clampers = [copier]
     # Add asserts for payable and internal
     if not sig.payable:
         clampers.append(['assert', ['iszero', 'callvalue']])
     if sig.private:
         clampers.append(['assert', ['eq', 'caller', 'address']])
-    # Fill in variable positions
-    for arg in sig.args:
-        clampers.append(make_clamper(arg.pos, context.next_mem, arg.typ, sig.name == '__init__'))
+
+    # Fill variable positions
+    for i, arg in enumerate(sig.args):
+        if i < len(base_args):
+            clampers.append(make_clamper(arg.pos, context.next_mem, arg.typ, sig.name == '__init__'))
         if isinstance(arg.typ, ByteArrayType):
             context.vars[arg.name] = VariableRecord(arg.name, context.next_mem, arg.typ, False)
             context.next_mem += 32 * get_size_of_type(arg.typ)
         else:
             context.vars[arg.name] = VariableRecord(arg.name, MemoryPositions.RESERVED_MEMORY + arg.pos, arg.typ, False)
+
     # Create "clampers" (input well-formedness checkers)
     # Return function body
     if sig.name == '__init__':
         o = LLLnode.from_list(['seq'] + clampers + [parse_body(code.body, context)], pos=getpos(code))
     elif is_default_func(sig):
         if len(sig.args) > 0:
-            raise StructureException('Default function may not receive any arguments.', code)
+            raise FunctionDeclarationException('Default function may not receive any arguments.', code)
         if sig.private:
-            raise StructureException('Default function may only be public.', code)
+            raise FunctionDeclarationException('Default function may only be public.', code)
         o = LLLnode.from_list(['seq'] + clampers + [parse_body(code.body, context)], pos=getpos(code))
     else:
-        method_id_node = LLLnode.from_list(sig.method_id, pos=getpos(code), annotation='%s' % sig.name)
-        o = LLLnode.from_list(['if',
-                                  ['eq', ['mload', 0], method_id_node],
-                                  ['seq'] + clampers + [parse_body(c, context) for c in code.body] + ['stop']
-                               ], typ=None, pos=getpos(code))
+        # Handle default args if present.
+        function_routine = "{}_{}".format(sig.name, sig.method_id)
+        if total_default_args > 0:
+            default_sigs = generate_default_arg_sigs(code, sigs, _custom_units)
+            sig_chain = ['seq']
+
+            for default_sig_idx, default_sig in enumerate(default_sigs):
+                method_id_node = LLLnode.from_list(default_sig.method_id, pos=getpos(code), annotation='%s' % default_sig.sig)
+
+                # Populate unset default variables
+                populate_arg_count = len(sig.args) - len(default_sig.args)
+                set_defaults = []
+                if populate_arg_count > 0:
+                    current_sig_arg_names = {x.name for x in default_sig.args}
+                    missing_arg_names = [arg.arg for arg in default_args if arg.arg not in current_sig_arg_names]
+                    for arg_name in missing_arg_names:
+                        value = Expr(default_values[arg_name], context).lll_node
+                        var = context.vars[arg_name]
+                        left = LLLnode.from_list(var.pos, typ=var.typ, location='memory',
+                                                 pos=getpos(code), mutable=var.mutable)
+                        set_defaults.append(make_setter(left, value, 'memory', pos=getpos(code)))
+                # Variables to be populated from calldata
+                copier_arg_count = len(default_sig.args) - len(base_args)
+                default_copiers = []
+                if copier_arg_count > 0:
+                    current_sig_arg_names = {x.name for x in default_sig.args}
+                    base_arg_names = {arg.name for arg in base_args}
+                    copier_arg_names = current_sig_arg_names - base_arg_names
+
+                    # Get map of variables in calldata, with thier offsets
+                    offset = 4
+                    calldata_offset_map = {}
+                    for arg in default_sig.args:
+                        calldata_offset_map[arg.name] = offset
+                        offset += 32 if isinstance(arg.typ, ByteArrayType) else get_size_of_type(arg.typ) * 32
+                    # Copy set default parameters from calldata
+                    for arg_name in copier_arg_names:
+                        var = context.vars[arg_name]
+                        calldata_offset = calldata_offset_map[arg_name]
+                        # Add clampers.
+                        default_copiers.append(make_clamper(calldata_offset - 4, var.pos, var.typ))
+                        # Add copying code.
+                        if isinstance(var.typ, ByteArrayType):
+                            default_copiers.append(['calldatacopy', var.pos, ['add', 4, ['calldataload', calldata_offset]], var.size * 32])
+                        else:
+                            default_copiers.append(['calldatacopy', var.pos, calldata_offset, var.size * 32])
+
+                sig_chain.append([
+                    'if', ['eq', ['mload', 0], method_id_node],
+                    ['seq',
+                        ['seq'] + set_defaults if set_defaults else ['pass'],
+                        ['seq'] + default_copiers if default_copiers else ['pass'],
+                        ['goto', function_routine]]
+                ])
+
+            o = LLLnode.from_list(
+                ['seq',
+                    sig_chain,
+                    ['if', 0,  # can only be jumped into
+                        ['seq',
+                            ['label', function_routine],
+                            ['seq'] + clampers + [parse_body(c, context) for c in code.body] + ['stop']]]], typ=None, pos=getpos(code))
+
+        else:
+            # Function without default parameters.
+            method_id_node = LLLnode.from_list(sig.method_id, pos=getpos(code), annotation='%s' % sig.sig)
+            o = LLLnode.from_list(
+                ['if',
+                    ['eq', ['mload', 0], method_id_node],
+                    ['seq'] + clampers + [parse_body(c, context) for c in code.body] + ['stop']], typ=None, pos=getpos(code))
 
     # Check for at leasts one return statement if necessary.
     if context.return_type and context.function_return_count == 0:
-        raise StructureException(
+        raise FunctionDeclarationException(
             "Missing return statement in function '%s' " % sig.name, code
         )
 
@@ -572,7 +694,8 @@ def parse_body(code, context):
         return parse_stmt(code, context)
     o = []
     for stmt in code:
-        o.append(parse_stmt(stmt, context))
+        lll = parse_stmt(stmt, context)
+        o.append(lll)
     return LLLnode.from_list(['seq'] + o, pos=getpos(code[0]) if code else None)
 
 
@@ -585,7 +708,7 @@ def external_contract_call(node, context, contract_name, contract_address, pos, 
         raise VariableDeclarationException("Contract not declared yet: %s" % contract_name)
     method_name = node.func.attr
     if method_name not in context.sigs[contract_name]:
-        raise VariableDeclarationException("Function not declared yet: %s (reminder: "
+        raise FunctionDeclarationException("Function not declared yet: %s (reminder: "
                                                     "function must be declared in the correct contract)" % method_name, pos)
     sig = context.sigs[contract_name][method_name]
     inargs, inargsize = pack_arguments(sig, [parse_expr(arg, context) for arg in node.args], context, pos=pos)

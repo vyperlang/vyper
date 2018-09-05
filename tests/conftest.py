@@ -20,6 +20,7 @@ from web3 import (
 )
 from web3.contract import (
     ConciseContract,
+    ConciseMethod
 )
 from vyper.parser.parser_utils import (
     LLLnode
@@ -29,6 +30,35 @@ from vyper import (
     compiler,
     optimizer,
 )
+
+
+class VyperMethod(ConciseMethod):
+    ALLOWED_MODIFIERS = {'call', 'estimateGas', 'transact', 'buildTransaction'}
+
+    def __call__(self, *args, **kwargs):
+        return self.__prepared_function(*args, **kwargs)
+
+    def __prepared_function(self, *args, **kwargs):
+        if not kwargs:
+            modifier, modifier_dict = 'call', {}
+            fn_abi = [x for x in self._function.contract_abi if x['name'] == self._function.function_identifier].pop()
+            modifier_dict.update({'gas': fn_abi.get('gas', 0) + 50000})  # To make tests faster just supply some high gas value.
+        elif len(kwargs) == 1:
+            modifier, modifier_dict = kwargs.popitem()
+            if modifier not in self.ALLOWED_MODIFIERS:
+                raise TypeError(
+                    "The only allowed keyword arguments are: %s" % self.ALLOWED_MODIFIERS)
+        else:
+            raise TypeError("Use up to one keyword argument, one of: %s" % self.ALLOWED_MODIFIERS)
+
+        return getattr(self._function(*args), modifier)(modifier_dict)
+
+
+class VyperContract(ConciseContract):
+
+    def __init__(self, classic_contract, method_class=VyperMethod):
+        super().__init__(classic_contract, method_class)
+
 
 ############
 # PATCHING #
@@ -43,27 +73,9 @@ def set_evm_verbose_logging():
     logger.setLevel('TRACE')
 
 
-def set_evm_opcode_debugger():
-    import evm
-    from evm.vm.opcode import as_opcode
-    from vyper.opcodes import opcodes as vyper_opcodes
-    from evm.vm.forks.byzantium.computation import ByzantiumComputation
-
-    def debug_opcode(computation):
-        from eth_utils import to_hex  # noqa
-        import ipdb; ipdb.set_trace()  # noqa
-
-    opcodes = ByzantiumComputation.opcodes.copy()
-    opcodes[vyper_opcodes['DEBUG'][0]] = as_opcode(
-        logic_fn=debug_opcode,
-        mnemonic="DEBUG",
-        gas_cost=0
-    )
-    setattr(evm.vm.forks.byzantium.computation.ByzantiumComputation, 'opcodes', opcodes)
-
 # Useful options to comment out whilst working:
 # set_evm_verbose_logging()
-# set_evm_opcode_debugger()
+# vdb.set_evm_opcode_debugger()
 
 
 @pytest.fixture(autouse=True)
@@ -157,14 +169,14 @@ def get_contract_from_lll(w3):
     def lll_compiler(lll, *args, **kwargs):
         lll = optimizer.optimize(LLLnode.from_list(lll))
         bytecode = compile_lll.assembly_to_evm(compile_lll.compile_to_assembly(lll))
-        abi = []
+        abi = kwargs.get('abi') or []
         contract = w3.eth.contract(bytecode=bytecode, abi=abi)
         deploy_transaction = {
             'data': contract._encode_constructor_data(args, kwargs)
         }
         tx = w3.eth.sendTransaction(deploy_transaction)
         address = w3.eth.getTransactionReceipt(tx)['contractAddress']
-        contract = w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=ConciseContract)
+        contract = w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract)
         return contract
     return lll_compiler
 
@@ -182,11 +194,11 @@ def _get_contract(w3, source_code, *args, **kwargs):
         'from': w3.eth.accounts[0],
         'data': contract._encode_constructor_data(args, kwargs),
         'value': value,
-        'gasPrice': gasPrice
+        'gasPrice': gasPrice,
     }
     tx = w3.eth.sendTransaction(deploy_transaction)
     address = w3.eth.getTransactionReceipt(tx)['contractAddress']
-    contract = w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=ConciseContract)
+    contract = w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract)
     # Filter logs.
     contract._logfilter = w3.eth.filter({
         'fromBlock': w3.eth.blockNumber - 1,

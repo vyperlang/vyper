@@ -81,26 +81,11 @@ The value of the input number as ``wei``, converted based on the specified unit.
     """
 Turns a ``int128``, ``uint256``, ``decimal`` with units into one without units (used for assignment and math).
 
-**convert**
------------
-::
-
-  def convert(inp, out) -> b:
-    """
-    :param inp: variable to be converted
-    :type inp: type of the variable
-    :param out: type to convert(e.g. 'int128', 'uint256', 'decimal', 'bytes32')
-    :type out: String
-
-    :output b: converted variable
-    """
-Converts a variable's type.
-
 **slice**
 ---------
 ::
 
-  def slice(a, start=b, length=c) -> d:
+  def slice(a, start=b, len=c) -> d:
     """
     :param a: bytes to be sliced
     :type a: either bytes or bytes32
@@ -232,9 +217,9 @@ Takes two elliptical curves and multiplies them together.
     :param b: start point of bytes to be extracted
     :type b: int128
     :param c: type of output
-    :type c: either bytes32, num128, or address
+    :type c: either bytes32, int128, or address
 
-    :output d: either bytes32, num128, or address
+    :output d: either bytes32, int128, or address
     """
 
 **RLPList**
@@ -380,3 +365,20 @@ Emits a log without specifying the abi type, with the arguments entered as the f
 
 Duplicates a contract's code and deploys it as a new instance.
 You can also specify wei value to send to the new contract as ``value=the_value``.
+
+
+**blockhash**
+---------------
+::
+
+  def blockhash(a) -> hash:
+    """
+    :param a: the number of the block to get
+    :type a: uint256
+    
+    :output hash: bytes32
+    """
+
+Returns the hash of the block at the specified height. 
+
+**Note: The EVM only provides access to the most 256 blocks. This function will return 0 if the block number is greater than or equal to the current block number or more than 256 blocks behind the current block.**

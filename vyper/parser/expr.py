@@ -9,8 +9,8 @@ from vyper.exceptions import (
     VariableDeclarationException,
     ParserException
 )
-from .parser_utils import LLLnode
-from .parser_utils import (
+from vyper.parser.lll_node import LLLnode
+from vyper.parser.parser_utils import (
     getpos,
     unwrap_location,
     get_original_if_0_prefixed,
@@ -45,6 +45,7 @@ from vyper.types import (
     is_numeric_type,
     combine_units
 )
+from vyper.signatures.function_signature import FunctionSignature
 
 
 class Expr(object):
@@ -82,31 +83,29 @@ class Expr(object):
         orignum = get_original_if_0_prefixed(self.expr, self.context)
 
         if orignum is None and isinstance(self.expr.n, int):
-
-            # Literal becomes int128
-            if SizeLimits.in_bounds('int128', self.expr.n):
-                return LLLnode.from_list(self.expr.n, typ=BaseType('int128', None, is_literal=True), pos=getpos(self.expr))
-            # Literal is large enough, becomes uint256.
-            elif SizeLimits.in_bounds('uint256', self.expr.n):
-                return LLLnode.from_list(self.expr.n, typ=BaseType('uint256', None, is_literal=True), pos=getpos(self.expr))
+            # Literal (mostly likely) becomes int128
+            if SizeLimits.in_bounds('int128', self.expr.n) or self.expr.n < 0:
+                return LLLnode.from_list(self.expr.n, typ=BaseType('int128', unit=None, is_literal=True), pos=getpos(self.expr))
+            # Literal is large enough (mostly likely) becomes uint256.
             else:
-                raise InvalidLiteralException("Number out of range: " + str(self.expr.n), self.expr)
+                return LLLnode.from_list(self.expr.n, typ=BaseType('uint256', unit=None, is_literal=True), pos=getpos(self.expr))
 
         elif isinstance(self.expr.n, float):
             numstring, num, den = get_number_as_fraction(self.expr, self.context)
+            # if not SizeLimits.in_bounds('decimal', num // den):
+            # if not SizeLimits.MINDECIMAL * den <= num <= SizeLimits.MAXDECIMAL * den:
             if not (SizeLimits.MINNUM * den < num < SizeLimits.MAXNUM * den):
                 raise InvalidLiteralException("Number out of range: " + numstring, self.expr)
             if DECIMAL_DIVISOR % den:
                 raise InvalidLiteralException("Too many decimal places: " + numstring, self.expr)
-            return LLLnode.from_list(num * DECIMAL_DIVISOR // den, typ=BaseType('decimal', None), pos=getpos(self.expr))
+            return LLLnode.from_list(num * DECIMAL_DIVISOR // den, typ=BaseType('decimal', unit=None), pos=getpos(self.expr))
         # Binary literal.
         elif orignum[:2] == '0b':
             str_val = orignum[2:]
             total_bits = len(orignum[2:])
             total_bits = total_bits if total_bits % 8 == 0 else total_bits + 8 - (total_bits % 8)  # ceil8 to get byte length.
-            if total_bits != len(orignum[2:]):  # add necessary zero padding.
-                pad_len = total_bits - len(orignum[2:])
-                str_val = pad_len * '0' + str_val
+            if len(orignum[2:]) != total_bits:  # Support only full formed bit definitions.
+                raise InvalidLiteralException("Bit notation requires a multiple of 8 bits / 1 byte. {} bit(s) are missing.".format(total_bits - len(orignum[2:])), self.expr)
             byte_len = int(total_bits / 8)
             placeholder = self.context.new_placeholder(ByteArrayType(byte_len))
             seq = []
@@ -154,11 +153,22 @@ class Expr(object):
 
     # Variable names
     def variables(self):
+        constants = {
+            'ZERO_ADDRESS': LLLnode.from_list([0], typ=BaseType('address', None, is_literal=True), pos=getpos(self.expr)),
+            'MAX_INT128': LLLnode.from_list(['mload', MemoryPositions.MAXNUM], typ=BaseType('int128', None, is_literal=True), pos=getpos(self.expr)),
+            'MIN_INT128': LLLnode.from_list(['mload', MemoryPositions.MINNUM], typ=BaseType('int128', None, is_literal=True), pos=getpos(self.expr)),
+            'MAX_DECIMAL': LLLnode.from_list(['mload', MemoryPositions.MAXDECIMAL], typ=BaseType('decimal', None, is_literal=True), pos=getpos(self.expr)),
+            'MIN_DECIMAL': LLLnode.from_list(['mload', MemoryPositions.MINDECIMAL], typ=BaseType('decimal', None, is_literal=True), pos=getpos(self.expr)),
+            'MAX_UINT256': LLLnode.from_list([2**256 - 1], typ=BaseType('uint256', None, is_literal=True), pos=getpos(self.expr)),
+        }
+
         if self.expr.id == 'self':
             return LLLnode.from_list(['address'], typ='address', pos=getpos(self.expr))
-        if self.expr.id in self.context.vars:
+        elif self.expr.id in self.context.vars:
             var = self.context.vars[self.expr.id]
             return LLLnode.from_list(var.pos, typ=var.typ, location='memory', pos=getpos(self.expr), annotation=self.expr.id, mutable=var.mutable)
+        elif self.expr.id in constants:
+            return constants[self.expr.id]
         else:
             raise VariableDeclarationException("Undeclared variable: " + self.expr.id, self.expr)
 
@@ -261,17 +271,13 @@ class Expr(object):
             elif isinstance(self.expr.op, ast.Mult):
                 val = left.value * right.value
             elif isinstance(self.expr.op, ast.Div):
-                val = left.value / right.value
+                val = left.value // right.value
             elif isinstance(self.expr.op, ast.Mod):
                 val = left.value % right.value
             elif isinstance(self.expr.op, ast.Pow):
                 val = left.value ** right.value
             else:
                 raise ParserException('Unsupported literal operator: %s' % str(type(self.expr.op)), self.expr)
-
-            # For scenario were mul and div produce a whole number:
-            if isinstance(val, float) and val.is_integer():
-                val = int(val)
 
             num = ast.Num(val)
             num.source_code = self.expr.source_code
@@ -323,11 +329,9 @@ class Expr(object):
                 raise TypeMismatchException("Cannot multiply positional values!", self.expr)
             new_unit = combine_units(left.typ.unit, right.typ.unit)
             if ltyp == rtyp == 'uint256':
-                o = LLLnode.from_list(['seq',
-                                        # Checks that: a == 0 || a / b == b
-                                        ['assert', ['or', ['iszero', left],
-                                        ['eq', ['div', ['mul', left, right], left], right]]],
-                                        ['mul', left, right]], typ=BaseType('uint256', new_unit), pos=getpos(self.expr))
+                o = LLLnode.from_list(['if', ['eq', left, 0], [0],
+                                      ['seq', ['assert', ['eq', ['div', ['mul', left, right], left], right]],
+                                      ['mul', left, right]]], typ=BaseType('uint256', new_unit), pos=getpos(self.expr))
             elif ltyp == rtyp == 'int128':
                 o = LLLnode.from_list(['mul', left, right], typ=BaseType('int128', new_unit), pos=getpos(self.expr))
             elif ltyp == rtyp == 'decimal':
@@ -580,6 +584,14 @@ class Expr(object):
         elif isinstance(self.expr.op, ast.USub):
             if not is_numeric_type(operand.typ):
                 raise TypeMismatchException("Unsupported type for negation: %r" % operand.typ, operand)
+
+            if operand.typ.is_literal and 'int' in operand.typ.typ:
+                num = ast.Num(0 - operand.value)
+                num.source_code = self.expr.source_code
+                num.lineno = self.expr.lineno
+                num.col_offset = self.expr.col_offset
+                return Expr.parse_value_expr(num, self.context)
+
             return LLLnode.from_list(["sub", 0, operand], typ=operand.typ, pos=getpos(self.expr))
         else:
             raise StructureException("Only the 'not' unary operator is supported")
@@ -595,6 +607,43 @@ class Expr(object):
                 value = Expr.parse_value_expr(kw.value, self.context)
         return value, gas
 
+    # def _get_sig(self, sigs, method_name, expr_args):
+    #     from vyper.signatures.function_signature import (
+    #         FunctionSignature
+    #     )
+
+    #     def synonymise(s):
+    #         return s.replace('int128', 'num').replace('uint256', 'num')
+    #     # for sig in sigs['self']
+    #     full_sig = FunctionSignature.get_full_sig(self.expr.func.attr, expr_args, None, self.context.custom_units)
+    #     method_names_dict = dict(Counter([x.split('(')[0] for x in self.context.sigs['self']]))
+    #     if method_name not in method_names_dict:
+    #         raise FunctionDeclarationException(
+    #             "Function not declared yet (reminder: functions cannot "
+    #             "call functions later in code than themselves): %s" % method_name
+    #         )
+
+    #     if method_names_dict[method_name] == 1:
+    #         return next(sig for name, sig in self.context.sigs['self'].items() if name.split('(')[0] == method_name)
+    #     if full_sig in self.context.sigs['self']:
+    #         return self.contex['self'][full_sig]
+    #     else:
+    #         synonym_sig = synonymise(full_sig)
+    #         syn_sigs_test = [synonymise(k) for k in self.context.sigs.keys()]
+    #         if len(syn_sigs_test) != len(set(syn_sigs_test)):
+    #             raise Exception(
+    #                 'Incompatible default parameter signature,'
+    #                 'can not tell the number type of literal', self.expr
+    #             )
+    #         synonym_sigs = [(synonymise(k), v) for k, v in self.context.sigs['self'].items()]
+    #         ssig = [s[1] for s in synonym_sigs if s[0] == synonym_sig]
+    #         if len(ssig) == 0:
+    #             raise FunctionDeclarationException(
+    #                 "Function not declared yet (reminder: functions cannot "
+    #                 "call functions later in code than themselves): %s" % method_name
+    #             )
+    #         return ssig[0]
+
     # Function calls
     def call(self):
         from .parser import (
@@ -604,39 +653,38 @@ class Expr(object):
         from vyper.functions import (
             dispatch_table,
         )
+
         if isinstance(self.expr.func, ast.Name):
             function_name = self.expr.func.id
             if function_name in dispatch_table:
                 return dispatch_table[function_name](self.expr, self.context)
             else:
                 err_msg = "Not a top-level function: {}".format(function_name)
-                if function_name in self.context.sigs['self']:
+                if function_name in [x.split('(')[0] for x, _ in self.context.sigs['self'].items()]:
                     err_msg += ". Did you mean self.{}?".format(function_name)
                 raise StructureException(err_msg, self.expr)
         elif isinstance(self.expr.func, ast.Attribute) and isinstance(self.expr.func.value, ast.Name) and self.expr.func.value.id == "self":
+            expr_args = [Expr(arg, self.context).lll_node for arg in self.expr.args]
             method_name = self.expr.func.attr
-            if method_name not in self.context.sigs['self']:
-                raise VariableDeclarationException("Function not declared yet (reminder: functions cannot "
-                                                   "call functions later in code than themselves): %s" % self.expr.func.attr)
-
-            sig = self.context.sigs['self'][method_name]
+            sig = FunctionSignature.lookup_sig(self.context.sigs, method_name, expr_args, self.expr, self.context)
             if self.context.is_constant and not sig.const:
                 raise ConstancyViolationException(
                     "May not call non-constant function '%s' within a constant function." % (method_name),
                     getpos(self.expr)
                 )
-            add_gas = self.context.sigs['self'][method_name].gas  # gas of call
-            inargs, inargsize = pack_arguments(sig, [Expr(arg, self.context).lll_node for arg in self.expr.args], self.context, pos=getpos(self.expr))
+            add_gas = sig.gas  # gas of call
+            inargs, inargsize = pack_arguments(sig, expr_args, self.context, pos=getpos(self.expr))
             output_placeholder = self.context.new_placeholder(typ=sig.output_type)
             multi_arg = []
             if isinstance(sig.output_type, BaseType):
                 returner = output_placeholder
             elif isinstance(sig.output_type, ByteArrayType):
                 returner = output_placeholder + 32
-            elif self.context.in_assignment and isinstance(sig.output_type, TupleType):
+            elif isinstance(sig.output_type, TupleType):
                 returner = output_placeholder
             else:
                 raise TypeMismatchException("Invalid output type: %r" % sig.output_type, self.expr)
+
             o = LLLnode.from_list(multi_arg +
                     ['seq',
                         ['assert', ['call', ['gas'], ['address'], 0,

@@ -14,8 +14,9 @@ from vyper import compiler, optimizer
 
 
 parser = argparse.ArgumentParser(
-    description='Serve Vyper compiler as an HTTP Service, Vyper {0}'.format(vyper.__version__)
+    description='Serve Vyper compiler as an HTTP Service'
 )
+parser.add_argument('--version', action='version', version='{0}'.format(vyper.__version__))
 parser.add_argument(
     '-b',
     help='Address to bind JSON server on, default: localhost:8000',
@@ -68,7 +69,7 @@ class VyperRequestHandler(BaseHTTPRequestHandler):
         if not code:
             return {'status': 'failed', 'message': 'No "code" key supplied'}, 400
         if not isinstance(code, str):
-            return {'status': 'failed', 'message': '"code" must be a non-emtpy string'}, 400
+            return {'status': 'failed', 'message': '"code" must be a non-empty string'}, 400
 
         try:
             code = data['code']

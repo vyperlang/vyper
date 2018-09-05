@@ -6,6 +6,7 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
+    EventDeclarationException,
     InvalidLiteralException
 )
 from vyper.functions import (
@@ -31,6 +32,7 @@ from vyper.types import (
     get_size_of_type,
     is_base_type,
     parse_type,
+    NodeType
 )
 from vyper.types import (
     are_units_compatible,
@@ -40,9 +42,10 @@ from vyper.utils import (
     sha3,
     fourbytes_to_int
 )
-from .expr import (
+from vyper.parser.expr import (
     Expr
 )
+from vyper.signatures.function_signature import FunctionSignature
 
 
 class Stmt(object):
@@ -63,13 +66,13 @@ class Stmt(object):
             ast.Break: self.parse_break,
             ast.Continue: self.parse_continue,
             ast.Return: self.parse_return,
-            ast.Delete: self.parse_delete
+            ast.Delete: self.parse_delete,
+            ast.Str: self.parse_docblock,  # docblock
+            ast.Name: self.parse_name,
         }
         stmt_type = self.stmt.__class__
         if stmt_type in self.stmt_table:
             self.lll_node = self.stmt_table[stmt_type]()
-        elif isinstance(stmt, ast.Name) and stmt.id == "throw":
-            self.lll_node = LLLnode.from_list(['assert', 0], typ=None, pos=getpos(stmt))
         else:
             raise StructureException("Unsupported statement type: %s" % type(stmt), stmt)
 
@@ -78,6 +81,14 @@ class Stmt(object):
 
     def parse_pass(self):
         return LLLnode.from_list('pass', typ=None, pos=getpos(self.stmt))
+
+    def parse_name(self):
+        if self.stmt.id == "vdb":
+            return LLLnode('debugger', typ=None, pos=getpos(self.stmt))
+        elif self.stmt.id == "throw":
+            return LLLnode.from_list(['assert', 0], typ=None, pos=getpos(self.stmt))
+        else:
+            raise StructureException("Unsupported statement type: %s" % type(self.stmt), self.stmt)
 
     def _check_valid_assign(self, sub):
         if isinstance(self.stmt.annotation, ast.Call):  # unit style: num(wei)
@@ -176,23 +187,22 @@ class Stmt(object):
             elif self.stmt.func.id in dispatch_table:
                 raise StructureException("Function {} can not be called without being used.".format(self.stmt.func.id), self.stmt)
             else:
-                raise StructureException("Unknow function: '{}'.".format(self.stmt.func.id), self.stmt)
+                raise StructureException("Unknown function: '{}'.".format(self.stmt.func.id), self.stmt)
         elif isinstance(self.stmt.func, ast.Attribute) and isinstance(self.stmt.func.value, ast.Name) and self.stmt.func.value.id == "self":
             method_name = self.stmt.func.attr
-            if method_name not in self.context.sigs['self']:
-                raise VariableDeclarationException("Function not declared yet (reminder: functions cannot "
-                                                    "call functions later in code than themselves): %s" % self.stmt.func.attr)
-            sig = self.context.sigs['self'][method_name]
+            expr_args = [Expr(arg, self.context).lll_node for arg in self.stmt.args]
+            # full_sig = FunctionSignature.get_full_sig(method_name, expr_args, self.context.sigs, self.context.custom_units)
+            sig = FunctionSignature.lookup_sig(self.context.sigs, method_name, expr_args, self.stmt, self.context)
             if self.context.is_constant and not sig.const:
                 raise ConstancyViolationException(
-                    "May not call non-constant function '%s' within a constant function." % (method_name)
+                    "May not call non-constant function '%s' within a constant function." % (sig.sig)
                 )
-            add_gas = self.context.sigs['self'][method_name].gas
+            add_gas = self.context.sigs['self'][sig.sig].gas
             inargs, inargsize = pack_arguments(sig,
-                                                [Expr(arg, self.context).lll_node for arg in self.stmt.args],
+                                                expr_args,
                                                 self.context, pos=getpos(self.stmt))
             return LLLnode.from_list(['assert', ['call', ['gas'], ['address'], 0, inargs, inargsize, 0, 0]],
-                                        typ=None, pos=getpos(self.stmt), add_gas_estimate=add_gas, annotation='Internal Call: %s' % method_name)
+                                        typ=None, pos=getpos(self.stmt), add_gas_estimate=add_gas, annotation='Internal Call: %s' % sig.sig)
         elif isinstance(self.stmt.func, ast.Attribute) and isinstance(self.stmt.func.value, ast.Call):
             contract_name = self.stmt.func.value.func.id
             contract_address = Expr.parse_value_expr(self.stmt.func.value.args[0], self.context)
@@ -209,10 +219,10 @@ class Stmt(object):
             return external_contract_call(self.stmt, self.context, contract_name, contract_address, pos=getpos(self.stmt))
         elif isinstance(self.stmt.func, ast.Attribute) and self.stmt.func.value.id == 'log':
             if self.stmt.func.attr not in self.context.sigs['self']:
-                raise VariableDeclarationException("Event not declared yet: %s" % self.stmt.func.attr)
+                raise EventDeclarationException("Event not declared yet: %s" % self.stmt.func.attr)
             event = self.context.sigs['self'][self.stmt.func.attr]
             if len(event.indexed_list) != len(self.stmt.args):
-                raise VariableDeclarationException("%s received %s arguments but expected %s" % (event.name, len(self.stmt.args), len(event.indexed_list)))
+                raise EventDeclarationException("%s received %s arguments but expected %s" % (event.name, len(self.stmt.args), len(event.indexed_list)))
             expected_topics, topics = [], []
             expected_data, data = [], []
             for pos, is_indexed in enumerate(event.indexed_list):
@@ -426,10 +436,14 @@ class Stmt(object):
             sub = unwrap_location(sub)
             if not are_units_compatible(sub.typ, self.context.return_type):
                 raise TypeMismatchException("Return type units mismatch %r %r" % (sub.typ, self.context.return_type), self.stmt.value)
+            elif sub.typ.is_literal and (self.context.return_type.typ == sub.typ or
+                    'int' in self.context.return_type.typ and
+                    'int' in sub.typ.typ):
+                if not SizeLimits.in_bounds(self.context.return_type.typ, sub.value):
+                    raise InvalidLiteralException("Number out of range: " + str(sub.value), self.stmt)
+                return LLLnode.from_list(['seq', ['mstore', 0, sub], ['return', 0, 32]], typ=None, pos=getpos(self.stmt))
             elif is_base_type(sub.typ, self.context.return_type.typ) or \
                     (is_base_type(sub.typ, 'int128') and is_base_type(self.context.return_type, 'int256')):
-                return LLLnode.from_list(['seq', ['mstore', 0, sub], ['return', 0, 32]], typ=None, pos=getpos(self.stmt))
-            if sub.typ.is_literal and SizeLimits.in_bounds(self.context.return_type.typ, sub.value):
                 return LLLnode.from_list(['seq', ['mstore', 0, sub], ['return', 0, 32]], typ=None, pos=getpos(self.stmt))
             else:
                 raise TypeMismatchException("Unsupported type conversion: %r to %r" % (sub.typ, self.context.return_type), self.stmt.value)
@@ -503,7 +517,22 @@ class Stmt(object):
         elif isinstance(sub.typ, TupleType):
             if len(self.context.return_type.members) != len(sub.typ.members):
                 raise StructureException("Tuple lengths don't match!", self.stmt)
-
+            # check return type matches, sub type.
+            for i, ret_x in enumerate(self.context.return_type.members):
+                s_member = sub.typ.members[i]
+                sub_type = s_member if isinstance(s_member, NodeType) else s_member.typ
+                if type(sub_type) is not type(ret_x):
+                    raise StructureException(
+                        "Tuple return type does not match annotated return. {} != {}".format(
+                            type(sub_type), type(ret_x)
+                        ),
+                        self.stmt
+                    )
+            # Is from a call expression.
+            if len(sub.args[0].args) > 0 and sub.args[0].args[0].value == 'call':
+                mem_pos = sub.args[0].args[-1]
+                mem_size = get_size_of_type(sub.typ) * 32
+                return LLLnode.from_list(['return', mem_pos, mem_size], typ=sub.typ)
             subs = []
             dynamic_offset_counter = LLLnode(self.context.get_next_mem(), typ=None, annotation="dynamic_offset_counter")  # dynamic offset position counter.
             new_sub = LLLnode.from_list(self.context.get_next_mem() + 32, typ=self.context.return_type, location='memory', annotation='new_sub')
@@ -590,3 +619,8 @@ class Stmt(object):
         if not target.mutable:
             raise ConstancyViolationException("Cannot modify function argument: %s" % target.annotation)
         return target
+
+    def parse_docblock(self):
+        if '"""' not in self.context.origcode.splitlines()[self.stmt.lineno - 1]:
+            raise InvalidLiteralException('Only valid """ docblocks allowed', self.stmt)
+        return LLLnode.from_list('pass', typ=None, pos=getpos(self.stmt))

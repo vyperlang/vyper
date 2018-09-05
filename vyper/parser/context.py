@@ -10,7 +10,7 @@ from vyper.exceptions import (
     VariableDeclarationException,
 )
 
-from vyper.function_signature import (
+from vyper.signatures.function_signature import (
     VariableRecord,
 )
 

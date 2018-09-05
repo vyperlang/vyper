@@ -70,3 +70,11 @@ class InvalidTypeException(ParserException):
 
 class TypeMismatchException(ParserException):
     pass
+
+
+class FunctionDeclarationException(ParserException):
+    pass
+
+
+class EventDeclarationException(ParserException):
+    pass

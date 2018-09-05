@@ -1,6 +1,7 @@
 import pytest
 
 from vyper.parser.parser import LLLnode
+from vyper.parser.s_expressions import parse_s_exp
 
 
 fail_list = [
@@ -35,3 +36,38 @@ valid_list = [
 @pytest.mark.parametrize('good_lll', valid_list)
 def test_compile_lll_good(good_lll, get_contract_from_lll):
     get_contract_from_lll(LLLnode.from_list(good_lll))
+
+
+def test_lll_from_s_expression(get_contract_from_lll):
+    code = """
+(seq
+  (return
+    0
+    (lll ; just return 32 byte of calldata back
+      (seq
+          (calldatacopy 0 4 32)
+          (return 0 32)
+          stop
+        )
+      0)))
+    """
+    abi = [{
+        "name": "test",
+        "outputs": [{
+            "type": "int128",
+            "name": "out"
+        }],
+        "inputs": [{
+            "type": "int128",
+            "name": "a"
+        }],
+        "constant": False,
+        "payable": False,
+        "type": "function",
+        "gas": 394
+    }]
+
+    s_expressions = parse_s_exp(code)
+    lll = LLLnode.from_list(s_expressions[0])
+    c = get_contract_from_lll(lll, abi=abi)
+    assert c.test(-123456) == -123456

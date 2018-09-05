@@ -12,7 +12,7 @@ Vyper
     :alt: Vyper logo
     :align: center
 
-Vyper is an **experimental**, contract-oriented, pythonic programming language that targets the `Ethereum Virtual Machine (EVM) <http://ethdocs.org/en/latest/introduction/what-is-ethereum.html#ethereum-virtual-machine>`_
+Vyper is a contract-oriented, pythonic programming language that targets the `Ethereum Virtual Machine (EVM) <http://ethdocs.org/en/latest/introduction/what-is-ethereum.html#ethereum-virtual-machine>`_
 
 ********************
 Principles and Goals
@@ -55,6 +55,8 @@ Following the principles and goals, Vyper **does not** provide the following fea
 Compatibility-breaking Changelog
 ********************************
 
+* **2018.08.09**: Add support for default parameters.
+* **2018.06.08**: Tagged first beta.
 * **2018.05.23**: Changed `wei_value` to be `uint256`.
 * **2018.04.03**: Changed bytes declaration from 'bytes <= n' to 'bytes[n]'.
 * **2018.03.27**: Renaming ``signed256`` to ``int256``.
@@ -86,8 +88,10 @@ Glossary
 
     installing-vyper.rst
     compiling-a-contract.rst
+    testing-deploying-contracts.rst
     structure-of-a-contract.rst
     vyper-by-example.rst
+    logging.rst
     vyper-in-depth.rst
     contributing.rst
     frequently-asked-questions.rst

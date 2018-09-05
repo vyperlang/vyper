@@ -54,11 +54,17 @@ def _negative_num() -> int128:
 @public
 def _negative_exp() -> int128:
     return -(1+2)
+
+@public
+def _negative_exp_var() -> int128:
+    a: int128 = 2
+    return -(a+2)
     """
 
     c = get_contract_with_gas_estimation(negative_nums_code)
     assert c._negative_num() == -1
     assert c._negative_exp() == -3
+    assert c._negative_exp_var() == -4
 
 
 def test_exponents_with_units(get_contract_with_gas_estimation):
@@ -209,3 +215,26 @@ def num_pow(a: int128, b: int128) -> int128:
     assert c.num_pow(-2, 127) == (-2**127)
     assert c.num_pow(2, 126) == (2**126)
     assert_tx_failed(lambda: c.num_pow(2**126, 2))
+
+
+def test_literal_int_division(get_contract):
+    code = """
+@public
+def foo() -> int128:
+    z: int128 = 5 / 2
+    return z
+    """
+
+    c = get_contract(code)
+
+    assert c.foo() == 2
+
+
+def test_literal_int_division_return(get_contract, assert_compile_failed):
+    code = """
+@public
+def test() -> decimal:
+    return 5 / 2
+    """
+
+    assert_compile_failed(lambda: get_contract(code))

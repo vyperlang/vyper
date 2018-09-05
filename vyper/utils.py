@@ -1,8 +1,9 @@
 import binascii
+import re
 
 from collections import OrderedDict
-from . exceptions import InvalidLiteralException
-from .opcodes import opcodes
+from vyper.exceptions import InvalidLiteralException
+from vyper.opcodes import opcodes
 
 try:
     from Crypto.Hash import keccak
@@ -66,6 +67,10 @@ def calc_mem_gas(memsize):
     return (memsize // 32) * 3 + (memsize // 32) ** 2 // 512
 
 
+# Specific gas usage
+GAS_IDENTITY = 15
+GAS_IDENTITYWORD = 3
+
 # A decimal value can store multiples of 1/DECIMAL_DIVISOR
 DECIMAL_DIVISOR = 10000000000
 
@@ -97,13 +102,13 @@ class SizeLimits:
     def in_bounds(cls, type_str, value):
         assert isinstance(type_str, str)
         if type_str == 'decimal':
-            return cls.MINDECIMAL <= value <= cls.MAXDECIMAL
+            return float(cls.MINDECIMAL) <= value <= float(cls.MAXDECIMAL)
         if type_str == 'uint256':
             return 0 <= value <= cls.MAX_UINT256
         elif type_str == 'int128':
             return cls.MINNUM <= value <= cls.MAXNUM
         else:
-            raise Exception('Unknow type "%s" supplied.' % type_str)
+            raise Exception('Unknown type "%s" supplied.' % type_str)
 
 
 # Map representing all limits loaded into a contract as part of the initializer
@@ -137,17 +142,30 @@ valid_units = ['wei', 'sec']
 valid_global_keywords = ['public', 'modifying', 'event'] + valid_units + valid_call_keywords
 
 # Cannot be used for variable or member naming
-reserved_words = ['int128', 'int256', 'uint256', 'address', 'bytes32',
-                  'if', 'for', 'while', 'until',
-                  'pass', 'def', 'push', 'dup', 'swap', 'send', 'call',
-                  'selfdestruct', 'assert', 'stop', 'throw',
-                  'raise', 'init', '_init_', '___init___', '____init____',
-                  'true', 'false', 'self', 'this', 'continue', 'ether',
-                  'wei', 'finney', 'szabo', 'shannon', 'lovelace', 'ada',
-                  'babbage', 'gwei', 'kwei', 'mwei', 'twei', 'pwei', 'contract', 'units']
+reserved_words = [
+    'int128', 'int256', 'uint256', 'address', 'bytes32',
+    'if', 'for', 'while', 'until',
+    'pass', 'def', 'push', 'dup', 'swap', 'send', 'call',
+    'selfdestruct', 'assert', 'stop', 'throw',
+    'raise', 'init', '_init_', '___init___', '____init____',
+    'true', 'false', 'self', 'this', 'continue',
+    'ether', 'wei', 'finney', 'szabo', 'shannon', 'lovelace', 'ada', 'babbage', 'gwei', 'kwei', 'mwei', 'twei', 'pwei', 'contract',
+    'units',
+    'zero_address', 'max_int128', 'min_int128', 'max_decimal', 'min_decimal', 'max_uint256',  # constants
+]
+
+# List of valid LLL macros.
+valid_lll_macros = [
+    'assert', 'break', 'ceil32', 'clamp', 'clamp', 'clamp_nonzero', 'clampge',
+    'clampgt', 'clample', 'clamplt', 'codeload', 'continue', 'debugger', 'ge',
+    'if', 'le', 'lll', 'ne', 'pass', 'repeat', 'seq', 'set', 'sge', 'sha3_32',
+    'sha3_64', 'sle', 'uclampge', 'uclampgt', 'uclample', 'uclamplt', 'with',
+    '~codelen', 'label', 'goto'
+]
 
 
 # Is a variable or member variable name valid?
+# Same conditions apply for function names and events
 def is_varname_valid(varname, custom_units):
     from vyper.functions import dispatch_table, stmt_dispatch_table
     built_in_functions = [x for x in stmt_dispatch_table.keys()] + \
@@ -165,5 +183,7 @@ def is_varname_valid(varname, custom_units):
     if varname.upper() in opcodes:
         return False
     if varname.lower() in built_in_functions:
+        return False
+    if not re.match('^[_a-zA-Z][a-zA-Z0-9_]*$', varname):
         return False
     return True
