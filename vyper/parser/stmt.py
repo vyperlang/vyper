@@ -514,9 +514,12 @@ class Stmt(object):
                     )
 
             # Is from a call expression.
-            if (len(sub.args[0].args) > 0 and sub.args[0].args[0].value == 'call') or \
-               (sub.annotation and 'Internal Call' in sub.annotation):
+            if len(sub.args[0].args) > 0 and sub.args[0].args[0].value == 'call':  # self-call to public.
+                mem_pos = sub.args[0].args[-1]
+                mem_size = get_size_of_type(sub.typ) * 32
+                return LLLnode.from_list(['return', mem_pos, mem_size], typ=sub.typ)
 
+            elif (sub.annotation and 'Internal Call' in sub.annotation):
                 mem_pos = sub.args[-1].value if sub.value == 'seq_unchecked' else sub.args[0].args[-1]
                 mem_size = get_size_of_type(sub.typ) * 32
                 # Add zero padder if bytes are present in output.
@@ -524,8 +527,7 @@ class Stmt(object):
                 byte_arrays = [(i, x) for i, x in enumerate(sub.typ.members) if isinstance(x, ByteArrayType)]
                 if byte_arrays:
                     i, x = byte_arrays[-1]
-                    zero_padder = zero_pad(bytez_placeholder=['add', mem_pos, ['mload', mem_pos + i*32]], maxlen=x.maxlen)
-
+                    zero_padder = zero_pad(bytez_placeholder=['add', mem_pos, ['mload', mem_pos + i * 32]], maxlen=x.maxlen)
                 return LLLnode.from_list(
                     ['seq'] +
                     [sub] +

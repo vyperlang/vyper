@@ -375,7 +375,8 @@ def test4(a: bytes[40]) -> (int128, bytes[100], bytes[100]):
     assert c.test(11, b"jill") == [14, b'badabing:jill_one', b'jill_one']
     assert c.test2(b"jack") == [6, b'badabing:jack_one']
     assert c.test3(b"hill") == [10, b'hill', b'hill_two']
-    assert c.test4(b"bucket") ==  [10, b'bucket', b'bucket_one_two']
+    assert c.test4(b"bucket") == [10, b'bucket', b'bucket_one_two']
+
 
 def test_private_return_list_types(get_contract_with_gas_estimation):
     code = """
@@ -395,6 +396,3 @@ def test() -> int128[4]:
     c = get_contract_with_gas_estimation(code)
 
     assert c.test() == [0, 1, 0, 1]
-
-# Return types to test:
-# 2.) Default parameters with bytes

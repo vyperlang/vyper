@@ -638,6 +638,19 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
         else:
             context.vars[arg.name] = VariableRecord(arg.name, MemoryPositions.RESERVED_MEMORY + arg.pos, arg.typ, False)
 
+    def make_unpacker(ident, i_placeholder, begin_pos):
+        start_label = 'dyn_unpack_start_' + ident
+        end_label = 'dyn_unpack_end_' + ident
+        return ['seq_unchecked',
+            ['mstore', begin_pos, 'pass'],  # get len
+            ['mstore', i_placeholder, 0],
+            ['label', start_label],
+            ['if', ['ge', ['mload', i_placeholder], ['ceil32', ['mload', begin_pos]]], ['goto', end_label]],  # break
+            ['mstore', ['add', ['add', begin_pos, 32], ['mload', i_placeholder]], 'pass'],  # pop into correct memory slot.
+            ['mstore', i_placeholder, ['add', 32, ['mload', i_placeholder]]],  # increment i
+            ['goto', start_label],
+            ['label', end_label]]
+
     # Private function copiers. No clamping for private functions.
     dyn_variable_names = [a.name for a in base_args if isinstance(a.typ, ByteArrayType)]
     if sig.private and dyn_variable_names:
@@ -646,18 +659,7 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
         for idx, var_name in enumerate(dyn_variable_names):
             var = context.vars[var_name]
             ident = "_load_args_%d_dynarg%d" % (sig.method_id, idx)
-            start_label = 'dyn_unpack_start_' + ident
-            end_label = 'dyn_unpack_end_' + ident
-            begin_pos = var.pos
-            o = ['seq_unchecked',
-                    ['mstore', begin_pos, 'pass'],  # get len
-                    ['mstore', i_placeholder, 0],
-                    ['label', start_label],
-                    ['if', ['ge', ['mload', i_placeholder], ['ceil32', ['mload', begin_pos]]], ['goto', end_label]],  # break
-                    ['mstore', ['add', ['add', begin_pos, 32], ['mload', i_placeholder]], 'pass'],  # pop into correct memory slot.
-                    ['mstore', i_placeholder, ['add', 32, ['mload', i_placeholder]]],  # increment i
-                    ['goto', start_label],
-                    ['label', end_label]]
+            o = make_unpacker(ident=ident, i_placeholder=i_placeholder, begin_pos=var.pos)
             unpackers.append(o)
 
         if not unpackers:
@@ -681,9 +683,8 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
             raise FunctionDeclarationException('Default function may only be public.', code)
         o = LLLnode.from_list(['seq'] + clampers + [parse_body(code.body, context)], pos=getpos(code))
     else:
-        # Handle default args if present.
 
-        if total_default_args > 0:
+        if total_default_args > 0:  # Function with default parameters.
             function_routine = "{}_{}".format(sig.name, sig.method_id)
             default_sigs = generate_default_arg_sigs(code, sigs, _custom_units)
             sig_chain = ['seq']
@@ -704,14 +705,22 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
                                                  pos=getpos(code), mutable=var.mutable)
                         set_defaults.append(make_setter(left, value, 'memory', pos=getpos(code)))
 
+                current_sig_arg_names = {x.name for x in default_sig.args}
+                base_arg_names = {arg.name for arg in base_args}
+                if sig.private:
+                    # Load all variables in default section, if private,
+                    # because the stack is a linear pipe.
+                    copier_arg_count = len(default_sig.args)
+                    copier_arg_names = current_sig_arg_names
+                else:
+                    copier_arg_count = len(default_sig.args) - len(base_args)
+                    copier_arg_names = current_sig_arg_names - base_arg_names
+                # Order copier_arg_names, this is very important.
+                copier_arg_names = [x.name for x in default_sig.args if x.name in copier_arg_names]
+
                 # Variables to be populated from calldata/stack.
-                copier_arg_count = len(default_sig.args) - len(base_args)
                 default_copiers = []
                 if copier_arg_count > 0:
-                    current_sig_arg_names = {x.name for x in default_sig.args}
-                    base_arg_names = {arg.name for arg in base_args}
-                    copier_arg_names = current_sig_arg_names - base_arg_names
-
                     # Get map of variables in calldata, with thier offsets
                     offset = 4
                     calldata_offset_map = {}
@@ -719,39 +728,63 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
                         calldata_offset_map[arg.name] = offset
                         offset += 32 if isinstance(arg.typ, ByteArrayType) else get_size_of_type(arg.typ) * 32
                     # Copy set default parameters from calldata
+                    dynamics = []
                     for arg_name in copier_arg_names:
                         var = context.vars[arg_name]
                         calldata_offset = calldata_offset_map[arg_name]
-                        # Add clampers.
-                        default_copiers.append(make_clamper(calldata_offset - 4, var.pos, var.typ))
-                        # Add copying code.
-                        if isinstance(var.typ, ByteArrayType):
-                            _offset = ['add', 4, ['calldataload', calldata_offset]]
-                            # default_copiers.append(['calldatacopy', var.pos, ['add', 4, ['calldataload', calldata_offset]], var.size * 32])
-                        else:
+                        if sig.private:
                             _offset = calldata_offset
-                            # default_copiers.append(['calldatacopy', var.pos, calldata_offset, var.size * 32])
-                        cp = get_arg_copier(sig=sig, memory_dest=var.pos, total_size=var.size * 32, offset=_offset)
+                            if isinstance(var.typ, ByteArrayType):
+                                _size = 32
+                                dynamics.append(var.pos)
+                            else:
+                                _size = var.size * 32
+                            default_copiers.append(get_arg_copier(sig=sig, memory_dest=var.pos, total_size=_size, offset=_offset))
+                        else:
+                            # Add clampers.
+                            default_copiers.append(make_clamper(calldata_offset - 4, var.pos, var.typ))
+                            # Add copying code.
+                            if isinstance(var.typ, ByteArrayType):
+                                _offset = ['add', 4, ['calldataload', calldata_offset]]
+                            else:
+                                _offset = calldata_offset
+                            default_copiers.append(get_arg_copier(sig=sig, memory_dest=var.pos, total_size=var.size * 32, offset=_offset))
 
-                        default_copiers.append(cp)
+                    # Unpack byte array if necessary.
+                    if dynamics:
+                        i_placeholder = context.new_placeholder(typ=BaseType('uint256'))
+                        for idx, var_pos in enumerate(dynamics):
+                            ident = 'unpack_default_sig_dyn_%d_arg%d' % (default_sig.method_id, idx)
+                            default_copiers.append(
+                                make_unpacker(ident=ident, i_placeholder=i_placeholder, begin_pos=var_pos)
+                            )
+                    default_copiers.append(0)  # for over arching seq, POP
 
                 sig_chain.append([
                     'if', sig_compare,
                     ['seq',
                         private_label,
-                        LLLnode.from_list(['mstore', context.callback_ptr, 'pass'], annotation='pop callback pointer') if sig.private else ['pass'],
+                        LLLnode.from_list(['mstore', context.callback_ptr, 'pass'], annotation='pop callback pointer', pos=getpos(code)) if sig.private else ['pass'],
                         ['seq'] + set_defaults if set_defaults else ['pass'],
-                        ['seq'] + default_copiers if default_copiers else ['pass'],
+                        ['seq_unchecked'] + default_copiers if default_copiers else ['pass'],
                         ['goto', _post_callback_ptr if sig.private else function_routine]]
                 ])
 
+            # With private functions all variable loading occurs in the default
+            # function sub routine.
+            if sig.private:
+                _clampers = [['label', _post_callback_ptr]]
+            else:
+                _clampers = clampers
+
+            # Function with default parameters.
             o = LLLnode.from_list(
                 ['seq',
                     sig_chain,
                     ['if', 0,  # can only be jumped into
                         ['seq',
                             ['label', function_routine] if not sig.private else ['pass'],
-                            ['seq'] + clampers + [parse_body(c, context) for c in code.body] + ['stop']]]], typ=None, pos=getpos(code))
+                            ['seq'] + _clampers + [parse_body(c, context) for c in code.body] + ['stop']]]], typ=None, pos=getpos(code))
 
         else:
             # Function without default parameters.
