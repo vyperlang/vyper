@@ -80,6 +80,7 @@ other development environment set-up.
 
 To create a new virtual environment for Vyper run the following commands:
 ::
+    sudo apt install virtualenv
     virtualenv -p python3.6 --no-site-packages ~/vyper-venv
     source ~/vyper-venv/bin/activate
 
@@ -133,6 +134,19 @@ If any unexpected errors or exceptions are encountered, please feel free create 
         export LDFLAGS="-L$(brew --prefix openssl)/lib -L$(brew --prefix libyaml)/lib"
 
     You can then run `make` and `make test` again.
+
+***
+PIP
+***
+
+Each tagged version of vyper is also uploaded to pypi, and can be installed using pip.
+::
+    pip install vyper
+
+To install a specific version use:
+::
+    pip install vyper==0.1.0b2
+
 
 ******
 Docker

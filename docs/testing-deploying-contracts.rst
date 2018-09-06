@@ -1,8 +1,10 @@
-.. index:: testing;deploying, testing
+.. index:: testing;deploying, testing;
 
-##################
+.. _testing_deploying:
+
+******************
 Testing a Contract
-##################
+******************
 
 The following example demonstrates how to compile and deploy your vyper contract.
 It requires ``pyethereum>=2.0.0`` for the ``tester`` module
@@ -32,9 +34,8 @@ It requires ``pyethereum>=2.0.0`` for the ``tester`` module
 Note: We are working on integration with `ethereum-tester <https://github.com/ethereum/ethereum-tester>`_,
 so this example will change.
 
-##################
 Testing Using vyper-run Command
-##################
+===============================
 
 To allow quickly testing contracts, Vyper provides a command line tool for instantly executing a function:
 ::
@@ -56,9 +57,9 @@ Putting it all together:
 
 The vyper-run command will print out the returned value of the called functions as well as all the logged events emitted during the function's execution.
 
-####################
+********************
 Deploying a Contract
-####################
+********************
 
 You have several options to deploy a Vyper contract to the public testnets.
 

@@ -88,8 +88,10 @@ Glossary
 
     installing-vyper.rst
     compiling-a-contract.rst
+    testing-deploying-contracts.rst
     structure-of-a-contract.rst
     vyper-by-example.rst
+    logging.rst
     vyper-in-depth.rst
     contributing.rst
     frequently-asked-questions.rst
