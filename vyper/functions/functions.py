@@ -122,7 +122,7 @@ def _slice(expr, args, kwargs, context):
         adj_sub = LLLnode.from_list(
             ['add', sub, ['add', ['sub', '_start', ['mod', '_start', 32]], 32]], typ=sub.typ, location=sub.location
         )
-    copier = make_byte_slice_copier(placeholder_plus_32_node, adj_sub, ['add', '_length', 32], sub.typ.maxlen)
+    copier = make_byte_slice_copier(placeholder_plus_32_node, adj_sub, ['add', '_length', 32], sub.typ.maxlen, pos=getpos(expr))
     # New maximum length in the type of the result
     newmaxlen = length.value if not len(length.args) else sub.typ.maxlen
     maxlen = ['mload', Expr(sub, context=context).lll_node]  # Retrieve length of the bytes.
@@ -178,7 +178,7 @@ def concat(expr, context):
                                 make_byte_slice_copier(placeholder_node_plus_32,
                                                        argstart,
                                                        length,
-                                                       arg.typ.maxlen),
+                                                       arg.typ.maxlen, pos=getpos(expr)),
                                 # Change the position to start at the correct
                                 # place to paste the next value
                                 ['set', '_poz', ['add', '_poz', length]]]])
@@ -396,7 +396,7 @@ def raw_call(expr, args, kwargs, context):
                         BaseType('uint256', {'wei': 1}))
     placeholder = context.new_placeholder(data.typ)
     placeholder_node = LLLnode.from_list(placeholder, typ=data.typ, location='memory')
-    copier = make_byte_array_copier(placeholder_node, data)
+    copier = make_byte_array_copier(placeholder_node, data, pos=getpos(expr))
     output_placeholder = context.new_placeholder(ByteArrayType(outsize))
     output_node = LLLnode.from_list(output_placeholder, typ=ByteArrayType(outsize), location='memory')
     z = LLLnode.from_list(['seq',
@@ -543,7 +543,7 @@ def raw_log(expr, args, kwargs, context):
                                  typ=None, pos=getpos(expr))
     placeholder = context.new_placeholder(args[1].typ)
     placeholder_node = LLLnode.from_list(placeholder, typ=args[1].typ, location='memory')
-    copier = make_byte_array_copier(placeholder_node, LLLnode.from_list('_sub', typ=args[1].typ, location=args[1].location))
+    copier = make_byte_array_copier(placeholder_node, LLLnode.from_list('_sub', typ=args[1].typ, location=args[1].location), pos=getpos(expr))
     return LLLnode.from_list(
         ["with", "_sub", args[1],
             ["seq",

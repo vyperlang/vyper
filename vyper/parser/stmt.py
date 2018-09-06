@@ -157,7 +157,6 @@ class Stmt(object):
             self.context.end_blockscope(block_scope_id)
         else:
             add_on = []
-
         block_scope_id = id(self.stmt)
         self.context.start_blockscope(block_scope_id)
         o = LLLnode.from_list(
@@ -464,12 +463,13 @@ class Stmt(object):
 
             if sub.location in ('storage', 'memory'):
                 return LLLnode.from_list([
-                    'seq_unchecked',
-                    zero_pad(bytez_placeholder, sub.typ.maxlen),
+                    'seq',
                     make_byte_array_copier(
                         LLLnode(bytez_placeholder, location='memory', typ=sub.typ),
-                        sub
+                        sub,
+                        pos=getpos(self.stmt)
                     ),
+                    zero_pad(bytez_placeholder, sub.typ.maxlen),
                     ['mstore', len_placeholder, 32],
                     self.make_return_stmt(len_placeholder, ['ceil32', ['add', ['mload', bytez_placeholder], 64]], loop_memory_position=loop_memory_position)],
                     typ=None, pos=getpos(self.stmt)

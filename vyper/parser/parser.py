@@ -572,6 +572,20 @@ def get_arg_copier(sig, total_size, memory_dest, offset=4):
     return copier
 
 
+def make_unpacker(ident, i_placeholder, begin_pos):
+    start_label = 'dyn_unpack_start_' + ident
+    end_label = 'dyn_unpack_end_' + ident
+    return ['seq_unchecked',
+        ['mstore', begin_pos, 'pass'],  # get len
+        ['mstore', i_placeholder, 0],
+        ['label', start_label],
+        ['if', ['ge', ['mload', i_placeholder], ['ceil32', ['mload', begin_pos]]], ['goto', end_label]],  # break
+        ['mstore', ['add', ['add', begin_pos, 32], ['mload', i_placeholder]], 'pass'],  # pop into correct memory slot.
+        ['mstore', i_placeholder, ['add', 32, ['mload', i_placeholder]]],  # increment i
+        ['goto', start_label],
+        ['label', end_label]]
+
+
 # Parses a function declaration
 def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
     if _vars is None:
@@ -637,19 +651,6 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
             context.next_mem += 32 * get_size_of_type(arg.typ)
         else:
             context.vars[arg.name] = VariableRecord(arg.name, MemoryPositions.RESERVED_MEMORY + arg.pos, arg.typ, False)
-
-    def make_unpacker(ident, i_placeholder, begin_pos):
-        start_label = 'dyn_unpack_start_' + ident
-        end_label = 'dyn_unpack_end_' + ident
-        return ['seq_unchecked',
-            ['mstore', begin_pos, 'pass'],  # get len
-            ['mstore', i_placeholder, 0],
-            ['label', start_label],
-            ['if', ['ge', ['mload', i_placeholder], ['ceil32', ['mload', begin_pos]]], ['goto', end_label]],  # break
-            ['mstore', ['add', ['add', begin_pos, 32], ['mload', i_placeholder]], 'pass'],  # pop into correct memory slot.
-            ['mstore', i_placeholder, ['add', 32, ['mload', i_placeholder]]],  # increment i
-            ['goto', start_label],
-            ['label', end_label]]
 
     # Private function copiers. No clamping for private functions.
     dyn_variable_names = [a.name for a in base_args if isinstance(a.typ, ByteArrayType)]
@@ -935,7 +936,7 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder,
         dest_placeholder = LLLnode.from_list(
             ['add', datamem_start, ['mload', dynamic_offset_counter]],
             typ=typ, location='memory', annotation="pack_args_by_32:dest_placeholder")
-        copier = make_byte_array_copier(dest_placeholder, source_expr.lll_node)
+        copier = make_byte_array_copier(dest_placeholder, source_expr.lll_node, pos=pos)
         holder.append(copier)
         # Add zero padding.
         new_maxlen = ceil32(source_expr.lll_node.typ.maxlen)

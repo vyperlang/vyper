@@ -99,7 +99,7 @@ def make_byte_array_copier(destination, source, pos=None):
     # Maximum theoretical length
     max_length = 32 if isinstance(source.typ, NullType) else source.typ.maxlen + 32
     return LLLnode.from_list(['with', '_pos', 0 if isinstance(source.typ, NullType) else source,
-                                make_byte_slice_copier(destination, pos_node, length, max_length)], typ=None)
+                                make_byte_slice_copier(destination, pos_node, length, max_length, pos=pos)], typ=None)
 
 
 # Copy bytes
@@ -108,7 +108,7 @@ def make_byte_array_copier(destination, source, pos=None):
 # (ii) an LLL node for the start position of the destination
 # (iii) an LLL node for the length
 # (iv) a constant for the max length
-def make_byte_slice_copier(destination, source, length, max_length):
+def make_byte_slice_copier(destination, source, length, max_length, pos=None):
     # Special case: memory to memory
     if source.location == "memory" and destination.location == "memory":
         return LLLnode.from_list(['with', '_l', max_length,
@@ -138,7 +138,7 @@ def make_byte_slice_copier(destination, source, length, max_length):
                 ['with', '_actual_len', length,
                     ['repeat', MemoryPositions.FREE_LOOP_INDEX, 0, (max_length + 31) // 32,
                         ['seq', checker, setter]]]]]
-    return LLLnode.from_list(o, typ=None, annotation='copy byte slice src: %s dst: %s' % (source, destination))
+    return LLLnode.from_list(o, typ=None, annotation='copy byte slice src: %s dst: %s' % (source, destination), pos=pos)
 
 
 # Takes a <32 byte array as input, and outputs a number.
