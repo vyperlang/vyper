@@ -40,7 +40,9 @@ from vyper.types import (
     are_units_compatible,
 )
 from vyper.utils import (
-    SizeLimits
+    SizeLimits,
+    sha3,
+    fourbytes_to_int
 )
 from vyper.parser.expr import (
     Expr
@@ -224,7 +226,24 @@ class Stmt(object):
             raise StructureException("Unsupported operator: %r" % ast.dump(self.stmt), self.stmt)
 
     def parse_assert(self):
-        return LLLnode.from_list(['assert', Expr.parse_value_expr(self.stmt.test, self.context)], typ=None, pos=getpos(self.stmt))
+        if self.stmt.msg:
+            if len(self.stmt.msg.s.strip()) == 0:
+                raise StructureException('Empty reason string not allowed.', self.stmt)
+            reason_str = self.stmt.msg.s.strip()
+            sig_placeholder = self.context.new_placeholder(BaseType(32))
+            arg_placeholder = self.context.new_placeholder(BaseType(32))
+            reason_str_type = ByteArrayType(len(reason_str))
+            placeholder_bytes = Expr(self.stmt.msg, self.context).lll_node
+            method_id = fourbytes_to_int(sha3(b"Error(string)")[:4])
+            assert_reason = \
+                ['seq',
+                    ['mstore', sig_placeholder, method_id],
+                    ['mstore', arg_placeholder, 32],
+                    placeholder_bytes,
+                    ['assert_reason', Expr.parse_value_expr(self.stmt.test, self.context), int(sig_placeholder + 28), int(4 + 32 + get_size_of_type(reason_str_type) * 32)]]
+            return LLLnode.from_list(assert_reason, typ=None, pos=getpos(self.stmt))
+        else:
+            return LLLnode.from_list(['assert', Expr.parse_value_expr(self.stmt.test, self.context)], typ=None, pos=getpos(self.stmt))
 
     def parse_for(self):
         from .parser import (
