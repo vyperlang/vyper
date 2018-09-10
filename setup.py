@@ -29,11 +29,6 @@ setup(
         'pytest-cov',
         'eth-tester[py-evm]==0.1.0b31',
         'web3==4.4.1',
-        'py-evm==0.2.0a30',
-        # 'py-evm==0.2.0a26',
-        # 'py-evm==0.2.0a18',
-        # 'py-evm==0.2.0-alpha.26',
-        # 'eth-tester==0.1.0-beta.29',
     ],
     scripts=[
         'bin/vyper',
