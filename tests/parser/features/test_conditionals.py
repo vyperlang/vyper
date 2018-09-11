@@ -5,7 +5,7 @@ def foo(i: bool) -> int128:
     if i:
         return 5
     else:
-        assert 2
+        assert 2 != 0
         return 7
     return 11
     """
