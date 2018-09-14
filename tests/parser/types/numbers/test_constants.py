@@ -71,3 +71,24 @@ def test_add(a: uint256) -> uint256:
 
     assert c.test() == 33
     assert c.test_add(7) == 40
+
+
+def test_constant_address(get_contract):
+    code = """
+OWNER: constant(address) = 0x0000000000000000000000000000000000000012
+
+@public
+def get_owner() -> address:
+    return OWNER
+
+@public
+def is_owner() -> bool:
+    if msg.sender == OWNER:
+        return True
+    else:
+        return False
+    """
+    c = get_contract(code)
+
+    assert c.get_owner() == '0x0000000000000000000000000000000000000012'
+    assert c.is_owner() is False

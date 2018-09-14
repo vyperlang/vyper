@@ -168,23 +168,27 @@ class GlobalContext:
             return self.get_item_name_and_attributes(item.args[0], attributes)
         return None, attributes
 
+    def add_constant(self, item):
+        args = item.annotation.args
+        if not item.value:
+            raise StructureException('Constants must express a value!', item)
+        if len(args) == 1 and isinstance(args[0], ast.Name) and item.target:
+            c_name = item.target.id
+            if is_varname_valid(c_name, self._custom_units) and c_name not in self._globals:
+                self._constants[item.target.id] = item
+                return
+            else:
+                raise StructureException('Invalid constant name "%s"' % item.target.id, item)
+        else:
+            raise StructureException('Incorrectly formatted struct', item)
+
     def add_globals_and_events(self, item):
         item_attributes = {"public": False}
 
         # Handle constants.
         if isinstance(item.annotation, ast.Call) and item.annotation.func.id == "constant":
-            args = item.annotation.args
-            if not item.value:
-                raise StructureException('Constants must express a value!', item)
-            if len(args) == 1 and isinstance(args[0], ast.Name) and item.target:
-                c_name = item.target.id
-                if is_varname_valid(c_name, self._custom_units) and c_name not in self._globals:
-                    self._constants[item.target.id] = item
-                    return
-                else:
-                    raise StructureException('Invalid constant name "%s"' % item.target.id, item)
-            else:
-                raise StructureException('Incorrectly formatted struct', item)
+            self.add_constant(item)
+            return
 
         # Handle events.
         if not (isinstance(item.annotation, ast.Call) and item.annotation.func.id == "event"):

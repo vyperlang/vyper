@@ -171,9 +171,14 @@ class Expr(object):
         elif self.expr.id in builtin_constants:
             return builtin_constants[self.expr.id]
         elif self.expr.id in self.context.constants:
+                    # check if value is compatible with
             const = self.context.constants[self.expr.id]
             expr = Expr.parse_value_expr(const.value, self.context)
-            expr.typ = parse_type(const.annotation.args[0], None, custom_units=self.context.custom_units)
+            annotation_type = parse_type(const.annotation.args[0], None, custom_units=self.context.custom_units)
+            if expr.typ != annotation_type:
+                raise StructureException('Invalid value for constant type, expected %r' % annotation_type, const.value)
+            else:
+                expr.typ = annotation_type
             return expr
         else:
             raise VariableDeclarationException("Undeclared variable: " + self.expr.id, self.expr)
