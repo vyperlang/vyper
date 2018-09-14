@@ -53,3 +53,21 @@ def test():
     ZERO_ADDRESS: address
     """
     assert_compile_failed(lambda: get_contract(code))
+
+
+def test_custom_constants(get_contract):
+    code = """
+X_VALUE: constant(uint256) = 33
+
+@public
+def test() -> uint256:
+    return X_VALUE
+
+@public
+def test_add(a: uint256) -> uint256:
+    return X_VALUE + a
+    """
+    c = get_contract(code)
+
+    assert c.test() == 33
+    assert c.test_add(7) == 40

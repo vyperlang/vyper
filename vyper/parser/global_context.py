@@ -43,7 +43,7 @@ class GlobalContext:
         self._defs = list()
         self._getters = list()
         self._custom_units = list()
-        self.constants = dict()
+        self._constants = dict()
 
     # Parse top-level functions and variables
     @classmethod
@@ -170,10 +170,28 @@ class GlobalContext:
 
     def add_globals_and_events(self, item):
         item_attributes = {"public": False}
+
+        # Handle constants.
+        if isinstance(item.annotation, ast.Call) and item.annotation.func.id == "constant":
+            args = item.annotation.args
+            if not item.value:
+                raise StructureException('Constants must express a value!', item)
+            if len(args) == 1 and isinstance(args[0], ast.Name) and item.target:
+                c_name = item.target.id
+                if is_varname_valid(c_name, self._custom_units) and c_name not in self._globals:
+                    self._constants[item.target.id] = item
+                    return
+                else:
+                    raise StructureException('Invalid constant name "%s"' % item.target.id, item)
+            else:
+                raise StructureException('Incorrectly formatted struct', item)
+
+        # Handle events.
         if not (isinstance(item.annotation, ast.Call) and item.annotation.func.id == "event"):
             item_name, item_attributes = self.get_item_name_and_attributes(item, item_attributes)
             if not all([attr in valid_global_keywords for attr in item_attributes.keys()]):
                 raise StructureException('Invalid global keyword used: %s' % item_attributes, item)
+
         if item.value is not None:
             raise StructureException('May not assign value whilst defining type', item)
         elif isinstance(item.annotation, ast.Call) and item.annotation.func.id == "event":

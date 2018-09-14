@@ -27,6 +27,7 @@ from vyper.utils import (
     is_varname_valid,
 )
 from vyper.types import (
+    parse_type,
     BaseType,
     ByteArrayType,
     ContractType,
@@ -153,7 +154,7 @@ class Expr(object):
 
     # Variable names
     def variables(self):
-        constants = {
+        builtin_constants = {
             'ZERO_ADDRESS': LLLnode.from_list([0], typ=BaseType('address', None, is_literal=True), pos=getpos(self.expr)),
             'MAX_INT128': LLLnode.from_list(['mload', MemoryPositions.MAXNUM], typ=BaseType('int128', None, is_literal=True), pos=getpos(self.expr)),
             'MIN_INT128': LLLnode.from_list(['mload', MemoryPositions.MINNUM], typ=BaseType('int128', None, is_literal=True), pos=getpos(self.expr)),
@@ -167,8 +168,13 @@ class Expr(object):
         elif self.expr.id in self.context.vars:
             var = self.context.vars[self.expr.id]
             return LLLnode.from_list(var.pos, typ=var.typ, location='memory', pos=getpos(self.expr), annotation=self.expr.id, mutable=var.mutable)
-        elif self.expr.id in constants:
-            return constants[self.expr.id]
+        elif self.expr.id in builtin_constants:
+            return builtin_constants[self.expr.id]
+        elif self.expr.id in self.context.constants:
+            const = self.context.constants[self.expr.id]
+            expr = Expr.parse_value_expr(const.value, self.context)
+            expr.typ = parse_type(const.annotation.args[0], None, custom_units=self.context.custom_units)
+            return expr
         else:
             raise VariableDeclarationException("Undeclared variable: " + self.expr.id, self.expr)
 
