@@ -21,6 +21,11 @@ parser.add_argument('--show-gas-estimates', help='Show gas estimates in ir outpu
 args = parser.parse_args()
 
 
+def uniq(seq):
+    exists = set()
+    return [x for x in seq if not (x in exists or exists.add(x))]
+
+
 def get_asm(asm_list):
     output_string = ''
     skip_newlines = 0
@@ -58,7 +63,7 @@ if __name__ == '__main__':
         if args.show_gas_estimates:
             parser_utils.LLLnode.repr_show_gas = True
 
-        for i in set(dict.fromkeys(args.format.split(','))):
+        for i in uniq(args.format.split(',')):
             if i not in output_format:
                 print('Format {} option not supported, use any csv list of {}.'.format(i, ','.join(output_format.keys())))
             print(output_format[i](code))
