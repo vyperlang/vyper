@@ -175,8 +175,19 @@ class Expr(object):
             const = self.context.constants[self.expr.id]
             expr = Expr.parse_value_expr(const.value, self.context)
             annotation_type = parse_type(const.annotation.args[0], None, custom_units=self.context.custom_units)
+
+            fail = False
+
             if expr.typ != annotation_type:
+                fail = True
+                # special case for literals, which can be uint256 types as well.
+                if isinstance(annotation_type, BaseType) and annotation_type.typ == 'uint256' and \
+                   expr.typ.typ == 'int128' and SizeLimits.in_bounds('uint256', expr.value):
+                    fail = False
+
+            if fail:
                 raise StructureException('Invalid value for constant type, expected %r' % annotation_type, const.value)
+
             else:
                 expr.typ = annotation_type
             return expr
