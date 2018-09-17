@@ -146,14 +146,15 @@ def __init__():
 
 @private
 def set_greeting(_greeting: bytes[20]):
-    a: uint256 = 333
-    b: uint256 = 334
-    c: uint256 = 335
-    d: uint256 = 336
-    if a + b + c + d == 1338:
+    a: uint256 = 332
+    b: uint256 = 333
+    c: uint256 = 334
+    d: uint256 = 335
+    if a + b + c + d + 3 == 1337:
         self.greeting = _greeting
 
 @public
+@constant
 def construct(greet: bytes[20]) -> bytes[40]:
     return concat(self.greeting, greet)
 
@@ -191,9 +192,13 @@ def add_one(a: uint256) -> uint256:
 
 @public
 def added(a: uint256, b: uint256) -> uint256:
+    a_before: uint256 = a
+    b_before: uint256 = b
     c: int128 = 333
     d: uint256 = self.addition(a, b)
     assert c == 333
+    assert a_before == a
+    assert b_before == b
 
     return d
     """
@@ -207,7 +212,6 @@ def added(a: uint256, b: uint256) -> uint256:
 def test_private_return_tuple(get_contract_with_gas_estimation):
     code = """
 @private
-# @public
 def _test(a: int128) -> (int128, int128):
     return a + 2, 2
 
@@ -270,9 +274,9 @@ def test4() -> (bytes[100]):
     """
 
     c = get_contract_with_gas_estimation(code)
-
-    assert c.test() == b"hello                   1           2"
-    assert c.test2() == b"hello                   1           2"
+    test_str = b"                   1           2"
+    assert c.test() == b"hello" + test_str
+    assert c.test2() == b"hello" + test_str
     assert c.test3(b"alice") == b"alice"
     c.set(b"hello daar", transact={})
     assert c.test4() == b"hello daar"
@@ -396,3 +400,31 @@ def test() -> int128[4]:
     c = get_contract_with_gas_estimation(code)
 
     assert c.test() == [0, 1, 0, 1]
+
+
+def test_private_payable(w3, get_contract_with_gas_estimation):
+    code = """
+@private
+def _send_it(a: address, value: uint256(wei)):
+    send(a, value)
+
+@payable
+@public
+def test(doit: bool, a: address, value: uint256(wei)):
+    self._send_it(a, value)
+
+@public
+@payable
+def __default__():
+    pass
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    w3.eth.sendTransaction({'to': c.address, 'value': w3.toWei(1, 'ether')})
+    assert w3.eth.getBalance(c.address) == w3.toWei(1, 'ether')
+    a3 = w3.eth.accounts[2]
+    assert w3.eth.getBalance(a3) == w3.toWei(1000000, 'ether')
+    c.test(True, a3, w3.toWei(0.05, 'ether'), transact={})
+    assert w3.eth.getBalance(a3) == w3.toWei(1000000.05, 'ether')
+    assert w3.eth.getBalance(c.address) == w3.toWei(0.95, 'ether')
