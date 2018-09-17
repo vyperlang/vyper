@@ -373,14 +373,12 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
         if arg.name in global_ctx._globals:
             raise FunctionDeclarationException("Variable name duplicated between function arguments and globals: " + arg.name)
 
-    # Create a context
-    # context = Context(
-    #     vars=_vars, globals=_globals, sigs=sigs,
-    #     return_type=sig.output_type, is_constant=sig.const, is_payable=sig.payable, origcode=origcode, custom_units=_custom_units,
-    #     is_private=sig.private, method_id=sig.method_id
-    # )
-    context = Context(vars=_vars, globals=global_ctx._globals, sigs=sigs,
-                      return_type=sig.output_type, is_constant=sig.const, is_payable=sig.payable, origcode=origcode, custom_units=global_ctx._custom_units, is_private=sig.private, method_id=sig.method_id)
+    # Create a local (per function) context.
+    context = Context(
+        vars=_vars, globals=global_ctx._globals, sigs=sigs,
+        return_type=sig.output_type, is_constant=sig.const, is_payable=sig.payable, origcode=origcode,
+        custom_units=global_ctx._custom_units, is_private=sig.private, method_id=sig.method_id
+    )
     # Copy calldata to memory for fixed-size arguments
     max_copy_size = sum([32 if isinstance(arg.typ, ByteArrayType) else get_size_of_type(arg.typ) * 32 for arg in sig.args])
     base_copy_size = sum([32 if isinstance(arg.typ, ByteArrayType) else get_size_of_type(arg.typ) * 32 for arg in base_args])
@@ -388,6 +386,8 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
 
     clampers = []
 
+    # Create callback_ptr, this stores a destination in the bytecode for a private
+    # function to jump to after a function has executed.
     _post_callback_ptr = "{}_{}_post_callback_ptr".format(sig.name, sig.method_id)
     if sig.private:
         context.callback_ptr = context.new_placeholder(typ=BaseType('uint256'))
@@ -396,6 +396,13 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
         )
         if total_default_args > 0:
             clampers.append(['label', _post_callback_ptr])
+
+    # private functions without return types need to jump back to
+    # the calling function, as there is no return statement to handle the
+    # jump.
+    stop_func = [['stop']]
+    if sig.output_type is None and sig.private:
+        stop_func = [['jump', ['mload', context.callback_ptr]]]
 
     if not len(base_args):
         copier = 'pass'
@@ -557,7 +564,7 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
                     ['if', 0,  # can only be jumped into
                         ['seq',
                             ['label', function_routine] if not sig.private else ['pass'],
-                            ['seq'] + _clampers + [parse_body(c, context) for c in code.body] + ['stop']]]], typ=None, pos=getpos(code))
+                            ['seq'] + _clampers + [parse_body(c, context) for c in code.body] + stop_func]]], typ=None, pos=getpos(code))
 
         else:
             # Function without default parameters.
@@ -565,7 +572,7 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
             o = LLLnode.from_list(
                 ['if',
                     sig_compare,
-                    ['seq'] + [private_label] + clampers + [parse_body(c, context) for c in code.body] + ['stop']], typ=None, pos=getpos(code))
+                    ['seq'] + [private_label] + clampers + [parse_body(c, context) for c in code.body] + stop_func], typ=None, pos=getpos(code))
 
     # Check for at leasts one return statement if necessary.
     if context.return_type and context.function_return_count == 0:

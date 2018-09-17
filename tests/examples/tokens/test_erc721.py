@@ -70,7 +70,6 @@ def test_owner_transferFrom(w3, c, assert_tx_failed):
 
     # Basic transfer.
     c.transferFrom(a0, a1, IDS[0], transact={'from': a0})
-    print(a0, a1, IDS[0])
     assert c.balanceOf(a0) == 0
     assert c.balanceOf(a1) == 2
 

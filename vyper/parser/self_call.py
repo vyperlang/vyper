@@ -121,7 +121,7 @@ def call_self_private(stmt_expr, context, sig):
     ]
 
     # Pop return values.
-    returner = ['pass']
+    returner = [0]
     if sig.output_type:
         output_placeholder, returner, output_size = call_make_placeholder(stmt_expr, context, sig)
         if output_size > 0:
