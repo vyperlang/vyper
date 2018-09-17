@@ -43,6 +43,29 @@ def foo() -> bool:
 def foo() -> bool:
     a: address
     return a == 1
+    """,
+    """
+@public
+def foo(a: address) -> bool:
+    return not a
+    """,
+    """
+@public
+def foo() -> bool:
+    b: int128
+    return not b
+    """,
+    """
+@public
+def foo() -> bool:
+    b: uint256
+    return not b
+    """,
+    """
+@public
+def foo() -> bool:
+    b: uint256
+    return not b
     """
 ]
 
@@ -106,6 +129,11 @@ def foo() -> bool:
 @public
 def foo() -> bool:
     return 1 <= 1
+    """,
+    """
+@public
+def foo2(a: address) -> bool:
+    return a != ZERO_ADDRESS
     """
 ]
 

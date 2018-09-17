@@ -1,3 +1,5 @@
+import ast
+
 from vyper.utils import GAS_IDENTITY, GAS_IDENTITYWORD
 
 from vyper.exceptions import (
@@ -483,3 +485,28 @@ def make_setter(left, right, location, pos):
             return LLLnode.from_list(['with', '_L', left, ['with', '_R', right, ['seq'] + subs]], typ=None)
     else:
         raise Exception("Invalid type for setters")
+
+
+# Decorate every node of an AST tree with the original source code.
+# This is necessary to facilitate error pretty-printing.
+def decorate_ast_with_source(_ast, code):
+
+    class MyVisitor(ast.NodeVisitor):
+        def visit(self, node):
+            self.generic_visit(node)
+            node.source_code = code
+
+    MyVisitor().visit(_ast)
+
+
+def resolve_negative_literals(_ast):
+
+    class RewriteUnaryOp(ast.NodeTransformer):
+        def visit_UnaryOp(self, node):
+            if isinstance(node.op, ast.USub) and isinstance(node.operand, ast.Num):
+                node.operand.n = 0 - node.operand.n
+                return node.operand
+            else:
+                return node
+
+    return RewriteUnaryOp().visit(_ast)

@@ -22,51 +22,44 @@ from vyper.exceptions import (
 from vyper.signatures.function_signature import (
     FunctionSignature,
     VariableRecord,
-    ContractRecord,
 )
 from vyper.signatures.event_signature import (
     EventSignature,
 )
-from vyper.premade_contracts import (
-    premade_contracts,
-)
 from vyper.parser.stmt import Stmt
 from vyper.parser.expr import Expr
 from vyper.parser.context import Context
+from vyper.parser.global_context import GlobalContext
 from vyper.parser.lll_node import LLLnode
 from vyper.parser.parser_utils import (
+    pack_arguments,
+    make_setter,
+    base_type_conversion,
+    byte_array_to_num,
+    decorate_ast_with_source,
     getpos,
     make_byte_array_copier,
-    base_type_conversion,
+    resolve_negative_literals,
     unwrap_location,
-    byte_array_to_num,
-    make_setter,
-    pack_arguments
 )
 from vyper.types import (
     BaseType,
     ByteArrayType,
-    ContractType,
     ListType,
-    MappingType,
-    StructType,
 )
 from vyper.types import (
     get_size_of_type,
     is_base_type,
-    parse_type,
     ceil32,
 )
 from vyper.utils import (
     MemoryPositions,
     LOADED_LIMIT_MAP,
     string_to_bytes,
-    valid_global_keywords,
 )
 from vyper.utils import (
     bytes_to_int,
     calc_mem_gas,
-    is_varname_valid,
 )
 from vyper import __version__
 
@@ -125,231 +118,6 @@ def parse_version_pragma(version_str):
         ))
 
 
-# Parser for a single line
-def parse_line(code):
-    o = ast.parse(code).body[0]
-    decorate_ast_with_source(o, code)
-    o = resolve_negative_literals(o)
-    return o
-
-
-# Decorate every node of an AST tree with the original source code.
-# This is necessary to facilitate error pretty-printing.
-def decorate_ast_with_source(_ast, code):
-
-    class MyVisitor(ast.NodeVisitor):
-        def visit(self, node):
-            self.generic_visit(node)
-            node.source_code = code
-
-    MyVisitor().visit(_ast)
-
-
-def resolve_negative_literals(_ast):
-
-    class RewriteUnaryOp(ast.NodeTransformer):
-        def visit_UnaryOp(self, node):
-            if isinstance(node.op, ast.USub) and isinstance(node.operand, ast.Num):
-                node.operand.n = 0 - node.operand.n
-                return node.operand
-            else:
-                return node
-
-    return RewriteUnaryOp().visit(_ast)
-
-
-# Make a getter for a variable. This function gives an output that
-# contains lists of 4-tuples:
-# (i) the tail of the function name for the getter
-# (ii) the code for the arguments that the function takes
-# (iii) the code for the return
-# (iv) the output type
-#
-# Here is an example:
-#
-# Input: my_variable: {foo: int128, bar: decimal[5]}
-#
-# Output:
-#
-# [('__foo', '', '.foo', 'int128'),
-#  ('__bar', 'arg0: int128, ', '.bar[arg0]', 'decimal')]
-#
-# The getters will have code:
-# def get_my_variable__foo() -> int128: return self.foo
-# def get_my_variable__bar(arg0: nun) -> decimal: return self.bar[arg0]
-
-def _mk_getter_helper(typ, depth=0):
-    # Base type and byte array type: do not extend the getter function
-    # name, add no input arguments, add nothing to the return statement,
-    # output type is the base type
-    if isinstance(typ, BaseType):
-        return [("", "", "", repr(typ))]
-    elif isinstance(typ, ByteArrayType):
-        return [("", "", "", repr(typ))]
-    # List type: do not extend the getter name, add an input argument for
-    # the index in the list, add an item access to the return statement
-    elif isinstance(typ, ListType):
-        o = []
-        for funname, head, tail, base in _mk_getter_helper(typ.subtype, depth + 1):
-            o.append((funname, ("arg%d: int128, " % depth) + head, ("[arg%d]" % depth) + tail, base))
-        return o
-    # Mapping type: do not extend the getter name, add an input argument for
-    # the key in the map, add a value access to the return statement
-    elif isinstance(typ, MappingType):
-        o = []
-        for funname, head, tail, base in _mk_getter_helper(typ.valuetype, depth + 1):
-            o.append((funname, ("arg%d: %r, " % (depth, typ.keytype)) + head, ("[arg%d]" % depth) + tail, base))
-        return o
-    # Struct type: for each member variable, make a separate getter, extend
-    # its function name with the name of the variable, do not add input
-    # arguments, add a member access to the return statement
-    elif isinstance(typ, StructType):
-        o = []
-        for k, v in typ.members.items():
-            for funname, head, tail, base in _mk_getter_helper(v, depth):
-                o.append(("__" + k + funname, head, "." + k + tail, base))
-        return o
-    else:
-        raise Exception("Unexpected type")
-
-
-# Make a list of getters for a given variable name with a given type
-def mk_getter(varname, typ):
-    funs = _mk_getter_helper(typ)
-    return ["""@public\n@constant\ndef %s%s(%s) -> %s: return self.%s%s""" % (varname, funname, head.rstrip(', '), base, varname, tail)
-            for (funname, head, tail, base) in funs]
-
-
-def add_contract(code):
-    _defs = []
-    for item in code:
-        # Function definitions
-        if isinstance(item, ast.FunctionDef):
-            _defs.append(item)
-        else:
-            raise StructureException("Invalid contract reference", item)
-    return _defs
-
-
-def get_item_name_and_attributes(item, attributes):
-    if isinstance(item, ast.Name):
-        return item.id, attributes
-    elif isinstance(item, ast.AnnAssign):
-        return get_item_name_and_attributes(item.annotation, attributes)
-    elif isinstance(item, ast.Subscript):
-        return get_item_name_and_attributes(item.value, attributes)
-    # elif ist
-    elif isinstance(item, ast.Call):
-        attributes[item.func.id] = True
-        # Raise for multiple args
-        if len(item.args) != 1:
-            raise StructureException("%s expects one arg (the type)" % item.func.id)
-        return get_item_name_and_attributes(item.args[0], attributes)
-    return None, attributes
-
-
-def add_globals_and_events(_custom_units, _contracts, _defs, _events, _getters, _globals, item):
-    item_attributes = {"public": False}
-    if not (isinstance(item.annotation, ast.Call) and item.annotation.func.id == "event"):
-        item_name, item_attributes = get_item_name_and_attributes(item, item_attributes)
-        if not all([attr in valid_global_keywords for attr in item_attributes.keys()]):
-            raise StructureException('Invalid global keyword used: %s' % item_attributes, item)
-    if item.value is not None:
-        raise StructureException('May not assign value whilst defining type', item)
-    elif isinstance(item.annotation, ast.Call) and item.annotation.func.id == "event":
-        if _globals or len(_defs):
-            raise EventDeclarationException("Events must all come before global declarations and function definitions", item)
-        _events.append(item)
-    elif not isinstance(item.target, ast.Name):
-        raise StructureException("Can only assign type to variable in top-level statement", item)
-    # Is this a custom unit definition.
-    elif item.target.id == 'units':
-        if not _custom_units:
-            if not isinstance(item.annotation, ast.Dict):
-                raise VariableDeclarationException("Define custom units using units: { }.", item.target)
-            for key, value in zip(item.annotation.keys, item.annotation.values):
-                if not isinstance(value, ast.Str):
-                    raise VariableDeclarationException("Custom unit description must be a valid string.", value)
-                if not isinstance(key, ast.Name):
-                    raise VariableDeclarationException("Custom unit name must be a valid string unquoted string.", key)
-                if key.id in _custom_units:
-                    raise VariableDeclarationException("Custom unit may only be defined once", key)
-                if not is_varname_valid(key.id, custom_units=_custom_units):
-                    raise VariableDeclarationException("Custom unit may not be a reserved keyword", key)
-                _custom_units.append(key.id)
-        else:
-            raise VariableDeclarationException("Can units can only defined once.", item.target)
-    # Check if variable name is reserved or invalid
-    elif not is_varname_valid(item.target.id, custom_units=_custom_units):
-        raise VariableDeclarationException("Variable name invalid or reserved: ", item.target)
-    # Check if global already exists, if so error
-    elif item.target.id in _globals:
-        raise VariableDeclarationException("Cannot declare a persistent variable twice!", item.target)
-    elif len(_defs):
-        raise StructureException("Global variables must all come before function definitions", item)
-    # If the type declaration is of the form public(<type here>), then proceed with
-    # the underlying type but also add getters
-    elif isinstance(item.annotation, ast.Call) and item.annotation.func.id == "address":
-        if item.annotation.args[0].id not in premade_contracts:
-            raise VariableDeclarationException("Unsupported premade contract declaration", item.annotation.args[0])
-        premade_contract = premade_contracts[item.annotation.args[0].id]
-        _contracts[item.target.id] = add_contract(premade_contract.body)
-        _globals[item.target.id] = VariableRecord(item.target.id, len(_globals), BaseType('address'), True)
-    elif item_name in _contracts:
-        _globals[item.target.id] = ContractRecord(item.target.id, len(_globals), ContractType(item_name), True)
-        if item_attributes["public"]:
-            typ = ContractType(item_name)
-            for getter in mk_getter(item.target.id, typ):
-                _getters.append(parse_line('\n' * (item.lineno - 1) + getter))
-                _getters[-1].pos = getpos(item)
-    elif isinstance(item.annotation, ast.Call) and item.annotation.func.id == "public":
-        if isinstance(item.annotation.args[0], ast.Name) and item_name in _contracts:
-            typ = ContractType(item_name)
-        else:
-            typ = parse_type(item.annotation.args[0], 'storage', custom_units=_custom_units)
-        _globals[item.target.id] = VariableRecord(item.target.id, len(_globals), typ, True)
-        # Adding getters here
-        for getter in mk_getter(item.target.id, typ):
-            _getters.append(parse_line('\n' * (item.lineno - 1) + getter))
-            _getters[-1].pos = getpos(item)
-    else:
-        _globals[item.target.id] = VariableRecord(
-            item.target.id, len(_globals),
-            parse_type(item.annotation, 'storage', custom_units=_custom_units),
-            True
-        )
-    return _custom_units, _contracts, _events, _globals, _getters
-
-
-# Parse top-level functions and variables
-def get_contracts_and_defs_and_globals(code):
-    _contracts = {}
-    _events = []
-    _globals = {}
-    _defs = []
-    _getters = []
-    _custom_units = []
-
-    for item in code:
-        # Contract references
-        if isinstance(item, ast.ClassDef):
-            if _events or _globals or _defs:
-                raise StructureException("External contract declarations must come before event declarations, global declarations, and function definitions", item)
-            _contracts[item.name] = add_contract(item.body)
-        # Statements of the form:
-        # variable_name: type
-        elif isinstance(item, ast.AnnAssign):
-            _custom_units, _contracts, _events, _globals, _getters = add_globals_and_events(_custom_units, _contracts, _defs, _events, _getters, _globals, item)
-        # Function definitions
-        elif isinstance(item, ast.FunctionDef):
-            if item.name in _globals:
-                raise FunctionDeclarationException("Function name shadowing a variable name: %s" % item.name)
-            _defs.append(item)
-        else:
-            raise StructureException("Invalid top-level statement", item)
-    return _contracts, _events, _defs + _getters, _globals, _custom_units
-
-
 # Header code
 initializer_list = ['seq', ['mstore', 28, ['calldataload', 0]]]
 # Store limit constants at fixed addresses in memory.
@@ -403,14 +171,15 @@ def generate_default_arg_sigs(code, _contracts, _custom_units):
 # Get ABI signature
 def mk_full_signature(code):
     o = []
-    _contracts, _events, _defs, _globals, _custom_units = get_contracts_and_defs_and_globals(code)
-    for code in _events:
-        sig = EventSignature.from_declaration(code, custom_units=_custom_units)
+    global_ctx = GlobalContext.get_global_context(code)
+
+    for code in global_ctx._events:
+        sig = EventSignature.from_declaration(code, custom_units=global_ctx._custom_units)
         o.append(sig.to_abi_dict())
-    for code in _defs:
-        sig = FunctionSignature.from_definition(code, sigs=_contracts, custom_units=_custom_units)
+    for code in global_ctx._defs:
+        sig = FunctionSignature.from_definition(code, sigs=global_ctx._contracts, custom_units=global_ctx._custom_units)
         if not sig.private:
-            default_sigs = generate_default_arg_sigs(code, _contracts, _custom_units)
+            default_sigs = generate_default_arg_sigs(code, global_ctx._contracts, global_ctx._custom_units)
             for s in default_sigs:
                 o.append(s.to_abi_dict())
     return o
@@ -446,21 +215,21 @@ def parse_external_contracts(external_contracts, _contracts):
     return external_contracts
 
 
-def parse_other_functions(o, otherfuncs, _globals, sigs, external_contracts, origcode, _custom_units, fallback_function, runtime_only):
+def parse_other_functions(o, otherfuncs, sigs, external_contracts, origcode, global_ctx, default_function, runtime_only):
     sub = ['seq', initializer_lll]
     add_gas = initializer_lll.gas
     for _def in otherfuncs:
-        sub.append(parse_func(_def, _globals, {**{'self': sigs}, **external_contracts}, origcode, _custom_units))  # noqa E999
+        sub.append(parse_func(_def, {**{'self': sigs}, **external_contracts}, origcode, global_ctx))  # noqa E999
         sub[-1].total_gas += add_gas
         add_gas += 30
-        for sig in generate_default_arg_sigs(_def, external_contracts, _custom_units):
+        for sig in generate_default_arg_sigs(_def, external_contracts, global_ctx._custom_units):
             sig.gas = sub[-1].total_gas
             sigs[sig.sig] = sig
 
     # Add fallback function
-    if fallback_function:
-        fallback_func = parse_func(fallback_function[0], _globals, {**{'self': sigs}, **external_contracts}, origcode, _custom_units)
-        sub.append(fallback_func)
+    if default_function:
+        default_func = parse_func(default_function[0], {**{'self': sigs}, **external_contracts}, origcode, global_ctx)
+        sub.append(default_func)
     else:
         sub.append(LLLnode.from_list(['revert', 0, 0], typ=None, annotation='Default function'))
     if runtime_only:
@@ -472,37 +241,37 @@ def parse_other_functions(o, otherfuncs, _globals, sigs, external_contracts, ori
 
 # Main python parse tree => LLL method
 def parse_tree_to_lll(code, origcode, runtime_only=False):
-    _contracts, _events, _defs, _globals, _custom_units = get_contracts_and_defs_and_globals(code)
-    _names_def = [_def.name for _def in _defs]
+    global_ctx = GlobalContext.get_global_context(code)
+    _names_def = [_def.name for _def in global_ctx._defs]
     # Checks for duplicate function names
     if len(set(_names_def)) < len(_names_def):
         raise FunctionDeclarationException("Duplicate function name: %s" % [name for name in _names_def if _names_def.count(name) > 1][0])
-    _names_events = [_event.target.id for _event in _events]
+    _names_events = [_event.target.id for _event in global_ctx._events]
     # Checks for duplicate event names
     if len(set(_names_events)) < len(_names_events):
         raise EventDeclarationException("Duplicate event name: %s" % [name for name in _names_events if _names_events.count(name) > 1][0])
     # Initialization function
-    initfunc = [_def for _def in _defs if is_initializer(_def)]
+    initfunc = [_def for _def in global_ctx._defs if is_initializer(_def)]
     # Default function
-    defaultfunc = [_def for _def in _defs if is_default_func(_def)]
+    defaultfunc = [_def for _def in global_ctx._defs if is_default_func(_def)]
     # Regular functions
-    otherfuncs = [_def for _def in _defs if not is_initializer(_def) and not is_default_func(_def)]
+    otherfuncs = [_def for _def in global_ctx._defs if not is_initializer(_def) and not is_default_func(_def)]
     sigs = {}
     external_contracts = {}
     # Create the main statement
     o = ['seq']
-    if _events:
-        sigs = parse_events(sigs, _events, _custom_units)
-    if _contracts:
-        external_contracts = parse_external_contracts(external_contracts, _contracts)
+    if global_ctx._events:
+        sigs = parse_events(sigs, global_ctx._events, global_ctx._custom_units)
+    if global_ctx._contracts:
+        external_contracts = parse_external_contracts(external_contracts, global_ctx._contracts)
     # If there is an init func...
     if initfunc:
         o.append(['seq', initializer_lll])
-        o.append(parse_func(initfunc[0], _globals, {**{'self': sigs}, **external_contracts}, origcode, _custom_units))
+        o.append(parse_func(initfunc[0], {**{'self': sigs}, **external_contracts}, origcode, global_ctx))
     # If there are regular functions...
     if otherfuncs or defaultfunc:
         o = parse_other_functions(
-            o, otherfuncs, _globals, sigs, external_contracts, origcode, _custom_units, defaultfunc, runtime_only
+            o, otherfuncs, sigs, external_contracts, origcode, global_ctx, defaultfunc, runtime_only
         )
     return LLLnode.from_list(o, typ=None)
 
@@ -587,10 +356,10 @@ def make_unpacker(ident, i_placeholder, begin_pos):
 
 
 # Parses a function declaration
-def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
+def parse_func(code, sigs, origcode, global_ctx, _vars=None):
     if _vars is None:
         _vars = {}
-    sig = FunctionSignature.from_definition(code, sigs=sigs, custom_units=_custom_units)
+    sig = FunctionSignature.from_definition(code, sigs=sigs, custom_units=global_ctx._custom_units)
     # Get base args for function.
     total_default_args = len(code.args.defaults)
     base_args = sig.args[:-total_default_args] if total_default_args > 0 else sig.args
@@ -601,15 +370,17 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
         raise FunctionDeclarationException("__init__ function may not have default parameters.")
     # Check for duplicate variables with globals
     for arg in sig.args:
-        if arg.name in _globals:
+        if arg.name in global_ctx._globals:
             raise FunctionDeclarationException("Variable name duplicated between function arguments and globals: " + arg.name)
 
     # Create a context
-    context = Context(
-        vars=_vars, globals=_globals, sigs=sigs,
-        return_type=sig.output_type, is_constant=sig.const, is_payable=sig.payable, origcode=origcode, custom_units=_custom_units,
-        is_private=sig.private, method_id=sig.method_id
-    )
+    # context = Context(
+    #     vars=_vars, globals=_globals, sigs=sigs,
+    #     return_type=sig.output_type, is_constant=sig.const, is_payable=sig.payable, origcode=origcode, custom_units=_custom_units,
+    #     is_private=sig.private, method_id=sig.method_id
+    # )
+    context = Context(vars=_vars, globals=global_ctx._globals, sigs=sigs,
+                      return_type=sig.output_type, is_constant=sig.const, is_payable=sig.payable, origcode=origcode, custom_units=global_ctx._custom_units, is_private=sig.private, method_id=sig.method_id)
     # Copy calldata to memory for fixed-size arguments
     max_copy_size = sum([32 if isinstance(arg.typ, ByteArrayType) else get_size_of_type(arg.typ) * 32 for arg in sig.args])
     base_copy_size = sum([32 if isinstance(arg.typ, ByteArrayType) else get_size_of_type(arg.typ) * 32 for arg in base_args])
@@ -639,7 +410,8 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
     clampers.append(copier)
 
     # Add asserts for payable and internal
-    if not sig.payable:
+    # private never gets payable check.
+    if not sig.payable and not sig.private:
         clampers.append(['assert', ['iszero', 'callvalue']])
 
     # Fill variable positions
@@ -687,7 +459,7 @@ def parse_func(code, _globals, sigs, origcode, _custom_units, _vars=None):
 
         if total_default_args > 0:  # Function with default parameters.
             function_routine = "{}_{}".format(sig.name, sig.method_id)
-            default_sigs = generate_default_arg_sigs(code, sigs, _custom_units)
+            default_sigs = generate_default_arg_sigs(code, sigs, global_ctx._custom_units)
             sig_chain = ['seq']
 
             for default_sig in default_sigs:

@@ -103,10 +103,13 @@ class FunctionSignature():
                 public = True
             else:
                 raise StructureException("Bad decorator", dec)
+
         if public and private:
             raise StructureException("Cannot use public and private decorators on the same function: {}".format(name))
         if payable and const:
             raise StructureException("Function {} cannot be both constant and payable.".format(name))
+        if payable and private:
+            raise StructureException("Function {} cannot be both private and payable.".format(name))
         if (not public and not private) and not contract_def:
             raise StructureException("Function visibility must be declared (@public or @private)", code)
         if constant:

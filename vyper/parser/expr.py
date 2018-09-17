@@ -576,9 +576,10 @@ class Expr(object):
     def unary_operations(self):
         operand = Expr.parse_value_expr(self.expr.operand, self.context)
         if isinstance(self.expr.op, ast.Not):
-            # Note that in the case of bool, num, address, decimal, uint256 AND bytes32,
-            # a zero entry represents false, all others represent true
-            return LLLnode.from_list(["iszero", operand], typ='bool', pos=getpos(self.expr))
+            if isinstance(operand.typ, BaseType) and operand.typ.typ == 'bool':
+                return LLLnode.from_list(["iszero", operand], typ='bool', pos=getpos(self.expr))
+            else:
+                raise TypeMismatchException("Only bool is supported for not operation, %r supplied." % operand.typ, self.expr)
         elif isinstance(self.expr.op, ast.USub):
             if not is_numeric_type(operand.typ):
                 raise TypeMismatchException("Unsupported type for negation: %r" % operand.typ, operand)
