@@ -200,6 +200,8 @@ class Expr(object):
         elif isinstance(self.expr.value, ast.Name) and self.expr.value.id in ("msg", "block", "tx"):
             key = self.expr.value.id + "." + self.expr.attr
             if key == "msg.sender":
+                if self.context.is_private:
+                    raise ParserException("msg.sender not allowed in private functions.", self.expr)
                 return LLLnode.from_list(['caller'], typ='address', pos=getpos(self.expr))
             elif key == "msg.value":
                 if not self.context.is_payable:

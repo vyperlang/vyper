@@ -428,3 +428,13 @@ def __default__():
     c.test(True, a3, w3.toWei(0.05, 'ether'), transact={})
     assert w3.eth.getBalance(a3) == w3.toWei(1000000.05, 'ether')
     assert w3.eth.getBalance(c.address) == w3.toWei(0.95, 'ether')
+
+
+def test_private_msg_sender(get_contract, assert_compile_failed):
+    code = """
+@private
+def _whoami() -> address:
+    return msg.sender
+    """
+
+    assert_compile_failed(lambda: get_contract(code))
