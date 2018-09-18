@@ -30,7 +30,14 @@ def call_lookup_specs(stmt_expr, context):
 
 
 def make_call(stmt_expr, context):
-    _, _, sig = call_lookup_specs(stmt_expr, context)
+    method_name, _, sig = call_lookup_specs(stmt_expr, context)
+
+    if context.is_constant and not sig.const:
+        raise ConstancyViolationException(
+            "May not call non-constant function '%s' within a constant function." % (method_name),
+            getpos(stmt_expr)
+        )
+
     if sig.private:
         return call_self_private(stmt_expr, context, sig)
     else:
@@ -67,12 +74,6 @@ def call_self_private(stmt_expr, context, sig):
     push_local_vars = []
     pop_return_values = []
     push_args = []
-
-    if context.is_constant and not sig.const:
-        raise ConstancyViolationException(
-            "May not call non-constant function '%s' within a constant function." % (method_name),
-            getpos(stmt_expr)
-        )
 
     # Push local variables.
     if context.vars:
@@ -184,11 +185,6 @@ def call_self_private(stmt_expr, context, sig):
 def call_self_public(stmt_expr, context, sig):
     # self.* style call to a public function.
     method_name, expr_args, sig = call_lookup_specs(stmt_expr, context)
-    if context.is_constant and not sig.const:
-        raise ConstancyViolationException(
-            "May not call non-constant function '%s' within a constant function." % (method_name),
-            getpos(stmt_expr)
-        )
     add_gas = sig.gas  # gas of call
     inargs, inargsize, _ = pack_arguments(sig, expr_args, context, pos=getpos(stmt_expr))
     output_placeholder, returner, output_size = call_make_placeholder(stmt_expr, context, sig)
