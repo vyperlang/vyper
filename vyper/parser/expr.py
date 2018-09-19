@@ -252,9 +252,20 @@ class Expr(object):
         o.mutable = sub.mutable
         return o
 
+    def arithmetic_get_reference(self, item):
+        item_lll = Expr.parse_value_expr(item, self.context)
+        if isinstance(item, ast.Call):
+            # We only want to perform call statements once.
+            placeholder = self.context.new_placeholder(item_lll.typ)
+            pre_alloc = ['mstore', placeholder, item_lll]
+            return pre_alloc, LLLnode.from_list(['mload', placeholder], location='memory', typ=item_lll.typ)
+        else:
+            return None, item_lll
+
     def arithmetic(self):
-        left = Expr.parse_value_expr(self.expr.left, self.context)
-        right = Expr.parse_value_expr(self.expr.right, self.context)
+        pre_alloc_left, left = self.arithmetic_get_reference(self.expr.left)
+        pre_alloc_right, right = self.arithmetic_get_reference(self.expr.right)
+
         if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
             raise TypeMismatchException("Unsupported types for arithmetic op: %r %r" % (left.typ, right.typ), self.expr)
 
@@ -394,12 +405,23 @@ class Expr(object):
                 raise TypeMismatchException('Only whole number exponents are supported', self.expr)
         else:
             raise Exception("Unsupported binop: %r" % self.expr.op)
+
+        p = ['seq']
+
+        if pre_alloc_left:
+            p.append(pre_alloc_left)
+        if pre_alloc_right:
+            p.append(pre_alloc_right)
+
         if o.typ.typ == 'int128':
-            return LLLnode.from_list(['clamp', ['mload', MemoryPositions.MINNUM], o, ['mload', MemoryPositions.MAXNUM]], typ=o.typ, pos=getpos(self.expr))
+            p.append(['clamp', ['mload', MemoryPositions.MINNUM], o, ['mload', MemoryPositions.MAXNUM]])
+            return LLLnode.from_list(p, typ=o.typ, pos=getpos(self.expr))
         elif o.typ.typ == 'decimal':
-            return LLLnode.from_list(['clamp', ['mload', MemoryPositions.MINDECIMAL], o, ['mload', MemoryPositions.MAXDECIMAL]], typ=o.typ, pos=getpos(self.expr))
+            p.append(['clamp', ['mload', MemoryPositions.MINDECIMAL], o, ['mload', MemoryPositions.MAXDECIMAL]])
+            return LLLnode.from_list(p, typ=o.typ, pos=getpos(self.expr))
         if o.typ.typ == 'uint256':
-            return o
+            p.append(o)
+            return LLLnode.from_list(p, typ=o.typ, pos=getpos(self.expr))
         else:
             raise Exception("%r %r" % (o, o.typ))
 
