@@ -410,6 +410,12 @@ class Stmt(object):
             # in reverse order so it can be popped of in order.
             if _size == 0:
                 mloads = []
+            elif isinstance(begin_pos, int) and isinstance(_size, int):
+                # static values, unroll the mloads instead.
+                mloads = [
+                    ['mload', pos] for pos in range(begin_pos, _size, 32)
+                ]
+                return ['seq_unchecked'] + mloads + [['jump', ['mload', self.context.callback_ptr]]]
             else:
                 mloads = [
                     'seq_unchecked',
@@ -422,7 +428,7 @@ class Stmt(object):
                     ['goto', start_label],
                     ['label', exit_label]
                 ]
-            return ['seq_unchecked'] + [mloads] + [['jump', ['mload', self.context.callback_ptr]]]
+                return ['seq_unchecked'] + [mloads] + [['jump', ['mload', self.context.callback_ptr]]]
         else:
             return ['return', begin_pos, _size]
 
