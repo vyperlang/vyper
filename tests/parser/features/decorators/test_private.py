@@ -438,3 +438,41 @@ def _whoami() -> address:
     """
 
     assert_compile_failed(lambda: get_contract(code))
+
+
+def test_nested_static_params_only(get_contract, assert_tx_failed):
+    code1 = """
+@private
+def c() -> bool:
+    return True
+
+@private
+def b(sender: address) -> address:
+    assert self.c()
+    return sender
+
+@public
+def a() -> bool:
+    assert self.b(msg.sender) == msg.sender
+    return True
+    """
+
+    code2 = """
+@private
+def c(sender: address) -> address:
+    return sender
+
+@private
+def b(sender: address) -> address:
+    return self.c(sender)
+
+@public
+def a() -> bool:
+    assert self.b(msg.sender) == msg.sender
+    return True
+    """
+
+    c1 = get_contract(code1)
+    c2 = get_contract(code2)
+    assert c1.a() is True
+    assert c2.a() is True

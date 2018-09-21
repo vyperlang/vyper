@@ -94,7 +94,8 @@ def call_self_private(stmt_expr, context, sig):
         static_arg_count = len(expr_args) * 32
         static_pos = arg_pos + static_arg_count
         total_arg_size = ceil32(inargsize - 4)
-        if len(expr_args) * 32 != inargsize:  # requires dynamic section.
+
+        if len(expr_args) * 32 != total_arg_size:  # requires dynamic section.
             ident = 'push_args_%d_%d_%d' % (sig.method_id, stmt_expr.lineno, stmt_expr.col_offset)
             start_label = ident + '_start'
             end_label = ident + '_end'
