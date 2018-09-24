@@ -4,15 +4,19 @@ from vyper.exceptions import (
     EventDeclarationException,
     FunctionDeclarationException,
     StructureException,
+    TypeMismatchException,
     VariableDeclarationException,
 )
 from vyper.utils import (
+    is_varname_valid,
+    SizeLimits,
     valid_global_keywords,
-    is_varname_valid
 )
 from vyper.premade_contracts import (
     premade_contracts,
 )
+from vyper.parser.context import Context
+from vyper.parser.expr import Expr
 from vyper.parser.parser_utils import (
     decorate_ast_with_source,
     getpos,
@@ -168,14 +172,40 @@ class GlobalContext:
             return self.get_item_name_and_attributes(item.args[0], attributes)
         return None, attributes
 
+    def unroll_constant(self, const):
+        # const = self.context.constants[self.expr.id]
+        expr = Expr.parse_value_expr(const.value, Context(vars=None, global_ctx=self, origcode=const.source_code))
+        annotation_type = parse_type(const.annotation.args[0], None, custom_units=self._custom_units)
+
+        fail = False
+        if isinstance(expr.typ, ByteArrayType) and isinstance(annotation_type, ByteArrayType):
+            if expr.typ.maxlen < annotation_type.maxlen:
+                return const
+            fail = True
+
+        if expr.typ != annotation_type:
+            fail = True
+            # special case for literals, which can be uint256 types as well.
+            if isinstance(annotation_type, BaseType) and annotation_type.typ == 'uint256' and \
+               expr.typ.typ == 'int128' and SizeLimits.in_bounds('uint256', expr.value):
+                fail = False
+
+        if fail:
+            raise TypeMismatchException('Invalid value for constant type, expected %r' % annotation_type, const.value)
+        else:
+            expr.typ = annotation_type
+        return expr
+
     def add_constant(self, item):
         args = item.annotation.args
         if not item.value:
             raise StructureException('Constants must express a value!', item)
-        if len(args) == 1 and isinstance(args[0], ast.Name) and item.target:
+        if len(args) == 1 and isinstance(args[0], (ast.Subscript, ast.Name)) and item.target:
             c_name = item.target.id
+            if c_name in self._constants:
+                raise StructureException('Constant with name "%s" already exists!', c_name)
             if is_varname_valid(c_name, self._custom_units) and c_name not in self._globals:
-                self._constants[item.target.id] = item
+                self._constants[item.target.id] = self.unroll_constant(item)
                 return
             else:
                 raise StructureException('Invalid constant name "%s"' % item.target.id, item)

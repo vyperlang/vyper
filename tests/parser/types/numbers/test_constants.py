@@ -92,3 +92,20 @@ def is_owner() -> bool:
 
     assert c.get_owner() == '0x0000000000000000000000000000000000000012'
     assert c.is_owner() is False
+
+
+def test_constant_bytes(get_contract):
+    test_str = b"Alabama, Arkansas. I do love my ma and pa"
+    code = """
+X: constant(bytes[100]) = "{}"
+
+@public
+def test() -> bytes[100]:
+    y: bytes[100] = X
+
+    return y
+    """.format(test_str.decode())
+
+    c = get_contract(code)
+
+    assert c.test() == test_str
