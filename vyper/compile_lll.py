@@ -27,11 +27,14 @@ def is_symbol(i):
     return isinstance(i, str) and i[:5] == '_sym_'
 
 
-def get_revert():
+def get_revert(mem_start=None, mem_len=None):
     o = []
     end_symbol = mksymbol()
     o.extend([end_symbol, 'JUMPI'])
-    o.extend(['PUSH1', 0, 'DUP1', 'REVERT'])
+    if (mem_start, mem_len) == (None, None):
+        o.extend(['PUSH1', 0, 'DUP1', 'REVERT'])
+    else:
+        o.extend([mem_len, mem_start, 'REVERT'])
     o.extend([end_symbol, 'JUMPDEST'])
     return o
 
@@ -169,6 +172,12 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
     elif code.value == 'assert':
         o = compile_to_assembly(code.args[0], withargs, break_dest, height)
         o.extend(get_revert())
+        return o
+    elif code.value == 'assert_reason':
+        o = compile_to_assembly(code.args[0], withargs, break_dest, height)
+        mem_start = compile_to_assembly(code.args[1], withargs, break_dest, height)
+        mem_len = compile_to_assembly(code.args[2], withargs, break_dest, height)
+        o.extend(get_revert(mem_start, mem_len))
         return o
     # Unsigned/signed clamp, check less-than
     elif code.value in ('uclamplt', 'uclample', 'clamplt', 'clample', 'uclampgt', 'uclampge', 'clampgt', 'clampge'):

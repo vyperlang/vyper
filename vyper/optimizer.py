@@ -93,6 +93,9 @@ def optimize(node):
             return LLLnode(argz[0].value, [], node.typ, node.location, node.pos, node.annotation, add_gas_estimate=node.add_gas_estimate)
         else:
             raise Exception("Clamp always fails")
+    # [eq, x, 0] is the same as [iszero, x].
+    elif node.value == 'eq' and int_at(argz, 1) and argz[1].value == 0:
+        return LLLnode('iszero', [argz[0]], node.typ, node.location, node.pos, node.annotation, add_gas_estimate=node.add_gas_estimate)
     # Turns out this is actually not such a good optimization after all
     elif node.value == "with" and int_at(argz, 1) and not search_for_set(argz[2], argz[0].value) and False:
         o = replace_with_value(argz[2], argz[0].value, argz[1].value)

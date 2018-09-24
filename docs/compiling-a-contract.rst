@@ -7,7 +7,9 @@ To compile a contract, use:
 
 You can also compile to other formats such as ABI using the below format:
 ::
-    vyper -f ['abi', 'json', 'bytecode', 'bytecode_runtime', 'ir'] yourFileName.vy
+    vyper -f ['abi', 'abi_python', 'bytecode', 'bytecode_runtime', 'ir', 'asm'] yourFileName.vy
+
+It is also possible to use the `-f json` option, which is a legacy alias for `-f abi`.
 
 .. note::
     Since .vy is not officially a language supported by any syntax highlighters or linters,

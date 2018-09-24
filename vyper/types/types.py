@@ -1,3 +1,4 @@
+import abc
 import ast
 import copy
 
@@ -45,13 +46,21 @@ def combine_units(unit1, unit2, div=False):
 
 
 # Data structure for a type
-class NodeType():
-    pass
+class NodeType(abc.ABC):
+    def __eq__(self, other: 'NodeType'):
+        return type(self) is type(other) and self.eq(other)
+
+    @abc.abstractmethod
+    def eq(self, other: 'NodeType'):  # pragma: no cover
+        """
+        Checks whether or not additional properties of a ``NodeType`` subclass
+        instance make it equal to another instance of the same type.
+        """
+        pass
 
 
 # Data structure for a type that represents a 32-byte object
 class BaseType(NodeType):
-
     def __init__(self, typ, unit=False, positional=False, override_signature=False, is_literal=False):
         self.typ = typ
         self.unit = {} if unit is False else unit
@@ -59,8 +68,8 @@ class BaseType(NodeType):
         self.override_signature = override_signature
         self.is_literal = is_literal
 
-    def __eq__(self, other):
-        return other.__class__ == BaseType and self.typ == other.typ and self.unit == other.unit and self.positional == other.positional
+    def eq(self, other):
+        return self.typ == other.typ and self.unit == other.unit and self.positional == other.positional
 
     def __repr__(self):
         subs = []
@@ -72,7 +81,6 @@ class BaseType(NodeType):
 
 
 class ContractType(BaseType):
-
     def __init__(self, name):
         super().__init__('address', name)
 
@@ -82,8 +90,8 @@ class ByteArrayType(NodeType):
     def __init__(self, maxlen):
         self.maxlen = maxlen
 
-    def __eq__(self, other):
-        return other.__class__ == ByteArrayType and self.maxlen == other.maxlen
+    def eq(self, other):
+        return self.maxlen == other.maxlen
 
     def __repr__(self):
         return 'bytes[%d]' % self.maxlen
@@ -95,8 +103,8 @@ class ListType(NodeType):
         self.subtype = subtype
         self.count = count
 
-    def __eq__(self, other):
-        return other.__class__ == ListType and other.subtype == self.subtype and other.count == self.count
+    def eq(self, other):
+        return other.subtype == self.subtype and other.count == self.count
 
     def __repr__(self):
         return repr(self.subtype) + '[' + str(self.count) + ']'
@@ -110,8 +118,8 @@ class MappingType(NodeType):
         self.keytype = keytype
         self.valuetype = valuetype
 
-    def __eq__(self, other):
-        return other.__class__ == MappingType and other.keytype == self.keytype and other.valuetype == self.valuetype
+    def eq(self, other):
+        return other.keytype == self.keytype and other.valuetype == self.valuetype
 
     def __repr__(self):
         return repr(self.valuetype) + '[' + repr(self.keytype) + ']'
@@ -122,8 +130,8 @@ class StructType(NodeType):
     def __init__(self, members):
         self.members = copy.copy(members)
 
-    def __eq__(self, other):
-        return other.__class__ == StructType and other.members == self.members
+    def eq(self, other):
+        return other.members == self.members
 
     def __repr__(self):
         return '{' + ', '.join([k + ': ' + repr(v) for k, v in self.members.items()]) + '}'
@@ -134,8 +142,8 @@ class TupleType(NodeType):
     def __init__(self, members):
         self.members = copy.copy(members)
 
-    def __eq__(self, other):
-        return other.__class__ == TupleType and other.members == self.members
+    def eq(self, other):
+        return other.members == self.members
 
     def __repr__(self):
         return '(' + ', '.join([repr(m) for m in self.members]) + ')'
@@ -143,8 +151,8 @@ class TupleType(NodeType):
 
 # Data structure for the type used by None/null
 class NullType(NodeType):
-    def __eq__(self, other):
-        return other.__class__ == NullType
+    def eq(self, other):
+        return True
 
 
 # Convert type into common form used in ABI
@@ -175,8 +183,6 @@ def canonicalize_type(t, is_indexed=False):
         return 'bool'
     elif t == 'uint256':
         return 'uint256'
-    elif t == 'int256':
-        return 'int256'
     elif t == 'address' or t == 'bytes32':
         return t
     raise Exception("Invalid or unsupported type: " + repr(t))
@@ -219,8 +225,8 @@ def parse_unit(item, custom_units):
 # Parses an expression representing a type. Annotation refers to whether
 # the type is to be located in memory or storage
 def parse_type(item, location, sigs=None, custom_units=None):
-    custom_units = [] if custom_units is None else custom_units
-    sigs = {} if sigs is None else sigs
+    custom_units = custom_units or []
+    sigs = sigs or {}
 
     # Base types, e.g. num
     if isinstance(item, ast.Name):
