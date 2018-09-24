@@ -55,6 +55,7 @@ Following the principles and goals, Vyper **does not** provide the following fea
 Compatibility-breaking Changelog
 ********************************
 
+* **2018.09.24**: Add support for custom constants.
 * **2018.08.09**: Add support for default parameters.
 * **2018.06.08**: Tagged first beta.
 * **2018.05.23**: Changed `wei_value` to be `uint256`.
@@ -90,8 +91,8 @@ Glossary
     compiling-a-contract.rst
     structure-of-a-contract.rst
     vyper-by-example.rst
-    vyper-in-depth.rst
     contributing.rst
+    logging.rst
     frequently-asked-questions.rst
     built-in-functions.rst
     types.rst
