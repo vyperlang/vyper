@@ -172,22 +172,45 @@ class GlobalContext:
             return self.get_item_name_and_attributes(item.args[0], attributes)
         return None, attributes
 
+    @staticmethod
+    def is_instances(instances, instance_type):
+        return all([isinstance(inst, instance_type) for inst in instances])
+
+    def is_valid_varname(self, name, item):
+        if not is_varname_valid(name, self._custom_units):
+            raise VariableDeclarationException('Invalid name "%s"' % name, item)
+        if name in self._globals:
+            raise VariableDeclarationException('Invalid name "%s", previously defined as global.' % name, item)
+        if name in self._constants:
+            raise VariableDeclarationException('Invalid name "%s", previously defined as constant.' % name, item)
+        if name in self._custom_units:
+            raise VariableDeclarationException('Invalid name "%s", previously defined as custom unit.' % name, item)
+
+        return True
+
     def unroll_constant(self, const):
         # const = self.context.constants[self.expr.id]
         expr = Expr.parse_value_expr(const.value, Context(vars=None, global_ctx=self, origcode=const.source_code))
         annotation_type = parse_type(const.annotation.args[0], None, custom_units=self._custom_units)
 
         fail = False
-        if isinstance(expr.typ, ByteArrayType) and isinstance(annotation_type, ByteArrayType):
+
+        if self.is_instances([expr.typ, annotation_type], ByteArrayType):
             if expr.typ.maxlen < annotation_type.maxlen:
                 return const
             fail = True
 
-        if expr.typ != annotation_type:
+        elif expr.typ != annotation_type:
             fail = True
             # special case for literals, which can be uint256 types as well.
-            if isinstance(annotation_type, BaseType) and annotation_type.typ == 'uint256' and \
-               expr.typ.typ == 'int128' and SizeLimits.in_bounds('uint256', expr.value):
+            if self.is_instances([expr.typ, annotation_type], BaseType) and \
+               [annotation_type.typ, expr.typ.typ] == ['uint256', 'int128'] and \
+               SizeLimits.in_bounds('uint256', expr.value):
+                fail = False
+
+            elif self.is_instances([expr.typ, annotation_type], BaseType) and \
+               [annotation_type.typ, expr.typ.typ] == ['int128', 'int128'] and \
+               SizeLimits.in_bounds('int128', expr.value):
                 fail = False
 
         if fail:
@@ -200,15 +223,10 @@ class GlobalContext:
         args = item.annotation.args
         if not item.value:
             raise StructureException('Constants must express a value!', item)
-        if len(args) == 1 and isinstance(args[0], (ast.Subscript, ast.Name)) and item.target:
+        if len(args) == 1 and isinstance(args[0], (ast.Subscript, ast.Name, ast.Call)) and item.target:
             c_name = item.target.id
-            if c_name in self._constants:
-                raise StructureException('Constant with name "%s" already exists!', c_name)
-            if is_varname_valid(c_name, self._custom_units) and c_name not in self._globals:
-                self._constants[item.target.id] = self.unroll_constant(item)
-                return
-            else:
-                raise StructureException('Invalid constant name "%s"' % item.target.id, item)
+            if self.is_valid_varname(c_name, item):
+                self._constants[c_name] = self.unroll_constant(item)
         else:
             raise StructureException('Incorrectly formatted struct', item)
 
@@ -253,13 +271,9 @@ class GlobalContext:
             else:
                 raise VariableDeclarationException("Can units can only defined once.", item.target)
 
-        # Check if variable name is reserved or invalid
-        elif not is_varname_valid(item.target.id, custom_units=self._custom_units):
-            raise VariableDeclarationException("Variable name invalid or reserved: ", item.target)
-
-        # Check if global already exists, if so error
-        elif item.target.id in self._globals:
-            raise VariableDeclarationException("Cannot declare a persistent variable twice!", item.target)
+        # Check if variable name is valid.
+        elif not self.is_valid_varname(item.target.id, item):
+            pass
 
         elif len(self._defs):
             raise StructureException("Global variables must all come before function definitions", item)
