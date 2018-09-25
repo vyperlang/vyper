@@ -1,6 +1,7 @@
-from vyper.parser import parser
-from vyper import compile_lll
 from vyper import optimizer
+from vyper.parser.parser import parse_to_lll
+from vyper.parser import parser, parser_utils
+from vyper import compile_lll
 
 
 def compile(code, *args, **kwargs):
@@ -47,3 +48,32 @@ def mk_full_signature(code, *args, **kwargs):
         if func_name in gas_estimates and func_name != '__init__':
             abi[idx]['gas'] = gas_estimates[func_name]
     return abi
+
+
+def get_asm(asm_list):
+    output_string = ''
+    skip_newlines = 0
+    for node in asm_list:
+        if isinstance(node, list):
+            output_string += get_asm(node)
+            continue
+
+        is_push = isinstance(node, str) and node.startswith('PUSH')
+
+        output_string += str(node) + ' '
+        if skip_newlines:
+            skip_newlines -= 1
+        elif is_push:
+            skip_newlines = int(node[4:]) - 1
+        else:
+            output_string += '\n'
+    return output_string
+
+def api(code):
+    output = {}
+    output['abi'] = mk_full_signature(code)
+    output['bytecode'] = '0x' + compile(code).hex()
+    output['bytecode_runtime'] = '0x' + compile(code, bytecode_runtime=True).hex()
+    output['ir'] = optimizer.optimize(parse_to_lll(code))
+    output['asm'] = get_asm(compile_lll.compile_to_assembly(output['ir']))
+    return output

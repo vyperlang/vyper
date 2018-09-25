@@ -1,69 +1,65 @@
 #!/usr/bin/env python3
 import argparse
 import json
-import os
-import sys
-import vyper
-
-from vyper import compiler, optimizer
-from vyper.parser.parser import parse_to_lll
-from vyper.parser import parser_utils
-from vyper import compile_lll
-
-sys.tracebacklimit = os.environ.get('VYPER_TRACEBACK_LIMIT', 0)
-
-parser = argparse.ArgumentParser(description='Vyper programming language for Ethereum')
-parser.add_argument('--version', action='version', version='{0}'.format(vyper.__version__))
-parser.add_argument('input_file', help='Vyper sourcecode to compile')
-parser.add_argument('-f', help='Format to print', default='bytecode', dest='format')
-parser.add_argument('--show-gas-estimates', help='Show gas estimates in ir output mode.', action="store_true")
-
-args = parser.parse_args()
-
-
-def uniq(seq):
-    exists = set()
-    return [x for x in seq if not (x in exists or exists.add(x))]
-
-
-def get_asm(asm_list):
-    output_string = ''
-    skip_newlines = 0
-    for node in asm_list:
-        if isinstance(node, list):
-            output_string += get_asm(node)
-            continue
-
-        is_push = isinstance(node, str) and node.startswith('PUSH')
-
-        output_string += str(node) + ' '
-        if skip_newlines:
-            skip_newlines -= 1
-        elif is_push:
-            skip_newlines = int(node[4:]) - 1
-        else:
-            output_string += '\n'
-    return output_string
-
-
 if __name__ == '__main__':
 
-    output_format = {}
-    output_format['abi_python'] = lambda code: compiler.mk_full_signature(code)
-    output_format['abi'] = lambda code: json.dumps(compiler.mk_full_signature(code))
-    output_format['json'] = output_format['abi']  # for backwards compatibility
-    output_format['bytecode'] = lambda code: '0x' + compiler.compile(code).hex()
-    output_format['bytecode_runtime'] = lambda code: '0x' + compiler.compile(code, bytecode_runtime=True).hex()
-    output_format['ir'] = lambda code: optimizer.optimize(parse_to_lll(code))
-    output_format['asm'] = lambda code: get_asm(compile_lll.compile_to_assembly(optimizer.optimize(parse_to_lll(code))))
+    import os
+    import sys
+    import vyper
+    from vyper.compiler import api
 
-    with open(args.input_file) as fh:
-        code = fh.read()
+    sys.tracebacklimit = os.environ.get('VYPER_TRACEBACK_LIMIT', 0)
 
-        if args.show_gas_estimates:
-            parser_utils.LLLnode.repr_show_gas = True
+    parser = argparse.ArgumentParser(description='Vyper programming language for Ethereum')
+    parser.add_argument('--show-gas-estimates', help='Show gas estimates in ir output mode.', action="store_true")
+    parser.add_argument('-f', help='Format to print', default='bytecode', dest='format')
+    parser.add_argument('file', nargs='+', help='Vyper sourcecode to compile')
+    parser.add_argument('--version', action='version', version='{0}'.format(vyper.__version__))
 
-        for i in uniq(args.format.split(',')):
-            if i not in output_format:
-                print('Format {} option not supported, use any csv list of {}.'.format(i, ','.join(output_format.keys())))
-            print(output_format[i](code))
+    args = parser.parse_args()
+
+    if args.show_gas_estimates:
+        parser_utils.LLLnode.repr_show_gas = True
+
+    def uniq(seq):
+        exists = set()
+        if isinstance(seq, list):
+            return [x for x in seq if not (x in exists or exists.add(x))]
+        else:
+            return [seq]
+
+    formats = uniq(args.format.split(','))
+
+    output = {}
+    output['contracts'] = {}
+    output['version'] = vyper.__version__
+
+    for fname in args.file:
+        with open(fname, 'r') as fh:
+            code = fh.read()
+        try:
+            file_output = api(code)
+        except Exception as e:
+            print("File", fname, "failed to compile:")
+            print()
+            raise e
+
+        file_output['abi_python'] = file_output['abi']
+        file_output['abi'] = json.dumps(file_output['abi'])
+        file_output['json'] = file_output['abi']  # for backwards compatibility
+
+        # Check that all formats are provided by compiler API
+        for i in formats:
+            if i not in file_output.keys():
+                raise IOError("Invalid format {}".format(i))
+
+        # Filter out unwanted formats
+        filtered_output = {}
+        for key in file_output.keys():
+            if key in formats:
+                filtered_output[key] = file_output[key]
+
+        # For each file, set
+        output['contracts'][fname] = filtered_output
+
+    print(json.dumps(output))
