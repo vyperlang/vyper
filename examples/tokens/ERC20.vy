@@ -14,9 +14,9 @@ Approval: event({_owner: indexed(address), _spender: indexed(address), _value: u
 name: public(bytes32)
 symbol: public(bytes32)
 totalSupply: public(uint256)
-decimals: public(int128)
-balances: int128[address]
-allowed: int128[address][address]
+decimals: public(uint256)
+balances: uint256[address]
+allowed: uint256[address][address]
 
 
 @public
@@ -24,8 +24,8 @@ def __init__(_name: bytes32, _symbol: bytes32, _decimals: uint256, _initialSuppl
     self.name = _name
     self.symbol = _symbol
     self.decimals = _decimals
-    self.totalSupply =_initialSupply * convert(10, 'uint256') ** _decimals
-    self.balances[msg.sender] = convert(self.totalSupply, 'int128')
+    self.totalSupply =_initialSupply * 10 ** _decimals
+    self.balances[msg.sender] = self.totalSupply
 
 
 # What is the balance of a particular account?
@@ -33,49 +33,45 @@ def __init__(_name: bytes32, _symbol: bytes32, _decimals: uint256, _initialSuppl
 @constant
 def balanceOf(_owner: address) -> uint256:
 
-    return convert(self.balances[_owner], 'uint256')
+    return self.balances[_owner]
 
 
 # Send `_value` tokens to `_to` from your account
 @public
-def transfer(_to: address, _amount: int128(uint256)) -> bool:
+def transfer(_to: address, _amount: uint256) -> bool:
 
-    if self.balances[msg.sender] >= _amount and \
-       self.balances[_to] + _amount >= self.balances[_to]:
+    assert self.balances[msg.sender] >= _amount
+    assert self.balances[_to] + _amount >= self.balances[_to]
 
-        self.balances[msg.sender] -= _amount  # Subtract from the sender
-        self.balances[_to] += _amount  # Add the same to the recipient
-        log.Transfer(msg.sender, _to, convert(_amount, 'uint256'))  # log transfer event.
+    self.balances[msg.sender] -= _amount  # Subtract from the sender
+    self.balances[_to] += _amount  # Add the same to the recipient
+    log.Transfer(msg.sender, _to, _amount)  # log transfer event.
 
-        return True
-    else:
-        return False
+    return True
 
 
 # Transfer allowed tokens from a specific account to another.
 @public
-def transferFrom(_from: address, _to: address, _value: int128(uint256)) -> bool:
+def transferFrom(_from: address, _to: address, _value: uint256) -> bool:
 
-    if _value <= self.allowed[_from][msg.sender] and \
-       _value <= self.balances[_from]:
+    assert _value <= self.allowed[_from][msg.sender]
+    assert _value <= self.balances[_from]
 
-        self.balances[_from] -= _value  # decrease balance of from address.
-        self.allowed[_from][msg.sender] -= _value  # decrease allowance.
-        self.balances[_to] += _value  # incease balance of to address.
-        log.Transfer(_from, _to, convert(_value, 'uint256'))  # log transfer event.
+    self.balances[_from] -= _value  # decrease balance of from address.
+    self.allowed[_from][msg.sender] -= _value  # decrease allowance.
+    self.balances[_to] += _value  # incease balance of to address.
+    log.Transfer(_from, _to, _value)  # log transfer event.
 
-        return True
-    else:
-        return False
+    return True
 
 
 # Allow _spender to withdraw from your account, multiple times, up to the _value amount.
 # If this function is called again it overwrites the current allowance with _value.
 @public
-def approve(_spender: address, _amount: int128(uint256)) -> bool:
+def approve(_spender: address, _amount: uint256) -> bool:
 
     self.allowed[msg.sender][_spender] = _amount
-    log.Approval(msg.sender, _spender, convert(_amount, 'uint256'))
+    log.Approval(msg.sender, _spender, _amount)
 
     return True
 
@@ -84,4 +80,4 @@ def approve(_spender: address, _amount: int128(uint256)) -> bool:
 @public
 def allowance(_owner: address, _spender: address) -> uint256:
 
-    return convert(self.allowed[_owner][_spender], 'uint256')
+    return self.allowed[_owner][_spender]
