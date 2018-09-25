@@ -1,15 +1,6 @@
 import ast
 import copy
-import tokenize
-import io
-import re
 
-from tokenize import (
-    OP,
-    NAME,
-    TokenInfo,
-    COMMENT
-)
 
 from vyper.exceptions import (
     InvalidLiteralException,
@@ -31,6 +22,7 @@ from vyper.parser.expr import Expr
 from vyper.parser.context import Context
 from vyper.parser.global_context import GlobalContext
 from vyper.parser.lll_node import LLLnode
+from vyper.parser.pre_parser import pre_parse
 from vyper.parser.parser_utils import (
     add_variable_offset,
     base_type_conversion,
@@ -65,7 +57,6 @@ from vyper.utils import (
     bytes_to_int,
     calc_mem_gas,
 )
-from vyper import __version__
 
 
 if not hasattr(ast, 'AnnAssign'):
@@ -74,52 +65,11 @@ if not hasattr(ast, 'AnnAssign'):
 
 # Converts code to parse tree
 def parse(code):
-    code = pre_parser(code)
+    code = pre_parse(code)
     o = ast.parse(code)
     decorate_ast_with_source(o, code)
     o = resolve_negative_literals(o)
     return o.body
-
-
-# Minor pre-parser checks.
-def pre_parser(code):
-    result = []
-
-    g = tokenize.tokenize(io.BytesIO(code.encode('utf-8')).readline)
-    for token in g:
-
-        # Alias contract definition to class definition.
-        if token.type == COMMENT and "@version" in token.string:
-            parse_version_pragma(token.string[1:])
-        if (token.type, token.string, token.start[1]) == (NAME, "contract", 0):
-            token = TokenInfo(token.type, "class", token.start, token.end, token.line)
-        # Prevent semi-colon line statements.
-        elif (token.type, token.string) == (OP, ";"):
-            raise StructureException("Semi-colon statements not allowed.", token.start)
-
-        result.append(token)
-    return tokenize.untokenize(result).decode('utf-8')
-
-
-def _parser_version_str(version_str):
-    version_regex = re.compile(r'^(\d+\.)?(\d+\.)?(\w*)$')
-    if None in version_regex.match(version_str).groups():
-        raise Exception('Could not parse given version: %s' % version_str)
-    return version_regex.match(version_str).groups()
-
-
-# Do a version check.
-def parse_version_pragma(version_str):
-    version_arr = version_str.split('@version')
-
-    file_version = version_arr[1].strip()
-    file_major, file_minor, file_patch = _parser_version_str(file_version)
-    compiler_major, compiler_minor, compiler_patch = _parser_version_str(__version__)
-
-    if (file_major, file_minor) != (compiler_major, compiler_minor):
-        raise Exception('Given version "{}" is not compatible with the compiler ({}): '.format(
-            file_version, __version__
-        ))
 
 
 # Header code
