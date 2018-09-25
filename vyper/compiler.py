@@ -1,6 +1,6 @@
 from vyper import optimizer
 from vyper.parser.parser import parse_to_lll
-from vyper.parser import parser, parser_utils
+from vyper.parser import parser
 from vyper import compile_lll
 
 
@@ -68,6 +68,7 @@ def get_asm(asm_list):
         else:
             output_string += '\n'
     return output_string
+
 
 def api(code):
     output = {}
