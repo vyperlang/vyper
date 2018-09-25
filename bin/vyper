@@ -18,9 +18,6 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    if args.show_gas_estimates:
-        parser_utils.LLLnode.repr_show_gas = True
-
     def uniq(seq):
         exists = set()
         if isinstance(seq, list):
@@ -34,11 +31,12 @@ if __name__ == '__main__':
     output['contracts'] = {}
     output['version'] = vyper.__version__
 
+    print_output = False
     for fname in args.file:
         with open(fname, 'r') as fh:
             code = fh.read()
         try:
-            file_output = api(code)
+            file_output = api(code, show_gas_estimates=args.show_gas_estimates)
         except Exception as e:
             print("File", fname, "failed to compile:")
             print()
@@ -57,9 +55,17 @@ if __name__ == '__main__':
         filtered_output = {}
         for key in file_output.keys():
             if key in formats:
-                filtered_output[key] = file_output[key]
+                if key in ['abi', 'bytecode', 'bytecode_runtime']:
+                    filtered_output[key] = file_output[key]
+                else:
+                    print("{}.{}:".format(fname, key), file=sys.stderr)
+                    print(file_output[key], file=sys.stderr)
 
-        # For each file, set
-        output['contracts'][fname] = filtered_output
+        # Only print output if at least one file was updated
+        if filtered_output:
+            print_output = True
+            # For each file, set
+            output['contracts'][fname] = filtered_output
 
-    print(json.dumps(output))
+    if print_output:
+        print(json.dumps(output))

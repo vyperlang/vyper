@@ -1,6 +1,6 @@
 from vyper import optimizer
 from vyper.parser.parser import parse_to_lll
-from vyper.parser import parser
+from vyper.parser import parser, parser_utils
 from vyper import compile_lll
 
 
@@ -70,7 +70,9 @@ def get_asm(asm_list):
     return output_string
 
 
-def api(code):
+def api(code, show_gas_estimates=False):
+    if show_gas_estimates:
+        parser_utils.LLLnode.repr_show_gas = True
     output = {}
     output['abi'] = mk_full_signature(code)
     output['bytecode'] = '0x' + compile(code).hex()
