@@ -143,11 +143,11 @@ class Expr(object):
     # True, False, None constants
     def constants(self):
         if self.expr.value is True:
-            return LLLnode.from_list(1, typ='bool', pos=getpos(self.expr))
+            return LLLnode.from_list(1, typ=BaseType('bool', is_literal=True), pos=getpos(self.expr))
         elif self.expr.value is False:
-            return LLLnode.from_list(0, typ='bool', pos=getpos(self.expr))
+            return LLLnode.from_list(0, typ=BaseType('bool', is_literal=True), pos=getpos(self.expr))
         elif self.expr.value is None:
-            return LLLnode.from_list(None, typ=NullType(), pos=getpos(self.expr))
+            return LLLnode.from_list(None, typ=NullType(), pos=getpos(self.expr), is_literal=True)
         else:
             raise Exception("Unknown name constant: %r" % self.expr.value.value)
 

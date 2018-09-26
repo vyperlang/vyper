@@ -88,3 +88,37 @@ def create_and_return_forwarder(inp: address) -> address:
     assert_tx_failed(lambda: c2.create_and_call_returnten(c.address))
 
     print('Passed forwarder exception test')
+
+
+
+def test_delegate_call(w3, get_contract_with_gas_estimation):
+    inner_code = """
+owners: public(address[5])
+@public
+def set_owner(i: int128, owner: address):
+    assert owner != ZERO_ADDRESS
+    self.owners[i] = owner
+    """
+
+    inner_contract = get_contract_with_gas_estimation(inner_code)
+
+    outer_code = """
+owner_setter: public(address)
+owners: public(address[5])
+
+def __init__(_owner_setter: address):
+    self.owner_setter = _owner_setter
+
+
+@public
+def set(i: int128, owner: address) -> int128:
+    # delegate setting owners to other contract.
+    raw_call(self.owner_setter, concat(method_id("set_owner(int128,address)"), gas=msg.gas, delegate_call=True)
+    """
+
+    a0, a1 = w3.eth.accounts[:2]
+    outer_contract = get_contract_with_gas_estimation(outer_code, args=[a1])
+
+    import ipdb; ipdb.set_trace()
+    assert outer_contract.owner_setter() == a1
+    assert outer_contract.owners(0) is None
