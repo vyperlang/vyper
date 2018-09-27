@@ -6,7 +6,7 @@ from setuptools import setup, find_packages
 setup(
     name='vyper',
     # *IMPORTANT*: Don't manually change the version here. Use the 'bumpversion' utility.
-    version='0.1.0-beta.2',
+    version='0.1.0-beta.3',
     description='Vyper Programming Language for Ethereum',
     long_description_markdown_filename='README.md',
     author='Vitalik Buterin',
@@ -27,12 +27,9 @@ setup(
     tests_require=[
         'pytest',
         'pytest-cov',
-        'eth-tester[py-evm]==0.1.0b28',
-        'web3==4.5.0',
-        # 'py-evm==0.2.0a26',
-        # 'py-evm==0.2.0a18',
-        # 'py-evm==0.2.0-alpha.26',
-        # 'eth-tester==0.1.0-beta.29',
+        'py-evm==0.2.0a32',
+        'eth-tester[py-evm]==0.1.0b32',
+        'web3==4.4.1',
     ],
     scripts=[
         'bin/vyper',

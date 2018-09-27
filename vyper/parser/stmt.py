@@ -13,12 +13,14 @@ from vyper.functions import (
     stmt_dispatch_table,
     dispatch_table
 )
-from vyper.parser.parser_utils import LLLnode
+from vyper.parser import self_call
 from vyper.parser.parser_utils import (
-    getpos,
-    make_byte_array_copier,
     base_type_conversion,
-    unwrap_location
+    getpos,
+    LLLnode,
+    make_byte_array_copier,
+    make_setter,
+    unwrap_location,
 )
 from vyper.types import (
     BaseType,
@@ -38,12 +40,13 @@ from vyper.types import (
     are_units_compatible,
 )
 from vyper.utils import (
-    SizeLimits
+    SizeLimits,
+    sha3,
+    fourbytes_to_int
 )
 from vyper.parser.expr import (
     Expr
 )
-from vyper.signatures.function_signature import FunctionSignature
 
 
 class Stmt(object):
@@ -106,9 +109,6 @@ class Stmt(object):
             raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.id, self.stmt)
 
     def ann_assign(self):
-        from .parser import (
-            make_setter,
-        )
         self.context.set_in_assignment(True)
         typ = parse_type(self.stmt.annotation, location='memory', custom_units=self.context.custom_units)
         if isinstance(self.stmt.target, ast.Attribute) and self.stmt.target.value.id == 'self':
@@ -125,9 +125,6 @@ class Stmt(object):
         return o
 
     def assign(self):
-        from .parser import (
-            make_setter,
-        )
         # Assignment (e.g. x[4] = y)
         if len(self.stmt.targets) != 1:
             raise StructureException("Assignment statement must have one target", self.stmt)
@@ -151,6 +148,13 @@ class Stmt(object):
         self.context.set_in_assignment(False)
         return o
 
+    def is_bool_expr(self, test_expr):
+        if not isinstance(test_expr.typ, BaseType):
+            return False
+        if not test_expr.typ.typ == 'bool':
+            return False
+        return True
+
     def parse_if(self):
         from .parser import (
             parse_body,
@@ -162,11 +166,15 @@ class Stmt(object):
             self.context.end_blockscope(block_scope_id)
         else:
             add_on = []
-
         block_scope_id = id(self.stmt)
         self.context.start_blockscope(block_scope_id)
+        test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
+
+        if not self.is_bool_expr(test_expr):
+            raise TypeMismatchException('Only boolean expressions allowed', self.stmt.test)
+
         o = LLLnode.from_list(
-            ['if', Expr.parse_value_expr(self.stmt.test, self.context), parse_body(self.stmt.body, self.context)] + add_on,
+            ['if', test_expr, parse_body(self.stmt.body, self.context)] + add_on,
             typ=None, pos=getpos(self.stmt)
         )
         self.context.end_blockscope(block_scope_id)
@@ -174,7 +182,6 @@ class Stmt(object):
 
     def call(self):
         from .parser import (
-            pack_arguments,
             pack_logging_data,
             pack_logging_topics,
             external_contract_call,
@@ -187,20 +194,7 @@ class Stmt(object):
             else:
                 raise StructureException("Unknown function: '{}'.".format(self.stmt.func.id), self.stmt)
         elif isinstance(self.stmt.func, ast.Attribute) and isinstance(self.stmt.func.value, ast.Name) and self.stmt.func.value.id == "self":
-            method_name = self.stmt.func.attr
-            expr_args = [Expr(arg, self.context).lll_node for arg in self.stmt.args]
-            # full_sig = FunctionSignature.get_full_sig(method_name, expr_args, self.context.sigs, self.context.custom_units)
-            sig = FunctionSignature.lookup_sig(self.context.sigs, method_name, expr_args, self.stmt, self.context)
-            if self.context.is_constant and not sig.const:
-                raise ConstancyViolationException(
-                    "May not call non-constant function '%s' within a constant function." % (sig.sig)
-                )
-            add_gas = self.context.sigs['self'][sig.sig].gas
-            inargs, inargsize = pack_arguments(sig,
-                                                expr_args,
-                                                self.context, pos=getpos(self.stmt))
-            return LLLnode.from_list(['assert', ['call', ['gas'], ['address'], 0, inargs, inargsize, 0, 0]],
-                                        typ=None, pos=getpos(self.stmt), add_gas_estimate=add_gas, annotation='Internal Call: %s' % sig.sig)
+            return self_call.make_call(self.stmt, self.context)
         elif isinstance(self.stmt.func, ast.Attribute) and isinstance(self.stmt.func.value, ast.Call):
             contract_name = self.stmt.func.value.func.id
             contract_address = Expr.parse_value_expr(self.stmt.func.value.args[0], self.context)
@@ -244,7 +238,27 @@ class Stmt(object):
             raise StructureException("Unsupported operator: %r" % ast.dump(self.stmt), self.stmt)
 
     def parse_assert(self):
-        return LLLnode.from_list(['assert', Expr.parse_value_expr(self.stmt.test, self.context)], typ=None, pos=getpos(self.stmt))
+        test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
+        if not self.is_bool_expr(test_expr):
+            raise TypeMismatchException('Only boolean expressions allowed', self.stmt.test)
+        if self.stmt.msg:
+            if len(self.stmt.msg.s.strip()) == 0:
+                raise StructureException('Empty reason string not allowed.', self.stmt)
+            reason_str = self.stmt.msg.s.strip()
+            sig_placeholder = self.context.new_placeholder(BaseType(32))
+            arg_placeholder = self.context.new_placeholder(BaseType(32))
+            reason_str_type = ByteArrayType(len(reason_str))
+            placeholder_bytes = Expr(self.stmt.msg, self.context).lll_node
+            method_id = fourbytes_to_int(sha3(b"Error(string)")[:4])
+            assert_reason = \
+                ['seq',
+                    ['mstore', sig_placeholder, method_id],
+                    ['mstore', arg_placeholder, 32],
+                    placeholder_bytes,
+                    ['assert_reason', test_expr, int(sig_placeholder + 28), int(4 + 32 + get_size_of_type(reason_str_type) * 32)]]
+            return LLLnode.from_list(assert_reason, typ=None, pos=getpos(self.stmt))
+        else:
+            return LLLnode.from_list(['assert', test_expr], typ=None, pos=getpos(self.stmt))
 
     def parse_for(self):
         from .parser import (
@@ -397,16 +411,62 @@ class Stmt(object):
     def parse_break(self):
         return LLLnode.from_list('break', typ=None, pos=getpos(self.stmt))
 
+    def make_return_stmt(self, begin_pos, _size, loop_memory_position=None):
+        if self.context.is_private:
+            if loop_memory_position is None:
+                loop_memory_position = self.context.new_placeholder(typ=BaseType('uint256'))
+
+            # Make label for stack push loop.
+            label_id = '_'.join([str(x) for x in (self.context.method_id, self.stmt.lineno, self.stmt.col_offset)])
+            exit_label = 'make_return_loop_exit_%s' % label_id
+            start_label = 'make_return_loop_start_%s' % label_id
+
+            # Push prepared data onto the stack,
+            # in reverse order so it can be popped of in order.
+            if _size == 0:
+                mloads = []
+            elif isinstance(begin_pos, int) and isinstance(_size, int):
+                # static values, unroll the mloads instead.
+                mloads = [
+                    ['mload', pos] for pos in range(begin_pos, _size, 32)
+                ]
+                return ['seq_unchecked'] + mloads + [['jump', ['mload', self.context.callback_ptr]]]
+            else:
+                mloads = [
+                    'seq_unchecked',
+                    ['mstore', loop_memory_position, _size],
+                    ['label', start_label],
+                    ['if',
+                        ['le', ['mload', loop_memory_position], 0], ['goto', exit_label]],  # exit loop / break.
+                    ['mload', ['add', begin_pos, ['sub', ['mload', loop_memory_position], 32]]],  # push onto stack
+                    ['mstore', loop_memory_position, ['sub', ['mload', loop_memory_position], 32]],  # decrement i by 32.
+                    ['goto', start_label],
+                    ['label', exit_label]
+                ]
+                return ['seq_unchecked'] + [mloads] + [['jump', ['mload', self.context.callback_ptr]]]
+        else:
+            return ['return', begin_pos, _size]
+
     def parse_return(self):
-        from .parser import (
-            make_setter
-        )
         if self.context.return_type is None:
             if self.stmt.value:
                 raise TypeMismatchException("Not expecting to return a value", self.stmt)
-            return LLLnode.from_list(['return', 0, 0], typ=None, pos=getpos(self.stmt))
+            return LLLnode.from_list(self.make_return_stmt(0, 0), typ=None, pos=getpos(self.stmt))
         if not self.stmt.value:
             raise TypeMismatchException("Expecting to return a value", self.stmt)
+
+        def zero_pad(bytez_placeholder, maxlen):
+            zero_padder = LLLnode.from_list(['pass'])
+            if maxlen > 0:
+                zero_pad_i = self.context.new_placeholder(BaseType('uint256'))  # Iterator used to zero pad memory.
+                zero_padder = LLLnode.from_list(
+                    ['repeat', zero_pad_i, ['mload', bytez_placeholder], maxlen,
+                        ['seq',
+                            ['if', ['gt', ['mload', zero_pad_i], maxlen], 'break'],  # stay within allocated bounds
+                            ['mstore8', ['add', ['add', 32, bytez_placeholder], ['mload', zero_pad_i]], 0]]],
+                    annotation="Zero pad"
+                )
+            return zero_padder
 
         sub = Expr(self.stmt.value, self.context).lll_node
         self.context.increment_return_counter()
@@ -422,10 +482,11 @@ class Stmt(object):
                     'int' in sub.typ.typ):
                 if not SizeLimits.in_bounds(self.context.return_type.typ, sub.value):
                     raise InvalidLiteralException("Number out of range: " + str(sub.value), self.stmt)
-                return LLLnode.from_list(['seq', ['mstore', 0, sub], ['return', 0, 32]], typ=None, pos=getpos(self.stmt))
+                else:
+                    return LLLnode.from_list(['seq', ['mstore', 0, sub], self.make_return_stmt(0, 32)], typ=None, pos=getpos(self.stmt))
             elif is_base_type(sub.typ, self.context.return_type.typ) or \
                     (is_base_type(sub.typ, 'int128') and is_base_type(self.context.return_type, 'int256')):
-                return LLLnode.from_list(['seq', ['mstore', 0, sub], ['return', 0, 32]], typ=None, pos=getpos(self.stmt))
+                return LLLnode.from_list(['seq', ['mstore', 0, sub], self.make_return_stmt(0, 32)], typ=None, pos=getpos(self.stmt))
             else:
                 raise TypeMismatchException("Unsupported type conversion: %r to %r" % (sub.typ, self.context.return_type), self.stmt.value)
         # Returning a byte array
@@ -436,48 +497,30 @@ class Stmt(object):
                 raise TypeMismatchException("Cannot cast from greater max-length %d to shorter max-length %d" %
                                             (sub.typ.maxlen, self.context.return_type.maxlen), self.stmt.value)
 
-            zero_padder = LLLnode.from_list(['pass'])
-            if sub.typ.maxlen > 0:
-                zero_pad_i = self.context.new_placeholder(BaseType('uint256'))  # Iterator used to zero pad memory.
-                zero_padder = LLLnode.from_list(
-                    ['repeat', zero_pad_i, ['mload', '_loc'], sub.typ.maxlen,
-                        ['seq',
-                            ['if', ['gt', ['mload', zero_pad_i], sub.typ.maxlen], 'break'],  # stay within allocated bounds
-                            ['mstore8', ['add', ['add', 32, '_loc'], ['mload', zero_pad_i]], 0]]],
-                    annotation="Zero pad"
+            loop_memory_position = self.context.new_placeholder(typ=BaseType('uint256'))  # loop memory has to be allocated first.
+            len_placeholder = self.context.new_placeholder(typ=BaseType('uint256'))  # len & bytez placeholder have to be declared after each other at all times.
+            bytez_placeholder = self.context.new_placeholder(typ=sub.typ)
+
+            if sub.location in ('storage', 'memory'):
+                return LLLnode.from_list([
+                    'seq',
+                    make_byte_array_copier(
+                        LLLnode(bytez_placeholder, location='memory', typ=sub.typ),
+                        sub,
+                        pos=getpos(self.stmt)
+                    ),
+                    zero_pad(bytez_placeholder, sub.typ.maxlen),
+                    ['mstore', len_placeholder, 32],
+                    self.make_return_stmt(len_placeholder, ['ceil32', ['add', ['mload', bytez_placeholder], 64]], loop_memory_position=loop_memory_position)],
+                    typ=None, pos=getpos(self.stmt)
                 )
-
-            # Returning something already in memory
-            if sub.location == 'memory':
-                return LLLnode.from_list(
-                    ['with', '_loc', sub,
-                        ['seq',
-                            ['mstore', ['sub', '_loc', 32], 32],
-                            zero_padder,
-                            ['return', ['sub', '_loc', 32], ['ceil32', ['add', ['mload', '_loc'], 64]]]]], typ=None, pos=getpos(self.stmt))
-
-            # Copying from storage
-            elif sub.location == 'storage':
-                # Instantiate a byte array at some index
-                fake_byte_array = LLLnode(self.context.get_next_mem() + 32, typ=sub.typ, location='memory', pos=getpos(self.stmt))
-                o = [
-                    'with', '_loc', self.context.get_next_mem() + 32,
-                    ['seq',
-                        # Copy the data to this byte array
-                        make_byte_array_copier(fake_byte_array, sub),
-                        # Store the number 32 before it for ABI formatting purposes
-                        ['mstore', self.context.get_next_mem(), 32],
-                        zero_padder,
-                        # Return it
-                        ['return', self.context.get_next_mem(), ['add', ['ceil32', ['mload', self.context.get_next_mem() + 32]], 64]]]
-                ]
-                return LLLnode.from_list(o, typ=None, pos=getpos(self.stmt))
             else:
                 raise Exception("Invalid location: %s" % sub.location)
 
         elif isinstance(sub.typ, ListType):
             sub_base_type = re.split(r'\(|\[', str(sub.typ.subtype))[0]
             ret_base_type = re.split(r'\(|\[', str(self.context.return_type.subtype))[0]
+            loop_memory_position = self.context.new_placeholder(typ=BaseType('uint256'))
             if sub_base_type != ret_base_type:
                 raise TypeMismatchException(
                     "List return type %r does not match specified return type, expecting %r" % (
@@ -486,12 +529,12 @@ class Stmt(object):
                     self.stmt
                 )
             elif sub.location == "memory" and sub.value != "multi":
-                return LLLnode.from_list(['return', sub, get_size_of_type(self.context.return_type) * 32],
+                return LLLnode.from_list(self.make_return_stmt(sub, get_size_of_type(self.context.return_type) * 32, loop_memory_position=loop_memory_position),
                                             typ=None, pos=getpos(self.stmt))
             else:
                 new_sub = LLLnode.from_list(self.context.new_placeholder(self.context.return_type), typ=self.context.return_type, location='memory')
                 setter = make_setter(new_sub, sub, 'memory', pos=getpos(self.stmt))
-                return LLLnode.from_list(['seq', setter, ['return', new_sub, get_size_of_type(self.context.return_type) * 32]],
+                return LLLnode.from_list(['seq', setter, self.make_return_stmt(new_sub, get_size_of_type(self.context.return_type) * 32, loop_memory_position=loop_memory_position)],
                                             typ=None, pos=getpos(self.stmt))
 
         # Returning a tuple.
@@ -509,14 +552,40 @@ class Stmt(object):
                         ),
                         self.stmt
                     )
+
             # Is from a call expression.
-            if len(sub.args[0].args) > 0 and sub.args[0].args[0].value == 'call':
+            if len(sub.args[0].args) > 0 and sub.args[0].args[0].value == 'call':  # self-call to public.
                 mem_pos = sub.args[0].args[-1]
                 mem_size = get_size_of_type(sub.typ) * 32
                 return LLLnode.from_list(['return', mem_pos, mem_size], typ=sub.typ)
+
+            elif (sub.annotation and 'Internal Call' in sub.annotation):
+                mem_pos = sub.args[-1].value if sub.value == 'seq_unchecked' else sub.args[0].args[-1]
+                mem_size = get_size_of_type(sub.typ) * 32
+                # Add zero padder if bytes are present in output.
+                zero_padder = ['pass']
+                byte_arrays = [(i, x) for i, x in enumerate(sub.typ.members) if isinstance(x, ByteArrayType)]
+                if byte_arrays:
+                    i, x = byte_arrays[-1]
+                    zero_padder = zero_pad(bytez_placeholder=['add', mem_pos, ['mload', mem_pos + i * 32]], maxlen=x.maxlen)
+                return LLLnode.from_list(
+                    ['seq'] +
+                    [sub] +
+                    [zero_padder] +
+                    [self.make_return_stmt(mem_pos, mem_size)
+                ], typ=sub.typ, pos=getpos(self.stmt))
+
             subs = []
-            dynamic_offset_counter = LLLnode(self.context.get_next_mem(), typ=None, annotation="dynamic_offset_counter")  # dynamic offset position counter.
-            new_sub = LLLnode.from_list(self.context.get_next_mem() + 32, typ=self.context.return_type, location='memory', annotation='new_sub')
+            # Pre-allocate loop_memory_position if required for private function returning.
+            loop_memory_position = self.context.new_placeholder(typ=BaseType('uint256')) if self.context.is_private else None
+            # Allocate dynamic off set counter, to keep track of the total packed dynamic data size.
+            dynamic_offset_counter_placeholder = self.context.new_placeholder(typ=BaseType('uint256'))
+            dynamic_offset_counter = LLLnode(
+                dynamic_offset_counter_placeholder, typ=None, annotation="dynamic_offset_counter"  # dynamic offset position counter.
+            )
+            new_sub = LLLnode.from_list(
+                self.context.new_placeholder(typ=BaseType('uint256')), typ=self.context.return_type, location='memory', annotation='new_sub'
+            )
             keyz = list(range(len(sub.typ.members)))
             dynamic_offset_start = 32 * len(sub.args)  # The static list of args end.
             left_token = LLLnode.from_list('_loc', typ=new_sub.typ, location="memory")
@@ -527,10 +596,12 @@ class Stmt(object):
 
             def increment_dynamic_offset(dynamic_spot):
                 # Increment dyanmic offset counter in memory.
-                return ['mstore', dynamic_offset_counter,
-                                 ['add',
-                                        ['add', ['ceil32', ['mload', dynamic_spot]], 32],
-                                        ['mload', dynamic_offset_counter]]]
+                return [
+                    'mstore', dynamic_offset_counter,
+                    ['add',
+                        ['add', ['ceil32', ['mload', dynamic_spot]], 32],
+                        ['mload', dynamic_offset_counter]]
+                ]
 
             for i, typ in enumerate(keyz):
                 arg = sub.args[i]
@@ -549,13 +620,19 @@ class Stmt(object):
                 else:
                     raise Exception("Can't return type %s as part of tuple", type(arg.typ))
 
-            setter = LLLnode.from_list(['seq',
-                ['mstore', dynamic_offset_counter, dynamic_offset_start],
-                ['with', '_loc', new_sub, ['seq'] + subs]], typ=None
+            setter = LLLnode.from_list(
+                ['seq',
+                    ['mstore', dynamic_offset_counter, dynamic_offset_start],
+                    ['with', '_loc', new_sub, ['seq'] + subs]],
+                typ=None
             )
 
-            return LLLnode.from_list(['seq', setter, ['return', new_sub, get_dynamic_offset_value()]],
-                                        typ=None, pos=getpos(self.stmt))
+            return LLLnode.from_list(
+                ['seq',
+                    setter,
+                    self.make_return_stmt(new_sub, get_dynamic_offset_value(), loop_memory_position)],
+                typ=None, pos=getpos(self.stmt)
+            )
         else:
             raise TypeMismatchException("Can only return base type!", self.stmt)
 

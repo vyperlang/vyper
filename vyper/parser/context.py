@@ -17,7 +17,9 @@ from vyper.signatures.function_signature import (
 
 # Contains arguments, variables, etc
 class Context():
-    def __init__(self, vars, global_ctx, sigs=None, forvars=None, return_type=None, is_constant=False, is_payable=False, origcode=''):
+
+    def __init__(self, vars, global_ctx, sigs=None, forvars=None, return_type=None,
+                 is_constant=False, is_private=False, is_payable=False, origcode='', method_id=''):
         # In-memory variables, in the form (name, memory location, type)
         self.vars = vars or {}
         self.next_mem = MemoryPositions.RESERVED_MEMORY
@@ -49,6 +51,11 @@ class Context():
         self.custom_units = global_ctx._custom_units
         # defined constants
         self.constants = global_ctx._constants
+        # Callback pointer to jump back to, used in private functions.
+        self.callback_ptr = None
+        self.is_private = is_private
+        # method_id of current function
+        self.method_id = method_id
 
     def set_in_assignment(self, state: bool):
         self.in_assignment = state

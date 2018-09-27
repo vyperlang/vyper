@@ -1,7 +1,6 @@
 import ast
 
 from vyper.exceptions import (
-    ConstancyViolationException,
     InvalidLiteralException,
     NonPayableViolationException,
     StructureException,
@@ -10,6 +9,7 @@ from vyper.exceptions import (
     ParserException
 )
 from vyper.parser.lll_node import LLLnode
+from vyper.parser import self_call
 from vyper.parser.parser_utils import (
     getpos,
     unwrap_location,
@@ -37,7 +37,6 @@ from vyper.types import (
     TupleType,
 )
 from vyper.types import (
-    get_size_of_type,
     is_base_type,
 )
 from vyper.types import (
@@ -45,7 +44,6 @@ from vyper.types import (
     is_numeric_type,
     combine_units
 )
-from vyper.signatures.function_signature import FunctionSignature
 
 
 class Expr(object):
@@ -210,6 +208,8 @@ class Expr(object):
         elif isinstance(self.expr.value, ast.Name) and self.expr.value.id in ("msg", "block", "tx"):
             key = self.expr.value.id + "." + self.expr.attr
             if key == "msg.sender":
+                if self.context.is_private:
+                    raise ParserException("msg.sender not allowed in private functions.", self.expr)
                 return LLLnode.from_list(['caller'], typ='address', pos=getpos(self.expr))
             elif key == "msg.value":
                 if not self.context.is_payable:
@@ -260,9 +260,20 @@ class Expr(object):
         o.mutable = sub.mutable
         return o
 
+    def arithmetic_get_reference(self, item):
+        item_lll = Expr.parse_value_expr(item, self.context)
+        if isinstance(item, ast.Call):
+            # We only want to perform call statements once.
+            placeholder = self.context.new_placeholder(item_lll.typ)
+            pre_alloc = ['mstore', placeholder, item_lll]
+            return pre_alloc, LLLnode.from_list(['mload', placeholder], location='memory', typ=item_lll.typ)
+        else:
+            return None, item_lll
+
     def arithmetic(self):
-        left = Expr.parse_value_expr(self.expr.left, self.context)
-        right = Expr.parse_value_expr(self.expr.right, self.context)
+        pre_alloc_left, left = self.arithmetic_get_reference(self.expr.left)
+        pre_alloc_right, right = self.arithmetic_get_reference(self.expr.right)
+
         if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
             raise TypeMismatchException("Unsupported types for arithmetic op: %r %r" % (left.typ, right.typ), self.expr)
 
@@ -402,12 +413,23 @@ class Expr(object):
                 raise TypeMismatchException('Only whole number exponents are supported', self.expr)
         else:
             raise Exception("Unsupported binop: %r" % self.expr.op)
+
+        p = ['seq']
+
+        if pre_alloc_left:
+            p.append(pre_alloc_left)
+        if pre_alloc_right:
+            p.append(pre_alloc_right)
+
         if o.typ.typ == 'int128':
-            return LLLnode.from_list(['clamp', ['mload', MemoryPositions.MINNUM], o, ['mload', MemoryPositions.MAXNUM]], typ=o.typ, pos=getpos(self.expr))
+            p.append(['clamp', ['mload', MemoryPositions.MINNUM], o, ['mload', MemoryPositions.MAXNUM]])
+            return LLLnode.from_list(p, typ=o.typ, pos=getpos(self.expr))
         elif o.typ.typ == 'decimal':
-            return LLLnode.from_list(['clamp', ['mload', MemoryPositions.MINDECIMAL], o, ['mload', MemoryPositions.MAXDECIMAL]], typ=o.typ, pos=getpos(self.expr))
+            p.append(['clamp', ['mload', MemoryPositions.MINDECIMAL], o, ['mload', MemoryPositions.MAXDECIMAL]])
+            return LLLnode.from_list(p, typ=o.typ, pos=getpos(self.expr))
         if o.typ.typ == 'uint256':
-            return o
+            p.append(o)
+            return LLLnode.from_list(p, typ=o.typ, pos=getpos(self.expr))
         else:
             raise Exception("%r %r" % (o, o.typ))
 
@@ -586,9 +608,10 @@ class Expr(object):
     def unary_operations(self):
         operand = Expr.parse_value_expr(self.expr.operand, self.context)
         if isinstance(self.expr.op, ast.Not):
-            # Note that in the case of bool, num, address, decimal, uint256 AND bytes32,
-            # a zero entry represents false, all others represent true
-            return LLLnode.from_list(["iszero", operand], typ='bool', pos=getpos(self.expr))
+            if isinstance(operand.typ, BaseType) and operand.typ.typ == 'bool':
+                return LLLnode.from_list(["iszero", operand], typ='bool', pos=getpos(self.expr))
+            else:
+                raise TypeMismatchException("Only bool is supported for not operation, %r supplied." % operand.typ, self.expr)
         elif isinstance(self.expr.op, ast.USub):
             if not is_numeric_type(operand.typ):
                 raise TypeMismatchException("Unsupported type for negation: %r" % operand.typ, operand)
@@ -615,48 +638,10 @@ class Expr(object):
                 value = Expr.parse_value_expr(kw.value, self.context)
         return value, gas
 
-    # def _get_sig(self, sigs, method_name, expr_args):
-    #     from vyper.signatures.function_signature import (
-    #         FunctionSignature
-    #     )
-
-    #     def synonymise(s):
-    #         return s.replace('int128', 'num').replace('uint256', 'num')
-    #     # for sig in sigs['self']
-    #     full_sig = FunctionSignature.get_full_sig(self.expr.func.attr, expr_args, None, self.context.custom_units)
-    #     method_names_dict = dict(Counter([x.split('(')[0] for x in self.context.sigs['self']]))
-    #     if method_name not in method_names_dict:
-    #         raise FunctionDeclarationException(
-    #             "Function not declared yet (reminder: functions cannot "
-    #             "call functions later in code than themselves): %s" % method_name
-    #         )
-
-    #     if method_names_dict[method_name] == 1:
-    #         return next(sig for name, sig in self.context.sigs['self'].items() if name.split('(')[0] == method_name)
-    #     if full_sig in self.context.sigs['self']:
-    #         return self.contex['self'][full_sig]
-    #     else:
-    #         synonym_sig = synonymise(full_sig)
-    #         syn_sigs_test = [synonymise(k) for k in self.context.sigs.keys()]
-    #         if len(syn_sigs_test) != len(set(syn_sigs_test)):
-    #             raise Exception(
-    #                 'Incompatible default parameter signature,'
-    #                 'can not tell the number type of literal', self.expr
-    #             )
-    #         synonym_sigs = [(synonymise(k), v) for k, v in self.context.sigs['self'].items()]
-    #         ssig = [s[1] for s in synonym_sigs if s[0] == synonym_sig]
-    #         if len(ssig) == 0:
-    #             raise FunctionDeclarationException(
-    #                 "Function not declared yet (reminder: functions cannot "
-    #                 "call functions later in code than themselves): %s" % method_name
-    #             )
-    #         return ssig[0]
-
     # Function calls
     def call(self):
-        from .parser import (
-            external_contract_call,
-            pack_arguments,
+        from vyper.parser.parser import (
+            external_contract_call
         )
         from vyper.functions import (
             dispatch_table,
@@ -672,36 +657,7 @@ class Expr(object):
                     err_msg += ". Did you mean self.{}?".format(function_name)
                 raise StructureException(err_msg, self.expr)
         elif isinstance(self.expr.func, ast.Attribute) and isinstance(self.expr.func.value, ast.Name) and self.expr.func.value.id == "self":
-            expr_args = [Expr(arg, self.context).lll_node for arg in self.expr.args]
-            method_name = self.expr.func.attr
-            sig = FunctionSignature.lookup_sig(self.context.sigs, method_name, expr_args, self.expr, self.context)
-            if self.context.is_constant and not sig.const:
-                raise ConstancyViolationException(
-                    "May not call non-constant function '%s' within a constant function." % (method_name),
-                    getpos(self.expr)
-                )
-            add_gas = sig.gas  # gas of call
-            inargs, inargsize = pack_arguments(sig, expr_args, self.context, pos=getpos(self.expr))
-            output_placeholder = self.context.new_placeholder(typ=sig.output_type)
-            multi_arg = []
-            if isinstance(sig.output_type, BaseType):
-                returner = output_placeholder
-            elif isinstance(sig.output_type, ByteArrayType):
-                returner = output_placeholder + 32
-            elif isinstance(sig.output_type, TupleType):
-                returner = output_placeholder
-            else:
-                raise TypeMismatchException("Invalid output type: %r" % sig.output_type, self.expr)
-
-            o = LLLnode.from_list(multi_arg +
-                    ['seq',
-                        ['assert', ['call', ['gas'], ['address'], 0,
-                                        inargs, inargsize,
-                                        output_placeholder, get_size_of_type(sig.output_type) * 32]], returner],
-                typ=sig.output_type, location='memory',
-                pos=getpos(self.expr), add_gas_estimate=add_gas, annotation='Internal Call: %s' % method_name)
-            o.gas += sig.gas
-            return o
+            return self_call.make_call(self.expr, self.context)
         elif isinstance(self.expr.func, ast.Attribute) and isinstance(self.expr.func.value, ast.Call):
             contract_name = self.expr.func.value.func.id
             contract_address = Expr.parse_value_expr(self.expr.func.value.args[0], self.context)

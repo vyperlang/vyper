@@ -34,7 +34,7 @@ class ParserException(Exception):
                 col = '-' * self.col_offset + '^'
                 output += '\n' + col
 
-        elif self.lineno and self.col_offset:
+        elif self.lineno is not None and self.col_offset is not None:
             output = 'line %d:%d %s' % (
                 self.lineno,
                 self.col_offset,

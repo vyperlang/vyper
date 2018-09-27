@@ -1,15 +1,6 @@
 import ast
 import copy
-import tokenize
-import io
-import re
 
-from tokenize import (
-    OP,
-    NAME,
-    TokenInfo,
-    COMMENT
-)
 
 from vyper.exceptions import (
     InvalidLiteralException,
@@ -31,12 +22,13 @@ from vyper.parser.expr import Expr
 from vyper.parser.context import Context
 from vyper.parser.global_context import GlobalContext
 from vyper.parser.lll_node import LLLnode
+from vyper.parser.pre_parser import pre_parse
 from vyper.parser.parser_utils import (
-    add_variable_offset,
+    pack_arguments,
+    make_setter,
     base_type_conversion,
     byte_array_to_num,
     decorate_ast_with_source,
-    get_length,
     getpos,
     make_byte_array_copier,
     resolve_negative_literals,
@@ -46,10 +38,6 @@ from vyper.types import (
     BaseType,
     ByteArrayType,
     ListType,
-    MappingType,
-    NullType,
-    StructType,
-    TupleType,
 )
 from vyper.types import (
     get_size_of_type,
@@ -65,7 +53,6 @@ from vyper.utils import (
     bytes_to_int,
     calc_mem_gas,
 )
-from vyper import __version__
 
 
 if not hasattr(ast, 'AnnAssign'):
@@ -74,52 +61,11 @@ if not hasattr(ast, 'AnnAssign'):
 
 # Converts code to parse tree
 def parse(code):
-    code = pre_parser(code)
+    code = pre_parse(code)
     o = ast.parse(code)
     decorate_ast_with_source(o, code)
     o = resolve_negative_literals(o)
     return o.body
-
-
-# Minor pre-parser checks.
-def pre_parser(code):
-    result = []
-
-    g = tokenize.tokenize(io.BytesIO(code.encode('utf-8')).readline)
-    for token in g:
-
-        # Alias contract definition to class definition.
-        if token.type == COMMENT and "@version" in token.string:
-            parse_version_pragma(token.string[1:])
-        if (token.type, token.string, token.start[1]) == (NAME, "contract", 0):
-            token = TokenInfo(token.type, "class", token.start, token.end, token.line)
-        # Prevent semi-colon line statements.
-        elif (token.type, token.string) == (OP, ";"):
-            raise StructureException("Semi-colon statements not allowed.", token.start)
-
-        result.append(token)
-    return tokenize.untokenize(result).decode('utf-8')
-
-
-def _parser_version_str(version_str):
-    version_regex = re.compile(r'^(\d+\.)?(\d+\.)?(\w*)$')
-    if None in version_regex.match(version_str).groups():
-        raise Exception('Could not parse given version: %s' % version_str)
-    return version_regex.match(version_str).groups()
-
-
-# Do a version check.
-def parse_version_pragma(version_str):
-    version_arr = version_str.split('@version')
-
-    file_version = version_arr[1].strip()
-    file_major, file_minor, file_patch = _parser_version_str(file_version)
-    compiler_major, compiler_minor, compiler_patch = _parser_version_str(__version__)
-
-    if (file_major, file_minor) != (compiler_major, compiler_minor):
-        raise Exception('Given version "{}" is not compatible with the compiler ({}): '.format(
-            file_version, __version__
-        ))
 
 
 # Header code
@@ -316,6 +262,49 @@ def make_clamper(datapos, mempos, typ, is_init=False):
         return LLLnode.from_list('pass')
 
 
+def get_sig_statements(sig, pos):
+    method_id_node = LLLnode.from_list(sig.method_id, pos=pos, annotation='%s' % sig.sig)
+
+    if sig.private:
+        sig_compare = 0
+        private_label = LLLnode.from_list(
+            ['label', 'priv_{}'.format(sig.method_id)],
+            pos=pos, annotation='%s' % sig.sig
+        )
+    else:
+        sig_compare = ['eq', ['mload', 0], method_id_node]
+        private_label = ['pass']
+
+    return sig_compare, private_label
+
+
+def get_arg_copier(sig, total_size, memory_dest, offset=4):
+    # Copy arguments.
+    # For private function, MSTORE arguments and callback pointer from the stack.
+    if sig.private:
+        copier = ['seq']
+        for pos in range(0, total_size, 32):
+            copier.append(['mstore', memory_dest + pos, 'pass'])
+    else:
+        copier = ['calldatacopy', memory_dest, offset, total_size]
+
+    return copier
+
+
+def make_unpacker(ident, i_placeholder, begin_pos):
+    start_label = 'dyn_unpack_start_' + ident
+    end_label = 'dyn_unpack_end_' + ident
+    return ['seq_unchecked',
+        ['mstore', begin_pos, 'pass'],  # get len
+        ['mstore', i_placeholder, 0],
+        ['label', start_label],
+        ['if', ['ge', ['mload', i_placeholder], ['ceil32', ['mload', begin_pos]]], ['goto', end_label]],  # break
+        ['mstore', ['add', ['add', begin_pos, 32], ['mload', i_placeholder]], 'pass'],  # pop into correct memory slot.
+        ['mstore', i_placeholder, ['add', 32, ['mload', i_placeholder]]],  # increment i
+        ['goto', start_label],
+        ['label', end_label]]
+
+
 # Parses a function declaration
 def parse_func(code, sigs, origcode, global_ctx, _vars=None):
     if _vars is None:
@@ -334,36 +323,91 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
         if arg.name in global_ctx._globals:
             raise FunctionDeclarationException("Variable name duplicated between function arguments and globals: " + arg.name)
 
-    # Create a context
-    context = Context(vars=_vars, global_ctx=global_ctx, sigs=sigs,
-                      return_type=sig.output_type, is_constant=sig.const, is_payable=sig.payable, origcode=origcode)
+    # Create a local (per function) context.
+    context = Context(
+        vars=_vars,
+        global_ctx=global_ctx,
+        sigs=sigs,
+        return_type=sig.output_type,
+        is_constant=sig.const,
+        is_payable=sig.payable,
+        origcode=origcode,
+        is_private=sig.private,
+        method_id=sig.method_id
+    )
+
     # Copy calldata to memory for fixed-size arguments
     max_copy_size = sum([32 if isinstance(arg.typ, ByteArrayType) else get_size_of_type(arg.typ) * 32 for arg in sig.args])
     base_copy_size = sum([32 if isinstance(arg.typ, ByteArrayType) else get_size_of_type(arg.typ) * 32 for arg in base_args])
     context.next_mem += max_copy_size
+
+    clampers = []
+
+    # Create callback_ptr, this stores a destination in the bytecode for a private
+    # function to jump to after a function has executed.
+    _post_callback_ptr = "{}_{}_post_callback_ptr".format(sig.name, sig.method_id)
+    if sig.private:
+        context.callback_ptr = context.new_placeholder(typ=BaseType('uint256'))
+        clampers.append(
+            LLLnode.from_list(['mstore', context.callback_ptr, 'pass'], annotation='pop callback pointer')
+        )
+        if total_default_args > 0:
+            clampers.append(['label', _post_callback_ptr])
+
+    # private functions without return types need to jump back to
+    # the calling function, as there is no return statement to handle the
+    # jump.
+    stop_func = [['stop']]
+    if sig.output_type is None and sig.private:
+        stop_func = [['jump', ['mload', context.callback_ptr]]]
 
     if not len(base_args):
         copier = 'pass'
     elif sig.name == '__init__':
         copier = ['codecopy', MemoryPositions.RESERVED_MEMORY, '~codelen', base_copy_size]
     else:
-        copier = ['calldatacopy', MemoryPositions.RESERVED_MEMORY, 4, base_copy_size]
-    clampers = [copier]
+        copier = get_arg_copier(
+            sig=sig,
+            total_size=base_copy_size,
+            memory_dest=MemoryPositions.RESERVED_MEMORY
+        )
+    clampers.append(copier)
+
     # Add asserts for payable and internal
-    if not sig.payable:
+    # private never gets payable check.
+    if not sig.payable and not sig.private:
         clampers.append(['assert', ['iszero', 'callvalue']])
-    if sig.private:
-        clampers.append(['assert', ['eq', 'caller', 'address']])
 
     # Fill variable positions
     for i, arg in enumerate(sig.args):
-        if i < len(base_args):
+        if i < len(base_args) and not sig.private:
             clampers.append(make_clamper(arg.pos, context.next_mem, arg.typ, sig.name == '__init__'))
         if isinstance(arg.typ, ByteArrayType):
             context.vars[arg.name] = VariableRecord(arg.name, context.next_mem, arg.typ, False)
             context.next_mem += 32 * get_size_of_type(arg.typ)
         else:
             context.vars[arg.name] = VariableRecord(arg.name, MemoryPositions.RESERVED_MEMORY + arg.pos, arg.typ, False)
+
+    # Private function copiers. No clamping for private functions.
+    dyn_variable_names = [a.name for a in base_args if isinstance(a.typ, ByteArrayType)]
+    if sig.private and dyn_variable_names:
+        i_placeholder = context.new_placeholder(typ=BaseType('uint256'))
+        unpackers = []
+        for idx, var_name in enumerate(dyn_variable_names):
+            var = context.vars[var_name]
+            ident = "_load_args_%d_dynarg%d" % (sig.method_id, idx)
+            o = make_unpacker(ident=ident, i_placeholder=i_placeholder, begin_pos=var.pos)
+            unpackers.append(o)
+
+        if not unpackers:
+            unpackers = ['pass']
+
+        clampers.append(LLLnode.from_list(
+            ['seq_unchecked'] +
+            unpackers +
+            [0],  # [0] to complete full overarching 'seq' statement, see private_label.
+            typ=None, annotation='dynamic unpacker', pos=getpos(code))
+        )
 
     # Create "clampers" (input well-formedness checkers)
     # Return function body
@@ -376,14 +420,14 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
             raise FunctionDeclarationException('Default function may only be public.', code)
         o = LLLnode.from_list(['seq'] + clampers + [parse_body(code.body, context)], pos=getpos(code))
     else:
-        # Handle default args if present.
-        function_routine = "{}_{}".format(sig.name, sig.method_id)
-        if total_default_args > 0:
+
+        if total_default_args > 0:  # Function with default parameters.
+            function_routine = "{}_{}".format(sig.name, sig.method_id)
             default_sigs = generate_default_arg_sigs(code, sigs, global_ctx._custom_units)
             sig_chain = ['seq']
 
-            for default_sig_idx, default_sig in enumerate(default_sigs):
-                method_id_node = LLLnode.from_list(default_sig.method_id, pos=getpos(code), annotation='%s' % default_sig.sig)
+            for default_sig in default_sigs:
+                sig_compare, private_label = get_sig_statements(default_sig, getpos(code))
 
                 # Populate unset default variables
                 populate_arg_count = len(sig.args) - len(default_sig.args)
@@ -397,14 +441,23 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
                         left = LLLnode.from_list(var.pos, typ=var.typ, location='memory',
                                                  pos=getpos(code), mutable=var.mutable)
                         set_defaults.append(make_setter(left, value, 'memory', pos=getpos(code)))
-                # Variables to be populated from calldata
-                copier_arg_count = len(default_sig.args) - len(base_args)
+
+                current_sig_arg_names = {x.name for x in default_sig.args}
+                base_arg_names = {arg.name for arg in base_args}
+                if sig.private:
+                    # Load all variables in default section, if private,
+                    # because the stack is a linear pipe.
+                    copier_arg_count = len(default_sig.args)
+                    copier_arg_names = current_sig_arg_names
+                else:
+                    copier_arg_count = len(default_sig.args) - len(base_args)
+                    copier_arg_names = current_sig_arg_names - base_arg_names
+                # Order copier_arg_names, this is very important.
+                copier_arg_names = [x.name for x in default_sig.args if x.name in copier_arg_names]
+
+                # Variables to be populated from calldata/stack.
                 default_copiers = []
                 if copier_arg_count > 0:
-                    current_sig_arg_names = {x.name for x in default_sig.args}
-                    base_arg_names = {arg.name for arg in base_args}
-                    copier_arg_names = current_sig_arg_names - base_arg_names
-
                     # Get map of variables in calldata, with thier offsets
                     offset = 4
                     calldata_offset_map = {}
@@ -412,40 +465,71 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
                         calldata_offset_map[arg.name] = offset
                         offset += 32 if isinstance(arg.typ, ByteArrayType) else get_size_of_type(arg.typ) * 32
                     # Copy set default parameters from calldata
+                    dynamics = []
                     for arg_name in copier_arg_names:
                         var = context.vars[arg_name]
                         calldata_offset = calldata_offset_map[arg_name]
-                        # Add clampers.
-                        default_copiers.append(make_clamper(calldata_offset - 4, var.pos, var.typ))
-                        # Add copying code.
-                        if isinstance(var.typ, ByteArrayType):
-                            default_copiers.append(['calldatacopy', var.pos, ['add', 4, ['calldataload', calldata_offset]], var.size * 32])
+                        if sig.private:
+                            _offset = calldata_offset
+                            if isinstance(var.typ, ByteArrayType):
+                                _size = 32
+                                dynamics.append(var.pos)
+                            else:
+                                _size = var.size * 32
+                            default_copiers.append(get_arg_copier(sig=sig, memory_dest=var.pos, total_size=_size, offset=_offset))
                         else:
-                            default_copiers.append(['calldatacopy', var.pos, calldata_offset, var.size * 32])
+                            # Add clampers.
+                            default_copiers.append(make_clamper(calldata_offset - 4, var.pos, var.typ))
+                            # Add copying code.
+                            if isinstance(var.typ, ByteArrayType):
+                                _offset = ['add', 4, ['calldataload', calldata_offset]]
+                            else:
+                                _offset = calldata_offset
+                            default_copiers.append(get_arg_copier(sig=sig, memory_dest=var.pos, total_size=var.size * 32, offset=_offset))
+
+                    # Unpack byte array if necessary.
+                    if dynamics:
+                        i_placeholder = context.new_placeholder(typ=BaseType('uint256'))
+                        for idx, var_pos in enumerate(dynamics):
+                            ident = 'unpack_default_sig_dyn_%d_arg%d' % (default_sig.method_id, idx)
+                            default_copiers.append(
+                                make_unpacker(ident=ident, i_placeholder=i_placeholder, begin_pos=var_pos)
+                            )
+                    default_copiers.append(0)  # for over arching seq, POP
 
                 sig_chain.append([
-                    'if', ['eq', ['mload', 0], method_id_node],
+                    'if', sig_compare,
                     ['seq',
+                        private_label,
+                        LLLnode.from_list(['mstore', context.callback_ptr, 'pass'], annotation='pop callback pointer', pos=getpos(code)) if sig.private else ['pass'],
                         ['seq'] + set_defaults if set_defaults else ['pass'],
-                        ['seq'] + default_copiers if default_copiers else ['pass'],
-                        ['goto', function_routine]]
+                        ['seq_unchecked'] + default_copiers if default_copiers else ['pass'],
+                        ['goto', _post_callback_ptr if sig.private else function_routine]]
                 ])
 
+            # With private functions all variable loading occurs in the default
+            # function sub routine.
+            if sig.private:
+                _clampers = [['label', _post_callback_ptr]]
+            else:
+                _clampers = clampers
+
+            # Function with default parameters.
             o = LLLnode.from_list(
                 ['seq',
                     sig_chain,
                     ['if', 0,  # can only be jumped into
                         ['seq',
-                            ['label', function_routine],
-                            ['seq'] + clampers + [parse_body(c, context) for c in code.body] + ['stop']]]], typ=None, pos=getpos(code))
+                            ['label', function_routine] if not sig.private else ['pass'],
+                            ['seq'] + _clampers + [parse_body(c, context) for c in code.body] + stop_func]]], typ=None, pos=getpos(code))
 
         else:
             # Function without default parameters.
-            method_id_node = LLLnode.from_list(sig.method_id, pos=getpos(code), annotation='%s' % sig.sig)
+            sig_compare, private_label = get_sig_statements(sig, getpos(code))
             o = LLLnode.from_list(
                 ['if',
-                    ['eq', ['mload', 0], method_id_node],
-                    ['seq'] + clampers + [parse_body(c, context) for c in code.body] + ['stop']], typ=None, pos=getpos(code))
+                    sig_compare,
+                    ['seq'] + [private_label] + clampers + [parse_body(c, context) for c in code.body] + stop_func], typ=None, pos=getpos(code))
 
     # Check for at leasts one return statement if necessary.
     if context.return_type and context.function_return_count == 0:
@@ -482,7 +566,7 @@ def external_contract_call(node, context, contract_name, contract_address, pos, 
         raise FunctionDeclarationException("Function not declared yet: %s (reminder: "
                                                     "function must be declared in the correct contract)" % method_name, pos)
     sig = context.sigs[contract_name][method_name]
-    inargs, inargsize = pack_arguments(sig, [parse_expr(arg, context) for arg in node.args], context, pos=pos)
+    inargs, inargsize, _ = pack_arguments(sig, [parse_expr(arg, context) for arg in node.args], context, pos=pos)
     output_placeholder, output_size, returner = get_external_contract_call_output(sig, context)
     sub = ['seq', ['assert', ['extcodesize', contract_address]],
                     ['assert', ['ne', 'address', contract_address]]]
@@ -512,141 +596,6 @@ def get_external_contract_call_output(sig, context):
 # Parse an expression
 def parse_expr(expr, context):
     return Expr(expr, context).lll_node
-
-
-# Create an x=y statement, where the types may be compound
-def make_setter(left, right, location, pos):
-    # Basic types
-    if isinstance(left.typ, BaseType):
-        right = base_type_conversion(right, right.typ, left.typ, pos)
-        if location == 'storage':
-            return LLLnode.from_list(['sstore', left, right], typ=None)
-        elif location == 'memory':
-            return LLLnode.from_list(['mstore', left, right], typ=None)
-    # Byte arrays
-    elif isinstance(left.typ, ByteArrayType):
-        return make_byte_array_copier(left, right)
-    # Can't copy mappings
-    elif isinstance(left.typ, MappingType):
-        raise TypeMismatchException("Cannot copy mappings; can only copy individual elements", pos)
-    # Arrays
-    elif isinstance(left.typ, ListType):
-        # Cannot do something like [a, b, c] = [1, 2, 3]
-        if left.value == "multi":
-            raise Exception("Target of set statement must be a single item")
-        if not isinstance(right.typ, (ListType, NullType)):
-            raise TypeMismatchException("Setter type mismatch: left side is array, right side is %r" % right.typ, pos)
-        left_token = LLLnode.from_list('_L', typ=left.typ, location=left.location)
-        if left.location == "storage":
-            left = LLLnode.from_list(['sha3_32', left], typ=left.typ, location="storage_prehashed")
-            left_token.location = "storage_prehashed"
-        # Type checks
-        if not isinstance(right.typ, NullType):
-            if not isinstance(right.typ, ListType):
-                raise TypeMismatchException("Left side is array, right side is not", pos)
-            if left.typ.count != right.typ.count:
-                raise TypeMismatchException("Mismatched number of elements", pos)
-        # If the right side is a literal
-        if right.value == "multi":
-            if len(right.args) != left.typ.count:
-                raise TypeMismatchException("Mismatched number of elements", pos)
-            subs = []
-            for i in range(left.typ.count):
-                subs.append(make_setter(add_variable_offset(left_token, LLLnode.from_list(i, typ='int128'), pos=pos),
-                                        right.args[i], location, pos=pos))
-            return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
-        # If the right side is a null
-        elif isinstance(right.typ, NullType):
-            subs = []
-            for i in range(left.typ.count):
-                subs.append(make_setter(add_variable_offset(left_token, LLLnode.from_list(i, typ='int128'), pos=pos),
-                                        LLLnode.from_list(None, typ=NullType()), location, pos=pos))
-            return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
-        # If the right side is a variable
-        else:
-            right_token = LLLnode.from_list('_R', typ=right.typ, location=right.location)
-            subs = []
-            for i in range(left.typ.count):
-                subs.append(make_setter(add_variable_offset(left_token, LLLnode.from_list(i, typ='int128'), pos=pos),
-                                        add_variable_offset(right_token, LLLnode.from_list(i, typ='int128'), pos=pos), location, pos=pos))
-            return LLLnode.from_list(['with', '_L', left, ['with', '_R', right, ['seq'] + subs]], typ=None)
-    # Structs
-    elif isinstance(left.typ, (StructType, TupleType)):
-        if left.value == "multi" and isinstance(left.typ, StructType):
-            raise Exception("Target of set statement must be a single item")
-        if not isinstance(right.typ, NullType):
-            if not isinstance(right.typ, left.typ.__class__):
-                raise TypeMismatchException("Setter type mismatch: left side is %r, right side is %r" % (left.typ, right.typ), pos)
-            if isinstance(left.typ, StructType):
-                for k in left.typ.members:
-                    if k not in right.typ.members:
-                        raise TypeMismatchException("Keys don't match for structs, missing %s" % k, pos)
-                for k in right.typ.members:
-                    if k not in left.typ.members:
-                        raise TypeMismatchException("Keys don't match for structs, extra %s" % k, pos)
-            else:
-                if len(left.typ.members) != len(right.typ.members):
-                    raise TypeMismatchException("Tuple lengths don't match, %d vs %d" % (len(left.typ.members), len(right.typ.members)), pos)
-        left_token = LLLnode.from_list('_L', typ=left.typ, location=left.location)
-        if left.location == "storage":
-            left = LLLnode.from_list(['sha3_32', left], typ=left.typ, location="storage_prehashed")
-            left_token.location = "storage_prehashed"
-        if isinstance(left.typ, StructType):
-            keyz = sorted(list(left.typ.members.keys()))
-        else:
-            keyz = list(range(len(left.typ.members)))
-        # If the right side is a literal
-        if right.value == "multi":
-            if len(right.args) != len(keyz):
-                raise TypeMismatchException("Mismatched number of elements", pos)
-            subs = []
-            for i, typ in enumerate(keyz):
-                subs.append(make_setter(add_variable_offset(left_token, typ, pos=pos), right.args[i], location, pos=pos))
-            return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
-        # If the right side is a null
-        elif isinstance(right.typ, NullType):
-            subs = []
-            for typ in keyz:
-                subs.append(make_setter(add_variable_offset(left_token, typ, pos=pos), LLLnode.from_list(None, typ=NullType()), location, pos=pos))
-            return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
-        # If tuple assign.
-        elif isinstance(left.typ, TupleType) and isinstance(right.typ, TupleType):
-            right_token = LLLnode.from_list('_R', typ=right.typ, location="memory")
-            subs = []
-            static_offset_counter = 0
-            for idx, (left_arg, right_arg) in enumerate(zip(left.args, right.typ.members)):
-                # if left_arg.typ.typ != right_arg.typ:
-                #     raise TypeMismatchException("Tuple assignment mismatch position %d, expected '%s'" % (idx, right.typ), pos)
-                if isinstance(right_arg, ByteArrayType):
-                    offset = LLLnode.from_list(['add', '_R', ['mload', ['add', '_R', static_offset_counter]]],
-                        typ=ByteArrayType(right_arg.maxlen), location='memory')
-                    static_offset_counter += 32
-                else:
-                    offset = LLLnode.from_list(['mload', ['add', '_R', static_offset_counter]], typ=right_arg.typ)
-                    static_offset_counter += get_size_of_type(right_arg) * 32
-                subs.append(
-                    make_setter(
-                        left_arg,
-                        offset,
-                        location="memory",
-                        pos=pos
-                    )
-                )
-            return LLLnode.from_list(['with', '_R', right, ['seq'] + subs], typ=None, annotation='Tuple assignment')
-        # If the right side is a variable
-        else:
-            subs = []
-            right_token = LLLnode.from_list('_R', typ=right.typ, location=right.location)
-            for typ in keyz:
-                subs.append(make_setter(
-                    add_variable_offset(left_token, typ, pos=pos),
-                    add_variable_offset(right_token, typ, pos=pos),
-                    location,
-                    pos=pos
-                ))
-            return LLLnode.from_list(['with', '_L', left, ['with', '_R', right, ['seq'] + subs]], typ=None)
-    else:
-        raise Exception("Invalid type for setters")
 
 
 # Parse a statement (usually one line of code but not always)
@@ -723,7 +672,7 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder,
         dest_placeholder = LLLnode.from_list(
             ['add', datamem_start, ['mload', dynamic_offset_counter]],
             typ=typ, location='memory', annotation="pack_args_by_32:dest_placeholder")
-        copier = make_byte_array_copier(dest_placeholder, source_expr.lll_node)
+        copier = make_byte_array_copier(dest_placeholder, source_expr.lll_node, pos=pos)
         holder.append(copier)
         # Add zero padding.
         new_maxlen = ceil32(source_expr.lll_node.typ.maxlen)
@@ -840,44 +789,6 @@ def pack_logging_data(expected_data, args, context, pos):
             )
 
     return holder, maxlen, dynamic_offset_counter, datamem_start
-
-
-# Pack function arguments for a call
-def pack_arguments(signature, args, context, pos):
-    placeholder_typ = ByteArrayType(maxlen=sum([get_size_of_type(arg.typ) for arg in signature.args]) * 32 + 32)
-    placeholder = context.new_placeholder(placeholder_typ)
-    setters = [['mstore', placeholder, signature.method_id]]
-    needpos = False
-    staticarray_offset = 0
-    expected_arg_count = len(signature.args)
-    actual_arg_count = len(args)
-    if actual_arg_count != expected_arg_count:
-        raise StructureException("Wrong number of args for: %s (%s args, expected %s)" % (signature.name, actual_arg_count, expected_arg_count))
-
-    for i, (arg, typ) in enumerate(zip(args, [arg.typ for arg in signature.args])):
-        if isinstance(typ, BaseType):
-            setters.append(make_setter(LLLnode.from_list(placeholder + staticarray_offset + 32 + i * 32, typ=typ), arg, 'memory', pos=pos))
-        elif isinstance(typ, ByteArrayType):
-            setters.append(['mstore', placeholder + staticarray_offset + 32 + i * 32, '_poz'])
-            arg_copy = LLLnode.from_list('_s', typ=arg.typ, location=arg.location)
-            target = LLLnode.from_list(['add', placeholder + 32, '_poz'], typ=typ, location='memory')
-            setters.append(['with', '_s', arg, ['seq',
-                                                    make_byte_array_copier(target, arg_copy),
-                                                    ['set', '_poz', ['add', 32, ['add', '_poz', get_length(arg_copy)]]]]])
-            needpos = True
-        elif isinstance(typ, ListType):
-            target = LLLnode.from_list([placeholder + 32 + staticarray_offset + i * 32], typ=typ, location='memory')
-            setters.append(make_setter(target, arg, 'memory', pos=pos))
-            staticarray_offset += 32 * (typ.count - 1)
-        else:
-            raise TypeMismatchException("Cannot pack argument of type %r" % typ)
-    if needpos:
-        return LLLnode.from_list(['with', '_poz', len(args) * 32 + staticarray_offset, ['seq'] + setters + [placeholder + 28]],
-                                 typ=placeholder_typ, location='memory'), \
-            placeholder_typ.maxlen - 28
-    else:
-        return LLLnode.from_list(['seq'] + setters + [placeholder + 28], typ=placeholder_typ, location='memory'), \
-            placeholder_typ.maxlen - 28
 
 
 def parse_to_lll(kode):
