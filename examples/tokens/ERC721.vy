@@ -63,7 +63,7 @@ ownerToNFTokenCount: uint256[address]
 ownerToOperators: (bool[address])[address]
 
 
-# @dev Contract constructor. Per the Transfer event spec; during contract creation, any number of 
+# @dev Contract constructor. Per the Transfer event spec; during contract creation, any number of
 #      NFTs may be created and assigned without emitting Transfer.
 @public
 def __init__(_recipients: address[64], _tokenIds: uint256[64]):
@@ -83,7 +83,7 @@ def balanceOf(_owner: address) -> uint256:
 
 
 # @dev Returns the address of the owner of the NFT. NFTs assigned to zero address are considered
-#      invalid, and queries about them do throw. 
+#      invalid, and queries about them do throw.
 # @param _tokenId The identifier for an NFT.
 @public
 @constant
@@ -94,12 +94,12 @@ def ownerOf(_tokenId: uint256) -> address:
 
 ### TRANSFER FUNCTION HELPERS ###
 
-# NOTE: as VYPER uses a new message call for a function call, I needed to pass `_sender: address` 
+# NOTE: as VYPER uses a new message call for a function call, I needed to pass `_sender: address`
 #       rather than use msg.sender
 # @dev Throws unless `msg.sender` is the current owner, an authorized operator, or the approved
-#      address for this NFT. 
-# Throws if `_from` is not the current owner. 
-# Throws if `_to` is the zero address. 
+#      address for this NFT.
+# Throws if `_from` is not the current owner.
+# Throws if `_to` is the zero address.
 # Throws if `_tokenId` is not a valid NFT.
 @private
 def _validateTransferFrom(_from: address, _to: address, _tokenId: uint256, _sender: address):
@@ -109,8 +109,8 @@ def _validateTransferFrom(_from: address, _to: address, _tokenId: uint256, _send
     # Throws if `_from` is not the current owner
     assert self.idToOwner[_tokenId] == _from
     # Throws unless `msg.sender` is the current owner, an authorized operator, or the approved
-    # address for this NFT. 
-    senderIsOwner: bool = self.idToOwner[_tokenId] == _sender 
+    # address for this NFT.
+    senderIsOwner: bool = self.idToOwner[_tokenId] == _sender
     senderIsApproved: bool = self.idToApprovals[_tokenId] == _sender
     senderIsOperator: bool = (self.ownerToOperators[_from])[_sender]
     assert (senderIsOwner or senderIsApproved) or senderIsOperator
@@ -132,9 +132,9 @@ def _doTransfer(_from: address, _to: address, _tokenId: uint256):
 ### TRANSFER FUNCTIONS ###
 
 # @dev Throws unless `msg.sender` is the current owner, an authorized operator, or the approved
-#      address for this NFT. 
-#      Throws if `_from` is not the current owner. 
-#      Throws if `_to` is the zero address. 
+#      address for this NFT.
+#      Throws if `_from` is not the current owner.
+#      Throws if `_to` is the zero address.
 #      Throws if `_tokenId` is not a valid NFT.
 # @notice The caller is responsible to confirm that `_to` is capable of receiving NFTs or else
 #         they maybe be permanently lost.
@@ -144,7 +144,7 @@ def _doTransfer(_from: address, _to: address, _tokenId: uint256):
 @public
 def transferFrom(_from: address, _to: address, _tokenId: uint256):
     self._validateTransferFrom(_from, _to, _tokenId, msg.sender)
-    self._doTransfer(_from, _to, _tokenId)  
+    self._doTransfer(_from, _to, _tokenId)
 
 
 # @dev Transfers the ownership of an NFT from one address to another address.
@@ -171,7 +171,7 @@ def safeTransferFrom(
     if(_to.codesize > 0):
         returnValue: bytes32 = NFTReceiver(_to).onERC721Received(_operator, _from, _tokenId, _data)
         assert returnValue == method_id("onERC721Received(address,address,uint256,bytes)", bytes32)
-  
+
 
 # @dev Set or reaffirm the approved address for an NFT.
 # @notice The zero address indicates there is no approved address. Throws unless `msg.sender` is
@@ -216,7 +216,7 @@ def getApproved(_tokenId: uint256) -> address:
 # @dev Checks if `_operator` is an approved operator for `_owner`.
 # @param _owner The address that owns the NFTs.
 # @param _operator The address that acts on behalf of the owner.
-@public 
+@public
 @constant
 def isApprovedForAll( _owner: address, _operator: address) -> bool:
     # TODO: check original for _owner == 0x0

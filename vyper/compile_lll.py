@@ -40,15 +40,20 @@ def get_revert(mem_start=None, mem_len=None):
 
 
 # Compiles LLL to assembly
-def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
+def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=None, height=0):
     if withargs is None:
         withargs = {}
+    assert isinstance(withargs, dict)
+
+    if existing_labels is None:
+        existing_labels = set()
+    assert isinstance(existing_labels, set)
 
     # Opcodes
     if isinstance(code.value, str) and code.value.upper() in opcodes:
         o = []
         for i, c in enumerate(code.args[::-1]):
-            o.extend(compile_to_assembly(c, withargs, break_dest, height + i))
+            o.extend(compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
         o.append(code.value.upper())
         return o
     # Numbers
@@ -70,7 +75,7 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
             raise Exception("Set expects two arguments, the first being a stack variable")
         if height - withargs[code.args[0].value] > 16:
             raise Exception("With statement too deep")
-        return compile_to_assembly(code.args[1], withargs, break_dest, height) + \
+        return compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height) + \
             ['SWAP' + str(height - withargs[code.args[0].value]), 'POP']
     # Pass statements
     elif code.value == 'pass':
@@ -83,24 +88,24 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
         return compile_to_assembly(LLLnode.from_list(['seq', ['codecopy', MemoryPositions.FREE_VAR_SPACE, code.args[0], 32], ['mload', MemoryPositions.FREE_VAR_SPACE]]),
                                    withargs, break_dest, height)
     # If statements (2 arguments, ie. if x: y)
-    elif code.value == 'if' and len(code.args) == 2:
+    elif code.value in ('if', 'if_unchecked') and len(code.args) == 2:
         o = []
-        o.extend(compile_to_assembly(code.args[0], withargs, break_dest, height))
+        o.extend(compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height))
         end_symbol = mksymbol()
         o.extend(['ISZERO', end_symbol, 'JUMPI'])
-        o.extend(compile_to_assembly(code.args[1], withargs, break_dest, height))
+        o.extend(compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height))
         o.extend([end_symbol, 'JUMPDEST'])
         return o
     # If statements (3 arguments, ie. if x: y, else: z)
     elif code.value == 'if' and len(code.args) == 3:
         o = []
-        o.extend(compile_to_assembly(code.args[0], withargs, break_dest, height))
+        o.extend(compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height))
         mid_symbol = mksymbol()
         end_symbol = mksymbol()
         o.extend(['ISZERO', mid_symbol, 'JUMPI'])
-        o.extend(compile_to_assembly(code.args[1], withargs, break_dest, height))
+        o.extend(compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height))
         o.extend([end_symbol, 'JUMP', mid_symbol, 'JUMPDEST'])
-        o.extend(compile_to_assembly(code.args[2], withargs, break_dest, height))
+        o.extend(compile_to_assembly(code.args[2], withargs, existing_labels, break_dest, height))
         o.extend([end_symbol, 'JUMPDEST'])
         return o
     # Repeat statements (compiled from for loops)
@@ -109,13 +114,13 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
         o = []
         loops = num_to_bytearray(code.args[2].value)
         start, continue_dest, end = mksymbol(), mksymbol(), mksymbol()
-        o.extend(compile_to_assembly(code.args[0], withargs, break_dest, height))
-        o.extend(compile_to_assembly(code.args[1], withargs, break_dest, height + 1))
+        o.extend(compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height))
+        o.extend(compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height + 1))
         o.extend(['PUSH' + str(len(loops))] + loops)
         # stack: memloc, startvalue, rounds
         o.extend(['DUP2', 'DUP4', 'MSTORE', 'ADD', start, 'JUMPDEST'])
         # stack: memloc, exit_index
-        o.extend(compile_to_assembly(code.args[3], withargs, (end, continue_dest, height + 2), height + 2))
+        o.extend(compile_to_assembly(code.args[3], withargs, existing_labels, (end, continue_dest, height + 2), height + 2))
         # stack: memloc, exit_index
         o.extend([continue_dest, 'JUMPDEST', 'DUP2', 'MLOAD', 'PUSH1', 1, 'ADD', 'DUP1', 'DUP4', 'MSTORE'])
         # stack: len(loops), index memory address, new index
@@ -136,10 +141,10 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
     # With statements
     elif code.value == 'with':
         o = []
-        o.extend(compile_to_assembly(code.args[1], withargs, break_dest, height))
+        o.extend(compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height))
         old = withargs.get(code.args[0].value, None)
         withargs[code.args[0].value] = height
-        o.extend(compile_to_assembly(code.args[2], withargs, break_dest, height + 1))
+        o.extend(compile_to_assembly(code.args[2], withargs, existing_labels, break_dest, height + 1))
         if code.args[2].valency:
             o.extend(['SWAP1', 'POP'])
         else:
@@ -155,22 +160,30 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
         begincode = mksymbol()
         endcode = mksymbol()
         o.extend([endcode, 'JUMP', begincode, 'BLANK'])
-        o.append(compile_to_assembly(code.args[0], {}, None, 0))  # Append is intentional
+        o.append(compile_to_assembly(code.args[0], {}, existing_labels, None, 0))  # Append is intentional
         o.extend([endcode, 'JUMPDEST', begincode, endcode, 'SUB', begincode])
-        o.extend(compile_to_assembly(code.args[1], withargs, break_dest, height))
+        o.extend(compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height))
         o.extend(['CODECOPY', begincode, endcode, 'SUB'])
         return o
     # Seq (used to piece together multiple statements)
     elif code.value == 'seq':
         o = []
         for arg in code.args:
-            o.extend(compile_to_assembly(arg, withargs, break_dest, height))
+            o.extend(compile_to_assembly(arg, withargs, existing_labels, break_dest, height))
             if arg.valency == 1 and arg != code.args[-1]:
                 o.append('POP')
         return o
+    # Seq without popping.
+    elif code.value == 'seq_unchecked':
+        o = []
+        for arg in code.args:
+            o.extend(compile_to_assembly(arg, withargs, existing_labels, break_dest, height))
+            # if arg.valency == 1 and arg != code.args[-1]:
+            #     o.append('POP')
+        return o
     # Assert (if false, exit)
     elif code.value == 'assert':
-        o = compile_to_assembly(code.args[0], withargs, break_dest, height)
+        o = compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
         o.extend(get_revert())
         return o
     elif code.value == 'assert_reason':
@@ -187,11 +200,11 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
             code.value in ('uclample', 'clample') and 0 <= code.args[0].value <= code.args[1].value or \
             code.value in ('uclampgt', 'clampgt') and 0 <= code.args[0].value > code.args[1].value or \
             code.value in ('uclampge', 'clampge') and 0 <= code.args[0].value >= code.args[1].value:
-                return compile_to_assembly(code.args[0], withargs, break_dest, height)
+                return compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
             else:
                 raise Exception("Invalid %r with values %r and %r" % (code.value, code.args[0], code.args[1]))
-        o = compile_to_assembly(code.args[0], withargs, break_dest, height)
-        o.extend(compile_to_assembly(code.args[1], withargs, break_dest, height + 1))
+        o = compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
+        o.extend(compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height + 1))
         o.extend(['DUP2'])
         # Stack: num num bound
         if code.value == 'uclamplt':
@@ -216,10 +229,10 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
     elif code.value in ('clamp', 'uclamp'):
         comp1 = 'SGT' if code.value == 'clamp' else 'GT'
         comp2 = 'SLT' if code.value == 'clamp' else 'LT'
-        o = compile_to_assembly(code.args[0], withargs, break_dest, height)
-        o.extend(compile_to_assembly(code.args[1], withargs, break_dest, height + 1))
+        o = compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
+        o.extend(compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height + 1))
         o.extend(['DUP1'])
-        o.extend(compile_to_assembly(code.args[2], withargs, break_dest, height + 3))
+        o.extend(compile_to_assembly(code.args[2], withargs, existing_labels, break_dest, height + 3))
         o.extend(['SWAP1', comp1, 'ISZERO'])
         o.extend(get_revert())
         o.extend(['DUP1', 'SWAP2', 'SWAP1', comp2, 'ISZERO'])
@@ -227,13 +240,13 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
         return o
     # Checks that a value is nonzero
     elif code.value == 'clamp_nonzero':
-        o = compile_to_assembly(code.args[0], withargs, break_dest, height)
+        o = compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
         o.extend(['DUP1'])
         o.extend(get_revert())
         return o
     # SHA3 a single value
     elif code.value == 'sha3_32':
-        o = compile_to_assembly(code.args[0], withargs, break_dest, height)
+        o = compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
         o.extend([
             'PUSH1', MemoryPositions.FREE_VAR_SPACE,
             'MSTORE',
@@ -244,8 +257,8 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
         return o
     # SHA3 a 64 byte value
     elif code.value == 'sha3_64':
-        o = compile_to_assembly(code.args[0], withargs, break_dest, height)
-        o.extend(compile_to_assembly(code.args[1], withargs, break_dest, height))
+        o = compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
+        o.extend(compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height))
         o.extend([
             'PUSH1', MemoryPositions.FREE_VAR_SPACE2,
             'MSTORE',
@@ -258,24 +271,24 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
         return o
     # <= operator
     elif code.value == 'le':
-        return compile_to_assembly(LLLnode.from_list(['iszero', ['gt', code.args[0], code.args[1]]]), withargs, break_dest, height)
+        return compile_to_assembly(LLLnode.from_list(['iszero', ['gt', code.args[0], code.args[1]]]), withargs, existing_labels, break_dest, height)
     # >= operator
     elif code.value == 'ge':
-        return compile_to_assembly(LLLnode.from_list(['iszero', ['lt', code.args[0], code.args[1]]]), withargs, break_dest, height)
+        return compile_to_assembly(LLLnode.from_list(['iszero', ['lt', code.args[0], code.args[1]]]), withargs, existing_labels, break_dest, height)
     # <= operator
     elif code.value == 'sle':
-        return compile_to_assembly(LLLnode.from_list(['iszero', ['sgt', code.args[0], code.args[1]]]), withargs, break_dest, height)
+        return compile_to_assembly(LLLnode.from_list(['iszero', ['sgt', code.args[0], code.args[1]]]), withargs, existing_labels, break_dest, height)
     # >= operator
     elif code.value == 'sge':
-        return compile_to_assembly(LLLnode.from_list(['iszero', ['slt', code.args[0], code.args[1]]]), withargs, break_dest, height)
+        return compile_to_assembly(LLLnode.from_list(['iszero', ['slt', code.args[0], code.args[1]]]), withargs, existing_labels, break_dest, height)
     # != operator
     elif code.value == 'ne':
-        return compile_to_assembly(LLLnode.from_list(['iszero', ['eq', code.args[0], code.args[1]]]), withargs, break_dest, height)
+        return compile_to_assembly(LLLnode.from_list(['iszero', ['eq', code.args[0], code.args[1]]]), withargs, existing_labels, break_dest, height)
     # e.g. 95 -> 96, 96 -> 96, 97 -> 128
     elif code.value == "ceil32":
         return compile_to_assembly(LLLnode.from_list(['with', '_val', code.args[0],
                                                         ['sub', ['add', '_val', 31],
-                                                                ['mod', ['sub', '_val', 1], 32]]]), withargs, break_dest, height)
+                                                                ['mod', ['sub', '_val', 1], 32]]]), withargs, existing_labels, break_dest, height)
     # # jump to a symbol
     elif code.value == 'goto':
         return [
@@ -286,8 +299,15 @@ def compile_to_assembly(code, withargs=None, break_dest=None, height=0):
         return code.value
     # set a symbol as a location.
     elif code.value == 'label':
+        label_name = str(code.args[0])
+
+        if label_name in existing_labels:
+            raise Exception('Label with name %s already exists!', label_name)
+        else:
+            existing_labels.add(label_name)
+
         return [
-            '_sym_' + str(code.args[0]),
+            '_sym_' + label_name,
             'JUMPDEST'
         ]
     # inject debug opcode.

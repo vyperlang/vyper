@@ -103,10 +103,13 @@ class FunctionSignature():
                 public = True
             else:
                 raise StructureException("Bad decorator", dec)
+
         if public and private:
             raise StructureException("Cannot use public and private decorators on the same function: {}".format(name))
         if payable and const:
             raise StructureException("Function {} cannot be both constant and payable.".format(name))
+        if payable and private:
+            raise StructureException("Function {} cannot be both private and payable.".format(name))
         if (not public and not private) and not contract_def:
             raise StructureException("Function visibility must be declared (@public or @private)", code)
         if constant:
@@ -173,7 +176,7 @@ class FunctionSignature():
         if method_names_dict[method_name] == 1:
             return next(sig for name, sig in context.sigs['self'].items() if name.split('(')[0] == method_name)
         if full_sig in context.sigs['self']:
-            return stmt_or_expr.contex['self'][full_sig]
+            return context.sigs['self'][full_sig]
         else:
             synonym_sig = synonymise(full_sig)
             syn_sigs_test = [synonymise(k) for k in context.sigs.keys()]
