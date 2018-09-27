@@ -148,6 +148,13 @@ class Stmt(object):
         self.context.set_in_assignment(False)
         return o
 
+    def is_bool_expr(self, test_expr):
+        if not isinstance(test_expr.typ, BaseType):
+            return False
+        if not test_expr.typ.typ == 'bool':
+            return False
+        return True
+
     def parse_if(self):
         from .parser import (
             parse_body,
@@ -161,8 +168,13 @@ class Stmt(object):
             add_on = []
         block_scope_id = id(self.stmt)
         self.context.start_blockscope(block_scope_id)
+        test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
+
+        if not self.is_bool_expr(test_expr):
+            raise TypeMismatchException('Only boolean expressions allowed', self.stmt.test)
+
         o = LLLnode.from_list(
-            ['if', Expr.parse_value_expr(self.stmt.test, self.context), parse_body(self.stmt.body, self.context)] + add_on,
+            ['if', test_expr, parse_body(self.stmt.body, self.context)] + add_on,
             typ=None, pos=getpos(self.stmt)
         )
         self.context.end_blockscope(block_scope_id)
@@ -226,6 +238,9 @@ class Stmt(object):
             raise StructureException("Unsupported operator: %r" % ast.dump(self.stmt), self.stmt)
 
     def parse_assert(self):
+        test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
+        if not self.is_bool_expr(test_expr):
+            raise TypeMismatchException('Only boolean expressions allowed', self.stmt.test)
         if self.stmt.msg:
             if len(self.stmt.msg.s.strip()) == 0:
                 raise StructureException('Empty reason string not allowed.', self.stmt)
@@ -240,10 +255,10 @@ class Stmt(object):
                     ['mstore', sig_placeholder, method_id],
                     ['mstore', arg_placeholder, 32],
                     placeholder_bytes,
-                    ['assert_reason', Expr.parse_value_expr(self.stmt.test, self.context), int(sig_placeholder + 28), int(4 + 32 + get_size_of_type(reason_str_type) * 32)]]
+                    ['assert_reason', test_expr, int(sig_placeholder + 28), int(4 + 32 + get_size_of_type(reason_str_type) * 32)]]
             return LLLnode.from_list(assert_reason, typ=None, pos=getpos(self.stmt))
         else:
-            return LLLnode.from_list(['assert', Expr.parse_value_expr(self.stmt.test, self.context)], typ=None, pos=getpos(self.stmt))
+            return LLLnode.from_list(['assert', test_expr], typ=None, pos=getpos(self.stmt))
 
     def parse_for(self):
         from .parser import (
