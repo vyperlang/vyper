@@ -36,6 +36,7 @@ class VyperRequestHandler(BaseHTTPRequestHandler):
 
     def send_cors_all(self):
         self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Headers", "X-Requested-With, Content-type")
 
     def do_OPTIONS(self):
         self.send_cors_all()
