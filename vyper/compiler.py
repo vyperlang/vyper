@@ -27,7 +27,7 @@ def gas_estimate(origcode, *args, **kwargs):
 
     # Extract the stuff inside the LLL bracket
     if code.value == 'seq':
-        if code.args[-1].value == 'return':
+        if len(code.args) > 0 and code.args[-1].value == 'return':
             code = code.args[-1].args[1].args[0]
 
     assert code.value == 'seq'
