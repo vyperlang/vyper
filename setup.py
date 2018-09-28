@@ -27,7 +27,8 @@ setup(
     tests_require=[
         'pytest',
         'pytest-cov',
-        'eth-tester[py-evm]==0.1.0b31',
+        'py-evm==0.2.0a32',
+        'eth-tester[py-evm]==0.1.0b32',
         'web3==4.4.1',
     ],
     scripts=[

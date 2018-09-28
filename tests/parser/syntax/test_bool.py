@@ -66,6 +66,12 @@ def foo() -> bool:
 def foo() -> bool:
     b: uint256
     return not b
+    """,
+    """
+@public
+def test(a: address) -> bool:
+    assert(a)
+    return True
     """
 ]
 

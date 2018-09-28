@@ -13,16 +13,18 @@ def test_assert_refund(w3, get_contract_with_gas_estimation, assert_tx_failed):
 @public
 def foo():
     assert 1 == 2
-"""
+    """
     c = get_contract_with_gas_estimation(code)
     a0 = w3.eth.accounts[0]
     pre_balance = w3.eth.getBalance(a0)
-    # assert_tx_failed(lambda: c.foo(transact={'from': a0, 'gas': 10**6, 'gasPrice': 10}))
-    assert_tx_failed(lambda: c.foo())
+    tx_hash = c.foo(transact={'from': a0, 'gas': 10**6, 'gasPrice': 10})
+    assert w3.eth.getTransactionReceipt(tx_hash)['status'] == 0
+    # More info on receipt status:
+    # https://github.com/ethereum/EIPs/blob/master/EIPS/eip-658.md#specification.
     post_balance = w3.eth.getBalance(a0)
     # Checks for gas refund from revert
     # 10**5 is added to account for gas used before the transactions fails
-    assert pre_balance < post_balance + 10**5
+    assert pre_balance > post_balance
 
 
 def test_assert_reason(w3, get_contract_with_gas_estimation, assert_tx_failed):

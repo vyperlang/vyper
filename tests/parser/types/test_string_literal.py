@@ -67,6 +67,7 @@ def baz(s: int128, L: int128) -> bytes[100]:
         if x * y == 999:
             return self.moo
         """ % (("c" * i), ("c" * i), ("c" * i))
+
         c = get_contract_with_gas_estimation(kode)
         for e in range(63, 64, 65):
             for _s in range(31, 32, 33):
