@@ -90,35 +90,53 @@ def create_and_return_forwarder(inp: address) -> address:
     print('Passed forwarder exception test')
 
 
-
-def test_delegate_call(w3, get_contract_with_gas_estimation):
+def test_delegate_call(w3, get_contract):
     inner_code = """
+a: address  # this is required for storage alignment...
 owners: public(address[5])
+
 @public
-def set_owner(i: int128, owner: address):
-    assert owner != ZERO_ADDRESS
-    self.owners[i] = owner
+def set_owner(i: int128, o: address):
+    self.owners[i] = o
     """
 
-    inner_contract = get_contract_with_gas_estimation(inner_code)
+    inner_contract = get_contract(inner_code)
 
     outer_code = """
-owner_setter: public(address)
+owner_setter_contract: public(address)
 owners: public(address[5])
-
-def __init__(_owner_setter: address):
-    self.owner_setter = _owner_setter
 
 
 @public
-def set(i: int128, owner: address) -> int128:
-    # delegate setting owners to other contract.
-    raw_call(self.owner_setter, concat(method_id("set_owner(int128,address)"), gas=msg.gas, delegate_call=True)
+def __init__(_owner_setter: address):
+    self.owner_setter_contract = _owner_setter
+
+
+@public
+def set(i: int128, owner: address):
+    # delegate setting owners to other contract.s
+    cdata: bytes[68] = concat(method_id("set_owner(int128,address)", bytes[4]), convert(i, 'bytes32'), convert(owner, 'bytes32'))
+    raw_call(
+        self.owner_setter_contract,
+        cdata,
+        gas=msg.gas,
+        outsize=0,
+        delegate_call=True
+    )
     """
 
-    a0, a1 = w3.eth.accounts[:2]
-    outer_contract = get_contract_with_gas_estimation(outer_code, args=[a1])
+    a0, a1, a2 = w3.eth.accounts[:3]
+    outer_contract = get_contract(outer_code, *[inner_contract.address])
 
-    import ipdb; ipdb.set_trace()
-    assert outer_contract.owner_setter() == a1
-    assert outer_contract.owners(0) is None
+    # Test setting on inners contract's state setting works.
+    inner_contract.set_owner(1, a2, transact={})
+    assert inner_contract.owners(1) == a2
+
+    # Confirm outer contract's state is empty and contract to call has been set.
+    assert outer_contract.owner_setter_contract() == inner_contract.address
+    assert outer_contract.owners(1) is None
+
+    # Call outer contract, that make a delegate call to inner_contract.
+    tx_hash = outer_contract.set(1, a1, transact={})
+    assert w3.eth.getTransactionReceipt(tx_hash)['status'] == 1
+    assert outer_contract.owners(1) == a1

@@ -385,6 +385,7 @@ def as_wei_value(expr, args, kwargs, context):
 zero_value = LLLnode.from_list(0, typ=BaseType('uint256', {'wei': 1}))
 false_value = LLLnode.from_list(0, typ=BaseType('bool', is_literal=True))
 
+
 @signature('address', 'bytes', outsize='num_literal', gas='uint256', value=Optional('uint256', zero_value), delegate_call=Optional('bool', false_value))
 def raw_call(expr, args, kwargs, context):
     to, data = args
@@ -403,19 +404,25 @@ def raw_call(expr, args, kwargs, context):
     output_node = LLLnode.from_list(output_placeholder, typ=ByteArrayType(outsize), location='memory')
 
     if delegate_call.value == 1:
-        z = LLLnode.from_list(['seq',
-                              copier,
-                              ['assert', ['delegatecall', gas, to, value, ['add', placeholder_node, 32], ['mload', placeholder_node],
-                                         ['add', output_node, 32], outsize]],
-                              ['mstore', output_node, outsize],
-                              output_node], typ=ByteArrayType(outsize), location='memory', pos=getpos(expr))
+        z = LLLnode.from_list(
+            ['seq',
+                copier,
+                ['assert', ['delegatecall', gas, to, ['add', placeholder_node, 32], ['mload', placeholder_node],
+                           ['add', output_node, 32], outsize]],
+                ['mstore', output_node, outsize],
+                output_node],
+            typ=ByteArrayType(outsize), location='memory', pos=getpos(expr)
+        )
     else:
-        z = LLLnode.from_list(['seq',
-                              copier,
-                              ['assert', ['call', gas, to, value, ['add', placeholder_node, 32], ['mload', placeholder_node],
-                                         ['add', output_node, 32], outsize]],
-                              ['mstore', output_node, outsize],
-                              output_node], typ=ByteArrayType(outsize), location='memory', pos=getpos(expr))
+        z = LLLnode.from_list(
+            ['seq',
+                copier,
+                ['assert', ['call', gas, to, value, ['add', placeholder_node, 32], ['mload', placeholder_node],
+                    ['add', output_node, 32], outsize]],
+                ['mstore', output_node, outsize],
+                output_node],
+            typ=ByteArrayType(outsize), location='memory', pos=getpos(expr)
+        )
     return z
 
 
