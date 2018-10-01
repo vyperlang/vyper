@@ -4,15 +4,19 @@ from vyper.exceptions import (
     EventDeclarationException,
     FunctionDeclarationException,
     StructureException,
+    TypeMismatchException,
     VariableDeclarationException,
 )
 from vyper.utils import (
+    is_varname_valid,
+    SizeLimits,
     valid_global_keywords,
-    is_varname_valid
 )
 from vyper.premade_contracts import (
     premade_contracts,
 )
+from vyper.parser.context import Context
+from vyper.parser.expr import Expr
 from vyper.parser.parser_utils import (
     decorate_ast_with_source,
     getpos,
@@ -43,7 +47,7 @@ class GlobalContext:
         self._defs = list()
         self._getters = list()
         self._custom_units = list()
-        self.constants = dict()
+        self._constants = dict()
 
     # Parse top-level functions and variables
     @classmethod
@@ -168,12 +172,78 @@ class GlobalContext:
             return self.get_item_name_and_attributes(item.args[0], attributes)
         return None, attributes
 
+    @staticmethod
+    def is_instances(instances, instance_type):
+        return all([isinstance(inst, instance_type) for inst in instances])
+
+    def is_valid_varname(self, name, item):
+        if not is_varname_valid(name, self._custom_units):
+            raise VariableDeclarationException('Invalid name "%s"' % name, item)
+        if name in self._globals:
+            raise VariableDeclarationException('Invalid name "%s", previously defined as global.' % name, item)
+        if name in self._constants:
+            raise VariableDeclarationException('Invalid name "%s", previously defined as constant.' % name, item)
+        if name in self._custom_units:
+            raise VariableDeclarationException('Invalid name "%s", previously defined as custom unit.' % name, item)
+
+        return True
+
+    def unroll_constant(self, const):
+        # const = self.context.constants[self.expr.id]
+        expr = Expr.parse_value_expr(const.value, Context(vars=None, global_ctx=self, origcode=const.source_code))
+        annotation_type = parse_type(const.annotation.args[0], None, custom_units=self._custom_units)
+
+        fail = False
+
+        if self.is_instances([expr.typ, annotation_type], ByteArrayType):
+            if expr.typ.maxlen < annotation_type.maxlen:
+                return const
+            fail = True
+
+        elif expr.typ != annotation_type:
+            fail = True
+            # special case for literals, which can be uint256 types as well.
+            if self.is_instances([expr.typ, annotation_type], BaseType) and \
+               [annotation_type.typ, expr.typ.typ] == ['uint256', 'int128'] and \
+               SizeLimits.in_bounds('uint256', expr.value):
+                fail = False
+
+            elif self.is_instances([expr.typ, annotation_type], BaseType) and \
+               [annotation_type.typ, expr.typ.typ] == ['int128', 'int128'] and \
+               SizeLimits.in_bounds('int128', expr.value):
+                fail = False
+
+        if fail:
+            raise TypeMismatchException('Invalid value for constant type, expected %r' % annotation_type, const.value)
+        else:
+            expr.typ = annotation_type
+        return expr
+
+    def add_constant(self, item):
+        args = item.annotation.args
+        if not item.value:
+            raise StructureException('Constants must express a value!', item)
+        if len(args) == 1 and isinstance(args[0], (ast.Subscript, ast.Name, ast.Call)) and item.target:
+            c_name = item.target.id
+            if self.is_valid_varname(c_name, item):
+                self._constants[c_name] = self.unroll_constant(item)
+        else:
+            raise StructureException('Incorrectly formatted struct', item)
+
     def add_globals_and_events(self, item):
         item_attributes = {"public": False}
+
+        # Handle constants.
+        if isinstance(item.annotation, ast.Call) and item.annotation.func.id == "constant":
+            self.add_constant(item)
+            return
+
+        # Handle events.
         if not (isinstance(item.annotation, ast.Call) and item.annotation.func.id == "event"):
             item_name, item_attributes = self.get_item_name_and_attributes(item, item_attributes)
             if not all([attr in valid_global_keywords for attr in item_attributes.keys()]):
                 raise StructureException('Invalid global keyword used: %s' % item_attributes, item)
+
         if item.value is not None:
             raise StructureException('May not assign value whilst defining type', item)
         elif isinstance(item.annotation, ast.Call) and item.annotation.func.id == "event":
@@ -201,13 +271,9 @@ class GlobalContext:
             else:
                 raise VariableDeclarationException("Can units can only defined once.", item.target)
 
-        # Check if variable name is reserved or invalid
-        elif not is_varname_valid(item.target.id, custom_units=self._custom_units):
-            raise VariableDeclarationException("Variable name invalid or reserved: ", item.target)
-
-        # Check if global already exists, if so error
-        elif item.target.id in self._globals:
-            raise VariableDeclarationException("Cannot declare a persistent variable twice!", item.target)
+        # Check if variable name is valid.
+        elif not self.is_valid_varname(item.target.id, item):
+            pass
 
         elif len(self._defs):
             raise StructureException("Global variables must all come before function definitions", item)

@@ -151,7 +151,7 @@ class Expr(object):
 
     # Variable names
     def variables(self):
-        constants = {
+        builtin_constants = {
             'ZERO_ADDRESS': LLLnode.from_list([0], typ=BaseType('address', None, is_literal=True), pos=getpos(self.expr)),
             'MAX_INT128': LLLnode.from_list(['mload', MemoryPositions.MAXNUM], typ=BaseType('int128', None, is_literal=True), pos=getpos(self.expr)),
             'MIN_INT128': LLLnode.from_list(['mload', MemoryPositions.MINNUM], typ=BaseType('int128', None, is_literal=True), pos=getpos(self.expr)),
@@ -165,8 +165,16 @@ class Expr(object):
         elif self.expr.id in self.context.vars:
             var = self.context.vars[self.expr.id]
             return LLLnode.from_list(var.pos, typ=var.typ, location='memory', pos=getpos(self.expr), annotation=self.expr.id, mutable=var.mutable)
-        elif self.expr.id in constants:
-            return constants[self.expr.id]
+        elif self.expr.id in builtin_constants:
+            return builtin_constants[self.expr.id]
+        elif self.expr.id in self.context.constants:
+            # check if value is compatible with
+            const = self.context.constants[self.expr.id]
+            if isinstance(const, ast.AnnAssign):  # Handle ByteArrays.
+                expr = Expr(const.value, self.context).lll_node
+                return expr
+            # Other types are already unwrapped, no need
+            return self.context.constants[self.expr.id]
         else:
             raise VariableDeclarationException("Undeclared variable: " + self.expr.id, self.expr)
 

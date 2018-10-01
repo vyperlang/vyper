@@ -325,10 +325,17 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
 
     # Create a local (per function) context.
     context = Context(
-        vars=_vars, globals=global_ctx._globals, sigs=sigs,
-        return_type=sig.output_type, is_constant=sig.const, is_payable=sig.payable, origcode=origcode,
-        custom_units=global_ctx._custom_units, is_private=sig.private, method_id=sig.method_id
+        vars=_vars,
+        global_ctx=global_ctx,
+        sigs=sigs,
+        return_type=sig.output_type,
+        is_constant=sig.const,
+        is_payable=sig.payable,
+        origcode=origcode,
+        is_private=sig.private,
+        method_id=sig.method_id
     )
+
     # Copy calldata to memory for fixed-size arguments
     max_copy_size = sum([32 if isinstance(arg.typ, ByteArrayType) else get_size_of_type(arg.typ) * 32 for arg in sig.args])
     base_copy_size = sum([32 if isinstance(arg.typ, ByteArrayType) else get_size_of_type(arg.typ) * 32 for arg in base_args])

@@ -17,13 +17,14 @@ from vyper.signatures.function_signature import (
 
 # Contains arguments, variables, etc
 class Context():
-    def __init__(self, vars=None, globals=None, custom_units=None, sigs=None, forvars=None, return_type=None,
-                 is_constant=False, is_payable=False, origcode='', is_private=False, method_id=None):
+
+    def __init__(self, vars, global_ctx, sigs=None, forvars=None, return_type=None,
+                 is_constant=False, is_private=False, is_payable=False, origcode='', method_id=''):
         # In-memory variables, in the form (name, memory location, type)
         self.vars = vars or {}
         self.next_mem = MemoryPositions.RESERVED_MEMORY
         # Global variables, in the form (name, storage location, type)
-        self.globals = globals or {}
+        self.globals = global_ctx._globals
         # ABI objects, in the form {classname: ABI JSON}
         self.sigs = sigs or {}
         # Variables defined in for loops, e.g. for i in range(6): ...
@@ -47,10 +48,12 @@ class Context():
         # In assignment. Whether expressiong is currently evaluating an assignment expression.
         self.in_assignment = False
         # List of custom units that have been defined.
-        self.custom_units = custom_units
-        self.is_private = is_private
+        self.custom_units = global_ctx._custom_units
+        # defined constants
+        self.constants = global_ctx._constants
         # Callback pointer to jump back to, used in private functions.
         self.callback_ptr = None
+        self.is_private = is_private
         # method_id of current function
         self.method_id = method_id
 
@@ -82,7 +85,7 @@ class Context():
     def new_variable(self, name, typ):
         if not is_varname_valid(name, custom_units=self.custom_units):
             raise VariableDeclarationException("Variable name invalid or reserved: " + name)
-        if name in self.vars or name in self.globals:
+        if any((name in self.vars, name in self.globals, name in self.constants)):
             raise VariableDeclarationException("Duplicate variable name: %s" % name)
         self.vars[name] = VariableRecord(name, self.next_mem, typ, True, self.blockscopes.copy())
         pos = self.next_mem

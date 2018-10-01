@@ -34,12 +34,13 @@ It requires ``pyethereum>=2.0.0`` for the ``tester`` module
 Note: We are working on integration with `ethereum-tester <https://github.com/ethereum/ethereum-tester>`_,
 so this example will change.
 
+===============================
 Testing Using vyper-run Command
 ===============================
 
 To allow quickly testing contracts, Vyper provides a command line tool for instantly executing a function:
 ::
-    vyper-run yourFileName.vy "your_function();" -i some_init_param, another_init_param
+  vyper-run yourFileName.vy "your_function();" -i some_init_param, another_init_param
 
 The vyper-run command is composed of 4 parts:
 

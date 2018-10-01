@@ -139,7 +139,7 @@ valid_call_keywords = ['uint256', 'int128', 'decimal', 'address', 'contract', 'i
 valid_units = ['wei', 'sec']
 
 # Valid attributes for global variables
-valid_global_keywords = ['public', 'modifying', 'event'] + valid_units + valid_call_keywords
+valid_global_keywords = ['public', 'modifying', 'event', 'constant'] + valid_units + valid_call_keywords
 
 # Cannot be used for variable or member naming
 reserved_words = [
