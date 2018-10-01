@@ -9,8 +9,10 @@ from socketserver import ThreadingMixIn
 
 import vyper
 
-from vyper.parser.parser import parse_to_lll
 from vyper import compiler, optimizer
+from vyper.parser import lll_node
+from vyper.parser.parser import parse_to_lll
+from vyper.exceptions import ParserException
 
 
 parser = argparse.ArgumentParser(
@@ -88,10 +90,20 @@ class VyperRequestHandler(BaseHTTPRequestHandler):
                 'bytecode': '0x' + compiler.compile(code).hex(),
                 'ir': str(optimizer.optimize(parse_to_lll(code)))
             }
-        except Exception as e:
+        except ParserException as e:
             return {
-                'status': 'failed', 'message': str(e)
-            }, 500
+                'status': 'failed',
+                'message': str(e),
+                'column': e.col_offset,
+                'line': e.lineno
+            }, 400
+        except SyntaxError as e:
+            return {
+                'status': 'failed',
+                'message': str(e),
+                'column': e.offset,
+                'line': e.lineno
+            }, 400
 
         out_dict.update({'status': "success"})
 
@@ -112,6 +124,7 @@ def runserver(host='', port=8000):
 
 if __name__ == '__main__':
     if ':' in args.bind_address:
+        lll_node.APPLY_COLOR = False
         runserver(*args.bind_address.split(':'))
     else:
         print('Provide bind address in "{address}:{port}" format')
