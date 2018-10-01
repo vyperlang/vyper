@@ -39,6 +39,7 @@ class VyperRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Headers", "X-Requested-With, Content-type")
 
     def do_OPTIONS(self):
+        self.send_response(200)
         self.send_cors_all()
         self.end_headers()
 
