@@ -125,10 +125,10 @@ def test_modmul(get_contract_with_gas_estimation):
     modexper = """
 @public
 def exponential(base: uint256, exponent: uint256, modulus: uint256) -> uint256:
-    o: uint256 = convert(1, 'uint256')
+    o: uint256 = convert(1, uint256)
     for i in range(256):
         o = uint256_mulmod(o, o, modulus)
-        if bitwise_and(exponent, shift(convert(1, 'uint256'), 255 - i)) != convert(0, 'uint256'):
+        if bitwise_and(exponent, shift(convert(1, uint256), 255 - i)) != convert(0, uint256):
             o = uint256_mulmod(o, base, modulus)
     return o
     """

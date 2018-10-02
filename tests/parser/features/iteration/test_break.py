@@ -57,7 +57,7 @@ def test_break_test_3(get_contract_with_gas_estimation):
     break_test_3 = """
 @public
 def log(n: int128) -> int128:
-    c: decimal = convert(n, 'decimal')
+    c: decimal = convert(n, decimal)
     output: int128 = 0
     for i in range(40):
         if c < 10.0:

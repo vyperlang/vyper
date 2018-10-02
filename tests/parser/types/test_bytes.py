@@ -170,12 +170,12 @@ astor: bytes[10]
 
 @public
 def foo(x: bytes[32]) -> int128:
-    return convert(x, 'int128')
+    return convert(x, int128)
 
 @public
 def bar_storage() -> int128:
     self.astor = "a"
-    return convert(self.astor, 'int128')
+    return convert(self.astor, int128)
     """
 
     c = get_contract_with_gas_estimation(bytes_to_num_code)
