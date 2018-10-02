@@ -539,8 +539,12 @@ class Stmt(object):
 
         # Returning a tuple.
         elif isinstance(sub.typ, TupleType):
+            if not isinstance(self.context.return_type, TupleType):
+                raise TypeMismatchException("Trying to return tuple type %r, output expecting %r" % (sub.typ, self.context.return_type), self.stmt.value)
+
             if len(self.context.return_type.members) != len(sub.typ.members):
                 raise StructureException("Tuple lengths don't match!", self.stmt)
+
             # check return type matches, sub type.
             for i, ret_x in enumerate(self.context.return_type.members):
                 s_member = sub.typ.members[i]
