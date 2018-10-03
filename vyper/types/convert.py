@@ -1,4 +1,5 @@
 import ast
+import warnings
 
 from vyper.functions.signature import (
     signature
@@ -100,14 +101,17 @@ def to_bytes32(expr, args, kwargs, context):
 
 def convert(expr, context):
 
+    if isinstance(expr.args[1], ast.Str):
+        warnings.warn(
+            "String parameter has been removed, see VIP1026). "
+            "Use a vyper type instead.",
+            DeprecationWarning
+        )
+
     if isinstance(expr.args[1], ast.Name):
         output_type = expr.args[1].id
     else:
-        raise ParserException(
-            "Invalid conversion type, valid vyper type "
-            "required (string parameter has been removed see VIP1026).",
-            expr
-        )
+        raise ParserException("Invalid conversion type, use valid vyper type.", expr)
 
     if output_type in conversion_table:
         return conversion_table[output_type](expr, context)
