@@ -1,3 +1,4 @@
+import os
 import re
 
 from vyper.types import (
@@ -14,11 +15,21 @@ from vyper.utils import valid_lll_macros
 # Set default string representation for ints in LLL output.
 AS_HEX_DEFAULT = False
 # Terminal color types
-OKBLUE = '\033[94m'
-OKMAGENTA = '\033[35m'
-OKLIGHTMAGENTA = '\033[95m'
-OKLIGHTBLUE = '\033[94m'
-ENDC = '\033[0m'
+APPLY_COLOR = os.environ.get('VYPER_COLOR_OUTPUT', '0') == '1'
+
+
+if APPLY_COLOR:
+    OKBLUE = '\033[94m'
+    OKMAGENTA = '\033[35m'
+    OKLIGHTMAGENTA = '\033[95m'
+    OKLIGHTBLUE = '\033[94m'
+    ENDC = '\033[0m'
+else:
+    OKBLUE = ''
+    OKMAGENTA = ''
+    OKLIGHTMAGENTA = ''
+    OKLIGHTBLUE = ''
+    ENDC = ''
 
 
 class NullAttractor():
@@ -186,6 +197,7 @@ class LLLnode():
         return val
 
     def repr(self):
+
         if not len(self.args):
 
             if self.annotation:
