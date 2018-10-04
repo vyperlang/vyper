@@ -65,7 +65,7 @@ def x_floor() -> int128:
 @public
 def foo() -> int128:
     a: int128 = -65
-    b: decimal = convert(a, 'decimal') / 10.0
+    b: decimal = convert(a, decimal) / 10.0
     return floor(b)
 
 @public

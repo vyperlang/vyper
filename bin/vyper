@@ -4,12 +4,14 @@ import json
 import os
 import sys
 import vyper
+import warnings
 
 from vyper import compiler, optimizer
 from vyper.parser.parser import parse_to_lll
 from vyper.parser import parser_utils
 from vyper import compile_lll
 
+warnings.simplefilter('always')
 sys.tracebacklimit = os.environ.get('VYPER_TRACEBACK_LIMIT', 0)
 
 parser = argparse.ArgumentParser(description='Vyper programming language for Ethereum')

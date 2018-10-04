@@ -49,7 +49,7 @@ Rounds a decimal up to the nearest integer.
     :param a: value to convert
     :type a: either decimal, int128, uint256 or bytes32
     :param b: the destination type to convert to
-    :type b: str_literal
+    :type b: type of either decimal, int128, uint256 or bytes32
 
     :output c: either decimal, int128, uint256 or bytes32
     """

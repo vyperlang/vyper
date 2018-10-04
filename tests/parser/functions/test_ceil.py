@@ -33,7 +33,7 @@ def fos() -> int128:
 def fou() -> int128:
     a: int128 = 305
     b: int128 = 100
-    c: decimal = convert(a, 'decimal') / convert(b, 'decimal')
+    c: decimal = convert(a, decimal) / convert(b, decimal)
     return ceil(c)
     """
 

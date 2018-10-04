@@ -8,14 +8,14 @@ fail_list = [
     """
 @public
 def foo() -> uint256:
-    doesnotexist(2, 'uint256')
-    return convert(2, 'uint256')
+    doesnotexist(2, uint256)
+    return convert(2, uint256)
     """,
     """
 @public
 def foo() -> uint256:
-    convert(2, 'uint256')
-    return convert(2, 'uint256')
+    convert(2, uint256)
+    return convert(2, uint256)
 
     """
 ]
@@ -36,7 +36,7 @@ valid_list = [
     """
 @public
 def foo() -> uint256:
-    return convert(2, 'uint256')
+    return convert(2, uint256)
     """
 ]
 
