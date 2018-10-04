@@ -115,7 +115,7 @@ def __init__(_owner_setter: address):
 @public
 def set(i: int128, owner: address):
     # delegate setting owners to other contract.s
-    cdata: bytes[68] = concat(method_id("set_owner(int128,address)", bytes[4]), convert(i, 'bytes32'), convert(owner, 'bytes32'))
+    cdata: bytes[68] = concat(method_id("set_owner(int128,address)", bytes[4]), convert(i, bytes32), convert(owner, bytes32))
     raw_call(
         self.owner_setter_contract,
         cdata,
