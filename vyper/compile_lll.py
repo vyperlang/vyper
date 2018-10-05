@@ -39,7 +39,32 @@ def get_revert(mem_start=None, mem_len=None):
     return o
 
 
+class instruction(str):
+
+    def __new__(cls, sstr, *args, **kwargs):
+        return super().__new__(cls, sstr)
+
+    def __init__(self, sstr, pos=None):
+        if pos is not None:
+            self.lineno, self.col_offset = pos
+        else:
+            self.lineno, self.col_offset = None, None
+
+
+def apply_line_numbers(func):
+    def apply_line_no_wrapper(*args, **kwargs):
+        code = args[0]
+        ret = func(*args, **kwargs)
+        new_ret = [
+            instruction(i, code.pos) if isinstance(i, str) and not isinstance(i, instruction) else i
+            for i in ret
+        ]
+        return new_ret
+    return apply_line_no_wrapper
+
+
 # Compiles LLL to assembly
+@apply_line_numbers
 def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=None, height=0):
     if withargs is None:
         withargs = {}
