@@ -342,8 +342,16 @@ def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=No
         raise Exception("Weird code element: " + repr(code))
 
 
+def note_line_num(line_number_map, item, pos):
+    # Record line number attached to pos.
+    if isinstance(item, instruction) and item.lineno is not None:
+        line_number_map[pos] = item.lineno, item.col_offset
+
+
 # Assembles assembly into EVM
-def assembly_to_evm(assembly):
+def assembly_to_evm(assembly, map_line_numbers=True):
+    line_number_map = {}
+    current_line_no = 0
     posmap = {}
     sub_assemblies = []
     codes = []
@@ -357,12 +365,14 @@ def assembly_to_evm(assembly):
         elif item == 'BLANK':
             pos += 0
         elif isinstance(item, list):
-            c = assembly_to_evm(item)
+            c, line_number_map = assembly_to_evm(item)
             sub_assemblies.append(item)
             codes.append(c)
             pos += len(c)
         else:
             pos += 1
+        note_line_num(line_number_map, item, pos)
+
     posmap['_sym_codeend'] = pos
     o = b''
     for i, item in enumerate(assembly):
@@ -389,6 +399,7 @@ def assembly_to_evm(assembly):
         else:
             # Should never reach because, assembly is create in compile_to_assembly.
             raise Exception("Weird symbol in assembly: " + str(item))  # pragma: no cover
+        note_line_num(line_number_map, item, pos)
 
     assert len(o) == pos
-    return o
+    return o, line_number_map

@@ -18,8 +18,8 @@ def compile(code, *args, **kwargs):
         print('Please not this code contains DEBUG opcode.')
         print('This will only work in a support EVM. This FAIL on any other nodes.')
 
-    return compile_lll.assembly_to_evm(asm)
-
+    c, line_number_map = compile_lll.assembly_to_evm(asm)
+    return c
 
 def gas_estimate(origcode, *args, **kwargs):
     o = {}

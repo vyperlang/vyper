@@ -791,6 +791,6 @@ def pack_logging_data(expected_data, args, context, pos):
     return holder, maxlen, dynamic_offset_counter, datamem_start
 
 
-def parse_to_lll(kode):
+def parse_to_lll(kode, runtime_only=False):
     code = parse(kode)
-    return parse_tree_to_lll(code, kode)
+    return parse_tree_to_lll(code, kode, runtime_only=runtime_only)
