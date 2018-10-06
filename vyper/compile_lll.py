@@ -357,6 +357,7 @@ def assembly_to_evm(assembly, map_line_numbers=True):
     codes = []
     pos = 0
     for i, item in enumerate(assembly):
+        note_line_num(line_number_map, item, pos)
         if is_symbol(item):
             if assembly[i + 1] == 'JUMPDEST' or assembly[i + 1] == 'BLANK':
                 posmap[item] = pos  # Don't increment position as the symbol itself doesn't go into code
@@ -371,7 +372,6 @@ def assembly_to_evm(assembly, map_line_numbers=True):
             pos += len(c)
         else:
             pos += 1
-        note_line_num(line_number_map, item, pos)
 
     posmap['_sym_codeend'] = pos
     o = b''
