@@ -260,16 +260,16 @@ class GlobalContext:
                     raise VariableDeclarationException("Define custom units using units: { }.", item.target)
                 for key, value in zip(item.annotation.keys, item.annotation.values):
                     if not isinstance(value, ast.Str):
-                        raise VariableDeclarationException("Custom unit description must be a valid string.", value)
+                        raise VariableDeclarationException("Custom unit description must be a valid string", value)
                     if not isinstance(key, ast.Name):
-                        raise VariableDeclarationException("Custom unit name must be a valid string unquoted string.", key)
+                        raise VariableDeclarationException("Custom unit name must be a valid string", key)
                     if key.id in self._custom_units:
-                        raise VariableDeclarationException("Custom unit may only be defined once", key)
+                        raise VariableDeclarationException("Custom unit name may only be used once", key)
                     if not is_varname_valid(key.id, custom_units=self._custom_units):
                         raise VariableDeclarationException("Custom unit may not be a reserved keyword", key)
                     self._custom_units.append(key.id)
             else:
-                raise VariableDeclarationException("Can units can only defined once.", item.target)
+                raise VariableDeclarationException("Custom units can only be defined once", item.target)
 
         # Check if variable name is valid.
         elif not self.is_valid_varname(item.target.id, item):
