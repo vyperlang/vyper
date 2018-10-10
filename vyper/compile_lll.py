@@ -337,7 +337,7 @@ def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=No
         ]
     # inject debug opcode.
     elif code.value == 'debugger':
-        return ['PUSH1', code.pos[0], 'DEBUG']
+        return ['DEBUG']
     else:
         raise Exception("Weird code element: " + repr(code))
 
@@ -345,12 +345,19 @@ def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=No
 def note_line_num(line_number_map, item, pos):
     # Record line number attached to pos.
     if isinstance(item, instruction) and item.lineno is not None:
-        line_number_map[pos] = item.lineno, item.col_offset
+        line_number_map['pc_pos_map'][pos] = item.lineno, item.col_offset
+    not_breakpoint(line_number_map, item, pos)
+
+
+def not_breakpoint(line_number_map, item, pos):
+    # Record line number attached to pos.
+    if item == 'DEBUG' and item.lineno not in line_number_map['breakpoints']:
+        line_number_map['breakpoints'].append(item.lineno + 1)
 
 
 # Assembles assembly into EVM
 def assembly_to_evm(assembly, map_line_numbers=True):
-    line_number_map = {}
+    line_number_map = {'breakpoints': [], 'pc_pos_map': {}}
     current_line_no = 0
     posmap = {}
     sub_assemblies = []
@@ -358,6 +365,8 @@ def assembly_to_evm(assembly, map_line_numbers=True):
     pos = 0
     for i, item in enumerate(assembly):
         note_line_num(line_number_map, item, pos)
+        if item == 'DEBUG':
+            continue  # skip debug
         if is_symbol(item):
             if assembly[i + 1] == 'JUMPDEST' or assembly[i + 1] == 'BLANK':
                 posmap[item] = pos  # Don't increment position as the symbol itself doesn't go into code
@@ -376,7 +385,10 @@ def assembly_to_evm(assembly, map_line_numbers=True):
     posmap['_sym_codeend'] = pos
     o = b''
     for i, item in enumerate(assembly):
-        if is_symbol(item):
+        note_line_num(line_number_map, item, pos)
+        if item == 'DEBUG':
+            continue  # skip debug
+        elif is_symbol(item):
             if assembly[i + 1] != 'JUMPDEST' and assembly[i + 1] != 'BLANK':
                 o += bytes([PUSH_OFFSET + 2, posmap[item] // 256, posmap[item] % 256])
         elif isinstance(item, int):
@@ -399,7 +411,6 @@ def assembly_to_evm(assembly, map_line_numbers=True):
         else:
             # Should never reach because, assembly is create in compile_to_assembly.
             raise Exception("Weird symbol in assembly: " + str(item))  # pragma: no cover
-        note_line_num(line_number_map, item, pos)
 
     assert len(o) == pos
     return o, line_number_map
