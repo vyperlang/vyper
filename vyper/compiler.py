@@ -21,6 +21,7 @@ def compile(code, *args, **kwargs):
     c, line_number_map = compile_lll.assembly_to_evm(asm)
     return c
 
+
 def gas_estimate(origcode, *args, **kwargs):
     o = {}
     code = optimizer.optimize(parser.parse_to_lll(origcode))

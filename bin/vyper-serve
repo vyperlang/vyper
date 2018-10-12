@@ -88,6 +88,7 @@ class VyperRequestHandler(BaseHTTPRequestHandler):
             out_dict = {
                 'abi': compiler.mk_full_signature(code),
                 'bytecode': '0x' + compiler.compile(code).hex(),
+                'bytecode_runtime': '0x' + compiler.compile(code, bytecode_runtime=True).hex(),
                 'ir': str(optimizer.optimize(parse_to_lll(code)))
             }
         except ParserException as e:

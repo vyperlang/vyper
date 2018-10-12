@@ -358,7 +358,6 @@ def not_breakpoint(line_number_map, item, pos):
 # Assembles assembly into EVM
 def assembly_to_evm(assembly, map_line_numbers=True):
     line_number_map = {'breakpoints': [], 'pc_pos_map': {}}
-    current_line_no = 0
     posmap = {}
     sub_assemblies = []
     codes = []
