@@ -15,7 +15,7 @@ def compile(code, *args, **kwargs):
             return any([find_nested_opcode(x, key) for x in sublists])
 
     if find_nested_opcode(asm, 'DEBUG'):
-        print('Please not this code contains DEBUG opcode.')
+        print('Please note this code contains DEBUG opcode.')
         print('This will only work in a support EVM. This FAIL on any other nodes.')
 
     return compile_lll.assembly_to_evm(asm)
