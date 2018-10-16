@@ -39,7 +39,32 @@ def get_revert(mem_start=None, mem_len=None):
     return o
 
 
+class instruction(str):
+
+    def __new__(cls, sstr, *args, **kwargs):
+        return super().__new__(cls, sstr)
+
+    def __init__(self, sstr, pos=None):
+        if pos is not None:
+            self.lineno, self.col_offset = pos
+        else:
+            self.lineno, self.col_offset = None, None
+
+
+def apply_line_numbers(func):
+    def apply_line_no_wrapper(*args, **kwargs):
+        code = args[0]
+        ret = func(*args, **kwargs)
+        new_ret = [
+            instruction(i, code.pos) if isinstance(i, str) and not isinstance(i, instruction) else i
+            for i in ret
+        ]
+        return new_ret
+    return apply_line_no_wrapper
+
+
 # Compiles LLL to assembly
+@apply_line_numbers
 def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=None, height=0):
     if withargs is None:
         withargs = {}
@@ -312,18 +337,35 @@ def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=No
         ]
     # inject debug opcode.
     elif code.value == 'debugger':
-        return ['PUSH1', code.pos[0], 'DEBUG']
+        return ['DEBUG']
     else:
         raise Exception("Weird code element: " + repr(code))
 
 
+def note_line_num(line_number_map, item, pos):
+    # Record line number attached to pos.
+    if isinstance(item, instruction) and item.lineno is not None:
+        line_number_map['pc_pos_map'][pos] = item.lineno, item.col_offset
+    not_breakpoint(line_number_map, item, pos)
+
+
+def not_breakpoint(line_number_map, item, pos):
+    # Record line number attached to pos.
+    if item == 'DEBUG' and item.lineno not in line_number_map['breakpoints']:
+        line_number_map['breakpoints'].append(item.lineno + 1)
+
+
 # Assembles assembly into EVM
-def assembly_to_evm(assembly):
+def assembly_to_evm(assembly, map_line_numbers=True):
+    line_number_map = {'breakpoints': [], 'pc_pos_map': {}}
     posmap = {}
     sub_assemblies = []
     codes = []
     pos = 0
     for i, item in enumerate(assembly):
+        note_line_num(line_number_map, item, pos)
+        if item == 'DEBUG':
+            continue  # skip debug
         if is_symbol(item):
             if assembly[i + 1] == 'JUMPDEST' or assembly[i + 1] == 'BLANK':
                 posmap[item] = pos  # Don't increment position as the symbol itself doesn't go into code
@@ -332,16 +374,20 @@ def assembly_to_evm(assembly):
         elif item == 'BLANK':
             pos += 0
         elif isinstance(item, list):
-            c = assembly_to_evm(item)
+            c, line_number_map = assembly_to_evm(item)
             sub_assemblies.append(item)
             codes.append(c)
             pos += len(c)
         else:
             pos += 1
+
     posmap['_sym_codeend'] = pos
     o = b''
     for i, item in enumerate(assembly):
-        if is_symbol(item):
+        note_line_num(line_number_map, item, pos)
+        if item == 'DEBUG':
+            continue  # skip debug
+        elif is_symbol(item):
             if assembly[i + 1] != 'JUMPDEST' and assembly[i + 1] != 'BLANK':
                 o += bytes([PUSH_OFFSET + 2, posmap[item] // 256, posmap[item] % 256])
         elif isinstance(item, int):
@@ -366,4 +412,4 @@ def assembly_to_evm(assembly):
             raise Exception("Weird symbol in assembly: " + str(item))  # pragma: no cover
 
     assert len(o) == pos
-    return o
+    return o, line_number_map

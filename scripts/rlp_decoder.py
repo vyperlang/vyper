@@ -107,4 +107,4 @@ rlp_decoder_lll = LLLnode.from_list(['seq',
     ]])
 
 rlp_decoder_lll = optimizer.optimize(rlp_decoder_lll)
-rlp_decoder_bytes = compile_lll.assembly_to_evm(compile_lll.compile_to_assembly(rlp_decoder_lll))
+rlp_decoder_bytes, _ = compile_lll.assembly_to_evm(compile_lll.compile_to_assembly(rlp_decoder_lll))

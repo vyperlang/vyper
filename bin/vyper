@@ -6,6 +6,7 @@ import sys
 import vyper
 import warnings
 
+from collections import OrderedDict
 from vyper import compiler, optimizer
 from vyper.parser.parser import parse_to_lll
 from vyper.parser import parser_utils
@@ -51,6 +52,31 @@ def get_asm(asm_list):
     return output_string
 
 
+def get_source_map(code):
+    asm_list = compile_lll.compile_to_assembly(optimizer.optimize(parse_to_lll(code, runtime_only=True)))
+    c, line_number_map = compile_lll.assembly_to_evm(asm_list)
+    # Sort line_number_map
+    out = OrderedDict()
+    keylist = line_number_map.keys()
+    for k in sorted(keylist):
+        out[k] = line_number_map[k]
+    return json.dumps(out)
+
+
+def get_source_map_asm_list(code):
+    line_no_width = 6
+    asm_list = compile_lll.compile_to_assembly(optimizer.optimize(parse_to_lll(code, runtime_only=True)))
+    for node in asm_list:
+        line_no = ''
+        if isinstance(node, compile_lll.instruction):
+            line_no = node.lineno or ''
+
+        print('{}{}'.format(
+            str(line_no).ljust(line_no_width),
+            node
+        ))
+
+
 if __name__ == '__main__':
 
     output_format = {}
@@ -61,6 +87,8 @@ if __name__ == '__main__':
     output_format['bytecode_runtime'] = lambda code: '0x' + compiler.compile(code, bytecode_runtime=True).hex()
     output_format['ir'] = lambda code: optimizer.optimize(parse_to_lll(code))
     output_format['asm'] = lambda code: get_asm(compile_lll.compile_to_assembly(optimizer.optimize(parse_to_lll(code))))
+    output_format['source_map'] = get_source_map
+    output_format['source_map_asm_list'] = get_source_map_asm_list
 
     with open(args.input_file) as fh:
         code = fh.read()
