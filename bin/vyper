@@ -13,7 +13,10 @@ from vyper.parser import parser_utils
 from vyper import compile_lll
 
 warnings.simplefilter('always')
-sys.tracebacklimit = os.environ.get('VYPER_TRACEBACK_LIMIT', 0)
+sys.tracebacklimit = 0
+tb_limit = os.environ.get('VYPER_TRACEBACK_LIMIT')
+if tb_limit:
+    sys.tracebacklimit = int(tb_limit)
 
 parser = argparse.ArgumentParser(description='Vyper programming language for Ethereum')
 parser.add_argument('--version', action='version', version='{0}'.format(vyper.__version__))
