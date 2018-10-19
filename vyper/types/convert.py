@@ -82,21 +82,25 @@ def to_decimal(expr, args, kwargs, context):
 
 @signature(('int128', 'uint256', 'address', 'bytes'), '*')
 def to_bytes32(expr, args, kwargs, context):
-    input = args[0]
-    typ, len = get_type(input)
+    in_arg = args[0]
+    typ, _len = get_type(in_arg)
+
     if typ == 'bytes':
-        if len != 32:
-            raise TypeMismatchException("Unable to convert bytes[{}] to bytes32".format(len))
-        if input.location == "memory":
+
+        if _len > 32:
+            raise TypeMismatchException("Unable to convert bytes[{}] to bytes32, max length is too large.".format(len))
+
+        if in_arg.location == "memory":
             return LLLnode.from_list(
-            ['mload', ['add', input, 32]], typ=BaseType('bytes32')
+            ['mload', ['add', in_arg, 32]], typ=BaseType('bytes32')
             )
-        elif input.location == "storage":
+        elif in_arg.location == "storage":
             return LLLnode.from_list(
-                ['sload', ['add', ['sha3_32', input], 1]], typ=BaseType('bytes32')
+                ['sload', ['add', ['sha3_32', in_arg], 1]], typ=BaseType('bytes32')
             )
+
     else:
-        return LLLnode(value=input.value, args=input.args, typ=BaseType('bytes32'), pos=getpos(expr))
+        return LLLnode(value=in_arg.value, args=in_arg.args, typ=BaseType('bytes32'), pos=getpos(expr))
 
 
 def convert(expr, context):

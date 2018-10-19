@@ -123,12 +123,19 @@ def bytes_to_bytes32(inp: bytes[32]) -> (bytes32, bytes32):
     memory: bytes32 = convert(inp, bytes32)
     storage: bytes32 = convert(self.d, bytes32)
     return  memory, storage
-"""
+
+@public
+def bytes_to_bytes32_from_smaller(inp: bytes[10]) -> bytes32:
+    memory: bytes32 = convert(inp, bytes32)
+    return memory
+    """
+
     c = get_contract_with_gas_estimation(code)
     assert c.int128_to_bytes32(1) == [bytes_helper('', 31) + b'\x01'] * 3
     assert c.uint256_to_bytes32(1) == [bytes_helper('', 31) + b'\x01'] * 3
     assert c.address_to_bytes32(w3.eth.accounts[0]) == [bytes_helper('', 12) + w3.toBytes(hexstr=w3.eth.accounts[0])] * 2
     assert c.bytes_to_bytes32(bytes_helper('', 32)) == [bytes_helper('', 32)] * 2
+    assert c.bytes_to_bytes32_from_smaller(b'hello') == bytes_helper('hello', 32)
 
 
 def test_uint256_decimal(assert_tx_failed, get_contract_with_gas_estimation):
