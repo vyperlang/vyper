@@ -34,6 +34,7 @@ from vyper.types import (
     get_size_of_type,
     is_base_type,
     parse_type,
+    canonicalize_type,
     NodeType
 )
 from vyper.types import (
@@ -277,16 +278,31 @@ class Stmt(object):
 
         block_scope_id = id(self.stmt.orelse)
         self.context.start_blockscope(block_scope_id)
+        
+        # type defaults to int128
+        typ_str = 'int128'
+        # goes through all keywords in iterator variable 
+        # this loop can be used if new keyword arguments are added too
+        if len(self.stmt.iter.keywords) > 0:
+            for keyword in self.stmt.iter.keywords:
+                # set type equal to the value of the type keyword
+                if keyword.arg == 'type':
+                    typ_str = keyword.value.id
+
+        # handle invalid types
+        # this function raises an error for unsupported types
+        typ = canonicalize_type(BaseType(typ_str))
+        
         # Type 1 for, e.g. for i in range(10): ...
         if len(self.stmt.iter.args) == 1:
             if not isinstance(self.stmt.iter.args[0], ast.Num):
                 raise StructureException("Range only accepts literal values", self.stmt.iter)
-            start = LLLnode.from_list(0, typ='int128', pos=getpos(self.stmt))
+            start = LLLnode.from_list(0, typ=typ, pos=getpos(self.stmt))
             rounds = self.stmt.iter.args[0].n
         elif isinstance(self.stmt.iter.args[0], ast.Num) and isinstance(self.stmt.iter.args[1], ast.Num):
             # Type 2 for, e.g. for i in range(100, 110): ...
-            start = LLLnode.from_list(self.stmt.iter.args[0].n, typ='int128', pos=getpos(self.stmt))
-            rounds = LLLnode.from_list(self.stmt.iter.args[1].n - self.stmt.iter.args[0].n, typ='int128', pos=getpos(self.stmt))
+            start = LLLnode.from_list(self.stmt.iter.args[0].n, typ=typ, pos=getpos(self.stmt))
+            rounds = LLLnode.from_list(self.stmt.iter.args[1].n - self.stmt.iter.args[0].n, typ=typ, pos=getpos(self.stmt))
         else:
             # Type 3 for, e.g. for i in range(x, x + 10): ...
             if not isinstance(self.stmt.iter.args[1], ast.BinOp) or not isinstance(self.stmt.iter.args[1].op, ast.Add):
@@ -299,7 +315,7 @@ class Stmt(object):
             start = Expr.parse_value_expr(self.stmt.iter.args[0], self.context)
             rounds = self.stmt.iter.args[1].right.n
         varname = self.stmt.target.id
-        pos = self.context.new_variable(varname, BaseType('int128'))
+        pos = self.context.new_variable(varname, BaseType(typ))
         self.context.forvars[varname] = True
         o = LLLnode.from_list(['repeat', pos, start, rounds, parse_body(self.stmt.body, self.context)], typ=None, pos=getpos(self.stmt))
         del self.context.vars[varname]

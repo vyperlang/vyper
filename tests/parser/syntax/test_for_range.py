@@ -21,6 +21,18 @@ def foo():
     x: int128 = 5
     for i in range(x, x + 10):
         pass
+    """,
+    """
+@public
+def foo():
+    for i in range(10, type=int128):
+        pass
+    """,
+    """
+@public
+def foo():
+    for i in range(10, 20, type=uint256):
+        pass
     """
 ]
 
