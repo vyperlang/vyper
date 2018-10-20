@@ -48,8 +48,8 @@ function. By declaring the variable *public*, the variable is
 callable by external contracts. Initializing the variables without the  ``public``
 function defaults to a private declaration and thus only accessible to methods
 within the same contract. The ``public`` function additionally creates a
-‘getter’ function for the variable, accessible with a call such as
-``self.get_beneficiary(some_address)``.
+‘getter’ function for the variable, accessible through an external call such as
+``contract.beneficiary()``.
 
 Now, the constructor.
 
@@ -494,9 +494,9 @@ Let's get started.
   :linenos:
 
 The contract contains a number of methods that modify the contract state as
-well as a few 'getter' methods to read it. We first declare several events 
+well as a few 'getter' methods to read it. We first declare several events
 that the contract logs. We then declare our global variables, followed by
-function defintions.
+function definitions.
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
