@@ -18,9 +18,9 @@ def test_initial_state(w3, c):
     # Check propsal names are correct
     assert c.proposals__name(0)[:7] == b'Clinton'
     assert c.proposals__name(1)[:5] == b'Trump'
-    # Check proposal vote_count is 0
-    assert c.proposals__vote_count(0) == 0
-    assert c.proposals__vote_count(1) == 0
+    # Check proposal voteCount is 0
+    assert c.proposals__voteCount(0) == 0
+    assert c.proposals__voteCount(1) == 0
     # Check voterCount is 0
     assert c.voterCount() == 0
     # Check voter starts empty
@@ -192,7 +192,7 @@ def test_vote(w3, c, assert_tx_failed):
     # Voter can vote
     c.vote(0, transact={})
     # Vote count changes based on voters weight
-    assert c.proposals__vote_count(0) == 3
+    assert c.proposals__voteCount(0) == 3
     # Voter cannot vote twice
     assert_tx_failed(lambda: c.vote(0))
     # Voter cannot vote if they've delegated
@@ -202,7 +202,7 @@ def test_vote(w3, c, assert_tx_failed):
     c.vote(1, transact={'from': a2})
     c.vote(1, transact={'from': a5})
     c.vote(1, transact={'from': a6})
-    assert c.proposals__vote_count(1) == 4
+    assert c.proposals__voteCount(1) == 4
     # Can't vote on a non-proposal
     assert_tx_failed(lambda: c.vote(2, transact={'from': a7}))
 
