@@ -61,7 +61,7 @@ The contract is initialized with two arguments: ``_beneficiary`` of type
 ``address`` and ``_bidding_time`` with type ``timedelta``, the time difference
 between the start and end of the auction. We then store these two pieces of
 information into the contract variables ``self.beneficiary`` and
-``self.endAuction``. Notice that we have access to the current time by
+``self.auctionEnd``. Notice that we have access to the current time by
 calling ``block.timestamp``. ``block`` is an object available within any Vyper
 contract and provides information about the block at the time of calling.
 Similar to ``block``, another important object available to us within the
