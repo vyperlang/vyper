@@ -18,7 +18,7 @@ State variables are values which are permanently stored in contract storage.
 
 ::
 
-  storedData: int128
+  stored_data: int128
 
 See the :ref:`types` section for valid state variable types and
 :ref:`visibility-and-getters` for possible choices for
