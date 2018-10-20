@@ -314,7 +314,7 @@ Note that the amount to send should be specified in wei.
     """
 
 Calls to the specified Ethereum address.
-The call should pass data and may optionaly send eth value (specified in wei) as well.
+The call should pass data and may optionally send eth value (specified in wei) as well.
 The call must specify a gas amount to attach the call and and the outsize.
 Returns the data returned by the call as a bytes array with the outsize as the max length.
 

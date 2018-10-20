@@ -3,12 +3,12 @@
 # Auction params
 # Beneficiary receives money from the highest bidder
 beneficiary: public(address)
-auction_start: public(timestamp)
-auction_end: public(timestamp)
+auctionStart: public(timestamp)
+auctionEnd: public(timestamp)
 
 # Current state of auction
-highest_bidder: public(address)
-highest_bid: public(wei_value)
+highestBidder: public(address)
+highestBid: public(wei_value)
 
 # Set to true at the end, disallows any change
 ended: public(bool)
@@ -17,10 +17,10 @@ ended: public(bool)
 # seconds bidding time on behalf of the
 # beneficiary address `_beneficiary`.
 @public
-def __init__(_beneficiary: address, _bidding_time: timedelta):
+def __init__(_beneficiary: address, _biddingTime: timedelta):
     self.beneficiary = _beneficiary
-    self.auction_start = block.timestamp
-    self.auction_end = self.auction_start + _bidding_time
+    self.auctionStart = block.timestamp
+    self.auctionEnd = self.auctionStart + _biddingTime
 
 # Bid on the auction with the value sent
 # together with this transaction.
@@ -30,20 +30,20 @@ def __init__(_beneficiary: address, _bidding_time: timedelta):
 @payable
 def bid():
     # Check if bidding period is over.
-    assert block.timestamp < self.auction_end
+    assert block.timestamp < self.auctionEnd
     # Check if bid is high enough
-    assert msg.value > self.highest_bid
-    if not self.highest_bid == 0:
+    assert msg.value > self.highestBid
+    if not self.highestBid == 0:
         # Sends money back to the previous highest bidder
-        send(self.highest_bidder, self.highest_bid)
-    self.highest_bidder = msg.sender
-    self.highest_bid = msg.value
+        send(self.highestBidder, self.highestBid)
+    self.highestBidder = msg.sender
+    self.highestBid = msg.value
 
 
 # End the auction and send the highest bid
 # to the beneficiary.
 @public
-def end_auction():
+def endAuction():
     # It is a good guideline to structure functions that interact
     # with other contracts (i.e. they call functions or send Ether)
     # into three phases:
@@ -59,7 +59,7 @@ def end_auction():
 
     # 1. Conditions
     # Check if auction endtime has been reached
-    assert block.timestamp >= self.auction_end
+    assert block.timestamp >= self.auctionEnd
     # Check if this function has already been called
     assert not self.ended
 
@@ -67,4 +67,4 @@ def end_auction():
     self.ended = True
 
     # 3. Interaction
-    send(self.beneficiary, self.highest_bid)
+    send(self.beneficiary, self.highestBid)
