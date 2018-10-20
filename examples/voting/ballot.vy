@@ -16,8 +16,8 @@ voters: public({
 proposals: public({
     # short name (up to 32 bytes)
     name: bytes32,
-    # int128ber of accumulated votes
-    vote_count: int128
+    # number of accumulated votes
+    voteCount: int128
 }[int128])
 
 voterCount: public(int128)
@@ -45,7 +45,7 @@ def __init__(_proposalNames: bytes32[2]):
     for i in range(2):
         self.proposals[i] = {
             name: _proposalNames[i],
-            vote_count: 0
+            voteCount: 0
         }
         self.int128Proposals += 1
 
@@ -93,7 +93,7 @@ def forwardWeight(delegate_with_weight_to_forward: address):
     self.voters[target].weight += weight_to_forward
 
     if self.directlyVoted(target):
-        self.proposals[self.voters[target].vote].vote_count += weight_to_forward
+        self.proposals[self.voters[target].vote].voteCount += weight_to_forward
         self.voters[target].weight = 0
 
     # To reiterate: if target is also a delegate, this function will need
@@ -130,7 +130,7 @@ def vote(proposal: int128):
     self.voters[msg.sender].voted = True
 
     # transfer msg.sender's weight to proposal
-    self.proposals[proposal].vote_count += self.voters[msg.sender].weight
+    self.proposals[proposal].voteCount += self.voters[msg.sender].weight
     self.voters[msg.sender].weight = 0
 
 # Computes the winning proposal taking all
@@ -141,8 +141,8 @@ def winningProposal() -> int128:
     winning_vote_count: int128 = 0
     winning_proposal: int128 = 0
     for i in range(2):
-        if self.proposals[i].vote_count > winning_vote_count:
-            winning_vote_count = self.proposals[i].vote_count
+        if self.proposals[i].voteCount > winning_vote_count:
+            winning_vote_count = self.proposals[i].voteCount
             winning_proposal = i
     return winning_proposal
 
