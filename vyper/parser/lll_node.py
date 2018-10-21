@@ -70,6 +70,10 @@ class LLLnode():
         if isinstance(self.value, int):
             self.valency = 1
             self.gas = 5
+        elif isinstance(self.value, float):
+            # are these the right values for float?
+            self.valency = 1
+            self.gas = 5
         elif isinstance(self.value, str):
             # Opcodes and pseudo-opcodes (e.g. clamp)
             if self.value.upper() in comb_opcodes:

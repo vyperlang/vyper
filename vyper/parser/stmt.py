@@ -118,6 +118,8 @@ class Stmt(object):
         pos = self.context.new_variable(varname, typ)
         o = LLLnode.from_list('pass', typ=None, pos=pos)
         if self.stmt.value is not None:
+            print('ann_assign does it get this far')
+            print(self.stmt.value, self.context)
             sub = Expr(self.stmt.value, self.context).lll_node
             self._check_valid_assign(sub)
             variable_loc = LLLnode.from_list(pos, typ=typ, location='memory', pos=getpos(self.stmt))
@@ -278,10 +280,10 @@ class Stmt(object):
 
         block_scope_id = id(self.stmt.orelse)
         self.context.start_blockscope(block_scope_id)
-        
+
         # type defaults to int128
         typ_str = 'int128'
-        # goes through all keywords in iterator variable 
+        # goes through all keywords in iterator variable
         # this loop can be used if new keyword arguments are added too
         if len(self.stmt.iter.keywords) > 0:
             for keyword in self.stmt.iter.keywords:
@@ -292,13 +294,21 @@ class Stmt(object):
         # handle invalid types
         # this function raises an error for unsupported types
         typ = canonicalize_type(BaseType(typ_str))
-        
+
+        # was not working unless converted back to decimal
+        # should canonicalize_type be used if this is the case?
+        # or another mapping?
+        if typ == 'fixed168x10':
+            typ = 'decimal'
+
         # Type 1 for, e.g. for i in range(10): ...
         if len(self.stmt.iter.args) == 1:
             if not isinstance(self.stmt.iter.args[0], ast.Num):
                 raise StructureException("Range only accepts literal values", self.stmt.iter)
             start = LLLnode.from_list(0, typ=typ, pos=getpos(self.stmt))
             rounds = self.stmt.iter.args[0].n
+            # casting to int because repeat in list needs to be an integer, but iterator is kept in input type
+            rounds = int(rounds)
         elif isinstance(self.stmt.iter.args[0], ast.Num) and isinstance(self.stmt.iter.args[1], ast.Num):
             # Type 2 for, e.g. for i in range(100, 110): ...
             start = LLLnode.from_list(self.stmt.iter.args[0].n, typ=typ, pos=getpos(self.stmt))
