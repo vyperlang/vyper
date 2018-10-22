@@ -86,7 +86,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Vyper programming language for Ethereum')
     parser.add_argument('--version', action='version', version='{0}'.format(vyper.__version__))
     parser.add_argument('input_file', help='Vyper sourcecode to compile')
-    parser.add_argument('-f', help='Format to print. Options: {}'.format(output_format.keys()), default='bytecode', dest='format')
+    parser.add_argument('-f', help='Format to print. Options: {}'.format(', '.join(output_format.keys())), default='bytecode', dest='format')
     parser.add_argument('--show-gas-estimates', help='Show gas estimates in ir output mode.', action="store_true")
 
     args = parser.parse_args()
