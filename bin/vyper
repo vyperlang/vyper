@@ -12,20 +12,6 @@ from vyper.parser.parser import parse_to_lll
 from vyper.parser import parser_utils
 from vyper import compile_lll
 
-warnings.simplefilter('always')
-sys.tracebacklimit = 0
-tb_limit = os.environ.get('VYPER_TRACEBACK_LIMIT')
-if tb_limit:
-    sys.tracebacklimit = int(tb_limit)
-
-parser = argparse.ArgumentParser(description='Vyper programming language for Ethereum')
-parser.add_argument('--version', action='version', version='{0}'.format(vyper.__version__))
-parser.add_argument('input_file', help='Vyper sourcecode to compile')
-parser.add_argument('-f', help='Format to print', default='bytecode', dest='format')
-parser.add_argument('--show-gas-estimates', help='Show gas estimates in ir output mode.', action="store_true")
-
-args = parser.parse_args()
-
 
 def uniq(seq):
     exists = set()
@@ -78,6 +64,13 @@ def get_source_map_asm_list(code):
 
 
 if __name__ == '__main__':
+    
+    warnings.simplefilter('always')
+    sys.tracebacklimit = 0
+    tb_limit = os.environ.get('VYPER_TRACEBACK_LIMIT')
+    if tb_limit:
+        sys.tracebacklimit = int(tb_limit)
+
 
     output_format = {}
     output_format['abi_python'] = lambda code: compiler.mk_full_signature(code)
@@ -89,6 +82,14 @@ if __name__ == '__main__':
     output_format['asm'] = lambda code: get_asm(compile_lll.compile_to_assembly(optimizer.optimize(parse_to_lll(code))))
     output_format['source_map'] = get_source_map
     output_format['source_map_asm_list'] = get_source_map_asm_list
+
+    parser = argparse.ArgumentParser(description='Vyper programming language for Ethereum')
+    parser.add_argument('--version', action='version', version='{0}'.format(vyper.__version__))
+    parser.add_argument('input_file', help='Vyper sourcecode to compile')
+    parser.add_argument('-f', help='Format to print', default='bytecode', dest='format')
+    parser.add_argument('--show-gas-estimates', help='Show gas estimates in ir output mode.', action="store_true")
+
+    args = parser.parse_args()
 
     with open(args.input_file) as fh:
         code = fh.read()
