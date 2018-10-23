@@ -18,7 +18,7 @@ def __init__(_owners: address[5], _threshold: int128):
 
 
 @public
-def test_ecrecover(h: bytes32, v:uint256, r:uint256, s:uint256) -> address:
+def testEcrecover(h: bytes32, v:uint256, r:uint256, s:uint256) -> address:
     return ecrecover(h, v, r, s)
 
 
