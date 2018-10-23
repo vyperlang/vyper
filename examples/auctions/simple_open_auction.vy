@@ -13,14 +13,14 @@ highestBid: public(wei_value)
 # Set to true at the end, disallows any change
 ended: public(bool)
 
-# Create a simple auction with `_biddingTime`
+# Create a simple auction with `_bidding_time`
 # seconds bidding time on behalf of the
 # beneficiary address `_beneficiary`.
 @public
-def __init__(_beneficiary: address, _biddingTime: timedelta):
+def __init__(_beneficiary: address, _bidding_time: timedelta):
     self.beneficiary = _beneficiary
     self.auctionStart = block.timestamp
-    self.auctionEnd = self.auctionStart + _biddingTime
+    self.auctionEnd = self.auctionStart + _bidding_time
 
 # Bid on the auction with the value sent
 # together with this transaction.

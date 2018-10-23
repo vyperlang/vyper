@@ -64,12 +64,12 @@ def giveRightToVote(voter: address):
 
 # Used by `delegate` below, and can be called by anyone.
 @public
-def forwardWeight(delegateWithWeightToForward: address):
-    assert self.delegated(delegateWithWeightToForward)
+def forwardWeight(delegate_with_weight_to_forward: address):
+    assert self.delegated(delegate_with_weight_to_forward)
     # Throw if there is nothing to do:
-    assert self.voters[delegateWithWeightToForward].weight > 0
+    assert self.voters[delegate_with_weight_to_forward].weight > 0
 
-    target: address = self.voters[delegateWithWeightToForward].delegate
+    target: address = self.voters[delegate_with_weight_to_forward].delegate
     for i in range(4):
         if self.delegated(target):
             target = self.voters[target].delegate
@@ -82,14 +82,14 @@ def forwardWeight(delegateWithWeightToForward: address):
             # So, in the production version, this should instead be
             # the responsibility of the contract's client, and this
             # check should be removed.
-            assert target != delegateWithWeightToForward
+            assert target != delegate_with_weight_to_forward
         else:
             # Weight will be moved to someone who directly voted or
             # hasn't voted.
             break
 
-    weight_to_forward: int128 = self.voters[delegateWithWeightToForward].weight
-    self.voters[delegateWithWeightToForward].weight = 0
+    weight_to_forward: int128 = self.voters[delegate_with_weight_to_forward].weight
+    self.voters[delegate_with_weight_to_forward].weight = 0
     self.voters[target].weight += weight_to_forward
 
     if self.directlyVoted(target):
@@ -138,13 +138,13 @@ def vote(proposal: int128):
 @public
 @constant
 def winningProposal() -> int128:
-    winningVoteCount: int128 = 0
-    winningProposal: int128 = 0
+    winning_vote_count: int128 = 0
+    winning_proposal: int128 = 0
     for i in range(2):
-        if self.proposals[i].voteCount > winningVoteCount:
-            winningVoteCount = self.proposals[i].voteCount
-            winningProposal = i
-    return winningProposal
+        if self.proposals[i].voteCount > winning_vote_count:
+            winning_vote_count = self.proposals[i].voteCount
+            winning_proposal = i
+    return winning_proposal
 
 # Calls winningProposal() function to get the index
 # of the winner contained in the proposals array and then
