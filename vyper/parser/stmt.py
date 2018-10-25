@@ -549,10 +549,10 @@ class Stmt(object):
             for i, ret_x in enumerate(self.context.return_type.members):
                 s_member = sub.typ.members[i]
                 sub_type = s_member if isinstance(s_member, NodeType) else s_member.typ
-                if type(sub_type) is not type(ret_x):
+                if sub_type != ret_x:
                     raise StructureException(
                         "Tuple return type does not match annotated return. {} != {}".format(
-                            type(sub_type), type(ret_x)
+                            repr(sub_type), repr(ret_x)
                         ),
                         self.stmt
                     )

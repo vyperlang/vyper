@@ -69,7 +69,13 @@ class BaseType(NodeType):
         self.is_literal = is_literal
 
     def eq(self, other):
-        return self.typ == other.typ and self.unit == other.unit and self.positional == other.positional
+        units_are_empty = not bool(self.unit) and not bool(other.unit)
+
+        return (
+            self.typ == other.typ and
+            (self.unit == other.unit or units_are_empty) and
+            self.positional == other.positional
+        )
 
     def __repr__(self):
         subs = []
