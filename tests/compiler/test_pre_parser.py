@@ -97,3 +97,14 @@ def test():
     pass
     """
     assert_compile_failed(lambda: get_contract(code))
+
+
+def test_unbalanced_parens(assert_compile_failed, get_contract):
+    code = """
+@public
+def foo():
+    convert(
+    """
+
+    with raises(StructureException):
+        get_contract(code)

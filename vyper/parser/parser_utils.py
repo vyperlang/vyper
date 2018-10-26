@@ -1,14 +1,19 @@
-import re
+import ast
 
-from evm.constants import GAS_IDENTITY, GAS_IDENTITYWORD
+from vyper.utils import GAS_IDENTITY, GAS_IDENTITYWORD
 
-from vyper.exceptions import TypeMismatchException
-from vyper.opcodes import comb_opcodes
+from vyper.exceptions import (
+    InvalidLiteralException,
+    TypeMismatchException,
+    StructureException
+)
+from vyper.parser.lll_node import (
+    LLLnode
+)
 from vyper.types import (
     BaseType,
     ByteArrayType,
     ContractType,
-    NodeType,
     NullType,
     StructType,
     MappingType,
@@ -21,208 +26,11 @@ from vyper.types import (
     get_size_of_type,
     ceil32
 )
-from vyper.utils import MemoryPositions, DECIMAL_DIVISOR
-
-
-class NullAttractor():
-    def __add__(self, other):
-        return NullAttractor()
-
-    def __repr__(self):
-        return 'None'
-
-    __radd__ = __add__
-    __mul__ = __add__
-
-
-# Data structure for LLL parse tree
-class LLLnode():
-    repr_show_gas = False
-
-    def __init__(self, value, args=None, typ=None, location=None, pos=None, annotation='', mutable=True, add_gas_estimate=0):
-        if args is None:
-            args = []
-
-        self.value = value
-        self.args = args
-        self.typ = typ
-        assert isinstance(self.typ, NodeType) or self.typ is None, repr(self.typ)
-        self.location = location
-        self.pos = pos
-        self.annotation = annotation
-        self.mutable = mutable
-        self.add_gas_estimate = add_gas_estimate
-
-        # Determine this node's valency (1 if it pushes a value on the stack,
-        # 0 otherwise) and checks to make sure the number and valencies of
-        # children are correct. Also, find an upper bound on gas consumption
-        # Numbers
-        if isinstance(self.value, int):
-            self.valency = 1
-            self.gas = 5
-        elif isinstance(self.value, str):
-            # Opcodes and pseudo-opcodes (e.g. clamp)
-            if self.value.upper() in comb_opcodes:
-                _, ins, outs, gas = comb_opcodes[self.value.upper()]
-                self.valency = outs
-                if len(self.args) != ins:
-                    raise Exception("Number of arguments mismatched: %r %r" % (self.value, self.args))
-                # We add 2 per stack height at push time and take it back
-                # at pop time; this makes `break` easier to handle
-                self.gas = gas + 2 * (outs - ins)
-                for arg in self.args:
-                    if arg.valency == 0:
-                        raise Exception("Can't have a zerovalent argument to an opcode or a pseudo-opcode! %r" % arg)
-                    self.gas += arg.gas
-                # Dynamic gas cost: 8 gas for each byte of logging data
-                if self.value.upper()[0:3] == 'LOG' and isinstance(self.args[1].value, int):
-                    self.gas += self.args[1].value * 8
-                # Dynamic gas cost: non-zero-valued call
-                if self.value.upper() == 'CALL' and self.args[2].value != 0:
-                    self.gas += 34000
-                # Dynamic gas cost: filling sstore (ie. not clearing)
-                elif self.value.upper() == 'SSTORE' and self.args[1].value != 0:
-                    self.gas += 15000
-                # Dynamic gas cost: calldatacopy
-                elif self.value.upper() in ('CALLDATACOPY', 'CODECOPY'):
-                    size = 34000
-                    if isinstance(self.args[2].value, int):
-                        size = self.args[2].value
-                    elif isinstance(self.args[2], LLLnode) and len(self.args[2].args) > 0:
-                        size = self.args[2].args / [-1].value
-                    self.gas += ceil32(size) // 32 * 3
-                # Gas limits in call
-                if self.value.upper() == 'CALL' and isinstance(self.args[0].value, int):
-                    self.gas += self.args[0].value
-            # If statements
-            elif self.value == 'if':
-                if len(self.args) == 3:
-                    self.gas = self.args[0].gas + max(self.args[1].gas, self.args[2].gas) + 3
-                    if self.args[1].valency != self.args[2].valency:
-                        raise Exception("Valency mismatch between then and else clause: %r %r" % (self.args[1], self.args[2]))
-                if len(self.args) == 2:
-                    self.gas = self.args[0].gas + self.args[1].gas + 17
-                    if self.args[1].valency:
-                        raise Exception("2-clause if statement must have a zerovalent body: %r" % self.args[1])
-                if not self.args[0].valency:
-                    raise Exception("Can't have a zerovalent argument as a test to an if statement! %r" % self.args[0])
-                if len(self.args) not in (2, 3):
-                    raise Exception("If can only have 2 or 3 arguments")
-                self.valency = self.args[1].valency
-            # With statements: with <var> <initial> <statement>
-            elif self.value == 'with':
-                if len(self.args) != 3:
-                    raise Exception("With statement must have 3 arguments")
-                if len(self.args[0].args) or not isinstance(self.args[0].value, str):
-                    raise Exception("First argument to with statement must be a variable")
-                if not self.args[1].valency:
-                    raise Exception("Second argument to with statement (initial value) cannot be zerovalent: %r" % self.args[1])
-                self.valency = self.args[2].valency
-                self.gas = sum([arg.gas for arg in self.args]) + 5
-            # Repeat statements: repeat <index_memloc> <startval> <rounds> <body>
-            elif self.value == 'repeat':
-                if len(self.args[2].args) or not isinstance(self.args[2].value, int) or self.args[2].value <= 0:
-                    raise Exception("Number of times repeated must be a constant nonzero positive integer: %r" % self.args[2])
-                if not self.args[0].valency:
-                    raise Exception("First argument to repeat (memory location) cannot be zerovalent: %r" % self.args[0])
-                if not self.args[1].valency:
-                    raise Exception("Second argument to repeat (start value) cannot be zerovalent: %r" % self.args[1])
-                if self.args[3].valency:
-                    raise Exception("Third argument to repeat (clause to be repeated) must be zerovalent: %r" % self.args[3])
-                self.valency = 0
-                if self.args[1].value == 'mload' or self.args[1].value == 'sload':
-                    rounds = self.args[2].value
-                else:
-                    rounds = abs(self.args[2].value - self.args[1].value)
-                self.gas = rounds * (self.args[3].gas + 50) + 30
-            # Seq statements: seq <statement> <statement> ...
-            elif self.value == 'seq':
-                self.valency = self.args[-1].valency if self.args else 0
-                self.gas = sum([arg.gas for arg in self.args]) + 30
-            # Multi statements: multi <expr> <expr> ...
-            elif self.value == 'multi':
-                for arg in self.args:
-                    if not arg.valency:
-                        raise Exception("Multi expects all children to not be zerovalent: %r" % arg)
-                self.valency = sum([arg.valency for arg in self.args])
-                self.gas = sum([arg.gas for arg in self.args])
-            # LLL brackets (don't bother gas counting)
-            elif self.value == 'lll':
-                self.valency = 1
-                self.gas = NullAttractor()
-            # Stack variables
-            else:
-                self.valency = 1
-                self.gas = 5
-        elif self.value is None and isinstance(self.typ, NullType):
-            self.valency = 1
-            self.gas = 5
-        else:
-            raise Exception("Invalid value for LLL AST node: %r" % self.value)
-        assert isinstance(self.args, list)
-
-        self.gas += self.add_gas_estimate
-
-    def to_list(self):
-        return [self.value] + [a.to_list() for a in self.args]
-
-    def repr(self):
-        if not len(self.args):
-            if self.annotation:
-                return '%r <%s>' % (self.value, self.annotation)
-            else:
-                return str(self.value)
-        # x = repr(self.to_list())
-        # if len(x) < 80:
-        #     return x
-        o = ''
-        if self.annotation:
-            o += '/* %s */ \n' % self.annotation
-        if self.repr_show_gas and self.gas:
-            OKBLUE = '\033[94m'
-            ENDC = '\033[0m'
-            o += OKBLUE + "{" + ENDC + str(self.gas) + OKBLUE + "} " + ENDC  # add gas for info.
-        o += '[' + str(self.value)
-        prev_lineno = self.pos[0] if self.pos else None
-        arg_lineno = None
-        annotated = False
-        has_inner_newlines = False
-        for arg in self.args:
-            o += ',\n  '
-            arg_lineno = arg.pos[0] if arg.pos else None
-            if arg_lineno is not None and arg_lineno != prev_lineno and self.value in ('seq', 'if'):
-                o += '# Line %d\n  ' % (arg_lineno)
-                prev_lineno = arg_lineno
-                annotated = True
-            arg_repr = arg.repr()
-            if '\n' in arg_repr:
-                has_inner_newlines = True
-            sub = arg_repr.replace('\n', '\n  ').strip(' ')
-            o += sub
-        output = o.rstrip(' ') + ']'
-        output_on_one_line = re.sub(r',\n *', ', ', output).replace('\n', '')
-        if (len(output_on_one_line) < 80 or len(self.args) == 1) and not annotated and not has_inner_newlines:
-            return output_on_one_line
-        else:
-            return output
-
-    def __repr__(self):
-        return self.repr()
-
-    @classmethod
-    def from_list(cls, obj, typ=None, location=None, pos=None, annotation=None, mutable=True, add_gas_estimate=0):
-        if isinstance(typ, str):
-            typ = BaseType(typ)
-        if isinstance(obj, LLLnode):
-            if obj.pos is None:
-                obj.pos = pos
-            if obj.location is None:
-                obj.location = location
-            return obj
-        elif not isinstance(obj, list):
-            return cls(obj, [], typ, location, pos, annotation, mutable, add_gas_estimate=add_gas_estimate)
-        else:
-            return cls(obj[0], [cls.from_list(o, pos=pos) for o in obj[1:]], typ, location, pos, annotation, mutable, add_gas_estimate=add_gas_estimate)
+from vyper.utils import (
+    SizeLimits,
+    MemoryPositions,
+    DECIMAL_DIVISOR
+)
 
 
 # Get a decimal number as a fraction with denominator multiple of 10
@@ -261,9 +69,9 @@ def get_original_if_0_prefixed(expr, context):
 
 
 # Copies byte array
-def make_byte_array_copier(destination, source):
+def make_byte_array_copier(destination, source, pos=None):
     if not isinstance(source.typ, (ByteArrayType, NullType)):
-        raise TypeMismatchException("Can only set a byte array to another byte array")
+        raise TypeMismatchException("Can only set a byte array to another byte array", pos)
     if isinstance(source.typ, ByteArrayType) and source.typ.maxlen > destination.typ.maxlen:
         raise TypeMismatchException("Cannot cast from greater max-length %d to shorter max-length %d" % (source.typ.maxlen, destination.typ.maxlen))
     # Special case: memory to memory
@@ -293,7 +101,7 @@ def make_byte_array_copier(destination, source):
     # Maximum theoretical length
     max_length = 32 if isinstance(source.typ, NullType) else source.typ.maxlen + 32
     return LLLnode.from_list(['with', '_pos', 0 if isinstance(source.typ, NullType) else source,
-                                make_byte_slice_copier(destination, pos_node, length, max_length)], typ=None)
+                                make_byte_slice_copier(destination, pos_node, length, max_length, pos=pos)], typ=None)
 
 
 # Copy bytes
@@ -302,7 +110,7 @@ def make_byte_array_copier(destination, source):
 # (ii) an LLL node for the start position of the destination
 # (iii) an LLL node for the length
 # (iv) a constant for the max length
-def make_byte_slice_copier(destination, source, length, max_length):
+def make_byte_slice_copier(destination, source, length, max_length, pos=None):
     # Special case: memory to memory
     if source.location == "memory" and destination.location == "memory":
         return LLLnode.from_list(['with', '_l', max_length,
@@ -332,7 +140,7 @@ def make_byte_slice_copier(destination, source, length, max_length):
                 ['with', '_actual_len', length,
                     ['repeat', MemoryPositions.FREE_LOOP_INDEX, 0, (max_length + 31) // 32,
                         ['seq', checker, setter]]]]]
-    return LLLnode.from_list(o, typ=None, annotation='copy byte slice src: %s dst: %s' % (source, destination))
+    return LLLnode.from_list(o, typ=None, annotation='copy byte slice src: %s dst: %s' % (source, destination), pos=pos)
 
 
 # Takes a <32 byte array as input, and outputs a number.
@@ -464,14 +272,14 @@ def add_variable_offset(parent, key, pos):
 # Convert from one base type to another
 def base_type_conversion(orig, frm, to, pos):
     orig = unwrap_location(orig)
+    if getattr(frm, 'is_literal', False) and frm.typ in ('int128', 'uint256') and not SizeLimits.in_bounds(frm.typ, orig.value):
+        raise InvalidLiteralException("Number out of range: " + str(orig.value), pos)
     if not isinstance(frm, (BaseType, NullType)) or not isinstance(to, BaseType):
         raise TypeMismatchException("Base type conversion from or to non-base type: %r %r" % (frm, to), pos)
     elif is_base_type(frm, to.typ) and are_units_compatible(frm, to):
         return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
     elif is_base_type(frm, 'int128') and is_base_type(to, 'decimal') and are_units_compatible(frm, to):
         return LLLnode.from_list(['mul', orig, DECIMAL_DIVISOR], typ=BaseType('decimal', to.unit, to.positional))
-    elif is_base_type(frm, 'uint256') and is_base_type(to, 'int128') and are_units_compatible(frm, to):
-        return LLLnode.from_list(['uclample', orig, ['mload', MemoryPositions.MAXNUM]], typ=BaseType('int128'))
     elif isinstance(frm, NullType):
         if to.typ not in ('int128', 'bool', 'uint256', 'address', 'bytes32', 'decimal'):
             # This is only to future proof the use of  base_type_conversion.
@@ -494,3 +302,211 @@ def unwrap_location(orig):
         return LLLnode.from_list(['sload', orig], typ=orig.typ)
     else:
         return orig
+
+
+# Pack function arguments for a call
+def pack_arguments(signature, args, context, pos, return_placeholder=True):
+    placeholder_typ = ByteArrayType(maxlen=sum([get_size_of_type(arg.typ) for arg in signature.args]) * 32 + 32)
+    placeholder = context.new_placeholder(placeholder_typ)
+    setters = [['mstore', placeholder, signature.method_id]]
+    needpos = False
+    staticarray_offset = 0
+    expected_arg_count = len(signature.args)
+    actual_arg_count = len(args)
+    if actual_arg_count != expected_arg_count:
+        raise StructureException("Wrong number of args for: %s (%s args, expected %s)" % (signature.name, actual_arg_count, expected_arg_count))
+
+    for i, (arg, typ) in enumerate(zip(args, [arg.typ for arg in signature.args])):
+        if isinstance(typ, BaseType):
+            setters.append(make_setter(LLLnode.from_list(placeholder + staticarray_offset + 32 + i * 32, typ=typ), arg, 'memory', pos=pos))
+        elif isinstance(typ, ByteArrayType):
+            setters.append(['mstore', placeholder + staticarray_offset + 32 + i * 32, '_poz'])
+            arg_copy = LLLnode.from_list('_s', typ=arg.typ, location=arg.location)
+            target = LLLnode.from_list(['add', placeholder + 32, '_poz'], typ=typ, location='memory')
+            setters.append(['with', '_s', arg, ['seq',
+                                                    make_byte_array_copier(target, arg_copy, pos),
+                                                    ['set', '_poz', ['add', 32, ['ceil32', ['add', '_poz', get_length(arg_copy)]]]]]])
+            needpos = True
+        elif isinstance(typ, ListType):
+            target = LLLnode.from_list([placeholder + 32 + staticarray_offset + i * 32], typ=typ, location='memory')
+            setters.append(make_setter(target, arg, 'memory', pos=pos))
+            staticarray_offset += 32 * (typ.count - 1)
+        else:
+            raise TypeMismatchException("Cannot pack argument of type %r" % typ)
+
+    # For private call usage, doesn't use a returner.
+    returner = [[placeholder + 28]] if return_placeholder else []
+    if needpos:
+        return (
+            LLLnode.from_list(['with', '_poz', len(args) * 32 + staticarray_offset, ['seq'] + setters + returner],
+                                 typ=placeholder_typ, location='memory'),
+            placeholder_typ.maxlen - 28,
+            placeholder + 32
+        )
+    else:
+        return (
+            LLLnode.from_list(['seq'] + setters + returner, typ=placeholder_typ, location='memory'),
+            placeholder_typ.maxlen - 28,
+            placeholder + 32
+        )
+
+
+# Create an x=y statement, where the types may be compound
+def make_setter(left, right, location, pos):
+    # Basic types
+    if isinstance(left.typ, BaseType):
+        right = base_type_conversion(right, right.typ, left.typ, pos)
+        if location == 'storage':
+            return LLLnode.from_list(['sstore', left, right], typ=None)
+        elif location == 'memory':
+            return LLLnode.from_list(['mstore', left, right], typ=None)
+    # Byte arrays
+    elif isinstance(left.typ, ByteArrayType):
+        return make_byte_array_copier(left, right, pos)
+    # Can't copy mappings
+    elif isinstance(left.typ, MappingType):
+        raise TypeMismatchException("Cannot copy mappings; can only copy individual elements", pos)
+    # Arrays
+    elif isinstance(left.typ, ListType):
+        # Cannot do something like [a, b, c] = [1, 2, 3]
+        if left.value == "multi":
+            raise Exception("Target of set statement must be a single item")
+        if not isinstance(right.typ, (ListType, NullType)):
+            raise TypeMismatchException("Setter type mismatch: left side is array, right side is %r" % right.typ, pos)
+        left_token = LLLnode.from_list('_L', typ=left.typ, location=left.location)
+        if left.location == "storage":
+            left = LLLnode.from_list(['sha3_32', left], typ=left.typ, location="storage_prehashed")
+            left_token.location = "storage_prehashed"
+        # Type checks
+        if not isinstance(right.typ, NullType):
+            if not isinstance(right.typ, ListType):
+                raise TypeMismatchException("Left side is array, right side is not", pos)
+            if left.typ.count != right.typ.count:
+                raise TypeMismatchException("Mismatched number of elements", pos)
+        # If the right side is a literal
+        if right.value == "multi":
+            if len(right.args) != left.typ.count:
+                raise TypeMismatchException("Mismatched number of elements", pos)
+            subs = []
+            for i in range(left.typ.count):
+                subs.append(make_setter(add_variable_offset(left_token, LLLnode.from_list(i, typ='int128'), pos=pos),
+                                        right.args[i], location, pos=pos))
+            return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
+        # If the right side is a null
+        elif isinstance(right.typ, NullType):
+            subs = []
+            for i in range(left.typ.count):
+                subs.append(make_setter(add_variable_offset(left_token, LLLnode.from_list(i, typ='int128'), pos=pos),
+                                        LLLnode.from_list(None, typ=NullType()), location, pos=pos))
+            return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
+        # If the right side is a variable
+        else:
+            right_token = LLLnode.from_list('_R', typ=right.typ, location=right.location)
+            subs = []
+            for i in range(left.typ.count):
+                subs.append(make_setter(add_variable_offset(left_token, LLLnode.from_list(i, typ='int128'), pos=pos),
+                                        add_variable_offset(right_token, LLLnode.from_list(i, typ='int128'), pos=pos), location, pos=pos))
+            return LLLnode.from_list(['with', '_L', left, ['with', '_R', right, ['seq'] + subs]], typ=None)
+    # Structs
+    elif isinstance(left.typ, (StructType, TupleType)):
+        if left.value == "multi" and isinstance(left.typ, StructType):
+            raise Exception("Target of set statement must be a single item")
+        if not isinstance(right.typ, NullType):
+            if not isinstance(right.typ, left.typ.__class__):
+                raise TypeMismatchException("Setter type mismatch: left side is %r, right side is %r" % (left.typ, right.typ), pos)
+            if isinstance(left.typ, StructType):
+                for k in left.typ.members:
+                    if k not in right.typ.members:
+                        raise TypeMismatchException("Keys don't match for structs, missing %s" % k, pos)
+                for k in right.typ.members:
+                    if k not in left.typ.members:
+                        raise TypeMismatchException("Keys don't match for structs, extra %s" % k, pos)
+            else:
+                if len(left.typ.members) != len(right.typ.members):
+                    raise TypeMismatchException("Tuple lengths don't match, %d vs %d" % (len(left.typ.members), len(right.typ.members)), pos)
+        left_token = LLLnode.from_list('_L', typ=left.typ, location=left.location)
+        if left.location == "storage":
+            left = LLLnode.from_list(['sha3_32', left], typ=left.typ, location="storage_prehashed")
+            left_token.location = "storage_prehashed"
+        if isinstance(left.typ, StructType):
+            keyz = sorted(list(left.typ.members.keys()))
+        else:
+            keyz = list(range(len(left.typ.members)))
+        # If the right side is a literal
+        if right.value == "multi":
+            if len(right.args) != len(keyz):
+                raise TypeMismatchException("Mismatched number of elements", pos)
+            subs = []
+            for i, typ in enumerate(keyz):
+                subs.append(make_setter(add_variable_offset(left_token, typ, pos=pos), right.args[i], location, pos=pos))
+            return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
+        # If the right side is a null
+        elif isinstance(right.typ, NullType):
+            subs = []
+            for typ in keyz:
+                subs.append(make_setter(add_variable_offset(left_token, typ, pos=pos), LLLnode.from_list(None, typ=NullType()), location, pos=pos))
+            return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
+        # If tuple assign.
+        elif isinstance(left.typ, TupleType) and isinstance(right.typ, TupleType):
+            right_token = LLLnode.from_list('_R', typ=right.typ, location="memory")
+            subs = []
+            static_offset_counter = 0
+            for idx, (left_arg, right_arg) in enumerate(zip(left.args, right.typ.members)):
+                # if left_arg.typ.typ != right_arg.typ:
+                #     raise TypeMismatchException("Tuple assignment mismatch position %d, expected '%s'" % (idx, right.typ), pos)
+                if isinstance(right_arg, ByteArrayType):
+                    offset = LLLnode.from_list(
+                        ['add', '_R', ['mload', ['add', '_R', static_offset_counter]]],
+                        typ=ByteArrayType(right_arg.maxlen), location='memory', pos=pos)
+                    static_offset_counter += 32
+                else:
+                    offset = LLLnode.from_list(['mload', ['add', '_R', static_offset_counter]], typ=right_arg.typ, pos=pos)
+                    static_offset_counter += get_size_of_type(right_arg) * 32
+                subs.append(
+                    make_setter(
+                        left_arg,
+                        offset,
+                        location="memory",
+                        pos=pos
+                    )
+                )
+            return LLLnode.from_list(['with', '_R', right, ['seq'] + subs], typ=None, annotation='Tuple assignment')
+        # If the right side is a variable
+        else:
+            subs = []
+            right_token = LLLnode.from_list('_R', typ=right.typ, location=right.location)
+            for typ in keyz:
+                subs.append(make_setter(
+                    add_variable_offset(left_token, typ, pos=pos),
+                    add_variable_offset(right_token, typ, pos=pos),
+                    location,
+                    pos=pos
+                ))
+            return LLLnode.from_list(['with', '_L', left, ['with', '_R', right, ['seq'] + subs]], typ=None)
+    else:
+        raise Exception("Invalid type for setters")
+
+
+# Decorate every node of an AST tree with the original source code.
+# This is necessary to facilitate error pretty-printing.
+def decorate_ast_with_source(_ast, code):
+
+    class MyVisitor(ast.NodeVisitor):
+        def visit(self, node):
+            self.generic_visit(node)
+            node.source_code = code
+
+    MyVisitor().visit(_ast)
+
+
+def resolve_negative_literals(_ast):
+
+    class RewriteUnaryOp(ast.NodeTransformer):
+        def visit_UnaryOp(self, node):
+            if isinstance(node.op, ast.USub) and isinstance(node.operand, ast.Num):
+                node.operand.n = 0 - node.operand.n
+                return node.operand
+            else:
+                return node
+
+    return RewriteUnaryOp().visit(_ast)

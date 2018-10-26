@@ -31,6 +31,27 @@ def __default__():
     assert w3.eth.getBalance(c.address) == w3.toWei(0.1, 'ether')
 
 
+def test_basic_default_default_param_function(w3, get_logs, get_contract_with_gas_estimation):
+    code = """
+Sent: event({sender: indexed(address)})
+@public
+@payable
+def fooBar(a: int128 = 12345) -> int128:
+    log.Sent(ZERO_ADDRESS)
+    return a
+
+@public
+@payable
+def __default__():
+    log.Sent(msg.sender)
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    logs = get_logs(w3.eth.sendTransaction({'to': c.address, 'value': 10**17}), c, 'Sent')
+    assert w3.eth.accounts[0] == logs[0].args.sender
+    assert w3.eth.getBalance(c.address) == w3.toWei(0.1, 'ether')
+
+
 def test_basic_default_not_payable(w3, assert_tx_failed, get_contract_with_gas_estimation):
     code = """
 Sent: event({sender: indexed(address)})

@@ -8,7 +8,7 @@ from eth_utils import is_same_address
 @pytest.fixture
 def c(w3, get_contract):
     a0, a1, a2, a3, a4, a5, a6 = w3.eth.accounts[:7]
-    with open('examples/wallet/wallet.v.py') as f:
+    with open('examples/wallet/wallet.vy') as f:
         code = f.read()
     # Sends wei to the contract for future transactions gas costs
     c = get_contract(code, *[[a1, a2, a3, a4, a5], 3])
@@ -97,7 +97,7 @@ def test_javascript_signatures(w3, get_contract):
     assert is_same_address(Account.recoverHash(h2, sigs[1]), accounts[1])
 
     # Set the owners to zero addresses
-    with open('examples/wallet/wallet.v.py') as f:
+    with open('examples/wallet/wallet.vy') as f:
         owners = [w3.toChecksumAddress(x) for x in accounts + [a3, zero_address, zero_address]]
         x2 = get_contract(f.read(), *[owners, 2])
 

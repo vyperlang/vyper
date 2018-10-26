@@ -1,17 +1,7 @@
-This is the suggested template for new VIPs.
-
-## Preamble
-
-    VIP: <to be assigned>
-    Title: <VIP title>
-    Author: <list of authors' names and optionally, email addresses>
-    Type: <Standard Track | Informational | Meta>
-    Status: Draft
-    Created: <date created on, in ISO 8601 (yyyy-mm-dd) format>
-    Requires (*optional): <VIP number(s)>
-    Replaces (*optional): <VIP number(s)>
-
-
+---
+name: Vyper Improvement Proposal (VIP)
+about: This is the suggested template for new VIPs.
+---
 ## Simple Summary
 "If you can't explain it simply, you don't understand it well enough." Provide a simplified and layman-accessible explanation of the VIP.
 

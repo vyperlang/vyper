@@ -1,4 +1,9 @@
-If you're proposing a new feature please follow the [VIP Template] (https://github.com/ethereum/vyper/tree/master/.github/VIP_TEMPLATE.md)
+---
+name: General Feedback
+about: Any general feedback or bug reports about the Vyper Compiler. No new features proposals.
+---
+
+### Version Information
 
 * vyper Version: x.x.x
 * pyethereum Version: x.x.x

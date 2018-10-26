@@ -22,7 +22,7 @@ def __init__(_name: bytes32, _symbol: bytes32, _decimals: uint256, _initialSuppl
     self.name = _name
     self.symbol = _symbol
     self.decimals = _decimals
-    self.totalSupply =_initialSupply * convert(10, 'uint256') ** _decimals
+    self.totalSupply =_initialSupply * convert(10, uint256) ** _decimals
     self.balances[msg.sender] = self.totalSupply
 
 
@@ -65,19 +65,11 @@ def transferFrom(_from: address, _to: address, _value: uint256) -> bool:
 
 # Allow _spender to withdraw from your account, multiple times, up to the _value amount.
 # If this function is called again it overwrites the current allowance with _value.
-#
-# NOTE: We would like to prevent attack vectors like the one described here:
-#       https://docs.google.com/document/d/1YLPtQxZu1UAvO9cZ1O2RPXBbT0mooh4DYKjA_jp-RLM/edit#heading=h.m9fhqynw2xvt
-#       and discussed here:
-#       https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729
-#
-#       Clients SHOULD make sure to create user interfaces in such a way that they
-#       set the allowance first to 0 before setting it to another value for the
-#       same spender. THOUGH The contract itself shouldn't enforce it, to allow
-#       backwards compatilibilty with contracts deployed before.
 @public
 def approve(_spender: address, _amount: uint256) -> bool:
 
+    # Set the allowance first to 0
+    self.allowed[msg.sender][_spender] = 0
     self.allowed[msg.sender][_spender] = _amount
     log.Approval(msg.sender, _spender, _amount)
 

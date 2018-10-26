@@ -1,3 +1,6 @@
+import ast
+import warnings
+
 from vyper.functions.signature import (
     signature
 )
@@ -9,6 +12,7 @@ from vyper.parser.parser_utils import (
 from vyper.exceptions import (
     InvalidLiteralException,
     TypeMismatchException,
+    ParserException,
 )
 from vyper.types import (
     BaseType,
@@ -23,7 +27,7 @@ from vyper.utils import (
 )
 
 
-@signature(('uint256', 'bytes32', 'bytes'), 'str_literal')
+@signature(('uint256', 'bytes32', 'bytes'), '*')
 def to_int128(expr, args, kwargs, context):
     in_node = args[0]
     typ, len = get_type(in_node)
@@ -38,7 +42,7 @@ def to_int128(expr, args, kwargs, context):
         return byte_array_to_num(in_node, expr, 'int128')
 
 
-@signature(('num_literal', 'int128', 'bytes32', 'address'), 'str_literal')
+@signature(('num_literal', 'int128', 'bytes32', 'address'), '*')
 def to_uint256(expr, args, kwargs, context):
     in_node = args[0]
     input_type, len = get_type(in_node)
@@ -60,7 +64,7 @@ def to_uint256(expr, args, kwargs, context):
         raise InvalidLiteralException("Invalid input for uint256: %r" % in_node, expr)
 
 
-@signature(('int128', 'uint256'), 'str_literal')
+@signature(('int128', 'uint256'), '*')
 def to_decimal(expr, args, kwargs, context):
     input = args[0]
     if input.typ.typ == 'uint256':
@@ -76,31 +80,47 @@ def to_decimal(expr, args, kwargs, context):
         )
 
 
-@signature(('int128', 'uint256', 'address', 'bytes'), 'str_literal')
+@signature(('int128', 'uint256', 'address', 'bytes'), '*')
 def to_bytes32(expr, args, kwargs, context):
-    input = args[0]
-    typ, len = get_type(input)
+    in_arg = args[0]
+    typ, _len = get_type(in_arg)
+
     if typ == 'bytes':
-        if len != 32:
-            raise TypeMismatchException("Unable to convert bytes[{}] to bytes32".format(len))
-        if input.location == "memory":
+
+        if _len > 32:
+            raise TypeMismatchException("Unable to convert bytes[{}] to bytes32, max length is too large.".format(len))
+
+        if in_arg.location == "memory":
             return LLLnode.from_list(
-            ['mload', ['add', input, 32]], typ=BaseType('bytes32')
+            ['mload', ['add', in_arg, 32]], typ=BaseType('bytes32')
             )
-        elif input.location == "storage":
+        elif in_arg.location == "storage":
             return LLLnode.from_list(
-                ['sload', ['add', ['sha3_32', input], 1]], typ=BaseType('bytes32')
+                ['sload', ['add', ['sha3_32', in_arg], 1]], typ=BaseType('bytes32')
             )
+
     else:
-        return LLLnode(value=input.value, args=input.args, typ=BaseType('bytes32'), pos=getpos(expr))
+        return LLLnode(value=in_arg.value, args=in_arg.args, typ=BaseType('bytes32'), pos=getpos(expr))
 
 
 def convert(expr, context):
-    output_type = expr.args[1].s
+
+    if isinstance(expr.args[1], ast.Str):
+        warnings.warn(
+            "String parameter has been removed, see VIP1026). "
+            "Use a vyper type instead.",
+            DeprecationWarning
+        )
+
+    if isinstance(expr.args[1], ast.Name):
+        output_type = expr.args[1].id
+    else:
+        raise ParserException("Invalid conversion type, use valid vyper type.", expr)
+
     if output_type in conversion_table:
         return conversion_table[output_type](expr, context)
     else:
-        raise Exception("Conversion to {} is invalid.".format(output_type))
+        raise ParserException("Conversion to {} is invalid.".format(output_type), expr)
 
 
 conversion_table = {

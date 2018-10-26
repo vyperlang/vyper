@@ -170,12 +170,12 @@ astor: bytes[10]
 
 @public
 def foo(x: bytes[32]) -> int128:
-    return convert(x, 'int128')
+    return convert(x, int128)
 
 @public
 def bar_storage() -> int128:
     self.astor = "a"
-    return convert(self.astor, 'int128')
+    return convert(self.astor, int128)
     """
 
     c = get_contract_with_gas_estimation(bytes_to_num_code)
@@ -198,19 +198,19 @@ r: bytes[1]
 
 @public
 def get(a: bytes[1]) -> bytes[2]:
-    return concat(a, 0b0001)
+    return concat(a, 0b00000001)
 
 @public
 def getsome() -> bytes[1]:
-    return 0b1110
+    return 0b00001110
 
 @public
 def testsome(a: bytes[1]) -> bool:
-    return a == 0b1100001
+    return a == 0b01100001
 
 @public
 def testsome_storage(y: bytes[1]) -> bool:
-    self.r = 0b1100001
+    self.r = 0b01100001
     return self.r == y
     """
 

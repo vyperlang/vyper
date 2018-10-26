@@ -69,7 +69,7 @@ opcodes = {
     'STATICCALL': [0xfa, 6, 1, 40],
     'REVERT': [0xfd, 2, 0, 0],
     'INVALID': [0xfe, 0, 0, 0],
-    'DEBUG': [0xa5, 0, 0, 0]
+    'DEBUG': [0xa5, 1, 0, 0]
 }
 
 pseudo_opcodes = {
@@ -78,6 +78,7 @@ pseudo_opcodes = {
     'UCLAMPLE': [None, 2, 1, 30],
     'CLAMP_NONZERO': [None, 1, 1, 19],
     'ASSERT': [None, 1, 0, 85],
+    'ASSERT_REASON': [None, 3, 0, 85],
     'PASS': [None, 0, 0, 0],
     'BREAK': [None, 0, 0, 20],
     'CONTINUE': [None, 0, 0, 20],
@@ -90,6 +91,9 @@ pseudo_opcodes = {
     'CEIL32': [None, 1, 1, 20],
     'SET': [None, 2, 0, 20],
     'NE': [None, 2, 1, 6],
+    'DEBUGGER': [None, 0, 0, 0],
+    'LABEL': [None, 1, 0, 1],
+    'GOTO': [None, 1, 0, 8]
 }
 
 comb_opcodes = {}

@@ -1,6 +1,6 @@
 from vyper.parser import parser
-from . import compile_lll
-from . import optimizer
+from vyper import compile_lll
+from vyper import optimizer
 
 
 def compile(code, *args, **kwargs):
@@ -15,10 +15,11 @@ def compile(code, *args, **kwargs):
             return any([find_nested_opcode(x, key) for x in sublists])
 
     if find_nested_opcode(asm, 'DEBUG'):
-        print('Please not this code contains DEBUG opcode.')
+        print('Please note this code contains DEBUG opcode.')
         print('This will only work in a support EVM. This FAIL on any other nodes.')
 
-    return compile_lll.assembly_to_evm(asm)
+    c, line_number_map = compile_lll.assembly_to_evm(asm)
+    return c
 
 
 def gas_estimate(origcode, *args, **kwargs):
@@ -27,7 +28,7 @@ def gas_estimate(origcode, *args, **kwargs):
 
     # Extract the stuff inside the LLL bracket
     if code.value == 'seq':
-        if code.args[-1].value == 'return':
+        if len(code.args) > 0 and code.args[-1].value == 'return':
             code = code.args[-1].args[1].args[0]
 
     assert code.value == 'seq'

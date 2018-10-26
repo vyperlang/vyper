@@ -1,6 +1,6 @@
 
 *************
-Event logging
+Event Logging
 *************
 
 Like Solidity and other EVM languages, Vyper can log events to be caught and displayed by user interfaces.
@@ -8,7 +8,7 @@ Like Solidity and other EVM languages, Vyper can log events to be caught and dis
 Example of Logging
 ==================
 
-This example is taken from the `sample ERC20 contract <https://github.com/ethereum/vyper/blob/master/examples/tokens/ERC20_solidity_compatible/ERC20.v.py>`_ and shows the basic flow of event logging.
+This example is taken from the `sample ERC20 contract <https://github.com/ethereum/vyper/blob/master/examples/tokens/ERC20_solidity_compatible/ERC20.vy>`_ and shows the basic flow of event logging.
 
 ::
 

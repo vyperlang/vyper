@@ -28,13 +28,14 @@ are used as function arguments or in assignments.
 
 Boolean
 =======
+
 **Keyword:** ``bool``
 
 A boolean is a type to store a logical/truth value.
 
 Values
 ------
-The only possible values are the constants ``true`` and ``false``.
+The only possible values are the constants ``True`` and ``False``.
 
 Operators
 ---------
@@ -78,6 +79,7 @@ Operator    Description
 ``x >= y``  Greater than or equal to
 ``x > y``   Greater than
 ==========  ================
+
 ``x`` and ``y`` must be of the type ``int128``.
 
 Arithmetic Operators
@@ -96,6 +98,8 @@ Operator       Description
 ``min(x, y)``  Minimum
 ``max(x, y)``  Maximum
 =============  ======================
+
+
 ``x`` and ``y`` must be of the type ``int128``.
 
 .. index:: ! unit, ! uint256
@@ -128,6 +132,7 @@ Operator             Description
 ``uint256_ge(x, y)``  Greater than or equal to
 ``uint256_gt(x, y)``  Greater than
 ===================  ================
+
 ``x`` and ``y`` must be of the type ``uint256``.
 
 Arithmetic Operators
@@ -147,6 +152,7 @@ Operator                 Description
 ``min(x, y)``            Minimum
 ``max(x, y)``            Maximum
 =======================  ======================
+
 ``x`` and ``y`` must be of the type ``uint256``.
 
 Bitwise Operators
@@ -161,6 +167,7 @@ Operator              Description
 ``bitwise_xor(x, y)`` XOR
 ``shift(x, _shift)``  Bitwise Shift
 ===================== =============
+
 ``x`` and ``y`` must be of the type ``uint256``. ``_shift`` must be of the type ``int128``.
 
 .. note::
@@ -193,6 +200,7 @@ Operator    Description
 ``x >= y``  Greater or equal
 ``x > y``   Greater than
 ==========  ================
+
 ``x`` and ``y`` must be of the type ``decimal``.
 
 Arithmetic Operators
@@ -212,6 +220,7 @@ Operator       Description
 ``floor(x)``   Largest integer <= ``x``. Returns ``int128``.
 ``ceil(x)``   Smallest integer >= ``x``. Returns ``int128``.
 =============  ==========================================
+
 ``x`` and ``y`` must be of the type ``decimal``.
 
 .. _address:
@@ -235,6 +244,7 @@ Member        Description
 ``balance``   Query the balance of an address. Returns ``wei_value``.
 ``codesize``  Query the code size of an address. Returns ``int128``.
 ============  ===================================================
+
 Syntax as follows: ``_address.<member>``, where ``_address`` is of the type ``address`` and ``<member>`` is one of the above keywords.
 
 Unit Types
@@ -255,7 +265,7 @@ Keyword        Unit   Base type  Description
     Two ``timedelta`` can be added together, as can a ``timedelta`` and a ``timestamp``, but not two ``timestamps``.
 
 ===================  ===========  =========  ====================================================================================
-Wei 
+Wei
 ---------------------------------------------------------------------------------------------------------------------------------
 Keyword              Unit         Base type  Description
 ===================  ===========  =========  ====================================================================================
@@ -268,12 +278,13 @@ Custom Unit Types
 Vyper allows you to add additional not-provided unit label to either ``uint256``, ``int128`` or ``decimal``.
 
 **Custom units example:**
+
 ::
-    # specify units used in the contract.
-    units: {
-        cm: "centimeter",
-        km: "kilometer"
-    }
+  # specify units used in the contract.
+  units: {
+      cm: "centimeter",
+      km: "kilometer"
+  }
 
 Having defined the units they can be defined on variables as follows.
 
@@ -333,6 +344,7 @@ Keyword                               Description
 ``concat(x, ...)``                    Concatenate multiple inputs.
 ``slice(x, start=_start, len=_len)``  Return a slice of ``_len`` starting at ``_start``.
 ====================================  ============================================================
+
 Where ``x`` is a byte array while ``_start`` and ``_len`` are integers.
 
 .. index:: !reference
@@ -356,15 +368,16 @@ Lists can be declared with ``_name: _ValueType[_Integer]``. Multidimensional lis
 
 **Example:**
 ::
-    #Defining a list
-    exampleList: int128[3]
-    #Setting values
-    exampleList = [10, 11, 12]
-    exampleList[2] = 42
-    #Returning a value
-    return exampleList[0]
+  #Defining a list
+  exampleList: int128[3]
+  #Setting values
+  exampleList = [10, 11, 12]
+  exampleList[2] = 42
+  #Returning a value
+  return exampleList[0]
 
 .. index:: !structs
+
 Structs
 =======
 
@@ -375,13 +388,13 @@ Syntax
 Structs can be accessed via ``struct.argname``.
 **Example:**
 ::
-    #Defining a struct
-    exampleStruct: {
-        value1: int128,
-        value2: decimal
-    }
-    #Accessing a value
-    exampleStruct.value1 = 1
+  #Defining a struct
+  exampleStruct: {
+      value1: int128,
+      value2: decimal
+  }
+  #Accessing a value
+  exampleStruct.value1 = 1
 
 
 .. index:: !mapping
@@ -421,9 +434,56 @@ Here ``_KeyType`` can be almost any type except for mappings, a contract, or a s
 
 .. index:: !initial
 
-**********
+*****************
+Builtin Constants
+*****************
+
+Vyper has a few convenience constants builtin.
+
+======= ============ ==========================================
+Type    Name         Value
+======= ============ ==========================================
+address ZERO_ADDRESS 0x0000000000000000000000000000000000000000
+int128  MAX_INT128   2**127 - 1
+int128  MIN_INT128   -2**127
+decimal MAX_DECIMAL  (2**127 - 1)
+decimal MIN_DECIMAL  (-2**127)
+uint256 MAX_UINT256  2**256 - 1
+======= ============ ==========================================
+
+****************
+Custom Constants
+****************
+
+Custom constants can be defined at a global level in Vyper. To define a constant make use of the `constant` keyword.
+
+**Example:**
+::
+  TOTAL_SUPPLY: constant(uint256) = 10000000
+  total_supply: public(uint256)
+
+  @public
+  def __init__():
+      self.total_supply = TOTAL_SUPPLY
+
+**Advanced Example:**
+::
+  units: {
+      share: "Share unit"
+  }
+
+  MAX_SHARES: constant(uint256(share)) = 1000
+  SHARE_PRICE: constant(uint256(wei/share)) = 5
+
+  @public
+  def market_cap() -> uint256(wei):
+      return MAX_SHARES * SHARE_PRICE
+
+
+***********************
 Initial Values and None
-**********
+***********************
+
 In Vyper, there is no ``null`` option like most programing languages have. Thus, every variable type has a default value.
 Nevertheless Vyper has the option to declare ``None`` which represent the default value of the type. Note that there is no option to assign ``None`` when initiating a variable. Also, note that you can't make comparisons to None. In order to check if a variable is empty, you will need to compare it to its type's default value.
 
@@ -437,8 +497,6 @@ Here you can find a list of all types and default values:
    * - ``bool``
      - ``False``
    * - ``int128``
-     - ``0``
-   * - ``int256``
      - ``0``
    * - ``uint256``
      - ``0``

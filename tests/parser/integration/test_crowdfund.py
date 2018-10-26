@@ -32,7 +32,7 @@ def expired() -> bool:
 
 @public
 @constant
-def timestamp() -> timestamp:
+def block_timestamp() -> timestamp:
     return block.timestamp
 
 @public
@@ -62,7 +62,7 @@ def refund():
     c = get_contract_with_gas_estimation_for_constants(crowdfund, *[a1, 50, 60])
     c.participate(transact={'value': 5})
     assert c.timelimit() == 60
-    assert c.deadline() - c.timestamp() == 59
+    assert c.deadline() - c.block_timestamp() == 59
     assert not c.expired()
     assert not c.reached()
     c.participate(transact={'value': 49})
@@ -123,7 +123,7 @@ def expired() -> bool:
 
 @public
 @constant
-def timestamp() -> timestamp:
+def block_timestamp() -> timestamp:
     return block.timestamp
 
 @public
@@ -153,7 +153,7 @@ def refund():
 
     c.participate(transact={'value': 5})
     assert c.timelimit() == 60
-    assert c.deadline() - c.timestamp() == 59
+    assert c.deadline() - c.block_timestamp() == 59
     assert not c.expired()
     assert not c.reached()
     c.participate(transact={'value': 49})

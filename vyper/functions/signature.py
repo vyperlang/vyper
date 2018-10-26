@@ -51,6 +51,8 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
         elif expected_arg == 'name_literal':
             if isinstance(arg, ast.Name):
                 return arg.id
+            elif isinstance(arg, ast.Subscript) and arg.value.id == 'bytes':
+                return 'bytes[%s]' % arg.slice.value.n
         elif expected_arg == '*':
             return arg
         elif expected_arg == 'bytes':

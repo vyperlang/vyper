@@ -12,7 +12,7 @@ TOKEN_TOTAL_SUPPLY = TOKEN_INITIAL_SUPPLY * (10 ** TOKEN_DECIMALS)
 
 @pytest.fixture
 def c(get_contract):
-    with open('examples/tokens/vypercoin.v.py') as f:
+    with open('examples/tokens/vypercoin.vy') as f:
         return get_contract(
             f.read(),
             *[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY]

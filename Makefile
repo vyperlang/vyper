@@ -1,4 +1,4 @@
-.PHONY: test link clean clean-pyc clean-build clean-test docs docker-build
+.PHONY: test lint clean clean-pyc clean-build clean-test docs docker-build
 
 init:
 	python setup.py install

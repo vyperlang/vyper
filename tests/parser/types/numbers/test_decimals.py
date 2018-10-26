@@ -125,3 +125,18 @@ def _num_mul(x: decimal, y: decimal) -> decimal:
     NUM_2 = Decimal('136112946768375385385349842973')
 
     assert_tx_failed(lambda: c._num_mul(NUM_1, NUM_2))
+
+
+def test_decimal_min_max_literals(assert_tx_failed, get_contract_with_gas_estimation):
+    code = """
+@public
+def maximum():
+    a: decimal = 170141183460469231731687303715884105726.
+@public
+def minimum():
+    a: decimal = -170141183460469231731687303715884105726.
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.maximum() == []
+    assert c.minimum() == []
