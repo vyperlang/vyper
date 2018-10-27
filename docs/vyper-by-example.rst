@@ -37,9 +37,9 @@ Let's get started!
 We begin by declaring a few variables to keep track of our contract state.
 We initialize a global variable ``beneficiary`` by calling ``public`` on the
 datatype ``address``. The ``beneficiary`` will be the receiver of money from
-the highest bidder.  We also initialize the variables ``auction_start`` and
-``auction_end`` with the datatype ``timestamp`` to manage the open auction
-period and ``highest_bid`` with datatype ``wei_value``, the smallest
+the highest bidder.  We also initialize the variables ``auctionStart`` and
+``auctionEnd`` with the datatype ``timestamp`` to manage the open auction
+period and ``highestBid`` with datatype ``wei_value``, the smallest
 denomination of ether, to manage auction state. The variable ``ended`` is a
 boolean to determine whether the auction is officially over.
 
@@ -48,8 +48,8 @@ function. By declaring the variable *public*, the variable is
 callable by external contracts. Initializing the variables without the  ``public``
 function defaults to a private declaration and thus only accessible to methods
 within the same contract. The ``public`` function additionally creates a
-‘getter’ function for the variable, accessible with a call such as
-``self.get_beneficiary(some_address)``.
+‘getter’ function for the variable, accessible through an external call such as
+``contract.beneficiary()``.
 
 Now, the constructor.
 
@@ -61,7 +61,7 @@ The contract is initialized with two arguments: ``_beneficiary`` of type
 ``address`` and ``_bidding_time`` with type ``timedelta``, the time difference
 between the start and end of the auction. We then store these two pieces of
 information into the contract variables ``self.beneficiary`` and
-``self.auction_end``. Notice that we have access to the current time by
+``self.auctionEnd``. Notice that we have access to the current time by
 calling ``block.timestamp``. ``block`` is an object available within any Vyper
 contract and provides information about the block at the time of calling.
 Similar to ``block``, another important object available to us within the
@@ -94,15 +94,15 @@ statements pass, we can safely continue to the next lines; otherwise, the
 ``bid()`` method will throw an error and revert the transaction. If the two
 ``assert`` statements and the check that the previous bid is not equal to zero pass,
 we can safely conclude that we have a valid new highest bid. We will send back
-the previous ``highest_bid`` to the previous ``highest_bidder`` and set our new
-``highest_bid`` and ``highest_bidder``.
+the previous ``highestBid`` to the previous ``highestBidder`` and set our new
+``highestBid`` and ``highestBidder``.
 
 .. literalinclude:: ../examples/auctions/simple_open_auction.vy
   :language: python
-  :pyobject: end_auction
+  :pyobject: endAuction
 
-With the ``auction_end()`` method, we check whether our current time is past
-the ``auction_end`` time we set upon initialization of the contract. We also
+With the ``endAuction()`` method, we check whether our current time is past
+the ``auctionEnd`` time we set upon initialization of the contract. We also
 check that ``self.ended`` had not previously been set to True. We do this
 to prevent any calls to the method if the auction had already ended,
 which could potentially be malicious if the check had not been made.
@@ -348,7 +348,7 @@ In this contract, we will implement a system for participants to vote on a list
 of proposals. The chairperson of the contract will be able to give each
 participant the right to vote, and each participant may choose to vote, or
 delegate their vote to another voter. Finally, a winning proposal will be
-determined upon calling the ``winning_proposals()`` method, which iterates through
+determined upon calling the ``winningProposals()`` method, which iterates through
 all the proposals and returns the one with the greatest number of votes.
 
 
@@ -374,7 +374,7 @@ with the properties ``name`` and ``vote_count``. Like our last example, we can
 access any value by key’ing into the mapping with a number just as one would
 with an index in an array.
 
-Then, ``voter_count`` and ``chairperson`` are initialized as ``public`` with
+Then, ``voterCount`` and ``chairperson`` are initialized as ``public`` with
 their respective datatypes.
 
 Let’s move onto the constructor.
@@ -397,7 +397,7 @@ by the contract creator, we have access to the contract creator’s address with
 also initialize the contract variable ``self.voter_count`` to zero to initially
 represent the number of votes allowed. This value will be incremented as each
 participant in the contract is given the right to vote by the method
-``give_right_to_vote()``, which we will explore next. We loop through the two
+``giveRightToVote()``, which we will explore next. We loop through the two
 proposals from the argument and insert them into ``proposals`` mapping with
 their respective index in the original array as its key.
 
@@ -405,16 +405,16 @@ Now that the initial setup is done, lets take a look at the functionality.
 
 .. literalinclude:: ../examples/voting/ballot.vy
   :language: python
-  :pyobject: give_right_to_vote
+  :pyobject: giveRightToVote
 
 We need a way to control who has the ability to vote. The method
-``give_right_to_vote()`` is a method callable by only the chairperson by taking
+``giveRightToVote()`` is a method callable by only the chairperson by taking
 a voter address and granting it the right to vote by incrementing the voter's
 ``weight`` property. We sequentially check for 3 conditions using ``assert``.
 The ``assert not`` function will check for falsy boolean values -
 in this case, we want to know that the voter has not already voted. To represent
 voting power, we will set their ``weight`` to ``1`` and we will keep track of the
-total number of voters by incrementing ``voter_count``.
+total number of voters by incrementing ``voterCount``.
 
 .. literalinclude:: ../examples/voting/ballot.vy
   :language: python
@@ -426,7 +426,7 @@ not the same. Voters shouldn’t be able to delegate votes to themselves. We,
 then, loop through all the voters to determine whether the person delegate to
 had further delegated their vote to someone else in order to follow the
 chain of delegation. We then mark the ``msg.sender`` as having voted if they
-delegated their vote. We increment the proposal’s ``vote_count`` directly if
+delegated their vote. We increment the proposal’s ``voterCount`` directly if
 the delegate had already voted or increase the  delegate’s vote ``weight``
 if the delegate has not yet voted.
 
@@ -438,11 +438,11 @@ Now, let’s take a look at the logic inside the ``vote()`` method, which is
 surprisingly simple. The method takes the key of the proposal in the ``proposals``
 mapping as an argument, check that the method caller had not already voted,
 sets the voter’s ``vote`` property to the proposal key, and increments the
-proposals ``vote_count`` by the voter’s ``weight``.
+proposals ``voteCount`` by the voter’s ``weight``.
 
 With all the basic functionality complete, what’s left is simply returning
-the winning proposal. To do this, we have two methods: ``winning_proposal()``,
-which returns the key of the proposal, and ``winner_name()``, returning the
+the winning proposal. To do this, we have two methods: ``winningProposal()``,
+which returns the key of the proposal, and ``winnerName()``, returning the
 name of the proposal. Notice the ``@constant`` decorator on these two methods.
 We do this because the two methods only read the blockchain state and do not
 modify it. Remember, reading the blockchain state is free; modifying the state
@@ -451,20 +451,20 @@ is a read-only function and we benefit by saving gas fees.
 
 .. literalinclude:: ../examples/voting/ballot.vy
   :language: python
-  :pyobject: winning_proposal
+  :pyobject: winningProposal
 
-The ``winning_proposal()`` method returns the key of proposal in the ``proposals``
+The ``winningProposal()`` method returns the key of proposal in the ``proposals``
 mapping. We will keep track of greatest number of votes and the winning
-proposal with the variables ``winning_vote_count`` and ``winning_proposal``,
+proposal with the variables ``winningVoteCount`` and ``winningProposal``,
 respectively by looping through all the proposals.
 
 .. literalinclude:: ../examples/voting/ballot.vy
   :language: python
-  :pyobject: winner_name
+  :pyobject: winnerName
 
-And finally, the ``winner_name()`` method returns the name of the proposal by
+And finally, the ``winnerName()`` method returns the name of the proposal by
 key’ing into the ``proposals`` mapping with the return result of the
-``winning_proposal()`` method.
+``winningProposal()`` method.
 
 And there you have it - a voting contract. Currently, many transactions
 are needed to assign the rights to vote to all participants. As an exercise,
@@ -494,16 +494,16 @@ Let's get started.
   :linenos:
 
 The contract contains a number of methods that modify the contract state as
-well as a few 'getter' methods to read it. We first declare several events 
+well as a few 'getter' methods to read it. We first declare several events
 that the contract logs. We then declare our global variables, followed by
-function defintions.
+function definitions.
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
   :lines: 7-13
 
 We initiate the ``company`` variable to be of type ``address`` that's public.
-The ``total_shares`` variable is of type ``currency_value``, which in this case
+The ``totalShares`` variable is of type ``currency_value``, which in this case
 represents the total available shares of the company. The ``price`` variable
 represents the wei value of a share and ``holdings`` is a mapping that maps an
 address to the number of shares the address owns.
@@ -520,13 +520,13 @@ company's address is initialized to hold all shares of the company in the
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :pyobject: stock_available
+  :pyobject: stockAvailable
 
 We will be seeing a few ``@constant`` decorators in this contract—which is
 used to decorate methods that simply read the contract state or return a simple
 calculation on the contract state without modifying it. Remember, reading the
 blockchain is free, writing on it is not. Since Vyper is a statically typed
-language, we see an arrow following the definition of the ``stock_available()``
+language, we see an arrow following the definition of the ``stockAvailable()``
 method, which simply represents the data type which the function is expected
 to return. In the method, we simply key into ``self.holdings`` with the
 company's address and check it's holdings.
@@ -536,10 +536,10 @@ company's holding.
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :pyobject: buy_stock
+  :pyobject: buyStock
 
-The ``buy_stock()`` method is a ``@payable`` method which takes an amount of
-ether sent and calculates the ``buy_order`` (the stock value equivalence at
+The ``buyStock()`` method is a ``@payable`` method which takes an amount of
+ether sent and calculates the ``buyOrder`` (the stock value equivalence at
 the time of call). The number of shares is deducted from the company's holdings
 and transferred to the sender's in the ``holdings`` mapping.
 
@@ -549,7 +549,7 @@ Now that people can buy shares, how do we check someone's holdings?
   :language: python
   :pyobject: get_holdings
 
-The ``get_holdings()`` is another ``@constant`` method that takes an ``address``
+The ``getHoldings()`` is another ``@constant`` method that takes an ``address``
 and returns its corresponding stock holdings by keying into ``self.holdings``.
 
 .. literalinclude:: ../examples/stock/company.vy
@@ -561,9 +561,9 @@ To check the ether balance of the company, we can simply call the getter method
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :pyobject: sell_stock
+  :pyobject: sellStock
 
-To sell a stock, we have the ``sell_stock()`` method which takes a number of
+To sell a stock, we have the ``sellStock()`` method which takes a number of
 stocks a person wishes to sell, and sends the equivalent value in ether to the
 seller's address. We first ``assert`` that the number of stocks the person
 wishes to sell is a value greater than ``0``. We also ``assert`` to see that
@@ -573,20 +573,20 @@ from the seller and given to the company. The ethers are then sent to the seller
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :pyobject: transfer_stock
+  :pyobject: transferStock
 
 A stockholder can also transfer their stock to another stockholder with the
-``transfer_stock()`` method. The method takes a receiver address and the number
+``transferStock()`` method. The method takes a receiver address and the number
 of shares to send. It first ``asserts`` that the amount being sent is greater
 than ``0`` and ``asserts`` whether the sender has enough stocks to send. If
 both conditions are satisfied, the transfer is made.
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :pyobject: pay_bill
+  :pyobject: payBill
 
 The company is also allowed to pay out an amount in ether to an address by
-calling the ``pay_bill()`` method. This method should only be callable by the
+calling the ``payBill()`` method. This method should only be callable by the
 company and thus first checks whether the method caller's address matches that
 of the company. Another important condition to check is that the company has
 enough funds to pay the amount. If both conditions satisfy, the contract

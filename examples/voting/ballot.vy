@@ -16,13 +16,13 @@ voters: public({
 proposals: public({
     # short name (up to 32 bytes)
     name: bytes32,
-    # int128ber of accumulated votes
-    vote_count: int128
+    # number of accumulated votes
+    voteCount: int128
 }[int128])
 
-voter_count: public(int128)
+voterCount: public(int128)
 chairperson: public(address)
-int128_proposals: public(int128)
+int128Proposals: public(int128)
 
 
 @public
@@ -33,7 +33,7 @@ def delegated(addr: address) -> bool:
 
 @public
 @constant
-def directly_voted(addr: address) -> bool:
+def directlyVoted(addr: address) -> bool:
     return self.voters[addr].voted and (self.voters[addr].delegate == ZERO_ADDRESS)
 
 
@@ -41,18 +41,18 @@ def directly_voted(addr: address) -> bool:
 @public
 def __init__(_proposalNames: bytes32[2]):
     self.chairperson = msg.sender
-    self.voter_count = 0
+    self.voterCount = 0
     for i in range(2):
         self.proposals[i] = {
             name: _proposalNames[i],
-            vote_count: 0
+            voteCount: 0
         }
-        self.int128_proposals += 1
+        self.int128Proposals += 1
 
 # Give a `voter` the right to vote on this ballot.
 # This may only be called by the `chairperson`.
 @public
-def give_right_to_vote(voter: address):
+def giveRightToVote(voter: address):
     # Throws if the sender is not the chairperson.
     assert msg.sender == self.chairperson
     # Throws if the voter has already voted.
@@ -60,11 +60,11 @@ def give_right_to_vote(voter: address):
     # Throws if the voter's voting weight isn't 0.
     assert self.voters[voter].weight == 0
     self.voters[voter].weight = 1
-    self.voter_count += 1
+    self.voterCount += 1
 
 # Used by `delegate` below, and can be called by anyone.
 @public
-def forward_weight(delegate_with_weight_to_forward: address):
+def forwardWeight(delegate_with_weight_to_forward: address):
     assert self.delegated(delegate_with_weight_to_forward)
     # Throw if there is nothing to do:
     assert self.voters[delegate_with_weight_to_forward].weight > 0
@@ -92,8 +92,8 @@ def forward_weight(delegate_with_weight_to_forward: address):
     self.voters[delegate_with_weight_to_forward].weight = 0
     self.voters[target].weight += weight_to_forward
 
-    if self.directly_voted(target):
-        self.proposals[self.voters[target].vote].vote_count += weight_to_forward
+    if self.directlyVoted(target):
+        self.proposals[self.voters[target].vote].voteCount += weight_to_forward
         self.voters[target].weight = 0
 
     # To reiterate: if target is also a delegate, this function will need
@@ -115,7 +115,7 @@ def delegate(to: address):
 
     # This call will throw if and only if this delegation would cause a loop
         # of length <= 5 that ends up delegating back to the delegator.
-    self.forward_weight(msg.sender)
+    self.forwardWeight(msg.sender)
 
 # Give your vote (including votes delegated to you)
 # to proposal `proposals[proposal].name`.
@@ -124,32 +124,32 @@ def vote(proposal: int128):
     # can't vote twice
     assert not self.voters[msg.sender].voted
     # can only vote on legitimate proposals
-    assert proposal < self.int128_proposals
+    assert proposal < self.int128Proposals
 
     self.voters[msg.sender].vote = proposal
     self.voters[msg.sender].voted = True
 
     # transfer msg.sender's weight to proposal
-    self.proposals[proposal].vote_count += self.voters[msg.sender].weight
+    self.proposals[proposal].voteCount += self.voters[msg.sender].weight
     self.voters[msg.sender].weight = 0
 
 # Computes the winning proposal taking all
 # previous votes into account.
 @public
 @constant
-def winning_proposal() -> int128:
+def winningProposal() -> int128:
     winning_vote_count: int128 = 0
     winning_proposal: int128 = 0
     for i in range(2):
-        if self.proposals[i].vote_count > winning_vote_count:
-            winning_vote_count = self.proposals[i].vote_count
+        if self.proposals[i].voteCount > winning_vote_count:
+            winning_vote_count = self.proposals[i].voteCount
             winning_proposal = i
     return winning_proposal
 
-# Calls winning_proposal() function to get the index
+# Calls winningProposal() function to get the index
 # of the winner contained in the proposals array and then
 # returns the name of the winner
 @public
 @constant
-def winner_name() -> bytes32:
-    return self.proposals[self.winning_proposal()].name
+def winnerName() -> bytes32:
+    return self.proposals[self.winningProposal()].name
