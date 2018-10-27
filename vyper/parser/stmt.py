@@ -108,6 +108,35 @@ class Stmt(object):
         elif self.stmt.annotation.id != sub.typ.typ and not sub.typ.unit:
             raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.id, self.stmt)
 
+    def _check_same_variable_assign(self, sub):
+        lhs_var_name = self.stmt.target.id
+        rhs_names = self._check_rhs_var_assn_recur(self.stmt.value)
+        if lhs_var_name in rhs_names:
+            raise VariableDeclarationException('Invalid variable assignment, same variable not allowed on LHS and RHS: %s' % lhs_var_name)
+
+    def _check_rhs_var_assn_recur(self, val):
+        names = ()
+        if isinstance(val, ast.BinOp):
+            right_node = val.right
+            left_node = val.left
+            names = names + self._check_rhs_var_assn_recur(right_node)
+            names = names + self._check_rhs_var_assn_recur(left_node)
+        elif isinstance(val, ast.UnaryOp):
+            operand_node = val.operand
+            names = names + self._check_rhs_var_assn_recur(operand_node)
+        elif isinstance(val, ast.BoolOp):
+            for bool_val in val.values:
+                names = names + self._check_rhs_var_assn_recur(bool_val)
+        elif isinstance(val, ast.Compare):
+            compare_left = val.left
+            names = names + self._check_rhs_var_assn_recur(compare_left)
+            for compr in val.comparators:
+                names = names + self._check_rhs_var_assn_recur(compr)
+        elif isinstance(val, ast.Name):
+            name = val.id
+            names = names + (name, )
+        return names
+
     def ann_assign(self):
         self.context.set_in_assignment(True)
         typ = parse_type(self.stmt.annotation, location='memory', custom_units=self.context.custom_units)
@@ -119,6 +148,7 @@ class Stmt(object):
         if self.stmt.value is not None:
             sub = Expr(self.stmt.value, self.context).lll_node
             self._check_valid_assign(sub)
+            self._check_same_variable_assign(sub)
             variable_loc = LLLnode.from_list(pos, typ=typ, location='memory', pos=getpos(self.stmt))
             o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
         self.context.set_in_assignment(False)
