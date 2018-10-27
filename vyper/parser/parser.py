@@ -403,9 +403,7 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
             unpackers = ['pass']
 
         clampers.append(LLLnode.from_list(
-            ['seq_unchecked'] +
-            unpackers +
-            [0],  # [0] to complete full overarching 'seq' statement, see private_label.
+            ['seq_unchecked'] + unpackers + [0],  # [0] to complete full overarching 'seq' statement, see private_label.
             typ=None, annotation='dynamic unpacker', pos=getpos(code))
         )
 

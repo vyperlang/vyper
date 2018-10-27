@@ -117,9 +117,8 @@ class Expr(object):
                 typ=ByteArrayType(byte_len), location='memory', pos=getpos(self.expr), annotation='Create ByteArray (Binary literal): %s' % str_val)
         elif len(orignum) == 42:
             if checksum_encode(orignum) != orignum:
-                raise InvalidLiteralException("Address checksum mismatch. If you are sure this is the "
-                                              "right address, the correct checksummed form is: " +
-                                              checksum_encode(orignum), self.expr)
+                raise InvalidLiteralException("""Address checksum mismatch. If you are sure this is the
+right address, the correct checksummed form is: %s""" % checksum_encode(orignum), self.expr)
             return LLLnode.from_list(self.expr.n, typ=BaseType('address', is_literal=True), pos=getpos(self.expr))
         elif len(orignum) == 66:
             return LLLnode.from_list(self.expr.n, typ=BaseType('bytes32', is_literal=True), pos=getpos(self.expr))

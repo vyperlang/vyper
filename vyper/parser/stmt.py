@@ -507,9 +507,7 @@ class Stmt(object):
             sub = unwrap_location(sub)
             if not are_units_compatible(sub.typ, self.context.return_type):
                 raise TypeMismatchException("Return type units mismatch %r %r" % (sub.typ, self.context.return_type), self.stmt.value)
-            elif sub.typ.is_literal and (self.context.return_type.typ == sub.typ or
-                    'int' in self.context.return_type.typ and
-                    'int' in sub.typ.typ):
+            elif sub.typ.is_literal and (self.context.return_type.typ == sub.typ or 'int' in self.context.return_type.typ and 'int' in sub.typ.typ):
                 if not SizeLimits.in_bounds(self.context.return_type.typ, sub.value):
                     raise InvalidLiteralException("Number out of range: " + str(sub.value), self.stmt)
                 else:
@@ -603,10 +601,7 @@ class Stmt(object):
                     i, x = byte_arrays[-1]
                     zero_padder = zero_pad(bytez_placeholder=['add', mem_pos, ['mload', mem_pos + i * 32]], maxlen=x.maxlen)
                 return LLLnode.from_list(
-                    ['seq'] +
-                    [sub] +
-                    [zero_padder] +
-                    [self.make_return_stmt(mem_pos, mem_size)
+                    ['seq'] + [sub] + [zero_padder] + [self.make_return_stmt(mem_pos, mem_size)
                 ], typ=sub.typ, pos=getpos(self.stmt))
 
             subs = []
