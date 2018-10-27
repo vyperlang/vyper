@@ -1,4 +1,4 @@
-.. index:: contract, state variable, function;
+.. index:: contract, state variable, function, metadata;
 
 .. _contract_structure:
 
@@ -104,3 +104,48 @@ Events may be logged in specially indexed data structures that allow clients, in
         log.Payment(msg.value, msg.sender)
 
 Events must be declared before global declarations and function definitions.
+
+.. structure-metedata:
+
+NatSpec Metadata
+================
+
+Vyper supports structured documentation for state variables and functions and events.
+
+::
+
+  carrotsEaten: int128
+  """
+  @author Bob Clampett
+  @notice Number of carrots eaten
+  @dev Chewing does not count, carrots must pass the throat to be "eaten"
+  """
+
+::
+
+  @public
+  @payable
+  def doesEat(food: string):
+    """
+    @author Bob Clampett
+    @notice Determine if Bugs will accept `food` to eat
+    @dev Compares the entire string and does not rely on a hash
+    @param food The name of a food to evaluate (in English)
+    @return true if Bugs will eat it, false otherwise
+    """
+  
+    // ...
+
+::
+
+  Ate: event({food: string})
+  """
+  @author Bob Clampett
+  @notice Bugs did eat `food`
+  @dev Chewing does not count, carrots must pass the throat to be "eaten"
+  @param food The name of a food that was eaten (in English)
+  """
+
+
+
+Additional information about Ethereum Natural Specification (NatSpec) can be found `here <https://github.com/ethereum/wiki/wiki/Ethereum-Natural-Specification-Format>`_. 
