@@ -87,6 +87,12 @@ To create a new virtual environment for Vyper run the following commands:
 To find out more about virtual environments, check out:
 `virtualenv guide <https://virtualenv.pypa.io/en/stable/>`_.
 
+
+You can also create a virtual environment without virtualenv:
+::
+   python3.6 -m venv vyper-env
+   source ~/vyper-env/bin/activate
+
 ************
 Installation
 ************
