@@ -13,6 +13,13 @@ from vyper.parser import parser_utils
 from vyper import compile_lll
 
 
+warnings.simplefilter('always')
+sys.tracebacklimit = 0
+tb_limit = os.environ.get('VYPER_TRACEBACK_LIMIT')
+if tb_limit:
+    sys.tracebacklimit = int(tb_limit)
+
+
 def uniq(seq):
     exists = set()
     return [x for x in seq if not (x in exists or exists.add(x))]
@@ -64,13 +71,6 @@ def get_source_map_asm_list(code):
 
 
 if __name__ == '__main__':
-    
-    warnings.simplefilter('always')
-    sys.tracebacklimit = 0
-    tb_limit = os.environ.get('VYPER_TRACEBACK_LIMIT')
-    if tb_limit:
-        sys.tracebacklimit = int(tb_limit)
-
 
     output_format = {}
     output_format['abi_python'] = lambda code: compiler.mk_full_signature(code)
