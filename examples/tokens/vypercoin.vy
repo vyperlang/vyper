@@ -19,11 +19,13 @@ allowed: uint256[address][address]
 @public
 def __init__(_name: bytes32, _symbol: bytes32, _decimals: uint256, _initialSupply: uint256):
 
+    assert _initialSupply * 10 ** _decimals >= _initialSupply
+    self.totalSupply =_initialSupply * 10 ** _decimals
+    self.balances[msg.sender] = self.totalSupply
     self.name = _name
     self.symbol = _symbol
     self.decimals = _decimals
-    self.totalSupply =_initialSupply * convert(10, uint256) ** _decimals
-    self.balances[msg.sender] = self.totalSupply
+    log.Transfer(ZERO_ADDRESS, msg.sender, self.totalSupply)
 
 
 # What is the balance of a particular account?
@@ -39,7 +41,6 @@ def balanceOf(_owner: address) -> uint256:
 def transfer(_to: address, _amount: uint256) -> bool:
 
     assert self.balances[msg.sender] >= _amount
-    assert self.balances[_to] + _amount >= self.balances[_to]
 
     self.balances[msg.sender] -= _amount  # Subtract from the sender
     self.balances[_to] += _amount  # Add the same to the recipient
@@ -57,7 +58,7 @@ def transferFrom(_from: address, _to: address, _value: uint256) -> bool:
 
     self.balances[_from] -= _value  # decrease balance of from address.
     self.allowed[_from][msg.sender] -= _value  # decrease allowance.
-    self.balances[_to] += _value  # incease balance of to address.
+    self.balances[_to] += _value  # increase balance of to address.
     log.Transfer(_from, _to, _value)  # log transfer event.
 
     return True
@@ -68,8 +69,6 @@ def transferFrom(_from: address, _to: address, _value: uint256) -> bool:
 @public
 def approve(_spender: address, _amount: uint256) -> bool:
 
-    # Set the allowance first to 0
-    self.allowed[msg.sender][_spender] = 0
     self.allowed[msg.sender][_spender] = _amount
     log.Approval(msg.sender, _spender, _amount)
 
