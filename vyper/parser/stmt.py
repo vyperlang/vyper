@@ -108,6 +108,35 @@ class Stmt(object):
         elif self.stmt.annotation.id != sub.typ.typ and not sub.typ.unit:
             raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.id, self.stmt)
 
+    def _check_same_variable_assign(self, sub):
+        lhs_var_name = self.stmt.target.id
+        rhs_names = self._check_rhs_var_assn_recur(self.stmt.value)
+        if lhs_var_name in rhs_names:
+            raise VariableDeclarationException('Invalid variable assignment, same variable not allowed on LHS and RHS: %s' % lhs_var_name)
+
+    def _check_rhs_var_assn_recur(self, val):
+        names = ()
+        if isinstance(val, ast.BinOp):
+            right_node = val.right
+            left_node = val.left
+            names = names + self._check_rhs_var_assn_recur(right_node)
+            names = names + self._check_rhs_var_assn_recur(left_node)
+        elif isinstance(val, ast.UnaryOp):
+            operand_node = val.operand
+            names = names + self._check_rhs_var_assn_recur(operand_node)
+        elif isinstance(val, ast.BoolOp):
+            for bool_val in val.values:
+                names = names + self._check_rhs_var_assn_recur(bool_val)
+        elif isinstance(val, ast.Compare):
+            compare_left = val.left
+            names = names + self._check_rhs_var_assn_recur(compare_left)
+            for compr in val.comparators:
+                names = names + self._check_rhs_var_assn_recur(compr)
+        elif isinstance(val, ast.Name):
+            name = val.id
+            names = names + (name, )
+        return names
+
     def ann_assign(self):
         self.context.set_in_assignment(True)
         typ = parse_type(self.stmt.annotation, location='memory', custom_units=self.context.custom_units)
@@ -119,6 +148,7 @@ class Stmt(object):
         if self.stmt.value is not None:
             sub = Expr(self.stmt.value, self.context).lll_node
             self._check_valid_assign(sub)
+            self._check_same_variable_assign(sub)
             variable_loc = LLLnode.from_list(pos, typ=typ, location='memory', pos=getpos(self.stmt))
             o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
         self.context.set_in_assignment(False)
@@ -477,9 +507,7 @@ class Stmt(object):
             sub = unwrap_location(sub)
             if not are_units_compatible(sub.typ, self.context.return_type):
                 raise TypeMismatchException("Return type units mismatch %r %r" % (sub.typ, self.context.return_type), self.stmt.value)
-            elif sub.typ.is_literal and (self.context.return_type.typ == sub.typ or
-                    'int' in self.context.return_type.typ and
-                    'int' in sub.typ.typ):
+            elif sub.typ.is_literal and (self.context.return_type.typ == sub.typ or 'int' in self.context.return_type.typ and 'int' in sub.typ.typ):
                 if not SizeLimits.in_bounds(self.context.return_type.typ, sub.value):
                     raise InvalidLiteralException("Number out of range: " + str(sub.value), self.stmt)
                 else:
@@ -573,10 +601,7 @@ class Stmt(object):
                     i, x = byte_arrays[-1]
                     zero_padder = zero_pad(bytez_placeholder=['add', mem_pos, ['mload', mem_pos + i * 32]], maxlen=x.maxlen)
                 return LLLnode.from_list(
-                    ['seq'] +
-                    [sub] +
-                    [zero_padder] +
-                    [self.make_return_stmt(mem_pos, mem_size)
+                    ['seq'] + [sub] + [zero_padder] + [self.make_return_stmt(mem_pos, mem_size)
                 ], typ=sub.typ, pos=getpos(self.stmt))
 
             subs = []

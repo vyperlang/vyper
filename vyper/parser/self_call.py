@@ -172,10 +172,7 @@ def call_self_private(stmt_expr, context, sig):
                 pop_return_values.append(o)
 
     o = LLLnode.from_list(
-        ['seq_unchecked'] + pre_init +
-        push_local_vars + push_args +
-        jump_to_func +
-        pop_return_values + pop_local_vars + [returner],
+        ['seq_unchecked'] + pre_init + push_local_vars + push_args + jump_to_func + pop_return_values + pop_local_vars + [returner],
         typ=sig.output_type, location='memory', pos=getpos(stmt_expr), annotation='Internal Call: %s' % method_name,
         add_gas_estimate=sig.gas
     )
