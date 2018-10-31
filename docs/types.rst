@@ -252,25 +252,25 @@ Unit Types
 Vyper allows the definition of types with discrete units e.g. meters, seconds, wei, ... . These types may only be based on either ``uint256``, ``int128`` or ``decimal``.
 Vyper has 3 unit types built in, which are the following:
 
-=============  =====  =========  ==========================
 Time
 -----------------------------------------------------------
-Keyword        Unit   Base type  Description
-=============  =====  =========  ==========================
-``timestamp``  1 sec  ``uint256``    This represents a point in time.
-``timedelta``  1 sec  ``uint256``    This is a number of seconds.
-=============  =====  =========  ==========================
+=============  =====  ===========  ==========================
+Keyword        Unit   Base type    Description
+=============  =====  ===========  ==========================
+``timestamp``  1 sec  ``uint256``  This represents a point in time.
+``timedelta``  1 sec  ``uint256``  This is a number of seconds.
+=============  =====  ===========  ==========================
 
 .. note::
     Two ``timedelta`` can be added together, as can a ``timedelta`` and a ``timestamp``, but not two ``timestamps``.
 
-===================  ===========  =========  ====================================================================================
 Wei
 ---------------------------------------------------------------------------------------------------------------------------------
-Keyword              Unit         Base type  Description
-===================  ===========  =========  ====================================================================================
+===================  ===========  ===========  ====================================================================================
+Keyword              Unit         Base type    Description
+===================  ===========  ===========  ====================================================================================
 ``wei_value``        1 wei        ``uint256``    This is an amount of `Ether <http://ethdocs.org/en/latest/ether.html#denominations>`_ in wei.
-===================  ===========  =========  ====================================================================================
+===================  ===========  ===========  ====================================================================================
 
 Custom Unit Types
 =================
@@ -278,7 +278,6 @@ Custom Unit Types
 Vyper allows you to add additional not-provided unit label to either ``uint256``, ``int128`` or ``decimal``.
 
 **Custom units example:**
-
 ::
   # specify units used in the contract.
   units: {
