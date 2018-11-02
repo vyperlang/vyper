@@ -1,3 +1,6 @@
+from web3.exceptions import ValidationError
+
+
 def test_send(assert_tx_failed, get_contract):
     send_test = """
 @public
@@ -21,7 +24,8 @@ def pay_me() -> bool:
     return True
     """
     c = get_contract(code)
-    assert_tx_failed(lambda: c.pay_me(transact={'value': w3.toWei(0.1, 'ether')}))
+
+    assert_tx_failed(lambda: c.pay_me(transact={'value': w3.toWei(0.1, 'ether')}), ValidationError)
 
 
 def test_default_gas(get_contract, w3):

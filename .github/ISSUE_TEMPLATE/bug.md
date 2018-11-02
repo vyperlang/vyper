@@ -1,12 +1,11 @@
 ---
-name: General Feedback
+name: Bug Report
 about: Any general feedback or bug reports about the Vyper Compiler. No new features proposals.
 ---
 
 ### Version Information
 
 * vyper Version: x.x.x
-* pyethereum Version: x.x.x
 * OS: osx/linux/win
 * Python Version (python --version):
 * Environment (output of `pip freeze`):

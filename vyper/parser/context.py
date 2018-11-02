@@ -45,7 +45,7 @@ class Context():
         self.function_return_count = 0
         # Current block scope
         self.blockscopes = set()
-        # In assignment. Whether expressiong is currently evaluating an assignment expression.
+        # In assignment. Whether expression is currently evaluating an assignment expression.
         self.in_assignment = False
         # List of custom units that have been defined.
         self.custom_units = global_ctx._custom_units
