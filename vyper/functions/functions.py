@@ -172,7 +172,7 @@ def concat(expr, context):
             elif arg.location == "storage":
                 length = LLLnode.from_list(['sload', ['sha3_32', '_arg']], typ=BaseType('int128'))
                 argstart = LLLnode.from_list(['add', ['sha3_32', '_arg'], 1], typ=arg.typ, location=arg.location)
-            # Make a copier to copy over data from that argyument
+            # Make a copier to copy over data from that argument
             seq.append(['with', '_arg', arg,
                             ['seq',
                                 make_byte_slice_copier(placeholder_node_plus_32,
