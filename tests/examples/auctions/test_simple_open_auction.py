@@ -32,21 +32,21 @@ def test_bid(w3, tester, auction_contract, assert_tx_failed):
     assert_tx_failed(lambda: auction_contract.bid(transact={"value": 0, "from": k1}))
     # Bidder can bid
     auction_contract.bid(transact={"value": 1, "from": k1})
-    # Check that higest bidder and highest bid have changed accordingly
+    # Check that highest bidder and highest bid have changed accordingly
     assert auction_contract.highestBidder() == k1
     assert auction_contract.highestBid() == 1
     # Bidder bid cannot equal current highest bid
     assert_tx_failed(lambda: auction_contract.bid(transact={"value": 0, "from": k1}))
     # Higher bid can replace current highest bid
     auction_contract.bid(transact={"value": 2, "from": k2})
-    # Check that higest bidder and highest bid have changed accordingly
+    # Check that highest bidder and highest bid have changed accordingly
     assert auction_contract.highestBidder() == k2
     assert auction_contract.highestBid() == 2
     # Multiple bidders can bid
     auction_contract.bid(transact={"value": 3, "from": k3})
     auction_contract.bid(transact={"value": 4, "from": k4})
     auction_contract.bid(transact={"value": 5, "from": k5})
-    # Check that higest bidder and highest bid have changed accordingly
+    # Check that highest bidder and highest bid have changed accordingly
     assert auction_contract.highestBidder() == k5
     assert auction_contract.highestBid() == 5
     auction_contract.bid(transact={"value": 1 * 10**10, "from": k1})
