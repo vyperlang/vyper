@@ -11,6 +11,7 @@ from vyper.types import (
     canonicalize_type,
     get_size_of_type,
     parse_type,
+    print_unit,
     TupleType
 )
 from vyper.utils import (
@@ -138,21 +139,20 @@ class FunctionSignature():
 
     def _generate_output_abi(self):
         t = self.output_type
-
         if not t:
             return []
         elif isinstance(t, TupleType):
-            res = [canonicalize_type(x) for x in t.members]
+            res = [(canonicalize_type(x), print_unit(x.unit)) for x in t.members]
         else:
-            res = [canonicalize_type(t)]
+            res = [(canonicalize_type(t), print_unit(t.unit))]
 
-        return [{"type": x, "name": "out"} for x in res]
+        return [{"type": x, "name": "out", "unit": unit} for x, unit in res]
 
     def to_abi_dict(self):
         return {
             "name": self.name,
             "outputs": self._generate_output_abi(),
-            "inputs": [{"type": canonicalize_type(arg.typ), "name": arg.name} for arg in self.args],
+            "inputs": [{"type": canonicalize_type(arg.typ), "name": arg.name, "unit": print_unit(arg.typ.unit)} for arg in self.args],
             "constant": self.const,
             "payable": self.payable,
             "type": "constructor" if self.name == "__init__" else "function"
