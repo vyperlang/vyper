@@ -4,6 +4,7 @@ from vyper.types import (
     get_size_of_type,
     canonicalize_type,
     parse_type,
+    print_unit,
     ByteArrayType
 )
 from vyper.utils import (
@@ -81,7 +82,7 @@ class EventSignature():
     def to_abi_dict(self):
         return {
             "name": self.name,
-            "inputs": [{"type": canonicalize_type(arg.typ, self.indexed_list[pos]), "name": arg.name, "indexed": self.indexed_list[pos]} for pos, arg in enumerate(self.args)] if self.args else [],
+            "inputs": [{"type": canonicalize_type(arg.typ, self.indexed_list[pos]), "name": arg.name, "indexed": self.indexed_list[pos], "unit": print_unit(arg.typ.unit)} for pos, arg in enumerate(self.args)] if self.args else [],
             "anonymous": False,
             "type": "event"
         }
