@@ -13,6 +13,7 @@ from vyper.types import (
     parse_type,
     print_unit,
     unit_from_type,
+    delete_unit_if_empty,
     TupleType
 )
 from vyper.utils import (
@@ -147,10 +148,15 @@ class FunctionSignature():
         else:
             res = [(canonicalize_type(t), print_unit(unit_from_type(t), custom_units_descriptions))]
 
-        return [{"type": x, "name": "out", "unit": unit} for x, unit in res]
+        abi_outputs = [{"type": x, "name": "out", "unit": unit} for x, unit in res]
+
+        for abi_output in abi_outputs:
+            delete_unit_if_empty(abi_output)
+
+        return abi_outputs
 
     def to_abi_dict(self, custom_units_descriptions={}):
-        return {
+        abi_dict = {
             "name": self.name,
             "outputs": self._generate_output_abi(custom_units_descriptions),
             "inputs": [{
@@ -162,6 +168,11 @@ class FunctionSignature():
             "payable": self.payable,
             "type": "constructor" if self.name == "__init__" else "function"
         }
+
+        for abi_input in abi_dict['inputs']:
+            delete_unit_if_empty(abi_input)
+
+        return abi_dict
 
     @classmethod
     def lookup_sig(cls, sigs, method_name, expr_args, stmt_or_expr, context):

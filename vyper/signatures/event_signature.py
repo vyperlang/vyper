@@ -6,6 +6,7 @@ from vyper.types import (
     parse_type,
     print_unit,
     unit_from_type,
+    delete_unit_if_empty,
     ByteArrayType
 )
 from vyper.utils import (
@@ -81,7 +82,7 @@ class EventSignature():
         return cls(name, args, indexed_list, event_id, sig)
 
     def to_abi_dict(self, custom_units_descriptions={}):
-        return {
+        abi_dict = {
             "name": self.name,
             "inputs": [{
                 "type": canonicalize_type(arg.typ, self.indexed_list[pos]),
@@ -92,3 +93,8 @@ class EventSignature():
             "anonymous": False,
             "type": "event"
         }
+
+        for abi_input in abi_dict['inputs']:
+            delete_unit_if_empty(abi_input)
+
+        return abi_dict
