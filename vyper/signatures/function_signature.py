@@ -12,6 +12,7 @@ from vyper.types import (
     get_size_of_type,
     parse_type,
     print_unit,
+    unit_from_type,
     TupleType
 )
 from vyper.utils import (
@@ -137,22 +138,26 @@ class FunctionSignature():
         method_id = fourbytes_to_int(sha3(bytes(sig, 'utf-8'))[:4])
         return cls(name, args, output_type, const, payable, private, sig, method_id, custom_units)
 
-    def _generate_output_abi(self):
+    def _generate_output_abi(self, custom_units_descriptions={}):
         t = self.output_type
         if not t:
             return []
         elif isinstance(t, TupleType):
-            res = [(canonicalize_type(x), print_unit(x.unit)) for x in t.members]
+            res = [(canonicalize_type(x), print_unit(unit_from_type(x), custom_units_descriptions)) for x in t.members]
         else:
-            res = [(canonicalize_type(t), print_unit(t.unit))]
+            res = [(canonicalize_type(t), print_unit(unit_from_type(t), custom_units_descriptions))]
 
         return [{"type": x, "name": "out", "unit": unit} for x, unit in res]
 
-    def to_abi_dict(self):
+    def to_abi_dict(self, custom_units_descriptions={}):
         return {
             "name": self.name,
-            "outputs": self._generate_output_abi(),
-            "inputs": [{"type": canonicalize_type(arg.typ), "name": arg.name, "unit": print_unit(arg.typ.unit)} for arg in self.args],
+            "outputs": self._generate_output_abi(custom_units_descriptions),
+            "inputs": [{
+                "type": canonicalize_type(arg.typ),
+                "name": arg.name,
+                "unit": print_unit(unit_from_type(arg.typ), custom_units_descriptions)
+            } for arg in self.args],
             "constant": self.const,
             "payable": self.payable,
             "type": "constructor" if self.name == "__init__" else "function"

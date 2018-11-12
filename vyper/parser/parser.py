@@ -125,13 +125,13 @@ def mk_full_signature(code):
 
     for code in global_ctx._events:
         sig = EventSignature.from_declaration(code, custom_units=global_ctx._custom_units)
-        o.append(sig.to_abi_dict())
+        o.append(sig.to_abi_dict(global_ctx._custom_units_descriptions))
     for code in global_ctx._defs:
         sig = FunctionSignature.from_definition(code, sigs=global_ctx._contracts, custom_units=global_ctx._custom_units)
         if not sig.private:
             default_sigs = generate_default_arg_sigs(code, global_ctx._contracts, global_ctx._custom_units)
             for s in default_sigs:
-                o.append(s.to_abi_dict())
+                o.append(s.to_abi_dict(global_ctx._custom_units_descriptions))
     return o
 
 
