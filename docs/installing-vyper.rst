@@ -57,6 +57,12 @@ Run the following commands to install:
    ::
        sudo apt-get install python3-dev
 
+Arch
+-----
+Using your aur helper of choice (`yay` here).
+::
+    yay -S vyper
+
 MacOS
 -----
 Make sure you have Homebrew installed. If you don't have the `brew` command
