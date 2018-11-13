@@ -13,8 +13,13 @@ def testConvertBytes32(flag: bool) -> bytes32:
     """
 
     c = get_contract_with_gas_estimation(exp_code)
-    assert c.testConvertBytes32(False) == b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
-    assert c.testConvertBytes32(True) == b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01"
+    falseBytes = c.testConvertBytes32(False)
+    assert falseBytes[31:32] == b'\x00'
+    assert len(falseBytes) == 32
+
+    trueBytes = c.testConvertBytes32(True)
+    assert trueBytes[31:32] == b'\x01'
+    assert len(trueBytes) == 32
 
 
 def test_test_bytes(get_contract_with_gas_estimation, assert_tx_failed):
