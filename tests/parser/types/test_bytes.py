@@ -4,6 +4,19 @@ from vyper.exceptions import (
 )
 
 
+def test_convert_from_bool(get_contract_with_gas_estimation):
+    exp_code = """
+@public
+def testConvertBytes32(flag: bool) -> bytes32:
+    flagBytes: bytes32 = convert(flag, bytes32)
+    return flagBytes
+    """
+
+    c = get_contract_with_gas_estimation(exp_code)
+    assert c.testConvertBytes32(False) == b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+    assert c.testConvertBytes32(True) == b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01"
+
+
 def test_test_bytes(get_contract_with_gas_estimation, assert_tx_failed):
     test_bytes = """
 @public

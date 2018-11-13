@@ -47,7 +47,7 @@ Rounds a decimal up to the nearest integer.
   def convert(a, b) -> c:
     """
     :param a: value to convert
-    :type a: either decimal, int128, uint256 or bytes32
+    :type a: either bool, decimal, int128, uint256 or bytes32
     :param b: the destination type to convert to
     :type b: type of either decimal, int128, uint256 or bytes32
 

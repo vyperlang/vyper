@@ -2,6 +2,19 @@ from vyper.exceptions import TypeMismatchException, InvalidLiteralException
 from decimal import Decimal
 
 
+def test_convert_from_bool(get_contract_with_gas_estimation):
+    exp_code = """
+@public
+def testConvertInt128(flag: bool) -> int128:
+    flagInt: int128 = convert(flag, int128)
+    return flagInt
+    """
+
+    c = get_contract_with_gas_estimation(exp_code)
+    assert c.testConvertInt128(False) == 0
+    assert c.testConvertInt128(True) == 1
+
+
 def test_exponents_with_nums(get_contract_with_gas_estimation):
     exp_code = """
 @public

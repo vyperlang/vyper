@@ -1,5 +1,17 @@
 # from ethereum.abi import ValueOutOfBounds
 
+def test_convert_from_bool(get_contract_with_gas_estimation):
+    exp_code = """
+@public
+def testConvertUInt256(flag: bool) -> uint256:
+    flagUInt: uint256 = convert(flag, uint256)
+    return flagUInt
+    """
+
+    c = get_contract_with_gas_estimation(exp_code)
+    assert c.testConvertUInt256(False) == 0
+    assert c.testConvertUInt256(True) == 1
+
 
 def test_uint256_code(assert_tx_failed, get_contract_with_gas_estimation):
     uint256_code = """
