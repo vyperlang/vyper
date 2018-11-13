@@ -81,7 +81,7 @@ class EventSignature():
         event_id = bytes_to_int(sha3(bytes(sig, 'utf-8')))
         return cls(name, args, indexed_list, event_id, sig)
 
-    def to_abi_dict(self, custom_units_descriptions={}):
+    def to_abi_dict(self, custom_units_descriptions=None):
         abi_dict = {
             "name": self.name,
             "inputs": [{

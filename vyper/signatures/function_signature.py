@@ -139,7 +139,7 @@ class FunctionSignature():
         method_id = fourbytes_to_int(sha3(bytes(sig, 'utf-8'))[:4])
         return cls(name, args, output_type, const, payable, private, sig, method_id, custom_units)
 
-    def _generate_output_abi(self, custom_units_descriptions={}):
+    def _generate_output_abi(self, custom_units_descriptions=None):
         t = self.output_type
         if not t:
             return []
@@ -155,7 +155,7 @@ class FunctionSignature():
 
         return abi_outputs
 
-    def to_abi_dict(self, custom_units_descriptions={}):
+    def to_abi_dict(self, custom_units_descriptions=None):
         abi_dict = {
             "name": self.name,
             "outputs": self._generate_output_abi(custom_units_descriptions),

@@ -1,8 +1,3 @@
-from decimal import Decimal
-
-from vyper.exceptions import TypeMismatchException, EventDeclarationException
-
-
 def test_function_with_units(get_contract_with_gas_estimation):
     code = """
 units: {
@@ -21,55 +16,22 @@ def bar(a: uint256(m), b: uint256(m), c: uint256(m)) -> uint256(m**3):
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c._classic_contract.abi == [{
-        "name": "foo",
-        "outputs": [{
-            "type": "uint256",
-            "name": "out",
-            "unit": "Newton-Meter per Second squared"
-        }],
-        "inputs": [{
-            "type": "uint256",
-            "name": "f",
-            "unit": "Newton"
-        }, {
-            "type": "uint256",
-            "name": "d",
-            "unit": "Meter"
-        }, {
-            "type": "uint256",
-            "name": "t",
-            "unit": "Second"
-        }],
-        "constant": False,
-        "payable": False,
-        "type": "function",
-        "gas": 1069
-    }, {
-        "name": "bar",
-        "outputs": [{
-            "type": "uint256",
-            "name": "out",
-            "unit": "Meter**3"
-        }],
-        "inputs": [{
-            "type": "uint256",
-            "name": "a",
-            "unit": "Meter"
-        }, {
-            "type": "uint256",
-            "name": "b",
-            "unit": "Meter"
-        }, {
-            "type": "uint256",
-            "name": "c",
-            "unit": "Meter"
-        }],
-        "constant": False,
-        "payable": False,
-        "type": "function",
-        "gas": 1381
-    }]
+    assert c._classic_contract.abi[0]["outputs"] == [
+        {"type": "uint256", "name": "out", "unit": "Newton-Meter per Second squared"}
+    ]
+    assert c._classic_contract.abi[0]["inputs"] == [
+        {"type": "uint256", "name": "f", "unit": "Newton"},
+        {"type": "uint256", "name": "d", "unit": "Meter"},
+        {"type": "uint256", "name": "t", "unit": "Second"},
+    ]
+    assert c._classic_contract.abi[1]["outputs"] == [
+        {"type": "uint256", "name": "out", "unit": "Meter**3"}
+    ]
+    assert c._classic_contract.abi[1]["inputs"] == [
+        {"type": "uint256", "name": "a", "unit": "Meter"},
+        {"type": "uint256", "name": "b", "unit": "Meter"},
+        {"type": "uint256", "name": "c", "unit": "Meter"},
+    ]
 
 
 def test_event_with_units(get_contract_with_gas_estimation):
@@ -83,17 +45,14 @@ Speed: event({value: uint256(m/s)})
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c._classic_contract.abi == [{
-        "name": "Speed",
-        "inputs": [{
+    assert c._classic_contract.abi[0]["inputs"] == [
+        {
             "type": "uint256",
             "name": "value",
             "indexed": False,
-            "unit": "Meter per Second"
-        }],
-        "anonymous": False,
-        "type": "event"
-    }]
+            "unit": "Meter per Second",
+        }
+    ]
 
 
 def test_function_with_tuple_output(get_contract_with_gas_estimation):
@@ -109,31 +68,15 @@ def foo(t: uint256(s), d: uint256(m)) -> (uint256(m), uint256(s)):
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c._classic_contract.abi == [{
-        "name": "foo",
-        "outputs": [{
-            "type": "uint256",
-            "name": "out",
-            "unit": "Meter"
-        }, {
-            "type": "uint256",
-            "name": "out",
-            "unit": "Second"
-        }],
-        "inputs": [{
-            "type": "uint256",
-            "name": "t",
-            "unit": "Second"
-        }, {
-            "type": "uint256",
-            "name": "d",
-            "unit": "Meter"
-        }],
-        "constant": False,
-        "payable": False,
-        "type": "function",
-        "gas": 391
-    }]
+    assert c._classic_contract.abi[0]["outputs"] == [
+        {"type": "uint256", "name": "out", "unit": "Meter"},
+        {"type": "uint256", "name": "out", "unit": "Second"},
+    ]
+
+    assert c._classic_contract.abi[0]["inputs"] == [
+        {"type": "uint256", "name": "t", "unit": "Second"},
+        {"type": "uint256", "name": "d", "unit": "Meter"},
+    ]
 
 
 def test_function_without_units(get_contract_with_gas_estimation):
@@ -145,24 +88,9 @@ def foo(a: uint256, b: uint256, c: uint256) -> uint256:
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c._classic_contract.abi == [{
-        "name": "foo",
-        "outputs": [{
-            "type": "uint256",
-            "name": "out"
-        }],
-        "inputs": [{
-            "type": "uint256",
-            "name": "a"
-        }, {
-            "type": "uint256",
-            "name": "b"
-        }, {
-            "type": "uint256",
-            "name": "c"
-        }],
-        "constant": False,
-        "payable": False,
-        "type": "function",
-        "gas": 655
-    }]
+    assert c._classic_contract.abi[0]["outputs"] == [{"type": "uint256", "name": "out"}]
+    assert c._classic_contract.abi[0]["inputs"] == [
+        {"type": "uint256", "name": "a"},
+        {"type": "uint256", "name": "b"},
+        {"type": "uint256", "name": "c"},
+    ]

@@ -20,7 +20,7 @@ def unit_from_type(typ):
 
 # Pretty-print a unit (e. g. m/s)
 # if unit_descriptions is provided humanizes it (e. g. Meter per Second)
-def print_unit(unit, unit_descriptions={}):
+def print_unit(unit, unit_descriptions=None):
     def humanize_power(power):
         if unit_descriptions and power == 2:
             return ' squared'
@@ -30,7 +30,8 @@ def print_unit(unit, unit_descriptions={}):
     def humanize_unit(unit_key):
         try:
             return unit_descriptions[unit_key]
-        except KeyError:
+        except (TypeError, KeyError):
+            # unit_descriptions is None or missing unit_key
             return unit_key
 
     if unit_descriptions:
