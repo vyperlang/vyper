@@ -476,3 +476,30 @@ def a() -> bool:
     c2 = get_contract(code2)
     assert c1.a() is True
     assert c2.a() is True
+
+
+def test_private_nested_if_return(get_contract):
+    code = """
+
+@private
+def _test(z: int128) -> bool:
+    y: int128 = 1
+
+    if (z <= 0):
+        return True
+    else:
+        y = 2
+
+    return False
+
+
+@public
+def test(z: int128) -> bool:
+    return self._test(z)
+    """
+
+    c = get_contract(code)
+
+    assert c.test(-1) is True
+    assert c.test(0) is True
+    assert c.test(1) is False
