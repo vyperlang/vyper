@@ -11,8 +11,36 @@ from vyper.utils import (
 )
 
 
-# Pretty-print a unit (e.g. wei/seconds**2)
-def print_unit(unit):
+def unit_from_type(typ):
+    try:
+        return typ.unit
+    except AttributeError:
+        return {}
+
+
+# Pretty-print a unit (e. g. m/s)
+# if unit_descriptions is provided humanizes it (e. g. Meter per Second)
+def print_unit(unit, unit_descriptions=None):
+    def humanize_power(power):
+        if unit_descriptions and power == 2:
+            return ' squared'
+        else:
+            return '**' + str(power)
+
+    def humanize_unit(unit_key):
+        try:
+            return unit_descriptions[unit_key]
+        except (TypeError, KeyError):
+            # unit_descriptions is None or missing unit_key
+            return unit_key
+
+    if unit_descriptions:
+        mul = '-'
+        div = ' per '
+    else:
+        mul = '*'
+        div = '/'
+
     if unit is None:
         return '*'
     if not isinstance(unit, dict):
@@ -20,21 +48,30 @@ def print_unit(unit):
     pos = ''
     for k in sorted([x for x in unit.keys() if unit[x] > 0]):
         if unit[k] > 1:
-            pos += '*' + k + '**' + str(unit[k])
+            pos += mul + humanize_unit(k) + humanize_power(unit[k])
         else:
-            pos += '*' + k
+            pos += mul + humanize_unit(k)
     neg = ''
     for k in sorted([x for x in unit.keys() if unit[x] < 0]):
         if unit[k] < -1:
-            neg += '/' + k + '**' + str(-unit[k])
+            neg += div + humanize_unit(k) + humanize_power(-unit[k])
         else:
-            neg += '/' + k
+            neg += div + humanize_unit(k)
     if pos and neg:
         return pos[1:] + neg
     elif neg:
         return '1' + neg
     else:
         return pos[1:]
+
+
+def delete_unit_if_empty(abi_dict):
+    try:
+        if not abi_dict['unit']:
+            del abi_dict['unit']
+    except KeyError:
+        # unit is already removed
+        pass
 
 
 # Multiply or divide two units by each other
