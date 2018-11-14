@@ -1,5 +1,6 @@
 # from ethereum.abi import ValueOutOfBounds
 
+
 def test_convert_from_bool(get_contract_with_gas_estimation):
     exp_code = """
 @public
