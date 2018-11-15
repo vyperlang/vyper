@@ -15,10 +15,20 @@ def foo(bar: bytes[5]) -> uint256:
     assert c.foo(b'\x00\x00\x00\x00\x00') == 0
     assert c.foo(b'\x00\x07\x5B\xCD\x15') == 123456789
 
+    test_success = """
+@public
+def foo(bar: bytes[32]) -> uint256:
+    return convert(bar, uint256)
+    """
+
+    c = get_contract_with_gas_estimation(test_success)
+    assert c.foo(b'\x00' * 32) == 0
+    assert c.foo(b'\xff' * 32) == ((2**256) - 1)
+
     # Test overflow bytes input for conversion
     test_fail = """
 @public
-def foo(bar: bytes[40]) -> uint256:
+def foo(bar: bytes[33]) -> uint256:
     return convert(bar, uint256)
     """
 
