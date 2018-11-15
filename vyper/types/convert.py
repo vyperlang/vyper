@@ -42,7 +42,7 @@ def to_int128(expr, args, kwargs, context):
         return byte_array_to_num(in_node, expr, 'int128')
 
 
-@signature(('num_literal', 'int128', 'bytes32', 'address'), '*')
+@signature(('num_literal', 'int128', 'bytes32', 'bytes', 'address'), '*')
 def to_uint256(expr, args, kwargs, context):
     in_node = args[0]
     input_type, len = get_type(in_node)
@@ -59,6 +59,9 @@ def to_uint256(expr, args, kwargs, context):
 
     elif isinstance(in_node, LLLnode) and input_type in ('bytes32', 'address'):
         return LLLnode(value=in_node.value, args=in_node.args, typ=BaseType('uint256'), pos=getpos(expr))
+
+    elif isinstance(in_node, LLLnode) and input_type is 'bytes':
+        return byte_array_to_num(in_node, expr, 'uint256')
 
     else:
         raise InvalidLiteralException("Invalid input for uint256: %r" % in_node, expr)

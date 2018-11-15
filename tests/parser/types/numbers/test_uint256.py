@@ -1,6 +1,18 @@
 # from ethereum.abi import ValueOutOfBounds
 
 
+def test_convert_bytes_to_uint256(get_contract_with_gas_estimation):
+    test_contract = """
+@public
+def foo(bar: bytes[5]) -> uint256:
+    return convert(bar, uint256)
+    """
+
+    c = get_contract_with_gas_estimation(test_contract)
+    assert c.foo(b'\x00\x00\x00\x00\x00') == 0
+    assert c.foo(b'\x00\x07\x5B\xCD\x15') == 123456789
+
+
 def test_uint256_code(assert_tx_failed, get_contract_with_gas_estimation):
     uint256_code = """
 @public
