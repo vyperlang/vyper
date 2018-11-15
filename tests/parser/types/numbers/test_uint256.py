@@ -1,16 +1,43 @@
-# from ethereum.abi import ValueOutOfBounds
+from vyper.exceptions import (
+    InvalidLiteralException
+)
 
 
-def test_convert_bytes_to_uint256(get_contract_with_gas_estimation):
-    test_contract = """
+def test_convert_bytes_to_uint256(assert_compile_failed, get_contract_with_gas_estimation):
+    # Test valid bytes input for conversion
+    test_success = """
 @public
 def foo(bar: bytes[5]) -> uint256:
     return convert(bar, uint256)
     """
 
-    c = get_contract_with_gas_estimation(test_contract)
+    c = get_contract_with_gas_estimation(test_success)
     assert c.foo(b'\x00\x00\x00\x00\x00') == 0
     assert c.foo(b'\x00\x07\x5B\xCD\x15') == 123456789
+
+    # Test overflow bytes input for conversion
+    test_fail = """
+@public
+def foo(bar: bytes[40]) -> uint256:
+    return convert(bar, uint256)
+    """
+
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(test_fail),
+        InvalidLiteralException
+    )
+
+    test_fail = """
+@public
+def foobar() -> uint256:
+    barfoo: bytes[63] = "Hello darkness, my old friend I've come to talk with you again."
+    return convert(barfoo, uint256)
+    """
+
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(test_fail),
+        InvalidLiteralException
+    )
 
 
 def test_uint256_code(assert_tx_failed, get_contract_with_gas_estimation):
