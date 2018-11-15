@@ -2,6 +2,43 @@ from vyper.exceptions import TypeMismatchException, InvalidLiteralException
 from decimal import Decimal
 
 
+def test_convert_bytes_to_int128(assert_compile_failed, get_contract_with_gas_estimation):
+    # Test valid bytes input for conversion
+    test_success = """
+@public
+def foo(bar: bytes[5]) -> int128:
+    return convert(bar, int128)
+    """
+
+    c = get_contract_with_gas_estimation(test_success)
+    assert c.foo(b'\x00\x00\x00\x00\x00') == 0
+    assert c.foo(b'\x00\x07\x5B\xCD\x15') == 123456789
+
+    # Test overflow bytes input for conversion
+    test_fail = """
+@public
+def foo(bar: bytes[40]) -> int128:
+    return convert(bar, int128)
+    """
+
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(test_fail),
+        InvalidLiteralException
+    )
+
+    test_fail = """
+@public
+def foobar() -> int128:
+    barfoo: bytes[63] = "Hello darkness, my old friend I've come to talk with you again."
+    return convert(barfoo, int128)
+    """
+
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(test_fail),
+        InvalidLiteralException
+    )
+
+
 def test_exponents_with_nums(get_contract_with_gas_estimation):
     exp_code = """
 @public

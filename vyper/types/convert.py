@@ -30,16 +30,21 @@ from vyper.utils import (
 @signature(('uint256', 'bytes32', 'bytes'), '*')
 def to_int128(expr, args, kwargs, context):
     in_node = args[0]
-    typ, len = get_type(in_node)
-    if typ in ('uint256', 'bytes32'):
+    input_type, len = get_type(in_node)
+    if input_type in ('uint256', 'bytes32'):
         if in_node.typ.is_literal and not SizeLimits.in_bounds('int128', in_node.value):
             raise InvalidLiteralException("Number out of range: {}".format(in_node.value), expr)
         return LLLnode.from_list(
             ['clamp', ['mload', MemoryPositions.MINNUM], in_node,
                         ['mload', MemoryPositions.MAXNUM]], typ=BaseType('int128', in_node.typ.unit), pos=getpos(expr)
         )
-    else:
+    elif input_type is 'bytes':
+        if in_node.typ.maxlen > 32:
+            raise InvalidLiteralException("Cannot convert bytes array of max length {} to int128".format(in_node.value), expr)
         return byte_array_to_num(in_node, expr, 'int128')
+
+    else:
+        raise InvalidLiteralException("Invalid input for int128: %r" % in_node, expr)
 
 
 @signature(('num_literal', 'int128', 'bytes32', 'address'), '*')
