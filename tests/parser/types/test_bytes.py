@@ -20,8 +20,8 @@ def testConvertBytes32(flag: bool) -> bytes32:
     trueBytes = c.testConvertBytes32(True)
     assert trueBytes[31:32] == b'\x01'
     assert len(trueBytes) == 32
-    
-    
+
+
 def test_address_bytes_converstion(get_contract_with_gas_estimation):
     # Shared values for test addresses and bytes
     test_address = "0xF5D4020dCA6a62bB1efFcC9212AAF3c9819E30D7"
