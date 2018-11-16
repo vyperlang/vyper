@@ -32,37 +32,6 @@ def uniq(seq):
     return [x for x in seq if not (x in exists or exists.add(x))]
 
 
-def get_asm(asm_list):
-    output_string = ''
-    skip_newlines = 0
-    for node in asm_list:
-        if isinstance(node, list):
-            output_string += get_asm(node)
-            continue
-
-        is_push = isinstance(node, str) and node.startswith('PUSH')
-
-        output_string += str(node) + ' '
-        if skip_newlines:
-            skip_newlines -= 1
-        elif is_push:
-            skip_newlines = int(node[4:]) - 1
-        else:
-            output_string += '\n'
-    return output_string
-
-
-def get_source_map(code):
-    asm_list = compile_lll.compile_to_assembly(optimizer.optimize(parse_to_lll(code, runtime_only=True)))
-    c, line_number_map = compile_lll.assembly_to_evm(asm_list)
-    # Sort line_number_map
-    out = OrderedDict()
-    keylist = line_number_map.keys()
-    for k in sorted(keylist):
-        out[k] = line_number_map[k]
-    return json.dumps(out)
-
-
 def get_source_map_asm_list(code):
     line_no_width = 6
     asm_list = compile_lll.compile_to_assembly(optimizer.optimize(parse_to_lll(code, runtime_only=True)))
