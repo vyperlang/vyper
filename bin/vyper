@@ -6,11 +6,8 @@ import sys
 import vyper
 import warnings
 
-from collections import OrderedDict
-from vyper import compiler, optimizer
-from vyper.parser.parser import parse_to_lll
-from vyper.parser import parser_utils
-from vyper import compile_lll
+from vyper import compiler
+
 
 warnings.simplefilter('always')
 sys.tracebacklimit = 0
@@ -20,7 +17,7 @@ if tb_limit:
 
 parser = argparse.ArgumentParser(description='Vyper programming language for Ethereum')
 parser.add_argument('--version', action='version', version='{0}'.format(vyper.__version__))
-parser.add_argument('input_file', help='Vyper sourcecode to compile')
+parser.add_argument('input_files', help='Vyper sourcecode to compile', nargs='+')
 parser.add_argument('-f', help='Format to print', default='bytecode', dest='format')
 parser.add_argument('--show-gas-estimates', help='Show gas estimates in ir output mode.', action="store_true")
 
@@ -32,40 +29,39 @@ def uniq(seq):
     return [x for x in seq if not (x in exists or exists.add(x))]
 
 
-def get_source_map_asm_list(code):
-    line_no_width = 6
-    asm_list = compile_lll.compile_to_assembly(optimizer.optimize(parse_to_lll(code, runtime_only=True)))
-    for node in asm_list:
-        line_no = ''
-        if isinstance(node, compile_lll.instruction):
-            line_no = node.lineno or ''
-
-        print('{}{}'.format(
-            str(line_no).ljust(line_no_width),
-            node
-        ))
-
-
 if __name__ == '__main__':
 
-    output_format = {}
-    output_format['abi_python'] = lambda code: compiler.mk_full_signature(code)
-    output_format['abi'] = lambda code: json.dumps(compiler.mk_full_signature(code))
-    output_format['json'] = output_format['abi']  # for backwards compatibility
-    output_format['bytecode'] = lambda code: '0x' + compiler.compile(code).hex()
-    output_format['bytecode_runtime'] = lambda code: '0x' + compiler.compile(code, bytecode_runtime=True).hex()
-    output_format['ir'] = lambda code: optimizer.optimize(parse_to_lll(code))
-    output_format['asm'] = lambda code: get_asm(compile_lll.compile_to_assembly(optimizer.optimize(parse_to_lll(code))))
-    output_format['source_map'] = get_source_map
-    output_format['source_map_asm_list'] = get_source_map_asm_list
+    if args.show_gas_estimates:
+        parser_utils.LLLnode.repr_show_gas = True
 
-    with open(args.input_file) as fh:
-        code = fh.read()
+    codes = {}
+    for file_name in args.input_files:
+        with open(file_name) as fh:
+            codes[file_name] = fh.read()
 
-        if args.show_gas_estimates:
-            parser_utils.LLLnode.repr_show_gas = True
+    # Combined json output
+    if args.format == 'combined_json':
+        out = compiler.compile(codes, ['bytecode', 'bytecode_runtime', 'abi', 'source_map'], output_type='dict')
+        print(json.dumps(out))
 
-        for i in uniq(args.format.split(',')):
-            if i not in output_format:
-                print('Format {} option not supported, use any csv list of {}.'.format(i, ','.join(output_format.keys())))
-            print(output_format[i](code))
+    else:  # Normal output.
+        translate_map = {
+            'abi_python': 'abi',
+            'json': 'abi'
+        }
+        formats = []
+        for f in uniq(args.format.split(',')):
+            formats.append(translate_map.get(f, f))
+
+        out_list = compiler.compile(codes, formats, output_type='list')
+        for out in out_list:
+            for f in formats:
+                o = out[f]
+                if f in ('abi', 'json'):
+                    print(json.dumps(o))
+                elif f == 'abi_python':
+                    print(o)
+                elif f == 'source_map':
+                    print(json.dumps(o))
+                else:
+                    print(o)
