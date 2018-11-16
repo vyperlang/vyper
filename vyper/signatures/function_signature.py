@@ -11,6 +11,9 @@ from vyper.types import (
     canonicalize_type,
     get_size_of_type,
     parse_type,
+    print_unit,
+    unit_from_type,
+    delete_unit_if_empty,
     TupleType
 )
 from vyper.utils import (
@@ -136,27 +139,40 @@ class FunctionSignature():
         method_id = fourbytes_to_int(sha3(bytes(sig, 'utf-8'))[:4])
         return cls(name, args, output_type, const, payable, private, sig, method_id, custom_units)
 
-    def _generate_output_abi(self):
+    def _generate_output_abi(self, custom_units_descriptions=None):
         t = self.output_type
-
         if not t:
             return []
         elif isinstance(t, TupleType):
-            res = [canonicalize_type(x) for x in t.members]
+            res = [(canonicalize_type(x), print_unit(unit_from_type(x), custom_units_descriptions)) for x in t.members]
         else:
-            res = [canonicalize_type(t)]
+            res = [(canonicalize_type(t), print_unit(unit_from_type(t), custom_units_descriptions))]
 
-        return [{"type": x, "name": "out"} for x in res]
+        abi_outputs = [{"type": x, "name": "out", "unit": unit} for x, unit in res]
 
-    def to_abi_dict(self):
-        return {
+        for abi_output in abi_outputs:
+            delete_unit_if_empty(abi_output)
+
+        return abi_outputs
+
+    def to_abi_dict(self, custom_units_descriptions=None):
+        abi_dict = {
             "name": self.name,
-            "outputs": self._generate_output_abi(),
-            "inputs": [{"type": canonicalize_type(arg.typ), "name": arg.name} for arg in self.args],
+            "outputs": self._generate_output_abi(custom_units_descriptions),
+            "inputs": [{
+                "type": canonicalize_type(arg.typ),
+                "name": arg.name,
+                "unit": print_unit(unit_from_type(arg.typ), custom_units_descriptions)
+            } for arg in self.args],
             "constant": self.const,
             "payable": self.payable,
             "type": "constructor" if self.name == "__init__" else "function"
         }
+
+        for abi_input in abi_dict['inputs']:
+            delete_unit_if_empty(abi_input)
+
+        return abi_dict
 
     @classmethod
     def lookup_sig(cls, sigs, method_name, expr_args, stmt_or_expr, context):

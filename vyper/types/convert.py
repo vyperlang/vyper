@@ -110,6 +110,13 @@ def to_bytes32(expr, args, kwargs, context):
         return LLLnode(value=in_arg.value, args=in_arg.args, typ=BaseType('bytes32'), pos=getpos(expr))
 
 
+@signature(('bytes32'), '*')
+def to_address(expr, args, kwargs, context):
+    in_arg = args[0]
+
+    return LLLnode(value=in_arg.value, args=in_arg.args, typ=BaseType('address'), pos=getpos(expr))
+
+
 def convert(expr, context):
 
     if isinstance(expr.args[1], ast.Str):
@@ -135,4 +142,5 @@ conversion_table = {
     'uint256': to_uint256,
     'decimal': to_decimal,
     'bytes32': to_bytes32,
+    'address': to_address,
 }

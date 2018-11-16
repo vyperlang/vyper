@@ -481,7 +481,7 @@ class Stmt(object):
         if self.context.return_type is None:
             if self.stmt.value:
                 raise TypeMismatchException("Not expecting to return a value", self.stmt)
-            return LLLnode.from_list(self.make_return_stmt(0, 0), typ=None, pos=getpos(self.stmt))
+            return LLLnode.from_list(self.make_return_stmt(0, 0), typ=None, pos=getpos(self.stmt), valency=0)
         if not self.stmt.value:
             raise TypeMismatchException("Expecting to return a value", self.stmt)
 
@@ -511,10 +511,10 @@ class Stmt(object):
                 if not SizeLimits.in_bounds(self.context.return_type.typ, sub.value):
                     raise InvalidLiteralException("Number out of range: " + str(sub.value), self.stmt)
                 else:
-                    return LLLnode.from_list(['seq', ['mstore', 0, sub], self.make_return_stmt(0, 32)], typ=None, pos=getpos(self.stmt))
+                    return LLLnode.from_list(['seq', ['mstore', 0, sub], self.make_return_stmt(0, 32)], typ=None, pos=getpos(self.stmt), valency=0)
             elif is_base_type(sub.typ, self.context.return_type.typ) or \
                     (is_base_type(sub.typ, 'int128') and is_base_type(self.context.return_type, 'int256')):
-                return LLLnode.from_list(['seq', ['mstore', 0, sub], self.make_return_stmt(0, 32)], typ=None, pos=getpos(self.stmt))
+                return LLLnode.from_list(['seq', ['mstore', 0, sub], self.make_return_stmt(0, 32)], typ=None, pos=getpos(self.stmt), valency=0)
             else:
                 raise TypeMismatchException("Unsupported type conversion: %r to %r" % (sub.typ, self.context.return_type), self.stmt.value)
         # Returning a byte array
@@ -540,7 +540,7 @@ class Stmt(object):
                     zero_pad(bytez_placeholder, sub.typ.maxlen),
                     ['mstore', len_placeholder, 32],
                     self.make_return_stmt(len_placeholder, ['ceil32', ['add', ['mload', bytez_placeholder], 64]], loop_memory_position=loop_memory_position)],
-                    typ=None, pos=getpos(self.stmt)
+                    typ=None, pos=getpos(self.stmt), valency=0
                 )
             else:
                 raise Exception("Invalid location: %s" % sub.location)
@@ -558,7 +558,7 @@ class Stmt(object):
                 )
             elif sub.location == "memory" and sub.value != "multi":
                 return LLLnode.from_list(self.make_return_stmt(sub, get_size_of_type(self.context.return_type) * 32, loop_memory_position=loop_memory_position),
-                                            typ=None, pos=getpos(self.stmt))
+                                            typ=None, pos=getpos(self.stmt), valency=0)
             else:
                 new_sub = LLLnode.from_list(self.context.new_placeholder(self.context.return_type), typ=self.context.return_type, location='memory')
                 setter = make_setter(new_sub, sub, 'memory', pos=getpos(self.stmt))
@@ -602,7 +602,7 @@ class Stmt(object):
                     zero_padder = zero_pad(bytez_placeholder=['add', mem_pos, ['mload', mem_pos + i * 32]], maxlen=x.maxlen)
                 return LLLnode.from_list(
                     ['seq'] + [sub] + [zero_padder] + [self.make_return_stmt(mem_pos, mem_size)
-                ], typ=sub.typ, pos=getpos(self.stmt))
+                ], typ=sub.typ, pos=getpos(self.stmt), valency=0)
 
             subs = []
             # Pre-allocate loop_memory_position if required for private function returning.
@@ -660,7 +660,7 @@ class Stmt(object):
                 ['seq',
                     setter,
                     self.make_return_stmt(new_sub, get_dynamic_offset_value(), loop_memory_position)],
-                typ=None, pos=getpos(self.stmt)
+                typ=None, pos=getpos(self.stmt), valency=0
             )
         else:
             raise TypeMismatchException("Can only return base type!", self.stmt)

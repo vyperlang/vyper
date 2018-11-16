@@ -335,7 +335,7 @@ def foo():
                    {'type': 'bytes', 'name': 'arg3', 'indexed': False},
                    {'type': 'address', 'name': 'arg4', 'indexed': False},
                    {'type': 'address', 'name': 'arg5', 'indexed': False},
-                   {'type': 'uint256', 'name': 'arg6', 'indexed': False}],
+                   {'type': 'uint256', 'name': 'arg6', 'indexed': False, 'unit': 'sec'}],
         'anonymous': False,
         'type': 'event'
     }
