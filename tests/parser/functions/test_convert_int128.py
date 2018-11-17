@@ -1,4 +1,16 @@
 
+def test_convert_from_bool(get_contract_with_gas_estimation):
+    code = """
+@public
+def from_bool(flag: bool) -> int128:
+    flagInt: int128 = convert(flag, int128)
+    return flagInt
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.from_bool(False) == 0
+    assert c.from_bool(True) == 1
+
 
 def test_convert_bytes32_to_num_overflow(assert_tx_failed, get_contract_with_gas_estimation):
     code = """
