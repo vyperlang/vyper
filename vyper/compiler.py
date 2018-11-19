@@ -92,7 +92,10 @@ output_formats_map = {
 }
 
 
-def compile(codes, output_formats, output_type):
+def compile(codes, output_formats=['bytecode'], output_type='list'):
+
+    if isinstance(codes, str):
+        codes = {'': codes}
 
     out = OrderedDict()
     for contract_name, code in codes.items():

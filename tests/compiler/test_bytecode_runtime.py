@@ -8,8 +8,7 @@ def a() -> bool:
     return True
     """
 
-    bytecode = compiler.compile(code)
-    bytecode_runtime = compiler.compile(code, bytecode_runtime=True)
+    out = compiler.compile({'': code}, ['bytecode_runtime', 'bytecode'], output_type='list')[0]
 
-    assert len(bytecode) > len(bytecode_runtime)
-    assert bytecode_runtime in bytecode
+    assert len(out['bytecode']) > len(out['bytecode_runtime'])
+    assert out['bytecode_runtime'][2:] in out['bytecode'][2:]
