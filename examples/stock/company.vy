@@ -14,7 +14,7 @@ totalShares: public(uint256(currency_value))
 price: public(uint256 (wei / currency_value))
 
 # Store a ledger of stockholder holdings.
-holdings: uint256(currency_value)[address]
+holdings: map(address, uint256(currency_value))
 
 # Set up the company.
 @public

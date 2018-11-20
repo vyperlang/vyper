@@ -105,42 +105,42 @@ def foo():
 """, TypeMismatchException)
 
 must_succeed("""
-b: int128[int128]
+b: map(int128, int128)
 @public
 def foo():
     x: int128 = self.b[5]
 """)
 
 must_fail("""
-b: int128[int128]
+b: map(int128, int128)
 @public
 def foo():
     x: int128 = self.b[5.7]
 """, TypeMismatchException)
 
 must_succeed("""
-b: int128[decimal]
+b: map(decimal, int128)
 @public
 def foo():
     x: int128 = self.b[5]
 """)
 
 must_fail("""
-b: int128[int128]
+b: map(int128, int128)
 @public
 def foo():
     self.b[3] = 5.6
 """, TypeMismatchException)
 
 must_succeed("""
-b: int128[int128]
+b: map(int128, int128)
 @public
 def foo():
     self.b[3] = -5
 """)
 
 must_succeed("""
-b: int128[int128]
+b: map(int128, int128)
 @public
 def foo():
     self.b[-3] = 5

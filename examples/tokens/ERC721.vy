@@ -51,17 +51,16 @@ ApprovalForAll: event({
 
 
 # @dev Mapping from NFT ID to the address that owns it.
-idToOwner: address[uint256]
+idToOwner: map(uint256, address)
 
 # @dev Mapping from NFT ID to approved address.
-idToApprovals: address[uint256]
+idToApprovals: map(uint256, address)
 
 # @dev Mapping from owner address to count of his tokens.
-ownerToNFTokenCount: uint256[address]
+ownerToNFTokenCount: map(address, uint256)
 
 # @dev Mapping from owner address to mapping of operator addresses.
-ownerToOperators: (bool[address])[address]
-
+ownerToOperators: map(address, map(address, bool))
 
 # @dev Contract constructor. Per the Transfer event spec; during contract creation, any number of
 #      NFTs may be created and assigned without emitting Transfer.

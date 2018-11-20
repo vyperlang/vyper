@@ -160,7 +160,7 @@ class MappingType(NodeType):
         return other.keytype == self.keytype and other.valuetype == self.valuetype
 
     def __repr__(self):
-        return repr(self.valuetype) + '[' + repr(self.keytype) + ']'
+        return 'map(' + repr(self.valuetype) + ', ' + repr(self.keytype) + ')'
 
 
 # Data structure for a struct, e.g. {a: <type>, b: <type>}
@@ -327,7 +327,7 @@ def parse_type(item, location, sigs=None, custom_units=None):
                 "Use map(type1, type2) instead.",
                 DeprecationWarning
             )
-            raise InvalidTypeException('Unknow list type.', item)
+            raise InvalidTypeException('Unknown list type.', item)
 
     # Dicts, used to represent mappings, e.g. {uint: uint}. Key must be a base type
     elif isinstance(item, ast.Dict):
