@@ -55,6 +55,7 @@ Following the principles and goals, Vyper **does not** provide the following fea
 Compatibility-breaking Changelog
 ********************************
 
+* **2018.11.19**: Change mapping syntax to use map(). (`VIP1026 <https://github.com/ethereum/vyper/issues/564>`_)
 * **2018.10.02**: Change the convert style to use types instead of string. (`VIP1026 <https://github.com/ethereum/vyper/issues/1026>`_)
 * **2018.09.24**: Add support for custom constants.
 * **2018.08.09**: Add support for default parameters.
