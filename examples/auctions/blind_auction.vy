@@ -37,13 +37,10 @@ def __init__(_beneficiary: address, _biddingTime: timedelta, _revealTime: timede
 
 
 # Place a blinded bid with:
-# if fake:
-#     fakeInt = 1
-# else:
-#     fakeInt = 0
+#
 # _blindedBid = sha3(concat(
 #       convert(value, bytes32),
-#       convert(fakeInt, bytes32),
+#       convert(fake, bytes32),
 #       secret)
 # )
 #
@@ -115,17 +112,10 @@ def reveal(_numBids: int128, _values: wei_value[128], _fakes: bool[128], _secret
         # Check against encoded packet
         value: wei_value = _values[i]
         fake: bool = _fakes[i]
-        # TODO: the block below can eventually be removed and boolean `fake`
-        # TODO: can just be used as input to convert function
-        fakeInt: int128
-        if fake:
-            fakeInt = 1
-        else:
-            fakeInt = 0
         secret: bytes32 = _secrets[i]
         blindedBid: bytes32 = sha3(concat(
             convert(value, bytes32),
-            convert(fakeInt, bytes32),
+            convert(fake, bytes32),
             secret
         ))
 
