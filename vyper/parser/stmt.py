@@ -97,17 +97,17 @@ class Stmt(object):
         if isinstance(self.stmt.annotation, ast.Call):  # unit style: num(wei)
             if self.stmt.annotation.func.id != sub.typ.typ and not sub.typ.is_literal:
                 raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.func.id, self.stmt)
-        elif isinstance(self.stmt.annotation, ast.Name):
+        elif isinstance(self.stmt.annotation, ast.Name) and self.stmt.annotation.id == 'bytes32':
             if isinstance(sub.typ, ByteArrayType):
                 if sub.typ.maxlen != 32:
-                    raise TypeMismatchException('Invalid type, expected: bytes32. String is incorrect length.')
+                    raise TypeMismatchException('Invalid type, expected: bytes32. String is incorrect length.', self.stmt)
                 return
             elif isinstance(sub.typ, BaseType):
                 if sub.typ.typ != 'bytes32':
-                    raise TypeMismatchException('Invalid type, expected: bytes32')
+                    raise TypeMismatchException('Invalid type, expected: bytes32', self.stmt)
                 return
             else:
-                raise TypeMismatchException('Invalid type, expected: bytes32')
+                raise TypeMismatchException('Invalid type, expected: bytes32', self.stmt)
         elif isinstance(self.stmt.annotation, ast.Dict):
             if not isinstance(sub.typ, StructType):
                 raise TypeMismatchException('Invalid type, expected a struct')
