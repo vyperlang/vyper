@@ -18,6 +18,6 @@ def foobar() -> bool:
     """
 
     c = get_contract_with_gas_estimation(code)
-    assert c.foo() == False
-    assert c.bar() == True
-    assert c.foobar() == False
+    assert c.foo() is False
+    assert c.bar() is True
+    assert c.foobar() is False
