@@ -15,9 +15,27 @@ def bar() -> bool:
 def foobar() -> bool:
     val: bool = False and True or False
     return val
+
+@public
+def oof() -> bool:
+    val: bool = False and True or False and True or False and False or True
+    return val
+
+@public
+def rab() -> bool:
+    val: bool = False and True or False and True or False and False
+    return val
+
+@public
+def oofrab() -> bool:
+    val: bool = True or False and True or False and False
+    return val
     """
 
     c = get_contract_with_gas_estimation(code)
     assert c.foo() is False
     assert c.bar() is True
     assert c.foobar() is False
+    assert c.oof() is True
+    assert c.rab() is False
+    assert c.oofrab() is True
