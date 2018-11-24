@@ -27,7 +27,7 @@ from vyper.utils import (
 )
 
 
-@signature(('uint256', 'bytes32', 'bytes'), '*')
+@signature(('uint256', 'bytes32', 'bytes', 'bool'), '*')
 def to_int128(expr, args, kwargs, context):
     in_node = args[0]
     input_type, len = get_type(in_node)
@@ -38,16 +38,23 @@ def to_int128(expr, args, kwargs, context):
             ['clamp', ['mload', MemoryPositions.MINNUM], in_node,
                         ['mload', MemoryPositions.MAXNUM]], typ=BaseType('int128', in_node.typ.unit), pos=getpos(expr)
         )
+    
     elif input_type is 'bytes':
         if in_node.typ.maxlen > 32:
             raise InvalidLiteralException("Cannot convert bytes array of max length {} to int128".format(in_node.value), expr)
-        return byte_array_to_num(in_node, expr, 'int128')
+        return byte_array_to_num(in_node, expr, 'int128')      
+          
+    elif typ is 'bool':
+        return LLLnode.from_list(
+            ['clamp', ['mload', MemoryPositions.MINNUM], in_node,
+                        ['mload', MemoryPositions.MAXNUM]], typ=BaseType('int128', in_node.typ.unit), pos=getpos(expr)
+        )
 
     else:
         raise InvalidLiteralException("Invalid input for int128: %r" % in_node, expr)
 
 
-@signature(('num_literal', 'int128', 'bytes32', 'address'), '*')
+@signature(('num_literal', 'int128', 'bytes32', 'address', 'bool'), '*')
 def to_uint256(expr, args, kwargs, context):
     in_node = args[0]
     input_type, len = get_type(in_node)
@@ -58,7 +65,7 @@ def to_uint256(expr, args, kwargs, context):
         _unit = in_node.typ.unit if input_type == 'int128' else None
         return LLLnode.from_list(in_node, typ=BaseType('uint256', _unit), pos=getpos(expr))
 
-    elif isinstance(in_node, LLLnode) and input_type in ('int128', 'num_literal'):
+    elif isinstance(in_node, LLLnode) and input_type in ('int128', 'num_literal', 'bool'):
         _unit = in_node.typ.unit if input_type == 'int128' else None
         return LLLnode.from_list(['clampge', in_node, 0], typ=BaseType('uint256', _unit), pos=getpos(expr))
 
@@ -85,7 +92,7 @@ def to_decimal(expr, args, kwargs, context):
         )
 
 
-@signature(('int128', 'uint256', 'address', 'bytes'), '*')
+@signature(('int128', 'uint256', 'address', 'bytes', 'bool'), '*')
 def to_bytes32(expr, args, kwargs, context):
     in_arg = args[0]
     typ, _len = get_type(in_arg)
