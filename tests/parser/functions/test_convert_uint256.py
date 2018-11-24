@@ -50,6 +50,19 @@ def foobar() -> uint256:
     )
 
 
+def test_convert_from_bool(get_contract_with_gas_estimation):
+    code = """
+@public
+def from_bool(flag: bool) -> uint256:
+    flagUInt: uint256 = convert(flag, uint256)
+    return flagUInt
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.from_bool(False) == 0
+    assert c.from_bool(True) == 1
+
+
 def test_convert_to_uint256_with_negative_num(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
 @public

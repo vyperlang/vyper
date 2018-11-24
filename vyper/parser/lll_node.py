@@ -47,7 +47,7 @@ class NullAttractor():
 class LLLnode():
     repr_show_gas = False
 
-    def __init__(self, value, args=None, typ=None, location=None, pos=None, annotation='', mutable=True, add_gas_estimate=0, valency=0):
+    def __init__(self, value, args=None, typ=None, location=None, pos=None, annotation='', mutable=True, add_gas_estimate=0, valency=None):
         if args is None:
             args = []
 
@@ -61,7 +61,6 @@ class LLLnode():
         self.mutable = mutable
         self.add_gas_estimate = add_gas_estimate
         self.as_hex = AS_HEX_DEFAULT
-        self.valency = valency
 
         # Determine this node's valency (1 if it pushes a value on the stack,
         # 0 otherwise) and checks to make sure the number and valencies of
@@ -175,6 +174,9 @@ class LLLnode():
             raise Exception("Invalid value for LLL AST node: %r" % self.value)
         assert isinstance(self.args, list)
 
+        if valency is not None:
+            self.valency = valency
+
         self.gas += self.add_gas_estimate
 
     def to_list(self):
@@ -240,7 +242,7 @@ class LLLnode():
         return self.repr()
 
     @classmethod
-    def from_list(cls, obj, typ=None, location=None, pos=None, annotation=None, mutable=True, add_gas_estimate=0):
+    def from_list(cls, obj, typ=None, location=None, pos=None, annotation=None, mutable=True, add_gas_estimate=0, valency=None):
         if isinstance(typ, str):
             typ = BaseType(typ)
         if isinstance(obj, LLLnode):
@@ -252,4 +254,8 @@ class LLLnode():
         elif not isinstance(obj, list):
             return cls(obj, [], typ, location, pos, annotation, mutable, add_gas_estimate=add_gas_estimate)
         else:
-            return cls(obj[0], [cls.from_list(o, pos=pos) for o in obj[1:]], typ, location, pos, annotation, mutable, add_gas_estimate=add_gas_estimate)
+            return cls(
+                obj[0],
+                [cls.from_list(o, pos=pos) for o in obj[1:]], typ, location, pos, annotation, mutable,
+                add_gas_estimate=add_gas_estimate, valency=valency
+            )

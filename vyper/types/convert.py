@@ -27,7 +27,7 @@ from vyper.utils import (
 )
 
 
-@signature(('uint256', 'bytes32', 'bytes'), '*')
+@signature(('uint256', 'bytes32', 'bytes', 'bool'), '*')
 def to_int128(expr, args, kwargs, context):
     in_node = args[0]
     typ, len = get_type(in_node)
@@ -38,11 +38,18 @@ def to_int128(expr, args, kwargs, context):
             ['clamp', ['mload', MemoryPositions.MINNUM], in_node,
                         ['mload', MemoryPositions.MAXNUM]], typ=BaseType('int128', in_node.typ.unit), pos=getpos(expr)
         )
+
+    elif typ is 'bool':
+        return LLLnode.from_list(
+            ['clamp', ['mload', MemoryPositions.MINNUM], in_node,
+                        ['mload', MemoryPositions.MAXNUM]], typ=BaseType('int128', in_node.typ.unit), pos=getpos(expr)
+        )
+
     else:
         return byte_array_to_num(in_node, expr, 'int128')
 
 
-@signature(('num_literal', 'int128', 'bytes32', 'bytes', 'address'), '*')
+@signature(('num_literal', 'int128', 'bytes32', 'bytes', 'address', 'bool'), '*')
 def to_uint256(expr, args, kwargs, context):
     in_node = args[0]
     input_type, len = get_type(in_node)
@@ -53,7 +60,7 @@ def to_uint256(expr, args, kwargs, context):
         _unit = in_node.typ.unit if input_type == 'int128' else None
         return LLLnode.from_list(in_node, typ=BaseType('uint256', _unit), pos=getpos(expr))
 
-    elif isinstance(in_node, LLLnode) and input_type in ('int128', 'num_literal'):
+    elif isinstance(in_node, LLLnode) and input_type in ('int128', 'num_literal', 'bool'):
         _unit = in_node.typ.unit if input_type == 'int128' else None
         return LLLnode.from_list(['clampge', in_node, 0], typ=BaseType('uint256', _unit), pos=getpos(expr))
 
@@ -85,7 +92,7 @@ def to_decimal(expr, args, kwargs, context):
         )
 
 
-@signature(('int128', 'uint256', 'address', 'bytes'), '*')
+@signature(('int128', 'uint256', 'address', 'bytes', 'bool'), '*')
 def to_bytes32(expr, args, kwargs, context):
     in_arg = args[0]
     typ, _len = get_type(in_arg)
@@ -106,6 +113,13 @@ def to_bytes32(expr, args, kwargs, context):
 
     else:
         return LLLnode(value=in_arg.value, args=in_arg.args, typ=BaseType('bytes32'), pos=getpos(expr))
+
+
+@signature(('bytes32'), '*')
+def to_address(expr, args, kwargs, context):
+    in_arg = args[0]
+
+    return LLLnode(value=in_arg.value, args=in_arg.args, typ=BaseType('address'), pos=getpos(expr))
 
 
 def convert(expr, context):
@@ -133,4 +147,5 @@ conversion_table = {
     'uint256': to_uint256,
     'decimal': to_decimal,
     'bytes32': to_bytes32,
+    'address': to_address,
 }
