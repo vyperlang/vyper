@@ -18,17 +18,17 @@ def foobar() -> bool:
 
 @public
 def oof() -> bool:
-    val: bool = False and True or False and True or False and False or True
+    val: bool = False or False or False or False or False or True
     return val
 
 @public
 def rab() -> bool:
-    val: bool = False and True or False and True or False and False
+    val: bool = True and True and True and True and True and False
     return val
 
 @public
 def oofrab() -> bool:
-    val: bool = True or False and True or False and False
+    val: bool = False and True or False and True or False and False or True
     return val
     """
 
