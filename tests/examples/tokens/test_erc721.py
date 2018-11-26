@@ -25,9 +25,9 @@ def c(get_contract, w3):
 
 
 def test_supportsInterface(c, assert_tx_failed):
-    assert c.supportsInterface(ERC165_INTERFACE_ID) == True
-    assert c.supportsInterface(ERC721_INTERFACE_ID) == True
-    assert c.supportsInterface(INVALID_INTERFACE_ID) == False
+    assert c.supportsInterface(ERC165_INTERFACE_ID) == 1
+    assert c.supportsInterface(ERC721_INTERFACE_ID) == 1
+    assert c.supportsInterface(INVALID_INTERFACE_ID) == 0
 
 
 def test_balanceOf(c, w3, assert_tx_failed):
@@ -55,11 +55,11 @@ def test_getApproved(c, w3, assert_tx_failed):
 def test_isApprovedForAll(c, w3):
     someone, operator = w3.eth.accounts[1:3]
 
-    assert c.isApprovedForAll(someone, operator) == False
+    assert c.isApprovedForAll(someone, operator) == 0
 
-    c.setApprovalForAll(operator, True,  transact={'from': someone})
+    c.setApprovalForAll(operator, True, transact={'from': someone})
 
-    assert c.isApprovedForAll(someone, operator) == True
+    assert c.isApprovedForAll(someone, operator) == 1
 
 
 def test_transferFrom_by_owner(c, w3, assert_tx_failed, get_logs):
@@ -121,7 +121,7 @@ def test_transferFrom_by_operator(c, w3, get_logs):
     someone, operator = w3.eth.accounts[1:3]
 
     # transfer by operator
-    c.setApprovalForAll(operator, True,  transact={'from': someone})
+    c.setApprovalForAll(operator, True, transact={'from': someone})
     tx_hash = c.transferFrom(
         someone, operator, SOMEONE_TOKEN_IDS[2], transact={'from': operator})
 
@@ -196,7 +196,7 @@ def test_safeTransferFrom_by_operator(c, w3, get_logs):
     someone, operator = w3.eth.accounts[1:3]
 
     # transfer by operator
-    c.setApprovalForAll(operator, True,  transact={'from': someone})
+    c.setApprovalForAll(operator, True, transact={'from': someone})
     tx_hash = c.safeTransferFrom(
         someone, operator, SOMEONE_TOKEN_IDS[2], transact={'from': operator})
 
@@ -218,7 +218,7 @@ def test_safeTransferFrom_to_contract(c, w3, assert_tx_failed, get_logs, get_con
     # Can't transfer to a contract that doesn't implement the receiver code
     assert_tx_failed(lambda: c.safeTransferFrom(someone, c.address, SOMEONE_TOKEN_IDS[0], transact={'from': someone}))
 
-     # Only to an address that implements that function
+    # Only to an address that implements that function
     receiver = get_contract("""
 @public
 def onERC721Received(
