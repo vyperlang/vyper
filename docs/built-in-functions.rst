@@ -190,9 +190,9 @@ Takes a signed hash and vrs and returns the public key of the signer.
   def ecadd(a, b) -> sum:
     """
     :param a: pair to be added
-    :type a: num252[2]
+    :type a: uint256[2]
     :param b: pair to be added
-    :type b: num252[2]
+    :type b: uint256[2]
 
     :output sum: uint256[2]
     """
