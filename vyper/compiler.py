@@ -2,6 +2,10 @@ from vyper.parser import parser
 from vyper import compile_lll
 from vyper import optimizer
 from collections import OrderedDict
+from vyper.exceptions import (
+    ContractException,
+    ParserException
+)
 
 
 def __compile(code, *args, **kwargs):
@@ -102,7 +106,11 @@ def compile(codes, output_formats=['bytecode'], output_type='list'):
         for output_format in output_formats:
             if output_format not in output_formats_map:
                 raise Exception('Unsupported format type %s.' % output_format)
-            out.setdefault(contract_name, {})[output_format] = output_formats_map[output_format](code)
+
+            try:
+                out.setdefault(contract_name, {})[output_format] = output_formats_map[output_format](code)
+            except ParserException as e:
+                raise ContractException(contract_name, e) from e
 
     if output_type == 'list':
         return [v for v in out.values()]

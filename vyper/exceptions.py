@@ -78,3 +78,15 @@ class FunctionDeclarationException(ParserException):
 
 class EventDeclarationException(ParserException):
     pass
+
+
+class ContractException(Exception):
+    contract_name = None
+
+    def __init__(self, contract_name, parser_exception):
+        self.contract_name = contract_name
+        self.parser_exception = parser_exception
+
+    def __str__(self):
+        original_msg = str(self.parser_exception)
+        return "{}:\n{}".format(self.contract_name, original_msg)

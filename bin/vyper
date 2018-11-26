@@ -6,7 +6,7 @@ import sys
 import vyper
 import warnings
 
-from vyper import compiler
+import vyper
 
 
 warnings.simplefilter('always')
@@ -41,7 +41,8 @@ if __name__ == '__main__':
 
     # Combined json output
     if args.format == 'combined_json':
-        out = compiler.compile(codes, ['bytecode', 'bytecode_runtime', 'abi', 'source_map'], output_type='dict')
+        out = vyper.compile(codes, ['bytecode', 'bytecode_runtime', 'abi', 'source_map'], output_type='dict')
+        out['version'] = vyper.__version__
         print(json.dumps(out))
 
     else:  # Normal output.
@@ -53,7 +54,7 @@ if __name__ == '__main__':
         for f in uniq(args.format.split(',')):
             formats.append(translate_map.get(f, f))
 
-        out_list = compiler.compile(codes, formats, output_type='list')
+        out_list = vyper.compile(codes, formats, output_type='list')
         for out in out_list:
             for f in formats:
                 o = out[f]
