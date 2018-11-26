@@ -153,12 +153,14 @@ Note that it can be called either by using ``sha3`` or ``keccak256``.
 ---------------
 ::
 
-  def method_id(a) -> b:
+  def method_id(a, b) -> c:
     """
     :param a: method declaration
     :type a: str_literal
+    :param b: type of output
+    :type b: either bytes32 or bytes[4]
 
-    :output b: bytes
+    :output c: either bytes32 or bytes[4]
     """
 
 Takes a function declaration and returns its method_id (used in data field to call it).
