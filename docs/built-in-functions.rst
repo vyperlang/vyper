@@ -206,9 +206,9 @@ Takes two elliptical curves and adds them together.
   def ecmul(a, b) -> product:
     """
     :param a: pair to be multiplied
-    :type a: num252[2]
-    :param b: pair to be multiplied
-    :type b: num252[2]
+    :type a: uint256[2]
+    :param b: number to be multiplied
+    :type b: uint256
 
     :output product: uint256[2]
     """
