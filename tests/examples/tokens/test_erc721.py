@@ -252,7 +252,7 @@ def test_approve(c, w3, assert_tx_failed, get_logs):
 
     # approve token without ownership
     assert_tx_failed(lambda: c.approve(
-        operator, NEW_TOKEN_ID, transact={'from': someone}))
+        operator, OPERATOR_TOKEN_ID, transact={'from': someone}))
 
     # approve invalid token
     assert_tx_failed(lambda: c.approve(
