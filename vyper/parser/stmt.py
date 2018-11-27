@@ -349,16 +349,17 @@ class Stmt(object):
 
         # Get arg0
         arg0 = self.stmt.iter.args[0]
-        arg0_val = self._get_range_const_value(arg0)
         num_of_args = len(self.stmt.iter.args)
 
         # Type 1 for, e.g. for i in range(10): ...
         if num_of_args == 1:
+            arg0_val = self._get_range_const_value(arg0)
             start = LLLnode.from_list(0, typ='int128', pos=getpos(self.stmt))
             rounds = arg0_val
 
         # Type 2 for, e.g. for i in range(100, 110): ...
         elif self._check_valid_range_constant(self.stmt.iter.args[1], raise_exception=False):
+            arg0_val = self._get_range_const_value(arg0)
             arg1_val = self._get_range_const_value(self.stmt.iter.args[1])
             start = LLLnode.from_list(arg0_val, typ='int128', pos=getpos(self.stmt))
             rounds = LLLnode.from_list(arg1_val - arg0_val, typ='int128', pos=getpos(self.stmt))
