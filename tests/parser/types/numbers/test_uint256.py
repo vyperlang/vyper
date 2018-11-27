@@ -1,5 +1,3 @@
-# from ethereum.abi import ValueOutOfBounds
-
 
 def test_uint256_code(assert_tx_failed, get_contract_with_gas_estimation):
     uint256_code = """

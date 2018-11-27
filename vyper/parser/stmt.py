@@ -42,7 +42,9 @@ from vyper.types import (
 from vyper.utils import (
     SizeLimits,
     sha3,
-    fourbytes_to_int
+    fourbytes_to_int,
+    string_to_bytes,
+    bytes_to_int
 )
 from vyper.parser.expr import (
     Expr
@@ -95,6 +97,17 @@ class Stmt(object):
         if isinstance(self.stmt.annotation, ast.Call):  # unit style: num(wei)
             if self.stmt.annotation.func.id != sub.typ.typ and not sub.typ.is_literal:
                 raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.func.id, self.stmt)
+        elif isinstance(self.stmt.annotation, ast.Name) and self.stmt.annotation.id == 'bytes32':
+            if isinstance(sub.typ, ByteArrayType):
+                if sub.typ.maxlen != 32:
+                    raise TypeMismatchException('Invalid type, expected: bytes32. String is incorrect length.', self.stmt)
+                return
+            elif isinstance(sub.typ, BaseType):
+                if sub.typ.typ != 'bytes32':
+                    raise TypeMismatchException('Invalid type, expected: bytes32', self.stmt)
+                return
+            else:
+                raise TypeMismatchException('Invalid type, expected: bytes32', self.stmt)
         elif isinstance(self.stmt.annotation, ast.Dict):
             if not isinstance(sub.typ, StructType):
                 raise TypeMismatchException('Invalid type, expected a struct')
@@ -147,6 +160,10 @@ class Stmt(object):
         o = LLLnode.from_list('pass', typ=None, pos=pos)
         if self.stmt.value is not None:
             sub = Expr(self.stmt.value, self.context).lll_node
+            # If bytes[32] to bytes32 assignment rewrite sub as bytes32.
+            if isinstance(sub.typ, ByteArrayType) and sub.typ.maxlen == 32 and isinstance(typ, BaseType) and typ.typ == 'bytes32':
+                bytez, bytez_length = string_to_bytes(self.stmt.value.s)
+                sub = LLLnode(bytes_to_int(bytez), typ=BaseType('bytes32'), pos=getpos(self.stmt))
             self._check_valid_assign(sub)
             self._check_same_variable_assign(sub)
             variable_loc = LLLnode.from_list(pos, typ=typ, location='memory', pos=getpos(self.stmt))

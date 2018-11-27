@@ -4,7 +4,7 @@ from vyper.exceptions import (
 )
 
 
-def test_address_bytes_converstion(get_contract_with_gas_estimation):
+def test_address_bytes_conversion(get_contract_with_gas_estimation):
     # Shared values for test addresses and bytes
     test_address = "0xF5D4020dCA6a62bB1efFcC9212AAF3c9819E30D7"
     test_bytes = b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xF5\xD4\x02\x0d\xCA\x6a\x62\xbB\x1e\xfF\xcC\x92\x12\xAA\xF3\xc9\x81\x9E\x30\xD7"
@@ -275,3 +275,18 @@ def get(a: bytes[100]) -> bool:
         lambda: get_contract_with_gas_estimation(code),
         ParserException
     )
+
+
+def test_bytes32_literals(get_contract):
+    code = """
+@public
+def test() -> bool:
+    l: bytes32 = '\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x80\\xac\\x58\\xcd'
+    j: bytes32 = 0x0000000000000000000000000000000000000000000000000000000080ac58cd
+    return l == j
+
+    """
+
+    c = get_contract(code)
+
+    assert c.test() is True
