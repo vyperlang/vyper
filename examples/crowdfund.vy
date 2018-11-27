@@ -1,5 +1,13 @@
 # Setup private variables (only callable from within the contract)
-funders: {sender: address, value: wei_value}[int128]
+
+struct Funder :
+  sender: Address
+  value: wei_value
+
+struct Address :
+  x: address
+
+funders: Funder[int128]
 nextFunderIndex: int128
 beneficiary: address
 deadline: timestamp
@@ -25,7 +33,7 @@ def participate():
 
     nfi: int128 = self.nextFunderIndex
 
-    self.funders[nfi] = {sender: msg.sender, value: msg.value}
+    self.funders[nfi] = {sender: {x: msg.sender}, value: msg.value}
     self.nextFunderIndex = nfi + 1
 
 
@@ -36,6 +44,15 @@ def finalize():
 
     selfdestruct(self.beneficiary)
 
+#vyper.exceptions.InvalidTypeException: Invalid base type: Funder
+#@private
+#def getFunderAddress(f: Funder) -> address:
+#  return f.sender.x
+
+#vyper.exceptions.InvalidTypeException: Invalid base type: Funder
+#@private
+#def mkFunder(s: address, v: wei_value) -> Funder:
+#  return {{x: s}, v}
 
 # Not enough money was raised! Refund everyone (max 30 people at a time
 # to avoid gas limit issues)
@@ -50,7 +67,7 @@ def refund():
             self.refundIndex = self.nextFunderIndex
             return
 
-        send(self.funders[i].sender, self.funders[i].value)
+        send(self.funders[i].sender.x, self.funders[i].value)
         self.funders[i] = None
 
     self.refundIndex = ind + 30

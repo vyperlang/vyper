@@ -139,7 +139,7 @@ class Stmt(object):
 
     def ann_assign(self):
         self.context.set_in_assignment(True)
-        typ = parse_type(self.stmt.annotation, location='memory', custom_units=self.context.custom_units)
+        typ = parse_type(self.stmt.annotation, location='memory', custom_units=self.context.custom_units, custom_structs=self.context.structs)
         if isinstance(self.stmt.target, ast.Attribute) and self.stmt.target.value.id == 'self':
             raise TypeMismatchException('May not redefine storage variables.', self.stmt)
         varname = self.stmt.target.id

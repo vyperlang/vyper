@@ -49,6 +49,8 @@ class Context():
         self.in_assignment = False
         # List of custom units that have been defined.
         self.custom_units = global_ctx._custom_units
+        # List of custom structs that have been defined.
+        self.structs = global_ctx._structs
         # defined constants
         self.constants = global_ctx._constants
         # Callback pointer to jump back to, used in private functions.
@@ -83,7 +85,7 @@ class Context():
 
     # Add a new variable
     def new_variable(self, name, typ):
-        if not is_varname_valid(name, custom_units=self.custom_units):
+        if not is_varname_valid(name, custom_units=self.custom_units, custom_structs=self.structs):
             raise VariableDeclarationException("Variable name invalid or reserved: " + name)
         if any((name in self.vars, name in self.globals, name in self.constants)):
             raise VariableDeclarationException("Duplicate variable name: %s" % name)

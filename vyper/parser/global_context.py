@@ -42,6 +42,7 @@ class GlobalContext:
 
     def __init__(self):
         self._contracts = dict()
+        self._structs = dict()
         self._events = list()
         self._globals = dict()
         self._defs = list()
@@ -59,8 +60,20 @@ class GlobalContext:
             # Contract references
             if isinstance(item, ast.ClassDef):
                 if global_ctx._events or global_ctx._globals or global_ctx._defs:
-                    raise StructureException("External contract declarations must come before event declarations, global declarations, and function definitions", item)
-                global_ctx._contracts[item.name] = global_ctx.add_contract(item.body)
+                    raise StructureException("External contract and struct declarations must come before event declarations, global declarations, and function definitions", item)
+
+                decorators = [ x.id for x in item.decorator_list ]
+                if decorators == [ 'struct' ] :
+                    global_ctx._structs[item.name] = GlobalContext.mkstruct(item.name, item.body)
+                elif decorators == [ 'contract' ] :
+                    global_ctx._contracts[item.name] = GlobalContext.mkcontract(item.body)
+
+                elif decorators == [] : # revisit: This doesn't disallow a user from manually adding the decorator.
+                    raise StructureException("Usage of the class `keyword` not allowed. Perhaps you meant `contract` or `struct`?", item)
+
+                else :
+                    raise StructureException("Multiple decorators for class not allowed.", item)
+
             # Statements of the form:
             # variable_name: type
             elif isinstance(item, ast.AnnAssign):
@@ -146,8 +159,22 @@ class GlobalContext:
         o = resolve_negative_literals(o)
         return o
 
+    # A struct is a list of members
     @staticmethod
-    def add_contract(code):
+    def mkstruct(name, body) :
+        members = []
+        for item in body :
+            if isinstance(item, ast.AnnAssign):
+                member_name = item.target
+                member_type = item.annotation
+                members.append((member_name, member_type))
+            else:
+                raise StructureException("Structs can only contain variables", item)
+        return members
+
+    # A contract is a list of functions.
+    @staticmethod
+    def mkcontract(code):
         _defs = []
         for item in code:
             # Function definitions
@@ -178,7 +205,7 @@ class GlobalContext:
         return all([isinstance(inst, instance_type) for inst in instances])
 
     def is_valid_varname(self, name, item):
-        if not is_varname_valid(name, self._custom_units):
+        if not is_varname_valid(name, custom_units=self._custom_units, custom_structs=self._structs):
             raise VariableDeclarationException('Invalid name "%s"' % name, item)
         if name in self._globals:
             raise VariableDeclarationException('Invalid name "%s", previously defined as global.' % name, item)
@@ -192,7 +219,7 @@ class GlobalContext:
     def unroll_constant(self, const):
         # const = self.context.constants[self.expr.id]
         expr = Expr.parse_value_expr(const.value, Context(vars=None, global_ctx=self, origcode=const.source_code))
-        annotation_type = parse_type(const.annotation.args[0], None, custom_units=self._custom_units)
+        annotation_type = parse_type(const.annotation.args[0], None, custom_units=self._custom_units, custom_structs=self._structs)
 
         fail = False
 
@@ -266,7 +293,7 @@ class GlobalContext:
                         raise VariableDeclarationException("Custom unit name must be a valid string", key)
                     if key.id in self._custom_units:
                         raise VariableDeclarationException("Custom unit name may only be used once", key)
-                    if not is_varname_valid(key.id, custom_units=self._custom_units):
+                    if not is_varname_valid(key.id, custom_units=self._custom_units, custom_structs=self._structs):
                         raise VariableDeclarationException("Custom unit may not be a reserved keyword", key)
                     self._custom_units.append(key.id)
                     self._custom_units_descriptions[key.id] = value.s
@@ -286,7 +313,7 @@ class GlobalContext:
             if item.annotation.args[0].id not in premade_contracts:
                 raise VariableDeclarationException("Unsupported premade contract declaration", item.annotation.args[0])
             premade_contract = premade_contracts[item.annotation.args[0].id]
-            self._contracts[item.target.id] = self.add_contract(premade_contract.body)
+            self._contracts[item.target.id] = self.mkcontract(premade_contract.body)
             self._globals[item.target.id] = VariableRecord(item.target.id, len(self._globals), BaseType('address'), True)
 
         elif item_name in self._contracts:
@@ -301,7 +328,7 @@ class GlobalContext:
             if isinstance(item.annotation.args[0], ast.Name) and item_name in self._contracts:
                 typ = ContractType(item_name)
             else:
-                typ = parse_type(item.annotation.args[0], 'storage', custom_units=self._custom_units)
+                typ = parse_type(item.annotation.args[0], 'storage', custom_units=self._custom_units, custom_structs=self._structs)
             self._globals[item.target.id] = VariableRecord(item.target.id, len(self._globals), typ, True)
             # Adding getters here
             for getter in self.mk_getter(item.target.id, typ):
@@ -311,6 +338,6 @@ class GlobalContext:
         else:
             self._globals[item.target.id] = VariableRecord(
                 item.target.id, len(self._globals),
-                parse_type(item.annotation, 'storage', custom_units=self._custom_units),
+                parse_type(item.annotation, 'storage', custom_units=self._custom_units, custom_structs=self._structs),
                 True
             )

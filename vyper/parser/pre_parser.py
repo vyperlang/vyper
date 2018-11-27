@@ -4,6 +4,8 @@ from tokenize import (
     COMMENT,
     NAME,
     OP,
+    NEWLINE,
+
     TokenError,
     TokenInfo,
     tokenize,
@@ -37,20 +39,45 @@ def parse_version_pragma(version_str):
 # Minor pre-parser checks.
 def pre_parse(code):
     result = []
+    line_ofst = 0
 
     try:
         g = tokenize(io.BytesIO(code.encode('utf-8')).readline)
+
         for token in g:
-            # Alias contract definition to class definition.
+            start = (token.start[0] + line_ofst, token.start[1])
+            end = (token.end[0] + line_ofst, token.end[1])
+            toks = [ token._replace(start=start, end=end) ]
+            line = token.line
+
             if token.type == COMMENT and "@version" in token.string:
                 parse_version_pragma(token.string[1:])
+
+            # Alias contract definition to class definition.
             if (token.type, token.string, token.start[1]) == (NAME, "contract", 0):
-                token = TokenInfo(token.type, "class", token.start, token.end, token.line)
+                line_ofst += 1
+                toks = [ TokenInfo(NAME, "@contract", start,start,line),
+                         TokenInfo(NEWLINE, "\n", start,start,line) ]
+                start = (start[0] + 1, start[1])
+                end = (end[0] + 1, end[1])
+                toks.append(
+                         TokenInfo(token.type, "class", start,end,line))
+
+            # Alias struct definition to class definition.
+            if (token.type, token.string, token.start[1]) == (NAME, "struct", 0):
+                line_ofst += 1
+                toks = [ TokenInfo(NAME, "@struct", start,start,line),
+                         TokenInfo(NEWLINE, "\n", start,start,line) ]
+                start = (start[0] + 1, start[1])
+                end = (end[0] + 1, end[1])
+                toks.append(
+                         TokenInfo(token.type, "class", start,end,line))
+
             # Prevent semi-colon line statements.
-            elif (token.type, token.string) == (OP, ";"):
+            if (token.type, token.string) == (OP, ";"):
                 raise StructureException("Semi-colon statements not allowed.", token.start)
 
-            result.append(token)
+            result.extend(toks)
     except TokenError as e:
         raise StructureException(e.args[0], e.args[1]) from e
 

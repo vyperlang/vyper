@@ -166,13 +166,15 @@ valid_lll_macros = [
 
 # Is a variable or member variable name valid?
 # Same conditions apply for function names and events
-def is_varname_valid(varname, custom_units):
+def is_varname_valid(varname, custom_units, custom_structs):
     from vyper.functions import dispatch_table, stmt_dispatch_table
     built_in_functions = [x for x in stmt_dispatch_table.keys()] + \
       [x for x in dispatch_table.keys()]
     if custom_units is None:
         custom_units = []
     if varname.lower() in [cu.lower() for cu in custom_units]:
+        return False
+    if varname.lower() in [ x.lower() for x in custom_structs.keys() ] :
         return False
     if varname.lower() in base_types:
         return False
