@@ -62,17 +62,17 @@ class GlobalContext:
                 if global_ctx._events or global_ctx._globals or global_ctx._defs:
                     raise StructureException("External contract and struct declarations must come before event declarations, global declarations, and function definitions", item)
 
-                decorators = [ x.id for x in item.decorator_list ]
-                if decorators == [ 'struct' ] :
+                base_classes = [ x.id for x in item.bases ]
+                if base_classes == [ '__VYPER_ANNOT_STRUCT__' ] :
                     global_ctx._structs[item.name] = GlobalContext.mkstruct(item.name, item.body)
-                elif decorators == [ 'contract' ] :
+                elif base_classes == [ '__VYPER_ANNOT_CONTRACT__' ] :
                     global_ctx._contracts[item.name] = GlobalContext.mkcontract(item.body)
 
-                elif decorators == [] : # revisit: This doesn't disallow a user from manually adding the decorator.
-                    raise StructureException("Usage of the class `keyword` not allowed. Perhaps you meant `contract` or `struct`?", item)
+                elif base_classes == [] : # revisit: This doesn't disallow a user from manually adding the base class.
+                    raise StructureException("The `class` keyword is not allowed in Vyper. Perhaps you meant `contract` or `struct`?", item)
 
                 else :
-                    raise StructureException("Multiple decorators for class not allowed.", item)
+                    raise StructureException("Multiple base classes for class not allowed.", item)
 
             # Statements of the form:
             # variable_name: type

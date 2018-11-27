@@ -791,5 +791,4 @@ def pack_logging_data(expected_data, args, context, pos):
 
 def parse_to_lll(kode, runtime_only=False):
     code = parse(kode)
-    kode = pre_parse(kode) # Yikes
     return parse_tree_to_lll(code, kode, runtime_only=runtime_only)
