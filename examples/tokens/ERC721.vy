@@ -291,14 +291,14 @@ def setApprovalForAll(_operator: address, _approved: bool):
 ### MINT & BURN FUNCTIONS ###
 
 # @dev Function to mint tokens
-#      Throws if `msg.sender`` is not the minter.
+#      Throws if `msg.sender` is not the minter.
 #      Throws if `_to` is zero address.
 # @param to The address that will receive the minted tokens.
 # @param tokenId The token id to mint.
 # @return A boolean that indicates if the operation was successful.
 @public
 def mint(_to: address, _tokenId: uint256) -> bool:
-    # Throws if `msg.sender`` is not the minter
+    # Throws if `msg.sender` is not the minter
     assert msg.sender == self.minter
     # Throws if `_to` is zero address
     assert _to != ZERO_ADDRESS
