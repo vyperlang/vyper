@@ -18,4 +18,4 @@ def foo():
 def test_block_fail(bad_code):
 
     with raises(TypeMismatchException):
-        compiler.compile(bad_code)
+        compiler.compile_code(bad_code)

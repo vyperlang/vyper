@@ -16,5 +16,5 @@ def foo() -> int128:
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_insufficient_arguments(bad_code):
     with raises(StructureException) as ex:
-        compiler.compile(bad_code)
+        compiler.compile_code(bad_code)
     assert "Not enough arguments for function: as_wei_value" in str(ex.value)

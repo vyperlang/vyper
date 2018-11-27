@@ -12,4 +12,4 @@ try:
 except _pkg_resources.DistributionNotFound:
     __version__ = '0.0.0development'
 
-from vyper.compiler import compile  # noqa
+from vyper.compiler import compile_code, compile_codes  # noqa

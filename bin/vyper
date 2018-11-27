@@ -6,7 +6,7 @@ import sys
 import vyper
 import warnings
 
-import vyper
+from vyper.parser import parser_utils
 
 
 warnings.simplefilter('always')
@@ -29,6 +29,11 @@ def uniq(seq):
     return [x for x in seq if not (x in exists or exists.add(x))]
 
 
+def exc_handler(contract_name, exception):
+    print('Error compiling: ', contract_name)
+    raise exception
+
+
 if __name__ == '__main__':
 
     if args.show_gas_estimates:
@@ -41,7 +46,12 @@ if __name__ == '__main__':
 
     # Combined json output
     if args.format == 'combined_json':
-        out = vyper.compile(codes, ['bytecode', 'bytecode_runtime', 'abi', 'source_map'], output_type='dict')
+        out = vyper.compile_codes(
+            codes,
+            ['bytecode', 'bytecode_runtime', 'abi', 'source_map'],
+            output_type='dict',
+            exc_handler=exc_handler
+        )
         out['version'] = vyper.__version__
         print(json.dumps(out))
 
@@ -54,7 +64,7 @@ if __name__ == '__main__':
         for f in uniq(args.format.split(',')):
             formats.append(translate_map.get(f, f))
 
-        out_list = vyper.compile(codes, formats, output_type='list')
+        out_list = vyper.compile_codes(codes, formats, output_type='list', exc_handler=exc_handler)
         for out in out_list:
             for f in formats:
                 o = out[f]
