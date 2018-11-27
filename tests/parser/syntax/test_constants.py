@@ -66,6 +66,19 @@ VAL: constant(int128) = -123
 @public
 def test() -> int128:
     return 1 * VAL
+    """,
+    """
+TREE_FIDDY: constant(uint256)  = 350
+
+@public
+def a(a: uint256) -> bool:
+    for i in range(TREE_FIDDY):
+        if i <= a:
+            return True
+    return False
+    """,
+    """
+VAL: constant(uint256) = as_wei_value(123, "ether")
     """
 ]
 
