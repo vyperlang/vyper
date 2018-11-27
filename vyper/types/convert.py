@@ -30,7 +30,7 @@ from vyper.utils import (
 @signature(('uint256', 'bytes32', 'bytes', 'bool'), '*')
 def to_int128(expr, args, kwargs, context):
     in_node = args[0]
-    input_type, len = get_type(in_node)
+    input_type, _ = get_type(in_node)
     if input_type in ('uint256', 'bytes32'):
         if in_node.typ.is_literal and not SizeLimits.in_bounds('int128', in_node.value):
             raise InvalidLiteralException("Number out of range: {}".format(in_node.value), expr)
@@ -57,7 +57,7 @@ def to_int128(expr, args, kwargs, context):
 @signature(('num_literal', 'int128', 'bytes32', 'address', 'bool'), '*')
 def to_uint256(expr, args, kwargs, context):
     in_node = args[0]
-    input_type, len = get_type(in_node)
+    input_type, _ = get_type(in_node)
 
     if isinstance(in_node, int):
         if not SizeLimits.in_bounds('uint256', in_node):
