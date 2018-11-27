@@ -38,13 +38,13 @@ def to_int128(expr, args, kwargs, context):
             ['clamp', ['mload', MemoryPositions.MINNUM], in_node,
                         ['mload', MemoryPositions.MAXNUM]], typ=BaseType('int128', in_node.typ.unit), pos=getpos(expr)
         )
-    
+
     elif input_type is 'bytes':
         if in_node.typ.maxlen > 32:
             raise InvalidLiteralException("Cannot convert bytes array of max length {} to int128".format(in_node.value), expr)
-        return byte_array_to_num(in_node, expr, 'int128')      
-          
-    elif typ is 'bool':
+        return byte_array_to_num(in_node, expr, 'int128')
+
+    elif input_type is 'bool':
         return LLLnode.from_list(
             ['clamp', ['mload', MemoryPositions.MINNUM], in_node,
                         ['mload', MemoryPositions.MAXNUM]], typ=BaseType('int128', in_node.typ.unit), pos=getpos(expr)
