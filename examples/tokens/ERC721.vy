@@ -153,10 +153,10 @@ def _isApprovedOrOwner(_spender: address, _tokenId: uint256) -> bool:
 
 
 # @dev Add a NFT to a given address
-#      Throws if `_tokenId` is not a valid NFT.
+#      Throws if `_tokenId` is owned by someone.
 @private
 def _addTokenTo(_to: address, _tokenId: uint256):
-    # Throws if `_tokenId` is not a valid NFT
+    # Throws if `_tokenId` is owned by someone
     assert self.idToOwner[_tokenId] == ZERO_ADDRESS
     # Change the owner
     self.idToOwner[_tokenId] = _to
@@ -201,9 +201,9 @@ def _transferFrom(_from: address, _to: address, _tokenId: uint256, _sender: addr
     assert _to != ZERO_ADDRESS
     # Clear approval. Throws if `_from` is not the current owner
     self._clearApproval(_from, _tokenId)
-    # Remove NFT
+    # Remove NFT. Throws if `_tokenId` is not a valid NFT
     self._removeTokenFrom(_from, _tokenId)
-    # Add NFT and throws if `_tokenId` is not a valid NFT
+    # Add NFT
     self._addTokenTo(_to, _tokenId)
     # Log the transfer
     log.Transfer(_from, _to, _tokenId)
@@ -293,6 +293,7 @@ def setApprovalForAll(_operator: address, _approved: bool):
 # @dev Function to mint tokens
 #      Throws if `msg.sender` is not the minter.
 #      Throws if `_to` is zero address.
+#      Throws if `_tokenId` is owned by someone.
 # @param to The address that will receive the minted tokens.
 # @param tokenId The token id to mint.
 # @return A boolean that indicates if the operation was successful.
@@ -302,6 +303,7 @@ def mint(_to: address, _tokenId: uint256) -> bool:
     assert msg.sender == self.minter
     # Throws if `_to` is zero address
     assert _to != ZERO_ADDRESS
+    # Add NFT. Throws if `_tokenId` is owned by someone
     self._addTokenTo(_to, _tokenId)
     log.Transfer(ZERO_ADDRESS, _to, _tokenId)
     return True
