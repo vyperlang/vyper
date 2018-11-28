@@ -141,7 +141,7 @@ def parse_events(sigs, _events, custom_units=None):
     return sigs
 
 
-def parse_external_contracts(external_contracts, _contracts):
+def parse_external_contracts(external_contracts, _contracts, _structs):
     for _contractname in _contracts:
         _contract_defs = _contracts[_contractname]
         _defnames = [_def.name for _def in _contract_defs]
@@ -159,7 +159,8 @@ def parse_external_contracts(external_contracts, _contracts):
                 constant = True if _def.body[0].value.id == 'constant' else False
             else:
                 raise StructureException('constant or modifying call type must be specified', _def)
-            sig = FunctionSignature.from_definition(_def, contract_def=True, constant=constant)
+            # Recognizes already-defined structs
+            sig = FunctionSignature.from_definition(_def, contract_def=True, constant=constant, custom_structs=_structs)
             contract[sig.name] = sig
         external_contracts[_contractname] = contract
     return external_contracts
@@ -213,7 +214,7 @@ def parse_tree_to_lll(code, origcode, runtime_only=False):
     if global_ctx._events:
         sigs = parse_events(sigs, global_ctx._events, global_ctx._custom_units)
     if global_ctx._contracts:
-        external_contracts = parse_external_contracts(external_contracts, global_ctx._contracts)
+        external_contracts = parse_external_contracts(external_contracts, global_ctx._contracts, global_ctx._structs)
     # If there is an init func...
     if initfunc:
         o.append(['seq', initializer_lll])
@@ -309,7 +310,7 @@ def make_unpacker(ident, i_placeholder, begin_pos):
 def parse_func(code, sigs, origcode, global_ctx, _vars=None):
     if _vars is None:
         _vars = {}
-    sig = FunctionSignature.from_definition(code, sigs=sigs, custom_units=global_ctx._custom_units)
+    sig = FunctionSignature.from_definition(code, sigs=sigs, custom_units=global_ctx._custom_units, custom_structs=global_ctx._structs)
     # Get base args for function.
     total_default_args = len(code.args.defaults)
     base_args = sig.args[:-total_default_args] if total_default_args > 0 else sig.args

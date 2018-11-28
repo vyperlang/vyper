@@ -1,11 +1,8 @@
 # Setup private variables (only callable from within the contract)
 
 struct Funder :
-  sender: Address
+  sender: address
   value: wei_value
-
-struct Address :
-  x: address
 
 funders: Funder[int128]
 nextFunderIndex: int128
@@ -43,16 +40,6 @@ def finalize():
     assert block.timestamp >= self.deadline and self.balance >= self.goal
 
     selfdestruct(self.beneficiary)
-
-#vyper.exceptions.InvalidTypeException: Invalid base type: Funder
-#@private
-#def getFunderAddress(f: Funder) -> address:
-#  return f.sender.x
-
-#vyper.exceptions.InvalidTypeException: Invalid base type: Funder
-#@private
-#def mkFunder(s: address, v: wei_value) -> Funder:
-#  return {{x: s}, v}
 
 # Not enough money was raised! Refund everyone (max 30 people at a time
 # to avoid gas limit issues)

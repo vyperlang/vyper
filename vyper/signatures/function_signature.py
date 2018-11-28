@@ -70,8 +70,6 @@ class FunctionSignature():
 
     # Get a signature from a function definition
     @classmethod
-    # TODO find callers and add custom_structs
-    # can argument be struct?
     def from_definition(cls, code, sigs=None, custom_units=None, custom_structs={}, contract_def=False, constant=False):
         name = code.name
         pos = 0

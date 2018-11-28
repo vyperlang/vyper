@@ -608,6 +608,9 @@ class Stmt(object):
                 return LLLnode.from_list(['seq', setter, self.make_return_stmt(new_sub, get_size_of_type(self.context.return_type) * 32, loop_memory_position=loop_memory_position)],
                                             typ=None, pos=getpos(self.stmt))
 
+        # Returning a struct
+        elif isinstance(sub.typ, StructType):
+            raise InvalidTypeException("Returning structs not allowed yet, see VIP1019", self.stmt)
         # Returning a tuple.
         elif isinstance(sub.typ, TupleType):
             if not isinstance(self.context.return_type, TupleType):
