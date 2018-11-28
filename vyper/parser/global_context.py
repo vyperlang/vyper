@@ -54,28 +54,26 @@ class GlobalContext:
 
     # Parse top-level functions and variables
     @classmethod
-    def get_global_context(cls, code):
+    def get_global_context(cls, parse_result):
         global_ctx = cls()
 
-        for item in code:
+        for item in parse_result.body:
             # Contract references
             if isinstance(item, ast.ClassDef):
                 if global_ctx._events or global_ctx._globals or global_ctx._defs:
                     raise StructureException("External contract and struct declarations must come before event declarations, global declarations, and function definitions", item)
 
-                base_classes = [x.id for x in item.bases]
-                if base_classes == ['__VYPER_ANNOT_STRUCT__']:
+                if item.name in parse_result.preparser_state.struct_names:
                     if global_ctx._contracts:
                         raise StructureException("Structs must come before external contract definitions", item)
-                    global_ctx._structs[item.name] = global_ctx.mkstruct(item.name, item.body)
-                elif base_classes == ['__VYPER_ANNOT_CONTRACT__']:
-                    global_ctx._contracts[item.name] = GlobalContext.mkcontract(item.body)
-
-                elif base_classes == []:  # revisit: This doesn't disallow a user from manually adding the base class.
-                    raise StructureException("The `class` keyword is not allowed in Vyper. Perhaps you meant `contract` or `struct`?", item)
+                    unmangled = item.name.replace('__struct_', '')
+                    global_ctx._structs[unmangled] = global_ctx.mkstruct(unmangled, item.body)
+                elif item.name in parse_result.preparser_state.contract_names:
+                    unmangled = item.name.replace('__contract_', '')
+                    global_ctx._contracts[unmangled] = GlobalContext.mkcontract(item.body)
 
                 else:
-                    raise StructureException("Multiple base classes for class not allowed.", item)
+                    raise ParserException("`class` is not a keyword in Vyper. Perhaps you meant `contract` or `struct`?", item)
 
             # Statements of the form:
             # variable_name: type

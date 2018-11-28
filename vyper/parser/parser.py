@@ -59,13 +59,20 @@ if not hasattr(ast, 'AnnAssign'):
     raise Exception("Requires python 3.6 or higher for annotation support")
 
 
+class ParseResult:
+    def __init__(self, _body, _preparser_state, _origcode):
+        self.body = _body
+        self.preparser_state = _preparser_state
+        self.origcode = _origcode
+
+
 # Converts code to parse tree
-def parse(code):
-    code = pre_parse(code)
+def parse(kode):
+    (st, code) = pre_parse(kode)
     o = ast.parse(code)
     decorate_ast_with_source(o, code)
     o = resolve_negative_literals(o)
-    return o.body
+    return ParseResult(o.body, st, kode)
 
 
 # Header code
@@ -119,9 +126,10 @@ def generate_default_arg_sigs(code, _contracts, _custom_units, _structs):
 
 
 # Get ABI signature
-def mk_full_signature(code):
+def mk_full_signature(parse_result):
     o = []
-    global_ctx = GlobalContext.get_global_context(code)
+    code = parse_result.body
+    global_ctx = GlobalContext.get_global_context(parse_result)
 
     for code in global_ctx._events:
         sig = EventSignature.from_declaration(code, custom_units=global_ctx._custom_units, custom_structs=global_ctx._structs)
@@ -191,8 +199,9 @@ def parse_other_functions(o, otherfuncs, sigs, external_contracts, origcode, glo
 
 
 # Main python parse tree => LLL method
-def parse_tree_to_lll(code, origcode, runtime_only=False):
-    global_ctx = GlobalContext.get_global_context(code)
+def parse_tree_to_lll(parse_result, runtime_only=False):
+    global_ctx = GlobalContext.get_global_context(parse_result)
+    origcode = parse_result.origcode
     _names_def = [_def.name for _def in global_ctx._defs]
     # Checks for duplicate function names
     if len(set(_names_def)) < len(_names_def):
@@ -792,4 +801,4 @@ def pack_logging_data(expected_data, args, context, pos):
 
 def parse_to_lll(kode, runtime_only=False):
     code = parse(kode)
-    return parse_tree_to_lll(code, kode, runtime_only=runtime_only)
+    return parse_tree_to_lll(code, runtime_only=runtime_only)
