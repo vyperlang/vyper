@@ -89,6 +89,7 @@ output_formats_map = {
     'ir': lambda code: optimizer.optimize(parser.parse_to_lll(code)),
     'asm': lambda code: get_asm(compile_lll.compile_to_assembly(optimizer.optimize(parser.parse_to_lll(code)))),
     'source_map': get_source_map,
+    'method_identifiers': lambda code: parser.mk_method_identifiers(code)
 }
 
 

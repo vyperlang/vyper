@@ -48,7 +48,7 @@ if __name__ == '__main__':
     if args.format == 'combined_json':
         out = vyper.compile_codes(
             codes,
-            ['bytecode', 'bytecode_runtime', 'abi', 'source_map'],
+            ['bytecode', 'bytecode_runtime', 'abi', 'source_map', 'method_identifiers'],
             output_type='dict',
             exc_handler=exc_handler
         )
