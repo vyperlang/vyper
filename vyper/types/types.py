@@ -213,7 +213,8 @@ def canonicalize_type(t, is_indexed=False):
             ",".join(canonicalize_type(x) for x in t.members)
         )
     if isinstance(t, StructType):
-        raise InvalidTypeException("Structs are not allowed as args or return value from functions yet (see VIP1019)", t)
+        # TODO: VIP1019
+        raise InvalidTypeException("Structs are not allowed in events, or as args or return values from functions yet (see VIP1019)", t)
     if not isinstance(t, BaseType):
         raise Exception("Cannot canonicalize non-base type: %r" % t)
 

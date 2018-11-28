@@ -124,7 +124,7 @@ def mk_full_signature(code):
     global_ctx = GlobalContext.get_global_context(code)
 
     for code in global_ctx._events:
-        sig = EventSignature.from_declaration(code, custom_units=global_ctx._custom_units)
+        sig = EventSignature.from_declaration(code, custom_units=global_ctx._custom_units, custom_structs=global_ctx._structs)
         o.append(sig.to_abi_dict(global_ctx._custom_units_descriptions))
     for code in global_ctx._defs:
         sig = FunctionSignature.from_definition(code, sigs=global_ctx._contracts, custom_units=global_ctx._custom_units, custom_structs=global_ctx._structs)
@@ -135,9 +135,9 @@ def mk_full_signature(code):
     return o
 
 
-def parse_events(sigs, _events, custom_units=None):
+def parse_events(sigs, _events, custom_units=None, custom_structs={}):
     for event in _events:
-        sigs[event.target.id] = EventSignature.from_declaration(event, custom_units=custom_units)
+        sigs[event.target.id] = EventSignature.from_declaration(event, custom_units=custom_units, custom_structs=custom_structs)
     return sigs
 
 
@@ -212,7 +212,7 @@ def parse_tree_to_lll(code, origcode, runtime_only=False):
     # Create the main statement
     o = ['seq']
     if global_ctx._events:
-        sigs = parse_events(sigs, global_ctx._events, global_ctx._custom_units)
+        sigs = parse_events(sigs, global_ctx._events, global_ctx._custom_units, global_ctx._structs)
     if global_ctx._contracts:
         external_contracts = parse_external_contracts(external_contracts, global_ctx._contracts, global_ctx._structs)
     # If there is an init func...
