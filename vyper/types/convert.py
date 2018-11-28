@@ -31,7 +31,7 @@ from vyper.utils import (
 def to_int128(expr, args, kwargs, context):
     in_node = args[0]
     input_type, _ = get_type(in_node)
-    if input_type in ('uint256', 'bytes32'):
+    if input_type is 'bytes32':
         if in_node.typ.is_literal and not SizeLimits.in_bounds('int128', in_node.value):
             raise InvalidLiteralException("Number out of range: {}".format(in_node.value), expr)
         return LLLnode.from_list(
@@ -43,6 +43,13 @@ def to_int128(expr, args, kwargs, context):
         if in_node.typ.maxlen > 32:
             raise InvalidLiteralException("Cannot convert bytes array of max length {} to int128".format(in_node.value), expr)
         return byte_array_to_num(in_node, expr, 'int128')
+
+    elif input_type is 'uint256':
+        if in_node.typ.is_literal and not SizeLimits.in_bounds('int128', in_node.value):
+            raise InvalidLiteralException("Number out of range: {}".format(in_node.value), expr)
+        return LLLnode.from_list(
+            ['uclample', in_node, SizeLimits.MAXNUM], typ=BaseType('int128', in_node.typ.unit), pos=getpos(expr)
+        )
 
     elif input_type is 'bool':
         return LLLnode.from_list(

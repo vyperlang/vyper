@@ -63,6 +63,54 @@ def from_bool(flag: bool) -> int128:
     assert c.from_bool(True) == 1
 
 
+def test_convert_from_uint256(get_contract_with_gas_estimation):
+    code = """
+@public
+def test(foo: uint256) -> int128:
+    return convert(foo, int128)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.test(0) == 0
+    assert c.test(2**127 - 1) == 2**127 - 1
+
+
+def test_out_of_range_from_uint256(assert_tx_failed, get_contract_with_gas_estimation):
+    code = """
+@public
+def test(foo: uint256) -> int128:
+    return convert(foo, int128)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    assert_tx_failed(lambda: c.test(2**127))
+    assert_tx_failed(lambda: c.test(2**256 - 1))
+
+
+def test_out_of_range_from_uint256_at_compile(assert_compile_failed, get_contract_with_gas_estimation):
+    code = """
+@public
+def test() -> int128:
+    return convert(2**127, int128)
+    """
+
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(code),
+        InvalidLiteralException
+    )
+
+    code = """
+@public
+def test() -> int128:
+    return convert(2**256 - 1, int128)
+    """
+
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(code),
+        InvalidLiteralException
+    )
+
+
 def test_convert_bytes32_to_num_overflow(assert_tx_failed, get_contract_with_gas_estimation):
     code = """
 @public
