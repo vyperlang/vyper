@@ -648,26 +648,45 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
 
         if isinstance(self.expr.func, ast.Name):
             function_name = self.expr.func.id
+
             if function_name in dispatch_table:
                 return dispatch_table[function_name](self.expr, self.context)
+
+            # Struct constructors do not need `self` prefix.
+            elif function_name in self.context.structs :
+                if not self.context.in_assignment :
+                    raise StructureException("Struct constructor must be called in RHS of assignment.")
+                args = self.expr.args
+                if len(args) != 1 or not isinstance(args[0], ast.Dict) :
+                    raise StructureException("Struct constructor is called with one argument, a dictionary of members")
+                sub = Expr.parse_value_expr(args[0], self.context)
+                typ = StructType(self.context.structs[function_name], function_name)
+                # This destructive update seems out of line with the rest of the codebase
+                sub.typ.name = function_name
+                return sub
+
             else:
                 err_msg = "Not a top-level function: {}".format(function_name)
                 if function_name in [x.split('(')[0] for x, _ in self.context.sigs['self'].items()]:
                     err_msg += ". Did you mean self.{}?".format(function_name)
                 raise StructureException(err_msg, self.expr)
+
         elif isinstance(self.expr.func, ast.Attribute) and isinstance(self.expr.func.value, ast.Name) and self.expr.func.value.id == "self":
             return self_call.make_call(self.expr, self.context)
+
         elif isinstance(self.expr.func, ast.Attribute) and isinstance(self.expr.func.value, ast.Call):
             contract_name = self.expr.func.value.func.id
             contract_address = Expr.parse_value_expr(self.expr.func.value.args[0], self.context)
             value, gas = self._get_external_contract_keywords()
             return external_contract_call(self.expr, self.context, contract_name, contract_address, pos=getpos(self.expr), value=value, gas=gas)
+
         elif isinstance(self.expr.func.value, ast.Attribute) and self.expr.func.value.attr in self.context.sigs:
             contract_name = self.expr.func.value.attr
             var = self.context.globals[self.expr.func.value.attr]
             contract_address = unwrap_location(LLLnode.from_list(var.pos, typ=var.typ, location='storage', pos=getpos(self.expr), annotation='self.' + self.expr.func.value.attr))
             value, gas = self._get_external_contract_keywords()
             return external_contract_call(self.expr, self.context, contract_name, contract_address, pos=getpos(self.expr), value=value, gas=gas)
+
         elif isinstance(self.expr.func.value, ast.Attribute) and self.expr.func.value.attr in self.context.globals:
             contract_name = self.context.globals[self.expr.func.value.attr].typ.unit
             var = self.context.globals[self.expr.func.value.attr]
@@ -702,7 +721,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 raise TypeMismatchException("Member variable duplicated: " + key.id, key)
             o[key.id] = Expr(value, self.context).lll_node
             members[key.id] = o[key.id].typ
-        return LLLnode.from_list(["multi"] + [o[key] for key in sorted(list(o.keys()))], typ=StructType(members), pos=getpos(self.expr))
+        return LLLnode.from_list(["multi"] + [o[key] for key in sorted(list(o.keys()))], typ=StructType(members, None), pos=getpos(self.expr))
 
     def tuple_literals(self):
         if not len(self.expr.elts):

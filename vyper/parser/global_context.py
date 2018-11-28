@@ -66,6 +66,8 @@ class GlobalContext:
                 if base_classes == [ '__VYPER_ANNOT_STRUCT__' ] :
                     global_ctx._structs[item.name] = GlobalContext.mkstruct(item.name, item.body)
                 elif base_classes == [ '__VYPER_ANNOT_CONTRACT__' ] :
+                    if global_ctx._structs :
+                        raise StructureException("External contract definitions must come before struct declarations", item)
                     global_ctx._contracts[item.name] = GlobalContext.mkcontract(item.body)
 
                 elif base_classes == [] : # revisit: This doesn't disallow a user from manually adding the base class.

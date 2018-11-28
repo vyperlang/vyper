@@ -165,7 +165,7 @@ class MappingType(NodeType):
 # Data structure for a struct, e.g. {a: <type>, b: <type>}
 # struct can be named or anonymous. name=None indicates anonymous.
 class StructType(NodeType):
-    def __init__(self, members, name=None):
+    def __init__(self, members, name):
         self.members = copy.copy(members)
         self.name = name
 
@@ -289,6 +289,9 @@ def parse_type(item, location, sigs={}, custom_units=[], custom_structs={}):
         if item.func.id == 'address':
             if sigs and item.args[0].id in sigs:
                 return ContractType(item.args[0].id)
+        # Struct types
+        if item.func.id in custom_structs :
+            return mkstruct(item.id, location, custom_structs[item.id], custom_units, custom_structs)
         if not isinstance(item.func, ast.Name):
             raise InvalidTypeException("Malformed unit type:", item)
         base_type = item.func.id

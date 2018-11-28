@@ -96,11 +96,17 @@ class Stmt(object):
             if self.stmt.annotation.func.id != sub.typ.typ and not sub.typ.is_literal:
                 raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.func.id, self.stmt)
         elif isinstance(self.stmt.annotation, ast.Dict):
+            # Check for demotion?
             if not isinstance(sub.typ, StructType):
                 raise TypeMismatchException('Invalid type, expected a struct')
         elif isinstance(self.stmt.annotation, ast.Subscript):
             if not isinstance(sub.typ, (ListType, ByteArrayType)):  # check list assign.
                 raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.value.id, self.stmt)
+        elif isinstance(sub.typ, StructType) :
+            # This needs to get more sophisticated in the presence of
+            # foreign structs.
+            if not sub.typ.name == self.stmt.annotation.id :
+                raise TypeMismatchException("Invalid type, expected %s" % self.stmt.annotation.id, self.stmt)
         # Check that the integer literal, can be assigned to uint256 if necessary.
         elif (self.stmt.annotation.id, sub.typ.typ) == ('uint256', 'int128') and sub.typ.is_literal:
             if not SizeLimits.in_bounds('uint256', sub.value):
@@ -160,16 +166,20 @@ class Stmt(object):
             raise StructureException("Assignment statement must have one target", self.stmt)
         self.context.set_in_assignment(True)
         sub = Expr(self.stmt.value, self.context).lll_node
+
         # Determine if it's an RLPList assignment.
         if isinstance(self.stmt.value, ast.Call) and getattr(self.stmt.value.func, 'id', '') is 'RLPList':
             pos = self.context.new_variable(self.stmt.targets[0].id, sub.typ)
             variable_loc = LLLnode.from_list(pos, typ=sub.typ, location='memory', pos=getpos(self.stmt), annotation=self.stmt.targets[0].id)
             o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
+
         # All other assignments are forbidden.
         elif isinstance(self.stmt.targets[0], ast.Name) and self.stmt.targets[0].id not in self.context.vars:
             raise VariableDeclarationException("Variable type not defined", self.stmt)
+
         elif isinstance(self.stmt.targets[0], ast.Tuple) and isinstance(self.stmt.value, ast.Tuple):
             raise VariableDeclarationException("Tuple to tuple assignment not supported", self.stmt)
+
         else:
             # Checks to see if assignment is valid
             target = self.get_target(self.stmt.targets[0])
@@ -216,6 +226,7 @@ class Stmt(object):
             pack_logging_topics,
             external_contract_call,
         )
+
         if isinstance(self.stmt.func, ast.Name):
             if self.stmt.func.id in stmt_dispatch_table:
                 return stmt_dispatch_table[self.stmt.func.id](self.stmt, self.context)
@@ -223,22 +234,27 @@ class Stmt(object):
                 raise StructureException("Function {} can not be called without being used.".format(self.stmt.func.id), self.stmt)
             else:
                 raise StructureException("Unknown function: '{}'.".format(self.stmt.func.id), self.stmt)
+
         elif isinstance(self.stmt.func, ast.Attribute) and isinstance(self.stmt.func.value, ast.Name) and self.stmt.func.value.id == "self":
             return self_call.make_call(self.stmt, self.context)
+
         elif isinstance(self.stmt.func, ast.Attribute) and isinstance(self.stmt.func.value, ast.Call):
             contract_name = self.stmt.func.value.func.id
             contract_address = Expr.parse_value_expr(self.stmt.func.value.args[0], self.context)
             return external_contract_call(self.stmt, self.context, contract_name, contract_address, pos=getpos(self.stmt))
+
         elif isinstance(self.stmt.func.value, ast.Attribute) and self.stmt.func.value.attr in self.context.sigs:
             contract_name = self.stmt.func.value.attr
             var = self.context.globals[self.stmt.func.value.attr]
             contract_address = unwrap_location(LLLnode.from_list(var.pos, typ=var.typ, location='storage', pos=getpos(self.stmt), annotation='self.' + self.stmt.func.value.attr))
             return external_contract_call(self.stmt, self.context, contract_name, contract_address, pos=getpos(self.stmt))
+
         elif isinstance(self.stmt.func.value, ast.Attribute) and self.stmt.func.value.attr in self.context.globals:
             contract_name = self.context.globals[self.stmt.func.value.attr].typ.unit
             var = self.context.globals[self.stmt.func.value.attr]
             contract_address = unwrap_location(LLLnode.from_list(var.pos, typ=var.typ, location='storage', pos=getpos(self.stmt), annotation='self.' + self.stmt.func.value.attr))
             return external_contract_call(self.stmt, self.context, contract_name, contract_address, pos=getpos(self.stmt))
+
         elif isinstance(self.stmt.func, ast.Attribute) and self.stmt.func.value.id == 'log':
             if self.stmt.func.attr not in self.context.sigs['self']:
                 raise EventDeclarationException("Event not declared yet: %s" % self.stmt.func.attr)
