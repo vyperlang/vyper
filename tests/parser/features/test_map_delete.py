@@ -73,7 +73,7 @@ def get() -> (int128, int128):
 
 @public
 def delete():
-    self.structmap[123] = None
+    del self.structmap[123]
     """
 
     c = get_contract_with_gas_estimation(code)

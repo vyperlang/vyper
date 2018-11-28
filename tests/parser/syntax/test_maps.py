@@ -73,7 +73,7 @@ def foo():
 nom: {a: {c: int128}[int128], b: int128}
 @public
 def foo():
-    self.nom = None
+    reset(self.nom)
     """,
     """
 nom: {a: {c: int128}[int128], b: int128}
@@ -172,7 +172,8 @@ mom: {a: {c: int128}[3], b: int128}
 nom: {c: int128}[3]
 @public
 def foo():
-    self.mom = {a: None, b: 5}
+    empty: {c: int128}[3]
+    self.mom = {a: empty, b: 5}
     """,
     """
 mom: {a: {c: int128}[3], b: int128}

@@ -144,7 +144,7 @@ def refund():
             self.refundIndex = self.nextFunderIndex
             return
         send(self.funders[i].sender, self.funders[i].value)
-        self.funders[i] = None
+        self.funders[i] = {sender: ZERO_ADDRESS, value: 0}
     self.refundIndex = ind + 30
 
     """

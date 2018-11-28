@@ -168,6 +168,7 @@ class Stmt(object):
             self._check_same_variable_assign(sub)
             variable_loc = LLLnode.from_list(pos, typ=typ, location='memory', pos=getpos(self.stmt))
             o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
+        # o.pos = getpos(self.stmt) # TODO: Should this be here like in assign()?
         self.context.set_in_assignment(False)
         return o
 
@@ -227,6 +228,21 @@ class Stmt(object):
         self.context.end_blockscope(block_scope_id)
         return o
 
+    def _reset(self):
+        # Create zero node
+        none = ast.NameConstant(None)
+        none.lineno = self.stmt.lineno
+        none.col_offset = self.stmt.col_offset
+        zero = Expr(none, self.context).lll_node
+
+        # Generate LLL node to set to zero
+        target = self.get_target(self.stmt.args[0])
+        o = make_setter(target, zero, target.location, pos=getpos(self.stmt))
+        o.pos = getpos(self.stmt)
+        self.context.set_in_assignment(False)
+
+        return o
+
     def call(self):
         from .parser import (
             pack_logging_data,
@@ -235,7 +251,10 @@ class Stmt(object):
         )
         if isinstance(self.stmt.func, ast.Name):
             if self.stmt.func.id in stmt_dispatch_table:
-                return stmt_dispatch_table[self.stmt.func.id](self.stmt, self.context)
+                if self.stmt.func.id == 'reset':
+                    return self._reset()
+                else:
+                    return stmt_dispatch_table[self.stmt.func.id](self.stmt, self.context)
             elif self.stmt.func.id in dispatch_table:
                 raise StructureException("Function {} can not be called without being used.".format(self.stmt.func.id), self.stmt)
             else:

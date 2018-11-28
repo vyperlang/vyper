@@ -9,7 +9,10 @@ from tokenize import (
     tokenize,
     untokenize,
 )
-from vyper.exceptions import StructureException
+from vyper.exceptions import (
+    StructureException,
+    InvalidLiteralException,
+)
 from vyper import __version__
 
 
@@ -49,6 +52,9 @@ def pre_parse(code):
             # Prevent semi-colon line statements.
             elif (token.type, token.string) == (OP, ";"):
                 raise StructureException("Semi-colon statements not allowed.", token.start)
+            # Prevent use of None literal
+            elif (token.type, token.string) == (NAME, "None"):
+                raise InvalidLiteralException('None is not allowed as a literal, use a default value or built-in `reset()`.', token.start)
 
             result.append(token)
     except TokenError as e:
