@@ -6,6 +6,8 @@ import sys
 import vyper
 import warnings
 
+from collections import OrderedDict
+from argparse import RawTextHelpFormatter
 from vyper.parser import parser_utils
 
 
@@ -15,11 +17,24 @@ tb_limit = os.environ.get('VYPER_TRACEBACK_LIMIT')
 if tb_limit:
     sys.tracebacklimit = int(tb_limit)
 
-parser = argparse.ArgumentParser(description='Vyper programming language for Ethereum')
-parser.add_argument('--version', action='version', version='{0}'.format(vyper.__version__))
+format_options_help = """Format to print, one or more of:
+ bytecode (default) - Deployable bytecode
+ bytecode_runtime   - Bytecode at runtime
+ abi                - ABI in JSON format
+ python_abi         - ABI in python format
+ source_map         - Vyper source map
+ method_identifiers - Dictionary of method signature to method identifier.
+ combined_json      - All of the above format options combined as single JSON output.
+"""
+
+parser = argparse.ArgumentParser(
+    description='Vyper programming language for Ethereum',
+    formatter_class=RawTextHelpFormatter
+)
 parser.add_argument('input_files', help='Vyper sourcecode to compile', nargs='+')
-parser.add_argument('-f', help='Format to print', default='bytecode', dest='format')
+parser.add_argument('--version', action='version', version='{0}'.format(vyper.__version__))
 parser.add_argument('--show-gas-estimates', help='Show gas estimates in ir output mode.', action="store_true")
+parser.add_argument('-f', help=format_options_help, default='bytecode', dest='format')
 
 args = parser.parse_args()
 
@@ -39,7 +54,7 @@ if __name__ == '__main__':
     if args.show_gas_estimates:
         parser_utils.LLLnode.repr_show_gas = True
 
-    codes = {}
+    codes = OrderedDict()
     for file_name in args.input_files:
         with open(file_name) as fh:
             codes[file_name] = fh.read()
