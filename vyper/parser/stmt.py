@@ -1,6 +1,5 @@
 import ast
 import re
-import warnings
 
 from vyper.exceptions import (
     ConstancyViolationException,
@@ -8,7 +7,8 @@ from vyper.exceptions import (
     TypeMismatchException,
     VariableDeclarationException,
     EventDeclarationException,
-    InvalidLiteralException
+    InvalidLiteralException,
+    InvalidTypeException
 )
 from vyper.functions import (
     stmt_dispatch_table,
@@ -187,12 +187,12 @@ class Stmt(object):
 
         # Not sure if we should go for assignments or if there
         # is a more general place to check for this.
-        #if isinstance(sub.typ, StructType) and sub.typ.name is None :
-        #    warnings.warn(
-        #            "Anonymous struct values have been removed in"
-        #            " favor of named structs, see VIP300",
-        #            DeprecationWarning
-        #            )
+        # if isinstance(sub.typ, StructType) and sub.typ.name is None :
+        #     warnings.warn(
+        #             "Anonymous struct values have been removed in"
+        #             " favor of named structs, see VIP300",
+        #             DeprecationWarning
+        #             )
 
         # Determine if it's an RLPList assignment.
         if isinstance(self.stmt.value, ast.Call) and getattr(self.stmt.value.func, 'id', '') is 'RLPList':
@@ -610,6 +610,7 @@ class Stmt(object):
 
         # Returning a struct
         elif isinstance(sub.typ, StructType):
+            # TODO: VIP1019
             raise InvalidTypeException("Returning structs not allowed yet, see VIP1019", self.stmt)
         # Returning a tuple.
         elif isinstance(sub.typ, TupleType):

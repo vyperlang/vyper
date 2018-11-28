@@ -71,7 +71,7 @@ class GlobalContext:
                 elif base_classes == [ '__VYPER_ANNOT_CONTRACT__' ] :
                     global_ctx._contracts[item.name] = GlobalContext.mkcontract(item.body)
 
-                elif base_classes == [] : # revisit: This doesn't disallow a user from manually adding the base class.
+                elif base_classes == [] :  # revisit: This doesn't disallow a user from manually adding the base class.
                     raise StructureException("The `class` keyword is not allowed in Vyper. Perhaps you meant `contract` or `struct`?", item)
 
                 else :

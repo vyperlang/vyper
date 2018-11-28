@@ -175,7 +175,7 @@ def is_varname_valid(varname, custom_units, custom_structs):
     if varname.lower() in [cu.lower() for cu in custom_units]:
         return False
     # struct names are case sensitive.
-    if varname in custom_structs :
+    if varname in custom_structs:
         return False
     if varname.lower() in base_types:
         return False

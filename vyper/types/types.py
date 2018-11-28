@@ -265,13 +265,15 @@ def parse_unit(item, custom_units):
     else:
         raise InvalidTypeException("Invalid unit expression", item)
 
+
 def mkstruct(name, location, members, custom_units, custom_structs) :
     o = {}
-    for key, value in members : # zip(item.keys, item.values):
+    for key, value in members :
         if not isinstance(key, ast.Name) or not is_varname_valid(key.id, custom_units, custom_structs):
             raise InvalidTypeException("Invalid member variable for struct %r" % key.id, key)
         o[key.id] = parse_type(value, location, custom_units=custom_units, custom_structs=custom_structs)
     return StructType(o, name)
+
 
 # Parses an expression representing a type. Annotation refers to whether
 # the type is to be located in memory or storage
@@ -339,10 +341,10 @@ def parse_type(item, location, sigs={}, custom_units=[], custom_structs={}):
     # Dicts, used to represent mappings, e.g. {uint: uint}. Key must be a base type
     elif isinstance(item, ast.Dict):
         warnings.warn(
-                "Anonymous structs have been removed in"
-                " favor of named structs, see VIP300",
-                DeprecationWarning
-                )
+            "Anonymous structs have been removed in"
+            " favor of named structs, see VIP300",
+            DeprecationWarning
+        )
         return mkstruct(None, location, zip(item.keys, item.values), custom_units, custom_structs)
     elif isinstance(item, ast.Tuple):
         members = [parse_type(x, location, custom_units=custom_units, custom_structs=custom_structs) for x in item.elts]

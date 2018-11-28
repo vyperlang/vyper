@@ -4,7 +4,6 @@ from tokenize import (
     COMMENT,
     NAME,
     OP,
-    NEWLINE,
 
     TokenError,
     TokenInfo,
@@ -62,7 +61,7 @@ def pre_parse(code):
                     TokenInfo(OP, "(", end, end, line),
                     TokenInfo(NAME, replace_mode, end, end, line),
                     TokenInfo(OP, ")", end, end, line),
-                    ])
+                ])
                 replace_mode = None
             if token.type == NAME and string == "contract" and start[1] == 0:
                 replace_mode = "__VYPER_ANNOT_CONTRACT__"
