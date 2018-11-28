@@ -660,10 +660,12 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 if len(args) != 1 or not isinstance(args[0], ast.Dict) :
                     raise StructureException("Struct constructor is called with one argument, a dictionary of members")
                 sub = Expr.parse_value_expr(args[0], self.context)
-                typ = StructType(self.context.structs[function_name], function_name)
-                # This destructive update seems out of line with the rest of the codebase
-                sub.typ.name = function_name
-                return sub
+                typ = StructType(sub.typ.members, function_name)
+
+                # OR:
+                # sub.typ = typ
+                # return sub
+                return LLLnode(sub.value, typ=typ, args=sub.args, location=sub.location, pos=getpos(self.expr), add_gas_estimate=sub.add_gas_estimate, valency=sub.valency, annotation=function_name)
 
             else:
                 err_msg = "Not a top-level function: {}".format(function_name)
