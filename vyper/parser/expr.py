@@ -678,11 +678,11 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 return dispatch_table[function_name](self.expr, self.context)
 
             # Struct constructors do not need `self` prefix.
-            elif function_name in self.context.structs :
-                if not self.context.in_assignment :
+            elif function_name in self.context.structs:
+                if not self.context.in_assignment:
                     raise StructureException("Struct constructor must be called in RHS of assignment.")
                 args = self.expr.args
-                if len(args) != 1 or not isinstance(args[0], ast.Dict) :
+                if len(args) != 1 or not isinstance(args[0], ast.Dict):
                     raise StructureException("Struct constructor is called with one argument, a dictionary of members")
                 sub = Expr.parse_value_expr(args[0], self.context)
                 typ = StructType(sub.typ.members, function_name)

@@ -7,8 +7,7 @@ from vyper.exceptions import (
     TypeMismatchException,
     VariableDeclarationException,
     EventDeclarationException,
-    InvalidLiteralException,
-    InvalidTypeException
+    InvalidLiteralException
 )
 from vyper.functions import (
     stmt_dispatch_table,
@@ -116,10 +115,10 @@ class Stmt(object):
         elif isinstance(self.stmt.annotation, ast.Subscript):
             if not isinstance(sub.typ, (ListType, ByteArrayType)):  # check list assign.
                 raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.value.id, self.stmt)
-        elif isinstance(sub.typ, StructType) :
+        elif isinstance(sub.typ, StructType):
             # This needs to get more sophisticated in the presence of
             # foreign structs.
-            if not sub.typ.name == self.stmt.annotation.id :
+            if not sub.typ.name == self.stmt.annotation.id:
                 raise TypeMismatchException("Invalid type, expected %s" % self.stmt.annotation.id, self.stmt)
         # Check that the integer literal, can be assigned to uint256 if necessary.
         elif (self.stmt.annotation.id, sub.typ.typ) == ('uint256', 'int128') and sub.typ.is_literal:

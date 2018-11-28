@@ -45,7 +45,7 @@ def pre_parse(code):
         g = tokenize(io.BytesIO(code).readline)
 
         for token in g:
-            toks = [ token ]
+            toks = [token]
             line = token.line
             start = token.start
             end = token.end
@@ -56,7 +56,7 @@ def pre_parse(code):
 
             # `contract xyz` -> `class xyz(__VYPER_ANNOT_CONTRACT__)`
             # `struct xyz` -> `class xyz(__VYPER_ANNOT_STRUCT__)`
-            if token.type == NAME and replace_mode :
+            if token.type == NAME and replace_mode:
                 toks.extend([
                     TokenInfo(OP, "(", end, end, line),
                     TokenInfo(NAME, replace_mode, end, end, line),
@@ -65,11 +65,11 @@ def pre_parse(code):
                 replace_mode = None
             if token.type == NAME and string == "contract" and start[1] == 0:
                 replace_mode = "__VYPER_ANNOT_CONTRACT__"
-                toks = [ TokenInfo(NAME, "class", start, end, line) ]
+                toks = [TokenInfo(NAME, "class", start, end, line)]
             # In the future, may relax the start-of-line restriction
             if token.type == NAME and string == "struct" and start[1] == 0:
                 replace_mode = "__VYPER_ANNOT_STRUCT__"
-                toks = [ TokenInfo(NAME, "class", start, end, line) ]
+                toks = [TokenInfo(NAME, "class", start, end, line)]
 
             # Prevent semi-colon line statements.
             if (token.type, token.string) == (OP, ";"):

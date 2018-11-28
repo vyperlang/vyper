@@ -63,18 +63,18 @@ class GlobalContext:
                 if global_ctx._events or global_ctx._globals or global_ctx._defs:
                     raise StructureException("External contract and struct declarations must come before event declarations, global declarations, and function definitions", item)
 
-                base_classes = [ x.id for x in item.bases ]
-                if base_classes == [ '__VYPER_ANNOT_STRUCT__' ] :
+                base_classes = [x.id for x in item.bases]
+                if base_classes == ['__VYPER_ANNOT_STRUCT__']:
                     if global_ctx._contracts:
                         raise StructureException("Structs must come before external contract definitions", item)
                     global_ctx._structs[item.name] = global_ctx.mkstruct(item.name, item.body)
-                elif base_classes == [ '__VYPER_ANNOT_CONTRACT__' ] :
+                elif base_classes == ['__VYPER_ANNOT_CONTRACT__']:
                     global_ctx._contracts[item.name] = GlobalContext.mkcontract(item.body)
 
-                elif base_classes == [] :  # revisit: This doesn't disallow a user from manually adding the base class.
+                elif base_classes == []:  # revisit: This doesn't disallow a user from manually adding the base class.
                     raise StructureException("The `class` keyword is not allowed in Vyper. Perhaps you meant `contract` or `struct`?", item)
 
-                else :
+                else:
                     raise StructureException("Multiple base classes for class not allowed.", item)
 
             # Statements of the form:
@@ -163,9 +163,9 @@ class GlobalContext:
         return o
 
     # A struct is a list of members
-    def mkstruct(self, name, body) :
+    def mkstruct(self, name, body):
         members = []
-        for item in body :
+        for item in body:
             if isinstance(item, ast.AnnAssign):
                 member_name = item.target
                 member_type = item.annotation

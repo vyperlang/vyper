@@ -266,9 +266,9 @@ def parse_unit(item, custom_units):
         raise InvalidTypeException("Invalid unit expression", item)
 
 
-def mkstruct(name, location, members, custom_units, custom_structs) :
+def mkstruct(name, location, members, custom_units, custom_structs):
     o = {}
-    for key, value in members :
+    for key, value in members:
         if not isinstance(key, ast.Name) or not is_varname_valid(key.id, custom_units, custom_structs):
             raise InvalidTypeException("Invalid member variable for struct %r" % key.id, key)
         o[key.id] = parse_type(value, location, custom_units=custom_units, custom_structs=custom_structs)
@@ -285,7 +285,7 @@ def parse_type(item, location, sigs={}, custom_units=[], custom_structs={}):
             return BaseType(item.id)
         elif item.id in special_types:
             return special_types[item.id]
-        elif item.id in custom_structs :
+        elif item.id in custom_structs:
             return mkstruct(item.id, location, custom_structs[item.id], custom_units, custom_structs)
         else:
             raise InvalidTypeException("Invalid base type: " + item.id, item)
@@ -296,7 +296,7 @@ def parse_type(item, location, sigs={}, custom_units=[], custom_structs={}):
             if sigs and item.args[0].id in sigs:
                 return ContractType(item.args[0].id)
         # Struct types
-        if item.func.id in custom_structs :
+        if item.func.id in custom_structs:
             return mkstruct(item.id, location, custom_structs[item.id], custom_units, custom_structs)
         if not isinstance(item.func, ast.Name):
             raise InvalidTypeException("Malformed unit type:", item)
