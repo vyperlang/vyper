@@ -66,6 +66,9 @@ VAL: constant(int128) = -123
 @public
 def test() -> int128:
     return 1 * VAL
+    """,
+    """
+TREE_FIDDY: constant(uint256(wei))  = as_wei_value(350, 'ether')
     """
 ]
 
