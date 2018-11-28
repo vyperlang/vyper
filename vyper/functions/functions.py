@@ -621,8 +621,48 @@ def shift(expr, args, kwargs, context):
     typ=BaseType('uint256'), pos=getpos(expr))
 
 
+def get_create_with_code_of_bytecode():
+    from vyper.compile_lll import (
+        assembly_to_evm,
+        num_to_bytearray
+    )
+    code_a = [
+        'PUSH1', 0x33,
+        'PUSH1', 0x0c,
+        'PUSH1', 0x00,
+        'CODECOPY',
+        'PUSH1', 0x33,
+        'PUSH1', 0x00,
+        'RETURN',
+        'CALLDATASIZE',
+        'PUSH1', 0x00,
+        'PUSH1', 0x00,
+        'CALLDATACOPY',
+        'PUSH2', num_to_bytearray(0x1000),
+        'PUSH1', 0x00,
+        'CALLDATASIZE',
+        'PUSH1', 0x00,
+        'PUSH20',  # [address to delegate to]
+    ]
+    code_b = [
+        'GAS',
+        'DELEGATECALL',
+        'PUSH1', 0x2c,  # jumpdest of whole program.
+        'JUMPI',
+        'PUSH1', 0x0,
+        'DUP1',
+        'REVERT',
+        'JUMPDEST',
+        'PUSH2', num_to_bytearray(0x1000),
+        'PUSH1', 0x00,
+        'RETURN'
+    ]
+    return assembly_to_evm(code_a)[0] + (b'\x00' * 20) + assembly_to_evm(code_b)[0]
+
+
 @signature('address', value=Optional('uint256', zero_value))
 def create_with_code_of(expr, args, kwargs, context):
+
     value = kwargs['value']
     if value != zero_value:
         enforce_units(value.typ, get_keyword(expr, 'value'),
@@ -630,15 +670,16 @@ def create_with_code_of(expr, args, kwargs, context):
     if context.is_constant:
         raise ConstancyViolationException("Cannot make calls from a constant function", expr)
     placeholder = context.new_placeholder(ByteArrayType(96))
-    kode = b'`.`\x0c`\x009`.`\x00\xf36`\x00`\x007a\x10\x00`\x006`\x00s\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00Z\xf4\x15XWa\x10\x00`\x00\xf3'
-    assert len(kode) <= 64
+
+    kode = get_create_with_code_of_bytecode()
     high = bytes_to_int(kode[:32])
     low = bytes_to_int((kode + b'\x00' * 32)[47:79])
+
     return LLLnode.from_list(['seq',
                                 ['mstore', placeholder, high],
                                 ['mstore', ['add', placeholder, 27], ['mul', args[0], 2**96]],
                                 ['mstore', ['add', placeholder, 47], low],
-                                ['clamp_nonzero', ['create', value, placeholder, 64]]], typ=BaseType('address'), pos=getpos(expr), add_gas_estimate=10000)
+                                ['clamp_nonzero', ['create', value, placeholder, 96]]], typ=BaseType('address'), pos=getpos(expr), add_gas_estimate=11000)
 
 
 @signature(('int128', 'decimal', 'uint256'), ('int128', 'decimal', 'uint256'))
