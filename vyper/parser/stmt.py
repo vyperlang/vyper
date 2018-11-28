@@ -611,7 +611,7 @@ class Stmt(object):
         # Returning a struct
         elif isinstance(sub.typ, StructType):
             # TODO: VIP1019
-            raise InvalidTypeException("Returning structs not allowed yet, see VIP1019", self.stmt)
+            raise TypeMismatchException("Returning structs not allowed yet, see VIP1019", self.stmt)
         # Returning a tuple.
         elif isinstance(sub.typ, TupleType):
             if not isinstance(self.context.return_type, TupleType):
