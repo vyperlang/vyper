@@ -1,6 +1,7 @@
 import abc
 import ast
 import copy
+import warnings
 
 from vyper.exceptions import InvalidTypeException
 from vyper.utils import (
@@ -334,6 +335,10 @@ def parse_type(item, location, sigs={}, custom_units=[], custom_structs={}):
             return MappingType(keytype, parse_type(item.value, location, custom_units=custom_units, custom_structs=custom_structs))
     # Dicts, used to represent mappings, e.g. {uint: uint}. Key must be a base type
     elif isinstance(item, ast.Dict):
+        warnings.warn(
+                "Anonymous structs have been removed, see VIP300",
+                DeprecationWarning
+                )
         return mkstruct(None, location, zip(item.keys, item.values), custom_units, custom_structs)
     elif isinstance(item, ast.Tuple):
         members = [parse_type(x, location, custom_units=custom_units, custom_structs=custom_structs) for x in item.elts]
