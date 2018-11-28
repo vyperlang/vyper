@@ -21,7 +21,8 @@ x: int128[-1]
 x: int128[3.5]
     """,
     """
-x: {int128[5]: int128[7]}
+struct X:
+    int128[5]: int128[7]
     """,
     """
 x: [bar, baz]
@@ -30,19 +31,22 @@ x: [bar, baz]
 x: [bar(int128), baz(baffle)]
     """,
     """
-x: {bar: int128, decimal: int128}
-    """,
-    """
-x: {bar: int128, 5: int128}
+struct X:
+    bar: int128
+    decimal: int128
     """,
     """
 def foo(x): pass
     """,
     """
-b: {num: int128, address: address}
+struct B:
+    num: int128
+    address: address
     """,
     """
-b: {num: int128, address: address}
+struct B:
+    num: int128
+    address: address
     """,
     """
 b: int128[int128, decimal]

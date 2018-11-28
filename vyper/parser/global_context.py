@@ -6,6 +6,7 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
+    InvalidTypeException,
 )
 from vyper.utils import (
     is_varname_valid,
@@ -64,7 +65,7 @@ class GlobalContext:
 
                 base_classes = [ x.id for x in item.bases ]
                 if base_classes == [ '__VYPER_ANNOT_STRUCT__' ] :
-                    global_ctx._structs[item.name] = GlobalContext.mkstruct(item.name, item.body)
+                    global_ctx._structs[item.name] = global_ctx.mkstruct(item.name, item.body)
                 elif base_classes == [ '__VYPER_ANNOT_CONTRACT__' ] :
                     if global_ctx._structs :
                         raise StructureException("External contract definitions must come before struct declarations", item)
@@ -162,13 +163,22 @@ class GlobalContext:
         return o
 
     # A struct is a list of members
-    @staticmethod
-    def mkstruct(name, body) :
+    def mkstruct(self, name, body) :
         members = []
         for item in body :
             if isinstance(item, ast.AnnAssign):
                 member_name = item.target
                 member_type = item.annotation
+                # Check well-formedness of member names
+                if not (isinstance(member_name, ast.Name) and is_varname_valid(member_name.id, {}, self._structs)):
+                    raise InvalidTypeException("Invalid member name for struct %r" % name, item)
+                # Check well-formedness of member types
+                # Note this kicks out mutually recursive structs,
+                # raising an exception instead of stackoverflow.
+                # A struct must be defined before it is referenced.
+                # This feels like a semantic step and maybe should be pushed
+                # to a later compilation stage.
+                parse_type(member_type, 'storage', custom_structs=self._structs)
                 members.append((member_name, member_type))
             else:
                 raise StructureException("Structs can only contain variables", item)

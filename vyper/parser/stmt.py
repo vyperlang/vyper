@@ -1,5 +1,6 @@
 import ast
 import re
+import warnings
 
 from vyper.exceptions import (
     ConstancyViolationException,
@@ -166,6 +167,15 @@ class Stmt(object):
             raise StructureException("Assignment statement must have one target", self.stmt)
         self.context.set_in_assignment(True)
         sub = Expr(self.stmt.value, self.context).lll_node
+
+        # Not sure if we should go for assignments or if there
+        # is a more general place to check for this.
+        #if isinstance(sub.typ, StructType) and sub.typ.name is None :
+        #    warnings.warn(
+        #            "Anonymous struct values have been removed in"
+        #            " favor of named structs, see VIP300",
+        #            DeprecationWarning
+        #            )
 
         # Determine if it's an RLPList assignment.
         if isinstance(self.stmt.value, ast.Call) and getattr(self.stmt.value.func, 'id', '') is 'RLPList':

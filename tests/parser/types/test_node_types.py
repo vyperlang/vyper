@@ -78,7 +78,7 @@ def test_get_size_of_type():
     _struct = StructType({
         'a': BaseType('int128'),
         'b': BaseType('decimal')
-    })
+    }, 'Foo')
     assert get_size_of_type(_struct) == 2
 
     # Don't allow unknow types.

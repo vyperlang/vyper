@@ -68,7 +68,7 @@ class EventSignature():
                     raise VariableDeclarationException("Argument name invalid", arg)
                 if not typ:
                     raise InvalidTypeException("Argument must have type", arg)
-                if not is_varname_valid(arg, custom_units):
+                if not is_varname_valid(arg, custom_units, custom_structs):
                     raise VariableDeclarationException("Argument name invalid or reserved: " + arg, arg)
                 if arg in (x.name for x in args):
                     raise VariableDeclarationException("Duplicate function argument name: " + arg, arg)

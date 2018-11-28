@@ -184,7 +184,7 @@ class FunctionSignature():
         def synonymise(s):
             return s.replace('int128', 'num').replace('uint256', 'num')
         # for sig in sigs['self']
-        full_sig = cls.get_full_sig(stmt_or_expr.func.attr, expr_args, None, context.custom_units)
+        full_sig = cls.get_full_sig(stmt_or_expr.func.attr, expr_args, None, context.custom_units, context.structs)
         method_names_dict = dict(Counter([x.split('(')[0] for x in context.sigs['self']]))
         if method_name not in method_names_dict:
             raise FunctionDeclarationException(

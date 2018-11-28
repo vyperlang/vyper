@@ -336,7 +336,8 @@ def parse_type(item, location, sigs={}, custom_units=[], custom_structs={}):
     # Dicts, used to represent mappings, e.g. {uint: uint}. Key must be a base type
     elif isinstance(item, ast.Dict):
         warnings.warn(
-                "Anonymous structs have been removed, see VIP300",
+                "Anonymous structs have been removed in"
+                " favor of named structs, see VIP300",
                 DeprecationWarning
                 )
         return mkstruct(None, location, zip(item.keys, item.values), custom_units, custom_structs)
