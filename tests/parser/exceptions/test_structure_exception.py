@@ -177,7 +177,33 @@ def foo():
 def foo():
     b: int128
     del b
+    """,
     """
+contract F:
+    def foo(): constant
+struct S:
+    x: int128
+    """,
+    """
+g: int128
+struct S:
+    x: int128
+    """,
+    """
+struct S:
+    x: int128
+s: S = S({x: int128}, 1)
+    """,
+    """
+struct S:
+    x: int128
+s: S = S(1)
+    """,
+    """
+struct S:
+    x: int128
+s: S = S()
+    """,
 ]
 
 

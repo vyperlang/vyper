@@ -98,6 +98,12 @@ x: bytes[1:3]
     """
 x: bytes[33.3]
     """,
+    """
+struct A:
+    b: B
+struct B:
+    a: A
+    """,
 ]
 
 

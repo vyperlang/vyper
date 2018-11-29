@@ -7,6 +7,31 @@ from vyper.exceptions import TypeMismatchException
 
 fail_list = [
     """
+struct A:
+    x: int128
+a: A
+@public
+def foo():
+    self.a = {x: 1}
+    """,
+    """
+struct A:
+    x: int128
+a: A
+@public
+def foo():
+    self.a = A({x: 1, y: 2})
+    """,
+    """
+struct A:
+    x: int128
+    y: int128
+a: A
+@public
+def foo():
+    self.a = A({x: 1})
+    """,
+    """
 struct C:
     c: int128
 struct Mom:
@@ -75,6 +100,22 @@ struct Mom:
     a: C[3]
     b: int128
 struct Nom:
+    a: C[3]
+    b: int128
+    c: int128
+mom: Mom
+nom: Nom
+@public
+def foo():
+    self.nom = Nom(self.mom)
+    """,
+    """
+struct C:
+    c: int128
+struct Mom:
+    a: C[3]
+    b: int128
+struct Nom:
     a: C
     b: int128
 mom: Mom
@@ -82,6 +123,43 @@ nom: Nom
 @public
 def foo():
     self.nom = Nom(self.mom)
+    """,
+    """
+struct Mom:
+    a: int128
+struct Nom:
+    a: int128
+mom: Mom
+nom: Nom
+@public
+def foo():
+    self.nom = self.mom # require cast
+    """,
+    """
+struct Mom:
+    a: int128
+struct Nom:
+    b: int128
+mom: Mom
+nom: Nom
+@public
+def foo():
+    self.nom = Nom(self.mom)
+    """,
+    """
+struct C:
+    c: int128
+struct Mom:
+    a: C[3]
+    b: int128
+struct Nom:
+    a: C[3]
+    b: int128
+mom: Mom
+nom: Nom
+@public
+def foo():
+    self.nom = self.mom # require cast
     """,
     """
 struct C:
@@ -244,7 +322,6 @@ b: B
 def foo():
     x = self.b[0]
     """,
-# TODO: assign anon struct to struct should fail
 ]
 
 
@@ -255,6 +332,14 @@ def test_block_fail(bad_code):
 
 
 valid_list = [
+    """
+struct A:
+    x: int128
+a: A
+@public
+def foo():
+    self.a = A({x: 1})
+    """,
     """
 struct C:
     c: int128
