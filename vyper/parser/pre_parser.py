@@ -54,6 +54,8 @@ def pre_parse(code):
             if token.type == COMMENT and "@version" in token.string:
                 parse_version_pragma(token.string[1:])
 
+            if token.type == NAME and string == "class" and start[1] == 0:
+                raise StructureException("The `class` keyword is not allowed. Perhaps you meant `contract` or `struct`?", token.start)
             # `contract xyz` -> `class xyz(__VYPER_ANNOT_CONTRACT__)`
             # `struct xyz` -> `class xyz(__VYPER_ANNOT_STRUCT__)`
             if token.type == NAME and replace_mode:
