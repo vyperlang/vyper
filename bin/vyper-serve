@@ -9,9 +9,7 @@ from socketserver import ThreadingMixIn
 
 import vyper
 
-from vyper import compiler, optimizer
 from vyper.parser import lll_node
-from vyper.parser.parser import parse_to_lll
 from vyper.exceptions import ParserException
 
 
@@ -85,12 +83,12 @@ class VyperRequestHandler(BaseHTTPRequestHandler):
 
         try:
             code = data['code']
-            out_dict = {
-                'abi': compiler.mk_full_signature(code),
-                'bytecode': '0x' + compiler.compile(code).hex(),
-                'bytecode_runtime': '0x' + compiler.compile(code, bytecode_runtime=True).hex(),
-                'ir': str(optimizer.optimize(parse_to_lll(code)))
-            }
+            out_dict = vyper.compile_codes(
+                {'': code},
+                ['bytecode', 'bytecode_runtime', 'abi', 'source_map', 'method_identifiers', 'ir'],
+                output_type='dict',
+            )['']
+            out_dict['ir'] = str(out_dict['ir'])
         except ParserException as e:
             return {
                 'status': 'failed',

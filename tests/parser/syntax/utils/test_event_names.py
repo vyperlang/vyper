@@ -56,7 +56,7 @@ def foo(i: int128) -> int128:
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_varname_validity_fail(bad_code):
         with raises(EventDeclarationException):
-            compiler.compile(bad_code)
+            compiler.compile_code(bad_code)
 
 
 valid_list = [
@@ -92,4 +92,4 @@ def foo(i: int128) -> int128:
 
 @pytest.mark.parametrize('good_code', valid_list)
 def test_varname_validity_success(good_code):
-        assert compiler.compile(good_code) is not None
+        assert compiler.compile_code(good_code) is not None

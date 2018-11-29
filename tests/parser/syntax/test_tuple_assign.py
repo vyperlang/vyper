@@ -72,7 +72,7 @@ def test():
 def test_tuple_assign_fail(bad_code):
     if isinstance(bad_code, tuple):
         with raises(bad_code[1]):
-            compiler.compile(bad_code[0])
+            compiler.compile_code(bad_code[0])
     else:
         with raises(TypeMismatchException):
-            compiler.compile(bad_code)
+            compiler.compile_code(bad_code)

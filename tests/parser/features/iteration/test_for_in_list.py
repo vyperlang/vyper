@@ -294,3 +294,52 @@ def foo(x: int128):
         i += 2
 """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), StructureException)
+
+
+def test_range_constant(get_contract_with_gas_estimation):
+    code = """
+TREE_FIDDY: constant(int128)  = 350
+
+
+@public
+def a() -> uint256:
+    x: uint256 = 0
+    for i in range(TREE_FIDDY):
+        x += 1
+    return x
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.a() == 350
+
+    code = """
+ONE_HUNDRED: constant(int128)  = 100
+
+@public
+def a() -> uint256:
+    x: uint256 = 0
+    for i in range(1, 1 + ONE_HUNDRED):
+        x += 1
+    return x
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.a() == 100
+
+    code = """
+START: constant(int128)  = 100
+END: constant(int128)  = 199
+
+@public
+def a() -> uint256:
+    x: uint256 = 0
+    for i in range(START, END):
+        x += 1
+    return x
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.a() == 99

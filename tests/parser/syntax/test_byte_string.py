@@ -19,4 +19,4 @@ def foo():
 
 @pytest.mark.parametrize('good_code', valid_list)
 def test_byte_string_success(good_code):
-    assert compiler.compile(good_code) is not None
+    assert compiler.compile_code(good_code) is not None
