@@ -16,4 +16,4 @@ def test_func() -> int128:
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_type_mismatch_exception(bad_code):
     with raises(TypeMismatchException):
-        compiler.compile(bad_code)
+        compiler.compile_code(bad_code)

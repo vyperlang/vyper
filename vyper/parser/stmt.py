@@ -332,6 +332,28 @@ class Stmt(object):
         else:
             return LLLnode.from_list(['assert', test_expr], typ=None, pos=getpos(self.stmt))
 
+    def _check_valid_range_constant(self, arg, raise_exception=True):
+        valid = False
+        if isinstance(arg, ast.Num):
+            valid = True
+        if isinstance(arg, ast.Name) and arg.id in self.context.constants:
+            const = self.context.constants[arg.id]
+            if isinstance(const.typ, BaseType) and const.typ.typ in ('uint256', 'int128'):
+                valid = True
+
+        if not valid and raise_exception:
+            raise StructureException("Range only accepts literal (constant) values", arg)
+
+        return valid
+
+    def _get_range_const_value(self, const_node):
+        self._check_valid_range_constant(const_node)
+
+        if isinstance(const_node, ast.Num):
+            return const_node.n
+        if isinstance(const_node, ast.Name):
+            return self.context.constants[const_node.id].value
+
     def parse_for(self):
         from .parser import (
             parse_body,
@@ -349,27 +371,40 @@ class Stmt(object):
 
         block_scope_id = id(self.stmt.orelse)
         self.context.start_blockscope(block_scope_id)
+
+        # Get arg0
+        arg0 = self.stmt.iter.args[0]
+        num_of_args = len(self.stmt.iter.args)
+
         # Type 1 for, e.g. for i in range(10): ...
-        if len(self.stmt.iter.args) == 1:
-            if not isinstance(self.stmt.iter.args[0], ast.Num):
-                raise StructureException("Range only accepts literal values", self.stmt.iter)
+        if num_of_args == 1:
+            arg0_val = self._get_range_const_value(arg0)
             start = LLLnode.from_list(0, typ='int128', pos=getpos(self.stmt))
-            rounds = self.stmt.iter.args[0].n
-        elif isinstance(self.stmt.iter.args[0], ast.Num) and isinstance(self.stmt.iter.args[1], ast.Num):
-            # Type 2 for, e.g. for i in range(100, 110): ...
-            start = LLLnode.from_list(self.stmt.iter.args[0].n, typ='int128', pos=getpos(self.stmt))
-            rounds = LLLnode.from_list(self.stmt.iter.args[1].n - self.stmt.iter.args[0].n, typ='int128', pos=getpos(self.stmt))
+            rounds = arg0_val
+
+        # Type 2 for, e.g. for i in range(100, 110): ...
+        elif self._check_valid_range_constant(self.stmt.iter.args[1], raise_exception=False):
+            arg0_val = self._get_range_const_value(arg0)
+            arg1_val = self._get_range_const_value(self.stmt.iter.args[1])
+            start = LLLnode.from_list(arg0_val, typ='int128', pos=getpos(self.stmt))
+            rounds = LLLnode.from_list(arg1_val - arg0_val, typ='int128', pos=getpos(self.stmt))
+
+        # Type 3 for, e.g. for i in range(x, x + 10): ...
         else:
-            # Type 3 for, e.g. for i in range(x, x + 10): ...
-            if not isinstance(self.stmt.iter.args[1], ast.BinOp) or not isinstance(self.stmt.iter.args[1].op, ast.Add):
-                raise StructureException("Two-arg for statements must be of the form `for i in range(start, start + rounds): ...`",
-                                            self.stmt.iter.args[1])
-            if ast.dump(self.stmt.iter.args[0]) != ast.dump(self.stmt.iter.args[1].left):
-                raise StructureException("Two-arg for statements of the form `for i in range(x, x + y): ...` must have x identical in both places: %r %r" % (ast.dump(self.stmt.iter.args[0]), ast.dump(self.stmt.iter.args[1].left)), self.stmt.iter)
-            if not isinstance(self.stmt.iter.args[1].right, ast.Num):
-                raise StructureException("Range only accepts literal values", self.stmt.iter.args[1])
-            start = Expr.parse_value_expr(self.stmt.iter.args[0], self.context)
-            rounds = self.stmt.iter.args[1].right.n
+            arg1 = self.stmt.iter.args[1]
+            if not isinstance(arg1, ast.BinOp) or not isinstance(arg1.op, ast.Add):
+                raise StructureException("Two-arg for statements must be of the form `for i in range(start, start + rounds): ...`", arg1)
+
+            if ast.dump(arg0) != ast.dump(arg1.left):
+                raise StructureException(
+                    ("Two-arg for statements of the form `for i in range(x, x + y): ...`"
+                     " must have x identical in both places: %r %r") % (ast.dump(arg0), ast.dump(arg1.left)),
+                    self.stmt.iter
+                )
+
+            rounds = self._get_range_const_value(arg1.right)
+            start = Expr.parse_value_expr(arg0, self.context)
+
         varname = self.stmt.target.id
         pos = self.context.new_variable(varname, BaseType('int128'))
         self.context.forvars[varname] = True

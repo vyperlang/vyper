@@ -1,4 +1,4 @@
-from vyper import compiler
+import vyper
 
 
 def test_bytecode_runtime():
@@ -8,8 +8,7 @@ def a() -> bool:
     return True
     """
 
-    bytecode = compiler.compile(code)
-    bytecode_runtime = compiler.compile(code, bytecode_runtime=True)
+    out = vyper.compile_codes({'': code}, ['bytecode_runtime', 'bytecode'])[0]
 
-    assert len(bytecode) > len(bytecode_runtime)
-    assert bytecode_runtime in bytecode
+    assert len(out['bytecode']) > len(out['bytecode_runtime'])
+    assert out['bytecode_runtime'][2:] in out['bytecode'][2:]

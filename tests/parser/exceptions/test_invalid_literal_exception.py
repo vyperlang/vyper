@@ -127,4 +127,4 @@ def overflow2() -> uint256:
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_invalid_literal_exception(bad_code):
     with raises(InvalidLiteralException):
-        compiler.compile(bad_code)
+        compiler.compile_code(bad_code)
