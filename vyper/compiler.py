@@ -4,7 +4,7 @@ from vyper import optimizer
 
 
 def compile(code, *args, **kwargs):
-    lll = optimizer.optimize(parser.parse_tree_to_lll(parser.parse(code), runtime_only=kwargs.get('bytecode_runtime', False)))
+    lll = optimizer.optimize(parser.parse_tree_to_lll(parser.parse(code), code, runtime_only=kwargs.get('bytecode_runtime', False)))
     asm = compile_lll.compile_to_assembly(lll)
 
     def find_nested_opcode(asm_list, key):

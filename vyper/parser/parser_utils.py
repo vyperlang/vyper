@@ -216,7 +216,7 @@ def add_variable_offset(parent, key, pos):
                                      location='memory',
                                      annotation=annotation)
         else:
-            raise TypeMismatchException("Not expecting a member variable access", pos)
+            raise TypeMismatchException("Not expecting a member variable access")
 
     elif isinstance(typ, MappingType):
 

@@ -35,17 +35,10 @@ def parse_version_pragma(version_str):
         ))
 
 
-# State to help map ['contract','struct'] to ['class']
-class PreparserState:
-    def __init__(self, _struct_names, _contract_names):
-        self.struct_names = _struct_names
-        self.contract_names = _contract_names
-
 # Minor pre-parser checks.
 def pre_parse(code):
     result = []
-    state = PreparserState(set(), set())
-    vyper_class_detected = None
+    replace_mode = None
 
     try:
         code = code.encode('utf-8')
@@ -61,32 +54,29 @@ def pre_parse(code):
             if token.type == COMMENT and "@version" in token.string:
                 parse_version_pragma(token.string[1:])
 
-            if vyper_class_detected and token.type == NAME:
-                if vyper_class_detected == 'contract':
-                    # Prevent collisions between contracts and structs
-                    # with same name
-                    mangled_name = '__contract_' + string
-                    state.contract_names.add(mangled_name)
-                    token = TokenInfo(NAME, mangled_name, start, end, line)
-                if vyper_class_detected == 'struct':
-                    mangled_name = '__struct_' + string
-                    state.struct_names.add(mangled_name)
-                    token = TokenInfo(NAME, mangled_name, start, end, line)
-                vyper_class_detected = None
+            # `contract xyz` -> `class xyz(__VYPER_ANNOT_CONTRACT__)`
+            # `struct xyz` -> `class xyz(__VYPER_ANNOT_STRUCT__)`
+            if token.type == NAME and replace_mode:
+                toks.extend([
+                    TokenInfo(OP, "(", end, end, line),
+                    TokenInfo(NAME, replace_mode, end, end, line),
+                    TokenInfo(OP, ")", end, end, line),
+                ])
+                replace_mode = None
             if token.type == NAME and string == "contract" and start[1] == 0:
-                vyper_class_detected = 'contract'
-                token = TokenInfo(NAME, "class", start, end, line)
+                replace_mode = "__VYPER_ANNOT_CONTRACT__"
+                toks = [TokenInfo(NAME, "class", start, end, line)]
             # In the future, may relax the start-of-line restriction
             if token.type == NAME and string == "struct" and start[1] == 0:
-                vyper_class_detected = 'struct'
-                token = TokenInfo(NAME, "class", start, end, line)
+                replace_mode = "__VYPER_ANNOT_STRUCT__"
+                toks = [TokenInfo(NAME, "class", start, end, line)]
 
             # Prevent semi-colon line statements.
             if (token.type, token.string) == (OP, ";"):
                 raise StructureException("Semi-colon statements not allowed.", token.start)
 
-            result.append(token)
+            result.extend(toks)
     except TokenError as e:
         raise StructureException(e.args[0], e.args[1]) from e
 
-    return (state, untokenize(result).decode('utf-8'))
+    return untokenize(result).decode('utf-8')
