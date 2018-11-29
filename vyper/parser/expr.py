@@ -685,11 +685,11 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 if len(args) != 1:
                     raise StructureException("Struct constructor is called with one argument only")
                 arg = args[0]
-                sub = Expr(arg, self.context).lll_node
-                # Allows construction if underlying dicts are compatible.
-                # Perhaps the user should be forced to use `convert` explicitly.
+                # Only allow construction if argument is a dict value
+                sub = Expr.parse_value_expr(arg, self.context)
                 if not (isinstance(sub.typ, StructType)):
-                    raise StructureException("Struct be constructed with a dict or struct")
+                    if sub.type is not None :
+                        raise StructureException("Struct be constructed with a dict")
                 typ = StructType(sub.typ.members, function_name)
 
                 # OR:

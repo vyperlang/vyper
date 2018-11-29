@@ -181,7 +181,8 @@ def bat(inp1: bytes[40], inp2: bytes[45]) -> bytes[50]:
 @public
 def quz(inp1: bytes[40], inp2: bytes[45]):
     h:  H = H({a: inp1, b: inp2})
-    self.g = G(h)
+    self.g.a = h.a
+    self.g.b = h.b
     """
 
     c = get_contract_with_gas_estimation(test_bytes5)

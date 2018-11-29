@@ -32,6 +32,35 @@ def foo():
     self.a = A({x: 1})
     """,
     """
+struct A:
+    x: int128
+struct B:
+    x: int128
+a: A
+b: B
+@public
+def foo():
+    self.a = A(self.b)
+    """,
+    """
+struct A:
+    x: int128
+a: A
+b: A
+@public
+def foo():
+    self.a = A(self.b)
+    """,
+    """
+struct A:
+    x: int128
+    y: int128
+a: A
+@public
+def foo():
+    self.a = A({x: 1})
+    """,
+    """
 struct C:
     c: int128
 struct Mom:

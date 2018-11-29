@@ -93,7 +93,8 @@ z: Z[2]
 
 @public
 def foo() -> int128:
-    self.dog[0] = Dog({foo: 1, bar: 2})
+    foo0: int128 = 1
+    self.dog[0] = Dog({foo: foo0, bar: 2})
     self.dog[1] = Dog({foo: 3, bar: 4})
     self.dog[2] = Dog({foo: 5, bar: 6})
     return self.dog[0].foo + self.dog[0].bar * 10 + self.dog[1].foo * 100 + \
