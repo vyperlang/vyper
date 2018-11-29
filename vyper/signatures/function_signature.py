@@ -126,7 +126,6 @@ class FunctionSignature():
         if not code.returns:
             output_type = None
         elif isinstance(code.returns, (ast.Name, ast.Compare, ast.Subscript, ast.Call, ast.Tuple)):
-            # can return type be struct?
             output_type = parse_type(code.returns, None, sigs, custom_units=custom_units, custom_structs=custom_structs)
         else:
             raise InvalidTypeException("Output type invalid or unsupported: %r" % parse_type(code.returns, None), code.returns, )

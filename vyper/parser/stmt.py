@@ -108,8 +108,8 @@ class Stmt(object):
                 return
             else:
                 raise TypeMismatchException('Invalid type, expected: bytes32', self.stmt)
+        # This is dead code once anonymous structs are removed.
         elif isinstance(self.stmt.annotation, ast.Dict):
-            # Check for demotion?
             if not isinstance(sub.typ, StructType):
                 raise TypeMismatchException('Invalid type, expected a struct')
         elif isinstance(self.stmt.annotation, ast.Subscript):

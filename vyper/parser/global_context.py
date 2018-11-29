@@ -71,11 +71,11 @@ class GlobalContext:
                 elif base_classes == ['__VYPER_ANNOT_CONTRACT__']:
                     global_ctx._contracts[item.name] = GlobalContext.mkcontract(item.body)
 
-                elif base_classes == []:  # revisit: This doesn't disallow a user from manually adding the base class.
-                    raise StructureException("The `class` keyword is not allowed in Vyper. Perhaps you meant `contract` or `struct`?", item)
+                elif base_classes == []:
+                    raise StructureException("No base classes for class. This is likely a compiler bug, please report at https://github.com/ethereum/vyper/issues", item)
 
                 else:
-                    raise StructureException("Multiple base classes for class not allowed.", item)
+                    raise StructureException("Multiple base classes for class. This is likely a compiler bug, please report at https://github.com/ethereum/vyper/issues", item)
 
             # Statements of the form:
             # variable_name: type
