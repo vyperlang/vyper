@@ -688,7 +688,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 # Only allow construction if argument is a dict value
                 sub = Expr.parse_value_expr(arg, self.context)
                 if not (isinstance(sub.typ, StructType)):
-                    if sub.type is not None :
+                    if sub.type is not None:
                         raise StructureException("Struct be constructed with a dict")
                 typ = StructType(sub.typ.members, function_name)
 
