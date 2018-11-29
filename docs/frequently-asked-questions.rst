@@ -38,12 +38,13 @@ Like Python for loops but with one significant difference. Vyper does not allow 
 ====================
 How do structs work?
 ==================== 
-Structs group variables and are accessed using ``struct.argname``. They are similar to Python dictionaries:: 
+Structs group variables and are accessed using ``struct.argname``. They are similar to Python classes::
 
  # define the struct
- struct: { 
-  arg1: int128, arg2: decimal
- } 
+ struct MyStruct:
+   arg1: int128
+   arg2: decimal
+ struct: MyStruct
  
  #access arg1 in struct
  struct.arg1 = 1 
