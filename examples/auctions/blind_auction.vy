@@ -1,6 +1,10 @@
 # Blind Auction
 # Adapted to Vyper from [Solidity by Example](https://github.com/ethereum/solidity/blob/develop/docs/solidity-by-example.rst#blind-auction-1)
 
+# Note: because Vyper does not allow for dynamic arrays, we have limited the
+# number of bids that can be placed by one address to 128 in this example
+MAX_BIDS: constant(int128) = 128
+
 # Event for logging that auction has ended
 AuctionEnded: event({_highestBidder: address, _highestBid: wei_value})
 
@@ -17,8 +21,6 @@ highestBid: public(wei_value)
 highestBidder: public(address)
 
 # State of bids
-# Note: because Vyper does not allow for dynamic arrays, we have limited the
-# number of bids that can be placed by one address to 128 in this example
 bids: ({blindedBid: bytes32, deposit: wei_value}[128])[address]
 bidCounts: int128[address]
 
@@ -56,10 +58,8 @@ def bid(_blindedBid: bytes32):
     assert block.timestamp < self.biddingEnd
 
     # Check that payer hasn't already placed maximum number of bids
-    # Note: because Vyper does not allow for dynamic arrays, we have limited the
-    # number of bids that can be placed by one address to 128 in this example
     numBids: int128 = self.bidCounts[msg.sender]
-    assert numBids < 128
+    assert numBids < MAX_BIDS
 
     # Add bid to mapping of all bids
     (self.bids[msg.sender])[numBids] = {blindedBid: _blindedBid, deposit: msg.value}
@@ -98,10 +98,8 @@ def reveal(_numBids: int128, _values: wei_value[128], _fakes: bool[128], _secret
     assert _numBids == self.bidCounts[msg.sender]
 
     # Calculate refund for sender
-    # Note: because Vyper does not allow for dynamic arrays, we have limited
-    # the number of bids that can be placed by one address to 128 in this example
     refund: wei_value
-    for i in range(128):
+    for i in range(MAX_BIDS):
         # Note that loop may break sooner than 128 iterations if i >= _numBids
         if (i >= _numBids):
             break
