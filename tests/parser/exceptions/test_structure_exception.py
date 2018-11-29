@@ -184,4 +184,4 @@ def foo():
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_invalid_type_exception(bad_code):
     with raises(StructureException):
-        compiler.compile(bad_code)
+        compiler.compile_code(bad_code)

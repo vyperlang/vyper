@@ -183,8 +183,9 @@ def get_contract_from_lll(w3):
 
 
 def _get_contract(w3, source_code, *args, **kwargs):
-    abi = compiler.mk_full_signature(source_code)
-    bytecode = '0x' + compiler.compile(source_code).hex()
+    out = compiler.compile_code(source_code, ['abi', 'bytecode'])
+    abi = out['abi']
+    bytecode = out['bytecode']
     contract = w3.eth.contract(abi=abi, bytecode=bytecode)
 
     value = kwargs.pop('value', 0)

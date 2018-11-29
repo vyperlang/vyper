@@ -43,7 +43,7 @@ def cat_list(y: int128) -> bytes[40]:
 def test_block_fail(bad_code):
 
     with raises(TypeMismatchException):
-        compiler.compile(bad_code)
+        compiler.compile_code(bad_code)
 
 
 valid_list = [
@@ -81,4 +81,4 @@ def krazykonkat(z: bytes[10]) -> bytes[25]:
 
 @pytest.mark.parametrize('good_code', valid_list)
 def test_block_success(good_code):
-    assert compiler.compile(good_code) is not None
+    assert compiler.compile_code(good_code) is not None
