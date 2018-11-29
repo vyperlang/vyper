@@ -30,7 +30,7 @@ def participate():
 
     nfi: int128 = self.nextFunderIndex
 
-    self.funders[nfi] = {sender: {x: msg.sender}, value: msg.value}
+    self.funders[nfi] = Funder({sender: msg.sender, value: msg.value})
     self.nextFunderIndex = nfi + 1
 
 
@@ -54,7 +54,7 @@ def refund():
             self.refundIndex = self.nextFunderIndex
             return
 
-        send(self.funders[i].sender.x, self.funders[i].value)
+        send(self.funders[i].sender, self.funders[i].value)
         self.funders[i] = None
 
     self.refundIndex = ind + 30
