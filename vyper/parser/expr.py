@@ -682,9 +682,14 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 if not self.context.in_assignment:
                     raise StructureException("Struct constructor must be called in RHS of assignment.")
                 args = self.expr.args
-                if len(args) != 1 or not isinstance(args[0], ast.Dict):
-                    raise StructureException("Struct constructor is called with one argument, a dictionary of members")
-                sub = Expr.parse_value_expr(args[0], self.context)
+                if len(args) != 1:
+                    raise StructureException("Struct constructor is called with one argument only")
+                arg = args[0]
+                sub = Expr(arg, self.context).lll_node
+                # Allows construction if underlying dicts are compatible.
+                # Perhaps the user should be forced to use `convert` explicitly.
+                if not (isinstance(sub.typ, StructType)):
+                    raise StructureException("Struct be constructed with a dict or struct")
                 typ = StructType(sub.typ.members, function_name)
 
                 # OR:

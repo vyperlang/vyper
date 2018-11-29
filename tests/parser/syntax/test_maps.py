@@ -7,79 +7,190 @@ from vyper.exceptions import TypeMismatchException
 
 fail_list = [
     """
-mom: {a: {c: int128}[3], b: int128}
-nom: {a: {c: int128}[2], b: int128}
+struct C:
+    c: int128
+struct Mom:
+    a: C[3]
+    b: int128
+struct Nom:
+    a: C[2]
+    b: int128
+mom: Mom
+nom: Nom
 @public
 def foo():
-    self.nom = self.mom
+    self.nom = Nom(self.mom)
     """,
     """
-mom: {a: {c: int128}[3], b: int128}
-nom: {a: {c: decimal}[2], b: int128}
+struct C1:
+    c: int128
+struct C2:
+    c: decimal
+struct Mom:
+    a: C1[3]
+    b: int128
+struct Nom:
+    a: C2[2]
+    b: int128
+mom: Mom
+nom: Nom
 @public
 def foo():
-    self.nom = self.mom
+    self.nom = Nom(self.mom)
     """,
     """
-mom: {a: {c: int128}[3], b: int128}
-nom: {a: {c: int128}[3], b: int128, c: int128}
+struct C:
+    c: int128
+struct Mom:
+    a: C[3]
+    b: int128
+struct Nom:
+    a: C[3]
+    b: int128
+    c: int128
+mom: Mom
+nom: Nom
 @public
 def foo():
-    self.nom = self.mom
+    self.nom = Nom(self.mom)
     """,
     """
-mom: {a: {c: int128}[3], b: int128}
-nom: {a: {c: int128}[3]}
+struct C:
+    c: int128
+struct Mom:
+    a: C[3]
+    b: int128
+struct Nom:
+    a: C[3]
+mom: Mom
+nom: Nom
 @public
 def foo():
-    self.nom = self.mom
+    self.nom = Nom(self.mom)
     """,
     """
-mom: {a: {c: int128}[3], b: int128}
-nom: {a: {c: int128}, b: int128}
+struct C:
+    c: int128
+struct Mom:
+    a: C[3]
+    b: int128
+struct Nom:
+    a: C
+    b: int128
+mom: Mom
+nom: Nom
 @public
 def foo():
-    self.nom = self.mom
+    self.nom = Nom(self.mom)
     """,
     """
-mom: {a: {c: int128}[3], b: int128}
-nom: {c: int128}[3]
+struct C:
+    c: int128
+struct Mom:
+    a: C[3]
+    b: int128
+struct Nom:
+    a: C
+mom: Mom
+nom: C[3]
 @public
 def foo():
     self.nom = self.mom.b
     """,
     """
-mom: {a: {c: int128}[3], b: int128}
-nom: {c: int128}[3]
+struct C:
+    c: int128
+struct Mom:
+    a: C[3]
+    b: int128
+struct Nom:
+    a: C
+mom: Mom
+nom: C[3]
 @public
 def foo():
-    self.mom = {a: self.nom, b: 5.5}
+    self.mom = Mom({a: self.nom, b: 5.5})
     """,
     """
-mom: {a: {c: int128}[3], b: int128}
-nom: {c: decimal}[3]
+struct C1:
+    c: int128
+struct C2:
+    c: decimal
+struct Mom:
+    a: C1[3]
+    b: int128
+mom: Mom
+nom: C2[3]
 @public
 def foo():
-    self.mom = {a: self.nom, b: 5}
+    self.mom = Mom({a: self.nom, b: 5})
     """,
     """
-mom: {a: {c: int128}[3], b: int128}
-nom: {c: int128}[3]
+struct C:
+    c: int128
+struct Mom:
+    a: C[3]
+    b: int128
+struct Nom:
+    a: C
+mom: Mom
+nom: C[3]
 @public
 def foo():
-    self.mom = {a: self.nom, b: self.nom}
+    self.mom = Mom({a: self.nom, b: self.nom})
     """,
     """
-nom: {a: {c: int128}[int128], b: int128}
+struct C:
+    c: int128
+struct Nom:
+    a: C[int128]
+    b: int128
+nom: Nom
 @public
 def foo():
     self.nom = None
     """,
     """
-nom: {a: {c: int128}[int128], b: int128}
+struct C:
+    c: int128
+struct Nom:
+    a: C[int128]
+    b: int128
+nom: Nom
 @public
 def foo():
-    self.nom = {a: [{c: 5}], b: 7}
+    self.nom = Nom({a: [C({c: 5})], b: 7})
+    """,
+    """
+struct C1:
+    c: int128
+struct C2:
+    c: decimal
+struct Mom:
+    a: C1[3]
+    b: int128
+struct Nom:
+    a: C2[3]
+    b: int128
+nom: Nom
+mom: Mom
+@public
+def foo():
+    self.nom = Nom(self.mom)
+    """,
+    """
+struct C1:
+    c: int128
+struct C2:
+    c: decimal
+struct Mom:
+    a: C1[3]
+    b: int128
+mom: Mom
+nom: C2[3]
+@public
+def foo():
+    self.mom = Mom({a: self.nom, b: 5})
     """,
     """
 bar: int128[3]
@@ -99,29 +210,41 @@ def foo() -> int128:
     return {cow: 5, dog: 7}
     """,
     """
-x: {cow: int128, cor: int128}
+struct X:
+    cow: int128
+    cor: int128
+x: X
 @public
 def foo():
     self.x.cof = 1
     """,
     """
-b: {foo: int128}
+struct B:
+    foo: int128
+b: B
 @public
 def foo():
-    self.b = {foo: 1, foo: 2}
+    self.b = B({foo: 1, foo: 2})
     """,
     """
-b: {foo: int128, bar: int128}
+struct B:
+    foo: int128
+    bar: int128
+b: B
 @public
 def foo():
     x = self.b.cow
     """,
     """
-b: {foo: int128, bar: int128}
+struct B:
+    foo: int128
+    bar: int128
+b: B
 @public
 def foo():
     x = self.b[0]
     """,
+#TODO: assign anon struct to struct should fail
 ]
 
 
@@ -133,69 +256,91 @@ def test_block_fail(bad_code):
 
 valid_list = [
     """
-mom: {a: {c: int128}[3], b: int128}
-nom: {a: {c: decimal}[3], b: int128}
-@public
-def foo():
-    self.nom = self.mom
-    """,
-    """
-mom: {a: {c: int128}[3], b: int128}
-nom: {c: int128}[3]
+struct C:
+    c: int128
+struct Mom:
+    a: C[3]
+    b: int128
+mom: Mom
+nom: C[3]
 @public
 def foo():
     self.nom = self.mom.a
     """,
     """
-nom: {a: {c: int128}[int128], b: int128}
+struct C:
+    c: int128
+struct Nom:
+    a: C[int128]
+    b: int128
+nom: Nom
 @public
 def foo():
-    self.nom.a[135] = {c: 6}
+    self.nom.a[135] = C({c: 6})
     self.nom.b = 9
     """,
     """
-nom: {c: int128}[3]
+struct C:
+    c: int128
+struct Mom:
+    a: C[3]
+    b: int128
+nom: C[3]
 @public
 def foo():
-    mom: {a: {c: int128}[3], b: int128}
+    mom: Mom
     mom.a = self.nom
     """,
     """
-mom: {a: {c: int128}[3], b: int128}
-nom: {c: int128}[3]
+struct C:
+    c: int128
+struct Mom:
+    a: C[3]
+    b: int128
+mom: Mom
+nom: C[3]
 @public
 def foo():
-    self.mom = {a: self.nom, b: 5}
+    self.mom = Mom({a: self.nom, b: 5})
     """,
     """
-mom: {a: {c: int128}[3], b: int128}
-nom: {c: int128}[3]
+struct C:
+    c: int128
+struct Mom:
+    a: C[3]
+    b: int128
+mom: Mom
+nom: C[3]
 @public
 def foo():
-    self.mom = {a: None, b: 5}
+    self.mom = Mom({a: None, b: 5})
     """,
     """
-mom: {a: {c: int128}[3], b: int128}
+struct C:
+    c: int128
+struct Mom:
+    a: C[3]
+    b: int128
+mom: Mom
 @public
 def foo():
-    nom: {c: int128}[3]
-    self.mom = {a: nom, b: 5}
+    nom: C[3]
+    self.mom = Mom({a: nom, b: 5})
     """,
     """
-mom: {a: {c: decimal}[3], b: int128}
-nom: {c: int128}[3]
-@public
-def foo():
-    self.mom = {a: self.nom, b: 5}
-    """,
-    """
-b: {foo: int128, bar: int128}
+struct B:
+    foo: int128
+    bar: int128
+b: B
 @public
 def foo():
     x: int128 = self.b.bar
     """,
     """
-x: {bar: int128, baz: int128}
+struct X:
+    bar: int128
+    baz: int128
+x: X
     """,
 ]
 
