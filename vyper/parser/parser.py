@@ -136,7 +136,7 @@ def mk_full_signature(code):
 
 
 def mk_method_identifiers(code):
-    o = []
+    o = {}
     global_ctx = GlobalContext.get_global_context(parse(code))
 
     for code in global_ctx._defs:
@@ -144,9 +144,9 @@ def mk_method_identifiers(code):
         if not sig.private:
             default_sigs = generate_default_arg_sigs(code, global_ctx._contracts, global_ctx._custom_units)
             for s in default_sigs:
-                o.append(s.get_method_identifier(global_ctx._contracts, global_ctx._custom_units))
+                o[s.sig] = hex(s.method_id)
 
-    return dict(o)
+    return o
 
 
 def parse_events(sigs, _events, custom_units=None):
