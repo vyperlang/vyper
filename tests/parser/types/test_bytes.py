@@ -150,10 +150,11 @@ def test_test_bytes5(get_contract_with_gas_estimation):
 struct G:
     a: bytes[50]
     b: bytes[50]
-g: G
 struct H:
     a: bytes[40]
     b: bytes[45]
+
+g: G
 
 @public
 def foo(inp1: bytes[40], inp2: bytes[45]):

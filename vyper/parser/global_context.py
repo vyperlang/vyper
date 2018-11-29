@@ -170,7 +170,7 @@ class GlobalContext:
                 member_name = item.target
                 member_type = item.annotation
                 # Check well-formedness of member names
-                if not (isinstance(member_name, ast.Name) and is_varname_valid(member_name.id, {}, self._structs)):
+                if not (isinstance(member_name, ast.Name) and is_varname_valid(member_name.id, custom_units=self._custom_units, custom_structs=self._structs)):
                     raise InvalidTypeException("Invalid member name for struct %r" % name, item)
                 # Check well-formedness of member types
                 # Note this kicks out mutually recursive structs,
@@ -178,7 +178,7 @@ class GlobalContext:
                 # A struct must be defined before it is referenced.
                 # This feels like a semantic step and maybe should be pushed
                 # to a later compilation stage.
-                parse_type(member_type, 'storage', custom_structs=self._structs)
+                parse_type(member_type, 'storage', custom_units=self._custom_units, custom_structs=self._structs)
                 members.append((member_name, member_type))
             else:
                 raise StructureException("Structs can only contain variables", item)

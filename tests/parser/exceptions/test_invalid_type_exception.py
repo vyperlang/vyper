@@ -65,7 +65,7 @@ struct Foo:
     cow: int128
     dog: int128
 @public
-def foo() -> Foo
+def foo() -> Foo:
     return Foo({cow: 5, dog: 7})
     """,
     """

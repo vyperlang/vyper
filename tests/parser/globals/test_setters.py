@@ -88,7 +88,7 @@ struct Goo:
 struct Zed:
     foo: int128[3]
     bar: Bar[2]
-dog: dog[3]
+dog: Dog[3]
 z: Z[2]
 
 @public
@@ -101,7 +101,7 @@ def foo() -> int128:
 
 @public
 def fop() -> int128:
-    self.z = [Z({foo: [1, 2, 3], bar: [Bar({a: 4, b: 5}), Bar({a: 2, b: 3}])}),
+    self.z = [Z({foo: [1, 2, 3], bar: [Bar({a: 4, b: 5}), Bar({a: 2, b: 3})]}),
               Z({foo: [6, 7, 8], bar: [Bar({a: 9, b: 1}), Bar({a: 7, b: 8})]})]
     return self.z[0].foo[0] + self.z[0].foo[1] * 10 + self.z[0].foo[2] * 100 + \
         self.z[0].bar[0].a * 1000 + self.z[0].bar[0].b * 10000 + self.z[0].bar[1].a * 100000 + self.z[0].bar[1].b * 1000000 + \
@@ -122,7 +122,7 @@ def goo() -> int128:
 def gop() -> int128:
     zed: Zed[2] = [
         Zed({foo: [1, 2, 3], bar: [Bar({a: 4, b: 5}), Bar({a: 2, b: 3})]}),
-        {foo: [6, 7, 8], bar: [Bar({a: 9, b: 1}), Bar({a: 7, b: 8})]}
+        Zed({foo: [6, 7, 8], bar: [Bar({a: 9, b: 1}), Bar({a: 7, b: 8})]})
     ]
     return zed[0].foo[0] + zed[0].foo[1] * 10 + zed[0].foo[2] * 100 + \
         zed[0].bar[0].a * 1000 + zed[0].bar[0].b * 10000 + zed[0].bar[1].a * 100000 + zed[0].bar[1].b * 1000000 + \
@@ -176,7 +176,7 @@ def foo() -> int128:
 
 @public
 def fop() -> int128:
-    popp: Mom = Mom({a: [C({c: 1}), C({c: 2}), C({c: 3})], b: 4}
+    popp: Mom = Mom({a: [C({c: 1}), C({c: 2}), C({c: 3})], b: 4})
     self.qoq = C({c: 5})
     popp.a[0] = self.qoq
     self.qoq = C({c: 6})
@@ -185,7 +185,7 @@ def fop() -> int128:
 
 @public
 def foq() -> int128:
-    popp: Mom = Mom({a: [C({c: 1}), C({c: 2}), C({c: 3})], b: 4}
+    popp: Mom = Mom({a: [C({c: 1}), C({c: 2}), C({c: 3})], b: 4})
     popp.a[0] = None
     popp.a[2] = None
     return popp.a[0].c + popp.a[1].c * 10 + popp.a[2].c * 100 + popp.b * 1000

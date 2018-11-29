@@ -57,6 +57,9 @@ def data() -> int128:
     s: int128[5] = [1, 2, 3, 4, 5, 6]
     """, TypeMismatchException),
     ("""
+struct S:
+    a: int128
+    b: decimal
 @public
 def foo() -> int128:
     struct: S = S({a: 1.2, b: 1})
