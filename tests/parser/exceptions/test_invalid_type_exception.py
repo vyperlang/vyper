@@ -61,9 +61,12 @@ def foo() -> int128(wei / sec):
     pass
     """,
     """
+struct Foo:
+    cow: int128
+    dog: int128
 @public
-def foo() -> {cow: int128, dog: int128}:
-    return {cow: 5, dog: 7}
+def foo() -> Foo
+    return Foo({cow: 5, dog: 7})
     """,
     """
 x: wei(wei)

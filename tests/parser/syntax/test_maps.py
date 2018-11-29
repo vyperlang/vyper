@@ -244,7 +244,7 @@ b: B
 def foo():
     x = self.b[0]
     """,
-#TODO: assign anon struct to struct should fail
+# TODO: assign anon struct to struct should fail
 ]
 
 

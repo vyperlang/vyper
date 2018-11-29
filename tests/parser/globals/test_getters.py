@@ -20,18 +20,18 @@ def foo() -> int128:
 
 def test_getter_code(get_contract_with_gas_estimation_for_constants):
     getter_code = """
+struct W:
+    a: wei_value
+    b: int128[7]
+    c: bytes[100]
+    d: int128[address]
+    e: int128[3][3]
+    f: timestamp
+    g: wei_value
 x: public(wei_value)
 y: public(int128[5])
 z: public(bytes[100])
-w: public({
-    a: wei_value,
-    b: int128[7],
-    c: bytes[100],
-    d: int128[address],
-    e: int128[3][3],
-    f: timestamp,
-    g: wei_value
-}[int128])
+w: public(W[int128])
 
 @public
 def __init__():

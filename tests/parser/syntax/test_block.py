@@ -60,10 +60,14 @@ def add_record():
     self.a[block.timestamp] = block.timestamp + 20
     """,
     """
+struct X:
+    x: timestamp
+struct Y:
+    y: int128
 @public
 def add_record():
-    a: {x: timestamp} = {x: block.timestamp}
-    b: {y: int128} = {y: 5}
+    a: X = X({x: block.timestamp})
+    b: Y = Y({y: 5})
     a.x = b.y
     """,
     """
@@ -127,9 +131,11 @@ def foo() -> uint256:
     return as_unitless_number(block.timestamp)
     """,
     """
+struct X:
+    x: timestamp
 @public
 def add_record():
-    a: {x: timestamp} = {x: block.timestamp}
+    a: X = X({x: block.timestamp})
     a.x = 5
     """,
     """

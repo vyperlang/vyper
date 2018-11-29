@@ -30,9 +30,9 @@ units: {
     cm: "centimer"
 }
 
-astruct: {
+struct AStruct:
     value1: int128(cm)
-}
+astruct: AStruct
 
 @public
 def test() -> int128(cm):

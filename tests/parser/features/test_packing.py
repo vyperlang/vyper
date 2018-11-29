@@ -1,8 +1,14 @@
 def test_packing_test(get_contract_with_gas_estimation):
     packing_test = """
+struct Bar:
+    a: int128
+    b: int128
+struct Z:
+    foo: int128[3]
+    bar: Bar[2]
 x: int128
 y: int128[5]
-z: {foo: int128[3], bar: {a: int128, b: int128}[2]}
+z: Z
 a: int128
 
 @public
@@ -24,7 +30,7 @@ def foo() -> int128:
 def fop() -> int128:
     _x: int128
     _y: int128[5]
-    _z: {foo: int128[3], bar: {a: int128, b: int128}[2]}
+    _z: Z
     _a: int128
     _x = 1
     _y[0] = 2

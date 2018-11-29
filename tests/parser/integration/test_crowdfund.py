@@ -1,7 +1,10 @@
 def test_crowdfund(w3, tester, get_contract_with_gas_estimation_for_constants):
     crowdfund = """
 
-funders: {sender: address, value: wei_value}[int128]
+struct Funder:
+    sender: address
+    value: wei_value
+funders: Funder[int128]
 nextFunderIndex: int128
 beneficiary: address
 deadline: public(timestamp)
@@ -92,8 +95,11 @@ def refund():
 
 def test_crowdfund2(w3, tester, get_contract_with_gas_estimation_for_constants):
     crowdfund2 = """
+struct Funder:
+    sender: address
+    value: wei_value
 
-funders: {sender: address, value: wei_value}[int128]
+funders: Funder[int128]
 nextFunderIndex: int128
 beneficiary: address
 deadline: public(timestamp)
