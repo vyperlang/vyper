@@ -1,3 +1,4 @@
+from vyper.functions import get_create_with_code_of_bytecode
 
 
 def test_caller_code(get_contract_with_gas_estimation):
@@ -48,12 +49,15 @@ def create_and_return_forwarder(inp: address) -> address:
     c2 = get_contract_with_gas_estimation(outer_code)
     assert c2.create_and_call_returnten(c.address) == 10
     c2.create_and_call_returnten(c.address, transact={})
-    expected_forwarder_code_mask = b'`.`\x0c`\x009`.`\x00\xf36`\x00`\x007a\x10\x00`\x006`\x00s\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00Z\xf4\x15XWa\x10\x00`\x00\xf3'[12:]
+
+    expected_forwarder_code_mask = get_create_with_code_of_bytecode()[12:]
+
     c3 = c2.create_and_return_forwarder(c.address, call={})
     c2.create_and_return_forwarder(c.address, transact={})
 
     c3_contract_code = w3.toBytes(w3.eth.getCode(c3))
-    assert c3_contract_code[:15] == expected_forwarder_code_mask[:15]
+
+    assert c3_contract_code[:14] == expected_forwarder_code_mask[:14]
     assert c3_contract_code[35:] == expected_forwarder_code_mask[35:]
 
     print('Passed forwarder test')

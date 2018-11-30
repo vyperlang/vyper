@@ -274,6 +274,9 @@ def base_type_conversion(orig, frm, to, pos):
     orig = unwrap_location(orig)
     if getattr(frm, 'is_literal', False) and frm.typ in ('int128', 'uint256') and not SizeLimits.in_bounds(frm.typ, orig.value):
         raise InvalidLiteralException("Number out of range: " + str(orig.value), pos)
+    # # Valid bytes[32] to bytes32 assignment.
+    # if isinstance(to, BaseType) and to.typ = 'bytes32' and isinstance(frm, ByteArrayType) and frm.maxlen == 32:
+    #     return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
     if not isinstance(frm, (BaseType, NullType)) or not isinstance(to, BaseType):
         raise TypeMismatchException("Base type conversion from or to non-base type: %r %r" % (frm, to), pos)
     elif is_base_type(frm, to.typ) and are_units_compatible(frm, to):

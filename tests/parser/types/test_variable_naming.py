@@ -22,4 +22,4 @@ def foo(len: int128, sha3: int128) -> int128:
 def test_variable_naming_fail(bad_code):
 
     with raises(FunctionDeclarationException):
-        compiler.compile(bad_code)
+        compiler.compile_code(bad_code)

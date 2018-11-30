@@ -47,7 +47,7 @@ Rounds a decimal up to the nearest integer.
   def convert(a, b) -> c:
     """
     :param a: value to convert
-    :type a: either decimal, int128, uint256 or bytes32
+    :type a: either bool, decimal, int128, uint256 or bytes32
     :param b: the destination type to convert to
     :type b: type of either decimal, int128, uint256 or bytes32
 
@@ -153,12 +153,14 @@ Note that it can be called either by using ``sha3`` or ``keccak256``.
 ---------------
 ::
 
-  def method_id(a) -> b:
+  def method_id(a, b) -> c:
     """
     :param a: method declaration
     :type a: str_literal
+    :param b: type of output
+    :type b: either bytes32 or bytes[4]
 
-    :output b: bytes
+    :output c: either bytes32 or bytes[4]
     """
 
 Takes a function declaration and returns its method_id (used in data field to call it).
@@ -190,9 +192,9 @@ Takes a signed hash and vrs and returns the public key of the signer.
   def ecadd(a, b) -> sum:
     """
     :param a: pair to be added
-    :type a: num252[2]
+    :type a: uint256[2]
     :param b: pair to be added
-    :type b: num252[2]
+    :type b: uint256[2]
 
     :output sum: uint256[2]
     """
@@ -206,9 +208,9 @@ Takes two elliptical curves and adds them together.
   def ecmul(a, b) -> product:
     """
     :param a: pair to be multiplied
-    :type a: num252[2]
-    :param b: pair to be multiplied
-    :type b: num252[2]
+    :type a: uint256[2]
+    :param b: number to be multiplied
+    :type b: uint256
 
     :output product: uint256[2]
     """
@@ -372,7 +374,7 @@ Emits a log without specifying the abi type, with the arguments entered as the f
     :type b: uint256 (Optional)
     """
 
-Duplicates a contract's code and deploys it as a new instance.
+Duplicates a contract's code and deploys it as a new instance, by means of a DELEGATECALL.
 You can also specify wei value to send to the new contract as ``value=the_value``.
 
 

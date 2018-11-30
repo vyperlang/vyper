@@ -61,7 +61,7 @@ def foo():
 def test_fail_(bad_code):
 
     with raises(VariableDeclarationException):
-        compiler.compile(bad_code)
+        compiler.compile_code(bad_code)
 
 
 valid_list = [
@@ -78,4 +78,4 @@ def foo(choice: bool, choice2: bool):
 
 @pytest.mark.parametrize('good_code', valid_list)
 def test_valid_blockscope(good_code):
-    assert compiler.compile(good_code) is not None
+    assert compiler.compile_code(good_code) is not None

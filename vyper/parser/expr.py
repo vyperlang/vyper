@@ -151,6 +151,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
     # Variable names
     def variables(self):
         builtin_constants = {
+            'EMPTY_BYTES32': LLLnode.from_list([0], typ=BaseType('bytes32', None, is_literal=True), pos=getpos(self.expr)),
             'ZERO_ADDRESS': LLLnode.from_list([0], typ=BaseType('address', None, is_literal=True), pos=getpos(self.expr)),
             'MAX_INT128': LLLnode.from_list(['mload', MemoryPositions.MAXNUM], typ=BaseType('int128', None, is_literal=True), pos=getpos(self.expr)),
             'MIN_INT128': LLLnode.from_list(['mload', MemoryPositions.MINNUM], typ=BaseType('int128', None, is_literal=True), pos=getpos(self.expr)),
@@ -586,22 +587,47 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             raise TypeMismatchException("Unsupported types for comparison: %r %r" % (left_type, right_type), self.expr)
 
     def boolean_operations(self):
-        if len(self.expr.values) != 2:
-            raise StructureException("Expected two arguments for a bool op", self.expr)
-        if self.context.in_assignment and (isinstance(self.expr.values[0], ast.Call) or isinstance(self.expr.values[1], ast.Call)):
-            raise StructureException("Boolean operations with calls may not be performed on assignment", self.expr)
+        # Iterate through values
+        for value in self.expr.values:
+            # Check for calls at assignment
+            if self.context.in_assignment and isinstance(value, ast.Call):
+                raise StructureException("Boolean operations with calls may not be performed on assignment", self.expr)
 
-        left = Expr.parse_value_expr(self.expr.values[0], self.context)
-        right = Expr.parse_value_expr(self.expr.values[1], self.context)
-        if not is_base_type(left.typ, 'bool') or not is_base_type(right.typ, 'bool'):
-            raise TypeMismatchException("Boolean operations can only be between booleans!", self.expr)
+            # Check for boolean operations with non-boolean inputs
+            _expr = Expr.parse_value_expr(value, self.context)
+            if not is_base_type(_expr.typ, 'bool'):
+                raise TypeMismatchException("Boolean operations can only be between booleans!", self.expr)
+
+            # TODO: Handle special case of literals and simplify at compile time
+
+        # Check for valid ops
         if isinstance(self.expr.op, ast.And):
             op = 'and'
         elif isinstance(self.expr.op, ast.Or):
             op = 'or'
         else:
             raise Exception("Unsupported bool op: " + self.expr.op)
-        return LLLnode.from_list([op, left, right], typ='bool', pos=getpos(self.expr))
+
+        # Handle different numbers of inputs
+        count = len(self.expr.values)
+        if count < 2:
+            raise StructureException("Expected at least two arguments for a bool op", self.expr)
+        elif count == 2:
+            left = Expr.parse_value_expr(self.expr.values[0], self.context)
+            right = Expr.parse_value_expr(self.expr.values[1], self.context)
+            return LLLnode.from_list([op, left, right], typ='bool', pos=getpos(self.expr))
+        else:
+            left = Expr.parse_value_expr(self.expr.values[0], self.context)
+            right = Expr.parse_value_expr(self.expr.values[1], self.context)
+
+            p = ['seq', [op, left, right]]
+            values = self.expr.values[2:]
+            while len(values) > 0:
+                value = Expr.parse_value_expr(values[0], self.context)
+                p = [op, value, p]
+                values = values[1:]
+
+            return LLLnode.from_list(p, typ='bool', pos=getpos(self.expr))
 
     # Unary operations (only "not" supported)
     def unary_operations(self):

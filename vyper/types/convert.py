@@ -27,25 +27,44 @@ from vyper.utils import (
 )
 
 
-@signature(('uint256', 'bytes32', 'bytes'), '*')
+@signature(('uint256', 'bytes32', 'bytes', 'bool'), '*')
 def to_int128(expr, args, kwargs, context):
     in_node = args[0]
-    typ, len = get_type(in_node)
-    if typ in ('uint256', 'bytes32'):
+    input_type, _ = get_type(in_node)
+    if input_type == 'bytes32':
         if in_node.typ.is_literal and not SizeLimits.in_bounds('int128', in_node.value):
             raise InvalidLiteralException("Number out of range: {}".format(in_node.value), expr)
         return LLLnode.from_list(
             ['clamp', ['mload', MemoryPositions.MINNUM], in_node,
                         ['mload', MemoryPositions.MAXNUM]], typ=BaseType('int128', in_node.typ.unit), pos=getpos(expr)
         )
-    else:
+
+    elif input_type == 'bytes':
+        if in_node.typ.maxlen > 32:
+            raise InvalidLiteralException("Cannot convert bytes array of max length {} to int128".format(in_node.value), expr)
         return byte_array_to_num(in_node, expr, 'int128')
 
+    elif input_type == 'uint256':
+        if in_node.typ.is_literal and not SizeLimits.in_bounds('int128', in_node.value):
+            raise InvalidLiteralException("Number out of range: {}".format(in_node.value), expr)
+        return LLLnode.from_list(
+            ['uclample', in_node, SizeLimits.MAXNUM], typ=BaseType('int128', in_node.typ.unit), pos=getpos(expr)
+        )
 
-@signature(('num_literal', 'int128', 'bytes32', 'address'), '*')
+    elif input_type == 'bool':
+        return LLLnode.from_list(
+            ['clamp', ['mload', MemoryPositions.MINNUM], in_node,
+                        ['mload', MemoryPositions.MAXNUM]], typ=BaseType('int128', in_node.typ.unit), pos=getpos(expr)
+        )
+
+    else:
+        raise InvalidLiteralException("Invalid input for int128: %r" % in_node, expr)
+
+
+@signature(('num_literal', 'int128', 'bytes32', 'bytes', 'address', 'bool'), '*')
 def to_uint256(expr, args, kwargs, context):
     in_node = args[0]
-    input_type, len = get_type(in_node)
+    input_type, _ = get_type(in_node)
 
     if isinstance(in_node, int):
         if not SizeLimits.in_bounds('uint256', in_node):
@@ -53,12 +72,17 @@ def to_uint256(expr, args, kwargs, context):
         _unit = in_node.typ.unit if input_type == 'int128' else None
         return LLLnode.from_list(in_node, typ=BaseType('uint256', _unit), pos=getpos(expr))
 
-    elif isinstance(in_node, LLLnode) and input_type in ('int128', 'num_literal'):
+    elif isinstance(in_node, LLLnode) and input_type in ('int128', 'num_literal', 'bool'):
         _unit = in_node.typ.unit if input_type == 'int128' else None
         return LLLnode.from_list(['clampge', in_node, 0], typ=BaseType('uint256', _unit), pos=getpos(expr))
 
     elif isinstance(in_node, LLLnode) and input_type in ('bytes32', 'address'):
         return LLLnode(value=in_node.value, args=in_node.args, typ=BaseType('uint256'), pos=getpos(expr))
+
+    elif isinstance(in_node, LLLnode) and input_type == 'bytes':
+        if in_node.typ.maxlen > 32:
+            raise InvalidLiteralException("Cannot convert bytes array of max length {} to uint256".format(in_node.value), expr)
+        return byte_array_to_num(in_node, expr, 'uint256')
 
     else:
         raise InvalidLiteralException("Invalid input for uint256: %r" % in_node, expr)
@@ -80,7 +104,7 @@ def to_decimal(expr, args, kwargs, context):
         )
 
 
-@signature(('int128', 'uint256', 'address', 'bytes'), '*')
+@signature(('int128', 'uint256', 'address', 'bytes', 'bool'), '*')
 def to_bytes32(expr, args, kwargs, context):
     in_arg = args[0]
     typ, _len = get_type(in_arg)

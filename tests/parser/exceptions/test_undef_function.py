@@ -11,7 +11,7 @@ def foo():
     x = bar(55)
     """
     with raises(StructureException) as ex:
-        compiler.compile(code)
+        compiler.compile_code(code)
     assert "Not a top-level function: bar" in str(ex.value)
 
 
@@ -26,6 +26,6 @@ def foo() -> int128:
     return bar(20)
     """
     with raises(StructureException) as ex:
-        compiler.compile(code)
+        compiler.compile_code(code)
     assert "Not a top-level function: bar" in str(ex.value)
     assert "Did you mean self.bar?" in str(ex.value)

@@ -267,9 +267,9 @@ def a():
 @pytest.mark.parametrize('bad_code,exception_type', fail_list)
 def test_compilation_fails_with_exception(bad_code, exception_type):
     with raises(exception_type):
-        compiler.compile(bad_code)
+        compiler.compile_code(bad_code)
 
 
 @pytest.mark.parametrize('good_code', pass_list)
 def test_compilation_succeeds(good_code):
-    assert compiler.compile(good_code) is not None
+    assert compiler.compile_code(good_code) is not None
