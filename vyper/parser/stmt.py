@@ -228,15 +228,17 @@ class Stmt(object):
         self.context.end_blockscope(block_scope_id)
         return o
 
-    def _reset(self):
+    def _clear(self):
         # Create zero node
         none = ast.NameConstant(None)
         none.lineno = self.stmt.lineno
         none.col_offset = self.stmt.col_offset
         zero = Expr(none, self.context).lll_node
 
-        # Generate LLL node to set to zero
+        # Get target variable
         target = self.get_target(self.stmt.args[0])
+
+        # Generate LLL node to set to zero
         o = make_setter(target, zero, target.location, pos=getpos(self.stmt))
         o.pos = getpos(self.stmt)
         self.context.set_in_assignment(False)
@@ -251,8 +253,8 @@ class Stmt(object):
         )
         if isinstance(self.stmt.func, ast.Name):
             if self.stmt.func.id in stmt_dispatch_table:
-                if self.stmt.func.id == 'reset':
-                    return self._reset()
+                if self.stmt.func.id == 'clear':
+                    return self._clear()
                 else:
                     return stmt_dispatch_table[self.stmt.func.id](self.stmt, self.context)
             elif self.stmt.func.id in dispatch_table:

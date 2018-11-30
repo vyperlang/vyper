@@ -56,6 +56,20 @@ Rounds a decimal up to the nearest integer.
 
 Converts a variable/ literal from one type to another.
 
+**clear**
+-------------------------
+::
+
+  def clear(a):
+    """
+    :param a: variable to reset to its default value
+    :type a: all types
+
+    :output c: either decimal, int128, uint256 or bytes32
+    """
+
+Clears a variable's contents to the default value of its type.
+
 **as_wei_value**
 -------------------------
 ::

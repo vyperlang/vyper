@@ -683,8 +683,8 @@ def minmax(expr, args, kwargs, context, is_min):
     return LLLnode.from_list(['with', '_l', left, ['with', '_r', right, o]], typ=otyp, pos=getpos(expr))
 
 
-def _reset():
-    raise ParserException("This function should never be called! `reset()` is currently handled differently than other functions as it self modifies its input argument statement. Please see `_reset()` in `stmt.py`")
+def _clear():
+    raise ParserException("This function should never be called! `clear()` is currently handled differently than other functions as it self modifies its input argument statement. Please see `_clear()` in `stmt.py`")
 
 
 dispatch_table = {
@@ -719,7 +719,7 @@ dispatch_table = {
 }
 
 stmt_dispatch_table = {
-    'reset': _reset,
+    'clear': _clear,
     'send': send,
     'selfdestruct': selfdestruct,
     'raw_call': raw_call,

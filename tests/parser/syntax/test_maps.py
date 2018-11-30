@@ -73,7 +73,7 @@ def foo():
 nom: {a: {c: int128}[int128], b: int128}
 @public
 def foo():
-    reset(self.nom)
+    clear(self.nom)
     """,
     """
 nom: {a: {c: int128}[int128], b: int128}

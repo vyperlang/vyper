@@ -1,5 +1,5 @@
 
-def test_reset_basic_type(get_contract_with_gas_estimation):
+def test_clear_basic_type(get_contract_with_gas_estimation):
     contracts = [
     """
 foobar: int128
@@ -9,8 +9,8 @@ def foo():
     self.foobar = 1
     bar: int128 = 1
 
-    reset(self.foobar)
-    reset(bar)
+    clear(self.foobar)
+    clear(bar)
 
     assert self.foobar == 0
     assert bar == 0
@@ -23,8 +23,8 @@ def foo():
     self.foobar = 1
     bar: uint256 = 1
 
-    reset(self.foobar)
-    reset(bar)
+    clear(self.foobar)
+    clear(bar)
 
     assert self.foobar == 0
     assert bar == 0
@@ -37,8 +37,8 @@ def foo():
     self.foobar = True
     bar: bool = True
 
-    reset(self.foobar)
-    reset(bar)
+    clear(self.foobar)
+    clear(bar)
 
     assert self.foobar == False
     assert bar == False
@@ -51,8 +51,8 @@ def foo():
     self.foobar = 1.0
     bar: decimal = 1.0
 
-    reset(self.foobar)
-    reset(bar)
+    clear(self.foobar)
+    clear(bar)
 
     assert self.foobar == 0.0
     assert bar == 0.0
@@ -65,8 +65,8 @@ def foo():
     self.foobar = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
     bar: bytes32 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
 
-    reset(self.foobar)
-    reset(bar)
+    clear(self.foobar)
+    clear(bar)
 
     assert self.foobar == 0x0000000000000000000000000000000000000000000000000000000000000000
     assert bar == 0x0000000000000000000000000000000000000000000000000000000000000000
@@ -79,8 +79,8 @@ def foo():
     self.foobar = msg.sender
     bar: address = msg.sender
 
-    reset(self.foobar)
-    reset(bar)
+    clear(self.foobar)
+    clear(bar)
 
     assert self.foobar == ZERO_ADDRESS
     assert bar == ZERO_ADDRESS
@@ -92,7 +92,7 @@ def foo():
         c.foo()
 
 
-def test_reset_basic_type_lists(get_contract_with_gas_estimation):
+def test_clear_basic_type_lists(get_contract_with_gas_estimation):
     contracts = [
     """
 foobar: int128[3]
@@ -102,8 +102,8 @@ def foo():
     self.foobar = [1, 2, 3]
     bar: int128[3] = [1, 2, 3]
 
-    reset(self.foobar)
-    reset(bar)
+    clear(self.foobar)
+    clear(bar)
 
     assert self.foobar[0] == 0
     assert self.foobar[1] == 0
@@ -120,8 +120,8 @@ def foo():
     self.foobar = [1, 2, 3]
     bar: uint256[3] = [1, 2, 3]
 
-    reset(self.foobar)
-    reset(bar)
+    clear(self.foobar)
+    clear(bar)
 
     assert self.foobar[0] == 0
     assert self.foobar[1] == 0
@@ -138,8 +138,8 @@ def foo():
     self.foobar = [True, True, True]
     bar: bool[3] = [True, True, True]
 
-    reset(self.foobar)
-    reset(bar)
+    clear(self.foobar)
+    clear(bar)
 
     assert self.foobar[0] == False
     assert self.foobar[1] == False
@@ -156,8 +156,8 @@ def foo():
     self.foobar = [1.0, 2.0, 3.0]
     bar: decimal[3] = [1.0, 2.0, 3.0]
 
-    reset(self.foobar)
-    reset(bar)
+    clear(self.foobar)
+    clear(bar)
 
     assert self.foobar[0] == 0.0
     assert self.foobar[1] == 0.0
@@ -182,8 +182,8 @@ def foo():
         0x00000000000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
     ]
 
-    reset(self.foobar)
-    reset(bar)
+    clear(self.foobar)
+    clear(bar)
 
     assert self.foobar[0] == 0x0000000000000000000000000000000000000000000000000000000000000000
     assert self.foobar[1] == 0x0000000000000000000000000000000000000000000000000000000000000000
@@ -200,8 +200,8 @@ def foo():
     self.foobar = [msg.sender, msg.sender, msg.sender]
     bar: address[3] = [msg.sender, msg.sender, msg.sender]
 
-    reset(self.foobar)
-    reset(bar)
+    clear(self.foobar)
+    clear(bar)
 
     assert self.foobar[0] == ZERO_ADDRESS
     assert self.foobar[1] == ZERO_ADDRESS
@@ -217,7 +217,43 @@ def foo():
         c.foo()
 
 
-def test_reset_bytes(get_contract_with_gas_estimation):
+def test_clear_literals(assert_compile_failed, get_contract_with_gas_estimation):
+    contracts = [
+    """
+@public
+def foo():
+    clear(1)
+    """,
+    """
+@public
+def foo():
+    clear(True)
+    """,
+    """
+@public
+def foo():
+    clear(1.0)
+    """,
+    """
+@public
+def foo():
+    clear(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
+    """,
+    """
+@public
+def foo():
+    clear(0xF5D4020dCA6a62bB1efFcC9212AAF3c9819E30D7)
+    """
+    ]
+
+    for contract in contracts:
+        assert_compile_failed(
+            lambda: get_contract_with_gas_estimation(contract),
+            Exception
+        )
+
+
+def test_clear_bytes(get_contract_with_gas_estimation):
     code = """
 foobar: bytes[5]
 
@@ -226,8 +262,8 @@ def foo() -> (bytes[5], bytes[5]):
     self.foobar = 'Hello'
     bar: bytes[5] = 'World'
 
-    reset(self.foobar)
-    reset(bar)
+    clear(self.foobar)
+    clear(bar)
 
     return (self.foobar, bar)
     """
@@ -238,7 +274,7 @@ def foo() -> (bytes[5], bytes[5]):
     assert b == b''
 
 
-def test_reset_struct(get_contract_with_gas_estimation):
+def test_clear_struct(get_contract_with_gas_estimation):
     code = """
 foobar: {
     a: int128,
@@ -275,8 +311,8 @@ def foo():
         f: msg.sender
     }
 
-    reset(self.foobar)
-    reset(bar)
+    clear(self.foobar)
+    clear(bar)
 
     assert self.foobar.a == 0
     assert self.foobar.b == 0
