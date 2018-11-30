@@ -417,14 +417,14 @@ return ``_ValueType``.
 Syntax
 ------
 
-Mapping types are declared as ``_ValueType[_KeyType]``.
-Here ``_KeyType`` can be almost any type except for mappings, a contract, or a struct.
+Mapping types are declared as ``map(_KeyType, _ValueType)``.
+Here ``_KeyType`` can be any base or bytes type. Mappings, contract or structs are not support as key types.
 ``_ValueType`` can actually be any type, including mappings.
 
 **Example:**
 ::
    #Defining a mapping
-   exampleMapping: decimal[int128]
+   exampleMapping: map(int128, decimal)
    #Accessing a value
    exampleMapping[0] = 10.1
 

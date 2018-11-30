@@ -1,5 +1,5 @@
 # Setup private variables (only callable from within the contract)
-funders: {sender: address, value: wei_value}[int128]
+funders: map(int128, {sender: address, value: wei_value})
 nextFunderIndex: int128
 beneficiary: address
 deadline: timestamp

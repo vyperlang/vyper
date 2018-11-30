@@ -2,7 +2,7 @@
 
 def test_map_delete(get_contract_with_gas_estimation):
     code = """
-big_storage: bytes32[bytes32]
+big_storage: map(bytes32, bytes32)
 
 @public
 def set(key: bytes32, value: bytes32):
@@ -28,7 +28,7 @@ def delete(key: bytes32):
 
 def test_map_delete_nested(get_contract_with_gas_estimation):
     code = """
-big_storage: bytes32[bytes32][bytes32]
+big_storage: map(bytes32, map(bytes32, bytes32))
 
 @public
 def set(key1: bytes32, key2: bytes32, value: bytes32):
@@ -54,11 +54,10 @@ def delete(key1: bytes32, key2: bytes32):
 
 def test_map_delete_struct(get_contract_with_gas_estimation):
     code = """
-structmap: {
+structmap: map(int128, {
     a: int128,
     b: int128
-}[int128]
-
+})
 
 @public
 def set():

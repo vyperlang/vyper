@@ -130,8 +130,8 @@ def foo2() -> uint256:
 # See #838. Confirm that nested keys and structs work properly.
 def test_nested_map_key_works(get_contract_with_gas_estimation):
     code = """
-test_map1: {a: int128, b: int128 }[int128]
-test_map2: {c: int128, d: int128}[int128]
+test_map1: map(int128, {a: int128, b: int128 })
+test_map2: map(int128, {c: int128, d: int128})
 
 @public
 def set():
@@ -151,8 +151,8 @@ def get(i: int128) -> int128:
 
 def test_nested_map_key_problem(get_contract_with_gas_estimation):
     code = """
-test_map1: {a: int128, b: int128 }[int128]
-test_map2: {c: int128, d: int128}[int128]
+test_map1: map(int128, {a: int128, b: int128 })
+test_map2: map(int128, {c: int128, d: int128})
 
 @public
 def set():
