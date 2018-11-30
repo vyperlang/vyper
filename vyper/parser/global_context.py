@@ -166,7 +166,7 @@ class GlobalContext:
             return self.get_item_name_and_attributes(item.value, attributes)
         elif isinstance(item, ast.Call) and item.func.id == 'map':
             if len(item.args) != 2:
-                raise StructureException("Map type expects two arguments map(type1, type2)" % item.func.id)
+                raise StructureException("Map type expects two type arguments map(type1, type2)", item.func)
             return self.get_item_name_and_attributes(item.args, attributes)
         # elif ist
         elif isinstance(item, ast.Call):
