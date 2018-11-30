@@ -70,13 +70,13 @@ def foo():
     self.mom = {a: self.nom, b: self.nom}
     """,
     """
-nom: {a: {c: int128}[int128], b: int128}
+nom: {a: map(int128, {c: int128}), b: int128}
 @public
 def foo():
     self.nom = None
     """,
     """
-nom: {a: {c: int128}[int128], b: int128}
+nom: {a: map(int128, {c: int128}), b: int128}
 @public
 def foo():
     self.nom = {a: [{c: 5}], b: 7}
@@ -147,7 +147,7 @@ def foo():
     self.nom = self.mom.a
     """,
     """
-nom: {a: {c: int128}[int128], b: int128}
+nom: {a: map(int128, {c: int128}), b: int128}
 @public
 def foo():
     self.nom.a[135] = {c: 6}

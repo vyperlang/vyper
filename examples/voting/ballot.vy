@@ -1,7 +1,7 @@
 # Voting with delegation.
 
 # Information about voters
-voters: public({
+voters: public(map(address, {
     # weight is accumulated by delegation
     weight: int128,
     # if true, that person already voted (which includes voting by delegating)
@@ -10,15 +10,15 @@ voters: public({
     delegate: address,
     # index of the voted proposal, which is not meaningful unless `voted` is True.
     vote: int128
-}[address])
+}))
 
 # This is a type for a list of proposals.
-proposals: public({
+proposals: public(map(int128, {
     # short name (up to 32 bytes)
     name: bytes32,
     # number of accumulated votes
     voteCount: int128
-}[int128])
+}))
 
 voterCount: public(int128)
 chairperson: public(address)

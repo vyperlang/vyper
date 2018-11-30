@@ -51,22 +51,22 @@ ApprovalForAll: event({
 
 
 # @dev Mapping from NFT ID to the address that owns it.
-idToOwner: address[uint256]
+idToOwner: map(uint256, address)
 
 # @dev Mapping from NFT ID to approved address.
-idToApprovals: address[uint256]
+idToApprovals: map(uint256, address)
 
 # @dev Mapping from owner address to count of his tokens.
-ownerToNFTokenCount: uint256[address]
+ownerToNFTokenCount: map(address, uint256)
 
 # @dev Mapping from owner address to mapping of operator addresses.
-ownerToOperators: (bool[address])[address]
+ownerToOperators: map(address, map(address, bool))
 
 # @dev Address of minter, who can mint a token
 minter: address
 
 # @dev Mapping of interface id to bool about whether or not it's supported
-supportedInterfaces: bool[bytes32]
+supportedInterfaces: map(bytes32, bool)
 
 # @dev ERC165 interface ID of ERC165
 ERC165_INTERFACE_ID: constant(bytes32) = 0x0000000000000000000000000000000000000000000000000000000001ffc9a7
@@ -101,6 +101,7 @@ def supportsInterface(_interfaceID: bytes32) -> bool:
 def balanceOf(_owner: address) -> uint256:
     assert _owner != ZERO_ADDRESS
     return self.ownerToNFTokenCount[_owner]
+
 
 
 # @dev Returns the address of the owner of the NFT. 
@@ -228,11 +229,11 @@ def transferFrom(_from: address, _to: address, _tokenId: uint256):
 
 # @dev Transfers the ownership of an NFT from one address to another address.
 #      Throws unless `msg.sender` is the current owner, an authorized operator, or the
-#      approved address for this NFT. 
-#      Throws if `_from` is not the current owner. 
-#      Throws if `_to` is the zero address. 
-#      Throws if `_tokenId` is not a valid NFT. 
-#      If `_to` is a smart contract, it calls `onERC721Received` on `_to` and throws if 
+#      approved address for this NFT.
+#      Throws if `_from` is not the current owner.
+#      Throws if `_to` is the zero address.
+#      Throws if `_tokenId` is not a valid NFT.
+#      If `_to` is a smart contract, it calls `onERC721Received` on `_to` and throws if
 #      the return value is not `bytes4(keccak256("onERC721Received(address,uint256,bytes)"))`.
 #      NOTE: bytes4 is represented by bytes32 with padding
 # @param _from The current owner of the NFT.
