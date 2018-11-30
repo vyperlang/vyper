@@ -1,5 +1,4 @@
-# Blind Auction
-# Adapted to Vyper from [Solidity by Example](https://github.com/ethereum/solidity/blob/develop/docs/solidity-by-example.rst#blind-auction-1)
+# Blind Auction # Adapted to Vyper from [Solidity by Example](https://github.com/ethereum/solidity/blob/develop/docs/solidity-by-example.rst#blind-auction-1)
 
 # Note: because Vyper does not allow for dynamic arrays, we have limited the
 # number of bids that can be placed by one address to 128 in this example
@@ -20,12 +19,12 @@ ended: public(bool)
 highestBid: public(wei_value)
 highestBidder: public(address)
 
-# State of bids
-bids: ({blindedBid: bytes32, deposit: wei_value}[128])[address]
-bidCounts: int128[address]
+# State of
+bids: map(address, {blindedBid: bytes32, deposit: wei_value}[128])
+bidCounts: map(address, int128)
 
 # Allowed withdrawals of previous bids
-pendingReturns: wei_value[address]
+pendingReturns: map(address, wei_value)
 
 
 # Create a blinded auction with `_biddingTime` seconds bidding time and
