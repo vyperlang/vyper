@@ -27,7 +27,7 @@ from vyper.utils import (
 )
 
 
-@signature(('uint256', 'bytes32', 'bytes', 'bool'), '*')
+@signature(('bytes32', 'bytes', 'uint256', 'bool'), '*')
 def to_int128(expr, args, kwargs, context):
     in_arg = args[0]
     input_type, _ = get_type(in_arg)
@@ -36,8 +36,10 @@ def to_int128(expr, args, kwargs, context):
         if in_arg.typ.is_literal and not SizeLimits.in_bounds('int128', in_arg.value):
             raise InvalidLiteralException("Number out of range: {}".format(in_arg.value), expr)
         return LLLnode.from_list(
-            ['clamp', ['mload', MemoryPositions.MINNUM], in_arg,
-                        ['mload', MemoryPositions.MAXNUM]], typ=BaseType('int128', in_arg.typ.unit), pos=getpos(expr)
+            ['clamp', ['mload', MemoryPositions.MINNUM],
+            in_arg, ['mload', MemoryPositions.MAXNUM]],
+            typ=BaseType('int128', in_arg.typ.unit),
+            pos=getpos(expr)
         )
 
     elif input_type == 'bytes':
@@ -49,13 +51,16 @@ def to_int128(expr, args, kwargs, context):
         if in_arg.typ.is_literal and not SizeLimits.in_bounds('int128', in_arg.value):
             raise InvalidLiteralException("Number out of range: {}".format(in_arg.value), expr)
         return LLLnode.from_list(
-            ['uclample', in_arg, SizeLimits.MAXNUM], typ=BaseType('int128', in_arg.typ.unit), pos=getpos(expr)
+            ['uclample', in_arg, SizeLimits.MAXNUM],
+            typ=BaseType('int128', in_arg.typ.unit),
+            pos=getpos(expr)
         )
 
     elif input_type == 'bool':
         return LLLnode.from_list(
-            ['clamp', ['mload', MemoryPositions.MINNUM], in_arg,
-                        ['mload', MemoryPositions.MAXNUM]], typ=BaseType('int128', in_arg.typ.unit), pos=getpos(expr)
+            in_arg,
+            typ=BaseType('int128', in_arg.typ.unit),
+            pos=getpos(expr)
         )
 
     else:
@@ -66,19 +71,38 @@ def to_int128(expr, args, kwargs, context):
 def to_uint256(expr, args, kwargs, context):
     in_arg = args[0]
     input_type, _ = get_type(in_arg)
+    _unit = in_arg.typ.unit if input_type == 'int128' else None
 
     if isinstance(in_arg, int):
         if not SizeLimits.in_bounds('uint256', in_arg):
             raise InvalidLiteralException("Number out of range: {}".format(in_arg))
-        _unit = in_arg.typ.unit if input_type == 'int128' else None
-        return LLLnode.from_list(in_arg, typ=BaseType('uint256', _unit), pos=getpos(expr))
+        return LLLnode.from_list(
+            in_arg,
+            typ=BaseType('uint256', _unit),
+            pos=getpos(expr)
+        )
 
-    elif isinstance(in_arg, LLLnode) and input_type in ('int128', 'num_literal', 'bool'):
-        _unit = in_arg.typ.unit if input_type == 'int128' else None
-        return LLLnode.from_list(['clampge', in_arg, 0], typ=BaseType('uint256', _unit), pos=getpos(expr))
+    elif isinstance(in_arg, LLLnode) and input_type in ('int128', 'num_literal'):
+        return LLLnode.from_list(
+            ['clampge', in_arg, 0],
+            typ=BaseType('uint256', _unit),
+            pos=getpos(expr)
+        )
+
+    elif isinstance(in_arg, LLLnode) and input_type == 'bool':
+        return LLLnode.from_list(
+            in_arg,
+            typ=BaseType('uint256'),
+            pos=getpos(expr)
+        )
 
     elif isinstance(in_arg, LLLnode) and input_type in ('bytes32', 'address'):
-        return LLLnode(value=in_arg.value, args=in_arg.args, typ=BaseType('uint256'), pos=getpos(expr))
+        return LLLnode(
+            value=in_arg.value,
+            args=in_arg.args,
+            typ=BaseType('uint256'),
+            pos=getpos(expr)
+        )
 
     elif isinstance(in_arg, LLLnode) and input_type == 'bytes':
         if in_arg.typ.maxlen > 32:
@@ -93,19 +117,26 @@ def to_uint256(expr, args, kwargs, context):
 def to_decimal(expr, args, kwargs, context):
     in_arg = args[0]
     input_type, _ = get_type(in_arg)
+    _unit = in_arg.typ.unit
+    _positional = in_arg.typ.positional
 
     if input_type == 'uint256':
         return LLLnode.from_list(
-            ['uclample', ['mul', in_arg, DECIMAL_DIVISOR], ['mload', MemoryPositions.MAXDECIMAL]],
-            typ=BaseType('decimal', in_arg.typ.unit, in_arg.typ.positional), pos=getpos(expr)
+            ['uclample', ['mul', in_arg, DECIMAL_DIVISOR],
+            ['mload', MemoryPositions.MAXDECIMAL]],
+            typ=BaseType('decimal', _unit, _positional),
+            pos=getpos(expr)
+        )
+
+    elif input_type == 'int128':
+        return LLLnode.from_list(
+            ['mul', in_arg, DECIMAL_DIVISOR],
+            typ=BaseType('decimal', _unit, _positional),
+            pos=getpos(expr)
         )
 
     else:
-        return LLLnode.from_list(
-            ['mul', in_arg, DECIMAL_DIVISOR],
-            typ=BaseType('decimal', in_arg.typ.unit, in_arg.typ.positional),
-            pos=getpos(expr)
-        )
+        raise InvalidLiteralException("Invalid input for decimal: %r" % in_arg, expr)
 
 
 @signature(('int128', 'uint256', 'address', 'bytes', 'bool'), '*')
@@ -119,22 +150,34 @@ def to_bytes32(expr, args, kwargs, context):
 
         if in_arg.location == "memory":
             return LLLnode.from_list(
-                ['mload', ['add', in_arg, 32]], typ=BaseType('bytes32')
+                ['mload', ['add', in_arg, 32]],
+                typ=BaseType('bytes32')
             )
         elif in_arg.location == "storage":
             return LLLnode.from_list(
-                ['sload', ['add', ['sha3_32', in_arg], 1]], typ=BaseType('bytes32')
+                ['sload', ['add', ['sha3_32', in_arg], 1]],
+                typ=BaseType('bytes32')
             )
 
     else:
-        return LLLnode(value=in_arg.value, args=in_arg.args, typ=BaseType('bytes32'), pos=getpos(expr))
+        return LLLnode(
+            value=in_arg.value,
+            args=in_arg.args,
+            typ=BaseType('bytes32'),
+            pos=getpos(expr)
+        )
 
 
 @signature(('bytes32'), '*')
 def to_address(expr, args, kwargs, context):
     in_arg = args[0]
 
-    return LLLnode(value=in_arg.value, args=in_arg.args, typ=BaseType('address'), pos=getpos(expr))
+    return LLLnode(
+        value=in_arg.value,
+        args=in_arg.args,
+        typ=BaseType('address'),
+        pos=getpos(expr)
+    )
 
 
 def convert(expr, context):
