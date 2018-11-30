@@ -103,7 +103,8 @@ def balanceOf(_owner: address) -> uint256:
     return self.ownerToNFTokenCount[_owner]
 
 
-# @dev Returns the address of the owner of the NFT.
+
+# @dev Returns the address of the owner of the NFT. 
 #      Throws if `_tokenId` is not a valid NFT.
 # @param _tokenId The identifier for an NFT.
 @public
@@ -140,7 +141,7 @@ def isApprovedForAll(_owner: address, _operator: address) -> bool:
 # @dev Returns whether the given spender can transfer a given token ID
 # @param spender address of the spender to query
 # @param tokenId uint256 ID of the token to be transferred
-# @return bool whether the msg.sender is approved for the given token ID,
+# @return bool whether the msg.sender is approved for the given token ID, 
 #     is an operator of the owner, or is the owner of the token
 @private
 @constant
@@ -187,7 +188,7 @@ def _clearApproval(_owner: address, _tokenId: uint256):
         self.idToApprovals[_tokenId] = ZERO_ADDRESS
 
 
-# @dev Exeute transfer of a NFT.
+# @dev Exeute transfer of a NFT. 
 #      Throws unless `msg.sender` is the current owner, an authorized operator, or the approved
 #      address for this NFT. (NOTE: `msg.sender` not allowed in private function so pass `_sender`.)
 #      Throws if `_to` is the zero address.
@@ -252,7 +253,7 @@ def safeTransferFrom(
         assert returnValue == method_id("onERC721Received(address,address,uint256,bytes)", bytes32)
 
 
-# @dev Set or reaffirm the approved address for an NFT. The zero address indicates there is no approved address.
+# @dev Set or reaffirm the approved address for an NFT. The zero address indicates there is no approved address. 
 #      Throws unless `msg.sender` is the current NFT owner, or an authorized operator of the current owner.
 #      Throws if `_tokenId` is not a valid NFT. (NOTE: This is not written the EIP)
 #      Throws if `_approved` is the current owner. (NOTE: This is not written the EIP)
