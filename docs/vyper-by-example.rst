@@ -151,11 +151,11 @@ While this blind auction is almost functionally identical to the blind auction i
 
 .. literalinclude:: ../examples/auctions/blind_auction.vy
   :language: python
-  :lines: 23-25
+  :lines: 22-24
 
 One key difference is that, because Vyper does not allow for dynamic arrays, we
 have limited the number of bids that can be placed by one address to 128 in this
-example. Bidders who wanted to make more than this maximum number of bids would
+example. Bidders who want to make more than this maximum number of bids would
 need to do so from multiple addresses.
 
 
