@@ -119,7 +119,7 @@ class Stmt(object):
             if not SizeLimits.in_bounds('uint256', sub.value):
                 raise InvalidLiteralException('Invalid uint256 assignment, value not in uint256 range.', self.stmt)
         elif self.stmt.annotation.id != sub.typ.typ and not sub.typ.unit:
-            raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.id, self.stmt)
+            raise TypeMismatchException('Invalid type %s, expected: %s' % (sub.typ.typ, self.stmt.annotation.id), self.stmt)
 
     def _check_same_variable_assign(self, sub):
         lhs_var_name = self.stmt.target.id
