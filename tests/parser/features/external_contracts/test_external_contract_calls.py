@@ -686,3 +686,31 @@ class Bar():
     """
 
     assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), StructureException)
+
+
+def test_tuple_return_external_contract_call(get_contract_with_gas_estimation):
+    contract_1 = """
+@public
+def out_literals() -> (int128, address, bytes[10]):
+    return 1, 0x0000000000000000000000000000000000000123, "random"
+    """
+
+    contract_2 = """
+contract Test():
+    def out_literals() -> (int128, address, bytes[10]) : constant
+
+@public
+def test(addr: address) -> (int128, address, bytes[10]):
+    a: int128
+    b: address
+    c: bytes[10]
+    # (a, b, c) = self.out_literals()
+    (a, b, c) = Test(addr).out_literals()
+    return a, b,c
+
+    """
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.out_literals() == [1, "0x0000000000000000000000000000000000000123", b"random"]
+    assert c2.test(c1.address) == [1, "0x0000000000000000000000000000000000000123", b"random"]
