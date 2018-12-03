@@ -159,8 +159,8 @@ class Stmt(object):
     def ann_assign(self):
         self.context.set_in_assignment(True)
         typ = parse_type(self.stmt.annotation, location='memory', custom_units=self.context.custom_units, custom_structs=self.context.structs)
-        if isinstance(self.stmt.target, ast.Attribute) and self.stmt.target.value.id == 'self':
-            raise TypeMismatchException('May not redefine storage variables.', self.stmt)
+        if isinstance(self.stmt.target, ast.Attribute):
+            raise TypeMismatchException('May not set type for field %r' % self.stmt.target.attr, self.stmt)
         varname = self.stmt.target.id
         pos = self.context.new_variable(varname, typ)
         o = LLLnode.from_list('pass', typ=None, pos=pos)
