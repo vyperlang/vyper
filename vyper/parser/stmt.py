@@ -25,6 +25,10 @@ from vyper.parser.parser_utils import (
     make_setter,
     unwrap_location,
 )
+from vyper.codegen.utils import (
+    gen_tuple_return,
+    make_return_stmt,
+)
 from vyper.types import (
     BaseType,
     ByteArrayType,
@@ -533,47 +537,11 @@ class Stmt(object):
     def parse_break(self):
         return LLLnode.from_list('break', typ=None, pos=getpos(self.stmt))
 
-    def make_return_stmt(self, begin_pos, _size, loop_memory_position=None):
-        if self.context.is_private:
-            if loop_memory_position is None:
-                loop_memory_position = self.context.new_placeholder(typ=BaseType('uint256'))
-
-            # Make label for stack push loop.
-            label_id = '_'.join([str(x) for x in (self.context.method_id, self.stmt.lineno, self.stmt.col_offset)])
-            exit_label = 'make_return_loop_exit_%s' % label_id
-            start_label = 'make_return_loop_start_%s' % label_id
-
-            # Push prepared data onto the stack,
-            # in reverse order so it can be popped of in order.
-            if _size == 0:
-                mloads = []
-            elif isinstance(begin_pos, int) and isinstance(_size, int):
-                # static values, unroll the mloads instead.
-                mloads = [
-                    ['mload', pos] for pos in range(begin_pos, _size, 32)
-                ]
-                return ['seq_unchecked'] + mloads + [['jump', ['mload', self.context.callback_ptr]]]
-            else:
-                mloads = [
-                    'seq_unchecked',
-                    ['mstore', loop_memory_position, _size],
-                    ['label', start_label],
-                    ['if',
-                        ['le', ['mload', loop_memory_position], 0], ['goto', exit_label]],  # exit loop / break.
-                    ['mload', ['add', begin_pos, ['sub', ['mload', loop_memory_position], 32]]],  # push onto stack
-                    ['mstore', loop_memory_position, ['sub', ['mload', loop_memory_position], 32]],  # decrement i by 32.
-                    ['goto', start_label],
-                    ['label', exit_label]
-                ]
-                return ['seq_unchecked'] + [mloads] + [['jump', ['mload', self.context.callback_ptr]]]
-        else:
-            return ['return', begin_pos, _size]
-
     def parse_return(self):
         if self.context.return_type is None:
             if self.stmt.value:
                 raise TypeMismatchException("Not expecting to return a value", self.stmt)
-            return LLLnode.from_list(self.make_return_stmt(0, 0), typ=None, pos=getpos(self.stmt), valency=0)
+            return LLLnode.from_list(make_return_stmt(self.stmt, self.context, 0, 0), typ=None, pos=getpos(self.stmt), valency=0)
         if not self.stmt.value:
             raise TypeMismatchException("Expecting to return a value", self.stmt)
 
@@ -603,10 +571,10 @@ class Stmt(object):
                 if not SizeLimits.in_bounds(self.context.return_type.typ, sub.value):
                     raise InvalidLiteralException("Number out of range: " + str(sub.value), self.stmt)
                 else:
-                    return LLLnode.from_list(['seq', ['mstore', 0, sub], self.make_return_stmt(0, 32)], typ=None, pos=getpos(self.stmt), valency=0)
+                    return LLLnode.from_list(['seq', ['mstore', 0, sub], make_return_stmt(self.stmt, self.context, 0, 32)], typ=None, pos=getpos(self.stmt), valency=0)
             elif is_base_type(sub.typ, self.context.return_type.typ) or \
                     (is_base_type(sub.typ, 'int128') and is_base_type(self.context.return_type, 'int256')):
-                return LLLnode.from_list(['seq', ['mstore', 0, sub], self.make_return_stmt(0, 32)], typ=None, pos=getpos(self.stmt), valency=0)
+                return LLLnode.from_list(['seq', ['mstore', 0, sub], make_return_stmt(self.stmt, self.context, 0, 32)], typ=None, pos=getpos(self.stmt), valency=0)
             else:
                 raise TypeMismatchException("Unsupported type conversion: %r to %r" % (sub.typ, self.context.return_type), self.stmt.value)
         # Returning a byte array
@@ -631,7 +599,7 @@ class Stmt(object):
                     ),
                     zero_pad(bytez_placeholder, sub.typ.maxlen),
                     ['mstore', len_placeholder, 32],
-                    self.make_return_stmt(len_placeholder, ['ceil32', ['add', ['mload', bytez_placeholder], 64]], loop_memory_position=loop_memory_position)],
+                    make_return_stmt(self.stmt, self.context, len_placeholder, ['ceil32', ['add', ['mload', bytez_placeholder], 64]], loop_memory_position=loop_memory_position)],
                     typ=None, pos=getpos(self.stmt), valency=0
                 )
             else:
@@ -649,18 +617,20 @@ class Stmt(object):
                     self.stmt
                 )
             elif sub.location == "memory" and sub.value != "multi":
-                return LLLnode.from_list(self.make_return_stmt(sub, get_size_of_type(self.context.return_type) * 32, loop_memory_position=loop_memory_position),
+                return LLLnode.from_list(make_return_stmt(self.stmt, self.context, sub, get_size_of_type(self.context.return_type) * 32, loop_memory_position=loop_memory_position),
                                             typ=None, pos=getpos(self.stmt), valency=0)
             else:
                 new_sub = LLLnode.from_list(self.context.new_placeholder(self.context.return_type), typ=self.context.return_type, location='memory')
                 setter = make_setter(new_sub, sub, 'memory', pos=getpos(self.stmt))
-                return LLLnode.from_list(['seq', setter, self.make_return_stmt(new_sub, get_size_of_type(self.context.return_type) * 32, loop_memory_position=loop_memory_position)],
+                return LLLnode.from_list(['seq', setter, make_return_stmt(self.stmt, self.context, new_sub, get_size_of_type(self.context.return_type) * 32, loop_memory_position=loop_memory_position)],
                                             typ=None, pos=getpos(self.stmt))
 
         # Returning a struct
         elif isinstance(sub.typ, StructType):
-            # TODO: VIP1019
-            raise TypeMismatchException("Returning structs not allowed yet, see VIP1019", self.stmt)
+            if self.context.return_type != sub.typ:
+                raise TypeMismatchException("Trying to return %r, but expected %r" % (sub.typ, self.context.return_type), self.stmt.value)
+            return gen_tuple_return(self.stmt, self.context, sub)
+
         # Returning a tuple.
         elif isinstance(sub.typ, TupleType):
             if not isinstance(self.context.return_type, TupleType):
@@ -681,85 +651,10 @@ class Stmt(object):
                         self.stmt
                     )
 
-            # Is from a call expression.
-            if len(sub.args[0].args) > 0 and sub.args[0].args[0].value == 'call':  # self-call to public.
-                mem_pos = sub.args[0].args[-1]
-                mem_size = get_size_of_type(sub.typ) * 32
-                return LLLnode.from_list(['return', mem_pos, mem_size], typ=sub.typ)
+            return gen_tuple_return(self.stmt, self.context, sub)
 
-            elif (sub.annotation and 'Internal Call' in sub.annotation):
-                mem_pos = sub.args[-1].value if sub.value == 'seq_unchecked' else sub.args[0].args[-1]
-                mem_size = get_size_of_type(sub.typ) * 32
-                # Add zero padder if bytes are present in output.
-                zero_padder = ['pass']
-                byte_arrays = [(i, x) for i, x in enumerate(sub.typ.members) if isinstance(x, ByteArrayType)]
-                if byte_arrays:
-                    i, x = byte_arrays[-1]
-                    zero_padder = zero_pad(bytez_placeholder=['add', mem_pos, ['mload', mem_pos + i * 32]], maxlen=x.maxlen)
-                return LLLnode.from_list(
-                    ['seq'] + [sub] + [zero_padder] + [self.make_return_stmt(mem_pos, mem_size)
-                ], typ=sub.typ, pos=getpos(self.stmt), valency=0)
-
-            subs = []
-            # Pre-allocate loop_memory_position if required for private function returning.
-            loop_memory_position = self.context.new_placeholder(typ=BaseType('uint256')) if self.context.is_private else None
-            # Allocate dynamic off set counter, to keep track of the total packed dynamic data size.
-            dynamic_offset_counter_placeholder = self.context.new_placeholder(typ=BaseType('uint256'))
-            dynamic_offset_counter = LLLnode(
-                dynamic_offset_counter_placeholder, typ=None, annotation="dynamic_offset_counter"  # dynamic offset position counter.
-            )
-            new_sub = LLLnode.from_list(
-                self.context.new_placeholder(typ=BaseType('uint256')), typ=self.context.return_type, location='memory', annotation='new_sub'
-            )
-            keyz = list(range(len(sub.typ.members)))
-            dynamic_offset_start = 32 * len(sub.args)  # The static list of args end.
-            left_token = LLLnode.from_list('_loc', typ=new_sub.typ, location="memory")
-
-            def get_dynamic_offset_value():
-                # Get value of dynamic offset counter.
-                return ['mload', dynamic_offset_counter]
-
-            def increment_dynamic_offset(dynamic_spot):
-                # Increment dyanmic offset counter in memory.
-                return [
-                    'mstore', dynamic_offset_counter,
-                    ['add',
-                        ['add', ['ceil32', ['mload', dynamic_spot]], 32],
-                        ['mload', dynamic_offset_counter]]
-                ]
-
-            for i, typ in enumerate(keyz):
-                arg = sub.args[i]
-                variable_offset = LLLnode.from_list(['add', 32 * i, left_token], typ=arg.typ, annotation='variable_offset')
-                if isinstance(arg.typ, ByteArrayType):
-                    # Store offset pointer value.
-                    subs.append(['mstore', variable_offset, get_dynamic_offset_value()])
-
-                    # Store dynamic data, from offset pointer onwards.
-                    dynamic_spot = LLLnode.from_list(['add', left_token, get_dynamic_offset_value()], location="memory", typ=arg.typ, annotation='dynamic_spot')
-                    subs.append(make_setter(dynamic_spot, arg, location="memory", pos=getpos(self.stmt)))
-                    subs.append(increment_dynamic_offset(dynamic_spot))
-
-                elif isinstance(arg.typ, BaseType):
-                    subs.append(make_setter(variable_offset, arg, "memory", pos=getpos(self.stmt)))
-                else:
-                    raise Exception("Can't return type %s as part of tuple", type(arg.typ))
-
-            setter = LLLnode.from_list(
-                ['seq',
-                    ['mstore', dynamic_offset_counter, dynamic_offset_start],
-                    ['with', '_loc', new_sub, ['seq'] + subs]],
-                typ=None
-            )
-
-            return LLLnode.from_list(
-                ['seq',
-                    setter,
-                    self.make_return_stmt(new_sub, get_dynamic_offset_value(), loop_memory_position)],
-                typ=None, pos=getpos(self.stmt), valency=0
-            )
         else:
-            raise TypeMismatchException("Can only return base type!", self.stmt)
+            raise TypeMismatchException("Can't return type %r" % sub.typ, self.stmt)
 
     def parse_delete(self):
         raise StructureException("Deleting is not supported, use built-in `clear()` function.", self.stmt)

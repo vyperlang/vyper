@@ -187,7 +187,7 @@ def add_variable_offset(parent, key, pos):
             if key not in typ.members:
                 raise TypeMismatchException("Object does not have member variable %s" % key, pos)
             subtype = typ.members[key]
-            attrs = sorted(typ.members.keys())
+            attrs = list(typ.members.keys())
 
             if key not in attrs:
                 raise TypeMismatchException("Member %s not found. Only the following available: %s" % (key, " ".join(attrs)), pos)
@@ -437,7 +437,7 @@ def make_setter(left, right, location, pos):
             left = LLLnode.from_list(['sha3_32', left], typ=left.typ, location="storage_prehashed")
             left_token.location = "storage_prehashed"
         if isinstance(left.typ, StructType):
-            keyz = sorted(list(left.typ.members.keys()))
+            keyz = list(left.typ.members.keys())
         else:
             keyz = list(range(len(left.typ.members)))
         # If the right side is a literal
