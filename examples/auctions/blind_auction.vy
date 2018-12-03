@@ -1,5 +1,9 @@
 # Blind Auction # Adapted to Vyper from [Solidity by Example](https://github.com/ethereum/solidity/blob/develop/docs/solidity-by-example.rst#blind-auction-1)
 
+struct Bid:
+  blindedBid: bytes32
+  deposit: wei_value
+
 # Note: because Vyper does not allow for dynamic arrays, we have limited the
 # number of bids that can be placed by one address to 128 in this example
 MAX_BIDS: constant(int128) = 128
@@ -20,7 +24,7 @@ highestBid: public(wei_value)
 highestBidder: public(address)
 
 # State of the bids
-bids: map(address, {blindedBid: bytes32, deposit: wei_value}[128])
+bids: map(address, Bid[128])
 bidCounts: map(address, int128)
 
 # Allowed withdrawals of previous bids
@@ -61,7 +65,10 @@ def bid(_blindedBid: bytes32):
     assert numBids < MAX_BIDS
 
     # Add bid to mapping of all bids
-    (self.bids[msg.sender])[numBids] = {blindedBid: _blindedBid, deposit: msg.value}
+    self.bids[msg.sender][numBids] = Bid({
+        blindedBid: _blindedBid,
+        deposit: msg.value
+        })
     self.bidCounts[msg.sender] += 1
 
 
@@ -104,7 +111,7 @@ def reveal(_numBids: int128, _values: wei_value[128], _fakes: bool[128], _secret
             break
 
         # Get bid to check
-        bidToCheck: {blindedBid: bytes32, deposit: wei_value} = (self.bids[msg.sender])[i]
+        bidToCheck: Bid = (self.bids[msg.sender])[i]
 
         # Check against encoded packet
         value: wei_value = _values[i]
