@@ -19,7 +19,7 @@ ended: public(bool)
 highestBid: public(wei_value)
 highestBidder: public(address)
 
-# State of
+# State of the bids
 bids: map(address, {blindedBid: bytes32, deposit: wei_value}[128])
 bidCounts: map(address, int128)
 
