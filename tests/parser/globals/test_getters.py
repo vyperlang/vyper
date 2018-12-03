@@ -24,7 +24,7 @@ struct W:
     a: wei_value
     b: int128[7]
     c: bytes[100]
-    d: int128[address]
+    d: map(address, int128)
     e: int128[3][3]
     f: timestamp
     g: wei_value
