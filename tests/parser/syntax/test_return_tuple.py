@@ -18,4 +18,4 @@ def unmatched_tupl_length() -> (bytes[8], int128, bytes[8]):
 def test_tuple_return_fail(bad_code):
 
     with raises(StructureException):
-            compiler.compile(bad_code)
+            compiler.compile_code(bad_code)

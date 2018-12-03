@@ -1,6 +1,6 @@
 def test_state_accessor(get_contract_with_gas_estimation_for_constants):
     state_accessor = """
-y: int128[int128]
+y: map(int128, int128)
 
 @public
 def oo():
@@ -23,15 +23,15 @@ def test_getter_code(get_contract_with_gas_estimation_for_constants):
 x: public(wei_value)
 y: public(int128[5])
 z: public(bytes[100])
-w: public({
+w: public(map(int128, {
     a: wei_value,
     b: int128[7],
     c: bytes[100],
-    d: int128[address],
+    d: map(address, int128),
     e: int128[3][3],
     f: timestamp,
     g: wei_value
-}[int128])
+}))
 
 @public
 def __init__():

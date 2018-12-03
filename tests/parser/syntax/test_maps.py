@@ -70,13 +70,13 @@ def foo():
     self.mom = {a: self.nom, b: self.nom}
     """,
     """
-nom: {a: {c: int128}[int128], b: int128}
+nom: {a: map(int128, {c: int128}), b: int128}
 @public
 def foo():
     clear(self.nom)
     """,
     """
-nom: {a: {c: int128}[int128], b: int128}
+nom: {a: map(int128, {c: int128}), b: int128}
 @public
 def foo():
     self.nom = {a: [{c: 5}], b: 7}
@@ -128,7 +128,7 @@ def foo():
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_block_fail(bad_code):
         with raises(TypeMismatchException):
-            compiler.compile(bad_code)
+            compiler.compile_code(bad_code)
 
 
 valid_list = [
@@ -147,7 +147,7 @@ def foo():
     self.nom = self.mom.a
     """,
     """
-nom: {a: {c: int128}[int128], b: int128}
+nom: {a: map(int128, {c: int128}), b: int128}
 @public
 def foo():
     self.nom.a[135] = {c: 6}
@@ -203,4 +203,4 @@ x: {bar: int128, baz: int128}
 
 @pytest.mark.parametrize('good_code', valid_list)
 def test_block_success(good_code):
-    assert compiler.compile(good_code) is not None
+    assert compiler.compile_code(good_code) is not None

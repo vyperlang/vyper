@@ -72,10 +72,10 @@ def foo() -> int128:
 def test_as_wei_fail(bad_code):
     if isinstance(bad_code, tuple):
         with raises(bad_code[1]):
-            compiler.compile(bad_code[0])
+            compiler.compile_code(bad_code[0])
     else:
         with raises(VariableDeclarationException):
-            compiler.compile(bad_code)
+            compiler.compile_code(bad_code)
 
 
 valid_list = [
@@ -98,4 +98,4 @@ def test():
 
 @pytest.mark.parametrize('good_code', valid_list)
 def test_ann_assign_success(good_code):
-    assert compiler.compile(good_code) is not None
+    assert compiler.compile_code(good_code) is not None

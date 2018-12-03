@@ -84,4 +84,4 @@ def b():
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_constancy_violation_exception(bad_code):
     with raises(ConstancyViolationException):
-        compiler.compile(bad_code)
+        compiler.compile_code(bad_code)

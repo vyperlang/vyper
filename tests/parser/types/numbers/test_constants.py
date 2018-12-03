@@ -9,6 +9,11 @@ def test_zaddress(a: address) -> bool:
 
 
 @public
+def test_empty_bytes32(a: bytes32) -> bool:
+    return a == EMPTY_BYTES32
+
+
+@public
 def test_int128(a: int128) -> (bool, bool):
     return a == MAX_INT128, a == MIN_INT128
 
@@ -29,6 +34,9 @@ def test_arithmetic(a: int128) -> int128:
     """
 
     c = get_contract_with_gas_estimation(code)
+
+    assert c.test_empty_bytes32(b"\x00" * 32) is True
+    assert c.test_empty_bytes32(b"\x0F" * 32) is False
 
     assert c.test_zaddress("0x0000000000000000000000000000000000000000") is True
     assert c.test_zaddress("0x0000000000000000000000000000000000000012") is False

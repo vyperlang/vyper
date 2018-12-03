@@ -17,7 +17,7 @@ def foo() -> int128:
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_missing_return(bad_code):
     with raises(FunctionDeclarationException):
-        compiler.compile(bad_code)
+        compiler.compile_code(bad_code)
 
 
 valid_list = [
@@ -37,4 +37,4 @@ def foo() -> int128:
 
 @pytest.mark.parametrize('good_code', valid_list)
 def test_return_success(good_code):
-    assert compiler.compile(good_code) is not None
+    assert compiler.compile_code(good_code) is not None
