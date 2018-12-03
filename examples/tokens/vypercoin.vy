@@ -13,8 +13,8 @@ name: public(bytes32)
 symbol: public(bytes32)
 totalSupply: public(uint256)
 decimals: public(uint256)
-balances: uint256[address]
-allowed: uint256[address][address]
+balances: map(address, uint256)
+allowed: map(address, map(address, uint256))
 
 @public
 def __init__(_name: bytes32, _symbol: bytes32, _decimals: uint256, _initialSupply: uint256):

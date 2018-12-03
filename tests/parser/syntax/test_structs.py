@@ -250,7 +250,7 @@ def foo():
 struct C:
     c: int128
 struct Nom:
-    a: C[int128]
+    a: map(int128, C)
     b: int128
 nom: Nom
 @public
@@ -261,7 +261,7 @@ def foo():
 struct C:
     c: int128
 struct Nom:
-    a: C[int128]
+    a: map(int128, C)
     b: int128
 nom: Nom
 @public
@@ -385,7 +385,7 @@ def foo():
 struct C:
     c: int128
 struct Nom:
-    a: C[int128]
+    a: map(int128, C)
     b: int128
 nom: Nom
 @public

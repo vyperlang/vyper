@@ -1,10 +1,3 @@
-import logging
-import sys
-
-logger = logging.getLogger('evm')
-handler = logging.StreamHandler(sys.stdout)
-logger.setLevel(logging.TRACE)
-handler.setLevel(logging.TRACE)
 
 
 def test_create_with_code_of_create(get_contract):

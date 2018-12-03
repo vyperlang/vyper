@@ -4,7 +4,7 @@ struct Funder :
   sender: address
   value: wei_value
 
-funders: Funder[int128]
+funders: map(int128, Funder)
 nextFunderIndex: int128
 beneficiary: address
 deadline: timestamp

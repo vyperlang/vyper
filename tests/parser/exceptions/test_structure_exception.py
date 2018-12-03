@@ -167,7 +167,7 @@ def foo() -> int128:
     return self.q
     """,
     """
-b: bytes32[int128]
+b: map(int128, bytes32)
 @public
 def foo():
     del self.b[0], self.b[1]

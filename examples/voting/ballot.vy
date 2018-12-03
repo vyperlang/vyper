@@ -18,8 +18,8 @@ struct Proposal:
     # number of accumulated votes
     voteCount: int128
 
-voters: public(Voter[address])
-proposals: public(Proposal[int128])
+voters: public(map(address, Voter))
+proposals: public(map(int128, Proposal))
 voterCount: public(int128)
 chairperson: public(address)
 int128Proposals: public(int128)

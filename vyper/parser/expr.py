@@ -151,6 +151,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
     # Variable names
     def variables(self):
         builtin_constants = {
+            'EMPTY_BYTES32': LLLnode.from_list([0], typ=BaseType('bytes32', None, is_literal=True), pos=getpos(self.expr)),
             'ZERO_ADDRESS': LLLnode.from_list([0], typ=BaseType('address', None, is_literal=True), pos=getpos(self.expr)),
             'MAX_INT128': LLLnode.from_list(['mload', MemoryPositions.MAXNUM], typ=BaseType('int128', None, is_literal=True), pos=getpos(self.expr)),
             'MIN_INT128': LLLnode.from_list(['mload', MemoryPositions.MINNUM], typ=BaseType('int128', None, is_literal=True), pos=getpos(self.expr)),

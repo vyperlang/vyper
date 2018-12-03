@@ -160,7 +160,7 @@ class MappingType(NodeType):
         return other.keytype == self.keytype and other.valuetype == self.valuetype
 
     def __repr__(self):
-        return repr(self.valuetype) + '[' + repr(self.keytype) + ']'
+        return 'map(' + repr(self.valuetype) + ', ' + repr(self.keytype) + ')'
 
 
 # Data structure for a struct, e.g. {a: <type>, b: <type>}
@@ -291,6 +291,14 @@ def parse_type(item, location, sigs={}, custom_units=[], custom_structs={}):
             raise InvalidTypeException("Invalid base type: " + item.id, item)
     # Units, e.g. num (1/sec) or contracts
     elif isinstance(item, ast.Call):
+        # Mapping type.
+        if item.func.id == 'map':
+            if location == 'memory':
+                raise InvalidTypeException("No mappings allowed for in-memory types, only fixed-size arrays", item)
+            keytype = parse_type(item.args[0], None)
+            if not isinstance(keytype, (BaseType, ByteArrayType)):
+                raise InvalidTypeException("Mapping keys must be base or bytes types", item.slice.value)
+            return MappingType(keytype, parse_type(item.args[1], location, custom_units=custom_units))
         # Contract_types
         if item.func.id == 'address':
             if sigs and item.args[0].id in sigs:
@@ -332,12 +340,13 @@ def parse_type(item, location, sigs={}, custom_units=[], custom_structs={}):
                 return ListType(parse_type(item.value, location, custom_units=custom_units, custom_structs=custom_structs), item.slice.value.n)
         # Mappings, e.g. num[address]
         else:
-            if location == 'memory':
-                raise InvalidTypeException("No mappings allowed for in-memory types, only fixed-size arrays", item)
-            keytype = parse_type(item.slice.value, None)
-            if not isinstance(keytype, (BaseType, ByteArrayType)):
-                raise InvalidTypeException("Mapping keys must be base or bytes types", item.slice.value)
-            return MappingType(keytype, parse_type(item.value, location, custom_units=custom_units, custom_structs=custom_structs))
+            warnings.warn(
+                "Mapping definitions using subscript have deprecated (see VIP564). "
+                "Use map(type1, type2) instead.",
+                DeprecationWarning
+            )
+            raise InvalidTypeException('Unknown list type.', item)
+
     # Dicts, used to represent mappings, e.g. {uint: uint}. Key must be a base type
     elif isinstance(item, ast.Dict):
         warnings.warn(

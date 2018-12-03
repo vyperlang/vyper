@@ -419,14 +419,14 @@ return ``_ValueType``.
 Syntax
 ------
 
-Mapping types are declared as ``_ValueType[_KeyType]``.
-Here ``_KeyType`` can be almost any type except for mappings, a contract, or a struct.
+Mapping types are declared as ``map(_KeyType, _ValueType)``.
+Here ``_KeyType`` can be any base or bytes type. Mappings, contract or structs are not support as key types.
 ``_ValueType`` can actually be any type, including mappings.
 
 **Example:**
 ::
    #Defining a mapping
-   exampleMapping: decimal[int128]
+   exampleMapping: map(int128, decimal)
    #Accessing a value
    exampleMapping[0] = 10.1
 
@@ -441,16 +441,17 @@ Builtin Constants
 
 Vyper has a few convenience constants builtin.
 
-======= ============ ==========================================
-Type    Name         Value
-======= ============ ==========================================
-address ZERO_ADDRESS 0x0000000000000000000000000000000000000000
-int128  MAX_INT128   2**127 - 1
-int128  MIN_INT128   -2**127
-decimal MAX_DECIMAL  (2**127 - 1)
-decimal MIN_DECIMAL  (-2**127)
-uint256 MAX_UINT256  2**256 - 1
-======= ============ ==========================================
+======= ============= ==========================================
+Type    Name          Value
+======= ============= ==========================================
+address ZERO_ADDRESS  0x0000000000000000000000000000000000000000
+bytes32 EMPTY_BYTES32 0x0000000000000000000000000000000000000000000000000000000000000000
+int128  MAX_INT128    2**127 - 1
+int128  MIN_INT128    -2**127
+decimal MAX_DECIMAL   (2**127 - 1)
+decimal MIN_DECIMAL   (-2**127)
+uint256 MAX_UINT256   2**256 - 1
+======= ============= ==========================================
 
 ****************
 Custom Constants

@@ -4,7 +4,7 @@ def test_crowdfund(w3, tester, get_contract_with_gas_estimation_for_constants):
 struct Funder:
     sender: address
     value: wei_value
-funders: Funder[int128]
+funders: map(int128, Funder)
 nextFunderIndex: int128
 beneficiary: address
 deadline: public(timestamp)
@@ -99,7 +99,7 @@ struct Funder:
     sender: address
     value: wei_value
 
-funders: Funder[int128]
+funders: map(int128, Funder)
 nextFunderIndex: int128
 beneficiary: address
 deadline: public(timestamp)

@@ -203,6 +203,10 @@ class GlobalContext:
             return self.get_item_name_and_attributes(item.annotation, attributes)
         elif isinstance(item, ast.Subscript):
             return self.get_item_name_and_attributes(item.value, attributes)
+        elif isinstance(item, ast.Call) and item.func.id == 'map':
+            if len(item.args) != 2:
+                raise StructureException("Map type expects two type arguments map(type1, type2)", item.func)
+            return self.get_item_name_and_attributes(item.args, attributes)
         # elif ist
         elif isinstance(item, ast.Call):
             attributes[item.func.id] = True
@@ -318,7 +322,6 @@ class GlobalContext:
 
         elif len(self._defs):
             raise StructureException("Global variables must all come before function definitions", item)
-
         # If the type declaration is of the form public(<type here>), then proceed with
         # the underlying type but also add getters
         elif isinstance(item.annotation, ast.Call) and item.annotation.func.id == "address":

@@ -46,14 +46,14 @@ def foo():
     y = min(block.timestamp + 30 - block.timestamp, block.timestamp)
     """,
     """
-a: int128[timestamp]
+a: map(timestamp, int128)
 
 @public
 def add_record():
     self.a[block.timestamp] = block.timestamp + 20
     """,
     """
-a: timestamp[int128]
+a: map(int128, timestamp)
 
 @public
 def add_record():
@@ -101,8 +101,7 @@ def test_block_fail(bad_code):
 
 valid_list = [
     """
-a: timestamp[timestamp]
-
+a: map(timestamp, timestamp)
 
 @public
 def add_record():
