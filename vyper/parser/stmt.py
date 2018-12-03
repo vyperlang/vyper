@@ -28,7 +28,6 @@ from vyper.types import (
     ListType,
     TupleType,
     StructType,
-    NullType
 )
 from vyper.types import (
     get_size_of_type,
@@ -704,19 +703,7 @@ class Stmt(object):
             raise TypeMismatchException("Can only return base type!", self.stmt)
 
     def parse_delete(self):
-        from .parser import (
-            make_setter,
-        )
-        if len(self.stmt.targets) != 1:
-            raise StructureException("Can delete one variable at a time", self.stmt)
-        target = self.stmt.targets[0]
-        target_lll = Expr(self.stmt.targets[0], self.context).lll_node
-
-        if isinstance(target, ast.Subscript):
-            if target_lll.location == "storage":
-                return make_setter(target_lll, LLLnode.from_list(None, typ=NullType()), "storage", pos=getpos(self.stmt))
-
-        raise StructureException("Deleting type not supported.", self.stmt)
+        raise StructureException("Deleting is not supported, use built-in `clear()` function.", self.stmt)
 
     def get_target(self, target):
         if isinstance(target, ast.Subscript) and self.context.in_for_loop:  # Check if we are doing assignment of an iteration loop.
