@@ -34,7 +34,9 @@ class EventSignature():
 
     # Get a signature from an event declaration
     @classmethod
-    def from_declaration(cls, code, custom_units=None, custom_structs={}):
+    def from_declaration(cls, code, custom_units=None, custom_structs=None):
+        if not custom_structs:
+            custom_structs = {}
         name = code.target.id
         pos = 0
 

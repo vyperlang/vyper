@@ -70,7 +70,9 @@ class FunctionSignature():
 
     # Get a signature from a function definition
     @classmethod
-    def from_definition(cls, code, sigs=None, custom_units=None, custom_structs={}, contract_def=False, constant=False):
+    def from_definition(cls, code, sigs=None, custom_units=None, custom_structs=None, contract_def=False, constant=False):
+        if not custom_structs:
+            custom_structs = {}
         name = code.name
         pos = 0
 

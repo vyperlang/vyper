@@ -149,7 +149,7 @@ def mk_method_identifiers(code):
     return o
 
 
-def parse_events(sigs, _events, custom_units=None, custom_structs={}):
+def parse_events(sigs, _events, custom_units=None, custom_structs=None):
     for event in _events:
         sigs[event.target.id] = EventSignature.from_declaration(event, custom_units=custom_units, custom_structs=custom_structs)
     return sigs
