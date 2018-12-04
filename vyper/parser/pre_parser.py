@@ -11,7 +11,6 @@ from tokenize import (
 )
 from vyper.exceptions import (
     StructureException,
-    InvalidLiteralException,
 )
 from vyper import __version__
 
