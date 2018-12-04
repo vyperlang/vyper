@@ -67,9 +67,9 @@ class GlobalContext:
                 if base_classes == ['__VYPER_ANNOT_STRUCT__']:
                     if global_ctx._contracts:
                         raise StructureException("Structs must come before external contract definitions", item)
-                    global_ctx._structs[item.name] = global_ctx.mkstruct(item.name, item.body)
+                    global_ctx._structs[item.name] = global_ctx.make_struct(item.name, item.body)
                 elif base_classes == ['__VYPER_ANNOT_CONTRACT__']:
-                    global_ctx._contracts[item.name] = GlobalContext.mkcontract(item.body)
+                    global_ctx._contracts[item.name] = GlobalContext.make_contract(item.body)
 
                 elif base_classes == []:
                     raise StructureException("No base classes for class. This is likely a compiler bug, please report at https://github.com/ethereum/vyper/issues", item)
@@ -163,7 +163,7 @@ class GlobalContext:
         return o
 
     # A struct is a list of members
-    def mkstruct(self, name, body):
+    def make_struct(self, name, body):
         members = []
         for item in body:
             if isinstance(item, ast.AnnAssign):
@@ -186,7 +186,7 @@ class GlobalContext:
 
     # A contract is a list of functions.
     @staticmethod
-    def mkcontract(code):
+    def make_contract(code):
         _defs = []
         for item in code:
             # Function definitions
@@ -328,7 +328,7 @@ class GlobalContext:
             if item.annotation.args[0].id not in premade_contracts:
                 raise VariableDeclarationException("Unsupported premade contract declaration", item.annotation.args[0])
             premade_contract = premade_contracts[item.annotation.args[0].id]
-            self._contracts[item.target.id] = self.mkcontract(premade_contract.body)
+            self._contracts[item.target.id] = self.make_contract(premade_contract.body)
             self._globals[item.target.id] = VariableRecord(item.target.id, len(self._globals), BaseType('address'), True)
 
         elif item_name in self._contracts:

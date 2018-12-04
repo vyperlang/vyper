@@ -266,7 +266,7 @@ def parse_unit(item, custom_units):
         raise InvalidTypeException("Invalid unit expression", item)
 
 
-def mkstruct(name, location, members, custom_units, custom_structs):
+def make_struct_type(name, location, members, custom_units, custom_structs):
     o = {}
     for key, value in members:
         if not isinstance(key, ast.Name) or not is_varname_valid(key.id, custom_units, custom_structs):
@@ -286,7 +286,7 @@ def parse_type(item, location, sigs={}, custom_units=[], custom_structs={}):
         elif item.id in special_types:
             return special_types[item.id]
         elif item.id in custom_structs:
-            return mkstruct(item.id, location, custom_structs[item.id], custom_units, custom_structs)
+            return make_struct_type(item.id, location, custom_structs[item.id], custom_units, custom_structs)
         else:
             raise InvalidTypeException("Invalid base type: " + item.id, item)
     # Units, e.g. num (1/sec) or contracts
@@ -305,7 +305,7 @@ def parse_type(item, location, sigs={}, custom_units=[], custom_structs={}):
                 return ContractType(item.args[0].id)
         # Struct types
         if item.func.id in custom_structs:
-            return mkstruct(item.id, location, custom_structs[item.id], custom_units, custom_structs)
+            return make_struct_type(item.id, location, custom_structs[item.id], custom_units, custom_structs)
         if not isinstance(item.func, ast.Name):
             raise InvalidTypeException("Malformed unit type:", item)
         base_type = item.func.id
@@ -354,7 +354,7 @@ def parse_type(item, location, sigs={}, custom_units=[], custom_structs={}):
             " favor of named structs, see VIP300",
             DeprecationWarning
         )
-        return mkstruct(None, location, zip(item.keys, item.values), custom_units, custom_structs)
+        return make_struct_type(None, location, zip(item.keys, item.values), custom_units, custom_structs)
     elif isinstance(item, ast.Tuple):
         members = [parse_type(x, location, custom_units=custom_units, custom_structs=custom_structs) for x in item.elts]
         return TupleType(members)
