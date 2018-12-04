@@ -566,45 +566,6 @@ def parse_body(code, context):
     return LLLnode.from_list(['seq'] + o, pos=getpos(code[0]) if code else None)
 
 
-def external_contract_call(node, context, contract_name, contract_address, pos, value=None, gas=None):
-    if value is None:
-        value = 0
-    if gas is None:
-        gas = 'gas'
-    if contract_name not in context.sigs:
-        raise VariableDeclarationException("Contract not declared yet: %s" % contract_name)
-    method_name = node.func.attr
-    if method_name not in context.sigs[contract_name]:
-        raise FunctionDeclarationException("Function not declared yet: %s (reminder: "
-                                                    "function must be declared in the correct contract)" % method_name, pos)
-    sig = context.sigs[contract_name][method_name]
-    inargs, inargsize, _ = pack_arguments(sig, [parse_expr(arg, context) for arg in node.args], context, pos=pos)
-    output_placeholder, output_size, returner = get_external_contract_call_output(sig, context)
-    sub = ['seq', ['assert', ['extcodesize', contract_address]],
-                    ['assert', ['ne', 'address', contract_address]]]
-    if context.is_constant or sig.const:
-        sub.append(['assert', ['staticcall', gas, contract_address, inargs, inargsize, output_placeholder, output_size]])
-    else:
-        sub.append(['assert', ['call', gas, contract_address, value, inargs, inargsize, output_placeholder, output_size]])
-    sub.extend(returner)
-    o = LLLnode.from_list(sub, typ=sig.output_type, location='memory', pos=getpos(node))
-    return o
-
-
-def get_external_contract_call_output(sig, context):
-    if not sig.output_type:
-        return 0, 0, []
-    output_placeholder = context.new_placeholder(typ=sig.output_type)
-    output_size = get_size_of_type(sig.output_type) * 32
-    if isinstance(sig.output_type, BaseType):
-        returner = [0, output_placeholder]
-    elif isinstance(sig.output_type, ByteArrayType):
-        returner = [0, output_placeholder + 32]
-    else:
-        raise TypeMismatchException("Invalid output type: %s" % sig.output_type)
-    return output_placeholder, output_size, returner
-
-
 # Parse an expression
 def parse_expr(expr, context):
     return Expr(expr, context).lll_node
