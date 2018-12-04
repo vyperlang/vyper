@@ -108,10 +108,6 @@ class Stmt(object):
                 return
             else:
                 raise TypeMismatchException('Invalid type, expected: bytes32', self.stmt)
-        # This is dead code once anonymous structs are removed.
-        elif isinstance(self.stmt.annotation, ast.Dict):
-            if not isinstance(sub.typ, StructType):
-                raise TypeMismatchException('Invalid type, expected a struct')
         elif isinstance(self.stmt.annotation, ast.Subscript):
             if not isinstance(sub.typ, (ListType, ByteArrayType)):  # check list assign.
                 raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.value.id, self.stmt)
@@ -183,15 +179,6 @@ class Stmt(object):
             raise StructureException("Assignment statement must have one target", self.stmt)
         self.context.set_in_assignment(True)
         sub = Expr(self.stmt.value, self.context).lll_node
-
-        # Not sure if we should go for assignments or if there
-        # is a more general place to check for this.
-        # if isinstance(sub.typ, StructType) and sub.typ.name is None :
-        #     warnings.warn(
-        #             "Anonymous struct values have been removed in"
-        #             " favor of named structs, see VIP300",
-        #             DeprecationWarning
-        #             )
 
         # Determine if it's an RLPList assignment.
         if isinstance(self.stmt.value, ast.Call) and getattr(self.stmt.value.func, 'id', '') is 'RLPList':

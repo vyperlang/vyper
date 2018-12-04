@@ -12,14 +12,6 @@ struct A:
 a: A
 @public
 def foo():
-    self.a = {x: 1}
-    """,
-    """
-struct A:
-    x: int128
-a: A
-@public
-def foo():
     self.a = A(1)
     """,
     """
@@ -308,21 +300,33 @@ def foo():
     self.mom = Mom({a: self.nom, b: 5})
     """,
     """
+struct Bar:
+    a: int128
+    b: int128
+    c: int128
 bar: int128[3]
 @public
 def foo():
-    self.bar = {0: 5, 1: 7, 2: 9}
+    self.bar = Bar({0: 5, 1: 7, 2: 9})
     """,
     """
+struct Bar:
+    a: int128
+    b: int128
+    c: int128
 bar: int128[3]
 @public
 def foo():
-    self.bar = {a: 5, b: 7, c: 9}
+    self.bar = Bar({a: 5, b: 7, c: 9})
     """,
     """
+struct Farm:
+    cow: int128
+    dog: int128
 @public
 def foo() -> int128:
-    return {cow: 5, dog: 7}
+    f: Farm = Farm({cow: 5, dog: 7})
+    return f
     """,
     """
 struct X:

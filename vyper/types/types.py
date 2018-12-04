@@ -354,7 +354,7 @@ def parse_type(item, location, sigs={}, custom_units=[], custom_structs={}):
             " favor of named structs, see VIP300",
             DeprecationWarning
         )
-        return make_struct_type(None, location, zip(item.keys, item.values), custom_units, custom_structs)
+        raise InvalidTypeException("Invalid type: %r" % ast.dump(item), item)
     elif isinstance(item, ast.Tuple):
         members = [parse_type(x, location, custom_units=custom_units, custom_structs=custom_structs) for x in item.elts]
         return TupleType(members)
