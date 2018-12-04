@@ -17,6 +17,7 @@ value: public(wei_value) #Value of the item
 seller: public(address)
 buyer: public(address)
 unlocked: public(bool)
+ended: public(bool)
 #@constant
 #def unlocked() -> bool: #Is a refund possible for the seller?
 #    return (self.balance == self.value*2)
@@ -47,9 +48,16 @@ def purchase():
 
 @public
 def received():
+    # 1. Conditions
     assert not self.unlocked #Is the item already purchased and pending confirmation
         # from the buyer?
     assert msg.sender == self.buyer
+    assert not self.ended
+
+    # 2. Effects
+    self.ended = True
+
+    # 3. Interaction
     send(self.buyer, self.value) #Return the buyer's deposit (=value) to the buyer.
     selfdestruct(self.seller) #Return the seller's deposit (=2*value)
         # and the purchase price (=value) to the seller.
