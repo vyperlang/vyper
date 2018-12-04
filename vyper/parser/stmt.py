@@ -28,6 +28,7 @@ from vyper.types import (
     ListType,
     TupleType,
     StructType,
+    NullType,
 )
 from vyper.types import (
     get_size_of_type,
@@ -159,6 +160,8 @@ class Stmt(object):
         o = LLLnode.from_list('pass', typ=None, pos=pos)
         if self.stmt.value is not None:
             sub = Expr(self.stmt.value, self.context).lll_node
+            if isinstance(sub.typ, NullType):
+                raise InvalidLiteralException('Assignment to None is not allowed, use a default value or built-in `clear()`.', self.stmt)
             # If bytes[32] to bytes32 assignment rewrite sub as bytes32.
             if isinstance(sub.typ, ByteArrayType) and sub.typ.maxlen == 32 and isinstance(typ, BaseType) and typ.typ == 'bytes32':
                 bytez, bytez_length = string_to_bytes(self.stmt.value.s)
@@ -177,6 +180,8 @@ class Stmt(object):
             raise StructureException("Assignment statement must have one target", self.stmt)
         self.context.set_in_assignment(True)
         sub = Expr(self.stmt.value, self.context).lll_node
+        if isinstance(sub.typ, NullType):
+            raise InvalidLiteralException('Assignment to None is not allowed, use a default value or built-in `clear()`.', self.stmt)
         # Determine if it's an RLPList assignment.
         if isinstance(self.stmt.value, ast.Call) and getattr(self.stmt.value.func, 'id', '') is 'RLPList':
             pos = self.context.new_variable(self.stmt.targets[0].id, sub.typ)

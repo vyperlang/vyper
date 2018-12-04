@@ -40,6 +40,36 @@ def foo():
 def foo():
     bar: address
     bar = None
+    """,
+    """
+@public
+def foo():
+    bar: int128 = None
+    """,
+    """
+@public
+def foo():
+    bar: uint256 = None
+    """,
+    """
+@public
+def foo():
+    bar: bool = None
+    """,
+    """
+@public
+def foo():
+    bar: decimal = None
+    """,
+    """
+@public
+def foo():
+    bar: bytes32 = None
+    """,
+    """
+@public
+def foo():
+    bar: address = None
     """
     ]
 
