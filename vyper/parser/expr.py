@@ -681,16 +681,15 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             # Struct constructors do not need `self` prefix.
             elif function_name in self.context.structs:
                 if not self.context.in_assignment:
-                    raise StructureException("Struct constructor must be called in RHS of assignment.")
+                    raise StructureException("Struct constructor must be called in RHS of assignment.", self.expr)
                 args = self.expr.args
                 if len(args) != 1:
-                    raise StructureException("Struct constructor is called with one argument only")
+                    raise StructureException("Struct constructor is called with one argument only", self.expr)
                 arg = args[0]
                 # Only allow construction if argument is a dict value
                 sub = Expr.parse_value_expr(arg, self.context)
-                if not (isinstance(sub.typ, StructType)):
-                    if sub.type is not None:
-                        raise StructureException("Struct be constructed with a dict")
+                if not isinstance(sub.typ, StructType) or sub.typ.name is not None:
+                    raise TypeMismatchException("Struct can only be constructed with a dict", self.expr)
                 typ = StructType(sub.typ.members, function_name)
 
                 # OR:

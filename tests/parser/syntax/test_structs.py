@@ -20,6 +20,14 @@ struct A:
 a: A
 @public
 def foo():
+    self.a = A(1)
+    """,
+    """
+struct A:
+    x: int128
+a: A
+@public
+def foo():
     self.a = A({x: 1, y: 2})
     """,
     """
