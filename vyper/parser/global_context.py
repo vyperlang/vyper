@@ -6,6 +6,7 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
+    InvalidTypeException,
 )
 from vyper.utils import (
     is_varname_valid,
@@ -42,6 +43,7 @@ class GlobalContext:
 
     def __init__(self):
         self._contracts = dict()
+        self._structs = dict()
         self._events = list()
         self._globals = dict()
         self._defs = list()
@@ -59,8 +61,22 @@ class GlobalContext:
             # Contract references
             if isinstance(item, ast.ClassDef):
                 if global_ctx._events or global_ctx._globals or global_ctx._defs:
-                    raise StructureException("External contract declarations must come before event declarations, global declarations, and function definitions", item)
-                global_ctx._contracts[item.name] = global_ctx.add_contract(item.body)
+                    raise StructureException("External contract and struct declarations must come before event declarations, global declarations, and function definitions", item)
+
+                base_classes = [x.id for x in item.bases]
+                if base_classes == ['__VYPER_ANNOT_STRUCT__']:
+                    if global_ctx._contracts:
+                        raise StructureException("Structs must come before external contract definitions", item)
+                    global_ctx._structs[item.name] = global_ctx.make_struct(item.name, item.body)
+                elif base_classes == ['__VYPER_ANNOT_CONTRACT__']:
+                    global_ctx._contracts[item.name] = GlobalContext.make_contract(item.body)
+
+                elif base_classes == []:
+                    raise StructureException("No base classes for class. This is likely a compiler bug, please report at https://github.com/ethereum/vyper/issues", item)
+
+                else:
+                    raise StructureException("Multiple base classes for class. This is likely a compiler bug, please report at https://github.com/ethereum/vyper/issues", item)
+
             # Statements of the form:
             # variable_name: type
             elif isinstance(item, ast.AnnAssign):
@@ -146,8 +162,31 @@ class GlobalContext:
         o = resolve_negative_literals(o)
         return o
 
+    # A struct is a list of members
+    def make_struct(self, name, body):
+        members = []
+        for item in body:
+            if isinstance(item, ast.AnnAssign):
+                member_name = item.target
+                member_type = item.annotation
+                # Check well-formedness of member names
+                if not (isinstance(member_name, ast.Name) and is_varname_valid(member_name.id, custom_units=self._custom_units, custom_structs=self._structs)):
+                    raise InvalidTypeException("Invalid member name for struct %r" % name, item)
+                # Check well-formedness of member types
+                # Note this kicks out mutually recursive structs,
+                # raising an exception instead of stackoverflow.
+                # A struct must be defined before it is referenced.
+                # This feels like a semantic step and maybe should be pushed
+                # to a later compilation stage.
+                parse_type(member_type, 'storage', custom_units=self._custom_units, custom_structs=self._structs)
+                members.append((member_name, member_type))
+            else:
+                raise StructureException("Structs can only contain variables", item)
+        return members
+
+    # A contract is a list of functions.
     @staticmethod
-    def add_contract(code):
+    def make_contract(code):
         _defs = []
         for item in code:
             # Function definitions
@@ -182,7 +221,7 @@ class GlobalContext:
         return all([isinstance(inst, instance_type) for inst in instances])
 
     def is_valid_varname(self, name, item):
-        if not is_varname_valid(name, self._custom_units):
+        if not is_varname_valid(name, custom_units=self._custom_units, custom_structs=self._structs):
             raise VariableDeclarationException('Invalid name "%s"' % name, item)
         if name in self._globals:
             raise VariableDeclarationException('Invalid name "%s", previously defined as global.' % name, item)
@@ -196,7 +235,7 @@ class GlobalContext:
     def unroll_constant(self, const):
         # const = self.context.constants[self.expr.id]
         expr = Expr.parse_value_expr(const.value, Context(vars=None, global_ctx=self, origcode=const.source_code))
-        annotation_type = parse_type(const.annotation.args[0], None, custom_units=self._custom_units)
+        annotation_type = parse_type(const.annotation.args[0], None, custom_units=self._custom_units, custom_structs=self._structs)
 
         fail = False
 
@@ -270,7 +309,7 @@ class GlobalContext:
                         raise VariableDeclarationException("Custom unit name must be a valid string", key)
                     if key.id in self._custom_units:
                         raise VariableDeclarationException("Custom unit name may only be used once", key)
-                    if not is_varname_valid(key.id, custom_units=self._custom_units):
+                    if not is_varname_valid(key.id, custom_units=self._custom_units, custom_structs=self._structs):
                         raise VariableDeclarationException("Custom unit may not be a reserved keyword", key)
                     self._custom_units.append(key.id)
                     self._custom_units_descriptions[key.id] = value.s
@@ -289,7 +328,7 @@ class GlobalContext:
             if item.annotation.args[0].id not in premade_contracts:
                 raise VariableDeclarationException("Unsupported premade contract declaration", item.annotation.args[0])
             premade_contract = premade_contracts[item.annotation.args[0].id]
-            self._contracts[item.target.id] = self.add_contract(premade_contract.body)
+            self._contracts[item.target.id] = self.make_contract(premade_contract.body)
             self._globals[item.target.id] = VariableRecord(item.target.id, len(self._globals), BaseType('address'), True)
 
         elif item_name in self._contracts:
@@ -304,7 +343,7 @@ class GlobalContext:
             if isinstance(item.annotation.args[0], ast.Name) and item_name in self._contracts:
                 typ = ContractType(item_name)
             else:
-                typ = parse_type(item.annotation.args[0], 'storage', custom_units=self._custom_units)
+                typ = parse_type(item.annotation.args[0], 'storage', custom_units=self._custom_units, custom_structs=self._structs)
             self._globals[item.target.id] = VariableRecord(item.target.id, len(self._globals), typ, True)
             # Adding getters here
             for getter in self.mk_getter(item.target.id, typ):
@@ -314,6 +353,6 @@ class GlobalContext:
         else:
             self._globals[item.target.id] = VariableRecord(
                 item.target.id, len(self._globals),
-                parse_type(item.annotation, 'storage', custom_units=self._custom_units),
+                parse_type(item.annotation, 'storage', custom_units=self._custom_units, custom_structs=self._structs),
                 True
             )

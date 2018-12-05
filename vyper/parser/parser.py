@@ -86,11 +86,11 @@ def is_default_func(code):
 
 
 # Generate default argument function signatures.
-def generate_default_arg_sigs(code, _contracts, _custom_units):
+def generate_default_arg_sigs(code, _contracts, _custom_units, _structs):
     # generate all sigs, and attach.
     total_default_args = len(code.args.defaults)
     if total_default_args == 0:
-        return [FunctionSignature.from_definition(code, sigs=_contracts, custom_units=_custom_units)]
+        return [FunctionSignature.from_definition(code, sigs=_contracts, custom_units=_custom_units, custom_structs=_structs)]
     base_args = code.args.args[:-total_default_args]
     default_args = code.args.args[-total_default_args:]
 
@@ -111,7 +111,7 @@ def generate_default_arg_sigs(code, _contracts, _custom_units):
         for idx, val in enumerate(truth_row):
             if val is True:
                 new_code.args.args.append(default_args[idx])
-        sig = FunctionSignature.from_definition(new_code, sigs=_contracts, custom_units=_custom_units)
+        sig = FunctionSignature.from_definition(new_code, sigs=_contracts, custom_units=_custom_units, custom_structs=_structs)
         default_sig_strs.append(sig.sig)
         sig_fun_defs.append(sig)
 
@@ -124,12 +124,12 @@ def mk_full_signature(code):
     global_ctx = GlobalContext.get_global_context(code)
 
     for code in global_ctx._events:
-        sig = EventSignature.from_declaration(code, custom_units=global_ctx._custom_units)
+        sig = EventSignature.from_declaration(code, custom_units=global_ctx._custom_units, custom_structs=global_ctx._structs)
         o.append(sig.to_abi_dict(global_ctx._custom_units_descriptions))
     for code in global_ctx._defs:
-        sig = FunctionSignature.from_definition(code, sigs=global_ctx._contracts, custom_units=global_ctx._custom_units)
+        sig = FunctionSignature.from_definition(code, sigs=global_ctx._contracts, custom_units=global_ctx._custom_units, custom_structs=global_ctx._structs)
         if not sig.private:
-            default_sigs = generate_default_arg_sigs(code, global_ctx._contracts, global_ctx._custom_units)
+            default_sigs = generate_default_arg_sigs(code, global_ctx._contracts, global_ctx._custom_units, global_ctx._structs)
             for s in default_sigs:
                 o.append(s.to_abi_dict(global_ctx._custom_units_descriptions))
     return o
@@ -149,13 +149,13 @@ def mk_method_identifiers(code):
     return o
 
 
-def parse_events(sigs, _events, custom_units=None):
+def parse_events(sigs, _events, custom_units=None, custom_structs=None):
     for event in _events:
-        sigs[event.target.id] = EventSignature.from_declaration(event, custom_units=custom_units)
+        sigs[event.target.id] = EventSignature.from_declaration(event, custom_units=custom_units, custom_structs=custom_structs)
     return sigs
 
 
-def parse_external_contracts(external_contracts, _contracts):
+def parse_external_contracts(external_contracts, _contracts, _structs):
     for _contractname in _contracts:
         _contract_defs = _contracts[_contractname]
         _defnames = [_def.name for _def in _contract_defs]
@@ -173,7 +173,8 @@ def parse_external_contracts(external_contracts, _contracts):
                 constant = True if _def.body[0].value.id == 'constant' else False
             else:
                 raise StructureException('constant or modifying call type must be specified', _def)
-            sig = FunctionSignature.from_definition(_def, contract_def=True, constant=constant)
+            # Recognizes already-defined structs
+            sig = FunctionSignature.from_definition(_def, contract_def=True, constant=constant, custom_structs=_structs)
             contract[sig.name] = sig
         external_contracts[_contractname] = contract
     return external_contracts
@@ -186,7 +187,7 @@ def parse_other_functions(o, otherfuncs, sigs, external_contracts, origcode, glo
         sub.append(parse_func(_def, {**{'self': sigs}, **external_contracts}, origcode, global_ctx))  # noqa E999
         sub[-1].total_gas += add_gas
         add_gas += 30
-        for sig in generate_default_arg_sigs(_def, external_contracts, global_ctx._custom_units):
+        for sig in generate_default_arg_sigs(_def, external_contracts, global_ctx._custom_units, global_ctx._structs):
             sig.gas = sub[-1].total_gas
             sigs[sig.sig] = sig
 
@@ -225,9 +226,9 @@ def parse_tree_to_lll(code, origcode, runtime_only=False):
     # Create the main statement
     o = ['seq']
     if global_ctx._events:
-        sigs = parse_events(sigs, global_ctx._events, global_ctx._custom_units)
+        sigs = parse_events(sigs, global_ctx._events, global_ctx._custom_units, global_ctx._structs)
     if global_ctx._contracts:
-        external_contracts = parse_external_contracts(external_contracts, global_ctx._contracts)
+        external_contracts = parse_external_contracts(external_contracts, global_ctx._contracts, global_ctx._structs)
     # If there is an init func...
     if initfunc:
         o.append(['seq', initializer_lll])
@@ -323,7 +324,7 @@ def make_unpacker(ident, i_placeholder, begin_pos):
 def parse_func(code, sigs, origcode, global_ctx, _vars=None):
     if _vars is None:
         _vars = {}
-    sig = FunctionSignature.from_definition(code, sigs=sigs, custom_units=global_ctx._custom_units)
+    sig = FunctionSignature.from_definition(code, sigs=sigs, custom_units=global_ctx._custom_units, custom_structs=global_ctx._structs)
     # Get base args for function.
     total_default_args = len(code.args.defaults)
     base_args = sig.args[:-total_default_args] if total_default_args > 0 else sig.args
@@ -435,7 +436,7 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
 
         if total_default_args > 0:  # Function with default parameters.
             function_routine = "{}_{}".format(sig.name, sig.method_id)
-            default_sigs = generate_default_arg_sigs(code, sigs, global_ctx._custom_units)
+            default_sigs = generate_default_arg_sigs(code, sigs, global_ctx._custom_units, global_ctx._structs)
             sig_chain = ['seq']
 
             for default_sig in default_sigs:
