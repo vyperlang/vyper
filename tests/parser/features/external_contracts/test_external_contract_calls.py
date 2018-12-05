@@ -704,7 +704,6 @@ def test(addr: address) -> (int128, address, bytes[10]):
     a: int128
     b: address
     c: bytes[10]
-    # (a, b, c) = self.out_literals()
     (a, b, c) = Test(addr).out_literals()
     return a, b,c
 
