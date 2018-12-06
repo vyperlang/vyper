@@ -492,14 +492,19 @@ def make_setter(left, right, location, pos):
         raise Exception("Invalid type for setters")
 
 
-# Decorate every node of an AST tree with the original source code.
-# This is necessary to facilitate error pretty-printing.
-def decorate_ast_with_source(_ast, code):
+def decorate_ast(_ast, code, class_names=None):
+    if class_names is None:
+        class_names = {}
 
     class MyVisitor(ast.NodeVisitor):
         def visit(self, node):
             self.generic_visit(node)
+            # Decorate every node of an AST tree with the original source code.
+            # This is necessary to facilitate error pretty-printing.
             node.source_code = code
+            # Decorate class definition with the type of classes they are.
+            if isinstance(node, ast.ClassDef):
+                node.class_type = class_names.get(node.name)
 
     MyVisitor().visit(_ast)
 

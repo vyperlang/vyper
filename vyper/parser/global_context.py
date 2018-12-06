@@ -19,7 +19,7 @@ from vyper.premade_contracts import (
 from vyper.parser.context import Context
 from vyper.parser.expr import Expr
 from vyper.parser.parser_utils import (
-    decorate_ast_with_source,
+    decorate_ast,
     getpos,
     resolve_negative_literals,
 )
@@ -63,19 +63,14 @@ class GlobalContext:
                 if global_ctx._events or global_ctx._globals or global_ctx._defs:
                     raise StructureException("External contract and struct declarations must come before event declarations, global declarations, and function definitions", item)
 
-                base_classes = [x.id for x in item.bases]
-                if base_classes == ['__VYPER_ANNOT_STRUCT__']:
+                if item.class_type == 'struct':
                     if global_ctx._contracts:
                         raise StructureException("Structs must come before external contract definitions", item)
                     global_ctx._structs[item.name] = global_ctx.make_struct(item.name, item.body)
-                elif base_classes == ['__VYPER_ANNOT_CONTRACT__']:
+                elif item.class_type == 'contract':
                     global_ctx._contracts[item.name] = GlobalContext.make_contract(item.body)
-
-                elif base_classes == []:
-                    raise StructureException("No base classes for class. This is likely a compiler bug, please report at https://github.com/ethereum/vyper/issues", item)
-
                 else:
-                    raise StructureException("Multiple base classes for class. This is likely a compiler bug, please report at https://github.com/ethereum/vyper/issues", item)
+                    raise StructureException("Unknown class_type. This is likely a compiler bug, please report", item)
 
             # Statements of the form:
             # variable_name: type
@@ -158,7 +153,7 @@ class GlobalContext:
     @staticmethod
     def parse_line(code):
         o = ast.parse(code).body[0]
-        decorate_ast_with_source(o, code)
+        decorate_ast(o, code)
         o = resolve_negative_literals(o)
         return o
 
