@@ -297,7 +297,7 @@ def parse_type(item, location, sigs={}, custom_units=[], custom_structs={}):
                 raise InvalidTypeException("No mappings allowed for in-memory types, only fixed-size arrays", item)
             keytype = parse_type(item.args[0], None)
             if not isinstance(keytype, (BaseType, ByteArrayType)):
-                raise InvalidTypeException("Mapping keys must be base or bytes types", item.slice.value)
+                raise InvalidTypeException("Mapping keys must be base or bytes types", item)
             return MappingType(keytype, parse_type(item.args[1], location, custom_units=custom_units, custom_structs=custom_structs))
         # Contract_types
         if item.func.id == 'address':

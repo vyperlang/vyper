@@ -12,7 +12,7 @@ x: bat
 x: 5
     """,
     """
-x: int128[int]
+x: map(int, int128)
     """,
     """
 x: int128[-1]
@@ -49,16 +49,10 @@ struct B:
     address: address
     """,
     """
-b: int128[int128, decimal]
+b: map((int128, decimal), int128)
     """,
     """
 b: int128[int128: address]
-    """,
-    """
-x: int128[address[bool]]
-@public
-def foo() -> int128(wei / sec):
-    pass
     """,
     """
 struct Foo:
