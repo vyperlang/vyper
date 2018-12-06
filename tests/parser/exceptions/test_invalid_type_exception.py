@@ -21,7 +21,8 @@ x: int128[-1]
 x: int128[3.5]
     """,
     """
-x: {int128[5]: int128[7]}
+struct X:
+    int128[5]: int128[7]
     """,
     """
 x: [bar, baz]
@@ -30,19 +31,22 @@ x: [bar, baz]
 x: [bar(int128), baz(baffle)]
     """,
     """
-x: {bar: int128, decimal: int128}
-    """,
-    """
-x: {bar: int128, 5: int128}
+struct X:
+    bar: int128
+    decimal: int128
     """,
     """
 def foo(x): pass
     """,
     """
-b: {num: int128, address: address}
+struct B:
+    num: int128
+    address: address
     """,
     """
-b: {num: int128, address: address}
+struct B:
+    num: int128
+    address: address
     """,
     """
 b: int128[int128, decimal]
@@ -57,9 +61,12 @@ def foo() -> int128(wei / sec):
     pass
     """,
     """
+struct Foo:
+    cow: int128
+    dog: int128
 @public
-def foo() -> {cow: int128, dog: int128}:
-    return {cow: 5, dog: 7}
+def foo() -> Foo:
+    return Foo({cow: 5, dog: 7})
     """,
     """
 x: wei(wei)
@@ -90,6 +97,12 @@ x: bytes[1:3]
     """,
     """
 x: bytes[33.3]
+    """,
+    """
+struct A:
+    b: B
+struct B:
+    a: A
     """,
 ]
 

@@ -31,6 +31,9 @@ def test():
     a: int128 = 33.33
     """, TypeMismatchException),
     ("""
+struct S:
+    a: int128
+    b: decimal
 @private
 def do_stuff() -> bool:
     return True
@@ -54,15 +57,21 @@ def data() -> int128:
     s: int128[5] = [1, 2, 3, 4, 5, 6]
     """, TypeMismatchException),
     ("""
+struct S:
+    a: int128
+    b: decimal
 @public
 def foo() -> int128:
-    struct: {a: int128, b: decimal} = {a: 1.2, b: 1}
+    struct: S = S({a: 1.2, b: 1})
     return struct.a
     """, TypeMismatchException),
     ("""
+struct S:
+    a: int128
+    b: decimal
 @public
 def foo() -> int128:
-    struct: {a: int128, b: decimal} = {b: 1.2, c: 1, d: 33, e: 55}
+    struct: S = S({b: 1.2, c: 1, d: 33, e: 55})
     return struct.a
     """, TypeMismatchException)
 ]

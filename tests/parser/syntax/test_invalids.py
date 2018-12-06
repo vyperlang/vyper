@@ -263,6 +263,12 @@ def a():
     "Test"
 ''', InvalidLiteralException)
 
+must_fail('''
+@public
+def a():
+    x: int128 = {y: 1}
+''', InvalidLiteralException)
+
 
 @pytest.mark.parametrize('bad_code,exception_type', fail_list)
 def test_compilation_fails_with_exception(bad_code, exception_type):

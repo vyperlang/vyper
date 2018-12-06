@@ -2,11 +2,11 @@ def test_return_type(get_contract_with_gas_estimation):
     long_string = 35 * "test"
 
     code = """
-chunk: {
-    a: bytes[8],
-    b: bytes[8],
+struct Chunk:
+    a: bytes[8]
+    b: bytes[8]
     c: int128
-}
+chunk: Chunk
 
 @public
 def __init__():

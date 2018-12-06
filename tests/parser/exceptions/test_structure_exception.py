@@ -165,7 +165,45 @@ def foo() -> int128:
 q:int128 = 111
 def foo() -> int128:
     return self.q
+    """,
     """
+b: map(int128, bytes32)
+@public
+def foo():
+    del self.b[0], self.b[1]
+    """,
+    """
+@public
+def foo():
+    b: int128
+    del b
+    """,
+    """
+contract F:
+    def foo(): constant
+struct S:
+    x: int128
+    """,
+    """
+g: int128
+struct S:
+    x: int128
+    """,
+    """
+struct S:
+    x: int128
+s: S = S({x: int128}, 1)
+    """,
+    """
+struct S:
+    x: int128
+s: S = S(1)
+    """,
+    """
+struct S:
+    x: int128
+s: S = S()
+    """,
 ]
 
 
