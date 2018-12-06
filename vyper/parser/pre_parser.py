@@ -38,13 +38,16 @@ def parse_version_pragma(version_str):
 # Minor pre-parser checks.
 def pre_parse(code):
     result = []
-    replace_mode = None
+    fetch_name = None
+    class_names = {}
+    class_types = ('contract', 'struct')
 
     try:
         code = code.encode('utf-8')
         g = tokenize(io.BytesIO(code).readline)
 
         for token in g:
+
             toks = [token]
             line = token.line
             start = token.start
@@ -56,22 +59,14 @@ def pre_parse(code):
 
             if token.type == NAME and string == "class" and start[1] == 0:
                 raise StructureException("The `class` keyword is not allowed. Perhaps you meant `contract` or `struct`?", token.start)
-            # `contract xyz` -> `class xyz(__VYPER_ANNOT_CONTRACT__)`
-            # `struct xyz` -> `class xyz(__VYPER_ANNOT_STRUCT__)`
-            if token.type == NAME and replace_mode:
-                toks.extend([
-                    TokenInfo(OP, "(", end, end, line),
-                    TokenInfo(NAME, replace_mode, end, end, line),
-                    TokenInfo(OP, ")", end, end, line),
-                ])
-                replace_mode = None
-            if token.type == NAME and string == "contract" and start[1] == 0:
-                replace_mode = "__VYPER_ANNOT_CONTRACT__"
+
+            if token.type == NAME and fetch_name:
+                class_names[string] = fetch_name
+                fetch_name = None
+
+            if token.type == NAME and string in class_types and start[1] == 0:
                 toks = [TokenInfo(NAME, "class", start, end, line)]
-            # In the future, may relax the start-of-line restriction
-            if token.type == NAME and string == "struct" and start[1] == 0:
-                replace_mode = "__VYPER_ANNOT_STRUCT__"
-                toks = [TokenInfo(NAME, "class", start, end, line)]
+                fetch_name = string
 
             # Prevent semi-colon line statements.
             if (token.type, token.string) == (OP, ";"):
@@ -81,4 +76,4 @@ def pre_parse(code):
     except TokenError as e:
         raise StructureException(e.args[0], e.args[1]) from e
 
-    return untokenize(result).decode('utf-8')
+    return class_names, untokenize(result).decode('utf-8')
