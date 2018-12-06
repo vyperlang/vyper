@@ -173,9 +173,10 @@ class TupleLike(NodeType):
 # Data structure for a struct, e.g. {a: <type>, b: <type>}
 # struct can be named or anonymous. name=None indicates anonymous.
 class StructType(TupleLike):
-    def __init__(self, members, name):
+    def __init__(self, members, name, is_literal=False):
         self.members = copy.copy(members)
         self.name = name
+        self.is_literal = is_literal
 
     def eq(self, other):
         return other.name == self.name and other.members == self.members
@@ -190,8 +191,9 @@ class StructType(TupleLike):
 
 # Data structure for a list with heterogeneous types, e.g. [int128, bytes32, bytes]
 class TupleType(TupleLike):
-    def __init__(self, members):
+    def __init__(self, members, is_literal=False):
         self.members = copy.copy(members)
+        self.is_literal = is_literal
 
     def eq(self, other):
         return other.members == self.members

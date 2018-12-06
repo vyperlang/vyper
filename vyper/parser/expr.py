@@ -773,7 +773,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 raise TypeMismatchException("Member variable duplicated: " + key.id, key)
             o[key.id] = Expr(value, context).lll_node
             members[key.id] = o[key.id].typ
-        return LLLnode.from_list(["multi"] + [o[key] for key in (list(o.keys()))], typ=StructType(members, None), pos=getpos(expr))
+        return LLLnode.from_list(["multi"] + [o[key] for key in (list(o.keys()))], typ=StructType(members, None, is_literal=True), pos=getpos(expr))
 
     def tuple_literals(self):
         if not len(self.expr.elts):
@@ -781,7 +781,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         o = []
         for elt in self.expr.elts:
             o.append(Expr(elt, self.context).lll_node)
-        return LLLnode.from_list(["multi"] + o, typ=TupleType(o), pos=getpos(self.expr))
+        return LLLnode.from_list(["multi"] + o, typ=TupleType(o, is_literal=True), pos=getpos(self.expr))
 
     # Parse an expression that results in a value
     def parse_value_expr(expr, context):

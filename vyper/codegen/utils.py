@@ -3,29 +3,34 @@
 # type-checking code gets factored out.
 
 from vyper.exceptions import (
-    InvalidLiteralException,
     TypeMismatchException,
-    StructureException
 )
 from vyper.types import (
     BaseType,
     ByteArrayType,
-    ContractType,
-    NullType,
-    StructType,
-    MappingType,
-    TupleType,
     TupleLike,
-    ListType,
 )
 from vyper.parser.parser_utils import (
-    base_type_conversion,
     getpos,
     LLLnode,
-    make_byte_array_copier,
     make_setter,
-    unwrap_location,
+    add_variable_offset,
+    get_size_of_type
 )
+
+
+def zero_pad(bytez_placeholder, maxlen, context):
+    zero_padder = LLLnode.from_list(['pass'])
+    if maxlen > 0:
+        zero_pad_i = context.new_placeholder(BaseType('uint256'))  # Iterator used to zero pad memory.
+        zero_padder = LLLnode.from_list(
+            ['repeat', zero_pad_i, ['mload', bytez_placeholder], maxlen,
+                ['seq',
+                    ['if', ['gt', ['mload', zero_pad_i], maxlen], 'break'],  # stay within allocated bounds
+                    ['mstore8', ['add', ['add', 32, bytez_placeholder], ['mload', zero_pad_i]], 0]]],
+            annotation="Zero pad"
+        )
+    return zero_padder
 
 
 # Generate return code for stmt
@@ -82,7 +87,7 @@ def gen_tuple_return(stmt, context, sub):
         byte_arrays = [(i, x) for i, x in enumerate(sub.typ.get_tuple_members()) if isinstance(x, ByteArrayType)]
         if byte_arrays:
             i, x = byte_arrays[-1]
-            zero_padder = zero_pad(bytez_placeholder=['add', mem_pos, ['mload', mem_pos + i * 32]], maxlen=x.maxlen)
+            zero_padder = zero_pad(bytez_placeholder=['add', mem_pos, ['mload', mem_pos + i * 32]], maxlen=x.maxlen, context=context)
         return LLLnode.from_list(
             ['seq'] + [sub] + [zero_padder] + [make_return_stmt(stmt, context, mem_pos, mem_size)
         ], typ=sub.typ, pos=getpos(stmt), valency=0)
@@ -98,7 +103,6 @@ def gen_tuple_return(stmt, context, sub):
     new_sub = LLLnode.from_list(
         context.new_placeholder(typ=BaseType('uint256')), typ=context.return_type, location='memory', annotation='new_sub'
     )
-    dynamic_offset_start = 32 * len(sub.args)  # The static list of args end.
     left_token = LLLnode.from_list('_loc', typ=new_sub.typ, location="memory")
 
     def get_dynamic_offset_value():
@@ -114,25 +118,37 @@ def gen_tuple_return(stmt, context, sub):
                 ['mload', dynamic_offset_counter]]
         ]
 
-    for i, arg in enumerate(sub.args):
-        variable_offset = LLLnode.from_list(['add', 32 * i, left_token], typ=arg.typ, annotation='variable_offset')
-        if isinstance(arg.typ, ByteArrayType):
+    if sub.typ.is_literal:
+        keyz = list(range(len(sub.typ.members)))
+    else:
+        keyz = [(k, v) for k, v in sub.typ.members.items()]
+    dynamic_offset_start = 32 * len(keyz)  # The static list of args end.
+
+    for i, (key, typ) in enumerate(keyz):
+        variable_offset = LLLnode.from_list(['add', 32 * i, left_token], typ=typ, annotation='variable_offset')   # variable offset of destination
+        if sub.typ.is_literal:
+            arg = sub.args[i]
+        else:
+            arg = add_variable_offset(parent=sub, key=key, pos=getpos(stmt))
+
+        # arg = args[i] if sub.typ.is_literal else add_variable_offset(typ)  # origin arg to copy from
+        if isinstance(typ, ByteArrayType):
             # Store offset pointer value.
             subs.append(['mstore', variable_offset, get_dynamic_offset_value()])
 
             # Store dynamic data, from offset pointer onwards.
-            dynamic_spot = LLLnode.from_list(['add', left_token, get_dynamic_offset_value()], location="memory", typ=arg.typ, annotation='dynamic_spot')
+            dynamic_spot = LLLnode.from_list(['add', left_token, get_dynamic_offset_value()], location="memory", typ=typ, annotation='dynamic_spot')
             subs.append(make_setter(dynamic_spot, arg, location="memory", pos=getpos(stmt)))
             subs.append(increment_dynamic_offset(dynamic_spot))
 
-        elif isinstance(arg.typ, BaseType):
+        elif isinstance(typ, BaseType):
             subs.append(make_setter(variable_offset, arg, "memory", pos=getpos(stmt)))
-        elif isinstance(arg.typ, TupleLike):
+        elif isinstance(typ, TupleLike):
             subs.append(gen_tuple_return(stmt, context, arg))
         else:
-        # Maybe this should panic because the type error should be
-        # caught at an earlier type-checking stage.
-            raise TypeMismatchException("Can't return type %s as part of tuple"% arg.typ, stmt)
+            # Maybe this should panic because the type error should be
+            # caught at an earlier type-checking stage.
+            raise TypeMismatchException("Can't return type %s as part of tuple" % arg.typ, stmt)
 
     setter = LLLnode.from_list(
         ['seq',
