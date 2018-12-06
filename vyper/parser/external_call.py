@@ -6,13 +6,20 @@ from vyper.parser.parser_utils import (
     unwrap_location,
     pack_arguments
 )
+from vyper.exceptions import (
+    VariableDeclarationException,
+    TypeMismatchException,
+    StructureException
+)
 from vyper.types import (
     get_size_of_type,
-    BaseType
+    BaseType,
+    ByteArrayType
 )
 
 
 def external_contract_call(node, context, contract_name, contract_address, pos, value=None, gas=None):
+    from vyper.parser.parser import parse_expr
     if value is None:
         value = 0
     if gas is None:
