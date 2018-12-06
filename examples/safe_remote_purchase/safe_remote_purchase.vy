@@ -17,7 +17,7 @@ value: public(wei_value) #Value of the item
 seller: public(address)
 buyer: public(address)
 unlocked: public(bool)
-
+ended: public(bool)
 
 @public
 @payable
