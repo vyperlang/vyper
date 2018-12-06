@@ -388,10 +388,12 @@ Structs can be accessed via ``struct.argname``.
 **Example:**
 ::
   #Defining a struct
-  exampleStruct: {
-      value1: int128,
+  struct MyStruct:
+      value1: int128
       value2: decimal
-  }
+  exampleStruct: MyStruct
+  #Constructing a struct
+  exampleStruct = MyStruct({value1: 1, value2: 2})
   #Accessing a value
   exampleStruct.value1 = 1
 

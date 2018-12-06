@@ -216,7 +216,7 @@ def add_variable_offset(parent, key, pos):
                                      location='memory',
                                      annotation=annotation)
         else:
-            raise TypeMismatchException("Not expecting a member variable access")
+            raise TypeMismatchException("Not expecting a member variable access", pos)
 
     elif isinstance(typ, MappingType):
 
@@ -424,6 +424,8 @@ def make_setter(left, right, location, pos):
                 for k in right.typ.members:
                     if k not in left.typ.members:
                         raise TypeMismatchException("Keys don't match for structs, extra %s" % k, pos)
+                if left.typ.name != right.typ.name:
+                    raise TypeMismatchException("Setter type mismatch: left side is %r, right side is %r" % (left.typ, right.typ), pos)
             else:
                 if len(left.typ.members) != len(right.typ.members):
                     raise TypeMismatchException("Tuple lengths don't match, %d vs %d" % (len(left.typ.members), len(right.typ.members)), pos)
@@ -490,14 +492,19 @@ def make_setter(left, right, location, pos):
         raise Exception("Invalid type for setters")
 
 
-# Decorate every node of an AST tree with the original source code.
-# This is necessary to facilitate error pretty-printing.
-def decorate_ast_with_source(_ast, code):
+def decorate_ast(_ast, code, class_names=None):
+    if class_names is None:
+        class_names = {}
 
     class MyVisitor(ast.NodeVisitor):
         def visit(self, node):
             self.generic_visit(node)
+            # Decorate every node of an AST tree with the original source code.
+            # This is necessary to facilitate error pretty-printing.
             node.source_code = code
+            # Decorate class definition with the type of classes they are.
+            if isinstance(node, ast.ClassDef):
+                node.class_type = class_names.get(node.name)
 
     MyVisitor().visit(_ast)
 

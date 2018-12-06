@@ -54,17 +54,18 @@ def delete(key1: bytes32, key2: bytes32):
 
 def test_map_delete_struct(get_contract_with_gas_estimation):
     code = """
-structmap: map(int128, {
-    a: int128,
+struct X:
+    a: int128
     b: int128
-})
+
+structmap: map(int128, X)
 
 @public
 def set():
-    self.structmap[123] = {
+    self.structmap[123] = X({
         a: 333,
         b: 444
-    }
+    })
 
 @public
 def get() -> (int128, int128):

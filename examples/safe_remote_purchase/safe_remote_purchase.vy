@@ -45,9 +45,16 @@ def purchase():
 
 @public
 def received():
+    # 1. Conditions
     assert not self.unlocked #Is the item already purchased and pending confirmation
         # from the buyer?
     assert msg.sender == self.buyer
+    assert not self.ended
+
+    # 2. Effects
+    self.ended = True
+
+    # 3. Interaction
     send(self.buyer, self.value) #Return the buyer's deposit (=value) to the buyer.
     selfdestruct(self.seller) #Return the seller's deposit (=2*value)
         # and the purchase price (=value) to the seller.

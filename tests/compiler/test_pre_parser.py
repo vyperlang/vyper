@@ -38,7 +38,7 @@ def bar() -> int128:
     """
 
     contract_2 = """
-contract Bar():
+contract Bar:
     def bar() -> int128: modifying
 
 bar_contract: Bar

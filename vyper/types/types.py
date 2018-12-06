@@ -164,15 +164,18 @@ class MappingType(NodeType):
 
 
 # Data structure for a struct, e.g. {a: <type>, b: <type>}
+# struct can be named or anonymous. name=None indicates anonymous.
 class StructType(NodeType):
-    def __init__(self, members):
+    def __init__(self, members, name):
         self.members = copy.copy(members)
+        self.name = name
 
     def eq(self, other):
-        return other.members == self.members
+        return other.name == self.name and other.members == self.members
 
     def __repr__(self):
-        return '{' + ', '.join([k + ': ' + repr(v) for k, v in self.members.items()]) + '}'
+        prefix = 'struct ' + self.name + ': ' if self.name else ''
+        return prefix + '{' + ', '.join([k + ': ' + repr(v) for k, v in self.members.items()]) + '}'
 
 
 # Data structure for a list with heterogeneous types, e.g. [int128, bytes32, bytes]
@@ -209,6 +212,9 @@ def canonicalize_type(t, is_indexed=False):
         return "({})".format(
             ",".join(canonicalize_type(x) for x in t.members)
         )
+    if isinstance(t, StructType):
+        # TODO: VIP1019
+        raise InvalidTypeException("Structs are not allowed in events, or as args or return values from functions yet (see VIP1019)", t)
     if not isinstance(t, BaseType):
         raise Exception("Cannot canonicalize non-base type: %r" % t)
 
@@ -260,18 +266,27 @@ def parse_unit(item, custom_units):
         raise InvalidTypeException("Invalid unit expression", item)
 
 
+def make_struct_type(name, location, members, custom_units, custom_structs):
+    o = {}
+    for key, value in members:
+        if not isinstance(key, ast.Name) or not is_varname_valid(key.id, custom_units, custom_structs):
+            raise InvalidTypeException("Invalid member variable for struct %r" % key.id, key)
+        o[key.id] = parse_type(value, location, custom_units=custom_units, custom_structs=custom_structs)
+    return StructType(o, name)
+
+
 # Parses an expression representing a type. Annotation refers to whether
 # the type is to be located in memory or storage
-def parse_type(item, location, sigs=None, custom_units=None):
-    custom_units = custom_units or []
-    sigs = sigs or {}
+def parse_type(item, location, sigs={}, custom_units=[], custom_structs={}):
 
-    # Base types, e.g. num
+    # Base and custom types, e.g. num
     if isinstance(item, ast.Name):
         if item.id in base_types:
             return BaseType(item.id)
         elif item.id in special_types:
             return special_types[item.id]
+        elif item.id in custom_structs:
+            return make_struct_type(item.id, location, custom_structs[item.id], custom_units, custom_structs)
         else:
             raise InvalidTypeException("Invalid base type: " + item.id, item)
     # Units, e.g. num (1/sec) or contracts
@@ -282,12 +297,15 @@ def parse_type(item, location, sigs=None, custom_units=None):
                 raise InvalidTypeException("No mappings allowed for in-memory types, only fixed-size arrays", item)
             keytype = parse_type(item.args[0], None)
             if not isinstance(keytype, (BaseType, ByteArrayType)):
-                raise InvalidTypeException("Mapping keys must be base or bytes types", item.slice.value)
-            return MappingType(keytype, parse_type(item.args[1], location, custom_units=custom_units))
+                raise InvalidTypeException("Mapping keys must be base or bytes types", item)
+            return MappingType(keytype, parse_type(item.args[1], location, custom_units=custom_units, custom_structs=custom_structs))
         # Contract_types
         if item.func.id == 'address':
             if sigs and item.args[0].id in sigs:
                 return ContractType(item.args[0].id)
+        # Struct types
+        if item.func.id in custom_structs:
+            return make_struct_type(item.id, location, custom_structs[item.id], custom_units, custom_structs)
         if not isinstance(item.func, ast.Name):
             raise InvalidTypeException("Malformed unit type:", item)
         base_type = item.func.id
@@ -319,7 +337,7 @@ def parse_type(item, location, sigs=None, custom_units=None):
                 return ByteArrayType(item.slice.value.n)
             # List
             else:
-                return ListType(parse_type(item.value, location, custom_units=custom_units), item.slice.value.n)
+                return ListType(parse_type(item.value, location, custom_units=custom_units, custom_structs=custom_structs), item.slice.value.n)
         # Mappings, e.g. num[address]
         else:
             warnings.warn(
@@ -331,14 +349,14 @@ def parse_type(item, location, sigs=None, custom_units=None):
 
     # Dicts, used to represent mappings, e.g. {uint: uint}. Key must be a base type
     elif isinstance(item, ast.Dict):
-        o = {}
-        for key, value in zip(item.keys, item.values):
-            if not isinstance(key, ast.Name) or not is_varname_valid(key.id, custom_units):
-                raise InvalidTypeException("Invalid member variable for struct", key)
-            o[key.id] = parse_type(value, location, custom_units=custom_units)
-        return StructType(o)
+        warnings.warn(
+            "Anonymous structs have been removed in"
+            " favor of named structs, see VIP300",
+            DeprecationWarning
+        )
+        raise InvalidTypeException("Invalid type: %r" % ast.dump(item), item)
     elif isinstance(item, ast.Tuple):
-        members = [parse_type(x, location, custom_units=custom_units) for x in item.elts]
+        members = [parse_type(x, location, custom_units=custom_units, custom_structs=custom_structs) for x in item.elts]
         return TupleType(members)
     else:
         raise InvalidTypeException("Invalid type: %r" % ast.dump(item), item)
