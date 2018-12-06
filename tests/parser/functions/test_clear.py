@@ -276,40 +276,34 @@ def foo() -> (bytes[5], bytes[5]):
 
 def test_clear_struct(get_contract_with_gas_estimation):
     code = """
-foobar: {
-    a: int128,
-    b: uint256,
-    c: bool,
-    d: decimal,
-    e: bytes32,
+struct FOOBAR:
+    a: int128
+    b: uint256
+    c: bool
+    d: decimal
+    e: bytes32
     f: address
-}
+
+foobar: FOOBAR
 
 @public
 def foo():
-    self.foobar = {
+    self.foobar = FOOBAR({
         a: 1,
         b: 2,
         c: True,
         d: 3.0,
         e: 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF,
         f: msg.sender
-    }
-    bar: {
-        a: int128,
-        b: uint256,
-        c: bool,
-        d: decimal,
-        e: bytes32,
-        f: address
-    } = {
+    })
+    bar: FOOBAR = FOOBAR({
         a: 1,
         b: 2,
         c: True,
         d: 3.0,
         e: 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF,
         f: msg.sender
-    }
+    })
 
     clear(self.foobar)
     clear(bar)
@@ -387,17 +381,18 @@ def delete(key1: bytes32, key2: bytes32):
 
 def test_map_clear_struct(get_contract_with_gas_estimation):
     code = """
-structmap: map(int128, {
-    a: int128,
+struct X:
+    a: int128
     b: int128
-})
+
+structmap: map(int128, X)
 
 @public
 def set():
-    self.structmap[123] = {
+    self.structmap[123] = X({
         a: 333,
         b: 444
-    }
+    })
 
 @public
 def get() -> (int128, int128):
