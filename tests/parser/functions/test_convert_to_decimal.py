@@ -1,5 +1,9 @@
 from decimal import Decimal
 
+from vyper.exceptions import (
+    TypeMismatchException
+)
+
 
 def test_convert_to_decimal_units(get_contract, assert_tx_failed):
     code = """
@@ -60,3 +64,79 @@ def test_passed_variable(a: uint256) -> decimal:
     max_decimal = (2**127 - 1)
     assert c.test_passed_variable(max_decimal) == Decimal(max_decimal)
     assert_tx_failed(lambda: c.test_passed_variable(max_decimal + 1))
+
+
+def test_convert_from_bool(get_contract_with_gas_estimation):
+    code = """
+@public
+def foo(bar: bool) -> decimal:
+    return convert(bar, decimal)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.foo(False) == 0.0
+    assert c.foo(True) == 1.0
+
+
+def test_convert_from_bytes32(get_contract_with_gas_estimation):
+    code = """
+@public
+def foo(bar: bytes32) -> decimal:
+    return convert(bar, decimal)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.foo(b"\x00" * 32) == 0.0
+    assert c.foo(b"\xFF" * 32) == -1.0
+    assert c.foo((b"\x00" * 31) + b"\x01") == 1.0
+    assert c.foo((b"\x00" * 30) + b"\x01\x00") == 256.0
+
+
+def test_convert_from_bytes(get_contract_with_gas_estimation):
+    code = """
+@public
+def foo(bar: bytes[5]) -> decimal:
+    return convert(bar, decimal)
+
+@public
+def goo(bar: bytes[32]) -> decimal:
+    return convert(bar, decimal)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.foo(b'\x00\x00\x00\x00\x00') == 0.0
+    assert c.foo(b'\x00\x07\x5B\xCD\x15') == 123456789.0
+
+    assert c.goo(b"") == 0.0
+    assert c.goo(b"\x00") == 0.0
+    assert c.goo(b"\x01") == 1.0
+    assert c.goo(b"\x00\x01") == 1.0
+    assert c.goo(b"\x01\x00") == 256.0
+    assert c.goo(b"\x01\x00\x00\x00\x01") == 4294967297.0
+    assert c.goo(b"\xff" * 32) == -1.0
+
+
+def test_convert_from_too_many_bytes(get_contract_with_gas_estimation, assert_compile_failed):
+    code = """
+@public
+def foo(bar: bytes[33]) -> decimal:
+    return convert(bar, decimal)
+    """
+
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(code),
+        TypeMismatchException
+    )
+
+    code = """
+@public
+def foobar() -> decimal:
+    barfoo: bytes[63] = "Hello darkness, my old friend I've come to talk with you again."
+    return convert(barfoo, decimal)
+    """
+
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(code),
+        TypeMismatchException
+    )

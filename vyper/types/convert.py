@@ -113,30 +113,42 @@ def to_uint256(expr, args, kwargs, context):
         raise InvalidLiteralException("Invalid input for uint256: %r" % in_arg, expr)
 
 
-@signature(('int128', 'uint256'), '*')
+@signature(('bool', 'int128', 'uint256', 'bytes32', 'bytes'), '*')
 def to_decimal(expr, args, kwargs, context):
     in_arg = args[0]
     input_type, _ = get_type(in_arg)
-    _unit = in_arg.typ.unit
-    _positional = in_arg.typ.positional
 
-    if input_type == 'uint256':
+    if input_type == 'bytes':
+        if in_arg.typ.maxlen > 32:
+            raise TypeMismatchException("Cannot convert bytes array of max length {} to decimal".format(in_arg.value), expr)
+        num = byte_array_to_num(in_arg, expr, 'int128')
         return LLLnode.from_list(
-            ['uclample', ['mul', in_arg, DECIMAL_DIVISOR],
-            ['mload', MemoryPositions.MAXDECIMAL]],
-            typ=BaseType('decimal', _unit, _positional),
-            pos=getpos(expr)
-        )
-
-    elif input_type == 'int128':
-        return LLLnode.from_list(
-            ['mul', in_arg, DECIMAL_DIVISOR],
-            typ=BaseType('decimal', _unit, _positional),
+            ['mul', num, DECIMAL_DIVISOR],
+            typ=BaseType('decimal'),
             pos=getpos(expr)
         )
 
     else:
-        raise InvalidLiteralException("Invalid input for decimal: %r" % in_arg, expr)
+        _unit = in_arg.typ.unit
+        _positional = in_arg.typ.positional
+
+        if input_type == 'uint256':
+            return LLLnode.from_list(
+                ['uclample', ['mul', in_arg, DECIMAL_DIVISOR],
+                ['mload', MemoryPositions.MAXDECIMAL]],
+                typ=BaseType('decimal', _unit, _positional),
+                pos=getpos(expr)
+            )
+
+        elif input_type in ('int128', 'bool', 'bytes32'):
+            return LLLnode.from_list(
+                ['mul', in_arg, DECIMAL_DIVISOR],
+                typ=BaseType('decimal', _unit, _positional),
+                pos=getpos(expr)
+            )
+
+        else:
+            raise InvalidLiteralException("Invalid input for decimal: %r" % in_arg, expr)
 
 
 @signature(('int128', 'uint256', 'address', 'bytes', 'bool'), '*')
