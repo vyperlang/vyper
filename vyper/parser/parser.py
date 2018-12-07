@@ -28,7 +28,7 @@ from vyper.parser.parser_utils import (
     make_setter,
     base_type_conversion,
     byte_array_to_num,
-    decorate_ast_with_source,
+    decorate_ast,
     getpos,
     make_byte_array_copier,
     resolve_negative_literals,
@@ -62,9 +62,9 @@ if not hasattr(ast, 'AnnAssign'):
 
 # Converts code to parse tree
 def parse(code):
-    code = pre_parse(code)
-    o = ast.parse(code)
-    decorate_ast_with_source(o, code)
+    class_names, code = pre_parse(code)
+    o = ast.parse(code)  # python ast
+    decorate_ast(o, code, class_names)  # decorated python ast
     o = resolve_negative_literals(o)
     return o.body
 

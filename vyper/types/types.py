@@ -2,6 +2,7 @@ import abc
 import ast
 import copy
 import warnings
+from collections import OrderedDict
 
 from vyper.exceptions import InvalidTypeException
 from vyper.utils import (
@@ -267,7 +268,7 @@ def parse_unit(item, custom_units):
 
 
 def make_struct_type(name, location, members, custom_units, custom_structs):
-    o = {}
+    o = OrderedDict()
     for key, value in members:
         if not isinstance(key, ast.Name) or not is_varname_valid(key.id, custom_units, custom_structs):
             raise InvalidTypeException("Invalid member variable for struct %r" % key.id, key)
@@ -297,7 +298,7 @@ def parse_type(item, location, sigs={}, custom_units=[], custom_structs={}):
                 raise InvalidTypeException("No mappings allowed for in-memory types, only fixed-size arrays", item)
             keytype = parse_type(item.args[0], None)
             if not isinstance(keytype, (BaseType, ByteArrayType)):
-                raise InvalidTypeException("Mapping keys must be base or bytes types", item.slice.value)
+                raise InvalidTypeException("Mapping keys must be base or bytes types", item)
             return MappingType(keytype, parse_type(item.args[1], location, custom_units=custom_units, custom_structs=custom_structs))
         # Contract_types
         if item.func.id == 'address':
