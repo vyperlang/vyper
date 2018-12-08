@@ -428,7 +428,7 @@ def make_setter(left, right, location, pos):
                     if k not in left.typ.members:
                         raise TypeMismatchException("Keys don't match for structs, extra %s" % k, pos)
                 if left.typ.name != right.typ.name:
-                    raise TypeMismatchException("Setter type mismatch: left side is %r, right side is %r" % (left.typ, right.typ), pos)
+                    raise TypeMismatchException("Expected %r, got %r" % (left.typ, right.typ), pos)
             else:
                 if len(left.typ.members) != len(right.typ.members):
                     raise TypeMismatchException("Tuple lengths don't match, %d vs %d" % (len(left.typ.members), len(right.typ.members)), pos)
