@@ -94,11 +94,6 @@ def foo(x: bytes[100]) -> bytes[150]:
     """,
     """
 @public
-def convert2(inp: uint256) -> bytes32:
-    return convert(inp, bytes32)
-    """,
-    """
-@public
 def baa():
     x: bytes[50]
     """
