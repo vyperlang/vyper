@@ -264,10 +264,13 @@ def a():
 ''', InvalidLiteralException)
 
 must_fail('''
+struct StructX:
+    x: int128
+
 @public
 def a():
-    x: int128 = {y: 1}
-''', InvalidLiteralException)
+    x: int128 = StructX({y: 1})
+''', TypeMismatchException)
 
 
 @pytest.mark.parametrize('bad_code,exception_type', fail_list)

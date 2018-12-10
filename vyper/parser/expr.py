@@ -11,6 +11,7 @@ from vyper.exceptions import (
 )
 from vyper.parser.lll_node import LLLnode
 from vyper.parser import self_call
+from vyper.parser import external_call
 from vyper.parser.parser_utils import (
     getpos,
     unwrap_location,
@@ -653,22 +654,8 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         else:
             raise StructureException("Only the 'not' unary operator is supported")
 
-    def _get_external_contract_keywords(self):
-        value, gas = None, None
-        for kw in self.expr.keywords:
-            if kw.arg not in ('value', 'gas'):
-                raise TypeMismatchException('Invalid keyword argument, only "gas" and "value" supported.', self.expr)
-            elif kw.arg == 'gas':
-                gas = Expr.parse_value_expr(kw.value, self.context)
-            elif kw.arg == 'value':
-                value = Expr.parse_value_expr(kw.value, self.context)
-        return value, gas
-
     # Function calls
     def call(self):
-        from vyper.parser.parser import (
-            external_contract_call
-        )
         from vyper.functions import (
             dispatch_table,
         )
@@ -706,31 +693,10 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 if function_name in [x.split('(')[0] for x, _ in self.context.sigs['self'].items()]:
                     err_msg += ". Did you mean self.{}?".format(function_name)
                 raise StructureException(err_msg, self.expr)
-
         elif isinstance(self.expr.func, ast.Attribute) and isinstance(self.expr.func.value, ast.Name) and self.expr.func.value.id == "self":
             return self_call.make_call(self.expr, self.context)
-
-        elif isinstance(self.expr.func, ast.Attribute) and isinstance(self.expr.func.value, ast.Call):
-            contract_name = self.expr.func.value.func.id
-            contract_address = Expr.parse_value_expr(self.expr.func.value.args[0], self.context)
-            value, gas = self._get_external_contract_keywords()
-            return external_contract_call(self.expr, self.context, contract_name, contract_address, pos=getpos(self.expr), value=value, gas=gas)
-
-        elif isinstance(self.expr.func.value, ast.Attribute) and self.expr.func.value.attr in self.context.sigs:
-            contract_name = self.expr.func.value.attr
-            var = self.context.globals[self.expr.func.value.attr]
-            contract_address = unwrap_location(LLLnode.from_list(var.pos, typ=var.typ, location='storage', pos=getpos(self.expr), annotation='self.' + self.expr.func.value.attr))
-            value, gas = self._get_external_contract_keywords()
-            return external_contract_call(self.expr, self.context, contract_name, contract_address, pos=getpos(self.expr), value=value, gas=gas)
-
-        elif isinstance(self.expr.func.value, ast.Attribute) and self.expr.func.value.attr in self.context.globals:
-            contract_name = self.context.globals[self.expr.func.value.attr].typ.unit
-            var = self.context.globals[self.expr.func.value.attr]
-            contract_address = unwrap_location(LLLnode.from_list(var.pos, typ=var.typ, location='storage', pos=getpos(self.expr), annotation='self.' + self.expr.func.value.attr))
-            value, gas = self._get_external_contract_keywords()
-            return external_contract_call(self.expr, self.context, contract_name, contract_address, pos=getpos(self.expr), value=value, gas=gas)
         else:
-            raise StructureException("Unsupported operator: %r" % ast.dump(self.expr), self.expr)
+            return external_call.make_external_call(self.expr, self.context)
 
     def list_literals(self):
         if not len(self.expr.elts):

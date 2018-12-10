@@ -13,7 +13,10 @@ from vyper.functions import (
     stmt_dispatch_table,
     dispatch_table
 )
-from vyper.parser import self_call
+from vyper.parser import (
+    self_call,
+    external_call
+)
 from vyper.parser.parser_utils import (
     base_type_conversion,
     getpos,
@@ -237,7 +240,6 @@ class Stmt(object):
         from .parser import (
             pack_logging_data,
             pack_logging_topics,
-            external_contract_call,
         )
 
         if isinstance(self.stmt.func, ast.Name):
@@ -250,25 +252,7 @@ class Stmt(object):
 
         elif isinstance(self.stmt.func, ast.Attribute) and isinstance(self.stmt.func.value, ast.Name) and self.stmt.func.value.id == "self":
             return self_call.make_call(self.stmt, self.context)
-
-        elif isinstance(self.stmt.func, ast.Attribute) and isinstance(self.stmt.func.value, ast.Call):
-            contract_name = self.stmt.func.value.func.id
-            contract_address = Expr.parse_value_expr(self.stmt.func.value.args[0], self.context)
-            return external_contract_call(self.stmt, self.context, contract_name, contract_address, pos=getpos(self.stmt))
-
-        elif isinstance(self.stmt.func.value, ast.Attribute) and self.stmt.func.value.attr in self.context.sigs:
-            contract_name = self.stmt.func.value.attr
-            var = self.context.globals[self.stmt.func.value.attr]
-            contract_address = unwrap_location(LLLnode.from_list(var.pos, typ=var.typ, location='storage', pos=getpos(self.stmt), annotation='self.' + self.stmt.func.value.attr))
-            return external_contract_call(self.stmt, self.context, contract_name, contract_address, pos=getpos(self.stmt))
-
-        elif isinstance(self.stmt.func.value, ast.Attribute) and self.stmt.func.value.attr in self.context.globals:
-            contract_name = self.context.globals[self.stmt.func.value.attr].typ.unit
-            var = self.context.globals[self.stmt.func.value.attr]
-            contract_address = unwrap_location(LLLnode.from_list(var.pos, typ=var.typ, location='storage', pos=getpos(self.stmt), annotation='self.' + self.stmt.func.value.attr))
-            return external_contract_call(self.stmt, self.context, contract_name, contract_address, pos=getpos(self.stmt))
-
-        elif isinstance(self.stmt.func, ast.Attribute) and self.stmt.func.value.id == 'log':
+        elif isinstance(self.stmt.func, ast.Attribute) and isinstance(self.stmt.func.value, ast.Name) and self.stmt.func.value.id == 'log':
             if self.stmt.func.attr not in self.context.sigs['self']:
                 raise EventDeclarationException("Event not declared yet: %s" % self.stmt.func.attr)
             event = self.context.sigs['self'][self.stmt.func.attr]
@@ -294,7 +278,7 @@ class Stmt(object):
             return LLLnode.from_list(['seq', inargs,
                 LLLnode.from_list(["log" + str(len(topics)), inarg_start, sz] + topics, add_gas_estimate=inargsize * 10)], typ=None, pos=getpos(self.stmt))
         else:
-            raise StructureException("Unsupported operator: %r" % ast.dump(self.stmt), self.stmt)
+            return external_call.make_external_call(self.stmt, self.context)
 
     def parse_assert(self):
         test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
