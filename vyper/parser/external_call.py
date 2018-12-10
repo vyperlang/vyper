@@ -7,9 +7,10 @@ from vyper.parser.parser_utils import (
     pack_arguments
 )
 from vyper.exceptions import (
-    VariableDeclarationException,
+    FunctionDeclarationException,
+    StructureException,
     TypeMismatchException,
-    StructureException
+    VariableDeclarationException,
 )
 from vyper.types import (
     get_size_of_type,
@@ -29,8 +30,12 @@ def external_contract_call(node, context, contract_name, contract_address, pos, 
         raise VariableDeclarationException("Contract not declared yet: %s" % contract_name)
     method_name = node.func.attr
     if method_name not in context.sigs[contract_name]:
-        raise FunctionDeclarationException("Function not declared yet: %s (reminder: "
-                                                    "function must be declared in the correct contract)" % method_name, pos)
+        raise FunctionDeclarationException(
+            (
+                "Function not declared yet: %s (reminder: "
+                "function must be declared in the correct contract)"
+            ) % method_name, node.func
+        )
     sig = context.sigs[contract_name][method_name]
     inargs, inargsize, _ = pack_arguments(sig, [parse_expr(arg, context) for arg in node.args], context, pos=pos)
     output_placeholder, output_size, returner = get_external_contract_call_output(sig, context)
@@ -96,7 +101,7 @@ def make_external_call(stmt_expr, context):
         var = context.globals[stmt_expr.func.value.attr]
         contract_address = unwrap_location(LLLnode.from_list(var.pos, typ=var.typ, location='storage', pos=getpos(stmt_expr), annotation='self.' + stmt_expr.func.value.attr))
 
-        return external_contract_call(stmt_expr,context, contract_name, contract_address, pos=getpos(stmt_expr), value=value, gas=gas)
+        return external_contract_call(stmt_expr, context, contract_name, contract_address, pos=getpos(stmt_expr), value=value, gas=gas)
 
     else:
         raise StructureException("Unsupported operator: %r" % ast.dump(stmt_expr), stmt_expr)

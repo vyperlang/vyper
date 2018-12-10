@@ -132,14 +132,14 @@ def __default__():
 
     """
 
-    a0  = w3.eth.accounts[0]
+    a0 = w3.eth.accounts[0]
     c = get_contract(contract_code, value=2)
     buyer_contract = get_contract(buyer_contract_code, *[c.address])
     buyer_contract_address = buyer_contract.address
     init_bal_a0, init_bal_buyer_contract = w3.eth.getBalance(a0), w3.eth.getBalance(buyer_contract_address)
     # Start purchase
     buyer_contract.start_purchase(transact={'gasPrice': 0, 'value': 4, 'from': w3.eth.accounts[1], 'gas': 100000})
-    assert c.unlocked() == False
+    assert c.unlocked() is False
     assert c.buyer() == buyer_contract_address
 
     # Trigger "re-entry"

@@ -654,8 +654,6 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         else:
             raise StructureException("Only the 'not' unary operator is supported")
 
-
-
     # Function calls
     def call(self):
         from vyper.functions import (

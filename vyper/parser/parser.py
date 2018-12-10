@@ -6,7 +6,6 @@ from vyper.exceptions import (
     InvalidLiteralException,
     StructureException,
     TypeMismatchException,
-    VariableDeclarationException,
     FunctionDeclarationException,
     EventDeclarationException
 )
@@ -24,7 +23,6 @@ from vyper.parser.global_context import GlobalContext
 from vyper.parser.lll_node import LLLnode
 from vyper.parser.pre_parser import pre_parse
 from vyper.parser.parser_utils import (
-    pack_arguments,
     make_setter,
     base_type_conversion,
     byte_array_to_num,
@@ -38,7 +36,6 @@ from vyper.types import (
     BaseType,
     ByteArrayType,
     ListType,
-    TupleType
 )
 from vyper.types import (
     get_size_of_type,
