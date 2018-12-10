@@ -4,32 +4,6 @@ from vyper.exceptions import (
 )
 
 
-def test_address_bytes_conversion(get_contract_with_gas_estimation):
-    # Shared values for test addresses and bytes
-    test_address = "0xF5D4020dCA6a62bB1efFcC9212AAF3c9819E30D7"
-    test_bytes = b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xF5\xD4\x02\x0d\xCA\x6a\x62\xbB\x1e\xfF\xcC\x92\x12\xAA\xF3\xc9\x81\x9E\x30\xD7"
-
-    # This block tests conversion from address to bytes
-    test_address_to_bytes = """
-@public
-def test_address_to_bytes(x: address) -> bytes32:
-    return convert(x, bytes32)
-    """
-
-    c = get_contract_with_gas_estimation(test_address_to_bytes)
-    assert c.test_address_to_bytes(test_address) == test_bytes
-
-    # This block tests conversion from bytes to address
-    test_bytes_to_address = """
-@public
-def test_bytes_to_address(x: bytes32) -> address:
-    return convert(x, address)
-    """
-
-    c = get_contract_with_gas_estimation(test_bytes_to_address)
-    assert c.test_bytes_to_address(test_bytes) == test_address
-
-
 def test_test_bytes(get_contract_with_gas_estimation, assert_tx_failed):
     test_bytes = """
 @public
@@ -196,34 +170,6 @@ def quz(inp1: bytes[40], inp2: bytes[45]):
     assert c.check2() == b"fluffysheep"
 
     print('Passed string struct test')
-
-
-def test_convert_bytes_to_num_code(get_contract_with_gas_estimation, assert_tx_failed):
-    bytes_to_num_code = """
-astor: bytes[10]
-
-@public
-def foo(x: bytes[32]) -> int128:
-    return convert(x, int128)
-
-@public
-def bar_storage() -> int128:
-    self.astor = "a"
-    return convert(self.astor, int128)
-    """
-
-    c = get_contract_with_gas_estimation(bytes_to_num_code)
-    assert c.foo(b"") == 0
-    assert c.foo(b"\x00") == 0
-    assert c.foo(b"\x01") == 1
-    assert c.foo(b"\x00\x01") == 1
-    assert c.foo(b"\x01\x00") == 256
-    assert c.foo(b"\x01\x00\x00\x00\x01") == 4294967297
-    assert c.foo(b"\xff" * 32) == -1
-    assert_tx_failed(lambda: c.foo(b"\x80" + b"\xff" * 31))
-    assert_tx_failed(lambda: c.foo(b"\x01" * 33))
-    assert c.bar_storage() == 97
-    print('Passed bytes_to_num tests')
 
 
 def test_binary_literal(get_contract_with_gas_estimation):

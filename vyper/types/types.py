@@ -2,6 +2,7 @@ import abc
 import ast
 import copy
 import warnings
+from collections import OrderedDict
 
 from vyper.exceptions import InvalidTypeException
 from vyper.utils import (
@@ -267,7 +268,7 @@ def parse_unit(item, custom_units):
 
 
 def make_struct_type(name, location, members, custom_units, custom_structs):
-    o = {}
+    o = OrderedDict()
     for key, value in members:
         if not isinstance(key, ast.Name) or not is_varname_valid(key.id, custom_units, custom_structs):
             raise InvalidTypeException("Invalid member variable for struct %r" % key.id, key)
