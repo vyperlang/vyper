@@ -1,9 +1,68 @@
 from vyper.exceptions import (
-    InvalidLiteralException
+    InvalidLiteralException,
+    TypeMismatchException,
 )
 
 
-def test_convert_bytes_to_int128(assert_compile_failed, get_contract_with_gas_estimation):
+def test_convert_to_int128_units(get_contract, assert_tx_failed):
+    code = """
+units: {
+    meter: "Meter"
+}
+
+@public
+def test() -> uint256(meter):
+    b: int128(meter) = 4321
+    a: uint256(meter) = convert(b, uint256)
+    return a
+    """
+
+    c = get_contract(code)
+    assert c.test() == 4321
+
+
+def test_convert_to_int128(get_contract_with_gas_estimation):
+    code = """
+a: uint256
+b: bytes32
+c: bytes[1]
+
+@public
+def uint256_to_num(inp: uint256) -> (int128, int128):
+    self.a = inp
+    memory: int128  = convert(inp, int128)
+    storage: int128 = convert(self.a, int128)
+    return  memory, storage
+
+@public
+def bytes32_to_num() -> (int128, int128):
+    self.b = 0x0000000000000000000000000000000000000000000000000000000000000001
+    literal: int128 = convert(0x0000000000000000000000000000000000000000000000000000000000000001, int128)
+    storage: int128 = convert(self.b, int128)
+    return literal, storage
+
+@public
+def bytes_to_num() -> (int128, int128):
+    self.c = 'a'
+    literal: int128 = convert('a', int128)
+    storage: int128 = convert(self.c, int128)
+    return literal, storage
+
+@public
+def zero_bytes(inp: bytes[1]) -> int128:
+    return convert(inp, int128)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.uint256_to_num(1) == [1, 1]
+    assert c.bytes32_to_num() == [1, 1]
+    assert c.bytes_to_num() == [97, 97]
+
+    assert c.zero_bytes(b'\x01') == 1
+    assert c.zero_bytes(b'\x00') == 0
+
+
+def test_convert_from_bytes(assert_compile_failed, assert_tx_failed, get_contract_with_gas_estimation):
     # Test valid bytes input for conversion
     test_success = """
 @public
@@ -22,8 +81,27 @@ def foo(bar: bytes[32]) -> int128:
     """
 
     c = get_contract_with_gas_estimation(test_success)
-    assert c.foo(b'\x00' * 32) == 0
-    assert c.foo(b'\xff' * 32) == -1
+    assert c.foo(b"") == 0
+    assert c.foo(b"\x00") == 0
+    assert c.foo(b"\x01") == 1
+    assert c.foo(b"\x00\x01") == 1
+    assert c.foo(b"\x01\x00") == 256
+    assert c.foo(b"\x01\x00\x00\x00\x01") == 4294967297
+    assert c.foo(b"\xff" * 32) == -1
+    assert_tx_failed(lambda: c.foo(b"\x80" + b"\xff" * 31))
+    assert_tx_failed(lambda: c.foo(b"\x01" * 33))
+
+    bytes_to_num_code = """
+astor: bytes[10]
+
+@public
+def bar_storage() -> int128:
+    self.astor = "a"
+    return convert(self.astor, int128)
+    """
+
+    c = get_contract_with_gas_estimation(bytes_to_num_code)
+    assert c.bar_storage() == 97
 
     # Test overflow bytes input for conversion
     test_fail = """
@@ -34,7 +112,7 @@ def foo(bar: bytes[33]) -> int128:
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(test_fail),
-        InvalidLiteralException
+        TypeMismatchException
     )
 
     test_fail = """
@@ -46,7 +124,7 @@ def foobar() -> int128:
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(test_fail),
-        InvalidLiteralException
+        TypeMismatchException
     )
 
 
@@ -111,7 +189,7 @@ def test() -> int128:
     )
 
 
-def test_convert_bytes32_to_num_overflow(assert_tx_failed, get_contract_with_gas_estimation):
+def test_convert_from_bytes32_overflow(assert_tx_failed, get_contract_with_gas_estimation):
     code = """
 @public
 def test1():
@@ -123,7 +201,7 @@ def test1():
     assert_tx_failed(lambda: c.test1())
 
 
-def test_convert_address_to_num(assert_compile_failed, get_contract_with_gas_estimation):
+def test_convert_from_address(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
 @public
 def test2():
@@ -133,7 +211,7 @@ def test2():
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), Exception)
 
 
-def test_convert_out_of_range(assert_compile_failed, get_contract_with_gas_estimation):
+def test_convert_out_of_range_literal(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
 @public
 def test2():

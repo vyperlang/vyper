@@ -3,6 +3,20 @@
 from setuptools import setup, find_packages
 
 
+test_deps = [
+    'pytest',
+    'pytest-cov',
+    'py-evm==0.2.0a34',
+    'eth-tester==0.1.0b33',
+    'web3==4.8.2',
+]
+
+
+extras = {
+    'test': test_deps
+}
+
+
 setup(
     name='vyper',
     # *IMPORTANT*: Don't manually change the version here. Use the 'bumpversion' utility.
@@ -22,15 +36,11 @@ setup(
         'pycryptodome>=3.5.1,<4',
     ],
     setup_requires=[
-        'pytest-runner'
+        'pytest-runner',
+        'setuptools-markdown'
     ],
-    tests_require=[
-        'pytest',
-        'pytest-cov',
-        'py-evm==0.2.0a32',
-        'eth-tester[py-evm]==0.1.0b32',
-        'web3==4.8.2',
-    ],
+    tests_require=test_deps,
+    extras_require=extras,
     scripts=[
         'bin/vyper',
         'bin/vyper-serve',
