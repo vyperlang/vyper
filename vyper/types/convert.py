@@ -132,7 +132,7 @@ def to_decimal(expr, args, kwargs, context):
         _unit = in_arg.typ.unit
         _positional = in_arg.typ.positional
 
-        if input_type == 'uint256':
+        if input_type in ('uint256', 'bytes32'):
             return LLLnode.from_list(
                 ['uclample', ['mul', in_arg, DECIMAL_DIVISOR],
                 ['mload', MemoryPositions.MAXDECIMAL]],
@@ -140,7 +140,7 @@ def to_decimal(expr, args, kwargs, context):
                 pos=getpos(expr)
             )
 
-        elif input_type in ('int128', 'bool', 'bytes32'):
+        elif input_type in ('int128', 'bool'):
             return LLLnode.from_list(
                 ['mul', in_arg, DECIMAL_DIVISOR],
                 typ=BaseType('decimal', _unit, _positional),
