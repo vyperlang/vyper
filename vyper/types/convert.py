@@ -36,8 +36,7 @@ def to_int128(expr, args, kwargs, context):
         if in_arg.typ.is_literal and not SizeLimits.in_bounds('int128', in_arg.value):
             raise InvalidLiteralException("Number out of range: {}".format(in_arg.value), expr)
         return LLLnode.from_list(
-            ['clamp', ['mload', MemoryPositions.MINNUM],
-            in_arg, ['mload', MemoryPositions.MAXNUM]],
+            ['clamp', SizeLimits.MINNUM, in_arg, SizeLimits.MAXNUM],
             typ=BaseType('int128', in_arg.typ.unit),
             pos=getpos(expr)
         )
@@ -122,8 +121,7 @@ def to_decimal(expr, args, kwargs, context):
 
     if input_type == 'uint256':
         return LLLnode.from_list(
-            ['uclample', ['mul', in_arg, DECIMAL_DIVISOR],
-            ['mload', MemoryPositions.MAXDECIMAL]],
+            ['uclample', ['mul', in_arg, DECIMAL_DIVISOR], SizeLimits.MAXDECIMAL],
             typ=BaseType('decimal', _unit, _positional),
             pos=getpos(expr)
         )

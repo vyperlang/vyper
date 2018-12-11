@@ -153,9 +153,9 @@ def byte_array_to_num(arg, expr, out_type, offset=32,):
         first_el_getter = LLLnode.from_list(['sload', ['add', 1, ['sha3_32', '_sub']]], typ=BaseType('int128'))
     if out_type == 'int128':
         result = ['clamp',
-                     ['mload', MemoryPositions.MINNUM],
+                     SizeLimits.MINNUM,
                      ['div', '_el1', ['exp', 256, ['sub', 32, '_len']]],
-                     ['mload', MemoryPositions.MAXNUM]]
+                     SizeLimits.MAXNUM]
     elif out_type == 'uint256':
         result = ['div', '_el1', ['exp', 256, ['sub', offset, '_len']]]
     return LLLnode.from_list(['with', '_sub', arg,
