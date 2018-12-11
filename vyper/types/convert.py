@@ -22,7 +22,6 @@ from vyper.types import (
 )
 from vyper.utils import (
     DECIMAL_DIVISOR,
-    MemoryPositions,
     SizeLimits
 )
 
