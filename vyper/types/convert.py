@@ -27,6 +27,33 @@ from vyper.utils import (
 )
 
 
+@signature(('decimal', 'int128', 'uint256', 'bytes32', 'bytes'), '*')
+def to_bool(expr, args, kwargs, context):
+    in_arg = args[0]
+    input_type, _ = get_type(in_arg)
+
+    if input_type == 'bytes':
+        if in_arg.typ.maxlen > 32:
+            raise TypeMismatchException("Cannot convert bytes array of max length {} to int128".format(in_arg.value), expr)
+        else:
+            num = byte_array_to_num(in_arg, expr, 'uint256')
+            return LLLnode.from_list(
+                ['iszero', ['iszero', num]],
+                typ=BaseType('bool'),
+                pos=getpos(expr)
+            )
+
+    elif in_arg.typ.is_literal and in_arg.typ.typ == 'bool':
+        raise InvalidLiteralException("Cannot convert to `bool` with boolean input literal.", expr)
+
+    else:
+        return LLLnode.from_list(
+            ['iszero', ['iszero', in_arg]],
+            typ=BaseType('bool', in_arg.typ.unit),
+            pos=getpos(expr)
+        )
+
+
 @signature(('bytes32', 'bytes', 'uint256', 'bool'), '*')
 def to_int128(expr, args, kwargs, context):
     in_arg = args[0]
@@ -44,7 +71,7 @@ def to_int128(expr, args, kwargs, context):
 
     elif input_type == 'bytes':
         if in_arg.typ.maxlen > 32:
-            raise InvalidLiteralException("Cannot convert bytes array of max length {} to int128".format(in_arg.value), expr)
+            raise TypeMismatchException("Cannot convert bytes array of max length {} to int128".format(in_arg.value), expr)
         return byte_array_to_num(in_arg, expr, 'int128')
 
     elif input_type == 'uint256':
@@ -212,6 +239,7 @@ def convert(expr, context):
 
 
 conversion_table = {
+    'bool': to_bool,
     'int128': to_int128,
     'uint256': to_uint256,
     'decimal': to_decimal,
