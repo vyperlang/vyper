@@ -1,7 +1,8 @@
 from decimal import Decimal
 
 from vyper.exceptions import (
-    TypeMismatchException
+    TypeMismatchException,
+    InvalidLiteralException,
 )
 
 
@@ -66,6 +67,19 @@ def test_passed_variable(a: uint256) -> decimal:
     assert_tx_failed(lambda: c.test_passed_variable(max_decimal + 1))
 
 
+def test_convert_from_uint256_overflow(get_contract_with_gas_estimation, assert_compile_failed):
+    code = """
+@public
+def foo() -> decimal:
+    return convert(2**256 - 1, decimal)
+    """
+
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(code),
+        InvalidLiteralException
+    )
+
+
 def test_convert_from_bool(get_contract_with_gas_estimation):
     code = """
 @public
@@ -87,9 +101,22 @@ def foo(bar: bytes32) -> decimal:
 
     c = get_contract_with_gas_estimation(code)
     assert c.foo(b"\x00" * 32) == 0.0
-    assert c.foo(b"\xFF" * 32) == -1.0
+    assert c.foo(b"\xff" * 32) == -1.0
     assert c.foo((b"\x00" * 31) + b"\x01") == 1.0
     assert c.foo((b"\x00" * 30) + b"\x01\x00") == 256.0
+
+
+def test_convert_from_bytes32_overflow(get_contract_with_gas_estimation, assert_compile_failed):
+    code = """
+@public
+def foo() -> decimal:
+    return convert(0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF, decimal)
+    """
+
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(code),
+        InvalidLiteralException
+    )
 
 
 def test_convert_from_bytes(get_contract_with_gas_estimation):
