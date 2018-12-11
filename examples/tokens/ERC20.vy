@@ -1,87 +1,137 @@
-# Vyper Port of MyToken
-# THIS CONTRACT HAS NOT BEEN AUDITED!
-# ERC20 details at:
-# https://theethereum.wiki/w/index.php/ERC20_Token_Standard
-# https://github.com/ethereum/EIPs/blob/master/EIPS/eip-20-token-standard.md
+# @dev Implementation of ERC-20 token standard.
+# @author Takayuki Jimba (@yudetamago)
 
+Transfer: event({_from: indexed(address), _to: indexed(address), _value: uint256(wei)})
+Approval: event({_owner: indexed(address), _spender: indexed(address), _value: uint256(wei)})
 
-# Events of the token.
-Transfer: event({_from: indexed(address), _to: indexed(address), _value: uint256})
-Approval: event({_owner: indexed(address), _spender: indexed(address), _value: uint256})
-
-
-# Variables of the token.
 name: public(bytes32)
 symbol: public(bytes32)
-totalSupply: public(uint256)
-decimals: public(int128)
-balances: int128[address]
-allowed: int128[address][address]
-
+decimals: public(uint256)
+balances: map(address, uint256(wei))
+allowances: map(address, map(address, uint256(wei)))
+total_supply: uint256(wei)
+minter: address
 
 @public
-def __init__(_name: bytes32, _symbol: bytes32, _decimals: uint256, _initialSupply: uint256):
+def __init__(_name: bytes32, _symbol: bytes32, _decimals: uint256, _supply: uint256(wei)):
+    _sender: address = msg.sender
     self.name = _name
     self.symbol = _symbol
     self.decimals = _decimals
-    self.totalSupply =_initialSupply * convert(10, 'uint256') ** _decimals
-    self.balances[msg.sender] = convert(self.totalSupply, 'int128')
+    self.balances[_sender] = _supply
+    self.total_supply = _supply
+    self.minter = _sender
+    log.Transfer(ZERO_ADDRESS, _sender, _supply)
 
 
-# What is the balance of a particular account?
+# @dev Total number of tokens in existence.
 @public
 @constant
-def balanceOf(_owner: address) -> uint256:
+def totalSupply() -> uint256(wei):
+    return self.total_supply
 
-    return convert(self.balances[_owner], 'uint256')
 
-
-# Send `_value` tokens to `_to` from your account
+# @dev Gets the balance of the specified address.
+# @param _owner The address to query the balance of.
+# @return An uint256 representing the amount owned by the passed address.
 @public
-def transfer(_to: address, _amount: int128(uint256)) -> bool:
-
-    if self.balances[msg.sender] >= _amount and \
-       self.balances[_to] + _amount >= self.balances[_to]:
-
-        self.balances[msg.sender] -= _amount  # Subtract from the sender
-        self.balances[_to] += _amount  # Add the same to the recipient
-        log.Transfer(msg.sender, _to, convert(_amount, 'uint256'))  # log transfer event.
-
-        return True
-    else:
-        return False
+@constant
+def balanceOf(_owner : address) -> uint256(wei):
+    return self.balances[_owner]
 
 
-# Transfer allowed tokens from a specific account to another.
+# @dev Function to check the amount of tokens that an owner allowed to a spender.
+# @param _owner The address which owns the funds.
+# @param _spender The address which will spend the funds.
+# @return An uint256 specifying the amount of tokens still available for the spender.
 @public
-def transferFrom(_from: address, _to: address, _value: int128(uint256)) -> bool:
-
-    if _value <= self.allowed[_from][msg.sender] and \
-       _value <= self.balances[_from]:
-
-        self.balances[_from] -= _value  # decrease balance of from address.
-        self.allowed[_from][msg.sender] -= _value  # decrease allowance.
-        self.balances[_to] += _value  # incease balance of to address.
-        log.Transfer(_from, _to, convert(_value, 'uint256'))  # log transfer event.
-
-        return True
-    else:
-        return False
+@constant
+def allowance(_owner : address, _spender : address) -> uint256(wei):
+    return self.allowances[_owner][_spender]
 
 
-# Allow _spender to withdraw from your account, multiple times, up to the _value amount.
-# If this function is called again it overwrites the current allowance with _value.
+# @dev Transfer token for a specified address
+# @param _to The address to transfer to.
+# @param _value The amount to be transferred.
 @public
-def approve(_spender: address, _amount: int128(uint256)) -> bool:
-
-    self.allowed[msg.sender][_spender] = _amount
-    log.Approval(msg.sender, _spender, convert(_amount, 'uint256'))
-
+def transfer(_to : address, _value : uint256(wei)) -> bool:
+    _sender: address = msg.sender
+    self.balances[_sender] = self.balances[_sender] - _value
+    self.balances[_to] = self.balances[_to] + _value
+    log.Transfer(_sender, _to, _value)
     return True
 
 
-# Get the allowence an address has to spend anothers' token.
+#  @dev Transfer tokens from one address to another.
+#       Note that while this function emits an Approval event, this is not required as per the specification,
+#       and other compliant implementations may not emit the event.
+#  @param _from address The address which you want to send tokens from
+#  @param _to address The address which you want to transfer to
+#  @param _value uint256 the amount of tokens to be transferred
 @public
-def allowance(_owner: address, _spender: address) -> uint256:
+def transferFrom(_from : address, _to : address, _value : uint256(wei)) -> bool:
+    _sender: address = msg.sender
+    allowance: uint256(wei) = self.allowances[_from][_sender]
+    self.balances[_from] = self.balances[_from] - _value
+    self.balances[_to] = self.balances[_to] + _value
+    self.allowances[_from][_sender] = allowance - _value
+    log.Transfer(_from, _to, _value)
+    return True
 
-    return convert(self.allowed[_owner][_spender], 'uint256')
+
+# @dev Approve the passed address to spend the specified amount of tokens on behalf of msg.sender.
+#      Beware that changing an allowance with this method brings the risk that someone may use both the old
+#      and the new allowance by unfortunate transaction ordering. One possible solution to mitigate this
+#      race condition is to first reduce the spender's allowance to 0 and set the desired value afterwards:
+#      https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729
+# @param _spender The address which will spend the funds.
+# @param _value The amount of tokens to be spent.
+@public
+def approve(_spender : address, _value : uint256(wei)) -> bool:
+    _sender: address = msg.sender
+    self.allowances[_sender][_spender] = _value
+    log.Approval(_sender, _spender, _value)
+    return True
+
+
+# @dev Mint an amount of the token and assigns it to an account. 
+#      This encapsulates the modification of balances such that the
+#      proper events are emitted.
+# @param _to The account that will receive the created tokens.
+# @param _value The amount that will be created.
+@public
+def mint(_to: address, _value: uint256(wei)):
+    assert msg.sender == self.minter
+    assert _to != ZERO_ADDRESS
+    self.total_supply = self.total_supply + _value
+    self.balances[_to] = self.balances[_to] + _value
+    log.Transfer(ZERO_ADDRESS, _to, _value)
+
+
+# @dev Internal function that burns an amount of the token of a given
+#      account.
+# @param _to The account whose tokens will be burned.
+# @param _value The amount that will be burned.
+@private
+def _burn(_to: address, _value: uint256(wei)):
+    assert _to != ZERO_ADDRESS
+    self.total_supply = self.total_supply - _value
+    self.balances[_to] = self.balances[_to] - _value
+    log.Transfer(_to, ZERO_ADDRESS, _value)
+
+
+# @dev Burn an amount of the token of msg.sender.
+# @param _value The amount that will be burned.
+@public
+def burn(_value: uint256(wei)):
+    self._burn(msg.sender, _value)
+
+
+# @dev Burn an amount of the token from a given account.
+# @param _to The account whose tokens will be burned.
+# @param _value The amount that will be burned.
+@public
+def burnFrom(_to: address, _value: uint256(wei)):
+    _sender: address = msg.sender
+    self.allowances[_to][_sender] = self.allowances[_to][_sender] - _value
+    self._burn(_to, _value)
