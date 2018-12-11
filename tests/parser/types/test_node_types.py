@@ -42,7 +42,7 @@ def test_mapping_node_types():
     node1 = MappingType(BaseType('int128'), BaseType('int128'))
     node2 = MappingType(BaseType('int128'), BaseType('int128'))
     assert node1 == node2
-    assert str(node1) == "int128[int128]"
+    assert str(node1) == "map(int128, int128)"
 
 
 def test_tuple_node_types():
@@ -78,7 +78,7 @@ def test_get_size_of_type():
     _struct = StructType({
         'a': BaseType('int128'),
         'b': BaseType('decimal')
-    })
+    }, 'Foo')
     assert get_size_of_type(_struct) == 2
 
     # Don't allow unknow types.

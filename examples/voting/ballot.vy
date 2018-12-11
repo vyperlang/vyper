@@ -1,25 +1,25 @@
 # Voting with delegation.
 
 # Information about voters
-voters: public({
+struct Voter:
     # weight is accumulated by delegation
-    weight: int128,
+    weight: int128
     # if true, that person already voted (which includes voting by delegating)
-    voted: bool,
+    voted: bool
     # person delegated to
-    delegate: address,
+    delegate: address
     # index of the voted proposal, which is not meaningful unless `voted` is True.
     vote: int128
-}[address])
 
-# This is a type for a list of proposals.
-proposals: public({
+# Users can create proposals
+struct Proposal:
     # short name (up to 32 bytes)
-    name: bytes32,
+    name: bytes32
     # number of accumulated votes
     voteCount: int128
-}[int128])
 
+voters: public(map(address, Voter))
+proposals: public(map(int128, Proposal))
 voterCount: public(int128)
 chairperson: public(address)
 int128Proposals: public(int128)
@@ -43,10 +43,10 @@ def __init__(_proposalNames: bytes32[2]):
     self.chairperson = msg.sender
     self.voterCount = 0
     for i in range(2):
-        self.proposals[i] = {
+        self.proposals[i] = Proposal({
             name: _proposalNames[i],
             voteCount: 0
-        }
+        })
         self.int128Proposals += 1
 
 # Give a `voter` the right to vote on this ballot.

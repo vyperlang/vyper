@@ -121,11 +121,18 @@ def bar(inp: bytes[60]) -> bytes[60]:
 
 def test_test_bytes5(get_contract_with_gas_estimation):
     test_bytes5 = """
-g: {a: bytes[50], b: bytes[50]}
+struct G:
+    a: bytes[50]
+    b: bytes[50]
+struct H:
+    a: bytes[40]
+    b: bytes[45]
+
+g: G
 
 @public
 def foo(inp1: bytes[40], inp2: bytes[45]):
-    self.g = {a: inp1, b: inp2}
+    self.g = G({a: inp1, b: inp2})
 
 @public
 def check1() -> bytes[50]:
@@ -137,18 +144,19 @@ def check2() -> bytes[50]:
 
 @public
 def bar(inp1: bytes[40], inp2: bytes[45]) -> bytes[50]:
-    h: {a: bytes[40], b: bytes[45]} = {a: inp1, b: inp2}
+    h: H = H({a: inp1, b: inp2})
     return h.a
 
 @public
 def bat(inp1: bytes[40], inp2: bytes[45]) -> bytes[50]:
-    h: {a: bytes[40], b: bytes[45]} = {a: inp1, b: inp2}
+    h: H = H({a: inp1, b: inp2})
     return h.b
 
 @public
 def quz(inp1: bytes[40], inp2: bytes[45]):
-    h:  {a: bytes[40], b: bytes[45]} = {a: inp1, b: inp2}
-    self.g = h
+    h:  H = H({a: inp1, b: inp2})
+    self.g.a = h.a
+    self.g.b = h.b
     """
 
     c = get_contract_with_gas_estimation(test_bytes5)

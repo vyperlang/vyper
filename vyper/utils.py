@@ -143,7 +143,7 @@ valid_global_keywords = ['public', 'modifying', 'event', 'constant'] + valid_uni
 
 # Cannot be used for variable or member naming
 reserved_words = [
-    'int128', 'uint256', 'address', 'bytes32',
+    'int128', 'uint256', 'address', 'bytes32', 'map',
     'if', 'for', 'while', 'until',
     'pass', 'def', 'push', 'dup', 'swap', 'send', 'call',
     'selfdestruct', 'assert', 'stop', 'throw',
@@ -151,7 +151,7 @@ reserved_words = [
     'true', 'false', 'self', 'this', 'continue',
     'ether', 'wei', 'finney', 'szabo', 'shannon', 'lovelace', 'ada', 'babbage', 'gwei', 'kwei', 'mwei', 'twei', 'pwei', 'contract',
     'units',
-    'zero_address', 'max_int128', 'min_int128', 'max_decimal', 'min_decimal', 'max_uint256',  # constants
+    'zero_address', 'empty_bytes32' 'max_int128', 'min_int128', 'max_decimal', 'min_decimal', 'max_uint256',  # constants
 ]
 
 # List of valid LLL macros.
@@ -166,13 +166,16 @@ valid_lll_macros = [
 
 # Is a variable or member variable name valid?
 # Same conditions apply for function names and events
-def is_varname_valid(varname, custom_units):
+def is_varname_valid(varname, custom_units, custom_structs):
     from vyper.functions import dispatch_table, stmt_dispatch_table
     built_in_functions = [x for x in stmt_dispatch_table.keys()] + \
       [x for x in dispatch_table.keys()]
     if custom_units is None:
         custom_units = []
     if varname.lower() in [cu.lower() for cu in custom_units]:
+        return False
+    # struct names are case sensitive.
+    if varname in custom_structs:
         return False
     if varname.lower() in base_types:
         return False

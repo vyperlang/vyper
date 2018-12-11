@@ -59,22 +59,24 @@ class FunctionSignature():
 
     # Get the canonical function signature
     @staticmethod
-    def get_full_sig(func_name, args, sigs, custom_units):
+    def get_full_sig(func_name, args, sigs, custom_units, custom_structs):
 
         def get_type(arg):
             if isinstance(arg, LLLnode):
                 return canonicalize_type(arg.typ)
             elif hasattr(arg, 'annotation'):
-                return canonicalize_type(parse_type(arg.annotation, None, sigs, custom_units=custom_units))
+                return canonicalize_type(parse_type(arg.annotation, None, sigs, custom_units=custom_units, custom_structs=custom_structs))
         return func_name + '(' + ','.join([get_type(arg) for arg in args]) + ')'
 
     # Get a signature from a function definition
     @classmethod
-    def from_definition(cls, code, sigs=None, custom_units=None, contract_def=False, constant=False):
+    def from_definition(cls, code, sigs=None, custom_units=None, custom_structs=None, contract_def=False, constant=False):
+        if not custom_structs:
+            custom_structs = {}
         name = code.name
         pos = 0
 
-        if not is_varname_valid(name, custom_units=custom_units):
+        if not is_varname_valid(name, custom_units=custom_units, custom_structs=custom_structs):
             raise FunctionDeclarationException("Function name invalid: " + name)
         # Determine the arguments, expects something of the form def foo(arg1: int128, arg2: int128 ...
         args = []
@@ -82,11 +84,11 @@ class FunctionSignature():
             typ = arg.annotation
             if not typ:
                 raise InvalidTypeException("Argument must have type", arg)
-            if not is_varname_valid(arg.arg, custom_units=custom_units):
+            if not is_varname_valid(arg.arg, custom_units=custom_units, custom_structs=custom_structs):
                 raise FunctionDeclarationException("Argument name invalid or reserved: " + arg.arg, arg)
             if arg.arg in (x.name for x in args):
                 raise FunctionDeclarationException("Duplicate function argument name: " + arg.arg, arg)
-            parsed_type = parse_type(typ, None, sigs, custom_units=custom_units)
+            parsed_type = parse_type(typ, None, sigs, custom_units=custom_units, custom_structs=custom_structs)
             args.append(VariableRecord(arg.arg, pos, parsed_type, False))
             if isinstance(parsed_type, ByteArrayType):
                 pos += 32
@@ -126,14 +128,14 @@ class FunctionSignature():
         if not code.returns:
             output_type = None
         elif isinstance(code.returns, (ast.Name, ast.Compare, ast.Subscript, ast.Call, ast.Tuple)):
-            output_type = parse_type(code.returns, None, sigs, custom_units=custom_units)
+            output_type = parse_type(code.returns, None, sigs, custom_units=custom_units, custom_structs=custom_structs)
         else:
             raise InvalidTypeException("Output type invalid or unsupported: %r" % parse_type(code.returns, None), code.returns, )
         # Output type must be canonicalizable
         if output_type is not None:
             assert isinstance(output_type, TupleType) or canonicalize_type(output_type)
         # Get the canonical function signature
-        sig = cls.get_full_sig(name, code.args.args, sigs, custom_units)
+        sig = cls.get_full_sig(name, code.args.args, sigs, custom_units, custom_structs)
 
         # Take the first 4 bytes of the hash of the sig to get the method ID
         method_id = fourbytes_to_int(sha3(bytes(sig, 'utf-8'))[:4])
@@ -174,10 +176,6 @@ class FunctionSignature():
 
         return abi_dict
 
-    def get_method_identifier(self, sigs, custom_units):
-        sig = FunctionSignature.get_full_sig(self.name, self.args, sigs, custom_units)
-        return (sig, hex(self.method_id))
-
     @classmethod
     def lookup_sig(cls, sigs, method_name, expr_args, stmt_or_expr, context):
         """ Using a list of args, determine the most accurate signature to use from the given context """
@@ -185,7 +183,7 @@ class FunctionSignature():
         def synonymise(s):
             return s.replace('int128', 'num').replace('uint256', 'num')
         # for sig in sigs['self']
-        full_sig = cls.get_full_sig(stmt_or_expr.func.attr, expr_args, None, context.custom_units)
+        full_sig = cls.get_full_sig(stmt_or_expr.func.attr, expr_args, None, context.custom_units, context.structs)
         method_names_dict = dict(Counter([x.split('(')[0] for x in context.sigs['self']]))
         if method_name not in method_names_dict:
             raise FunctionDeclarationException(

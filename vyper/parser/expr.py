@@ -1,4 +1,5 @@
 import ast
+import warnings
 
 from vyper.exceptions import (
     InvalidLiteralException,
@@ -10,6 +11,7 @@ from vyper.exceptions import (
 )
 from vyper.parser.lll_node import LLLnode
 from vyper.parser import self_call
+from vyper.parser import external_call
 from vyper.parser.parser_utils import (
     getpos,
     unwrap_location,
@@ -65,8 +67,8 @@ class Expr(object):
             ast.UnaryOp: self.unary_operations,
             ast.Call: self.call,
             ast.List: self.list_literals,
-            ast.Dict: self.struct_literals,
             ast.Tuple: self.tuple_literals,
+            ast.Dict: self.dict_fail,
         }
         expr_type = self.expr.__class__
         if expr_type in self.expr_table:
@@ -151,6 +153,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
     # Variable names
     def variables(self):
         builtin_constants = {
+            'EMPTY_BYTES32': LLLnode.from_list([0], typ=BaseType('bytes32', None, is_literal=True), pos=getpos(self.expr)),
             'ZERO_ADDRESS': LLLnode.from_list([0], typ=BaseType('address', None, is_literal=True), pos=getpos(self.expr)),
             'MAX_INT128': LLLnode.from_list(['mload', MemoryPositions.MAXNUM], typ=BaseType('int128', None, is_literal=True), pos=getpos(self.expr)),
             'MIN_INT128': LLLnode.from_list(['mload', MemoryPositions.MINNUM], typ=BaseType('int128', None, is_literal=True), pos=getpos(self.expr)),
@@ -651,30 +654,40 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         else:
             raise StructureException("Only the 'not' unary operator is supported")
 
-    def _get_external_contract_keywords(self):
-        value, gas = None, None
-        for kw in self.expr.keywords:
-            if kw.arg not in ('value', 'gas'):
-                raise TypeMismatchException('Invalid keyword argument, only "gas" and "value" supported.', self.expr)
-            elif kw.arg == 'gas':
-                gas = Expr.parse_value_expr(kw.value, self.context)
-            elif kw.arg == 'value':
-                value = Expr.parse_value_expr(kw.value, self.context)
-        return value, gas
-
     # Function calls
     def call(self):
-        from vyper.parser.parser import (
-            external_contract_call
-        )
         from vyper.functions import (
             dispatch_table,
         )
 
         if isinstance(self.expr.func, ast.Name):
             function_name = self.expr.func.id
+
             if function_name in dispatch_table:
                 return dispatch_table[function_name](self.expr, self.context)
+
+            # Struct constructors do not need `self` prefix.
+            elif function_name in self.context.structs:
+                if not self.context.in_assignment:
+                    raise StructureException("Struct constructor must be called in RHS of assignment.", self.expr)
+                args = self.expr.args
+                if len(args) != 1:
+                    raise StructureException("Struct constructor is called with one argument only", self.expr)
+
+                arg = args[0]
+                if not isinstance(arg, ast.Dict):
+                    raise TypeMismatchException("Struct can only be constructed with a dict", self.expr)
+                sub = Expr.struct_literals(arg, self.context)
+                if sub.typ.name is not None:
+                    raise TypeMismatchException("Struct can only be constructed with a dict", self.expr)
+
+                typ = StructType(sub.typ.members, function_name)
+
+                # OR:
+                # sub.typ = typ
+                # return sub
+                return LLLnode(sub.value, typ=typ, args=sub.args, location=sub.location, pos=getpos(self.expr), add_gas_estimate=sub.add_gas_estimate, valency=sub.valency, annotation=function_name)
+
             else:
                 err_msg = "Not a top-level function: {}".format(function_name)
                 if function_name in [x.split('(')[0] for x, _ in self.context.sigs['self'].items()]:
@@ -682,25 +695,8 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 raise StructureException(err_msg, self.expr)
         elif isinstance(self.expr.func, ast.Attribute) and isinstance(self.expr.func.value, ast.Name) and self.expr.func.value.id == "self":
             return self_call.make_call(self.expr, self.context)
-        elif isinstance(self.expr.func, ast.Attribute) and isinstance(self.expr.func.value, ast.Call):
-            contract_name = self.expr.func.value.func.id
-            contract_address = Expr.parse_value_expr(self.expr.func.value.args[0], self.context)
-            value, gas = self._get_external_contract_keywords()
-            return external_contract_call(self.expr, self.context, contract_name, contract_address, pos=getpos(self.expr), value=value, gas=gas)
-        elif isinstance(self.expr.func.value, ast.Attribute) and self.expr.func.value.attr in self.context.sigs:
-            contract_name = self.expr.func.value.attr
-            var = self.context.globals[self.expr.func.value.attr]
-            contract_address = unwrap_location(LLLnode.from_list(var.pos, typ=var.typ, location='storage', pos=getpos(self.expr), annotation='self.' + self.expr.func.value.attr))
-            value, gas = self._get_external_contract_keywords()
-            return external_contract_call(self.expr, self.context, contract_name, contract_address, pos=getpos(self.expr), value=value, gas=gas)
-        elif isinstance(self.expr.func.value, ast.Attribute) and self.expr.func.value.attr in self.context.globals:
-            contract_name = self.context.globals[self.expr.func.value.attr].typ.unit
-            var = self.context.globals[self.expr.func.value.attr]
-            contract_address = unwrap_location(LLLnode.from_list(var.pos, typ=var.typ, location='storage', pos=getpos(self.expr), annotation='self.' + self.expr.func.value.attr))
-            value, gas = self._get_external_contract_keywords()
-            return external_contract_call(self.expr, self.context, contract_name, contract_address, pos=getpos(self.expr), value=value, gas=gas)
         else:
-            raise StructureException("Unsupported operator: %r" % ast.dump(self.expr), self.expr)
+            return external_call.make_external_call(self.expr, self.context)
 
     def list_literals(self):
         if not len(self.expr.elts):
@@ -717,17 +713,25 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 raise TypeMismatchException("Lists may only contain one type", self.expr)
         return LLLnode.from_list(["multi"] + o, typ=ListType(out_type, len(o)), pos=getpos(self.expr))
 
-    def struct_literals(self):
+    def dict_fail(self):
+        warnings.warn(
+            "Anonymous structs have been removed in"
+            " favor of named structs, see VIP300",
+            DeprecationWarning
+        )
+        raise InvalidLiteralException("Invalid literal: %r" % ast.dump(self.expr), self.expr)
+
+    def struct_literals(expr, context):
         o = {}
         members = {}
-        for key, value in zip(self.expr.keys, self.expr.values):
-            if not isinstance(key, ast.Name) or not is_varname_valid(key.id, self.context.custom_units):
+        for key, value in zip(expr.keys, expr.values):
+            if not isinstance(key, ast.Name) or not is_varname_valid(key.id, context.custom_units, context.structs):
                 raise TypeMismatchException("Invalid member variable for struct: %r" % vars(key).get('id', key), key)
             if key.id in o:
                 raise TypeMismatchException("Member variable duplicated: " + key.id, key)
-            o[key.id] = Expr(value, self.context).lll_node
+            o[key.id] = Expr(value, context).lll_node
             members[key.id] = o[key.id].typ
-        return LLLnode.from_list(["multi"] + [o[key] for key in sorted(list(o.keys()))], typ=StructType(members), pos=getpos(self.expr))
+        return LLLnode.from_list(["multi"] + [o[key] for key in sorted(list(o.keys()))], typ=StructType(members, None), pos=getpos(expr))
 
     def tuple_literals(self):
         if not len(self.expr.elts):

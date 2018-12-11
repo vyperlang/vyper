@@ -94,3 +94,56 @@ def test_received(w3, get_contract, assert_tx_failed, check_balance, contract_co
     c.received(transact={'from': a1, 'gasPrice': 0})
     # Final check if everything worked. 1 value has been transferred
     assert check_balance() == (init_bal_a0 + 1, init_bal_a1 - 1)
+
+
+def test_received_reentrancy(w3, get_contract, assert_tx_failed, check_balance, contract_code):
+
+    buyer_contract_code = """
+contract PurchaseContract:
+
+    def received(): modifying
+    def purchase(): modifying
+    def unlocked() -> bool: constant
+
+purchase_contract: PurchaseContract
+
+
+@public
+def __init__(_purchase_contract: address):
+    self.purchase_contract = _purchase_contract
+
+
+@payable
+@public
+def start_purchase():
+    self.purchase_contract.purchase(value=2)
+
+
+@payable
+@public
+def start_received():
+    self.purchase_contract.received()
+
+
+@public
+@payable
+def __default__():
+    self.purchase_contract.received()
+
+    """
+
+    a0 = w3.eth.accounts[0]
+    c = get_contract(contract_code, value=2)
+    buyer_contract = get_contract(buyer_contract_code, *[c.address])
+    buyer_contract_address = buyer_contract.address
+    init_bal_a0, init_bal_buyer_contract = w3.eth.getBalance(a0), w3.eth.getBalance(buyer_contract_address)
+    # Start purchase
+    buyer_contract.start_purchase(transact={'gasPrice': 0, 'value': 4, 'from': w3.eth.accounts[1], 'gas': 100000})
+    assert c.unlocked() is False
+    assert c.buyer() == buyer_contract_address
+
+    # Trigger "re-entry"
+    buyer_contract.start_received(transact={'from': w3.eth.accounts[1], 'gasPrice': 0, 'gas': 100000})
+
+    # Final check if everything worked. 1 value has been transferred
+    assert w3.eth.getBalance(a0), w3.eth.getBalance(buyer_contract_address) == (init_bal_a0 + 1, init_bal_buyer_contract - 1)

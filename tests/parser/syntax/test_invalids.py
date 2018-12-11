@@ -105,42 +105,42 @@ def foo():
 """, TypeMismatchException)
 
 must_succeed("""
-b: int128[int128]
+b: map(int128, int128)
 @public
 def foo():
     x: int128 = self.b[5]
 """)
 
 must_fail("""
-b: int128[int128]
+b: map(int128, int128)
 @public
 def foo():
     x: int128 = self.b[5.7]
 """, TypeMismatchException)
 
 must_succeed("""
-b: int128[decimal]
+b: map(decimal, int128)
 @public
 def foo():
     x: int128 = self.b[5]
 """)
 
 must_fail("""
-b: int128[int128]
+b: map(int128, int128)
 @public
 def foo():
     self.b[3] = 5.6
 """, TypeMismatchException)
 
 must_succeed("""
-b: int128[int128]
+b: map(int128, int128)
 @public
 def foo():
     self.b[3] = -5
 """)
 
 must_succeed("""
-b: int128[int128]
+b: map(int128, int128)
 @public
 def foo():
     self.b[-3] = 5
@@ -262,6 +262,15 @@ must_fail('''
 def a():
     "Test"
 ''', InvalidLiteralException)
+
+must_fail('''
+struct StructX:
+    x: int128
+
+@public
+def a():
+    x: int128 = StructX({y: 1})
+''', TypeMismatchException)
 
 
 @pytest.mark.parametrize('bad_code,exception_type', fail_list)

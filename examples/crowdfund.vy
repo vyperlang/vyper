@@ -1,5 +1,10 @@
 # Setup private variables (only callable from within the contract)
-funders: {sender: address, value: wei_value}[int128]
+
+struct Funder :
+  sender: address
+  value: wei_value
+
+funders: map(int128, Funder)
 nextFunderIndex: int128
 beneficiary: address
 deadline: timestamp
@@ -25,7 +30,7 @@ def participate():
 
     nfi: int128 = self.nextFunderIndex
 
-    self.funders[nfi] = {sender: msg.sender, value: msg.value}
+    self.funders[nfi] = Funder({sender: msg.sender, value: msg.value})
     self.nextFunderIndex = nfi + 1
 
 
@@ -35,7 +40,6 @@ def finalize():
     assert block.timestamp >= self.deadline and self.balance >= self.goal
 
     selfdestruct(self.beneficiary)
-
 
 # Not enough money was raised! Refund everyone (max 30 people at a time
 # to avoid gas limit issues)

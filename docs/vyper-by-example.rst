@@ -128,6 +128,37 @@ security.
 Whenever you're ready, let's turn it up a notch in the next example.
 
 
+.. index:: auction;blind, blind auction
+
+*******************
+Blind Auction
+*******************
+
+.. _blind_auction:
+
+
+Before we dive into our other examples, let's briefly explore another type of
+auction that you can build with Vyper. Similar to its counterpart_ written in
+Solidity, this blind auction allows for an auction where there is no time pressure towards the end of the bidding period.
+
+.. _counterpart: https://solidity.readthedocs.io/en/v0.5.0/solidity-by-example.html#id2
+
+.. literalinclude:: ../examples/auctions/blind_auction.vy
+  :language: python
+  :linenos:
+
+While this blind auction is almost functionally identical to the blind auction implemented in Solidity, the differences in their implementations help illustrate the differences between Solidy and Vyper.
+
+.. literalinclude:: ../examples/auctions/blind_auction.vy
+  :language: python
+  :lines: 22-24
+
+One key difference is that, because Vyper does not allow for dynamic arrays, we
+have limited the number of bids that can be placed by one address to 128 in this
+example. Bidders who want to make more than this maximum number of bids would
+need to do so from multiple addresses.
+
+
 .. index:: purchases
 
 *********************

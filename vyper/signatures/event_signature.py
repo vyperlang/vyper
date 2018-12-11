@@ -34,11 +34,13 @@ class EventSignature():
 
     # Get a signature from an event declaration
     @classmethod
-    def from_declaration(cls, code, custom_units=None):
+    def from_declaration(cls, code, custom_units=None, custom_structs=None):
+        if not custom_structs:
+            custom_structs = {}
         name = code.target.id
         pos = 0
 
-        if not is_varname_valid(name, custom_units=custom_units):
+        if not is_varname_valid(name, custom_units=custom_units, custom_structs=custom_structs):
             raise EventDeclarationException("Event name invalid: " + name)
         # Determine the arguments, expects something of the form def foo(arg1: num, arg2: num ...
         args = []
@@ -67,11 +69,12 @@ class EventSignature():
                     raise VariableDeclarationException("Argument name invalid", arg)
                 if not typ:
                     raise InvalidTypeException("Argument must have type", arg)
-                if not is_varname_valid(arg, custom_units):
+                if not is_varname_valid(arg, custom_units, custom_structs):
                     raise VariableDeclarationException("Argument name invalid or reserved: " + arg, arg)
                 if arg in (x.name for x in args):
                     raise VariableDeclarationException("Duplicate function argument name: " + arg, arg)
-                parsed_type = parse_type(typ, None, custom_units=custom_units)
+                # Can struct be logged?
+                parsed_type = parse_type(typ, None, custom_units=custom_units, custom_structs=custom_structs)
                 args.append(VariableRecord(arg, pos, parsed_type, False))
                 if isinstance(parsed_type, ByteArrayType):
                     pos += ceil32(typ.slice.value.n)
