@@ -15,14 +15,14 @@ minter: address
 @public
 def __init__(_name: bytes32, _symbol: bytes32, _decimals: uint256, _supply: uint256):
     init_supply: uint256 = _supply * 10 ** _decimals
-    _sender: address = msg.sender
+    sender: address = msg.sender
     self.name = _name
     self.symbol = _symbol
     self.decimals = _decimals
-    self.balances[_sender] = init_supply
+    self.balances[sender] = init_supply
     self.total_supply = init_supply
-    self.minter = _sender
-    log.Transfer(ZERO_ADDRESS, _sender, _supply)
+    self.minter = sender
+    log.Transfer(ZERO_ADDRESS, sender, init_supply)
 
 
 # @dev Total number of tokens in existence.
