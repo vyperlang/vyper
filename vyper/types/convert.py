@@ -164,7 +164,7 @@ def to_decimal(expr, args, kwargs, context):
                 raise InvalidLiteralException("Number out of range: {}".format(in_arg.value), expr)
             return LLLnode.from_list(
                 ['uclample', ['mul', in_arg, DECIMAL_DIVISOR],
-                SizeLimits.MAXDECIMAL],
+                ['mload', MemoryPositions.MAXDECIMAL]],
                 typ=BaseType('decimal', _unit, _positional),
                 pos=getpos(expr)
             )
@@ -173,8 +173,9 @@ def to_decimal(expr, args, kwargs, context):
             if in_arg.typ.is_literal and not SizeLimits.in_bounds('int128', (in_arg.value * DECIMAL_DIVISOR)):
                 raise InvalidLiteralException("Number out of range: {}".format(in_arg.value), expr)
             return LLLnode.from_list(
-                ['clamp', SizeLimits.MINDECIMAL,
-                ['mul', in_arg, DECIMAL_DIVISOR], SizeLimits.MAXDECIMAL],
+                ['clamp', ['mload', MemoryPositions.MINDECIMAL],
+                ['mul', in_arg, DECIMAL_DIVISOR],
+                ['mload', MemoryPositions.MAXDECIMAL]],
                 typ=BaseType('decimal', _unit, _positional),
                 pos=getpos(expr)
             )
