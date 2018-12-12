@@ -86,6 +86,53 @@ def test_no_is_none(assert_compile_failed, get_contract_with_gas_estimation):
 @public
 def foo():
     bar: int128
+    assert bar is None
+    """,
+    """
+@public
+def foo():
+    bar: uint256
+    assert bar is None
+    """,
+    """
+@public
+def foo():
+    bar: bool
+    assert bar is None
+    """,
+    """
+@public
+def foo():
+    bar: decimal
+    assert bar is None
+    """,
+    """
+@public
+def foo():
+    bar: bytes32
+    assert bar is None
+    """,
+    """
+@public
+def foo():
+    bar: address
+    assert bar is None
+    """
+    ]
+
+    for contract in contracts:
+        assert_compile_failed(
+            lambda: get_contract_with_gas_estimation(contract),
+            InvalidLiteralException
+        )
+
+
+def test_no_eq_none(assert_compile_failed, get_contract_with_gas_estimation):
+    contracts = [
+    """
+@public
+def foo():
+    bar: int128
     assert bar == None
     """,
     """
@@ -117,6 +164,53 @@ def foo():
 def foo():
     bar: address
     assert bar == None
+    """
+    ]
+
+    for contract in contracts:
+        assert_compile_failed(
+            lambda: get_contract_with_gas_estimation(contract),
+            InvalidLiteralException
+        )
+
+
+def test_struct_none(assert_compile_failed, get_contract_with_gas_estimation):
+    contracts = [
+    """
+struct Mom:
+    a: uint256
+    b: int128
+
+@public
+def foo():
+    mom: Mom = Mom({a: None, b: 0})
+    """,
+    """
+struct Mom:
+    a: uint256
+    b: int128
+
+@public
+def foo():
+    mom: Mom = Mom({a: 0, b: None})
+    """,
+    """
+struct Mom:
+    a: uint256
+    b: int128
+
+@public
+def foo():
+    mom: Mom = Mom({b: None, a: 0})
+    """,
+    """
+struct Mom:
+    a: uint256
+    b: int128
+
+@public
+def foo():
+    mom: Mom = Mom({a: None, b: None})
     """
     ]
 

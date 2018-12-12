@@ -255,7 +255,7 @@ struct Nom:
 nom: Nom
 @public
 def foo():
-    self.nom = None
+    clear(self.nom)
     """,
     """
 struct C:
@@ -439,7 +439,7 @@ mom: Mom
 nom: C[3]
 @public
 def foo():
-    self.mom = Mom({a: None, b: 5})
+    self.mom = Mom({a: self.nom, b: 5})
     """,
     """
 struct C:

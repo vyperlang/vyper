@@ -418,6 +418,9 @@ def make_setter(left, right, location, pos):
             if not isinstance(right.typ, left.typ.__class__):
                 raise TypeMismatchException("Setter type mismatch: left side is %r, right side is %r" % (left.typ, right.typ), pos)
             if isinstance(left.typ, StructType):
+                for k in right.args:
+                    if k.value is None:
+                        raise InvalidLiteralException('Setting struct value to None is not allowed, use a default value.', pos)
                 for k in left.typ.members:
                     if k not in right.typ.members:
                         raise TypeMismatchException("Keys don't match for structs, missing %s" % k, pos)
