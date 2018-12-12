@@ -48,7 +48,7 @@ class GlobalContext:
         self._globals = dict()
         self._defs = list()
         self._getters = list()
-        self._custom_units = list()
+        self._custom_units = set()
         self._custom_units_descriptions = dict()
         self._constants = dict()
 
@@ -306,7 +306,7 @@ class GlobalContext:
                         raise VariableDeclarationException("Custom unit name may only be used once", key)
                     if not is_varname_valid(key.id, custom_units=self._custom_units, custom_structs=self._structs):
                         raise VariableDeclarationException("Custom unit may not be a reserved keyword", key)
-                    self._custom_units.append(key.id)
+                    self._custom_units.add(key.id)
                     self._custom_units_descriptions[key.id] = value.s
             else:
                 raise VariableDeclarationException("Custom units can only be defined once", item.target)
