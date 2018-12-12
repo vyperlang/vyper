@@ -188,18 +188,25 @@ class Stmt(object):
             pos = self.context.new_variable(self.stmt.targets[0].id, sub.typ)
             variable_loc = LLLnode.from_list(pos, typ=sub.typ, location='memory', pos=getpos(self.stmt), annotation=self.stmt.targets[0].id)
             o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
-
-        # All other assignments are forbidden.
-        elif isinstance(self.stmt.targets[0], ast.Name) and self.stmt.targets[0].id not in self.context.vars:
-            raise VariableDeclarationException("Variable type not defined", self.stmt)
-
-        elif isinstance(self.stmt.targets[0], ast.Tuple) and isinstance(self.stmt.value, ast.Tuple):
-            raise VariableDeclarationException("Tuple to tuple assignment not supported", self.stmt)
-
         else:
+            # Error check when assigning to declared variable
+            if isinstance(self.stmt.targets[0], ast.Name):
+                # Do not allow assignment to undefined variables without annotation
+                if self.stmt.targets[0].id not in self.context.vars:
+                    raise VariableDeclarationException("Variable type not defined", self.stmt)
+
+                # Check against implicit conversion
+                if isinstance(sub, BaseType) and not sub.typ.is_literal and sub.typ.typ != self.context.vars[self.stmt.targets[0].id].typ.typ:
+                    raise TypeMismatchException('Invalid type {}, expected: {}'.format(sub.typ.typ, self.context.vars[self.stmt.targets[0].id].typ, self.stmt))
+
+            # Do no allow tuple-to-tuple assignment
+            if isinstance(self.stmt.targets[0], ast.Tuple) and isinstance(self.stmt.value, ast.Tuple):
+                raise VariableDeclarationException("Tuple to tuple assignment not supported", self.stmt)
+
             # Checks to see if assignment is valid
             target = self.get_target(self.stmt.targets[0])
             o = make_setter(target, sub, target.location, pos=getpos(self.stmt))
+
         o.pos = getpos(self.stmt)
         self.context.set_in_assignment(False)
         return o
