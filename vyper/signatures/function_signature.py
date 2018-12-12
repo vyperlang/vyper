@@ -19,6 +19,7 @@ from vyper.types import (
 from vyper.utils import (
     fourbytes_to_int,
     is_varname_valid,
+    function_whitelist,
     sha3,
 )
 from vyper.parser.lll_node import LLLnode
@@ -76,7 +77,7 @@ class FunctionSignature():
         name = code.name
         pos = 0
 
-        if not is_varname_valid(name, custom_units=custom_units, custom_structs=custom_structs):
+        if (not name.lower() in function_whitelist) and (not is_varname_valid(name, custom_units=custom_units, custom_structs=custom_structs)):
             raise FunctionDeclarationException("Function name invalid: " + name)
         # Determine the arguments, expects something of the form def foo(arg1: int128, arg2: int128 ...
         args = []

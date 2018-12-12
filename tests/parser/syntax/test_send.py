@@ -82,6 +82,17 @@ def foo():
 @public
 def foo():
     send(0xde0B295669a9FD93d5F28D9Ec85E40f4cb697BAe, 5)
+    """,
+    """
+# Test custom send method
+@public
+def send(a: address, w: wei_value):
+    send(0xde0B295669a9FD93d5F28D9Ec85E40f4cb697BAe, 1)
+
+@public
+@payable
+def foo():
+    self.send(msg.sender, msg.value)
     """
 ]
 

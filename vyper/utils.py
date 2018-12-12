@@ -154,6 +154,11 @@ reserved_words = [
     'zero_address', 'empty_bytes32' 'max_int128', 'min_int128', 'max_decimal', 'min_decimal', 'max_uint256',  # constants
 ]
 
+# Otherwise reserved words that are whitelisted for function declarations
+function_whitelist = {
+    'send'
+}
+
 # List of valid LLL macros.
 valid_lll_macros = [
     'assert', 'break', 'ceil32', 'clamp', 'clamp', 'clamp_nonzero', 'clampge',
