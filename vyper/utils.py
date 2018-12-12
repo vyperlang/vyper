@@ -130,19 +130,20 @@ RLP_DECODER_ADDRESS = hex_to_int('0x5185D17c44699cecC3133114F8df70753b856709')
 # This is the contract address: 0xCb969cAAad21A78a24083164ffa81604317Ab603
 
 # Available base types
-base_types = ['int128', 'decimal', 'bytes32', 'uint256', 'bool', 'address']
+base_types = {'int128', 'decimal', 'bytes32', 'uint256', 'bool', 'address'}
 
 # Keywords available for ast.Call type
-valid_call_keywords = ['uint256', 'int128', 'decimal', 'address', 'contract', 'indexed']
+valid_call_keywords = {'uint256', 'int128', 'decimal', 'address', 'contract', 'indexed'}
 
 # Valid base units
-valid_units = ['wei', 'sec']
+valid_units = {'wei', 'sec'}
 
 # Valid attributes for global variables
-valid_global_keywords = ['public', 'modifying', 'event', 'constant'] + valid_units + valid_call_keywords
+valid_global_keywords = {'public', 'modifying', 'event', 'constant'} | valid_units | valid_call_keywords
+
 
 # Cannot be used for variable or member naming
-reserved_words = [
+reserved_words = {
     'int128', 'uint256', 'address', 'bytes32', 'map',
     'if', 'for', 'while', 'until',
     'pass', 'def', 'push', 'dup', 'swap', 'send', 'call',
@@ -152,7 +153,7 @@ reserved_words = [
     'ether', 'wei', 'finney', 'szabo', 'shannon', 'lovelace', 'ada', 'babbage', 'gwei', 'kwei', 'mwei', 'twei', 'pwei', 'contract',
     'units',
     'zero_address', 'empty_bytes32' 'max_int128', 'min_int128', 'max_decimal', 'min_decimal', 'max_uint256',  # constants
-]
+}
 
 # Otherwise reserved words that are whitelisted for function declarations
 function_whitelist = {
@@ -160,13 +161,13 @@ function_whitelist = {
 }
 
 # List of valid LLL macros.
-valid_lll_macros = [
+valid_lll_macros = {
     'assert', 'break', 'ceil32', 'clamp', 'clamp', 'clamp_nonzero', 'clampge',
     'clampgt', 'clample', 'clamplt', 'codeload', 'continue', 'debugger', 'ge',
     'if', 'le', 'lll', 'ne', 'pass', 'repeat', 'seq', 'set', 'sge', 'sha3_32',
     'sha3_64', 'sle', 'uclampge', 'uclampgt', 'uclample', 'uclamplt', 'with',
     '~codelen', 'label', 'goto'
-]
+}
 
 
 # Is a variable or member variable name valid?
@@ -176,8 +177,8 @@ def is_varname_valid(varname, custom_units, custom_structs):
     built_in_functions = [x for x in stmt_dispatch_table.keys()] + \
       [x for x in dispatch_table.keys()]
     if custom_units is None:
-        custom_units = []
-    if varname.lower() in [cu.lower() for cu in custom_units]:
+        custom_units = set()
+    if varname.lower() in {cu.lower() for cu in custom_units}:
         return False
     # struct names are case sensitive.
     if varname in custom_structs:
