@@ -244,7 +244,7 @@ special_types = {
 # Parse an expression representing a unit
 def parse_unit(item, custom_units):
     if isinstance(item, ast.Name):
-        if item.id not in valid_units | custom_units:
+        if (item.id not in valid_units) and (custom_units is not None) and (item.id not in custom_units):
             raise InvalidTypeException("Invalid base unit", item)
         return {item.id: 1}
     elif isinstance(item, ast.Num) and item.n == 1:
@@ -286,7 +286,7 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
             return BaseType(item.id)
         elif item.id in special_types:
             return special_types[item.id]
-        elif (not custom_structs is None) and (item.id in custom_structs):
+        elif (custom_structs is not None) and (item.id in custom_structs):
             return make_struct_type(item.id, location, custom_structs[item.id], custom_units, custom_structs)
         else:
             raise InvalidTypeException("Invalid base type: " + item.id, item)
@@ -305,7 +305,7 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
             if sigs and item.args[0].id in sigs:
                 return ContractType(item.args[0].id)
         # Struct types
-        if (not custom_structs is None) and (item.func.id in custom_structs):
+        if (custom_structs is not None) and (item.func.id in custom_structs):
             return make_struct_type(item.id, location, custom_structs[item.id], custom_units, custom_structs)
         if not isinstance(item.func, ast.Name):
             raise InvalidTypeException("Malformed unit type:", item)
