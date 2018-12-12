@@ -1,4 +1,5 @@
 import ast
+import copy
 
 from vyper.exceptions import (
     EventDeclarationException,
@@ -229,6 +230,8 @@ class GlobalContext:
 
     def unroll_constant(self, const):
         # const = self.context.constants[self.expr.id]
+
+        ann_expr = None
         expr = Expr.parse_value_expr(const.value, Context(vars=None, global_ctx=self, origcode=const.source_code))
         annotation_type = parse_type(const.annotation.args[0], None, custom_units=self._custom_units, custom_structs=self._structs)
 
@@ -254,9 +257,12 @@ class GlobalContext:
 
         if fail:
             raise TypeMismatchException('Invalid value for constant type, expected %r' % annotation_type, const.value)
-        else:
-            expr.typ = annotation_type
-        return expr
+
+        ann_expr = copy.deepcopy(expr)
+        ann_expr.typ = annotation_type
+        ann_expr.typ.is_literal = expr.typ.is_literal  # Annotation type doesn't have literal set.
+
+        return ann_expr
 
     def add_constant(self, item):
         args = item.annotation.args
