@@ -148,7 +148,7 @@ reserved_words = [
     'pass', 'def', 'push', 'dup', 'swap', 'send', 'call',
     'selfdestruct', 'assert', 'stop', 'throw',
     'raise', 'init', '_init_', '___init___', '____init____',
-    'true', 'false', 'self', 'this', 'continue', 'none',
+    'true', 'false', 'self', 'this', 'continue', 'none', 'clear',
     'ether', 'wei', 'finney', 'szabo', 'shannon', 'lovelace', 'ada', 'babbage', 'gwei', 'kwei', 'mwei', 'twei', 'pwei', 'contract',
     'units',
     'zero_address', 'empty_bytes32' 'max_int128', 'min_int128', 'max_decimal', 'min_decimal', 'max_uint256',  # constants
