@@ -176,6 +176,13 @@ class Stmt(object):
         self.context.set_in_assignment(False)
         return o
 
+    def _check_implicit_conversion(self, var_id, sub):
+        target_typ = self.context.vars[var_id].typ
+        assign_typ = sub.typ
+        if isinstance(target_typ, BaseType) and isinstance(assign_typ, BaseType):
+            if not assign_typ.is_literal and assign_typ.typ != target_typ.typ:
+                raise TypeMismatchException('Invalid type {}, expected: {}'.format(assign_typ.typ, target_typ.typ, self.stmt))
+
     def assign(self):
         # Assignment (e.g. x[4] = y)
         if len(self.stmt.targets) != 1:
@@ -196,8 +203,7 @@ class Stmt(object):
                     raise VariableDeclarationException("Variable type not defined", self.stmt)
 
                 # Check against implicit conversion
-                if isinstance(sub, BaseType) and not sub.typ.is_literal and sub.typ.typ != self.context.vars[self.stmt.targets[0].id].typ.typ:
-                    raise TypeMismatchException('Invalid type {}, expected: {}'.format(sub.typ.typ, self.context.vars[self.stmt.targets[0].id].typ, self.stmt))
+                self._check_implicit_conversion(self.stmt.targets[0].id, sub)
 
             # Do no allow tuple-to-tuple assignment
             if isinstance(self.stmt.targets[0], ast.Tuple) and isinstance(self.stmt.value, ast.Tuple):
