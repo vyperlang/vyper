@@ -539,6 +539,9 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         left = Expr.parse_value_expr(self.expr.left, self.context)
         right = Expr.parse_value_expr(self.expr.comparators[0], self.context)
 
+        if isinstance(right.typ, NullType):
+            raise InvalidLiteralException('Comparison to None is not allowed, compare against a default value.', self.expr)
+
         if isinstance(left.typ, ByteArrayType) and isinstance(right.typ, ByteArrayType):
             if left.typ.maxlen != right.typ.maxlen:
                 raise TypeMismatchException('Can only compare bytes of the same length', self.expr)

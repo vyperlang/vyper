@@ -5,6 +5,7 @@ from vyper.exceptions import (
     InvalidLiteralException,
     StructureException,
     TypeMismatchException,
+    ParserException,
 )
 from .signature import (
     signature,
@@ -723,6 +724,10 @@ def minmax(expr, args, kwargs, context, is_min):
     return LLLnode.from_list(['with', '_l', left, ['with', '_r', right, o]], typ=otyp, pos=getpos(expr))
 
 
+def _clear():
+    raise ParserException("This function should never be called! `clear()` is currently handled differently than other functions as it self modifies its input argument statement. Please see `_clear()` in `stmt.py`")
+
+
 dispatch_table = {
     'floor': floor,
     'ceil': ceil,
@@ -755,6 +760,7 @@ dispatch_table = {
 }
 
 stmt_dispatch_table = {
+    'clear': _clear,
     'send': send,
     'selfdestruct': selfdestruct,
     'raw_call': raw_call,
