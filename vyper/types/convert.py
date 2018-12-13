@@ -78,7 +78,7 @@ def to_int128(expr, args, kwargs, context):
         if in_arg.typ.is_literal and not SizeLimits.in_bounds('int128', in_arg.value):
             raise InvalidLiteralException("Number out of range: {}".format(in_arg.value), expr)
         return LLLnode.from_list(
-            ['uclample', in_arg, SizeLimits.MAXNUM],
+            ['uclample', in_arg, ['mload', MemoryPositions.MAXNUM]],
             typ=BaseType('int128', in_arg.typ.unit),
             pos=getpos(expr)
         )
