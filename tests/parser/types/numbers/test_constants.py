@@ -1,4 +1,5 @@
 from decimal import Decimal
+from vyper.compiler import compile_code
 
 
 def test_builtin_constants(get_contract_with_gas_estimation):
@@ -138,3 +139,17 @@ def market_cap() -> uint256(wei):
     c = get_contract(code)
 
     assert c.market_cap() == 5000
+
+
+def test_constant_folds(search_for_sublist):
+    code = """
+SOME_CONSTANT: constant(uint256) = 11 + 1
+
+
+@public
+def test(some_dynamic_var: uint256) -> uint256:
+    return some_dynamic_var  +  2**SOME_CONSTANT
+    """
+
+    lll = compile_code(code, ['ir'])['ir']
+    assert search_for_sublist(lll, ['add', ['mload', [320]], [4096]])
