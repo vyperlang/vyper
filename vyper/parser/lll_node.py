@@ -182,7 +182,7 @@ class LLLnode():
     def __getitem__(self, i):
         return self.to_list()[i]
 
-    def __len__(self, i):
+    def __len__(self):
         return len(self.to_list())
 
     def to_list(self):
