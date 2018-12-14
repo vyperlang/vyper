@@ -21,7 +21,9 @@ format_options_help = """Format to print, one or more of:
  bytecode (default) - Deployable bytecode
  bytecode_runtime   - Bytecode at runtime
  abi                - ABI in JSON format
- python_abi         - ABI in python format
+ abi_python         - Identical to --abi
+ ir                 - Intermediate representation (Vyper's dialect of LLL)
+ asm                - EVM Assembly
  source_map         - Vyper source map
  method_identifiers - Dictionary of method signature to method identifier.
  combined_json      - All of the above format options combined as single JSON output.
