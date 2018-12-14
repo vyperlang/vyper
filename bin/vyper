@@ -22,7 +22,7 @@ format_options_help = """Format to print, one or more of:
  bytecode_runtime   - Bytecode at runtime
  abi                - ABI in JSON format
  abi_python         - Identical to --abi
- ir                 - Intermediate representation (Vyper's dialect of LLL)
+ ir                 - Vyper IR (a dialect of LLL)
  asm                - EVM Assembly
  source_map         - Vyper source map
  method_identifiers - Dictionary of method signature to method identifier.
