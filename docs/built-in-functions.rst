@@ -160,7 +160,7 @@ Takes 2 or more bytes arrays of type ``bytes32`` or ``bytes`` and combines them 
     :output b: bytes32
     """
 
-Returns ``keccak256``(Ethereum's sha3) hash of input.
+Returns ``keccak256`` (Ethereum's sha3) hash of input.
 Note that it can be called either by using ``sha3`` or ``keccak256``.
 
 **method_id**
