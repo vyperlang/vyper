@@ -385,7 +385,7 @@ Emits a log without specifying the abi type, with the arguments entered as the f
     :param a: the address of the contract to duplicate.
     :type a: address
     :param b: the wei value to send to the new contract instance
-    :type b: uint256 (Optional)
+    :type b: uint256 (Optional, default: 0)
     """
 
 Duplicates a contract's code and deploys it as a new instance, by means of a DELEGATECALL.
