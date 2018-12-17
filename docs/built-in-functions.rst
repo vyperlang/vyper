@@ -303,7 +303,7 @@ Low Level Functions
     :param a: the destination address to send ether to
     :type a: address
     :param b: the wei value to send to the address
-    :type b: uint256
+    :type b: uint256(wei)
     """
 
 Sends ether from the contract to the specified Ethereum address.
@@ -384,8 +384,8 @@ Emits a log without specifying the abi type, with the arguments entered as the f
     """
     :param a: the address of the contract to duplicate.
     :type a: address
-    :param b: the wei value to send to the new contract instance
-    :type b: uint256 (Optional)
+    :param b: the wei value to send to the new contract instance (Optional, default: 0)
+    :type b: uint256(wei)
     """
 
 Duplicates a contract's code and deploys it as a new instance, by means of a DELEGATECALL.
