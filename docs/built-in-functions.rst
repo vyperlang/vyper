@@ -313,7 +313,7 @@ Note that the amount to send should be specified in wei.
 ------------
 ::
 
-  def raw_call(a, b, outsize=c, gas=d, value=e) -> f:
+  def raw_call(a, b, outsize=c, gas=d, value=e, delegate_call=f) -> g:
     """
     :param a: the destination address to call to
     :type a: address
@@ -323,10 +323,12 @@ Note that the amount to send should be specified in wei.
     :type c: fixed literal value
     :param d: the gas amount to attach to the call.
     :type d: uint256
-    :param e: the wei value to send to the address (Optional)
+    :param e: the wei value to send to the address (Optional, default: 0)
     :type e: uint256
+    :param f: the bool of whether or not to use DELEGATECALL (Optional, default: False)
+    :type f: bool
 
-    :output f: bytes[outsize]
+    :output g: bytes[outsize]
     """
 
 Calls to the specified Ethereum address.
