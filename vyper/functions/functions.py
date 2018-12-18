@@ -394,7 +394,7 @@ def raw_call(expr, args, kwargs, context):
     if delegate_call.typ.is_literal is False:
         raise TypeMismatchException('The delegate_call parameter has to be a static/literal boolean value.')
     if context.is_constant:
-        raise ConstancyViolationException("Cannot make calls from a constant function", expr)
+        raise ConstancyViolationException("Cannot make calls from %s" % context.is_constant, expr)
     if value != zero_value:
         enforce_units(value.typ, get_keyword(expr, 'value'),
                         BaseType('uint256', {'wei': 1}))
@@ -431,7 +431,7 @@ def raw_call(expr, args, kwargs, context):
 def send(expr, args, kwargs, context):
     to, value = args
     if context.is_constant:
-        raise ConstancyViolationException("Cannot send ether inside a constant function!", expr)
+        raise ConstancyViolationException("Cannot send ether inside %s!" % context.is_constant, expr)
     enforce_units(value.typ, expr.args[1], BaseType('uint256', {'wei': 1}))
     return LLLnode.from_list(['assert', ['call', 0, to, value, 0, 0, 0, 0]], typ=None, pos=getpos(expr))
 
@@ -439,7 +439,7 @@ def send(expr, args, kwargs, context):
 @signature('address')
 def selfdestruct(expr, args, kwargs, context):
     if context.is_constant:
-        raise ConstancyViolationException("Cannot %s inside a constant function!" % expr.func.id, expr.func)
+        raise ConstancyViolationException("Cannot %s inside %s!" % (expr.func.id, context.is_constant), expr.func)
     return LLLnode.from_list(['selfdestruct', args[0]], typ=None, pos=getpos(expr))
 
 
@@ -669,7 +669,7 @@ def create_with_code_of(expr, args, kwargs, context):
         enforce_units(value.typ, get_keyword(expr, 'value'),
                       BaseType('uint256', {'wei': 1}))
     if context.is_constant:
-        raise ConstancyViolationException("Cannot make calls from a constant function", expr)
+        raise ConstancyViolationException("Cannot make calls from %s" % context.is_constant, expr)
     placeholder = context.new_placeholder(ByteArrayType(96))
 
     kode = get_create_with_code_of_bytecode()

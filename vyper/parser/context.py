@@ -19,7 +19,7 @@ from vyper.signatures.function_signature import (
 class Context():
 
     def __init__(self, vars, global_ctx, sigs=None, forvars=None, return_type=None,
-                 is_constant=False, is_private=False, is_payable=False, origcode='', method_id=''):
+                 is_constant=None, is_private=False, is_payable=False, origcode='', method_id=''):
         # In-memory variables, in the form (name, memory location, type)
         self.vars = vars or {}
         self.next_mem = MemoryPositions.RESERVED_MEMORY

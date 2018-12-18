@@ -34,7 +34,7 @@ def make_call(stmt_expr, context):
 
     if context.is_constant and not sig.const:
         raise ConstancyViolationException(
-            "May not call non-constant function '%s' within a constant function." % (method_name),
+            "May not call non-constant function '%s' within %s." % (method_name, context.is_constant),
             getpos(stmt_expr)
         )
 
