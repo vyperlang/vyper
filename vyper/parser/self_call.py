@@ -171,8 +171,21 @@ def call_self_private(stmt_expr, context, sig):
                     typ=None, annotation='dynamic unpacker', pos=getpos(stmt_expr))
                 pop_return_values.append(o)
 
+    call_body = (
+        ['seq_unchecked'] +
+        pre_init +
+        push_local_vars +
+        push_args +
+        jump_to_func +
+        pop_return_values +
+        pop_local_vars +
+        [returner]
+    )
+    # If we have no return, we need to pop off
+    pop_returner_call_body = ['pop', call_body] if sig.output_type is None else call_body
+
     o = LLLnode.from_list(
-        ['seq_unchecked'] + pre_init + push_local_vars + push_args + jump_to_func + pop_return_values + pop_local_vars + [returner],
+        pop_returner_call_body,
         typ=sig.output_type, location='memory', pos=getpos(stmt_expr), annotation='Internal Call: %s' % method_name,
         add_gas_estimate=sig.gas
     )
