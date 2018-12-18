@@ -64,6 +64,7 @@ def test_bid(w3, tester, auction_contract, assert_tx_failed):
     # Pending return balance is reset to 0
     assert auction_contract.pendingReturns(k1) == 0
 
+
 def test_end_auction(w3, tester, auction_contract, assert_tx_failed):
     k1, k2, k3, k4, k5 = w3.eth.accounts[:5]
     # Fails if auction end time has not been reached
