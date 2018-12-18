@@ -730,18 +730,31 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             return external_call.make_external_call(self.expr, self.context)
 
     def list_literals(self):
+
         if not len(self.expr.elts):
             raise StructureException("List must have elements", self.expr)
+
+        def get_out_type(lll_node):
+            if isinstance(lll_node, ListType):
+                return get_out_type(lll_node.subtype)
+            return lll_node.typ
+
         o = []
+        previous_type = None
         out_type = None
+
         for elt in self.expr.elts:
-            o.append(Expr(elt, self.context).lll_node)
+            current_lll_node = Expr(elt, self.context).lll_node
             if not out_type:
-                out_type = o[-1].typ
-            previous_type = o[-1].typ.subtype.typ if hasattr(o[-1].typ, 'subtype') else o[-1].typ
-            current_type = out_type.subtype.typ if hasattr(out_type, 'subtype') else out_type
+                out_type = current_lll_node.typ
+
+            current_type = get_out_type(current_lll_node)
             if len(o) > 1 and previous_type != current_type:
                 raise TypeMismatchException("Lists may only contain one type", self.expr)
+            else:
+                o.append(current_lll_node)
+                previous_type = current_type
+
         return LLLnode.from_list(["multi"] + o, typ=ListType(out_type, len(o)), pos=getpos(self.expr))
 
     def dict_fail(self):
