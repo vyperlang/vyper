@@ -50,12 +50,19 @@ def test_bid(w3, tester, auction_contract, assert_tx_failed):
     assert auction_contract.highestBidder() == k5
     assert auction_contract.highestBid() == 5
     auction_contract.bid(transact={"value": 1 * 10**10, "from": k1})
-    balance_before_out_bid = w3.eth.getBalance(k1)
+    pending_return_before_outbid = auction_contract.pendingReturns(k1)
     auction_contract.bid(transact={"value": 2 * 10**10, "from": k2})
-    balance_after_out_bid = w3.eth.getBalance(k1)
-    # Account has more money after its bid is out bid
-    assert balance_after_out_bid > balance_before_out_bid
+    pending_return_after_outbid = auction_contract.pendingReturns(k1)
+    # Account has a greater pending return balance after being outbid
+    assert pending_return_after_outbid > pending_return_before_outbid
 
+    balance_before_withdrawal = w3.eth.getBalance(k1)
+    auction_contract.withdraw(transact={"from": k1})
+    balance_after_withdrawal = w3.eth.getBalance(k1)
+    # Balance increases after withdrawal
+    assert balance_after_withdrawal > balance_before_withdrawal
+    # Pending return balance is reset to 0
+    assert auction_contract.pendingReturns(k1) == 0
 
 def test_end_auction(w3, tester, auction_contract, assert_tx_failed):
     k1, k2, k3, k4, k5 = w3.eth.accounts[:5]
