@@ -304,3 +304,20 @@ def get_logs(w3):
         logs = c._classic_contract.events[event_name]().processReceipt(tx_receipt)
         return logs
     return get_logs
+
+
+@pytest.fixture
+def search_for_sublist():
+
+    def search_for_sublist(lll, sublist):
+        _list = lll.to_list() if hasattr(lll, 'to_list') else lll
+        if _list == sublist:
+            return True
+        if isinstance(_list, list):
+            for i in _list:
+                ret = search_for_sublist(i, sublist)
+                if ret is True:
+                    return ret
+        return False
+
+    return search_for_sublist

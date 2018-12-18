@@ -10,7 +10,9 @@ from tokenize import (
     tokenize,
     untokenize,
 )
-from vyper.exceptions import StructureException
+from vyper.exceptions import (
+    StructureException,
+)
 from vyper import __version__
 
 

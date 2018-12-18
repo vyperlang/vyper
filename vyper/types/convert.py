@@ -95,7 +95,7 @@ def to_int128(expr, args, kwargs, context):
 
         else:
             return LLLnode.from_list(
-                ['uclample', in_arg, SizeLimits.MAXNUM],
+                ['uclample', in_arg, ['mload', MemoryPositions.MAXNUM]],
                 typ=BaseType('int128', in_arg.typ.unit),
                 pos=getpos(expr)
             )
