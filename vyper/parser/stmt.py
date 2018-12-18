@@ -31,7 +31,7 @@ from vyper.types import (
     ListType,
     TupleType,
     StructType,
-    NullType
+    NullType,
 )
 from vyper.types import (
     get_size_of_type,
@@ -165,14 +165,21 @@ class Stmt(object):
         o = LLLnode.from_list('pass', typ=None, pos=pos)
         if self.stmt.value is not None:
             sub = Expr(self.stmt.value, self.context).lll_node
+
+            # Disallow assignment to None
+            if isinstance(sub.typ, NullType):
+                raise InvalidLiteralException('Assignment to None is not allowed, use a default value or built-in `clear()`.', self.stmt)
+
             # If bytes[32] to bytes32 assignment rewrite sub as bytes32.
             if isinstance(sub.typ, ByteArrayType) and sub.typ.maxlen == 32 and isinstance(typ, BaseType) and typ.typ == 'bytes32':
                 bytez, bytez_length = string_to_bytes(self.stmt.value.s)
                 sub = LLLnode(bytes_to_int(bytez), typ=BaseType('bytes32'), pos=getpos(self.stmt))
+
             self._check_valid_assign(sub)
             self._check_same_variable_assign(sub)
             variable_loc = LLLnode.from_list(pos, typ=typ, location='memory', pos=getpos(self.stmt))
             o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
+        # o.pos = getpos(self.stmt) # TODO: Should this be here like in assign()?
         self.context.set_in_assignment(False)
         return o
 
@@ -182,6 +189,10 @@ class Stmt(object):
             raise StructureException("Assignment statement must have one target", self.stmt)
         self.context.set_in_assignment(True)
         sub = Expr(self.stmt.value, self.context).lll_node
+
+        # Disallow assignment to None
+        if isinstance(sub.typ, NullType):
+            raise InvalidLiteralException('Assignment to None is not allowed, use a default value or built-in `clear()`.', self.stmt)
 
         # Determine if it's an RLPList assignment.
         if isinstance(self.stmt.value, ast.Call) and getattr(self.stmt.value.func, 'id', '') is 'RLPList':
@@ -236,6 +247,23 @@ class Stmt(object):
         self.context.end_blockscope(block_scope_id)
         return o
 
+    def _clear(self):
+        # Create zero node
+        none = ast.NameConstant(None)
+        none.lineno = self.stmt.lineno
+        none.col_offset = self.stmt.col_offset
+        zero = Expr(none, self.context).lll_node
+
+        # Get target variable
+        target = self.get_target(self.stmt.args[0])
+
+        # Generate LLL node to set to zero
+        o = make_setter(target, zero, target.location, pos=getpos(self.stmt))
+        o.pos = getpos(self.stmt)
+        self.context.set_in_assignment(False)
+
+        return o
+
     def call(self):
         from .parser import (
             pack_logging_data,
@@ -244,7 +272,10 @@ class Stmt(object):
 
         if isinstance(self.stmt.func, ast.Name):
             if self.stmt.func.id in stmt_dispatch_table:
-                return stmt_dispatch_table[self.stmt.func.id](self.stmt, self.context)
+                if self.stmt.func.id == 'clear':
+                    return self._clear()
+                else:
+                    return stmt_dispatch_table[self.stmt.func.id](self.stmt, self.context)
             elif self.stmt.func.id in dispatch_table:
                 raise StructureException("Function {} can not be called without being used.".format(self.stmt.func.id), self.stmt)
             else:
@@ -718,19 +749,7 @@ class Stmt(object):
             raise TypeMismatchException("Can only return base type!", self.stmt)
 
     def parse_delete(self):
-        from .parser import (
-            make_setter,
-        )
-        if len(self.stmt.targets) != 1:
-            raise StructureException("Can delete one variable at a time", self.stmt)
-        target = self.stmt.targets[0]
-        target_lll = Expr(self.stmt.targets[0], self.context).lll_node
-
-        if isinstance(target, ast.Subscript):
-            if target_lll.location == "storage":
-                return make_setter(target_lll, LLLnode.from_list(None, typ=NullType()), "storage", pos=getpos(self.stmt))
-
-        raise StructureException("Deleting type not supported.", self.stmt)
+        raise StructureException("Deleting is not supported, use built-in `clear()` function.", self.stmt)
 
     def get_target(self, target):
         if isinstance(target, ast.Subscript) and self.context.in_for_loop:  # Check if we are doing assignment of an iteration loop.

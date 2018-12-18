@@ -17,7 +17,7 @@ TOKEN_TOTAL_SUPPLY = TOKEN_INITIAL_SUPPLY * (10 ** TOKEN_DECIMALS)
 
 @pytest.fixture
 def erc20(get_contract):
-    with open('examples/tokens/vypercoin.vy') as f:
+    with open('examples/tokens/ERC20.vy') as f:
         contract_code = f.read()
     return get_contract(contract_code, *[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY])
 

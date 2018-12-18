@@ -102,13 +102,13 @@ a: bytes[60]
 @public
 def foo(inp: bytes[60]) -> bytes[60]:
     self.a = inp
-    self.a = None
+    self.a = ""
     return self.a
 
 @public
 def bar(inp: bytes[60]) -> bytes[60]:
     b: bytes[60] = inp
-    b = None
+    b = ""
     return b
     """
 

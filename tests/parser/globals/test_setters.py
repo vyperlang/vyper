@@ -30,12 +30,12 @@ def gop() -> int128: # Following a standard naming scheme; nothing to do with th
 
 @public
 def hoo() -> int128:
-    self.dog = None
+    clear(self.dog)
     return(self.dog[0] + self.dog[1] * 10 + self.dog[2] * 100)
 
 @public
 def hop() -> int128:
-    self.bar[1] = None
+    clear(self.bar[1])
     return self.bar[0][0] + self.bar[0][1] * 10 + self.bar[0][2] * 100 + \
         self.bar[1][0] * 1000 + self.bar[1][1] * 10000 + self.bar[1][2] * 100000
 
@@ -43,7 +43,7 @@ def hop() -> int128:
 def joo() -> int128:
     goo: int128[3]
     goo = [1, 2, 3]
-    goo = None
+    clear(goo)
     return(goo[0] + goo[1] * 10 + goo[2] * 100)
 
 @public
@@ -51,7 +51,7 @@ def jop() -> int128:
     gar: int128[3][3]
     gar[0] = [1, 2, 3]
     gar[1] = [4, 5, 6]
-    gar[1] = None
+    clear(gar[1])
     return gar[0][0] + gar[0][1] * 10 + gar[0][2] * 100 + \
         gar[1][0] * 1000 + gar[1][1] * 10000 + gar[1][2] * 100000
 
@@ -187,8 +187,8 @@ def fop() -> int128:
 @public
 def foq() -> int128:
     popp: Mom = Mom({a: [C({c: 1}), C({c: 2}), C({c: 3})], b: 4})
-    popp.a[0] = None
-    popp.a[2] = None
+    clear(popp.a[0])
+    clear(popp.a[2])
     return popp.a[0].c + popp.a[1].c * 10 + popp.a[2].c * 100 + popp.b * 1000
     """
 

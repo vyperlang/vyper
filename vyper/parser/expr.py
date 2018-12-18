@@ -153,13 +153,41 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
     # Variable names
     def variables(self):
         builtin_constants = {
-            'EMPTY_BYTES32': LLLnode.from_list([0], typ=BaseType('bytes32', None, is_literal=True), pos=getpos(self.expr)),
-            'ZERO_ADDRESS': LLLnode.from_list([0], typ=BaseType('address', None, is_literal=True), pos=getpos(self.expr)),
-            'MAX_INT128': LLLnode.from_list(['mload', MemoryPositions.MAXNUM], typ=BaseType('int128', None, is_literal=True), pos=getpos(self.expr)),
-            'MIN_INT128': LLLnode.from_list(['mload', MemoryPositions.MINNUM], typ=BaseType('int128', None, is_literal=True), pos=getpos(self.expr)),
-            'MAX_DECIMAL': LLLnode.from_list(['mload', MemoryPositions.MAXDECIMAL], typ=BaseType('decimal', None, is_literal=True), pos=getpos(self.expr)),
-            'MIN_DECIMAL': LLLnode.from_list(['mload', MemoryPositions.MINDECIMAL], typ=BaseType('decimal', None, is_literal=True), pos=getpos(self.expr)),
-            'MAX_UINT256': LLLnode.from_list([2**256 - 1], typ=BaseType('uint256', None, is_literal=True), pos=getpos(self.expr)),
+            'EMPTY_BYTES32': LLLnode.from_list(
+                [0],
+                typ=BaseType('bytes32', None, is_literal=True),
+                pos=getpos(self.expr)
+            ),
+            'ZERO_ADDRESS': LLLnode.from_list(
+                [0],
+                typ=BaseType('address', None, is_literal=True),
+                pos=getpos(self.expr)
+            ),
+            'MAX_INT128': LLLnode.from_list(
+                [SizeLimits.MAXNUM],
+                typ=BaseType('int128', None, is_literal=True),
+                pos=getpos(self.expr)
+            ),
+            'MIN_INT128': LLLnode.from_list(
+                [SizeLimits.MINNUM],
+                typ=BaseType('int128', None, is_literal=True),
+                pos=getpos(self.expr)
+            ),
+            'MAX_DECIMAL': LLLnode.from_list(
+                [SizeLimits.MAXDECIMAL],
+                typ=BaseType('decimal', None, is_literal=True),
+                pos=getpos(self.expr)
+            ),
+            'MIN_DECIMAL': LLLnode.from_list(
+                [SizeLimits.MINDECIMAL],
+                typ=BaseType('decimal', None, is_literal=True),
+                pos=getpos(self.expr)
+            ),
+            'MAX_UINT256': LLLnode.from_list(
+                [SizeLimits.MAX_UINT256],
+                typ=BaseType('uint256', None, is_literal=True),
+                pos=getpos(self.expr)
+            ),
         }
 
         if self.expr.id == 'self':
@@ -510,6 +538,9 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
     def compare(self):
         left = Expr.parse_value_expr(self.expr.left, self.context)
         right = Expr.parse_value_expr(self.expr.comparators[0], self.context)
+
+        if isinstance(right.typ, NullType):
+            raise InvalidLiteralException('Comparison to None is not allowed, compare against a default value.', self.expr)
 
         if isinstance(left.typ, ByteArrayType) and isinstance(right.typ, ByteArrayType):
             if left.typ.maxlen != right.typ.maxlen:
