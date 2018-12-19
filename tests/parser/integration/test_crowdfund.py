@@ -8,7 +8,7 @@ funders: map(int128, Funder)
 nextFunderIndex: int128
 beneficiary: address
 deadline: public(timestamp)
-goal: wei_value
+goal: public(wei_value)
 refundIndex: int128
 timelimit: public(timedelta)
 
