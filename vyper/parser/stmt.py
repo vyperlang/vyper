@@ -183,6 +183,13 @@ class Stmt(object):
         self.context.set_in_assignment(False)
         return o
 
+    def _check_implicit_conversion(self, var_id, sub):
+        target_typ = self.context.vars[var_id].typ
+        assign_typ = sub.typ
+        if isinstance(target_typ, BaseType) and isinstance(assign_typ, BaseType):
+            if not assign_typ.is_literal and assign_typ.typ != target_typ.typ:
+                raise TypeMismatchException('Invalid type {}, expected: {}'.format(assign_typ.typ, target_typ.typ, self.stmt))
+
     def assign(self):
         # Assignment (e.g. x[4] = y)
         if len(self.stmt.targets) != 1:
@@ -199,18 +206,24 @@ class Stmt(object):
             pos = self.context.new_variable(self.stmt.targets[0].id, sub.typ)
             variable_loc = LLLnode.from_list(pos, typ=sub.typ, location='memory', pos=getpos(self.stmt), annotation=self.stmt.targets[0].id)
             o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
-
-        # All other assignments are forbidden.
-        elif isinstance(self.stmt.targets[0], ast.Name) and self.stmt.targets[0].id not in self.context.vars:
-            raise VariableDeclarationException("Variable type not defined", self.stmt)
-
-        elif isinstance(self.stmt.targets[0], ast.Tuple) and isinstance(self.stmt.value, ast.Tuple):
-            raise VariableDeclarationException("Tuple to tuple assignment not supported", self.stmt)
-
         else:
+            # Error check when assigning to declared variable
+            if isinstance(self.stmt.targets[0], ast.Name):
+                # Do not allow assignment to undefined variables without annotation
+                if self.stmt.targets[0].id not in self.context.vars:
+                    raise VariableDeclarationException("Variable type not defined", self.stmt)
+
+                # Check against implicit conversion
+                self._check_implicit_conversion(self.stmt.targets[0].id, sub)
+
+            # Do no allow tuple-to-tuple assignment
+            if isinstance(self.stmt.targets[0], ast.Tuple) and isinstance(self.stmt.value, ast.Tuple):
+                raise VariableDeclarationException("Tuple to tuple assignment not supported", self.stmt)
+
             # Checks to see if assignment is valid
             target = self.get_target(self.stmt.targets[0])
             o = make_setter(target, sub, target.location, pos=getpos(self.stmt))
+
         o.pos = getpos(self.stmt)
         self.context.set_in_assignment(False)
         return o
