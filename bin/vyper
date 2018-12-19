@@ -21,7 +21,9 @@ format_options_help = """Format to print, one or more of:
  bytecode (default) - Deployable bytecode
  bytecode_runtime   - Bytecode at runtime
  abi                - ABI in JSON format
- python_abi         - ABI in python format
+ abi_python         - ABI in Python format
+ ir                 - Vyper IR (a dialect of LLL)
+ asm                - EVM Assembly
  source_map         - Vyper source map
  method_identifiers - Dictionary of method signature to method identifier.
  combined_json      - All of the above format options combined as single JSON output.
@@ -76,13 +78,14 @@ if __name__ == '__main__':
             'json': 'abi'
         }
         formats = []
-        for f in uniq(args.format.split(',')):
+        orig_args = uniq(args.format.split(','))
+        for f in orig_args:
             formats.append(translate_map.get(f, f))
 
         out_list = vyper.compile_codes(codes, formats, output_type='list', exc_handler=exc_handler)
         for out in out_list:
-            for f in formats:
-                o = out[f]
+            for f in orig_args:
+                o = out[translate_map.get(f, f)]
                 if f in ('abi', 'json'):
                     print(json.dumps(o))
                 elif f == 'abi_python':
