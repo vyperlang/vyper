@@ -459,7 +459,7 @@ class Stmt(object):
         iter_var_type = self.context.vars.get(self.stmt.iter.id).typ if isinstance(self.stmt.iter, ast.Name) else None
         subtype = iter_list_node.typ.subtype.typ
         varname = self.stmt.target.id
-        value_pos = self.context.new_variable(varname, BaseType(subtype))
+        value_pos = self.context.new_variable(varname, BaseType(subtype, unit=iter_list_node.typ.subtype.unit))
         i_pos = self.context.new_variable('_index_for_' + varname, BaseType(subtype))
         self.context.forvars[varname] = True
         if iter_var_type:  # Is a list that is already allocated to memory.
