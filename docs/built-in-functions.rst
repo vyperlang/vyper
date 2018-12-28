@@ -179,6 +179,20 @@ Note that it can be called either by using ``sha3`` or ``keccak256``.
 
 Takes a function declaration and returns its method_id (used in data field to call it).
 
+**is_contract**
+---------------
+::
+
+  def is_contract(a) -> b:
+    """
+    :param a: address to be checked
+    :type a: address
+
+    :output b: bool
+    """
+
+Takes an address and returns whether it's a contract address or not.
+
 **ecrecover**
 ---------------
 ::
