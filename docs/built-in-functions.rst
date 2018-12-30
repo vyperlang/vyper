@@ -64,8 +64,6 @@ Converts a variable/ literal from one type to another.
     """
     :param a: variable to reset to its default value
     :type a: all types
-
-    :output c: either decimal, int128, uint256 or bytes32
     """
 
 Clears a variable's contents to the default value of its type.
