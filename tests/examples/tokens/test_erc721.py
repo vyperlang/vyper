@@ -24,7 +24,7 @@ def c(get_contract, w3):
     return c
 
 
-def test_supportsInterface(c, assert_tx_failed):
+def test_supportsInterface(c):
     assert c.supportsInterface(ERC165_INTERFACE_ID) == 1
     assert c.supportsInterface(ERC721_INTERFACE_ID) == 1
     assert c.supportsInterface(INVALID_INTERFACE_ID) == 0
@@ -42,7 +42,7 @@ def test_ownerOf(c, w3, assert_tx_failed):
     assert_tx_failed(lambda: c.ownerOf(INVALID_TOKEN_ID))
 
 
-def test_getApproved(c, w3, assert_tx_failed):
+def test_getApproved(c, w3):
     someone, operator = w3.eth.accounts[1:3]
 
     assert c.getApproved(SOMEONE_TOKEN_IDS[0]) is None
