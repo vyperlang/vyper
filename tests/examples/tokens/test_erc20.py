@@ -28,8 +28,8 @@ def c_bad(get_contract, w3, bytes_helper):
         code = f.read()
     name = bytes_helper("Vypercoin", 32)
     symbol = bytes_helper("VYP", 32)
-    bad_code = code.replace("self.total_supply = self.total_supply + _value", "") \
-                .replace("self.total_supply = self.total_supply - _value", "")
+    bad_code = code.replace("self.total_supply += _value", "") \
+                .replace("self.total_supply -= _value", "")
     c = get_contract(bad_code, name, symbol, 0, 0)
     return c
 
