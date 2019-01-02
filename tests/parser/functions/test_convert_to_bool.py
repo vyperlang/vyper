@@ -1,5 +1,4 @@
 from vyper.exceptions import (
-    InvalidLiteralException,
     TypeMismatchException,
 )
 
@@ -25,7 +24,7 @@ def foo():
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(code),
-        InvalidLiteralException
+        TypeMismatchException
     )
 
 
