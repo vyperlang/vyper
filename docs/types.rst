@@ -238,12 +238,13 @@ An address type can hold an Ethereum address which equates to 20 bytes or 160 bi
 Members
 ^^^^^^^
 
-============  ===================================================
-Member        Description
-============  ===================================================
-``balance``   Query the balance of an address. Returns ``wei_value``.
-``codesize``  Query the code size of an address. Returns ``int128``.
-============  ===================================================
+===============  =========================================================
+Member           Description
+===============  =========================================================
+``balance``      Query the balance of an address. Returns ``wei_value``.
+``codesize``     Query the code size of an address. Returns ``int128``.
+``is_contract``  Query whether it is a contract address. Returns ``bool``.
+===============  =========================================================
 
 Syntax as follows: ``_address.<member>``, where ``_address`` is of the type ``address`` and ``<member>`` is one of the above keywords.
 
