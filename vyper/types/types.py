@@ -102,7 +102,7 @@ class NodeType(abc.ABC):
 class BaseType(NodeType):
     def __init__(self, typ, unit=False, positional=False, override_signature=False, is_literal=False):
         self.typ = typ
-        self.unit = {} if unit is False else unit
+        self.unit = {} if not unit else unit
         self.positional = positional
         self.override_signature = override_signature
         self.is_literal = is_literal
@@ -393,9 +393,9 @@ def get_type(input):
 
 # Checks that the units of frm can be seamlessly converted into the units of to
 def are_units_compatible(frm, to):
-    frm_unit = getattr(frm, 'unit', 0)
-    to_unit = getattr(to, 'unit', 0)
-    return frm_unit is None or (frm_unit == to_unit and frm.positional == to.positional)
+    frm_unit = frm.unit
+    to_unit = to.unit
+    return frm_unit == {} or (frm_unit == to_unit and frm.positional == to.positional)
 
 
 # Is a type representing a number?
