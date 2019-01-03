@@ -143,9 +143,9 @@ Operator                     Description
 ===========================  ======================
 ``x + y``                    Addition
 ``x - y``                    Subtraction
-``uint256_addmod(x, y, z)``  Modular addition
+``uint256_addmod(x, y, z)``  Addition modulo ``z``
 ``x * y``                    Multiplication
-``uint256_mulmod(x, y, z)``  Modular multiplication
+``uint256_mulmod(x, y, z)``  Multiplication modulo ``z``
 ``x / y``                    Division
 ``x**y``                     Exponentiation
 ``x % y``                    Modulo
