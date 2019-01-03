@@ -24,8 +24,6 @@ from vyper.parser.parser_utils import (
     make_byte_array_copier,
     make_setter,
     unwrap_location,
-)
-from vyper.codegen.utils import (
     gen_tuple_return,
     make_return_stmt,
 )
