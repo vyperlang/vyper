@@ -122,16 +122,16 @@ Comparisons
 ^^^^^^^^^^^
 Comparisons return a boolean value.
 
-===================  ================
-Operator             Description
-===================  ================
-``uint256_lt(x, y)``  Less than
-``uint256_le(x, y)``  Less than or equal to
-``x == y``           Equals
-``x != y``           Does not equal
-``uint256_ge(x, y)``  Greater than or equal to
-``uint256_gt(x, y)``  Greater than
-===================  ================
+==========  ================
+Operator    Description
+==========  ================
+``x < y``   Less than
+``x <= y``  Less than or equal to
+``x == y``  Equals
+``x != y``  Does not equal
+``x >= y``  Greater than or equal to
+``x > y``   Greater than
+==========  ================
 
 ``x`` and ``y`` must be of the type ``uint256``.
 
