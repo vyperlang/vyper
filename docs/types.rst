@@ -218,7 +218,7 @@ Operator       Description
 ``min(x, y)``  Minimum
 ``max(x, y)``  Maximum
 ``floor(x)``   Largest integer <= ``x``. Returns ``int128``.
-``ceil(x)``   Smallest integer >= ``x``. Returns ``int128``.
+``ceil(x)``    Smallest integer >= ``x``. Returns ``int128``.
 =============  ==========================================
 
 ``x`` and ``y`` must be of the type ``decimal``.
