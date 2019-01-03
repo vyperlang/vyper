@@ -590,7 +590,7 @@ def gen_tuple_return(stmt, context, sub):
         mem_size = get_size_of_type(sub.typ) * 32
         # Add zero padder if bytes are present in output.
         zero_padder = ['pass']
-        byte_arrays = [(i, x) for i, x in enumerate(sub.typ.get_tuple_members()) if isinstance(x, ByteArrayType)]
+        byte_arrays = [(i, x) for i, x in enumerate(sub.typ.tuple_members()) if isinstance(x, ByteArrayType)]
         if byte_arrays:
             i, x = byte_arrays[-1]
             zero_padder = zero_pad(bytez_placeholder=['add', mem_pos, ['mload', mem_pos + i * 32]], maxlen=x.maxlen, context=context)
@@ -624,13 +624,10 @@ def gen_tuple_return(stmt, context, sub):
                 ['mload', dynamic_offset_counter]]
         ]
 
-    if sub.typ.is_literal:
-        keyz = list(range(len(sub.typ.members)))
-    else:
-        keyz = [(k, v) for k, v in sub.typ.members.items()]
-    dynamic_offset_start = 32 * len(keyz)  # The static list of args end.
+    items = sub.typ.tuple_items()
+    dynamic_offset_start = 32 * len(items)  # The static list of args end.
 
-    for i, (key, typ) in enumerate(keyz):
+    for i, (key, typ) in enumerate(items):
         variable_offset = LLLnode.from_list(['add', 32 * i, left_token], typ=typ, annotation='variable_offset')   # variable offset of destination
         if sub.typ.is_literal:
             arg = sub.args[i]

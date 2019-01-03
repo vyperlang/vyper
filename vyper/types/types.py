@@ -166,8 +166,12 @@ class MappingType(NodeType):
 
 # Type which has heterogeneous members, i.e. Tuples and Structs
 class TupleLike(NodeType):
-    def get_tuple_members(self):
-        raise NotImplementedError("compiler panic!: get_tuple_members must be implemented by TupleLike")
+    def tuple_members(self):
+        return [v for (_k,v) in self.tuple_items()]
+    def tuple_keys(self):
+        return [k for (k,_v) in self.tuple_items()]
+    def tuple_items(self):
+        raise NotImplementedError("compiler panic!: tuple_items must be implemented by TupleLike")
 
 
 # Data structure for a struct, e.g. {a: <type>, b: <type>}
@@ -185,9 +189,8 @@ class StructType(TupleLike):
         prefix = 'struct ' + self.name + ': ' if self.name else ''
         return prefix + '{' + ', '.join([k + ': ' + repr(v) for k, v in self.members.items()]) + '}'
 
-    def get_tuple_members(self):
-        return list(self.members.values())
-
+    def tuple_items(self):
+        return list(self.members.items())
 
 # Data structure for a list with heterogeneous types, e.g. [int128, bytes32, bytes]
 class TupleType(TupleLike):
@@ -201,8 +204,8 @@ class TupleType(TupleLike):
     def __repr__(self):
         return '(' + ', '.join([repr(m) for m in self.members]) + ')'
 
-    def get_tuple_members(self):
-        return self.members
+    def tuple_items(self):
+        return enumerate(self.members)
 
 
 # Data structure for the type used by None/null
@@ -225,7 +228,7 @@ def canonicalize_type(t, is_indexed=False):
         return canonicalize_type(t.subtype) + "[%d]" % t.count
     if isinstance(t, TupleLike):
         return "({})".format(
-            ",".join(canonicalize_type(x) for x in t.get_tuple_members())
+            ",".join(canonicalize_type(x) for x in t.tuple_members())
         )
     if not isinstance(t, BaseType):
         raise Exception("Cannot canonicalize non-base type: %r" % t)
@@ -385,7 +388,7 @@ def get_size_of_type(typ):
     elif isinstance(typ, MappingType):
         raise Exception("Maps are not supported for function arguments or outputs.")
     elif isinstance(typ, TupleLike):
-        return sum([get_size_of_type(v) for v in typ.get_tuple_members()])
+        return sum([get_size_of_type(v) for v in typ.tuple_members()])
     else:
         raise Exception("Unexpected type: %r" % repr(typ))
 

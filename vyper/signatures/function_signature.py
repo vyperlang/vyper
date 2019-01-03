@@ -150,7 +150,7 @@ class FunctionSignature():
         elif isinstance(t, TupleType):
             res = [(canonicalize_type(x), print_unit(unit_from_type(x), custom_units_descriptions)) for x in t.members]
         elif isinstance(t, TupleLike):
-            res = [(canonicalize_type(x), print_unit(unit_from_type(x), custom_units_descriptions)) for x in t.get_tuple_members()]
+            res = [(canonicalize_type(x), print_unit(unit_from_type(x), custom_units_descriptions)) for x in t.tuple_members()]
         else:
             res = [(canonicalize_type(t), print_unit(unit_from_type(t), custom_units_descriptions))]
 
