@@ -706,16 +706,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 arg = args[0]
                 if not isinstance(arg, ast.Dict):
                     raise TypeMismatchException("Struct can only be constructed with a dict", self.expr)
-                sub = Expr.struct_literals(arg, self.context)
-                if sub.typ.name is not None:
-                    raise TypeMismatchException("Struct can only be constructed with a dict", self.expr)
-
-                typ = StructType(sub.typ.members, function_name)
-
-                # OR:
-                # sub.typ = typ
-                # return sub
-                return LLLnode(sub.value, typ=typ, args=sub.args, location=sub.location, pos=getpos(self.expr), add_gas_estimate=sub.add_gas_estimate, valency=sub.valency, annotation=function_name)
+                return Expr.struct_literals(arg, function_name, self.context)
 
             else:
                 err_msg = "Not a top-level function: {}".format(function_name)
@@ -763,7 +754,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         )
         raise InvalidLiteralException("Invalid literal: %r" % ast.dump(self.expr), self.expr)
 
-    def struct_literals(expr, context):
+    def struct_literals(expr, name, context):
         o = {}
         members = {}
         for key, value in zip(expr.keys, expr.values):
@@ -773,7 +764,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 raise TypeMismatchException("Member variable duplicated: " + key.id, key)
             o[key.id] = Expr(value, context).lll_node
             members[key.id] = o[key.id].typ
-        return LLLnode.from_list(["multi"] + [o[key] for key in (list(o.keys()))], typ=StructType(members, None, is_literal=True), pos=getpos(expr))
+        return LLLnode.from_list(["multi"] + [o[key] for key in (list(o.keys()))], typ=StructType(members, name, is_literal=True), pos=getpos(expr))
 
     def tuple_literals(self):
         if not len(self.expr.elts):
