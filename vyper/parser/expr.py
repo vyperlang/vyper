@@ -772,7 +772,8 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         o = []
         for elt in self.expr.elts:
             o.append(Expr(elt, self.context).lll_node)
-        return LLLnode.from_list(["multi"] + o, typ=TupleType(o, is_literal=True), pos=getpos(self.expr))
+        typ = TupleType([x.typ for x in o], is_literal=True)
+        return LLLnode.from_list(["multi"] + o, typ=typ, pos=getpos(self.expr))
 
     # Parse an expression that results in a value
     def parse_value_expr(expr, context):

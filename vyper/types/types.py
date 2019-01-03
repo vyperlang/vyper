@@ -205,7 +205,7 @@ class TupleType(TupleLike):
         return '(' + ', '.join([repr(m) for m in self.members]) + ')'
 
     def tuple_items(self):
-        return enumerate(self.members)
+        return list(enumerate(self.members))
 
 
 # Data structure for the type used by None/null
