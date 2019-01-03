@@ -393,6 +393,19 @@ def get_size_of_type(typ):
         raise Exception("Unexpected type: %r" % repr(typ))
 
 
+def has_dynamic_data(typ):
+    if isinstance(typ, BaseType):
+        return False
+    elif isinstance(typ, ByteArrayType):
+        return True
+    elif isinstance(typ, ListType):
+        return has_dynamic_data(typ.subtype)
+    elif isinstance(typ, TupleLike):
+        return any([has_dynamic_data(v) for v in typ.tuple_members()])
+    else:
+        raise Exception("Unexpected type: %r" % repr(typ))
+
+
 def get_type(input):
     if not hasattr(input, 'typ'):
         typ, len = 'num_literal', 32

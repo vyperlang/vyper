@@ -24,6 +24,7 @@ from vyper.types import (
     is_base_type,
     are_units_compatible,
     get_size_of_type,
+    has_dynamic_data,
     ceil32
 )
 from vyper.utils import (
@@ -330,10 +331,16 @@ def pack_arguments(signature, args, context, pos, return_placeholder=True):
                                                     make_byte_array_copier(target, arg_copy, pos),
                                                     ['set', '_poz', ['add', 32, ['ceil32', ['add', '_poz', get_length(arg_copy)]]]]]])
             needpos = True
-        elif isinstance(typ, ListType):
+        elif isinstance(typ, (StructType, ListType)):
+            if has_dynamic_data(typ):
+                raise TypeMismatchException("Cannot pack bytearray in struct")
             target = LLLnode.from_list([placeholder + 32 + staticarray_offset + i * 32], typ=typ, location='memory')
             setters.append(make_setter(target, arg, 'memory', pos=pos))
-            staticarray_offset += 32 * (typ.count - 1)
+            if (isinstance(typ, ListType)):
+                count = typ.count
+            else:
+                count = len(typ.tuple_items())
+            staticarray_offset += 32 * (count - 1)
         else:
             raise TypeMismatchException("Cannot pack argument of type %r" % typ)
 

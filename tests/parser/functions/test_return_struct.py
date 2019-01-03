@@ -42,6 +42,8 @@ def pub1() -> Foo:
 @private
 def priv2() -> Foo:
     foo: Foo
+    foo.x = 3
+    foo.y = 4
     return foo
 @public
 def pub2() -> Foo:
@@ -49,22 +51,32 @@ def pub2() -> Foo:
 
 @public
 def pub3() -> Foo:
+    self._foo = Foo({x: 5, y: 6})
     return self._foo
 
 @public
 def pub4() -> Foo:
+   self._foos[0] = Foo({x: 7, y: 8})
    return self._foos[0]
 
-#@private
-#def priv5(foo: Foo) -> Foo:
-#    return foo
-#@public
-#def pub5(foo: Foo) -> Foo:
-#    return self.priv5(foo)
+@private
+def return_arg(foo: Foo) -> Foo:
+    return foo
+@public
+def pub5(foo: Foo) -> Foo:
+    return self.return_arg(foo)
+@public
+def pub6() -> Foo:
+    foo: Foo = Foo({x: 123, y: 456})
+    return self.return_arg(foo)
     """
     foo = [123, 456]
 
     c = get_contract_with_gas_estimation(code)
 
     assert c.pub1() == [1,2]
-    #assert c.pub5(foo) == foo
+    assert c.pub2() == [3,4]
+    assert c.pub3() == [5,6]
+    assert c.pub4() == [7,8]
+    #assert c.pub5(foo) == foo # eth_abi tuple interpretation issue
+    assert c.pub6() == foo
