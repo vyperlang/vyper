@@ -138,22 +138,22 @@ Operator    Description
 Arithmetic Operators
 ^^^^^^^^^^^^^^^^^^^^
 
-=======================  ======================
-Operator                 Description
-=======================  ======================
-``uint256_add(x, y)``     Addition
-``uint256_sub(x, y)``     Subtraction
-``uint256_addmod(x, y)``  Modular addition
-``uint256_mul(x, y)``     Multiplication
-``uint256_mulmod(x, y)``  Modular multiplication
-``uint256_div(x, y)``     Division
-``uint256_exp(x, y)``     Exponentiation
-``uint256_mod(x, y)``     Modulo
-``min(x, y)``            Minimum
-``max(x, y)``            Maximum
-=======================  ======================
+===========================  ======================
+Operator                     Description
+===========================  ======================
+``x + y``                    Addition
+``x - y``                    Subtraction
+``uint256_addmod(x, y, z)``  Modular addition
+``x * y``                    Multiplication
+``uint256_mulmod(x, y, z)``  Modular multiplication
+``x / y``                    Division
+``x**y``                     Exponentiation
+``x % y``                    Modulo
+``min(x, y)``                Minimum
+``max(x, y)``                Maximum
+===========================  ======================
 
-``x`` and ``y`` must be of the type ``uint256``.
+``x``, ``y`` and ``z`` must be of the type ``uint256``.
 
 Bitwise Operators
 ^^^^^^^^^^^^^^^^^
