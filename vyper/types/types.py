@@ -167,9 +167,11 @@ class MappingType(NodeType):
 # Type which has heterogeneous members, i.e. Tuples and Structs
 class TupleLike(NodeType):
     def tuple_members(self):
-        return [v for (_k,v) in self.tuple_items()]
+        return [v for (_k, v) in self.tuple_items()]
+
     def tuple_keys(self):
-        return [k for (k,_v) in self.tuple_items()]
+        return [k for (k, _v) in self.tuple_items()]
+
     def tuple_items(self):
         raise NotImplementedError("compiler panic!: tuple_items must be implemented by TupleLike")
 
@@ -191,6 +193,7 @@ class StructType(TupleLike):
 
     def tuple_items(self):
         return list(self.members.items())
+
 
 # Data structure for a list with heterogeneous types, e.g. [int128, bytes32, bytes]
 class TupleType(TupleLike):

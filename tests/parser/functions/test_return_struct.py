@@ -74,9 +74,9 @@ def pub6() -> Foo:
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.pub1() == [1,2]
-    assert c.pub2() == [3,4]
-    assert c.pub3() == [5,6]
-    assert c.pub4() == [7,8]
-    #assert c.pub5(foo) == foo # eth_abi tuple interpretation issue
+    assert c.pub1() == [1, 2]
+    assert c.pub2() == [3, 4]
+    assert c.pub3() == [5, 6]
+    assert c.pub4() == [7, 8]
+    # assert c.pub5(foo) == foo # eth_abi tuple interpretation issue
     assert c.pub6() == foo

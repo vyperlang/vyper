@@ -18,6 +18,7 @@ from vyper.types import (
     StructType,
     MappingType,
     TupleType,
+    TupleLike,
     ListType,
 )
 from vyper.types import (
