@@ -23,38 +23,48 @@ def test() -> Voter:
     assert c.test() == [123, True]
 
 
-# def test_struct_return(get_contract_with_gas_estimation):
-#     code = """
-# ### proof-of-concept.vy
-# struct Foo:
-#   x: int128
-#   y: uint256
+def test_struct_return(get_contract_with_gas_estimation):
+    code = """
+struct Foo:
+  x: int128
+  y: uint256
 
-# _foo: Foo
-# _foos: map(int128, Foo)
+_foo: Foo
+_foos: map(int128, Foo)
 
-# @private
-# def passFoo(foo: Foo) -> int128:
-#     return foo.x
+@private
+def priv1() -> Foo:
+    return Foo({x: 1, y: 2})
+@public
+def pub1() -> Foo:
+    return self.priv1()
 
-# @private
-# def retFoo() -> Foo:
-#     return Foo({x: 1})
+@private
+def priv2() -> Foo:
+    foo: Foo
+    return foo
+@public
+def pub2() -> Foo:
+    return self.priv2()
 
-# @private
-# def retFoo2() -> Foo:
-#     foo: Foo
-#     return foo
+@public
+def pub3() -> Foo:
+    return self._foo
 
-# @private
-# def retFoo3() -> Foo:
-#     return self._foo
+@public
+def pub4() -> Foo:
+   return self._foos[0]
 
-# @private
-# def retFoo4() -> Foo:
-#    return self._foos[0]
-#     """
+#@private
+#def priv5(foo: Foo) -> Foo:
+#    return foo
+#@public
+#def pub5(foo: Foo) -> Foo:
+#    return self.priv5(foo)
+    """
+    foo = [123, 456]
 
-#     c = get_contract_with_gas_estimation(code)
+    c = get_contract_with_gas_estimation(code)
 
-#     assert c.passFoo()
+    assert c.pub1() == [1,2]
+    #assert c.pub5(foo) == foo
