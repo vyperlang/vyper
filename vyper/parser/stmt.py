@@ -625,6 +625,9 @@ class Stmt(object):
 
         # Returning a struct
         elif isinstance(sub.typ, StructType):
+            retty = self.context.return_type
+            if not isinstance(retty, StructType) or retty.name != sub.typ.name:
+                raise TypeMismatchException("Trying to return %r, output expecting %r" % (sub.typ, self.context.return_type), self.stmt.value)
             return gen_tuple_return(self.stmt, self.context, sub)
 
         # Returning a tuple.
