@@ -239,7 +239,7 @@ Takes two elliptical curves and multiplies them together.
     :type a: bytes
     :param b: start point of bytes to be extracted
     :type b: int128
-    :param c: type of output
+    :param c: type of output (Optional, default: bytes32)
     :type c: either bytes32, int128, or address
 
     :output d: either bytes32, int128, or address
