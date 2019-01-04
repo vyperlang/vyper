@@ -17,7 +17,7 @@ The technical specification should describe the syntax and semantics of any new 
 ## Backwards Compatibility
 All VIPs that introduce backwards incompatibilities must include a section describing these incompatibilities and their severity. The VIP must explain how the author proposes to deal with these incompatibilities.
 
-## Dependancies
+## Dependencies
 If this VIP depends on any other VIPs being implemented, please mention them.
 
 ## Copyright
