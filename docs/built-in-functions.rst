@@ -137,9 +137,9 @@ Returns the length of a given list of bytes.
   def concat(a, b, ...) -> c:
     """
     :param a: value to combine
-    :type a: bytes
+    :type a: bytes, bytes32
     :param b: value to combine
-    :type b: bytes
+    :type b: bytes, bytes32
 
     :output b: bytes
     """
