@@ -39,9 +39,6 @@ from vyper.types import (
     parse_type,
     NodeType
 )
-from vyper.types import (
-    are_units_compatible,
-)
 from vyper.utils import (
     SizeLimits,
     sha3,
@@ -594,11 +591,12 @@ class Stmt(object):
         self.context.increment_return_counter()
         # Returning a value (most common case)
         if isinstance(sub.typ, BaseType):
-            if not isinstance(self.context.return_type, BaseType):
-                raise TypeMismatchException("Trying to return base type %r, output expecting %r" % (sub.typ, self.context.return_type), self.stmt.value)
             sub = unwrap_location(sub)
-            if not are_units_compatible(sub.typ, self.context.return_type):
+
+            if not isinstance(self.context.return_type, BaseType):
                 raise TypeMismatchException("Return type units mismatch %r %r" % (sub.typ, self.context.return_type), self.stmt.value)
+            elif self.context.return_type != sub.typ and not sub.typ.is_literal:
+                raise TypeMismatchException("Trying to return base type %r, output expecting %r" % (sub.typ, self.context.return_type), self.stmt.value)
             elif sub.typ.is_literal and (self.context.return_type.typ == sub.typ or 'int' in self.context.return_type.typ and 'int' in sub.typ.typ):
                 if not SizeLimits.in_bounds(self.context.return_type.typ, sub.value):
                     raise InvalidLiteralException("Number out of range: " + str(sub.value), self.stmt)

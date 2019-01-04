@@ -43,9 +43,6 @@ def to_bool(expr, args, kwargs, context):
                 pos=getpos(expr)
             )
 
-    elif in_arg.typ.is_literal and in_arg.typ.typ == 'bool':
-        raise InvalidLiteralException("Cannot convert to `bool` with boolean input literal.", expr)
-
     else:
         return LLLnode.from_list(
             ['iszero', ['iszero', in_arg]],

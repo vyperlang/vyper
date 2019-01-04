@@ -270,13 +270,14 @@ def add_variable_offset(parent, key, pos):
 
 
 # Convert from one base type to another
-def base_type_conversion(orig, frm, to, pos):
+def base_type_conversion(orig, frm, to, pos, in_function_call=False):
     orig = unwrap_location(orig)
-    if getattr(frm, 'is_literal', False) and frm.typ in ('int128', 'uint256') and not SizeLimits.in_bounds(frm.typ, orig.value):
-        raise InvalidLiteralException("Number out of range: " + str(orig.value), pos)
-    # # Valid bytes[32] to bytes32 assignment.
-    # if isinstance(to, BaseType) and to.typ = 'bytes32' and isinstance(frm, ByteArrayType) and frm.maxlen == 32:
-    #     return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
+    if getattr(frm, 'is_literal', False) and frm.typ in ('int128', 'uint256'):
+        if not SizeLimits.in_bounds(frm.typ, orig.value):
+            raise InvalidLiteralException("Number out of range: " + str(orig.value), pos)
+        # Special Case: Literals in function calls should always convey unit type as well.
+        if in_function_call and not (frm.unit == to.unit and frm.positional == to.positional):
+            raise InvalidLiteralException("Function calls require explicit unit definitions on calls, expected %r" % to, pos)
     if not isinstance(frm, (BaseType, NullType)) or not isinstance(to, BaseType):
         raise TypeMismatchException("Base type conversion from or to non-base type: %r %r" % (frm, to), pos)
     elif is_base_type(frm, to.typ) and are_units_compatible(frm, to):
@@ -321,7 +322,7 @@ def pack_arguments(signature, args, context, pos, return_placeholder=True):
 
     for i, (arg, typ) in enumerate(zip(args, [arg.typ for arg in signature.args])):
         if isinstance(typ, BaseType):
-            setters.append(make_setter(LLLnode.from_list(placeholder + staticarray_offset + 32 + i * 32, typ=typ), arg, 'memory', pos=pos))
+            setters.append(make_setter(LLLnode.from_list(placeholder + staticarray_offset + 32 + i * 32, typ=typ), arg, 'memory', pos=pos, in_function_call=True))
         elif isinstance(typ, ByteArrayType):
             setters.append(['mstore', placeholder + staticarray_offset + 32 + i * 32, '_poz'])
             arg_copy = LLLnode.from_list('_s', typ=arg.typ, location=arg.location)
@@ -355,10 +356,10 @@ def pack_arguments(signature, args, context, pos, return_placeholder=True):
 
 
 # Create an x=y statement, where the types may be compound
-def make_setter(left, right, location, pos):
+def make_setter(left, right, location, pos, in_function_call=False):
     # Basic types
     if isinstance(left.typ, BaseType):
-        right = base_type_conversion(right, right.typ, left.typ, pos)
+        right = base_type_conversion(right, right.typ, left.typ, pos, in_function_call=in_function_call)
         if location == 'storage':
             return LLLnode.from_list(['sstore', left, right], typ=None)
         elif location == 'memory':
