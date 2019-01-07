@@ -129,7 +129,7 @@ class Context():
         # check if value is compatible with
         const = self.constants[const_name]
         if isinstance(const, ast.AnnAssign):  # Handle ByteArrays.
-            expr = Expr(const.value, self.context).lll_node
+            expr = Expr(const.value, self).lll_node
             return expr
         # Other types are already unwrapped, no need
         return self.constants[const_name]

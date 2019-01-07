@@ -81,6 +81,19 @@ test_a : constant(int128) = 2188824287183927522224640574525
     """,
     """
 test_a: constant(uint256) = MAX_UINT256
+    """,
+    """
+TEST_C: constant(int128) = 1
+TEST_WEI: constant(uint256(wei)) = 1
+
+@private
+def test():
+   raw_call(0x0000000000000000000000000000000000000005, 'hello', outsize=TEST_C, gas=2000)
+
+@private
+def test1():
+    # Expecting num_literal for argument 'outsize' of raw_call
+    raw_call(0x0000000000000000000000000000000000000005, 'hello', outsize=256, gas=TEST_WEI)
     """
 ]
 
