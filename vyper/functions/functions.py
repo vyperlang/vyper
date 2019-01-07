@@ -364,7 +364,13 @@ def as_wei_value(expr, args, kwargs, context):
             denomination = denom
             break
     else:
-        raise InvalidLiteralException("Invalid denomination: %s" % args[1], expr.args[1])
+        raise InvalidLiteralException(
+            "Invalid denomination: %s, valid denominations are: %s" % (
+                args[1],
+                ",".join(x[0].decode() for x in names_denom)
+            ),
+            expr.args[1]
+        )
     # Compute the amount of wei and return that value
     if isinstance(args[0], (int, float)):
         numstring, num, den = get_number_as_fraction(expr.args[0], context)

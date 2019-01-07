@@ -70,6 +70,18 @@ def test() -> int128:
     """
 TREE_FIDDY: constant(uint256(wei))  = as_wei_value(350, 'ether')
     """
+    """
+FOO: constant(int128) = 100
+    """,
+    """
+test_a : constant(uint256) = 21888242871839275222246405745257275088696311157297823662689037894645226208583
+    """,
+    """
+test_a : constant(int128) = 2188824287183927522224640574525
+    """,
+    """
+test_a: constant(uint256) = MAX_UINT256
+    """
 ]
 
 
