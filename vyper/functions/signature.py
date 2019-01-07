@@ -39,6 +39,8 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
     vsub = None
     for expected_arg in expected_arg_typelist:
         if expected_arg == 'num_literal':
+            if context.is_constant_of_base_type(arg, ('uint256', 'int128')):
+                return context.get_constant(arg.id).value
             if isinstance(arg, ast.Num) and get_original_if_0_prefixed(arg, context) is None:
                 return arg.n
         elif expected_arg == 'str_literal':

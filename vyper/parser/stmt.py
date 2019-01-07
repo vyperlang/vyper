@@ -348,11 +348,8 @@ class Stmt(object):
         valid = False
         if isinstance(arg, ast.Num):
             valid = True
-        if isinstance(arg, ast.Name) and arg.id in self.context.constants:
-            const = self.context.constants[arg.id]
-            if isinstance(const.typ, BaseType) and const.typ.typ in ('uint256', 'int128'):
-                valid = True
-
+        if self.context.is_constant_of_base_type(arg, ('uint256', 'int128')):
+            valid = True
         if not valid and raise_exception:
             raise StructureException("Range only accepts literal (constant) values", arg)
 
