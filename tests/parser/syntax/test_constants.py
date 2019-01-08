@@ -43,6 +43,14 @@ VAL: constant(bytes[4]) = "testtest"
     ("""
 VAL: constant(bytes[4]) = "t"
 VAL: uint256
+    """, VariableDeclarationException),
+    # signature variable with same name
+    ("""
+VAL: constant(bytes[4]) = "t"
+
+@public
+def test(VAL: uint256):
+    pass
     """, VariableDeclarationException)
 ]
 
