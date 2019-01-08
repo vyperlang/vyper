@@ -19,20 +19,23 @@ from vyper.types import (
 from vyper.utils import (
     fourbytes_to_int,
     is_varname_valid,
+    check_valid_varname,
     function_whitelist,
     sha3,
 )
+from vyper.parser.parser_utils import getpos
 from vyper.parser.lll_node import LLLnode
 
 
 # Function argument
 class VariableRecord():
-    def __init__(self, name, pos, typ, mutable, blockscopes=[]):
+    def __init__(self, name, pos, typ, mutable, blockscopes=None, defined_at=None):
         self.name = name
         self.pos = pos
         self.typ = typ
         self.mutable = mutable
-        self.blockscopes = blockscopes
+        self.blockscopes = [] if blockscopes is None else blockscopes
+        self.defined_at = defined_at  # source code location variable record was defined.
 
     @property
     def size(self):
@@ -71,30 +74,36 @@ class FunctionSignature():
 
     # Get a signature from a function definition
     @classmethod
-    def from_definition(cls, code, sigs=None, custom_units=None, custom_structs=None, contract_def=False, constant=False):
+    def from_definition(cls, code, sigs=None, custom_units=None, custom_structs=None, contract_def=False, constants=None, constant=False):
         if not custom_structs:
             custom_structs = {}
-        name = code.name
-        pos = 0
 
-        if (not name.lower() in function_whitelist) and (not is_varname_valid(name, custom_units=custom_units, custom_structs=custom_structs)):
-            raise FunctionDeclarationException("Function name invalid: " + name)
+        name = code.name
+        mem_pos = 0
+
+        valid_name, msg = is_varname_valid(name, custom_units, custom_structs, constants)
+        if not valid_name and (not name.lower() in function_whitelist):
+            raise FunctionDeclarationException("Function name invalid. " + msg, code)
+
         # Determine the arguments, expects something of the form def foo(arg1: int128, arg2: int128 ...
         args = []
         for arg in code.args.args:
+            # Each arg needs a type specified.
             typ = arg.annotation
             if not typ:
                 raise InvalidTypeException("Argument must have type", arg)
-            if not is_varname_valid(arg.arg, custom_units=custom_units, custom_structs=custom_structs):
-                raise FunctionDeclarationException("Argument name invalid or reserved: " + arg.arg, arg)
+            # Validate arg name.
+            check_valid_varname(arg.arg, custom_units, custom_structs, constants, arg, "Argument name invalid or reserved")
+            # Check for duplicate arg name.
             if arg.arg in (x.name for x in args):
                 raise FunctionDeclarationException("Duplicate function argument name: " + arg.arg, arg)
-            parsed_type = parse_type(typ, None, sigs, custom_units=custom_units, custom_structs=custom_structs)
-            args.append(VariableRecord(arg.arg, pos, parsed_type, False))
+            parsed_type = parse_type(typ, None, sigs, custom_units=custom_units, custom_structs=custom_structs, constants=constants)
+            args.append(VariableRecord(arg.arg, mem_pos, parsed_type, False, defined_at=getpos(arg)))
+
             if isinstance(parsed_type, ByteArrayType):
-                pos += 32
+                mem_pos += 32
             else:
-                pos += get_size_of_type(parsed_type) * 32
+                mem_pos += get_size_of_type(parsed_type) * 32
 
         # Apply decorators
         const, payable, private, public = False, False, False, False
@@ -129,7 +138,7 @@ class FunctionSignature():
         if not code.returns:
             output_type = None
         elif isinstance(code.returns, (ast.Name, ast.Compare, ast.Subscript, ast.Call, ast.Tuple)):
-            output_type = parse_type(code.returns, None, sigs, custom_units=custom_units, custom_structs=custom_structs)
+            output_type = parse_type(code.returns, None, sigs, custom_units=custom_units, custom_structs=custom_structs, constants=constants)
         else:
             raise InvalidTypeException("Output type invalid or unsupported: %r" % parse_type(code.returns, None), code.returns, )
         # Output type must be canonicalizable
