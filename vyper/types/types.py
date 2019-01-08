@@ -278,7 +278,10 @@ def make_struct_type(name, location, members, custom_units, custom_structs):
 
 # Parses an expression representing a type. Annotation refers to whether
 # the type is to be located in memory or storage
-def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None):
+def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None, constants=None):
+    if constants is None:
+        from vyper.parser.constants import Constants
+        constants = Constants()
 
     # Base and custom types, e.g. num
     if isinstance(item, ast.Name):
@@ -327,18 +330,21 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
         return BaseType(base_type, unit, positional)
     # Subscripts
     elif isinstance(item, ast.Subscript):
+
         if 'value' not in vars(item.slice):
             raise InvalidTypeException("Array / ByteArray access must access a single element, not a slice", item)
         # Fixed size lists or bytearrays, e.g. num[100]
-        elif isinstance(item.slice.value, ast.Num):
-            if not isinstance(item.slice.value.n, int) or item.slice.value.n <= 0:
+        is_constant_val = constants.ast_is_constant(item.slice.value)
+        if isinstance(item.slice.value, ast.Num) or is_constant_val:
+            n_val = constants.get_constant(item.slice.value.id).value if is_constant_val else item.slice.value.n
+            if not isinstance(n_val, int) or n_val <= 0:
                 raise InvalidTypeException("Arrays / ByteArrays must have a positive integral number of elements", item.slice.value)
             # ByteArray
             if getattr(item.value, 'id', None) == 'bytes':
-                return ByteArrayType(item.slice.value.n)
+                return ByteArrayType(n_val)
             # List
             else:
-                return ListType(parse_type(item.value, location, custom_units=custom_units, custom_structs=custom_structs), item.slice.value.n)
+                return ListType(parse_type(item.value, location, custom_units=custom_units, custom_structs=custom_structs), n_val)
         # Mappings, e.g. num[address]
         else:
             warnings.warn(
