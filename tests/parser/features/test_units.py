@@ -1,3 +1,6 @@
+from vyper.exceptions import InvalidLiteralException
+
+
 def test_function_with_units(get_contract_with_gas_estimation):
     code = """
 units: {
@@ -94,3 +97,18 @@ def foo(a: uint256, b: uint256, c: uint256) -> uint256:
         {"type": "uint256", "name": "b"},
         {"type": "uint256", "name": "c"},
     ]
+
+
+def test_function_call_explicit_unit_literal(get_contract, assert_compile_failed):
+    code = """
+@public
+def unit_func(a: uint256(wei)) -> uint256(wei):
+    return a + 1
+
+@public
+def foo() -> uint256(wei):
+    c: uint256(wei) = self.unit_func(111)
+    return c
+    """
+
+    assert_compile_failed(lambda: get_contract(code), InvalidLiteralException)

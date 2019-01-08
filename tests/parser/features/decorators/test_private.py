@@ -503,3 +503,26 @@ def test(z: int128) -> bool:
     assert c.test(-1) is True
     assert c.test(0) is True
     assert c.test(1) is False
+
+
+def test_private_call_expr(get_contract):
+    code = """
+test: public(bool)
+
+
+@private
+def foo():
+    self.test = True
+
+
+@public
+def start():
+    if True:
+        self.foo()
+    """
+
+    c = get_contract(code)
+
+    assert c.test() is False
+    c.start(transact={})
+    assert c.test() is True

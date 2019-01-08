@@ -2,6 +2,7 @@ from vyper.exceptions import (
     ParserException,
     ConstancyViolationException,
     InvalidLiteralException,
+    TypeMismatchException,
 )
 
 
@@ -179,3 +180,79 @@ def get() -> int128:
     c = get_contract_with_gas_estimation(code)
     assert c.set(transact={})
     assert c.get() == 111
+
+
+def test_invalid_implicit_conversions(assert_compile_failed, get_contract_with_gas_estimation):
+    contracts = [
+"""
+@public
+def foo():
+   y: int128 = 1
+   z: decimal = y
+""",
+"""
+@public
+def foo():
+    y: int128 = 1
+    z: decimal
+    z = y
+""",
+"""
+@public
+def foo():
+   y: bool = False
+   z: decimal = y
+""",
+"""
+@public
+def foo():
+    y: bool = False
+    z: decimal
+    z = y
+""",
+"""
+@public
+def foo():
+   y: uint256 = 1
+   z: int128 = y
+""",
+"""
+@public
+def foo():
+    y: uint256 = 1
+    z: int128
+    z = y
+""",
+"""
+@public
+def foo():
+   y: int128 = 1
+   z: bytes32 = y
+""",
+"""
+@public
+def foo():
+    y: int128 = 1
+    z: bytes32
+    z = y
+""",
+"""
+@public
+def foo():
+   y: uint256 = 1
+   z: bytes32 = y
+""",
+"""
+@public
+def foo():
+    y: uint256 = 1
+    z: bytes32
+    z = y
+"""
+    ]
+
+    for contract in contracts:
+        assert_compile_failed(
+            lambda: get_contract_with_gas_estimation(contract),
+            TypeMismatchException
+        )

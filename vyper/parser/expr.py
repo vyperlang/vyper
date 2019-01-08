@@ -85,10 +85,10 @@ class Expr(object):
         if orignum is None and isinstance(self.expr.n, int):
             # Literal (mostly likely) becomes int128
             if SizeLimits.in_bounds('int128', self.expr.n) or self.expr.n < 0:
-                return LLLnode.from_list(self.expr.n, typ=BaseType('int128', unit=None, is_literal=True), pos=getpos(self.expr))
+                return LLLnode.from_list(self.expr.n, typ=BaseType('int128', unit={}, is_literal=True), pos=getpos(self.expr))
             # Literal is large enough (mostly likely) becomes uint256.
             else:
-                return LLLnode.from_list(self.expr.n, typ=BaseType('uint256', unit=None, is_literal=True), pos=getpos(self.expr))
+                return LLLnode.from_list(self.expr.n, typ=BaseType('uint256', unit={}, is_literal=True), pos=getpos(self.expr))
 
         elif isinstance(self.expr.n, float):
             numstring, num, den = get_number_as_fraction(self.expr, self.context)
@@ -352,7 +352,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
 
         ltyp, rtyp = left.typ.typ, right.typ.typ
         if isinstance(self.expr.op, (ast.Add, ast.Sub)):
-            if left.typ.unit != right.typ.unit and left.typ.unit is not None and right.typ.unit is not None:
+            if left.typ.unit != right.typ.unit and left.typ.unit != {} and right.typ.unit != {}:
                 raise TypeMismatchException("Unit mismatch: %r %r" % (left.typ.unit, right.typ.unit), self.expr)
             if left.typ.positional and right.typ.positional and isinstance(self.expr.op, ast.Add):
                 raise TypeMismatchException("Cannot add two positional units!", self.expr)
@@ -411,7 +411,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         elif isinstance(self.expr.op, ast.Mod):
             if left.typ.positional or right.typ.positional:
                 raise TypeMismatchException("Cannot use positional values as modulus arguments!", self.expr)
-            if left.typ.unit != right.typ.unit and left.typ.unit is not None and right.typ.unit is not None:
+            if not are_units_compatible(left.typ, right.typ) and not (left.typ.unit or right.typ.unit):
                 raise TypeMismatchException("Modulus arguments must have same unit", self.expr)
             new_unit = left.typ.unit or right.typ.unit
             if ltyp == rtyp == 'uint256':
@@ -468,8 +468,9 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         left = Expr(self.expr.left, self.context).lll_node
         right = Expr(self.expr.comparators[0], self.context).lll_node
 
-        if left.typ.typ != right.typ.subtype.typ:
-            raise TypeMismatchException("%s cannot be in a list of %s" % (left.typ.typ, right.typ.subtype.typ))
+        if left.typ != right.typ.subtype:
+            raise TypeMismatchException("%s cannot be in a list of %s" % (left.typ, right.typ.subtype))
+
         result_placeholder = self.context.new_placeholder(BaseType('bool'))
         setter = []
 
@@ -549,7 +550,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 raise ParserException('Can only compare bytes of length shorter than 32 bytes', self.expr)
         elif isinstance(self.expr.ops[0], ast.In) and \
            isinstance(right.typ, ListType):
-            if not are_units_compatible(left.typ, right.typ.subtype) and not are_units_compatible(right.typ.subtype, left.typ):
+            if left.typ != right.typ.subtype:
                 raise TypeMismatchException("Can't use IN comparison with different types!", self.expr)
             return self.build_in_comparator()
         else:
@@ -730,18 +731,31 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             return external_call.make_external_call(self.expr, self.context)
 
     def list_literals(self):
+
         if not len(self.expr.elts):
             raise StructureException("List must have elements", self.expr)
+
+        def get_out_type(lll_node):
+            if isinstance(lll_node, ListType):
+                return get_out_type(lll_node.subtype)
+            return lll_node.typ
+
         o = []
+        previous_type = None
         out_type = None
+
         for elt in self.expr.elts:
-            o.append(Expr(elt, self.context).lll_node)
+            current_lll_node = Expr(elt, self.context).lll_node
             if not out_type:
-                out_type = o[-1].typ
-            previous_type = o[-1].typ.subtype.typ if hasattr(o[-1].typ, 'subtype') else o[-1].typ
-            current_type = out_type.subtype.typ if hasattr(out_type, 'subtype') else out_type
+                out_type = current_lll_node.typ
+
+            current_type = get_out_type(current_lll_node)
             if len(o) > 1 and previous_type != current_type:
                 raise TypeMismatchException("Lists may only contain one type", self.expr)
+            else:
+                o.append(current_lll_node)
+                previous_type = current_type
+
         return LLLnode.from_list(["multi"] + o, typ=ListType(out_type, len(o)), pos=getpos(self.expr))
 
     def dict_fail(self):

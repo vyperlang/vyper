@@ -64,8 +64,6 @@ Converts a variable/ literal from one type to another.
     """
     :param a: variable to reset to its default value
     :type a: all types
-
-    :output c: either decimal, int128, uint256 or bytes32
     """
 
 Clears a variable's contents to the default value of its type.
@@ -139,9 +137,9 @@ Returns the length of a given list of bytes.
   def concat(a, b, ...) -> c:
     """
     :param a: value to combine
-    :type a: bytes
+    :type a: bytes, bytes32
     :param b: value to combine
-    :type b: bytes
+    :type b: bytes, bytes32
 
     :output b: bytes
     """
@@ -160,7 +158,7 @@ Takes 2 or more bytes arrays of type ``bytes32`` or ``bytes`` and combines them 
     :output b: bytes32
     """
 
-Returns ``keccak256``(Ethereum's sha3) hash of input.
+Returns ``keccak256`` (Ethereum's sha3) hash of input.
 Note that it can be called either by using ``sha3`` or ``keccak256``.
 
 **method_id**
@@ -241,7 +239,7 @@ Takes two elliptical curves and multiplies them together.
     :type a: bytes
     :param b: start point of bytes to be extracted
     :type b: int128
-    :param c: type of output
+    :param c: type of output (Optional, default: bytes32)
     :type c: either bytes32, int128, or address
 
     :output d: either bytes32, int128, or address
@@ -303,7 +301,7 @@ Low Level Functions
     :param a: the destination address to send ether to
     :type a: address
     :param b: the wei value to send to the address
-    :type b: uint256
+    :type b: uint256(wei)
     """
 
 Sends ether from the contract to the specified Ethereum address.
@@ -313,7 +311,7 @@ Note that the amount to send should be specified in wei.
 ------------
 ::
 
-  def raw_call(a, b, outsize=c, gas=d, value=e) -> f:
+  def raw_call(a, b, outsize=c, gas=d, value=e, delegate_call=f) -> g:
     """
     :param a: the destination address to call to
     :type a: address
@@ -323,10 +321,12 @@ Note that the amount to send should be specified in wei.
     :type c: fixed literal value
     :param d: the gas amount to attach to the call.
     :type d: uint256
-    :param e: the wei value to send to the address (Optional)
+    :param e: the wei value to send to the address (Optional, default: 0)
     :type e: uint256
+    :param f: the bool of whether or not to use DELEGATECALL (Optional, default: False)
+    :type f: bool
 
-    :output f: bytes[outsize]
+    :output g: bytes[outsize]
     """
 
 Calls to the specified Ethereum address.
@@ -384,8 +384,8 @@ Emits a log without specifying the abi type, with the arguments entered as the f
     """
     :param a: the address of the contract to duplicate.
     :type a: address
-    :param b: the wei value to send to the new contract instance
-    :type b: uint256 (Optional)
+    :param b: the wei value to send to the new contract instance (Optional, default: 0)
+    :type b: uint256(wei)
     """
 
 Duplicates a contract's code and deploys it as a new instance, by means of a DELEGATECALL.

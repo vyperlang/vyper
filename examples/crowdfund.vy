@@ -7,10 +7,10 @@ struct Funder :
 funders: map(int128, Funder)
 nextFunderIndex: int128
 beneficiary: address
-deadline: timestamp
-goal: wei_value
+deadline: public(timestamp)
+goal: public(wei_value)
 refundIndex: int128
-timelimit: timedelta
+timelimit: public(timedelta)
 
 
 # Setup global variables
@@ -26,7 +26,7 @@ def __init__(_beneficiary: address, _goal: wei_value, _timelimit: timedelta):
 @public
 @payable
 def participate():
-    assert block.timestamp < self.deadline
+    assert block.timestamp < self.deadline, "deadline not met (yet)"
 
     nfi: int128 = self.nextFunderIndex
 
@@ -37,7 +37,8 @@ def participate():
 # Enough money was raised! Send funds to the beneficiary
 @public
 def finalize():
-    assert block.timestamp >= self.deadline and self.balance >= self.goal
+    assert block.timestamp >= self.deadline, "deadline not met (yet)"
+    assert self.balance >= self.goal, "invalid balance"
 
     selfdestruct(self.beneficiary)
 
@@ -55,6 +56,6 @@ def refund():
             return
 
         send(self.funders[i].sender, self.funders[i].value)
-        self.funders[i] = None
+        clear(self.funders[i])
 
     self.refundIndex = ind + 30

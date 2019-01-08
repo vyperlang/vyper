@@ -43,9 +43,6 @@ def to_bool(expr, args, kwargs, context):
                 pos=getpos(expr)
             )
 
-    elif in_arg.typ.is_literal and in_arg.typ.typ == 'bool':
-        raise InvalidLiteralException("Cannot convert to `bool` with boolean input literal.", expr)
-
     else:
         return LLLnode.from_list(
             ['iszero', ['iszero', in_arg]],
@@ -60,14 +57,22 @@ def to_int128(expr, args, kwargs, context):
     input_type, _ = get_type(in_arg)
 
     if input_type == 'bytes32':
-        if in_arg.typ.is_literal and not SizeLimits.in_bounds('int128', in_arg.value):
-            raise InvalidLiteralException("Number out of range: {}".format(in_arg.value), expr)
-        return LLLnode.from_list(
-            ['clamp', ['mload', MemoryPositions.MINNUM],
-            in_arg, ['mload', MemoryPositions.MAXNUM]],
-            typ=BaseType('int128', in_arg.typ.unit),
-            pos=getpos(expr)
-        )
+        if in_arg.typ.is_literal:
+            if not SizeLimits.in_bounds('int128', in_arg.value):
+                raise InvalidLiteralException("Number out of range: {}".format(in_arg.value), expr)
+            else:
+                return LLLnode.from_list(
+                    in_arg,
+                    typ=BaseType('int128', in_arg.typ.unit),
+                    pos=getpos(expr)
+                )
+        else:
+            return LLLnode.from_list(
+                ['clamp', ['mload', MemoryPositions.MINNUM],
+                in_arg, ['mload', MemoryPositions.MAXNUM]],
+                typ=BaseType('int128', in_arg.typ.unit),
+                pos=getpos(expr)
+            )
 
     elif input_type == 'bytes':
         if in_arg.typ.maxlen > 32:
@@ -75,13 +80,22 @@ def to_int128(expr, args, kwargs, context):
         return byte_array_to_num(in_arg, expr, 'int128')
 
     elif input_type == 'uint256':
-        if in_arg.typ.is_literal and not SizeLimits.in_bounds('int128', in_arg.value):
-            raise InvalidLiteralException("Number out of range: {}".format(in_arg.value), expr)
-        return LLLnode.from_list(
-            ['uclample', in_arg, ['mload', MemoryPositions.MAXNUM]],
-            typ=BaseType('int128', in_arg.typ.unit),
-            pos=getpos(expr)
-        )
+        if in_arg.typ.is_literal:
+            if not SizeLimits.in_bounds('int128', in_arg.value):
+                raise InvalidLiteralException("Number out of range: {}".format(in_arg.value), expr)
+            else:
+                return LLLnode.from_list(
+                    in_arg,
+                    typ=BaseType('int128', in_arg.typ.unit),
+                    pos=getpos(expr)
+                )
+
+        else:
+            return LLLnode.from_list(
+                ['uclample', in_arg, ['mload', MemoryPositions.MAXNUM]],
+                typ=BaseType('int128', in_arg.typ.unit),
+                pos=getpos(expr)
+            )
 
     elif input_type == 'bool':
         return LLLnode.from_list(
@@ -140,30 +154,71 @@ def to_uint256(expr, args, kwargs, context):
         raise InvalidLiteralException("Invalid input for uint256: %r" % in_arg, expr)
 
 
-@signature(('int128', 'uint256'), '*')
+@signature(('bool', 'int128', 'uint256', 'bytes32', 'bytes'), '*')
 def to_decimal(expr, args, kwargs, context):
     in_arg = args[0]
     input_type, _ = get_type(in_arg)
-    _unit = in_arg.typ.unit
-    _positional = in_arg.typ.positional
 
-    if input_type == 'uint256':
+    if input_type == 'bytes':
+        if in_arg.typ.maxlen > 32:
+            raise TypeMismatchException("Cannot convert bytes array of max length {} to decimal".format(in_arg.value), expr)
+        num = byte_array_to_num(in_arg, expr, 'int128')
         return LLLnode.from_list(
-            ['uclample', ['mul', in_arg, DECIMAL_DIVISOR],
-            ['mload', MemoryPositions.MAXDECIMAL]],
-            typ=BaseType('decimal', _unit, _positional),
-            pos=getpos(expr)
-        )
-
-    elif input_type == 'int128':
-        return LLLnode.from_list(
-            ['mul', in_arg, DECIMAL_DIVISOR],
-            typ=BaseType('decimal', _unit, _positional),
+            ['mul', num, DECIMAL_DIVISOR],
+            typ=BaseType('decimal'),
             pos=getpos(expr)
         )
 
     else:
-        raise InvalidLiteralException("Invalid input for decimal: %r" % in_arg, expr)
+        _unit = in_arg.typ.unit
+        _positional = in_arg.typ.positional
+
+        if input_type == 'uint256':
+            if in_arg.typ.is_literal:
+                if not SizeLimits.in_bounds('int128', (in_arg.value * DECIMAL_DIVISOR)):
+                    raise InvalidLiteralException("Number out of range: {}".format(in_arg.value), expr)
+                else:
+                    return LLLnode.from_list(
+                        ['mul', in_arg, DECIMAL_DIVISOR],
+                        typ=BaseType('decimal', _unit, _positional),
+                        pos=getpos(expr)
+                    )
+            else:
+                return LLLnode.from_list(
+                    ['uclample', ['mul', in_arg, DECIMAL_DIVISOR],
+                    ['mload', MemoryPositions.MAXDECIMAL]],
+                    typ=BaseType('decimal', _unit, _positional),
+                    pos=getpos(expr)
+                )
+
+        elif input_type == 'bytes32':
+            if in_arg.typ.is_literal:
+                if not SizeLimits.in_bounds('int128', (in_arg.value * DECIMAL_DIVISOR)):
+                    raise InvalidLiteralException("Number out of range: {}".format(in_arg.value), expr)
+                else:
+                    return LLLnode.from_list(
+                        ['mul', in_arg, DECIMAL_DIVISOR],
+                        typ=BaseType('decimal', _unit, _positional),
+                        pos=getpos(expr)
+                    )
+            else:
+                return LLLnode.from_list(
+                    ['clamp', ['mload', MemoryPositions.MINDECIMAL],
+                    ['mul', in_arg, DECIMAL_DIVISOR],
+                    ['mload', MemoryPositions.MAXDECIMAL]],
+                    typ=BaseType('decimal', _unit, _positional),
+                    pos=getpos(expr)
+                )
+
+        elif input_type in ('int128', 'bool'):
+            return LLLnode.from_list(
+                ['mul', in_arg, DECIMAL_DIVISOR],
+                typ=BaseType('decimal', _unit, _positional),
+                pos=getpos(expr)
+            )
+
+        else:
+            raise InvalidLiteralException("Invalid input for decimal: %r" % in_arg, expr)
 
 
 @signature(('int128', 'uint256', 'address', 'bytes', 'bool'), '*')
