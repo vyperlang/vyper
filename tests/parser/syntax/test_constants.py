@@ -100,8 +100,12 @@ def test():
 
 @private
 def test1():
-    # Expecting num_literal for argument 'outsize' of raw_call
     raw_call(0x0000000000000000000000000000000000000005, 'hello', outsize=256, gas=TEST_WEI)
+    """,
+    """
+LIMIT: constant(int128) = 1
+
+myEvent: event({arg1: bytes32[LIMIT]})
     """
 ]
 
