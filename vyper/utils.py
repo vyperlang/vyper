@@ -2,7 +2,10 @@ import binascii
 import re
 
 from collections import OrderedDict
-from vyper.exceptions import InvalidLiteralException
+from vyper.exceptions import (
+    InvalidLiteralException,
+    VariableDeclarationException
+)
 from vyper.opcodes import opcodes
 
 try:
@@ -172,7 +175,7 @@ valid_lll_macros = {
 
 # Is a variable or member variable name valid?
 # Same conditions apply for function names and events
-def is_varname_valid(varname, custom_units, custom_structs):
+def is_varname_valid(varname, custom_units, custom_structs, constants):
     from vyper.functions import dispatch_table, stmt_dispatch_table
     built_in_functions = [x for x in stmt_dispatch_table.keys()] + \
       [x for x in dispatch_table.keys()]
@@ -180,19 +183,37 @@ def is_varname_valid(varname, custom_units, custom_structs):
         custom_units = set()
     if varname.lower() in {cu.lower() for cu in custom_units}:
         return False
+
     # struct names are case sensitive.
     if varname in custom_structs:
-        return False
+        return False, "Duplicate name: %s, previously defined as a struct." % varname
+    if varname in constants:
+        return False, "Duplicate name: %s, previously defined as a constant." % varname
     if varname.lower() in base_types:
-        return False
+        return False, "%name is a base type."
     if varname.lower() in valid_units:
-        return False
+        return False, "%s is a built in unit type." % varname
     if varname.lower() in reserved_words:
-        return False
+        return False, "%s is a a reserved keyword." % varname
     if varname.upper() in opcodes:
-        return False
+        return False, "%s is a reserved keyword (EVM opcode)." % varname
     if varname.lower() in built_in_functions:
-        return False
+        return False, "%s is a built in function."
     if not re.match('^[_a-zA-Z][a-zA-Z0-9_]*$', varname):
-        return False
+        return False, "%s contains invalid character(s)."
+    return True, ""
+
+
+def check_valid_varname(varname, custom_units, custom_structs, constants, pos, error_prefix="Variable name invalid."):
+    """ Handle invalid variable names """
+
+    valid_varname, msg = is_varname_valid(varname, custom_units, custom_structs, constants)
+
+    if not valid_varname:
+        raise VariableDeclarationException(error_prefix + msg, pos)
+
     return True
+
+
+def is_instances(instances, instance_type):
+    return all([isinstance(inst, instance_type) for inst in instances])
