@@ -1,12 +1,8 @@
-import ast
-
-from vyper.parser.expr import Expr
 from vyper.utils import (
     MemoryPositions,
     check_valid_varname,
 )
 from vyper.types import (
-    BaseType,
     get_size_of_type,
 )
 
@@ -116,31 +112,6 @@ class Context():
     # Get the next unused memory location
     def get_next_mem(self):
         return self.next_mem
-
-    def ast_is_constant(self, ast_node):
-        return isinstance(ast_node, ast.Name) and ast_node.id in self.constants
-
-    def is_constant_of_base_type(self, ast_node, base_types):
-        base_types = (base_types) if not isinstance(base_types, tuple) else base_types
-        valid = self.ast_is_constant(ast_node)
-        if not valid:
-            return False
-
-        const = self.constants[ast_node.id]
-        if isinstance(const.typ, BaseType) and const.typ.typ in base_types:
-            return True
-
-        return False
-
-    def get_constant(self, const_name):
-        """ Return unrolled const """
-        # check if value is compatible with
-        const = self.constants[const_name]
-        if isinstance(const, ast.AnnAssign):  # Handle ByteArrays.
-            expr = Expr(const.value, self).lll_node
-            return expr
-        # Other types are already unwrapped, no need
-        return self.constants[const_name]
 
     def parse_type(self, ast_node, location):
         return self.global_ctx.parse_type(ast_node, location)

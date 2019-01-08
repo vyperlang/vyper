@@ -344,24 +344,18 @@ class Stmt(object):
         else:
             return LLLnode.from_list(['assert', test_expr], typ=None, pos=getpos(self.stmt))
 
-    def _check_valid_range_constant(self, arg, raise_exception=True):
-        valid = False
-        if isinstance(arg, ast.Num):
-            valid = True
-        if self.context.constants.is_constant_of_base_type(arg, ('uint256', 'int128')):
-            valid = True
-        if not valid and raise_exception:
-            raise StructureException("Range only accepts literal (constant) values", arg)
+    def _check_valid_range_constant(self, arg_ast_node, raise_exception=True):
+        arg_expr = Expr.parse_value_expr(arg_ast_node, self.context)
+        if isinstance(arg_expr.typ, BaseType) and arg_expr.typ.is_literal and arg_expr.typ.typ in ('uint256', 'int128'):
+            return True, arg_expr
+        else:
+            if raise_exception:
+                raise StructureException("Range only accepts literal (constant) values", arg_expr)
+            return False, arg_expr
 
-        return valid
-
-    def _get_range_const_value(self, const_node):
-        self._check_valid_range_constant(const_node)
-
-        if isinstance(const_node, ast.Num):
-            return const_node.n
-        if isinstance(const_node, ast.Name):
-            return self.context.constants.get_constant(const_node.id, self.context).value
+    def _get_range_const_value(self, arg_ast_node):
+        _, arg_expr = self._check_valid_range_constant(arg_ast_node)
+        return arg_expr.value
 
     def parse_for(self):
         from .parser import (
@@ -392,7 +386,7 @@ class Stmt(object):
             rounds = arg0_val
 
         # Type 2 for, e.g. for i in range(100, 110): ...
-        elif self._check_valid_range_constant(self.stmt.iter.args[1], raise_exception=False):
+        elif self._check_valid_range_constant(self.stmt.iter.args[1], raise_exception=False)[0]:
             arg0_val = self._get_range_const_value(arg0)
             arg1_val = self._get_range_const_value(self.stmt.iter.args[1])
             start = LLLnode.from_list(arg0_val, typ='int128', pos=getpos(self.stmt))
