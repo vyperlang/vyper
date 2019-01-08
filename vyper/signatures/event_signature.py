@@ -11,7 +11,7 @@ from vyper.types import (
 )
 from vyper.utils import (
     sha3,
-    is_varname_valid,
+    check_valid_varname,
     bytes_to_int,
     ceil32
 )
@@ -34,14 +34,12 @@ class EventSignature():
 
     # Get a signature from an event declaration
     @classmethod
-    def from_declaration(cls, code, custom_units=None, custom_structs=None):
-        if not custom_structs:
-            custom_structs = {}
+    def from_declaration(cls, code, global_ctx):
         name = code.target.id
         pos = 0
 
-        if not is_varname_valid(name, custom_units=custom_units, custom_structs=custom_structs):
-            raise EventDeclarationException("Event name invalid: " + name)
+        check_valid_varname(name, global_ctx._custom_units, global_ctx._structs, global_ctx._constants, pos=code, error_prefix="Event name invalid. ")
+
         # Determine the arguments, expects something of the form def foo(arg1: num, arg2: num ...
         args = []
         indexed_list = []
@@ -52,6 +50,7 @@ class EventSignature():
             for i in range(len(keys)):
                 typ = values[i]
                 arg = keys[i].id
+                arg_item = keys[i]
                 is_indexed = False
                 # Check to see if argument is a topic
                 if isinstance(typ, ast.Call) and typ.func.id == 'indexed':
@@ -69,12 +68,11 @@ class EventSignature():
                     raise VariableDeclarationException("Argument name invalid", arg)
                 if not typ:
                     raise InvalidTypeException("Argument must have type", arg)
-                if not is_varname_valid(arg, custom_units, custom_structs):
-                    raise VariableDeclarationException("Argument name invalid or reserved: " + arg, arg)
+                check_valid_varname(arg, global_ctx._custom_units, global_ctx._structs, global_ctx._constants, pos=arg_item, error_prefix="Event argument name invalid or reserved.")
                 if arg in (x.name for x in args):
-                    raise VariableDeclarationException("Duplicate function argument name: " + arg, arg)
+                    raise VariableDeclarationException("Duplicate function argument name: " + arg, arg_item)
                 # Can struct be logged?
-                parsed_type = parse_type(typ, None, custom_units=custom_units, custom_structs=custom_structs)
+                parsed_type = parse_type(typ, None, custom_units=global_ctx._custom_units, custom_structs=global_ctx._structs, constants=global_ctx._constants)
                 args.append(VariableRecord(arg, pos, parsed_type, False))
                 if isinstance(parsed_type, ByteArrayType):
                     pos += ceil32(typ.slice.value.n)
