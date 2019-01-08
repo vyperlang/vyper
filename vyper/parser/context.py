@@ -3,11 +3,11 @@ import ast
 from vyper.parser.expr import Expr
 from vyper.utils import (
     MemoryPositions,
-    is_varname_valid,
+    check_valid_varname,
 )
 from vyper.types import (
     BaseType,
-    get_size_of_type
+    get_size_of_type,
 )
 
 from vyper.exceptions import (
@@ -62,6 +62,8 @@ class Context():
         self.is_private = is_private
         # method_id of current function
         self.method_id = method_id
+        # store global context
+        self.global_ctx = global_ctx
 
     def set_in_assignment(self, state: bool):
         self.in_assignment = state
@@ -87,17 +89,23 @@ class Context():
     def increment_return_counter(self):
         self.function_return_count += 1
 
+    def is_valid_varname(self, name, pos):
+        # Global context check first.
+        if self.global_ctx.is_valid_varname(name, pos):
+            check_valid_varname(name, custom_units=self.custom_units, custom_structs=self.structs, constants=self.constants, pos=pos)
+            # Local context duplicate context check.
+            if any((name in self.vars, name in self.globals, name in self.constants)):
+                raise VariableDeclarationException("Duplicate variable name: %s" % name, name)
+        return True
+
     # TODO location info for errors
     # Add a new variable
-    def new_variable(self, name, typ):
-        if not is_varname_valid(name, custom_units=self.custom_units, custom_structs=self.structs):
-            raise VariableDeclarationException("Variable name invalid or reserved: " + name)
-        if any((name in self.vars, name in self.globals, name in self.constants)):
-            raise VariableDeclarationException("Duplicate variable name: %s" % name, name)
-        self.vars[name] = VariableRecord(name, self.next_mem, typ, True, self.blockscopes.copy())
-        pos = self.next_mem
-        self.next_mem += 32 * get_size_of_type(typ)
-        return pos
+    def new_variable(self, name, typ, pos=None):
+        if self.is_valid_varname(name, pos):
+            self.vars[name] = VariableRecord(name, self.next_mem, typ, True, self.blockscopes.copy())
+            pos = self.next_mem
+            self.next_mem += 32 * get_size_of_type(typ)
+            return pos
 
     # Add an anonymous variable (used in some complex function definitions)
     def new_placeholder(self, typ):
@@ -133,3 +141,6 @@ class Context():
             return expr
         # Other types are already unwrapped, no need
         return self.constants[const_name]
+
+    def parse_type(self, ast_node, location):
+        return self.global_ctx.parse_type(ast_node, location)

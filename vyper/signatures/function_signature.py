@@ -63,13 +63,13 @@ class FunctionSignature():
 
     # Get the canonical function signature
     @staticmethod
-    def get_full_sig(func_name, args, sigs, custom_units, custom_structs):
+    def get_full_sig(func_name, args, sigs, custom_units, custom_structs, constants):
 
         def get_type(arg):
             if isinstance(arg, LLLnode):
                 return canonicalize_type(arg.typ)
             elif hasattr(arg, 'annotation'):
-                return canonicalize_type(parse_type(arg.annotation, None, sigs, custom_units=custom_units, custom_structs=custom_structs))
+                return canonicalize_type(parse_type(arg.annotation, None, sigs, custom_units=custom_units, custom_structs=custom_structs, constants=constants))
         return func_name + '(' + ','.join([get_type(arg) for arg in args]) + ')'
 
     # Get a signature from a function definition
@@ -93,7 +93,7 @@ class FunctionSignature():
             if not typ:
                 raise InvalidTypeException("Argument must have type", arg)
             # Validate arg name.
-            check_valid_varname(arg.arg, custom_units, custom_structs, constants, arg, "Argument name invalid or reserved")
+            check_valid_varname(arg.arg, custom_units, custom_structs, constants, arg, "Argument name invalid or reserved. ", FunctionDeclarationException)
             # Check for duplicate arg name.
             if arg.arg in (x.name for x in args):
                 raise FunctionDeclarationException("Duplicate function argument name: " + arg.arg, arg)
@@ -145,7 +145,7 @@ class FunctionSignature():
         if output_type is not None:
             assert isinstance(output_type, TupleType) or canonicalize_type(output_type)
         # Get the canonical function signature
-        sig = cls.get_full_sig(name, code.args.args, sigs, custom_units, custom_structs)
+        sig = cls.get_full_sig(name, code.args.args, sigs, custom_units, custom_structs, constants)
 
         # Take the first 4 bytes of the hash of the sig to get the method ID
         method_id = fourbytes_to_int(sha3(bytes(sig, 'utf-8'))[:4])
@@ -192,8 +192,9 @@ class FunctionSignature():
 
         def synonymise(s):
             return s.replace('int128', 'num').replace('uint256', 'num')
+
         # for sig in sigs['self']
-        full_sig = cls.get_full_sig(stmt_or_expr.func.attr, expr_args, None, context.custom_units, context.structs)
+        full_sig = cls.get_full_sig(stmt_or_expr.func.attr, expr_args, None, context.custom_units, context.structs, context.constants)
         method_names_dict = dict(Counter([x.split('(')[0] for x in context.sigs['self']]))
         if method_name not in method_names_dict:
             raise FunctionDeclarationException(

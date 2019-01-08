@@ -3,7 +3,6 @@ import ast
 from vyper.types import (
     get_size_of_type,
     canonicalize_type,
-    parse_type,
     print_unit,
     unit_from_type,
     delete_unit_if_empty,
@@ -38,7 +37,10 @@ class EventSignature():
         name = code.target.id
         pos = 0
 
-        check_valid_varname(name, global_ctx._custom_units, global_ctx._structs, global_ctx._constants, pos=code, error_prefix="Event name invalid. ")
+        check_valid_varname(
+            name, global_ctx._custom_units, global_ctx._structs, global_ctx._constants,
+            pos=code, error_prefix="Event name invalid. ", exc=EventDeclarationException
+        )
 
         # Determine the arguments, expects something of the form def foo(arg1: num, arg2: num ...
         args = []
@@ -72,7 +74,7 @@ class EventSignature():
                 if arg in (x.name for x in args):
                     raise VariableDeclarationException("Duplicate function argument name: " + arg, arg_item)
                 # Can struct be logged?
-                parsed_type = parse_type(typ, None, custom_units=global_ctx._custom_units, custom_structs=global_ctx._structs, constants=global_ctx._constants)
+                parsed_type = global_ctx.parse_type(typ, None)
                 args.append(VariableRecord(arg, pos, parsed_type, False))
                 if isinstance(parsed_type, ByteArrayType):
                     pos += ceil32(typ.slice.value.n)

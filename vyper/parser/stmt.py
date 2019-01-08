@@ -154,7 +154,7 @@ class Stmt(object):
 
     def ann_assign(self):
         self.context.set_in_assignment(True)
-        typ = parse_type(self.stmt.annotation, location='memory', custom_units=self.context.custom_units, custom_structs=self.context.structs)
+        typ = parse_type(self.stmt.annotation, location='memory', custom_units=self.context.custom_units, custom_structs=self.context.structs, constants=self.context.constants)
         if isinstance(self.stmt.target, ast.Attribute):
             raise TypeMismatchException('May not set type for field %r' % self.stmt.target.attr, self.stmt)
         varname = self.stmt.target.id
@@ -348,7 +348,7 @@ class Stmt(object):
         valid = False
         if isinstance(arg, ast.Num):
             valid = True
-        if self.context.is_constant_of_base_type(arg, ('uint256', 'int128')):
+        if self.context.constants.is_constant_of_base_type(arg, ('uint256', 'int128')):
             valid = True
         if not valid and raise_exception:
             raise StructureException("Range only accepts literal (constant) values", arg)
@@ -361,7 +361,7 @@ class Stmt(object):
         if isinstance(const_node, ast.Num):
             return const_node.n
         if isinstance(const_node, ast.Name):
-            return self.context.constants[const_node.id].value
+            return self.context.constants.get_constant(const_node.id, self.context).value
 
     def parse_for(self):
         from .parser import (
@@ -415,7 +415,7 @@ class Stmt(object):
             start = Expr.parse_value_expr(arg0, self.context)
 
         varname = self.stmt.target.id
-        pos = self.context.new_variable(varname, BaseType('int128'))
+        pos = self.context.new_variable(varname, BaseType('int128'), pos=getpos(self.stmt))
         self.context.forvars[varname] = True
         o = LLLnode.from_list(['repeat', pos, start, rounds, parse_body(self.stmt.body, self.context)], typ=None, pos=getpos(self.stmt))
         del self.context.vars[varname]

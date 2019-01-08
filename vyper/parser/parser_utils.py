@@ -500,7 +500,8 @@ def decorate_ast(_ast, code, class_names=None):
     if class_names is None:
         class_names = {}
 
-    class MyVisitor(ast.NodeVisitor):
+    class MyVisitor(ast.NodeTransformer):
+
         def visit(self, node):
             self.generic_visit(node)
             # Decorate every node of an AST tree with the original source code.
@@ -509,6 +510,7 @@ def decorate_ast(_ast, code, class_names=None):
             # Decorate class definition with the type of classes they are.
             if isinstance(node, ast.ClassDef):
                 node.class_type = class_names.get(node.name)
+            return node
 
     MyVisitor().visit(_ast)
 

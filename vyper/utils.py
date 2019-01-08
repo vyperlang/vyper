@@ -182,7 +182,7 @@ def is_varname_valid(varname, custom_units, custom_structs, constants):
     if custom_units is None:
         custom_units = set()
     if varname.lower() in {cu.lower() for cu in custom_units}:
-        return False
+        return False, "%s is a unit name." % varname
 
     # struct names are case sensitive.
     if varname in custom_structs:
@@ -190,7 +190,7 @@ def is_varname_valid(varname, custom_units, custom_structs, constants):
     if varname in constants:
         return False, "Duplicate name: %s, previously defined as a constant." % varname
     if varname.lower() in base_types:
-        return False, "%name is a base type."
+        return False, "%s name is a base type." % varname
     if varname.lower() in valid_units:
         return False, "%s is a built in unit type." % varname
     if varname.lower() in reserved_words:
@@ -204,13 +204,13 @@ def is_varname_valid(varname, custom_units, custom_structs, constants):
     return True, ""
 
 
-def check_valid_varname(varname, custom_units, custom_structs, constants, pos, error_prefix="Variable name invalid."):
+def check_valid_varname(varname, custom_units, custom_structs, constants, pos, error_prefix="Variable name invalid.", exc=None):
     """ Handle invalid variable names """
+    exc = VariableDeclarationException if exc is None else exc
 
     valid_varname, msg = is_varname_valid(varname, custom_units, custom_structs, constants)
-
     if not valid_varname:
-        raise VariableDeclarationException(error_prefix + msg, pos)
+        raise exc(error_prefix + msg, pos)
 
     return True
 

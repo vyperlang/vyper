@@ -6,6 +6,7 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
+    FunctionDeclarationException
 )
 
 
@@ -51,7 +52,7 @@ VAL: constant(bytes[4]) = "t"
 @public
 def test(VAL: uint256):
     pass
-    """, VariableDeclarationException)
+    """, FunctionDeclarationException)
 ]
 
 

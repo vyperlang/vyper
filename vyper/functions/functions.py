@@ -33,7 +33,6 @@ from vyper.types import (
 )
 from vyper.types import (
     are_units_compatible,
-    parse_type,
     is_base_type,
     get_size_of_type,
 )
@@ -470,7 +469,7 @@ def _RLPlist(expr, args, kwargs, context):
         if isinstance(arg, ast.Name) and arg.id == "bytes":
             subtyp = ByteArrayType(args[0].typ.maxlen)
         else:
-            subtyp = parse_type(arg, 'memory')
+            subtyp = context.parse_type(arg, 'memory')
             if not isinstance(subtyp, BaseType):
                 raise TypeMismatchException("RLP lists only accept BaseTypes and byte arrays", arg)
             if not is_base_type(subtyp, ('int128', 'uint256', 'bytes32', 'address', 'bool')):

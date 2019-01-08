@@ -5,12 +5,12 @@ from vyper.parser.expr import Expr
 from vyper.parser.context import Context
 from vyper.exceptions import (
     StructureException,
-    TypeMismatchException
+    TypeMismatchException,
+    VariableDeclarationException
 )
 from vyper.types.types import (
     BaseType,
-    ByteArrayType,
-    parse_type
+    ByteArrayType
 )
 from vyper.utils import (
     is_instances,
@@ -31,8 +31,7 @@ class Constants(object):
 
         ann_expr = None
         expr = Expr.parse_value_expr(const.value, Context(vars=None, global_ctx=global_ctx, origcode=const.source_code))
-        annotation_type = parse_type(const.annotation.args[0], None, custom_units=global_ctx._custom_units, custom_structs=global_ctx._structs)
-
+        annotation_type = global_ctx.parse_type(const.annotation.args[0], None)
         fail = False
 
         if is_instances([expr.typ, annotation_type], ByteArrayType):
@@ -95,8 +94,11 @@ class Constants(object):
         const = self._constants[const_name]
 
         if isinstance(const, ast.AnnAssign):  # Handle ByteArrays.
-            expr = Expr(const.value, context).lll_node
-            return expr
+            if context:
+                expr = Expr(const.value, context).lll_node
+                return expr
+            else:
+                raise VariableDeclarationException("ByteArray: Can not be used outside of a function context: %s" % const_name)
 
         # Other types are already unwrapped, no need
         return self._constants[const_name]

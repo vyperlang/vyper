@@ -275,7 +275,7 @@ def make_struct_type(name, location, members, custom_units, custom_structs, cons
             raise InvalidTypeException("Invalid member variable for struct %r, expected a name." % key.id, key)
         check_valid_varname(key.id, custom_units, custom_structs, constants, "Invalid member variable for struct")
 
-        o[key.id] = parse_type(value, location, custom_units=custom_units, custom_structs=custom_structs)
+        o[key.id] = parse_type(value, location, custom_units=custom_units, custom_structs=custom_structs, constants=constants)
     return StructType(o, name)
 
 
@@ -298,10 +298,10 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
         if item.func.id == 'map':
             if location == 'memory':
                 raise InvalidTypeException("No mappings allowed for in-memory types, only fixed-size arrays", item)
-            keytype = parse_type(item.args[0], None)
+            keytype = parse_type(item.args[0], None, custom_units=custom_units, custom_structs=custom_structs, constants=constants)
             if not isinstance(keytype, (BaseType, ByteArrayType)):
                 raise InvalidTypeException("Mapping keys must be base or bytes types", item)
-            return MappingType(keytype, parse_type(item.args[1], location, custom_units=custom_units, custom_structs=custom_structs))
+            return MappingType(keytype, parse_type(item.args[1], location, custom_units=custom_units, custom_structs=custom_structs, constants=constants))
         # Contract_types
         if item.func.id == 'address':
             if sigs and item.args[0].id in sigs:

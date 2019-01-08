@@ -31,22 +31,7 @@ x: [bar, baz]
 x: [bar(int128), baz(baffle)]
     """,
     """
-struct X:
-    bar: int128
-    decimal: int128
-    """,
-    """
 def foo(x): pass
-    """,
-    """
-struct B:
-    num: int128
-    address: address
-    """,
-    """
-struct B:
-    num: int128
-    address: address
     """,
     """
 b: map((int128, decimal), int128)
