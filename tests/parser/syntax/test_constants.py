@@ -6,6 +6,7 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
+    FunctionDeclarationException
 )
 
 
@@ -43,7 +44,15 @@ VAL: constant(bytes[4]) = "testtest"
     ("""
 VAL: constant(bytes[4]) = "t"
 VAL: uint256
-    """, VariableDeclarationException)
+    """, VariableDeclarationException),
+    # signature variable with same name
+    ("""
+VAL: constant(bytes[4]) = "t"
+
+@public
+def test(VAL: uint256):
+    pass
+    """, FunctionDeclarationException)
 ]
 
 
@@ -81,6 +90,32 @@ test_a : constant(int128) = 2188824287183927522224640574525
     """,
     """
 test_a: constant(uint256) = MAX_UINT256
+    """,
+    """
+TEST_C: constant(int128) = 1
+TEST_WEI: constant(uint256(wei)) = 1
+
+@private
+def test():
+   raw_call(0x0000000000000000000000000000000000000005, 'hello', outsize=TEST_C, gas=2000)
+
+@private
+def test1():
+    raw_call(0x0000000000000000000000000000000000000005, 'hello', outsize=256, gas=TEST_WEI)
+    """,
+    """
+LIMIT: constant(int128) = 1
+
+myEvent: event({arg1: bytes32[LIMIT]})
+    """,
+    """
+CONST: constant(uint256) = 8
+
+@public
+@constant
+def test():
+    for i in range(CONST / 4):
+        pass
     """
 ]
 

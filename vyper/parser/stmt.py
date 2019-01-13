@@ -156,7 +156,7 @@ class Stmt(object):
 
     def ann_assign(self):
         self.context.set_in_assignment(True)
-        typ = parse_type(self.stmt.annotation, location='memory', custom_units=self.context.custom_units, custom_structs=self.context.structs)
+        typ = parse_type(self.stmt.annotation, location='memory', custom_units=self.context.custom_units, custom_structs=self.context.structs, constants=self.context.constants)
         if isinstance(self.stmt.target, ast.Attribute):
             raise TypeMismatchException('May not set type for field %r' % self.stmt.target.attr, self.stmt)
         varname = self.stmt.target.id
@@ -346,27 +346,18 @@ class Stmt(object):
         else:
             return LLLnode.from_list(['assert', test_expr], typ=None, pos=getpos(self.stmt))
 
-    def _check_valid_range_constant(self, arg, raise_exception=True):
-        valid = False
-        if isinstance(arg, ast.Num):
-            valid = True
-        if isinstance(arg, ast.Name) and arg.id in self.context.constants:
-            const = self.context.constants[arg.id]
-            if isinstance(const.typ, BaseType) and const.typ.typ in ('uint256', 'int128'):
-                valid = True
+    def _check_valid_range_constant(self, arg_ast_node, raise_exception=True):
+        arg_expr = Expr.parse_value_expr(arg_ast_node, self.context)
+        if isinstance(arg_expr.typ, BaseType) and arg_expr.typ.is_literal and arg_expr.typ.typ in ('uint256', 'int128'):
+            return True, arg_expr
+        else:
+            if raise_exception:
+                raise StructureException("Range only accepts literal (constant) values", arg_expr)
+            return False, arg_expr
 
-        if not valid and raise_exception:
-            raise StructureException("Range only accepts literal (constant) values", arg)
-
-        return valid
-
-    def _get_range_const_value(self, const_node):
-        self._check_valid_range_constant(const_node)
-
-        if isinstance(const_node, ast.Num):
-            return const_node.n
-        if isinstance(const_node, ast.Name):
-            return self.context.constants[const_node.id].value
+    def _get_range_const_value(self, arg_ast_node):
+        _, arg_expr = self._check_valid_range_constant(arg_ast_node)
+        return arg_expr.value
 
     def parse_for(self):
         from .parser import (
@@ -397,7 +388,7 @@ class Stmt(object):
             rounds = arg0_val
 
         # Type 2 for, e.g. for i in range(100, 110): ...
-        elif self._check_valid_range_constant(self.stmt.iter.args[1], raise_exception=False):
+        elif self._check_valid_range_constant(self.stmt.iter.args[1], raise_exception=False)[0]:
             arg0_val = self._get_range_const_value(arg0)
             arg1_val = self._get_range_const_value(self.stmt.iter.args[1])
             start = LLLnode.from_list(arg0_val, typ='int128', pos=getpos(self.stmt))
@@ -420,7 +411,7 @@ class Stmt(object):
             start = Expr.parse_value_expr(arg0, self.context)
 
         varname = self.stmt.target.id
-        pos = self.context.new_variable(varname, BaseType('int128'))
+        pos = self.context.new_variable(varname, BaseType('int128'), pos=getpos(self.stmt))
         self.context.forvars[varname] = True
         o = LLLnode.from_list(['repeat', pos, start, rounds, parse_body(self.stmt.body, self.context)], typ=None, pos=getpos(self.stmt))
         del self.context.vars[varname]

@@ -26,7 +26,7 @@ from vyper.utils import (
     string_to_bytes,
     DECIMAL_DIVISOR,
     checksum_encode,
-    is_varname_valid,
+    check_valid_varname
 )
 from vyper.types import (
     BaseType,
@@ -197,14 +197,8 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             return LLLnode.from_list(var.pos, typ=var.typ, location='memory', pos=getpos(self.expr), annotation=self.expr.id, mutable=var.mutable)
         elif self.expr.id in builtin_constants:
             return builtin_constants[self.expr.id]
-        elif self.expr.id in self.context.constants:
-            # check if value is compatible with
-            const = self.context.constants[self.expr.id]
-            if isinstance(const, ast.AnnAssign):  # Handle ByteArrays.
-                expr = Expr(const.value, self.context).lll_node
-                return expr
-            # Other types are already unwrapped, no need
-            return self.context.constants[self.expr.id]
+        elif self.context.constants.ast_is_constant(self.expr):
+            return self.context.constants.get_constant(self.expr.id, self.context)
         else:
             raise VariableDeclarationException("Undeclared variable: " + self.expr.id, self.expr)
 
@@ -759,8 +753,9 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         o = {}
         members = {}
         for key, value in zip(expr.keys, expr.values):
-            if not isinstance(key, ast.Name) or not is_varname_valid(key.id, context.custom_units, context.structs):
+            if not isinstance(key, ast.Name):
                 raise TypeMismatchException("Invalid member variable for struct: %r" % vars(key).get('id', key), key)
+            check_valid_varname(key.id, context.custom_units, context.structs, context.constants, "Invalid member variable for struct")
             if key.id in o:
                 raise TypeMismatchException("Member variable duplicated: " + key.id, key)
             o[key.id] = Expr(value, context).lll_node

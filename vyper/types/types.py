@@ -8,7 +8,7 @@ from vyper.exceptions import InvalidTypeException
 from vyper.utils import (
     base_types,
     ceil32,
-    is_varname_valid,
+    check_valid_varname,
     valid_units,
 )
 
@@ -284,19 +284,21 @@ def parse_unit(item, custom_units):
         raise InvalidTypeException("Invalid unit expression", item)
 
 
-def make_struct_type(name, location, members, custom_units, custom_structs):
+def make_struct_type(name, location, members, custom_units, custom_structs, constants):
     o = OrderedDict()
     for key, value in members:
-        if not isinstance(key, ast.Name) or not is_varname_valid(key.id, custom_units, custom_structs):
-            raise InvalidTypeException("Invalid member variable for struct %r" % key.id, key)
-        o[key.id] = parse_type(value, location, custom_units=custom_units, custom_structs=custom_structs)
+
+        if not isinstance(key, ast.Name):
+            raise InvalidTypeException("Invalid member variable for struct %r, expected a name." % key.id, key)
+        check_valid_varname(key.id, custom_units, custom_structs, constants, "Invalid member variable for struct")
+
+        o[key.id] = parse_type(value, location, custom_units=custom_units, custom_structs=custom_structs, constants=constants)
     return StructType(o, name)
 
 
 # Parses an expression representing a type. Annotation refers to whether
 # the type is to be located in memory or storage
-def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None):
-
+def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None, constants=None):
     # Base and custom types, e.g. num
     if isinstance(item, ast.Name):
         if item.id in base_types:
@@ -304,7 +306,7 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
         elif item.id in special_types:
             return special_types[item.id]
         elif (custom_structs is not None) and (item.id in custom_structs):
-            return make_struct_type(item.id, location, custom_structs[item.id], custom_units, custom_structs)
+            return make_struct_type(item.id, location, custom_structs[item.id], custom_units, custom_structs, constants)
         else:
             raise InvalidTypeException("Invalid base type: " + item.id, item)
     # Units, e.g. num (1/sec) or contracts
@@ -313,10 +315,10 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
         if item.func.id == 'map':
             if location == 'memory':
                 raise InvalidTypeException("No mappings allowed for in-memory types, only fixed-size arrays", item)
-            keytype = parse_type(item.args[0], None)
+            keytype = parse_type(item.args[0], None, custom_units=custom_units, custom_structs=custom_structs, constants=constants)
             if not isinstance(keytype, (BaseType, ByteArrayType)):
                 raise InvalidTypeException("Mapping keys must be base or bytes types", item)
-            return MappingType(keytype, parse_type(item.args[1], location, custom_units=custom_units, custom_structs=custom_structs))
+            return MappingType(keytype, parse_type(item.args[1], location, custom_units=custom_units, custom_structs=custom_structs, constants=constants))
         # Contract_types
         if item.func.id == 'address':
             if sigs and item.args[0].id in sigs:
@@ -344,18 +346,21 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
         return BaseType(base_type, unit, positional)
     # Subscripts
     elif isinstance(item, ast.Subscript):
+
         if 'value' not in vars(item.slice):
             raise InvalidTypeException("Array / ByteArray access must access a single element, not a slice", item)
         # Fixed size lists or bytearrays, e.g. num[100]
-        elif isinstance(item.slice.value, ast.Num):
-            if not isinstance(item.slice.value.n, int) or item.slice.value.n <= 0:
+        is_constant_val = constants.ast_is_constant(item.slice.value)
+        if isinstance(item.slice.value, ast.Num) or is_constant_val:
+            n_val = constants.get_constant(item.slice.value.id, context=None).value if is_constant_val else item.slice.value.n
+            if not isinstance(n_val, int) or n_val <= 0:
                 raise InvalidTypeException("Arrays / ByteArrays must have a positive integral number of elements", item.slice.value)
             # ByteArray
             if getattr(item.value, 'id', None) == 'bytes':
-                return ByteArrayType(item.slice.value.n)
+                return ByteArrayType(n_val)
             # List
             else:
-                return ListType(parse_type(item.value, location, custom_units=custom_units, custom_structs=custom_structs), item.slice.value.n)
+                return ListType(parse_type(item.value, location, custom_units=custom_units, custom_structs=custom_structs, constants=constants), n_val)
         # Mappings, e.g. num[address]
         else:
             warnings.warn(
@@ -374,7 +379,7 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
         )
         raise InvalidTypeException("Invalid type: %r" % ast.dump(item), item)
     elif isinstance(item, ast.Tuple):
-        members = [parse_type(x, location, custom_units=custom_units, custom_structs=custom_structs) for x in item.elts]
+        members = [parse_type(x, location, custom_units=custom_units, custom_structs=custom_structs, constants=constants) for x in item.elts]
         return TupleType(members)
     else:
         raise InvalidTypeException("Invalid type: %r" % ast.dump(item), item)

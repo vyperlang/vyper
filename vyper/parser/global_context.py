@@ -1,24 +1,20 @@
 import ast
-import copy
 
 from vyper.exceptions import (
     EventDeclarationException,
     FunctionDeclarationException,
     StructureException,
-    TypeMismatchException,
     VariableDeclarationException,
     InvalidTypeException,
 )
 from vyper.utils import (
-    is_varname_valid,
-    SizeLimits,
+    check_valid_varname,
     valid_global_keywords,
 )
 from vyper.premade_contracts import (
     premade_contracts,
 )
-from vyper.parser.context import Context
-from vyper.parser.expr import Expr
+from vyper.parser.constants import Constants
 from vyper.parser.parser_utils import (
     decorate_ast,
     getpos,
@@ -51,7 +47,7 @@ class GlobalContext:
         self._getters = list()
         self._custom_units = set()
         self._custom_units_descriptions = dict()
-        self._constants = dict()
+        self._constants = Constants()
 
     # Parse top-level functions and variables
     @classmethod
@@ -166,15 +162,16 @@ class GlobalContext:
                 member_name = item.target
                 member_type = item.annotation
                 # Check well-formedness of member names
-                if not (isinstance(member_name, ast.Name) and is_varname_valid(member_name.id, custom_units=self._custom_units, custom_structs=self._structs)):
-                    raise InvalidTypeException("Invalid member name for struct %r" % name, item)
+                if not isinstance(member_name, ast.Name):
+                    raise InvalidTypeException("Invalid member name for struct %r, needs to be a valid name. " % name, item)
+                check_valid_varname(member_name.id, self._custom_units, self._structs, self._constants, item, "Invalid member name for struct. ")
                 # Check well-formedness of member types
                 # Note this kicks out mutually recursive structs,
                 # raising an exception instead of stackoverflow.
                 # A struct must be defined before it is referenced.
                 # This feels like a semantic step and maybe should be pushed
                 # to a later compilation stage.
-                parse_type(member_type, 'storage', custom_units=self._custom_units, custom_structs=self._structs)
+                parse_type(member_type, 'storage', custom_units=self._custom_units, custom_structs=self._structs, constants=self._constants)
                 members.append((member_name, member_type))
             else:
                 raise StructureException("Structs can only contain variables", item)
@@ -212,57 +209,12 @@ class GlobalContext:
             return self.get_item_name_and_attributes(item.args[0], attributes)
         return None, attributes
 
-    @staticmethod
-    def is_instances(instances, instance_type):
-        return all([isinstance(inst, instance_type) for inst in instances])
-
     def is_valid_varname(self, name, item):
-        if not is_varname_valid(name, custom_units=self._custom_units, custom_structs=self._structs):
-            raise VariableDeclarationException('Invalid name "%s"' % name, item)
+        """ Valid variable name, checked against global context. """
+        check_valid_varname(name, self._custom_units, self._structs, self._constants, item)
         if name in self._globals:
             raise VariableDeclarationException('Invalid name "%s", previously defined as global.' % name, item)
-        if name in self._constants:
-            raise VariableDeclarationException('Invalid name "%s", previously defined as constant.' % name, item)
-        if name in self._custom_units:
-            raise VariableDeclarationException('Invalid name "%s", previously defined as custom unit.' % name, item)
-
         return True
-
-    def unroll_constant(self, const):
-        # const = self.context.constants[self.expr.id]
-
-        ann_expr = None
-        expr = Expr.parse_value_expr(const.value, Context(vars=None, global_ctx=self, origcode=const.source_code))
-        annotation_type = parse_type(const.annotation.args[0], None, custom_units=self._custom_units, custom_structs=self._structs)
-
-        fail = False
-
-        if self.is_instances([expr.typ, annotation_type], ByteArrayType):
-            if expr.typ.maxlen < annotation_type.maxlen:
-                return const
-            fail = True
-
-        elif expr.typ != annotation_type:
-            fail = True
-            # special case for literals, which can be uint256 types as well.
-            if self.is_instances([expr.typ, annotation_type], BaseType) and \
-               [annotation_type.typ, expr.typ.typ] == ['uint256', 'int128'] and \
-               SizeLimits.in_bounds('uint256', expr.value):
-                fail = False
-
-            elif self.is_instances([expr.typ, annotation_type], BaseType) and \
-               [annotation_type.typ, expr.typ.typ] == ['int128', 'int128'] and \
-               SizeLimits.in_bounds('int128', expr.value):
-                fail = False
-
-        if fail:
-            raise TypeMismatchException('Invalid value for constant type, expected %r' % annotation_type, const.value)
-
-        ann_expr = copy.deepcopy(expr)
-        ann_expr.typ = annotation_type
-        ann_expr.typ.is_literal = expr.typ.is_literal  # Annotation type doesn't have literal set.
-
-        return ann_expr
 
     def add_constant(self, item):
         args = item.annotation.args
@@ -280,7 +232,7 @@ class GlobalContext:
 
         # Handle constants.
         if isinstance(item.annotation, ast.Call) and item.annotation.func.id == "constant":
-            self.add_constant(item)
+            self._constants.add_constant(item, global_ctx=self)
             return
 
         # Handle events.
@@ -308,16 +260,14 @@ class GlobalContext:
                         raise VariableDeclarationException("Custom unit description must be a valid string", value)
                     if not isinstance(key, ast.Name):
                         raise VariableDeclarationException("Custom unit name must be a valid string", key)
-                    if key.id in self._custom_units:
-                        raise VariableDeclarationException("Custom unit name may only be used once", key)
-                    if not is_varname_valid(key.id, custom_units=self._custom_units, custom_structs=self._structs):
-                        raise VariableDeclarationException("Custom unit may not be a reserved keyword", key)
+                    check_valid_varname(key.id, self._custom_units, self._structs, self._constants, key, "Custom unit invalid.")
                     self._custom_units.add(key.id)
                     self._custom_units_descriptions[key.id] = value.s
             else:
                 raise VariableDeclarationException("Custom units can only be defined once", item.target)
 
         # Check if variable name is valid.
+        # Don't move this check higher, as unit parsing has to happen first.
         elif not self.is_valid_varname(item.target.id, item):
             pass
 
@@ -344,7 +294,7 @@ class GlobalContext:
             if isinstance(item.annotation.args[0], ast.Name) and item_name in self._contracts:
                 typ = ContractType(item_name)
             else:
-                typ = parse_type(item.annotation.args[0], 'storage', custom_units=self._custom_units, custom_structs=self._structs)
+                typ = parse_type(item.annotation.args[0], 'storage', custom_units=self._custom_units, custom_structs=self._structs, constants=self._constants)
             self._globals[item.target.id] = VariableRecord(item.target.id, len(self._globals), typ, True)
             # Adding getters here
             for getter in self.mk_getter(item.target.id, typ):
@@ -354,6 +304,16 @@ class GlobalContext:
         else:
             self._globals[item.target.id] = VariableRecord(
                 item.target.id, len(self._globals),
-                parse_type(item.annotation, 'storage', custom_units=self._custom_units, custom_structs=self._structs),
+                parse_type(item.annotation, 'storage', custom_units=self._custom_units, custom_structs=self._structs, constants=self._constants),
                 True
             )
+
+    def parse_type(self, ast_node, location):
+        return parse_type(
+            ast_node,
+            location,
+            sigs=self._contracts,
+            custom_units=self._custom_units,
+            custom_structs=self._structs,
+            constants=self._constants
+        )
