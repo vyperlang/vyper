@@ -55,14 +55,6 @@ b: map((int128, decimal), int128)
 b: int128[int128: address]
     """,
     """
-struct Foo:
-    cow: int128
-    dog: int128
-@public
-def foo() -> Foo:
-    return Foo({cow: 5, dog: 7})
-    """,
-    """
 x: wei(wei)
     """,
     """

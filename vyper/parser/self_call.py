@@ -15,7 +15,7 @@ from vyper.types import (
     BaseType,
     ByteArrayType,
     ListType,
-    TupleType,
+    TupleLike,
     ceil32,
     get_size_of_type,
 )
@@ -137,7 +137,7 @@ def call_self_private(stmt_expr, context, sig):
                 pop_return_values = [
                     ['pop', 'pass'],
                 ]
-            elif isinstance(sig.output_type, TupleType):
+            elif isinstance(sig.output_type, TupleLike):
                 static_offset = 0
                 pop_return_values = []
                 for out_type in sig.output_type.members:

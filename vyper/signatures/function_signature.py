@@ -14,7 +14,8 @@ from vyper.types import (
     print_unit,
     unit_from_type,
     delete_unit_if_empty,
-    TupleType
+    TupleType,
+    TupleLike
 )
 from vyper.utils import (
     fourbytes_to_int,
@@ -148,6 +149,8 @@ class FunctionSignature():
             return []
         elif isinstance(t, TupleType):
             res = [(canonicalize_type(x), print_unit(unit_from_type(x), custom_units_descriptions)) for x in t.members]
+        elif isinstance(t, TupleLike):
+            res = [(canonicalize_type(x), print_unit(unit_from_type(x), custom_units_descriptions)) for x in t.tuple_members()]
         else:
             res = [(canonicalize_type(t), print_unit(unit_from_type(t), custom_units_descriptions))]
 

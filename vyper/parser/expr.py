@@ -269,7 +269,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 return sub
             if not isinstance(sub.typ, StructType):
                 raise TypeMismatchException("Type mismatch: member variable access not expected", self.expr.value)
-            attrs = sorted(sub.typ.members.keys())
+            attrs = list(sub.typ.members.keys())
             if self.expr.attr not in attrs:
                 raise TypeMismatchException("Member %s not found. Only the following available: %s" % (self.expr.attr, " ".join(attrs)), self.expr)
             return add_variable_offset(sub, self.expr.attr, pos=getpos(self.expr))
@@ -700,8 +700,6 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
 
             # Struct constructors do not need `self` prefix.
             elif function_name in self.context.structs:
-                if not self.context.in_assignment:
-                    raise StructureException("Struct constructor must be called in RHS of assignment.", self.expr)
                 args = self.expr.args
                 if len(args) != 1:
                     raise StructureException("Struct constructor is called with one argument only", self.expr)
@@ -709,16 +707,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 arg = args[0]
                 if not isinstance(arg, ast.Dict):
                     raise TypeMismatchException("Struct can only be constructed with a dict", self.expr)
-                sub = Expr.struct_literals(arg, self.context)
-                if sub.typ.name is not None:
-                    raise TypeMismatchException("Struct can only be constructed with a dict", self.expr)
-
-                typ = StructType(sub.typ.members, function_name)
-
-                # OR:
-                # sub.typ = typ
-                # return sub
-                return LLLnode(sub.value, typ=typ, args=sub.args, location=sub.location, pos=getpos(self.expr), add_gas_estimate=sub.add_gas_estimate, valency=sub.valency, annotation=function_name)
+                return Expr.struct_literals(arg, function_name, self.context)
 
             else:
                 err_msg = "Not a top-level function: {}".format(function_name)
@@ -766,7 +755,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         )
         raise InvalidLiteralException("Invalid literal: %r" % ast.dump(self.expr), self.expr)
 
-    def struct_literals(expr, context):
+    def struct_literals(expr, name, context):
         o = {}
         members = {}
         for key, value in zip(expr.keys, expr.values):
@@ -776,7 +765,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 raise TypeMismatchException("Member variable duplicated: " + key.id, key)
             o[key.id] = Expr(value, context).lll_node
             members[key.id] = o[key.id].typ
-        return LLLnode.from_list(["multi"] + [o[key] for key in sorted(list(o.keys()))], typ=StructType(members, None), pos=getpos(expr))
+        return LLLnode.from_list(["multi"] + [o[key] for key in (list(o.keys()))], typ=StructType(members, name, is_literal=True), pos=getpos(expr))
 
     def tuple_literals(self):
         if not len(self.expr.elts):
@@ -784,7 +773,8 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         o = []
         for elt in self.expr.elts:
             o.append(Expr(elt, self.context).lll_node)
-        return LLLnode.from_list(["multi"] + o, typ=TupleType(o), pos=getpos(self.expr))
+        typ = TupleType([x.typ for x in o], is_literal=True)
+        return LLLnode.from_list(["multi"] + o, typ=typ, pos=getpos(self.expr))
 
     # Parse an expression that results in a value
     def parse_value_expr(expr, context):
