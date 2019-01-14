@@ -131,14 +131,19 @@ def generate_default_arg_sigs(code, contracts, global_ctx):
 
 
 # Get ABI signature
-def mk_full_signature(code):
+def mk_full_signature(code, sig_formatter=None):
+
+    if sig_formatter is None:
+        # Use default JSON style ouptu.
+        sig_formatter = lambda sig, custom_units_descriptions: sig.to_abi_dict(custom_units_descriptions)
+
     o = []
     global_ctx = GlobalContext.get_global_context(code)
 
     # Produce event signatues.
     for code in global_ctx._events:
         sig = EventSignature.from_declaration(code, global_ctx)
-        o.append(sig.to_abi_dict(global_ctx._custom_units_descriptions))
+        o.append(sig_formatter(sig, global_ctx._custom_units_descriptions))
 
     # Produce function signatures.
     for code in global_ctx._defs:
@@ -151,7 +156,7 @@ def mk_full_signature(code):
         if not sig.private:
             default_sigs = generate_default_arg_sigs(code, global_ctx._contracts, global_ctx)
             for s in default_sigs:
-                o.append(s.to_abi_dict(global_ctx._custom_units_descriptions))
+                o.append(sig_formatter(sig, global_ctx._custom_units_descriptions))
     return o
 
 
