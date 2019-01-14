@@ -25,7 +25,8 @@ format_options_help = """Format to print, one or more of:
  source_map         - Vyper source map
  method_identifiers - Dictionary of method signature to method identifier.
  combined_json      - All of the above format options combined as single JSON output.
- interface          - Print vyper interface of a contract
+ interface          - Print Vyper interface of a contract
+ external_interface - Print Externa Contract of a contract, to be used as outside contract calls.
 """
 
 parser = argparse.ArgumentParser(

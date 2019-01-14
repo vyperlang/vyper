@@ -2,9 +2,10 @@ from vyper.parser import parser
 from vyper import compile_lll
 from vyper import optimizer
 from collections import OrderedDict
-
-from vyper.signatures.event_signature import EventSignature
-from vyper.signatures.function_signature import FunctionSignature
+from vyper.signatures.interfaces import (
+    extract_interface_str,
+    extract_external_interface
+)
 
 
 def __compile(code, *args, **kwargs):
@@ -54,58 +55,6 @@ def mk_full_signature(code, *args, **kwargs):
     return abi
 
 
-def extract_interface_str(code, contract_name):
-    sigs = parser.mk_full_signature(parser.parse(code), sig_formatter=lambda x, y: (x, y))
-    events = [sig for sig, _ in sigs if isinstance(sig, EventSignature)]
-    functions = [sig for sig, _ in sigs if isinstance(sig, FunctionSignature)]
-    out = ""
-    # Print events.
-    for idx, event in enumerate(events):
-        if idx == 0:
-            out += "# Events\n\n"
-        out += "{event_name}({{{args}}})\n".format(
-            event_name=event.name,
-            args=", ".join([arg.name + ": " + str(arg.typ) for arg in event.args])
-        )
-
-    # Print functions.
-    def render_decorator(sig):
-        o = "\n"
-        if sig.const:
-            o += "@constant\n"
-        if sig.private:
-            o += "@private\n"
-        else:
-            o += "@public\n"
-        return o
-
-    def render_return(sig):
-        if func.output_type:
-            if isinstance(func.output_type, tuple):
-                return " -> (%s)" % ", ".join([str(t) for t in func.output_type])
-            else:
-                return " -> " + str(func.output_type)
-        return ""
-
-    for idx, func in enumerate(functions):
-        if idx == 0:
-            out += "\n# Functions\n"
-        if not func.private and func.name != '__init__':
-            out += "{decorator}def {name}({args}){ret}:\n    pass\n".format(
-                decorator=render_decorator(func),
-                name=func.name,
-                args=", ".join([arg.name + ": " + str(arg.typ) for arg in func.args]),
-                ret=render_return(func)
-            )
-    out += "\n"
-
-    return out
-
-
-def extract_external_interface(code, contract_name):
-    pass
-
-
 def get_asm(asm_list):
     output_string = ''
     skip_newlines = 0
@@ -146,6 +95,7 @@ output_formats_map = {
     'source_map': get_source_map,
     'method_identifiers': lambda code, contract_name: parser.mk_method_identifiers(code),
     'interface': lambda code, contract_name: extract_interface_str(code, contract_name),
+    'external_interface': lambda code, contract_name: extract_external_interface(code, contract_name),
 }
 
 
