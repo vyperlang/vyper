@@ -398,8 +398,8 @@ def raw_call(expr, args, kwargs, context):
     gas, value, outsize, delegate_call = kwargs['gas'], kwargs['value'], kwargs['outsize'], kwargs['delegate_call']
     if delegate_call.typ.is_literal is False:
         raise TypeMismatchException('The delegate_call parameter has to be a static/literal boolean value.')
-    if context.is_constant:
-        raise ConstancyViolationException("Cannot make calls from %s" % context.is_constant, expr)
+    if context.is_constant():
+        raise ConstancyViolationException("Cannot make calls from %s" % context.pp_constancy(), expr)
     if value != zero_value:
         enforce_units(value.typ, get_keyword(expr, 'value'),
                         BaseType('uint256', {'wei': 1}))
@@ -435,16 +435,16 @@ def raw_call(expr, args, kwargs, context):
 @signature('address', 'uint256')
 def send(expr, args, kwargs, context):
     to, value = args
-    if context.is_constant:
-        raise ConstancyViolationException("Cannot send ether inside %s!" % context.is_constant, expr)
+    if context.is_constant():
+        raise ConstancyViolationException("Cannot send ether inside %s!" % context.pp_constancy(), expr)
     enforce_units(value.typ, expr.args[1], BaseType('uint256', {'wei': 1}))
     return LLLnode.from_list(['assert', ['call', 0, to, value, 0, 0, 0, 0]], typ=None, pos=getpos(expr))
 
 
 @signature('address')
 def selfdestruct(expr, args, kwargs, context):
-    if context.is_constant:
-        raise ConstancyViolationException("Cannot %s inside %s!" % (expr.func.id, context.is_constant), expr.func)
+    if context.is_constant():
+        raise ConstancyViolationException("Cannot %s inside %s!" % (expr.func.id, context.pp_constancy()), expr.func)
     return LLLnode.from_list(['selfdestruct', args[0]], typ=None, pos=getpos(expr))
 
 
@@ -673,8 +673,8 @@ def create_with_code_of(expr, args, kwargs, context):
     if value != zero_value:
         enforce_units(value.typ, get_keyword(expr, 'value'),
                       BaseType('uint256', {'wei': 1}))
-    if context.is_constant:
-        raise ConstancyViolationException("Cannot make calls from %s" % context.is_constant, expr)
+    if context.is_constant():
+        raise ConstancyViolationException("Cannot make calls from %s" % context.pp_constancy(), expr)
     placeholder = context.new_placeholder(ByteArrayType(96))
 
     kode = get_create_with_code_of_bytecode()

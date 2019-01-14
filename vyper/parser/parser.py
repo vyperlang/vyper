@@ -18,7 +18,7 @@ from vyper.signatures.event_signature import (
 )
 from vyper.parser.stmt import Stmt
 from vyper.parser.expr import Expr
-from vyper.parser.context import Context
+from vyper.parser.context import Context, Constancy
 from vyper.parser.global_context import GlobalContext
 from vyper.parser.lll_node import LLLnode
 from vyper.parser.pre_parser import pre_parse
@@ -370,7 +370,7 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
         global_ctx=global_ctx,
         sigs=sigs,
         return_type=sig.output_type,
-        is_constant='a constant function' if sig.const else None,
+        constancy=Constancy.Constant if sig.const else Constancy.Mutable,
         is_payable=sig.payable,
         origcode=origcode,
         is_private=sig.private,

@@ -1,3 +1,5 @@
+from enum import Enum
+
 from vyper.utils import (
     MemoryPositions,
     check_valid_varname,
@@ -15,11 +17,17 @@ from vyper.signatures.function_signature import (
 )
 
 
+class Constancy(Enum) :
+    Mutable = 0
+    Constant = 1
+
+
 # Contains arguments, variables, etc
 class Context():
 
     def __init__(self, vars, global_ctx, sigs=None, forvars=None, return_type=None,
-                 is_constant=None, is_private=False, is_payable=False, origcode='', method_id=''):
+                 constancy=Constancy.Mutable, is_private=False, is_payable=False, origcode='',
+                 method_id=''):
         # In-memory variables, in the form (name, memory location, type)
         self.vars = vars or {}
         self.next_mem = MemoryPositions.RESERVED_MEMORY
@@ -32,7 +40,9 @@ class Context():
         # Return type of the function
         self.return_type = return_type
         # Is the function constant?
-        self.is_constant = is_constant
+        self.constancy = constancy
+        # Whether body is currently in an assert statement
+        self.in_assertion = False
         # Is the function payable?
         self.is_payable = is_payable
         # Number of placeholders generated (used to generate random names)
@@ -69,6 +79,12 @@ class Context():
 
     def remove_in_for_loop(self, name_of_list):
         self.in_for_loop.remove(name_of_list)
+
+    def is_constant(self):
+        return self.constancy == Constancy.Constant or self.in_assertion
+
+    def set_in_assertion(self, val):
+        self.in_assertion = val
 
     def start_blockscope(self, blockscope_id):
         self.blockscopes.add(blockscope_id)
@@ -115,3 +131,11 @@ class Context():
 
     def parse_type(self, ast_node, location):
         return self.global_ctx.parse_type(ast_node, location)
+
+    # Pretty print constancy for error messages
+    def pp_constancy(self) :
+        if self.in_assertion:
+            return 'an assertion'
+        elif self.constancy == Constancy.Constant:
+            return 'a constant function'
+        raise ValueError('Compiler error: unknown constancy in pp_constancy: %r' % self.constancy)

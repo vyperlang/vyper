@@ -324,10 +324,12 @@ class Stmt(object):
             return external_call.make_external_call(self.stmt, self.context)
 
     def parse_assert(self):
-        tmp = self.context.is_constant # backup value
-        self.context.is_constant = 'an assert'
-        test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
-        self.context.is_constant = tmp # restore
+        tmp = self.context.in_assertion # backup value
+        try :
+            self.context.set_in_assertion(True)
+            test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
+        finally :
+            self.context.set_in_assertion(tmp) # restore
 
         if not self.is_bool_expr(test_expr):
             raise TypeMismatchException('Only boolean expressions allowed', self.stmt.test)
@@ -671,8 +673,8 @@ class Stmt(object):
         if isinstance(target, ast.Tuple):
             return Expr(target, self.context).lll_node
         target = Expr.parse_variable_location(target, self.context)
-        if target.location == 'storage' and self.context.is_constant:
-            raise ConstancyViolationException("Cannot modify storage inside %s: %s" % (self.context.is_constant, target.annotation))
+        if target.location == 'storage' and self.context.is_constant():
+            raise ConstancyViolationException("Cannot modify storage inside %s: %s" % (self.context.pp_constancy(), target.annotation))
         if not target.mutable:
             raise ConstancyViolationException("Cannot modify function argument: %s" % target.annotation)
         return target
