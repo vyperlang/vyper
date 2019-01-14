@@ -48,8 +48,7 @@ def foo():
     """,
     """
 @public
-def foo():
-    x: int128 = 5
+def foo(x: int128):
     y: int128 = 7
     for i in range(x, x + y):
         pass

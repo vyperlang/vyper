@@ -13,7 +13,6 @@ from vyper.types import (
     ByteArrayType
 )
 from vyper.types import (
-    parse_type,
     is_base_type
 )
 from vyper.parser.expr import (
@@ -39,6 +38,8 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
     vsub = None
     for expected_arg in expected_arg_typelist:
         if expected_arg == 'num_literal':
+            if context.constants.is_constant_of_base_type(arg, ('uint256', 'int128')):
+                return context.constants.get_constant(arg.id, None).value
             if isinstance(arg, ast.Num) and get_original_if_0_prefixed(arg, context) is None:
                 return arg.n
         elif expected_arg == 'str_literal':
@@ -62,7 +63,7 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
                 return sub
         else:
             # Does not work for unit-endowed types inside compound types, e.g. timestamp[2]
-            parsed_expected_type = parse_type(ast.parse(expected_arg).body[0].value, 'memory')
+            parsed_expected_type = context.parse_type(ast.parse(expected_arg).body[0].value, 'memory')
             if isinstance(parsed_expected_type, BaseType):
                 vsub = vsub or Expr.parse_value_expr(arg, context)
                 if is_base_type(vsub.typ, expected_arg):

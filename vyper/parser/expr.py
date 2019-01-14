@@ -26,7 +26,7 @@ from vyper.utils import (
     string_to_bytes,
     DECIMAL_DIVISOR,
     checksum_encode,
-    is_varname_valid,
+    check_valid_varname
 )
 from vyper.types import (
     BaseType,
@@ -197,14 +197,8 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             return LLLnode.from_list(var.pos, typ=var.typ, location='memory', pos=getpos(self.expr), annotation=self.expr.id, mutable=var.mutable)
         elif self.expr.id in builtin_constants:
             return builtin_constants[self.expr.id]
-        elif self.expr.id in self.context.constants:
-            # check if value is compatible with
-            const = self.context.constants[self.expr.id]
-            if isinstance(const, ast.AnnAssign):  # Handle ByteArrays.
-                expr = Expr(const.value, self.context).lll_node
-                return expr
-            # Other types are already unwrapped, no need
-            return self.context.constants[self.expr.id]
+        elif self.context.constants.ast_is_constant(self.expr):
+            return self.context.constants.get_constant(self.expr.id, self.context)
         else:
             raise VariableDeclarationException("Undeclared variable: " + self.expr.id, self.expr)
 
@@ -269,7 +263,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 return sub
             if not isinstance(sub.typ, StructType):
                 raise TypeMismatchException("Type mismatch: member variable access not expected", self.expr.value)
-            attrs = sorted(sub.typ.members.keys())
+            attrs = list(sub.typ.members.keys())
             if self.expr.attr not in attrs:
                 raise TypeMismatchException("Member %s not found. Only the following available: %s" % (self.expr.attr, " ".join(attrs)), self.expr)
             return add_variable_offset(sub, self.expr.attr, pos=getpos(self.expr))
@@ -700,8 +694,6 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
 
             # Struct constructors do not need `self` prefix.
             elif function_name in self.context.structs:
-                if not self.context.in_assignment:
-                    raise StructureException("Struct constructor must be called in RHS of assignment.", self.expr)
                 args = self.expr.args
                 if len(args) != 1:
                     raise StructureException("Struct constructor is called with one argument only", self.expr)
@@ -709,16 +701,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 arg = args[0]
                 if not isinstance(arg, ast.Dict):
                     raise TypeMismatchException("Struct can only be constructed with a dict", self.expr)
-                sub = Expr.struct_literals(arg, self.context)
-                if sub.typ.name is not None:
-                    raise TypeMismatchException("Struct can only be constructed with a dict", self.expr)
-
-                typ = StructType(sub.typ.members, function_name)
-
-                # OR:
-                # sub.typ = typ
-                # return sub
-                return LLLnode(sub.value, typ=typ, args=sub.args, location=sub.location, pos=getpos(self.expr), add_gas_estimate=sub.add_gas_estimate, valency=sub.valency, annotation=function_name)
+                return Expr.struct_literals(arg, function_name, self.context)
 
             else:
                 err_msg = "Not a top-level function: {}".format(function_name)
@@ -766,17 +749,18 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         )
         raise InvalidLiteralException("Invalid literal: %r" % ast.dump(self.expr), self.expr)
 
-    def struct_literals(expr, context):
+    def struct_literals(expr, name, context):
         o = {}
         members = {}
         for key, value in zip(expr.keys, expr.values):
-            if not isinstance(key, ast.Name) or not is_varname_valid(key.id, context.custom_units, context.structs):
+            if not isinstance(key, ast.Name):
                 raise TypeMismatchException("Invalid member variable for struct: %r" % vars(key).get('id', key), key)
+            check_valid_varname(key.id, context.custom_units, context.structs, context.constants, "Invalid member variable for struct")
             if key.id in o:
                 raise TypeMismatchException("Member variable duplicated: " + key.id, key)
             o[key.id] = Expr(value, context).lll_node
             members[key.id] = o[key.id].typ
-        return LLLnode.from_list(["multi"] + [o[key] for key in sorted(list(o.keys()))], typ=StructType(members, None), pos=getpos(expr))
+        return LLLnode.from_list(["multi"] + [o[key] for key in (list(o.keys()))], typ=StructType(members, name, is_literal=True), pos=getpos(expr))
 
     def tuple_literals(self):
         if not len(self.expr.elts):
@@ -784,7 +768,8 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         o = []
         for elt in self.expr.elts:
             o.append(Expr(elt, self.context).lll_node)
-        return LLLnode.from_list(["multi"] + o, typ=TupleType(o), pos=getpos(self.expr))
+        typ = TupleType([x.typ for x in o], is_literal=True)
+        return LLLnode.from_list(["multi"] + o, typ=typ, pos=getpos(self.expr))
 
     # Parse an expression that results in a value
     def parse_value_expr(expr, context):
