@@ -1,3 +1,6 @@
+from vyper.exceptions import TypeMismatchException
+
+
 def test_return_type(get_contract_with_gas_estimation):
     long_string = 35 * "test"
 
@@ -113,3 +116,13 @@ def test() -> (int128, bytes[20], address, bytes[20]):
     c = get_contract_with_gas_estimation(code)
 
     assert c.out_literals() == [1, b"testtesttest", None, b"random"]
+
+
+def test_tuple_return_typecheck(assert_tx_failed, get_contract_with_gas_estimation):
+    code = """
+@public
+def getTimeAndBalance() -> (bool, address):
+    return block.timestamp, self.balance
+    """
+
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatchException)
