@@ -263,6 +263,21 @@ def parse_tree_to_lll(code, origcode, runtime_only=False):
         o = parse_other_functions(
             o, otherfuncs, sigs, external_contracts, origcode, global_ctx, defaultfunc, runtime_only
         )
+    # Check interface.
+    if global_ctx._interface:
+        funcs_left = global_ctx._interface.copy()
+        for sig in sigs.keys():
+            if sig in funcs_left:
+                del funcs_left[sig]
+        if funcs_left:
+            raise StructureException(
+                'Contract does not comply to supplied Interface(s).\n' +
+                'Missing interface functions:\n\t{}'.format('\n\t'.join([
+                    "{} [{}]".format(sig_name, func_sig.defined_in_interface)
+                    for sig_name, func_sig in funcs_left.items()
+                ]))
+            )
+
     return LLLnode.from_list(o, typ=None)
 
 

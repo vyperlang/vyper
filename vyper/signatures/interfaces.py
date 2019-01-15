@@ -1,8 +1,21 @@
 import os
 
+import importlib
+import pkgutil
+import vyper.interfaces
+
 from vyper.parser import parser
 from vyper.signatures.event_signature import EventSignature
 from vyper.signatures.function_signature import FunctionSignature
+
+
+# Populate built-in interfaces.
+def get_builtin_interfaces():
+    interface_names = [x.name for x in pkgutil.iter_modules(vyper.interfaces.__path__)]
+    return {
+        name: extract_sigs(importlib.import_module('vyper.interfaces.{}'.format(name)).interface_code)
+        for name in interface_names
+    }
 
 
 def render_return(sig):
@@ -14,6 +27,11 @@ def render_return(sig):
     return ""
 
 
+def extract_sigs(code):
+    sigs = parser.mk_full_signature(parser.parse(code), sig_formatter=lambda x, y: x)
+    return sigs
+
+
 def extract_interface_str(code, contract_name):
     sigs = parser.mk_full_signature(parser.parse(code), sig_formatter=lambda x, y: (x, y))
     events = [sig for sig, _ in sigs if isinstance(sig, EventSignature)]
@@ -23,7 +41,7 @@ def extract_interface_str(code, contract_name):
     for idx, event in enumerate(events):
         if idx == 0:
             out += "# Events\n\n"
-        out += "{event_name}({{{args}}})\n".format(
+        out += "{event_name}: event({{{args}}})\n".format(
             event_name=event.name,
             args=", ".join([arg.name + ": " + str(arg.typ) for arg in event.args])
         )
