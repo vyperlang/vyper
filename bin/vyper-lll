@@ -35,6 +35,6 @@ if __name__ == "__main__":
         asm = compile_lll.compile_to_assembly(lll)
         if 'asm' in format_set:
             print(asm)
-        bytecode = '0x' + compile_lll.assembly_to_evm(asm).hex()
+        (bytecode, _srcmap) = compile_lll.assembly_to_evm(asm)
         if 'bytecode' in format_set:
-            print(bytecode)
+            print('0x' + bytecode.hex())
