@@ -41,7 +41,7 @@ def external_contract_call(node, context, contract_name, contract_address, pos, 
     output_placeholder, output_size, returner = get_external_contract_call_output(sig, context)
     sub = ['seq', ['assert', ['extcodesize', contract_address]],
                     ['assert', ['ne', 'address', contract_address]]]
-    if context.is_constant or sig.const:
+    if context.is_constant() or sig.const:
         sub.append(['assert', ['staticcall', gas, contract_address, inargs, inargsize, output_placeholder, output_size]])
     else:
         sub.append(['assert', ['call', gas, contract_address, value, inargs, inargsize, output_placeholder, output_size]])
