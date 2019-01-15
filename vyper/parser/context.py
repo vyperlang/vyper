@@ -17,7 +17,7 @@ from vyper.signatures.function_signature import (
 )
 
 
-class Constancy(Enum) :
+class Constancy(Enum):
     Mutable = 0
     Constant = 1
 
@@ -133,7 +133,7 @@ class Context():
         return self.global_ctx.parse_type(ast_node, location)
 
     # Pretty print constancy for error messages
-    def pp_constancy(self) :
+    def pp_constancy(self):
         if self.in_assertion:
             return 'an assertion'
         elif self.constancy == Constancy.Constant:

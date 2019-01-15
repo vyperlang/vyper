@@ -70,6 +70,7 @@ def test(a: int128) -> int128:
     """
     assert_compile_failed(lambda: get_contract(code), StructureException)
 
+
 def test_assert_no_effects(get_contract, assert_compile_failed, assert_tx_failed):
     code = """
 @public
