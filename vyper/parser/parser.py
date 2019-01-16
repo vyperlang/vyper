@@ -58,7 +58,7 @@ if not hasattr(ast, 'AnnAssign'):
 
 
 # Converts code to parse tree
-def parse(code):
+def parse_to_ast(code):
     class_names, code = pre_parse(code)
     o = ast.parse(code)  # python ast
     decorate_ast(o, code, class_names)  # decorated python ast
@@ -156,13 +156,13 @@ def mk_full_signature(code, sig_formatter=None):
         if not sig.private:
             default_sigs = generate_default_arg_sigs(code, global_ctx._contracts, global_ctx)
             for s in default_sigs:
-                o.append(sig_formatter(sig, global_ctx._custom_units_descriptions))
+                o.append(sig_formatter(s, global_ctx._custom_units_descriptions))
     return o
 
 
 def mk_method_identifiers(code):
     o = {}
-    global_ctx = GlobalContext.get_global_context(parse(code))
+    global_ctx = GlobalContext.get_global_context(parse_to_ast(code))
 
     for code in global_ctx._defs:
         sig = FunctionSignature.from_definition(code, sigs=global_ctx._contracts, custom_units=global_ctx._custom_units, constants=global_ctx._constants)
@@ -230,7 +230,7 @@ def parse_other_functions(o, otherfuncs, sigs, external_contracts, origcode, glo
 
 
 # Main python parse tree => LLL method
-def parse_tree_to_lll(code, origcode, runtime_only=False):
+def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None,):
     global_ctx = GlobalContext.get_global_context(code)
     _names_def = [_def.name for _def in global_ctx._defs]
     # Checks for duplicate function names
@@ -818,5 +818,5 @@ def pack_logging_data(expected_data, args, context, pos):
 
 
 def parse_to_lll(kode, runtime_only=False):
-    code = parse(kode)
+    code = parse_to_ast(kode)
     return parse_tree_to_lll(code, kode, runtime_only=runtime_only)

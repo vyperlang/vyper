@@ -1,9 +1,11 @@
+import ast
 import os
 
 import importlib
 import pkgutil
 import vyper.interfaces
 
+from vyper.exceptions import StructureException
 from vyper.parser import parser
 from vyper.signatures.event_signature import EventSignature
 from vyper.signatures.function_signature import FunctionSignature
@@ -28,12 +30,12 @@ def render_return(sig):
 
 
 def extract_sigs(code):
-    sigs = parser.mk_full_signature(parser.parse(code), sig_formatter=lambda x, y: x)
+    sigs = parser.mk_full_signature(parser.parse_to_ast(code), sig_formatter=lambda x, y: x)
     return sigs
 
 
 def extract_interface_str(code, contract_name):
-    sigs = parser.mk_full_signature(parser.parse(code), sig_formatter=lambda x, y: (x, y))
+    sigs = parser.mk_full_signature(parser.parse_to_ast(code), sig_formatter=lambda x, y: (x, y))
     events = [sig for sig, _ in sigs if isinstance(sig, EventSignature)]
     functions = [sig for sig, _ in sigs if isinstance(sig, FunctionSignature)]
     out = ""
@@ -73,7 +75,7 @@ def extract_interface_str(code, contract_name):
 
 
 def extract_external_interface(code, contract_name):
-    sigs = parser.mk_full_signature(parser.parse(code), sig_formatter=lambda x, y: (x, y))
+    sigs = parser.mk_full_signature(parser.parse_to_ast(code), sig_formatter=lambda x, y: (x, y))
     functions = [sig for sig, _ in sigs if isinstance(sig, FunctionSignature)]
     cname = os.path.basename(contract_name).split('.')[0].capitalize()
 
@@ -91,3 +93,17 @@ def extract_external_interface(code, contract_name):
             )
     out += "\n"
     return out
+
+
+def extract_file_interface_imports(code):
+    ast_tree = parser.parse_to_ast(code)
+    imports_dict = {}
+    for item in ast_tree:
+        if isinstance(item, ast.Import):
+            for a_name in item.names:
+                if not a_name.asname:
+                    raise StructureException('Interface statement requires an accompanying `as` statement.', item)
+                if a_name.asname in imports_dict:
+                    raise StructureException('Interface with Alias {} already exists'.format(a_name.asname), item)
+                imports_dict[a_name.asname] = a_name.name
+    return imports_dict
