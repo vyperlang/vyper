@@ -1,3 +1,4 @@
+from vyper.exceptions import StructureException
 from vyper.compiler import (
     compile_codes,
     compile_code
@@ -49,3 +50,21 @@ contract One:
     out = out['external_interface']
 
     assert interface.strip() == out.strip()
+
+
+def test_basic_interface_implements(assert_compile_fails):
+    code = """
+from vyper.interfaces import ERC20
+
+implements: ERC20
+
+
+@public
+def test() -> bool:
+    return True
+    """
+
+    assert_compile_fails(
+        lambda: compile_codes({'one.vy': code}),
+        StructureException
+    )

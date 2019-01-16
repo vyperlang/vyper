@@ -82,6 +82,8 @@ class GlobalContext:
                     if interface_name not in global_ctx._interfaces:
                         raise StructureException('Unknown interface specified: {}'.format(), item.annotation)
                     global_ctx._implemented_interfaces.add(interface_name)
+                else:
+                    global_ctx.add_globals_and_events(item)
             # Function definitions
             elif isinstance(item, ast.FunctionDef):
                 if item.name in global_ctx._globals:
