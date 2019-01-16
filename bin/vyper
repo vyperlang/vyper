@@ -9,7 +9,7 @@ import warnings
 from collections import OrderedDict
 from argparse import RawTextHelpFormatter
 from vyper.parser import parser_utils
-
+from vyper.signatures.interface import extract_file_interface_imports
 
 warnings.simplefilter('always')
 sys.tracebacklimit = 0
@@ -82,7 +82,25 @@ if __name__ == '__main__':
         for f in orig_args:
             formats.append(translate_map.get(f, f))
 
-        out_list = vyper.compile_codes(codes, formats, output_type='list', exc_handler=exc_handler)
+        interface_codes = {}
+        for contract_name, code in codes.items():
+            interface_codes.update(extract_file_interface_imports(code))
+        if interface_codes:
+            print(interface_codes)
+            for interface_name, interface_path in interface_codes.items():
+                file_path = os.path.join(os.path.normpath(interface_path.replace('.', '/'))) + '.vy'
+                if not os.path.exists(file_path):
+                    raise Exception('Imported interface "{}.vy" does not exist.'.format(interface_path))
+                with open(file_path) as fh:
+                    interface_codes[interface_name] = fh.read()
+
+        out_list = vyper.compile_codes(
+            codes,
+            formats,
+            output_type='list',
+            exc_handler=exc_handler,
+            interface_codes=interface_codes
+        )
         for out in out_list:
             for f in orig_args:
                 o = out[translate_map.get(f, f)]

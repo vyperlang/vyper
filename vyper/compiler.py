@@ -4,12 +4,19 @@ from vyper import optimizer
 from collections import OrderedDict
 from vyper.signatures.interface import (
     extract_interface_str,
-    extract_external_interface
+    extract_external_interface,
 )
 
 
-def __compile(code, *args, **kwargs):
-    lll = optimizer.optimize(parser.parse_tree_to_lll(parser.parse(code), code, runtime_only=kwargs.get('bytecode_runtime', False)))
+def __compile(code, interface_codes=None, *args, **kwargs):
+    lll = optimizer.optimize(
+        parser.parse_tree_to_lll(
+            parser.parse_to_ast(code),
+            code,
+            interface_codes=interface_codes,
+            runtime_only=kwargs.get('bytecode_runtime', False)
+        )
+    )
     asm = compile_lll.compile_to_assembly(lll)
 
     def find_nested_opcode(asm_list, key):
@@ -44,7 +51,7 @@ def gas_estimate(origcode, *args, **kwargs):
 
 
 def mk_full_signature(code, *args, **kwargs):
-    abi = parser.mk_full_signature(parser.parse(code))
+    abi = parser.mk_full_signature(parser.parse_to_ast(code))
     # Add gas estimates for each function to ABI
     gas_estimates = gas_estimate(code)
     for idx, func in enumerate(abi):
@@ -87,19 +94,19 @@ def get_source_map(code):
 
 
 output_formats_map = {
-    'abi': lambda code, contract_name: mk_full_signature(code),
-    'bytecode': lambda code, contract_name: '0x' + __compile(code).hex(),
-    'bytecode_runtime': lambda code, contract_name: '0x' + __compile(code, bytecode_runtime=True).hex(),
-    'ir': lambda code, contract_name: optimizer.optimize(parser.parse_to_lll(code)),
-    'asm': lambda code, contract_name: get_asm(compile_lll.compile_to_assembly(optimizer.optimize(parser.parse_to_lll(code)))),
+    'abi': lambda code, contract_name, interface_codes: mk_full_signature(code),
+    'bytecode': lambda code, contract_name, interface_codes: '0x' + __compile(code, interface_codes=interface_codes).hex(),
+    'bytecode_runtime': lambda code, contract_name, interface_codes: '0x' + __compile(code, bytecode_runtime=True, interface_codes=interface_codes).hex(),
+    'ir': lambda code, contract_name, interface_codes: optimizer.optimize(parser.parse_to_lll(code)),
+    'asm': lambda code, contract_name, interface_codes: get_asm(compile_lll.compile_to_assembly(optimizer.optimize(parser.parse_to_lll(code)))),
     'source_map': get_source_map,
-    'method_identifiers': lambda code, contract_name: parser.mk_method_identifiers(code),
-    'interface': lambda code, contract_name: extract_interface_str(code, contract_name),
-    'external_interface': lambda code, contract_name: extract_external_interface(code, contract_name),
+    'method_identifiers': lambda code, contract_name, interface_codes: parser.mk_method_identifiers(code),
+    'interface': lambda code, contract_name, interface_codes: extract_interface_str(code, contract_name),
+    'external_interface': lambda code, contract_name, interface_codes: extract_external_interface(code, contract_name),
 }
 
 
-def compile_codes(codes, output_formats=['bytecode'], output_type='list', exc_handler=None):
+def compile_codes(codes, output_formats=['bytecode'], output_type='list', exc_handler=None, interface_codes=None):
 
     out = OrderedDict()
     for contract_name, code in codes.items():
@@ -108,7 +115,11 @@ def compile_codes(codes, output_formats=['bytecode'], output_type='list', exc_ha
                 raise Exception('Unsupported format type %s.' % output_format)
 
             try:
-                out.setdefault(contract_name, {})[output_format] = output_formats_map[output_format](code, contract_name)
+                out.setdefault(contract_name, {})[output_format] = output_formats_map[output_format](
+                    code=code,
+                    contract_name=contract_name,
+                    interface_codes=interface_codes
+                )
             except Exception as exc:
                 if exc_handler:
                     exc_handler(contract_name, exc)
