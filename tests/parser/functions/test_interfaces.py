@@ -3,6 +3,8 @@ from vyper.compiler import (
     compile_codes,
     compile_code
 )
+from vyper.signatures.interface import extract_sigs
+from vyper.interfaces import ERC20, ERC721
 
 
 def test_basic_extract_interface():
@@ -52,7 +54,7 @@ contract One:
     assert interface.strip() == out.strip()
 
 
-def test_basic_interface_implements(assert_compile_fails):
+def test_basic_interface_implements(assert_compile_failed):
     code = """
 from vyper.interfaces import ERC20
 
@@ -64,7 +66,12 @@ def test() -> bool:
     return True
     """
 
-    assert_compile_fails(
+    assert_compile_failed(
         lambda: compile_codes({'one.vy': code}),
         StructureException
     )
+
+
+def test_builtin_interfaces_parse():
+    assert len(extract_sigs(ERC20.interface_code)) == 8
+    assert len(extract_sigs(ERC721.interface_code)) == 13

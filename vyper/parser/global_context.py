@@ -33,7 +33,7 @@ from vyper.types import (
     StructType,
     BaseType,
 )
-from vyper.signatures.interfaces import get_builtin_interfaces
+from vyper.signatures.interface import get_builtin_interfaces
 
 
 # Datatype to store all global context information.

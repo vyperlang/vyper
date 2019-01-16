@@ -2,7 +2,7 @@ from vyper.parser import parser
 from vyper import compile_lll
 from vyper import optimizer
 from collections import OrderedDict
-from vyper.signatures.interfaces import (
+from vyper.signatures.interface import (
     extract_interface_str,
     extract_external_interface
 )
