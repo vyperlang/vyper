@@ -286,6 +286,8 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
 
     def arithmetic_get_reference(self, item):
         item_lll = Expr.parse_value_expr(item, self.context)
+        if item_lll.typ is None:
+            raise TypeMismatchException('Arithmetic can not be performed on None (return) type.', self.expr)
         if isinstance(item, ast.Call):
             # We only want to perform call statements once.
             placeholder = self.context.new_placeholder(item_lll.typ)

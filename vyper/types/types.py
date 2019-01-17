@@ -398,7 +398,7 @@ def get_size_of_type(typ):
     elif isinstance(typ, TupleLike):
         return sum([get_size_of_type(v) for v in typ.tuple_members()])
     else:
-        raise Exception("Unexpected type: %r" % repr(typ))
+        raise Exception("Can not get size of type, Unexpected type: %r" % repr(typ))
 
 
 def has_dynamic_data(typ):
