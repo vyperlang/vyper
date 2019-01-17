@@ -328,6 +328,8 @@ class Stmt(object):
         if not self.is_bool_expr(test_expr):
             raise TypeMismatchException('Only boolean expressions allowed', self.stmt.test)
         if self.stmt.msg:
+            if not isinstance(self.stmt.msg, ast.Str):
+                raise StructureException('Reason parameter of assert needs to be a literal string.', self.stmt.msg)
             if len(self.stmt.msg.s.strip()) == 0:
                 raise StructureException('Empty reason string not allowed.', self.stmt)
             reason_str = self.stmt.msg.s.strip()

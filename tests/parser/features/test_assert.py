@@ -68,3 +68,11 @@ def test(a: int128) -> int128:
     return 1 + a
     """
     assert_compile_failed(lambda: get_contract(code), StructureException)
+
+    # Must be a literal string.
+    code = """
+@public
+def mint(_to: address, _value: uint256):
+    assert msg.sender == self,minter
+    """
+    assert_compile_failed(lambda: get_contract(code), StructureException)
