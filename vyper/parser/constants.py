@@ -53,7 +53,7 @@ class Constants(object):
                 fail = False
 
         if fail:
-            raise TypeMismatchException('Invalid value for constant type, expected %r' % annotation_type, const.value)
+            raise TypeMismatchException('Invalid value for constant type, expected %r got %r instead' % (annotation_type, expr.typ), const.value)
 
         ann_expr = copy.deepcopy(expr)
         ann_expr.typ = annotation_type
