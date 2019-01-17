@@ -781,5 +781,5 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
     def parse_variable_location(expr, context):
         o = Expr(expr, context).lll_node
         if not o.location:
-            raise Exception("Looking for a variable location, instead got a value")
+            raise ParserException("Looking for a variable location, instead got a value", expr)
         return o
