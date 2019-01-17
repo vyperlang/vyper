@@ -505,7 +505,7 @@ class Stmt(object):
         target = self.get_target(self.stmt.target)
         sub = Expr.parse_value_expr(self.stmt.value, self.context)
         if not isinstance(self.stmt.op, (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Mod)):
-            raise Exception("Unsupported operator for augassign")
+            raise StructureException("Unsupported operator for augassign", self.stmt)
         if not isinstance(target.typ, BaseType):
             raise TypeMismatchException("Can only use aug-assign operators with simple types!", self.stmt.target)
         if target.location == 'storage':
