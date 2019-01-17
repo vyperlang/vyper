@@ -254,7 +254,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             elif key == "tx.origin":
                 return LLLnode.from_list(['origin'], typ='address', pos=getpos(self.expr))
             else:
-                raise Exception("Unsupported keyword: " + key)
+                raise ParserException("Unsupported keyword: " + key, self.expr)
         # Other variables
         else:
             sub = Expr.parse_variable_location(self.expr.value, self.context)
