@@ -129,6 +129,7 @@ def deposit(deposit_input: bytes[2048]):
     """
 ]
 
+
 @pytest.mark.parametrize('good_code', valid_list)
 def test_as_wei_success(good_code):
     assert compiler.compile_code(good_code) is not None
