@@ -196,12 +196,12 @@ class GlobalContext:
             return self.get_item_name_and_attributes(item.annotation, attributes)
         elif isinstance(item, ast.Subscript):
             return self.get_item_name_and_attributes(item.value, attributes)
-        elif isinstance(item, ast.Call) and item.func.id == 'map':
+        elif isinstance(item, ast.Call) and isinstance(item.func, ast.Name) and item.func.id == 'map':
             if len(item.args) != 2:
                 raise StructureException("Map type expects two type arguments map(type1, type2)", item.func)
             return self.get_item_name_and_attributes(item.args, attributes)
         # elif ist
-        elif isinstance(item, ast.Call):
+        elif isinstance(item, ast.Call) and isinstance(item.func, ast.Name):
             attributes[item.func.id] = True
             # Raise for multiple args
             if len(item.args) != 1:
@@ -227,23 +227,29 @@ class GlobalContext:
         else:
             raise StructureException('Incorrectly formatted struct', item)
 
+    @staticmethod
+    def get_call_func_name(item):
+        if isinstance(item.annotation, ast.Call) and \
+           isinstance(item.annotation.func, ast.Name):
+            return item.annotation.func.id
+
     def add_globals_and_events(self, item):
         item_attributes = {"public": False}
 
         # Handle constants.
-        if isinstance(item.annotation, ast.Call) and item.annotation.func.id == "constant":
+        if self.get_call_func_name(item) == "constant":
             self._constants.add_constant(item, global_ctx=self)
             return
 
         # Handle events.
-        if not (isinstance(item.annotation, ast.Call) and item.annotation.func.id == "event"):
+        if not (self.get_call_func_name(item) == "event"):
             item_name, item_attributes = self.get_item_name_and_attributes(item, item_attributes)
             if not all([attr in valid_global_keywords for attr in item_attributes.keys()]):
                 raise StructureException('Invalid global keyword used: %s' % item_attributes, item)
 
         if item.value is not None:
             raise StructureException('May not assign value whilst defining type', item)
-        elif isinstance(item.annotation, ast.Call) and item.annotation.func.id == "event":
+        elif self.get_call_func_name(item) == "event":
             if self._globals or len(self._defs):
                 raise EventDeclarationException("Events must all come before global declarations and function definitions", item)
             self._events.append(item)
@@ -275,7 +281,7 @@ class GlobalContext:
             raise StructureException("Global variables must all come before function definitions", item)
         # If the type declaration is of the form public(<type here>), then proceed with
         # the underlying type but also add getters
-        elif isinstance(item.annotation, ast.Call) and item.annotation.func.id == "address":
+        elif self.get_call_func_name(item) == "address":
             if item.annotation.args[0].id not in premade_contracts:
                 raise VariableDeclarationException("Unsupported premade contract declaration", item.annotation.args[0])
             premade_contract = premade_contracts[item.annotation.args[0].id]
@@ -290,7 +296,7 @@ class GlobalContext:
                     self._getters.append(self.parse_line('\n' * (item.lineno - 1) + getter))
                     self._getters[-1].pos = getpos(item)
 
-        elif isinstance(item.annotation, ast.Call) and item.annotation.func.id == "public":
+        elif self.get_call_func_name(item) == "public":
             if isinstance(item.annotation.args[0], ast.Name) and item_name in self._contracts:
                 typ = ContractType(item_name)
             else:
@@ -301,12 +307,14 @@ class GlobalContext:
                 self._getters.append(self.parse_line('\n' * (item.lineno - 1) + getter))
                 self._getters[-1].pos = getpos(item)
 
-        else:
+        elif isinstance(item.annotation, (ast.Name, ast.Call, ast.Subscript)):
             self._globals[item.target.id] = VariableRecord(
                 item.target.id, len(self._globals),
                 parse_type(item.annotation, 'storage', custom_units=self._custom_units, custom_structs=self._structs, constants=self._constants),
                 True
             )
+        else:
+            raise InvalidTypeException('Invalid global type specified', item)
 
     def parse_type(self, ast_node, location):
         return parse_type(
