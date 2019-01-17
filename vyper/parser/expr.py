@@ -436,7 +436,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             else:
                 raise TypeMismatchException('Only whole number exponents are supported', self.expr)
         else:
-            raise Exception("Unsupported binop: %r" % self.expr.op)
+            raise ParserException("Unsupported binary operator: %r" % self.expr.op, self.expr)
 
         p = ['seq']
 
