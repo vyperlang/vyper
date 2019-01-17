@@ -116,9 +116,18 @@ CONST: constant(uint256) = 8
 def test():
     for i in range(CONST / 4):
         pass
+    """,
+    """
+MIN_DEPOSIT: constant(uint256) = 1  # ETH
+MAX_DEPOSIT: constant(decimal) = 32.0  # ETH
+
+@payable
+@public
+def deposit(deposit_input: bytes[2048]):
+    assert msg.value >= as_wei_value(MIN_DEPOSIT, "ether")
+    assert msg.value <= as_wei_value(MAX_DEPOSIT, "ether")
     """
 ]
-
 
 @pytest.mark.parametrize('good_code', valid_list)
 def test_as_wei_success(good_code):

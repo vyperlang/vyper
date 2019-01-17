@@ -22,6 +22,7 @@ class Constants(object):
 
     def __init__(self):
         self._constants = dict()
+        self._constants_ast = dict()
 
     def __contains__(self, key):
         return key in self._constants
@@ -69,6 +70,7 @@ class Constants(object):
             c_name = item.target.id
             if global_ctx.is_valid_varname(c_name, item):
                 self._constants[c_name] = self.unroll_constant(item, global_ctx)
+                self._constants_ast[c_name] = item.value
         else:
             raise StructureException('Incorrectly formatted struct', item)
 
