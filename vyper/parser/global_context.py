@@ -236,6 +236,10 @@ class GlobalContext:
     def add_globals_and_events(self, item):
         item_attributes = {"public": False}
 
+        # Make sure we have a valid variable name.
+        if not isinstance(item.target, ast.Name):
+            raise StructureException('Invalid global variable name', item.target)
+
         # Handle constants.
         if self.get_call_func_name(item) == "constant":
             self._constants.add_constant(item, global_ctx=self)
