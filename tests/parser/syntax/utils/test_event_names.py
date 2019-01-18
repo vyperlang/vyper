@@ -2,7 +2,11 @@ import pytest
 from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import EventDeclarationException
+from vyper.exceptions import (
+    EventDeclarationException,
+    InvalidTypeException
+)
+
 
 fail_list = [
     """
@@ -50,11 +54,24 @@ def foo(i: int128) -> int128:
     log.false(temp_var)
     return temp_var
     """,
+    ("""
+Transfer: eve.t({_from: indexed(address)})
+    """, InvalidTypeException),
+    """
+Transfer: event({_&rom: indexed(address)})
+    """,
+    """
+Transfer: event({_from: i.dexed(address), _to: indexed(address),lue: uint256})
+    """
 ]
 
 
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_varname_validity_fail(bad_code):
+    if isinstance(bad_code, tuple):
+        with raises(bad_code[1]):
+            compiler.compile_code(bad_code[0])
+    else:
         with raises(EventDeclarationException):
             compiler.compile_code(bad_code)
 

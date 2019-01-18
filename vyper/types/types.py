@@ -310,7 +310,7 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
         else:
             raise InvalidTypeException("Invalid base type: " + item.id, item)
     # Units, e.g. num (1/sec) or contracts
-    elif isinstance(item, ast.Call):
+    elif isinstance(item, ast.Call) and isinstance(item.func, ast.Name):
         # Mapping type.
         if item.func.id == 'map':
             if location == 'memory':
