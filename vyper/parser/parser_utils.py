@@ -635,7 +635,10 @@ def gen_tuple_return(stmt, context, sub):
                 ['mload', dynamic_offset_counter]]
         ]
 
-    items = sub.typ.tuple_items()
+    if not isinstance(context.return_type, TupleLike):
+        raise TypeMismatchException('Trying to return %r when expecting %r' % (sub.typ, context.return_type), getpos(stmt))
+    items = context.return_type.tuple_items()
+
     dynamic_offset_start = 32 * len(items)  # The static list of args end.
 
     for i, (key, typ) in enumerate(items):

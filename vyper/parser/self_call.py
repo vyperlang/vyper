@@ -32,9 +32,9 @@ def call_lookup_specs(stmt_expr, context):
 def make_call(stmt_expr, context):
     method_name, _, sig = call_lookup_specs(stmt_expr, context)
 
-    if context.is_constant and not sig.const:
+    if context.is_constant() and not sig.const:
         raise ConstancyViolationException(
-            "May not call non-constant function '%s' within a constant function." % (method_name),
+            "May not call non-constant function '%s' within %s." % (method_name, context.pp_constancy()),
             getpos(stmt_expr)
         )
 

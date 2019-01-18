@@ -443,10 +443,12 @@ def _whoami() -> address:
 def test_nested_static_params_only(get_contract, assert_tx_failed):
     code1 = """
 @private
+@constant
 def c() -> bool:
     return True
 
 @private
+@constant
 def b(sender: address) -> address:
     assert self.c()
     return sender
@@ -459,10 +461,12 @@ def a() -> bool:
 
     code2 = """
 @private
+@constant
 def c(sender: address) -> address:
     return sender
 
 @private
+@constant
 def b(sender: address) -> address:
     return self.c(sender)
 
