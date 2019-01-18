@@ -315,6 +315,8 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
         if item.func.id == 'map':
             if location == 'memory':
                 raise InvalidTypeException("No mappings allowed for in-memory types, only fixed-size arrays", item)
+            if len(item.args) != 2:
+                raise InvalidTypeException("Mapping requires 2 valid positional arguments.", item)
             keytype = parse_type(item.args[0], None, custom_units=custom_units, custom_structs=custom_structs, constants=constants)
             if not isinstance(keytype, (BaseType, ByteArrayType)):
                 raise InvalidTypeException("Mapping keys must be base or bytes types", item)
