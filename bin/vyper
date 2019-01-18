@@ -12,10 +12,6 @@ from vyper.parser import parser_utils
 
 
 warnings.simplefilter('always')
-sys.tracebacklimit = 0
-tb_limit = os.environ.get('VYPER_TRACEBACK_LIMIT')
-if tb_limit:
-    sys.tracebacklimit = int(tb_limit)
 
 format_options_help = """Format to print, one or more of:
  bytecode (default) - Deployable bytecode
@@ -37,8 +33,15 @@ parser.add_argument('input_files', help='Vyper sourcecode to compile', nargs='+'
 parser.add_argument('--version', action='version', version='{0}'.format(vyper.__version__))
 parser.add_argument('--show-gas-estimates', help='Show gas estimates in ir output mode.', action="store_true")
 parser.add_argument('-f', help=format_options_help, default='bytecode', dest='format')
+parser.add_argument('--debug', help='Add compiler debugging output', action='store_true')
 
 args = parser.parse_args()
+
+tb_limit = os.environ.get('VYPER_TRACEBACK_LIMIT')
+if tb_limit:
+    sys.tracebacklimit = int(tb_limit)
+if not args.debug:
+    sys.tracebacklimit = 0
 
 
 def uniq(seq):
