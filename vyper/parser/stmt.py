@@ -334,6 +334,8 @@ class Stmt(object):
         if not self.is_bool_expr(test_expr):
             raise TypeMismatchException('Only boolean expressions allowed', self.stmt.test)
         if self.stmt.msg:
+            if not isinstance(self.stmt.msg, ast.Str):
+                raise StructureException('Reason parameter of assert needs to be a literal string.', self.stmt.msg)
             if len(self.stmt.msg.s.strip()) == 0:
                 raise StructureException('Empty reason string not allowed.', self.stmt)
             reason_str = self.stmt.msg.s.strip()
@@ -511,7 +513,7 @@ class Stmt(object):
         target = self.get_target(self.stmt.target)
         sub = Expr.parse_value_expr(self.stmt.value, self.context)
         if not isinstance(self.stmt.op, (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Mod)):
-            raise Exception("Unsupported operator for augassign")
+            raise StructureException("Unsupported operator for augassign", self.stmt)
         if not isinstance(target.typ, BaseType):
             raise TypeMismatchException("Can only use aug-assign operators with simple types!", self.stmt.target)
         if target.location == 'storage':

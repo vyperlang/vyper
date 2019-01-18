@@ -310,11 +310,13 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
         else:
             raise InvalidTypeException("Invalid base type: " + item.id, item)
     # Units, e.g. num (1/sec) or contracts
-    elif isinstance(item, ast.Call):
+    elif isinstance(item, ast.Call) and isinstance(item.func, ast.Name):
         # Mapping type.
         if item.func.id == 'map':
             if location == 'memory':
                 raise InvalidTypeException("No mappings allowed for in-memory types, only fixed-size arrays", item)
+            if len(item.args) != 2:
+                raise InvalidTypeException("Mapping requires 2 valid positional arguments.", item)
             keytype = parse_type(item.args[0], None, custom_units=custom_units, custom_structs=custom_structs, constants=constants)
             if not isinstance(keytype, (BaseType, ByteArrayType)):
                 raise InvalidTypeException("Mapping keys must be base or bytes types", item)
@@ -398,7 +400,7 @@ def get_size_of_type(typ):
     elif isinstance(typ, TupleLike):
         return sum([get_size_of_type(v) for v in typ.tuple_members()])
     else:
-        raise Exception("Unexpected type: %r" % repr(typ))
+        raise Exception("Can not get size of type, Unexpected type: %r" % repr(typ))
 
 
 def has_dynamic_data(typ):

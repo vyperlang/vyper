@@ -15,12 +15,21 @@ def convert2(inp: uint256) -> uint256:
 @public
 def modtest(x: uint256, y: int128) -> uint256:
     return x % y
+    """,
+    """
+@private
+def ret_non():
+    pass
+
+@public
+def test():
+    a: uint256 = 100 * self.ret_non()
     """
 ]
 
 
 @pytest.mark.parametrize('bad_code', fail_list)
-def test_as_wei_fail(bad_code):
+def test_as_uint256_fail(bad_code):
 
     with raises(TypeMismatchException):
         compiler.compile_code(bad_code)

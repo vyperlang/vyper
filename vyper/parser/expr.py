@@ -254,7 +254,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             elif key == "tx.origin":
                 return LLLnode.from_list(['origin'], typ='address', pos=getpos(self.expr))
             else:
-                raise Exception("Unsupported keyword: " + key)
+                raise ParserException("Unsupported keyword: " + key, self.expr)
         # Other variables
         else:
             sub = Expr.parse_variable_location(self.expr.value, self.context)
@@ -286,6 +286,8 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
 
     def arithmetic_get_reference(self, item):
         item_lll = Expr.parse_value_expr(item, self.context)
+        if item_lll.typ is None:
+            raise TypeMismatchException('Arithmetic can not be performed on None (return) type.', self.expr)
         if isinstance(item, ast.Call):
             # We only want to perform call statements once.
             placeholder = self.context.new_placeholder(item_lll.typ)
@@ -436,7 +438,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             else:
                 raise TypeMismatchException('Only whole number exponents are supported', self.expr)
         else:
-            raise Exception("Unsupported binop: %r" % self.expr.op)
+            raise ParserException("Unsupported binary operator: %r" % self.expr.op, self.expr)
 
         p = ['seq']
 
@@ -779,5 +781,5 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
     def parse_variable_location(expr, context):
         o = Expr(expr, context).lll_node
         if not o.location:
-            raise Exception("Looking for a variable location, instead got a value")
+            raise ParserException("Looking for a variable location, instead got a value", expr)
         return o

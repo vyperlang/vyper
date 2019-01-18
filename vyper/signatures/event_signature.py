@@ -51,9 +51,16 @@ class EventSignature():
             values = code.annotation.args[0].values
             for i in range(len(keys)):
                 typ = values[i]
+                if not isinstance(keys[i], ast.Name):
+                    raise EventDeclarationException('Invalid key type, expected a valid name.', keys[i])
+                if not isinstance(typ, (ast.Name, ast.Call, ast.Subscript)):
+                    raise EventDeclarationException('Invalid event argument type.', typ)
+                if isinstance(typ, ast.Call) and not isinstance(typ.func, ast.Name):
+                    raise EventDeclarationException('Invalid event argument type', typ)
                 arg = keys[i].id
                 arg_item = keys[i]
                 is_indexed = False
+
                 # Check to see if argument is a topic
                 if isinstance(typ, ast.Call) and typ.func.id == 'indexed':
                     typ = values[i].args[0]
