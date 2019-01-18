@@ -372,7 +372,11 @@ def as_wei_value(expr, args, kwargs, context):
         )
     # Compute the amount of wei and return that value
     if isinstance(args[0], (int, float)):
-        numstring, num, den = get_number_as_fraction(expr.args[0], context)
+        expr_args_0 = expr.args[0]
+        # On constant reference fetch value node of constant assignment.
+        if context.constants.ast_is_constant(expr.args[0]):
+            expr_args_0 = context.constants._constants_ast[expr.args[0].id]
+        numstring, num, den = get_number_as_fraction(expr_args_0, context)
         if denomination % den:
             raise InvalidLiteralException("Too many decimal places: %s" % numstring, expr.args[0])
         sub = num * denomination // den
