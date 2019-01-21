@@ -37,7 +37,7 @@ def test_initiate(w3, market_maker, erc20, assert_tx_failed):
     assert market_maker.totalTokenQty() == 1 * 10**18
     assert market_maker.invariant() == 2 * 10**36
     assert market_maker.owner() == a0
-    assert erc20.name().split(b'\0', 1)[0] == TOKEN_NAME
+    assert erc20.name() == TOKEN_NAME
     assert erc20.decimals() == TOKEN_DECIMALS
 
     # Initiate cannot be called twice
