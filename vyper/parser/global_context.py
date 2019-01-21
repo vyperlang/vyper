@@ -84,7 +84,7 @@ class GlobalContext:
                 if isinstance(item.target, ast.Name) and item.target.id == 'implements' and item.annotation:
                     interface_name = item.annotation.id
                     if interface_name not in global_ctx._interfaces:
-                        raise StructureException('Unknown interface specified: {}'.format(), item.annotation)
+                        raise StructureException('Unknown interface specified: {}'.format(interface_name), item)
                     global_ctx._implemented_interfaces.add(interface_name)
                 else:
                     global_ctx.add_globals_and_events(item)

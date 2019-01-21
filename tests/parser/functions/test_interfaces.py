@@ -75,3 +75,35 @@ def test() -> bool:
 def test_builtin_interfaces_parse():
     assert len(extract_sigs(ERC20.interface_code)) == 8
     assert len(extract_sigs(ERC721.interface_code)) == 13
+
+
+def test_external_interface_parsing():
+    interface_code = """
+@public
+def foo() -> uint256:
+    pass
+
+@public
+def bar() -> uint256:
+    pass
+    """
+
+    interface_codes = {
+        'FooBarInterface': interface_code
+    }
+
+    code = """
+import a as FooBarInterface
+
+implements: FooBarInterface
+
+@public
+def foo() -> uint256:
+    return 1
+
+@public
+def bar() -> uint256:
+    return 2
+    """
+
+    assert compile_codes({'one.vy': code}, interface_codes=interface_codes)[0]
