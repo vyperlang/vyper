@@ -310,7 +310,6 @@ Operators
 ====================================  ============================================================
 Keyword                               Description
 ====================================  ============================================================
-``len(x)``                            Return the length as an integer.
 ``sha3(x)``                           Return the sha3 hash as bytes32.
 ``concat(x, ...)``                    Concatenate multiple inputs.
 ``slice(x, start=_start, len=_len)``  Return a slice of ``_len`` starting at ``_start``.
