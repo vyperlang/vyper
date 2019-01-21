@@ -4,8 +4,8 @@
 Transfer: event({_from: indexed(address), _to: indexed(address), _value: uint256})
 Approval: event({_owner: indexed(address), _spender: indexed(address), _value: uint256})
 
-name: public(bytes32)
-symbol: public(bytes32)
+name: public(bytes[5])
+symbol: public(bytes[40])
 decimals: public(uint256)
 balances: map(address, uint256)
 allowances: map(address, map(address, uint256))
@@ -14,7 +14,7 @@ minter: address
 
 
 @public
-def __init__(_name: bytes32, _symbol: bytes32, _decimals: uint256, _supply: uint256):
+def __init__(_name: bytes[5], _symbol: bytes[40], _decimals: uint256, _supply: uint256):
     init_supply: uint256 = _supply * 10 ** _decimals
     self.name = _name
     self.symbol = _symbol
