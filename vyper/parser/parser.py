@@ -231,7 +231,7 @@ def parse_other_functions(o, otherfuncs, sigs, external_contracts, origcode, glo
 
 # Main python parse tree => LLL method
 def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None,):
-    global_ctx = GlobalContext.get_global_context(code)
+    global_ctx = GlobalContext.get_global_context(code, interface_codes)
     _names_def = [_def.name for _def in global_ctx._defs]
     # Checks for duplicate function names
     if len(set(_names_def)) < len(_names_def):

@@ -86,7 +86,6 @@ if __name__ == '__main__':
         for contract_name, code in codes.items():
             interface_codes.update(extract_file_interface_imports(code))
         if interface_codes:
-            print(interface_codes)
             for interface_name, interface_path in interface_codes.items():
                 file_path = os.path.join(os.path.normpath(interface_path.replace('.', '/'))) + '.vy'
                 if not os.path.exists(file_path):

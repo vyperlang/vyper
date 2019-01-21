@@ -33,7 +33,10 @@ from vyper.types import (
     StructType,
     BaseType,
 )
-from vyper.signatures.interface import get_builtin_interfaces
+from vyper.signatures.interface import (
+    extract_sigs,
+    get_builtin_interfaces
+)
 
 
 # Datatype to store all global context information.
@@ -55,7 +58,8 @@ class GlobalContext:
 
     # Parse top-level functions and variables
     @classmethod
-    def get_global_context(cls, code):
+    def get_global_context(cls, code, interface_codes=None):
+        interface_codes = {} if interface_codes is None else interface_codes
         global_ctx = cls()
 
         for item in code:
@@ -100,7 +104,18 @@ class GlobalContext:
                             raise StructureException('Built-In interface {} does not exist.'.format(interface_name), item)
                         global_ctx._interfaces[interface_name] = built_in_interfaces[interface_name].copy()
                 else:
-                    raise StructureException('Only built-in vyper.interfaces supported at the moment.', item)
+                    raise StructureException('Only built-in vyper.interfaces package supported for `from` statement.', item)
+            elif isinstance(item, ast.Import):
+                for item_alias in item.names:
+                    if not item_alias.asname:
+                        raise StructureException('External interface import expects and alias using `as` statement', item)
+
+                    interface_name = item_alias.asname
+                    if interface_name in global_ctx._interfaces:
+                        raise StructureException('Duplicate import of {}'.format(interface_name), item)
+                    if interface_name not in interface_codes:
+                        raise StructureException('Unknown interface {}'.format(interface_name), item)
+                    global_ctx._interfaces[interface_name] = extract_sigs(interface_codes[interface_name])
             else:
                 raise StructureException("Invalid top-level statement", item)
 
