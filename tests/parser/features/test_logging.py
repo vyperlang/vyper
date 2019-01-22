@@ -868,3 +868,43 @@ def set_list():
     assert log.args["arg3"] == b"test"
     assert log.args["arg4"] == [7, 8, 9]
     assert log.args["arg5"] == [1024, 2048]
+
+
+def test_log_dynamic_static_combo(get_logs, get_contract_with_gas_estimation, w3):
+    code = """
+TestLog: event({testData1: bytes32,testData2: bytes[60], testData3: bytes[8]})
+
+@public
+@constant
+def to_bytes(value: uint256) -> bytes[8]:
+    return slice(concat("", convert(value, bytes32)), start=24, len=8)
+
+@private
+@ constant
+def to_bytes32(value: uint256) -> bytes32:
+    return convert(value, bytes32)
+
+@public
+def test_func(value: uint256):
+    data2: bytes[60] = concat(self.to_bytes32(value),self.to_bytes(value),"testing")
+    log.TestLog(self.to_bytes32(value), data2, self.to_bytes(value))
+
+    loggedValue: bytes32 = self.to_bytes32(value)
+    loggedValue2: bytes[8] = self.to_bytes(value)
+    log.TestLog(loggedValue, data2, loggedValue2)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    tx_hash = c.test_func(123, transact={})
+
+    logs = get_logs(tx_hash, c, 'TestLog')
+
+    assert logs[0].args == logs[1].args
+
+    log = logs[0].args
+    assert w3.toInt(log.testData1) == 123
+    assert w3.toInt(log.testData2[:32]) == 123
+    assert log.testData2[-7:] == b'testing'
+    assert log.testData2[32:64] == b'\x00\x00\x00\x00\x00\x00\x00{testing'
+    assert w3.toInt(log.testData3) == 123
