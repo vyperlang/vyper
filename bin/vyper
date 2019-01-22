@@ -37,12 +37,12 @@ parser.add_argument('--debug', help='Add compiler debugging output', action='sto
 
 args = parser.parse_args()
 
-if args.debug:
-    tb_limit = os.environ.get('VYPER_TRACEBACK_LIMIT')
-    if tb_limit:
-        sys.tracebacklimit = int(tb_limit)
-else:
+tb_limit = os.environ.get('VYPER_TRACEBACK_LIMIT')
+if tb_limit:
+    sys.tracebacklimit = int(tb_limit)
+elif not args.debug:
     sys.tracebacklimit = 0
+# sys.traceback limit defaults to 1000
 
 def uniq(seq):
     exists = set()
