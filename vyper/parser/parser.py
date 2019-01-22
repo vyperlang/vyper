@@ -709,27 +709,32 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder,
             stor_list = context.globals[arg.attr]
             check_list_type_match(stor_list.typ.subtype)
             size = stor_list.typ.count
-            for offset in range(0, size):
-                arg2 = LLLnode.from_list(['sload', ['add', ['sha3_32', Expr(arg, context).lll_node], offset]],
+            mem_offset = 0
+            for i in range(0, size):
+                storage_offset = i
+                arg2 = LLLnode.from_list(['sload', ['add', ['sha3_32', Expr(arg, context).lll_node], storage_offset]],
                                          typ=typ)
-                p_holder = context.new_placeholder(BaseType(32)) if offset > 0 else placeholder
-                holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, p_holder, pos=pos)
+                holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, placeholder + mem_offset, pos=pos)
+                mem_offset += get_size_of_type(typ) * 32
+
         # List from variable.
         elif isinstance(arg, ast.Name):
             size = context.vars[arg.id].size
             pos = context.vars[arg.id].pos
             check_list_type_match(context.vars[arg.id].typ.subtype)
+            mem_offset = 0
             for i in range(0, size):
-                offset = 32 * i
-                arg2 = LLLnode.from_list(pos + offset, typ=typ, location='memory')
-                p_holder = context.new_placeholder(BaseType(32)) if i > 0 else placeholder
-                holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, p_holder, pos=pos)
-        # is list literal.
-        else:
-            holder, maxlen = pack_args_by_32(holder, maxlen, arg.elts[0], typ, context, placeholder, pos=pos)
-            for j, arg2 in enumerate(arg.elts[1:]):
-                holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, context.new_placeholder(BaseType(32)), pos=pos)
+                arg2 = LLLnode.from_list(pos + mem_offset, typ=typ, location='memory')
+                # p_holder = context.new_placeholder(BaseType(32)) if i > 0 else placeholder
+                holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, placeholder + mem_offset, pos=pos)
+                mem_offset += get_size_of_type(typ) * 32
 
+        # List from list literal.
+        else:
+            mem_offset = 0
+            for i, arg2 in enumerate(arg.elts):
+                holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, placeholder + mem_offset, pos=pos)
+                mem_offset += get_size_of_type(typ) * 32
     return holder, maxlen
 
 
@@ -752,8 +757,12 @@ def pack_logging_data(expected_data, args, context, pos):
 
     # Create placeholder for static args. Note: order of new_*() is important.
     placeholder_map = {}
-    for i, _ in enumerate(args):
-        placeholder = context.new_placeholder(BaseType(32))
+    for i, (arg, data) in enumerate(zip(args, expected_data)):
+        typ = data.typ
+        if not isinstance(typ, ByteArrayType):
+            placeholder = context.new_placeholder(typ)
+        else:
+            placeholder = context.new_placeholder(BaseType(32))
         placeholder_map[i] = placeholder
 
     # Populate static placeholders.
