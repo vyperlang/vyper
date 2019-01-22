@@ -483,12 +483,11 @@ Custom constants can be defined at a global level in Vyper. To define a constant
       return MAX_SHARES * SHARE_PRICE
 
 
-***********************
-Initial Values and None
-***********************
+**************
+Initial Values
+**************
 
-In Vyper, there is no ``null`` option like most programing languages have. Thus, every variable type has a default value.
-Nevertheless Vyper has the option to declare ``None`` which represent the default value of the type. Note that there is no option to assign ``None`` when initiating a variable. Also, note that you can't make comparisons to None. In order to check if a variable is empty, you will need to compare it to its type's default value.
+In Vyper, there is no ``null`` option like most programing languages have. Thus, every variable type has a default value. In order to check if a variable is empty, you will need to compare it to its type's default value.
 
 Here you can find a list of all types and default values:
 
