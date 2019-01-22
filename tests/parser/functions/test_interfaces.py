@@ -77,7 +77,7 @@ def test_builtin_interfaces_parse():
     assert len(extract_sigs(ERC721.interface_code)) == 13
 
 
-def test_external_interface_parsing():
+def test_external_interface_parsing(assert_compile_failed):
     interface_code = """
 @public
 def foo() -> uint256:
@@ -107,3 +107,19 @@ def bar() -> uint256:
     """
 
     assert compile_codes({'one.vy': code}, interface_codes=interface_codes)[0]
+
+    not_implemented_code = """
+import a as FooBarInterface
+
+implements: FooBarInterface
+
+@public
+def foo() -> uint256:
+    return 1
+
+    """
+
+    assert_compile_failed(
+        lambda: compile_codes({'one.vy': not_implemented_code}, interface_codes=interface_codes)[0],
+        StructureException
+    )
