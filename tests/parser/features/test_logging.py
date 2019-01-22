@@ -906,5 +906,5 @@ def test_func(value: uint256):
     assert w3.toInt(log.testData1) == 123
     assert w3.toInt(log.testData2[:32]) == 123
     assert log.testData2[-7:] == b'testing'
-    assert log.testData2[32:64] == b'\x00\x00\x00\x00\x00\x00\x00{testing'
+    assert log.testData2[32:] == b'\x00\x00\x00\x00\x00\x00\x00{testing'
     assert w3.toInt(log.testData3) == 123
