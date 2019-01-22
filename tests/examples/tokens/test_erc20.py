@@ -14,6 +14,7 @@ TOKEN_SYMBOL = b"FANG"
 TOKEN_DECIMALS = 18
 TOKEN_INITIAL_SUPPLY = 0
 
+
 @pytest.fixture
 def c(get_contract, w3):
     with open('examples/tokens/ERC20.vy') as f:
