@@ -22,10 +22,7 @@ def get_builtin_interfaces():
 
 def render_return(sig):
     if sig.output_type:
-        if isinstance(sig.output_type, tuple):
-            return " -> (%s)" % ", ".join([str(t) for t in sig.output_type])
-        else:
-            return " -> " + str(sig.output_type)
+        return " -> " + str(sig.output_type)
     return ""
 
 
@@ -53,9 +50,7 @@ def extract_interface_str(code, contract_name):
         o = "\n"
         if sig.const:
             o += "@constant\n"
-        if sig.private:
-            o += "@private\n"
-        else:
+        if not sig.private:
             o += "@public\n"
         return o
 
