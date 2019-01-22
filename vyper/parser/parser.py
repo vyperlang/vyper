@@ -750,12 +750,16 @@ def pack_logging_data(expected_data, args, context, pos):
         dynamic_offset_counter = None
         zero_pad_i = None
 
-    # Populate static placeholders.
+    # Create placeholder for static args. Note: order of new_*() is important.
     placeholder_map = {}
-    for i, (arg, data) in enumerate(zip(args, expected_data)):
-        typ = data.typ
+    for i, _ in enumerate(args):
         placeholder = context.new_placeholder(BaseType(32))
         placeholder_map[i] = placeholder
+
+    # Populate static placeholders.
+    for i, (arg, data) in enumerate(zip(args, expected_data)):
+        typ = data.typ
+        placeholder = placeholder_map[i]
         if not isinstance(typ, ByteArrayType):
             holder, maxlen = pack_args_by_32(holder, maxlen, arg, typ, context, placeholder, zero_pad_i=zero_pad_i, pos=pos)
 
