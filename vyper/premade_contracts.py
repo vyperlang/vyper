@@ -2,8 +2,8 @@ import ast
 
 erc20 = """
 class ERC20():
-    def name() -> bytes[40]: constant
-    def symbol() -> bytes[5]: constant
+    def name() -> bytes[64]: constant
+    def symbol() -> bytes[32]: constant
     def decimals() -> uint256: constant
     def balanceOf(_owner: address) -> uint256: constant
     def totalSupply() -> uint256: constant

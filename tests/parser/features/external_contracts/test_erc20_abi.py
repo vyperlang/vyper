@@ -26,11 +26,11 @@ def __init__(token_addr: address):
     self.token_address = token_addr
 
 @public
-def name() -> bytes[40]:
+def name() -> bytes[64]:
     return self.token_address.name()
 
 @public
-def symbol() -> bytes[5]:
+def symbol() -> bytes[32]:
     return self.token_address.symbol()
 
 @public
