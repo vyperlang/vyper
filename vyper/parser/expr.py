@@ -289,7 +289,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         if item_lll.typ is None:
             raise TypeMismatchException('Arithmetic can not be performed on None (return) type.', self.expr)
         if isinstance(item, ast.Call):
-            # We only want to perform call statements once.
+            # Perform call statements once.
             placeholder = self.context.new_placeholder(item_lll.typ)
             pre_alloc = ['mstore', placeholder, item_lll]
             return pre_alloc, LLLnode.from_list(['mload', placeholder], location='memory', typ=item_lll.typ)

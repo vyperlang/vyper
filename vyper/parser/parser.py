@@ -652,22 +652,15 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder,
     """
 
     if isinstance(typ, BaseType):
-        value = parse_expr(arg, context)
-        value = base_type_conversion(value, value.typ, typ, pos)
+        value = ['mload', arg] if isinstance(arg, LLLnode) else parse_expr(arg, context)
+        # value = base_type_conversion(value, value.typ, typ, pos)
         holder.append(LLLnode.from_list(['mstore', placeholder, value], typ=typ, location='memory'))
     elif isinstance(typ, ByteArrayType):
-        bytez = b''
 
-        source_expr = Expr(arg, context)
-        if isinstance(arg, ast.Str):
-            if len(arg.s) > typ.maxlen:
-                raise TypeMismatchException("Data input bytes are to big: %r %r" % (len(arg.s), typ), pos)
-            for c in arg.s:
-                if ord(c) >= 256:
-                    raise InvalidLiteralException("Cannot insert special character %r into byte array" % c, pos)
-                bytez += bytes([ord(c)])
-
-            holder.append(source_expr.lll_node)
+        if isinstance(arg, LLLnode):  # Is prealloacted variable.
+            source_lll = arg
+        else:
+            source_lll = Expr(arg, context).lll_node
 
         # Set static offset, in arg slot.
         holder.append(LLLnode.from_list(['mstore', placeholder, ['mload', dynamic_offset_counter]]))
@@ -675,10 +668,10 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder,
         dest_placeholder = LLLnode.from_list(
             ['add', datamem_start, ['mload', dynamic_offset_counter]],
             typ=typ, location='memory', annotation="pack_args_by_32:dest_placeholder")
-        copier = make_byte_array_copier(dest_placeholder, source_expr.lll_node, pos=pos)
+        copier = make_byte_array_copier(dest_placeholder, source_lll, pos=pos)
         holder.append(copier)
         # Add zero padding.
-        new_maxlen = ceil32(source_expr.lll_node.typ.maxlen)
+        new_maxlen = ceil32(source_lll.typ.maxlen)
 
         holder.append(
             ['with', '_bytearray_loc', dest_placeholder,
@@ -688,10 +681,12 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder,
                             ['if', ['ge', ['mload', zero_pad_i], new_maxlen], 'break'],  # stay within allocated bounds
                             ['mstore8', ['add', ['add', '_bytearray_loc', 32], ['mload', zero_pad_i]], 0]]]]]
         )
+
         # Increment offset counter.
         increment_counter = LLLnode.from_list(
             ['mstore', dynamic_offset_counter,
-                ['add', ['add', ['mload', dynamic_offset_counter], ['ceil32', ['mload', dest_placeholder]]], 32]]
+                ['add', ['add', ['mload', dynamic_offset_counter], ['ceil32', ['mload', dest_placeholder]]], 32]],
+            annotation='Increment dynamic offset counter'
         )
         holder.append(increment_counter)
     elif isinstance(typ, ListType):
@@ -746,6 +741,30 @@ def pack_logging_data(expected_data, args, context, pos):
     holder = ['seq']
     maxlen = len(args) * 32  # total size of all packed args (upper limit)
 
+    # Unroll any function calls, to temp variables.
+    prealloacted = {}
+    for idx, (arg, expected_arg) in enumerate(zip(args, expected_data)):
+
+        if isinstance(arg, (ast.Str, ast.Call)):
+            expr = Expr(arg, context)
+            source_lll = expr.lll_node
+            typ = source_lll.typ
+
+            if isinstance(arg, ast.Str):
+                if len(arg.s) > typ.maxlen:
+                    raise TypeMismatchException("Data input bytes are to big: %r %r" % (len(arg.s), typ), pos)
+
+            tmp_variable = context.new_variable('_log_pack_var_%i_%i' % (arg.lineno, arg.col_offset), source_lll.typ)
+            tmp_variable_node = LLLnode.from_list(tmp_variable, typ=source_lll.typ, pos=getpos(arg), location="memory")
+            # Store len.
+            # holder.append(['mstore', len_placeholder, ['mload', unwrap_location(source_lll)]])
+            # Copy bytes.
+
+            holder.append(
+                make_setter(tmp_variable_node, source_lll, pos=getpos(arg), location='memory')
+            )
+            prealloacted[idx] = tmp_variable_node
+
     requires_dynamic_offset = any([isinstance(data.typ, ByteArrayType) for data in expected_data])
     if requires_dynamic_offset:
         zero_pad_i = context.new_placeholder(BaseType('uint256'))  # Iterator used to zero pad memory.
@@ -770,7 +789,7 @@ def pack_logging_data(expected_data, args, context, pos):
         typ = data.typ
         placeholder = placeholder_map[i]
         if not isinstance(typ, ByteArrayType):
-            holder, maxlen = pack_args_by_32(holder, maxlen, arg, typ, context, placeholder, zero_pad_i=zero_pad_i, pos=pos)
+            holder, maxlen = pack_args_by_32(holder, maxlen, prealloacted.get(i, arg), typ, context, placeholder, zero_pad_i=zero_pad_i, pos=pos)
 
     # Dynamic position starts right after the static args.
     if requires_dynamic_offset:
@@ -794,7 +813,7 @@ def pack_logging_data(expected_data, args, context, pos):
             pack_args_by_32(
                 holder=holder,
                 maxlen=maxlen,
-                arg=arg,
+                arg=prealloacted.get(i, arg),
                 typ=typ,
                 context=context,
                 placeholder=placeholder_map[i],
