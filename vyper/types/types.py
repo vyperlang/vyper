@@ -327,7 +327,7 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
                 return ContractType(item.args[0].id)
         # Struct types
         if (custom_structs is not None) and (item.func.id in custom_structs):
-            return make_struct_type(item.id, location, custom_structs[item.id], custom_units, custom_structs)
+            return make_struct_type(item.id, location, custom_structs[item.id], custom_units, custom_structs, constants)
         if not isinstance(item.func, ast.Name):
             raise InvalidTypeException("Malformed unit type:", item)
         base_type = item.func.id
