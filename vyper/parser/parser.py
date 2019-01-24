@@ -652,15 +652,18 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder,
     """
 
     if isinstance(typ, BaseType):
-        value = ['mload', arg] if isinstance(arg, LLLnode) else parse_expr(arg, context)
-        # value = base_type_conversion(value, value.typ, typ, pos)
+        if isinstance(arg, LLLnode):
+            value = unwrap_location(arg)
+        else:
+            value = parse_expr(arg, context)
+            value = base_type_conversion(value, value.typ, typ, pos)
         holder.append(LLLnode.from_list(['mstore', placeholder, value], typ=typ, location='memory'))
     elif isinstance(typ, ByteArrayType):
 
         if isinstance(arg, LLLnode):  # Is prealloacted variable.
             source_lll = arg
         else:
-            source_lll = Expr(arg, context).lll_node
+            source_lll = parse_expr(arg, context)
 
         # Set static offset, in arg slot.
         holder.append(LLLnode.from_list(['mstore', placeholder, ['mload', dynamic_offset_counter]]))
@@ -755,7 +758,10 @@ def pack_logging_data(expected_data, args, context, pos):
                     raise TypeMismatchException("Data input bytes are to big: %r %r" % (len(arg.s), typ), pos)
 
             tmp_variable = context.new_variable('_log_pack_var_%i_%i' % (arg.lineno, arg.col_offset), source_lll.typ)
-            tmp_variable_node = LLLnode.from_list(tmp_variable, typ=source_lll.typ, pos=getpos(arg), location="memory")
+            tmp_variable_node = LLLnode.from_list(
+                tmp_variable, typ=source_lll.typ,
+                pos=getpos(arg), location="memory", annotation='log_prealloacted %r' % source_lll.typ
+            )
             # Store len.
             # holder.append(['mstore', len_placeholder, ['mload', unwrap_location(source_lll)]])
             # Copy bytes.
