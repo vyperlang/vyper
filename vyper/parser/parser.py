@@ -681,12 +681,14 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder,
         new_maxlen = ceil32(source_expr.lll_node.typ.maxlen)
 
         holder.append(
-            ['with', '_bytearray_loc', dest_placeholder,
+            ['with', '_ceil32_end', ['ceil32', ['mload', dest_placeholder]],
                 ['seq',
-                    ['repeat', zero_pad_i, ['mload', '_bytearray_loc'], new_maxlen,
+                    ['with', '_bytearray_loc', dest_placeholder,
                         ['seq',
-                            ['if', ['ge', ['mload', zero_pad_i], new_maxlen], 'break'],  # stay within allocated bounds
-                            ['mstore8', ['add', ['add', '_bytearray_loc', 32], ['mload', zero_pad_i]], 0]]]]]
+                            ['repeat', zero_pad_i, ['mload', '_bytearray_loc'], new_maxlen,
+                                ['seq',
+                                    ['if', ['ge', ['mload', zero_pad_i], '_ceil32_end'], 'break'],  # stay within allocated bounds
+                                    ['mstore8', ['add', ['add', '_bytearray_loc', 32], ['mload', zero_pad_i]], 0]]]]]]]
         )
         # Increment offset counter.
         increment_counter = LLLnode.from_list(
