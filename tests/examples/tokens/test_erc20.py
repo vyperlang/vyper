@@ -9,28 +9,28 @@ from web3.exceptions import (
 
 ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 MAX_UINT256 = (2 ** 256) - 1  # Max uint256 value
+TOKEN_NAME = b"Vypercoin"
+TOKEN_SYMBOL = b"FANG"
+TOKEN_DECIMALS = 18
+TOKEN_INITIAL_SUPPLY = 0
 
 
 @pytest.fixture
-def c(get_contract, w3, bytes_helper):
+def c(get_contract, w3):
     with open('examples/tokens/ERC20.vy') as f:
         code = f.read()
-    name = bytes_helper("Vypercoin", 32)
-    symbol = bytes_helper("VYP", 32)
-    c = get_contract(code, name, symbol, 0, 0)
+    c = get_contract(code, *[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY])
     return c
 
 
 @pytest.fixture
-def c_bad(get_contract, w3, bytes_helper):
+def c_bad(get_contract, w3):
     # Bad contract is used for overflow checks on totalSupply corrupted
     with open('examples/tokens/ERC20.vy') as f:
         code = f.read()
-    name = bytes_helper("Vypercoin", 32)
-    symbol = bytes_helper("VYP", 32)
     bad_code = code.replace("self.total_supply += _value", "") \
                 .replace("self.total_supply -= _value", "")
-    c = get_contract(bad_code, name, symbol, 0, 0)
+    c = get_contract(bad_code, *[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY])
     return c
 
 
@@ -46,8 +46,11 @@ def get_log_args(get_logs):
 
 def test_initial_state(c, w3):
     a1, a2, a3 = w3.eth.accounts[1:4]
-    # Check total supply is 0
-    assert c.totalSupply() == 0
+    # Check total supply, name, symbol and decimals are correctly set
+    assert c.totalSupply() == TOKEN_INITIAL_SUPPLY
+    assert c.name() == TOKEN_NAME
+    assert c.symbol() == TOKEN_SYMBOL
+    assert c.decimals() == TOKEN_DECIMALS
     # Check several account balances as 0
     assert c.balanceOf(a1) == 0
     assert c.balanceOf(a2) == 0

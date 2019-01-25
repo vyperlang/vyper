@@ -26,11 +26,11 @@ def __init__(token_addr: address):
     self.token_address = token_addr
 
 @public
-def name() -> bytes32:
+def name() -> bytes[64]:
     return self.token_address.name()
 
 @public
-def symbol() -> bytes32:
+def symbol() -> bytes[32]:
     return self.token_address.symbol()
 
 @public
@@ -60,16 +60,11 @@ def allowance(_owner: address, _spender: address) -> uint256:
     return get_contract(erc20_caller_code, *[erc20.address])
 
 
-def pad_bytes32(instr):
-    """ Pad a string \x00 bytes to return correct bytes32 representation. """
-    return instr + (32 - len(instr)) * b'\x00'
-
-
 def test_initial_state(w3, erc20_caller):
     assert erc20_caller.totalSupply() == TOKEN_TOTAL_SUPPLY == erc20_caller.balanceOf(w3.eth.accounts[0])
     assert erc20_caller.balanceOf(w3.eth.accounts[1]) == 0
-    assert erc20_caller.name() == pad_bytes32(TOKEN_NAME)
-    assert erc20_caller.symbol() == pad_bytes32(TOKEN_SYMBOL)
+    assert erc20_caller.name() == TOKEN_NAME
+    assert erc20_caller.symbol() == TOKEN_SYMBOL
     assert erc20_caller.decimals() == TOKEN_DECIMALS
 
 
