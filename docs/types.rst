@@ -488,6 +488,7 @@ Initial Values
 **************
 
 In Vyper, there is no ``null`` option like most programing languages have. Thus, every variable type has a default value. In order to check if a variable is empty, you will need to compare it to its type's default value.
+If you would like to reset a variable to its type's default value, use the built-in ``clear()`` function.  
 
 Here you can find a list of all types and default values:
 
