@@ -868,4 +868,3 @@ def set_list():
     assert log.args["arg3"] == b"test"
     assert log.args["arg4"] == [7, 8, 9]
     assert log.args["arg5"] == [1024, 2048]
-

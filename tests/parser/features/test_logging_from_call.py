@@ -100,7 +100,6 @@ def test_func(value: uint256,input: bytes[133]):
     c = get_contract(code)
 
     tx_hash = c.test_func(1234444, b'x' * 129, transact={})
-    tx_receipt = w3.eth.getTransactionReceipt(tx_hash)
     logs = get_logs(tx_hash, c, 'TestLog')
 
     assert w3.toInt(logs[0].args.testData1) == 1234444
@@ -147,7 +146,6 @@ def test_func(value: uint256,input: bytes[2048]):
     print(logs[0].args)
 
     assert w3.toInt(logs[0].args.testData1) == 333
-
 
     assert w3.toInt(logs[0].args.testData2[0:8]) == 333
     assert w3.toInt(logs[0].args.testData2[8:16]) == 333
