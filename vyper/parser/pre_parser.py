@@ -17,7 +17,7 @@ from vyper import __version__
 
 
 def _parser_version_str(version_str):
-    version_regex = re.compile(r'^(\d+\.)?(\d+\.)?(\w*)$')
+    version_regex = re.compile(r'^(\d+\.)?(\d+\.)?(\w*)')
     if None in version_regex.match(version_str).groups():
         raise Exception('Could not parse given version: %s' % version_str)
     return version_regex.match(version_str).groups()
