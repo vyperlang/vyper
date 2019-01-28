@@ -149,3 +149,71 @@ Vyper supports structured documentation for state variables and functions and ev
 
 
 Additional information about Ethereum Natural Specification (NatSpec) can be found `here <https://github.com/ethereum/wiki/wiki/Ethereum-Natural-Specification-Format>`_. 
+
+
+Contract Interfaces
+===================
+
+Vyper supports exporting and importing contract interfaces, this is done using a `import` and `implements` statements.
+
+::
+
+    import an_interface as FooBarInterface
+
+    implements: FooBarInterface
+
+::
+
+
+This will import the defined interface in vyper file at `an_interface.vy` and make sure the current contract implements all the necessary public functions.
+Note that all interface is valid vyper code, without the return type check. Meaning you can use a contract with code in in the function body as interface as well (but default to a function body with a `pass`).
+
+
+Extracting Interfaces
+---------------------
+
+Vyper has a built-in format option to allow you to make your own vyper interfaces easily.
+
+::
+
+    vyper -f interface examples/voting/ballot.vy
+
+    # Functions
+
+    @constant
+    @public
+    def delegated(addr: address) -> bool:
+        pass
+
+    # ...
+
+::
+
+If you want to do an external call to another contract, vyper provides an external contract extract utility as well.
+
+::
+
+    vyper -f external_interface examples/voting/ballot.vy
+
+    # External Contracts
+    contract Ballot:
+        def delegated(addr: address) -> bool: constant
+        def directlyVoted(addr: address) -> bool: constant
+        def giveRightToVote(voter: address): modifying
+        def forwardWeight(delegate_with_weight_to_forward: address): modifying
+        # ...
+::
+
+The output can then easily be copy-pasted to be consumed.
+
+Built-in Interfaces
+-------------------
+Vyper supports a few built-in interfaces such as ERC20 and ERC721. These are import from `vyper.interfaces`.
+
+::
+
+  from vyper.interfaces import ERC20
+
+  implements: ERC20
+
+::

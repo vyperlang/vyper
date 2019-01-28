@@ -59,7 +59,7 @@ if not hasattr(ast, 'AnnAssign'):
 
 
 # Converts code to parse tree
-def parse(code):
+def parse_to_ast(code):
     class_names, code = pre_parse(code)
     if '\x00' in code:
         raise ParserException('No null bytes (\\x00) allowed in the source code.')
@@ -134,14 +134,19 @@ def generate_default_arg_sigs(code, contracts, global_ctx):
 
 
 # Get ABI signature
-def mk_full_signature(code):
+def mk_full_signature(code, sig_formatter=None):
+
+    if sig_formatter is None:
+        # Use default JSON style ouptu.
+        sig_formatter = lambda sig, custom_units_descriptions: sig.to_abi_dict(custom_units_descriptions)
+
     o = []
     global_ctx = GlobalContext.get_global_context(code)
 
     # Produce event signatues.
     for code in global_ctx._events:
         sig = EventSignature.from_declaration(code, global_ctx)
-        o.append(sig.to_abi_dict(global_ctx._custom_units_descriptions))
+        o.append(sig_formatter(sig, global_ctx._custom_units_descriptions))
 
     # Produce function signatures.
     for code in global_ctx._defs:
@@ -154,13 +159,13 @@ def mk_full_signature(code):
         if not sig.private:
             default_sigs = generate_default_arg_sigs(code, global_ctx._contracts, global_ctx)
             for s in default_sigs:
-                o.append(s.to_abi_dict(global_ctx._custom_units_descriptions))
+                o.append(sig_formatter(s, global_ctx._custom_units_descriptions))
     return o
 
 
 def mk_method_identifiers(code):
     o = {}
-    global_ctx = GlobalContext.get_global_context(parse(code))
+    global_ctx = GlobalContext.get_global_context(parse_to_ast(code))
 
     for code in global_ctx._defs:
         sig = FunctionSignature.from_definition(code, sigs=global_ctx._contracts, custom_units=global_ctx._custom_units, constants=global_ctx._constants)
@@ -228,8 +233,8 @@ def parse_other_functions(o, otherfuncs, sigs, external_contracts, origcode, glo
 
 
 # Main python parse tree => LLL method
-def parse_tree_to_lll(code, origcode, runtime_only=False):
-    global_ctx = GlobalContext.get_global_context(code)
+def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None,):
+    global_ctx = GlobalContext.get_global_context(code, interface_codes)
     _names_def = [_def.name for _def in global_ctx._defs]
     # Checks for duplicate function names
     if len(set(_names_def)) < len(_names_def):
@@ -261,6 +266,27 @@ def parse_tree_to_lll(code, origcode, runtime_only=False):
         o = parse_other_functions(
             o, otherfuncs, sigs, external_contracts, origcode, global_ctx, defaultfunc, runtime_only
         )
+    # Check interface.
+    if global_ctx._interface:
+        funcs_left = global_ctx._interface.copy()
+
+        for sig, func_sig in sigs.items():
+            if isinstance(func_sig, FunctionSignature):
+                if sig in funcs_left and not func_sig.private:
+                    del funcs_left[sig]
+            if isinstance(func_sig, EventSignature) and func_sig.sig in funcs_left:
+                del funcs_left[func_sig.sig]
+
+        if funcs_left:
+            error_message = 'Contract does not comply to supplied Interface(s).\n'
+            missing_functions = [sig_name for sig_name, func_sig in funcs_left.items() if isinstance(func_sig, FunctionSignature)]
+            missing_events = [sig_name for sig_name, func_sig in funcs_left.items() if isinstance(func_sig, EventSignature)]
+            if missing_functions:
+                error_message += 'Missing interface functions:\n\t{}'.format('\n\t'.join(missing_functions))
+            if missing_events:
+                error_message += 'Missing interface events:\n\t{}'.format('\n\t'.join(missing_events))
+            raise StructureException(error_message)
+
     return LLLnode.from_list(o, typ=None)
 
 
@@ -833,5 +859,5 @@ def pack_logging_data(expected_data, args, context, pos):
 
 
 def parse_to_lll(kode, runtime_only=False):
-    code = parse(kode)
+    code = parse_to_ast(kode)
     return parse_tree_to_lll(code, kode, runtime_only=runtime_only)

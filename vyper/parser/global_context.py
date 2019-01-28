@@ -33,6 +33,10 @@ from vyper.types import (
     StructType,
     BaseType,
 )
+from vyper.signatures.interface import (
+    extract_sigs,
+    get_builtin_interfaces
+)
 
 
 # Datatype to store all global context information.
@@ -48,10 +52,14 @@ class GlobalContext:
         self._custom_units = set()
         self._custom_units_descriptions = dict()
         self._constants = Constants()
+        self._interfaces = dict()
+        self._interface = dict()
+        self._implemented_interfaces = set()
 
     # Parse top-level functions and variables
     @classmethod
-    def get_global_context(cls, code):
+    def get_global_context(cls, code, interface_codes=None):
+        interface_codes = {} if interface_codes is None else interface_codes
         global_ctx = cls()
 
         for item in code:
@@ -72,14 +80,55 @@ class GlobalContext:
             # Statements of the form:
             # variable_name: type
             elif isinstance(item, ast.AnnAssign):
-                global_ctx.add_globals_and_events(item)
+                # implements statement.
+                if isinstance(item.target, ast.Name) and item.target.id == 'implements' and item.annotation:
+                    interface_name = item.annotation.id
+                    if interface_name not in global_ctx._interfaces:
+                        raise StructureException('Unknown interface specified: {}'.format(interface_name), item)
+                    global_ctx._implemented_interfaces.add(interface_name)
+                else:
+                    global_ctx.add_globals_and_events(item)
             # Function definitions
             elif isinstance(item, ast.FunctionDef):
                 if item.name in global_ctx._globals:
                     raise FunctionDeclarationException("Function name shadowing a variable name: %s" % item.name)
                 global_ctx._defs.append(item)
+            elif isinstance(item, ast.ImportFrom):
+                if item.module == 'vyper.interfaces':
+                    built_in_interfaces = get_builtin_interfaces()
+                    for item_alias in item.names:
+                        interface_name = item_alias.name
+                        if interface_name in global_ctx._interfaces:
+                            raise StructureException('Duplicate import of {}'.format(interface_name), item)
+                        if interface_name not in built_in_interfaces:
+                            raise StructureException('Built-In interface {} does not exist.'.format(interface_name), item)
+                        global_ctx._interfaces[interface_name] = built_in_interfaces[interface_name].copy()
+                else:
+                    raise StructureException('Only built-in vyper.interfaces package supported for `from` statement.', item)
+            elif isinstance(item, ast.Import):
+                for item_alias in item.names:
+                    if not item_alias.asname:
+                        raise StructureException('External interface import expects and alias using `as` statement', item)
+
+                    interface_name = item_alias.asname
+                    if interface_name in global_ctx._interfaces:
+                        raise StructureException('Duplicate import of {}'.format(interface_name), item)
+                    if interface_name not in interface_codes:
+                        raise StructureException('Unknown interface {}'.format(interface_name), item)
+                    global_ctx._interfaces[interface_name] = extract_sigs(interface_codes[interface_name])
             else:
                 raise StructureException("Invalid top-level statement", item)
+
+        if set(global_ctx._interfaces.keys()) != global_ctx._implemented_interfaces:
+            raise StructureException('All interfaces that are imported have to be implemented using the "implements" statement.')
+
+        # Merge intefaces.
+        if global_ctx._interfaces:
+            for interface_name, sigs in global_ctx._interfaces.items():
+                for func_sig in sigs:
+                    setattr(func_sig, 'defined_in_interface', interface_name)
+                    global_ctx._interface[func_sig.sig] = func_sig
+
         # Add getters to _defs
         global_ctx._defs += global_ctx._getters
         return global_ctx
