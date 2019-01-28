@@ -544,10 +544,11 @@ class Stmt(object):
             if maxlen > 0:
                 zero_pad_i = self.context.new_placeholder(BaseType('uint256'))  # Iterator used to zero pad memory.
                 zero_padder = LLLnode.from_list(
-                    ['repeat', zero_pad_i, ['mload', bytez_placeholder], maxlen,
-                        ['seq',
-                            ['if', ['gt', ['mload', zero_pad_i], maxlen], 'break'],  # stay within allocated bounds
-                            ['mstore8', ['add', ['add', 32, bytez_placeholder], ['mload', zero_pad_i]], 0]]],
+                    ['with', '_ceil32_end', ['ceil32', ['mload', bytez_placeholder]],
+                        ['repeat', zero_pad_i, ['mload', bytez_placeholder], maxlen,
+                            ['seq',
+                                ['if', ['gt', ['mload', zero_pad_i], '_ceil32_end'], 'break'],  # stay within allocated bounds
+                                ['mstore8', ['add', ['add', 32, bytez_placeholder], ['mload', zero_pad_i]], 0]]]],
                     annotation="Zero pad"
                 )
             return zero_padder
