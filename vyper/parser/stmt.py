@@ -29,11 +29,12 @@ from vyper.parser.parser_utils import (
 )
 from vyper.types import (
     BaseType,
+    ByteArrayLike,
     ByteArrayType,
     ListType,
-    TupleType,
-    StructType,
     NullType,
+    StructType,
+    TupleType,
 )
 from vyper.types import (
     get_size_of_type,
@@ -100,7 +101,7 @@ class Stmt(object):
             if self.stmt.annotation.func.id != sub.typ.typ and not sub.typ.is_literal:
                 raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.func.id, self.stmt)
         elif isinstance(self.stmt.annotation, ast.Name) and self.stmt.annotation.id == 'bytes32':
-            if isinstance(sub.typ, ByteArrayType):
+            if isinstance(sub.typ, ByteArrayLike):
                 if sub.typ.maxlen != 32:
                     raise TypeMismatchException('Invalid type, expected: bytes32. String is incorrect length.', self.stmt)
                 return
@@ -111,7 +112,7 @@ class Stmt(object):
             else:
                 raise TypeMismatchException('Invalid type, expected: bytes32', self.stmt)
         elif isinstance(self.stmt.annotation, ast.Subscript):
-            if not isinstance(sub.typ, (ListType, ByteArrayType)):  # check list assign.
+            if not isinstance(sub.typ, (ListType, ByteArrayLike)):  # check list assign.
                 raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.value.id, self.stmt)
         elif isinstance(sub.typ, StructType):
             # This needs to get more sophisticated in the presence of
@@ -574,8 +575,8 @@ class Stmt(object):
             else:
                 raise TypeMismatchException("Unsupported type conversion: %r to %r" % (sub.typ, self.context.return_type), self.stmt.value)
         # Returning a byte array
-        elif isinstance(sub.typ, ByteArrayType):
-            if not isinstance(self.context.return_type, ByteArrayType):
+        elif isinstance(sub.typ, ByteArrayLike):
+            if not isinstance(self.context.return_type, ByteArrayLike):
                 raise TypeMismatchException("Trying to return base type %r, output expecting %r" % (sub.typ, self.context.return_type), self.stmt.value)
             if sub.typ.maxlen > self.context.return_type.maxlen:
                 raise TypeMismatchException("Cannot cast from greater max-length %d to shorter max-length %d" %

@@ -124,13 +124,23 @@ class ContractType(BaseType):
         super().__init__('address', name)
 
 
-# Data structure for a byte array
-class ByteArrayType(NodeType):
+class ByteArrayLike(NodeType):
+
     def __init__(self, maxlen):
         self.maxlen = maxlen
 
     def eq(self, other):
         return self.maxlen == other.maxlen
+
+
+class StringType(ByteArrayLike):
+
+    def __repr__(self):
+        return 'string[%d]' % self.maxlen
+
+
+# Data structure for a byte array
+class ByteArrayType(ByteArrayLike):
 
     def __repr__(self):
         return 'bytes[%d]' % self.maxlen
@@ -219,12 +229,13 @@ class NullType(NodeType):
 
 # Convert type into common form used in ABI
 def canonicalize_type(t, is_indexed=False):
-    if isinstance(t, ByteArrayType):
+    if isinstance(t, ByteArrayLike):
         # Check to see if maxlen is small enough for events
+        byte_type = 'string' if isinstance(t, StringType) else 'bytes'
         if is_indexed:
-            return 'bytes{}'.format(t.maxlen)
+            return '{}{}'.format(byte_type, t.maxlen)
         else:
-            return 'bytes'
+            return '{}'.format(byte_type)
     if isinstance(t, ListType):
         if not isinstance(t.subtype, (ListType, BaseType)):
             raise Exception("List of byte arrays not allowed")
@@ -360,6 +371,8 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
             # ByteArray
             if getattr(item.value, 'id', None) == 'bytes':
                 return ByteArrayType(n_val)
+            elif getattr(item.value, 'id', None) == 'string':
+                return StringType(n_val)
             # List
             else:
                 return ListType(parse_type(item.value, location, custom_units=custom_units, custom_structs=custom_structs, constants=constants), n_val)
@@ -391,7 +404,7 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
 def get_size_of_type(typ):
     if isinstance(typ, BaseType):
         return 1
-    elif isinstance(typ, ByteArrayType):
+    elif isinstance(typ, ByteArrayLike):
         return ceil32(typ.maxlen) // 32 + 2
     elif isinstance(typ, ListType):
         return get_size_of_type(typ.subtype) * typ.count

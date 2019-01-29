@@ -13,6 +13,7 @@ from vyper.parser.lll_node import (
 from vyper.types import (
     BaseType,
     ByteArrayType,
+    ByteArrayLike,
     ContractType,
     NullType,
     StructType,
@@ -72,9 +73,9 @@ def get_original_if_0_prefixed(expr, context):
 
 # Copies byte array
 def make_byte_array_copier(destination, source, pos=None):
-    if not isinstance(source.typ, (ByteArrayType, NullType)):
+    if not isinstance(source.typ, (ByteArrayLike, NullType)):
         raise TypeMismatchException("Can only set a byte array to another byte array", pos)
-    if isinstance(source.typ, ByteArrayType) and source.typ.maxlen > destination.typ.maxlen:
+    if isinstance(source.typ, ByteArrayLike) and source.typ.maxlen > destination.typ.maxlen:
         raise TypeMismatchException("Cannot cast from greater max-length %d to shorter max-length %d" % (source.typ.maxlen, destination.typ.maxlen))
     # Special case: memory to memory
     if source.location == "memory" and destination.location == "memory":
