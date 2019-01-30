@@ -419,7 +419,7 @@ def get_size_of_type(typ):
 def has_dynamic_data(typ):
     if isinstance(typ, BaseType):
         return False
-    elif isinstance(typ, ByteArrayType):
+    elif isinstance(typ, ByteArrayLike):
         return True
     elif isinstance(typ, ListType):
         return has_dynamic_data(typ.subtype)

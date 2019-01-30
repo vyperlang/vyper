@@ -74,7 +74,8 @@ def get_original_if_0_prefixed(expr, context):
 # Copies byte array
 def make_byte_array_copier(destination, source, pos=None):
     if not isinstance(source.typ, (ByteArrayLike, NullType)):
-        raise TypeMismatchException("Can only set a byte array to another byte array", pos)
+        btype = 'byte array' if isinstance(destination.typ, ByteArrayType) else 'string'
+        raise TypeMismatchException("Can only set a {} to another {}".format(btype, btype), pos)
     if isinstance(source.typ, ByteArrayLike) and source.typ.maxlen > destination.typ.maxlen:
         raise TypeMismatchException("Cannot cast from greater max-length %d to shorter max-length %d" % (source.typ.maxlen, destination.typ.maxlen))
     # Special case: memory to memory
@@ -374,7 +375,7 @@ def make_setter(left, right, location, pos, in_function_call=False):
         elif location == 'memory':
             return LLLnode.from_list(['mstore', left, right], typ=None)
     # Byte arrays
-    elif isinstance(left.typ, ByteArrayType):
+    elif isinstance(left.typ, ByteArrayLike):
         return make_byte_array_copier(left, right, pos)
     # Can't copy mappings
     elif isinstance(left.typ, MappingType):
