@@ -116,6 +116,7 @@ def test() -> (int128, bytes[20], address, bytes[20]):
     c = get_contract_with_gas_estimation(code)
 
     assert c.out_literals() == [1, b"testtesttest", None, b"random"]
+    assert c.out_literals() == c.test()
 
 
 def test_tuple_return_typecheck(assert_tx_failed, get_contract_with_gas_estimation):
