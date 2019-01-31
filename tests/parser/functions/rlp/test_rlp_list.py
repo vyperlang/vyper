@@ -9,27 +9,27 @@ u: bytes[100]
 
 @public
 def foo() -> address:
-    x = RLPList(b'\xf6\x9455555555555555555555\xa0GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG', [address, bytes32])
+    x = RLPList(convert('\xf6\x9455555555555555555555\xa0GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG', bytes[100]), [address, bytes32])
     return x[0]
 
 @public
 def fop() -> bytes32:
-    x = RLPList(b'\xf6\x9455555555555555555555\xa0GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG', [address, bytes32])
+    x = RLPList(convert('\xf6\x9455555555555555555555\xa0GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG', bytes[100]), [address, bytes32])
     return x[1]
 
 @public
 def foq() -> bytes[100]:
-    x = RLPList(b'\xc5\x83cow\x03', [bytes, int128])
+    x = RLPList(convert('\xc5\x83cow\x03', bytes[100]), [bytes, int128])
     return x[0]
 
 @public
 def fos() -> int128:
-    x = RLPList(b'\xc5\x83cow\x03', [bytes, int128])
+    x = RLPList(convert('\xc5\x83cow\x03', bytes[100]), [bytes, int128])
     return x[1]
 
 @public
 def fot() -> uint256:
-    x = RLPList(b'\xc5\x83cow\x03', [bytes, uint256])
+    x = RLPList(convert('\xc5\x83cow\x03', bytes[100]), [bytes, uint256])
     return x[1]
 
 @public

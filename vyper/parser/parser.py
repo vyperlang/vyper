@@ -634,6 +634,7 @@ def parse_stmt(stmt, context):
 
 def pack_logging_topics(event_id, args, expected_topics, context, pos):
     topics = [event_id]
+    code_pos = pos
     for pos, expected_topic in enumerate(expected_topics):
         expected_type = expected_topic.typ
         arg = args[pos]
@@ -642,11 +643,11 @@ def pack_logging_topics(event_id, args, expected_topics, context, pos):
 
         if isinstance(arg_type, ByteArrayType) and isinstance(expected_type, ByteArrayType):
             if arg_type.maxlen > expected_type.maxlen:
-                raise TypeMismatchException("Topic input bytes are too big: %r %r" % (arg_type, expected_type), pos)
+                raise TypeMismatchException("Topic input bytes are too big: %r %r" % (arg_type, expected_type), code_pos)
             if isinstance(arg, ast.Str):
                 bytez, bytez_length = string_to_bytes(arg.s)
                 if len(bytez) > 32:
-                    raise InvalidLiteralException("Can only log a maximum of 32 bytes at a time.", pos)
+                    raise InvalidLiteralException("Can only log a maximum of 32 bytes at a time.", code_pos)
                 topics.append(bytes_to_int(bytez + b'\x00' * (32 - bytez_length)))
             else:
                 if value.location == "memory":
@@ -656,7 +657,7 @@ def pack_logging_topics(event_id, args, expected_topics, context, pos):
                 topics.append(byte_array_to_num(value, arg, 'uint256', size))
         else:
             value = unwrap_location(value)
-            value = base_type_conversion(value, arg_type, expected_type, pos=pos)
+            value = base_type_conversion(value, arg_type, expected_type, pos=code_pos)
             topics.append(value)
 
     return topics

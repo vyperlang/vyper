@@ -137,9 +137,6 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
 
     # Byte literals
     def bytes(self):
-        for c in self.expr.s:
-            if c >= 256:
-                raise InvalidLiteralException("Cannot insert special character %r into byte array" % c, self.expr)
         bytez = self.expr.s
         bytez_length = len(self.expr.s)
         return self._make_bytelike(ByteArrayType(bytez_length), bytez, bytez_length)

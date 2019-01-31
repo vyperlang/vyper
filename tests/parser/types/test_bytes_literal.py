@@ -2,7 +2,7 @@ def test_bytes_literal_code(get_contract_with_gas_estimation):
     bytes_literal_code = """
 @public
 def foo() -> bytes[5]:
-    return "horse"
+    return b"horse"
 
 @public
 def bar() -> bytes[10]:
@@ -10,20 +10,20 @@ def bar() -> bytes[10]:
 
 @public
 def baz() -> bytes[40]:
-    return concat("0123456789012345678901234567890", "12")
+    return concat(b"0123456789012345678901234567890", b"12")
 
 @public
 def baz2() -> bytes[40]:
-    return concat("01234567890123456789012345678901", "12")
+    return concat(b"01234567890123456789012345678901", b"12")
 
 @public
 def baz3() -> bytes[40]:
-    return concat("0123456789012345678901234567890", "1")
+    return concat(b"0123456789012345678901234567890", b"1")
 
 @public
 def baz4() -> bytes[100]:
-    return concat("01234567890123456789012345678901234567890123456789",
-                  "01234567890123456789012345678901234567890123456789")
+    return concat(b"01234567890123456789012345678901234567890123456789",
+                  b"01234567890123456789012345678901234567890123456789")
     """
 
     c = get_contract_with_gas_estimation(bytes_literal_code)

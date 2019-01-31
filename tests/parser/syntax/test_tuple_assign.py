@@ -19,7 +19,7 @@ def test():
     """
 @public
 def out_literals() -> (int128, int128, bytes[10]):
-    return 1, 2, "3333"
+    return 1, 2, b"3333"
 
 @public
 def test() -> (int128, address, bytes[10]):
@@ -31,7 +31,7 @@ def test() -> (int128, address, bytes[10]):
     """
 @public
 def out_literals() -> (int128, int128, bytes[10]):
-    return 1, 2, "3333"
+    return 1, 2, b"3333"
 
 @public
 def test() -> (int128, address, bytes[10]):
@@ -56,7 +56,7 @@ def test() -> (int128, int128, bytes[10]):
     """
 @public
 def out_literals() -> (int128, int128, bytes[100]):
-    return 1, 2, "test"
+    return 1, 2, b"test"
 
 @public
 def test():

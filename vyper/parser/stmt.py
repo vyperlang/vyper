@@ -102,6 +102,7 @@ class Stmt(object):
                 raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.func.id, self.stmt)
         elif isinstance(self.stmt.annotation, ast.Name) and self.stmt.annotation.id == 'bytes32':
             if isinstance(sub.typ, ByteArrayLike):
+                import ipdb; ipdb.set_trace()
                 if sub.typ.maxlen != 32:
                     raise TypeMismatchException('Invalid type, expected: bytes32. String is incorrect length.', self.stmt)
                 return
@@ -172,8 +173,7 @@ class Stmt(object):
 
             # If bytes[32] to bytes32 assignment rewrite sub as bytes32.
             if isinstance(sub.typ, ByteArrayType) and sub.typ.maxlen == 32 and isinstance(typ, BaseType) and typ.typ == 'bytes32':
-                bytez, bytez_length = string_to_bytes(self.stmt.value.s)
-                sub = LLLnode(bytes_to_int(bytez), typ=BaseType('bytes32'), pos=getpos(self.stmt))
+                sub = LLLnode(bytes_to_int(self.stmt.value.s), typ=BaseType('bytes32'), pos=getpos(self.stmt))
 
             self._check_valid_assign(sub)
             self._check_same_variable_assign(sub)
@@ -576,7 +576,7 @@ class Stmt(object):
                 raise TypeMismatchException("Unsupported type conversion: %r to %r" % (sub.typ, self.context.return_type), self.stmt.value)
         # Returning a byte array
         elif isinstance(sub.typ, ByteArrayLike):
-            if self.context.return_type != sub.typ:
+            if type(self.context.return_type) != type(sub.typ):
                 raise TypeMismatchException("Trying to return base type %r, output expecting %r" % (sub.typ, self.context.return_type), self.stmt.value)
             if sub.typ.maxlen > self.context.return_type.maxlen:
                 raise TypeMismatchException("Cannot cast from greater max-length %d to shorter max-length %d" %

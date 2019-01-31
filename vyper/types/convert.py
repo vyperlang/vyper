@@ -53,7 +53,7 @@ def to_bool(expr, args, kwargs, context):
         )
 
 
-@signature(('bytes32', 'bytes', 'uint256', 'bool'), '*')
+@signature(('bytes32', 'string', 'bytes', 'uint256', 'bool'), '*')
 def to_int128(expr, args, kwargs, context):
     in_arg = args[0]
     input_type, _ = get_type(in_arg)
@@ -76,7 +76,7 @@ def to_int128(expr, args, kwargs, context):
                 pos=getpos(expr)
             )
 
-    elif input_type == 'bytes':
+    elif input_type in ('string', 'bytes'):
         if in_arg.typ.maxlen > 32:
             raise TypeMismatchException("Cannot convert bytes array of max length {} to int128".format(in_arg.value), expr)
         return byte_array_to_num(in_arg, expr, 'int128')

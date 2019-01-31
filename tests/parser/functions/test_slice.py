@@ -99,7 +99,7 @@ def test_slice_at_end(get_contract):
     code = """
 @public
 def ret10_slice() -> bytes[10]:
-    b: bytes[32] = concat(convert(65, bytes32), '')
+    b: bytes[32] = concat(convert(65, bytes32), b'')
     c: bytes[10] = slice(b, start=31, len=1)
     return c
     """

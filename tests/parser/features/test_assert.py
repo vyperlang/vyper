@@ -103,7 +103,7 @@ def test():
     code = """
 @public
 def test():
-    assert raw_call(msg.sender, '', outsize=1, gas=10, value=1000*1000) == 1
+    assert raw_call(msg.sender, b'', outsize=1, gas=10, value=1000*1000) == 1
     """
     assert_compile_failed(lambda: get_contract(code), ConstancyViolationException)
 
