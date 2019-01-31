@@ -576,7 +576,7 @@ class Stmt(object):
                 raise TypeMismatchException("Unsupported type conversion: %r to %r" % (sub.typ, self.context.return_type), self.stmt.value)
         # Returning a byte array
         elif isinstance(sub.typ, ByteArrayLike):
-            if not isinstance(self.context.return_type, ByteArrayLike):
+            if self.context.return_type != sub.typ:
                 raise TypeMismatchException("Trying to return base type %r, output expecting %r" % (sub.typ, self.context.return_type), self.stmt.value)
             if sub.typ.maxlen > self.context.return_type.maxlen:
                 raise TypeMismatchException("Cannot cast from greater max-length %d to shorter max-length %d" %
