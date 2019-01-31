@@ -6,7 +6,7 @@ def foo() -> bytes[5]:
 
 @public
 def bar() -> bytes[10]:
-    return concat("b", "a", "d", "m", "i", "", "nton")
+    return concat(b"b", b"a", b"d", b"m", b"i", b"", b"nton")
 
 @public
 def baz() -> bytes[40]:
@@ -45,14 +45,14 @@ moo: bytes[100]
 @public
 def foo(s: int128, L: int128) -> bytes[100]:
         x: int128 = 27
-        r: bytes[100] = slice("%s", start=s, len=L)
+        r: bytes[100] = slice(b"%s", start=s, len=L)
         y: int128 = 37
         if x * y == 999:
             return r
 
 @public
 def bar(s: int128, L: int128) -> bytes[100]:
-        self.moo = "%s"
+        self.moo = b"%s"
         x: int128 = 27
         r: bytes[100] = slice(self.moo, start=s, len=L)
         y: int128  = 37
@@ -62,7 +62,7 @@ def bar(s: int128, L: int128) -> bytes[100]:
 @public
 def baz(s: int128, L: int128) -> bytes[100]:
         x: int128 = 27
-        self.moo = slice("%s", start=s, len=L)
+        self.moo = slice(b"%s", start=s, len=L)
         y: int128 = 37
         if x * y == 999:
             return self.moo

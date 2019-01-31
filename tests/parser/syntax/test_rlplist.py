@@ -9,26 +9,26 @@ fail_list = [
     """
 @public
 def foo() -> address:
-    x = RLPList('\xf6\x9455555555555555555555\xa0GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG', [address, bytes32])
+    x = RLPList(b'\xf6\x9455555555555555555555\xa0GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG', [address, bytes32])
     return x[1]
     """,
     """
 @public
 def foo() -> address:
-    x = RLPList('\xf6\x9455555555555555555555\xa0GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG', [address, bytes32])
+    x = RLPList(b'\xf6\x9455555555555555555555\xa0GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG', [address, bytes32])
     return x[2]
     """,
     """
 @public
 def foo() -> bytes[500]:
-    x = RLPList('\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', [bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes])
+    x = RLPList(b'\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', [bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes])
     return x[1]
     """,
     ("""
 @public
 def foo() -> bytes[500]:
     x: int128 = 1
-    return RLPList('\xe0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
+    return RLPList(b'\xe0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
     """, StructureException),
     """
 @public
@@ -39,32 +39,32 @@ def foo() -> bytes[500]:
     """
 @public
 def foo() -> bytes[500]:
-    x: bytes[500] = '\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+    x: bytes[500] = b'\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
     a: int128 = 1
     return RLPList(x, a)
     """,
     """
 @public
 def foo() -> bytes[500]:
-    x: bytes[500] = '\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+    x: bytes[500] = b'\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
     return RLPList(x, [])
     """,
     """
 @public
 def foo() -> bytes32:
-    x = RLPList('\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', [address, int128[2]])
+    x = RLPList(b'\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', [address, int128[2]])
     return x[1]
     """,
     """
 @public
 def foo() -> bytes32:
-    x = RLPList('\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', [decimal])
+    x = RLPList(b'\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', [decimal])
     return x[1]
     """,
     """
 @public
 def foo() -> bytes32:
-    x = RLPList('\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', [int128(wei)])
+    x = RLPList(b'\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', [int128(wei)])
     return x[1]
     """
 ]

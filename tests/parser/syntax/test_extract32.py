@@ -8,7 +8,7 @@ fail_list = [
     """
 @public
 def foo() -> uint256:
-    return extract32("cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc", 0)
+    return extract32(b"cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc", 0)
     """
 ]
 
@@ -24,20 +24,20 @@ valid_list = [
     """
 @public
 def foo() -> uint256:
-    return extract32("cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc", 0, type=uint256)
+    return extract32(b"cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc", 0, type=uint256)
     """,
     """
 x: bytes[100]
 @public
 def foo() -> uint256:
-    self.x = "cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc"
+    self.x = b"cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc"
     return extract32(self.x, 0, type=uint256)
     """,
     """
 x: bytes[100]
 @public
 def foo() -> uint256:
-    self.x = "cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc"
+    self.x = b"cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc"
     return extract32(self.x, 1, type=uint256)
 """
 ]

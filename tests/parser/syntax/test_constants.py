@@ -38,16 +38,16 @@ VAL: constant(uint256) = 11
     """, VariableDeclarationException),
     # bytearray too long.
     ("""
-VAL: constant(bytes[4]) = "testtest"
+VAL: constant(bytes[4]) = b"testtest"
     """, TypeMismatchException),
     # global with same name
     ("""
-VAL: constant(bytes[4]) = "t"
+VAL: constant(bytes[4]) = b"t"
 VAL: uint256
     """, VariableDeclarationException),
     # signature variable with same name
     ("""
-VAL: constant(bytes[4]) = "t"
+VAL: constant(bytes[4]) = b"t"
 
 @public
 def test(VAL: uint256):
@@ -97,11 +97,11 @@ TEST_WEI: constant(uint256(wei)) = 1
 
 @private
 def test():
-   raw_call(0x0000000000000000000000000000000000000005, 'hello', outsize=TEST_C, gas=2000)
+   raw_call(0x0000000000000000000000000000000000000005, b'hello', outsize=TEST_C, gas=2000)
 
 @private
 def test1():
-    raw_call(0x0000000000000000000000000000000000000005, 'hello', outsize=256, gas=TEST_WEI)
+    raw_call(0x0000000000000000000000000000000000000005, b'hello', outsize=256, gas=TEST_WEI)
     """,
     """
 LIMIT: constant(int128) = 1

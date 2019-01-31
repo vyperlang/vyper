@@ -159,7 +159,7 @@ def is_owner() -> bool:
 def test_constant_bytes(get_contract):
     test_str = b"Alabama, Arkansas. I do love my ma and pa"
     code = """
-X: constant(bytes[100]) = "{}"
+X: constant(bytes[100]) = b"{}"
 
 @public
 def test() -> bytes[100]:
