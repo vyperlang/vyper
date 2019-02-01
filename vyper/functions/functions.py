@@ -103,16 +103,22 @@ def _convert(expr, context):
     return convert(expr, context)
 
 
-@signature('bytes', start='int128', len='int128')
+@signature(('bytes', 'string'), start='int128', len='int128')
 def _slice(expr, args, kwargs, context):
+
     sub, start, length = args[0], kwargs['start'], kwargs['len']
     if not are_units_compatible(start.typ, BaseType('int128')):
         raise TypeMismatchException("Type for slice start index must be a unitless number")
     # Expression representing the length of the slice
     if not are_units_compatible(length.typ, BaseType('int128')):
         raise TypeMismatchException("Type for slice length must be a unitless number")
+    # Get returntype string or bytes
+    if isinstance(args[0].typ, ByteArrayType):
+        ReturnType = ByteArrayType
+    else:
+        ReturnType = StringType
     # Node representing the position of the output in memory
-    np = context.new_placeholder(ByteArrayType(maxlen=sub.typ.maxlen + 32))
+    np = context.new_placeholder(ReturnType(maxlen=sub.typ.maxlen + 32))
     placeholder_node = LLLnode.from_list(np, typ=sub.typ, location='memory')
     placeholder_plus_32_node = LLLnode.from_list(np + 32, typ=sub.typ, location='memory')
     # Copies over bytearray data
@@ -136,7 +142,7 @@ def _slice(expr, args, kwargs, context):
                            copier,
                            ['mstore', '_opos', '_length'],
                            '_opos']]]]
-    return LLLnode.from_list(out, typ=ByteArrayType(newmaxlen), location='memory', pos=getpos(expr))
+    return LLLnode.from_list(out, typ=ReturnType(newmaxlen), location='memory', pos=getpos(expr))
 
 
 @signature('bytes')
