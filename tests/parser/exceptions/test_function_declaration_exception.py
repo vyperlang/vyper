@@ -50,5 +50,5 @@ def foo(x: int128): pass
 
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_function_declaration_exception(bad_code):
-        with raises(FunctionDeclarationException):
-            compiler.compile_code(bad_code)
+    with raises(FunctionDeclarationException):
+        compiler.compile_code(bad_code)
