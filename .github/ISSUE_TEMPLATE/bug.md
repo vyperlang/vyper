@@ -5,9 +5,9 @@ about: Any general feedback or bug reports about the Vyper Compiler. No new feat
 
 ### Version Information
 
-* vyper Version: x.x.x
+* vyper Version (output of `vyper --version`): x.x.x
 * OS: osx/linux/win
-* Python Version (python --version):
+* Python Version (output of `python --version`):
 * Environment (output of `pip freeze`):
 
 ### What's your issue about?
