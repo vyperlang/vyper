@@ -142,3 +142,20 @@ def test(addr: address) -> (int128, address, string[10]):
 
     assert c1.out_literals() == [1, "0x0000000000000000000000000000000000000123", "random"]
     assert c2.test(c1.address) == [1, "0x0000000000000000000000000000000000000123", "random"]
+
+
+def test_default_arg_string(get_contract_with_gas_estimation):
+
+    code = """
+@public
+def test(a: uint256, b: string[50] = "foo") -> bytes[100]:
+    return concat(
+        convert(a, bytes32),
+        convert(b, bytes[50])
+    )
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.test(12345)[-3:] == b"foo"
+    assert c.test(12345, "bar")[-3:] == b"bar"
