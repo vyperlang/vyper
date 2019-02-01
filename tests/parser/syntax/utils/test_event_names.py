@@ -109,4 +109,4 @@ def foo(i: int128) -> int128:
 
 @pytest.mark.parametrize('good_code', valid_list)
 def test_varname_validity_success(good_code):
-        assert compiler.compile_code(good_code) is not None
+    assert compiler.compile_code(good_code) is not None

@@ -201,7 +201,7 @@ class Stmt(object):
             raise InvalidLiteralException('Assignment to None is not allowed, use a default value or built-in `clear()`.', self.stmt)
 
         # Determine if it's an RLPList assignment.
-        if isinstance(self.stmt.value, ast.Call) and getattr(self.stmt.value.func, 'id', '') is 'RLPList':
+        if isinstance(self.stmt.value, ast.Call) and getattr(self.stmt.value.func, 'id', '') == 'RLPList':
             pos = self.context.new_variable(self.stmt.targets[0].id, sub.typ)
             variable_loc = LLLnode.from_list(pos, typ=sub.typ, location='memory', pos=getpos(self.stmt), annotation=self.stmt.targets[0].id)
             o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))

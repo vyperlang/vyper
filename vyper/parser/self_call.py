@@ -53,7 +53,7 @@ def call_make_placeholder(stmt_expr, context, sig):
     returner = output_placeholder
 
     if not sig.private and isinstance(sig.output_type, ByteArrayType):
-            returner = output_placeholder + 32
+        returner = output_placeholder + 32
 
     return output_placeholder, returner, out_size
 
