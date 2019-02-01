@@ -132,6 +132,9 @@ class ByteArrayLike(NodeType):
     def eq(self, other):
         return self.maxlen == other.maxlen
 
+    def eq_base(self, other):
+        return type(self) is type(other)
+
 
 class StringType(ByteArrayLike):
 
@@ -162,7 +165,7 @@ class ListType(NodeType):
 # Data structure for a key-value mapping
 class MappingType(NodeType):
     def __init__(self, keytype, valuetype):
-        if not isinstance(keytype, (BaseType, ByteArrayType)):
+        if not isinstance(keytype, (BaseType, ByteArrayLike)):
             raise Exception("Dictionary keys must be a base type")
         self.keytype = keytype
         self.valuetype = valuetype
@@ -329,8 +332,8 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
             if len(item.args) != 2:
                 raise InvalidTypeException("Mapping requires 2 valid positional arguments.", item)
             keytype = parse_type(item.args[0], None, custom_units=custom_units, custom_structs=custom_structs, constants=constants)
-            if not isinstance(keytype, (BaseType, ByteArrayType)):
-                raise InvalidTypeException("Mapping keys must be base or bytes types", item)
+            if not isinstance(keytype, (BaseType, ByteArrayLike)):
+                raise InvalidTypeException("Mapping keys must be base or bytes/string types", item)
             return MappingType(keytype, parse_type(item.args[1], location, custom_units=custom_units, custom_structs=custom_structs, constants=constants))
         # Contract_types
         if item.func.id == 'address':

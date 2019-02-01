@@ -224,8 +224,8 @@ def add_variable_offset(parent, key, pos):
 
     elif isinstance(typ, MappingType):
 
-        if isinstance(key.typ, ByteArrayType):
-            if not isinstance(typ.keytype, ByteArrayType) or (typ.keytype.maxlen < key.typ.maxlen):
+        if isinstance(key.typ, ByteArrayLike):
+            if not isinstance(typ.keytype, ByteArrayLike) or (typ.keytype.maxlen < key.typ.maxlen):
                 raise TypeMismatchException(
                     'Mapping keys of bytes cannot be cast, use exact same bytes type of: %s' % str(typ.keytype), pos
                 )
@@ -603,7 +603,7 @@ def gen_tuple_return(stmt, context, sub):
         mem_size = get_size_of_type(sub.typ) * 32
         # Add zero padder if bytes are present in output.
         zero_padder = ['pass']
-        byte_arrays = [(i, x) for i, x in enumerate(sub.typ.tuple_members()) if isinstance(x, ByteArrayType)]
+        byte_arrays = [(i, x) for i, x in enumerate(sub.typ.tuple_members()) if isinstance(x, ByteArrayLike)]
         if byte_arrays:
             i, x = byte_arrays[-1]
             zero_padder = zero_pad(bytez_placeholder=['add', mem_pos, ['mload', mem_pos + i * 32]], maxlen=x.maxlen, context=context)
@@ -651,7 +651,7 @@ def gen_tuple_return(stmt, context, sub):
             arg = add_variable_offset(parent=sub, key=key, pos=getpos(stmt))
 
         # arg = args[i] if sub.typ.is_literal else add_variable_offset(typ)  # origin arg to copy from
-        if isinstance(typ, ByteArrayType):
+        if isinstance(typ, ByteArrayLike):
             # Store offset pointer value.
             subs.append(['mstore', variable_offset, get_dynamic_offset_value()])
 

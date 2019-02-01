@@ -46,7 +46,6 @@ from vyper.utils import (
     SizeLimits,
     sha3,
     fourbytes_to_int,
-    string_to_bytes,
     bytes_to_int
 )
 from vyper.parser.expr import (
@@ -102,7 +101,6 @@ class Stmt(object):
                 raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.func.id, self.stmt)
         elif isinstance(self.stmt.annotation, ast.Name) and self.stmt.annotation.id == 'bytes32':
             if isinstance(sub.typ, ByteArrayLike):
-                import ipdb; ipdb.set_trace()
                 if sub.typ.maxlen != 32:
                     raise TypeMismatchException('Invalid type, expected: bytes32. String is incorrect length.', self.stmt)
                 return
@@ -576,7 +574,7 @@ class Stmt(object):
                 raise TypeMismatchException("Unsupported type conversion: %r to %r" % (sub.typ, self.context.return_type), self.stmt.value)
         # Returning a byte array
         elif isinstance(sub.typ, ByteArrayLike):
-            if type(self.context.return_type) != type(sub.typ):
+            if not sub.typ.eq_base(self.context.return_type):
                 raise TypeMismatchException("Trying to return base type %r, output expecting %r" % (sub.typ, self.context.return_type), self.stmt.value)
             if sub.typ.maxlen > self.context.return_type.maxlen:
                 raise TypeMismatchException("Cannot cast from greater max-length %d to shorter max-length %d" %
