@@ -145,7 +145,7 @@ def _slice(expr, args, kwargs, context):
     return LLLnode.from_list(out, typ=ReturnType(newmaxlen), location='memory', pos=getpos(expr))
 
 
-@signature('bytes')
+@signature(('bytes', 'string'))
 def _len(expr, args, kwargs, context):
     return get_length(args[0])
 
@@ -217,7 +217,7 @@ def concat(expr, context):
     )
 
 
-@signature(('str_literal', 'bytes', 'bytes32'))
+@signature(('str_literal', 'bytes', 'string', 'bytes32'))
 def _sha3(expr, args, kwargs, context):
     sub = args[0]
     # Can hash literals
