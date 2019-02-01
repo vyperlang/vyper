@@ -75,5 +75,5 @@ def foo():
 
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_variable_declaration_exception(bad_code):
-        with raises(VariableDeclarationException):
-            compiler.compile_code(bad_code)
+    with raises(VariableDeclarationException):
+        compiler.compile_code(bad_code)

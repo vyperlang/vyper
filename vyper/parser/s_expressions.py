@@ -15,15 +15,15 @@ def parse_s_exp(string):
     in_comment = False
     for char in string:
         if in_comment:
-            if char is '\n':  # comment ends at the end of a line
+            if char == '\n':  # comment ends at the end of a line
                 in_comment = False
             continue
-        if char is ';':  # start of comment
+        if char == ';':  # start of comment
             in_comment = True
             continue
-        if char is '(' and not in_str:
+        if char == '(' and not in_str:
             sexp.append([])
-        elif char is ')' and not in_str:
+        elif char == ')' and not in_str:
             if word:
                 sexp[-1].append(parse_literal(word))
                 word = ''
@@ -33,7 +33,7 @@ def parse_s_exp(string):
             if word:
                 sexp[-1].append(parse_literal(word))
                 word = ''
-        elif char is '\"':
+        elif char == '\"':
             in_str = not in_str
         else:
             word += char
