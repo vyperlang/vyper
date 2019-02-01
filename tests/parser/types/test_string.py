@@ -116,3 +116,29 @@ def foo():
     assert log[0].args.arg1 == 667788
     assert log[0].args.arg2 == "hello" * 9
     assert log[0].args.arg3 == 334455
+
+
+def test_tuple_return_external_contract_call_string(get_contract_with_gas_estimation):
+    contract_1 = """
+@public
+def out_literals() -> (int128, address, string[10]):
+    return 1, 0x0000000000000000000000000000000000000123, "random"
+    """
+
+    contract_2 = """
+contract Test:
+    def out_literals() -> (int128, address, string[10]) : constant
+
+@public
+def test(addr: address) -> (int128, address, string[10]):
+    a: int128
+    b: address
+    c: string[10]
+    (a, b, c) = Test(addr).out_literals()
+    return a, b,c
+    """
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.out_literals() == [1, "0x0000000000000000000000000000000000000123", "random"]
+    assert c2.test(c1.address) == [1, "0x0000000000000000000000000000000000000123", "random"]

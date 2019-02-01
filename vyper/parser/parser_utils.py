@@ -16,6 +16,7 @@ from vyper.types import (
     ByteArrayLike,
     ContractType,
     NullType,
+    StringType,
     StructType,
     MappingType,
     TupleType,
@@ -474,12 +475,11 @@ def make_setter(left, right, location, pos, in_function_call=False):
             subs = []
             static_offset_counter = 0
             for idx, (left_arg, right_arg) in enumerate(zip(left.args, right.typ.members)):
-                # if left_arg.typ.typ != right_arg.typ:
-                #     raise TypeMismatchException("Tuple assignment mismatch position %d, expected '%s'" % (idx, right.typ), pos)
-                if isinstance(right_arg, ByteArrayType):
+                if isinstance(right_arg, ByteArrayLike):
+                    RType = ByteArrayType if isinstance(right_arg, ByteArrayType) else StringType
                     offset = LLLnode.from_list(
                         ['add', '_R', ['mload', ['add', '_R', static_offset_counter]]],
-                        typ=ByteArrayType(right_arg.maxlen), location='memory', pos=pos)
+                        typ=RType(right_arg.maxlen), location='memory', pos=pos)
                     static_offset_counter += 32
                 else:
                     offset = LLLnode.from_list(['mload', ['add', '_R', static_offset_counter]], typ=right_arg.typ, pos=pos)
