@@ -60,19 +60,42 @@ def get(k: string[34]) -> int128:
 def test_string_slice(get_contract_with_gas_estimation, assert_tx_failed):
     test_slice4 = """
 @public
-def foo(inp: bytes[10], start: int128, _len: int128) -> bytes[10]:
+def foo(inp: string[10], start: int128, _len: int128) -> string[10]:
     return slice(inp, start=start, len=_len)
     """
 
     c = get_contract_with_gas_estimation(test_slice4)
-    assert c.foo(b"badminton", 3, 3) == b"min"
-    assert c.foo(b"badminton", 0, 9) == b"badminton"
-    assert c.foo(b"badminton", 1, 8) == b"adminton"
-    assert c.foo(b"badminton", 1, 7) == b"adminto"
-    assert c.foo(b"badminton", 1, 0) == b""
-    assert c.foo(b"badminton", 9, 0) == b""
+    assert c.foo("badminton", 3, 3) == "min"
+    assert c.foo("badminton", 0, 9) == "badminton"
+    assert c.foo("badminton", 1, 8) == "adminton"
+    assert c.foo("badminton", 1, 7) == "adminto"
+    assert c.foo("badminton", 1, 0) == ""
+    assert c.foo("badminton", 9, 0) == ""
 
-    assert_tx_failed(lambda: c.foo(b"badminton", 0, 10))
-    assert_tx_failed(lambda: c.foo(b"badminton", 1, 9))
-    assert_tx_failed(lambda: c.foo(b"badminton", 9, 1))
-    assert_tx_failed(lambda: c.foo(b"badminton", 10, 0))
+    assert_tx_failed(lambda: c.foo("badminton", 0, 10))
+    assert_tx_failed(lambda: c.foo("badminton", 1, 9))
+    assert_tx_failed(lambda: c.foo("badminton", 9, 1))
+    assert_tx_failed(lambda: c.foo("badminton", 10, 0))
+
+
+def test_private_string(get_contract_with_gas_estimation):
+    private_test_code = """
+greeting: public(string[100])
+
+@public
+def __init__():
+    self.greeting = "Hello "
+
+@private
+def construct(greet: string[100]) -> string[200]:
+    return concat(self.greeting, greet)
+
+@public
+def hithere(name: string[100]) -> string[200]:
+    d: string[200] = self.construct(name)
+    return d
+    """
+
+    c = get_contract_with_gas_estimation(private_test_code)
+    assert c.hithere("bob") == "Hello bob"
+    assert c.hithere("alice") == "Hello alice"

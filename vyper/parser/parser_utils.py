@@ -327,7 +327,8 @@ def pack_arguments(signature, args, context, pos, return_placeholder=True):
     for i, (arg, typ) in enumerate(zip(args, [arg.typ for arg in signature.args])):
         if isinstance(typ, BaseType):
             setters.append(make_setter(LLLnode.from_list(placeholder + staticarray_offset + 32 + i * 32, typ=typ), arg, 'memory', pos=pos, in_function_call=True))
-        elif isinstance(typ, ByteArrayType):
+
+        elif isinstance(typ, ByteArrayLike):
             setters.append(['mstore', placeholder + staticarray_offset + 32 + i * 32, '_poz'])
             arg_copy = LLLnode.from_list('_s', typ=arg.typ, location=arg.location)
             target = LLLnode.from_list(['add', placeholder + 32, '_poz'], typ=typ, location='memory')
@@ -335,6 +336,7 @@ def pack_arguments(signature, args, context, pos, return_placeholder=True):
                                                     make_byte_array_copier(target, arg_copy, pos),
                                                     ['set', '_poz', ['add', 32, ['ceil32', ['add', '_poz', get_length(arg_copy)]]]]]])
             needpos = True
+
         elif isinstance(typ, (StructType, ListType)):
             if has_dynamic_data(typ):
                 raise TypeMismatchException("Cannot pack bytearray in struct")
@@ -345,6 +347,7 @@ def pack_arguments(signature, args, context, pos, return_placeholder=True):
             else:
                 count = len(typ.tuple_items())
             staticarray_offset += 32 * (count - 1)
+
         else:
             raise TypeMismatchException("Cannot pack argument of type %r" % typ)
 
