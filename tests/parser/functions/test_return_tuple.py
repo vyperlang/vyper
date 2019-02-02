@@ -104,19 +104,34 @@ d: bytes[20]
 
 @public
 def out_literals() -> (int128, bytes[20], address, bytes[20]):
-    return 1, "testtesttest", 0x0000000000000000000000000000000000000000, "random"
+    return 1, "testtesttest", 0x0000000000000000000000000000000000000023, "random"
 
 
 @public
-def test() -> (int128, bytes[20], address, bytes[20]):
+def test1() -> (int128, bytes[20], address, bytes[20]):
     self.a, self.c, self.b, self.d = self.out_literals()
     return self.a, self.c, self.b, self.d
+
+@public
+def test2() -> (int128, address):
+    x: int128
+    x, self.c, self.b, self.d = self.out_literals()
+    return x, self.b
+
+@public
+def test3() -> (address, int128):
+    x: address
+    self.a, self.c, x, self.d = self.out_literals()
+    return x, self.a
     """
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.out_literals() == [1, b"testtesttest", None, b"random"]
-    assert c.out_literals() == c.test()
+    addr = '0x' + '00' * 19 + '23'
+    assert c.out_literals() == [1, b"testtesttest", addr, b"random"]
+    assert c.out_literals() == c.test1()
+    assert c.test2() == [1, c.out_literals()[2]]
+    assert c.test3() == [c.out_literals()[2], 1]
 
 
 def test_tuple_return_typecheck(assert_tx_failed, get_contract_with_gas_estimation):
