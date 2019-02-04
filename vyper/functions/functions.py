@@ -101,16 +101,25 @@ def _convert(expr, context):
     return convert(expr, context)
 
 
-@signature('bytes', start='int128', len='int128')
+@signature(('bytes32', 'bytes'), start='int128', len='int128')
 def _slice(expr, args, kwargs, context):
     sub, start, length = args[0], kwargs['start'], kwargs['len']
     if not are_units_compatible(start.typ, BaseType('int128')):
-        raise TypeMismatchException("Type for slice start index must be a unitless number")
+        raise TypeMismatchException("Type for slice start index must be a unitless number", expr)
     # Expression representing the length of the slice
     if not are_units_compatible(length.typ, BaseType('int128')):
-        raise TypeMismatchException("Type for slice length must be a unitless number")
+        raise TypeMismatchException("Type for slice length must be a unitless number", expr)
+
+    if is_base_type(sub.typ, 'bytes32'):
+        if (start.typ.is_literal and length.typ.is_literal) and \
+           not (0 <= start.value + length.value <= 32):
+            raise InvalidLiteralException('Invalid start / length values needs to be between 0 and 32.', expr)
+        sub_typ_maxlen = 32
+    else:
+        sub_typ_maxlen = sub.typ.maxlen
+
     # Node representing the position of the output in memory
-    np = context.new_placeholder(ByteArrayType(maxlen=sub.typ.maxlen + 32))
+    np = context.new_placeholder(ByteArrayType(maxlen=sub_typ_maxlen + 32))
     placeholder_node = LLLnode.from_list(np, typ=sub.typ, location='memory')
     placeholder_plus_32_node = LLLnode.from_list(np + 32, typ=sub.typ, location='memory')
     # Copies over bytearray data
@@ -122,10 +131,20 @@ def _slice(expr, args, kwargs, context):
         adj_sub = LLLnode.from_list(
             ['add', sub, ['add', ['sub', '_start', ['mod', '_start', 32]], 32]], typ=sub.typ, location=sub.location
         )
-    copier = make_byte_slice_copier(placeholder_plus_32_node, adj_sub, ['add', '_length', 32], sub.typ.maxlen, pos=getpos(expr))
+
+    if is_base_type(sub.typ, 'bytes32'):
+        adj_sub = LLLnode.from_list(
+            sub.args[0], typ=sub.typ, location="memory"
+        )
+
+    copier = make_byte_slice_copier(placeholder_plus_32_node, adj_sub, ['add', '_length', 32], sub_typ_maxlen, pos=getpos(expr))
     # New maximum length in the type of the result
-    newmaxlen = length.value if not len(length.args) else sub.typ.maxlen
-    maxlen = ['mload', Expr(sub, context=context).lll_node]  # Retrieve length of the bytes.
+    newmaxlen = length.value if not len(length.args) else sub_typ_maxlen
+    if is_base_type(sub.typ, 'bytes32'):
+        maxlen = 32
+    else:
+        maxlen = ['mload', Expr(sub, context=context).lll_node]  # Retrieve length of the bytes.
+
     out = ['with', '_start', start,
               ['with', '_length', length,
                   ['with', '_opos', ['add', placeholder_node, ['mod', '_start', 32]],
