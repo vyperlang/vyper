@@ -6,7 +6,7 @@ MyLog: event({arg1: int128, arg2: bytes[64], arg3: int128})
 
 @public
 def foo():
-    log.MyLog(667788, 'hellohellohellohellohellohellohellohellohello', 334455)
+    log.MyLog(667788, b'hellohellohellohellohellohellohellohellohello', 334455)
     """
 
     c = get_contract_with_gas_estimation(code)
@@ -23,9 +23,9 @@ MyLog: event({arg1: bytes[64], arg2: bytes[64], arg3: bytes[64]})
 
 @public
 def foo():
-    a: bytes[64] = 'hellohellohellohellohellohellohellohellohello'
-    b: bytes[64] = 'hellohellohellohellohellohellohellohello'
-    c: bytes[64] = 'hellohellohellohellohellohellohello'
+    a: bytes[64] = b'hellohellohellohellohellohellohellohellohello'
+    b: bytes[64] = b'hellohellohellohellohellohellohellohello'
+    c: bytes[64] = b'hellohellohellohellohellohellohello'
     log.MyLog(a, b, c)
     """
 

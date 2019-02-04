@@ -53,7 +53,7 @@ def _hashy2(x: bytes[100]) -> bytes32:
 
 @public
 def return_hash_of_cow_x_30() -> bytes32:
-    return self._hashy2("cowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcow")
+    return self._hashy2(b"cowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcow")
 
 @public
 def _len(x: bytes[100]) -> int128:
@@ -95,15 +95,15 @@ def returnten() -> int128:
 
 @public
 def return_mongoose() -> bytes[10]:
-    return self.catty("mon", "goose")
+    return self.catty(b"mon", b"goose")
 
 @public
 def return_goose() -> bytes[10]:
-    return self.slicey1("goosedog", 5)
+    return self.slicey1(b"goosedog", 5)
 
 @public
 def return_goose2() -> bytes[10]:
-    return self.slicey2(5, "goosedog")
+    return self.slicey2(5, b"goosedog")
     """
 
     c = get_contract_with_gas_estimation(selfcall_code_4)
@@ -145,7 +145,7 @@ def set_excls(arg: bytes[32]):
 
 @public
 def underscore() -> bytes[1]:
-    return "_"
+    return b"_"
 
 @public
 def hardtest(x: bytes[100], y: int128, z: int128, a: bytes[100], b: int128, c: int128) -> bytes[201]:
@@ -153,8 +153,8 @@ def hardtest(x: bytes[100], y: int128, z: int128, a: bytes[100], b: int128, c: i
 
 @public
 def return_mongoose_revolution_32_excls() -> bytes[201]:
-    self.set_excls("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-    return self.hardtest("megamongoose123", 4, 8, concat("russian revolution", self.excls), 8, 42)
+    self.set_excls(b"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    return self.hardtest("megamongoose123", 4, 8, concat(b"russian revolution", self.excls), 8, 42)
     """
 
     c = get_contract_with_gas_estimation(selfcall_code_6)
@@ -337,7 +337,7 @@ def foox(x: int128[2], y: decimal, z: bytes[11], a: decimal) -> int128:
 def bar() -> (bytes[11], decimal, int128):
     x: int128[2] = [33, 44]
     y: decimal = 55.44
-    z: bytes[11] = "hello world"
+    z: bytes[11] = b"hello world"
     a: decimal = 66.77
 
     return self.fooz(x, y, z, a), self.fooa(x, y, z, a), self.foox(x, y, z, a)

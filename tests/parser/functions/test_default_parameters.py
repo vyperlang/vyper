@@ -4,7 +4,7 @@ def test_default_param_abi(get_contract):
     code = """
 @public
 @payable
-def safeTransferFrom(_data: bytes[100] = "test", _b: int128 = 1):
+def safeTransferFrom(_data: bytes[100] = b"test", _b: int128 = 1):
     pass
     """
     abi = get_contract(code)._classic_contract.abi
@@ -132,15 +132,15 @@ def fooBar(a: bytes[100], b: uint256, c: bytes[20] = "crazy") -> (bytes[100], ui
 
 @public
 def callMe() -> (bytes[100], uint256, bytes[20]):
-    return self.fooBar('I just met you', 123456)
+    return self.fooBar(b'I just met you', 123456)
 
 @public
 def callMeMaybe() -> (bytes[100], uint256, bytes[20]):
-    # return self.fooBar('here is my number', 555123456, 'baby')
+    # return self.fooBar(b'here is my number', 555123456, b'baby')
     a: bytes[100]
     b: uint256
     c: bytes[20]
-    a, b, c = self.fooBar('here is my number', 555123456, 'baby')
+    a, b, c = self.fooBar(b'here is my number', 555123456, b'baby')
     return a, b, c
     """
 

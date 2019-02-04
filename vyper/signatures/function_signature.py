@@ -6,7 +6,7 @@ from vyper.exceptions import (
     StructureException,
     FunctionDeclarationException
 )
-from vyper.types import ByteArrayType
+from vyper.types import ByteArrayLike
 from vyper.types import (
     canonicalize_type,
     get_size_of_type,
@@ -101,7 +101,7 @@ class FunctionSignature():
             parsed_type = parse_type(typ, None, sigs, custom_units=custom_units, custom_structs=custom_structs, constants=constants)
             args.append(VariableRecord(arg.arg, mem_pos, parsed_type, False, defined_at=getpos(arg)))
 
-            if isinstance(parsed_type, ByteArrayType):
+            if isinstance(parsed_type, ByteArrayLike):
                 mem_pos += 32
             else:
                 mem_pos += get_size_of_type(parsed_type) * 32

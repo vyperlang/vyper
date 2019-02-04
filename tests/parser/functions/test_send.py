@@ -38,7 +38,7 @@ def test_send(receiver: address):
 
 @public
 def test_call(receiver: address):
-    raw_call(receiver, "", gas=50000, outsize=0, value=1)
+    raw_call(receiver, b"", gas=50000, outsize=0, value=1)
     """
 
     # default function writes variable, this requires more gas than send can pass

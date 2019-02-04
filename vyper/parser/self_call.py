@@ -13,7 +13,7 @@ from vyper.signatures.function_signature import (
 )
 from vyper.types import (
     BaseType,
-    ByteArrayType,
+    ByteArrayLike,
     ListType,
     TupleLike,
     ceil32,
@@ -52,7 +52,7 @@ def call_make_placeholder(stmt_expr, context, sig):
     out_size = get_size_of_type(sig.output_type) * 32
     returner = output_placeholder
 
-    if not sig.private and isinstance(sig.output_type, ByteArrayType):
+    if not sig.private and isinstance(sig.output_type, ByteArrayLike):
         returner = output_placeholder + 32
 
     return output_placeholder, returner, out_size
@@ -132,7 +132,7 @@ def call_self_private(stmt_expr, context, sig):
                 pop_return_values = [
                     ['mstore', ['add', output_placeholder, pos], 'pass'] for pos in range(0, output_size, 32)
                 ]
-            elif isinstance(sig.output_type, ByteArrayType):
+            elif isinstance(sig.output_type, ByteArrayLike):
                 dynamic_offsets = [(0, sig.output_type)]
                 pop_return_values = [
                     ['pop', 'pass'],
@@ -141,7 +141,7 @@ def call_self_private(stmt_expr, context, sig):
                 static_offset = 0
                 pop_return_values = []
                 for out_type in sig.output_type.members:
-                    if isinstance(out_type, ByteArrayType):
+                    if isinstance(out_type, ByteArrayLike):
                         pop_return_values.append(['mstore', ['add', output_placeholder, static_offset], 'pass'])
                         dynamic_offsets.append((['mload', ['add', output_placeholder, static_offset]], out_type))
                     else:
