@@ -13,8 +13,10 @@ from vyper.parser.lll_node import (
 from vyper.types import (
     BaseType,
     ByteArrayType,
+    ByteArrayLike,
     ContractType,
     NullType,
+    StringType,
     StructType,
     MappingType,
     TupleType,
@@ -72,9 +74,10 @@ def get_original_if_0_prefixed(expr, context):
 
 # Copies byte array
 def make_byte_array_copier(destination, source, pos=None):
-    if not isinstance(source.typ, (ByteArrayType, NullType)):
-        raise TypeMismatchException("Can only set a byte array to another byte array", pos)
-    if isinstance(source.typ, ByteArrayType) and source.typ.maxlen > destination.typ.maxlen:
+    if not isinstance(source.typ, (ByteArrayLike, NullType)):
+        btype = 'byte array' if isinstance(destination.typ, ByteArrayType) else 'string'
+        raise TypeMismatchException("Can only set a {} to another {}".format(btype, btype), pos)
+    if isinstance(source.typ, ByteArrayLike) and source.typ.maxlen > destination.typ.maxlen:
         raise TypeMismatchException("Cannot cast from greater max-length %d to shorter max-length %d" % (source.typ.maxlen, destination.typ.maxlen))
     # Special case: memory to memory
     if source.location == "memory" and destination.location == "memory":
@@ -222,8 +225,8 @@ def add_variable_offset(parent, key, pos):
 
     elif isinstance(typ, MappingType):
 
-        if isinstance(key.typ, ByteArrayType):
-            if not isinstance(typ.keytype, ByteArrayType) or (typ.keytype.maxlen < key.typ.maxlen):
+        if isinstance(key.typ, ByteArrayLike):
+            if not isinstance(typ.keytype, ByteArrayLike) or (typ.keytype.maxlen < key.typ.maxlen):
                 raise TypeMismatchException(
                     'Mapping keys of bytes cannot be cast, use exact same bytes type of: %s' % str(typ.keytype), pos
                 )
@@ -325,7 +328,8 @@ def pack_arguments(signature, args, context, pos, return_placeholder=True):
     for i, (arg, typ) in enumerate(zip(args, [arg.typ for arg in signature.args])):
         if isinstance(typ, BaseType):
             setters.append(make_setter(LLLnode.from_list(placeholder + staticarray_offset + 32 + i * 32, typ=typ), arg, 'memory', pos=pos, in_function_call=True))
-        elif isinstance(typ, ByteArrayType):
+
+        elif isinstance(typ, ByteArrayLike):
             setters.append(['mstore', placeholder + staticarray_offset + 32 + i * 32, '_poz'])
             arg_copy = LLLnode.from_list('_s', typ=arg.typ, location=arg.location)
             target = LLLnode.from_list(['add', placeholder + 32, '_poz'], typ=typ, location='memory')
@@ -333,6 +337,7 @@ def pack_arguments(signature, args, context, pos, return_placeholder=True):
                                                     make_byte_array_copier(target, arg_copy, pos),
                                                     ['set', '_poz', ['add', 32, ['ceil32', ['add', '_poz', get_length(arg_copy)]]]]]])
             needpos = True
+
         elif isinstance(typ, (StructType, ListType)):
             if has_dynamic_data(typ):
                 raise TypeMismatchException("Cannot pack bytearray in struct")
@@ -343,6 +348,7 @@ def pack_arguments(signature, args, context, pos, return_placeholder=True):
             else:
                 count = len(typ.tuple_items())
             staticarray_offset += 32 * (count - 1)
+
         else:
             raise TypeMismatchException("Cannot pack argument of type %r" % typ)
 
@@ -373,7 +379,7 @@ def make_setter(left, right, location, pos, in_function_call=False):
         elif location == 'memory':
             return LLLnode.from_list(['mstore', left, right], typ=None)
     # Byte arrays
-    elif isinstance(left.typ, ByteArrayType):
+    elif isinstance(left.typ, ByteArrayLike):
         return make_byte_array_copier(left, right, pos)
     # Can't copy mappings
     elif isinstance(left.typ, MappingType):
@@ -476,11 +482,12 @@ def make_setter(left, right, location, pos, in_function_call=False):
             right_token = LLLnode.from_list('_R', typ=right.typ, location="memory")
             subs = []
             static_offset_counter = 0
-            for idx, (left_arg, right_arg, loc) in enumerate(zip(left.args, right.typ.members, locations)):
-                if isinstance(right_arg, ByteArrayType):
+            for idx, (left_arg, right_arg, loc) in enumerate(zip(left.args, right.typ.members)):
+                if isinstance(right_arg, ByteArrayLike):
+                    RType = ByteArrayType if isinstance(right_arg, ByteArrayType) else StringType
                     offset = LLLnode.from_list(
                         ['add', '_R', ['mload', ['add', '_R', static_offset_counter]]],
-                        typ=ByteArrayType(right_arg.maxlen), location='memory', pos=pos)
+                        typ=RType(right_arg.maxlen), location='memory', pos=pos)
                     static_offset_counter += 32
                 else:
                     offset = LLLnode.from_list(['mload', ['add', '_R', static_offset_counter]], typ=right_arg.typ, pos=pos)
@@ -607,7 +614,7 @@ def gen_tuple_return(stmt, context, sub):
         mem_size = get_size_of_type(sub.typ) * 32
         # Add zero padder if bytes are present in output.
         zero_padder = ['pass']
-        byte_arrays = [(i, x) for i, x in enumerate(sub.typ.tuple_members()) if isinstance(x, ByteArrayType)]
+        byte_arrays = [(i, x) for i, x in enumerate(sub.typ.tuple_members()) if isinstance(x, ByteArrayLike)]
         if byte_arrays:
             i, x = byte_arrays[-1]
             zero_padder = zero_pad(bytez_placeholder=['add', mem_pos, ['mload', mem_pos + i * 32]], maxlen=x.maxlen, context=context)
@@ -655,7 +662,7 @@ def gen_tuple_return(stmt, context, sub):
             arg = add_variable_offset(parent=sub, key=key, pos=getpos(stmt))
 
         # arg = args[i] if sub.typ.is_literal else add_variable_offset(typ)  # origin arg to copy from
-        if isinstance(typ, ByteArrayType):
+        if isinstance(typ, ByteArrayLike):
             # Store offset pointer value.
             subs.append(['mstore', variable_offset, get_dynamic_offset_value()])
 

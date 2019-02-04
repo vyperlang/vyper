@@ -35,6 +35,11 @@ valid_list = [
 @public
 def foo(inp: bytes[10]) -> int128:
     return len(inp)
+    """,
+    """
+@public
+def foo(inp: string[10]) -> int128:
+    return len(inp)
     """
 ]
 

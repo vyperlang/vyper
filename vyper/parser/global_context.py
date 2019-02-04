@@ -27,7 +27,7 @@ from vyper.signatures.function_signature import (
 from vyper.types import (
     parse_type,
     ContractType,
-    ByteArrayType,
+    ByteArrayLike,
     ListType,
     MappingType,
     StructType,
@@ -158,9 +158,7 @@ class GlobalContext:
         # Base type and byte array type: do not extend the getter function
         # name, add no input arguments, add nothing to the return statement,
         # output type is the base type
-        if isinstance(typ, BaseType):
-            return [("", "", "", repr(typ))]
-        elif isinstance(typ, ByteArrayType):
+        if isinstance(typ, (BaseType, ByteArrayLike)):
             return [("", "", "", repr(typ))]
         # List type: do not extend the getter name, add an input argument for
         # the index in the list, add an item access to the return statement

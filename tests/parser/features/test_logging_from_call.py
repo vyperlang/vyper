@@ -6,7 +6,7 @@ TestLog: event({testData1: bytes32,testData2: bytes[60], testData3: bytes[8]})
 @public
 @constant
 def to_bytes(value: uint256) -> bytes[8]:
-    return slice(concat("", convert(value, bytes32)), start=24, len=8)
+    return slice(concat(b"", convert(value, bytes32)), start=24, len=8)
 
 @public
 @constant
@@ -15,7 +15,7 @@ def to_bytes32(value: uint256) -> bytes32:
 
 @public
 def test_func(value: uint256):
-    data2: bytes[60] = concat(self.to_bytes32(value),self.to_bytes(value),"testing")
+    data2: bytes[60] = concat(self.to_bytes32(value),self.to_bytes(value),b"testing")
     log.TestLog(self.to_bytes32(value), data2, self.to_bytes(value))
 
     loggedValue: bytes32 = self.to_bytes32(value)
@@ -47,7 +47,7 @@ TestLog: event({testData1: bytes32,testData2: bytes[133], testData3: bytes[8] })
 @public
 @constant
 def to_bytes(value: uint256) -> bytes[8]:
-    return slice(concat("", convert(value, bytes32)), start=24, len=8)
+    return slice(concat(b"", convert(value, bytes32)), start=24, len=8)
 
 @public
 @constant
@@ -90,7 +90,7 @@ def to_bytes32(value: uint256) -> bytes32:
 @public
 def test_func(value: uint256,input: bytes[133]):
 
-    data2: bytes[200] = "hello world"
+    data2: bytes[200] = b"hello world"
 
     # log will be malformed
     # log.TestLog(self.to_bytes32(value),input,self.to_bytes(value))
@@ -115,7 +115,7 @@ TestLog: event({testData1: bytes32,testData2: bytes[2064], testData3: bytes[8] }
 @public
 @constant
 def to_bytes(value: uint256) -> bytes[8]:
-    return slice(concat("", convert(value, bytes32)), start=24, len=8)
+    return slice(concat(b"", convert(value, bytes32)), start=24, len=8)
 
 @private
 @ constant

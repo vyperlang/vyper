@@ -124,13 +124,26 @@ class ContractType(BaseType):
         super().__init__('address', name)
 
 
-# Data structure for a byte array
-class ByteArrayType(NodeType):
+class ByteArrayLike(NodeType):
+
     def __init__(self, maxlen):
         self.maxlen = maxlen
 
     def eq(self, other):
         return self.maxlen == other.maxlen
+
+    def eq_base(self, other):
+        return type(self) is type(other)
+
+
+class StringType(ByteArrayLike):
+
+    def __repr__(self):
+        return 'string[%d]' % self.maxlen
+
+
+# Data structure for a byte array
+class ByteArrayType(ByteArrayLike):
 
     def __repr__(self):
         return 'bytes[%d]' % self.maxlen
@@ -152,7 +165,7 @@ class ListType(NodeType):
 # Data structure for a key-value mapping
 class MappingType(NodeType):
     def __init__(self, keytype, valuetype):
-        if not isinstance(keytype, (BaseType, ByteArrayType)):
+        if not isinstance(keytype, (BaseType, ByteArrayLike)):
             raise Exception("Dictionary keys must be a base type")
         self.keytype = keytype
         self.valuetype = valuetype
@@ -219,12 +232,13 @@ class NullType(NodeType):
 
 # Convert type into common form used in ABI
 def canonicalize_type(t, is_indexed=False):
-    if isinstance(t, ByteArrayType):
+    if isinstance(t, ByteArrayLike):
         # Check to see if maxlen is small enough for events
+        byte_type = 'string' if isinstance(t, StringType) else 'bytes'
         if is_indexed:
-            return 'bytes{}'.format(t.maxlen)
+            return '{}{}'.format(byte_type, t.maxlen)
         else:
-            return 'bytes'
+            return '{}'.format(byte_type)
     if isinstance(t, ListType):
         if not isinstance(t.subtype, (ListType, BaseType)):
             raise Exception("List of byte arrays not allowed")
@@ -318,8 +332,8 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
             if len(item.args) != 2:
                 raise InvalidTypeException("Mapping requires 2 valid positional arguments.", item)
             keytype = parse_type(item.args[0], None, custom_units=custom_units, custom_structs=custom_structs, constants=constants)
-            if not isinstance(keytype, (BaseType, ByteArrayType)):
-                raise InvalidTypeException("Mapping keys must be base or bytes types", item)
+            if not isinstance(keytype, (BaseType, ByteArrayLike)):
+                raise InvalidTypeException("Mapping keys must be base or bytes/string types", item)
             return MappingType(keytype, parse_type(item.args[1], location, custom_units=custom_units, custom_structs=custom_structs, constants=constants))
         # Contract_types
         if item.func.id == 'address':
@@ -360,6 +374,8 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
             # ByteArray
             if getattr(item.value, 'id', None) == 'bytes':
                 return ByteArrayType(n_val)
+            elif getattr(item.value, 'id', None) == 'string':
+                return StringType(n_val)
             # List
             else:
                 return ListType(parse_type(item.value, location, custom_units=custom_units, custom_structs=custom_structs, constants=constants), n_val)
@@ -391,7 +407,7 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
 def get_size_of_type(typ):
     if isinstance(typ, BaseType):
         return 1
-    elif isinstance(typ, ByteArrayType):
+    elif isinstance(typ, ByteArrayLike):
         return ceil32(typ.maxlen) // 32 + 2
     elif isinstance(typ, ListType):
         return get_size_of_type(typ.subtype) * typ.count
@@ -406,7 +422,7 @@ def get_size_of_type(typ):
 def has_dynamic_data(typ):
     if isinstance(typ, BaseType):
         return False
-    elif isinstance(typ, ByteArrayType):
+    elif isinstance(typ, ByteArrayLike):
         return True
     elif isinstance(typ, ListType):
         return has_dynamic_data(typ.subtype)

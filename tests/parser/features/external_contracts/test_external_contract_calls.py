@@ -43,7 +43,7 @@ def foo() -> int128:
 
 @public
 def array() -> bytes[3]:
-    return 'dog'
+    return b'dog'
     """
 
     lucky_number = 7
@@ -68,7 +68,7 @@ def test_external_contract_calls_with_bytes(get_contract, get_contract_with_gas_
     contract_1 = """
 @public
 def array() -> bytes[3]:
-    return 'dog'
+    return b'dog'
     """
 
     c = get_contract_with_gas_estimation(contract_1)
@@ -747,7 +747,7 @@ def test_tuple_return_external_contract_call(get_contract_with_gas_estimation):
     contract_1 = """
 @public
 def out_literals() -> (int128, address, bytes[10]):
-    return 1, 0x0000000000000000000000000000000000000123, "random"
+    return 1, 0x0000000000000000000000000000000000000123, b"random"
     """
 
     contract_2 = """

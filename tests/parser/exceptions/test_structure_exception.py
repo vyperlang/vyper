@@ -88,7 +88,7 @@ def foo():
     """
 @public
 def foo():
-    x = raw_call(0x1234567890123456789012345678901234567890, "cow")
+    x = raw_call(0x1234567890123456789012345678901234567890, b"cow")
     """,
     """
 @public
@@ -98,12 +98,12 @@ def foo():
     """
 @public
 def foo():
-    x = create_with_code_of(0x1234567890123456789012345678901234567890, "cow")
+    x = create_with_code_of(0x1234567890123456789012345678901234567890, b"cow")
     """,
     """
 @public
 def foo():
-    x = raw_call(0x1234567890123456789012345678901234567890, "cow", gas=111111, outsize=4, moose=9)
+    x = raw_call(0x1234567890123456789012345678901234567890, b"cow", gas=111111, outsize=4, moose=9)
     """,
     """
 @public
@@ -116,12 +116,12 @@ x: public()
     """
 @public
 def foo():
-    raw_log([], "cow", "dog")
+    raw_log([], b"cow", "dog")
     """,
     """
 @public
 def foo():
-    raw_log("cow", "dog")
+    raw_log(b"cow", b"dog")
     """,
     """
 @public
@@ -148,7 +148,7 @@ def foo():
     """
 @public
 def foo():
-    x = concat("")
+    x = concat(b"")
     """,
     """
 @public

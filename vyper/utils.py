@@ -148,6 +148,7 @@ valid_global_keywords = {'public', 'modifying', 'event', 'constant'} | valid_uni
 # Cannot be used for variable or member naming
 reserved_words = {
     'int128', 'uint256', 'address', 'bytes32', 'map',
+    'string', 'bytes',
     'if', 'for', 'while', 'until',
     'pass', 'def', 'push', 'dup', 'swap', 'send', 'call',
     'selfdestruct', 'assert', 'stop', 'throw',

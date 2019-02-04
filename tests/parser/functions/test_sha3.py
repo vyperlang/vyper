@@ -40,6 +40,10 @@ def tryy(inp: bytes[100]) -> bool:
     return sha3(inp) == sha3(self.test)
 
 @public
+def tryy_str(inp: string[100]) -> bool:
+    return sha3(inp) == sha3(self.test)
+
+@public
 def trymem(inp: bytes[100]) -> bool:
     x: bytes[100] = self.test
     return sha3(inp) == sha3(x)
@@ -47,15 +51,19 @@ def trymem(inp: bytes[100]) -> bool:
 @public
 def try32(inp: bytes32) -> bool:
     return sha3(inp) == sha3(self.test)
+
     """
     c = get_contract_with_gas_estimation(hash_code3)
     c.set_test(b"", transact={})
     assert c.tryy(b"") is True
+    assert c.tryy_str("") is True
     assert c.trymem(b"") is True
     assert c.tryy(b"cow") is False
+    assert c.tryy_str(b"cow") is False
     c.set_test(b"cow", transact={})
     assert c.tryy(b"") is False
     assert c.tryy(b"cow") is True
+    assert c.tryy_str("cow") is True
     c.set_test(b"\x35" * 32, transact={})
     assert c.tryy(b"\x35" * 32) is True
     assert c.trymem(b"\x35" * 32) is True

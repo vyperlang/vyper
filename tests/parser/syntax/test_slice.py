@@ -45,7 +45,7 @@ def foo(inp: bytes[10]) -> bytes[4]:
     """
 @public
 def foo() -> bytes[10]:
-    return slice("badmintonzzz", start=1, len=10)
+    return slice(b"badmintonzzz", start=1, len=10)
     """
 ]
 

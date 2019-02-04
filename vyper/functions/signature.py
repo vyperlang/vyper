@@ -10,7 +10,8 @@ from vyper.exceptions import (
 )
 from vyper.types import (
     BaseType,
-    ByteArrayType
+    ByteArrayType,
+    StringType
 )
 from vyper.types import (
     is_base_type
@@ -60,6 +61,10 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
         elif expected_arg == 'bytes':
             sub = Expr(arg, context).lll_node
             if isinstance(sub.typ, ByteArrayType):
+                return sub
+        elif expected_arg == 'string':
+            sub = Expr(arg, context).lll_node
+            if isinstance(sub.typ, StringType):
                 return sub
         else:
             # Does not work for unit-endowed types inside compound types, e.g. timestamp[2]

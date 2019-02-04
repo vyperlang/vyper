@@ -323,15 +323,22 @@ Fixed-size Byte Arrays
 
 A byte array with a fixed size.
 The syntax being ``bytes[maxLen]``, where ``maxLen`` is an integer which denotes the maximum number of bytes.
-
-.. index:: !string
-Strings
--------
-Fixed-size byte arrays can hold strings with equal or fewer characters than the maximum length of the byte array.
+On the ABI level the Fixed-size bytes array is annotated as ``bytes``.
 
 **Example:**
 ::
-    exampleString = "Test String"
+    example_bytes: bytes[100] = b"\x01\x02\x03"
+
+.. index:: !string
+Fixed-size Strings
+==================
+**Keyword:** ``string``
+Fixed-size strings can hold strings with equal or fewer characters than the maximum length of the string.
+On the ABI level the Fixed-size bytes array is annotated as ``string``.
+
+**Example:**
+::
+    example_str: string[100] = "Test String"
 
 Operators
 ---------
@@ -343,8 +350,8 @@ Keyword                               Description
 ``concat(x, ...)``                    Concatenate multiple inputs.
 ``slice(x, start=_start, len=_len)``  Return a slice of ``_len`` starting at ``_start``.
 ====================================  ============================================================
-
-Where ``x`` is a byte array while ``_start`` and ``_len`` are integers.
+Where ``x`` is a byte array or string while ``_start`` and ``_len`` are integers.
+The ``len``, ``sha3``, ``concat``, ``slice`` operators can be used with ``string`` and ``bytes`` types.
 
 .. index:: !reference
 

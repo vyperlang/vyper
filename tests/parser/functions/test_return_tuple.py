@@ -23,11 +23,11 @@ def out() -> (int128, address):
 
 @public
 def out_literals() -> (int128, address, bytes[6]):
-    return 1, 0x0000000000000000000000000000000000000000, "random"
+    return 1, 0x0000000000000000000000000000000000000000, b"random"
 
 @public
 def out_bytes_first() -> (bytes[4], int128):
-    return "test", 1234
+    return b"test", 1234
 
 @public
 def out_bytes_a(x: int128, y: bytes[4]) -> (int128, bytes[4]):
@@ -39,7 +39,7 @@ def out_bytes_b(x: int128, y: bytes[4]) -> (bytes[4], int128, bytes[4]):
 
 @public
 def four() -> (int128, bytes[8], bytes[8], int128):
-    return 1234, "bytes", "test", 4321
+    return 1234, b"bytes", b"test", 4321
 
 @public
 def out_chunk() -> (bytes[8], int128, bytes[8]):
@@ -47,7 +47,7 @@ def out_chunk() -> (bytes[8], int128, bytes[8]):
 
 @public
 def out_very_long_bytes() -> (int128, bytes[1024], int128, address):
-    return 5555, "testtesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttest", 6666, 0x0000000000000000000000000000000000001234  # noqa
+    return 5555, b"testtesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttest", 6666, 0x0000000000000000000000000000000000001234  # noqa
     """
 
     c = get_contract_with_gas_estimation(code)
@@ -66,7 +66,7 @@ def test_return_type_signatures(get_contract_with_gas_estimation):
     code = """
 @public
 def out_literals() -> (int128, address, bytes[6]):
-    return 1, 0x0000000000000000000000000000000000000000, "random"
+    return 1, 0x0000000000000000000000000000000000000000, b"random"
     """
 
     c = get_contract_with_gas_estimation(code)
@@ -77,7 +77,7 @@ def test_return_tuple_assign(get_contract_with_gas_estimation):
     code = """
 @public
 def out_literals() -> (int128, address, bytes[10]):
-    return 1, 0x0000000000000000000000000000000000000000, "random"
+    return 1, 0x0000000000000000000000000000000000000000, b"random"
 
 
 @public
@@ -104,7 +104,7 @@ d: bytes[20]
 
 @public
 def out_literals() -> (int128, bytes[20], address, bytes[20]):
-    return 1, "testtesttest", 0x0000000000000000000000000000000000000023, "random"
+    return 1, b"testtesttest", 0x0000000000000000000000000000000000000023, b"random"
 
 
 @public

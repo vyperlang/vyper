@@ -16,6 +16,8 @@ from vyper.exceptions import (
 )
 from vyper.types import (
     BaseType,
+    StringType,
+    ByteArrayType,
 )
 from vyper.types import (
     get_type,
@@ -51,7 +53,7 @@ def to_bool(expr, args, kwargs, context):
         )
 
 
-@signature(('bytes32', 'bytes', 'uint256', 'bool'), '*')
+@signature(('bytes32', 'string', 'bytes', 'uint256', 'bool'), '*')
 def to_int128(expr, args, kwargs, context):
     in_arg = args[0]
     input_type, _ = get_type(in_arg)
@@ -74,7 +76,7 @@ def to_int128(expr, args, kwargs, context):
                 pos=getpos(expr)
             )
 
-    elif input_type == 'bytes':
+    elif input_type in ('string', 'bytes'):
         if in_arg.typ.maxlen > 32:
             raise TypeMismatchException("Cannot convert bytes array of max length {} to int128".format(in_arg.value), expr)
         return byte_array_to_num(in_arg, expr, 'int128')
@@ -262,7 +264,37 @@ def to_address(expr, args, kwargs, context):
     )
 
 
+@signature(('bytes'), '*')
+def to_string(expr, args, kwargs, context):
+    in_arg = args[0]
+    if in_arg.typ.maxlen > args[1].slice.value.n:
+        raise TypeMismatchException('Cannot convert as input bytes are larger than max length', expr)
+    return LLLnode(
+        value=in_arg.value,
+        args=in_arg.args,
+        typ=StringType(in_arg.typ.maxlen),
+        pos=getpos(expr),
+        location=in_arg.location
+    )
+
+
+@signature(('string'), '*')
+def to_bytes(expr, args, kwargs, context):
+    in_arg = args[0]
+    if in_arg.typ.maxlen > args[1].slice.value.n:
+        raise TypeMismatchException('Cannot convert as input bytes are larger than max length', expr)
+    return LLLnode(
+        value=in_arg.value,
+        args=in_arg.args,
+        typ=ByteArrayType(in_arg.typ.maxlen),
+        pos=getpos(expr),
+        location=in_arg.location
+    )
+
+
 def convert(expr, context):
+    if len(expr.args) != 2:
+        raise ParserException('The convert function expects two parameters.', expr)
     if isinstance(expr.args[1], ast.Str):
         warnings.warn(
             "String parameter has been removed (see VIP1026). "
@@ -272,6 +304,8 @@ def convert(expr, context):
 
     if isinstance(expr.args[1], ast.Name):
         output_type = expr.args[1].id
+    elif isinstance(expr.args[1], (ast.Subscript)) and isinstance(expr.args[1].value, (ast.Name)):
+        output_type = expr.args[1].value.id
     else:
         raise ParserException("Invalid conversion type, use valid Vyper type.", expr)
 
@@ -288,4 +322,6 @@ conversion_table = {
     'decimal': to_decimal,
     'bytes32': to_bytes32,
     'address': to_address,
+    'string': to_string,
+    'bytes': to_bytes
 }
