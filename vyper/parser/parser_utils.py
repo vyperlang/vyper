@@ -477,8 +477,6 @@ def make_setter(left, right, location, pos, in_function_call=False):
             subs = []
             static_offset_counter = 0
             for idx, (left_arg, right_arg, loc) in enumerate(zip(left.args, right.typ.members, locations)):
-                # if left_arg.typ.typ != right_arg.typ:
-                #     raise TypeMismatchException("Tuple assignment mismatch position %d, expected '%s'" % (idx, right.typ), pos)
                 if isinstance(right_arg, ByteArrayType):
                     offset = LLLnode.from_list(
                         ['add', '_R', ['mload', ['add', '_R', static_offset_counter]]],
