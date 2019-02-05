@@ -482,7 +482,7 @@ def make_setter(left, right, location, pos, in_function_call=False):
             right_token = LLLnode.from_list('_R', typ=right.typ, location="memory")
             subs = []
             static_offset_counter = 0
-            for idx, (left_arg, right_arg, loc) in enumerate(zip(left.args, right.typ.members)):
+            for idx, (left_arg, right_arg, loc) in enumerate(zip(left.args, right.typ.members, locations)):
                 if isinstance(right_arg, ByteArrayLike):
                     RType = ByteArrayType if isinstance(right_arg, ByteArrayType) else StringType
                     offset = LLLnode.from_list(
