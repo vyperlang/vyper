@@ -28,7 +28,7 @@ mapped_bytes: map(bytes[5], int128)
 
 @public
 def set(v: int128):
-    self.mapped_bytes["test"] = v
+    self.mapped_bytes[b"test"] = v
 
 @public
 def get(k: bytes[5]) -> int128:
@@ -81,16 +81,16 @@ a: map(bytes[100000], int128)
 
 @public
 def __init__():
-    self.a["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"] = 1069
+    self.a[b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"] = 1069
 
 @public
 def get_it1() -> int128:
-    key: bytes[100000] = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    key: bytes[100000] = b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     return self.a[key]
 
 @public
 def get_it2() -> int128:
-    return self.a["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+    return self.a[b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
 
 @public
 def get_it3(key: bytes[100000]) -> int128:

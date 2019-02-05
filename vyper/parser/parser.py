@@ -35,7 +35,7 @@ from vyper.parser.parser_utils import (
 )
 from vyper.types import (
     BaseType,
-    ByteArrayType,
+    ByteArrayLike,
     ListType,
 )
 from vyper.types import (
@@ -309,7 +309,7 @@ def make_clamper(datapos, mempos, typ, is_init=False):
     elif is_base_type(typ, 'address'):
         return LLLnode.from_list(['uclamplt', data_decl, ['mload', MemoryPositions.ADDRSIZE]], typ=typ, annotation='checking address input')
     # Bytes: make sure they have the right size
-    elif isinstance(typ, ByteArrayType):
+    elif isinstance(typ, ByteArrayLike):
         return LLLnode.from_list(['seq',
                                     copier(data_decl, 32 + typ.maxlen),
                                     ['assert', ['le', ['calldataload', ['add', 4, data_decl]], typ.maxlen]]],
@@ -407,8 +407,8 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
     )
 
     # Copy calldata to memory for fixed-size arguments
-    max_copy_size = sum([32 if isinstance(arg.typ, ByteArrayType) else get_size_of_type(arg.typ) * 32 for arg in sig.args])
-    base_copy_size = sum([32 if isinstance(arg.typ, ByteArrayType) else get_size_of_type(arg.typ) * 32 for arg in base_args])
+    max_copy_size = sum([32 if isinstance(arg.typ, ByteArrayLike) else get_size_of_type(arg.typ) * 32 for arg in sig.args])
+    base_copy_size = sum([32 if isinstance(arg.typ, ByteArrayLike) else get_size_of_type(arg.typ) * 32 for arg in base_args])
     context.next_mem += max_copy_size
 
     clampers = []
@@ -452,14 +452,14 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
     for i, arg in enumerate(sig.args):
         if i < len(base_args) and not sig.private:
             clampers.append(make_clamper(arg.pos, context.next_mem, arg.typ, sig.name == '__init__'))
-        if isinstance(arg.typ, ByteArrayType):
+        if isinstance(arg.typ, ByteArrayLike):
             context.vars[arg.name] = VariableRecord(arg.name, context.next_mem, arg.typ, False)
             context.next_mem += 32 * get_size_of_type(arg.typ)
         else:
             context.vars[arg.name] = VariableRecord(arg.name, MemoryPositions.RESERVED_MEMORY + arg.pos, arg.typ, False)
 
     # Private function copiers. No clamping for private functions.
-    dyn_variable_names = [a.name for a in base_args if isinstance(a.typ, ByteArrayType)]
+    dyn_variable_names = [a.name for a in base_args if isinstance(a.typ, ByteArrayLike)]
     if sig.private and dyn_variable_names:
         i_placeholder = context.new_placeholder(typ=BaseType('uint256'))
         unpackers = []
@@ -531,7 +531,7 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
                     calldata_offset_map = {}
                     for arg in default_sig.args:
                         calldata_offset_map[arg.name] = offset
-                        offset += 32 if isinstance(arg.typ, ByteArrayType) else get_size_of_type(arg.typ) * 32
+                        offset += 32 if isinstance(arg.typ, ByteArrayLike) else get_size_of_type(arg.typ) * 32
                     # Copy set default parameters from calldata
                     dynamics = []
                     for arg_name in copier_arg_names:
@@ -539,7 +539,7 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
                         calldata_offset = calldata_offset_map[arg_name]
                         if sig.private:
                             _offset = calldata_offset
-                            if isinstance(var.typ, ByteArrayType):
+                            if isinstance(var.typ, ByteArrayLike):
                                 _size = 32
                                 dynamics.append(var.pos)
                             else:
@@ -549,7 +549,7 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
                             # Add clampers.
                             default_copiers.append(make_clamper(calldata_offset - 4, var.pos, var.typ))
                             # Add copying code.
-                            if isinstance(var.typ, ByteArrayType):
+                            if isinstance(var.typ, ByteArrayLike):
                                 _offset = ['add', 4, ['calldataload', calldata_offset]]
                             else:
                                 _offset = calldata_offset
@@ -634,19 +634,20 @@ def parse_stmt(stmt, context):
 
 def pack_logging_topics(event_id, args, expected_topics, context, pos):
     topics = [event_id]
+    code_pos = pos
     for pos, expected_topic in enumerate(expected_topics):
         expected_type = expected_topic.typ
         arg = args[pos]
         value = parse_expr(arg, context)
         arg_type = value.typ
 
-        if isinstance(arg_type, ByteArrayType) and isinstance(expected_type, ByteArrayType):
+        if isinstance(arg_type, ByteArrayLike) and isinstance(expected_type, ByteArrayLike):
             if arg_type.maxlen > expected_type.maxlen:
-                raise TypeMismatchException("Topic input bytes are too big: %r %r" % (arg_type, expected_type), pos)
+                raise TypeMismatchException("Topic input bytes are too big: %r %r" % (arg_type, expected_type), code_pos)
             if isinstance(arg, ast.Str):
                 bytez, bytez_length = string_to_bytes(arg.s)
                 if len(bytez) > 32:
-                    raise InvalidLiteralException("Can only log a maximum of 32 bytes at a time.", pos)
+                    raise InvalidLiteralException("Can only log a maximum of 32 bytes at a time.", code_pos)
                 topics.append(bytes_to_int(bytez + b'\x00' * (32 - bytez_length)))
             else:
                 if value.location == "memory":
@@ -656,7 +657,7 @@ def pack_logging_topics(event_id, args, expected_topics, context, pos):
                 topics.append(byte_array_to_num(value, arg, 'uint256', size))
         else:
             value = unwrap_location(value)
-            value = base_type_conversion(value, arg_type, expected_type, pos=pos)
+            value = base_type_conversion(value, arg_type, expected_type, pos=code_pos)
             topics.append(value)
 
     return topics
@@ -684,7 +685,7 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder,
             value = parse_expr(arg, context)
             value = base_type_conversion(value, value.typ, typ, pos)
         holder.append(LLLnode.from_list(['mstore', placeholder, value], typ=typ, location='memory'))
-    elif isinstance(typ, ByteArrayType):
+    elif isinstance(typ, ByteArrayLike):
 
         if isinstance(arg, LLLnode):  # Is prealloacted variable.
             source_lll = arg
@@ -799,7 +800,7 @@ def pack_logging_data(expected_data, args, context, pos):
             )
             prealloacted[idx] = tmp_variable_node
 
-    requires_dynamic_offset = any([isinstance(data.typ, ByteArrayType) for data in expected_data])
+    requires_dynamic_offset = any([isinstance(data.typ, ByteArrayLike) for data in expected_data])
     if requires_dynamic_offset:
         zero_pad_i = context.new_placeholder(BaseType('uint256'))  # Iterator used to zero pad memory.
         dynamic_offset_counter = context.new_placeholder(BaseType(32))
@@ -812,7 +813,7 @@ def pack_logging_data(expected_data, args, context, pos):
     placeholder_map = {}
     for i, (arg, data) in enumerate(zip(args, expected_data)):
         typ = data.typ
-        if not isinstance(typ, ByteArrayType):
+        if not isinstance(typ, ByteArrayLike):
             placeholder = context.new_placeholder(typ)
         else:
             placeholder = context.new_placeholder(BaseType(32))
@@ -822,7 +823,7 @@ def pack_logging_data(expected_data, args, context, pos):
     for i, (arg, data) in enumerate(zip(args, expected_data)):
         typ = data.typ
         placeholder = placeholder_map[i]
-        if not isinstance(typ, ByteArrayType):
+        if not isinstance(typ, ByteArrayLike):
             holder, maxlen = pack_args_by_32(holder, maxlen, prealloacted.get(i, arg), typ, context, placeholder, zero_pad_i=zero_pad_i, pos=pos)
 
     # Dynamic position starts right after the static args.
@@ -832,7 +833,7 @@ def pack_logging_data(expected_data, args, context, pos):
     # Calculate maximum dynamic offset placeholders, used for gas estimation.
     for i, (arg, data) in enumerate(zip(args, expected_data)):
         typ = data.typ
-        if isinstance(typ, ByteArrayType):
+        if isinstance(typ, ByteArrayLike):
             maxlen += 32 + ceil32(typ.maxlen)
 
     if requires_dynamic_offset:
@@ -843,7 +844,7 @@ def pack_logging_data(expected_data, args, context, pos):
     # Copy necessary data into allocated dynamic section.
     for i, (arg, data) in enumerate(zip(args, expected_data)):
         typ = data.typ
-        if isinstance(typ, ByteArrayType):
+        if isinstance(typ, ByteArrayLike):
             pack_args_by_32(
                 holder=holder,
                 maxlen=maxlen,

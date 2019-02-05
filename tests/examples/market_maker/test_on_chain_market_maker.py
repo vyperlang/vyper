@@ -8,8 +8,8 @@ def market_maker(get_contract):
     return get_contract(contract_code)
 
 
-TOKEN_NAME = b"Vypercoin"
-TOKEN_SYMBOL = b"FANG"
+TOKEN_NAME = "Vypercoin"
+TOKEN_SYMBOL = "FANG"
 TOKEN_DECIMALS = 18
 TOKEN_INITIAL_SUPPLY = (21 * 10 ** 6)
 TOKEN_TOTAL_SUPPLY = TOKEN_INITIAL_SUPPLY * (10 ** TOKEN_DECIMALS)

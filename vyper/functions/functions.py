@@ -28,6 +28,8 @@ from vyper.parser.expr import (
 from vyper.types import (
     BaseType,
     ByteArrayType,
+    ByteArrayLike,
+    StringType,
     TupleType,
     ListType
 )
@@ -101,8 +103,9 @@ def _convert(expr, context):
     return convert(expr, context)
 
 
-@signature(('bytes32', 'bytes'), start='int128', len='int128')
+@signature(('bytes32', 'bytes', 'string'), start='int128', len='int128')
 def _slice(expr, args, kwargs, context):
+
     sub, start, length = args[0], kwargs['start'], kwargs['len']
     if not are_units_compatible(start.typ, BaseType('int128')):
         raise TypeMismatchException("Type for slice start index must be a unitless number", expr)
@@ -120,6 +123,15 @@ def _slice(expr, args, kwargs, context):
 
     # Node representing the position of the output in memory
     np = context.new_placeholder(ByteArrayType(maxlen=sub_typ_maxlen + 32))
+
+    # Get returntype string or bytes
+    if isinstance(args[0].typ, ByteArrayType) or is_base_type(sub.typ, 'bytes32'):
+        ReturnType = ByteArrayType
+    else:
+        ReturnType = StringType
+
+    # Node representing the position of the output in memory
+    np = context.new_placeholder(ReturnType(maxlen=sub_typ_maxlen + 32))
     placeholder_node = LLLnode.from_list(np, typ=sub.typ, location='memory')
     placeholder_plus_32_node = LLLnode.from_list(np + 32, typ=sub.typ, location='memory')
     # Copies over bytearray data
@@ -153,10 +165,10 @@ def _slice(expr, args, kwargs, context):
                            copier,
                            ['mstore', '_opos', '_length'],
                            '_opos']]]]
-    return LLLnode.from_list(out, typ=ByteArrayType(newmaxlen), location='memory', pos=getpos(expr))
+    return LLLnode.from_list(out, typ=ReturnType(newmaxlen), location='memory', pos=getpos(expr))
 
 
-@signature('bytes')
+@signature(('bytes', 'string'))
 def _len(expr, args, kwargs, context):
     return get_length(args[0])
 
@@ -165,22 +177,35 @@ def concat(expr, context):
     args = [Expr(arg, context).lll_node for arg in expr.args]
     if len(args) < 2:
         raise StructureException("Concat expects at least two arguments", expr)
-    for expr_arg, arg in zip(expr.args, args):
-        if not isinstance(arg.typ, ByteArrayType) and not is_base_type(arg.typ, 'bytes32'):
-            raise TypeMismatchException("Concat expects byte arrays or bytes32 objects", expr_arg)
+
+    prev_type = ''
+    for i, (expr_arg, arg) in enumerate(zip(expr.args, args)):
+        if not isinstance(arg.typ, ByteArrayLike) and not is_base_type(arg.typ, 'bytes32'):
+            raise TypeMismatchException("Concat expects string, bytes or bytes32 objects", expr_arg)
+
+        current_type = 'bytes' if isinstance(arg.typ, ByteArrayType) or is_base_type(arg.typ, 'bytes32') else 'string'
+        if prev_type and current_type != prev_type:
+            raise TypeMismatchException("Concat expects consistant use of string or byte types, user either bytes or string.", expr_arg)
+        prev_type = current_type
+
+    if current_type == 'string':
+        ReturnType = StringType
+    else:
+        ReturnType = ByteArrayType
+
     # Maximum length of the output
     total_maxlen = sum([arg.typ.maxlen if isinstance(arg.typ, ByteArrayType) else 32 for arg in args])
     # Node representing the position of the output in memory
-    placeholder = context.new_placeholder(ByteArrayType(total_maxlen))
+    placeholder = context.new_placeholder(ReturnType(total_maxlen))
     # Object representing the output
     seq = []
     # For each argument we are concatenating...
     for arg in args:
         # Start pasting into a position the starts at zero, and keeps
         # incrementing as we concatenate arguments
-        placeholder_node = LLLnode.from_list(['add', placeholder, '_poz'], typ=ByteArrayType(total_maxlen), location='memory')
-        placeholder_node_plus_32 = LLLnode.from_list(['add', ['add', placeholder, '_poz'], 32], typ=ByteArrayType(total_maxlen), location='memory')
-        if isinstance(arg.typ, ByteArrayType):
+        placeholder_node = LLLnode.from_list(['add', placeholder, '_poz'], typ=ReturnType(total_maxlen), location='memory')
+        placeholder_node_plus_32 = LLLnode.from_list(['add', ['add', placeholder, '_poz'], 32], typ=ReturnType(total_maxlen), location='memory')
+        if isinstance(arg.typ, ReturnType):
             # Ignore empty strings
             if arg.typ.maxlen == 0:
                 continue
@@ -211,11 +236,11 @@ def concat(expr, context):
     # Memory location of the output
     seq.append(placeholder)
     return LLLnode.from_list(
-        ['with', '_poz', 0, ['seq'] + seq], typ=ByteArrayType(total_maxlen), location='memory', pos=getpos(expr), annotation='concat'
+        ['with', '_poz', 0, ['seq'] + seq], typ=ReturnType(total_maxlen), location='memory', pos=getpos(expr), annotation='concat'
     )
 
 
-@signature(('str_literal', 'bytes', 'bytes32'))
+@signature(('str_literal', 'bytes', 'string', 'bytes32'))
 def _sha3(expr, args, kwargs, context):
     sub = args[0]
     # Can hash literals

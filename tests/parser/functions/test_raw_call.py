@@ -5,15 +5,15 @@ def test_caller_code(get_contract_with_gas_estimation):
     caller_code = """
 @public
 def foo() -> bytes[7]:
-    return raw_call(0x0000000000000000000000000000000000000004, "moose", gas=50000, outsize=5)
+    return raw_call(0x0000000000000000000000000000000000000004, b"moose", gas=50000, outsize=5)
 
 @public
 def bar() -> bytes[7]:
-    return raw_call(0x0000000000000000000000000000000000000004, "moose", gas=50000, outsize=3)
+    return raw_call(0x0000000000000000000000000000000000000004, b"moose", gas=50000, outsize=3)
 
 @public
 def baz() -> bytes[7]:
-    return raw_call(0x0000000000000000000000000000000000000004, "moose", gas=50000, outsize=7)
+    return raw_call(0x0000000000000000000000000000000000000004, b"moose", gas=50000, outsize=7)
     """
 
     c = get_contract_with_gas_estimation(caller_code)
@@ -37,7 +37,7 @@ def returnten() -> int128:
 @public
 def create_and_call_returnten(inp: address) -> int128:
     x: address = create_with_code_of(inp)
-    o: int128 = extract32(raw_call(x, "\xd0\x1f\xb1\xb8", outsize=32, gas=50000), 0, type=int128)
+    o: int128 = extract32(raw_call(x, convert("\xd0\x1f\xb1\xb8", bytes[4]), outsize=32, gas=50000), 0, type=int128)
     return o
 
 @public
@@ -79,7 +79,7 @@ def returnten() -> int128:
 @public
 def create_and_call_returnten(inp: address) -> int128:
     x: address = create_with_code_of(inp)
-    o: int128 = extract32(raw_call(x, "\xd0\x1f\xb1\xb8", outsize=32, gas=50000), 0, type=int128)
+    o: int128 = extract32(raw_call(x, convert("\xd0\x1f\xb1\xb8", bytes[4]), outsize=32, gas=50000), 0, type=int128)
     return o
 
 @public

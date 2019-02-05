@@ -35,6 +35,7 @@ from vyper.types import (
     ListType,
     MappingType,
     NullType,
+    StringType,
     StructType,
     TupleType,
 )
@@ -69,6 +70,7 @@ class Expr(object):
             ast.List: self.list_literals,
             ast.Tuple: self.tuple_literals,
             ast.Dict: self.dict_fail,
+            ast.Bytes: self.bytes,
         }
         expr_type = self.expr.__class__
         if expr_type in self.expr_table:
@@ -128,16 +130,25 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             raise InvalidLiteralException("Cannot read 0x value with length %d. Expecting 42 (address incl 0x) or 66 (bytes32 incl 0x)"
                                           % len(orignum), self.expr)
 
-    # Byte array literals
+    # String literals
     def string(self):
         bytez, bytez_length = string_to_bytes(self.expr.s)
-        placeholder = self.context.new_placeholder(ByteArrayType(bytez_length))
+        return self._make_bytelike(StringType(bytez_length), bytez, bytez_length)
+
+    # Byte literals
+    def bytes(self):
+        bytez = self.expr.s
+        bytez_length = len(self.expr.s)
+        return self._make_bytelike(ByteArrayType(bytez_length), bytez, bytez_length)
+
+    def _make_bytelike(self, btype, bytez, bytez_length):
+        placeholder = self.context.new_placeholder(btype)
         seq = []
         seq.append(['mstore', placeholder, bytez_length])
         for i in range(0, len(bytez), 32):
             seq.append(['mstore', ['add', placeholder, i + 32], bytes_to_int((bytez + b'\x00' * 31)[i: i + 32])])
         return LLLnode.from_list(['seq'] + seq + [placeholder],
-            typ=ByteArrayType(bytez_length), location='memory', pos=getpos(self.expr), annotation='Create ByteArray: %s' % bytez)
+            typ=btype, location='memory', pos=getpos(self.expr), annotation='Create %r: %s' % (btype, bytez))
 
     # True, False, None constants
     def constants(self):
