@@ -447,6 +447,7 @@ def make_setter(left, right, location, pos, in_function_call=False):
             else:
                 if len(left.typ.members) != len(right.typ.members):
                     raise TypeMismatchException("Tuple lengths don't match, %d vs %d" % (len(left.typ.members), len(right.typ.members)), pos)
+
         left_token = LLLnode.from_list('_L', typ=left.typ, location=left.location)
         if left.location == "storage":
             left = LLLnode.from_list(['sha3_32', left], typ=left.typ, location="storage_prehashed")
@@ -455,26 +456,33 @@ def make_setter(left, right, location, pos, in_function_call=False):
             keyz = list(left.typ.members.keys())
         else:
             keyz = list(range(len(left.typ.members)))
+
+        # If the left side is a literal
+        if left.value == 'multi':
+            locations = [arg.location for arg in left.args]
+        else:
+            locations = [location for _ in keyz]
+
         # If the right side is a literal
         if right.value == "multi":
             if len(right.args) != len(keyz):
                 raise TypeMismatchException("Mismatched number of elements", pos)
             subs = []
-            for i, typ in enumerate(keyz):
-                subs.append(make_setter(add_variable_offset(left_token, typ, pos=pos), right.args[i], location, pos=pos))
+            for i, (typ, loc) in enumerate(zip(keyz, locations)):
+                subs.append(make_setter(add_variable_offset(left_token, typ, pos=pos), right.args[i], loc, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If the right side is a null
         elif isinstance(right.typ, NullType):
             subs = []
-            for typ in keyz:
-                subs.append(make_setter(add_variable_offset(left_token, typ, pos=pos), LLLnode.from_list(None, typ=NullType()), location, pos=pos))
+            for typ, loc in zip(keyz, locations):
+                subs.append(make_setter(add_variable_offset(left_token, typ, pos=pos), LLLnode.from_list(None, typ=NullType()), loc, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If tuple assign.
         elif isinstance(left.typ, TupleType) and isinstance(right.typ, TupleType):
             right_token = LLLnode.from_list('_R', typ=right.typ, location="memory")
             subs = []
             static_offset_counter = 0
-            for idx, (left_arg, right_arg) in enumerate(zip(left.args, right.typ.members)):
+            for idx, (left_arg, right_arg, loc) in enumerate(zip(left.args, right.typ.members, locations)):
                 if isinstance(right_arg, ByteArrayLike):
                     RType = ByteArrayType if isinstance(right_arg, ByteArrayType) else StringType
                     offset = LLLnode.from_list(
@@ -488,7 +496,7 @@ def make_setter(left, right, location, pos, in_function_call=False):
                     make_setter(
                         left_arg,
                         offset,
-                        location="memory",
+                        loc,
                         pos=pos
                     )
                 )
@@ -497,11 +505,11 @@ def make_setter(left, right, location, pos, in_function_call=False):
         else:
             subs = []
             right_token = LLLnode.from_list('_R', typ=right.typ, location=right.location)
-            for typ in keyz:
+            for typ, loc in zip(keyz, locations):
                 subs.append(make_setter(
                     add_variable_offset(left_token, typ, pos=pos),
                     add_variable_offset(right_token, typ, pos=pos),
-                    location,
+                    loc,
                     pos=pos
                 ))
             return LLLnode.from_list(['with', '_L', left, ['with', '_R', right, ['seq'] + subs]], typ=None)
