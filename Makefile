@@ -37,3 +37,11 @@ docker-build:
 	@docker build -t vyper \
 		--build-arg VCS_REF=`git rev-parse --short HEAD` \
 		--build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` .
+
+
+release: clean
+	bumpversion devnum
+	git push upstream && git push upstream --tags
+	python setup.py sdist bdist_wheel
+	twine upload dist/*
+
