@@ -64,6 +64,8 @@ def transfer(_to : address, _value : uint256) -> bool:
     @param _to The address to transfer to.
     @param _value The amount to be transferred.
     """
+    # NOTE: vyper does not allow unterflows
+    #       so checks for sufficient funds/allowances are done implicitly
     self.balances[msg.sender] -= _value
     self.balances[_to] += _value
     log.Transfer(msg.sender, _to, _value)
@@ -80,6 +82,8 @@ def transferFrom(_from : address, _to : address, _value : uint256) -> bool:
      @param _to address The address which you want to transfer to
      @param _value uint256 the amount of tokens to be transferred
     """
+    # NOTE: vyper does not allow unterflows
+    #       so checks for sufficient funds/allowances are done implicitly
     self.balances[_from] -= _value
     self.balances[_to] += _value
     self.allowances[_from][msg.sender] -= _value
