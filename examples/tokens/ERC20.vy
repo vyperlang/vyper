@@ -74,7 +74,7 @@ def transfer(_to : address, _value : uint256) -> bool:
 def transferFrom(_from : address, _to : address, _value : uint256) -> bool:
     """
      @dev Transfer tokens from one address to another.
-          Note that while this function emits an Approval event, this is not required as per the specification,
+          Note that while this function emits a Transfer event, this is not required as per the specification,
           and other compliant implementations may not emit the event.
      @param _from address The address which you want to send tokens from
      @param _to address The address which you want to transfer to
