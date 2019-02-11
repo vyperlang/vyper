@@ -53,7 +53,7 @@ def gas_estimate(origcode, *args, **kwargs):
 def mk_full_signature(code, *args, **kwargs):
     abi = parser.mk_full_signature(parser.parse_to_ast(code), *args, **kwargs)
     # Add gas estimates for each function to ABI
-    gas_estimates = gas_estimate(code)
+    gas_estimates = gas_estimate(code, *args, **kwargs)
     for idx, func in enumerate(abi):
         func_name = func['name'].split('(')[0]
         # Skip __init__, has no estimate
@@ -82,13 +82,13 @@ def get_asm(asm_list):
     return output_string
 
 
-def get_source_map(code, interface_codes=None):
+def get_source_map(code, contract_name, interface_codes=None):
     asm_list = compile_lll.compile_to_assembly(
             optimizer.optimize(
                 parser.parse_to_lll(
                     code,
                     runtime_only=True,
-                    interface_codes=interfaces_codes)))
+                    interface_codes=interface_codes)))
     c, line_number_map = compile_lll.assembly_to_evm(asm_list)
     # Sort line_number_map
     out = OrderedDict()
@@ -104,7 +104,7 @@ output_formats_map = {
     'bytecode_runtime': lambda code, contract_name, interface_codes: '0x' + __compile(code, bytecode_runtime=True, interface_codes=interface_codes).hex(),
     'ir': lambda code, contract_name, interface_codes: optimizer.optimize(parser.parse_to_lll(code, interface_codes=interface_codes)),
     'asm': lambda code, contract_name, interface_codes: get_asm(compile_lll.compile_to_assembly(optimizer.optimize(parser.parse_to_lll(code, interface_codes=interface_codes)))),
-    'source_map': lambda code, _, interface_codes: get_source_map(code, interface_codes=interface_codes),
+    'source_map': lambda code, contract_name, interface_codes: get_source_map(code, contract_name, interface_codes=interface_codes),
     'method_identifiers': lambda code, contract_name, interface_codes: parser.mk_method_identifiers(code, interface_codes=interface_codes),
     'interface': lambda code, contract_name, interface_codes: extract_interface_str(code, contract_name, interface_codes=interface_codes),
     'external_interface': lambda code, contract_name, interface_codes: extract_external_interface(code, contract_name, interface_codes=interface_codes),
