@@ -13,11 +13,11 @@ This example is taken from the `sample ERC20 contract <https://github.com/ethere
 ::
 
     # Events of the token.
-    Transfer: event({_from: indexed(address), _to: indexed(address), _value: num256})
-    Approval: event({_owner: indexed(address), _spender: indexed(address), _value: num256})
+    Transfer: event({_from: indexed(address), _to: indexed(address), _value: uint256})
+    Approval: event({_owner: indexed(address), _spender: indexed(address), _value: uint256})
 
     # Transfer some tokens from message sender to another address
-    def transfer(_to : address, _value : num256) -> bool:
+    def transfer(_to : address, _value : uint256) -> bool:
 
        ... Logic here to do the real work ...
 
@@ -55,7 +55,7 @@ Let's look at an event declaration in more detail.
 
 ::
 
-    Transfer: event({_from: indexed(address), _to: indexed(address), _value: num256})
+    Transfer: event({_from: indexed(address), _to: indexed(address), _value: uint256})
 
 Event declarations look like state variable declarations but use the special keyword event. event takes a as its argument that consist of all the arguments to be passed as part of the event. Typical events will contain two kinds of arguments:
 
