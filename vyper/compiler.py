@@ -55,9 +55,9 @@ def mk_full_signature(code, *args, **kwargs):
     # Add gas estimates for each function to ABI
     gas_estimates = gas_estimate(code, *args, **kwargs)
     for idx, func in enumerate(abi):
-        func_name = func['name'].split('(')[0]
+        func_name = func.get('name', '').split('(')[0]
         # Skip __init__, has no estimate
-        if func_name in gas_estimates and func_name != '__init__':
+        if func_name in gas_estimates:
             abi[idx]['gas'] = gas_estimates[func_name]
     return abi
 

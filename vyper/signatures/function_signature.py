@@ -187,6 +187,9 @@ class FunctionSignature():
         for abi_input in abi_dict['inputs']:
             delete_unit_if_empty(abi_input)
 
+        if self.name in ('__default__', '__init__'):
+            del abi_dict['name']
+
         return abi_dict
 
     @classmethod
