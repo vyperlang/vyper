@@ -84,11 +84,11 @@ def get_asm(asm_list):
 
 def get_source_map(code, contract_name, interface_codes=None):
     asm_list = compile_lll.compile_to_assembly(
-            optimizer.optimize(
-                parser.parse_to_lll(
-                    code,
-                    runtime_only=True,
-                    interface_codes=interface_codes)))
+        optimizer.optimize(
+            parser.parse_to_lll(
+                code,
+                runtime_only=True,
+                interface_codes=interface_codes)))
     c, line_number_map = compile_lll.assembly_to_evm(asm_list)
     # Sort line_number_map
     out = OrderedDict()
