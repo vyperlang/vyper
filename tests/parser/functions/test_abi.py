@@ -18,7 +18,6 @@ def __init__():
     """
 
     empty_sig = [{
-        'name': '__init__',
         'outputs': [],
         'inputs': [],
         'constant': False,
@@ -28,3 +27,18 @@ def __init__():
 
     assert mk_full_signature(code) == empty_sig
     assert mk_full_signature(code_init_empty) == empty_sig
+
+
+def test_default_abi():
+    default_code = """
+@payable
+@public
+def __default__():
+    pass
+    """
+
+    assert mk_full_signature(default_code) == [{
+        'constant': False,
+        'payable': True,
+        'type': 'fallback'
+    }]

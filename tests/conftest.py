@@ -41,7 +41,7 @@ class VyperMethod(ConciseMethod):
     def __prepared_function(self, *args, **kwargs):
         if not kwargs:
             modifier, modifier_dict = 'call', {}
-            fn_abi = [x for x in self._function.contract_abi if x['name'] == self._function.function_identifier].pop()
+            fn_abi = [x for x in self._function.contract_abi if x.get('name') == self._function.function_identifier].pop()
             modifier_dict.update({'gas': fn_abi.get('gas', 0) + 50000})  # To make tests faster just supply some high gas value.
         elif len(kwargs) == 1:
             modifier, modifier_dict = kwargs.popitem()
