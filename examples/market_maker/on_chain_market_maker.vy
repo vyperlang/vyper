@@ -1,3 +1,5 @@
+from vyper.interfaces import ERC20
+
 units: {
     currency_value: "a currency"
 }

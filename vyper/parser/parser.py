@@ -183,9 +183,9 @@ def parse_events(sigs, global_ctx):
     return sigs
 
 
-def parse_external_contracts(external_contracts, _contracts, _structs, _constants):
-    for _contractname in _contracts:
-        _contract_defs = _contracts[_contractname]
+def parse_external_contracts(external_contracts, global_ctx):
+    for _contractname in global_ctx._contracts:
+        _contract_defs = global_ctx._contracts[_contractname]
         _defnames = [_def.name for _def in _contract_defs]
         contract = {}
         if len(set(_defnames)) < len(_contract_defs):
@@ -202,9 +202,23 @@ def parse_external_contracts(external_contracts, _contracts, _structs, _constant
             else:
                 raise StructureException('constant or modifying call type must be specified', _def)
             # Recognizes already-defined structs
-            sig = FunctionSignature.from_definition(_def, contract_def=True, constant=constant, custom_structs=_structs, constants=_constants)
+            sig = FunctionSignature.from_definition(
+                _def,
+                contract_def=True,
+                constant=constant,
+                custom_structs=global_ctx._structs,
+                constants=global_ctx._constants
+            )
             contract[sig.name] = sig
         external_contracts[_contractname] = contract
+
+    for interface_name, interface in global_ctx._interfaces.items():
+        external_contracts[interface_name] = {
+            sig.name: sig
+            for sig in interface
+            if isinstance(sig, FunctionSignature)
+        }
+
     return external_contracts
 
 
@@ -255,8 +269,8 @@ def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None):
     o = ['seq']
     if global_ctx._events:
         sigs = parse_events(sigs, global_ctx)
-    if global_ctx._contracts:
-        external_contracts = parse_external_contracts(external_contracts, global_ctx._contracts, global_ctx._structs, global_ctx._constants)
+    if global_ctx._contracts or global_ctx._interfaces:
+        external_contracts = parse_external_contracts(external_contracts, global_ctx)
     # If there is an init func...
     if initfunc:
         o.append(['seq', initializer_lll])
@@ -266,9 +280,14 @@ def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None):
         o = parse_other_functions(
             o, otherfuncs, sigs, external_contracts, origcode, global_ctx, defaultfunc, runtime_only
         )
+
     # Check interface.
-    if global_ctx._interface:
-        funcs_left = global_ctx._interface.copy()
+    if global_ctx._implemented_interfaces:
+        funcs_left = {
+            interface_name: interface
+            for interface_name, interface in global_ctx._interface.items()
+            if interface_name in global_ctx._implemented_interfaces
+        }
 
         for sig, func_sig in sigs.items():
             if isinstance(func_sig, FunctionSignature):
