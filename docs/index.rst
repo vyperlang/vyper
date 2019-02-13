@@ -99,7 +99,6 @@ Glossary
     logging.rst
     vyper-in-depth.rst
     contributing.rst
-    logging.rst
     frequently-asked-questions.rst
     built-in-functions.rst
     types.rst
