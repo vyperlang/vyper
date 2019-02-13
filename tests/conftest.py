@@ -183,7 +183,7 @@ def get_contract_from_lll(w3):
 
 
 def _get_contract(w3, source_code, *args, **kwargs):
-    out = compiler.compile_code(source_code, ['abi', 'bytecode'])
+    out = compiler.compile_code(source_code, ['abi', 'bytecode'], interface_codes=kwargs.pop('interface_codes', None))
     abi = out['abi']
     bytecode = out['bytecode']
     contract = w3.eth.contract(abi=abi, bytecode=bytecode)

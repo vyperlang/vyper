@@ -121,9 +121,10 @@ class GlobalContext:
         # Merge intefaces.
         if global_ctx._interfaces:
             for interface_name, sigs in global_ctx._interfaces.items():
-                for func_sig in sigs:
-                    setattr(func_sig, 'defined_in_interface', interface_name)
-                    global_ctx._interface[func_sig.sig] = func_sig
+                if interface_name in global_ctx._implemented_interfaces:
+                    for func_sig in sigs:
+                        setattr(func_sig, 'defined_in_interface', interface_name)
+                        global_ctx._interface[func_sig.sig] = func_sig
 
         # Add getters to _defs
         global_ctx._defs += global_ctx._getters

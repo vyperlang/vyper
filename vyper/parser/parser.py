@@ -282,12 +282,8 @@ def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None):
         )
 
     # Check interface.
-    if global_ctx._implemented_interfaces:
-        funcs_left = {
-            interface_name: interface
-            for interface_name, interface in global_ctx._interface.items()
-            if interface_name in global_ctx._implemented_interfaces
-        }
+    if global_ctx._interface:
+        funcs_left = global_ctx._interface.copy()
 
         for sig, func_sig in sigs.items():
             if isinstance(func_sig, FunctionSignature):

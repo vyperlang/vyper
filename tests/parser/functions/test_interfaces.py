@@ -149,3 +149,78 @@ import a as A
 import a as A
     """
     assert_compile_failed(lambda: extract_file_interface_imports(invalid_interfac_already_exists_code), StructureException)
+
+
+def test_external_call_to_interface(w3, get_contract):
+    token_code = """
+balanceOf: public(map(address, uint256))
+
+@public
+def transfer(to: address, value: uint256):
+    self.balanceOf[to] += value
+    """
+
+    code = """
+import one as TokenCode
+
+contract EPI:
+    def test() -> uint256: constant
+
+
+token_address: address(TokenCode)
+
+
+@public
+def __init__(_token_address: address):
+    self.token_address = _token_address
+
+
+@public
+def test():
+    self.token_address.transfer(msg.sender, 1000)
+    """
+
+    erc20 = get_contract(token_code)
+    test_c = get_contract(code, *[erc20.address], interface_codes={'TokenCode': token_code})
+
+    sender = w3.eth.accounts[0]
+    assert erc20.balanceOf(sender) == 0
+
+    test_c.test(transact={})
+    assert erc20.balanceOf(sender) == 1000
+
+
+def test_external_call_to_builtin_interface(w3, get_contract):
+    token_code = """
+balanceOf: public(map(address, uint256))
+
+@public
+def transfer(to: address, value: uint256):
+    self.balanceOf[to] += value
+    """
+
+    code = """
+from vyper.interfaces import ERC20
+
+
+token_address: address(ERC20)
+
+
+@public
+def __init__(_token_address: address):
+    self.token_address = _token_address
+
+
+@public
+def test():
+    self.token_address.transfer(msg.sender, 1000)
+    """
+
+    erc20 = get_contract(token_code)
+    test_c = get_contract(code, *[erc20.address], interface_codes={'TokenCode': token_code})
+
+    sender = w3.eth.accounts[0]
+    assert erc20.balanceOf(sender) == 0
+
+    test_c.test(transact={})
+    assert erc20.balanceOf(sender) == 1000

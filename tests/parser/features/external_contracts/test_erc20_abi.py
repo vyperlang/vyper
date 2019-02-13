@@ -2,8 +2,8 @@ import pytest
 from web3.exceptions import ValidationError
 
 
-TOKEN_NAME = b"Vypercoin"
-TOKEN_SYMBOL = b"FANG"
+TOKEN_NAME = "Vypercoin"
+TOKEN_SYMBOL = "FANG"
 TOKEN_DECIMALS = 18
 TOKEN_INITIAL_SUPPLY = (21 * 10 ** 6)
 TOKEN_TOTAL_SUPPLY = TOKEN_INITIAL_SUPPLY * (10 ** TOKEN_DECIMALS)
@@ -19,18 +19,29 @@ def erc20(get_contract):
 @pytest.fixture
 def erc20_caller(erc20, get_contract):
     erc20_caller_code = """
-token_address: address(ERC20)
+contract ERC20Contract():
+    def name() -> string[64]: constant
+    def symbol() -> string[32]: constant
+    def decimals() -> uint256: constant
+    def balanceOf(_owner: address) -> uint256: constant
+    def totalSupply() -> uint256: constant
+    def transfer(_to: address, _amount: uint256) -> bool: modifying
+    def transferFrom(_from: address, _to: address, _value: uint256) -> bool: modifying
+    def approve(_spender: address, _amount: uint256) -> bool: modifying
+    def allowance(_owner: address, _spender: address) -> uint256: modifying
+
+token_address: address(ERC20Contract)
 
 @public
 def __init__(token_addr: address):
     self.token_address = token_addr
 
 @public
-def name() -> bytes[64]:
+def name() -> string[64]:
     return self.token_address.name()
 
 @public
-def symbol() -> bytes[32]:
+def symbol() -> string[32]:
     return self.token_address.symbol()
 
 @public

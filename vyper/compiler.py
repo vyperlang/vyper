@@ -139,6 +139,6 @@ def compile_codes(codes, output_formats=['bytecode'], output_type='list', exc_ha
         raise Exception('Unknown output_type')
 
 
-def compile_code(code, output_formats=['bytecode']):
+def compile_code(code, output_formats=['bytecode'], interface_codes=None):
     codes = {'': code}
-    return compile_codes(codes, output_formats, 'list')[0]
+    return compile_codes(codes, output_formats, 'list', interface_codes=interface_codes)[0]
