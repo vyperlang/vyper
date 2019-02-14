@@ -239,7 +239,7 @@ Specifying `modifying` annoated that the call made to the external contract will
     @public
     def test(some_address: address):
         FooBar(some_address).calculate()  # can not change storage
-        FooBar(some_address).calculate()  # storage can be altered
+        FooBar(some_address).test1()  # storage can be altered
 
 ::
 
