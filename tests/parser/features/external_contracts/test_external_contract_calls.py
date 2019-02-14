@@ -392,7 +392,7 @@ def bar() -> int128:
 contract Bar:
     def bar() -> int128: constant
 
-bar_contract: Bar
+bar_contract: address(Bar)
 
 @public
 def foo(contract_address: address) -> int128:
@@ -423,7 +423,7 @@ contract Bar:
     def set_lucky(arg1: int128): modifying
     def get_lucky() -> int128: constant
 
-bar_contract: Bar
+bar_contract: address(Bar)
 
 @public
 def set_lucky(contract_address: address):
@@ -466,7 +466,7 @@ contract Bar:
     def set_lucky(arg1: int128): modifying
     def get_lucky() -> int128: constant
 
-bar_contract: Bar
+bar_contract: address(Bar)
 
 @public
 def set_contract(contract_address: address):
@@ -498,7 +498,7 @@ def bar() -> int128:
 contract Bar:
     def bar() -> int128: constant
 
-bar_contract: public(Bar)
+bar_contract: public(address(Bar))
 
 @public
 def foo(contract_address: address):
@@ -520,7 +520,7 @@ def test_invalid_external_contract_call_declaration_1(assert_compile_failed, get
 contract Bar:
     def bar() -> int128: constant
 
-bar_contract: Bar
+bar_contract: address(Bar)
 
 @public
 def foo(contract_address: contract(Boo)) -> int128:
@@ -563,7 +563,7 @@ def get_balance() -> uint256(wei):
 contract Bar:
     def get_lucky() -> int128: modifying
 
-bar_contract: Bar
+bar_contract: address(Bar)
 
 @public
 def set_contract(contract_address: address):
@@ -617,7 +617,7 @@ contract Bar:
     def set_lucky(arg1: int128): modifying
     def get_lucky() -> int128: constant
 
-bar_contract: Bar
+bar_contract: address(Bar)
 
 @public
 def set_contract(contract_address: address):
@@ -643,7 +643,7 @@ contract Bar:
     def set_lucky(arg1: int128): modifying
     def get_lucky() -> int128: constant
 
-bar_contract: Bar
+bar_contract: address(Bar)
 
 @public
 def get_lucky(amount_to_send: int128) -> int128:
@@ -659,7 +659,7 @@ def test_invalid_contract_declaration(assert_compile_failed, get_contract_with_g
 contract Bar:
     def set_lucky(arg1: int128): modifying
 
-bar_contract: Barr
+bar_contract: address(Barr)
 
     """
 
@@ -704,7 +704,7 @@ def get_balance() -> uint256(wei):
 contract Bar:
     def get_lucky() -> int128: modifying
 
-bar_contract: Bar
+bar_contract: address(Bar)
 
 @public
 def set_contract(contract_address: address):

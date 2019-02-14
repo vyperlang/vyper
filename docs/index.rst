@@ -55,6 +55,8 @@ Following the principles and goals, Vyper **does not** provide the following fea
 Compatibility-breaking Changelog
 ********************************
 
+* **2019.02.14**: Creating a persistent contract address can only be done using the _address_ syntax: `bar_contact: address(ERC20)`.
+* **2019.02.12**: ERC20 interface has to be imported using `from vyper.interfaces import ERC20` to use.
 * **2019.01.30**: Byte array literals need to be annoted using `b""`, strings are represented as `""`.
 * **2018.12.12**: Disallow use of `None`, disallow use of `del`, implemented `clear()` built-in function.
 * **2018.11.19**: Change mapping syntax to use map(). (`VIP1026 <https://github.com/ethereum/vyper/issues/564>`_)

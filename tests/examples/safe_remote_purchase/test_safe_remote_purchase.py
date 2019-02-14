@@ -105,7 +105,7 @@ contract PurchaseContract:
     def purchase(): modifying
     def unlocked() -> bool: constant
 
-purchase_contract: PurchaseContract
+purchase_contract: address(PurchaseContract)
 
 
 @public

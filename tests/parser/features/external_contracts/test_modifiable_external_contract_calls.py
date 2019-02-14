@@ -17,8 +17,8 @@ contract ModBar:
 contract ConstBar:
     def set_lucky(_lucky: int128): constant
 
-modifiable_bar_contract: ModBar
-static_bar_contract: ConstBar
+modifiable_bar_contract: address(ModBar)
+static_bar_contract: address(ConstBar)
 
 @public
 def __init__(contract_address: address):
@@ -60,8 +60,8 @@ contract ModBar:
 contract ConstBar:
     def set_lucky(_lucky: int128) -> int128: constant
 
-modifiable_bar_contract: ModBar
-static_bar_contract: ConstBar
+modifiable_bar_contract: address(ModBar)
+static_bar_contract: address(ConstBar)
 
 @public
 def __init__(contract_address: address):
@@ -103,8 +103,8 @@ contract ModBar:
 contract ConstBar:
     def set_lucky(_lucky: int128): constant
 
-modifiable_bar_contract: ModBar
-static_bar_contract: ConstBar
+modifiable_bar_contract: address(ModBar)
+static_bar_contract: address(ConstBar)
 
 @public
 def __init__(contract_address: address):
@@ -129,8 +129,8 @@ contract ConstBar:
     def modifiable_set_lucky(_lucky: int128): constant
     def static_set_lucky(_lucky: int128): constant
 
-modifiable_bar_contract: ModBar
-static_bar_contract: ConstBar
+modifiable_bar_contract: address(ModBar)
+static_bar_contract: address(ConstBar)
 
 @public
 def __init__(contract_address: address):
@@ -177,7 +177,7 @@ def bar() -> int128:
 contract Bar:
     def bar() -> int128: constant
 
-bar_contract: public(Bar)
+bar_contract: public(address(Bar))
 
 @public
 def foo(contract_address: address):
@@ -199,7 +199,7 @@ def test_invalid_external_contract_call_declaration_1(assert_compile_failed, get
 contract Bar:
     def bar() -> int128: pass
 
-bar_contract: Bar
+bar_contract: address(Bar)
 
 @public
 def foo(contract_address: contract(Boo)) -> int128:
@@ -228,7 +228,7 @@ def foo(contract_address: address) -> int128:
 
 def test_invalid_if_external_contract_doesnt_exist(get_contract, assert_compile_failed):
     code = """
-modifiable_bar_contract: Bar
+modifiable_bar_contract: address(Bar)
 """
 
     assert_compile_failed(lambda: get_contract(code), InvalidTypeException)
@@ -249,6 +249,6 @@ def test_invalid_if_have_modifiability_not_declared(get_contract_with_gas_estima
 contract Bar:
     def set_lucky(_lucky: int128): pass
 
-modifiable_bar_contract: public(Bar)
+modifiable_bar_contract: public(address(Bar))
 """
     assert_compile_failed(lambda: get_contract_with_gas_estimation_for_constants(code), StructureException)
