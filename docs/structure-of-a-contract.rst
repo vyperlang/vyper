@@ -150,7 +150,6 @@ Vyper supports structured documentation for state variables and functions and ev
 
 Additional information about Ethereum Natural Specification (NatSpec) can be found `here <https://github.com/ethereum/wiki/wiki/Ethereum-Natural-Specification-Format>`_. 
 
-
 Contract Interfaces
 ===================
 
@@ -216,4 +215,74 @@ Vyper supports a few built-in interfaces such as ERC20 and ERC721. These are imp
 
   implements: ERC20
 
+::
+
+External Calls using Interfaces
+-------------------------------
+
+To define external interfaces inline the `contract` keyword is used.
+
+::
+
+    contract FooBar:
+        def test1(): modifying
+        def calculate() -> uint256: constant
+
+::
+
+The defined inline contract can then be use to make external calls, given a contract address.
+
+Specifying `modifying` annoated that the call made to the external contract will be able to alter storage, were as the `constant` call will using a `STATICCALL` ensuring no storage can be altered during execution.
+
+::
+
+    @public
+    def test(some_address: address):
+        FooBar(some_address).calculate()  # can not change storage
+        FooBar(some_address).calculate()  # storage can be altered
+
+::
+
+An additional utility of storing a contract address in a contract is defined by the `address(FooBar)` annotation.
+
+::
+
+    foobar_contract: address(FooBar)
+
+    @public
+    def __init__(foobar_address: address):
+        self.foobar_contract = foobar_addres
+
+    @public
+    def call_test1():
+      test1
+
+::
+
+To import interfaces to be used in externals calls, one uses the interface just as one would use an inlined interface definition.
+
+::
+  
+    import foo_bar as FooBar
+
+    foobar_contract: address(FooBar)
+
+    @public
+    def __init__(foobar_address: address):
+        self.foobar_contract = foobar_addres
+
+    @public
+    def test():
+        self.foobar_contract.one()
+::
+
+Or alternatively
+
+::
+
+    import foo_bar as FooBar
+
+    @public
+    def test(addy: address):
+      FooBar(addy).one()
 ::
