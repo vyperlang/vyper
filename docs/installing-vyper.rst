@@ -96,7 +96,7 @@ To find out more about virtual environments, check out:
 
 You can also create a virtual environment without virtualenv:
 ::
-   python3.6 -m venv vyper-env
+   python3.6 -m venv ~/vyper-env
    source ~/vyper-env/bin/activate
 
 ************

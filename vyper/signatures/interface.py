@@ -31,8 +31,8 @@ def extract_sigs(code):
     return sigs
 
 
-def extract_interface_str(code, contract_name):
-    sigs = parser.mk_full_signature(parser.parse_to_ast(code), sig_formatter=lambda x, y: (x, y))
+def extract_interface_str(code, contract_name, interface_codes=None):
+    sigs = parser.mk_full_signature(parser.parse_to_ast(code), sig_formatter=lambda x, y: (x, y), interface_codes=interface_codes)
     events = [sig for sig, _ in sigs if isinstance(sig, EventSignature)]
     functions = [sig for sig, _ in sigs if isinstance(sig, FunctionSignature)]
     out = ""
@@ -69,8 +69,8 @@ def extract_interface_str(code, contract_name):
     return out
 
 
-def extract_external_interface(code, contract_name):
-    sigs = parser.mk_full_signature(parser.parse_to_ast(code), sig_formatter=lambda x, y: (x, y))
+def extract_external_interface(code, contract_name, interface_codes=None):
+    sigs = parser.mk_full_signature(parser.parse_to_ast(code), sig_formatter=lambda x, y: (x, y), interface_codes=interface_codes)
     functions = [sig for sig, _ in sigs if isinstance(sig, FunctionSignature)]
     cname = os.path.basename(contract_name).split('.')[0].capitalize()
 

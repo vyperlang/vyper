@@ -22,7 +22,3 @@ Please include information like:
 ### How can it be fixed?
 
 Fill this in if you know how to fix it.
-
-#### Cute Animal Picture
-
-> put a cute animal picture here.

@@ -134,14 +134,14 @@ def generate_default_arg_sigs(code, contracts, global_ctx):
 
 
 # Get ABI signature
-def mk_full_signature(code, sig_formatter=None):
+def mk_full_signature(code, sig_formatter=None, interface_codes=None):
 
     if sig_formatter is None:
-        # Use default JSON style ouptu.
+        # Use default JSON style output.
         sig_formatter = lambda sig, custom_units_descriptions: sig.to_abi_dict(custom_units_descriptions)
 
     o = []
-    global_ctx = GlobalContext.get_global_context(code)
+    global_ctx = GlobalContext.get_global_context(code, interface_codes=interface_codes)
 
     # Produce event signatues.
     for code in global_ctx._events:
@@ -163,9 +163,9 @@ def mk_full_signature(code, sig_formatter=None):
     return o
 
 
-def mk_method_identifiers(code):
+def mk_method_identifiers(code, interface_codes=None):
     o = {}
-    global_ctx = GlobalContext.get_global_context(parse_to_ast(code))
+    global_ctx = GlobalContext.get_global_context(parse_to_ast(code), interface_codes=interface_codes)
 
     for code in global_ctx._defs:
         sig = FunctionSignature.from_definition(code, sigs=global_ctx._contracts, custom_units=global_ctx._custom_units, constants=global_ctx._constants)
@@ -233,8 +233,8 @@ def parse_other_functions(o, otherfuncs, sigs, external_contracts, origcode, glo
 
 
 # Main python parse tree => LLL method
-def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None,):
-    global_ctx = GlobalContext.get_global_context(code, interface_codes)
+def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None):
+    global_ctx = GlobalContext.get_global_context(code, interface_codes=interface_codes)
     _names_def = [_def.name for _def in global_ctx._defs]
     # Checks for duplicate function names
     if len(set(_names_def)) < len(_names_def):
@@ -861,6 +861,6 @@ def pack_logging_data(expected_data, args, context, pos):
     return holder, maxlen, dynamic_offset_counter, datamem_start
 
 
-def parse_to_lll(kode, runtime_only=False):
+def parse_to_lll(kode, runtime_only=False, interface_codes=None):
     code = parse_to_ast(kode)
-    return parse_tree_to_lll(code, kode, runtime_only=runtime_only)
+    return parse_tree_to_lll(code, kode, runtime_only=runtime_only, interface_codes=interface_codes)

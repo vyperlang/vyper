@@ -36,7 +36,7 @@ def __compile(code, interface_codes=None, *args, **kwargs):
 
 def gas_estimate(origcode, *args, **kwargs):
     o = {}
-    code = optimizer.optimize(parser.parse_to_lll(origcode))
+    code = optimizer.optimize(parser.parse_to_lll(origcode, *args, **kwargs))
 
     # Extract the stuff inside the LLL bracket
     if code.value == 'seq':
@@ -51,13 +51,13 @@ def gas_estimate(origcode, *args, **kwargs):
 
 
 def mk_full_signature(code, *args, **kwargs):
-    abi = parser.mk_full_signature(parser.parse_to_ast(code))
+    abi = parser.mk_full_signature(parser.parse_to_ast(code), *args, **kwargs)
     # Add gas estimates for each function to ABI
-    gas_estimates = gas_estimate(code)
+    gas_estimates = gas_estimate(code, *args, **kwargs)
     for idx, func in enumerate(abi):
-        func_name = func['name'].split('(')[0]
+        func_name = func.get('name', '').split('(')[0]
         # Skip __init__, has no estimate
-        if func_name in gas_estimates and func_name != '__init__':
+        if func_name in gas_estimates:
             abi[idx]['gas'] = gas_estimates[func_name]
     return abi
 
@@ -82,8 +82,13 @@ def get_asm(asm_list):
     return output_string
 
 
-def get_source_map(code):
-    asm_list = compile_lll.compile_to_assembly(optimizer.optimize(parser.parse_to_lll(code, runtime_only=True)))
+def get_source_map(code, contract_name, interface_codes=None):
+    asm_list = compile_lll.compile_to_assembly(
+        optimizer.optimize(
+            parser.parse_to_lll(
+                code,
+                runtime_only=True,
+                interface_codes=interface_codes)))
     c, line_number_map = compile_lll.assembly_to_evm(asm_list)
     # Sort line_number_map
     out = OrderedDict()
@@ -94,15 +99,15 @@ def get_source_map(code):
 
 
 output_formats_map = {
-    'abi': lambda code, contract_name, interface_codes: mk_full_signature(code),
+    'abi': lambda code, contract_name, interface_codes: mk_full_signature(code, interface_codes=interface_codes),
     'bytecode': lambda code, contract_name, interface_codes: '0x' + __compile(code, interface_codes=interface_codes).hex(),
     'bytecode_runtime': lambda code, contract_name, interface_codes: '0x' + __compile(code, bytecode_runtime=True, interface_codes=interface_codes).hex(),
-    'ir': lambda code, contract_name, interface_codes: optimizer.optimize(parser.parse_to_lll(code)),
-    'asm': lambda code, contract_name, interface_codes: get_asm(compile_lll.compile_to_assembly(optimizer.optimize(parser.parse_to_lll(code)))),
-    'source_map': get_source_map,
-    'method_identifiers': lambda code, contract_name, interface_codes: parser.mk_method_identifiers(code),
-    'interface': lambda code, contract_name, interface_codes: extract_interface_str(code, contract_name),
-    'external_interface': lambda code, contract_name, interface_codes: extract_external_interface(code, contract_name),
+    'ir': lambda code, contract_name, interface_codes: optimizer.optimize(parser.parse_to_lll(code, interface_codes=interface_codes)),
+    'asm': lambda code, contract_name, interface_codes: get_asm(compile_lll.compile_to_assembly(optimizer.optimize(parser.parse_to_lll(code, interface_codes=interface_codes)))),
+    'source_map': lambda code, contract_name, interface_codes: get_source_map(code, contract_name, interface_codes=interface_codes),
+    'method_identifiers': lambda code, contract_name, interface_codes: parser.mk_method_identifiers(code, interface_codes=interface_codes),
+    'interface': lambda code, contract_name, interface_codes: extract_interface_str(code, contract_name, interface_codes=interface_codes),
+    'external_interface': lambda code, contract_name, interface_codes: extract_external_interface(code, contract_name, interface_codes=interface_codes),
 }
 
 
