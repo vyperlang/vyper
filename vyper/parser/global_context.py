@@ -9,6 +9,7 @@ from vyper.exceptions import (
 )
 from vyper.utils import (
     check_valid_varname,
+    hex_to_int,
     valid_global_keywords,
 )
 from vyper.premade_contracts import (
@@ -55,12 +56,19 @@ class GlobalContext:
         self._interfaces = dict()
         self._interface = dict()
         self._implemented_interfaces = set()
+        self._rlp_decoder_address = None
 
     # Parse top-level functions and variables
     @classmethod
-    def get_global_context(cls, code, interface_codes=None):
+    def get_global_context(cls, code, interface_codes=None, rlp_decoder_address=None):
         interface_codes = {} if interface_codes is None else interface_codes
         global_ctx = cls()
+
+        if rlp_decoder_address:
+            if len(rlp_decoder_address.replace('0x','')) == 40:
+                global_ctx._rlp_decoder_address = hex_to_int(rlp_decoder_address)
+            else:
+                raise StructureException('RLP decoder address needs to be a valid 40 hex-digit address.')
 
         for item in code:
             # Contract references

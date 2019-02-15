@@ -134,14 +134,14 @@ def generate_default_arg_sigs(code, contracts, global_ctx):
 
 
 # Get ABI signature
-def mk_full_signature(code, sig_formatter=None, interface_codes=None):
+def mk_full_signature(code, sig_formatter=None, interface_codes=None, rlp_decoder_address=None):
 
     if sig_formatter is None:
         # Use default JSON style output.
         sig_formatter = lambda sig, custom_units_descriptions: sig.to_abi_dict(custom_units_descriptions)
 
     o = []
-    global_ctx = GlobalContext.get_global_context(code, interface_codes=interface_codes)
+    global_ctx = GlobalContext.get_global_context(code, interface_codes=interface_codes, rlp_decoder_address=rlp_decoder_address)
 
     # Produce event signatues.
     for code in global_ctx._events:
@@ -233,8 +233,8 @@ def parse_other_functions(o, otherfuncs, sigs, external_contracts, origcode, glo
 
 
 # Main python parse tree => LLL method
-def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None):
-    global_ctx = GlobalContext.get_global_context(code, interface_codes=interface_codes)
+def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None, rlp_decoder_address=None):
+    global_ctx = GlobalContext.get_global_context(code, interface_codes=interface_codes, rlp_decoder_address=rlp_decoder_address)
     _names_def = [_def.name for _def in global_ctx._defs]
     # Checks for duplicate function names
     if len(set(_names_def)) < len(_names_def):
@@ -282,7 +282,7 @@ def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None):
             missing_functions = [sig_name for sig_name, func_sig in funcs_left.items() if isinstance(func_sig, FunctionSignature)]
             missing_events = [sig_name for sig_name, func_sig in funcs_left.items() if isinstance(func_sig, EventSignature)]
             if missing_functions:
-                error_message += 'Missing interface functions:\n\t{}'.format('\n\t'.join(missing_functions))
+                error_message += 'Missing interface functions:\n\t{}\n'.format('\n\t'.join(missing_functions))
             if missing_events:
                 error_message += 'Missing interface events:\n\t{}'.format('\n\t'.join(missing_events))
             raise StructureException(error_message)
@@ -861,6 +861,6 @@ def pack_logging_data(expected_data, args, context, pos):
     return holder, maxlen, dynamic_offset_counter, datamem_start
 
 
-def parse_to_lll(kode, runtime_only=False, interface_codes=None):
+def parse_to_lll(kode, **kwargs):
     code = parse_to_ast(kode)
-    return parse_tree_to_lll(code, kode, runtime_only=runtime_only, interface_codes=interface_codes)
+    return parse_tree_to_lll(code, kode, **kwargs)

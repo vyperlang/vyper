@@ -75,10 +75,10 @@ def test_rlplist_fail(bad_code):
 
     if isinstance(bad_code, tuple):
         with raises(bad_code[1]):
-            compiler.compile_code(bad_code[0])
+            compiler.compile_code(bad_code[0], rlp_decoder_address='0x0000000000000000000000000000000000000001')
     else:
         with raises(TypeMismatchException):
-            compiler.compile_code(bad_code)
+            compiler.compile_code(bad_code, rlp_decoder_address='0x0000000000000000000000000000000000000001')
 
 
 valid_list = [
@@ -105,4 +105,4 @@ def foo() -> bytes32:
 
 @pytest.mark.parametrize('good_code', valid_list)
 def test_rlplist_success(good_code):
-    assert compiler.compile_code(good_code) is not None
+    assert compiler.compile_code(good_code, rlp_decoder_address='0x0000000000000000000000000000000000000001') is not None

@@ -13,8 +13,9 @@ def __compile(code, interface_codes=None, *args, **kwargs):
         parser.parse_tree_to_lll(
             parser.parse_to_ast(code),
             code,
-            interface_codes=interface_codes,
-            runtime_only=kwargs.get('bytecode_runtime', False)
+            interface_codes=kwargs.get('interface_codes'),
+            runtime_only=kwargs.get('bytecode_runtime', False),
+            rlp_decoder_address=kwargs.get('rlp_decoder_address', None),
         )
     )
     asm = compile_lll.compile_to_assembly(lll)
@@ -99,19 +100,19 @@ def get_source_map(code, contract_name, interface_codes=None):
 
 
 output_formats_map = {
-    'abi': lambda code, contract_name, interface_codes: mk_full_signature(code, interface_codes=interface_codes),
-    'bytecode': lambda code, contract_name, interface_codes: '0x' + __compile(code, interface_codes=interface_codes).hex(),
-    'bytecode_runtime': lambda code, contract_name, interface_codes: '0x' + __compile(code, bytecode_runtime=True, interface_codes=interface_codes).hex(),
-    'ir': lambda code, contract_name, interface_codes: optimizer.optimize(parser.parse_to_lll(code, interface_codes=interface_codes)),
-    'asm': lambda code, contract_name, interface_codes: get_asm(compile_lll.compile_to_assembly(optimizer.optimize(parser.parse_to_lll(code, interface_codes=interface_codes)))),
-    'source_map': lambda code, contract_name, interface_codes: get_source_map(code, contract_name, interface_codes=interface_codes),
-    'method_identifiers': lambda code, contract_name, interface_codes: parser.mk_method_identifiers(code, interface_codes=interface_codes),
-    'interface': lambda code, contract_name, interface_codes: extract_interface_str(code, contract_name, interface_codes=interface_codes),
-    'external_interface': lambda code, contract_name, interface_codes: extract_external_interface(code, contract_name, interface_codes=interface_codes),
+    'abi': lambda code, contract_name, **kwargs: mk_full_signature(code, **kwargs),
+    'bytecode': lambda code, contract_name, **kwargs: '0x' + __compile(code, **kwargs).hex(),
+    'bytecode_runtime': lambda code, contract_name, **kwargs: '0x' + __compile(code, bytecode_runtime=True, **kwargs).hex(),
+    'ir': lambda code, contract_name, **kwargs: optimizer.optimize(parser.parse_to_lll(code, **kwargs)),
+    'asm': lambda code, contract_name, **kwargs: get_asm(compile_lll.compile_to_assembly(optimizer.optimize(parser.parse_to_lll(code, **kwargs)))),
+    'source_map': lambda code, contract_name, **kwargs: get_source_map(code, contract_name, **kwargs),
+    'method_identifiers': lambda code, contract_name, **kwargs: parser.mk_method_identifiers(code, **kwargs),
+    'interface': lambda code, contract_name, **kwargs: extract_interface_str(code, contract_name, **kwargs),
+    'external_interface': lambda code, contract_name, **kwargs: extract_external_interface(code, contract_name, **kwargs),
 }
 
 
-def compile_codes(codes, output_formats=['bytecode'], output_type='list', exc_handler=None, interface_codes=None):
+def compile_codes(codes, output_formats=['bytecode'], output_type='list', exc_handler=None, **kwargs):
 
     out = OrderedDict()
     for contract_name, code in codes.items():
@@ -123,7 +124,7 @@ def compile_codes(codes, output_formats=['bytecode'], output_type='list', exc_ha
                 out.setdefault(contract_name, {})[output_format] = output_formats_map[output_format](
                     code=code,
                     contract_name=contract_name,
-                    interface_codes=interface_codes
+                    **kwargs
                 )
             except Exception as exc:
                 if exc_handler:
@@ -139,6 +140,6 @@ def compile_codes(codes, output_formats=['bytecode'], output_type='list', exc_ha
         raise Exception('Unknown output_type')
 
 
-def compile_code(code, output_formats=['bytecode']):
+def compile_code(code, output_formats=['bytecode'], **kwargs):
     codes = {'': code}
-    return compile_codes(codes, output_formats, 'list')[0]
+    return compile_codes(codes, output_formats, 'list', **kwargs)[0]

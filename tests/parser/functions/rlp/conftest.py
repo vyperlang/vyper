@@ -18,6 +18,5 @@ def fake_tx(tester, w3):
         tx_hash = rlp_contract.constructor().transact()
         tx_receipt = w3.eth.waitForTransactionReceipt(tx_hash)
         contract_address = tx_receipt.contractAddress
-        vyper_utils.RLP_DECODER_ADDRESS == w3.toInt(hexstr=contract_address)
         return contract_address
     return fake_tx

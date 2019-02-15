@@ -34,6 +34,7 @@ parser.add_argument('--version', action='version', version='{0}'.format(vyper.__
 parser.add_argument('--show-gas-estimates', help='Show gas estimates in ir output mode.', action="store_true")
 parser.add_argument('-f', help=format_options_help, default='bytecode', dest='format')
 parser.add_argument('--debug', help='Add compiler debugging output', action='store_true')
+parser.add_argument('--rlp-decoder-address', help='RLP Decoder Address', dest='rlp_decoder_address')
 
 args = parser.parse_args()
 
@@ -101,7 +102,8 @@ if __name__ == '__main__':
             formats,
             output_type='list',
             exc_handler=exc_handler,
-            interface_codes=interface_codes
+            interface_codes=interface_codes,
+            rlp_decoder_address=args.rlp_decoder_address
         )
         for out in out_list:
             for f in orig_args:

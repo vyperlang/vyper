@@ -42,7 +42,6 @@ from vyper.utils import (
     MemoryPositions,
     SizeLimits,
     DECIMAL_DIVISOR,
-    RLP_DECODER_ADDRESS
 )
 from vyper.utils import (
     bytes_to_int,
@@ -582,14 +581,14 @@ def _RLPlist(expr, args, kwargs, context):
         # Should never reach because of top level base level check.
         raise Exception("Location not yet supported")  # pragma: no cover
     # Decode the input data
-    if RLP_DECODER_ADDRESS is None:
+    if context.global_ctx._rlp_decoder_address is None:
         raise ParserException('No RLP Decoder address specified', expr)
     initial_setter = LLLnode.from_list(
         ['seq',
             ['with', '_sub', variable_pointer,
                 ['pop', ['call',
                          1500 + 400 * len(_format) + 10 * len(args),
-                         LLLnode.from_list(RLP_DECODER_ADDRESS, annotation='RLP decoder'),
+                         LLLnode.from_list(context.global_ctx._rlp_decoder_address, annotation='RLP decoder'),
                          0,
                          ['add', '_sub', 32],
                          ['mload', '_sub'],
