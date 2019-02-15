@@ -582,6 +582,8 @@ def _RLPlist(expr, args, kwargs, context):
         # Should never reach because of top level base level check.
         raise Exception("Location not yet supported")  # pragma: no cover
     # Decode the input data
+    if RLP_DECODER_ADDRESS is None:
+        raise ParserException('No RLP Decoder address specified', expr)
     initial_setter = LLLnode.from_list(
         ['seq',
             ['with', '_sub', variable_pointer,

@@ -98,7 +98,7 @@ class LLLnode():
                     if isinstance(self.args[2].value, int):
                         size = self.args[2].value
                     elif isinstance(self.args[2], LLLnode) and len(self.args[2].args) > 0:
-                        size = self.args[2].args / [-1].value
+                        size = self.args[2].args[-1].value
                     self.gas += ceil32(size) // 32 * 3
                 # Gas limits in call
                 if self.value.upper() == 'CALL' and isinstance(self.args[0].value, int):

@@ -25,7 +25,7 @@ i = 2572
 L = 2604
 position_offset = 2304
 
-rlp_decoder_lll = LLLnode.from_list(['seq', 
+rlp_decoder_lll = LLLnode.from_list(['seq',
     ['return', [0],
         ['lll',
             ['seq',
@@ -64,7 +64,7 @@ rlp_decoder_lll = LLLnode.from_list(['seq',
                                 ['mstore', i, add(['mload', i], 1)],
                                 ['mstore', data_pos, add(['mload', data_pos], 33)]
                             ],
-                            ['if', ['lt', ['mload', c], 184], 
+                            ['if', ['lt', ['mload', c], 184],
                                 ['seq',
                                     ['mstore', add(data, ['mload', data_pos]), sub(['mload', c], 128)],
                                     ['calldatacopy', add(data + 32, ['mload', data_pos]), add(['mload', i], 1), sub(['mload', c], 128)],
@@ -108,3 +108,8 @@ rlp_decoder_lll = LLLnode.from_list(['seq',
 
 rlp_decoder_lll = optimizer.optimize(rlp_decoder_lll)
 rlp_decoder_bytes, _ = compile_lll.assembly_to_evm(compile_lll.compile_to_assembly(rlp_decoder_lll))
+
+
+
+def get_rlp_decoder_hex():
+    return '0x' + rlp_decoder_bytes.hex()

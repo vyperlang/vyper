@@ -125,7 +125,7 @@ LOADED_LIMIT_MAP = OrderedDict((
 ))
 
 
-RLP_DECODER_ADDRESS = hex_to_int('0x5185D17c44699cecC3133114F8df70753b856709')
+RLP_DECODER_ADDRESS = None
 
 # Instructions for creating RLP decoder on other chains
 # First send 6270960000000000 wei to 0xd2c560282c9C02465C2dAcdEF3E859E730848761
