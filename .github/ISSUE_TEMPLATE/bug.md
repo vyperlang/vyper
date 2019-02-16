@@ -5,9 +5,9 @@ about: Any general feedback or bug reports about the Vyper Compiler. No new feat
 
 ### Version Information
 
-* vyper Version: x.x.x
+* vyper Version (output of `vyper --version`): x.x.x
 * OS: osx/linux/win
-* Python Version (python --version):
+* Python Version (output of `python --version`):
 * Environment (output of `pip freeze`):
 
 ### What's your issue about?
@@ -22,7 +22,3 @@ Please include information like:
 ### How can it be fixed?
 
 Fill this in if you know how to fix it.
-
-#### Cute Animal Picture
-
-> put a cute animal picture here.

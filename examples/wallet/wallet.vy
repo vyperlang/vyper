@@ -39,7 +39,7 @@ def approve(_seq: int128, to: address, value: wei_value, data: bytes[4096], sigd
     h: bytes32 = sha3(concat(convert(_seq, bytes32), convert(to, bytes32), convert(value, bytes32), data))
     # Then we combine the Ethereum Signed message with our previous hash
     # Owners will have to sign the below message
-    h2: bytes32 = sha3(concat("\x19Ethereum Signed Message:\n32", h))
+    h2: bytes32 = sha3(concat(b"\x19Ethereum Signed Message:\n32", h))
     # Verifies that the caller of approve has entered the correct transaction number
     assert self.seq == _seq
     # # Iterates through all the owners and verifies that there signatures,

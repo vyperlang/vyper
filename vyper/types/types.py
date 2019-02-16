@@ -8,7 +8,7 @@ from vyper.exceptions import InvalidTypeException
 from vyper.utils import (
     base_types,
     ceil32,
-    is_varname_valid,
+    check_valid_varname,
     valid_units,
 )
 
@@ -102,7 +102,7 @@ class NodeType(abc.ABC):
 class BaseType(NodeType):
     def __init__(self, typ, unit=False, positional=False, override_signature=False, is_literal=False):
         self.typ = typ
-        self.unit = {} if unit is False else unit
+        self.unit = {} if not unit else unit
         self.positional = positional
         self.override_signature = override_signature
         self.is_literal = is_literal
@@ -124,13 +124,26 @@ class ContractType(BaseType):
         super().__init__('address', name)
 
 
-# Data structure for a byte array
-class ByteArrayType(NodeType):
+class ByteArrayLike(NodeType):
+
     def __init__(self, maxlen):
         self.maxlen = maxlen
 
     def eq(self, other):
         return self.maxlen == other.maxlen
+
+    def eq_base(self, other):
+        return type(self) is type(other)
+
+
+class StringType(ByteArrayLike):
+
+    def __repr__(self):
+        return 'string[%d]' % self.maxlen
+
+
+# Data structure for a byte array
+class ByteArrayType(ByteArrayLike):
 
     def __repr__(self):
         return 'bytes[%d]' % self.maxlen
@@ -152,7 +165,7 @@ class ListType(NodeType):
 # Data structure for a key-value mapping
 class MappingType(NodeType):
     def __init__(self, keytype, valuetype):
-        if not isinstance(keytype, (BaseType, ByteArrayType)):
+        if not isinstance(keytype, (BaseType, ByteArrayLike)):
             raise Exception("Dictionary keys must be a base type")
         self.keytype = keytype
         self.valuetype = valuetype
@@ -164,12 +177,25 @@ class MappingType(NodeType):
         return 'map(' + repr(self.valuetype) + ', ' + repr(self.keytype) + ')'
 
 
+# Type which has heterogeneous members, i.e. Tuples and Structs
+class TupleLike(NodeType):
+    def tuple_members(self):
+        return [v for (_k, v) in self.tuple_items()]
+
+    def tuple_keys(self):
+        return [k for (k, _v) in self.tuple_items()]
+
+    def tuple_items(self):
+        raise NotImplementedError("compiler panic!: tuple_items must be implemented by TupleLike")
+
+
 # Data structure for a struct, e.g. {a: <type>, b: <type>}
 # struct can be named or anonymous. name=None indicates anonymous.
-class StructType(NodeType):
-    def __init__(self, members, name):
+class StructType(TupleLike):
+    def __init__(self, members, name, is_literal=False):
         self.members = copy.copy(members)
         self.name = name
+        self.is_literal = is_literal
 
     def eq(self, other):
         return other.name == self.name and other.members == self.members
@@ -178,17 +204,24 @@ class StructType(NodeType):
         prefix = 'struct ' + self.name + ': ' if self.name else ''
         return prefix + '{' + ', '.join([k + ': ' + repr(v) for k, v in self.members.items()]) + '}'
 
+    def tuple_items(self):
+        return list(self.members.items())
+
 
 # Data structure for a list with heterogeneous types, e.g. [int128, bytes32, bytes]
-class TupleType(NodeType):
-    def __init__(self, members):
+class TupleType(TupleLike):
+    def __init__(self, members, is_literal=False):
         self.members = copy.copy(members)
+        self.is_literal = is_literal
 
     def eq(self, other):
         return other.members == self.members
 
     def __repr__(self):
         return '(' + ', '.join([repr(m) for m in self.members]) + ')'
+
+    def tuple_items(self):
+        return list(enumerate(self.members))
 
 
 # Data structure for the type used by None/null
@@ -199,23 +232,21 @@ class NullType(NodeType):
 
 # Convert type into common form used in ABI
 def canonicalize_type(t, is_indexed=False):
-    if isinstance(t, ByteArrayType):
+    if isinstance(t, ByteArrayLike):
         # Check to see if maxlen is small enough for events
+        byte_type = 'string' if isinstance(t, StringType) else 'bytes'
         if is_indexed:
-            return 'bytes{}'.format(t.maxlen)
+            return '{}{}'.format(byte_type, t.maxlen)
         else:
-            return 'bytes'
+            return '{}'.format(byte_type)
     if isinstance(t, ListType):
         if not isinstance(t.subtype, (ListType, BaseType)):
             raise Exception("List of byte arrays not allowed")
         return canonicalize_type(t.subtype) + "[%d]" % t.count
-    if isinstance(t, TupleType):
+    if isinstance(t, TupleLike):
         return "({})".format(
-            ",".join(canonicalize_type(x) for x in t.members)
+            ",".join(canonicalize_type(x) for x in t.tuple_members())
         )
-    if isinstance(t, StructType):
-        # TODO: VIP1019
-        raise InvalidTypeException("Structs are not allowed in events, or as args or return values from functions yet (see VIP1019)", t)
     if not isinstance(t, BaseType):
         raise Exception("Cannot canonicalize non-base type: %r" % t)
 
@@ -267,19 +298,21 @@ def parse_unit(item, custom_units):
         raise InvalidTypeException("Invalid unit expression", item)
 
 
-def make_struct_type(name, location, members, custom_units, custom_structs):
+def make_struct_type(name, location, members, custom_units, custom_structs, constants):
     o = OrderedDict()
     for key, value in members:
-        if not isinstance(key, ast.Name) or not is_varname_valid(key.id, custom_units, custom_structs):
-            raise InvalidTypeException("Invalid member variable for struct %r" % key.id, key)
-        o[key.id] = parse_type(value, location, custom_units=custom_units, custom_structs=custom_structs)
+
+        if not isinstance(key, ast.Name):
+            raise InvalidTypeException("Invalid member variable for struct %r, expected a name." % key.id, key)
+        check_valid_varname(key.id, custom_units, custom_structs, constants, "Invalid member variable for struct")
+
+        o[key.id] = parse_type(value, location, custom_units=custom_units, custom_structs=custom_structs, constants=constants)
     return StructType(o, name)
 
 
 # Parses an expression representing a type. Annotation refers to whether
 # the type is to be located in memory or storage
-def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None):
-
+def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None, constants=None):
     # Base and custom types, e.g. num
     if isinstance(item, ast.Name):
         if item.id in base_types:
@@ -287,26 +320,28 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
         elif item.id in special_types:
             return special_types[item.id]
         elif (custom_structs is not None) and (item.id in custom_structs):
-            return make_struct_type(item.id, location, custom_structs[item.id], custom_units, custom_structs)
+            return make_struct_type(item.id, location, custom_structs[item.id], custom_units, custom_structs, constants)
         else:
             raise InvalidTypeException("Invalid base type: " + item.id, item)
     # Units, e.g. num (1/sec) or contracts
-    elif isinstance(item, ast.Call):
+    elif isinstance(item, ast.Call) and isinstance(item.func, ast.Name):
         # Mapping type.
         if item.func.id == 'map':
             if location == 'memory':
                 raise InvalidTypeException("No mappings allowed for in-memory types, only fixed-size arrays", item)
-            keytype = parse_type(item.args[0], None)
-            if not isinstance(keytype, (BaseType, ByteArrayType)):
-                raise InvalidTypeException("Mapping keys must be base or bytes types", item)
-            return MappingType(keytype, parse_type(item.args[1], location, custom_units=custom_units, custom_structs=custom_structs))
+            if len(item.args) != 2:
+                raise InvalidTypeException("Mapping requires 2 valid positional arguments.", item)
+            keytype = parse_type(item.args[0], None, custom_units=custom_units, custom_structs=custom_structs, constants=constants)
+            if not isinstance(keytype, (BaseType, ByteArrayLike)):
+                raise InvalidTypeException("Mapping keys must be base or bytes/string types", item)
+            return MappingType(keytype, parse_type(item.args[1], location, custom_units=custom_units, custom_structs=custom_structs, constants=constants))
         # Contract_types
         if item.func.id == 'address':
             if sigs and item.args[0].id in sigs:
                 return ContractType(item.args[0].id)
         # Struct types
         if (custom_structs is not None) and (item.func.id in custom_structs):
-            return make_struct_type(item.id, location, custom_structs[item.id], custom_units, custom_structs)
+            return make_struct_type(item.id, location, custom_structs[item.id], custom_units, custom_structs, constants)
         if not isinstance(item.func, ast.Name):
             raise InvalidTypeException("Malformed unit type:", item)
         base_type = item.func.id
@@ -327,18 +362,23 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
         return BaseType(base_type, unit, positional)
     # Subscripts
     elif isinstance(item, ast.Subscript):
+
         if 'value' not in vars(item.slice):
             raise InvalidTypeException("Array / ByteArray access must access a single element, not a slice", item)
         # Fixed size lists or bytearrays, e.g. num[100]
-        elif isinstance(item.slice.value, ast.Num):
-            if not isinstance(item.slice.value.n, int) or item.slice.value.n <= 0:
+        is_constant_val = constants.ast_is_constant(item.slice.value)
+        if isinstance(item.slice.value, ast.Num) or is_constant_val:
+            n_val = constants.get_constant(item.slice.value.id, context=None).value if is_constant_val else item.slice.value.n
+            if not isinstance(n_val, int) or n_val <= 0:
                 raise InvalidTypeException("Arrays / ByteArrays must have a positive integral number of elements", item.slice.value)
             # ByteArray
             if getattr(item.value, 'id', None) == 'bytes':
-                return ByteArrayType(item.slice.value.n)
+                return ByteArrayType(n_val)
+            elif getattr(item.value, 'id', None) == 'string':
+                return StringType(n_val)
             # List
             else:
-                return ListType(parse_type(item.value, location, custom_units=custom_units, custom_structs=custom_structs), item.slice.value.n)
+                return ListType(parse_type(item.value, location, custom_units=custom_units, custom_structs=custom_structs, constants=constants), n_val)
         # Mappings, e.g. num[address]
         else:
             warnings.warn(
@@ -357,7 +397,7 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
         )
         raise InvalidTypeException("Invalid type: %r" % ast.dump(item), item)
     elif isinstance(item, ast.Tuple):
-        members = [parse_type(x, location, custom_units=custom_units, custom_structs=custom_structs) for x in item.elts]
+        members = [parse_type(x, location, custom_units=custom_units, custom_structs=custom_structs, constants=constants) for x in item.elts]
         return TupleType(members)
     else:
         raise InvalidTypeException("Invalid type: %r" % ast.dump(item), item)
@@ -367,16 +407,27 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
 def get_size_of_type(typ):
     if isinstance(typ, BaseType):
         return 1
-    elif isinstance(typ, ByteArrayType):
+    elif isinstance(typ, ByteArrayLike):
         return ceil32(typ.maxlen) // 32 + 2
     elif isinstance(typ, ListType):
         return get_size_of_type(typ.subtype) * typ.count
     elif isinstance(typ, MappingType):
         raise Exception("Maps are not supported for function arguments or outputs.")
-    elif isinstance(typ, StructType):
-        return sum([get_size_of_type(v) for v in typ.members.values()])
-    elif isinstance(typ, TupleType):
-        return sum([get_size_of_type(v) for v in typ.members])
+    elif isinstance(typ, TupleLike):
+        return sum([get_size_of_type(v) for v in typ.tuple_members()])
+    else:
+        raise Exception("Can not get size of type, Unexpected type: %r" % repr(typ))
+
+
+def has_dynamic_data(typ):
+    if isinstance(typ, BaseType):
+        return False
+    elif isinstance(typ, ByteArrayLike):
+        return True
+    elif isinstance(typ, ListType):
+        return has_dynamic_data(typ.subtype)
+    elif isinstance(typ, TupleLike):
+        return any([has_dynamic_data(v) for v in typ.tuple_members()])
     else:
         raise Exception("Unexpected type: %r" % repr(typ))
 
@@ -393,9 +444,9 @@ def get_type(input):
 
 # Checks that the units of frm can be seamlessly converted into the units of to
 def are_units_compatible(frm, to):
-    frm_unit = getattr(frm, 'unit', 0)
-    to_unit = getattr(to, 'unit', 0)
-    return frm_unit is None or (frm_unit == to_unit and frm.positional == to.positional)
+    frm_unit = frm.unit
+    to_unit = to.unit
+    return frm_unit == {} or (frm_unit == to_unit and frm.positional == to.positional)
 
 
 # Is a type representing a number?

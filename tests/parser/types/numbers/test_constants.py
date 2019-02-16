@@ -1,4 +1,5 @@
 from decimal import Decimal
+from vyper.compiler import compile_code
 
 
 def test_builtin_constants(get_contract_with_gas_estimation):
@@ -54,6 +55,59 @@ def test_arithmetic(a: int128) -> int128:
     assert c.test_arithmetic(5000) == 2**127 - 1 - 5000
 
 
+def test_builtin_constants_assignment(get_contract_with_gas_estimation):
+    code = """
+@public
+def foo() -> int128:
+    bar: int128 = MAX_INT128
+    return bar
+
+@public
+def goo() -> int128:
+    bar: int128 = MIN_INT128
+    return bar
+
+@public
+def hoo() -> bytes32:
+    bar: bytes32 = EMPTY_BYTES32
+    return bar
+
+@public
+def joo() -> address:
+    bar: address = ZERO_ADDRESS
+    return bar
+
+@public
+def koo() -> decimal:
+    bar: decimal = MAX_DECIMAL
+    return bar
+
+@public
+def loo() -> decimal:
+    bar: decimal = MIN_DECIMAL
+    return bar
+
+@public
+def zoo() -> uint256:
+    bar: uint256 = MAX_UINT256
+    return bar
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.foo() == 2**127 - 1
+    assert c.goo() == -2**127
+
+    assert c.hoo() == b"\x00" * 32
+
+    assert c.joo() is None
+
+    assert c.koo() == Decimal(2**127 - 1)
+    assert c.loo() == Decimal(-2**127)
+
+    assert c.zoo() == 2**256 - 1
+
+
 def test_reserved_keyword(get_contract, assert_compile_failed):
     code = """
 @public
@@ -105,7 +159,7 @@ def is_owner() -> bool:
 def test_constant_bytes(get_contract):
     test_str = b"Alabama, Arkansas. I do love my ma and pa"
     code = """
-X: constant(bytes[100]) = "{}"
+X: constant(bytes[100]) = b"{}"
 
 @public
 def test() -> bytes[100]:
@@ -138,3 +192,17 @@ def market_cap() -> uint256(wei):
     c = get_contract(code)
 
     assert c.market_cap() == 5000
+
+
+def test_constant_folds(search_for_sublist):
+    code = """
+SOME_CONSTANT: constant(uint256) = 11 + 1
+
+
+@public
+def test(some_dynamic_var: uint256) -> uint256:
+    return some_dynamic_var  +  2**SOME_CONSTANT
+    """
+
+    lll = compile_code(code, ['ir'])['ir']
+    assert search_for_sublist(lll, ['add', ['mload', [320]], [4096]])

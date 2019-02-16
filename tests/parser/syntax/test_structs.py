@@ -2,7 +2,10 @@ import pytest
 from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import TypeMismatchException
+from vyper.exceptions import (
+    TypeMismatchException,
+    VariableDeclarationException
+)
 
 
 fail_list = [
@@ -255,7 +258,7 @@ struct Nom:
 nom: Nom
 @public
 def foo():
-    self.nom = None
+    clear(self.nom)
     """,
     """
 struct C:
@@ -363,11 +366,30 @@ b: B
 def foo():
     x = self.b[0]
     """,
+    ("""
+struct X:
+    bar: int128
+    decimal: int128
+    """, VariableDeclarationException),
+    ("""
+struct B:
+    num: int128
+    address: address
+    """, VariableDeclarationException),
+    ("""
+struct B:
+    num: int128
+    address: address
+    """, VariableDeclarationException)
 ]
 
 
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_block_fail(bad_code):
+    if isinstance(bad_code, tuple):
+        with raises(bad_code[1]):
+            compiler.compile_code(bad_code[0])
+    else:
         with raises(TypeMismatchException):
             compiler.compile_code(bad_code)
 
@@ -439,7 +461,7 @@ mom: Mom
 nom: C[3]
 @public
 def foo():
-    self.mom = Mom({a: None, b: 5})
+    self.mom = Mom({a: self.nom, b: 5})
     """,
     """
 struct C:

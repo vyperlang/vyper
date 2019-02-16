@@ -1,9 +1,11 @@
+from enum import Enum
+
 from vyper.utils import (
     MemoryPositions,
-    is_varname_valid,
+    check_valid_varname,
 )
 from vyper.types import (
-    get_size_of_type
+    get_size_of_type,
 )
 
 from vyper.exceptions import (
@@ -15,11 +17,17 @@ from vyper.signatures.function_signature import (
 )
 
 
+class Constancy(Enum):
+    Mutable = 0
+    Constant = 1
+
+
 # Contains arguments, variables, etc
 class Context():
 
     def __init__(self, vars, global_ctx, sigs=None, forvars=None, return_type=None,
-                 is_constant=False, is_private=False, is_payable=False, origcode='', method_id=''):
+                 constancy=Constancy.Mutable, is_private=False, is_payable=False, origcode='',
+                 method_id=''):
         # In-memory variables, in the form (name, memory location, type)
         self.vars = vars or {}
         self.next_mem = MemoryPositions.RESERVED_MEMORY
@@ -32,7 +40,9 @@ class Context():
         # Return type of the function
         self.return_type = return_type
         # Is the function constant?
-        self.is_constant = is_constant
+        self.constancy = constancy
+        # Whether body is currently in an assert statement
+        self.in_assertion = False
         # Is the function payable?
         self.is_payable = is_payable
         # Number of placeholders generated (used to generate random names)
@@ -58,6 +68,8 @@ class Context():
         self.is_private = is_private
         # method_id of current function
         self.method_id = method_id
+        # store global context
+        self.global_ctx = global_ctx
 
     def set_in_assignment(self, state: bool):
         self.in_assignment = state
@@ -67,6 +79,12 @@ class Context():
 
     def remove_in_for_loop(self, name_of_list):
         self.in_for_loop.remove(name_of_list)
+
+    def is_constant(self):
+        return self.constancy == Constancy.Constant or self.in_assertion
+
+    def set_in_assertion(self, val):
+        self.in_assertion = val
 
     def start_blockscope(self, blockscope_id):
         self.blockscopes.add(blockscope_id)
@@ -83,17 +101,23 @@ class Context():
     def increment_return_counter(self):
         self.function_return_count += 1
 
+    def is_valid_varname(self, name, pos):
+        # Global context check first.
+        if self.global_ctx.is_valid_varname(name, pos):
+            check_valid_varname(name, custom_units=self.custom_units, custom_structs=self.structs, constants=self.constants, pos=pos)
+            # Local context duplicate context check.
+            if any((name in self.vars, name in self.globals, name in self.constants)):
+                raise VariableDeclarationException("Duplicate variable name: %s" % name, name)
+        return True
+
     # TODO location info for errors
     # Add a new variable
-    def new_variable(self, name, typ):
-        if not is_varname_valid(name, custom_units=self.custom_units, custom_structs=self.structs):
-            raise VariableDeclarationException("Variable name invalid or reserved: " + name)
-        if any((name in self.vars, name in self.globals, name in self.constants)):
-            raise VariableDeclarationException("Duplicate variable name: %s" % name, name)
-        self.vars[name] = VariableRecord(name, self.next_mem, typ, True, self.blockscopes.copy())
-        pos = self.next_mem
-        self.next_mem += 32 * get_size_of_type(typ)
-        return pos
+    def new_variable(self, name, typ, pos=None):
+        if self.is_valid_varname(name, pos):
+            self.vars[name] = VariableRecord(name, self.next_mem, typ, True, self.blockscopes.copy())
+            pos = self.next_mem
+            self.next_mem += 32 * get_size_of_type(typ)
+            return pos
 
     # Add an anonymous variable (used in some complex function definitions)
     def new_placeholder(self, typ):
@@ -104,3 +128,14 @@ class Context():
     # Get the next unused memory location
     def get_next_mem(self):
         return self.next_mem
+
+    def parse_type(self, ast_node, location):
+        return self.global_ctx.parse_type(ast_node, location)
+
+    # Pretty print constancy for error messages
+    def pp_constancy(self):
+        if self.in_assertion:
+            return 'an assertion'
+        elif self.constancy == Constancy.Constant:
+            return 'a constant function'
+        raise ValueError('Compiler error: unknown constancy in pp_constancy: %r' % self.constancy)

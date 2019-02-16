@@ -10,10 +10,10 @@ from vyper.exceptions import (
 )
 from vyper.types import (
     BaseType,
-    ByteArrayType
+    ByteArrayType,
+    StringType
 )
 from vyper.types import (
-    parse_type,
     is_base_type
 )
 from vyper.parser.expr import (
@@ -35,9 +35,12 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
         expected_arg_typelist = expected_arg_typelist.typ
     if not isinstance(expected_arg_typelist, tuple):
         expected_arg_typelist = (expected_arg_typelist, )
+
     vsub = None
     for expected_arg in expected_arg_typelist:
         if expected_arg == 'num_literal':
+            if context.constants.is_constant_of_base_type(arg, ('uint256', 'int128')):
+                return context.constants.get_constant(arg.id, None).value
             if isinstance(arg, ast.Num) and get_original_if_0_prefixed(arg, context) is None:
                 return arg.n
         elif expected_arg == 'str_literal':
@@ -59,15 +62,22 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
             sub = Expr(arg, context).lll_node
             if isinstance(sub.typ, ByteArrayType):
                 return sub
+        elif expected_arg == 'string':
+            sub = Expr(arg, context).lll_node
+            if isinstance(sub.typ, StringType):
+                return sub
         else:
             # Does not work for unit-endowed types inside compound types, e.g. timestamp[2]
-            parsed_expected_type = parse_type(ast.parse(expected_arg).body[0].value, 'memory')
+            parsed_expected_type = context.parse_type(ast.parse(expected_arg).body[0].value, 'memory')
             if isinstance(parsed_expected_type, BaseType):
                 vsub = vsub or Expr.parse_value_expr(arg, context)
                 if is_base_type(vsub.typ, expected_arg):
                     return vsub
-                elif expected_arg in ('int128', 'uint256') and isinstance(vsub.typ, BaseType) and \
-                     vsub.typ.is_literal and SizeLimits.in_bounds(expected_arg, vsub.value):
+                elif expected_arg in ('int128', 'uint256') and \
+                     isinstance(vsub.typ, BaseType) and \
+                     vsub.typ.typ in ('int128', 'uint256') and \
+                     vsub.typ.is_literal and \
+                     SizeLimits.in_bounds(expected_arg, vsub.value):
                     return vsub
             else:
                 vsub = vsub or Expr(arg, context).lll_node

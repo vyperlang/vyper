@@ -343,3 +343,22 @@ def a() -> uint256:
     c = get_contract_with_gas_estimation(code)
 
     assert c.a() == 99
+
+
+def test_for_in_list_iter_type(get_contract_with_gas_estimation):
+    code = """
+@public
+@constant
+def func(amounts: wei_value[3]) -> wei_value:
+    total: wei_value = as_wei_value(0, "wei")
+
+    # calculate total
+    for amount in amounts:
+        total += amount
+
+    return total
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.func([100, 200, 300]) == 600

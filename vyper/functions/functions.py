@@ -5,6 +5,7 @@ from vyper.exceptions import (
     InvalidLiteralException,
     StructureException,
     TypeMismatchException,
+    ParserException,
 )
 from .signature import (
     signature,
@@ -27,12 +28,13 @@ from vyper.parser.expr import (
 from vyper.types import (
     BaseType,
     ByteArrayType,
+    ByteArrayLike,
+    StringType,
     TupleType,
     ListType
 )
 from vyper.types import (
     are_units_compatible,
-    parse_type,
     is_base_type,
     get_size_of_type,
 )
@@ -101,16 +103,35 @@ def _convert(expr, context):
     return convert(expr, context)
 
 
-@signature('bytes', start='int128', len='int128')
+@signature(('bytes32', 'bytes', 'string'), start='int128', len='int128')
 def _slice(expr, args, kwargs, context):
+
     sub, start, length = args[0], kwargs['start'], kwargs['len']
     if not are_units_compatible(start.typ, BaseType('int128')):
-        raise TypeMismatchException("Type for slice start index must be a unitless number")
+        raise TypeMismatchException("Type for slice start index must be a unitless number", expr)
     # Expression representing the length of the slice
     if not are_units_compatible(length.typ, BaseType('int128')):
-        raise TypeMismatchException("Type for slice length must be a unitless number")
+        raise TypeMismatchException("Type for slice length must be a unitless number", expr)
+
+    if is_base_type(sub.typ, 'bytes32'):
+        if (start.typ.is_literal and length.typ.is_literal) and \
+           not (0 <= start.value + length.value <= 32):
+            raise InvalidLiteralException('Invalid start / length values needs to be between 0 and 32.', expr)
+        sub_typ_maxlen = 32
+    else:
+        sub_typ_maxlen = sub.typ.maxlen
+
     # Node representing the position of the output in memory
-    np = context.new_placeholder(ByteArrayType(maxlen=sub.typ.maxlen + 32))
+    np = context.new_placeholder(ByteArrayType(maxlen=sub_typ_maxlen + 32))
+
+    # Get returntype string or bytes
+    if isinstance(args[0].typ, ByteArrayType) or is_base_type(sub.typ, 'bytes32'):
+        ReturnType = ByteArrayType
+    else:
+        ReturnType = StringType
+
+    # Node representing the position of the output in memory
+    np = context.new_placeholder(ReturnType(maxlen=sub_typ_maxlen + 32))
     placeholder_node = LLLnode.from_list(np, typ=sub.typ, location='memory')
     placeholder_plus_32_node = LLLnode.from_list(np + 32, typ=sub.typ, location='memory')
     # Copies over bytearray data
@@ -122,10 +143,20 @@ def _slice(expr, args, kwargs, context):
         adj_sub = LLLnode.from_list(
             ['add', sub, ['add', ['sub', '_start', ['mod', '_start', 32]], 32]], typ=sub.typ, location=sub.location
         )
-    copier = make_byte_slice_copier(placeholder_plus_32_node, adj_sub, ['add', '_length', 32], sub.typ.maxlen, pos=getpos(expr))
+
+    if is_base_type(sub.typ, 'bytes32'):
+        adj_sub = LLLnode.from_list(
+            sub.args[0], typ=sub.typ, location="memory"
+        )
+
+    copier = make_byte_slice_copier(placeholder_plus_32_node, adj_sub, ['add', '_length', 32], sub_typ_maxlen, pos=getpos(expr))
     # New maximum length in the type of the result
-    newmaxlen = length.value if not len(length.args) else sub.typ.maxlen
-    maxlen = ['mload', Expr(sub, context=context).lll_node]  # Retrieve length of the bytes.
+    newmaxlen = length.value if not len(length.args) else sub_typ_maxlen
+    if is_base_type(sub.typ, 'bytes32'):
+        maxlen = 32
+    else:
+        maxlen = ['mload', Expr(sub, context=context).lll_node]  # Retrieve length of the bytes.
+
     out = ['with', '_start', start,
               ['with', '_length', length,
                   ['with', '_opos', ['add', placeholder_node, ['mod', '_start', 32]],
@@ -134,10 +165,10 @@ def _slice(expr, args, kwargs, context):
                            copier,
                            ['mstore', '_opos', '_length'],
                            '_opos']]]]
-    return LLLnode.from_list(out, typ=ByteArrayType(newmaxlen), location='memory', pos=getpos(expr))
+    return LLLnode.from_list(out, typ=ReturnType(newmaxlen), location='memory', pos=getpos(expr))
 
 
-@signature('bytes')
+@signature(('bytes', 'string'))
 def _len(expr, args, kwargs, context):
     return get_length(args[0])
 
@@ -146,22 +177,35 @@ def concat(expr, context):
     args = [Expr(arg, context).lll_node for arg in expr.args]
     if len(args) < 2:
         raise StructureException("Concat expects at least two arguments", expr)
-    for expr_arg, arg in zip(expr.args, args):
-        if not isinstance(arg.typ, ByteArrayType) and not is_base_type(arg.typ, 'bytes32'):
-            raise TypeMismatchException("Concat expects byte arrays or bytes32 objects", expr_arg)
+
+    prev_type = ''
+    for i, (expr_arg, arg) in enumerate(zip(expr.args, args)):
+        if not isinstance(arg.typ, ByteArrayLike) and not is_base_type(arg.typ, 'bytes32'):
+            raise TypeMismatchException("Concat expects string, bytes or bytes32 objects", expr_arg)
+
+        current_type = 'bytes' if isinstance(arg.typ, ByteArrayType) or is_base_type(arg.typ, 'bytes32') else 'string'
+        if prev_type and current_type != prev_type:
+            raise TypeMismatchException("Concat expects consistant use of string or byte types, user either bytes or string.", expr_arg)
+        prev_type = current_type
+
+    if current_type == 'string':
+        ReturnType = StringType
+    else:
+        ReturnType = ByteArrayType
+
     # Maximum length of the output
     total_maxlen = sum([arg.typ.maxlen if isinstance(arg.typ, ByteArrayType) else 32 for arg in args])
     # Node representing the position of the output in memory
-    placeholder = context.new_placeholder(ByteArrayType(total_maxlen))
+    placeholder = context.new_placeholder(ReturnType(total_maxlen))
     # Object representing the output
     seq = []
     # For each argument we are concatenating...
     for arg in args:
         # Start pasting into a position the starts at zero, and keeps
         # incrementing as we concatenate arguments
-        placeholder_node = LLLnode.from_list(['add', placeholder, '_poz'], typ=ByteArrayType(total_maxlen), location='memory')
-        placeholder_node_plus_32 = LLLnode.from_list(['add', ['add', placeholder, '_poz'], 32], typ=ByteArrayType(total_maxlen), location='memory')
-        if isinstance(arg.typ, ByteArrayType):
+        placeholder_node = LLLnode.from_list(['add', placeholder, '_poz'], typ=ReturnType(total_maxlen), location='memory')
+        placeholder_node_plus_32 = LLLnode.from_list(['add', ['add', placeholder, '_poz'], 32], typ=ReturnType(total_maxlen), location='memory')
+        if isinstance(arg.typ, ReturnType):
             # Ignore empty strings
             if arg.typ.maxlen == 0:
                 continue
@@ -192,11 +236,11 @@ def concat(expr, context):
     # Memory location of the output
     seq.append(placeholder)
     return LLLnode.from_list(
-        ['with', '_poz', 0, ['seq'] + seq], typ=ByteArrayType(total_maxlen), location='memory', pos=getpos(expr), annotation='concat'
+        ['with', '_poz', 0, ['seq'] + seq], typ=ReturnType(total_maxlen), location='memory', pos=getpos(expr), annotation='concat'
     )
 
 
-@signature(('str_literal', 'bytes', 'bytes32'))
+@signature(('str_literal', 'bytes', 'string', 'bytes32'))
 def _sha3(expr, args, kwargs, context):
     sub = args[0]
     # Can hash literals
@@ -363,10 +407,20 @@ def as_wei_value(expr, args, kwargs, context):
             denomination = denom
             break
     else:
-        raise InvalidLiteralException("Invalid denomination: %s" % args[1], expr.args[1])
+        raise InvalidLiteralException(
+            "Invalid denomination: %s, valid denominations are: %s" % (
+                args[1],
+                ",".join(x[0].decode() for x in names_denom)
+            ),
+            expr.args[1]
+        )
     # Compute the amount of wei and return that value
     if isinstance(args[0], (int, float)):
-        numstring, num, den = get_number_as_fraction(expr.args[0], context)
+        expr_args_0 = expr.args[0]
+        # On constant reference fetch value node of constant assignment.
+        if context.constants.ast_is_constant(expr.args[0]):
+            expr_args_0 = context.constants._constants_ast[expr.args[0].id]
+        numstring, num, den = get_number_as_fraction(expr_args_0, context)
         if denomination % den:
             raise InvalidLiteralException("Too many decimal places: %s" % numstring, expr.args[0])
         sub = num * denomination // den
@@ -392,8 +446,8 @@ def raw_call(expr, args, kwargs, context):
     gas, value, outsize, delegate_call = kwargs['gas'], kwargs['value'], kwargs['outsize'], kwargs['delegate_call']
     if delegate_call.typ.is_literal is False:
         raise TypeMismatchException('The delegate_call parameter has to be a static/literal boolean value.')
-    if context.is_constant:
-        raise ConstancyViolationException("Cannot make calls from a constant function", expr)
+    if context.is_constant():
+        raise ConstancyViolationException("Cannot make calls from %s" % context.pp_constancy(), expr)
     if value != zero_value:
         enforce_units(value.typ, get_keyword(expr, 'value'),
                         BaseType('uint256', {'wei': 1}))
@@ -429,16 +483,16 @@ def raw_call(expr, args, kwargs, context):
 @signature('address', 'uint256')
 def send(expr, args, kwargs, context):
     to, value = args
-    if context.is_constant:
-        raise ConstancyViolationException("Cannot send ether inside a constant function!", expr)
+    if context.is_constant():
+        raise ConstancyViolationException("Cannot send ether inside %s!" % context.pp_constancy(), expr)
     enforce_units(value.typ, expr.args[1], BaseType('uint256', {'wei': 1}))
     return LLLnode.from_list(['assert', ['call', 0, to, value, 0, 0, 0, 0]], typ=None, pos=getpos(expr))
 
 
 @signature('address')
 def selfdestruct(expr, args, kwargs, context):
-    if context.is_constant:
-        raise ConstancyViolationException("Cannot %s inside a constant function!" % expr.func.id, expr.func)
+    if context.is_constant():
+        raise ConstancyViolationException("Cannot %s inside %s!" % (expr.func.id, context.pp_constancy()), expr.func)
     return LLLnode.from_list(['selfdestruct', args[0]], typ=None, pos=getpos(expr))
 
 
@@ -463,7 +517,7 @@ def _RLPlist(expr, args, kwargs, context):
         if isinstance(arg, ast.Name) and arg.id == "bytes":
             subtyp = ByteArrayType(args[0].typ.maxlen)
         else:
-            subtyp = parse_type(arg, 'memory')
+            subtyp = context.parse_type(arg, 'memory')
             if not isinstance(subtyp, BaseType):
                 raise TypeMismatchException("RLP lists only accept BaseTypes and byte arrays", arg)
             if not is_base_type(subtyp, ('int128', 'uint256', 'bytes32', 'address', 'bool')):
@@ -667,8 +721,8 @@ def create_with_code_of(expr, args, kwargs, context):
     if value != zero_value:
         enforce_units(value.typ, get_keyword(expr, 'value'),
                       BaseType('uint256', {'wei': 1}))
-    if context.is_constant:
-        raise ConstancyViolationException("Cannot make calls from a constant function", expr)
+    if context.is_constant():
+        raise ConstancyViolationException("Cannot make calls from %s" % context.pp_constancy(), expr)
     placeholder = context.new_placeholder(ByteArrayType(96))
 
     kode = get_create_with_code_of_bytecode()
@@ -723,6 +777,10 @@ def minmax(expr, args, kwargs, context, is_min):
     return LLLnode.from_list(['with', '_l', left, ['with', '_r', right, o]], typ=otyp, pos=getpos(expr))
 
 
+def _clear():
+    raise ParserException("This function should never be called! `clear()` is currently handled differently than other functions as it self modifies its input argument statement. Please see `_clear()` in `stmt.py`")
+
+
 dispatch_table = {
     'floor': floor,
     'ceil': ceil,
@@ -755,6 +813,7 @@ dispatch_table = {
 }
 
 stmt_dispatch_table = {
+    'clear': _clear,
     'send': send,
     'selfdestruct': selfdestruct,
     'raw_call': raw_call,

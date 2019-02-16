@@ -8,8 +8,8 @@ def market_maker(get_contract):
     return get_contract(contract_code)
 
 
-TOKEN_NAME = b"Vypercoin"
-TOKEN_SYMBOL = b"FANG"
+TOKEN_NAME = "Vypercoin"
+TOKEN_SYMBOL = "FANG"
 TOKEN_DECIMALS = 18
 TOKEN_INITIAL_SUPPLY = (21 * 10 ** 6)
 TOKEN_TOTAL_SUPPLY = TOKEN_INITIAL_SUPPLY * (10 ** TOKEN_DECIMALS)
@@ -17,7 +17,7 @@ TOKEN_TOTAL_SUPPLY = TOKEN_INITIAL_SUPPLY * (10 ** TOKEN_DECIMALS)
 
 @pytest.fixture
 def erc20(get_contract):
-    with open('examples/tokens/vypercoin.vy') as f:
+    with open('examples/tokens/ERC20.vy') as f:
         contract_code = f.read()
     return get_contract(contract_code, *[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY])
 
@@ -37,7 +37,7 @@ def test_initiate(w3, market_maker, erc20, assert_tx_failed):
     assert market_maker.totalTokenQty() == 1 * 10**18
     assert market_maker.invariant() == 2 * 10**36
     assert market_maker.owner() == a0
-    assert erc20.name().split(b'\0', 1)[0] == TOKEN_NAME
+    assert erc20.name() == TOKEN_NAME
     assert erc20.decimals() == TOKEN_DECIMALS
 
     # Initiate cannot be called twice

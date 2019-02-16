@@ -13,9 +13,9 @@ from vyper.signatures.function_signature import (
 )
 from vyper.types import (
     BaseType,
-    ByteArrayType,
+    ByteArrayLike,
     ListType,
-    TupleType,
+    TupleLike,
     ceil32,
     get_size_of_type,
 )
@@ -32,9 +32,9 @@ def call_lookup_specs(stmt_expr, context):
 def make_call(stmt_expr, context):
     method_name, _, sig = call_lookup_specs(stmt_expr, context)
 
-    if context.is_constant and not sig.const:
+    if context.is_constant() and not sig.const:
         raise ConstancyViolationException(
-            "May not call non-constant function '%s' within a constant function." % (method_name),
+            "May not call non-constant function '%s' within %s." % (method_name, context.pp_constancy()),
             getpos(stmt_expr)
         )
 
@@ -52,8 +52,8 @@ def call_make_placeholder(stmt_expr, context, sig):
     out_size = get_size_of_type(sig.output_type) * 32
     returner = output_placeholder
 
-    if not sig.private and isinstance(sig.output_type, ByteArrayType):
-            returner = output_placeholder + 32
+    if not sig.private and isinstance(sig.output_type, ByteArrayLike):
+        returner = output_placeholder + 32
 
     return output_placeholder, returner, out_size
 
@@ -132,16 +132,16 @@ def call_self_private(stmt_expr, context, sig):
                 pop_return_values = [
                     ['mstore', ['add', output_placeholder, pos], 'pass'] for pos in range(0, output_size, 32)
                 ]
-            elif isinstance(sig.output_type, ByteArrayType):
+            elif isinstance(sig.output_type, ByteArrayLike):
                 dynamic_offsets = [(0, sig.output_type)]
                 pop_return_values = [
                     ['pop', 'pass'],
                 ]
-            elif isinstance(sig.output_type, TupleType):
+            elif isinstance(sig.output_type, TupleLike):
                 static_offset = 0
                 pop_return_values = []
                 for out_type in sig.output_type.members:
-                    if isinstance(out_type, ByteArrayType):
+                    if isinstance(out_type, ByteArrayLike):
                         pop_return_values.append(['mstore', ['add', output_placeholder, static_offset], 'pass'])
                         dynamic_offsets.append((['mload', ['add', output_placeholder, static_offset]], out_type))
                     else:
@@ -171,8 +171,21 @@ def call_self_private(stmt_expr, context, sig):
                     typ=None, annotation='dynamic unpacker', pos=getpos(stmt_expr))
                 pop_return_values.append(o)
 
+    call_body = (
+        ['seq_unchecked'] +
+        pre_init +
+        push_local_vars +
+        push_args +
+        jump_to_func +
+        pop_return_values +
+        pop_local_vars +
+        [returner]
+    )
+    # If we have no return, we need to pop off
+    pop_returner_call_body = ['pop', call_body] if sig.output_type is None else call_body
+
     o = LLLnode.from_list(
-        ['seq_unchecked'] + pre_init + push_local_vars + push_args + jump_to_func + pop_return_values + pop_local_vars + [returner],
+        pop_returner_call_body,
         typ=sig.output_type, location='memory', pos=getpos(stmt_expr), annotation='Internal Call: %s' % method_name,
         add_gas_estimate=sig.gas
     )

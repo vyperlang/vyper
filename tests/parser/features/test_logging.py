@@ -32,7 +32,7 @@ MyLog: event({arg1: indexed(bytes[3])})
 
 @public
 def foo():
-    log.MyLog('bar')
+    log.MyLog(b'bar')
     """
 
     c = get_contract_with_gas_estimation(loggy_code)
@@ -56,7 +56,7 @@ MyLog: event({arg1: indexed(bytes[3]), arg2: indexed(bytes[4]), arg3: indexed(ad
 
 @public
 def foo():
-    log.MyLog('bar', 'home', self)
+    log.MyLog(b'bar', b'home', self)
     """
 
     c = get_contract_with_gas_estimation(loggy_code)
@@ -92,7 +92,7 @@ b: bytes[10]
 @public
 def foo(arg1: bytes[3]):
     a: bytes[4] = 'home'
-    self.b = 'hellothere'
+    self.b = b'hellothere'
     log.MyLog(arg1, a,  self, self.b)
     """
 
@@ -238,7 +238,7 @@ MyLog: event({arg1: indexed(bytes[4]), arg2: indexed(bytes[29]), arg3: bytes[31]
 
 @public
 def foo(arg1: bytes[29], arg2: bytes[31]):
-    log.MyLog('bar', arg1, arg2)
+    log.MyLog(b'bar', arg1, arg2)
 """
 
     c = get_contract_with_gas_estimation(loggy_code)
@@ -317,7 +317,7 @@ MyLog: event({arg1: int128, arg2: bytes[4], arg3: bytes[3], arg4: address, arg5:
 
 @public
 def foo():
-    log.MyLog(123, 'home', 'bar', 0xc305c901078781C232A2a521C2aF7980f8385ee9, self, block.timestamp)
+    log.MyLog(123, b'home', b'bar', 0xc305c901078781C232A2a521C2aF7980f8385ee9, self, block.timestamp)
     """
 
     c = get_contract_with_gas_estimation(loggy_code)
@@ -358,7 +358,7 @@ MyLog: event({arg1: indexed(int128), arg2: bytes[3]})
 
 @public
 def foo():
-    log.MyLog(1, 'bar')
+    log.MyLog(1, b'bar')
     """
 
     c = get_contract_with_gas_estimation(loggy_code)
@@ -388,8 +388,8 @@ YourLog: event({arg1: indexed(address), arg2: bytes[5]})
 
 @public
 def foo():
-    log.MyLog(1, 'bar')
-    log.YourLog(self, 'house')
+    log.MyLog(1, b'bar')
+    log.YourLog(self, b'house')
     """
 
     c = get_contract_with_gas_estimation(loggy_code)
@@ -425,7 +425,7 @@ MyLog: event({arg1: indexed(int128)})
 
 @public
 def foo_():
-    log.MyLog('yo')
+    log.MyLog(b'yo')
 """
 
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatchException)
@@ -437,7 +437,7 @@ MyLog: event({arg1: indexed(bytes[3])})
 
 @public
 def foo():
-    log.MyLog('bars')
+    log.MyLog(b'bars')
 """
 
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatchException)
@@ -461,7 +461,7 @@ MyLog: event({arg1: bytes[3]})
 
 @public
 def foo():
-    log.MyLog('bars')
+    log.MyLog(b'bars')
 """
 
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatchException)
@@ -598,15 +598,15 @@ s: bytes[100]
 
 @public
 def foo():
-    raw_log([], "moo")
+    raw_log([], b"moo")
 
 @public
 def goo():
-    raw_log([0x1234567812345678123456781234567812345678123456781234567812345678], "moo2")
+    raw_log([0x1234567812345678123456781234567812345678123456781234567812345678], b"moo2")
 
 @public
 def hoo():
-    self.s = "moo3"
+    self.s = b"moo3"
     raw_log([], self.s)
 
 @public
@@ -847,7 +847,7 @@ def __init__():
 @public
 def foo():
     v: int128[3] = [7, 8, 9]
-    log.Bar(10, self.x, "test", v, self.y)
+    log.Bar(10, self.x, b"test", v, self.y)
 
 @public
 def set_list():

@@ -34,7 +34,7 @@ def test() -> address:
 
 @public
 def hello() -> bytes[100]:
-    return "hello world!"
+    return b"hello world!"
 
 
 @public
@@ -70,7 +70,7 @@ def test() -> address:
 @public
 def hello(a: uint256) -> bytes[100]:
     assert a > 0, "invaliddddd"
-    return "hello world!"
+    return b"hello world!"
 
 
 @public

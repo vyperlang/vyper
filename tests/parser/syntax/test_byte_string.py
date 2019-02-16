@@ -6,13 +6,18 @@ from vyper import compiler
 valid_list = [
     """
 @public
-def foo() -> bytes[10]:
+def foo() -> string[10]:
     return "badminton"
     """,
     """
 @public
 def foo():
-    x: bytes[11] = "¡très bien!"
+    x: string[11] = "¡très bien!"
+    """,
+    """
+@public
+def test() -> string[100]:
+    return "hello world!"
     """
 ]
 

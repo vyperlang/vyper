@@ -102,13 +102,13 @@ a: bytes[60]
 @public
 def foo(inp: bytes[60]) -> bytes[60]:
     self.a = inp
-    self.a = None
+    self.a = ""
     return self.a
 
 @public
 def bar(inp: bytes[60]) -> bytes[60]:
     b: bytes[60] = inp
-    b = None
+    b = ""
     return b
     """
 
@@ -235,7 +235,7 @@ def test_bytes32_literals(get_contract):
     code = """
 @public
 def test() -> bool:
-    l: bytes32 = '\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x80\\xac\\x58\\xcd'
+    l: bytes32 = b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x80\\xac\\x58\\xcd'
     j: bytes32 = 0x0000000000000000000000000000000000000000000000000000000080ac58cd
     return l == j
 

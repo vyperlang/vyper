@@ -6,7 +6,7 @@ from vyper.exceptions import (
     StructureException,
     FunctionDeclarationException
 )
-from vyper.types import ByteArrayType
+from vyper.types import ByteArrayLike
 from vyper.types import (
     canonicalize_type,
     get_size_of_type,
@@ -14,25 +14,29 @@ from vyper.types import (
     print_unit,
     unit_from_type,
     delete_unit_if_empty,
-    TupleType
+    TupleType,
+    TupleLike
 )
 from vyper.utils import (
     fourbytes_to_int,
     is_varname_valid,
+    check_valid_varname,
     function_whitelist,
     sha3,
 )
+from vyper.parser.parser_utils import getpos
 from vyper.parser.lll_node import LLLnode
 
 
 # Function argument
 class VariableRecord():
-    def __init__(self, name, pos, typ, mutable, blockscopes=[]):
+    def __init__(self, name, pos, typ, mutable, blockscopes=None, defined_at=None):
         self.name = name
         self.pos = pos
         self.typ = typ
         self.mutable = mutable
-        self.blockscopes = blockscopes
+        self.blockscopes = [] if blockscopes is None else blockscopes
+        self.defined_at = defined_at  # source code location variable record was defined.
 
     @property
     def size(self):
@@ -60,41 +64,47 @@ class FunctionSignature():
 
     # Get the canonical function signature
     @staticmethod
-    def get_full_sig(func_name, args, sigs, custom_units, custom_structs):
+    def get_full_sig(func_name, args, sigs, custom_units, custom_structs, constants):
 
         def get_type(arg):
             if isinstance(arg, LLLnode):
                 return canonicalize_type(arg.typ)
             elif hasattr(arg, 'annotation'):
-                return canonicalize_type(parse_type(arg.annotation, None, sigs, custom_units=custom_units, custom_structs=custom_structs))
+                return canonicalize_type(parse_type(arg.annotation, None, sigs, custom_units=custom_units, custom_structs=custom_structs, constants=constants))
         return func_name + '(' + ','.join([get_type(arg) for arg in args]) + ')'
 
     # Get a signature from a function definition
     @classmethod
-    def from_definition(cls, code, sigs=None, custom_units=None, custom_structs=None, contract_def=False, constant=False):
+    def from_definition(cls, code, sigs=None, custom_units=None, custom_structs=None, contract_def=False, constants=None, constant=False):
         if not custom_structs:
             custom_structs = {}
-        name = code.name
-        pos = 0
 
-        if (not name.lower() in function_whitelist) and (not is_varname_valid(name, custom_units=custom_units, custom_structs=custom_structs)):
-            raise FunctionDeclarationException("Function name invalid: " + name)
+        name = code.name
+        mem_pos = 0
+
+        valid_name, msg = is_varname_valid(name, custom_units, custom_structs, constants)
+        if not valid_name and (not name.lower() in function_whitelist):
+            raise FunctionDeclarationException("Function name invalid. " + msg, code)
+
         # Determine the arguments, expects something of the form def foo(arg1: int128, arg2: int128 ...
         args = []
         for arg in code.args.args:
+            # Each arg needs a type specified.
             typ = arg.annotation
             if not typ:
                 raise InvalidTypeException("Argument must have type", arg)
-            if not is_varname_valid(arg.arg, custom_units=custom_units, custom_structs=custom_structs):
-                raise FunctionDeclarationException("Argument name invalid or reserved: " + arg.arg, arg)
+            # Validate arg name.
+            check_valid_varname(arg.arg, custom_units, custom_structs, constants, arg, "Argument name invalid or reserved. ", FunctionDeclarationException)
+            # Check for duplicate arg name.
             if arg.arg in (x.name for x in args):
                 raise FunctionDeclarationException("Duplicate function argument name: " + arg.arg, arg)
-            parsed_type = parse_type(typ, None, sigs, custom_units=custom_units, custom_structs=custom_structs)
-            args.append(VariableRecord(arg.arg, pos, parsed_type, False))
-            if isinstance(parsed_type, ByteArrayType):
-                pos += 32
+            parsed_type = parse_type(typ, None, sigs, custom_units=custom_units, custom_structs=custom_structs, constants=constants)
+            args.append(VariableRecord(arg.arg, mem_pos, parsed_type, False, defined_at=getpos(arg)))
+
+            if isinstance(parsed_type, ByteArrayLike):
+                mem_pos += 32
             else:
-                pos += get_size_of_type(parsed_type) * 32
+                mem_pos += get_size_of_type(parsed_type) * 32
 
         # Apply decorators
         const, payable, private, public = False, False, False, False
@@ -129,14 +139,14 @@ class FunctionSignature():
         if not code.returns:
             output_type = None
         elif isinstance(code.returns, (ast.Name, ast.Compare, ast.Subscript, ast.Call, ast.Tuple)):
-            output_type = parse_type(code.returns, None, sigs, custom_units=custom_units, custom_structs=custom_structs)
+            output_type = parse_type(code.returns, None, sigs, custom_units=custom_units, custom_structs=custom_structs, constants=constants)
         else:
             raise InvalidTypeException("Output type invalid or unsupported: %r" % parse_type(code.returns, None), code.returns, )
         # Output type must be canonicalizable
         if output_type is not None:
             assert isinstance(output_type, TupleType) or canonicalize_type(output_type)
         # Get the canonical function signature
-        sig = cls.get_full_sig(name, code.args.args, sigs, custom_units, custom_structs)
+        sig = cls.get_full_sig(name, code.args.args, sigs, custom_units, custom_structs, constants)
 
         # Take the first 4 bytes of the hash of the sig to get the method ID
         method_id = fourbytes_to_int(sha3(bytes(sig, 'utf-8'))[:4])
@@ -148,6 +158,8 @@ class FunctionSignature():
             return []
         elif isinstance(t, TupleType):
             res = [(canonicalize_type(x), print_unit(unit_from_type(x), custom_units_descriptions)) for x in t.members]
+        elif isinstance(t, TupleLike):
+            res = [(canonicalize_type(x), print_unit(unit_from_type(x), custom_units_descriptions)) for x in t.tuple_members()]
         else:
             res = [(canonicalize_type(t), print_unit(unit_from_type(t), custom_units_descriptions))]
 
@@ -159,6 +171,12 @@ class FunctionSignature():
         return abi_outputs
 
     def to_abi_dict(self, custom_units_descriptions=None):
+        func_type = "function"
+        if self.name == "__init__":
+            func_type = "constructor"
+        if self.name == "__default__":
+            func_type = "fallback"
+
         abi_dict = {
             "name": self.name,
             "outputs": self._generate_output_abi(custom_units_descriptions),
@@ -169,11 +187,17 @@ class FunctionSignature():
             } for arg in self.args],
             "constant": self.const,
             "payable": self.payable,
-            "type": "constructor" if self.name == "__init__" else "function"
+            "type": func_type
         }
 
         for abi_input in abi_dict['inputs']:
             delete_unit_if_empty(abi_input)
+
+        if self.name in ('__default__', '__init__'):
+            del abi_dict['name']
+        if self.name == '__default__':
+            del abi_dict['inputs']
+            del abi_dict['outputs']
 
         return abi_dict
 
@@ -183,8 +207,9 @@ class FunctionSignature():
 
         def synonymise(s):
             return s.replace('int128', 'num').replace('uint256', 'num')
+
         # for sig in sigs['self']
-        full_sig = cls.get_full_sig(stmt_or_expr.func.attr, expr_args, None, context.custom_units, context.structs)
+        full_sig = cls.get_full_sig(stmt_or_expr.func.attr, expr_args, None, context.custom_units, context.structs, context.constants)
         method_names_dict = dict(Counter([x.split('(')[0] for x in context.sigs['self']]))
         if method_name not in method_names_dict:
             raise FunctionDeclarationException(

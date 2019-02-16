@@ -122,38 +122,38 @@ Comparisons
 ^^^^^^^^^^^
 Comparisons return a boolean value.
 
-===================  ================
-Operator             Description
-===================  ================
-``uint256_lt(x, y)``  Less than
-``uint256_le(x, y)``  Less than or equal to
-``x == y``           Equals
-``x != y``           Does not equal
-``uint256_ge(x, y)``  Greater than or equal to
-``uint256_gt(x, y)``  Greater than
-===================  ================
+==========  ================
+Operator    Description
+==========  ================
+``x < y``   Less than
+``x <= y``  Less than or equal to
+``x == y``  Equals
+``x != y``  Does not equal
+``x >= y``  Greater than or equal to
+``x > y``   Greater than
+==========  ================
 
 ``x`` and ``y`` must be of the type ``uint256``.
 
 Arithmetic Operators
 ^^^^^^^^^^^^^^^^^^^^
 
-=======================  ======================
-Operator                 Description
-=======================  ======================
-``uint256_add(x, y)``     Addition
-``uint256_sub(x, y)``     Subtraction
-``uint256_addmod(x, y)``  Modular addition
-``uint256_mul(x, y)``     Multiplication
-``uint256_mulmod(x, y)``  Modular multiplication
-``uint256_div(x, y)``     Division
-``uint256_exp(x, y)``     Exponentiation
-``uint256_mod(x, y)``     Modulo
-``min(x, y)``            Minimum
-``max(x, y)``            Maximum
-=======================  ======================
+===========================  ======================
+Operator                     Description
+===========================  ======================
+``x + y``                    Addition
+``x - y``                    Subtraction
+``uint256_addmod(x, y, z)``  Addition modulo ``z``
+``x * y``                    Multiplication
+``uint256_mulmod(x, y, z)``  Multiplication modulo ``z``
+``x / y``                    Division
+``x**y``                     Exponentiation
+``x % y``                    Modulo
+``min(x, y)``                Minimum
+``max(x, y)``                Maximum
+===========================  ======================
 
-``x`` and ``y`` must be of the type ``uint256``.
+``x``, ``y`` and ``z`` must be of the type ``uint256``.
 
 Bitwise Operators
 ^^^^^^^^^^^^^^^^^
@@ -218,7 +218,7 @@ Operator       Description
 ``min(x, y)``  Minimum
 ``max(x, y)``  Maximum
 ``floor(x)``   Largest integer <= ``x``. Returns ``int128``.
-``ceil(x)``   Smallest integer >= ``x``. Returns ``int128``.
+``ceil(x)``    Smallest integer >= ``x``. Returns ``int128``.
 =============  ==========================================
 
 ``x`` and ``y`` must be of the type ``decimal``.
@@ -238,12 +238,13 @@ An address type can hold an Ethereum address which equates to 20 bytes or 160 bi
 Members
 ^^^^^^^
 
-============  ===================================================
-Member        Description
-============  ===================================================
-``balance``   Query the balance of an address. Returns ``wei_value``.
-``codesize``  Query the code size of an address. Returns ``int128``.
-============  ===================================================
+===============  =========================================================
+Member           Description
+===============  =========================================================
+``balance``      Query the balance of an address. Returns ``wei_value``.
+``codesize``     Query the code size of an address. Returns ``int128``.
+``is_contract``  Query whether it is a contract address. Returns ``bool``.
+===============  =========================================================
 
 Syntax as follows: ``_address.<member>``, where ``_address`` is of the type ``address`` and ``<member>`` is one of the above keywords.
 
@@ -309,7 +310,6 @@ Operators
 ====================================  ============================================================
 Keyword                               Description
 ====================================  ============================================================
-``len(x)``                            Return the length as an integer.
 ``sha3(x)``                           Return the sha3 hash as bytes32.
 ``concat(x, ...)``                    Concatenate multiple inputs.
 ``slice(x, start=_start, len=_len)``  Return a slice of ``_len`` starting at ``_start``.
@@ -323,15 +323,22 @@ Fixed-size Byte Arrays
 
 A byte array with a fixed size.
 The syntax being ``bytes[maxLen]``, where ``maxLen`` is an integer which denotes the maximum number of bytes.
-
-.. index:: !string
-Strings
--------
-Fixed-size byte arrays can hold strings with equal or fewer characters than the maximum length of the byte array.
+On the ABI level the Fixed-size bytes array is annotated as ``bytes``.
 
 **Example:**
 ::
-    exampleString = "Test String"
+    example_bytes: bytes[100] = b"\x01\x02\x03"
+
+.. index:: !string
+Fixed-size Strings
+==================
+**Keyword:** ``string``
+Fixed-size strings can hold strings with equal or fewer characters than the maximum length of the string.
+On the ABI level the Fixed-size bytes array is annotated as ``string``.
+
+**Example:**
+::
+    example_str: string[100] = "Test String"
 
 Operators
 ---------
@@ -343,8 +350,8 @@ Keyword                               Description
 ``concat(x, ...)``                    Concatenate multiple inputs.
 ``slice(x, start=_start, len=_len)``  Return a slice of ``_len`` starting at ``_start``.
 ====================================  ============================================================
-
-Where ``x`` is a byte array while ``_start`` and ``_len`` are integers.
+Where ``x`` is a byte array or string while ``_start`` and ``_len`` are integers.
+The ``len``, ``sha3``, ``concat``, ``slice`` operators can be used with ``string`` and ``bytes`` types.
 
 .. index:: !reference
 
@@ -482,12 +489,12 @@ Custom constants can be defined at a global level in Vyper. To define a constant
       return MAX_SHARES * SHARE_PRICE
 
 
-***********************
-Initial Values and None
-***********************
+**************
+Initial Values
+**************
 
-In Vyper, there is no ``null`` option like most programing languages have. Thus, every variable type has a default value.
-Nevertheless Vyper has the option to declare ``None`` which represent the default value of the type. Note that there is no option to assign ``None`` when initiating a variable. Also, note that you can't make comparisons to None. In order to check if a variable is empty, you will need to compare it to its type's default value.
+In Vyper, there is no ``null`` option like most programing languages have. Thus, every variable type has a default value. In order to check if a variable is empty, you will need to compare it to its type's default value.
+If you would like to reset a variable to its type's default value, use the built-in ``clear()`` function.  
 
 Here you can find a list of all types and default values:
 

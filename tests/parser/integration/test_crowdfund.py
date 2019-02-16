@@ -8,7 +8,7 @@ funders: map(int128, Funder)
 nextFunderIndex: int128
 beneficiary: address
 deadline: public(timestamp)
-goal: wei_value
+goal: public(wei_value)
 refundIndex: int128
 timelimit: public(timedelta)
 
@@ -150,7 +150,7 @@ def refund():
             self.refundIndex = self.nextFunderIndex
             return
         send(self.funders[i].sender, self.funders[i].value)
-        self.funders[i] = None
+        clear(self.funders[i])
     self.refundIndex = ind + 30
 
     """

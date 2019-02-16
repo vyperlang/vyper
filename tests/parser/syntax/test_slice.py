@@ -28,7 +28,7 @@ def foo(inp: bytes[10]) -> bytes[3]:
 def test_slice_fail(bad_code):
 
     with raises(TypeMismatchException):
-            compiler.compile_code(bad_code)
+        compiler.compile_code(bad_code)
 
 
 valid_list = [
@@ -45,7 +45,7 @@ def foo(inp: bytes[10]) -> bytes[4]:
     """
 @public
 def foo() -> bytes[10]:
-    return slice("badmintonzzz", start=1, len=10)
+    return slice(b"badmintonzzz", start=1, len=10)
     """
 ]
 

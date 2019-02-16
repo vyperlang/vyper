@@ -142,7 +142,7 @@ def add_record():
 def foo():
     x: uint256 = block.difficulty + 185
     if tx.origin == self:
-        y: bytes[35] = concat(block.prevhash, "dog")
+        y: bytes[35] = concat(block.prevhash, b"dog")
     """
 ]
 

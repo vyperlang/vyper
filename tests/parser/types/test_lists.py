@@ -177,3 +177,22 @@ def test_array_decimal_return3() -> decimal[2][2]:
     assert c.test_array_decimal_return1() == [[1.0, 2.0], [3.0, 4.0]]
     assert c.test_array_decimal_return2() == [[1.0, 2.0], [3.0, 4.0]]
     assert c.test_array_decimal_return3() == [[1.0, 2.0], [3.0, 4.0]]
+
+
+def test_mult_list(get_contract_with_gas_estimation):
+    code = """
+@public
+def test_multi3() -> uint256[2][2][2]:
+    l: uint256[2][2][2] = [[[0, 0], [0, 4]], [[0, 0], [0, 123]]]
+    return l
+
+@public
+def test_multi4() -> uint256[2][2][2][2]:
+    l: uint256[2][2][2][2] = [[[[1, 0], [0, 4]], [[0, 0], [0, 0]]], [[[444, 0], [0, 0]],[[1, 0], [0, 222]]]]
+    return l
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.test_multi3() == [[[0, 0], [0, 4]], [[0, 0], [0, 123]]]
+    assert c.test_multi4() == [[[[1, 0], [0, 4]], [[0, 0], [0, 0]]], [[[444, 0], [0, 0]], [[1, 0], [0, 222]]]]

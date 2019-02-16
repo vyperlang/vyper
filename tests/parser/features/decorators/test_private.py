@@ -291,7 +291,7 @@ def _test(a: bytes[40]) -> (bytes[100]):
 
 @public
 def test(a: bytes[10]) -> bytes[100]:
-    b: bytes[40] = concat(a, ", jack attack")
+    b: bytes[40] = concat(a, b", jack attack")
     out: bytes[100] = self._test(b)
     return out
 
@@ -337,17 +337,17 @@ def test_private_return_tuple_bytes(get_contract_with_gas_estimation):
     code = """
 @private
 def _test(a: int128, b: bytes[50]) -> (int128, bytes[100]):
-    return a + 2, concat("badabing:", b)
+    return a + 2, concat(b"badabing:", b)
 
 @private
 def _test_combined(a: bytes[50], x: int128, c:bytes[50]) -> (int128, bytes[100], bytes[100]):
     assert x == 8
-    return x + 2, a, concat(c, '_two')
+    return x + 2, a, concat(c, b'_two')
 
 @public
 def test(a: int128, b: bytes[40]) -> (int128, bytes[100], bytes[50]):
     c: int128 = 1
-    x: bytes[50] = concat(b, "_one")
+    x: bytes[50] = concat(b, b"_one")
     d: bytes[100]
     c, d = self._test(a + c, x)
     return c, d, x
@@ -355,14 +355,14 @@ def test(a: int128, b: bytes[40]) -> (int128, bytes[100], bytes[50]):
 @public
 def test2(b: bytes[40]) -> (int128, bytes[100]):
     a: int128 = 4
-    x: bytes[50] = concat(b, "_one")
+    x: bytes[50] = concat(b, b"_one")
     d: bytes[100]
     return self._test(a, x)
 
 @public
 def test3(a: bytes[32]) -> (int128, bytes[100], bytes[100]):
-    q: bytes[100] = "random data1"
-    w: bytes[100] = "random data2"
+    q: bytes[100] = b"random data1"
+    w: bytes[100] = b"random data2"
     x: int128 = 8
     b: bytes[32] = a
     x, q, w = self._test_combined(a, x, b)
@@ -370,7 +370,7 @@ def test3(a: bytes[32]) -> (int128, bytes[100], bytes[100]):
 
 @public
 def test4(a: bytes[40]) -> (int128, bytes[100], bytes[100]):
-    b: bytes[50] = concat(a, "_one")
+    b: bytes[50] = concat(a, b"_one")
     return self._test_combined(a, 8, b)
     """
 
@@ -443,10 +443,12 @@ def _whoami() -> address:
 def test_nested_static_params_only(get_contract, assert_tx_failed):
     code1 = """
 @private
+@constant
 def c() -> bool:
     return True
 
 @private
+@constant
 def b(sender: address) -> address:
     assert self.c()
     return sender
@@ -459,10 +461,12 @@ def a() -> bool:
 
     code2 = """
 @private
+@constant
 def c(sender: address) -> address:
     return sender
 
 @private
+@constant
 def b(sender: address) -> address:
     return self.c(sender)
 
@@ -503,3 +507,26 @@ def test(z: int128) -> bool:
     assert c.test(-1) is True
     assert c.test(0) is True
     assert c.test(1) is False
+
+
+def test_private_call_expr(get_contract):
+    code = """
+test: public(bool)
+
+
+@private
+def foo():
+    self.test = True
+
+
+@public
+def start():
+    if True:
+        self.foo()
+    """
+
+    c = get_contract(code)
+
+    assert c.test() is False
+    c.start(transact={})
+    assert c.test() is True

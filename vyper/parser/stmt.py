@@ -24,14 +24,17 @@ from vyper.parser.parser_utils import (
     make_byte_array_copier,
     make_setter,
     unwrap_location,
+    gen_tuple_return,
+    make_return_stmt,
 )
 from vyper.types import (
     BaseType,
+    ByteArrayLike,
     ByteArrayType,
     ListType,
-    TupleType,
+    NullType,
     StructType,
-    NullType
+    TupleType,
 )
 from vyper.types import (
     get_size_of_type,
@@ -39,14 +42,10 @@ from vyper.types import (
     parse_type,
     NodeType
 )
-from vyper.types import (
-    are_units_compatible,
-)
 from vyper.utils import (
     SizeLimits,
     sha3,
     fourbytes_to_int,
-    string_to_bytes,
     bytes_to_int
 )
 from vyper.parser.expr import (
@@ -101,7 +100,7 @@ class Stmt(object):
             if self.stmt.annotation.func.id != sub.typ.typ and not sub.typ.is_literal:
                 raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.func.id, self.stmt)
         elif isinstance(self.stmt.annotation, ast.Name) and self.stmt.annotation.id == 'bytes32':
-            if isinstance(sub.typ, ByteArrayType):
+            if isinstance(sub.typ, ByteArrayLike):
                 if sub.typ.maxlen != 32:
                     raise TypeMismatchException('Invalid type, expected: bytes32. String is incorrect length.', self.stmt)
                 return
@@ -112,7 +111,7 @@ class Stmt(object):
             else:
                 raise TypeMismatchException('Invalid type, expected: bytes32', self.stmt)
         elif isinstance(self.stmt.annotation, ast.Subscript):
-            if not isinstance(sub.typ, (ListType, ByteArrayType)):  # check list assign.
+            if not isinstance(sub.typ, (ListType, ByteArrayLike)):  # check list assign.
                 raise TypeMismatchException('Invalid type, expected: %s' % self.stmt.annotation.value.id, self.stmt)
         elif isinstance(sub.typ, StructType):
             # This needs to get more sophisticated in the presence of
@@ -157,7 +156,7 @@ class Stmt(object):
 
     def ann_assign(self):
         self.context.set_in_assignment(True)
-        typ = parse_type(self.stmt.annotation, location='memory', custom_units=self.context.custom_units, custom_structs=self.context.structs)
+        typ = parse_type(self.stmt.annotation, location='memory', custom_units=self.context.custom_units, custom_structs=self.context.structs, constants=self.context.constants)
         if isinstance(self.stmt.target, ast.Attribute):
             raise TypeMismatchException('May not set type for field %r' % self.stmt.target.attr, self.stmt)
         varname = self.stmt.target.id
@@ -165,16 +164,29 @@ class Stmt(object):
         o = LLLnode.from_list('pass', typ=None, pos=pos)
         if self.stmt.value is not None:
             sub = Expr(self.stmt.value, self.context).lll_node
+
+            # Disallow assignment to None
+            if isinstance(sub.typ, NullType):
+                raise InvalidLiteralException('Assignment to None is not allowed, use a default value or built-in `clear()`.', self.stmt)
+
             # If bytes[32] to bytes32 assignment rewrite sub as bytes32.
             if isinstance(sub.typ, ByteArrayType) and sub.typ.maxlen == 32 and isinstance(typ, BaseType) and typ.typ == 'bytes32':
-                bytez, bytez_length = string_to_bytes(self.stmt.value.s)
-                sub = LLLnode(bytes_to_int(bytez), typ=BaseType('bytes32'), pos=getpos(self.stmt))
+                sub = LLLnode(bytes_to_int(self.stmt.value.s), typ=BaseType('bytes32'), pos=getpos(self.stmt))
+
             self._check_valid_assign(sub)
             self._check_same_variable_assign(sub)
             variable_loc = LLLnode.from_list(pos, typ=typ, location='memory', pos=getpos(self.stmt))
             o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
+        # o.pos = getpos(self.stmt) # TODO: Should this be here like in assign()?
         self.context.set_in_assignment(False)
         return o
+
+    def _check_implicit_conversion(self, var_id, sub):
+        target_typ = self.context.vars[var_id].typ
+        assign_typ = sub.typ
+        if isinstance(target_typ, BaseType) and isinstance(assign_typ, BaseType):
+            if not assign_typ.is_literal and assign_typ.typ != target_typ.typ:
+                raise TypeMismatchException('Invalid type {}, expected: {}'.format(assign_typ.typ, target_typ.typ, self.stmt))
 
     def assign(self):
         # Assignment (e.g. x[4] = y)
@@ -183,23 +195,33 @@ class Stmt(object):
         self.context.set_in_assignment(True)
         sub = Expr(self.stmt.value, self.context).lll_node
 
+        # Disallow assignment to None
+        if isinstance(sub.typ, NullType):
+            raise InvalidLiteralException('Assignment to None is not allowed, use a default value or built-in `clear()`.', self.stmt)
+
         # Determine if it's an RLPList assignment.
-        if isinstance(self.stmt.value, ast.Call) and getattr(self.stmt.value.func, 'id', '') is 'RLPList':
+        if isinstance(self.stmt.value, ast.Call) and getattr(self.stmt.value.func, 'id', '') == 'RLPList':
             pos = self.context.new_variable(self.stmt.targets[0].id, sub.typ)
             variable_loc = LLLnode.from_list(pos, typ=sub.typ, location='memory', pos=getpos(self.stmt), annotation=self.stmt.targets[0].id)
             o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
-
-        # All other assignments are forbidden.
-        elif isinstance(self.stmt.targets[0], ast.Name) and self.stmt.targets[0].id not in self.context.vars:
-            raise VariableDeclarationException("Variable type not defined", self.stmt)
-
-        elif isinstance(self.stmt.targets[0], ast.Tuple) and isinstance(self.stmt.value, ast.Tuple):
-            raise VariableDeclarationException("Tuple to tuple assignment not supported", self.stmt)
-
         else:
+            # Error check when assigning to declared variable
+            if isinstance(self.stmt.targets[0], ast.Name):
+                # Do not allow assignment to undefined variables without annotation
+                if self.stmt.targets[0].id not in self.context.vars:
+                    raise VariableDeclarationException("Variable type not defined", self.stmt)
+
+                # Check against implicit conversion
+                self._check_implicit_conversion(self.stmt.targets[0].id, sub)
+
+            # Do no allow tuple-to-tuple assignment
+            if isinstance(self.stmt.targets[0], ast.Tuple) and isinstance(self.stmt.value, ast.Tuple):
+                raise VariableDeclarationException("Tuple to tuple assignment not supported", self.stmt)
+
             # Checks to see if assignment is valid
             target = self.get_target(self.stmt.targets[0])
             o = make_setter(target, sub, target.location, pos=getpos(self.stmt))
+
         o.pos = getpos(self.stmt)
         self.context.set_in_assignment(False)
         return o
@@ -236,6 +258,23 @@ class Stmt(object):
         self.context.end_blockscope(block_scope_id)
         return o
 
+    def _clear(self):
+        # Create zero node
+        none = ast.NameConstant(None)
+        none.lineno = self.stmt.lineno
+        none.col_offset = self.stmt.col_offset
+        zero = Expr(none, self.context).lll_node
+
+        # Get target variable
+        target = self.get_target(self.stmt.args[0])
+
+        # Generate LLL node to set to zero
+        o = make_setter(target, zero, target.location, pos=getpos(self.stmt))
+        o.pos = getpos(self.stmt)
+        self.context.set_in_assignment(False)
+
+        return o
+
     def call(self):
         from .parser import (
             pack_logging_data,
@@ -244,7 +283,10 @@ class Stmt(object):
 
         if isinstance(self.stmt.func, ast.Name):
             if self.stmt.func.id in stmt_dispatch_table:
-                return stmt_dispatch_table[self.stmt.func.id](self.stmt, self.context)
+                if self.stmt.func.id == 'clear':
+                    return self._clear()
+                else:
+                    return stmt_dispatch_table[self.stmt.func.id](self.stmt, self.context)
             elif self.stmt.func.id in dispatch_table:
                 raise StructureException("Function {} can not be called without being used.".format(self.stmt.func.id), self.stmt)
             else:
@@ -281,10 +323,18 @@ class Stmt(object):
             return external_call.make_external_call(self.stmt, self.context)
 
     def parse_assert(self):
-        test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
+        tmp = self.context.in_assertion  # backup value
+        try:
+            self.context.set_in_assertion(True)
+            test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
+        finally:
+            self.context.set_in_assertion(tmp)  # restore
+
         if not self.is_bool_expr(test_expr):
             raise TypeMismatchException('Only boolean expressions allowed', self.stmt.test)
         if self.stmt.msg:
+            if not isinstance(self.stmt.msg, ast.Str):
+                raise StructureException('Reason parameter of assert needs to be a literal string.', self.stmt.msg)
             if len(self.stmt.msg.s.strip()) == 0:
                 raise StructureException('Empty reason string not allowed.', self.stmt)
             reason_str = self.stmt.msg.s.strip()
@@ -303,27 +353,18 @@ class Stmt(object):
         else:
             return LLLnode.from_list(['assert', test_expr], typ=None, pos=getpos(self.stmt))
 
-    def _check_valid_range_constant(self, arg, raise_exception=True):
-        valid = False
-        if isinstance(arg, ast.Num):
-            valid = True
-        if isinstance(arg, ast.Name) and arg.id in self.context.constants:
-            const = self.context.constants[arg.id]
-            if isinstance(const.typ, BaseType) and const.typ.typ in ('uint256', 'int128'):
-                valid = True
+    def _check_valid_range_constant(self, arg_ast_node, raise_exception=True):
+        arg_expr = Expr.parse_value_expr(arg_ast_node, self.context)
+        if isinstance(arg_expr.typ, BaseType) and arg_expr.typ.is_literal and arg_expr.typ.typ in ('uint256', 'int128'):
+            return True, arg_expr
+        else:
+            if raise_exception:
+                raise StructureException("Range only accepts literal (constant) values", arg_expr)
+            return False, arg_expr
 
-        if not valid and raise_exception:
-            raise StructureException("Range only accepts literal (constant) values", arg)
-
-        return valid
-
-    def _get_range_const_value(self, const_node):
-        self._check_valid_range_constant(const_node)
-
-        if isinstance(const_node, ast.Num):
-            return const_node.n
-        if isinstance(const_node, ast.Name):
-            return self.context.constants[const_node.id].value
+    def _get_range_const_value(self, arg_ast_node):
+        _, arg_expr = self._check_valid_range_constant(arg_ast_node)
+        return arg_expr.value
 
     def parse_for(self):
         from .parser import (
@@ -354,7 +395,7 @@ class Stmt(object):
             rounds = arg0_val
 
         # Type 2 for, e.g. for i in range(100, 110): ...
-        elif self._check_valid_range_constant(self.stmt.iter.args[1], raise_exception=False):
+        elif self._check_valid_range_constant(self.stmt.iter.args[1], raise_exception=False)[0]:
             arg0_val = self._get_range_const_value(arg0)
             arg1_val = self._get_range_const_value(self.stmt.iter.args[1])
             start = LLLnode.from_list(arg0_val, typ='int128', pos=getpos(self.stmt))
@@ -377,7 +418,7 @@ class Stmt(object):
             start = Expr.parse_value_expr(arg0, self.context)
 
         varname = self.stmt.target.id
-        pos = self.context.new_variable(varname, BaseType('int128'))
+        pos = self.context.new_variable(varname, BaseType('int128'), pos=getpos(self.stmt))
         self.context.forvars[varname] = True
         o = LLLnode.from_list(['repeat', pos, start, rounds, parse_body(self.stmt.body, self.context)], typ=None, pos=getpos(self.stmt))
         del self.context.vars[varname]
@@ -415,7 +456,7 @@ class Stmt(object):
         iter_var_type = self.context.vars.get(self.stmt.iter.id).typ if isinstance(self.stmt.iter, ast.Name) else None
         subtype = iter_list_node.typ.subtype.typ
         varname = self.stmt.target.id
-        value_pos = self.context.new_variable(varname, BaseType(subtype))
+        value_pos = self.context.new_variable(varname, BaseType(subtype, unit=iter_list_node.typ.subtype.unit))
         i_pos = self.context.new_variable('_index_for_' + varname, BaseType(subtype))
         self.context.forvars[varname] = True
         if iter_var_type:  # Is a list that is already allocated to memory.
@@ -471,7 +512,7 @@ class Stmt(object):
         target = self.get_target(self.stmt.target)
         sub = Expr.parse_value_expr(self.stmt.value, self.context)
         if not isinstance(self.stmt.op, (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Mod)):
-            raise Exception("Unsupported operator for augassign")
+            raise StructureException("Unsupported operator for augassign", self.stmt)
         if not isinstance(target.typ, BaseType):
             raise TypeMismatchException("Can only use aug-assign operators with simple types!", self.stmt.target)
         if target.location == 'storage':
@@ -489,47 +530,11 @@ class Stmt(object):
     def parse_break(self):
         return LLLnode.from_list('break', typ=None, pos=getpos(self.stmt))
 
-    def make_return_stmt(self, begin_pos, _size, loop_memory_position=None):
-        if self.context.is_private:
-            if loop_memory_position is None:
-                loop_memory_position = self.context.new_placeholder(typ=BaseType('uint256'))
-
-            # Make label for stack push loop.
-            label_id = '_'.join([str(x) for x in (self.context.method_id, self.stmt.lineno, self.stmt.col_offset)])
-            exit_label = 'make_return_loop_exit_%s' % label_id
-            start_label = 'make_return_loop_start_%s' % label_id
-
-            # Push prepared data onto the stack,
-            # in reverse order so it can be popped of in order.
-            if _size == 0:
-                mloads = []
-            elif isinstance(begin_pos, int) and isinstance(_size, int):
-                # static values, unroll the mloads instead.
-                mloads = [
-                    ['mload', pos] for pos in range(begin_pos, _size, 32)
-                ]
-                return ['seq_unchecked'] + mloads + [['jump', ['mload', self.context.callback_ptr]]]
-            else:
-                mloads = [
-                    'seq_unchecked',
-                    ['mstore', loop_memory_position, _size],
-                    ['label', start_label],
-                    ['if',
-                        ['le', ['mload', loop_memory_position], 0], ['goto', exit_label]],  # exit loop / break.
-                    ['mload', ['add', begin_pos, ['sub', ['mload', loop_memory_position], 32]]],  # push onto stack
-                    ['mstore', loop_memory_position, ['sub', ['mload', loop_memory_position], 32]],  # decrement i by 32.
-                    ['goto', start_label],
-                    ['label', exit_label]
-                ]
-                return ['seq_unchecked'] + [mloads] + [['jump', ['mload', self.context.callback_ptr]]]
-        else:
-            return ['return', begin_pos, _size]
-
     def parse_return(self):
         if self.context.return_type is None:
             if self.stmt.value:
                 raise TypeMismatchException("Not expecting to return a value", self.stmt)
-            return LLLnode.from_list(self.make_return_stmt(0, 0), typ=None, pos=getpos(self.stmt), valency=0)
+            return LLLnode.from_list(make_return_stmt(self.stmt, self.context, 0, 0), typ=None, pos=getpos(self.stmt), valency=0)
         if not self.stmt.value:
             raise TypeMismatchException("Expecting to return a value", self.stmt)
 
@@ -538,10 +543,11 @@ class Stmt(object):
             if maxlen > 0:
                 zero_pad_i = self.context.new_placeholder(BaseType('uint256'))  # Iterator used to zero pad memory.
                 zero_padder = LLLnode.from_list(
-                    ['repeat', zero_pad_i, ['mload', bytez_placeholder], maxlen,
-                        ['seq',
-                            ['if', ['gt', ['mload', zero_pad_i], maxlen], 'break'],  # stay within allocated bounds
-                            ['mstore8', ['add', ['add', 32, bytez_placeholder], ['mload', zero_pad_i]], 0]]],
+                    ['with', '_ceil32_end', ['ceil32', ['mload', bytez_placeholder]],
+                        ['repeat', zero_pad_i, ['mload', bytez_placeholder], maxlen,
+                            ['seq',
+                                ['if', ['gt', ['mload', zero_pad_i], '_ceil32_end'], 'break'],  # stay within allocated bounds
+                                ['mstore8', ['add', ['add', 32, bytez_placeholder], ['mload', zero_pad_i]], 0]]]],
                     annotation="Zero pad"
                 )
             return zero_padder
@@ -550,24 +556,25 @@ class Stmt(object):
         self.context.increment_return_counter()
         # Returning a value (most common case)
         if isinstance(sub.typ, BaseType):
-            if not isinstance(self.context.return_type, BaseType):
-                raise TypeMismatchException("Trying to return base type %r, output expecting %r" % (sub.typ, self.context.return_type), self.stmt.value)
             sub = unwrap_location(sub)
-            if not are_units_compatible(sub.typ, self.context.return_type):
+
+            if not isinstance(self.context.return_type, BaseType):
                 raise TypeMismatchException("Return type units mismatch %r %r" % (sub.typ, self.context.return_type), self.stmt.value)
+            elif self.context.return_type != sub.typ and not sub.typ.is_literal:
+                raise TypeMismatchException("Trying to return base type %r, output expecting %r" % (sub.typ, self.context.return_type), self.stmt.value)
             elif sub.typ.is_literal and (self.context.return_type.typ == sub.typ or 'int' in self.context.return_type.typ and 'int' in sub.typ.typ):
                 if not SizeLimits.in_bounds(self.context.return_type.typ, sub.value):
                     raise InvalidLiteralException("Number out of range: " + str(sub.value), self.stmt)
                 else:
-                    return LLLnode.from_list(['seq', ['mstore', 0, sub], self.make_return_stmt(0, 32)], typ=None, pos=getpos(self.stmt), valency=0)
+                    return LLLnode.from_list(['seq', ['mstore', 0, sub], make_return_stmt(self.stmt, self.context, 0, 32)], typ=None, pos=getpos(self.stmt), valency=0)
             elif is_base_type(sub.typ, self.context.return_type.typ) or \
                     (is_base_type(sub.typ, 'int128') and is_base_type(self.context.return_type, 'int256')):
-                return LLLnode.from_list(['seq', ['mstore', 0, sub], self.make_return_stmt(0, 32)], typ=None, pos=getpos(self.stmt), valency=0)
+                return LLLnode.from_list(['seq', ['mstore', 0, sub], make_return_stmt(self.stmt, self.context, 0, 32)], typ=None, pos=getpos(self.stmt), valency=0)
             else:
                 raise TypeMismatchException("Unsupported type conversion: %r to %r" % (sub.typ, self.context.return_type), self.stmt.value)
         # Returning a byte array
-        elif isinstance(sub.typ, ByteArrayType):
-            if not isinstance(self.context.return_type, ByteArrayType):
+        elif isinstance(sub.typ, ByteArrayLike):
+            if not sub.typ.eq_base(self.context.return_type):
                 raise TypeMismatchException("Trying to return base type %r, output expecting %r" % (sub.typ, self.context.return_type), self.stmt.value)
             if sub.typ.maxlen > self.context.return_type.maxlen:
                 raise TypeMismatchException("Cannot cast from greater max-length %d to shorter max-length %d" %
@@ -587,7 +594,7 @@ class Stmt(object):
                     ),
                     zero_pad(bytez_placeholder, sub.typ.maxlen),
                     ['mstore', len_placeholder, 32],
-                    self.make_return_stmt(len_placeholder, ['ceil32', ['add', ['mload', bytez_placeholder], 64]], loop_memory_position=loop_memory_position)],
+                    make_return_stmt(self.stmt, self.context, len_placeholder, ['ceil32', ['add', ['mload', bytez_placeholder], 64]], loop_memory_position=loop_memory_position)],
                     typ=None, pos=getpos(self.stmt), valency=0
                 )
             else:
@@ -605,18 +612,21 @@ class Stmt(object):
                     self.stmt
                 )
             elif sub.location == "memory" and sub.value != "multi":
-                return LLLnode.from_list(self.make_return_stmt(sub, get_size_of_type(self.context.return_type) * 32, loop_memory_position=loop_memory_position),
+                return LLLnode.from_list(make_return_stmt(self.stmt, self.context, sub, get_size_of_type(self.context.return_type) * 32, loop_memory_position=loop_memory_position),
                                             typ=None, pos=getpos(self.stmt), valency=0)
             else:
                 new_sub = LLLnode.from_list(self.context.new_placeholder(self.context.return_type), typ=self.context.return_type, location='memory')
                 setter = make_setter(new_sub, sub, 'memory', pos=getpos(self.stmt))
-                return LLLnode.from_list(['seq', setter, self.make_return_stmt(new_sub, get_size_of_type(self.context.return_type) * 32, loop_memory_position=loop_memory_position)],
+                return LLLnode.from_list(['seq', setter, make_return_stmt(self.stmt, self.context, new_sub, get_size_of_type(self.context.return_type) * 32, loop_memory_position=loop_memory_position)],
                                             typ=None, pos=getpos(self.stmt))
 
         # Returning a struct
         elif isinstance(sub.typ, StructType):
-            # TODO: VIP1019
-            raise TypeMismatchException("Returning structs not allowed yet, see VIP1019", self.stmt)
+            retty = self.context.return_type
+            if not isinstance(retty, StructType) or retty.name != sub.typ.name:
+                raise TypeMismatchException("Trying to return %r, output expecting %r" % (sub.typ, self.context.return_type), self.stmt.value)
+            return gen_tuple_return(self.stmt, self.context, sub)
+
         # Returning a tuple.
         elif isinstance(sub.typ, TupleType):
             if not isinstance(self.context.return_type, TupleType):
@@ -636,101 +646,13 @@ class Stmt(object):
                         ),
                         self.stmt
                     )
+            return gen_tuple_return(self.stmt, self.context, sub)
 
-            # Is from a call expression.
-            if len(sub.args[0].args) > 0 and sub.args[0].args[0].value == 'call':  # self-call to public.
-                mem_pos = sub.args[0].args[-1]
-                mem_size = get_size_of_type(sub.typ) * 32
-                return LLLnode.from_list(['return', mem_pos, mem_size], typ=sub.typ)
-
-            elif (sub.annotation and 'Internal Call' in sub.annotation):
-                mem_pos = sub.args[-1].value if sub.value == 'seq_unchecked' else sub.args[0].args[-1]
-                mem_size = get_size_of_type(sub.typ) * 32
-                # Add zero padder if bytes are present in output.
-                zero_padder = ['pass']
-                byte_arrays = [(i, x) for i, x in enumerate(sub.typ.members) if isinstance(x, ByteArrayType)]
-                if byte_arrays:
-                    i, x = byte_arrays[-1]
-                    zero_padder = zero_pad(bytez_placeholder=['add', mem_pos, ['mload', mem_pos + i * 32]], maxlen=x.maxlen)
-                return LLLnode.from_list(
-                    ['seq'] + [sub] + [zero_padder] + [self.make_return_stmt(mem_pos, mem_size)
-                ], typ=sub.typ, pos=getpos(self.stmt), valency=0)
-
-            subs = []
-            # Pre-allocate loop_memory_position if required for private function returning.
-            loop_memory_position = self.context.new_placeholder(typ=BaseType('uint256')) if self.context.is_private else None
-            # Allocate dynamic off set counter, to keep track of the total packed dynamic data size.
-            dynamic_offset_counter_placeholder = self.context.new_placeholder(typ=BaseType('uint256'))
-            dynamic_offset_counter = LLLnode(
-                dynamic_offset_counter_placeholder, typ=None, annotation="dynamic_offset_counter"  # dynamic offset position counter.
-            )
-            new_sub = LLLnode.from_list(
-                self.context.new_placeholder(typ=BaseType('uint256')), typ=self.context.return_type, location='memory', annotation='new_sub'
-            )
-            keyz = list(range(len(sub.typ.members)))
-            dynamic_offset_start = 32 * len(sub.args)  # The static list of args end.
-            left_token = LLLnode.from_list('_loc', typ=new_sub.typ, location="memory")
-
-            def get_dynamic_offset_value():
-                # Get value of dynamic offset counter.
-                return ['mload', dynamic_offset_counter]
-
-            def increment_dynamic_offset(dynamic_spot):
-                # Increment dyanmic offset counter in memory.
-                return [
-                    'mstore', dynamic_offset_counter,
-                    ['add',
-                        ['add', ['ceil32', ['mload', dynamic_spot]], 32],
-                        ['mload', dynamic_offset_counter]]
-                ]
-
-            for i, typ in enumerate(keyz):
-                arg = sub.args[i]
-                variable_offset = LLLnode.from_list(['add', 32 * i, left_token], typ=arg.typ, annotation='variable_offset')
-                if isinstance(arg.typ, ByteArrayType):
-                    # Store offset pointer value.
-                    subs.append(['mstore', variable_offset, get_dynamic_offset_value()])
-
-                    # Store dynamic data, from offset pointer onwards.
-                    dynamic_spot = LLLnode.from_list(['add', left_token, get_dynamic_offset_value()], location="memory", typ=arg.typ, annotation='dynamic_spot')
-                    subs.append(make_setter(dynamic_spot, arg, location="memory", pos=getpos(self.stmt)))
-                    subs.append(increment_dynamic_offset(dynamic_spot))
-
-                elif isinstance(arg.typ, BaseType):
-                    subs.append(make_setter(variable_offset, arg, "memory", pos=getpos(self.stmt)))
-                else:
-                    raise Exception("Can't return type %s as part of tuple", type(arg.typ))
-
-            setter = LLLnode.from_list(
-                ['seq',
-                    ['mstore', dynamic_offset_counter, dynamic_offset_start],
-                    ['with', '_loc', new_sub, ['seq'] + subs]],
-                typ=None
-            )
-
-            return LLLnode.from_list(
-                ['seq',
-                    setter,
-                    self.make_return_stmt(new_sub, get_dynamic_offset_value(), loop_memory_position)],
-                typ=None, pos=getpos(self.stmt), valency=0
-            )
         else:
-            raise TypeMismatchException("Can only return base type!", self.stmt)
+            raise TypeMismatchException("Can't return type %r" % sub.typ, self.stmt)
 
     def parse_delete(self):
-        from .parser import (
-            make_setter,
-        )
-        if len(self.stmt.targets) != 1:
-            raise StructureException("Can delete one variable at a time", self.stmt)
-        target = self.stmt.targets[0]
-        target_lll = Expr(self.stmt.targets[0], self.context).lll_node
-
-        if isinstance(target, ast.Subscript):
-            if target_lll.location == "storage":
-                return make_setter(target_lll, LLLnode.from_list(None, typ=NullType()), "storage", pos=getpos(self.stmt))
-
-        raise StructureException("Deleting type not supported.", self.stmt)
+        raise StructureException("Deleting is not supported, use built-in `clear()` function.", self.stmt)
 
     def get_target(self, target):
         if isinstance(target, ast.Subscript) and self.context.in_for_loop:  # Check if we are doing assignment of an iteration loop.
@@ -753,8 +675,8 @@ class Stmt(object):
         if isinstance(target, ast.Tuple):
             return Expr(target, self.context).lll_node
         target = Expr.parse_variable_location(target, self.context)
-        if target.location == 'storage' and self.context.is_constant:
-            raise ConstancyViolationException("Cannot modify storage inside a constant function: %s" % target.annotation)
+        if target.location == 'storage' and self.context.is_constant():
+            raise ConstancyViolationException("Cannot modify storage inside %s: %s" % (self.context.pp_constancy(), target.annotation))
         if not target.mutable:
             raise ConstancyViolationException("Cannot modify function argument: %s" % target.annotation)
         return target

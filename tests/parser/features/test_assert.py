@@ -1,7 +1,8 @@
 import pytest
 
 from vyper.exceptions import (
-    StructureException
+    StructureException,
+    ConstancyViolationException,
 )
 from eth_tester.exceptions import (
     TransactionFailed
@@ -68,3 +69,78 @@ def test(a: int128) -> int128:
     return 1 + a
     """
     assert_compile_failed(lambda: get_contract(code), StructureException)
+
+    # Must be a literal string.
+    code = """
+@public
+def mint(_to: address, _value: uint256):
+    assert msg.sender == self,minter
+    """
+    assert_compile_failed(lambda: get_contract(code), StructureException)
+
+
+def test_assert_no_effects(get_contract, assert_compile_failed, assert_tx_failed):
+    code = """
+@public
+def ret1() -> int128:
+    return 1
+@public
+def test():
+    assert self.ret1() == 1
+    """
+    assert_compile_failed(lambda: get_contract(code), ConstancyViolationException)
+
+    code = """
+@private
+def ret1() -> int128:
+    return 1
+@public
+def test():
+    assert self.ret1() == 1
+    """
+    assert_compile_failed(lambda: get_contract(code), ConstancyViolationException)
+
+    code = """
+@public
+def test():
+    assert raw_call(msg.sender, b'', outsize=1, gas=10, value=1000*1000) == 1
+    """
+    assert_compile_failed(lambda: get_contract(code), ConstancyViolationException)
+
+    code = """
+@private
+def valid_address(sender: address) -> bool:
+    selfdestruct(sender)
+    return True
+@public
+def test():
+    assert self.valid_address(msg.sender)
+    """
+    assert_compile_failed(lambda: get_contract(code), ConstancyViolationException)
+
+    code = """
+@public
+def test():
+    assert create_with_code_of(self) == 1
+    """
+    assert_compile_failed(lambda: get_contract(code), ConstancyViolationException)
+
+    foreign_code = """
+state: uint256
+@public
+def not_really_constant() -> uint256:
+    self.state += 1
+    return self.state
+    """
+    code = """
+contract ForeignContract:
+    def not_really_constant() -> uint256: constant
+
+@public
+def test():
+    assert ForeignContract(msg.sender).not_really_constant() == 1
+    """
+    c1 = get_contract(foreign_code)
+    c2 = get_contract(code, *[c1.address])
+    # static call prohibits state change
+    assert_tx_failed(lambda: c2.test())

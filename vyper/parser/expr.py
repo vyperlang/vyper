@@ -26,7 +26,7 @@ from vyper.utils import (
     string_to_bytes,
     DECIMAL_DIVISOR,
     checksum_encode,
-    is_varname_valid,
+    check_valid_varname
 )
 from vyper.types import (
     BaseType,
@@ -35,6 +35,7 @@ from vyper.types import (
     ListType,
     MappingType,
     NullType,
+    StringType,
     StructType,
     TupleType,
 )
@@ -69,6 +70,7 @@ class Expr(object):
             ast.List: self.list_literals,
             ast.Tuple: self.tuple_literals,
             ast.Dict: self.dict_fail,
+            ast.Bytes: self.bytes,
         }
         expr_type = self.expr.__class__
         if expr_type in self.expr_table:
@@ -85,10 +87,10 @@ class Expr(object):
         if orignum is None and isinstance(self.expr.n, int):
             # Literal (mostly likely) becomes int128
             if SizeLimits.in_bounds('int128', self.expr.n) or self.expr.n < 0:
-                return LLLnode.from_list(self.expr.n, typ=BaseType('int128', unit=None, is_literal=True), pos=getpos(self.expr))
+                return LLLnode.from_list(self.expr.n, typ=BaseType('int128', unit={}, is_literal=True), pos=getpos(self.expr))
             # Literal is large enough (mostly likely) becomes uint256.
             else:
-                return LLLnode.from_list(self.expr.n, typ=BaseType('uint256', unit=None, is_literal=True), pos=getpos(self.expr))
+                return LLLnode.from_list(self.expr.n, typ=BaseType('uint256', unit={}, is_literal=True), pos=getpos(self.expr))
 
         elif isinstance(self.expr.n, float):
             numstring, num, den = get_number_as_fraction(self.expr, self.context)
@@ -128,16 +130,25 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             raise InvalidLiteralException("Cannot read 0x value with length %d. Expecting 42 (address incl 0x) or 66 (bytes32 incl 0x)"
                                           % len(orignum), self.expr)
 
-    # Byte array literals
+    # String literals
     def string(self):
         bytez, bytez_length = string_to_bytes(self.expr.s)
-        placeholder = self.context.new_placeholder(ByteArrayType(bytez_length))
+        return self._make_bytelike(StringType(bytez_length), bytez, bytez_length)
+
+    # Byte literals
+    def bytes(self):
+        bytez = self.expr.s
+        bytez_length = len(self.expr.s)
+        return self._make_bytelike(ByteArrayType(bytez_length), bytez, bytez_length)
+
+    def _make_bytelike(self, btype, bytez, bytez_length):
+        placeholder = self.context.new_placeholder(btype)
         seq = []
         seq.append(['mstore', placeholder, bytez_length])
         for i in range(0, len(bytez), 32):
             seq.append(['mstore', ['add', placeholder, i + 32], bytes_to_int((bytez + b'\x00' * 31)[i: i + 32])])
         return LLLnode.from_list(['seq'] + seq + [placeholder],
-            typ=ByteArrayType(bytez_length), location='memory', pos=getpos(self.expr), annotation='Create ByteArray: %s' % bytez)
+            typ=btype, location='memory', pos=getpos(self.expr), annotation='Create %r: %s' % (btype, bytez))
 
     # True, False, None constants
     def constants(self):
@@ -153,13 +164,41 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
     # Variable names
     def variables(self):
         builtin_constants = {
-            'EMPTY_BYTES32': LLLnode.from_list([0], typ=BaseType('bytes32', None, is_literal=True), pos=getpos(self.expr)),
-            'ZERO_ADDRESS': LLLnode.from_list([0], typ=BaseType('address', None, is_literal=True), pos=getpos(self.expr)),
-            'MAX_INT128': LLLnode.from_list(['mload', MemoryPositions.MAXNUM], typ=BaseType('int128', None, is_literal=True), pos=getpos(self.expr)),
-            'MIN_INT128': LLLnode.from_list(['mload', MemoryPositions.MINNUM], typ=BaseType('int128', None, is_literal=True), pos=getpos(self.expr)),
-            'MAX_DECIMAL': LLLnode.from_list(['mload', MemoryPositions.MAXDECIMAL], typ=BaseType('decimal', None, is_literal=True), pos=getpos(self.expr)),
-            'MIN_DECIMAL': LLLnode.from_list(['mload', MemoryPositions.MINDECIMAL], typ=BaseType('decimal', None, is_literal=True), pos=getpos(self.expr)),
-            'MAX_UINT256': LLLnode.from_list([2**256 - 1], typ=BaseType('uint256', None, is_literal=True), pos=getpos(self.expr)),
+            'EMPTY_BYTES32': LLLnode.from_list(
+                [0],
+                typ=BaseType('bytes32', None, is_literal=True),
+                pos=getpos(self.expr)
+            ),
+            'ZERO_ADDRESS': LLLnode.from_list(
+                [0],
+                typ=BaseType('address', None, is_literal=True),
+                pos=getpos(self.expr)
+            ),
+            'MAX_INT128': LLLnode.from_list(
+                [SizeLimits.MAXNUM],
+                typ=BaseType('int128', None, is_literal=True),
+                pos=getpos(self.expr)
+            ),
+            'MIN_INT128': LLLnode.from_list(
+                [SizeLimits.MINNUM],
+                typ=BaseType('int128', None, is_literal=True),
+                pos=getpos(self.expr)
+            ),
+            'MAX_DECIMAL': LLLnode.from_list(
+                [SizeLimits.MAXDECIMAL],
+                typ=BaseType('decimal', None, is_literal=True),
+                pos=getpos(self.expr)
+            ),
+            'MIN_DECIMAL': LLLnode.from_list(
+                [SizeLimits.MINDECIMAL],
+                typ=BaseType('decimal', None, is_literal=True),
+                pos=getpos(self.expr)
+            ),
+            'MAX_UINT256': LLLnode.from_list(
+                [SizeLimits.MAX_UINT256],
+                typ=BaseType('uint256', None, is_literal=True),
+                pos=getpos(self.expr)
+            ),
         }
 
         if self.expr.id == 'self':
@@ -169,14 +208,8 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             return LLLnode.from_list(var.pos, typ=var.typ, location='memory', pos=getpos(self.expr), annotation=self.expr.id, mutable=var.mutable)
         elif self.expr.id in builtin_constants:
             return builtin_constants[self.expr.id]
-        elif self.expr.id in self.context.constants:
-            # check if value is compatible with
-            const = self.context.constants[self.expr.id]
-            if isinstance(const, ast.AnnAssign):  # Handle ByteArrays.
-                expr = Expr(const.value, self.context).lll_node
-                return expr
-            # Other types are already unwrapped, no need
-            return self.context.constants[self.expr.id]
+        elif self.context.constants.ast_is_constant(self.expr):
+            return self.context.constants.get_constant(self.expr.id, self.context)
         else:
             raise VariableDeclarationException("Undeclared variable: " + self.expr.id, self.expr)
 
@@ -232,7 +265,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             elif key == "tx.origin":
                 return LLLnode.from_list(['origin'], typ='address', pos=getpos(self.expr))
             else:
-                raise Exception("Unsupported keyword: " + key)
+                raise ParserException("Unsupported keyword: " + key, self.expr)
         # Other variables
         else:
             sub = Expr.parse_variable_location(self.expr.value, self.context)
@@ -241,7 +274,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 return sub
             if not isinstance(sub.typ, StructType):
                 raise TypeMismatchException("Type mismatch: member variable access not expected", self.expr.value)
-            attrs = sorted(sub.typ.members.keys())
+            attrs = list(sub.typ.members.keys())
             if self.expr.attr not in attrs:
                 raise TypeMismatchException("Member %s not found. Only the following available: %s" % (self.expr.attr, " ".join(attrs)), self.expr)
             return add_variable_offset(sub, self.expr.attr, pos=getpos(self.expr))
@@ -264,8 +297,10 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
 
     def arithmetic_get_reference(self, item):
         item_lll = Expr.parse_value_expr(item, self.context)
+        if item_lll.typ is None:
+            raise TypeMismatchException('Arithmetic can not be performed on None (return) type.', self.expr)
         if isinstance(item, ast.Call):
-            # We only want to perform call statements once.
+            # Perform call statements once.
             placeholder = self.context.new_placeholder(item_lll.typ)
             pre_alloc = ['mstore', placeholder, item_lll]
             return pre_alloc, LLLnode.from_list(['mload', placeholder], location='memory', typ=item_lll.typ)
@@ -324,7 +359,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
 
         ltyp, rtyp = left.typ.typ, right.typ.typ
         if isinstance(self.expr.op, (ast.Add, ast.Sub)):
-            if left.typ.unit != right.typ.unit and left.typ.unit is not None and right.typ.unit is not None:
+            if left.typ.unit != right.typ.unit and left.typ.unit != {} and right.typ.unit != {}:
                 raise TypeMismatchException("Unit mismatch: %r %r" % (left.typ.unit, right.typ.unit), self.expr)
             if left.typ.positional and right.typ.positional and isinstance(self.expr.op, ast.Add):
                 raise TypeMismatchException("Cannot add two positional units!", self.expr)
@@ -383,7 +418,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         elif isinstance(self.expr.op, ast.Mod):
             if left.typ.positional or right.typ.positional:
                 raise TypeMismatchException("Cannot use positional values as modulus arguments!", self.expr)
-            if left.typ.unit != right.typ.unit and left.typ.unit is not None and right.typ.unit is not None:
+            if not are_units_compatible(left.typ, right.typ) and not (left.typ.unit or right.typ.unit):
                 raise TypeMismatchException("Modulus arguments must have same unit", self.expr)
             new_unit = left.typ.unit or right.typ.unit
             if ltyp == rtyp == 'uint256':
@@ -414,7 +449,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             else:
                 raise TypeMismatchException('Only whole number exponents are supported', self.expr)
         else:
-            raise Exception("Unsupported binop: %r" % self.expr.op)
+            raise ParserException("Unsupported binary operator: %r" % self.expr.op, self.expr)
 
         p = ['seq']
 
@@ -440,8 +475,9 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         left = Expr(self.expr.left, self.context).lll_node
         right = Expr(self.expr.comparators[0], self.context).lll_node
 
-        if left.typ.typ != right.typ.subtype.typ:
-            raise TypeMismatchException("%s cannot be in a list of %s" % (left.typ.typ, right.typ.subtype.typ))
+        if left.typ != right.typ.subtype:
+            raise TypeMismatchException("%s cannot be in a list of %s" % (left.typ, right.typ.subtype))
+
         result_placeholder = self.context.new_placeholder(BaseType('bool'))
         setter = []
 
@@ -511,6 +547,9 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         left = Expr.parse_value_expr(self.expr.left, self.context)
         right = Expr.parse_value_expr(self.expr.comparators[0], self.context)
 
+        if isinstance(right.typ, NullType):
+            raise InvalidLiteralException('Comparison to None is not allowed, compare against a default value.', self.expr)
+
         if isinstance(left.typ, ByteArrayType) and isinstance(right.typ, ByteArrayType):
             if left.typ.maxlen != right.typ.maxlen:
                 raise TypeMismatchException('Can only compare bytes of the same length', self.expr)
@@ -518,7 +557,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 raise ParserException('Can only compare bytes of length shorter than 32 bytes', self.expr)
         elif isinstance(self.expr.ops[0], ast.In) and \
            isinstance(right.typ, ListType):
-            if not are_units_compatible(left.typ, right.typ.subtype) and not are_units_compatible(right.typ.subtype, left.typ):
+            if left.typ != right.typ.subtype:
                 raise TypeMismatchException("Can't use IN comparison with different types!", self.expr)
             return self.build_in_comparator()
         else:
@@ -668,8 +707,6 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
 
             # Struct constructors do not need `self` prefix.
             elif function_name in self.context.structs:
-                if not self.context.in_assignment:
-                    raise StructureException("Struct constructor must be called in RHS of assignment.", self.expr)
                 args = self.expr.args
                 if len(args) != 1:
                     raise StructureException("Struct constructor is called with one argument only", self.expr)
@@ -677,16 +714,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 arg = args[0]
                 if not isinstance(arg, ast.Dict):
                     raise TypeMismatchException("Struct can only be constructed with a dict", self.expr)
-                sub = Expr.struct_literals(arg, self.context)
-                if sub.typ.name is not None:
-                    raise TypeMismatchException("Struct can only be constructed with a dict", self.expr)
-
-                typ = StructType(sub.typ.members, function_name)
-
-                # OR:
-                # sub.typ = typ
-                # return sub
-                return LLLnode(sub.value, typ=typ, args=sub.args, location=sub.location, pos=getpos(self.expr), add_gas_estimate=sub.add_gas_estimate, valency=sub.valency, annotation=function_name)
+                return Expr.struct_literals(arg, function_name, self.context)
 
             else:
                 err_msg = "Not a top-level function: {}".format(function_name)
@@ -699,18 +727,31 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             return external_call.make_external_call(self.expr, self.context)
 
     def list_literals(self):
+
         if not len(self.expr.elts):
             raise StructureException("List must have elements", self.expr)
+
+        def get_out_type(lll_node):
+            if isinstance(lll_node, ListType):
+                return get_out_type(lll_node.subtype)
+            return lll_node.typ
+
         o = []
+        previous_type = None
         out_type = None
+
         for elt in self.expr.elts:
-            o.append(Expr(elt, self.context).lll_node)
+            current_lll_node = Expr(elt, self.context).lll_node
             if not out_type:
-                out_type = o[-1].typ
-            previous_type = o[-1].typ.subtype.typ if hasattr(o[-1].typ, 'subtype') else o[-1].typ
-            current_type = out_type.subtype.typ if hasattr(out_type, 'subtype') else out_type
+                out_type = current_lll_node.typ
+
+            current_type = get_out_type(current_lll_node)
             if len(o) > 1 and previous_type != current_type:
                 raise TypeMismatchException("Lists may only contain one type", self.expr)
+            else:
+                o.append(current_lll_node)
+                previous_type = current_type
+
         return LLLnode.from_list(["multi"] + o, typ=ListType(out_type, len(o)), pos=getpos(self.expr))
 
     def dict_fail(self):
@@ -721,17 +762,18 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         )
         raise InvalidLiteralException("Invalid literal: %r" % ast.dump(self.expr), self.expr)
 
-    def struct_literals(expr, context):
+    def struct_literals(expr, name, context):
         o = {}
         members = {}
         for key, value in zip(expr.keys, expr.values):
-            if not isinstance(key, ast.Name) or not is_varname_valid(key.id, context.custom_units, context.structs):
+            if not isinstance(key, ast.Name):
                 raise TypeMismatchException("Invalid member variable for struct: %r" % vars(key).get('id', key), key)
+            check_valid_varname(key.id, context.custom_units, context.structs, context.constants, "Invalid member variable for struct")
             if key.id in o:
                 raise TypeMismatchException("Member variable duplicated: " + key.id, key)
             o[key.id] = Expr(value, context).lll_node
             members[key.id] = o[key.id].typ
-        return LLLnode.from_list(["multi"] + [o[key] for key in sorted(list(o.keys()))], typ=StructType(members, None), pos=getpos(expr))
+        return LLLnode.from_list(["multi"] + [o[key] for key in (list(o.keys()))], typ=StructType(members, name, is_literal=True), pos=getpos(expr))
 
     def tuple_literals(self):
         if not len(self.expr.elts):
@@ -739,7 +781,8 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         o = []
         for elt in self.expr.elts:
             o.append(Expr(elt, self.context).lll_node)
-        return LLLnode.from_list(["multi"] + o, typ=TupleType(o), pos=getpos(self.expr))
+        typ = TupleType([x.typ for x in o], is_literal=True)
+        return LLLnode.from_list(["multi"] + o, typ=typ, pos=getpos(self.expr))
 
     # Parse an expression that results in a value
     def parse_value_expr(expr, context):
@@ -749,5 +792,5 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
     def parse_variable_location(expr, context):
         o = Expr(expr, context).lll_node
         if not o.location:
-            raise Exception("Looking for a variable location, instead got a value")
+            raise ParserException("Looking for a variable location, instead got a value", expr)
         return o

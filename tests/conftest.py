@@ -41,7 +41,7 @@ class VyperMethod(ConciseMethod):
     def __prepared_function(self, *args, **kwargs):
         if not kwargs:
             modifier, modifier_dict = 'call', {}
-            fn_abi = [x for x in self._function.contract_abi if x['name'] == self._function.function_identifier].pop()
+            fn_abi = [x for x in self._function.contract_abi if x.get('name') == self._function.function_identifier].pop()
             modifier_dict.update({'gas': fn_abi.get('gas', 0) + 50000})  # To make tests faster just supply some high gas value.
         elif len(kwargs) == 1:
             modifier, modifier_dict = kwargs.popitem()
@@ -304,3 +304,20 @@ def get_logs(w3):
         logs = c._classic_contract.events[event_name]().processReceipt(tx_receipt)
         return logs
     return get_logs
+
+
+@pytest.fixture
+def search_for_sublist():
+
+    def search_for_sublist(lll, sublist):
+        _list = lll.to_list() if hasattr(lll, 'to_list') else lll
+        if _list == sublist:
+            return True
+        if isinstance(_list, list):
+            for i in _list:
+                ret = search_for_sublist(i, sublist)
+                if ret is True:
+                    return ret
+        return False
+
+    return search_for_sublist
