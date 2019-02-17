@@ -9,6 +9,8 @@ if (_sys.version_info.major, _sys.version_info.minor) < (3, 6):
 
 try:
     __version__ = _pkg_resources.get_distribution('vyper').version
+    __version__ += '+commit.'
+    __version__ += _pkg_resources.resource_string('vyper', 'GITVER.txt').decode('utf-8')
 except _pkg_resources.DistributionNotFound:
     __version__ = '0.0.0development'
 

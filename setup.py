@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from setuptools import setup, find_packages
+import subprocess, os, tempfile
 
 
 test_deps = [
@@ -17,6 +18,14 @@ extras = {
 }
 
 
+commithash = subprocess.check_output("git rev-parse --short HEAD".split())
+commithash = commithash.decode('utf-8').strip()
+
+tmpdir = tempfile.mkdtemp()
+hashfile = os.path.relpath(os.path.join(tmpdir, 'GITVER.txt'))
+with open(hashfile, 'w') as f :
+    f.write(commithash)
+
 setup(
     name='vyper',
     # *IMPORTANT*: Don't manually change the version here. Use the 'bumpversion' utility.
@@ -29,6 +38,7 @@ setup(
     license="MIT",
     keywords='ethereum',
     include_package_data=True,
+    data_files=[('vyper', [hashfile])],
     packages=find_packages(exclude=('tests', 'docs')),
     python_requires='>=3.6',
     py_modules=['vyper'],
