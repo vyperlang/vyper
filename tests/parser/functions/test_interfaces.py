@@ -80,8 +80,8 @@ def test() -> bool:
 
 
 def test_builtin_interfaces_parse():
-    assert len(extract_sigs(ERC20.interface_code)) == 8
-    assert len(extract_sigs(ERC721.interface_code)) == 13
+    assert len(extract_sigs({'type': 'vyper', 'code': ERC20.interface_code})) == 8
+    assert len(extract_sigs({'type': 'vyper', 'code': ERC721.interface_code})) == 13
 
 
 def test_external_interface_parsing(assert_compile_failed):
@@ -96,7 +96,10 @@ def bar() -> uint256:
     """
 
     interface_codes = {
-        'FooBarInterface': interface_code
+        'FooBarInterface': {
+            'type': 'vyper',
+            'code': interface_code
+        }
     }
 
     code = """
@@ -181,7 +184,9 @@ def test():
     """
 
     erc20 = get_contract(token_code)
-    test_c = get_contract(code, *[erc20.address], interface_codes={'TokenCode': token_code})
+    test_c = get_contract(code, *[erc20.address], interface_codes={
+        'TokenCode': {'type': 'vyper', 'code': token_code}
+    })
 
     sender = w3.eth.accounts[0]
     assert erc20.balanceOf(sender) == 0
@@ -217,7 +222,12 @@ def test():
     """
 
     erc20 = get_contract(token_code)
-    test_c = get_contract(code, *[erc20.address], interface_codes={'TokenCode': token_code})
+    test_c = get_contract(code, *[erc20.address], interface_codes={
+        'TokenCode': {
+            'type': 'vyper',
+            'code': token_code
+        }
+    })
 
     sender = w3.eth.accounts[0]
     assert erc20.balanceOf(sender) == 0
