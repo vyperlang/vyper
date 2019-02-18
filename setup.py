@@ -34,6 +34,7 @@ setup(
     py_modules=['vyper'],
     install_requires=[
         'pycryptodome>=3.5.1,<4',
+        'rlp<2.0.0,>=1.0.3'
     ],
     setup_requires=[
         'pytest-runner',
