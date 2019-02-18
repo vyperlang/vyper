@@ -287,14 +287,14 @@ def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None):
 
         for sig, func_sig in sigs.items():
             if isinstance(func_sig, FunctionSignature):
-                if sig in funcs_left and not func_sig.private:
+                if sig in funcs_left and not func_sig.private and funcs_left[sig].output_type == func_sig.output_type:
                     del funcs_left[sig]
             if isinstance(func_sig, EventSignature) and func_sig.sig in funcs_left:
                 del funcs_left[func_sig.sig]
 
         if funcs_left:
             error_message = 'Contract does not comply to supplied Interface(s).\n'
-            missing_functions = [sig_name for sig_name, func_sig in funcs_left.items() if isinstance(func_sig, FunctionSignature)]
+            missing_functions = [str(func_sig) for sig_name, func_sig in funcs_left.items() if isinstance(func_sig, FunctionSignature)]
             missing_events = [sig_name for sig_name, func_sig in funcs_left.items() if isinstance(func_sig, EventSignature)]
             if missing_functions:
                 error_message += 'Missing interface functions:\n\t{}'.format('\n\t'.join(missing_functions))
