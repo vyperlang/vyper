@@ -162,3 +162,73 @@ def foo() -> uint256:
 
     c = get_contract_with_gas_estimation(code)
     assert c.foo() == 2 ** 256 - 1
+
+
+def test_convert_from_decimal(get_contract_with_gas_estimation):
+    code = """
+bar: decimal
+nar: decimal
+mar: decimal
+
+@public
+def foo() -> uint256:
+    return convert(27.2319, uint256)
+
+@public
+def hoo() -> uint256:
+    return convert(432.298391, uint256)
+
+@public
+def goo() -> uint256:
+    return convert(0.1234, uint256)
+
+@public
+def foobar() -> uint256:
+    self.bar = 27.2319
+    return convert(self.bar, uint256)
+
+@public
+def hoonar() -> uint256:
+    self.nar = 432.298391
+    return convert(self.nar, uint256)
+
+@public
+def goomar() -> uint256:
+    self.mar = 0.1234
+    return convert(self.mar, uint256)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.foo() == 27
+    assert c.hoo() == 432
+    assert c.goo() == 0
+    assert c.foobar() == 27
+    assert c.hoonar() == 432
+    assert c.goomar() == 0
+
+
+def test_convert_from_negative_decimal(assert_compile_failed, assert_tx_failed, get_contract_with_gas_estimation):
+    code = """
+@public
+def foo() -> uint256:
+    return convert(-27.2319, uint256)
+    """
+
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(code),
+        InvalidLiteralException
+    )
+
+    code = """
+bar: decimal
+
+@public
+def foobar() -> uint256:
+    self.bar = -27.2319
+    return convert(self.bar, uint256)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    assert_tx_failed(
+        lambda: c.foobar()
+    )
