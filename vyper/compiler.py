@@ -24,7 +24,7 @@ def __compile(code, interface_codes=None, *args, **kwargs):
             return True
         else:
             sublists = [sub for sub in asm_list if isinstance(sub, list)]
-            return any([find_nested_opcode(x, key) for x in sublists])
+            return any(find_nested_opcode(x, key) for x in sublists)
 
     if find_nested_opcode(asm, 'DEBUG'):
         print('Please note this code contains DEBUG opcode.')
