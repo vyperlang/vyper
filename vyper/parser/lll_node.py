@@ -113,7 +113,7 @@ class LLLnode():
                     raise Exception("Can't have a zerovalent argument as a test to an if statement! %r" % self.args[0])
                 if len(self.args) not in (2, 3):
                     raise Exception("If can only have 2 or 3 arguments")
-                self.valency = 0
+                self.valency = self.args[1].valency
             # With statements: with <var> <initial> <statement>
             elif self.value == 'with':
                 if len(self.args) != 3:
