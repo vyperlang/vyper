@@ -252,7 +252,8 @@ class Stmt(object):
             raise TypeMismatchException('Only boolean expressions allowed', self.stmt.test)
 
         body = ['if', test_expr,
-                parse_body(self.stmt.body, self.context)] + add_on
+                ['seq', parse_body(self.stmt.body, self.context)]] \
+                        + add_on
         o = LLLnode.from_list(
             body,
             typ=None, pos=getpos(self.stmt)
