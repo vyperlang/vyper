@@ -15,7 +15,7 @@ from vyper.exceptions import (
 from vyper.types import (
     get_size_of_type,
     BaseType,
-    ByteArrayType,
+    ByteArrayLike,
     TupleType
 )
 
@@ -57,7 +57,7 @@ def get_external_contract_call_output(sig, context):
     output_size = get_size_of_type(sig.output_type) * 32
     if isinstance(sig.output_type, BaseType):
         returner = [0, output_placeholder]
-    elif isinstance(sig.output_type, ByteArrayType):
+    elif isinstance(sig.output_type, ByteArrayLike):
         returner = [0, output_placeholder + 32]
     elif isinstance(sig.output_type, TupleType):
         returner = [0, output_placeholder]
