@@ -234,3 +234,55 @@ def test():
 
     test_c.test(transact={})
     assert erc20.balanceOf(sender) == 1000
+
+
+def test_json_interface(get_contract):
+    code = """
+import folding as Folding
+
+implements: Folding
+
+@public
+def test(a: uint256) -> uint256:
+    return 1
+
+
+@public
+def test2(a: uint256):
+    pass
+    """
+
+    interface_codes = {
+        'Folding': {
+            'type': 'json',
+            'code': [
+                {
+                    "name": "test",
+                    "outputs": [{
+                        "type": "uint256",
+                        "name": "out"
+                    }],
+                    "inputs": [{
+                        "type": "uint256",
+                        "name": "s"
+                    }],
+                    "constant": False,
+                    "payable": False,
+                    "type": "function",
+                },
+                {
+                    "name": "test2",
+                    "outputs": [],
+                    "inputs": [{
+                        "type": "uint256",
+                        "name": "s"
+                    }],
+                    "constant": False,
+                    "payable": False,
+                    "type": "function",
+                }
+            ]
+        }
+    }
+
+    assert get_contract(code, interface_codes=interface_codes)
