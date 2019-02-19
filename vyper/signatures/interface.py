@@ -35,17 +35,17 @@ def render_return(sig):
 
 def abi_type_to_ast(atype):
     if atype in ('int128', 'uint256', 'bool', 'address', 'bytes32'):
-        return ast.Name(atype)
+        return ast.Name(atype, None)
     elif atype == 'decimal':
-        return ast.Name('int128')
+        return ast.Name('int128', None)
     elif atype == 'bytes':
         return ast.Subscript(
-            value=ast.Name('bytes'),
+            value=ast.Name('bytes', None),
             slice=ast.Index(256)
         )
     elif atype == 'string':
         return ast.Subscript(
-            value=ast.Name('string'),
+            value=ast.Name('string', None),
             slice=ast.Index(256)
         )
     else:
@@ -72,23 +72,23 @@ def mk_full_signature_from_json(abi):
             returns = abi_type_to_ast(func['outputs'][0]['type'])
         elif len(func['outputs']) > 1:
             returns = ast.Tuple(
-                [
-                    ast.Name(abi_type_to_ast(a['type']))
+                elts=[
+                    abi_type_to_ast(a['type'])
                     for a in func['outputs']
                 ]
             )
 
-        decorator_list = [ast.Name('public')]
+        decorator_list = [ast.Name('public', None)]
         if func['constant']:
-            decorator_list.append(ast.Name('constant'))
+            decorator_list.append(ast.Name('constant', None))
         if func['payable']:
-            decorator_list.append(ast.Name('payable'))
-        # import ipdb; ipdb.set_trace()
+            decorator_list.append(ast.Name('payable', None))
+
         sig = FunctionSignature.from_definition(
             code=ast.FunctionDef(
                 name=func['name'],
+                args=ast.arguments(args=args),
                 decorator_list=decorator_list,
-                args=ast.arguments(args),
                 returns=returns,
             ),
             custom_units=set(),
