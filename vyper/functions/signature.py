@@ -1,4 +1,5 @@
 import ast
+import functools
 
 from vyper.parser.parser_utils import (
     get_original_if_0_prefixed,
@@ -94,6 +95,7 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
 
 def signature(*argz, **kwargz):
     def decorator(f):
+        @functools.wraps(f)
         def g(element, context):
             function_name = element.func.id
             if len(element.args) > len(argz):
