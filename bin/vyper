@@ -23,6 +23,8 @@ format_options_help = """Format to print, one or more of:
  combined_json      - All of the above format options combined as single JSON output.
  interface          - Print Vyper interface of a contract
  external_interface - Print Externa Contract of a contract, to be used as outside contract calls.
+ opcodes            - List of opcodes as a string
+ opcodes_runtime    - List of runtime opcodes as a string
 """
 
 parser = argparse.ArgumentParser(

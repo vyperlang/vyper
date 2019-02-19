@@ -1,12 +1,12 @@
 from vyper.parser import parser
 from vyper import compile_lll
 from vyper import optimizer
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from vyper.signatures.interface import (
     extract_interface_str,
     extract_external_interface,
 )
-
+from vyper.opcodes import opcodes
 
 def __compile(code, interface_codes=None, *args, **kwargs):
     lll = optimizer.optimize(
@@ -98,6 +98,27 @@ def get_source_map(code, contract_name, interface_codes=None):
     return out
 
 
+def get_opcodes(code, contract_name, bytecodes_runtime=False, interface_codes=None):
+    bytecode = __compile(
+        code,
+        bytecode_runtime=bytecodes_runtime,
+        interface_codes=interface_codes
+    ).hex().upper()
+    bytecode = deque(bytecode[i:i+2] for i in range(0,len(bytecode),2))
+    opcode_map = dict((v[0], k) for k,v in opcodes.items())
+    opcode_str = ""
+
+    while bytecode:
+        op = int(bytecode.popleft(), 16)
+        opcode_str += opcode_map[op]+" "
+        if "PUSH" not in opcode_map[op]:
+            continue
+        push_len = int(opcode_map[op][4:])
+        opcode_str += "0x" + "".join(bytecode.popleft() for i in range(push_len)) + " "
+
+    return opcode_str[:-1]
+
+
 output_formats_map = {
     'abi': lambda code, contract_name, interface_codes: mk_full_signature(code, interface_codes=interface_codes),
     'bytecode': lambda code, contract_name, interface_codes: '0x' + __compile(code, interface_codes=interface_codes).hex(),
@@ -108,6 +129,8 @@ output_formats_map = {
     'method_identifiers': lambda code, contract_name, interface_codes: parser.mk_method_identifiers(code, interface_codes=interface_codes),
     'interface': lambda code, contract_name, interface_codes: extract_interface_str(code, contract_name, interface_codes=interface_codes),
     'external_interface': lambda code, contract_name, interface_codes: extract_external_interface(code, contract_name, interface_codes=interface_codes),
+    'opcodes': lambda code, contract_name, interface_codes: get_opcodes(code, contract_name, interface_codes=interface_codes),
+    'opcodes_runtime': lambda code, contract_name, interface_codes: get_opcodes(code, contract_name, bytecodes_runtime=True, interface_codes=interface_codes),
 }
 
 
