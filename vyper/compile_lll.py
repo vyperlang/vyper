@@ -119,6 +119,7 @@ def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=No
         end_symbol = mksymbol()
         o.extend(['ISZERO', end_symbol, 'JUMPI'])
         o.extend(compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height))
+        o.extend(['POP'] * code.args[1].valency)
         o.extend([end_symbol, 'JUMPDEST'])
         return o
     # If statements (3 arguments, ie. if x: y, else: z)
@@ -129,8 +130,10 @@ def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=No
         end_symbol = mksymbol()
         o.extend(['ISZERO', mid_symbol, 'JUMPI'])
         o.extend(compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height))
+        o.extend(['POP'] * code.args[1].valency)
         o.extend([end_symbol, 'JUMP', mid_symbol, 'JUMPDEST'])
         o.extend(compile_to_assembly(code.args[2], withargs, existing_labels, break_dest, height))
+        o.extend(['POP'] * code.args[2].valency)
         o.extend([end_symbol, 'JUMPDEST'])
         return o
     # Repeat statements (compiled from for loops)
