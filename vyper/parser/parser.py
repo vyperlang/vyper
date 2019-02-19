@@ -137,7 +137,7 @@ def generate_default_arg_sigs(code, contracts, global_ctx):
 def mk_full_signature(code, sig_formatter=None, interface_codes=None):
 
     if sig_formatter is None:
-        # Use default JSON style ouptu.
+        # Use default JSON style output.
         sig_formatter = lambda sig, custom_units_descriptions: sig.to_abi_dict(custom_units_descriptions)
 
     o = []

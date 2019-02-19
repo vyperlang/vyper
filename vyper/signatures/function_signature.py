@@ -177,6 +177,12 @@ class FunctionSignature():
         return abi_outputs
 
     def to_abi_dict(self, custom_units_descriptions=None):
+        func_type = "function"
+        if self.name == "__init__":
+            func_type = "constructor"
+        if self.name == "__default__":
+            func_type = "fallback"
+
         abi_dict = {
             "name": self.name,
             "outputs": self._generate_output_abi(custom_units_descriptions),
@@ -187,11 +193,17 @@ class FunctionSignature():
             } for arg in self.args],
             "constant": self.const,
             "payable": self.payable,
-            "type": "constructor" if self.name == "__init__" else "function"
+            "type": func_type
         }
 
         for abi_input in abi_dict['inputs']:
             delete_unit_if_empty(abi_input)
+
+        if self.name in ('__default__', '__init__'):
+            del abi_dict['name']
+        if self.name == '__default__':
+            del abi_dict['inputs']
+            del abi_dict['outputs']
 
         return abi_dict
 
