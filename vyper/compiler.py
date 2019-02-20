@@ -142,7 +142,9 @@ output_formats_map = {
 }
 
 
-def compile_codes(codes, output_formats=['bytecode'], output_type='list', exc_handler=None, interface_codes=None):
+def compile_codes(codes, output_formats=None, output_type='list', exc_handler=None, interface_codes=None):
+    if output_formats is None:
+        output_formats = ('bytecode',)
 
     out = OrderedDict()
     for contract_name, code in codes.items():
@@ -170,6 +172,6 @@ def compile_codes(codes, output_formats=['bytecode'], output_type='list', exc_ha
         raise Exception('Unknown output_type')
 
 
-def compile_code(code, output_formats=['bytecode']):
+def compile_code(code, output_formats=None):
     codes = {'': code}
     return compile_codes(codes, output_formats, 'list')[0]
