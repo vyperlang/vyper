@@ -3,7 +3,7 @@
 
 # You can set these variables from the command line.
 SPHINXOPTS    =
-SPHINXBUILD   = python3 -msphinx
+SPHINXBUILD   = python -msphinx
 SPHINXPROJ    = Vyper
 SOURCEDIR     = .
 BUILDDIR      = _build
