@@ -1,3 +1,5 @@
+import functools
+
 from vyper.parser.parser import LLLnode
 from .opcodes import opcodes
 from vyper.utils import MemoryPositions
@@ -52,6 +54,7 @@ class instruction(str):
 
 
 def apply_line_numbers(func):
+    @functools.wraps(func)
     def apply_line_no_wrapper(*args, **kwargs):
         code = args[0]
         ret = func(*args, **kwargs)

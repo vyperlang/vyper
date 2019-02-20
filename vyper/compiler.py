@@ -1,7 +1,8 @@
+from vyper.opcodes import opcodes
 from vyper.parser import parser
 from vyper import compile_lll
 from vyper import optimizer
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from vyper.signatures.interface import (
     extract_interface_str,
     extract_external_interface,
@@ -24,7 +25,7 @@ def __compile(code, interface_codes=None, *args, **kwargs):
             return True
         else:
             sublists = [sub for sub in asm_list if isinstance(sub, list)]
-            return any([find_nested_opcode(x, key) for x in sublists])
+            return any(find_nested_opcode(x, key) for x in sublists)
 
     if find_nested_opcode(asm, 'DEBUG'):
         print('Please note this code contains DEBUG opcode.')
@@ -54,11 +55,18 @@ def mk_full_signature(code, *args, **kwargs):
     abi = parser.mk_full_signature(parser.parse_to_ast(code), *args, **kwargs)
     # Add gas estimates for each function to ABI
     gas_estimates = gas_estimate(code, *args, **kwargs)
-    for idx, func in enumerate(abi):
-        func_name = func.get('name', '').split('(')[0]
-        # Skip __init__, has no estimate
+    for func in abi:
+        try:
+            func_signature = func['name']
+        except KeyError:
+            # constructor and fallback functions don't have a name
+            continue
+
+        func_name, _, _ = func_signature.partition('(')
+        # This check ensures we skip __init__ since it has no estimate
         if func_name in gas_estimates:
-            abi[idx]['gas'] = gas_estimates[func_name]
+            # TODO: mutation
+            func['gas'] = gas_estimates[func_name]
     return abi
 
 
@@ -98,6 +106,27 @@ def get_source_map(code, contract_name, interface_codes=None):
     return out
 
 
+def get_opcodes(code, contract_name, bytecodes_runtime=False, interface_codes=None):
+    bytecode = __compile(
+        code,
+        bytecode_runtime=bytecodes_runtime,
+        interface_codes=interface_codes
+    ).hex().upper()
+    bytecode = deque(bytecode[i:i + 2] for i in range(0, len(bytecode), 2))
+    opcode_map = dict((v[0], k) for k, v in opcodes.items())
+    opcode_str = ""
+
+    while bytecode:
+        op = int(bytecode.popleft(), 16)
+        opcode_str += opcode_map[op] + " "
+        if "PUSH" not in opcode_map[op]:
+            continue
+        push_len = int(opcode_map[op][4:])
+        opcode_str += "0x" + "".join(bytecode.popleft() for i in range(push_len)) + " "
+
+    return opcode_str[:-1]
+
+
 output_formats_map = {
     'abi': lambda code, contract_name, interface_codes: mk_full_signature(code, interface_codes=interface_codes),
     'bytecode': lambda code, contract_name, interface_codes: '0x' + __compile(code, interface_codes=interface_codes).hex(),
@@ -108,10 +137,14 @@ output_formats_map = {
     'method_identifiers': lambda code, contract_name, interface_codes: parser.mk_method_identifiers(code, interface_codes=interface_codes),
     'interface': lambda code, contract_name, interface_codes: extract_interface_str(code, contract_name, interface_codes=interface_codes),
     'external_interface': lambda code, contract_name, interface_codes: extract_external_interface(code, contract_name, interface_codes=interface_codes),
+    'opcodes': lambda code, contract_name, interface_codes: get_opcodes(code, contract_name, interface_codes=interface_codes),
+    'opcodes_runtime': lambda code, contract_name, interface_codes: get_opcodes(code, contract_name, bytecodes_runtime=True, interface_codes=interface_codes),
 }
 
 
-def compile_codes(codes, output_formats=['bytecode'], output_type='list', exc_handler=None, interface_codes=None):
+def compile_codes(codes, output_formats=None, output_type='list', exc_handler=None, interface_codes=None):
+    if output_formats is None:
+        output_formats = ('bytecode',)
 
     out = OrderedDict()
     for contract_name, code in codes.items():
