@@ -40,6 +40,9 @@ from vyper.signatures.interface import (
 )
 
 
+NONRENTRANT_STORAGE_OFFSET = 0xffffff
+
+
 # Datatype to store all global context information.
 class GlobalContext:
 
@@ -286,8 +289,8 @@ class GlobalContext:
     def add_globals_and_events(self, item):
         item_attributes = {"public": False}
 
-        if len(self._globals) > 0xffffff:
-            raise ParserException("Too many globals defined, only {} globals are allowed".format(0xffffff), item)
+        if len(self._globals) > NONRENTRANT_STORAGE_OFFSET:
+            raise ParserException("Too many globals defined, only {} globals are allowed".format(NONRENTRANT_STORAGE_OFFSET), item)
 
         # Make sure we have a valid variable name.
         if not isinstance(item.target, ast.Name):
@@ -387,7 +390,7 @@ class GlobalContext:
         """
         Nonrentrant locks use a prefix with a counter to minimise deployment cost of a contract.
         """
-        prefix = 0xffffff
+        prefix = NONRENTRANT_STORAGE_OFFSET
 
         if key in self._nonrentrant_keys:
             return self._nonrentrant_keys[key]
