@@ -54,11 +54,18 @@ def mk_full_signature(code, *args, **kwargs):
     abi = parser.mk_full_signature(parser.parse_to_ast(code), *args, **kwargs)
     # Add gas estimates for each function to ABI
     gas_estimates = gas_estimate(code, *args, **kwargs)
-    for idx, func in enumerate(abi):
-        func_name = func.get('name', '').split('(')[0]
-        # Skip __init__, has no estimate
+    for func in abi:
+        try:
+            func_signature = func['name']
+        except KeyError:
+            # constructor and fallback functions don't have a name
+            continue
+
+        func_name, _, _ = func_signature.partition('(')
+        # This check ensures we skip __init__ since it has no estimate
         if func_name in gas_estimates:
-            abi[idx]['gas'] = gas_estimates[func_name]
+            # TODO: mutation
+            func['gas'] = gas_estimates[func_name]
     return abi
 
 
