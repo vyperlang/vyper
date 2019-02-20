@@ -31,6 +31,7 @@ docs:
 	sphinx-apidoc -o docs/ -d 2 vyper/
 	$(MAKE) -C docs clean
 	$(MAKE) -C docs html
+	$(MAKE) -C docs doctest
 	open docs/_build/html/index.html
 
 docker-build:
