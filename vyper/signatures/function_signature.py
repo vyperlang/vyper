@@ -50,7 +50,7 @@ class ContractRecord(VariableRecord):
 
 # Function signature object
 class FunctionSignature():
-    def __init__(self, name, args, output_type, const, payable, private, sig, method_id, custom_units):
+    def __init__(self, name, args, output_type, const, payable, private, nonreentrant_key, sig, method_id, custom_units):
         self.name = name
         self.args = args
         self.output_type = output_type
@@ -61,6 +61,7 @@ class FunctionSignature():
         self.method_id = method_id
         self.gas = None
         self.custom_units = custom_units
+        self.nonreentrant_key = nonreentrant_key
 
     # Get the canonical function signature
     @staticmethod
@@ -107,7 +108,7 @@ class FunctionSignature():
                 mem_pos += get_size_of_type(parsed_type) * 32
 
         # Apply decorators
-        const, payable, private, public = False, False, False, False
+        const, payable, private, public, nonreentrant_key = False, False, False, False, ''
         for dec in code.decorator_list:
             if isinstance(dec, ast.Name) and dec.id == "constant":
                 const = True
@@ -117,6 +118,11 @@ class FunctionSignature():
                 private = True
             elif isinstance(dec, ast.Name) and dec.id == "public":
                 public = True
+            elif isinstance(dec, ast.Call) and dec.func.id == "nonreentrant":
+                if dec.args and len(dec.args) == 1 and isinstance(dec.args[0], ast.Str) and dec.args[0].s:
+                    nonreentrant_key = dec.args[0].s
+                else:
+                    raise StructureException("@nonreentrant decorator requires a non-empty string to use as a key.", dec)
             else:
                 raise StructureException("Bad decorator", dec)
 
@@ -128,6 +134,8 @@ class FunctionSignature():
             raise StructureException("Function {} cannot be both private and payable.".format(name))
         if (not public and not private) and not contract_def:
             raise StructureException("Function visibility must be declared (@public or @private)", code)
+        if constant and nonreentrant_key:
+            raise StructureException("@nonreentrant makes no sense on a @constant function.", code)
         if constant:
             const = True
         # Determine the return type and whether or not it's constant. Expects something
@@ -150,7 +158,7 @@ class FunctionSignature():
 
         # Take the first 4 bytes of the hash of the sig to get the method ID
         method_id = fourbytes_to_int(sha3(bytes(sig, 'utf-8'))[:4])
-        return cls(name, args, output_type, const, payable, private, sig, method_id, custom_units)
+        return cls(name, args, output_type, const, payable, private, nonreentrant_key, sig, method_id, custom_units)
 
     def _generate_output_abi(self, custom_units_descriptions=None):
         t = self.output_type
