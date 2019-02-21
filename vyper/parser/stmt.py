@@ -155,31 +155,31 @@ class Stmt(object):
         return names
 
     def ann_assign(self):
-        self.context.set_in_assignment(True)
-        typ = parse_type(self.stmt.annotation, location='memory', custom_units=self.context.custom_units, custom_structs=self.context.structs, constants=self.context.constants)
-        if isinstance(self.stmt.target, ast.Attribute):
-            raise TypeMismatchException('May not set type for field %r' % self.stmt.target.attr, self.stmt)
-        varname = self.stmt.target.id
-        pos = self.context.new_variable(varname, typ)
-        o = LLLnode.from_list('pass', typ=None, pos=pos)
-        if self.stmt.value is not None:
-            sub = Expr(self.stmt.value, self.context).lll_node
+        with self.context.set_in_assignment():
+            typ = parse_type(self.stmt.annotation, location='memory', custom_units=self.context.custom_units, custom_structs=self.context.structs, constants=self.context.constants)
+            if isinstance(self.stmt.target, ast.Attribute):
+                raise TypeMismatchException('May not set type for field %r' % self.stmt.target.attr, self.stmt)
+            varname = self.stmt.target.id
+            pos = self.context.new_variable(varname, typ)
+            o = LLLnode.from_list('pass', typ=None, pos=pos)
+            if self.stmt.value is not None:
+                sub = Expr(self.stmt.value, self.context).lll_node
 
-            # Disallow assignment to None
-            if isinstance(sub.typ, NullType):
-                raise InvalidLiteralException('Assignment to None is not allowed, use a default value or built-in `clear()`.', self.stmt)
+                # Disallow assignment to None
+                if isinstance(sub.typ, NullType):
+                    raise InvalidLiteralException('Assignment to None is not allowed, use a default value or built-in `clear()`.', self.stmt)
 
-            # If bytes[32] to bytes32 assignment rewrite sub as bytes32.
-            if isinstance(sub.typ, ByteArrayType) and sub.typ.maxlen == 32 and isinstance(typ, BaseType) and typ.typ == 'bytes32':
-                sub = LLLnode(bytes_to_int(self.stmt.value.s), typ=BaseType('bytes32'), pos=getpos(self.stmt))
+                # If bytes[32] to bytes32 assignment rewrite sub as bytes32.
+                if isinstance(sub.typ, ByteArrayType) and sub.typ.maxlen == 32 and isinstance(typ, BaseType) and typ.typ == 'bytes32':
+                    sub = LLLnode(bytes_to_int(self.stmt.value.s), typ=BaseType('bytes32'), pos=getpos(self.stmt))
 
-            self._check_valid_assign(sub)
-            self._check_same_variable_assign(sub)
-            variable_loc = LLLnode.from_list(pos, typ=typ, location='memory', pos=getpos(self.stmt))
-            o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
-        # o.pos = getpos(self.stmt) # TODO: Should this be here like in assign()?
-        self.context.set_in_assignment(False)
-        return o
+                self._check_valid_assign(sub)
+                self._check_same_variable_assign(sub)
+                variable_loc = LLLnode.from_list(pos, typ=typ, location='memory', pos=getpos(self.stmt))
+                o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
+                # o.pos = getpos(self.stmt) # TODO: Should this be here like in assign()?
+
+            return o
 
     def _check_implicit_conversion(self, var_id, sub):
         target_typ = self.context.vars[var_id].typ
@@ -192,38 +192,39 @@ class Stmt(object):
         # Assignment (e.g. x[4] = y)
         if len(self.stmt.targets) != 1:
             raise StructureException("Assignment statement must have one target", self.stmt)
-        self.context.set_in_assignment(True)
-        sub = Expr(self.stmt.value, self.context).lll_node
 
-        # Disallow assignment to None
-        if isinstance(sub.typ, NullType):
-            raise InvalidLiteralException('Assignment to None is not allowed, use a default value or built-in `clear()`.', self.stmt)
+        with self.context.set_in_assignment():
+            sub = Expr(self.stmt.value, self.context).lll_node
 
-        # Determine if it's an RLPList assignment.
-        if isinstance(self.stmt.value, ast.Call) and getattr(self.stmt.value.func, 'id', '') == 'RLPList':
-            pos = self.context.new_variable(self.stmt.targets[0].id, sub.typ)
-            variable_loc = LLLnode.from_list(pos, typ=sub.typ, location='memory', pos=getpos(self.stmt), annotation=self.stmt.targets[0].id)
-            o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
-        else:
-            # Error check when assigning to declared variable
-            if isinstance(self.stmt.targets[0], ast.Name):
-                # Do not allow assignment to undefined variables without annotation
-                if self.stmt.targets[0].id not in self.context.vars:
-                    raise VariableDeclarationException("Variable type not defined", self.stmt)
+            # Disallow assignment to None
+            if isinstance(sub.typ, NullType):
+                raise InvalidLiteralException('Assignment to None is not allowed, use a default value or built-in `clear()`.', self.stmt)
 
-                # Check against implicit conversion
-                self._check_implicit_conversion(self.stmt.targets[0].id, sub)
+            # Determine if it's an RLPList assignment.
+            if isinstance(self.stmt.value, ast.Call) and getattr(self.stmt.value.func, 'id', '') == 'RLPList':
+                pos = self.context.new_variable(self.stmt.targets[0].id, sub.typ)
+                variable_loc = LLLnode.from_list(pos, typ=sub.typ, location='memory', pos=getpos(self.stmt), annotation=self.stmt.targets[0].id)
+                o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
+            else:
+                # Error check when assigning to declared variable
+                if isinstance(self.stmt.targets[0], ast.Name):
+                    # Do not allow assignment to undefined variables without annotation
+                    if self.stmt.targets[0].id not in self.context.vars:
+                        raise VariableDeclarationException("Variable type not defined", self.stmt)
 
-            # Do no allow tuple-to-tuple assignment
-            if isinstance(self.stmt.targets[0], ast.Tuple) and isinstance(self.stmt.value, ast.Tuple):
-                raise VariableDeclarationException("Tuple to tuple assignment not supported", self.stmt)
+                    # Check against implicit conversion
+                    self._check_implicit_conversion(self.stmt.targets[0].id, sub)
 
-            # Checks to see if assignment is valid
-            target = self.get_target(self.stmt.targets[0])
-            o = make_setter(target, sub, target.location, pos=getpos(self.stmt))
+                # Do no allow tuple-to-tuple assignment
+                if isinstance(self.stmt.targets[0], ast.Tuple) and isinstance(self.stmt.value, ast.Tuple):
+                    raise VariableDeclarationException("Tuple to tuple assignment not supported", self.stmt)
 
-        o.pos = getpos(self.stmt)
-        self.context.set_in_assignment(False)
+                # Checks to see if assignment is valid
+                target = self.get_target(self.stmt.targets[0])
+                o = make_setter(target, sub, target.location, pos=getpos(self.stmt))
+
+            o.pos = getpos(self.stmt)
+
         return o
 
     def is_bool_expr(self, test_expr):
@@ -272,7 +273,6 @@ class Stmt(object):
         # Generate LLL node to set to zero
         o = make_setter(target, zero, target.location, pos=getpos(self.stmt))
         o.pos = getpos(self.stmt)
-        self.context.set_in_assignment(False)
 
         return o
 
@@ -324,12 +324,13 @@ class Stmt(object):
             return external_call.make_external_call(self.stmt, self.context)
 
     def parse_assert(self):
-        tmp = self.context.in_assertion  # backup value
+
+        tmp_assertion_value = self.context.in_assertion  # backup value
         try:
-            self.context.set_in_assertion(True)
-            test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
+            with self.context.set_in_assertion():
+                test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
         finally:
-            self.context.set_in_assertion(tmp)  # restore
+            self.context.in_assertion = tmp_assertion_value  # restore
 
         if not self.is_bool_expr(test_expr):
             raise TypeMismatchException('Only boolean expressions allowed', self.stmt.test)
@@ -459,19 +460,24 @@ class Stmt(object):
         value_pos = self.context.new_variable(varname, BaseType(subtype, unit=iter_list_node.typ.subtype.unit))
         i_pos = self.context.new_variable('_index_for_' + varname, BaseType(subtype))
         self.context.forvars[varname] = True
-        if iter_var_type:  # Is a list that is already allocated to memory.
-            self.context.set_in_for_loop(self.stmt.iter.id)  # make sure list cannot be altered whilst iterating.
-            iter_var = self.context.vars.get(self.stmt.iter.id)
-            body = [
-                'seq',
-                ['mstore', value_pos, ['mload', ['add', iter_var.pos, ['mul', ['mload', i_pos], 32]]]],
-                parse_body(self.stmt.body, self.context)
-            ]
-            o = LLLnode.from_list(
-                ['repeat', i_pos, 0, iter_var.size, body], typ=None, pos=getpos(self.stmt)
-            )
-            self.context.remove_in_for_loop(self.stmt.iter.id)
-        elif isinstance(self.stmt.iter, ast.List):  # List gets defined in the for statement.
+
+        # Is a list that is already allocated to memory.
+        if iter_var_type:
+
+            list_name = self.stmt.iter.id
+            with self.context.set_in_for_loop_scope(list_name):  # make sure list cannot be altered whilst iterating.
+                iter_var = self.context.vars.get(self.stmt.iter.id)
+                body = [
+                    'seq',
+                    ['mstore', value_pos, ['mload', ['add', iter_var.pos, ['mul', ['mload', i_pos], 32]]]],
+                    parse_body(self.stmt.body, self.context)
+                ]
+                o = LLLnode.from_list(
+                    ['repeat', i_pos, 0, iter_var.size, body], typ=None, pos=getpos(self.stmt)
+                )
+
+        # List gets defined in the for statement.
+        elif isinstance(self.stmt.iter, ast.List):
             # Allocate list to memory.
             count = iter_list_node.typ.count
             tmp_list = LLLnode.from_list(
@@ -490,19 +496,23 @@ class Stmt(object):
                     setter,
                     ['repeat', i_pos, 0, count, body]], typ=None, pos=getpos(self.stmt)
             )
-        elif isinstance(self.stmt.iter, ast.Attribute):  # List is contained in storage.
+
+        # List contained in storage.
+        elif isinstance(self.stmt.iter, ast.Attribute):
             count = iter_list_node.typ.count
-            self.context.set_in_for_loop(iter_list_node.annotation)  # make sure list cannot be altered whilst iterating.
-            body = [
-                'seq',
-                ['mstore', value_pos, ['sload', ['add', ['sha3_32', iter_list_node], ['mload', i_pos]]]],
-                parse_body(self.stmt.body, self.context),
-            ]
-            o = LLLnode.from_list(
-                ['seq',
-                    ['repeat', i_pos, 0, count, body]], typ=None, pos=getpos(self.stmt)
-            )
-            self.context.remove_in_for_loop(iter_list_node.annotation)
+            list_name = iter_list_node.annotation
+
+            with self.context.set_in_for_loop_scope(list_name):  # make sure list cannot be altered whilst iterating.
+                body = [
+                    'seq',
+                    ['mstore', value_pos, ['sload', ['add', ['sha3_32', iter_list_node], ['mload', i_pos]]]],
+                    parse_body(self.stmt.body, self.context),
+                ]
+                o = LLLnode.from_list(
+                    ['seq',
+                        ['repeat', i_pos, 0, count, body]], typ=None, pos=getpos(self.stmt)
+                )
+
         del self.context.vars[varname]
         del self.context.vars['_index_for_' + varname]
         del self.context.forvars[varname]
