@@ -237,25 +237,26 @@ class Stmt(object):
         from .parser import (
             parse_body,
         )
+
         if self.stmt.orelse:
             block_scope_id = id(self.stmt.orelse)
-            self.context.start_blockscope(block_scope_id)
-            add_on = [parse_body(self.stmt.orelse, self.context)]
-            self.context.end_blockscope(block_scope_id)
+            with self.context.make_blockscope(block_scope_id):
+                add_on = [parse_body(self.stmt.orelse, self.context)]
         else:
             add_on = []
+
         block_scope_id = id(self.stmt)
-        self.context.start_blockscope(block_scope_id)
-        test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
+        with self.context.make_blockscope(block_scope_id):
+            test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
 
-        if not self.is_bool_expr(test_expr):
-            raise TypeMismatchException('Only boolean expressions allowed', self.stmt.test)
+            if not self.is_bool_expr(test_expr):
+                raise TypeMismatchException('Only boolean expressions allowed', self.stmt.test)
 
-        o = LLLnode.from_list(
-            ['if', test_expr, parse_body(self.stmt.body, self.context)] + add_on,
-            typ=None, pos=getpos(self.stmt)
-        )
-        self.context.end_blockscope(block_scope_id)
+            o = LLLnode.from_list(
+                ['if', test_expr, parse_body(self.stmt.body, self.context)] + add_on,
+                typ=None, pos=getpos(self.stmt)
+            )
+
         return o
 
     def _clear(self):
@@ -382,48 +383,47 @@ class Stmt(object):
             raise StructureException("For statements must be of the form `for i in range(rounds): ..` or `for i in range(start, start + rounds): ..`", self.stmt.iter)  # noqa
 
         block_scope_id = id(self.stmt.orelse)
-        self.context.start_blockscope(block_scope_id)
+        with self.context.make_blockscope(block_scope_id):
+            # Get arg0
+            arg0 = self.stmt.iter.args[0]
+            num_of_args = len(self.stmt.iter.args)
 
-        # Get arg0
-        arg0 = self.stmt.iter.args[0]
-        num_of_args = len(self.stmt.iter.args)
+            # Type 1 for, e.g. for i in range(10): ...
+            if num_of_args == 1:
+                arg0_val = self._get_range_const_value(arg0)
+                start = LLLnode.from_list(0, typ='int128', pos=getpos(self.stmt))
+                rounds = arg0_val
 
-        # Type 1 for, e.g. for i in range(10): ...
-        if num_of_args == 1:
-            arg0_val = self._get_range_const_value(arg0)
-            start = LLLnode.from_list(0, typ='int128', pos=getpos(self.stmt))
-            rounds = arg0_val
+            # Type 2 for, e.g. for i in range(100, 110): ...
+            elif self._check_valid_range_constant(self.stmt.iter.args[1], raise_exception=False)[0]:
+                arg0_val = self._get_range_const_value(arg0)
+                arg1_val = self._get_range_const_value(self.stmt.iter.args[1])
+                start = LLLnode.from_list(arg0_val, typ='int128', pos=getpos(self.stmt))
+                rounds = LLLnode.from_list(arg1_val - arg0_val, typ='int128', pos=getpos(self.stmt))
 
-        # Type 2 for, e.g. for i in range(100, 110): ...
-        elif self._check_valid_range_constant(self.stmt.iter.args[1], raise_exception=False)[0]:
-            arg0_val = self._get_range_const_value(arg0)
-            arg1_val = self._get_range_const_value(self.stmt.iter.args[1])
-            start = LLLnode.from_list(arg0_val, typ='int128', pos=getpos(self.stmt))
-            rounds = LLLnode.from_list(arg1_val - arg0_val, typ='int128', pos=getpos(self.stmt))
+            # Type 3 for, e.g. for i in range(x, x + 10): ...
+            else:
+                arg1 = self.stmt.iter.args[1]
+                if not isinstance(arg1, ast.BinOp) or not isinstance(arg1.op, ast.Add):
+                    raise StructureException("Two-arg for statements must be of the form `for i in range(start, start + rounds): ...`", arg1)
 
-        # Type 3 for, e.g. for i in range(x, x + 10): ...
-        else:
-            arg1 = self.stmt.iter.args[1]
-            if not isinstance(arg1, ast.BinOp) or not isinstance(arg1.op, ast.Add):
-                raise StructureException("Two-arg for statements must be of the form `for i in range(start, start + rounds): ...`", arg1)
+                if ast.dump(arg0) != ast.dump(arg1.left):
+                    raise StructureException(
+                        ("Two-arg for statements of the form `for i in range(x, x + y): ...`"
+                         " must have x identical in both places: %r %r") % (ast.dump(arg0), ast.dump(arg1.left)),
+                        self.stmt.iter
+                    )
 
-            if ast.dump(arg0) != ast.dump(arg1.left):
-                raise StructureException(
-                    ("Two-arg for statements of the form `for i in range(x, x + y): ...`"
-                     " must have x identical in both places: %r %r") % (ast.dump(arg0), ast.dump(arg1.left)),
-                    self.stmt.iter
-                )
+                rounds = self._get_range_const_value(arg1.right)
+                start = Expr.parse_value_expr(arg0, self.context)
 
-            rounds = self._get_range_const_value(arg1.right)
-            start = Expr.parse_value_expr(arg0, self.context)
+            varname = self.stmt.target.id
+            pos = self.context.new_variable(varname, BaseType('int128'), pos=getpos(self.stmt))
+            self.context.forvars[varname] = True
+            o = LLLnode.from_list(['repeat', pos, start, rounds, parse_body(self.stmt.body, self.context)], typ=None, pos=getpos(self.stmt))
+            del self.context.vars[varname]
+            del self.context.forvars[varname]
 
-        varname = self.stmt.target.id
-        pos = self.context.new_variable(varname, BaseType('int128'), pos=getpos(self.stmt))
-        self.context.forvars[varname] = True
-        o = LLLnode.from_list(['repeat', pos, start, rounds, parse_body(self.stmt.body, self.context)], typ=None, pos=getpos(self.stmt))
-        del self.context.vars[varname]
-        del self.context.forvars[varname]
-        self.context.end_blockscope(block_scope_id)
         return o
 
     def _is_list_iter(self):

@@ -15,6 +15,7 @@ from vyper.exceptions import (
 from vyper.signatures.function_signature import (
     VariableRecord,
 )
+from contextlib import contextmanager
 
 
 class Constancy(Enum):
@@ -86,10 +87,10 @@ class Context():
     def set_in_assertion(self, val):
         self.in_assertion = val
 
-    def start_blockscope(self, blockscope_id):
+    @contextmanager
+    def make_blockscope(self, blockscope_id):
         self.blockscopes.add(blockscope_id)
-
-    def end_blockscope(self, blockscope_id):
+        yield
         # Remove all variables that have specific blockscope_id attached.
         self.vars = {
             name: var_record for name, var_record in self.vars.items()
