@@ -1,5 +1,6 @@
 import ast
 import warnings
+import math
 
 from vyper.functions.signature import (
     signature
@@ -36,7 +37,7 @@ def to_bool(expr, args, kwargs, context):
 
     if input_type == 'bytes':
         if in_arg.typ.maxlen > 32:
-            raise TypeMismatchException("Cannot convert bytes array of max length {} to int128".format(in_arg.value), expr)
+            raise TypeMismatchException("Cannot convert bytes array of max length {} to bool".format(in_arg.value), expr)
         else:
             num = byte_array_to_num(in_arg, expr, 'uint256')
             return LLLnode.from_list(
@@ -53,26 +54,47 @@ def to_bool(expr, args, kwargs, context):
         )
 
 
-@signature(('bytes32', 'string', 'bytes', 'uint256', 'bool'), '*')
+@signature(('num_literal', 'bool', 'decimal', 'uint256', 'bytes32', 'bytes', 'string'), '*')
 def to_int128(expr, args, kwargs, context):
     in_arg = args[0]
     input_type, _ = get_type(in_arg)
+    _unit = in_arg.typ.unit if input_type in ('uint256', 'decimal') else None
 
-    if input_type == 'bytes32':
+    if input_type == 'num_literal':
+        if isinstance(in_arg, int):
+            if not SizeLimits.in_bounds('int128', in_arg):
+                raise InvalidLiteralException("Number out of range: {}".format(in_arg))
+            return LLLnode.from_list(
+                in_arg,
+                typ=BaseType('int128', _unit),
+                pos=getpos(expr)
+            )
+        elif isinstance(in_arg, float):
+            if not SizeLimits.in_bounds('int128', math.trunc(in_arg)):
+                raise InvalidLiteralException("Number out of range: {}".format(math.trunc(in_arg)))
+            return LLLnode.from_list(
+                math.trunc(in_arg),
+                typ=BaseType('int128', _unit),
+                pos=getpos(expr)
+            )
+        else:
+            raise InvalidLiteralException("Unknown numeric literal type: {}".fornat(in_arg))
+
+    elif input_type == 'bytes32':
         if in_arg.typ.is_literal:
             if not SizeLimits.in_bounds('int128', in_arg.value):
                 raise InvalidLiteralException("Number out of range: {}".format(in_arg.value), expr)
             else:
                 return LLLnode.from_list(
                     in_arg,
-                    typ=BaseType('int128', in_arg.typ.unit),
+                    typ=BaseType('int128', _unit),
                     pos=getpos(expr)
                 )
         else:
             return LLLnode.from_list(
                 ['clamp', ['mload', MemoryPositions.MINNUM],
                 in_arg, ['mload', MemoryPositions.MAXNUM]],
-                typ=BaseType('int128', in_arg.typ.unit),
+                typ=BaseType('int128', _unit),
                 pos=getpos(expr)
             )
 
@@ -88,21 +110,30 @@ def to_int128(expr, args, kwargs, context):
             else:
                 return LLLnode.from_list(
                     in_arg,
-                    typ=BaseType('int128', in_arg.typ.unit),
+                    typ=BaseType('int128', _unit),
                     pos=getpos(expr)
                 )
 
         else:
             return LLLnode.from_list(
                 ['uclample', in_arg, ['mload', MemoryPositions.MAXNUM]],
-                typ=BaseType('int128', in_arg.typ.unit),
+                typ=BaseType('int128', _unit),
                 pos=getpos(expr)
             )
+
+    elif input_type == 'decimal':
+        return LLLnode.from_list(
+            ['clamp', ['mload', MemoryPositions.MINNUM],
+            ['sdiv', in_arg, DECIMAL_DIVISOR],
+            ['mload', MemoryPositions.MAXNUM]],
+            typ=BaseType('int128', _unit),
+            pos=getpos(expr)
+        )
 
     elif input_type == 'bool':
         return LLLnode.from_list(
             in_arg,
-            typ=BaseType('int128', in_arg.typ.unit),
+            typ=BaseType('int128', _unit),
             pos=getpos(expr)
         )
 
@@ -110,24 +141,42 @@ def to_int128(expr, args, kwargs, context):
         raise InvalidLiteralException("Invalid input for int128: %r" % in_arg, expr)
 
 
-@signature(('num_literal', 'int128', 'bytes32', 'bytes', 'address', 'bool'), '*')
+@signature(('num_literal', 'int128', 'bytes32', 'bytes', 'address', 'bool', 'decimal'), '*')
 def to_uint256(expr, args, kwargs, context):
     in_arg = args[0]
     input_type, _ = get_type(in_arg)
-    _unit = in_arg.typ.unit if input_type == 'int128' else None
+    _unit = in_arg.typ.unit if input_type in ('int128', 'decimal') else None
 
-    if isinstance(in_arg, int):
-        if not SizeLimits.in_bounds('uint256', in_arg):
-            raise InvalidLiteralException("Number out of range: {}".format(in_arg))
+    if input_type == 'num_literal':
+        if isinstance(in_arg, int):
+            if not SizeLimits.in_bounds('uint256', in_arg):
+                raise InvalidLiteralException("Number out of range: {}".format(in_arg))
+            return LLLnode.from_list(
+                in_arg,
+                typ=BaseType('uint256', _unit),
+                pos=getpos(expr)
+            )
+        elif isinstance(in_arg, float):
+            if not SizeLimits.in_bounds('uint256', math.trunc(in_arg)):
+                raise InvalidLiteralException("Number out of range: {}".format(math.trunc(in_arg)))
+            return LLLnode.from_list(
+                math.trunc(in_arg),
+                typ=BaseType('uint256', _unit),
+                pos=getpos(expr)
+            )
+        else:
+            raise InvalidLiteralException("Unknown numeric literal type: {}".fornat(in_arg))
+
+    elif isinstance(in_arg, LLLnode) and input_type == 'int128':
         return LLLnode.from_list(
-            in_arg,
+            ['clampge', in_arg, 0],
             typ=BaseType('uint256', _unit),
             pos=getpos(expr)
         )
 
-    elif isinstance(in_arg, LLLnode) and input_type in ('int128', 'num_literal'):
+    elif isinstance(in_arg, LLLnode) and input_type == 'decimal':
         return LLLnode.from_list(
-            ['clampge', in_arg, 0],
+            ['div', ['clampge', in_arg, 0], DECIMAL_DIVISOR],
             typ=BaseType('uint256', _unit),
             pos=getpos(expr)
         )
