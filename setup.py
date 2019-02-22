@@ -9,12 +9,18 @@ test_deps = [
     'pytest-xdist==1.18.1',
     'py-evm==0.2.0a39',
     'eth-tester==0.1.0b37',
-    'web3==5.0.0a6'
+    'web3==5.0.0a6',
+    'tox>=3.7,<4',
+]
+lint_deps = [
+    'coveralls>=1.6,<2',
+    'flake8>=3.7,<4',
 ]
 
 
 extras = {
-    'test': test_deps
+    'test': test_deps,
+    'lint': lint_deps,
 }
 
 
