@@ -127,22 +127,72 @@ def get_opcodes(code, contract_name, bytecodes_runtime=False, interface_codes=No
     return opcode_str[:-1]
 
 
+def _mk_abi_output(code, contract_name, interface_codes):
+    return mk_full_signature(code, interface_codes=interface_codes)
+
+
+def _mk_bytecode_output(code, contract_name, interface_codes):
+    return '0x' + __compile(code, interface_codes=interface_codes).hex()
+
+
+def _mk_bytecode_runtime_output(code, contract_name, interface_codes):
+    return '0x' + __compile(code, bytecode_runtime=True, interface_codes=interface_codes).hex()
+
+
+def _mk_ir_output(code, contract_name, interface_codes):
+    return optimizer.optimize(parser.parse_to_lll(code, interface_codes=interface_codes))
+
+
+def _mk_asm_output(code, contract_name, interface_codes):
+    return get_asm(compile_lll.compile_to_assembly(
+        optimizer.optimize(parser.parse_to_lll(code, interface_codes=interface_codes))
+    ))
+
+
+def _mk_source_map_output(code, contract_name, interface_codes):
+    return get_source_map(code, contract_name, interface_codes=interface_codes)
+
+
+def _mk_method_identifiers_output(code, contract_name, interface_codes):
+    return parser.mk_method_identifiers(code, interface_codes=interface_codes)
+
+
+def _mk_interface_output(code, contract_name, interface_codes):
+    return extract_interface_str(code, contract_name, interface_codes=interface_codes)
+
+
+def _mk_external_interface_output(code, contract_name, interface_codes):
+    return extract_external_interface(code, contract_name, interface_codes=interface_codes)
+
+
+def _mk_opcodes(code, contract_name, interface_codes):
+    return get_opcodes(code, contract_name, interface_codes=interface_codes)
+
+
+def _mk_opcodes_runtime(code, contract_name, interface_codes):
+    return get_opcodes(code, contract_name, bytecodes_runtime=True, interface_codes=interface_codes)
+
+
 output_formats_map = {
-    'abi': lambda code, contract_name, interface_codes: mk_full_signature(code, interface_codes=interface_codes),
-    'bytecode': lambda code, contract_name, interface_codes: '0x' + __compile(code, interface_codes=interface_codes).hex(),
-    'bytecode_runtime': lambda code, contract_name, interface_codes: '0x' + __compile(code, bytecode_runtime=True, interface_codes=interface_codes).hex(),
-    'ir': lambda code, contract_name, interface_codes: optimizer.optimize(parser.parse_to_lll(code, interface_codes=interface_codes)),
-    'asm': lambda code, contract_name, interface_codes: get_asm(compile_lll.compile_to_assembly(optimizer.optimize(parser.parse_to_lll(code, interface_codes=interface_codes)))),
-    'source_map': lambda code, contract_name, interface_codes: get_source_map(code, contract_name, interface_codes=interface_codes),
-    'method_identifiers': lambda code, contract_name, interface_codes: parser.mk_method_identifiers(code, interface_codes=interface_codes),
-    'interface': lambda code, contract_name, interface_codes: extract_interface_str(code, contract_name, interface_codes=interface_codes),
-    'external_interface': lambda code, contract_name, interface_codes: extract_external_interface(code, contract_name, interface_codes=interface_codes),
-    'opcodes': lambda code, contract_name, interface_codes: get_opcodes(code, contract_name, interface_codes=interface_codes),
-    'opcodes_runtime': lambda code, contract_name, interface_codes: get_opcodes(code, contract_name, bytecodes_runtime=True, interface_codes=interface_codes),
+    'abi': _mk_abi_output,
+    'bytecode': _mk_bytecode_output,
+    'bytecode_runtime': _mk_bytecode_runtime_output,
+    'ir': _mk_ir_output,
+    'asm': _mk_asm_output,
+    'source_map': _mk_source_map_output,
+    'method_identifiers': _mk_method_identifiers_output,
+    'interface': _mk_interface_output,
+    'external_interface': _mk_external_interface_output,
+    'opcodes': _mk_opcodes,
+    'opcodes_runtime': _mk_opcodes_runtime,
 }
 
 
-def compile_codes(codes, output_formats=None, output_type='list', exc_handler=None, interface_codes=None):
+def compile_codes(codes,
+                  output_formats=None,
+                  output_type='list',
+                  exc_handler=None,
+                  interface_codes=None):
     if output_formats is None:
         output_formats = ('bytecode',)
 
@@ -153,13 +203,14 @@ def compile_codes(codes, output_formats=None, output_type='list', exc_handler=No
                 raise Exception('Unsupported format type %s.' % output_format)
 
             try:
-                out.setdefault(contract_name, {})[output_format] = output_formats_map[output_format](
+                out.setdefault(contract_name, {})
+                out[contract_name][output_format] = output_formats_map[output_format](
                     code=code,
                     contract_name=contract_name,
                     interface_codes=interface_codes
                 )
             except Exception as exc:
-                if exc_handler:
+                if exc_handler is not None:
                     exc_handler(contract_name, exc)
                 else:
                     raise exc
