@@ -1,6 +1,6 @@
 import ast
 import copy
-
+import functools
 
 from vyper.exceptions import (
     ParserException,
@@ -133,12 +133,16 @@ def generate_default_arg_sigs(code, contracts, global_ctx):
     return sig_fun_defs
 
 
+def _default_sig_formatter(sig, custom_units_descriptions):
+    return sig.to_abi_dict(custom_units_descriptions)
+
+
 # Get ABI signature
 def mk_full_signature(code, sig_formatter=None, interface_codes=None):
 
     if sig_formatter is None:
         # Use default JSON style output.
-        sig_formatter = lambda sig, custom_units_descriptions: sig.to_abi_dict(custom_units_descriptions)
+        sig_formatter = _default_sig_formatter
 
     o = []
     global_ctx = GlobalContext.get_global_context(code, interface_codes=interface_codes)
@@ -150,7 +154,8 @@ def mk_full_signature(code, sig_formatter=None, interface_codes=None):
 
     # Produce function signatures.
     for code in global_ctx._defs:
-        sig = FunctionSignature.from_definition(code,
+        sig = FunctionSignature.from_definition(
+            code,
             sigs=global_ctx._contracts,
             custom_units=global_ctx._custom_units,
             custom_structs=global_ctx._structs,
@@ -165,10 +170,18 @@ def mk_full_signature(code, sig_formatter=None, interface_codes=None):
 
 def mk_method_identifiers(code, interface_codes=None):
     o = {}
-    global_ctx = GlobalContext.get_global_context(parse_to_ast(code), interface_codes=interface_codes)
+    global_ctx = GlobalContext.get_global_context(
+        parse_to_ast(code),
+        interface_codes=interface_codes,
+    )
 
     for code in global_ctx._defs:
-        sig = FunctionSignature.from_definition(code, sigs=global_ctx._contracts, custom_units=global_ctx._custom_units, constants=global_ctx._constants)
+        sig = FunctionSignature.from_definition(
+            code,
+            sigs=global_ctx._contracts,
+            custom_units=global_ctx._custom_units,
+            constants=global_ctx._constants,
+        )
         if not sig.private:
             default_sigs = generate_default_arg_sigs(code, global_ctx._contracts, global_ctx)
             for s in default_sigs:
@@ -189,7 +202,11 @@ def parse_external_contracts(external_contracts, _contracts, _structs, _constant
         _defnames = [_def.name for _def in _contract_defs]
         contract = {}
         if len(set(_defnames)) < len(_contract_defs):
-            raise FunctionDeclarationException("Duplicate function name: %s" % [name for name in _defnames if _defnames.count(name) > 1][0])
+            raise FunctionDeclarationException(
+                "Duplicate function name: %s" % (
+                    [name for name in _defnames if _defnames.count(name) > 1][0]
+                )
+            )
 
         for _def in _contract_defs:
             constant = False
@@ -202,17 +219,30 @@ def parse_external_contracts(external_contracts, _contracts, _structs, _constant
             else:
                 raise StructureException('constant or modifying call type must be specified', _def)
             # Recognizes already-defined structs
-            sig = FunctionSignature.from_definition(_def, contract_def=True, constant=constant, custom_structs=_structs, constants=_constants)
+            sig = FunctionSignature.from_definition(
+                _def,
+                contract_def=True,
+                constant=constant,
+                custom_structs=_structs,
+                constants=_constants,
+            )
             contract[sig.name] = sig
         external_contracts[_contractname] = contract
     return external_contracts
 
 
-def parse_other_functions(o, otherfuncs, sigs, external_contracts, origcode, global_ctx, default_function, runtime_only):
+def parse_other_functions(o,
+                          otherfuncs,
+                          sigs,
+                          external_contracts,
+                          origcode,
+                          global_ctx,
+                          default_function,
+                          runtime_only):
     sub = ['seq', initializer_lll]
     add_gas = initializer_lll.gas
     for _def in otherfuncs:
-        sub.append(parse_func(_def, {**{'self': sigs}, **external_contracts}, origcode, global_ctx))  # noqa E999
+        sub.append(parse_func(_def, {**{'self': sigs}, **external_contracts}, origcode, global_ctx))
         sub[-1].total_gas += add_gas
         add_gas += 30
         for sig in generate_default_arg_sigs(_def, external_contracts, global_ctx):
@@ -221,7 +251,12 @@ def parse_other_functions(o, otherfuncs, sigs, external_contracts, origcode, glo
 
     # Add fallback function
     if default_function:
-        default_func = parse_func(default_function[0], {**{'self': sigs}, **external_contracts}, origcode, global_ctx)
+        default_func = parse_func(
+            default_function[0],
+            {**{'self': sigs}, **external_contracts},
+            origcode,
+            global_ctx,
+        )
         sub.append(default_func)
     else:
         sub.append(LLLnode.from_list(['revert', 0, 0], typ=None, annotation='Default function'))
@@ -238,17 +273,30 @@ def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None):
     _names_def = [_def.name for _def in global_ctx._defs]
     # Checks for duplicate function names
     if len(set(_names_def)) < len(_names_def):
-        raise FunctionDeclarationException("Duplicate function name: %s" % [name for name in _names_def if _names_def.count(name) > 1][0])
+        raise FunctionDeclarationException(
+            "Duplicate function name: %s" % (
+                [name for name in _names_def if _names_def.count(name) > 1][0]
+            )
+        )
     _names_events = [_event.target.id for _event in global_ctx._events]
     # Checks for duplicate event names
     if len(set(_names_events)) < len(_names_events):
-        raise EventDeclarationException("Duplicate event name: %s" % [name for name in _names_events if _names_events.count(name) > 1][0])
+        raise EventDeclarationException(
+            "Duplicate event name: %s" % (
+                [name for name in _names_events if _names_events.count(name) > 1][0]
+            )
+        )
     # Initialization function
     initfunc = [_def for _def in global_ctx._defs if is_initializer(_def)]
     # Default function
     defaultfunc = [_def for _def in global_ctx._defs if is_default_func(_def)]
     # Regular functions
-    otherfuncs = [_def for _def in global_ctx._defs if not is_initializer(_def) and not is_default_func(_def)]
+    otherfuncs = [
+        _def
+        for _def
+        in global_ctx._defs
+        if not is_initializer(_def) and not is_default_func(_def)
+    ]
     sigs = {}
     external_contracts = {}
     # Create the main statement
@@ -256,11 +304,21 @@ def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None):
     if global_ctx._events:
         sigs = parse_events(sigs, global_ctx)
     if global_ctx._contracts:
-        external_contracts = parse_external_contracts(external_contracts, global_ctx._contracts, global_ctx._structs, global_ctx._constants)
+        external_contracts = parse_external_contracts(
+            external_contracts,
+            global_ctx._contracts,  # TODO: shouldn't be accessing private properties
+            global_ctx._structs,
+            global_ctx._constants,
+        )
     # If there is an init func...
     if initfunc:
         o.append(['seq', initializer_lll])
-        o.append(parse_func(initfunc[0], {**{'self': sigs}, **external_contracts}, origcode, global_ctx))
+        o.append(parse_func(
+            initfunc[0],
+            {**{'self': sigs}, **external_contracts},
+            origcode,
+            global_ctx,
+        ))
     # If there are regular functions...
     if otherfuncs or defaultfunc:
         o = parse_other_functions(
@@ -279,41 +337,76 @@ def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None):
 
         if funcs_left:
             error_message = 'Contract does not comply to supplied Interface(s).\n'
-            missing_functions = [sig_name for sig_name, func_sig in funcs_left.items() if isinstance(func_sig, FunctionSignature)]
-            missing_events = [sig_name for sig_name, func_sig in funcs_left.items() if isinstance(func_sig, EventSignature)]
+            missing_functions = [
+                sig_name
+                for sig_name, func_sig
+                in funcs_left.items()
+                if isinstance(func_sig, FunctionSignature)
+            ]
+            missing_events = [
+                sig_name
+                for sig_name, func_sig
+                in funcs_left.items()
+                if isinstance(func_sig, EventSignature)
+            ]
             if missing_functions:
-                error_message += 'Missing interface functions:\n\t{}'.format('\n\t'.join(missing_functions))
+                error_message += 'Missing interface functions:\n\t{}'.format(
+                    '\n\t'.join(missing_functions)
+                )
             if missing_events:
-                error_message += 'Missing interface events:\n\t{}'.format('\n\t'.join(missing_events))
+                error_message += 'Missing interface events:\n\t{}'.format(
+                    '\n\t'.join(missing_events)
+                )
             raise StructureException(error_message)
 
     return LLLnode.from_list(o, typ=None)
+
+
+def _mk_calldatacopy_copier(pos, sz, mempos):
+    return ['calldatacopy', mempos, ['add', 4, pos], sz]
+
+
+def _mk_codecopy_coppier(pos, sz, mempos):
+    return ['codecopy', mempos, ['add', '~codelen', pos], sz]
 
 
 # Checks that an input matches its type
 def make_clamper(datapos, mempos, typ, is_init=False):
     if not is_init:
         data_decl = ['calldataload', ['add', 4, datapos]]
-        copier = lambda pos, sz: ['calldatacopy', mempos, ['add', 4, pos], sz]
+        copier = functools.partial(_mk_calldatacopy_copier, mempos=mempos)
     else:
         data_decl = ['codeload', ['add', '~codelen', datapos]]
-        copier = lambda pos, sz: ['codecopy', mempos, ['add', '~codelen', pos], sz]
+        copier = functools.partial(_mk_codecopy_coppier, mempos=mempos)
     # Numbers: make sure they're in range
     if is_base_type(typ, 'int128'):
-        return LLLnode.from_list(['clamp', ['mload', MemoryPositions.MINNUM], data_decl, ['mload', MemoryPositions.MAXNUM]],
-                                 typ=typ, annotation='checking int128 input')
+        return LLLnode.from_list([
+            'clamp',
+            ['mload', MemoryPositions.MINNUM],
+            data_decl,
+            ['mload', MemoryPositions.MAXNUM]
+        ], typ=typ, annotation='checking int128 input')
     # Booleans: make sure they're zero or one
     elif is_base_type(typ, 'bool'):
-        return LLLnode.from_list(['uclamplt', data_decl, 2], typ=typ, annotation='checking bool input')
+        return LLLnode.from_list(
+            ['uclamplt', data_decl, 2],
+            typ=typ,
+            annotation='checking bool input',
+        )
     # Addresses: make sure they're in range
     elif is_base_type(typ, 'address'):
-        return LLLnode.from_list(['uclamplt', data_decl, ['mload', MemoryPositions.ADDRSIZE]], typ=typ, annotation='checking address input')
+        return LLLnode.from_list(
+            ['uclamplt', data_decl, ['mload', MemoryPositions.ADDRSIZE]],
+            typ=typ,
+            annotation='checking address input',
+        )
     # Bytes: make sure they have the right size
     elif isinstance(typ, ByteArrayLike):
-        return LLLnode.from_list(['seq',
-                                    copier(data_decl, 32 + typ.maxlen),
-                                    ['assert', ['le', ['calldataload', ['add', 4, data_decl]], typ.maxlen]]],
-                                 typ=None, annotation='checking bytearray input')
+        return LLLnode.from_list([
+            'seq',
+            copier(data_decl, 32 + typ.maxlen),
+            ['assert', ['le', ['calldataload', ['add', 4, data_decl]], typ.maxlen]]
+        ], typ=None, annotation='checking bytearray input')
     # Lists: recurse
     elif isinstance(typ, ListType):
         o = []
@@ -358,12 +451,21 @@ def get_arg_copier(sig, total_size, memory_dest, offset=4):
 def make_unpacker(ident, i_placeholder, begin_pos):
     start_label = 'dyn_unpack_start_' + ident
     end_label = 'dyn_unpack_end_' + ident
-    return ['seq_unchecked',
+    return [
+        'seq_unchecked',
         ['mstore', begin_pos, 'pass'],  # get len
         ['mstore', i_placeholder, 0],
         ['label', start_label],
-        ['if', ['ge', ['mload', i_placeholder], ['ceil32', ['mload', begin_pos]]], ['goto', end_label]],  # break
-        ['mstore', ['add', ['add', begin_pos, 32], ['mload', i_placeholder]], 'pass'],  # pop into correct memory slot.
+        [  # break
+            'if',
+            ['ge', ['mload', i_placeholder], ['ceil32', ['mload', begin_pos]]],
+            ['goto', end_label],
+        ],
+        [  # pop into correct memory slot.
+            'mstore',
+            ['add', ['add', begin_pos, 32], ['mload', i_placeholder]],
+            'pass',
+        ],
         ['mstore', i_placeholder, ['add', 32, ['mload', i_placeholder]]],  # increment i
         ['goto', start_label],
         ['label', end_label]]
@@ -391,7 +493,9 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
     # Check for duplicate variables with globals
     for arg in sig.args:
         if arg.name in global_ctx._globals:
-            raise FunctionDeclarationException("Variable name duplicated between function arguments and globals: " + arg.name)
+            raise FunctionDeclarationException(
+                "Variable name duplicated between function arguments and globals: " + arg.name
+            )
 
     nonreentrant_pre = [['pass']]
     nonreentrant_post = [['pass']]
@@ -417,8 +521,14 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
     )
 
     # Copy calldata to memory for fixed-size arguments
-    max_copy_size = sum([32 if isinstance(arg.typ, ByteArrayLike) else get_size_of_type(arg.typ) * 32 for arg in sig.args])
-    base_copy_size = sum([32 if isinstance(arg.typ, ByteArrayLike) else get_size_of_type(arg.typ) * 32 for arg in base_args])
+    max_copy_size = sum([
+        32 if isinstance(arg.typ, ByteArrayLike) else get_size_of_type(arg.typ) * 32
+        for arg in sig.args
+    ])
+    base_copy_size = sum([
+        32 if isinstance(arg.typ, ByteArrayLike) else get_size_of_type(arg.typ) * 32
+        for arg in base_args
+    ])
     context.next_mem += max_copy_size
 
     clampers = []
@@ -429,7 +539,10 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
     if sig.private:
         context.callback_ptr = context.new_placeholder(typ=BaseType('uint256'))
         clampers.append(
-            LLLnode.from_list(['mstore', context.callback_ptr, 'pass'], annotation='pop callback pointer')
+            LLLnode.from_list(
+                ['mstore', context.callback_ptr, 'pass'],
+                annotation='pop callback pointer',
+            )
         )
         if total_default_args > 0:
             clampers.append(['label', _post_callback_ptr])
@@ -461,12 +574,22 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
     # Fill variable positions
     for i, arg in enumerate(sig.args):
         if i < len(base_args) and not sig.private:
-            clampers.append(make_clamper(arg.pos, context.next_mem, arg.typ, sig.name == '__init__'))
+            clampers.append(make_clamper(
+                arg.pos,
+                context.next_mem,
+                arg.typ,
+                sig.name == '__init__',
+            ))
         if isinstance(arg.typ, ByteArrayLike):
             context.vars[arg.name] = VariableRecord(arg.name, context.next_mem, arg.typ, False)
             context.next_mem += 32 * get_size_of_type(arg.typ)
         else:
-            context.vars[arg.name] = VariableRecord(arg.name, MemoryPositions.RESERVED_MEMORY + arg.pos, arg.typ, False)
+            context.vars[arg.name] = VariableRecord(
+                arg.name,
+                MemoryPositions.RESERVED_MEMORY + arg.pos,
+                arg.typ,
+                False,
+            )
 
     # Private function copiers. No clamping for private functions.
     dyn_variable_names = [a.name for a in base_args if isinstance(a.typ, ByteArrayLike)]
@@ -483,20 +606,33 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
             unpackers = ['pass']
 
         clampers.append(LLLnode.from_list(
-            ['seq_unchecked'] + unpackers + [0],  # [0] to complete full overarching 'seq' statement, see private_label.
-            typ=None, annotation='dynamic unpacker', pos=getpos(code))
-        )
+            # [0] to complete full overarching 'seq' statement, see private_label.
+            ['seq_unchecked'] + unpackers + [0],
+            typ=None,
+            annotation='dynamic unpacker',
+            pos=getpos(code),
+        ))
 
     # Create "clampers" (input well-formedness checkers)
     # Return function body
     if sig.name == '__init__':
-        o = LLLnode.from_list(['seq'] + clampers + [parse_body(code.body, context)], pos=getpos(code))
+        o = LLLnode.from_list(
+            ['seq'] + clampers + [parse_body(code.body, context)],
+            pos=getpos(code),
+        )
     elif is_default_func(sig):
         if len(sig.args) > 0:
-            raise FunctionDeclarationException('Default function may not receive any arguments.', code)
+            raise FunctionDeclarationException(
+                'Default function may not receive any arguments.', code
+            )
         if sig.private:
-            raise FunctionDeclarationException('Default function may only be public.', code)
-        o = LLLnode.from_list(['seq'] + clampers + [parse_body(code.body, context)], pos=getpos(code))
+            raise FunctionDeclarationException(
+                'Default function may only be public.', code,
+            )
+        o = LLLnode.from_list(
+            ['seq'] + clampers + [parse_body(code.body, context)],
+            pos=getpos(code),
+        )
     else:
 
         if total_default_args > 0:  # Function with default parameters.
@@ -512,7 +648,12 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
                 set_defaults = []
                 if populate_arg_count > 0:
                     current_sig_arg_names = {x.name for x in default_sig.args}
-                    missing_arg_names = [arg.arg for arg in default_args if arg.arg not in current_sig_arg_names]
+                    missing_arg_names = [
+                        arg.arg
+                        for arg
+                        in default_args
+                        if arg.arg not in current_sig_arg_names
+                    ]
                     for arg_name in missing_arg_names:
                         value = Expr(default_values[arg_name], context).lll_node
                         var = context.vars[arg_name]
@@ -541,7 +682,11 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
                     calldata_offset_map = {}
                     for arg in default_sig.args:
                         calldata_offset_map[arg.name] = offset
-                        offset += 32 if isinstance(arg.typ, ByteArrayLike) else get_size_of_type(arg.typ) * 32
+                        offset += (
+                            32
+                            if isinstance(arg.typ, ByteArrayLike)
+                            else get_size_of_type(arg.typ) * 32
+                        )
                     # Copy set default parameters from calldata
                     dynamics = []
                     for arg_name in copier_arg_names:
@@ -554,32 +699,52 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
                                 dynamics.append(var.pos)
                             else:
                                 _size = var.size * 32
-                            default_copiers.append(get_arg_copier(sig=sig, memory_dest=var.pos, total_size=_size, offset=_offset))
+                            default_copiers.append(get_arg_copier(
+                                sig=sig,
+                                memory_dest=var.pos,
+                                total_size=_size,
+                                offset=_offset,
+                            ))
                         else:
                             # Add clampers.
-                            default_copiers.append(make_clamper(calldata_offset - 4, var.pos, var.typ))
+                            default_copiers.append(make_clamper(
+                                calldata_offset - 4,
+                                var.pos,
+                                var.typ,
+                            ))
                             # Add copying code.
                             if isinstance(var.typ, ByteArrayLike):
                                 _offset = ['add', 4, ['calldataload', calldata_offset]]
                             else:
                                 _offset = calldata_offset
-                            default_copiers.append(get_arg_copier(sig=sig, memory_dest=var.pos, total_size=var.size * 32, offset=_offset))
+                            default_copiers.append(get_arg_copier(
+                                sig=sig,
+                                memory_dest=var.pos,
+                                total_size=var.size * 32,
+                                offset=_offset,
+                            ))
 
                     # Unpack byte array if necessary.
                     if dynamics:
                         i_placeholder = context.new_placeholder(typ=BaseType('uint256'))
                         for idx, var_pos in enumerate(dynamics):
                             ident = 'unpack_default_sig_dyn_%d_arg%d' % (default_sig.method_id, idx)
-                            default_copiers.append(
-                                make_unpacker(ident=ident, i_placeholder=i_placeholder, begin_pos=var_pos)
-                            )
+                            default_copiers.append(make_unpacker(
+                                ident=ident,
+                                i_placeholder=i_placeholder,
+                                begin_pos=var_pos,
+                            ))
                     default_copiers.append(0)  # for over arching seq, POP
 
                 sig_chain.append([
                     'if', sig_compare,
                     ['seq',
                         private_label,
-                        LLLnode.from_list(['mstore', context.callback_ptr, 'pass'], annotation='pop callback pointer', pos=getpos(code)) if sig.private else ['pass'],
+                        ['pass'] if not sig.private else LLLnode.from_list([
+                            'mstore',
+                            context.callback_ptr,
+                            'pass',
+                        ], annotation='pop callback pointer', pos=getpos(code)),
                         ['seq'] + set_defaults if set_defaults else ['pass'],
                         ['seq_unchecked'] + default_copiers if default_copiers else ['pass'],
                         ['goto', _post_callback_ptr if sig.private else function_routine]]
@@ -594,20 +759,35 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
 
             # Function with default parameters.
             o = LLLnode.from_list(
-                ['seq',
+                [
+                    'seq',
                     sig_chain,
-                    ['if', 0,  # can only be jumped into
-                        ['seq',
+                    [
+                        'if', 0,  # can only be jumped into
+                        [
+                            'seq',
                             ['label', function_routine] if not sig.private else ['pass'],
-                            ['seq'] + nonreentrant_pre + _clampers + [parse_body(c, context) for c in code.body] + nonreentrant_post + stop_func]]], typ=None, pos=getpos(code))
+                            ['seq'] + nonreentrant_pre + _clampers + [
+                                parse_body(c, context)
+                                for c in code.body
+                            ] + nonreentrant_post + stop_func
+                        ],
+                    ],
+                ], typ=None, pos=getpos(code))
 
         else:
             # Function without default parameters.
             sig_compare, private_label = get_sig_statements(sig, getpos(code))
             o = LLLnode.from_list(
-                ['if',
+                [
+                    'if',
                     sig_compare,
-                    ['seq'] + [private_label] + nonreentrant_pre + clampers + [parse_body(c, context) for c in code.body] + nonreentrant_post + stop_func], typ=None, pos=getpos(code))
+                    ['seq'] + [private_label] + nonreentrant_pre + clampers + [
+                        parse_body(c, context)
+                        for c
+                        in code.body
+                    ] + nonreentrant_post + stop_func
+                ], typ=None, pos=getpos(code))
 
     # Check for at leasts one return statement if necessary.
     if context.return_type and context.function_return_count == 0:
@@ -653,11 +833,15 @@ def pack_logging_topics(event_id, args, expected_topics, context, pos):
 
         if isinstance(arg_type, ByteArrayLike) and isinstance(expected_type, ByteArrayLike):
             if arg_type.maxlen > expected_type.maxlen:
-                raise TypeMismatchException("Topic input bytes are too big: %r %r" % (arg_type, expected_type), code_pos)
+                raise TypeMismatchException(
+                    "Topic input bytes are too big: %r %r" % (arg_type, expected_type), code_pos
+                )
             if isinstance(arg, ast.Str):
                 bytez, bytez_length = string_to_bytes(arg.s)
                 if len(bytez) > 32:
-                    raise InvalidLiteralException("Can only log a maximum of 32 bytes at a time.", code_pos)
+                    raise InvalidLiteralException(
+                        "Can only log a maximum of 32 bytes at a time.", code_pos
+                    )
                 topics.append(bytes_to_int(bytez + b'\x00' * (32 - bytez_length)))
             else:
                 if value.location == "memory":
@@ -713,23 +897,32 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder,
         # Add zero padding.
         new_maxlen = ceil32(source_lll.typ.maxlen)
 
-        holder.append(
-            ['with', '_ceil32_end', ['ceil32', ['mload', dest_placeholder]],
-                ['seq',
-                    ['with', '_bytearray_loc', dest_placeholder,
-                        ['seq',
-                            ['repeat', zero_pad_i, ['mload', '_bytearray_loc'], new_maxlen,
-                                ['seq',
-                                    ['if', ['ge', ['mload', zero_pad_i], '_ceil32_end'], 'break'],  # stay within allocated bounds
-                                    ['mstore8', ['add', ['add', '_bytearray_loc', 32], ['mload', zero_pad_i]], 0]]]]]]]
-        )
+        holder.append([
+            'with', '_ceil32_end', ['ceil32', ['mload', dest_placeholder]], [
+                'seq', ['with', '_bytearray_loc', dest_placeholder, [
+                    'seq', ['repeat', zero_pad_i, ['mload', '_bytearray_loc'], new_maxlen, [
+                        'seq',
+                        # stay within allocated bounds
+                        ['if', ['ge', ['mload', zero_pad_i], '_ceil32_end'], 'break'],
+                        [
+                            'mstore8',
+                            ['add', ['add', '_bytearray_loc', 32], ['mload', zero_pad_i]],
+                            0,
+                        ],
+                    ]],
+                ]],
+            ]
+        ])
 
         # Increment offset counter.
-        increment_counter = LLLnode.from_list(
-            ['mstore', dynamic_offset_counter,
-                ['add', ['add', ['mload', dynamic_offset_counter], ['ceil32', ['mload', dest_placeholder]]], 32]],
-            annotation='Increment dynamic offset counter'
-        )
+        increment_counter = LLLnode.from_list([
+            'mstore', dynamic_offset_counter,
+            [
+                'add',
+                ['add', ['mload', dynamic_offset_counter], ['ceil32', ['mload', dest_placeholder]]],
+                32,
+            ],
+        ], annotation='Increment dynamic offset counter')
         holder.append(increment_counter)
     elif isinstance(typ, ListType):
         maxlen += (typ.count - 1) * 32
@@ -749,9 +942,19 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder,
             mem_offset = 0
             for i in range(0, size):
                 storage_offset = i
-                arg2 = LLLnode.from_list(['sload', ['add', ['sha3_32', Expr(arg, context).lll_node], storage_offset]],
-                                         typ=typ)
-                holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, placeholder + mem_offset, pos=pos)
+                arg2 = LLLnode.from_list(
+                    ['sload', ['add', ['sha3_32', Expr(arg, context).lll_node], storage_offset]],
+                    typ=typ,
+                )
+                holder, maxlen = pack_args_by_32(
+                    holder,
+                    maxlen,
+                    arg2,
+                    typ,
+                    context,
+                    placeholder + mem_offset,
+                    pos=pos,
+                )
                 mem_offset += get_size_of_type(typ) * 32
 
         # List from variable.
@@ -763,14 +966,30 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder,
             for i in range(0, size):
                 arg2 = LLLnode.from_list(pos + mem_offset, typ=typ, location='memory')
                 # p_holder = context.new_placeholder(BaseType(32)) if i > 0 else placeholder
-                holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, placeholder + mem_offset, pos=pos)
+                holder, maxlen = pack_args_by_32(
+                    holder,
+                    maxlen,
+                    arg2,
+                    typ,
+                    context,
+                    placeholder + mem_offset,
+                    pos=pos,
+                )
                 mem_offset += get_size_of_type(typ) * 32
 
         # List from list literal.
         else:
             mem_offset = 0
             for i, arg2 in enumerate(arg.elts):
-                holder, maxlen = pack_args_by_32(holder, maxlen, arg2, typ, context, placeholder + mem_offset, pos=pos)
+                holder, maxlen = pack_args_by_32(
+                    holder,
+                    maxlen,
+                    arg2,
+                    typ,
+                    context,
+                    placeholder + mem_offset,
+                    pos=pos,
+                )
                 mem_offset += get_size_of_type(typ) * 32
     return holder, maxlen
 
@@ -794,12 +1013,20 @@ def pack_logging_data(expected_data, args, context, pos):
 
             if isinstance(arg, ast.Str):
                 if len(arg.s) > typ.maxlen:
-                    raise TypeMismatchException("Data input bytes are to big: %r %r" % (len(arg.s), typ), pos)
+                    raise TypeMismatchException(
+                        "Data input bytes are to big: %r %r" % (len(arg.s), typ), pos
+                    )
 
-            tmp_variable = context.new_variable('_log_pack_var_%i_%i' % (arg.lineno, arg.col_offset), source_lll.typ)
+            tmp_variable = context.new_variable(
+                '_log_pack_var_%i_%i' % (arg.lineno, arg.col_offset),
+                source_lll.typ,
+            )
             tmp_variable_node = LLLnode.from_list(
-                tmp_variable, typ=source_lll.typ,
-                pos=getpos(arg), location="memory", annotation='log_prealloacted %r' % source_lll.typ
+                tmp_variable,
+                typ=source_lll.typ,
+                pos=getpos(arg),
+                location="memory",
+                annotation='log_prealloacted %r' % source_lll.typ,
             )
             # Store len.
             # holder.append(['mstore', len_placeholder, ['mload', unwrap_location(source_lll)]])
@@ -812,7 +1039,8 @@ def pack_logging_data(expected_data, args, context, pos):
 
     requires_dynamic_offset = any([isinstance(data.typ, ByteArrayLike) for data in expected_data])
     if requires_dynamic_offset:
-        zero_pad_i = context.new_placeholder(BaseType('uint256'))  # Iterator used to zero pad memory.
+        # Iterator used to zero pad memory.
+        zero_pad_i = context.new_placeholder(BaseType('uint256'))
         dynamic_offset_counter = context.new_placeholder(BaseType(32))
         dynamic_placeholder = context.new_placeholder(BaseType(32))
     else:
@@ -834,7 +1062,16 @@ def pack_logging_data(expected_data, args, context, pos):
         typ = data.typ
         placeholder = placeholder_map[i]
         if not isinstance(typ, ByteArrayLike):
-            holder, maxlen = pack_args_by_32(holder, maxlen, prealloacted.get(i, arg), typ, context, placeholder, zero_pad_i=zero_pad_i, pos=pos)
+            holder, maxlen = pack_args_by_32(
+                holder,
+                maxlen,
+                prealloacted.get(i, arg),
+                typ,
+                context,
+                placeholder,
+                zero_pad_i=zero_pad_i,
+                pos=pos,
+            )
 
     # Dynamic position starts right after the static args.
     if requires_dynamic_offset:
