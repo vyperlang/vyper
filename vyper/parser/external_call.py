@@ -20,7 +20,13 @@ from vyper.types import (
 )
 
 
-def external_contract_call(node, context, contract_name, contract_address, pos, value=None, gas=None):
+def external_contract_call(node,
+                           context,
+                           contract_name,
+                           contract_address,
+                           pos,
+                           value=None,
+                           gas=None):
     from vyper.parser.parser import parse_expr
     if value is None:
         value = 0
@@ -37,14 +43,34 @@ def external_contract_call(node, context, contract_name, contract_address, pos, 
             ) % method_name, node.func
         )
     sig = context.sigs[contract_name][method_name]
-    inargs, inargsize, _ = pack_arguments(sig, [parse_expr(arg, context) for arg in node.args], context, pos=pos)
+    inargs, inargsize, _ = pack_arguments(
+        sig,
+        [parse_expr(arg, context) for arg in node.args],
+        context,
+        pos=pos,
+    )
     output_placeholder, output_size, returner = get_external_contract_call_output(sig, context)
-    sub = ['seq', ['assert', ['extcodesize', contract_address]],
-                    ['assert', ['ne', 'address', contract_address]]]
+    sub = [
+        'seq',
+        ['assert', ['extcodesize', contract_address]],
+        ['assert', ['ne', 'address', contract_address]],
+    ]
     if context.is_constant() or sig.const:
-        sub.append(['assert', ['staticcall', gas, contract_address, inargs, inargsize, output_placeholder, output_size]])
+        sub.append([
+            'assert',
+            [
+                'staticcall',
+                gas, contract_address, inargs, inargsize, output_placeholder, output_size,
+            ]
+        ])
     else:
-        sub.append(['assert', ['call', gas, contract_address, value, inargs, inargsize, output_placeholder, output_size]])
+        sub.append([
+            'assert',
+            [
+                'call',
+                gas, contract_address, value, inargs, inargsize, output_placeholder, output_size,
+            ]
+        ])
     sub.extend(returner)
     o = LLLnode.from_list(sub, typ=sig.output_type, location='memory', pos=getpos(node))
     return o
@@ -71,7 +97,10 @@ def get_external_contract_keywords(stmt_expr, context):
     value, gas = None, None
     for kw in stmt_expr.keywords:
         if kw.arg not in ('value', 'gas'):
-            raise TypeMismatchException('Invalid keyword argument, only "gas" and "value" supported.', stmt_expr)
+            raise TypeMismatchException(
+                'Invalid keyword argument, only "gas" and "value" supported.',
+                stmt_expr,
+            )
         elif kw.arg == 'gas':
             gas = Expr.parse_value_expr(kw.value, context)
         elif kw.arg == 'value':
@@ -87,21 +116,57 @@ def make_external_call(stmt_expr, context):
         contract_name = stmt_expr.func.value.func.id
         contract_address = Expr.parse_value_expr(stmt_expr.func.value.args[0], context)
 
-        return external_contract_call(stmt_expr, context, contract_name, contract_address, pos=getpos(stmt_expr), value=value, gas=gas)
+        return external_contract_call(
+            stmt_expr,
+            context,
+            contract_name,
+            contract_address,
+            pos=getpos(stmt_expr),
+            value=value,
+            gas=gas,
+        )
 
-    elif isinstance(stmt_expr.func.value, ast.Attribute) and stmt_expr.func.value.attr in context.sigs:
+    elif isinstance(stmt_expr.func.value, ast.Attribute) and stmt_expr.func.value.attr in context.sigs:  # noqa: E501
         contract_name = stmt_expr.func.value.attr
         var = context.globals[stmt_expr.func.value.attr]
-        contract_address = unwrap_location(LLLnode.from_list(var.pos, typ=var.typ, location='storage', pos=getpos(stmt_expr), annotation='self.' + stmt_expr.func.value.attr))
+        contract_address = unwrap_location(LLLnode.from_list(
+            var.pos,
+            typ=var.typ,
+            location='storage',
+            pos=getpos(stmt_expr),
+            annotation='self.' + stmt_expr.func.value.attr,
+        ))
 
-        return external_contract_call(stmt_expr, context, contract_name, contract_address, pos=getpos(stmt_expr), value=value, gas=gas)
+        return external_contract_call(
+            stmt_expr,
+            context,
+            contract_name,
+            contract_address,
+            pos=getpos(stmt_expr),
+            value=value,
+            gas=gas,
+        )
 
-    elif isinstance(stmt_expr.func.value, ast.Attribute) and stmt_expr.func.value.attr in context.globals:
+    elif isinstance(stmt_expr.func.value, ast.Attribute) and stmt_expr.func.value.attr in context.globals:  # noqa: E501
         contract_name = context.globals[stmt_expr.func.value.attr].typ.unit
         var = context.globals[stmt_expr.func.value.attr]
-        contract_address = unwrap_location(LLLnode.from_list(var.pos, typ=var.typ, location='storage', pos=getpos(stmt_expr), annotation='self.' + stmt_expr.func.value.attr))
+        contract_address = unwrap_location(LLLnode.from_list(
+            var.pos,
+            typ=var.typ,
+            location='storage',
+            pos=getpos(stmt_expr),
+            annotation='self.' + stmt_expr.func.value.attr,
+        ))
 
-        return external_contract_call(stmt_expr, context, contract_name, contract_address, pos=getpos(stmt_expr), value=value, gas=gas)
+        return external_contract_call(
+            stmt_expr,
+            context,
+            contract_name,
+            contract_address,
+            pos=getpos(stmt_expr),
+            value=value,
+            gas=gas,
+        )
 
     else:
         raise StructureException("Unsupported operator: %r" % ast.dump(stmt_expr), stmt_expr)
