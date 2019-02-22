@@ -37,7 +37,12 @@ def to_bool(expr, args, kwargs, context):
 
     if input_type == 'bytes':
         if in_arg.typ.maxlen > 32:
-            raise TypeMismatchException("Cannot convert bytes array of max length {} to bool".format(in_arg.value), expr)
+            raise TypeMismatchException(
+                "Cannot convert bytes array of max length {} to bool".format(
+                    in_arg.value,
+                ),
+                expr,
+            )
         else:
             num = byte_array_to_num(in_arg, expr, 'uint256')
             return LLLnode.from_list(
@@ -92,15 +97,22 @@ def to_int128(expr, args, kwargs, context):
                 )
         else:
             return LLLnode.from_list(
-                ['clamp', ['mload', MemoryPositions.MINNUM],
-                in_arg, ['mload', MemoryPositions.MAXNUM]],
+                [
+                    'clamp',
+                    ['mload', MemoryPositions.MINNUM],
+                    in_arg,
+                    ['mload', MemoryPositions.MAXNUM],
+                ],
                 typ=BaseType('int128', _unit),
                 pos=getpos(expr)
             )
 
     elif input_type in ('string', 'bytes'):
         if in_arg.typ.maxlen > 32:
-            raise TypeMismatchException("Cannot convert bytes array of max length {} to int128".format(in_arg.value), expr)
+            raise TypeMismatchException(
+                "Cannot convert bytes array of max length {} to int128".format(in_arg.value),
+                expr,
+            )
         return byte_array_to_num(in_arg, expr, 'int128')
 
     elif input_type == 'uint256':
@@ -123,9 +135,12 @@ def to_int128(expr, args, kwargs, context):
 
     elif input_type == 'decimal':
         return LLLnode.from_list(
-            ['clamp', ['mload', MemoryPositions.MINNUM],
-            ['sdiv', in_arg, DECIMAL_DIVISOR],
-            ['mload', MemoryPositions.MAXNUM]],
+            [
+                'clamp',
+                ['mload', MemoryPositions.MINNUM],
+                ['sdiv', in_arg, DECIMAL_DIVISOR],
+                ['mload', MemoryPositions.MAXNUM],
+            ],
             typ=BaseType('int128', _unit),
             pos=getpos(expr)
         )
@@ -198,7 +213,10 @@ def to_uint256(expr, args, kwargs, context):
 
     elif isinstance(in_arg, LLLnode) and input_type == 'bytes':
         if in_arg.typ.maxlen > 32:
-            raise InvalidLiteralException("Cannot convert bytes array of max length {} to uint256".format(in_arg.value), expr)
+            raise InvalidLiteralException(
+                "Cannot convert bytes array of max length {} to uint256".format(in_arg.value),
+                expr,
+            )
         return byte_array_to_num(in_arg, expr, 'uint256')
 
     else:
@@ -212,7 +230,10 @@ def to_decimal(expr, args, kwargs, context):
 
     if input_type == 'bytes':
         if in_arg.typ.maxlen > 32:
-            raise TypeMismatchException("Cannot convert bytes array of max length {} to decimal".format(in_arg.value), expr)
+            raise TypeMismatchException(
+                "Cannot convert bytes array of max length {} to decimal".format(in_arg.value),
+                expr,
+            )
         num = byte_array_to_num(in_arg, expr, 'int128')
         return LLLnode.from_list(
             ['mul', num, DECIMAL_DIVISOR],
@@ -227,7 +248,10 @@ def to_decimal(expr, args, kwargs, context):
         if input_type == 'uint256':
             if in_arg.typ.is_literal:
                 if not SizeLimits.in_bounds('int128', (in_arg.value * DECIMAL_DIVISOR)):
-                    raise InvalidLiteralException("Number out of range: {}".format(in_arg.value), expr)
+                    raise InvalidLiteralException(
+                        "Number out of range: {}".format(in_arg.value),
+                        expr,
+                    )
                 else:
                     return LLLnode.from_list(
                         ['mul', in_arg, DECIMAL_DIVISOR],
@@ -236,8 +260,11 @@ def to_decimal(expr, args, kwargs, context):
                     )
             else:
                 return LLLnode.from_list(
-                    ['uclample', ['mul', in_arg, DECIMAL_DIVISOR],
-                    ['mload', MemoryPositions.MAXDECIMAL]],
+                    [
+                        'uclample',
+                        ['mul', in_arg, DECIMAL_DIVISOR],
+                        ['mload', MemoryPositions.MAXDECIMAL]
+                    ],
                     typ=BaseType('decimal', _unit, _positional),
                     pos=getpos(expr)
                 )
@@ -245,7 +272,10 @@ def to_decimal(expr, args, kwargs, context):
         elif input_type == 'bytes32':
             if in_arg.typ.is_literal:
                 if not SizeLimits.in_bounds('int128', (in_arg.value * DECIMAL_DIVISOR)):
-                    raise InvalidLiteralException("Number out of range: {}".format(in_arg.value), expr)
+                    raise InvalidLiteralException(
+                        "Number out of range: {}".format(in_arg.value),
+                        expr,
+                    )
                 else:
                     return LLLnode.from_list(
                         ['mul', in_arg, DECIMAL_DIVISOR],
@@ -254,9 +284,12 @@ def to_decimal(expr, args, kwargs, context):
                     )
             else:
                 return LLLnode.from_list(
-                    ['clamp', ['mload', MemoryPositions.MINDECIMAL],
-                    ['mul', in_arg, DECIMAL_DIVISOR],
-                    ['mload', MemoryPositions.MAXDECIMAL]],
+                    [
+                        'clamp',
+                        ['mload', MemoryPositions.MINDECIMAL],
+                        ['mul', in_arg, DECIMAL_DIVISOR],
+                        ['mload', MemoryPositions.MAXDECIMAL],
+                    ],
                     typ=BaseType('decimal', _unit, _positional),
                     pos=getpos(expr)
                 )
@@ -279,7 +312,10 @@ def to_bytes32(expr, args, kwargs, context):
 
     if input_type == 'bytes':
         if _len > 32:
-            raise TypeMismatchException("Unable to convert bytes[{}] to bytes32, max length is too large.".format(len))
+            raise TypeMismatchException((
+                "Unable to convert bytes[{}] to bytes32, max length is too "
+                "large."
+            ).format(len))
 
         if in_arg.location == "memory":
             return LLLnode.from_list(
@@ -317,7 +353,10 @@ def to_address(expr, args, kwargs, context):
 def to_string(expr, args, kwargs, context):
     in_arg = args[0]
     if in_arg.typ.maxlen > args[1].slice.value.n:
-        raise TypeMismatchException('Cannot convert as input bytes are larger than max length', expr)
+        raise TypeMismatchException(
+            'Cannot convert as input bytes are larger than max length',
+            expr,
+        )
     return LLLnode(
         value=in_arg.value,
         args=in_arg.args,
@@ -331,7 +370,10 @@ def to_string(expr, args, kwargs, context):
 def to_bytes(expr, args, kwargs, context):
     in_arg = args[0]
     if in_arg.typ.maxlen > args[1].slice.value.n:
-        raise TypeMismatchException('Cannot convert as input bytes are larger than max length', expr)
+        raise TypeMismatchException(
+            'Cannot convert as input bytes are larger than max length',
+            expr,
+        )
     return LLLnode(
         value=in_arg.value,
         args=in_arg.args,
