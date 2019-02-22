@@ -17,6 +17,6 @@ def test_valency_mismatch():
         pass
     """
 
-    c = get_contract_with_gas_estimation(conditional_return_code)
+    get_contract_with_gas_estimation(conditional_return_code)
 
     print('Passed conditional return tests')
