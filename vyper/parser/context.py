@@ -1,4 +1,5 @@
-from enum import Enum
+import contextlib
+import enum
 
 from vyper.utils import (
     MemoryPositions,
@@ -17,7 +18,7 @@ from vyper.signatures.function_signature import (
 )
 
 
-class Constancy(Enum):
+class Constancy(enum.Enum):
     Mutable = 0
     Constant = 1
 
@@ -71,25 +72,36 @@ class Context():
         # store global context
         self.global_ctx = global_ctx
 
-    def set_in_assignment(self, state: bool):
-        self.in_assignment = state
+    def is_constant(self):
+        return self.constancy is Constancy.Constant or self.in_assertion
 
-    def set_in_for_loop(self, name_of_list):
+    #
+    # Context Managers
+    # - Context managers are used to ensure proper wrapping of scopes and context states.
+
+    @contextlib.contextmanager
+    def in_for_loop_scope(self, name_of_list):
         self.in_for_loop.add(name_of_list)
-
-    def remove_in_for_loop(self, name_of_list):
+        yield
         self.in_for_loop.remove(name_of_list)
 
-    def is_constant(self):
-        return self.constancy == Constancy.Constant or self.in_assertion
+    @contextlib.contextmanager
+    def assignment_scope(self):
+        self.in_assignment = True
+        yield
+        self.in_assignment = False
 
-    def set_in_assertion(self, val):
-        self.in_assertion = val
+    @contextlib.contextmanager
+    def assertion_scope(self):
+        prev_value = self.in_assertion
+        self.in_assertion = True
+        yield
+        self.in_assertion = prev_value
 
-    def start_blockscope(self, blockscope_id):
+    @contextlib.contextmanager
+    def make_blockscope(self, blockscope_id):
         self.blockscopes.add(blockscope_id)
-
-    def end_blockscope(self, blockscope_id):
+        yield
         # Remove all variables that have specific blockscope_id attached.
         self.vars = {
             name: var_record for name, var_record in self.vars.items()
