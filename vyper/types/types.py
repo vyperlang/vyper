@@ -100,7 +100,12 @@ class NodeType(abc.ABC):
 
 # Data structure for a type that represents a 32-byte object
 class BaseType(NodeType):
-    def __init__(self, typ, unit=False, positional=False, override_signature=False, is_literal=False):
+    def __init__(self,
+                 typ,
+                 unit=False,
+                 positional=False,
+                 override_signature=False,
+                 is_literal=False):
         self.typ = typ
         self.unit = {} if not unit else unit
         self.positional = positional
@@ -108,7 +113,9 @@ class BaseType(NodeType):
         self.is_literal = is_literal
 
     def eq(self, other):
-        return self.typ == other.typ and self.unit == other.unit and self.positional == other.positional
+        return (
+            self.typ == other.typ and self.unit == other.unit
+        ) and self.positional == other.positional
 
     def __repr__(self):
         subs = []
@@ -269,7 +276,7 @@ special_types = {
 # Parse an expression representing a unit
 def parse_unit(item, custom_units):
     if isinstance(item, ast.Name):
-        if (item.id not in valid_units) and (custom_units is not None) and (item.id not in custom_units):
+        if (item.id not in valid_units) and (custom_units is not None) and (item.id not in custom_units):  # noqa: E501
             raise InvalidTypeException("Invalid base unit", item)
         return {item.id: 1}
     elif isinstance(item, ast.Num) and item.n == 1:
@@ -285,7 +292,7 @@ def parse_unit(item, custom_units):
     elif isinstance(item.op, ast.Pow):
         if not isinstance(item.left, ast.Name):
             raise InvalidTypeException("Can only raise a base type to an exponent", item)
-        if not isinstance(item.right, ast.Num) or not isinstance(item.right.n, int) or item.right.n <= 0:
+        if not isinstance(item.right, ast.Num) or not isinstance(item.right.n, int) or item.right.n <= 0:  # noqa: E501
             raise InvalidTypeException("Exponent must be positive integer", item)
         return {item.left.id: item.right.n}
     else:
@@ -297,10 +304,25 @@ def make_struct_type(name, location, members, custom_units, custom_structs, cons
     for key, value in members:
 
         if not isinstance(key, ast.Name):
-            raise InvalidTypeException("Invalid member variable for struct %r, expected a name." % key.id, key)
-        check_valid_varname(key.id, custom_units, custom_structs, constants, "Invalid member variable for struct")
+            raise InvalidTypeException(
+                "Invalid member variable for struct %r, expected a name." % key.id,
+                key,
+            )
+        check_valid_varname(
+            key.id,
+            custom_units,
+            custom_structs,
+            constants,
+            "Invalid member variable for struct",
+        )
 
-        o[key.id] = parse_type(value, location, custom_units=custom_units, custom_structs=custom_structs, constants=constants)
+        o[key.id] = parse_type(
+            value,
+            location,
+            custom_units=custom_units,
+            custom_structs=custom_structs,
+            constants=constants,
+        )
     return StructType(o, name)
 
 
@@ -314,7 +336,14 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
         elif item.id in special_types:
             return special_types[item.id]
         elif (custom_structs is not None) and (item.id in custom_structs):
-            return make_struct_type(item.id, location, custom_structs[item.id], custom_units, custom_structs, constants)
+            return make_struct_type(
+                item.id,
+                location,
+                custom_structs[item.id],
+                custom_units,
+                custom_structs,
+                constants,
+            )
         else:
             raise InvalidTypeException("Invalid base type: " + item.id, item)
     # Units, e.g. num (1/sec) or contracts
@@ -322,20 +351,48 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
         # Mapping type.
         if item.func.id == 'map':
             if location == 'memory':
-                raise InvalidTypeException("No mappings allowed for in-memory types, only fixed-size arrays", item)
+                raise InvalidTypeException(
+                    "No mappings allowed for in-memory types, only fixed-size arrays",
+                    item,
+                )
             if len(item.args) != 2:
-                raise InvalidTypeException("Mapping requires 2 valid positional arguments.", item)
-            keytype = parse_type(item.args[0], None, custom_units=custom_units, custom_structs=custom_structs, constants=constants)
+                raise InvalidTypeException(
+                    "Mapping requires 2 valid positional arguments.",
+                    item,
+                )
+            keytype = parse_type(
+                item.args[0],
+                None,
+                custom_units=custom_units,
+                custom_structs=custom_structs,
+                constants=constants,
+            )
             if not isinstance(keytype, (BaseType, ByteArrayLike)):
                 raise InvalidTypeException("Mapping keys must be base or bytes/string types", item)
-            return MappingType(keytype, parse_type(item.args[1], location, custom_units=custom_units, custom_structs=custom_structs, constants=constants))
+            return MappingType(
+                keytype,
+                parse_type(
+                    item.args[1],
+                    location,
+                    custom_units=custom_units,
+                    custom_structs=custom_structs,
+                    constants=constants,
+                ),
+            )
         # Contract_types
         if item.func.id == 'address':
             if sigs and item.args[0].id in sigs:
                 return ContractType(item.args[0].id)
         # Struct types
         if (custom_structs is not None) and (item.func.id in custom_structs):
-            return make_struct_type(item.id, location, custom_structs[item.id], custom_units, custom_structs, constants)
+            return make_struct_type(
+                item.id,
+                location,
+                custom_structs[item.id],
+                custom_units,
+                custom_structs,
+                constants,
+            )
         if not isinstance(item.func, ast.Name):
             raise InvalidTypeException("Malformed unit type:", item)
         base_type = item.func.id
@@ -358,13 +415,23 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
     elif isinstance(item, ast.Subscript):
 
         if 'value' not in vars(item.slice):
-            raise InvalidTypeException("Array / ByteArray access must access a single element, not a slice", item)
+            raise InvalidTypeException(
+                "Array / ByteArray access must access a single element, not a slice",
+                item,
+            )
         # Fixed size lists or bytearrays, e.g. num[100]
         is_constant_val = constants.ast_is_constant(item.slice.value)
         if isinstance(item.slice.value, ast.Num) or is_constant_val:
-            n_val = constants.get_constant(item.slice.value.id, context=None).value if is_constant_val else item.slice.value.n
+            n_val = (
+                constants.get_constant(item.slice.value.id, context=None).value
+                if is_constant_val
+                else item.slice.value.n
+            )
             if not isinstance(n_val, int) or n_val <= 0:
-                raise InvalidTypeException("Arrays / ByteArrays must have a positive integral number of elements", item.slice.value)
+                raise InvalidTypeException(
+                    "Arrays / ByteArrays must have a positive integral number of elements",
+                    item.slice.value,
+                )
             # ByteArray
             if getattr(item.value, 'id', None) == 'bytes':
                 return ByteArrayType(n_val)
@@ -372,7 +439,13 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
                 return StringType(n_val)
             # List
             else:
-                return ListType(parse_type(item.value, location, custom_units=custom_units, custom_structs=custom_structs, constants=constants), n_val)
+                return ListType(parse_type(
+                    item.value,
+                    location,
+                    custom_units=custom_units,
+                    custom_structs=custom_structs,
+                    constants=constants,
+                ), n_val)
         # Mappings, e.g. num[address]
         else:
             warnings.warn(
@@ -391,7 +464,15 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
         )
         raise InvalidTypeException("Invalid type: %r" % ast.dump(item), item)
     elif isinstance(item, ast.Tuple):
-        members = [parse_type(x, location, custom_units=custom_units, custom_structs=custom_structs, constants=constants) for x in item.elts]
+        members = [
+            parse_type(
+                x,
+                location,
+                custom_units=custom_units,
+                custom_structs=custom_structs,
+                constants=constants
+            ) for x in item.elts
+        ]
         return TupleType(members)
     else:
         raise InvalidTypeException("Invalid type: %r" % ast.dump(item), item)
