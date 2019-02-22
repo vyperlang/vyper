@@ -78,14 +78,18 @@ def make_byte_array_copier(destination, source, pos=None):
         btype = 'byte array' if isinstance(destination.typ, ByteArrayType) else 'string'
         raise TypeMismatchException("Can only set a {} to another {}".format(btype, btype), pos)
     if isinstance(source.typ, ByteArrayLike) and source.typ.maxlen > destination.typ.maxlen:
-        raise TypeMismatchException("Cannot cast from greater max-length %d to shorter max-length %d" % (source.typ.maxlen, destination.typ.maxlen))
+        raise TypeMismatchException(
+            "Cannot cast from greater max-length %d to shorter max-length %d" % (
+                source.typ.maxlen,
+                destination.typ.maxlen,
+            ))
     # Special case: memory to memory
     if source.location == "memory" and destination.location == "memory":
         gas_calculation = GAS_IDENTITY + GAS_IDENTITYWORD * (ceil32(source.typ.maxlen) // 32)
-        o = LLLnode.from_list(
-            ['with', '_source', source,
-                ['with', '_sz', ['add', 32, ['mload', '_source']],
-                    ['assert', ['call', ['add', 18, ['div', '_sz', 10]], 4, 0, '_source', '_sz', destination, '_sz']]]],
+        o = LLLnode.from_list([
+            'with', '_source', source, [
+                'with', '_sz', ['add', 32, ['mload', '_source']], [
+                    'assert', ['call', ['add', 18, ['div', '_sz', 10]], 4, 0, '_source', '_sz', destination, '_sz']]]],  # noqa: E501
             typ=None, add_gas_estimate=gas_calculation, annotation='Memory copy'
         )
         return o
@@ -98,15 +102,26 @@ def make_byte_array_copier(destination, source, pos=None):
         length = ['add', ['mload', '_pos'], 32]
     elif source.location == "storage":
         length = ['add', ['sload', '_pos'], 32]
-        pos_node = LLLnode.from_list(['sha3_32', pos_node], typ=source.typ, location=source.location)
+        pos_node = LLLnode.from_list(
+            ['sha3_32', pos_node],
+            typ=source.typ,
+            location=source.location,
+        )
     else:
         raise Exception("Unsupported location:" + source.location)
     if destination.location == "storage":
-        destination = LLLnode.from_list(['sha3_32', destination], typ=destination.typ, location=destination.location)
+        destination = LLLnode.from_list(
+            ['sha3_32', destination],
+            typ=destination.typ,
+            location=destination.location,
+        )
     # Maximum theoretical length
     max_length = 32 if isinstance(source.typ, NullType) else source.typ.maxlen + 32
-    return LLLnode.from_list(['with', '_pos', 0 if isinstance(source.typ, NullType) else source,
-                                make_byte_slice_copier(destination, pos_node, length, max_length, pos=pos)], typ=None)
+    return LLLnode.from_list([
+        'with', '_pos',
+        0 if isinstance(source.typ, NullType) else source,
+        make_byte_slice_copier(destination, pos_node, length, max_length, pos=pos)
+    ], typ=None)
 
 
 # Copy bytes
@@ -118,9 +133,13 @@ def make_byte_array_copier(destination, source, pos=None):
 def make_byte_slice_copier(destination, source, length, max_length, pos=None):
     # Special case: memory to memory
     if source.location == "memory" and destination.location == "memory":
-        return LLLnode.from_list(['with', '_l', max_length,
-                                    ['pop', ['call', 18 + max_length // 10, 4, 0, source,
-                                             '_l', destination, '_l']]], typ=None, annotation='copy byte slice dest: %s' % str(destination))
+        return LLLnode.from_list([
+            'with', '_l', max_length,
+            [
+                'pop',
+                ['call', 18 + max_length // 10, 4, 0, source, '_l', destination, '_l']
+            ]
+        ], typ=None, annotation='copy byte slice dest: %s' % str(destination))
     # Copy over data
     if isinstance(source.typ, NullType):
         loader = 0
@@ -132,20 +151,41 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
         raise Exception("Unsupported location:" + source.location)
     # Where to paste it?
     if destination.location == "memory":
-        setter = ['mstore', ['add', '_opos', ['mul', 32, ['mload', MemoryPositions.FREE_LOOP_INDEX]]], loader]
+        setter = [
+            'mstore',
+            ['add', '_opos', ['mul', 32, ['mload', MemoryPositions.FREE_LOOP_INDEX]]],
+            loader
+        ]
     elif destination.location == "storage":
         setter = ['sstore', ['add', '_opos', ['mload', MemoryPositions.FREE_LOOP_INDEX]], loader]
     else:
         raise Exception("Unsupported location:" + destination.location)
     # Check to see if we hit the length
-    checker = ['if', ['gt', ['mul', 32, ['mload', MemoryPositions.FREE_LOOP_INDEX]], '_actual_len'], 'break']
+    checker = [
+        'if',
+        ['gt', ['mul', 32, ['mload', MemoryPositions.FREE_LOOP_INDEX]], '_actual_len'],
+        'break'
+    ]
     # Make a loop to do the copying
-    o = ['with', '_pos', source,
-            ['with', '_opos', destination,
-                ['with', '_actual_len', length,
-                    ['repeat', MemoryPositions.FREE_LOOP_INDEX, 0, (max_length + 31) // 32,
-                        ['seq', checker, setter]]]]]
-    return LLLnode.from_list(o, typ=None, annotation='copy byte slice src: %s dst: %s' % (source, destination), pos=pos)
+    o = [
+        'with', '_pos', source, [
+            'with', '_opos', destination, [
+                'with', '_actual_len', length, [
+                    'repeat',
+                    MemoryPositions.FREE_LOOP_INDEX,
+                    0,
+                    (max_length + 31) // 32,
+                    ['seq', checker, setter]
+                ]
+            ]
+        ]
+    ]
+    return LLLnode.from_list(
+        o,
+        typ=None,
+        annotation='copy byte slice src: %s dst: %s' % (source, destination),
+        pos=pos,
+    )
 
 
 # Takes a <32 byte array as input, and outputs a number.
@@ -155,20 +195,28 @@ def byte_array_to_num(arg, expr, out_type, offset=32,):
         first_el_getter = LLLnode.from_list(['mload', ['add', 32, '_sub']], typ=BaseType('int128'))
     elif arg.location == "storage":
         lengetter = LLLnode.from_list(['sload', ['sha3_32', '_sub']], typ=BaseType('int128'))
-        first_el_getter = LLLnode.from_list(['sload', ['add', 1, ['sha3_32', '_sub']]], typ=BaseType('int128'))
+        first_el_getter = LLLnode.from_list([
+            'sload', ['add', 1, ['sha3_32', '_sub']]
+        ], typ=BaseType('int128'))
     if out_type == 'int128':
-        result = ['clamp',
-                     ['mload', MemoryPositions.MINNUM],
-                     ['div', '_el1', ['exp', 256, ['sub', 32, '_len']]],
-                     ['mload', MemoryPositions.MAXNUM]]
+        result = [
+            'clamp',
+            ['mload', MemoryPositions.MINNUM],
+            ['div', '_el1', ['exp', 256, ['sub', 32, '_len']]],
+            ['mload', MemoryPositions.MAXNUM]
+        ]
     elif out_type == 'uint256':
         result = ['div', '_el1', ['exp', 256, ['sub', offset, '_len']]]
-    return LLLnode.from_list(['with', '_sub', arg,
-                                 ['with', '_el1', first_el_getter,
-                                    ['with', '_len', ['clamp', 0, lengetter, 32],
-                                       result
-                                       ]]],
-                             typ=BaseType(out_type), annotation='bytearray to number (%s)' % out_type)
+    return LLLnode.from_list([
+        'with', '_sub', arg, [
+            'with', '_el1', first_el_getter, [
+                'with', '_len', [
+                    'clamp', 0, lengetter, 32
+                ],
+                result,
+            ]
+        ]
+    ], typ=BaseType(out_type), annotation='bytearray to number (%s)' % out_type)
 
 
 def get_length(arg):
@@ -182,36 +230,51 @@ def getpos(node):
     return (node.lineno, node.col_offset)
 
 
-# Take a value representing a memory or storage location, and descend down to an element or member variable
+# Take a value representing a memory or storage location, and descend down to
+# an element or member variable
 def add_variable_offset(parent, key, pos):
     typ, location = parent.typ, parent.location
     if isinstance(typ, (StructType, TupleType)):
         if isinstance(typ, StructType):
             if not isinstance(key, str):
-                raise TypeMismatchException("Expecting a member variable access; cannot access element %r" % key, pos)
+                raise TypeMismatchException(
+                    "Expecting a member variable access; cannot access element %r" % key, pos
+                )
             if key not in typ.members:
                 raise TypeMismatchException("Object does not have member variable %s" % key, pos)
             subtype = typ.members[key]
             attrs = list(typ.members.keys())
 
             if key not in attrs:
-                raise TypeMismatchException("Member %s not found. Only the following available: %s" % (key, " ".join(attrs)), pos)
+                raise TypeMismatchException(
+                    "Member %s not found. Only the following available: %s" % (
+                        key,
+                        " ".join(attrs)
+                    ),
+                    pos
+                )
             index = attrs.index(key)
             annotation = key
         else:
             if not isinstance(key, int):
-                raise TypeMismatchException("Expecting a static index; cannot access element %r" % key, pos)
+                raise TypeMismatchException(
+                    "Expecting a static index; cannot access element %r" % key, pos
+                )
             attrs = list(range(len(typ.members)))
             index = key
             annotation = None
         if location == 'storage':
-            return LLLnode.from_list(['add', ['sha3_32', parent], LLLnode.from_list(index, annotation=annotation)],
-                                     typ=subtype,
-                                     location='storage')
+            return LLLnode.from_list(
+                ['add', ['sha3_32', parent], LLLnode.from_list(index, annotation=annotation)],
+                typ=subtype,
+                location='storage',
+            )
         elif location == 'storage_prehashed':
-            return LLLnode.from_list(['add', parent, LLLnode.from_list(index, annotation=annotation)],
-                                     typ=subtype,
-                                     location='storage')
+            return LLLnode.from_list(
+                ['add', parent, LLLnode.from_list(index, annotation=annotation)],
+                typ=subtype,
+                location='storage',
+            )
         elif location == 'memory':
             offset = 0
             for i in range(index):
@@ -228,7 +291,10 @@ def add_variable_offset(parent, key, pos):
         if isinstance(key.typ, ByteArrayLike):
             if not isinstance(typ.keytype, ByteArrayLike) or (typ.keytype.maxlen < key.typ.maxlen):
                 raise TypeMismatchException(
-                    'Mapping keys of bytes cannot be cast, use exact same bytes type of: %s' % str(typ.keytype), pos
+                    'Mapping keys of bytes cannot be cast, use exact same bytes type of: %s' % (
+                        str(typ.keytype),
+                    ),
+                    pos,
                 )
             subtype = typ.valuetype
             if len(key.args[0].args) >= 3:  # handle bytes literal.
@@ -238,7 +304,9 @@ def add_variable_offset(parent, key, pos):
                     ['sha3', ['add', key.args[0].args[-1], 32], ['mload', key.args[0].args[-1]]]
                 ])
             else:
-                sub = LLLnode.from_list(['sha3', ['add', key.args[0].value, 32], ['mload', key.args[0].value]])
+                sub = LLLnode.from_list(
+                    ['sha3', ['add', key.args[0].value, 32], ['mload', key.args[0].value]]
+                )
         else:
             subtype = typ.valuetype
             sub = base_type_conversion(key, key.typ, typ.keytype, pos=pos)
@@ -248,12 +316,16 @@ def add_variable_offset(parent, key, pos):
                                      typ=subtype,
                                      location='storage')
         elif location == 'memory':
-            raise TypeMismatchException("Can only have fixed-side arrays in memory, not mappings", pos)
+            raise TypeMismatchException(
+                "Can only have fixed-side arrays in memory, not mappings", pos
+            )
 
     elif isinstance(typ, ListType):
 
         subtype = typ.subtype
-        sub = ['uclamplt', base_type_conversion(key, key.typ, BaseType('int128'), pos=pos), typ.count]
+        sub = [
+            'uclamplt', base_type_conversion(key, key.typ, BaseType('int128'), pos=pos), typ.count
+        ]
 
         if location == 'storage':
             return LLLnode.from_list(['add', ['sha3_32', parent], sub],
@@ -265,9 +337,11 @@ def add_variable_offset(parent, key, pos):
                                      location='storage')
         elif location == 'memory':
             offset = 32 * get_size_of_type(subtype)
-            return LLLnode.from_list(['add', ['mul', offset, sub], parent],
-                                      typ=subtype,
-                                      location='memory')
+            return LLLnode.from_list(
+                ['add', ['mul', offset, sub], parent],
+                typ=subtype,
+                location='memory',
+            )
         else:
             raise TypeMismatchException("Not expecting an array access ", pos)
     else:
@@ -277,22 +351,35 @@ def add_variable_offset(parent, key, pos):
 # Convert from one base type to another
 def base_type_conversion(orig, frm, to, pos, in_function_call=False):
     orig = unwrap_location(orig)
+    is_valid_int128_to_decimal = (
+        is_base_type(frm, 'int128') and is_base_type(to, 'decimal')
+    ) and are_units_compatible(frm, to)
+
     if getattr(frm, 'is_literal', False) and frm.typ in ('int128', 'uint256'):
         if not SizeLimits.in_bounds(frm.typ, orig.value):
             raise InvalidLiteralException("Number out of range: " + str(orig.value), pos)
         # Special Case: Literals in function calls should always convey unit type as well.
         if in_function_call and not (frm.unit == to.unit and frm.positional == to.positional):
-            raise InvalidLiteralException("Function calls require explicit unit definitions on calls, expected %r" % to, pos)
+            raise InvalidLiteralException(
+                "Function calls require explicit unit definitions on calls, expected %r" % to, pos
+            )
     if not isinstance(frm, (BaseType, NullType)) or not isinstance(to, BaseType):
-        raise TypeMismatchException("Base type conversion from or to non-base type: %r %r" % (frm, to), pos)
+        raise TypeMismatchException(
+            "Base type conversion from or to non-base type: %r %r" % (frm, to), pos
+        )
     elif is_base_type(frm, to.typ) and are_units_compatible(frm, to):
         return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
-    elif is_base_type(frm, 'int128') and is_base_type(to, 'decimal') and are_units_compatible(frm, to):
-        return LLLnode.from_list(['mul', orig, DECIMAL_DIVISOR], typ=BaseType('decimal', to.unit, to.positional))
+    elif is_valid_int128_to_decimal:
+        return LLLnode.from_list(
+            ['mul', orig, DECIMAL_DIVISOR],
+            typ=BaseType('decimal', to.unit, to.positional),
+        )
     elif isinstance(frm, NullType):
         if to.typ not in ('int128', 'bool', 'uint256', 'address', 'bytes32', 'decimal'):
             # This is only to future proof the use of  base_type_conversion.
-            raise TypeMismatchException("Cannot convert null-type object to type %r" % to, pos)  # pragma: no cover
+            raise TypeMismatchException(  # pragma: no cover
+                "Cannot convert null-type object to type %r" % to, pos
+            )
         return LLLnode.from_list(0, typ=to)
     elif isinstance(to, ContractType) and frm.typ == 'address':
         return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
@@ -300,7 +387,9 @@ def base_type_conversion(orig, frm, to, pos, in_function_call=False):
     elif (frm.typ, to.typ, frm.is_literal) == ('int128', 'uint256', True):
         return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
     else:
-        raise TypeMismatchException("Typecasting from base type %r to %r unavailable" % (frm, to), pos)
+        raise TypeMismatchException(
+            "Typecasting from base type %r to %r unavailable" % (frm, to), pos
+        )
 
 
 # Unwrap location
@@ -315,7 +404,9 @@ def unwrap_location(orig):
 
 # Pack function arguments for a call
 def pack_arguments(signature, args, context, pos, return_placeholder=True):
-    placeholder_typ = ByteArrayType(maxlen=sum([get_size_of_type(arg.typ) for arg in signature.args]) * 32 + 32)
+    placeholder_typ = ByteArrayType(
+        maxlen=sum([get_size_of_type(arg.typ) for arg in signature.args]) * 32 + 32
+    )
     placeholder = context.new_placeholder(placeholder_typ)
     setters = [['mstore', placeholder, signature.method_id]]
     needpos = False
@@ -323,25 +414,50 @@ def pack_arguments(signature, args, context, pos, return_placeholder=True):
     expected_arg_count = len(signature.args)
     actual_arg_count = len(args)
     if actual_arg_count != expected_arg_count:
-        raise StructureException("Wrong number of args for: %s (%s args, expected %s)" % (signature.name, actual_arg_count, expected_arg_count))
+        raise StructureException(
+            "Wrong number of args for: %s (%s args, expected %s)" % (
+                signature.name,
+                actual_arg_count,
+                expected_arg_count,
+            )
+        )
 
     for i, (arg, typ) in enumerate(zip(args, [arg.typ for arg in signature.args])):
         if isinstance(typ, BaseType):
-            setters.append(make_setter(LLLnode.from_list(placeholder + staticarray_offset + 32 + i * 32, typ=typ), arg, 'memory', pos=pos, in_function_call=True))
+            setters.append(make_setter(LLLnode.from_list(
+                placeholder + staticarray_offset + 32 + i * 32,
+                typ=typ,
+            ), arg, 'memory', pos=pos, in_function_call=True))
 
         elif isinstance(typ, ByteArrayLike):
             setters.append(['mstore', placeholder + staticarray_offset + 32 + i * 32, '_poz'])
             arg_copy = LLLnode.from_list('_s', typ=arg.typ, location=arg.location)
-            target = LLLnode.from_list(['add', placeholder + 32, '_poz'], typ=typ, location='memory')
-            setters.append(['with', '_s', arg, ['seq',
-                                                    make_byte_array_copier(target, arg_copy, pos),
-                                                    ['set', '_poz', ['add', 32, ['ceil32', ['add', '_poz', get_length(arg_copy)]]]]]])
+            target = LLLnode.from_list(
+                ['add', placeholder + 32, '_poz'],
+                typ=typ,
+                location='memory',
+            )
+            setters.append([
+                'with', '_s', arg, [
+                    'seq',
+                    make_byte_array_copier(target, arg_copy, pos),
+                    [
+                        'set',
+                        '_poz',
+                        ['add', 32, ['ceil32', ['add', '_poz', get_length(arg_copy)]]]
+                    ],
+                ],
+            ])
             needpos = True
 
         elif isinstance(typ, (StructType, ListType)):
             if has_dynamic_data(typ):
                 raise TypeMismatchException("Cannot pack bytearray in struct")
-            target = LLLnode.from_list([placeholder + 32 + staticarray_offset + i * 32], typ=typ, location='memory')
+            target = LLLnode.from_list(
+                [placeholder + 32 + staticarray_offset + i * 32],
+                typ=typ,
+                location='memory',
+            )
             setters.append(make_setter(target, arg, 'memory', pos=pos))
             if (isinstance(typ, ListType)):
                 count = typ.count
@@ -356,8 +472,12 @@ def pack_arguments(signature, args, context, pos, return_placeholder=True):
     returner = [[placeholder + 28]] if return_placeholder else []
     if needpos:
         return (
-            LLLnode.from_list(['with', '_poz', len(args) * 32 + staticarray_offset, ['seq'] + setters + returner],
-                                 typ=placeholder_typ, location='memory'),
+            LLLnode.from_list([
+                'with',
+                '_poz',
+                len(args) * 32 + staticarray_offset,
+                ['seq'] + setters + returner
+            ], typ=placeholder_typ, location='memory'),
             placeholder_typ.maxlen - 28,
             placeholder + 32
         )
@@ -373,7 +493,13 @@ def pack_arguments(signature, args, context, pos, return_placeholder=True):
 def make_setter(left, right, location, pos, in_function_call=False):
     # Basic types
     if isinstance(left.typ, BaseType):
-        right = base_type_conversion(right, right.typ, left.typ, pos, in_function_call=in_function_call)
+        right = base_type_conversion(
+            right,
+            right.typ,
+            left.typ,
+            pos,
+            in_function_call=in_function_call,
+        )
         if location == 'storage':
             return LLLnode.from_list(['sstore', left, right], typ=None)
         elif location == 'memory':
@@ -390,7 +516,9 @@ def make_setter(left, right, location, pos, in_function_call=False):
         if left.value == "multi":
             raise Exception("Target of set statement must be a single item")
         if not isinstance(right.typ, (ListType, NullType)):
-            raise TypeMismatchException("Setter type mismatch: left side is array, right side is %r" % right.typ, pos)
+            raise TypeMismatchException(
+                "Setter type mismatch: left side is array, right side is %r" % right.typ, pos
+            )
         left_token = LLLnode.from_list('_L', typ=left.typ, location=left.location)
         if left.location == "storage":
             left = LLLnode.from_list(['sha3_32', left], typ=left.typ, location="storage_prehashed")
@@ -407,46 +535,83 @@ def make_setter(left, right, location, pos, in_function_call=False):
                 raise TypeMismatchException("Mismatched number of elements", pos)
             subs = []
             for i in range(left.typ.count):
-                subs.append(make_setter(add_variable_offset(left_token, LLLnode.from_list(i, typ='int128'), pos=pos),
-                                        right.args[i], location, pos=pos))
+                subs.append(make_setter(add_variable_offset(
+                    left_token,
+                    LLLnode.from_list(i, typ='int128'),
+                    pos=pos,
+                ), right.args[i], location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If the right side is a null
         elif isinstance(right.typ, NullType):
             subs = []
             for i in range(left.typ.count):
-                subs.append(make_setter(add_variable_offset(left_token, LLLnode.from_list(i, typ='int128'), pos=pos),
-                                        LLLnode.from_list(None, typ=NullType()), location, pos=pos))
+                subs.append(make_setter(add_variable_offset(
+                    left_token,
+                    LLLnode.from_list(i, typ='int128'),
+                    pos=pos,
+                ), LLLnode.from_list(None, typ=NullType()), location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If the right side is a variable
         else:
             right_token = LLLnode.from_list('_R', typ=right.typ, location=right.location)
             subs = []
             for i in range(left.typ.count):
-                subs.append(make_setter(add_variable_offset(left_token, LLLnode.from_list(i, typ='int128'), pos=pos),
-                                        add_variable_offset(right_token, LLLnode.from_list(i, typ='int128'), pos=pos), location, pos=pos))
-            return LLLnode.from_list(['with', '_L', left, ['with', '_R', right, ['seq'] + subs]], typ=None)
+                subs.append(make_setter(add_variable_offset(
+                    left_token,
+                    LLLnode.from_list(i, typ='int128'),
+                    pos=pos,
+                ), add_variable_offset(
+                    right_token,
+                    LLLnode.from_list(i, typ='int128'),
+                    pos=pos,
+                ), location, pos=pos))
+            return LLLnode.from_list([
+                'with', '_L', left, [
+                    'with', '_R', right, ['seq'] + subs]
+            ], typ=None)
     # Structs
     elif isinstance(left.typ, (StructType, TupleType)):
         if left.value == "multi" and isinstance(left.typ, StructType):
             raise Exception("Target of set statement must be a single item")
         if not isinstance(right.typ, NullType):
             if not isinstance(right.typ, left.typ.__class__):
-                raise TypeMismatchException("Setter type mismatch: left side is %r, right side is %r" % (left.typ, right.typ), pos)
+                raise TypeMismatchException(
+                    "Setter type mismatch: left side is %r, right side is %r" % (
+                        left.typ,
+                        right.typ,
+                    ),
+                    pos,
+                )
             if isinstance(left.typ, StructType):
                 for k in right.args:
                     if k.value is None:
-                        raise InvalidLiteralException('Setting struct value to None is not allowed, use a default value.', pos)
+                        raise InvalidLiteralException(
+                            'Setting struct value to None is not allowed, use a default value.',
+                            pos,
+                        )
                 for k in left.typ.members:
                     if k not in right.typ.members:
-                        raise TypeMismatchException("Keys don't match for structs, missing %s" % k, pos)
+                        raise TypeMismatchException(
+                            "Keys don't match for structs, missing %s" % k,
+                            pos,
+                        )
                 for k in right.typ.members:
                     if k not in left.typ.members:
-                        raise TypeMismatchException("Keys don't match for structs, extra %s" % k, pos)
+                        raise TypeMismatchException(
+                            "Keys don't match for structs, extra %s" % k,
+                            pos,
+                        )
                 if left.typ.name != right.typ.name:
                     raise TypeMismatchException("Expected %r, got %r" % (left.typ, right.typ), pos)
             else:
                 if len(left.typ.members) != len(right.typ.members):
-                    raise TypeMismatchException("Tuple lengths don't match, %d vs %d" % (len(left.typ.members), len(right.typ.members)), pos)
+                    raise TypeMismatchException(
+                        "Tuple lengths don't match, %d vs %d" % (
+                            len(left.typ.members),
+                            len(right.typ.members),
+                        ),
+                        pos,
+                    )
 
         left_token = LLLnode.from_list('_L', typ=left.typ, location=left.location)
         if left.location == "storage":
@@ -469,20 +634,31 @@ def make_setter(left, right, location, pos, in_function_call=False):
                 raise TypeMismatchException("Mismatched number of elements", pos)
             subs = []
             for i, (typ, loc) in enumerate(zip(keyz, locations)):
-                subs.append(make_setter(add_variable_offset(left_token, typ, pos=pos), right.args[i], loc, pos=pos))
+                subs.append(make_setter(
+                    add_variable_offset(left_token, typ, pos=pos),
+                    right.args[i],
+                    loc,
+                    pos=pos,
+                ))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If the right side is a null
         elif isinstance(right.typ, NullType):
             subs = []
             for typ, loc in zip(keyz, locations):
-                subs.append(make_setter(add_variable_offset(left_token, typ, pos=pos), LLLnode.from_list(None, typ=NullType()), loc, pos=pos))
+                subs.append(make_setter(
+                    add_variable_offset(left_token, typ, pos=pos),
+                    LLLnode.from_list(None, typ=NullType()),
+                    loc,
+                    pos=pos,
+                ))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If tuple assign.
         elif isinstance(left.typ, TupleType) and isinstance(right.typ, TupleType):
             right_token = LLLnode.from_list('_R', typ=right.typ, location="memory")
             subs = []
             static_offset_counter = 0
-            for idx, (left_arg, right_arg, loc) in enumerate(zip(left.args, right.typ.members, locations)):
+            zipped_components = zip(left.args, right.typ.members, locations)
+            for idx, (left_arg, right_arg, loc) in enumerate(zipped_components):
                 if isinstance(right_arg, ByteArrayLike):
                     RType = ByteArrayType if isinstance(right_arg, ByteArrayType) else StringType
                     offset = LLLnode.from_list(
@@ -490,7 +666,11 @@ def make_setter(left, right, location, pos, in_function_call=False):
                         typ=RType(right_arg.maxlen), location='memory', pos=pos)
                     static_offset_counter += 32
                 else:
-                    offset = LLLnode.from_list(['mload', ['add', '_R', static_offset_counter]], typ=right_arg.typ, pos=pos)
+                    offset = LLLnode.from_list(
+                        ['mload', ['add', '_R', static_offset_counter]],
+                        typ=right_arg.typ,
+                        pos=pos,
+                    )
                     static_offset_counter += get_size_of_type(right_arg) * 32
                 subs.append(
                     make_setter(
@@ -500,7 +680,11 @@ def make_setter(left, right, location, pos, in_function_call=False):
                         pos=pos
                     )
                 )
-            return LLLnode.from_list(['with', '_R', right, ['seq'] + subs], typ=None, annotation='Tuple assignment')
+            return LLLnode.from_list(
+                ['with', '_R', right, ['seq'] + subs],
+                typ=None,
+                annotation='Tuple assignment',
+            )
         # If the right side is a variable
         else:
             subs = []
@@ -512,7 +696,10 @@ def make_setter(left, right, location, pos, in_function_call=False):
                     loc,
                     pos=pos
                 ))
-            return LLLnode.from_list(['with', '_L', left, ['with', '_R', right, ['seq'] + subs]], typ=None)
+            return LLLnode.from_list(
+                ['with', '_L', left, ['with', '_R', right, ['seq'] + subs]],
+                typ=None,
+            )
     else:
         raise Exception("Invalid type for setters")
 
@@ -552,13 +739,16 @@ def resolve_negative_literals(_ast):
 def zero_pad(bytez_placeholder, maxlen, context):
     zero_padder = LLLnode.from_list(['pass'])
     if maxlen > 0:
-        zero_pad_i = context.new_placeholder(BaseType('uint256'))  # Iterator used to zero pad memory.
-        zero_padder = LLLnode.from_list(
-            ['repeat', zero_pad_i, ['mload', bytez_placeholder], maxlen,
-                ['seq',
-                    ['if', ['gt', ['mload', zero_pad_i], maxlen], 'break'],  # stay within allocated bounds
-                    ['mstore8', ['add', ['add', 32, bytez_placeholder], ['mload', zero_pad_i]], 0]]],
-            annotation="Zero pad"
+        # Iterator used to zero pad memory.
+        zero_pad_i = context.new_placeholder(BaseType('uint256'))
+        zero_padder = LLLnode.from_list([
+            'repeat', zero_pad_i, ['mload', bytez_placeholder], maxlen, [
+                'seq',
+                # stay within allocated bounds
+                ['if', ['gt', ['mload', zero_pad_i], maxlen], 'break'],
+                ['mstore8', ['add', ['add', 32, bytez_placeholder], ['mload', zero_pad_i]], 0]
+            ]],
+            annotation="Zero pad",
         )
     return zero_padder
 
@@ -589,10 +779,20 @@ def make_return_stmt(stmt, context, begin_pos, _size, loop_memory_position=None)
                 'seq_unchecked',
                 ['mstore', loop_memory_position, _size],
                 ['label', start_label],
-                ['if',
-                    ['le', ['mload', loop_memory_position], 0], ['goto', exit_label]],  # exit loop / break.
-                ['mload', ['add', begin_pos, ['sub', ['mload', loop_memory_position], 32]]],  # push onto stack
-                ['mstore', loop_memory_position, ['sub', ['mload', loop_memory_position], 32]],  # decrement i by 32.
+                [  # maybe exit loop / break.
+                    'if',
+                    ['le', ['mload', loop_memory_position], 0],
+                    ['goto', exit_label]
+                ],
+                [  # push onto stack
+                    'mload',
+                    ['add', begin_pos, ['sub', ['mload', loop_memory_position], 32]]
+                ],
+                [  # decrement i by 32.
+                    'mstore',
+                    loop_memory_position,
+                    ['sub', ['mload', loop_memory_position], 32],
+                ],
                 ['goto', start_label],
                 ['label', exit_label]
             ]
@@ -604,7 +804,8 @@ def make_return_stmt(stmt, context, begin_pos, _size, loop_memory_position=None)
 # Generate code for returning a tuple or struct.
 def gen_tuple_return(stmt, context, sub):
     # Is from a call expression.
-    if sub.args and len(sub.args[0].args) > 0 and sub.args[0].args[0].value == 'call':  # self-call to public.
+    if sub.args and len(sub.args[0].args) > 0 and sub.args[0].args[0].value == 'call':
+        # self-call to public.
         mem_pos = sub.args[0].args[-1]
         mem_size = get_size_of_type(sub.typ) * 32
         return LLLnode.from_list(['return', mem_pos, mem_size], typ=sub.typ)
@@ -614,24 +815,40 @@ def gen_tuple_return(stmt, context, sub):
         mem_size = get_size_of_type(sub.typ) * 32
         # Add zero padder if bytes are present in output.
         zero_padder = ['pass']
-        byte_arrays = [(i, x) for i, x in enumerate(sub.typ.tuple_members()) if isinstance(x, ByteArrayLike)]
+        byte_arrays = [
+            (i, x)
+            for i, x
+            in enumerate(sub.typ.tuple_members())
+            if isinstance(x, ByteArrayLike)
+        ]
         if byte_arrays:
             i, x = byte_arrays[-1]
-            zero_padder = zero_pad(bytez_placeholder=['add', mem_pos, ['mload', mem_pos + i * 32]], maxlen=x.maxlen, context=context)
-        return LLLnode.from_list(
-            ['seq'] + [sub] + [zero_padder] + [make_return_stmt(stmt, context, mem_pos, mem_size)
+            zero_padder = zero_pad(bytez_placeholder=[
+                'add',
+                mem_pos,
+                ['mload', mem_pos + i * 32]
+            ], maxlen=x.maxlen, context=context)
+        return LLLnode.from_list(['seq'] + [sub] + [zero_padder] + [
+            make_return_stmt(stmt, context, mem_pos, mem_size)
         ], typ=sub.typ, pos=getpos(stmt), valency=0)
 
     subs = []
     # Pre-allocate loop_memory_position if required for private function returning.
-    loop_memory_position = context.new_placeholder(typ=BaseType('uint256')) if context.is_private else None
+    loop_memory_position = (
+        context.new_placeholder(typ=BaseType('uint256')) if context.is_private else None
+    )
     # Allocate dynamic off set counter, to keep track of the total packed dynamic data size.
     dynamic_offset_counter_placeholder = context.new_placeholder(typ=BaseType('uint256'))
     dynamic_offset_counter = LLLnode(
-        dynamic_offset_counter_placeholder, typ=None, annotation="dynamic_offset_counter"  # dynamic offset position counter.
+        dynamic_offset_counter_placeholder,
+        typ=None,
+        annotation="dynamic_offset_counter"  # dynamic offset position counter.
     )
     new_sub = LLLnode.from_list(
-        context.new_placeholder(typ=BaseType('uint256')), typ=context.return_type, location='memory', annotation='new_sub'
+        context.new_placeholder(typ=BaseType('uint256')),
+        typ=context.return_type,
+        location='memory',
+        annotation='new_sub',
     )
     left_token = LLLnode.from_list('_loc', typ=new_sub.typ, location="memory")
 
@@ -649,25 +866,35 @@ def gen_tuple_return(stmt, context, sub):
         ]
 
     if not isinstance(context.return_type, TupleLike):
-        raise TypeMismatchException('Trying to return %r when expecting %r' % (sub.typ, context.return_type), getpos(stmt))
+        raise TypeMismatchException(
+            'Trying to return %r when expecting %r' % (sub.typ, context.return_type), getpos(stmt)
+        )
     items = context.return_type.tuple_items()
 
     dynamic_offset_start = 32 * len(items)  # The static list of args end.
 
     for i, (key, typ) in enumerate(items):
-        variable_offset = LLLnode.from_list(['add', 32 * i, left_token], typ=typ, annotation='variable_offset')   # variable offset of destination
+        variable_offset = LLLnode.from_list(
+            ['add', 32 * i, left_token],
+            typ=typ,
+            annotation='variable_offset',
+        )  # variable offset of destination
         if sub.typ.is_literal:
             arg = sub.args[i]
         else:
             arg = add_variable_offset(parent=sub, key=key, pos=getpos(stmt))
 
-        # arg = args[i] if sub.typ.is_literal else add_variable_offset(typ)  # origin arg to copy from
         if isinstance(typ, ByteArrayLike):
             # Store offset pointer value.
             subs.append(['mstore', variable_offset, get_dynamic_offset_value()])
 
             # Store dynamic data, from offset pointer onwards.
-            dynamic_spot = LLLnode.from_list(['add', left_token, get_dynamic_offset_value()], location="memory", typ=typ, annotation='dynamic_spot')
+            dynamic_spot = LLLnode.from_list(
+                ['add', left_token, get_dynamic_offset_value()],
+                location="memory",
+                typ=typ,
+                annotation='dynamic_spot',
+            )
             subs.append(make_setter(dynamic_spot, arg, location="memory", pos=getpos(stmt)))
             subs.append(increment_dynamic_offset(dynamic_spot))
 
@@ -687,9 +914,8 @@ def gen_tuple_return(stmt, context, sub):
         typ=None
     )
 
-    return LLLnode.from_list(
-        ['seq',
-            setter,
-            make_return_stmt(stmt, context, new_sub, get_dynamic_offset_value(), loop_memory_position)],
-        typ=None, pos=getpos(stmt), valency=0
-    )
+    return LLLnode.from_list([
+        'seq',
+        setter,
+        make_return_stmt(stmt, context, new_sub, get_dynamic_offset_value(), loop_memory_position)
+    ], typ=None, pos=getpos(stmt), valency=0)
