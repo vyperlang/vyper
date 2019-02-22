@@ -1,3 +1,5 @@
+import itertools
+
 from vyper.exceptions import (
     ConstancyViolationException
 )
@@ -34,7 +36,10 @@ def make_call(stmt_expr, context):
 
     if context.is_constant() and not sig.const:
         raise ConstancyViolationException(
-            "May not call non-constant function '%s' within %s." % (method_name, context.pp_constancy()),
+            "May not call non-constant function '%s' within %s." % (
+                method_name,
+                context.pp_constancy(),
+            ),
             getpos(stmt_expr)
         )
 
@@ -89,7 +94,13 @@ def call_self_private(stmt_expr, context, sig):
 
     # Push Arguments
     if expr_args:
-        inargs, inargsize, arg_pos = pack_arguments(sig, expr_args, context, return_placeholder=False, pos=getpos(stmt_expr))
+        inargs, inargsize, arg_pos = pack_arguments(
+            sig,
+            expr_args,
+            context,
+            return_placeholder=False,
+            pos=getpos(stmt_expr),
+        )
         push_args += [inargs]  # copy arguments first, to not mess up the push/pop sequencing.
         static_arg_count = len(expr_args) * 32
         static_pos = arg_pos + static_arg_count
@@ -104,7 +115,11 @@ def call_self_private(stmt_expr, context, sig):
                 ['mstore', i_placeholder, arg_pos + total_arg_size],
                 ['label', start_label],
                 ['if', ['lt', ['mload', i_placeholder], static_pos], ['goto', end_label]],
-                ['if_unchecked', ['ne', ['mload', ['mload', i_placeholder]], 0], ['mload', ['mload', i_placeholder]]],
+                [
+                    'if_unchecked',
+                    ['ne', ['mload', ['mload', i_placeholder]], 0],
+                    ['mload', ['mload', i_placeholder]],
+                ],
                 ['mstore', i_placeholder, ['sub', ['mload', i_placeholder], 32]],  # decrease i
                 ['goto', start_label],
                 ['label', end_label]
@@ -130,7 +145,8 @@ def call_self_private(stmt_expr, context, sig):
             dynamic_offsets = []
             if isinstance(sig.output_type, (BaseType, ListType)):
                 pop_return_values = [
-                    ['mstore', ['add', output_placeholder, pos], 'pass'] for pos in range(0, output_size, 32)
+                    ['mstore', ['add', output_placeholder, pos], 'pass']
+                    for pos in range(0, output_size, 32)
                 ]
             elif isinstance(sig.output_type, ByteArrayLike):
                 dynamic_offsets = [(0, sig.output_type)]
@@ -142,10 +158,16 @@ def call_self_private(stmt_expr, context, sig):
                 pop_return_values = []
                 for out_type in sig.output_type.members:
                     if isinstance(out_type, ByteArrayLike):
-                        pop_return_values.append(['mstore', ['add', output_placeholder, static_offset], 'pass'])
-                        dynamic_offsets.append((['mload', ['add', output_placeholder, static_offset]], out_type))
+                        pop_return_values.append(
+                            ['mstore', ['add', output_placeholder, static_offset], 'pass']
+                        )
+                        dynamic_offsets.append(
+                            (['mload', ['add', output_placeholder, static_offset]], out_type)
+                        )
                     else:
-                        pop_return_values.append(['mstore', ['add', output_placeholder, static_offset], 'pass'])
+                        pop_return_values.append(
+                            ['mstore', ['add', output_placeholder, static_offset], 'pass']
+                        )
                     static_offset += 32
 
             # append dynamic unpacker.
@@ -163,30 +185,42 @@ def call_self_private(stmt_expr, context, sig):
                         ['mstore', begin_pos, 'pass'],  # get len
                         ['mstore', i_placeholder, 0],
                         ['label', start_label],
-                        ['if', ['ge', ['mload', i_placeholder], ['ceil32', ['mload', begin_pos]]], ['goto', end_label]],  # break
-                        ['mstore', ['add', ['add', begin_pos, 32], ['mload', i_placeholder]], 'pass'],  # pop into correct memory slot.
-                        ['mstore', i_placeholder, ['add', 32, ['mload', i_placeholder]]],  # increment i
+                        [  # break
+                            'if',
+                            ['ge', ['mload', i_placeholder], ['ceil32', ['mload', begin_pos]]],
+                            ['goto', end_label]
+                        ],
+                        [  # pop into correct memory slot.
+                            'mstore',
+                            ['add', ['add', begin_pos, 32], ['mload', i_placeholder]],
+                            'pass',
+                        ],
+                        # increment i
+                        ['mstore', i_placeholder, ['add', 32, ['mload', i_placeholder]]],
                         ['goto', start_label],
                         ['label', end_label]],
                     typ=None, annotation='dynamic unpacker', pos=getpos(stmt_expr))
                 pop_return_values.append(o)
 
-    call_body = (
-        ['seq_unchecked'] +
-        pre_init +
-        push_local_vars +
-        push_args +
-        jump_to_func +
-        pop_return_values +
-        pop_local_vars +
-        [returner]
-    )
+    call_body = list(itertools.chain(
+        ['seq_unchecked'],
+        pre_init,
+        push_local_vars,
+        push_args,
+        jump_to_func,
+        pop_return_values,
+        pop_local_vars,
+        [returner],
+    ))
     # If we have no return, we need to pop off
     pop_returner_call_body = ['pop', call_body] if sig.output_type is None else call_body
 
     o = LLLnode.from_list(
         pop_returner_call_body,
-        typ=sig.output_type, location='memory', pos=getpos(stmt_expr), annotation='Internal Call: %s' % method_name,
+        typ=sig.output_type,
+        location='memory',
+        pos=getpos(stmt_expr),
+        annotation='Internal Call: %s' % method_name,
         add_gas_estimate=sig.gas
     )
     o.gas += sig.gas
@@ -200,13 +234,18 @@ def call_self_public(stmt_expr, context, sig):
     inargs, inargsize, _ = pack_arguments(sig, expr_args, context, pos=getpos(stmt_expr))
     output_placeholder, returner, output_size = call_make_placeholder(stmt_expr, context, sig)
     assert_call = [
-        'assert', ['call', ['gas'], ['address'], 0, inargs, inargsize, output_placeholder, output_size]
+        'assert',
+        ['call', ['gas'], ['address'], 0, inargs, inargsize, output_placeholder, output_size],
     ]
     if output_size > 0:
         assert_call = ['seq', assert_call, returner]
     o = LLLnode.from_list(
         assert_call,
-        typ=sig.output_type, location='memory',
-        pos=getpos(stmt_expr), add_gas_estimate=add_gas, annotation='Internal Call: %s' % method_name)
+        typ=sig.output_type,
+        location='memory',
+        pos=getpos(stmt_expr),
+        add_gas_estimate=add_gas,
+        annotation='Internal Call: %s' % method_name,
+    )
     o.gas += sig.gas
     return o
