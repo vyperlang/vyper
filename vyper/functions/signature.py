@@ -49,7 +49,10 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
                 bytez = b''
                 for c in arg.s:
                     if ord(c) >= 256:
-                        raise InvalidLiteralException("Cannot insert special character %r into byte array" % c, arg)
+                        raise InvalidLiteralException(
+                            "Cannot insert special character %r into byte array" % c,
+                            arg,
+                        )
                     bytez += bytes([ord(c)])
                 return bytez
         elif expected_arg == 'name_literal':
@@ -69,17 +72,30 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
                 return sub
         else:
             # Does not work for unit-endowed types inside compound types, e.g. timestamp[2]
-            parsed_expected_type = context.parse_type(ast.parse(expected_arg).body[0].value, 'memory')
+            parsed_expected_type = context.parse_type(
+                ast.parse(expected_arg).body[0].value,
+                'memory',
+            )
             if isinstance(parsed_expected_type, BaseType):
                 vsub = vsub or Expr.parse_value_expr(arg, context)
+
+                is_valid_integer = (
+                    (
+                        expected_arg in ('int128', 'uint256') and isinstance(vsub.typ, BaseType)
+                    ) and (
+                        vsub.typ.typ in ('int128', 'uint256') and vsub.typ.is_literal
+                    ) and (
+                        SizeLimits.in_bounds(expected_arg, vsub.value)
+                    )
+                )
+
                 if is_base_type(vsub.typ, expected_arg):
                     return vsub
-                elif expected_arg in ('int128', 'uint256') and \
-                     isinstance(vsub.typ, BaseType) and \
-                     vsub.typ.typ in ('int128', 'uint256') and \
-                     vsub.typ.is_literal and \
-                     SizeLimits.in_bounds(expected_arg, vsub.value):
+                elif is_valid_integer:
                     return vsub
+                # TODO: missing final else clasue allowing implicit exit of
+                # this block without hitting any of the logic.  Is this
+                # intended?
             else:
                 vsub = vsub or Expr(arg, context).lll_node
                 if vsub.typ == parsed_expected_type:
@@ -105,7 +121,13 @@ def signature(*argz, **kwargz):
             subs = []
             for i, expected_arg in enumerate(argz):
                 if len(element.args) > i:
-                    subs.append(process_arg(i + 1, element.args[i], expected_arg, function_name, context))
+                    subs.append(process_arg(
+                        i + 1,
+                        element.args[i],
+                        expected_arg,
+                        function_name,
+                        context,
+                    ))
                 elif isinstance(expected_arg, Optional):
                     subs.append(expected_arg.default)
                 else:
