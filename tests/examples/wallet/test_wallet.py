@@ -48,16 +48,16 @@ def test_approve(w3, c, tester, assert_tx_failed, sign):
     c.approve(0, '0x' + to.hex(), value, data, sigs, transact={'value': value, 'from': a1})
     # Approve fails if only 2 signatures are given
     sigs = pack_and_sign(1, k1, 0, k3, 0, 0)
-    assert_tx_failed(lambda: c.approve(1, to_address, value, data, sigs, transact={'value': value, 'from': a1}))
+    assert_tx_failed(lambda: c.approve(1, to_address, value, data, sigs, transact={'value': value, 'from': a1}))  # noqa: E501
     # Approve fails if an invalid signature is given
     sigs = pack_and_sign(1, k1, 0, k7, 0, k5)
-    assert_tx_failed(lambda: c.approve(1, to_address, value, data, sigs, transact={'value': value, 'from': a1}))
+    assert_tx_failed(lambda: c.approve(1, to_address, value, data, sigs, transact={'value': value, 'from': a1}))  # noqa: E501
     # Approve fails if transaction number is incorrect (the first argument should be 1)
     sigs = pack_and_sign(0, k1, 0, k3, 0, k5)
-    assert_tx_failed(lambda: c.approve(0, to_address, value, data, sigs, transact={'value': value, 'from': a1}))
+    assert_tx_failed(lambda: c.approve(0, to_address, value, data, sigs, transact={'value': value, 'from': a1}))  # noqa: E501
     # Approve fails if not enough value is sent
     sigs = pack_and_sign(1, k1, 0, k3, 0, k5)
-    assert_tx_failed(lambda: c.approve(1, to_address, value, data, sigs, transact={'value': 0, 'from': a1}))
+    assert_tx_failed(lambda: c.approve(1, to_address, value, data, sigs, transact={'value': 0, 'from': a1}))  # noqa: E501
     sigs = pack_and_sign(1, k1, 0, k3, 0, k5)
     assert c.approve(1, to_address, value, data, sigs, call={'value': value, 'from': a1})
 
@@ -76,8 +76,8 @@ def test_javascript_signatures(w3, get_contract):
     recipient = "0x776Ba14735FF84789320718cf0aa43e91F7A8Ce1"
     # These are the matching sigs to the accounts
     raw_sigs = [
-        "0x4a89507bf71749fb338ed13fba623a683d9ecab0fb9c389a4298525c043e38281a00ab65628bb18a382eb8c8b4fb4dae95ccc993cf49f617c60d8051180778601c",
-        "0xc84fe5d2a600e033930e0cf73f26e78f4c65b134f9c9992f60f08ce0863abdbe0548a6e8aa2d952659f29c67106b59fdfcd64d67df03c1df620c70c85578ae701b"
+        "0x4a89507bf71749fb338ed13fba623a683d9ecab0fb9c389a4298525c043e38281a00ab65628bb18a382eb8c8b4fb4dae95ccc993cf49f617c60d8051180778601c",  # noqa: E501
+        "0xc84fe5d2a600e033930e0cf73f26e78f4c65b134f9c9992f60f08ce0863abdbe0548a6e8aa2d952659f29c67106b59fdfcd64d67df03c1df620c70c85578ae701b"  # noqa: E501
     ]
 
     # Turns the raw sigs into sigs
@@ -89,7 +89,7 @@ def test_javascript_signatures(w3, get_contract):
         ) for x in map(lambda z: w3.toBytes(hexstr=z[2:]), raw_sigs)
     ]
 
-    h = w3.sha3((0).to_bytes(32, "big") + b'\x00' * 12 + w3.toBytes(hexstr=recipient[2:]) + (25).to_bytes(32, "big") + b'')
+    h = w3.sha3((0).to_bytes(32, "big") + b'\x00' * 12 + w3.toBytes(hexstr=recipient[2:]) + (25).to_bytes(32, "big") + b'')  # noqa: E501
     h2 = w3.sha3(b"\x19Ethereum Signed Message:\n32" + h)
 
     # Check to make sure the signatures are valid
@@ -103,7 +103,15 @@ def test_javascript_signatures(w3, get_contract):
 
     w3.eth.sendTransaction({'to': x2.address, 'value': 10**17})
 
-    # There's no need to pass in signatures because the owners are 0 addresses causing them to default to valid signatures
-    assert x2.approve(0, recipient, 25, b"", sigs + [[0, 0, 0]] * 3, call={'to': x2.address, 'value': 10**17})
+    # There's no need to pass in signatures because the owners are 0 addresses
+    # causing them to default to valid signatures
+    assert x2.approve(
+        0,
+        recipient,
+        25,
+        b"",
+        sigs + [[0, 0, 0]] * 3,
+        call={'to': x2.address, 'value': 10**17},
+    )
 
     print("Javascript signature tests passed")

@@ -29,7 +29,10 @@ def pay_me() -> bool:
 
 
 def test_default_gas(get_contract, w3):
-    """ Tests to verify that send to default function will send limited gas (2300), but raw_call can send more."""
+    """
+    Tests to verify that send to default function will send limited gas (2300),
+    but raw_call can send more.
+    """
 
     sender_code = """
 @public

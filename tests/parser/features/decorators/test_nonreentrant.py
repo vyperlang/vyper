@@ -13,7 +13,7 @@ def updated():
 
 @public
 def updated_protected():
-    SpecialContract(msg.sender).protected_function('surprise protected!', False)  # This should fail.
+    SpecialContract(msg.sender).protected_function('surprise protected!', False)  # This should fail.  # noqa: E501
     """
 
     reentrant_code = """

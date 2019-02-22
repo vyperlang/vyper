@@ -13,7 +13,10 @@ def safeTransferFrom(_data: bytes[100] = b"test", _b: int128 = 1):
     assert set([fdef['name'] for fdef in abi]) == {'safeTransferFrom'}
     assert abi[0]['inputs'] == []
     assert abi[1]['inputs'] == [{'type': 'bytes', 'name': '_data'}]
-    assert abi[2]['inputs'] == [{'type': 'bytes', 'name': '_data'}, {'type': 'int128', 'name': '_b'}]
+    assert abi[2]['inputs'] == [
+        {'type': 'bytes', 'name': '_data'},
+        {'type': 'int128', 'name': '_b'},
+    ]
 
 
 def test_basic_default_param_passthrough(get_contract):
@@ -45,7 +48,7 @@ def fooBar(a:int128, b: uint256 = 333) -> (int128, uint256):
 def test_basic_default_param_set_2args(get_contract):
     code = """
 @public
-def fooBar(a:int128, b: uint256 = 999, c: address = 0x0000000000000000000000000000000000000001) -> (int128, uint256, address):
+def fooBar(a:int128, b: uint256 = 999, c: address = 0x0000000000000000000000000000000000000001) -> (int128, uint256, address):  # noqa: E501
     return a, b, c
     """
 
@@ -65,7 +68,7 @@ def fooBar(a:int128, b: uint256 = 999, c: address = 0x00000000000000000000000000
 def test_default_param_bytes(get_contract):
     code = """
 @public
-def fooBar(a: bytes[100], b: int128, c: bytes[100] = "testing", d: uint256 = 999) -> (bytes[100], int128, bytes[100], uint256):
+def fooBar(a: bytes[100], b: int128, c: bytes[100] = "testing", d: uint256 = 999) -> (bytes[100], int128, bytes[100], uint256):  # noqa: E501
     return a, b, c, d
     """
     c = get_contract(code)
@@ -83,7 +86,7 @@ def fooBar(a: bytes[100], b: int128, c: bytes[100] = "testing", d: uint256 = 999
 def test_default_param_array(get_contract):
     code = """
 @public
-def fooBar(a: bytes[100], b: uint256[2], c: bytes[6] = "hello", d: int128[3] = [6, 7, 8]) -> (bytes[100], uint256, bytes[6], int128):
+def fooBar(a: bytes[100], b: uint256[2], c: bytes[6] = "hello", d: int128[3] = [6, 7, 8]) -> (bytes[100], uint256, bytes[6], int128):  # noqa: E501
     return a, b[1], c, d[2]
     """
     c = get_contract(code)
@@ -101,7 +104,7 @@ def fooBar(a: bytes[100], b: uint256[2], c: bytes[6] = "hello", d: int128[3] = [
 def test_default_param_clamp(get_contract, monkeypatch, assert_tx_failed):
     code = """
 @public
-def bar(a: int128, b: int128 = -1) -> (int128, int128):
+def bar(a: int128, b: int128 = -1) -> (int128, int128):  # noqa: E501
     return a, b
     """
 

@@ -142,10 +142,12 @@ import a as FooBarInterface
     invalid_no_alias_code = """
 import a
     """
-    assert_compile_failed(lambda: extract_file_interface_imports(invalid_no_alias_code), StructureException)
+    assert_compile_failed(
+        lambda: extract_file_interface_imports(invalid_no_alias_code), StructureException
+    )
 
     invalid_interfac_already_exists_code = """
 import a as A
 import a as A
     """
-    assert_compile_failed(lambda: extract_file_interface_imports(invalid_interfac_already_exists_code), StructureException)
+    assert_compile_failed(lambda: extract_file_interface_imports(invalid_interfac_already_exists_code), StructureException)  # noqa: E501

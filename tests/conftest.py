@@ -41,8 +41,14 @@ class VyperMethod(ConciseMethod):
     def __prepared_function(self, *args, **kwargs):
         if not kwargs:
             modifier, modifier_dict = 'call', {}
-            fn_abi = [x for x in self._function.contract_abi if x.get('name') == self._function.function_identifier].pop()
-            modifier_dict.update({'gas': fn_abi.get('gas', 0) + 50000})  # To make tests faster just supply some high gas value.
+            fn_abi = [
+                x
+                for x
+                in self._function.contract_abi
+                if x.get('name') == self._function.function_identifier
+            ].pop()
+            # To make tests faster just supply some high gas value.
+            modifier_dict.update({'gas': fn_abi.get('gas', 0) + 50000})
         elif len(kwargs) == 1:
             modifier, modifier_dict = kwargs.popitem()
             if modifier not in self.ALLOWED_MODIFIERS:
@@ -177,7 +183,12 @@ def get_contract_from_lll(w3):
         }
         tx = w3.eth.sendTransaction(deploy_transaction)
         address = w3.eth.getTransactionReceipt(tx)['contractAddress']
-        contract = w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract)
+        contract = w3.eth.contract(
+            address,
+            abi=abi,
+            bytecode=bytecode,
+            ContractFactoryClass=VyperContract,
+        )
         return contract
     return lll_compiler
 
@@ -200,7 +211,12 @@ def _get_contract(w3, source_code, *args, **kwargs):
     }
     tx = w3.eth.sendTransaction(deploy_transaction)
     address = w3.eth.getTransactionReceipt(tx)['contractAddress']
-    contract = w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract)
+    contract = w3.eth.contract(
+        address,
+        abi=abi,
+        bytecode=bytecode,
+        ContractFactoryClass=VyperContract,
+    )
     # Filter logs.
     contract._logfilter = w3.eth.filter({
         'fromBlock': w3.eth.blockNumber - 1,

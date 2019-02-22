@@ -53,7 +53,7 @@ def _hashy2(x: bytes[100]) -> bytes32:
 
 @public
 def return_hash_of_cow_x_30() -> bytes32:
-    return self._hashy2(b"cowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcow")
+    return self._hashy2(b"cowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcow")  # noqa: E501
 
 @public
 def _len(x: bytes[100]) -> int128:
@@ -148,7 +148,7 @@ def underscore() -> bytes[1]:
     return b"_"
 
 @public
-def hardtest(x: bytes[100], y: int128, z: int128, a: bytes[100], b: int128, c: int128) -> bytes[201]:
+def hardtest(x: bytes[100], y: int128, z: int128, a: bytes[100], b: int128, c: int128) -> bytes[201]:  # noqa: E501
     return concat(slice(x, start=y, len=z), self.underscore(), slice(a, start=b, len=c))
 
 @public

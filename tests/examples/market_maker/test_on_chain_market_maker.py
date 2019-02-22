@@ -19,7 +19,10 @@ TOKEN_TOTAL_SUPPLY = TOKEN_INITIAL_SUPPLY * (10 ** TOKEN_DECIMALS)
 def erc20(get_contract):
     with open('examples/tokens/ERC20.vy') as f:
         contract_code = f.read()
-    return get_contract(contract_code, *[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY])
+    return get_contract(
+        contract_code,
+        *[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY],
+    )
 
 
 def test_initial_statet(market_maker):
@@ -41,7 +44,7 @@ def test_initiate(w3, market_maker, erc20, assert_tx_failed):
     assert erc20.decimals() == TOKEN_DECIMALS
 
     # Initiate cannot be called twice
-    assert_tx_failed(lambda: market_maker.initiate(erc20.address, 1 * 10**18, transact={'value': 2 * 10**18}))
+    assert_tx_failed(lambda: market_maker.initiate(erc20.address, 1 * 10**18, transact={'value': 2 * 10**18}))  # noqa: E501
 
 
 def test_eth_to_tokens(w3, market_maker, erc20):
