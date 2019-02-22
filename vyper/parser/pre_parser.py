@@ -60,7 +60,10 @@ def pre_parse(code):
                 parse_version_pragma(token.string[1:])
 
             if token.type == NAME and string == "class" and start[1] == 0:
-                raise StructureException("The `class` keyword is not allowed. Perhaps you meant `contract` or `struct`?", token.start)
+                raise StructureException(
+                    "The `class` keyword is not allowed. Perhaps you meant `contract` or `struct`?",
+                    token.start,
+                )
 
             if token.type == NAME and fetch_name:
                 class_names[string] = fetch_name
