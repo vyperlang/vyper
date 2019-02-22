@@ -3,9 +3,10 @@ import ast
 from vyper.exceptions import (
     EventDeclarationException,
     FunctionDeclarationException,
+    InvalidTypeException,
+    ParserException,
     StructureException,
     VariableDeclarationException,
-    InvalidTypeException,
 )
 from vyper.utils import (
     check_valid_varname,
@@ -39,6 +40,9 @@ from vyper.signatures.interface import (
 )
 
 
+NONRENTRANT_STORAGE_OFFSET = 0xffffff
+
+
 # Datatype to store all global context information.
 class GlobalContext:
 
@@ -55,6 +59,8 @@ class GlobalContext:
         self._interfaces = dict()
         self._interface = dict()
         self._implemented_interfaces = set()
+        self._nonrentrant_counter = 0
+        self._nonrentrant_keys = dict()
 
     # Parse top-level functions and variables
     @classmethod
@@ -283,6 +289,9 @@ class GlobalContext:
     def add_globals_and_events(self, item):
         item_attributes = {"public": False}
 
+        if len(self._globals) > NONRENTRANT_STORAGE_OFFSET:
+            raise ParserException("Too many globals defined, only {} globals are allowed".format(NONRENTRANT_STORAGE_OFFSET), item)
+
         # Make sure we have a valid variable name.
         if not isinstance(item.target, ast.Name):
             raise StructureException('Invalid global variable name', item.target)
@@ -376,3 +385,17 @@ class GlobalContext:
             custom_structs=self._structs,
             constants=self._constants
         )
+
+    def get_nonrentrant_counter(self, key):
+        """
+        Nonrentrant locks use a prefix with a counter to minimise deployment cost of a contract.
+        """
+        prefix = NONRENTRANT_STORAGE_OFFSET
+
+        if key in self._nonrentrant_keys:
+            return self._nonrentrant_keys[key]
+        else:
+            counter = prefix + self._nonrentrant_counter
+            self._nonrentrant_keys[key] = counter
+            self._nonrentrant_counter += 1
+            return counter

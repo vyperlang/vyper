@@ -220,3 +220,70 @@ def test2():
     """
 
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), Exception)
+
+
+def test_convert_from_decimal(get_contract_with_gas_estimation):
+    code = """
+bar: decimal
+nar: decimal
+mar: decimal
+
+@public
+def foo() -> int128:
+    return convert(27.2319, int128)
+
+@public
+def hoo() -> int128:
+    return convert(-432.298391, int128)
+
+@public
+def goo() -> int128:
+    return convert(0.1234, int128)
+
+@public
+def foobar() -> int128:
+    self.bar = 27.2319
+    return convert(self.bar, int128)
+
+@public
+def hoonar() -> int128:
+    self.nar = -432.298391
+    return convert(self.nar, int128)
+
+@public
+def goomar() -> int128:
+    self.mar = 0.1234
+    return convert(self.mar, int128)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.foo() == 27
+    assert c.hoo() == -432
+    assert c.goo() == 0
+    assert c.foobar() == 27
+    assert c.hoonar() == -432
+    assert c.goomar() == 0
+
+
+def test_convert_from_overflow_decimal(assert_compile_failed, assert_tx_failed, get_contract_with_gas_estimation):
+    code = """
+@public
+def foo() -> int128:
+    return convert(180141183460469231731687303715884105728.0, int128)
+    """
+
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(code),
+        InvalidLiteralException
+    )
+
+    code = """
+@public
+def foo() -> int128:
+    return convert(-180141183460469231731687303715884105728.0, int128)
+    """
+
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(code),
+        InvalidLiteralException
+    )
