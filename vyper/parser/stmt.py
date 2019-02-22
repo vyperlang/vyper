@@ -155,7 +155,7 @@ class Stmt(object):
         return names
 
     def ann_assign(self):
-        with self.context.set_in_assignment():
+        with self.context.assignment_scope():
             typ = parse_type(self.stmt.annotation, location='memory', custom_units=self.context.custom_units, custom_structs=self.context.structs, constants=self.context.constants)
             if isinstance(self.stmt.target, ast.Attribute):
                 raise TypeMismatchException('May not set type for field %r' % self.stmt.target.attr, self.stmt)
@@ -193,7 +193,7 @@ class Stmt(object):
         if len(self.stmt.targets) != 1:
             raise StructureException("Assignment statement must have one target", self.stmt)
 
-        with self.context.set_in_assignment():
+        with self.context.assignment_scope():
             sub = Expr(self.stmt.value, self.context).lll_node
 
             # Disallow assignment to None
@@ -325,12 +325,8 @@ class Stmt(object):
 
     def parse_assert(self):
 
-        tmp_assertion_value = self.context.in_assertion  # backup value
-        try:
-            with self.context.set_in_assertion():
-                test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
-        finally:
-            self.context.in_assertion = tmp_assertion_value  # restore
+        with self.context.assertion_scope():
+            test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
 
         if not self.is_bool_expr(test_expr):
             raise TypeMismatchException('Only boolean expressions allowed', self.stmt.test)
@@ -465,7 +461,7 @@ class Stmt(object):
         if iter_var_type:
 
             list_name = self.stmt.iter.id
-            with self.context.set_in_for_loop_scope(list_name):  # make sure list cannot be altered whilst iterating.
+            with self.context.in_for_loop_scope(list_name):  # make sure list cannot be altered whilst iterating.
                 iter_var = self.context.vars.get(self.stmt.iter.id)
                 body = [
                     'seq',
@@ -502,7 +498,7 @@ class Stmt(object):
             count = iter_list_node.typ.count
             list_name = iter_list_node.annotation
 
-            with self.context.set_in_for_loop_scope(list_name):  # make sure list cannot be altered whilst iterating.
+            with self.context.in_for_loop_scope(list_name):  # make sure list cannot be altered whilst iterating.
                 body = [
                     'seq',
                     ['mstore', value_pos, ['sload', ['add', ['sha3_32', iter_list_node], ['mload', i_pos]]]],

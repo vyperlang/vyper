@@ -1,4 +1,5 @@
-from enum import Enum
+import contextlib
+import enum
 
 from vyper.utils import (
     MemoryPositions,
@@ -15,10 +16,9 @@ from vyper.exceptions import (
 from vyper.signatures.function_signature import (
     VariableRecord,
 )
-from contextlib import contextmanager
 
 
-class Constancy(Enum):
+class Constancy(enum.Enum):
     Mutable = 0
     Constant = 1
 
@@ -73,31 +73,32 @@ class Context():
         self.global_ctx = global_ctx
 
     def is_constant(self):
-        return self.constancy == Constancy.Constant or self.in_assertion
+        return self.constancy is Constancy.Constant or self.in_assertion
 
     #
     # Context Managers
     # - Context managers are used to ensure proper wrapping of scopes and context states.
 
-    @contextmanager
-    def set_in_for_loop_scope(self, name_of_list):
+    @contextlib.contextmanager
+    def in_for_loop_scope(self, name_of_list):
         self.in_for_loop.add(name_of_list)
         yield
         self.in_for_loop.remove(name_of_list)
 
-    @contextmanager
-    def set_in_assignment(self):
+    @contextlib.contextmanager
+    def assignment_scope(self):
         self.in_assignment = True
         yield
         self.in_assignment = False
 
-    @contextmanager
-    def set_in_assertion(self):
+    @contextlib.contextmanager
+    def assertion_scope(self):
+        prev_value = self.in_assertion
         self.in_assertion = True
         yield
-        self.in_assertion = False
+        self.in_assertion = prev_value
 
-    @contextmanager
+    @contextlib.contextmanager
     def make_blockscope(self, blockscope_id):
         self.blockscopes.add(blockscope_id)
         yield
