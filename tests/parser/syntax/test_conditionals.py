@@ -1,5 +1,8 @@
-def test_conditional_return_code(get_contract_with_gas_estimation):
-    conditional_return_code = """
+import pytest
+from vyper import compiler
+
+valid_list = [
+    """
 @private
 def mkint() -> int128:
     return 1
@@ -16,7 +19,10 @@ def test_valency_mismatch():
     else:
         pass
     """
+]
 
-    get_contract_with_gas_estimation(conditional_return_code)
+@pytest.mark.parametrize('good_code', valid_list)
+def test_conditional_return_code(good_code):
+    assert compiler.compile_code(good_code) is not None
 
-    print('Passed conditional return tests')
+
