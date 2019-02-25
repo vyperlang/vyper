@@ -392,11 +392,11 @@ def bar() -> int128:
 contract Bar:
     def bar() -> int128: constant
 
-bar_contract: address(Bar)
+bar_contract: Bar
 
 @public
 def foo(contract_address: address) -> int128:
-    self.bar_contract = contract_address
+    self.bar_contract = Bar(contract_address)
     return self.bar_contract.bar()
     """
 
@@ -423,16 +423,16 @@ contract Bar:
     def set_lucky(arg1: int128): modifying
     def get_lucky() -> int128: constant
 
-bar_contract: address(Bar)
+bar_contract: Bar
 
 @public
 def set_lucky(contract_address: address):
-    self.bar_contract = contract_address
+    self.bar_contract = Bar(contract_address)
     self.bar_contract.set_lucky(1)
 
 @public
 def get_lucky(contract_address: address) -> int128:
-    self.bar_contract = contract_address
+    self.bar_contract = Bar(contract_address)
     return self.bar_contract.get_lucky()
     """
 
@@ -466,11 +466,11 @@ contract Bar:
     def set_lucky(arg1: int128): modifying
     def get_lucky() -> int128: constant
 
-bar_contract: address(Bar)
+bar_contract: Bar
 
 @public
 def set_contract(contract_address: address):
-    self.bar_contract = contract_address
+    self.bar_contract = Bar(contract_address)
 
 @public
 def get_lucky() -> int128:
@@ -498,11 +498,11 @@ def bar() -> int128:
 contract Bar:
     def bar() -> int128: constant
 
-bar_contract: public(address(Bar))
+bar_contract: public(Bar)
 
 @public
 def foo(contract_address: address):
-    self.bar_contract.address = contract_address
+    self.bar_contract.address = Bar(contract_address)
 
 @public
 def get_bar() -> int128:
@@ -520,11 +520,11 @@ def test_invalid_external_contract_call_declaration_1(assert_compile_failed, get
 contract Bar:
     def bar() -> int128: constant
 
-bar_contract: address(Bar)
+bar_contract: Bar
 
 @public
 def foo(contract_address: contract(Boo)) -> int128:
-    self.bar_contract = contract_address
+    self.bar_contract = Bar(contract_address)
     return self.bar_contract.bar()
     """
 
@@ -540,7 +540,7 @@ bar_contract: Boo
 
 @public
 def foo(contract_address: address) -> int128:
-    self.bar_contract = contract_address
+    self.bar_contract = Bar(contract_address)
     return self.bar_contract.bar()
     """
 
@@ -563,11 +563,11 @@ def get_balance() -> uint256(wei):
 contract Bar:
     def get_lucky() -> int128: modifying
 
-bar_contract: address(Bar)
+bar_contract: Bar
 
 @public
 def set_contract(contract_address: address):
-    self.bar_contract = contract_address
+    self.bar_contract = Bar(contract_address)
 
 @payable
 @public
@@ -617,11 +617,11 @@ contract Bar:
     def set_lucky(arg1: int128): modifying
     def get_lucky() -> int128: constant
 
-bar_contract: address(Bar)
+bar_contract: Bar
 
 @public
 def set_contract(contract_address: address):
-    self.bar_contract = contract_address
+    self.bar_contract = Bar(contract_address)
 
 @public
 def get_lucky(gas_amount: int128) -> int128:
@@ -643,7 +643,7 @@ contract Bar:
     def set_lucky(arg1: int128): modifying
     def get_lucky() -> int128: constant
 
-bar_contract: address(Bar)
+bar_contract: Bar
 
 @public
 def get_lucky(amount_to_send: int128) -> int128:
@@ -659,7 +659,7 @@ def test_invalid_contract_declaration(assert_compile_failed, get_contract_with_g
 contract Bar:
     def set_lucky(arg1: int128): modifying
 
-bar_contract: address(Barr)
+bar_contract: Barr
 
     """
 
@@ -704,11 +704,11 @@ def get_balance() -> uint256(wei):
 contract Bar:
     def get_lucky() -> int128: modifying
 
-bar_contract: address(Bar)
+bar_contract: Bar
 
 @public
 def set_contract(contract_address: address):
-    self.bar_contract = contract_address
+    self.bar_contract = Bar(contract_address)
 
 @payable
 @public

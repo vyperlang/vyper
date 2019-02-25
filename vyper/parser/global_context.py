@@ -329,15 +329,17 @@ class GlobalContext:
             raise StructureException("Global variables must all come before function definitions", item)
 
         elif item_name in self._contracts or item_name in self._interfaces:
-            if item_attributes.get('address', False):
-                self._globals[item.target.id] = ContractRecord(item.target.id, len(self._globals), ContractType(item_name), True)
-                if item_attributes["public"]:
-                    typ = ContractType(item_name)
-                    for getter in self.mk_getter(item.target.id, typ):
-                        self._getters.append(self.parse_line('\n' * (item.lineno - 1) + getter))
-                        self._getters[-1].pos = getpos(item)
-            else:
-                raise StructureException("Can't assign interface, use address(%s) instead." % item_name, item)
+            if self.get_call_func_name(item) == "address":
+                raise StructureException(
+                    f"Persistent address({item_name}) style contract declarations are not support anymore."
+                    f" Use {item.target.id}: {item_name} instead"
+                )
+            self._globals[item.target.id] = ContractRecord(item.target.id, len(self._globals), ContractType(item_name), True)
+            if item_attributes["public"]:
+                typ = ContractType(item_name)
+                for getter in self.mk_getter(item.target.id, typ):
+                    self._getters.append(self.parse_line('\n' * (item.lineno - 1) + getter))
+                    self._getters[-1].pos = getpos(item)
         elif self.get_call_func_name(item) == "public":
             if isinstance(item.annotation.args[0], ast.Name) and item_name in self._contracts:
                 typ = ContractType(item_name)

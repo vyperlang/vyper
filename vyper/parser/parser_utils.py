@@ -14,7 +14,6 @@ from vyper.types import (
     BaseType,
     ByteArrayType,
     ByteArrayLike,
-    ContractType,
     NullType,
     StringType,
     StructType,
@@ -294,8 +293,6 @@ def base_type_conversion(orig, frm, to, pos, in_function_call=False):
             # This is only to future proof the use of  base_type_conversion.
             raise TypeMismatchException("Cannot convert null-type object to type %r" % to, pos)  # pragma: no cover
         return LLLnode.from_list(0, typ=to)
-    elif isinstance(to, ContractType) and frm.typ == 'address':
-        return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
     # Integer literal conversion.
     elif (frm.typ, to.typ, frm.is_literal) == ('int128', 'uint256', True):
         return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)

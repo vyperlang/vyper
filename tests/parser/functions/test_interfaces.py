@@ -170,12 +170,12 @@ contract EPI:
     def test() -> uint256: constant
 
 
-token_address: address(TokenCode)
+token_address: TokenCode
 
 
 @public
 def __init__(_token_address: address):
-    self.token_address = _token_address
+    self.token_address = TokenCode(_token_address)
 
 
 @public
@@ -208,12 +208,12 @@ def transfer(to: address, value: uint256):
 from vyper.interfaces import ERC20
 
 
-token_address: address(ERC20)
+token_address: ERC20
 
 
 @public
 def __init__(_token_address: address):
-    self.token_address = _token_address
+    self.token_address = ERC20(_token_address)
 
 
 @public
@@ -244,7 +244,7 @@ implements: Folding
 
 @public
 def test(a: uint256) -> uint256:
-    return 1
+    return 1 + a
 
 
 @public
@@ -285,4 +285,6 @@ def test2(a: uint256):
         }
     }
 
-    assert get_contract(code, interface_codes=interface_codes)
+    c = get_contract(code, interface_codes=interface_codes)
+
+    assert c.test(2) == 3

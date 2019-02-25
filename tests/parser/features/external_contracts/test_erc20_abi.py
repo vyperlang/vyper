@@ -30,11 +30,11 @@ contract ERC20Contract():
     def approve(_spender: address, _amount: uint256) -> bool: modifying
     def allowance(_owner: address, _spender: address) -> uint256: modifying
 
-token_address: address(ERC20Contract)
+token_address: ERC20Contract
 
 @public
 def __init__(token_addr: address):
-    self.token_address = token_addr
+    self.token_address = ERC20Contract(token_addr)
 
 @public
 def name() -> string[64]:
