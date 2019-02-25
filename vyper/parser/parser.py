@@ -408,6 +408,16 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
         if arg.name in global_ctx._globals:
             raise FunctionDeclarationException("Variable name duplicated between function arguments and globals: " + arg.name)
 
+    nonreentrant_pre = [['pass']]
+    nonreentrant_post = [['pass']]
+    if sig.nonreentrant_key:
+        nkey = global_ctx.get_nonrentrant_counter(sig.nonreentrant_key)
+        nonreentrant_pre = [
+            ['seq',
+                ['assert', ['iszero', ['sload', nkey]]],
+                ['sstore', nkey, 1]]]
+        nonreentrant_post = [['sstore', nkey, 0]]
+
     # Create a local (per function) context.
     context = Context(
         vars=_vars,
@@ -604,7 +614,7 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
                     ['if', 0,  # can only be jumped into
                         ['seq',
                             ['label', function_routine] if not sig.private else ['pass'],
-                            ['seq'] + _clampers + [parse_body(c, context) for c in code.body] + stop_func]]], typ=None, pos=getpos(code))
+                            ['seq'] + nonreentrant_pre + _clampers + [parse_body(c, context) for c in code.body] + nonreentrant_post + stop_func]]], typ=None, pos=getpos(code))
 
         else:
             # Function without default parameters.
@@ -612,7 +622,7 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
             o = LLLnode.from_list(
                 ['if',
                     sig_compare,
-                    ['seq'] + [private_label] + clampers + [parse_body(c, context) for c in code.body] + stop_func], typ=None, pos=getpos(code))
+                    ['seq'] + [private_label] + nonreentrant_pre + clampers + [parse_body(c, context) for c in code.body] + nonreentrant_post + stop_func], typ=None, pos=getpos(code))
 
     # Check for at leasts one return statement if necessary.
     if context.return_type and context.function_return_count == 0:

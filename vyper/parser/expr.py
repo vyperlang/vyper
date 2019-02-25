@@ -101,6 +101,7 @@ class Expr(object):
             if DECIMAL_DIVISOR % den:
                 raise InvalidLiteralException("Too many decimal places: " + numstring, self.expr)
             return LLLnode.from_list(num * DECIMAL_DIVISOR // den, typ=BaseType('decimal', unit=None), pos=getpos(self.expr))
+
         # Binary literal.
         elif orignum[:2] == '0b':
             str_val = orignum[2:]
