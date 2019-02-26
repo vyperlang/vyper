@@ -1,4 +1,3 @@
-import eth_tester
 import logging
 import pytest
 
@@ -63,8 +62,8 @@ class VyperContract(ConciseContract):
 # PATCHING #
 ############
 
-setattr(eth_tester.backends.pyevm.main, 'GENESIS_GAS_LIMIT', 10**9)
-setattr(eth_tester.backends.pyevm.main, 'GENESIS_DIFFICULTY', 1)
+# setattr(eth_tester.backends.pyevm.main, 'GENESIS_GAS_LIMIT', 10**9)
+# setattr(eth_tester.backends.pyevm.main, 'GENESIS_DIFFICULTY', 1)
 
 
 def set_evm_verbose_logging():
@@ -73,12 +72,12 @@ def set_evm_verbose_logging():
 
 
 # Useful options to comment out whilst working:
-set_evm_verbose_logging()
+# set_evm_verbose_logging()
 # from vdb import vdb
 # vdb.set_evm_opcode_debugger()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def tester():
     t = EthereumTester()
     return t
@@ -88,7 +87,7 @@ def zero_gas_price_strategy(web3, transaction_params=None):
     return 0  # zero gas price makes testing simpler.
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def w3(tester):
     w3 = Web3(EthereumTesterProvider(tester))
     w3.eth.setGasPriceStrategy(zero_gas_price_strategy)
