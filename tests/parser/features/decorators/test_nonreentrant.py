@@ -22,11 +22,11 @@ contract Callback:
     def updated_protected(): modifying
 
 special_value: public(string[100])
-callback: public(address(Callback))
+callback: public(Callback)
 
 @public
 def set_callback(c: address):
-    self.callback = c
+    self.callback = Callback(c)
 
 @public
 @nonreentrant('protect_special_value')

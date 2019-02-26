@@ -9,7 +9,7 @@ totalTokenQty: public(uint256(currency_value))
 # Constant set in `initiate` that's used to calculate
 # the amount of ether/tokens that are exchanged
 invariant: public(uint256(wei * currency_value))
-token_address: address(ERC20)
+token_address: ERC20
 owner: public(address)
 
 # Sets the on chain market maker with its owner, intial token quantity,
@@ -18,7 +18,7 @@ owner: public(address)
 @payable
 def initiate(token_addr: address, token_quantity: uint256(currency_value)):
     assert self.invariant == 0
-    self.token_address = token_addr
+    self.token_address = ERC20(token_addr)
     self.token_address.transferFrom(msg.sender, self, as_unitless_number(token_quantity))
     self.owner = msg.sender
     self.totalEthQty = msg.value
