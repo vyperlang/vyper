@@ -1,7 +1,6 @@
 import eth_tester
 import logging
 import pytest
-import web3
 
 from functools import wraps
 
@@ -77,63 +76,6 @@ def set_evm_verbose_logging():
 set_evm_verbose_logging()
 # from vdb import vdb
 # vdb.set_evm_opcode_debugger()
-
-
-@pytest.fixture(autouse=True)
-def patch_log_filter_remove(monkeypatch):
-
-    def Filter_remove(self, *values):
-
-        def get_key(v):
-            return v.get('transaction_hash'), v.get('log_index'), v.get('transaction_index')
-
-        values_to_remove = set([
-            get_key(value)
-            for value in values
-        ])
-
-        queued_values = self.get_changes()
-        self.values = [
-            value
-            for value
-            in self.get_all()
-            if get_key(value) not in values_to_remove
-        ]
-        for value in queued_values:
-            if get_key(value) in values_to_remove:
-                continue
-            self.queue.put_nowait(value)
-
-    monkeypatch.setattr(eth_tester.utils.filters.Filter, 'remove', Filter_remove)
-
-
-@pytest.fixture(autouse=True)
-def patch_is_encodeable_for_fixed(monkeypatch):
-    original_is_encodable = web3.utils.abi.is_encodable
-
-    def utils_abi_is_encodable(_type, value):
-        from eth_utils import is_integer
-        from eth_abi.abi import process_type
-        try:
-            base, sub, arrlist = _type
-        except ValueError:
-            base, sub, arrlist = process_type(_type)
-
-        if not arrlist:
-            if base == 'fixed' and not arrlist:
-                return True
-            elif base == 'int':
-                if not is_integer(value):
-                    return False
-                exp = int(sub)
-                if value < -1 * 2**(exp - 1) or value > 2**(exp - 1) + 1:
-                    return False
-                return True
-
-        # default behaviour
-        return original_is_encodable(_type, value)
-
-    monkeypatch.setattr(web3.utils.abi, 'is_encodable', utils_abi_is_encodable)
 
 
 @pytest.fixture(scope="module")
