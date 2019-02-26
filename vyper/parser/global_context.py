@@ -12,9 +12,6 @@ from vyper.utils import (
     check_valid_varname,
     valid_global_keywords,
 )
-from vyper.premade_contracts import (
-    premade_contracts,
-)
 from vyper.parser.constants import Constants
 from vyper.parser.parser_utils import (
     decorate_ast,
@@ -79,6 +76,8 @@ class GlobalContext:
                         raise StructureException("Structs must come before external contract definitions", item)
                     global_ctx._structs[item.name] = global_ctx.make_struct(item.name, item.body)
                 elif item.class_type == 'contract':
+                    if item.name in global_ctx._contracts or item.name in global_ctx._interfaces:
+                        raise StructureException("Contract '{}' is already defined".format(item.name), item)
                     global_ctx._contracts[item.name] = GlobalContext.make_contract(item.body)
                 else:
                     raise StructureException("Unknown class_type. This is likely a compiler bug, please report", item)
@@ -125,15 +124,13 @@ class GlobalContext:
             else:
                 raise StructureException("Invalid top-level statement", item)
 
-        if set(global_ctx._interfaces.keys()) != global_ctx._implemented_interfaces:
-            raise StructureException('All interfaces that are imported have to be implemented using the "implements" statement.')
-
         # Merge intefaces.
         if global_ctx._interfaces:
             for interface_name, sigs in global_ctx._interfaces.items():
-                for func_sig in sigs:
-                    setattr(func_sig, 'defined_in_interface', interface_name)
-                    global_ctx._interface[func_sig.sig] = func_sig
+                if interface_name in global_ctx._implemented_interfaces:
+                    for func_sig in sigs:
+                        setattr(func_sig, 'defined_in_interface', interface_name)
+                        global_ctx._interface[func_sig.sig] = func_sig
 
         # Add getters to _defs
         global_ctx._defs += global_ctx._getters
@@ -298,7 +295,7 @@ class GlobalContext:
 
         # Handle constants.
         if self.get_call_func_name(item) == "constant":
-            self._constants.add_constant(item, global_ctx=self)
+            self.   _constants.add_constant(item, global_ctx=self)
             return
 
         # Handle events.
@@ -339,23 +336,19 @@ class GlobalContext:
 
         elif len(self._defs):
             raise StructureException("Global variables must all come before function definitions", item)
-        # If the type declaration is of the form public(<type here>), then proceed with
-        # the underlying type but also add getters
-        elif self.get_call_func_name(item) == "address":
-            if item.annotation.args[0].id not in premade_contracts:
-                raise VariableDeclarationException("Unsupported premade contract declaration", item.annotation.args[0])
-            premade_contract = premade_contracts[item.annotation.args[0].id]
-            self._contracts[item.target.id] = self.make_contract(premade_contract.body)
-            self._globals[item.target.id] = VariableRecord(item.target.id, len(self._globals), BaseType('address'), True)
 
-        elif item_name in self._contracts:
+        elif item_name in self._contracts or item_name in self._interfaces:
+            if self.get_call_func_name(item) == "address":
+                raise StructureException(
+                    f"Persistent address({item_name}) style contract declarations are not support anymore."
+                    f" Use {item.target.id}: {item_name} instead"
+                )
             self._globals[item.target.id] = ContractRecord(item.target.id, len(self._globals), ContractType(item_name), True)
             if item_attributes["public"]:
                 typ = ContractType(item_name)
                 for getter in self.mk_getter(item.target.id, typ):
                     self._getters.append(self.parse_line('\n' * (item.lineno - 1) + getter))
                     self._getters[-1].pos = getpos(item)
-
         elif self.get_call_func_name(item) == "public":
             if isinstance(item.annotation.args[0], ast.Name) and item_name in self._contracts:
                 typ = ContractType(item_name)

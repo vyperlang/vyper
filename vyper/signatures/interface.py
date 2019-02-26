@@ -5,8 +5,12 @@ import importlib
 import pkgutil
 import vyper.interfaces
 
-from vyper.exceptions import StructureException
+from vyper.exceptions import (
+    ParserException,
+    StructureException
+)
 from vyper.parser import parser
+from vyper.parser.constants import Constants
 from vyper.signatures.event_signature import EventSignature
 from vyper.signatures.function_signature import FunctionSignature
 
@@ -15,7 +19,10 @@ from vyper.signatures.function_signature import FunctionSignature
 def get_builtin_interfaces():
     interface_names = [x.name for x in pkgutil.iter_modules(vyper.interfaces.__path__)]
     return {
-        name: extract_sigs(importlib.import_module('vyper.interfaces.{}'.format(name)).interface_code)
+        name: extract_sigs({
+            'type': 'vyper',
+            'code': importlib.import_module('vyper.interfaces.{}'.format(name)).interface_code
+        })
         for name in interface_names
     }
 
@@ -26,9 +33,79 @@ def render_return(sig):
     return ""
 
 
-def extract_sigs(code):
-    sigs = parser.mk_full_signature(parser.parse_to_ast(code), sig_formatter=lambda x, y: x)
+def abi_type_to_ast(atype):
+    if atype in ('int128', 'uint256', 'bool', 'address', 'bytes32'):
+        return ast.Name(atype, None)
+    elif atype == 'decimal':
+        return ast.Name('int128', None)
+    elif atype == 'bytes':
+        return ast.Subscript(
+            value=ast.Name('bytes', None),
+            slice=ast.Index(256)
+        )
+    elif atype == 'string':
+        return ast.Subscript(
+            value=ast.Name('string', None),
+            slice=ast.Index(256)
+        )
+    else:
+        raise ParserException('Type {} not supported by vyper.'.format(atype))
+
+
+def mk_full_signature_from_json(abi):
+    funcs = [func for func in abi if func['type'] == 'function']
+    sigs = []
+
+    for func in funcs:
+        args = []
+        returns = None
+        for a in func['inputs']:
+            arg = ast.arg(
+                arg=a['name'],
+                annotation=abi_type_to_ast(a['type']),
+                lineno=0,
+                col_offset=0
+            )
+            args.append(arg)
+
+        if len(func['outputs']) == 1:
+            returns = abi_type_to_ast(func['outputs'][0]['type'])
+        elif len(func['outputs']) > 1:
+            returns = ast.Tuple(
+                elts=[
+                    abi_type_to_ast(a['type'])
+                    for a in func['outputs']
+                ]
+            )
+
+        decorator_list = [ast.Name('public', None)]
+        if func['constant']:
+            decorator_list.append(ast.Name('constant', None))
+        if func['payable']:
+            decorator_list.append(ast.Name('payable', None))
+
+        sig = FunctionSignature.from_definition(
+            code=ast.FunctionDef(
+                name=func['name'],
+                args=ast.arguments(args=args),
+                decorator_list=decorator_list,
+                returns=returns,
+            ),
+            custom_units=set(),
+            custom_structs=dict(),
+            constants=Constants()
+        )
+        sigs.append(sig)
     return sigs
+
+
+def extract_sigs(sig_code):
+    if sig_code['type'] == 'vyper':
+        return parser.mk_full_signature(parser.parse_to_ast(sig_code['code']), sig_formatter=lambda x, y: x)
+    elif sig_code['type'] == 'json':
+        return mk_full_signature_from_json(sig_code['code'])
+    else:
+        raise Exception("Unknown interface signature type '{}' supplied. 'vyper' & 'json' are supported".format(sig_code['type']))
 
 
 def extract_interface_str(code, contract_name, interface_codes=None):

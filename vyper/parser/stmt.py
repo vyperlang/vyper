@@ -31,6 +31,7 @@ from vyper.types import (
     BaseType,
     ByteArrayLike,
     ByteArrayType,
+    ContractType,
     ListType,
     NullType,
     StructType,
@@ -124,12 +125,16 @@ class Stmt(object):
                 raise InvalidLiteralException('Invalid uint256 assignment, value not in uint256 range.', self.stmt)
         elif self.stmt.annotation.id != sub.typ.typ and not sub.typ.unit:
             raise TypeMismatchException('Invalid type %s, expected: %s' % (sub.typ.typ, self.stmt.annotation.id), self.stmt)
+        else:
+            return True
 
     def _check_same_variable_assign(self, sub):
         lhs_var_name = self.stmt.target.id
         rhs_names = self._check_rhs_var_assn_recur(self.stmt.value)
         if lhs_var_name in rhs_names:
             raise VariableDeclarationException('Invalid variable assignment, same variable not allowed on LHS and RHS: %s' % lhs_var_name)
+        else:
+            return True
 
     def _check_rhs_var_assn_recur(self, val):
         names = ()
@@ -221,6 +226,11 @@ class Stmt(object):
 
                 # Checks to see if assignment is valid
                 target = self.get_target(self.stmt.targets[0])
+                if isinstance(target.typ, ContractType) and sub.typ == BaseType('address'):
+                    raise TypeMismatchException(
+                        f'Contract assignment expects casted address: {target.typ.unit}(<address_var>)',
+                        self.stmt
+                    )
                 o = make_setter(target, sub, target.location, pos=getpos(self.stmt))
 
             o.pos = getpos(self.stmt)

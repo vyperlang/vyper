@@ -694,6 +694,13 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         else:
             raise StructureException("Only the 'not' unary operator is supported")
 
+    def _is_valid_contract_assign(self):
+        if self.expr.args and len(self.expr.args) == 1:
+            arg_lll = Expr(self.expr.args[0], self.context).lll_node
+            if arg_lll.typ == BaseType('address'):
+                return True, arg_lll
+        return True, None
+
     # Function calls
     def call(self):
         from vyper.functions import (
@@ -717,6 +724,14 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                     raise TypeMismatchException("Struct can only be constructed with a dict", self.expr)
                 return Expr.struct_literals(arg, function_name, self.context)
 
+            # Contract assignment. Bar(<address>).
+            elif function_name in self.context.sigs:
+                ret, arg_lll = self._is_valid_contract_assign()
+                if ret is True:
+                    arg_lll.typ = ContractType(function_name)  # Cast to Correct contract type.
+                    return arg_lll
+                else:
+                    raise TypeMismatchException("ContractType definition expects one address argument.", self.expr)
             else:
                 err_msg = "Not a top-level function: {}".format(function_name)
                 if function_name in [x.split('(')[0] for x, _ in self.context.sigs['self'].items()]:

@@ -63,6 +63,12 @@ class FunctionSignature():
         self.custom_units = custom_units
         self.nonreentrant_key = nonreentrant_key
 
+    def __str__(self):
+        input_name = 'def ' + self.name + '(' + ','.join([str(arg.typ) for arg in self.args]) + ')'
+        if self.output_type:
+            return input_name + ' -> ' + str(self.output_type) + ':'
+        return input_name + ':'
+
     # Get the canonical function signature
     @staticmethod
     def get_full_sig(func_name, args, sigs, custom_units, custom_structs, constants):

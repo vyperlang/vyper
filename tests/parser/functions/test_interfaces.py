@@ -80,8 +80,8 @@ def test() -> bool:
 
 
 def test_builtin_interfaces_parse():
-    assert len(extract_sigs(ERC20.interface_code)) == 8
-    assert len(extract_sigs(ERC721.interface_code)) == 13
+    assert len(extract_sigs({'type': 'vyper', 'code': ERC20.interface_code})) == 8
+    assert len(extract_sigs({'type': 'vyper', 'code': ERC721.interface_code})) == 13
 
 
 def test_external_interface_parsing(assert_compile_failed):
@@ -96,7 +96,10 @@ def bar() -> uint256:
     """
 
     interface_codes = {
-        'FooBarInterface': interface_code
+        'FooBarInterface': {
+            'type': 'vyper',
+            'code': interface_code
+        }
     }
 
     code = """
@@ -149,3 +152,139 @@ import a as A
 import a as A
     """
     assert_compile_failed(lambda: extract_file_interface_imports(invalid_interfac_already_exists_code), StructureException)
+
+
+def test_external_call_to_interface(w3, get_contract):
+    token_code = """
+balanceOf: public(map(address, uint256))
+
+@public
+def transfer(to: address, value: uint256):
+    self.balanceOf[to] += value
+    """
+
+    code = """
+import one as TokenCode
+
+contract EPI:
+    def test() -> uint256: constant
+
+
+token_address: TokenCode
+
+
+@public
+def __init__(_token_address: address):
+    self.token_address = TokenCode(_token_address)
+
+
+@public
+def test():
+    self.token_address.transfer(msg.sender, 1000)
+    """
+
+    erc20 = get_contract(token_code)
+    test_c = get_contract(code, *[erc20.address], interface_codes={
+        'TokenCode': {'type': 'vyper', 'code': token_code}
+    })
+
+    sender = w3.eth.accounts[0]
+    assert erc20.balanceOf(sender) == 0
+
+    test_c.test(transact={})
+    assert erc20.balanceOf(sender) == 1000
+
+
+def test_external_call_to_builtin_interface(w3, get_contract):
+    token_code = """
+balanceOf: public(map(address, uint256))
+
+@public
+def transfer(to: address, value: uint256):
+    self.balanceOf[to] += value
+    """
+
+    code = """
+from vyper.interfaces import ERC20
+
+
+token_address: ERC20
+
+
+@public
+def __init__(_token_address: address):
+    self.token_address = ERC20(_token_address)
+
+
+@public
+def test():
+    self.token_address.transfer(msg.sender, 1000)
+    """
+
+    erc20 = get_contract(token_code)
+    test_c = get_contract(code, *[erc20.address], interface_codes={
+        'TokenCode': {
+            'type': 'vyper',
+            'code': token_code
+        }
+    })
+
+    sender = w3.eth.accounts[0]
+    assert erc20.balanceOf(sender) == 0
+
+    test_c.test(transact={})
+    assert erc20.balanceOf(sender) == 1000
+
+
+def test_json_interface(get_contract):
+    code = """
+import folding as Folding
+
+implements: Folding
+
+@public
+def test(a: uint256) -> uint256:
+    return 1 + a
+
+
+@public
+def test2(a: uint256):
+    pass
+    """
+
+    interface_codes = {
+        'Folding': {
+            'type': 'json',
+            'code': [
+                {
+                    "name": "test",
+                    "outputs": [{
+                        "type": "uint256",
+                        "name": "out"
+                    }],
+                    "inputs": [{
+                        "type": "uint256",
+                        "name": "s"
+                    }],
+                    "constant": False,
+                    "payable": False,
+                    "type": "function",
+                },
+                {
+                    "name": "test2",
+                    "outputs": [],
+                    "inputs": [{
+                        "type": "uint256",
+                        "name": "s"
+                    }],
+                    "constant": False,
+                    "payable": False,
+                    "type": "function",
+                }
+            ]
+        }
+    }
+
+    c = get_contract(code, interface_codes=interface_codes)
+
+    assert c.test(2) == 3

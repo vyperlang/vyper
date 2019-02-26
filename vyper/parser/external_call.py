@@ -34,7 +34,9 @@ def external_contract_call(node, context, contract_name, contract_address, pos, 
             (
                 "Function not declared yet: %s (reminder: "
                 "function must be declared in the correct contract)"
-            ) % method_name, node.func
+                " The available methods are: %s"
+            ) % (method_name, ",".join(context.sigs[contract_name].keys())),
+            node.func
         )
     sig = context.sigs[contract_name][method_name]
     inargs, inargsize, _ = pack_arguments(sig, [parse_expr(arg, context) for arg in node.args], context, pos=pos)

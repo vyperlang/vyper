@@ -45,7 +45,7 @@ bar_contract: Bar
 
 @public
 def foo(contract_address: address) -> int128:
-    self.bar_contract = contract_address
+    self.bar_contract = Bar(contract_address)
     return self.bar_contract.bar()
     """
 

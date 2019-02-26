@@ -22,8 +22,8 @@ static_bar_contract: ConstBar
 
 @public
 def __init__(contract_address: address):
-    self.modifiable_bar_contract = contract_address
-    self.static_bar_contract = contract_address
+    self.modifiable_bar_contract = ModBar(contract_address)
+    self.static_bar_contract = ConstBar(contract_address)
 
 @public
 def modifiable_set_lucky(_lucky: int128):
@@ -65,8 +65,8 @@ static_bar_contract: ConstBar
 
 @public
 def __init__(contract_address: address):
-    self.modifiable_bar_contract = contract_address
-    self.static_bar_contract = contract_address
+    self.modifiable_bar_contract = ModBar(contract_address)
+    self.static_bar_contract = ConstBar(contract_address)
 
 @public
 def modifiable_set_lucky(_lucky: int128) -> int128:
@@ -108,8 +108,8 @@ static_bar_contract: ConstBar
 
 @public
 def __init__(contract_address: address):
-    self.modifiable_bar_contract = contract_address
-    self.static_bar_contract = contract_address
+    self.modifiable_bar_contract = ModBar(contract_address)
+    self.static_bar_contract = ConstBar(contract_address)
 
 @public
 def modifiable_set_lucky(_lucky: int128):
@@ -134,8 +134,8 @@ static_bar_contract: ConstBar
 
 @public
 def __init__(contract_address: address):
-    self.modifiable_bar_contract = contract_address
-    self.static_bar_contract = contract_address
+    self.modifiable_bar_contract = ModBar(contract_address)
+    self.static_bar_contract = ConstBar(contract_address)
 
 @public
 def modifiable_modifiable_set_lucky(_lucky: int128):
@@ -181,7 +181,7 @@ bar_contract: public(Bar)
 
 @public
 def foo(contract_address: address):
-    self.bar_contract = contract_address
+    self.bar_contract = Bar(contract_address)
 
 @public
 def get_bar() -> int128:
@@ -203,7 +203,7 @@ bar_contract: Bar
 
 @public
 def foo(contract_address: contract(Boo)) -> int128:
-    self.bar_contract = contract_address
+    self.bar_contract = Bar(contract_address)
     return self.bar_contract.bar()
     """
 
@@ -219,7 +219,7 @@ bar_contract: Boo
 
 @public
 def foo(contract_address: address) -> int128:
-    self.bar_contract = contract_address
+    self.bar_contract = Bar(contract_address)
     return self.bar_contract.bar()
     """
 

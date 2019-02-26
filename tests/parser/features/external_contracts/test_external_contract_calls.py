@@ -396,7 +396,7 @@ bar_contract: Bar
 
 @public
 def foo(contract_address: address) -> int128:
-    self.bar_contract = contract_address
+    self.bar_contract = Bar(contract_address)
     return self.bar_contract.bar()
     """
 
@@ -427,12 +427,12 @@ bar_contract: Bar
 
 @public
 def set_lucky(contract_address: address):
-    self.bar_contract = contract_address
+    self.bar_contract = Bar(contract_address)
     self.bar_contract.set_lucky(1)
 
 @public
 def get_lucky(contract_address: address) -> int128:
-    self.bar_contract = contract_address
+    self.bar_contract = Bar(contract_address)
     return self.bar_contract.get_lucky()
     """
 
@@ -470,7 +470,7 @@ bar_contract: Bar
 
 @public
 def set_contract(contract_address: address):
-    self.bar_contract = contract_address
+    self.bar_contract = Bar(contract_address)
 
 @public
 def get_lucky() -> int128:
@@ -502,7 +502,7 @@ bar_contract: public(Bar)
 
 @public
 def foo(contract_address: address):
-    self.bar_contract.address = contract_address
+    self.bar_contract.address = Bar(contract_address)
 
 @public
 def get_bar() -> int128:
@@ -524,7 +524,7 @@ bar_contract: Bar
 
 @public
 def foo(contract_address: contract(Boo)) -> int128:
-    self.bar_contract = contract_address
+    self.bar_contract = Bar(contract_address)
     return self.bar_contract.bar()
     """
 
@@ -540,7 +540,7 @@ bar_contract: Boo
 
 @public
 def foo(contract_address: address) -> int128:
-    self.bar_contract = contract_address
+    self.bar_contract = Bar(contract_address)
     return self.bar_contract.bar()
     """
 
@@ -567,7 +567,7 @@ bar_contract: Bar
 
 @public
 def set_contract(contract_address: address):
-    self.bar_contract = contract_address
+    self.bar_contract = Bar(contract_address)
 
 @payable
 @public
@@ -621,7 +621,7 @@ bar_contract: Bar
 
 @public
 def set_contract(contract_address: address):
-    self.bar_contract = contract_address
+    self.bar_contract = Bar(contract_address)
 
 @public
 def get_lucky(gas_amount: int128) -> int128:
@@ -708,7 +708,7 @@ bar_contract: Bar
 
 @public
 def set_contract(contract_address: address):
-    self.bar_contract = contract_address
+    self.bar_contract = Bar(contract_address)
 
 @payable
 @public

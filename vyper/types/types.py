@@ -251,16 +251,10 @@ def canonicalize_type(t, is_indexed=False):
         raise Exception("Cannot canonicalize non-base type: %r" % t)
 
     t = t.typ
-    if t == 'int128':
-        return 'int128'
+    if t in ('int128', 'uint256', 'bool', 'address', 'bytes32'):
+        return t
     elif t == 'decimal':
         return 'fixed168x10'
-    elif t == 'bool':
-        return 'bool'
-    elif t == 'uint256':
-        return 'uint256'
-    elif t == 'address' or t == 'bytes32':
-        return t
     raise Exception("Invalid or unsupported type: " + repr(t))
 
 

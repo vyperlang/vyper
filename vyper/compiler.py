@@ -172,6 +172,6 @@ def compile_codes(codes, output_formats=None, output_type='list', exc_handler=No
         raise Exception('Unknown output_type')
 
 
-def compile_code(code, output_formats=None):
+def compile_code(code, output_formats=None, interface_codes=None):
     codes = {'': code}
-    return compile_codes(codes, output_formats, 'list')[0]
+    return compile_codes(codes, output_formats, 'list', interface_codes=interface_codes)[0]

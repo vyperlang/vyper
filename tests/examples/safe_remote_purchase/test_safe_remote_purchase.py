@@ -110,7 +110,7 @@ purchase_contract: PurchaseContract
 
 @public
 def __init__(_purchase_contract: address):
-    self.purchase_contract = _purchase_contract
+    self.purchase_contract = PurchaseContract(_purchase_contract)
 
 
 @payable
