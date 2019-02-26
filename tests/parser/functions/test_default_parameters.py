@@ -110,15 +110,10 @@ def bar(a: int128, b: int128 = -1) -> (int128, int128):
     assert c.bar(-123) == [-123, -1]
     assert c.bar(100, 100) == [100, 100]
 
-    # bypass abi encoding checking:
-    def utils_abi_is_encodable(_type, value):
-        return True
-
     def validate_value(cls, value):
         pass
 
     monkeypatch.setattr('eth_abi.encoding.NumberEncoder.validate_value', validate_value)
-    monkeypatch.setattr('web3.utils.abi.is_encodable', utils_abi_is_encodable)
 
     assert c.bar(200, 2**127 - 1) == [200, 2**127 - 1]
     assert_tx_failed(lambda: c.bar(200, 2**127))

@@ -39,7 +39,7 @@ def test_late_bid(w3, auction_contract, assert_tx_failed):
 
     # Try to bid after bidding has ended
     assert_tx_failed(lambda: auction_contract.bid(
-        w3.sha3(b''.join([
+        w3.keccak(b''.join([
             (200).to_bytes(32, byteorder='big'),
             (0).to_bytes(32, byteorder='big'),
             (8675309).to_bytes(32, byteorder='big')
@@ -54,7 +54,7 @@ def test_too_many_bids(w3, auction_contract, assert_tx_failed):
     # First 128 bids should be able to be placed successfully
     for i in range(MAX_BIDS):
         auction_contract.bid(
-            w3.sha3(b''.join([
+            w3.keccak(b''.join([
                 (i).to_bytes(32, byteorder='big'),
                 (1).to_bytes(32, byteorder='big'),
                 (8675309).to_bytes(32, byteorder='big')
@@ -64,7 +64,7 @@ def test_too_many_bids(w3, auction_contract, assert_tx_failed):
 
     # 129th bid should fail
     assert_tx_failed(lambda: auction_contract.bid(
-        w3.sha3(b''.join([
+        w3.keccak(b''.join([
             (128).to_bytes(32, byteorder='big'),
             (0).to_bytes(32, byteorder='big'),
             (8675309).to_bytes(32, byteorder='big')
@@ -78,7 +78,7 @@ def test_early_reval(w3, auction_contract, assert_tx_failed):
 
     # k1 places 1 real bid
     auction_contract.bid(
-        w3.sha3(b''.join([
+        w3.keccak(b''.join([
             (100).to_bytes(32, byteorder='big'),
             (0).to_bytes(32, byteorder='big'),
             (8675309).to_bytes(32, byteorder='big')
@@ -116,7 +116,7 @@ def test_late_reveal(w3, auction_contract, assert_tx_failed):
 
     # k1 places 1 real bid
     auction_contract.bid(
-        w3.sha3(b''.join([
+        w3.keccak(b''.join([
             (100).to_bytes(32, byteorder='big'),
             (0).to_bytes(32, byteorder='big'),
             (8675309).to_bytes(32, byteorder='big')
@@ -184,7 +184,7 @@ def test_blind_auction(w3, auction_contract):
 
     # k1 places 1 real bid
     auction_contract.bid(
-        w3.sha3(b''.join([
+        w3.keccak(b''.join([
             (100).to_bytes(32, byteorder='big'),
             (0).to_bytes(32, byteorder='big'),
             (8675309).to_bytes(32, byteorder='big')
@@ -194,7 +194,7 @@ def test_blind_auction(w3, auction_contract):
 
     # k2 places 1 real bid (highest) and 2 fake
     auction_contract.bid(
-        w3.sha3(b''.join([
+        w3.keccak(b''.join([
             (150).to_bytes(32, byteorder='big'),
             (1).to_bytes(32, byteorder='big'),
             (1234567).to_bytes(32, byteorder='big')
@@ -202,7 +202,7 @@ def test_blind_auction(w3, auction_contract):
         transact={'value': 150, 'from': k2}
     )
     auction_contract.bid(
-        w3.sha3(b''.join([
+        w3.keccak(b''.join([
             (200).to_bytes(32, byteorder='big'),
             (0).to_bytes(32, byteorder='big'),
             (1234567).to_bytes(32, byteorder='big')
@@ -210,7 +210,7 @@ def test_blind_auction(w3, auction_contract):
         transact={'value': 250, 'from': k2}
     )
     auction_contract.bid(
-        w3.sha3(b''.join([
+        w3.keccak(b''.join([
             (300).to_bytes(32, byteorder='big'),
             (1).to_bytes(32, byteorder='big'),
             (1234567).to_bytes(32, byteorder='big')
@@ -220,7 +220,7 @@ def test_blind_auction(w3, auction_contract):
 
     # k3 places 2 fake bids
     auction_contract.bid(
-        w3.sha3(b''.join([
+        w3.keccak(b''.join([
             (175).to_bytes(32, byteorder='big'),
             (1).to_bytes(32, byteorder='big'),
             (9876543).to_bytes(32, byteorder='big')
@@ -228,7 +228,7 @@ def test_blind_auction(w3, auction_contract):
         transact={'value': 175, 'from': k3}
     )
     auction_contract.bid(
-        w3.sha3(b''.join([
+        w3.keccak(b''.join([
             (275).to_bytes(32, byteorder='big') +
             (1).to_bytes(32, byteorder='big') +
             (9876543).to_bytes(32, byteorder='big')
