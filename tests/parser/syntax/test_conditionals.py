@@ -21,8 +21,7 @@ def test_valency_mismatch():
     """
 ]
 
+
 @pytest.mark.parametrize('good_code', valid_list)
 def test_conditional_return_code(good_code):
     assert compiler.compile_code(good_code) is not None
-
-
