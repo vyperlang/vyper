@@ -16,9 +16,12 @@ from web3.providers.eth_tester import (
 from web3 import (
     Web3,
 )
+from web3._utils.toolz import (
+    compose,
+)
 from web3.contract import (
-    ConciseContract,
-    ConciseMethod
+    Contract,
+    mk_collision_prop,
 )
 from vyper.parser.parser_utils import (
     LLLnode
@@ -30,8 +33,12 @@ from vyper import (
 )
 
 
-class VyperMethod(ConciseMethod):
+class VyperMethod:
     ALLOWED_MODIFIERS = {'call', 'estimateGas', 'transact', 'buildTransaction'}
+
+    def __init__(self, function, normalizers=None):
+        self._function = function
+        self._function._return_data_normalizers = normalizers
 
     def __call__(self, *args, **kwargs):
         return self.__prepared_function(*args, **kwargs)
@@ -52,11 +59,61 @@ class VyperMethod(ConciseMethod):
         return getattr(self._function(*args), modifier)(modifier_dict)
 
 
-class VyperContract(ConciseContract):
+class VyperContract:
 
+    """
+    An alternative Contract Factory which invokes all methods as `call()`,
+    unless you add a keyword argument. The keyword argument assigns the prep method.
+
+    This call
+
+    > contract.withdraw(amount, transact={'from': eth.accounts[1], 'gas': 100000, ...})
+
+    is equivalent to this call in the classic contract:
+
+    > contract.functions.withdraw(amount).transact({'from': eth.accounts[1], 'gas': 100000, ...})
+    """
     def __init__(self, classic_contract, method_class=VyperMethod):
-        super().__init__(classic_contract, method_class)
 
+        classic_contract._return_data_normalizers += CONCISE_NORMALIZERS
+        self._classic_contract = classic_contract
+        self.address = self._classic_contract.address
+
+        protected_fn_names = [fn for fn in dir(self) if not fn.endswith('__')]
+
+        for fn_name in self._classic_contract.functions:
+
+            # Override namespace collisions
+            if fn_name in protected_fn_names:
+                _concise_method = mk_collision_prop(fn_name)
+
+            else:
+                _classic_method = getattr(
+                    self._classic_contract.functions,
+                    fn_name)
+
+                _concise_method = method_class(
+                    _classic_method,
+                    self._classic_contract._return_data_normalizers
+                )
+
+            setattr(self, fn_name, _concise_method)
+
+    @classmethod
+    def factory(cls, *args, **kwargs):
+        return compose(cls, Contract.factory(*args, **kwargs))
+
+
+def _none_addr(datatype, data):
+    if datatype == 'address' and int(data, base=16) == 0:
+        return (datatype, None)
+    else:
+        return (datatype, data)
+
+
+CONCISE_NORMALIZERS = (
+    _none_addr,
+)
 
 ############
 # PATCHING #
