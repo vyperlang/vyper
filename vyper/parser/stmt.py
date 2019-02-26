@@ -252,7 +252,7 @@ class Stmt(object):
         if self.stmt.orelse:
             block_scope_id = id(self.stmt.orelse)
             with self.context.make_blockscope(block_scope_id):
-                add_on = [parse_body(self.stmt.orelse, self.context)]
+                add_on = [['seq', parse_body(self.stmt.orelse, self.context)]]
         else:
             add_on = []
 
@@ -262,12 +262,13 @@ class Stmt(object):
 
             if not self.is_bool_expr(test_expr):
                 raise TypeMismatchException('Only boolean expressions allowed', self.stmt.test)
-
+            body = ['if', test_expr,
+                    ['seq', parse_body(self.stmt.body, self.context)]] \
+                            + add_on
             o = LLLnode.from_list(
-                ['if', test_expr, parse_body(self.stmt.body, self.context)] + add_on,
+                body,
                 typ=None, pos=getpos(self.stmt)
             )
-
         return o
 
     def _clear(self):

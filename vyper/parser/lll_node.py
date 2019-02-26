@@ -107,12 +107,8 @@ class LLLnode():
             elif self.value == 'if':
                 if len(self.args) == 3:
                     self.gas = self.args[0].gas + max(self.args[1].gas, self.args[2].gas) + 3
-                    if self.args[1].valency != self.args[2].valency:
-                        raise Exception("Valency mismatch between then and else clause: %r %r" % (self.args[1], self.args[2]))
                 if len(self.args) == 2:
                     self.gas = self.args[0].gas + self.args[1].gas + 17
-                    if self.args[1].valency:
-                        raise Exception("2-clause if statement must have a zerovalent body: %r" % self.args[1])
                 if not self.args[0].valency:
                     raise Exception("Can't have a zerovalent argument as a test to an if statement! %r" % self.args[0])
                 if len(self.args) not in (2, 3):
