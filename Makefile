@@ -4,7 +4,7 @@ init:
 	python setup.py install
 
 test:
-	python setup.py test --addopts "-n auto"
+	python setup.py test
 
 lint:
 	flake8 vyper tests --ignore=E122,E124,E127,E128,E501,E731,W504

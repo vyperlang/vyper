@@ -4,9 +4,9 @@ from setuptools import setup, find_packages
 
 
 test_deps = [
-    'pytest',
-    'pytest-cov',
-    'pytest-xdist==1.26.1',
+    'pytest>=3.6',
+    'pytest-cov==2.4.0',
+    'pytest-xdist==1.18.1',
     'py-evm==0.2.0a39',
     'eth-tester==0.1.0b37',
     'web3==5.0.0a6'
