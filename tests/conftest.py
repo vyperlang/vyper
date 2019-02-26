@@ -96,7 +96,7 @@ def w3(tester):
 
 @pytest.fixture
 def keccak():
-    return Web3.sha3
+    return Web3.keccak
 
 
 @pytest.fixture
