@@ -224,7 +224,7 @@ The output can then easily be copy-pasted to be consumed.
 
 Built-in Interfaces
 -------------------
-Vyper supports a few built-in interfaces such as ERC20 and ERC721. These are import from `vyper.interfaces`.
+Vyper supports a few built-in interfaces such as ERC20 and ERC721. These are imported from ``vyper.interfaces``:
 
 ::
 
@@ -260,19 +260,19 @@ Specifying `modifying` annoated that the call made to the external contract will
 
 ::
 
-An additional utility of storing a contract address in a contract is defined by the `address(FooBar)` annotation.
+An additional utility of storing a contract address in a contract is defined by the ``<global_var>: FooBar`` annotation. Note that assignment of and address requires the address value needs to be cast using the contract type e.g. ``FooBar(<address_var>)``.
 
 ::
 
-    foobar_contract: address(FooBar)
+    foobar_contract: FooBar
 
     @public
     def __init__(foobar_address: address):
-        self.foobar_contract = foobar_addres
+        self.foobar_contract = FooBar(foobar_address)
 
     @public
     def call_test1():
-      test1
+      # ...
 
 ::
 
@@ -282,11 +282,11 @@ To import interfaces to be used in externals calls, one uses the interface just 
   
     import foo_bar as FooBar
 
-    foobar_contract: address(FooBar)
+    foobar_contract: FooBar
 
     @public
     def __init__(foobar_address: address):
-        self.foobar_contract = foobar_addres
+        self.foobar_contract = FooBar(foobar_address)
 
     @public
     def test():
