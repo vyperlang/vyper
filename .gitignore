@@ -33,3 +33,5 @@ docs/modules.rst
 
 # IDEs
 .idea/
+
+.tox
