@@ -15,6 +15,7 @@ test_deps = [
 lint_deps = [
     'coveralls>=1.6,<2',
     'flake8>=3.7,<4',
+    'flake8-bugbear==18.8.0'
 ]
 
 
