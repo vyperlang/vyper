@@ -276,7 +276,6 @@ def safeTransferFrom(
         returnValue: bytes32 = ERC721Receiver(_to).onERC721Received(msg.sender, _from, _tokenId, _data)
         # Throws if transfer destination is a contract which does not implement 'onERC721Received'
         assert returnValue == method_id("onERC721Received(address,address,uint256,bytes)", bytes32)
-    self._transferFrom(_from, _to, _tokenId, msg.sender)
 
 
 @public
