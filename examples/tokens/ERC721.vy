@@ -272,6 +272,7 @@ def safeTransferFrom(
     @param _tokenId The NFT to transfer.
     @param _data Additional data with no specified format, sent in call to `_to`.
     """
+    self._transferFrom(_from, _to, _tokenId, msg.sender)
     if _to.is_contract: # check if `_to` is a contract address
         returnValue: bytes32 = ERC721Receiver(_to).onERC721Received(msg.sender, _from, _tokenId, _data)
         # Throws if transfer destination is a contract which does not implement 'onERC721Received'
