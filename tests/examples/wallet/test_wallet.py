@@ -89,8 +89,8 @@ def test_javascript_signatures(w3, get_contract):
         ) for x in map(lambda z: w3.toBytes(hexstr=z[2:]), raw_sigs)
     ]
 
-    h = w3.sha3((0).to_bytes(32, "big") + b'\x00' * 12 + w3.toBytes(hexstr=recipient[2:]) + (25).to_bytes(32, "big") + b'')
-    h2 = w3.sha3(b"\x19Ethereum Signed Message:\n32" + h)
+    h = w3.keccak((0).to_bytes(32, "big") + b'\x00' * 12 + w3.toBytes(hexstr=recipient[2:]) + (25).to_bytes(32, "big") + b'')
+    h2 = w3.keccak(b"\x19Ethereum Signed Message:\n32" + h)
 
     # Check to make sure the signatures are valid
     assert is_same_address(Account.recoverHash(h2, sigs[0]), accounts[0])

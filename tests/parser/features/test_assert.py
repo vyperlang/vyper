@@ -48,15 +48,15 @@ def test2(a: int128, b: int128) -> int128:
     with pytest.raises(TransactionFailed) as e_info:
         c.test(0)
 
-    assert e_info.value.args[0] == b'larger than one please'
+    assert e_info.value.args[0] == 'larger than one please'
     # a = 0, b = 1
     with pytest.raises(TransactionFailed) as e_info:
         c.test2(0, 1)
-    assert e_info.value.args[0] == b'a is not large enough'
+    assert e_info.value.args[0] == 'a is not large enough'
     # a = 1, b = 0
     with pytest.raises(TransactionFailed) as e_info:
         c.test2(2, 2)
-    assert e_info.value.args[0] == b'b may only be 1'
+    assert e_info.value.args[0] == 'b may only be 1'
     # return correct value
     assert c.test2(5, 1) == 17
 

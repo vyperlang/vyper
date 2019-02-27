@@ -1,7 +1,5 @@
-import eth_tester
 import logging
 import pytest
-import web3
 
 from functools import wraps
 
@@ -18,9 +16,12 @@ from web3.providers.eth_tester import (
 from web3 import (
     Web3,
 )
+from web3._utils.toolz import (
+    compose,
+)
 from web3.contract import (
-    ConciseContract,
-    ConciseMethod
+    Contract,
+    mk_collision_prop,
 )
 from vyper.parser.parser_utils import (
     LLLnode
@@ -32,8 +33,12 @@ from vyper import (
 )
 
 
-class VyperMethod(ConciseMethod):
+class VyperMethod:
     ALLOWED_MODIFIERS = {'call', 'estimateGas', 'transact', 'buildTransaction'}
+
+    def __init__(self, function, normalizers=None):
+        self._function = function
+        self._function._return_data_normalizers = normalizers
 
     def __call__(self, *args, **kwargs):
         return self.__prepared_function(*args, **kwargs)
@@ -54,18 +59,68 @@ class VyperMethod(ConciseMethod):
         return getattr(self._function(*args), modifier)(modifier_dict)
 
 
-class VyperContract(ConciseContract):
+class VyperContract:
 
+    """
+    An alternative Contract Factory which invokes all methods as `call()`,
+    unless you add a keyword argument. The keyword argument assigns the prep method.
+
+    This call
+
+    > contract.withdraw(amount, transact={'from': eth.accounts[1], 'gas': 100000, ...})
+
+    is equivalent to this call in the classic contract:
+
+    > contract.functions.withdraw(amount).transact({'from': eth.accounts[1], 'gas': 100000, ...})
+    """
     def __init__(self, classic_contract, method_class=VyperMethod):
-        super().__init__(classic_contract, method_class)
 
+        classic_contract._return_data_normalizers += CONCISE_NORMALIZERS
+        self._classic_contract = classic_contract
+        self.address = self._classic_contract.address
+
+        protected_fn_names = [fn for fn in dir(self) if not fn.endswith('__')]
+
+        for fn_name in self._classic_contract.functions:
+
+            # Override namespace collisions
+            if fn_name in protected_fn_names:
+                _concise_method = mk_collision_prop(fn_name)
+
+            else:
+                _classic_method = getattr(
+                    self._classic_contract.functions,
+                    fn_name)
+
+                _concise_method = method_class(
+                    _classic_method,
+                    self._classic_contract._return_data_normalizers
+                )
+
+            setattr(self, fn_name, _concise_method)
+
+    @classmethod
+    def factory(cls, *args, **kwargs):
+        return compose(cls, Contract.factory(*args, **kwargs))
+
+
+def _none_addr(datatype, data):
+    if datatype == 'address' and int(data, base=16) == 0:
+        return (datatype, None)
+    else:
+        return (datatype, data)
+
+
+CONCISE_NORMALIZERS = (
+    _none_addr,
+)
 
 ############
 # PATCHING #
 ############
 
-setattr(eth_tester.backends.pyevm.main, 'GENESIS_GAS_LIMIT', 10**9)
-setattr(eth_tester.backends.pyevm.main, 'GENESIS_DIFFICULTY', 1)
+# setattr(eth_tester.backends.pyevm.main, 'GENESIS_GAS_LIMIT', 10**9)
+# setattr(eth_tester.backends.pyevm.main, 'GENESIS_DIFFICULTY', 1)
 
 
 def set_evm_verbose_logging():
@@ -74,69 +129,12 @@ def set_evm_verbose_logging():
 
 
 # Useful options to comment out whilst working:
-set_evm_verbose_logging()
+# set_evm_verbose_logging()
 # from vdb import vdb
 # vdb.set_evm_opcode_debugger()
 
 
-@pytest.fixture(autouse=True)
-def patch_log_filter_remove(monkeypatch):
-
-    def Filter_remove(self, *values):
-
-        def get_key(v):
-            return v.get('transaction_hash'), v.get('log_index'), v.get('transaction_index')
-
-        values_to_remove = set([
-            get_key(value)
-            for value in values
-        ])
-
-        queued_values = self.get_changes()
-        self.values = [
-            value
-            for value
-            in self.get_all()
-            if get_key(value) not in values_to_remove
-        ]
-        for value in queued_values:
-            if get_key(value) in values_to_remove:
-                continue
-            self.queue.put_nowait(value)
-
-    monkeypatch.setattr(eth_tester.utils.filters.Filter, 'remove', Filter_remove)
-
-
-@pytest.fixture(autouse=True)
-def patch_is_encodeable_for_fixed(monkeypatch):
-    original_is_encodable = web3.utils.abi.is_encodable
-
-    def utils_abi_is_encodable(_type, value):
-        from eth_utils import is_integer
-        from eth_abi.abi import process_type
-        try:
-            base, sub, arrlist = _type
-        except ValueError:
-            base, sub, arrlist = process_type(_type)
-
-        if not arrlist:
-            if base == 'fixed' and not arrlist:
-                return True
-            elif base == 'int':
-                if not is_integer(value):
-                    return False
-                exp = int(sub)
-                if value < -1 * 2**(exp - 1) or value > 2**(exp - 1) + 1:
-                    return False
-                return True
-
-        # default behaviour
-        return original_is_encodable(_type, value)
-
-    monkeypatch.setattr(web3.utils.abi, 'is_encodable', utils_abi_is_encodable)
-
-
-@pytest.fixture(scope="module")
+@pytest.fixture
 def tester():
     t = EthereumTester()
     return t
@@ -146,7 +144,7 @@ def zero_gas_price_strategy(web3, transaction_params=None):
     return 0  # zero gas price makes testing simpler.
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def w3(tester):
     w3 = Web3(EthereumTesterProvider(tester))
     w3.eth.setGasPriceStrategy(zero_gas_price_strategy)
@@ -155,7 +153,7 @@ def w3(tester):
 
 @pytest.fixture
 def keccak():
-    return Web3.sha3
+    return Web3.keccak
 
 
 @pytest.fixture
