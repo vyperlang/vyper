@@ -47,7 +47,16 @@ class NullAttractor():
 class LLLnode():
     repr_show_gas = False
 
-    def __init__(self, value, args=None, typ=None, location=None, pos=None, annotation='', mutable=True, add_gas_estimate=0, valency=None):
+    def __init__(self,
+                 value,
+                 args=None,
+                 typ=None,
+                 location=None,
+                 pos=None,
+                 annotation='',
+                 mutable=True,
+                 add_gas_estimate=0,
+                 valency=None):
         if args is None:
             args = []
 
@@ -75,13 +84,16 @@ class LLLnode():
                 _, ins, outs, gas = comb_opcodes[self.value.upper()]
                 self.valency = outs
                 if len(self.args) != ins:
-                    raise Exception("Number of arguments mismatched: %r %r" % (self.value, self.args))
+                    raise Exception(
+                        "Number of arguments mismatched: %r %r" % (self.value, self.args)
+                    )
                 # We add 2 per stack height at push time and take it back
                 # at pop time; this makes `break` easier to handle
                 self.gas = gas + 2 * (outs - ins)
                 for arg in self.args:
+                    # TODO: remove dead code.
                     # if arg.valency == 0:
-                    #     raise Exception("Can't have a zerovalent argument to an opcode or a pseudo-opcode! %r: %r" % (arg.value, arg))
+                    #     raise Exception("Can't have a zerovalent argument to an opcode or a pseudo-opcode! %r: %r" % (arg.value, arg))  # noqa: E501
                     self.gas += arg.gas
                 # Dynamic gas cost: 8 gas for each byte of logging data
                 if self.value.upper()[0:3] == 'LOG' and isinstance(self.args[1].value, int):
@@ -110,7 +122,10 @@ class LLLnode():
                 if len(self.args) == 2:
                     self.gas = self.args[0].gas + self.args[1].gas + 17
                 if not self.args[0].valency:
-                    raise Exception("Can't have a zerovalent argument as a test to an if statement! %r" % self.args[0])
+                    raise Exception((
+                        "Can't have a zerovalent argument as a test to an if "
+                        "statement! %r"
+                    ) % self.args[0])
                 if len(self.args) not in (2, 3):
                     raise Exception("If can only have 2 or 3 arguments")
                 self.valency = self.args[1].valency
@@ -121,19 +136,40 @@ class LLLnode():
                 if len(self.args[0].args) or not isinstance(self.args[0].value, str):
                     raise Exception("First argument to with statement must be a variable")
                 if not self.args[1].valency:
-                    raise Exception("Second argument to with statement (initial value) cannot be zerovalent: %r" % self.args[1])
+                    raise Exception((
+                        "Second argument to with statement (initial value) "
+                        "cannot be zerovalent: %r"
+                    ) % self.args[1])
                 self.valency = self.args[2].valency
                 self.gas = sum([arg.gas for arg in self.args]) + 5
             # Repeat statements: repeat <index_memloc> <startval> <rounds> <body>
             elif self.value == 'repeat':
-                if len(self.args[2].args) or not isinstance(self.args[2].value, int) or self.args[2].value <= 0:
-                    raise Exception("Number of times repeated must be a constant nonzero positive integer: %r" % self.args[2])
+                is_invalid_repeat_count = any((
+                    len(self.args[2].args),
+                    not isinstance(self.args[2].value, int),
+                    self.args[2].value <= 0,
+                ))
+
+                if is_invalid_repeat_count:
+                    raise Exception((
+                        "Number of times repeated must be a constant nonzero "
+                        "positive integer: %r"
+                    ) % self.args[2])
                 if not self.args[0].valency:
-                    raise Exception("First argument to repeat (memory location) cannot be zerovalent: %r" % self.args[0])
+                    raise Exception((
+                        "First argument to repeat (memory location) cannot be "
+                        "zerovalent: %r"
+                    ) % self.args[0])
                 if not self.args[1].valency:
-                    raise Exception("Second argument to repeat (start value) cannot be zerovalent: %r" % self.args[1])
+                    raise Exception((
+                        "Second argument to repeat (start value) cannot be "
+                        "zerovalent: %r"
+                    ) % self.args[1])
                 if self.args[3].valency:
-                    raise Exception("Third argument to repeat (clause to be repeated) must be zerovalent: %r" % self.args[3])
+                    raise Exception((
+                        "Third argument to repeat (clause to be repeated) must "
+                        "be zerovalent: %r"
+                    ) % self.args[3])
                 self.valency = 0
                 if self.args[1].value == 'mload' or self.args[1].value == 'sload':
                     rounds = self.args[2].value
@@ -235,7 +271,12 @@ class LLLnode():
             o += self._colorise_keywords(sub)
         output = o.rstrip(' ') + ']'
         output_on_one_line = re.sub(r',\n *', ', ', output).replace('\n', '')
-        if (len(output_on_one_line) < 80 or len(self.args) == 1) and not annotated and not has_inner_newlines:
+
+        should_output_single_line = (
+            (len(output_on_one_line) < 80 or len(self.args) == 1) and not annotated
+        ) and not has_inner_newlines
+
+        if should_output_single_line:
             return output_on_one_line
         else:
             return output
@@ -244,7 +285,15 @@ class LLLnode():
         return self.repr()
 
     @classmethod
-    def from_list(cls, obj, typ=None, location=None, pos=None, annotation=None, mutable=True, add_gas_estimate=0, valency=None):
+    def from_list(cls,
+                  obj,
+                  typ=None,
+                  location=None,
+                  pos=None,
+                  annotation=None,
+                  mutable=True,
+                  add_gas_estimate=0,
+                  valency=None):
         if isinstance(typ, str):
             typ = BaseType(typ)
         if isinstance(obj, LLLnode):
@@ -256,10 +305,25 @@ class LLLnode():
                 obj.location = location
             return obj
         elif not isinstance(obj, list):
-            return cls(obj, [], typ, location, pos, annotation, mutable, add_gas_estimate=add_gas_estimate)
+            return cls(
+                obj,
+                [],
+                typ,
+                location,
+                pos,
+                annotation,
+                mutable,
+                add_gas_estimate=add_gas_estimate,
+            )
         else:
             return cls(
                 obj[0],
-                [cls.from_list(o, pos=pos) for o in obj[1:]], typ, location, pos, annotation, mutable,
-                add_gas_estimate=add_gas_estimate, valency=valency
+                [cls.from_list(o, pos=pos) for o in obj[1:]],
+                typ,
+                location,
+                pos,
+                annotation,
+                mutable,
+                add_gas_estimate=add_gas_estimate,
+                valency=valency,
             )
