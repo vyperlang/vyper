@@ -5,7 +5,7 @@ def test_minmax(get_contract_with_gas_estimation):
     minmax_test = """
 @public
 def foo() -> decimal:
-    return min(3.0, 5.0) + max(10.0, 20.0) + min(200.1, 400.0) + max(3000.0, 8000.02) + min(50000.003, 70000.004)
+    return min(3.0, 5.0) + max(10.0, 20.0) + min(200.1, 400.0) + max(3000.0, 8000.02) + min(50000.003, 70000.004)  # noqa: E501
 
 @public
 def goo() -> uint256:
@@ -20,7 +20,10 @@ def goo() -> uint256:
 
 
 def test_max_var_uint256_literal_int128(get_contract_with_gas_estimation):
-    """Tests to verify that max works as expected when a variable/literal uint256 and a literal int128 are passed."""
+    """
+    Tests to verify that max works as expected when a variable/literal uint256
+    and a literal int128 are passed.
+    """
     code = """
 @public
 def foo() -> uint256:
@@ -59,7 +62,10 @@ def both_literals() -> uint256:
 
 
 def test_min_var_uint256_literal_int128(get_contract_with_gas_estimation):
-    """Tests to verify that max works as expected when a variable/literal uint256 and a literal int128 are passed."""
+    """
+    Tests to verify that max works as expected when a variable/literal uint256
+    and a literal int128 are passed.
+    """
     code = """
 @public
 def foo() -> uint256:
@@ -98,7 +104,10 @@ def both_literals() -> uint256:
 
 
 def test_minmax_var_uint256_var_int128(get_contract_with_gas_estimation, assert_compile_failed):
-    """Tests to verify that max throws an error if a variable uint256 and a variable int128 are passed."""
+    """
+    Tests to verify that max throws an error if a variable uint256 and a
+    variable int128 are passed.
+    """
     from vyper.exceptions import TypeMismatchException
     code_1 = """
 @public
@@ -149,7 +158,9 @@ def foo() -> uint256:
     )
 
 
-def test_minmax_var_uint256_negative_int128(get_contract_with_gas_estimation, assert_tx_failed, assert_compile_failed):
+def test_minmax_var_uint256_negative_int128(get_contract_with_gas_estimation,
+                                            assert_tx_failed,
+                                            assert_compile_failed):
     from vyper.exceptions import TypeMismatchException
     code_1 = """
 @public
