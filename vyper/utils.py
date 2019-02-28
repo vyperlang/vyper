@@ -10,10 +10,10 @@ from vyper.opcodes import opcodes
 
 try:
     from Crypto.Hash import keccak
-    sha3 = lambda x: keccak.new(digest_bits=256, data=x).digest()
+    sha3 = lambda x: keccak.new(digest_bits=256, data=x).digest()  # noqa: E731
 except ImportError:
     import sha3 as _sha3
-    sha3 = lambda x: _sha3.sha3_256(x).digest()
+    sha3 = lambda x: _sha3.sha3_256(x).digest()  # noqa: E731
 
 
 # Converts four bytes to an integer
@@ -129,7 +129,7 @@ RLP_DECODER_ADDRESS = hex_to_int('0x5185D17c44699cecC3133114F8df70753b856709')
 
 # Instructions for creating RLP decoder on other chains
 # First send 6270960000000000 wei to 0xd2c560282c9C02465C2dAcdEF3E859E730848761
-# Publish this tx to create the contract: 0xf90237808506fc23ac00830330888080b902246102128061000e60003961022056600060007f010000000000000000000000000000000000000000000000000000000000000060003504600060c082121515585760f882121561004d5760bf820336141558576001905061006e565b600181013560f783036020035260005160f6830301361415585760f6820390505b5b368112156101c2577f010000000000000000000000000000000000000000000000000000000000000081350483602086026040015260018501945060808112156100d55760018461044001526001828561046001376001820191506021840193506101bc565b60b881121561014357608081038461044001526080810360018301856104600137608181141561012e5760807f010000000000000000000000000000000000000000000000000000000000000060018401350412151558575b607f81038201915060608103840193506101bb565b60c08112156101b857600182013560b782036020035260005160388112157f010000000000000000000000000000000000000000000000000000000000000060018501350402155857808561044001528060b6838501038661046001378060b6830301830192506020810185019450506101ba565bfe5b5b5b5061006f565b601f841315155857602060208502016020810391505b6000821215156101fc578082604001510182826104400301526020820391506101d8565b808401610420528381018161044003f350505050505b6000f31b2d4f
+# Publish this tx to create the contract: 0xf90237808506fc23ac00830330888080b902246102128061000e60003961022056600060007f010000000000000000000000000000000000000000000000000000000000000060003504600060c082121515585760f882121561004d5760bf820336141558576001905061006e565b600181013560f783036020035260005160f6830301361415585760f6820390505b5b368112156101c2577f010000000000000000000000000000000000000000000000000000000000000081350483602086026040015260018501945060808112156100d55760018461044001526001828561046001376001820191506021840193506101bc565b60b881121561014357608081038461044001526080810360018301856104600137608181141561012e5760807f010000000000000000000000000000000000000000000000000000000000000060018401350412151558575b607f81038201915060608103840193506101bb565b60c08112156101b857600182013560b782036020035260005160388112157f010000000000000000000000000000000000000000000000000000000000000060018501350402155857808561044001528060b6838501038661046001378060b6830301830192506020810185019450506101ba565bfe5b5b5b5061006f565b601f841315155857602060208502016020810391505b6000821215156101fc578082604001510182826104400301526020820391506101d8565b808401610420528381018161044003f350505050505b6000f31b2d4f  # noqa: E501
 # This is the contract address: 0xCb969cAAad21A78a24083164ffa81604317Ab603
 
 # Available base types
@@ -142,21 +142,47 @@ valid_call_keywords = {'uint256', 'int128', 'decimal', 'address', 'contract', 'i
 valid_units = {'wei', 'sec'}
 
 # Valid attributes for global variables
-valid_global_keywords = {'public', 'modifying', 'event', 'constant'} | valid_units | valid_call_keywords
+valid_global_keywords = {
+    'public',
+    'modifying',
+    'event',
+    'constant',
+} | valid_units | valid_call_keywords
 
 
 # Cannot be used for variable or member naming
 reserved_words = {
-    'int128', 'uint256', 'address', 'bytes32', 'map',
+    # types
+    'int128', 'uint256',
+    'address',
+    'bytes32',
+    'map',
     'string', 'bytes',
-    'if', 'for', 'while', 'until',
-    'pass', 'def', 'push', 'dup', 'swap', 'send', 'call',
+    # control flow
+    'if', 'for', 'while', 'until', 'pass',
+    'def',
+    # EVM operations
+    'push', 'dup', 'swap', 'send', 'call',
     'selfdestruct', 'assert', 'stop', 'throw',
     'raise', 'init', '_init_', '___init___', '____init____',
-    'true', 'false', 'self', 'this', 'continue', 'none', 'clear',
-    'ether', 'wei', 'finney', 'szabo', 'shannon', 'lovelace', 'ada', 'babbage', 'gwei', 'kwei', 'mwei', 'twei', 'pwei', 'contract',
+    # boolean literals
+    'true', 'false',
+    # more control flow and special operations
+    'self', 'this', 'continue',
+    # None sentinal value
+    'none',
+    # more special operations
+    'clear',
+    # denominations
+    'ether', 'wei', 'finney', 'szabo', 'shannon', 'lovelace', 'ada', 'babbage',
+    'gwei', 'kwei', 'mwei', 'twei', 'pwei',
+    # contract keyword
+    'contract',
+    # units
     'units',
-    'zero_address', 'empty_bytes32' 'max_int128', 'min_int128', 'max_decimal', 'min_decimal', 'max_uint256',  # constants
+    # sentinal constant values
+    'zero_address', 'empty_bytes32' 'max_int128', 'min_int128', 'max_decimal',
+    'min_decimal', 'max_uint256',
 }
 
 # Otherwise reserved words that are whitelisted for function declarations
@@ -178,8 +204,11 @@ valid_lll_macros = {
 # Same conditions apply for function names and events
 def is_varname_valid(varname, custom_units, custom_structs, constants):
     from vyper.functions import dispatch_table, stmt_dispatch_table
-    built_in_functions = [x for x in stmt_dispatch_table.keys()] + \
-      [x for x in dispatch_table.keys()]
+    built_in_functions = [
+        x for x in stmt_dispatch_table.keys()
+    ] + [
+        x for x in dispatch_table.keys()
+    ]
     if custom_units is None:
         custom_units = set()
     if varname.lower() in {cu.lower() for cu in custom_units}:
@@ -205,7 +234,13 @@ def is_varname_valid(varname, custom_units, custom_structs, constants):
     return True, ""
 
 
-def check_valid_varname(varname, custom_units, custom_structs, constants, pos, error_prefix="Variable name invalid.", exc=None):
+def check_valid_varname(varname,
+                        custom_units,
+                        custom_structs,
+                        constants,
+                        pos,
+                        error_prefix="Variable name invalid.",
+                        exc=None):
     """ Handle invalid variable names """
     exc = VariableDeclarationException if exc is None else exc
 
