@@ -31,7 +31,10 @@ class Constants(object):
         # const = self._constants[self.expr.id]
 
         ann_expr = None
-        expr = Expr.parse_value_expr(const.value, Context(vars=None, global_ctx=global_ctx, origcode=const.source_code))
+        expr = Expr.parse_value_expr(
+            const.value,
+            Context(vars=None, global_ctx=global_ctx, origcode=const.source_code),
+        )
         annotation_type = global_ctx.parse_type(const.annotation.args[0], None)
         fail = False
 
@@ -43,18 +46,29 @@ class Constants(object):
         elif expr.typ != annotation_type:
             fail = True
             # special case for literals, which can be uint256 types as well.
-            if is_instances([expr.typ, annotation_type], BaseType) and \
-               [annotation_type.typ, expr.typ.typ] == ['uint256', 'int128'] and \
-               SizeLimits.in_bounds('uint256', expr.value):
-                fail = False
+            is_special_case_uint256_literal = (
+                is_instances([expr.typ, annotation_type], BaseType)
+            ) and (
+                [annotation_type.typ, expr.typ.typ] == ['uint256', 'int128']
+            ) and SizeLimits.in_bounds('uint256', expr.value)
 
-            elif is_instances([expr.typ, annotation_type], BaseType) and \
-               [annotation_type.typ, expr.typ.typ] == ['int128', 'int128'] and \
-               SizeLimits.in_bounds('int128', expr.value):
+            is_special_case_int256_literal = (
+                is_instances([expr.typ, annotation_type], BaseType)
+            ) and (
+                [annotation_type.typ, expr.typ.typ] == ['int128', 'int128']
+            ) and SizeLimits.in_bounds('int128', expr.value)
+
+            if is_special_case_uint256_literal or is_special_case_int256_literal:
                 fail = False
 
         if fail:
-            raise TypeMismatchException('Invalid value for constant type, expected %r got %r instead' % (annotation_type, expr.typ), const.value)
+            raise TypeMismatchException(
+                'Invalid value for constant type, expected %r got %r instead' % (
+                    annotation_type,
+                    expr.typ,
+                ),
+                const.value,
+            )
 
         ann_expr = copy.deepcopy(expr)
         ann_expr.typ = annotation_type
@@ -66,11 +80,19 @@ class Constants(object):
         args = item.annotation.args
         if not item.value:
             raise StructureException('Constants must express a value!', item)
-        if len(args) == 1 and isinstance(args[0], (ast.Subscript, ast.Name, ast.Call)) and item.target:
+
+        is_correctly_formatted_struct = (
+            len(args) == 1 and isinstance(args[0], (ast.Subscript, ast.Name, ast.Call))
+        ) and item.target
+
+        if is_correctly_formatted_struct:
             c_name = item.target.id
             if global_ctx.is_valid_varname(c_name, item):
                 self._constants[c_name] = self.unroll_constant(item, global_ctx)
                 self._constants_ast[c_name] = item.value
+            # TODO: the previous `if` has no else which will result in this
+            # *silently* existing without doing anything. is this intended
+            # behavior.
         else:
             raise StructureException('Incorrectly formatted struct', item)
 
@@ -100,7 +122,9 @@ class Constants(object):
                 expr = Expr(const.value, context).lll_node
                 return expr
             else:
-                raise VariableDeclarationException("ByteArray: Can not be used outside of a function context: %s" % const_name)
+                raise VariableDeclarationException(
+                    "ByteArray: Can not be used outside of a function context: %s" % const_name
+                )
 
         # Other types are already unwrapped, no need
         return self._constants[const_name]

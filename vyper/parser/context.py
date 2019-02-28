@@ -26,8 +26,16 @@ class Constancy(enum.Enum):
 # Contains arguments, variables, etc
 class Context():
 
-    def __init__(self, vars, global_ctx, sigs=None, forvars=None, return_type=None,
-                 constancy=Constancy.Mutable, is_private=False, is_payable=False, origcode='',
+    def __init__(self,
+                 vars,
+                 global_ctx,
+                 sigs=None,
+                 forvars=None,
+                 return_type=None,
+                 constancy=Constancy.Mutable,
+                 is_private=False,
+                 is_payable=False,
+                 origcode='',
                  method_id=''):
         # In-memory variables, in the form (name, memory location, type)
         self.vars = vars or {}
@@ -116,7 +124,12 @@ class Context():
     def is_valid_varname(self, name, pos):
         # Global context check first.
         if self.global_ctx.is_valid_varname(name, pos):
-            check_valid_varname(name, custom_units=self.custom_units, custom_structs=self.structs, constants=self.constants, pos=pos)
+            check_valid_varname(
+                name,
+                custom_units=self.custom_units,
+                custom_structs=self.structs,
+                constants=self.constants, pos=pos,
+            )
             # Local context duplicate context check.
             if any((name in self.vars, name in self.globals, name in self.constants)):
                 raise VariableDeclarationException("Duplicate variable name: %s" % name, name)
@@ -126,7 +139,13 @@ class Context():
     # Add a new variable
     def new_variable(self, name, typ, pos=None):
         if self.is_valid_varname(name, pos):
-            self.vars[name] = VariableRecord(name, self.next_mem, typ, True, self.blockscopes.copy())
+            self.vars[name] = VariableRecord(
+                name,
+                self.next_mem,
+                typ,
+                True,
+                self.blockscopes.copy(),
+            )
             pos = self.next_mem
             self.next_mem += 32 * get_size_of_type(typ)
             return pos
