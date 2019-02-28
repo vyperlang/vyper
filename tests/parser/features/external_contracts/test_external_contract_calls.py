@@ -114,7 +114,8 @@ def set_lucky(arg1: address, arg2: int128):
     print('Successfully executed an external contract call state change')
 
 
-def test_constant_external_contract_call_cannot_change_state(assert_tx_failed, get_contract_with_gas_estimation):
+def test_constant_external_contract_call_cannot_change_state(assert_tx_failed,
+                                                             get_contract_with_gas_estimation):
     contract_1 = """
 lucky: public(int128)
 
@@ -186,7 +187,10 @@ def set_lucky(arg1: address, arg2: int128):
     c3.set_lucky(c2.address, lucky_number_2, transact={})
     assert c.lucky() == lucky_number_1
     assert c2.lucky() == lucky_number_2
-    print('Successfully executed multiple external contract calls to different contracts based on address')
+    print(
+        'Successfully executed multiple external contract calls to different '
+        'contracts based on address'
+    )
 
 
 def test_external_contract_calls_with_public_globals(get_contract):
@@ -650,7 +654,9 @@ def get_lucky(amount_to_send: int128) -> int128:
     return self.bar_contract.get_lucky(gass=1)
     """
 
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), TypeMismatchException)
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(contract_1), TypeMismatchException
+    )
 
 
 def test_invalid_contract_declaration(assert_compile_failed, get_contract_with_gas_estimation):
@@ -663,7 +669,9 @@ bar_contract: Barr
 
     """
 
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), InvalidTypeException)
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(contract_1), InvalidTypeException
+    )
 
 
 def test_invalid_contract_declaration_pass(assert_compile_failed, get_contract_with_gas_estimation):
@@ -676,7 +684,8 @@ contract Bar:
     assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), StructureException)
 
 
-def test_invalid_contract_declaration_assign(assert_compile_failed, get_contract_with_gas_estimation):
+def test_invalid_contract_declaration_assign(assert_compile_failed,
+                                             get_contract_with_gas_estimation):
 
     contract_1 = """
 contract Bar:

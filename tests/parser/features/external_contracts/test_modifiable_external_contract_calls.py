@@ -244,11 +244,14 @@ modifiable_bar_contract: trusted(Bar)
     assert_compile_failed(lambda: get_contract(code), StructureException)
 
 
-def test_invalid_if_have_modifiability_not_declared(get_contract_with_gas_estimation_for_constants, assert_compile_failed):
+def test_invalid_if_have_modifiability_not_declared(get_contract_with_gas_estimation_for_constants,
+                                                    assert_compile_failed):
     code = """
 contract Bar:
     def set_lucky(_lucky: int128): pass
 
 modifiable_bar_contract: public(Bar)
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation_for_constants(code), StructureException)
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation_for_constants(code), StructureException
+    )
