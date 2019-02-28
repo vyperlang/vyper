@@ -52,7 +52,10 @@ class EventSignature():
             for i in range(len(keys)):
                 typ = values[i]
                 if not isinstance(keys[i], ast.Name):
-                    raise EventDeclarationException('Invalid key type, expected a valid name.', keys[i])
+                    raise EventDeclarationException(
+                        'Invalid key type, expected a valid name.',
+                        keys[i],
+                    )
                 if not isinstance(typ, (ast.Name, ast.Call, ast.Subscript)):
                     raise EventDeclarationException('Invalid event argument type.', typ)
                 if isinstance(typ, ast.Call) and not isinstance(typ.func, ast.Name):
@@ -69,17 +72,30 @@ class EventSignature():
                     is_indexed = True
                 else:
                     indexed_list.append(False)
-                if isinstance(typ, ast.Subscript) and getattr(typ.value, 'id', None) == 'bytes' and typ.slice.value.n > 32 and is_indexed:
+                if isinstance(typ, ast.Subscript) and getattr(typ.value, 'id', None) == 'bytes' and typ.slice.value.n > 32 and is_indexed:  # noqa: E501
                     raise EventDeclarationException("Indexed arguments are limited to 32 bytes")
                 if topics_count > 4:
-                    raise EventDeclarationException("Maximum of 3 topics {} given".format(topics_count - 1), arg)
+                    raise EventDeclarationException(
+                        "Maximum of 3 topics {} given".format(topics_count - 1),
+                        arg,
+                    )
                 if not isinstance(arg, str):
                     raise VariableDeclarationException("Argument name invalid", arg)
                 if not typ:
                     raise InvalidTypeException("Argument must have type", arg)
-                check_valid_varname(arg, global_ctx._custom_units, global_ctx._structs, global_ctx._constants, pos=arg_item, error_prefix="Event argument name invalid or reserved.")
+                check_valid_varname(
+                    arg,
+                    global_ctx._custom_units,
+                    global_ctx._structs,
+                    global_ctx._constants,
+                    pos=arg_item,
+                    error_prefix="Event argument name invalid or reserved.",
+                )
                 if arg in (x.name for x in args):
-                    raise VariableDeclarationException("Duplicate function argument name: " + arg, arg_item)
+                    raise VariableDeclarationException(
+                        "Duplicate function argument name: " + arg,
+                        arg_item,
+                    )
                 # Can struct be logged?
                 parsed_type = global_ctx.parse_type(typ, None)
                 args.append(VariableRecord(arg, pos, parsed_type, False))
