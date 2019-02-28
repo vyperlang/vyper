@@ -21,7 +21,9 @@ def get_builtin_interfaces():
     return {
         name: extract_sigs({
             'type': 'vyper',
-            'code': importlib.import_module('vyper.interfaces.{}'.format(name)).interface_code
+            'code': importlib.import_module(
+                'vyper.interfaces.{}'.format(name),
+            ).interface_code,
         })
         for name in interface_names
     }
@@ -101,15 +103,25 @@ def mk_full_signature_from_json(abi):
 
 def extract_sigs(sig_code):
     if sig_code['type'] == 'vyper':
-        return parser.mk_full_signature(parser.parse_to_ast(sig_code['code']), sig_formatter=lambda x, y: x)
+        return parser.mk_full_signature(
+            parser.parse_to_ast(sig_code['code']),
+            sig_formatter=lambda x, y: x
+        )
     elif sig_code['type'] == 'json':
         return mk_full_signature_from_json(sig_code['code'])
     else:
-        raise Exception("Unknown interface signature type '{}' supplied. 'vyper' & 'json' are supported".format(sig_code['type']))
+        raise Exception(
+            ("Unknown interface signature type '{}' supplied. "
+             "'vyper' & 'json' are supported").format(sig_code['type'])
+        )
 
 
 def extract_interface_str(code, contract_name, interface_codes=None):
-    sigs = parser.mk_full_signature(parser.parse_to_ast(code), sig_formatter=lambda x, y: (x, y), interface_codes=interface_codes)
+    sigs = parser.mk_full_signature(
+        parser.parse_to_ast(code),
+        sig_formatter=lambda x, y: (x, y),
+        interface_codes=interface_codes,
+    )
     events = [sig for sig, _ in sigs if isinstance(sig, EventSignature)]
     functions = [sig for sig, _ in sigs if isinstance(sig, FunctionSignature)]
     out = ""
@@ -147,7 +159,11 @@ def extract_interface_str(code, contract_name, interface_codes=None):
 
 
 def extract_external_interface(code, contract_name, interface_codes=None):
-    sigs = parser.mk_full_signature(parser.parse_to_ast(code), sig_formatter=lambda x, y: (x, y), interface_codes=interface_codes)
+    sigs = parser.mk_full_signature(
+        parser.parse_to_ast(code),
+        sig_formatter=lambda x, y: (x, y),
+        interface_codes=interface_codes,
+    )
     functions = [sig for sig, _ in sigs if isinstance(sig, FunctionSignature)]
     cname = os.path.basename(contract_name).split('.')[0].capitalize()
 
@@ -174,8 +190,14 @@ def extract_file_interface_imports(code):
         if isinstance(item, ast.Import):
             for a_name in item.names:
                 if not a_name.asname:
-                    raise StructureException('Interface statement requires an accompanying `as` statement.', item)
+                    raise StructureException(
+                        'Interface statement requires an accompanying `as` statement.',
+                        item,
+                    )
                 if a_name.asname in imports_dict:
-                    raise StructureException('Interface with Alias {} already exists'.format(a_name.asname), item)
+                    raise StructureException(
+                        'Interface with Alias {} already exists'.format(a_name.asname),
+                        item,
+                    )
                 imports_dict[a_name.asname] = a_name.name
     return imports_dict
