@@ -28,8 +28,10 @@ def c_bad(get_contract, w3):
     # Bad contract is used for overflow checks on totalSupply corrupted
     with open('examples/tokens/ERC20.vy') as f:
         code = f.read()
-    bad_code = code.replace("self.total_supply += _value", "") \
-                .replace("self.total_supply -= _value", "")
+    bad_code = code.replace(
+        "self.total_supply += _value",
+        "",
+    ).replace("self.total_supply -= _value", "")
     c = get_contract(bad_code, *[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY])
     return c
 
