@@ -30,7 +30,7 @@ valid_list = [
     """
 @public
 def foo():
-    x: uint256(wei) = as_wei_value(5, "finney") + as_wei_value(2, "babbage") + as_wei_value(8, "shannon")
+    x: uint256(wei) = as_wei_value(5, "finney") + as_wei_value(2, "babbage") + as_wei_value(8, "shannon")  # noqa: E501
     """,
     """
 @public
