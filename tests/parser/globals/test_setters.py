@@ -21,7 +21,7 @@ def goo() -> int128:
     return(goo[0] + goo[1] * 10 + goo[2] * 100)
 
 @public
-def gop() -> int128: # Following a standard naming scheme; nothing to do with the US republican party
+def gop() -> int128: # Following a standard naming scheme; nothing to do with the US republican party  # noqa: E501
     gar: int128[3][3]
     gar[0] = [1, 2, 3]
     gar[1] = [4, 5, 6]
@@ -105,10 +105,17 @@ def fop() -> int128:
     self.z = [Z({foo: [1, 2, 3], bar: [Bar({a: 4, b: 5}), Bar({a: 2, b: 3})]}),
               Z({foo: [6, 7, 8], bar: [Bar({a: 9, b: 1}), Bar({a: 7, b: 8})]})]
     return self.z[0].foo[0] + self.z[0].foo[1] * 10 + self.z[0].foo[2] * 100 + \
-        self.z[0].bar[0].a * 1000 + self.z[0].bar[0].b * 10000 + self.z[0].bar[1].a * 100000 + self.z[0].bar[1].b * 1000000 + \
-        self.z[1].foo[0] * 10000000 + self.z[1].foo[1] * 100000000 + self.z[1].foo[2] * 1000000000 + \
-        self.z[1].bar[0].a * 10000000000 + self.z[1].bar[0].b * 100000000000 + \
-        self.z[1].bar[1].a * 1000000000000 + self.z[1].bar[1].b * 10000000000000
+        self.z[0].bar[0].a * 1000 + \
+        self.z[0].bar[0].b * 10000 + \
+        self.z[0].bar[1].a * 100000 + \
+        self.z[0].bar[1].b * 1000000 + \
+        self.z[1].foo[0] * 10000000 + \
+        self.z[1].foo[1] * 100000000 + \
+        self.z[1].foo[2] * 1000000000 + \
+        self.z[1].bar[0].a * 10000000000 + \
+        self.z[1].bar[0].b * 100000000000 + \
+        self.z[1].bar[1].a * 1000000000000 + \
+        self.z[1].bar[1].b * 10000000000000
 
 @public
 def goo() -> int128:
@@ -125,11 +132,19 @@ def gop() -> int128:
         Zed({foo: [1, 2, 3], bar: [Bar({a: 4, b: 5}), Bar({a: 2, b: 3})]}),
         Zed({foo: [6, 7, 8], bar: [Bar({a: 9, b: 1}), Bar({a: 7, b: 8})]})
     ]
-    return zed[0].foo[0] + zed[0].foo[1] * 10 + zed[0].foo[2] * 100 + \
-        zed[0].bar[0].a * 1000 + zed[0].bar[0].b * 10000 + zed[0].bar[1].a * 100000 + zed[0].bar[1].b * 1000000 + \
-        zed[1].foo[0] * 10000000 + zed[1].foo[1] * 100000000 + zed[1].foo[2] * 1000000000 + \
-        zed[1].bar[0].a * 10000000000 + zed[1].bar[0].b * 100000000000 + \
-        zed[1].bar[1].a * 1000000000000 + zed[1].bar[1].b * 10000000000000
+    return zed[0].foo[0] + zed[0].foo[1] * 10 + \
+        zed[0].foo[2] * 100 + \
+        zed[0].bar[0].a * 1000 + \
+        zed[0].bar[0].b * 10000 + \
+        zed[0].bar[1].a * 100000 + \
+        zed[0].bar[1].b * 1000000 + \
+        zed[1].foo[0] * 10000000 + \
+        zed[1].foo[1] * 100000000 + \
+        zed[1].foo[2] * 1000000000 + \
+        zed[1].bar[0].a * 10000000000 + \
+        zed[1].bar[0].b * 100000000000 + \
+        zed[1].bar[1].a * 1000000000000 + \
+        zed[1].bar[1].b * 10000000000000
     """
 
     c = get_contract_with_gas_estimation(multi_setter_struct_test)
@@ -148,7 +163,11 @@ pap: decimal[2][2]
 @public
 def goo() -> int128:
     self.pap = [[1, 2], [3, 4]]
-    return floor(self.pap[0][0] + self.pap[0][1] * 10.0 + self.pap[1][0] * 100.0 + self.pap[1][1] * 1000.0)
+    return floor(
+        self.pap[0][0] +
+        self.pap[0][1] * 10.0 +
+        self.pap[1][0] * 100.0 +
+        self.pap[1][1] * 1000.0)
     """
 
     c = get_contract_with_gas_estimation(type_converter_setter_test)
