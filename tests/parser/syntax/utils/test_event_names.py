@@ -8,7 +8,7 @@ from vyper.exceptions import (
 )
 
 
-fail_list = [
+fail_list = [  # noqa: E122
     """
 Âssign: event({variable: int128})
 

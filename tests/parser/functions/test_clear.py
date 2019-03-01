@@ -1,6 +1,6 @@
 
 def test_clear_basic_type(get_contract_with_gas_estimation):
-    contracts = [
+    contracts = [  # noqa: E122
     """
 foobar: int128
 
@@ -93,7 +93,7 @@ def foo():
 
 
 def test_clear_basic_type_lists(get_contract_with_gas_estimation):
-    contracts = [
+    contracts = [  # noqa: E122
     """
 foobar: int128[3]
 
@@ -218,7 +218,7 @@ def foo():
 
 
 def test_clear_literals(assert_compile_failed, get_contract_with_gas_estimation):
-    contracts = [
+    contracts = [  # noqa: E122
     """
 @public
 def foo():

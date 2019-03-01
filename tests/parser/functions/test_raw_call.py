@@ -37,7 +37,7 @@ def returnten() -> int128:
 @public
 def create_and_call_returnten(inp: address) -> int128:
     x: address = create_with_code_of(inp)
-    o: int128 = extract32(raw_call(x, convert("\xd0\x1f\xb1\xb8", bytes[4]), outsize=32, gas=50000), 0, type=int128)
+    o: int128 = extract32(raw_call(x, convert("\xd0\x1f\xb1\xb8", bytes[4]), outsize=32, gas=50000), 0, type=int128)  # noqa: E501
     return o
 
 @public
@@ -62,7 +62,7 @@ def create_and_return_forwarder(inp: address) -> address:
 
     print('Passed forwarder test')
     # TODO: This one is special
-    # print('Gas consumed: %d' % (chain.head_state.receipts[-1].gas_used - chain.head_state.receipts[-2].gas_used - chain.last_tx.intrinsic_gas_used))
+    # print('Gas consumed: %d' % (chain.head_state.receipts[-1].gas_used - chain.head_state.receipts[-2].gas_used - chain.last_tx.intrinsic_gas_used))  # noqa: E501
 
 
 def test_multiple_levels2(assert_tx_failed, get_contract_with_gas_estimation):
@@ -79,7 +79,7 @@ def returnten() -> int128:
 @public
 def create_and_call_returnten(inp: address) -> int128:
     x: address = create_with_code_of(inp)
-    o: int128 = extract32(raw_call(x, convert("\xd0\x1f\xb1\xb8", bytes[4]), outsize=32, gas=50000), 0, type=int128)
+    o: int128 = extract32(raw_call(x, convert("\xd0\x1f\xb1\xb8", bytes[4]), outsize=32, gas=50000), 0, type=int128)  # noqa: E501
     return o
 
 @public
@@ -119,7 +119,7 @@ def __init__(_owner_setter: address):
 @public
 def set(i: int128, owner: address):
     # delegate setting owners to other contract.s
-    cdata: bytes[68] = concat(method_id("set_owner(int128,address)", bytes[4]), convert(i, bytes32), convert(owner, bytes32))
+    cdata: bytes[68] = concat(method_id("set_owner(int128,address)", bytes[4]), convert(i, bytes32), convert(owner, bytes32))  # noqa: E501
     raw_call(
         self.owner_setter_contract,
         cdata,

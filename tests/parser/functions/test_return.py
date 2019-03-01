@@ -30,4 +30,5 @@ def hardtest(arg1: bytes[64], arg2: bytes[64]) -> bytes[128]:
 
     assert len_value == len(b"hello" * 15)
     assert dyn_section[32: 32 + len_value] == b"hello" * 15
-    assert dyn_section[32 + len_value:] == b'\x00' * (len(dyn_section) - 32 - len_value)  # second right pad assert
+    # second right pad assert
+    assert dyn_section[32 + len_value:] == b'\x00' * (len(dyn_section) - 32 - len_value)

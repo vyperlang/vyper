@@ -17,7 +17,7 @@ def foo3(input1: bytes[50], input2: bytes[50], input3: bytes[50]) -> bytes[1000]
     assert c.foo3(b"Buffalo", b" ", b"buffalo") == b"Buffalo buffalo"
     assert c.foo2(b"\x36", b"\x35" * 32) == b"\x36" + b"\x35" * 32
     assert c.foo2(b"\x36" * 48, b"\x35" * 32) == b"\x36" * 48 + b"\x35" * 32
-    assert c.foo3(b"horses" * 4, b"mice" * 7, b"crows" * 10) == b"horses" * 4 + b"mice" * 7 + b"crows" * 10
+    assert c.foo3(b"horses" * 4, b"mice" * 7, b"crows" * 10) == b"horses" * 4 + b"mice" * 7 + b"crows" * 10  # noqa: E501
     print('Passed simple concat test')
 
 
@@ -64,7 +64,7 @@ def fivetimes(inp: bytes32) -> bytes[160]:
     """
 
     c = get_contract_with_gas_estimation(test_concat_bytes32)
-    assert c.sandwich(b"cow", b"\x35" * 32) == b"\x35" * 32 + b"cow" + b"\x35" * 32, c.sandwich(b"cow", b"\x35" * 32)
+    assert c.sandwich(b"cow", b"\x35" * 32) == b"\x35" * 32 + b"cow" + b"\x35" * 32, c.sandwich(b"cow", b"\x35" * 32)  # noqa: E501
     assert c.sandwich(b"", b"\x46" * 32) == b"\x46" * 64
     assert c.sandwich(b"\x57" * 95, b"\x57" * 32) == b"\x57" * 159
     assert c.sandwich(b"\x57" * 96, b"\x57" * 32) == b"\x57" * 160

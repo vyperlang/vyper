@@ -205,7 +205,8 @@ def testsome_storage(y: bytes[1]) -> bool:
     assert not c.testsome_storage(b'x')
 
 
-def test_bytes_comparison_fail_size_mismatch(assert_compile_failed, get_contract_with_gas_estimation):
+def test_bytes_comparison_fail_size_mismatch(assert_compile_failed,
+                                             get_contract_with_gas_estimation):
     code = """
 @public
 def get(a: bytes[1]) -> bool:
@@ -235,7 +236,7 @@ def test_bytes32_literals(get_contract):
     code = """
 @public
 def test() -> bool:
-    l: bytes32 = b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x80\\xac\\x58\\xcd'
+    l: bytes32 = b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x80\\xac\\x58\\xcd'  # noqa: E501
     j: bytes32 = 0x0000000000000000000000000000000000000000000000000000000080ac58cd
     return l == j
 

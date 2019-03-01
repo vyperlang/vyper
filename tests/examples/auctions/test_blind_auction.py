@@ -20,7 +20,7 @@ def test_initial_state(w3, tester, auction_contract):
     # Check beneficiary is correct
     assert auction_contract.beneficiary() == w3.eth.accounts[0]
     # Check that bidding end time is correct
-    assert auction_contract.biddingEnd() == tester.get_block_by_number('latest')['timestamp'] + BIDDING_TIME
+    assert auction_contract.biddingEnd() == tester.get_block_by_number('latest')['timestamp'] + BIDDING_TIME  # noqa: E501
     # Check that the reveal end time is correct
     assert auction_contract.revealEnd() == auction_contract.biddingEnd() + REVEAL_TIME
     # Check auction has not ended
@@ -229,8 +229,8 @@ def test_blind_auction(w3, auction_contract):
     )
     auction_contract.bid(
         w3.keccak(b''.join([
-            (275).to_bytes(32, byteorder='big') +
-            (1).to_bytes(32, byteorder='big') +
+            (275).to_bytes(32, byteorder='big'),
+            (1).to_bytes(32, byteorder='big'),
             (9876543).to_bytes(32, byteorder='big')
         ])),
         transact={'value': 275, 'from': k3}
