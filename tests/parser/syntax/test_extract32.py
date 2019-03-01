@@ -24,7 +24,7 @@ valid_list = [
     """
 @public
 def foo() -> uint256:
-    return extract32(b"cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc", 0, type=uint256)
+    return extract32(b"cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc", 0, type=uint256)  # noqa: E501
     """,
     """
 x: bytes[100]

@@ -50,7 +50,17 @@ class ContractRecord(VariableRecord):
 
 # Function signature object
 class FunctionSignature():
-    def __init__(self, name, args, output_type, const, payable, private, nonreentrant_key, sig, method_id, custom_units):
+    def __init__(self,
+                 name,
+                 args,
+                 output_type,
+                 const,
+                 payable,
+                 private,
+                 nonreentrant_key,
+                 sig,
+                 method_id,
+                 custom_units):
         self.name = name
         self.args = args
         self.output_type = output_type
@@ -77,12 +87,26 @@ class FunctionSignature():
             if isinstance(arg, LLLnode):
                 return canonicalize_type(arg.typ)
             elif hasattr(arg, 'annotation'):
-                return canonicalize_type(parse_type(arg.annotation, None, sigs, custom_units=custom_units, custom_structs=custom_structs, constants=constants))
+                return canonicalize_type(parse_type(
+                    arg.annotation,
+                    None,
+                    sigs,
+                    custom_units=custom_units,
+                    custom_structs=custom_structs,
+                    constants=constants,
+                ))
         return func_name + '(' + ','.join([get_type(arg) for arg in args]) + ')'
 
     # Get a signature from a function definition
     @classmethod
-    def from_definition(cls, code, sigs=None, custom_units=None, custom_structs=None, contract_def=False, constants=None, constant=False):
+    def from_definition(cls,
+                        code,
+                        sigs=None,
+                        custom_units=None,
+                        custom_structs=None,
+                        contract_def=False,
+                        constants=None,
+                        constant=False):
         if not custom_structs:
             custom_structs = {}
 
@@ -93,7 +117,8 @@ class FunctionSignature():
         if not valid_name and (not name.lower() in function_whitelist):
             raise FunctionDeclarationException("Function name invalid. " + msg, code)
 
-        # Determine the arguments, expects something of the form def foo(arg1: int128, arg2: int128 ...
+        # Determine the arguments, expects something of the form def foo(arg1:
+        # int128, arg2: int128 ...
         args = []
         for arg in code.args.args:
             # Each arg needs a type specified.
@@ -101,12 +126,36 @@ class FunctionSignature():
             if not typ:
                 raise InvalidTypeException("Argument must have type", arg)
             # Validate arg name.
-            check_valid_varname(arg.arg, custom_units, custom_structs, constants, arg, "Argument name invalid or reserved. ", FunctionDeclarationException)
+            check_valid_varname(
+                arg.arg,
+                custom_units,
+                custom_structs,
+                constants,
+                arg,
+                "Argument name invalid or reserved. ",
+                FunctionDeclarationException,
+            )
             # Check for duplicate arg name.
             if arg.arg in (x.name for x in args):
-                raise FunctionDeclarationException("Duplicate function argument name: " + arg.arg, arg)
-            parsed_type = parse_type(typ, None, sigs, custom_units=custom_units, custom_structs=custom_structs, constants=constants)
-            args.append(VariableRecord(arg.arg, mem_pos, parsed_type, False, defined_at=getpos(arg)))
+                raise FunctionDeclarationException(
+                    "Duplicate function argument name: " + arg.arg,
+                    arg,
+                )
+            parsed_type = parse_type(
+                typ,
+                None,
+                sigs,
+                custom_units=custom_units,
+                custom_structs=custom_structs,
+                constants=constants,
+            )
+            args.append(VariableRecord(
+                arg.arg,
+                mem_pos,
+                parsed_type,
+                False,
+                defined_at=getpos(arg),
+            ))
 
             if isinstance(parsed_type, ByteArrayLike):
                 mem_pos += 32
@@ -125,21 +174,33 @@ class FunctionSignature():
             elif isinstance(dec, ast.Name) and dec.id == "public":
                 public = True
             elif isinstance(dec, ast.Call) and dec.func.id == "nonreentrant":
-                if dec.args and len(dec.args) == 1 and isinstance(dec.args[0], ast.Str) and dec.args[0].s:
+                if dec.args and len(dec.args) == 1 and isinstance(dec.args[0], ast.Str) and dec.args[0].s:  # noqa: E501
                     nonreentrant_key = dec.args[0].s
                 else:
-                    raise StructureException("@nonreentrant decorator requires a non-empty string to use as a key.", dec)
+                    raise StructureException(
+                        "@nonreentrant decorator requires a non-empty string to use as a key.",
+                        dec
+                    )
             else:
                 raise StructureException("Bad decorator", dec)
 
         if public and private:
-            raise StructureException("Cannot use public and private decorators on the same function: {}".format(name))
+            raise StructureException(
+                "Cannot use public and private decorators on the same function: {}".format(name)
+            )
         if payable and const:
-            raise StructureException("Function {} cannot be both constant and payable.".format(name))
+            raise StructureException(
+                "Function {} cannot be both constant and payable.".format(name)
+            )
         if payable and private:
-            raise StructureException("Function {} cannot be both private and payable.".format(name))
+            raise StructureException(
+                "Function {} cannot be both private and payable.".format(name)
+            )
         if (not public and not private) and not contract_def:
-            raise StructureException("Function visibility must be declared (@public or @private)", code)
+            raise StructureException(
+                "Function visibility must be declared (@public or @private)",
+                code,
+            )
         if constant and nonreentrant_key:
             raise StructureException("@nonreentrant makes no sense on a @constant function.", code)
         if constant:
@@ -153,9 +214,19 @@ class FunctionSignature():
         if not code.returns:
             output_type = None
         elif isinstance(code.returns, (ast.Name, ast.Compare, ast.Subscript, ast.Call, ast.Tuple)):
-            output_type = parse_type(code.returns, None, sigs, custom_units=custom_units, custom_structs=custom_structs, constants=constants)
+            output_type = parse_type(
+                code.returns,
+                None,
+                sigs,
+                custom_units=custom_units,
+                custom_structs=custom_structs,
+                constants=constants,
+            )
         else:
-            raise InvalidTypeException("Output type invalid or unsupported: %r" % parse_type(code.returns, None), code.returns, )
+            raise InvalidTypeException(
+                "Output type invalid or unsupported: %r" % parse_type(code.returns, None),
+                code.returns,
+            )
         # Output type must be canonicalizable
         if output_type is not None:
             assert isinstance(output_type, TupleType) or canonicalize_type(output_type)
@@ -164,16 +235,33 @@ class FunctionSignature():
 
         # Take the first 4 bytes of the hash of the sig to get the method ID
         method_id = fourbytes_to_int(sha3(bytes(sig, 'utf-8'))[:4])
-        return cls(name, args, output_type, const, payable, private, nonreentrant_key, sig, method_id, custom_units)
+        return cls(
+            name,
+            args,
+            output_type,
+            const,
+            payable,
+            private,
+            nonreentrant_key,
+            sig,
+            method_id,
+            custom_units,
+        )
 
     def _generate_output_abi(self, custom_units_descriptions=None):
         t = self.output_type
         if not t:
             return []
         elif isinstance(t, TupleType):
-            res = [(canonicalize_type(x), print_unit(unit_from_type(x), custom_units_descriptions)) for x in t.members]
+            res = [
+                (canonicalize_type(x), print_unit(unit_from_type(x), custom_units_descriptions))
+                for x in t.members
+            ]
         elif isinstance(t, TupleLike):
-            res = [(canonicalize_type(x), print_unit(unit_from_type(x), custom_units_descriptions)) for x in t.tuple_members()]
+            res = [
+                (canonicalize_type(x), print_unit(unit_from_type(x), custom_units_descriptions))
+                for x in t.tuple_members()
+            ]
         else:
             res = [(canonicalize_type(t), print_unit(unit_from_type(t), custom_units_descriptions))]
 
@@ -217,13 +305,23 @@ class FunctionSignature():
 
     @classmethod
     def lookup_sig(cls, sigs, method_name, expr_args, stmt_or_expr, context):
-        """ Using a list of args, determine the most accurate signature to use from the given context """
+        """
+        Using a list of args, determine the most accurate signature to use from
+        the given context
+        """
 
         def synonymise(s):
             return s.replace('int128', 'num').replace('uint256', 'num')
 
         # for sig in sigs['self']
-        full_sig = cls.get_full_sig(stmt_or_expr.func.attr, expr_args, None, context.custom_units, context.structs, context.constants)
+        full_sig = cls.get_full_sig(
+            stmt_or_expr.func.attr,
+            expr_args,
+            None,
+            context.custom_units,
+            context.structs,
+            context.constants,
+        )
         method_names_dict = dict(Counter([x.split('(')[0] for x in context.sigs['self']]))
         if method_name not in method_names_dict:
             raise FunctionDeclarationException(
@@ -232,7 +330,12 @@ class FunctionSignature():
             )
 
         if method_names_dict[method_name] == 1:
-            return next(sig for name, sig in context.sigs['self'].items() if name.split('(')[0] == method_name)
+            return next(
+                sig
+                for name, sig
+                in context.sigs['self'].items()
+                if name.split('(')[0] == method_name
+            )
         if full_sig in context.sigs['self']:
             return context.sigs['self'][full_sig]
         else:

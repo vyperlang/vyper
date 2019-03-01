@@ -31,11 +31,31 @@ parser = argparse.ArgumentParser(
     description='Vyper programming language for Ethereum',
     formatter_class=RawTextHelpFormatter
 )
-parser.add_argument('input_files', help='Vyper sourcecode to compile', nargs='+')
-parser.add_argument('--version', action='version', version='{0}'.format(vyper.__version__))
-parser.add_argument('--show-gas-estimates', help='Show gas estimates in ir output mode.', action="store_true")
-parser.add_argument('-f', help=format_options_help, default='bytecode', dest='format')
-parser.add_argument('--debug', help='Add compiler debugging output', action='store_true')
+parser.add_argument(
+    'input_files',
+    help='Vyper sourcecode to compile',
+    nargs='+',
+)
+parser.add_argument(
+    '--version',
+    action='version',
+    version='{0}'.format(vyper.__version__),
+)
+parser.add_argument(
+    '--show-gas-estimates',
+    help='Show gas estimates in ir output mode.',
+    action="store_true",
+)
+parser.add_argument(
+    '-f',
+    help=format_options_help,
+    default='bytecode', dest='format',
+)
+parser.add_argument(
+    '--debug',
+    help='Add compiler debugging output',
+    action='store_true',
+)
 
 args = parser.parse_args()
 
@@ -43,8 +63,9 @@ tb_limit = os.environ.get('VYPER_TRACEBACK_LIMIT')
 if tb_limit:
     sys.tracebacklimit = int(tb_limit)
 elif not args.debug:
+    # sys.traceback limit defaults to 1000
     sys.tracebacklimit = 0
-# sys.traceback limit defaults to 1000
+
 
 def uniq(seq):
     exists = set()
@@ -57,7 +78,6 @@ def exc_handler(contract_name, exception):
 
 
 if __name__ == '__main__':
-
     if args.show_gas_estimates:
         parser_utils.LLLnode.repr_show_gas = True
 
@@ -84,19 +104,27 @@ if __name__ == '__main__':
         }
         formats = []
         orig_args = uniq(args.format.split(','))
+
         for f in orig_args:
             formats.append(translate_map.get(f, f))
 
         interface_codes = {}
-        for contract_name, code in codes.items():
+
+        for code in codes.values():
             interface_codes.update(extract_file_interface_imports(code))
+
         if interface_codes:
             for interface_name, interface_path in interface_codes.items():
                 file_path = os.path.join(os.path.normpath(interface_path.replace('.', '/')))
                 extensions = ('.vy', '.json')
-                valid_paths = [file_path + ex for ex in extensions if os.path.exists(file_path + ex)]
+                valid_paths = [
+                    file_path + ex
+                    for ex in extensions if os.path.exists(file_path + ex)
+                ]
                 if not valid_paths:
-                    raise Exception('Imported interface "{}{.vy,.json}" does not exist.'.format(interface_path))
+                    raise Exception('Imported interface "{}{.vy,.json}" does not exist.'.format(
+                        interface_path,
+                    ))
 
                 valid_path = valid_paths[0]
                 with open(valid_path) as fh:
@@ -119,6 +147,7 @@ if __name__ == '__main__':
             exc_handler=exc_handler,
             interface_codes=interface_codes
         )
+
         for out in out_list:
             for f in orig_args:
                 o = out[translate_map.get(f, f)]

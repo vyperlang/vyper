@@ -37,7 +37,7 @@ def uint256_to_num(inp: uint256) -> (int128, int128):
 @public
 def bytes32_to_num() -> (int128, int128):
     self.b = 0x0000000000000000000000000000000000000000000000000000000000000001
-    literal: int128 = convert(0x0000000000000000000000000000000000000000000000000000000000000001, int128)
+    literal: int128 = convert(0x0000000000000000000000000000000000000000000000000000000000000001, int128)  # noqa: E501
     storage: int128 = convert(self.b, int128)
     return literal, storage
 
@@ -62,7 +62,9 @@ def zero_bytes(inp: bytes[1]) -> int128:
     assert c.zero_bytes(b'\x00') == 0
 
 
-def test_convert_from_bytes(assert_compile_failed, assert_tx_failed, get_contract_with_gas_estimation):
+def test_convert_from_bytes(assert_compile_failed,
+                            assert_tx_failed,
+                            get_contract_with_gas_estimation):
     # Test valid bytes input for conversion
     test_success = """
 @public
@@ -165,7 +167,8 @@ def test(foo: uint256) -> int128:
     assert_tx_failed(lambda: c.test(2**256 - 1))
 
 
-def test_out_of_range_from_uint256_at_compile(assert_compile_failed, get_contract_with_gas_estimation):
+def test_out_of_range_from_uint256_at_compile(assert_compile_failed,
+                                              get_contract_with_gas_estimation):
     code = """
 @public
 def test() -> int128:
@@ -265,7 +268,9 @@ def goomar() -> int128:
     assert c.goomar() == 0
 
 
-def test_convert_from_overflow_decimal(assert_compile_failed, assert_tx_failed, get_contract_with_gas_estimation):
+def test_convert_from_overflow_decimal(assert_compile_failed,
+                                       assert_tx_failed,
+                                       get_contract_with_gas_estimation):
     code = """
 @public
 def foo() -> int128:
