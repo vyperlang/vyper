@@ -11,7 +11,9 @@ def __init__():
 
     assert c.x() == 123
     assert w3.eth.getBalance(c.address) == 0
-    assert_tx_failed(lambda: w3.eth.sendTransaction({'to': c.address, 'value': w3.toWei(0.1, 'ether')}))
+    assert_tx_failed(
+        lambda: w3.eth.sendTransaction({'to': c.address, 'value': w3.toWei(0.1, 'ether')})
+    )
     assert w3.eth.getBalance(c.address) == 0
 
 

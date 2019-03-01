@@ -38,7 +38,7 @@ def int128_to_uint256(inp: int128) -> (uint256, uint256, uint256):
 @public
 def bytes32_to_uint256() -> (uint256, uint256):
     self.b = 0x0000000000000000000000000000000000000000000000000000000000000001
-    literal: uint256 = convert(0x0000000000000000000000000000000000000000000000000000000000000001, uint256)
+    literal: uint256 = convert(0x0000000000000000000000000000000000000000000000000000000000000001, uint256)  # noqa: E501
     storage: uint256 = convert(self.b, uint256)
     return literal, storage
     """
@@ -207,7 +207,9 @@ def goomar() -> uint256:
     assert c.goomar() == 0
 
 
-def test_convert_from_negative_decimal(assert_compile_failed, assert_tx_failed, get_contract_with_gas_estimation):
+def test_convert_from_negative_decimal(assert_compile_failed,
+                                       assert_tx_failed,
+                                       get_contract_with_gas_estimation):
     code = """
 @public
 def foo() -> uint256:
