@@ -48,7 +48,9 @@ def test_invalid_assign(assert_compile_failed, get_contract_with_gas_estimation)
 def foo(x: int128):
     x = 5
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ConstancyViolationException)
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(code), ConstancyViolationException
+    )
 
 
 def test_invalid_augassign(assert_compile_failed, get_contract_with_gas_estimation):
@@ -57,7 +59,9 @@ def test_invalid_augassign(assert_compile_failed, get_contract_with_gas_estimati
 def foo(x: int128):
     x += 5
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ConstancyViolationException)
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(code), ConstancyViolationException
+    )
 
 
 def test_valid_literal_increment(get_contract_with_gas_estimation):
@@ -183,7 +187,7 @@ def get() -> int128:
 
 
 def test_invalid_implicit_conversions(assert_compile_failed, get_contract_with_gas_estimation):
-    contracts = [
+    contracts = [  # noqa: E501
 """
 @public
 def foo():
