@@ -9,19 +9,19 @@ fail_list = [
     """
 @public
 def foo() -> address:
-    x = RLPList(convert('\xf6\x9455555555555555555555\xa0GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG', bytes[64]), [address, bytes32])
+    x = RLPList(convert('\xf6\x9455555555555555555555\xa0GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG', bytes[64]), [address, bytes32])  # noqa: E501
     return x[1]
     """,
     """
 @public
 def foo() -> address:
-    x = RLPList(convert('\xf6\x9455555555555555555555\xa0GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG', bytes[64]), [address, bytes32])
+    x = RLPList(convert('\xf6\x9455555555555555555555\xa0GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG', bytes[64]), [address, bytes32])  # noqa: E501
     return x[2]
     """,
     """
 @public
 def foo() -> bytes[500]:
-    x = RLPList(convert('\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', bytes[64]), [bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes])
+    x = RLPList(convert('\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', bytes[64]), [bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes])  # noqa: E501
     return x[1]
     """,
     ("""
@@ -85,19 +85,19 @@ valid_list = [
     """
 @public
 def foo() -> bytes[500]:
-    x = RLPList(convert('\xe0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', bytes[64]), [bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes])
+    x = RLPList(convert('\xe0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', bytes[64]), [bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes, bytes])  # noqa: E501
     return x[1]
     """,
     """
 @public
 def foo() -> address:
-    x = RLPList(convert('\xf6\x9455555555555555555555\xa0GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG', bytes[64]), [address, bytes32])
+    x = RLPList(convert('\xf6\x9455555555555555555555\xa0GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG', bytes[64]), [address, bytes32])  # noqa: E501
     return x[0]
     """,
     """
 @public
 def foo() -> bytes32:
-    x = RLPList(convert('\xf6\x9455555555555555555555\xa0GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG', bytes[64]), [address, bytes32])
+    x = RLPList(convert('\xf6\x9455555555555555555555\xa0GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG', bytes[64]), [address, bytes32])  # noqa: E501
     return x[1]
     """
 ]

@@ -4,7 +4,7 @@ from vyper.exceptions import (
 
 
 def test_no_none_assign(assert_compile_failed, get_contract_with_gas_estimation):
-    contracts = [
+    contracts = [  # noqa: E122
     """
 @public
 def foo():
@@ -81,7 +81,7 @@ def foo():
 
 
 def test_no_is_none(assert_compile_failed, get_contract_with_gas_estimation):
-    contracts = [
+    contracts = [  # noqa: E122
     """
 @public
 def foo():
@@ -128,7 +128,7 @@ def foo():
 
 
 def test_no_eq_none(assert_compile_failed, get_contract_with_gas_estimation):
-    contracts = [
+    contracts = [  # noqa: E122
     """
 @public
 def foo():
@@ -175,7 +175,7 @@ def foo():
 
 
 def test_struct_none(assert_compile_failed, get_contract_with_gas_estimation):
-    contracts = [
+    contracts = [  # noqa: E122
     """
 struct Mom:
     a: uint256
