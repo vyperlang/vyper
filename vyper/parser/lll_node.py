@@ -75,13 +75,26 @@ class LLLnode():
                 _, ins, outs, gas = comb_opcodes[self.value.upper()]
                 self.valency = outs
                 if len(self.args) != ins:
-                    raise Exception("Number of arguments mismatched: %r %r" % (self.value, self.args))
+                    raise Exception(
+                        "Number of arguments mismatched: %r %r" % (
+                            self.value, self.args
+                        )
+                    )
                 # We add 2 per stack height at push time and take it back
                 # at pop time; this makes `break` easier to handle
                 self.gas = gas + 2 * (outs - ins)
                 for arg in self.args:
-                    # if arg.valency == 0:
-                    #     raise Exception("Can't have a zerovalent argument to an opcode or a pseudo-opcode! %r: %r" % (arg.value, arg))
+                    # pop and pass are used to push/pop values on the stack to be
+                    # consumed for private functions, therefore we whitelist this as a zero valency
+                    # allowed argument.
+                    zero_valency_whitelist = {'pass', 'pop'}
+                    if arg.valency == 0 and arg.value not in zero_valency_whitelist:
+                        raise Exception(
+                            "Can't have a zerovalent argument to an "
+                            "opcode or a pseudo-opcode! %r: %r" % (
+                                    arg.value, arg
+                                )
+                            )
                     self.gas += arg.gas
                 # Dynamic gas cost: 8 gas for each byte of logging data
                 if self.value.upper()[0:3] == 'LOG' and isinstance(self.args[1].value, int):
