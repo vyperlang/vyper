@@ -4,7 +4,7 @@ from pytest import raises
 from vyper import compiler
 from vyper.exceptions import FunctionDeclarationException
 
-fail_list = [
+fail_list = [  # noqa: E122
     """
 @public
 def ő1qwerty(i: int128) -> int128:
