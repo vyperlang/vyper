@@ -97,8 +97,8 @@ class LLLnode():
                     zero_valency_whitelist = {'pass', 'pop'}
                     if arg.valency == 0 and arg.value not in zero_valency_whitelist:
                         raise Exception(
-                            "Can't have a zerovalent argument to an "
-                            "opcode or a pseudo-opcode! %r: %r" % (arg.value, arg)
+                            "Can't have a zerovalent argument to an opcode or a pseudo-opcode! "
+                            "%r: %r. Please file a bug report." % (arg.value, arg)
                         )
                     self.gas += arg.gas
                 # Dynamic gas cost: 8 gas for each byte of logging data
