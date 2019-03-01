@@ -216,7 +216,7 @@ def test_safeTransferFrom_to_contract(c, w3, assert_tx_failed, get_logs, get_con
     someone = w3.eth.accounts[1]
 
     # Can't transfer to a contract that doesn't implement the receiver code
-    assert_tx_failed(lambda: c.safeTransferFrom(someone, c.address, SOMEONE_TOKEN_IDS[0], transact={'from': someone}))
+    assert_tx_failed(lambda: c.safeTransferFrom(someone, c.address, SOMEONE_TOKEN_IDS[0], transact={'from': someone}))  # noqa: E501
 
     # Only to an address that implements that function
     receiver = get_contract("""
@@ -229,7 +229,12 @@ def onERC721Received(
     ) -> bytes32:
     return method_id("onERC721Received(address,address,uint256,bytes)", bytes32)
     """)
-    tx_hash = c.safeTransferFrom(someone, receiver.address, SOMEONE_TOKEN_IDS[0], transact={'from': someone})
+    tx_hash = c.safeTransferFrom(
+        someone,
+        receiver.address,
+        SOMEONE_TOKEN_IDS[0],
+        transact={'from': someone},
+    )
 
     logs = get_logs(tx_hash, c, 'Transfer')
 

@@ -19,7 +19,10 @@ TOKEN_TOTAL_SUPPLY = TOKEN_INITIAL_SUPPLY * (10 ** TOKEN_DECIMALS)
 def erc20(get_contract):
     with open('examples/tokens/ERC20.vy') as f:
         contract_code = f.read()
-    return get_contract(contract_code, *[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY])
+    return get_contract(
+        contract_code,
+        *[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY],
+    )
 
 
 def test_initial_statet(market_maker):
@@ -32,7 +35,11 @@ def test_initial_statet(market_maker):
 def test_initiate(w3, market_maker, erc20, assert_tx_failed):
     a0 = w3.eth.accounts[0]
     erc20.approve(market_maker.address, w3.toWei(2, "ether"), transact={})
-    market_maker.initiate(erc20.address, w3.toWei(1, "ether"), transact={'value': w3.toWei(2, "ether")})
+    market_maker.initiate(
+        erc20.address,
+        w3.toWei(1, "ether"),
+        transact={'value': w3.toWei(2, "ether")},
+    )
     assert market_maker.totalEthQty() == w3.toWei(2, "ether")
     assert market_maker.totalTokenQty() == w3.toWei(1, "ether")
     assert market_maker.invariant() == 2 * 10**36
@@ -41,13 +48,17 @@ def test_initiate(w3, market_maker, erc20, assert_tx_failed):
     assert erc20.decimals() == TOKEN_DECIMALS
 
     # Initiate cannot be called twice
-    assert_tx_failed(lambda: market_maker.initiate(erc20.address, w3.toWei(1, "ether"), transact={'value': w3.toWei(2, "ether")}))
+    assert_tx_failed(lambda: market_maker.initiate(erc20.address, w3.toWei(1, "ether"), transact={'value': w3.toWei(2, "ether")}))  # noqa: E501
 
 
 def test_eth_to_tokens(w3, market_maker, erc20):
     a1 = w3.eth.accounts[1]
     erc20.approve(market_maker.address, w3.toWei(2, "ether"), transact={})
-    market_maker.initiate(erc20.address, w3.toWei(1, "ether"), transact={'value': w3.toWei(2, "ether")})
+    market_maker.initiate(
+        erc20.address,
+        w3.toWei(1, "ether"),
+        transact={'value': w3.toWei(2, "ether")},
+    )
     assert erc20.balanceOf(market_maker.address) == w3.toWei(1, "ether")
     assert erc20.balanceOf(a1) == 0
     assert market_maker.totalTokenQty() == w3.toWei(1, "ether")
@@ -66,16 +77,24 @@ def test_tokens_to_eth(w3, tester, market_maker, erc20):
 
     erc20.transfer(a1, w3.toWei(2, "ether"), transact={})
     erc20.approve(market_maker.address, w3.toWei(2, "ether"), transact={'from': a1})
-    market_maker.initiate(erc20.address, w3.toWei(1, "ether"), transact={'value': w3.toWei(2, "ether"), 'from': a1})
+    market_maker.initiate(
+        erc20.address,
+        w3.toWei(1, "ether"),
+        transact={'value': w3.toWei(2, "ether"), 'from': a1},
+    )
     assert w3.eth.getBalance(market_maker.address) == w3.toWei(2, "ether")
-    assert w3.eth.getBalance(a1) == a1_balance_before - w3.toWei(2, "ether")  # sent 2 eth, with initiate.
+    # sent 2 eth, with initiate.
+    assert w3.eth.getBalance(a1) == a1_balance_before - w3.toWei(2, "ether")
     assert market_maker.totalTokenQty() == w3.toWei(1, "ether")
 
     erc20.approve(market_maker.address, w3.toWei(1, "ether"), transact={'from': a1})
     market_maker.tokensToEth(w3.toWei(1, "ether"), transact={'from': a1})
-    assert w3.eth.getBalance(market_maker.address) == w3.toWei(1, "ether")  # 1 eth less in market.
-    assert w3.eth.getBalance(a1) == a1_balance_before - w3.toWei(1, "ether")  # got 1 eth back, for trade.
-    assert market_maker.totalTokenQty() == w3.toWei(2, "ether")  # Tokens increased by 1
+    # 1 eth less in market.
+    assert w3.eth.getBalance(market_maker.address) == w3.toWei(1, "ether")
+    # got 1 eth back, for trade.
+    assert w3.eth.getBalance(a1) == a1_balance_before - w3.toWei(1, "ether")
+    # Tokens increased by 1
+    assert market_maker.totalTokenQty() == w3.toWei(2, "ether")
     assert market_maker.totalEthQty() == w3.toWei(1, "ether")
 
 
@@ -85,11 +104,18 @@ def test_owner_withdraw(w3, tester, market_maker, erc20, assert_tx_failed):
     # Approve 2 eth transfers.
     erc20.approve(market_maker.address, w3.toWei(2, "ether"), transact={})
     # Initiate market with 2 eth value.
-    market_maker.initiate(erc20.address, w3.toWei(1, "ether"), transact={'value': w3.toWei(2, "ether")})
-    assert w3.eth.getBalance(a0) == a0_balance_before - w3.toWei(2, "ether")  # 2 eth was sent to market_maker contract.
-    assert erc20.balanceOf(a0) == TOKEN_TOTAL_SUPPLY - w3.toWei(1, "ether")  # a0's balance is locked up in market_maker contract.
+    market_maker.initiate(
+        erc20.address,
+        w3.toWei(1, "ether"),
+        transact={'value': w3.toWei(2, "ether")},
+    )
+    # 2 eth was sent to market_maker contract.
+    assert w3.eth.getBalance(a0) == a0_balance_before - w3.toWei(2, "ether")
+    # a0's balance is locked up in market_maker contract.
+    assert erc20.balanceOf(a0) == TOKEN_TOTAL_SUPPLY - w3.toWei(1, "ether")
 
-    assert_tx_failed(lambda: market_maker.ownerWithdraw(transact={'from': a1}))  # Only owner can call ownerWithdraw
+    # Only owner can call ownerWithdraw
+    assert_tx_failed(lambda: market_maker.ownerWithdraw(transact={'from': a1}))
     market_maker.ownerWithdraw(transact={})
     assert w3.eth.getBalance(a0) == a0_balance_before  # Eth balance restored.
     assert erc20.balanceOf(a0) == TOKEN_TOTAL_SUPPLY  # Tokens returned to a0.
