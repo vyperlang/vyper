@@ -59,7 +59,9 @@ def out_very_long_bytes() -> (int128, bytes[1024], int128, address):
     assert c.out_bytes_b(5555555, b"test") == [b"test", 5555555, b"test"]
     assert c.four() == [1234, b"bytes", b"test", 4321]
     assert c.out_chunk() == [b"hello", 5678, b"world"]
-    assert c.out_very_long_bytes() == [5555, long_string.encode(), 6666, "0x0000000000000000000000000000000000001234"]
+    assert c.out_very_long_bytes() == [
+        5555, long_string.encode(), 6666, "0x0000000000000000000000000000000000001234"
+    ]
 
 
 def test_return_type_signatures(get_contract_with_gas_estimation):
@@ -70,7 +72,11 @@ def out_literals() -> (int128, address, bytes[6]):
     """
 
     c = get_contract_with_gas_estimation(code)
-    assert c._classic_contract.abi[0]['outputs'] == [{'type': 'int128', 'name': 'out'}, {'type': 'address', 'name': 'out'}, {'type': 'bytes', 'name': 'out'}]
+    assert c._classic_contract.abi[0]['outputs'] == [
+        {'type': 'int128', 'name': 'out'},
+        {'type': 'address', 'name': 'out'},
+        {'type': 'bytes', 'name': 'out'},
+    ]
 
 
 def test_return_tuple_assign(get_contract_with_gas_estimation):

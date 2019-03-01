@@ -15,7 +15,7 @@ def test_initial_state(w3, tester, auction_contract):
     # Check beneficiary is correct
     assert auction_contract.beneficiary() == w3.eth.accounts[0]
     # Check bidding time is 5 days
-    assert auction_contract.auctionEnd() == tester.get_block_by_number('latest')['timestamp'] + EXPIRY
+    assert auction_contract.auctionEnd() == tester.get_block_by_number('latest')['timestamp'] + EXPIRY  # noqa: E501
     # Check start time is current block timestamp
     assert auction_contract.auctionStart() == tester.get_block_by_number('latest')['timestamp']
     # Check auction has not ended

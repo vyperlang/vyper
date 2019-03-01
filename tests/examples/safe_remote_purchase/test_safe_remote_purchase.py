@@ -1,11 +1,16 @@
-# Test for Safe Remote Purchase (https://github.com/ethereum/solidity/blob/develop/docs/solidity-by-example.rst) ported to vyper and optimized
+# Test for Safe Remote Purchase
+# (https://github.com/ethereum/solidity/blob/develop/docs/solidity-by-example.rst)
+# ported to vyper and optimized
 
 # Rundown of the transaction:
-# 1. Seller posts item for sale and posts safety deposit of double the item value. Balance is 2*value.
+# 1. Seller posts item for sale and posts safety deposit of double the item
+#    value. Balance is 2*value.
 # (1.1. Seller can reclaim deposit and close the sale as long as nothing was purchased.)
-# 2. Buyer purchases item (value) plus posts an additional safety deposit (Item value). Balance is 4*value
+# 2. Buyer purchases item (value) plus posts an additional safety deposit (Item
+#    value). Balance is 4*value
 # 3. Seller ships item
-# 4. Buyer confirms receiving the item. Buyer's deposit (value) is returned. Seller's deposit (2*value) + items value is returned. Balance is 0.
+# 4. Buyer confirms receiving the item. Buyer's deposit (value) is returned.
+#    Seller's deposit (2*value) + items value is returned. Balance is 0.
 import pytest
 
 
@@ -133,14 +138,29 @@ def __default__():
     c = get_contract(contract_code, value=2)
     buyer_contract = get_contract(buyer_contract_code, *[c.address])
     buyer_contract_address = buyer_contract.address
-    init_bal_a0, init_bal_buyer_contract = w3.eth.getBalance(a0), w3.eth.getBalance(buyer_contract_address)
+    init_bal_a0, init_bal_buyer_contract = (
+        w3.eth.getBalance(a0),
+        w3.eth.getBalance(buyer_contract_address),
+    )
     # Start purchase
-    buyer_contract.start_purchase(transact={'gasPrice': 0, 'value': 4, 'from': w3.eth.accounts[1], 'gas': 100000})
+    buyer_contract.start_purchase(transact={
+        'gasPrice': 0,
+        'value': 4,
+        'from': w3.eth.accounts[1],
+        'gas': 100000,
+    })
     assert c.unlocked() is False
     assert c.buyer() == buyer_contract_address
 
     # Trigger "re-entry"
-    buyer_contract.start_received(transact={'from': w3.eth.accounts[1], 'gasPrice': 0, 'gas': 100000})
+    buyer_contract.start_received(transact={
+        'from': w3.eth.accounts[1],
+        'gasPrice': 0,
+        'gas': 100000,
+    })
 
     # Final check if everything worked. 1 value has been transferred
-    assert w3.eth.getBalance(a0), w3.eth.getBalance(buyer_contract_address) == (init_bal_a0 + 1, init_bal_buyer_contract - 1)
+    assert w3.eth.getBalance(a0), w3.eth.getBalance(buyer_contract_address) == (
+        init_bal_a0 + 1,
+        init_bal_buyer_contract - 1,
+    )

@@ -12,7 +12,10 @@ TOKEN_TOTAL_SUPPLY = TOKEN_INITIAL_SUPPLY * (10 ** TOKEN_DECIMALS)
 @pytest.fixture
 def erc20(get_contract):
     with open('examples/tokens/ERC20.vy') as f:
-        contract = get_contract(f.read(), *[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY])
+        contract = get_contract(
+            f.read(),
+            *[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY]
+        )
     return contract
 
 
@@ -72,7 +75,8 @@ def allowance(_owner: address, _spender: address) -> uint256:
 
 
 def test_initial_state(w3, erc20_caller):
-    assert erc20_caller.totalSupply() == TOKEN_TOTAL_SUPPLY == erc20_caller.balanceOf(w3.eth.accounts[0])
+    assert erc20_caller.totalSupply() == TOKEN_TOTAL_SUPPLY
+    assert erc20_caller.balanceOf(w3.eth.accounts[0]) == TOKEN_TOTAL_SUPPLY
     assert erc20_caller.balanceOf(w3.eth.accounts[1]) == 0
     assert erc20_caller.name() == TOKEN_NAME
     assert erc20_caller.symbol() == TOKEN_SYMBOL
@@ -106,7 +110,9 @@ def test_caller_approve_allowance(w3, erc20, erc20_caller):
 
 def test_caller_tranfer_from(w3, erc20, erc20_caller, assert_tx_failed):
     # Cannot transfer tokens that are unavailable
-    assert_tx_failed(lambda: erc20_caller.transferFrom(w3.eth.accounts[0], erc20_caller.address, 10))
+    assert_tx_failed(
+        lambda: erc20_caller.transferFrom(w3.eth.accounts[0], erc20_caller.address, 10)
+    )
     assert erc20.balanceOf(erc20_caller.address) == 0
     assert erc20.approve(erc20_caller.address, 10, transact={})
     erc20_caller.transferFrom(w3.eth.accounts[0], erc20_caller.address, 5, transact={})

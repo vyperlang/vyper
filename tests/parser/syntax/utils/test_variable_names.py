@@ -4,7 +4,7 @@ from pytest import raises
 from vyper import compiler
 from vyper.exceptions import VariableDeclarationException
 
-fail_list = [
+fail_list = [  # noqa: E122
     """
 @public
 def foo(i: int128) -> int128:
