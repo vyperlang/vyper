@@ -29,7 +29,7 @@ def _hashy2(x: bytes[100]) -> bytes32:
 
 @public
 def return_hash_of_cow_x_30() -> bytes32:
-    return self._hashy2("cowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcow")
+    return self._hashy2("cowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcow")  # noqa: E501
 
 @public
 def _len(x: bytes[100]) -> int128:
