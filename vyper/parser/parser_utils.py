@@ -651,7 +651,6 @@ def make_setter(left, right, location, pos, in_function_call=False):
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If tuple assign.
         elif isinstance(left.typ, TupleType) and isinstance(right.typ, TupleType):
-            right_token = LLLnode.from_list('_R', typ=right.typ, location="memory")
             subs = []
             static_offset_counter = 0
             zipped_components = zip(left.args, right.typ.members, locations)
