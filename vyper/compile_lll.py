@@ -484,9 +484,9 @@ def assembly_to_evm(assembly, map_line_numbers=True):
         elif item == 'BLANK':
             pass
         elif isinstance(item, list):
-            for i in range(len(sub_assemblies)):
-                if sub_assemblies[i] == item:
-                    o += codes[i]
+            for j in range(len(sub_assemblies)):
+                if sub_assemblies[j] == item:
+                    o += codes[j]
                     break
         else:
             # Should never reach because, assembly is create in compile_to_assembly.
