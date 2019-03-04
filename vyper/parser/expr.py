@@ -1067,6 +1067,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         )
         raise InvalidLiteralException("Invalid literal: %r" % ast.dump(self.expr), self.expr)
 
+    @staticmethod
     def struct_literals(expr, name, context):
         o = {}
         members = {}

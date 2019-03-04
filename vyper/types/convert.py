@@ -349,10 +349,11 @@ def to_address(expr, args, kwargs, context):
     )
 
 def _to_bytelike(expr, args, kwargs, context, bytetype):
+
     if bytetype == 'string':
         ReturnType = StringType
     elif bytetype == 'bytes':
-        ReturnType = ByteType
+        ReturnType = ByteArrayType
     else:
         raise TypeMismatchException(f'Invalid {bytetype} supplied')
 
@@ -373,12 +374,12 @@ def _to_bytelike(expr, args, kwargs, context, bytetype):
 
 @signature(('bytes'), '*')
 def to_string(expr, args, kwargs, context):
-    return _to_bytelike(expr, args, kwargs, context, bytetype='bytes')
+    return _to_bytelike(expr, args, kwargs, context, bytetype='string')
 
 
 @signature(('string'), '*')
 def to_bytes(expr, args, kwargs, context):
-    return _to_bytelike(expr, args, kwargs, context, bytetype='string')
+    return _to_bytelike(expr, args, kwargs, context, bytetype='bytes')
 
 
 def convert(expr, context):
