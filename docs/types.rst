@@ -53,6 +53,7 @@ Operator              Description
 The operators ``or`` and ``and`` apply the common short-circuiting rules.
 
 .. index:: ! int128, ! int, ! integer
+
 Signed Integer (128 bit)
 ========================
 **Keyword:** ``int128``
@@ -103,6 +104,7 @@ Operator       Description
 ``x`` and ``y`` must be of the type ``int128``.
 
 .. index:: ! unit, ! uint256
+
 Unsigned Integer (256 bit)
 ==========================
 **Keyword:** ``uint256``
@@ -224,6 +226,7 @@ Operator       Description
 ``x`` and ``y`` must be of the type ``decimal``.
 
 .. _address:
+
 Address
 =======
 **Keyword:** ``address``
@@ -235,6 +238,7 @@ Values
 An address type can hold an Ethereum address which equates to 20 bytes or 160 bits. It returns in hexadecimal notation with a leading ``0x``.
 
 .. _members-of-addresses:
+
 Members
 ^^^^^^^
 
@@ -280,6 +284,7 @@ Vyper allows you to add additional not-provided unit label to either ``uint256``
 
 **Custom units example:**
 ::
+
   # specify units used in the contract.
   units: {
       cm: "centimeter",
@@ -290,10 +295,12 @@ Having defined the units they can be defined on variables as follows.
 
 **Custom units usage:**
 ::
+
     a: int128(cm)
     b: uint256(km)
 
 .. index:: !bytes32
+
 32-bit-wide Byte Array
 ======================
 **Keyword:** ``bytes32``
@@ -301,10 +308,12 @@ This is a 32-bit-wide byte array that is otherwise similiar to byte arrays.
 
 **Example:**
 ::
+
     # Declaration
     hash: bytes32
     # Assignment
     self.hash = _hash
+
 Operators
 ---------
 ====================================  ============================================================
@@ -314,9 +323,11 @@ Keyword                               Description
 ``concat(x, ...)``                    Concatenate multiple inputs.
 ``slice(x, start=_start, len=_len)``  Return a slice of ``_len`` starting at ``_start``.
 ====================================  ============================================================
+
 Where ``x`` is a byte array and ``_start`` as well as ``_len`` are integer values.
 
 .. index:: !bytes
+
 Fixed-size Byte Arrays
 ======================
 **Keyword:** ``bytes``
@@ -327,9 +338,11 @@ On the ABI level the Fixed-size bytes array is annotated as ``bytes``.
 
 **Example:**
 ::
+
     example_bytes: bytes[100] = b"\x01\x02\x03"
 
 .. index:: !string
+
 Fixed-size Strings
 ==================
 **Keyword:** ``string``
@@ -338,6 +351,7 @@ On the ABI level the Fixed-size bytes array is annotated as ``string``.
 
 **Example:**
 ::
+
     example_str: string[100] = "Test String"
 
 Operators
@@ -350,6 +364,7 @@ Keyword                               Description
 ``concat(x, ...)``                    Concatenate multiple inputs.
 ``slice(x, start=_start, len=_len)``  Return a slice of ``_len`` starting at ``_start``.
 ====================================  ============================================================
+
 Where ``x`` is a byte array or string while ``_start`` and ``_len`` are integers.
 The ``len``, ``sha3``, ``concat``, ``slice`` operators can be used with ``string`` and ``bytes`` types.
 
@@ -363,6 +378,7 @@ Reference types do not fit into 32 bytes. Because of this, copying their value i
 with value types. Therefore only the location, i.e. the reference, of the data is passed.
 
 .. index:: !arrays
+
 Fixed-size Lists
 ================
 
@@ -374,6 +390,7 @@ Lists can be declared with ``_name: _ValueType[_Integer]``. Multidimensional lis
 
 **Example:**
 ::
+
   #Defining a list
   exampleList: int128[3]
   #Setting values
@@ -394,6 +411,7 @@ Syntax
 Structs can be accessed via ``struct.argname``.
 **Example:**
 ::
+
   #Defining a struct
   struct MyStruct:
       value1: int128
@@ -432,6 +450,7 @@ Here ``_KeyType`` can be any base or bytes type. Mappings, contract or structs a
 
 **Example:**
 ::
+
    #Defining a mapping
    exampleMapping: map(int128, decimal)
    #Accessing a value
@@ -468,6 +487,7 @@ Custom constants can be defined at a global level in Vyper. To define a constant
 
 **Example:**
 ::
+
   TOTAL_SUPPLY: constant(uint256) = 10000000
   total_supply: public(uint256)
 
@@ -477,6 +497,7 @@ Custom constants can be defined at a global level in Vyper. To define a constant
 
 **Advanced Example:**
 ::
+
   units: {
       share: "Share unit"
   }

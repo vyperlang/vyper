@@ -178,9 +178,6 @@ Vyper supports exporting and importing contract interfaces, this is done using a
 
     implements: FooBarInterface
 
-::
-
-
 This will import the defined interface in vyper file at `an_interface.vy` and make sure the current contract implements all the necessary public functions.
 Note that all interface is valid vyper code, without the return type check. Meaning you can use a contract with code in in the function body as interface as well (but default to a function body with a `pass`).
 
@@ -203,8 +200,6 @@ Vyper has a built-in format option to allow you to make your own vyper interface
 
     # ...
 
-::
-
 If you want to do an external call to another contract, vyper provides an external contract extract utility as well.
 
 ::
@@ -218,7 +213,6 @@ If you want to do an external call to another contract, vyper provides an extern
         def giveRightToVote(voter: address): modifying
         def forwardWeight(delegate_with_weight_to_forward: address): modifying
         # ...
-::
 
 The output can then easily be copy-pasted to be consumed.
 
@@ -232,8 +226,6 @@ Vyper supports a few built-in interfaces such as ERC20 and ERC721. These are imp
 
   implements: ERC20
 
-::
-
 External Calls using Interfaces
 -------------------------------
 
@@ -245,8 +237,6 @@ To define external interfaces inline the `contract` keyword is used.
         def test1(): modifying
         def calculate() -> uint256: constant
 
-::
-
 The defined inline contract can then be use to make external calls, given a contract address.
 
 Specifying `modifying` annoated that the call made to the external contract will be able to alter storage, were as the `constant` call will using a `STATICCALL` ensuring no storage can be altered during execution.
@@ -257,8 +247,6 @@ Specifying `modifying` annoated that the call made to the external contract will
     def test(some_address: address):
         FooBar(some_address).calculate()  # can not change storage
         FooBar(some_address).test1()  # storage can be altered
-
-::
 
 An additional utility of storing a contract address in a contract is defined by the ``<global_var>: FooBar`` annotation. Note that assignment of and address requires the address value needs to be cast using the contract type e.g. ``FooBar(<address_var>)``.
 
@@ -273,8 +261,6 @@ An additional utility of storing a contract address in a contract is defined by 
     @public
     def call_test1():
       # ...
-
-::
 
 To import interfaces to be used in externals calls, one uses the interface just as one would use an inlined interface definition.
 
@@ -291,7 +277,6 @@ To import interfaces to be used in externals calls, one uses the interface just 
     @public
     def test():
         self.foobar_contract.one()
-::
 
 Or alternatively
 
@@ -302,4 +287,3 @@ Or alternatively
     @public
     def test(addy: address):
       FooBar(addy).one()
-::
