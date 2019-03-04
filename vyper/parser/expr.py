@@ -480,7 +480,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                     typ=BaseType('uint256', None, is_literal=True),
                     pos=getpos(self.expr),
                 )
-                arithmetic_pair = {left.typ.typ, right.typ.typ}
+
             # Check left side literal.
             elif left.typ.is_literal and SizeLimits.in_bounds('uint256', left.value):
                 left = LLLnode.from_list(
@@ -488,7 +488,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                     typ=BaseType('uint256', None, is_literal=True),
                     pos=getpos(self.expr),
                 )
-                arithmetic_pair = {left.typ.typ, right.typ.typ}
+
 
         # Only allow explicit conversions to occur.
         if left.typ.typ != right.typ.typ:
@@ -1067,6 +1067,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         )
         raise InvalidLiteralException("Invalid literal: %r" % ast.dump(self.expr), self.expr)
 
+    @staticmethod
     def struct_literals(expr, name, context):
         o = {}
         members = {}
@@ -1103,12 +1104,14 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         return LLLnode.from_list(["multi"] + o, typ=typ, pos=getpos(self.expr))
 
     # Parse an expression that results in a value
-    def parse_value_expr(expr, context):
-        return unwrap_location(Expr(expr, context).lll_node)
+    @classmethod
+    def parse_value_expr(cls, expr, context):
+        return unwrap_location(cls(expr, context).lll_node)
 
     # Parse an expression that represents an address in memory or storage
-    def parse_variable_location(expr, context):
-        o = Expr(expr, context).lll_node
+    @classmethod
+    def parse_variable_location(cls, expr, context):
+        o = cls(expr, context).lll_node
         if not o.location:
             raise ParserException("Looking for a variable location, instead got a value", expr)
         return o

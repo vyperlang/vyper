@@ -7,7 +7,6 @@ import vyper
 import warnings
 
 from collections import OrderedDict
-from argparse import RawTextHelpFormatter
 from vyper.parser import parser_utils
 from vyper.signatures.interface import extract_file_interface_imports
 
@@ -29,7 +28,7 @@ format_options_help = """Format to print, one or more of:
 
 parser = argparse.ArgumentParser(
     description='Vyper programming language for Ethereum',
-    formatter_class=RawTextHelpFormatter
+    formatter_class=argparse.RawTextHelpFormatter
 )
 parser.add_argument(
     'input_files',

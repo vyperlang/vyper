@@ -651,7 +651,6 @@ def make_setter(left, right, location, pos, in_function_call=False):
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If tuple assign.
         elif isinstance(left.typ, TupleType) and isinstance(right.typ, TupleType):
-            right_token = LLLnode.from_list('_R', typ=right.typ, location="memory")
             subs = []
             static_offset_counter = 0
             zipped_components = zip(left.args, right.typ.members, locations)
@@ -763,9 +762,7 @@ def make_return_stmt(stmt, context, begin_pos, _size, loop_memory_position=None)
 
         # Push prepared data onto the stack,
         # in reverse order so it can be popped of in order.
-        if _size == 0:
-            mloads = []
-        elif isinstance(begin_pos, int) and isinstance(_size, int):
+        if isinstance(begin_pos, int) and isinstance(_size, int):
             # static values, unroll the mloads instead.
             mloads = [
                 ['mload', pos] for pos in range(begin_pos, _size, 32)

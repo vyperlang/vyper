@@ -131,9 +131,6 @@ def _slice(expr, args, kwargs, context):
     else:
         sub_typ_maxlen = sub.typ.maxlen
 
-    # Node representing the position of the output in memory
-    np = context.new_placeholder(ByteArrayType(maxlen=sub_typ_maxlen + 32))
-
     # Get returntype string or bytes
     if isinstance(args[0].typ, ByteArrayType) or is_base_type(sub.typ, 'bytes32'):
         ReturnType = ByteArrayType
