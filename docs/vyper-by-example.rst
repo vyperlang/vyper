@@ -578,9 +578,9 @@ Now that people can buy shares, how do we check someone's holdings?
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :pyobject: get_holdings
+  :pyobject: getHolding
 
-The ``getHoldings()`` is another ``@constant`` method that takes an ``address``
+The ``getHolding()`` is another ``@constant`` method that takes an ``address``
 and returns its corresponding stock holdings by keying into ``self.holdings``.
 
 .. literalinclude:: ../examples/stock/company.vy
