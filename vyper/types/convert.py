@@ -348,39 +348,37 @@ def to_address(expr, args, kwargs, context):
         pos=getpos(expr)
     )
 
+def _to_bytelike(expr, args, kwargs, context, bytetype):
+    if bytetype == 'string':
+        ReturnType = StringType
+    elif bytetype == 'bytes':
+        ReturnType = ByteType
+    else:
+        raise TypeMismatchException(f'Invalid {bytetype} supplied')
 
-@signature(('bytes'), '*')
-def to_string(expr, args, kwargs, context):
     in_arg = args[0]
     if in_arg.typ.maxlen > args[1].slice.value.n:
         raise TypeMismatchException(
-            'Cannot convert as input bytes are larger than max length',
+            f'Cannot convert as input {bytetype} are larger than max length',
             expr,
         )
     return LLLnode(
         value=in_arg.value,
         args=in_arg.args,
-        typ=StringType(in_arg.typ.maxlen),
+        typ=ReturnType(in_arg.typ.maxlen),
         pos=getpos(expr),
         location=in_arg.location
     )
+
+
+@signature(('bytes'), '*')
+def to_string(expr, args, kwargs, context):
+    return _to_bytelike(expr, args, kwargs, context, bytetype='bytes')
 
 
 @signature(('string'), '*')
 def to_bytes(expr, args, kwargs, context):
-    in_arg = args[0]
-    if in_arg.typ.maxlen > args[1].slice.value.n:
-        raise TypeMismatchException(
-            'Cannot convert as input bytes are larger than max length',
-            expr,
-        )
-    return LLLnode(
-        value=in_arg.value,
-        args=in_arg.args,
-        typ=ByteArrayType(in_arg.typ.maxlen),
-        pos=getpos(expr),
-        location=in_arg.location
-    )
+    return _to_bytelike(expr, args, kwargs, context, bytetype='string')
 
 
 def convert(expr, context):
