@@ -762,9 +762,7 @@ def make_return_stmt(stmt, context, begin_pos, _size, loop_memory_position=None)
 
         # Push prepared data onto the stack,
         # in reverse order so it can be popped of in order.
-        if _size == 0:
-            mloads = []
-        elif isinstance(begin_pos, int) and isinstance(_size, int):
+        if isinstance(begin_pos, int) and isinstance(_size, int):
             # static values, unroll the mloads instead.
             mloads = [
                 ['mload', pos] for pos in range(begin_pos, _size, 32)
