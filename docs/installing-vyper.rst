@@ -133,7 +133,7 @@ If any unexpected errors or exceptions are encountered, please feel free create 
 .. note::
     If you get the error `fatal error: openssl/aes.h: No such file or directory` in the output of `make`, then run `sudo apt-get install libssl-dev1`, then run `make` again.
 
-    **For MacOS users:**
+    **For MacOS users:**
 
     Apple has deprecated use of OpenSSL in favor of its own TLS and crypto
     libraries. This means that you will need to export some OpenSSL settings
@@ -225,10 +225,16 @@ and try compiling a contract:
 Snap
 ****
 
-Vyper is published in the snap store. In any of the `supported Linux distros <https://snapcraft.io/docs/core/install>`_, install it with:
+Vyper is published in the snap store. In any of the `supported Linux distros <https://snapcraft.io/docs/core/install>`_, install it with (Note that installing the above snap is the latest master):
 ::
 
     sudo snap install vyper --edge --devmode
 
+::
 
-(Note that installing the above snap is the latest master)
+
+To install the latest beta version use:
+
+::
+
+    sudo snap install vyper --beta --devmode
