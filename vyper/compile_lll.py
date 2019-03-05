@@ -239,6 +239,18 @@ def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=No
             # if arg.valency == 1 and arg != code.args[-1]:
             #     o.append('POP')
         return o
+    # Assure (if false, invalid opcode)
+    elif code.value == 'assure':
+        o = compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
+        end_symbol = mksymbol()
+        o.extend([
+            end_symbol,
+            'JUMPI',
+            'INVALID',
+            end_symbol,
+            'JUMPDEST'
+        ])
+        return o
     # Assert (if false, exit)
     elif code.value == 'assert':
         o = compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
