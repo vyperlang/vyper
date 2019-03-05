@@ -1007,7 +1007,7 @@ def shift(expr, args, kwargs, context):
     )
 
 
-def get_create_with_code_of_bytecode():
+def get_create_forwarder_to_bytecode():
     from vyper.compile_lll import (
         assembly_to_evm,
         num_to_bytearray
@@ -1047,7 +1047,7 @@ def get_create_with_code_of_bytecode():
 
 
 @signature('address', value=Optional('uint256', zero_value))
-def create_with_code_of(expr, args, kwargs, context):
+def create_forwarder_to(expr, args, kwargs, context):
 
     value = kwargs['value']
     if value != zero_value:
@@ -1060,7 +1060,7 @@ def create_with_code_of(expr, args, kwargs, context):
         )
     placeholder = context.new_placeholder(ByteArrayType(96))
 
-    kode = get_create_with_code_of_bytecode()
+    kode = get_create_forwarder_to_bytecode()
     high = bytes_to_int(kode[:32])
     low = bytes_to_int((kode + b'\x00' * 32)[47:79])
 
@@ -1159,7 +1159,7 @@ dispatch_table = {
     'uint256_addmod': uint256_addmod,
     'uint256_mulmod': uint256_mulmod,
     'shift': shift,
-    'create_with_code_of': create_with_code_of,
+    'create_forwarder_to': create_forwarder_to,
     'min': _min,
     'max': _max,
 }
@@ -1170,5 +1170,5 @@ stmt_dispatch_table = {
     'selfdestruct': selfdestruct,
     'raw_call': raw_call,
     'raw_log': raw_log,
-    'create_with_code_of': create_with_code_of,
+    'create_forwarder_to': create_forwarder_to,
 }
