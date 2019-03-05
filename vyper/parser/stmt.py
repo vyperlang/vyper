@@ -366,34 +366,18 @@ class Stmt(object):
             pack_logging_topics,
         )
 
-        is_self_function = (
-            isinstance(self.stmt.func, ast.Attribute)
-        ) and isinstance(self.stmt.func.value, ast.Name) and self.stmt.func.value.id == "self"
+        is_self_function, is_log_call = False, False
+        if isinstance(self.stmt.func, ast.Attribute) and isinstance(self.stmt.func.value, ast.Name):
+            if self.stmt.func.value.id == "self":
+                is_self_function = True
+            elif self.stmt.func.value.id == "log":
+                    is_log_call = True
 
-        is_log_call = (
-            isinstance(self.stmt.func, ast.Attribute)
-        ) and isinstance(self.stmt.func.value, ast.Name) and self.stmt.func.value.id == 'log'
-
-        if isinstance(self.stmt.func, ast.Name):
-            if self.stmt.func.id in stmt_dispatch_table:
-                if self.stmt.func.id == 'clear':
-                    return self._clear()
-                else:
-                    return stmt_dispatch_table[self.stmt.func.id](self.stmt, self.context)
-            elif self.stmt.func.id in dispatch_table:
-                raise StructureException(
-                    "Function {} can not be called without being used.".format(
-                        self.stmt.func.id
-                    ),
-                    self.stmt,
-                )
-            else:
-                raise StructureException(
-                    "Unknown function: '{}'.".format(self.stmt.func.id),
-                    self.stmt,
-                )
-        elif is_self_function:
+        # self.<function_name> call
+        if is_self_function:
             return self_call.make_call(self.stmt, self.context)
+
+        # log.<event_name> call
         elif is_log_call:
             if self.stmt.func.attr not in self.context.sigs['self']:
                 raise EventDeclarationException("Event not declared yet: %s" % self.stmt.func.attr)
@@ -440,6 +424,28 @@ class Stmt(object):
                     add_gas_estimate=inargsize * 10,
                 )
             ], typ=None, pos=getpos(self.stmt))
+
+        # Function call
+        elif isinstance(self.stmt.func, ast.Name):
+            if self.stmt.func.id in stmt_dispatch_table:
+                if self.stmt.func.id == 'clear':
+                    return self._clear()
+                else:
+                    return stmt_dispatch_table[self.stmt.func.id](self.stmt, self.context)
+            elif self.stmt.func.id in dispatch_table:
+                raise StructureException(
+                    "Function {} can not be called without being used.".format(
+                        self.stmt.func.id
+                    ),
+                    self.stmt,
+                )
+            else:
+                raise StructureException(
+                    "Unknown function: '{}'.".format(self.stmt.func.id),
+                    self.stmt,
+                )
+
+        # External call
         else:
             return external_call.make_external_call(self.stmt, self.context)
 
