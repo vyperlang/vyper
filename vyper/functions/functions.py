@@ -1125,6 +1125,13 @@ def minmax(expr, args, kwargs, context, is_min):
     )
 
 
+@signature('*')
+def assure(expr, args, kwargs, context):
+    with context.assertion_scope():
+        sub = Expr.parse_value_expr(args[0], context)
+        return LLLnode.from_list(['assure', sub], typ=None, pos=getpos(expr))
+
+
 def _clear():
     raise ParserException(
         "This function should never be called! `clear()` is currently handled "
@@ -1171,4 +1178,5 @@ stmt_dispatch_table = {
     'raw_call': raw_call,
     'raw_log': raw_log,
     'create_with_code_of': create_with_code_of,
+    'assure': assure
 }
