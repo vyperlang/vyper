@@ -1,3 +1,8 @@
+import pytest
+
+from eth_tester.exceptions import (
+    TransactionFailed
+)
 
 
 def test_assure_refund(w3, get_contract):
@@ -32,6 +37,11 @@ def foo(val: int128) -> bool:
 
     assert_tx_failed(lambda: c.foo(1))
     assert_tx_failed(lambda: c.foo(-1))
+
+    with pytest.raises(TransactionFailed) as e_info:
+        c.foo(-2)
+
+    assert 'Invalid opcode 0xf' in e_info.value.args[0]
 
 
 def test_basic_call_assure(w3, get_contract, assert_tx_failed):
