@@ -351,16 +351,33 @@ CAUTION! This method will delete the contract from the Ethereum blockchain. All 
 ----------
 ::
 
-  def assert(a):
+  def assert(a, reason):
     """
     :param a: the boolean condition to assert
     :type a: bool
+    :type reason: string_literal
     """
 
 Asserts the specified condition, if the condition is equals to true the code will continue to run.
 Otherwise, the OPCODE ``REVERT`` (0xfd) will be triggered, the code will stop it's operation, the contract's state will be reverted to the state before the transaction took place and the remaining gas will be returned to the transaction's sender.
 
+An optional reason string literal can be supplied to the assert statement to help a programmer indicate why an assertion failed, this is done using `Error(string)` method as specified in `EIP838 <https://github.com/ethereum/EIPs/issues/838>`_.
+
 Note: To give it a more Python like syntax, the assert function can be called without parenthesis, the syntax would be ``assert your_bool_condition``. Even though both options will compile, it's recommended to use the Pythonic version without parenthesis.
+
+
+**assure**
+----------
+::
+
+  def assure(a):
+    """
+    :param a: the boolean condition to assure
+    :type a: bool
+    """
+
+Assure is the same as an `assert` function, but uses the OPCODE ``INVALID`` (0xfe) instead, when triggerd the code will stop it's operation, the contract's state will be reverted to the state before the transaction took place and the remaining gas will NOT be returned. The purpose of this function is for use with static analyzers and similar tools, and in general is not recommended for uses outside of this use case.
+
 
 **raw_log**
 -----------
