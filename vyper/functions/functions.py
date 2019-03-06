@@ -1,4 +1,5 @@
 import ast
+import hashlib
 
 from vyper.exceptions import (
     ConstancyViolationException,
@@ -348,6 +349,54 @@ def _sha3(expr, args, kwargs, context):
         typ=BaseType('bytes32'),
         pos=getpos(expr)
     )
+
+
+def _make_sha256_call(inp_start, inp_len, out_start, out_len):
+    SHA256_ADDRESS = 2
+    return ['assert', [
+            'call',
+            ['gas'],  # gas
+            SHA256_ADDRESS,  # address
+            0,  # value
+            inp_start,
+            inp_len,
+            out_start,
+            out_len
+        ]
+    ]
+
+
+@signature(('str_literal', 'bytes', 'string', 'bytes32'))
+def sha256(expr, args, kwargs, context):
+    sub = args[0]
+    # Literal input
+    if isinstance(sub, bytes):
+        return LLLnode.from_list(bytes_to_int(hashlib.sha256(sub).digest()), typ=BaseType('bytes32'), pos=getpos(expr))
+    # bytes32 input
+    elif is_base_type(sub.typ, 'bytes32'):
+        return LLLnode.from_list(
+            [
+                'seq',
+                ['mstore', MemoryPositions.FREE_VAR_SPACE, sub],
+                _make_sha256_call(
+                    inp_start=MemoryPositions.FREE_VAR_SPACE,
+                    inp_len=32,
+                    out_start=MemoryPositions.FREE_VAR_SPACE,
+                    out_len=32
+                ),
+                ['mload', MemoryPositions.FREE_VAR_SPACE]  # push value onto stack
+            ],
+            typ=BaseType('bytes32'),
+            pos=getpos(expr),
+        )
+    # bytearay-like input
+    if sub.location == "storage":
+        raise NotImplemented('TODO')
+    elif sub.location == "memory":
+        raise NotImplemented('TODO')
+    else:
+        # This should never happen, but just left here for future compiler-writers.
+        raise Exception("Unsupported location: %s" % sub.location)  # pragma: no test
 
 
 @signature('str_literal', 'name_literal')
@@ -1142,6 +1191,7 @@ dispatch_table = {
     'len': _len,
     'concat': concat,
     'sha3': _sha3,
+    'sha256': sha256,
     'method_id': method_id,
     'keccak256': _sha3,
     'ecrecover': ecrecover,
