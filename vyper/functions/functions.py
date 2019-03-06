@@ -391,9 +391,46 @@ def sha256(expr, args, kwargs, context):
         )
     # bytearay-like input
     if sub.location == "storage":
-        raise NotImplemented('TODO')
+        # Copy storage to memory
+        placeholder = context.new_placeholder(sub.typ)
+        placeholder_node = LLLnode.from_list(placeholder, typ=sub.typ, location='memory')
+        copier = make_byte_array_copier(
+            placeholder_node,
+            LLLnode.from_list('_sub', typ=sub.typ, location=sub.location),
+        )
+        return LLLnode.from_list(
+            [
+                'with', '_sub', sub, [
+                    'seq',
+                    copier,
+                    _make_sha256_call(
+                        inp_start=['add', placeholder, 32],
+                        inp_len=['mload', placeholder],
+                        out_start=MemoryPositions.FREE_VAR_SPACE,
+                        out_len=32
+                    ),
+                    ['mload', MemoryPositions.FREE_VAR_SPACE]
+                ],
+            ],
+            typ=BaseType('bytes32'),
+            pos=getpos(expr)
+        )
     elif sub.location == "memory":
-        raise NotImplemented('TODO')
+        return LLLnode.from_list(
+            ['with', '_sub', sub, [
+                    'seq',
+                    _make_sha256_call(
+                        inp_start=['add', '_sub', 32],
+                        inp_len=['mload', '_sub'],
+                        out_start=MemoryPositions.FREE_VAR_SPACE,
+                        out_len=32
+                    ),
+                    ['mload', MemoryPositions.FREE_VAR_SPACE]
+                ]
+            ],
+            typ=BaseType('bytes32'),
+            pos=getpos(expr),
+        )
     else:
         # This should never happen, but just left here for future compiler-writers.
         raise Exception("Unsupported location: %s" % sub.location)  # pragma: no test
