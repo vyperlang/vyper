@@ -13,6 +13,7 @@ from vyper.parser import parser
 from vyper.parser.constants import Constants
 from vyper.signatures.event_signature import EventSignature
 from vyper.signatures.function_signature import FunctionSignature
+from vyper.signatures import sig_utils
 
 
 # Populate built-in interfaces.
@@ -103,7 +104,7 @@ def mk_full_signature_from_json(abi):
 
 def extract_sigs(sig_code):
     if sig_code['type'] == 'vyper':
-        return parser.mk_full_signature(
+        return sig_utils.mk_full_signature(
             parser.parse_to_ast(sig_code['code']),
             sig_formatter=lambda x, y: x
         )
@@ -117,7 +118,7 @@ def extract_sigs(sig_code):
 
 
 def extract_interface_str(code, contract_name, interface_codes=None):
-    sigs = parser.mk_full_signature(
+    sigs = sig_utils.mk_full_signature(
         parser.parse_to_ast(code),
         sig_formatter=lambda x, y: (x, y),
         interface_codes=interface_codes,
@@ -159,7 +160,7 @@ def extract_interface_str(code, contract_name, interface_codes=None):
 
 
 def extract_external_interface(code, contract_name, interface_codes=None):
-    sigs = parser.mk_full_signature(
+    sigs = sig_utils.mk_full_signature(
         parser.parse_to_ast(code),
         sig_formatter=lambda x, y: (x, y),
         interface_codes=interface_codes,
