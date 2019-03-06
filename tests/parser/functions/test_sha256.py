@@ -1,39 +1,39 @@
 import hashlib
 
 
-def test_sha256_literal(get_contract):
+def test_sha256_literal(get_contract_with_gas_estimation):
     code = """
 @public
 def bar() -> bytes32:
     return sha256("test")
     """
 
-    c = get_contract(code)
+    c = get_contract_with_gas_estimation(code)
 
     assert c.bar() == hashlib.sha256(b"test").digest()
 
 
-def test_sha256_bytes32(get_contract):
+def test_sha256_bytes32(get_contract_with_gas_estimation):
     code = """
 @public
 def bar(a: bytes32) -> bytes32:
     return sha256(a)
     """
 
-    c = get_contract(code)
+    c = get_contract_with_gas_estimation(code)
 
     test_val = 8 * b"bBaA"
     assert c.bar(test_val) == hashlib.sha256(test_val).digest()
 
 
-def test_sha256_bytearraylike(get_contract):
+def test_sha256_bytearraylike(get_contract_with_gas_estimation):
     code = """
 @public
 def bar(a: string[100]) -> bytes32:
     return sha256(a)
     """
 
-    c = get_contract(code)
+    c = get_contract_with_gas_estimation(code)
 
     test_val = "test me! test me!"
     assert c.bar(test_val) == hashlib.sha256(test_val.encode()).digest()
@@ -41,7 +41,7 @@ def bar(a: string[100]) -> bytes32:
     assert c.bar(test_val) == hashlib.sha256(test_val.encode()).digest()
 
 
-def test_sha256_bytearraylike_storage(get_contract):
+def test_sha256_bytearraylike_storage(get_contract_with_gas_estimation):
     code = """
 a: public(bytes[100])
 
@@ -54,7 +54,7 @@ def bar() -> bytes32:
     return sha256(self.a)
     """
 
-    c = get_contract(code)
+    c = get_contract_with_gas_estimation(code)
 
     test_val = b"test me! test me!"
     c.set(test_val, transact={})

@@ -55,6 +55,11 @@ from vyper.types.convert import (
 )
 
 
+SHA256_ADDRESS = 2
+SHA256_BASE_GAS = 60
+SHA256_PER_WORD_GAS = 6
+
+
 def enforce_units(typ, obj, expected):
     if not are_units_compatible(typ, expected):
         raise TypeMismatchException("Invalid units", obj)
@@ -352,7 +357,6 @@ def _sha3(expr, args, kwargs, context):
 
 
 def _make_sha256_call(inp_start, inp_len, out_start, out_len):
-    SHA256_ADDRESS = 2
     return ['assert', [
             'call',
             ['gas'],  # gas
@@ -388,6 +392,7 @@ def sha256(expr, args, kwargs, context):
             ],
             typ=BaseType('bytes32'),
             pos=getpos(expr),
+            add_gas_estimate=SHA256_BASE_GAS + 1 * SHA256_PER_WORD_GAS
         )
     # bytearay-like input
     if sub.location == "storage":
@@ -413,7 +418,8 @@ def sha256(expr, args, kwargs, context):
                 ],
             ],
             typ=BaseType('bytes32'),
-            pos=getpos(expr)
+            pos=getpos(expr),
+            add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS
         )
     elif sub.location == "memory":
         return LLLnode.from_list(
@@ -430,6 +436,7 @@ def sha256(expr, args, kwargs, context):
             ],
             typ=BaseType('bytes32'),
             pos=getpos(expr),
+            add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS
         )
     else:
         # This should never happen, but just left here for future compiler-writers.
