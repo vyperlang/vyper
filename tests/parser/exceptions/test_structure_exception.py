@@ -98,7 +98,7 @@ def foo():
     """
 @public
 def foo():
-    x = create_with_code_of(0x1234567890123456789012345678901234567890, b"cow")
+    x = create_forwarder_to(0x1234567890123456789012345678901234567890, b"cow")
     """,
     """
 @public
@@ -108,7 +108,7 @@ def foo():
     """
 @public
 def foo():
-    x = create_with_code_of(0x1234567890123456789012345678901234567890, outsize=4)
+    x = create_forwarder_to(0x1234567890123456789012345678901234567890, outsize=4)
     """,
     """
 x: public()

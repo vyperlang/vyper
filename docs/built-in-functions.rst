@@ -376,11 +376,11 @@ Note: To give it a more Python like syntax, the assert function can be called wi
 
 Emits a log without specifying the abi type, with the arguments entered as the first input.
 
-**create_with_code_of**
+**create_forwarder_to**
 -----------------------
 ::
 
-  def create_with_code_of(a, value=b):
+  def create_forwarder_to(a, value=b):
     """
     :param a: the address of the contract to duplicate.
     :type a: address

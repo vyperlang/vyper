@@ -1,12 +1,12 @@
 
 
-def test_create_with_code_of_create(get_contract):
+def test_create_forwarder_to_create(get_contract):
     code = """
 main: address
 
 @public
 def test() -> address:
-    self.main = create_with_code_of(self)
+    self.main = create_forwarder_to(self)
     return self.main
     """
 
@@ -15,7 +15,7 @@ def test() -> address:
     assert c.test() == '0x4F9DA333DCf4E5A53772791B95c161B2FC041859'
 
 
-def test_create_with_code_of_call(get_contract, w3):
+def test_create_forwarder_to_call(get_contract, w3):
     code = """
 
 contract SubContract:
@@ -28,7 +28,7 @@ other: public(address)
 
 @public
 def test() -> address:
-    self.other = create_with_code_of(self)
+    self.other = create_forwarder_to(self)
     return self.other
 
 
@@ -63,7 +63,7 @@ other: public(address)
 
 @public
 def test() -> address:
-    self.other = create_with_code_of(self)
+    self.other = create_forwarder_to(self)
     return self.other
 
 

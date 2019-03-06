@@ -1,4 +1,4 @@
-from vyper.functions import get_create_with_code_of_bytecode
+from vyper.functions import get_create_forwarder_to_bytecode
 
 
 def test_caller_code(get_contract_with_gas_estimation):
@@ -36,13 +36,13 @@ def returnten() -> int128:
     outer_code = """
 @public
 def create_and_call_returnten(inp: address) -> int128:
-    x: address = create_with_code_of(inp)
+    x: address = create_forwarder_to(inp)
     o: int128 = extract32(raw_call(x, convert("\xd0\x1f\xb1\xb8", bytes[4]), outsize=32, gas=50000), 0, type=int128)  # noqa: E501
     return o
 
 @public
 def create_and_return_forwarder(inp: address) -> address:
-    x: address = create_with_code_of(inp)
+    x: address = create_forwarder_to(inp)
     return x
     """
 
@@ -50,7 +50,7 @@ def create_and_return_forwarder(inp: address) -> address:
     assert c2.create_and_call_returnten(c.address) == 10
     c2.create_and_call_returnten(c.address, transact={})
 
-    expected_forwarder_code_mask = get_create_with_code_of_bytecode()[12:]
+    expected_forwarder_code_mask = get_create_forwarder_to_bytecode()[12:]
 
     c3 = c2.create_and_return_forwarder(c.address, call={})
     c2.create_and_return_forwarder(c.address, transact={})
@@ -78,13 +78,13 @@ def returnten() -> int128:
     outer_code = """
 @public
 def create_and_call_returnten(inp: address) -> int128:
-    x: address = create_with_code_of(inp)
+    x: address = create_forwarder_to(inp)
     o: int128 = extract32(raw_call(x, convert("\xd0\x1f\xb1\xb8", bytes[4]), outsize=32, gas=50000), 0, type=int128)  # noqa: E501
     return o
 
 @public
 def create_and_return_forwarder(inp: address) -> address:
-    return create_with_code_of(inp)
+    return create_forwarder_to(inp)
     """
 
     c2 = get_contract_with_gas_estimation(outer_code)
