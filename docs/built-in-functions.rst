@@ -161,6 +161,22 @@ Takes 2 or more bytes arrays of type ``bytes32`` or ``bytes`` and combines them 
 Returns ``keccak256`` (Ethereum's sha3) hash of input.
 Note that it can be called either by using ``sha3`` or ``keccak256``.
 
+
+**sha256**
+--------------------
+::
+
+  def sha256(a) -> b:
+    """
+    :param a: value to hash
+    :type a: either str_literal, bytes, bytes32
+
+    :output b: bytes32
+    """
+
+Returns ``sha256`` (SHA2 256bit output) hash of input.
+
+
 **method_id**
 ---------------
 ::
