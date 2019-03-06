@@ -23,7 +23,7 @@ from vyper.exceptions import (
 
 
 # Event signature object
-class EventSignature():
+class EventSignature:
     def __init__(self, name, args, indexed_list, event_id, sig):
         self.name = name
         self.args = args

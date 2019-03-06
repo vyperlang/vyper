@@ -207,7 +207,7 @@ def compile_codes(codes,
                 out[contract_name][output_format] = output_formats_map[output_format](
                     code=code,
                     contract_name=contract_name,
-                    interface_codes=interface_codes
+                    interface_codes=interface_codes,
                 )
             except Exception as exc:
                 if exc_handler is not None:

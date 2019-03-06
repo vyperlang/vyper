@@ -53,7 +53,7 @@ from vyper.utils import (
     calc_mem_gas,
 )
 from vyper.signatures.interface import (
-    check_valid_contract_interface
+    check_valid_contract_interface,
 )
 
 
@@ -332,7 +332,7 @@ def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None):
         )
 
     # Check if interface of contract is correct.
-    check_valid_contract_interface(global_ctx, sigs) 
+    check_valid_contract_interface(global_ctx, sigs)
 
     return LLLnode.from_list(o, typ=None)
 

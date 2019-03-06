@@ -8,7 +8,7 @@ from vyper.exceptions import (
     StructureException
 )
 from vyper.parser.lll_node import (
-    LLLnode
+    LLLnode,
 )
 from vyper.types import (
     BaseType,
