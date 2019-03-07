@@ -489,7 +489,6 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                     pos=getpos(self.expr),
                 )
 
-
         # Only allow explicit conversions to occur.
         if left.typ.typ != right.typ.typ:
             raise TypeMismatchException(

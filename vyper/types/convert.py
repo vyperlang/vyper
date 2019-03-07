@@ -348,8 +348,8 @@ def to_address(expr, args, kwargs, context):
         pos=getpos(expr)
     )
 
-def _to_bytelike(expr, args, kwargs, context, bytetype):
 
+def _to_bytelike(expr, args, kwargs, context, bytetype):
     if bytetype == 'string':
         ReturnType = StringType
     elif bytetype == 'bytes':
@@ -363,6 +363,7 @@ def _to_bytelike(expr, args, kwargs, context, bytetype):
             f'Cannot convert as input {bytetype} are larger than max length',
             expr,
         )
+
     return LLLnode(
         value=in_arg.value,
         args=in_arg.args,
