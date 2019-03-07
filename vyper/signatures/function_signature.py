@@ -29,7 +29,7 @@ from vyper.parser.lll_node import LLLnode
 
 
 # Function argument
-class VariableRecord():
+class VariableRecord:
     def __init__(self, name, pos, typ, mutable, blockscopes=None, defined_at=None):
         self.name = name
         self.pos = pos
@@ -49,7 +49,7 @@ class ContractRecord(VariableRecord):
 
 
 # Function signature object
-class FunctionSignature():
+class FunctionSignature:
     def __init__(self,
                  name,
                  args,
