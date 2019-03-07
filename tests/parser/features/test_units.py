@@ -1,4 +1,6 @@
-from vyper.exceptions import InvalidLiteralException
+from vyper.exceptions import (
+    InvalidLiteralException,
+)
 
 
 def test_function_with_units(get_contract_with_gas_estimation):

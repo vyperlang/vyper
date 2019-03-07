@@ -1,4 +1,6 @@
-from vyper.functions import get_create_forwarder_to_bytecode
+from vyper.functions import (
+    get_create_forwarder_to_bytecode,
+)
 
 
 def test_caller_code(get_contract_with_gas_estimation):

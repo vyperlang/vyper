@@ -1,4 +1,6 @@
-from vyper.exceptions import TypeMismatchException
+from vyper.exceptions import (
+    TypeMismatchException,
+)
 
 
 def test_return_type(get_contract_with_gas_estimation):

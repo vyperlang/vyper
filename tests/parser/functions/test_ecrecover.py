@@ -1,4 +1,6 @@
-from eth_account import Account
+from eth_account import (
+    Account,
+)
 
 
 def test_ecrecover_test(get_contract_with_gas_estimation):

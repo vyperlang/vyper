@@ -1,11 +1,21 @@
-from vyper.opcodes import opcodes
-from vyper.parser import parser
-from vyper import compile_lll
-from vyper import optimizer
-from collections import OrderedDict, deque
+from collections import (
+    OrderedDict,
+    deque,
+)
+
+from vyper import (
+    compile_lll,
+    optimizer,
+)
+from vyper.opcodes import (
+    opcodes,
+)
+from vyper.parser import (
+    parser,
+)
 from vyper.signatures.interface import (
-    extract_interface_str,
     extract_external_interface,
+    extract_interface_str,
 )
 
 

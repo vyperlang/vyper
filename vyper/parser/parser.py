@@ -3,59 +3,67 @@ import copy
 import functools
 
 from vyper.exceptions import (
-    ParserException,
+    EventDeclarationException,
+    FunctionDeclarationException,
     InvalidLiteralException,
+    ParserException,
     StructureException,
     TypeMismatchException,
-    FunctionDeclarationException,
-    EventDeclarationException
 )
-from vyper.signatures.function_signature import (
-    FunctionSignature,
-    VariableRecord,
+from vyper.parser.context import (
+    Constancy,
+    Context,
 )
-from vyper.signatures.event_signature import (
-    EventSignature,
+from vyper.parser.expr import (
+    Expr,
 )
-from vyper.parser.stmt import Stmt
-from vyper.parser.expr import Expr
-from vyper.parser.context import Context, Constancy
-from vyper.parser.global_context import GlobalContext
-from vyper.parser.lll_node import LLLnode
-from vyper.parser.pre_parser import pre_parse
+from vyper.parser.global_context import (
+    GlobalContext,
+)
+from vyper.parser.lll_node import (
+    LLLnode,
+)
 from vyper.parser.parser_utils import (
-    make_setter,
     base_type_conversion,
     byte_array_to_num,
     decorate_ast,
     getpos,
     make_byte_array_copier,
+    make_setter,
     resolve_negative_literals,
     unwrap_location,
+)
+from vyper.parser.pre_parser import (
+    pre_parse,
+)
+from vyper.parser.stmt import (
+    Stmt,
+)
+from vyper.signatures.event_signature import (
+    EventSignature,
+)
+from vyper.signatures.function_signature import (
+    FunctionSignature,
+    VariableRecord,
+)
+from vyper.signatures.interface import (
+    check_valid_contract_interface,
 )
 from vyper.types import (
     BaseType,
     ByteArrayLike,
     ListType,
-)
-from vyper.types import (
+    ceil32,
     get_size_of_type,
     is_base_type,
-    ceil32,
 )
 from vyper.utils import (
-    MemoryPositions,
     LOADED_LIMIT_MAP,
-    string_to_bytes,
-)
-from vyper.utils import (
+    MemoryPositions,
     bytes_to_int,
     calc_mem_gas,
+    string_to_bytes,
 )
-from vyper.signatures.interface import (
-    check_valid_contract_interface,
-)
-
 
 if not hasattr(ast, 'AnnAssign'):
     raise Exception("Requires python 3.6 or higher for annotation support")

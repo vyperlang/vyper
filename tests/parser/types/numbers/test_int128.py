@@ -1,8 +1,11 @@
-from vyper.exceptions import (
-    TypeMismatchException,
-    InvalidLiteralException
+from decimal import (
+    Decimal,
 )
-from decimal import Decimal
+
+from vyper.exceptions import (
+    InvalidLiteralException,
+    TypeMismatchException,
+)
 
 
 def test_exponents_with_nums(get_contract_with_gas_estimation):

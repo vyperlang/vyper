@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
 import argparse
+from collections import (
+    OrderedDict,
+)
 import json
 import os
 import sys
-import vyper
 import warnings
 
-from collections import OrderedDict
-from vyper.parser import parser_utils
-from vyper.signatures.interface import extract_file_interface_imports
+import vyper
+from vyper.parser import (
+    parser_utils,
+)
+from vyper.signatures.interface import (
+    extract_file_interface_imports,
+)
 
 warnings.simplefilter('always')
 

@@ -4,29 +4,24 @@ import warnings
 from vyper.exceptions import (
     InvalidLiteralException,
     NonPayableViolationException,
+    ParserException,
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
-    ParserException
 )
-from vyper.parser.lll_node import LLLnode
-from vyper.parser import self_call
-from vyper.parser import external_call
+from vyper.parser import (
+    external_call,
+    self_call,
+)
+from vyper.parser.lll_node import (
+    LLLnode,
+)
 from vyper.parser.parser_utils import (
+    add_variable_offset,
+    get_number_as_fraction,
+    get_original_if_0_prefixed,
     getpos,
     unwrap_location,
-    get_original_if_0_prefixed,
-    get_number_as_fraction,
-    add_variable_offset,
-)
-from vyper.utils import (
-    MemoryPositions,
-    SizeLimits,
-    bytes_to_int,
-    string_to_bytes,
-    DECIMAL_DIVISOR,
-    checksum_encode,
-    check_valid_varname
 )
 from vyper.types import (
     BaseType,
@@ -38,14 +33,19 @@ from vyper.types import (
     StringType,
     StructType,
     TupleType,
-)
-from vyper.types import (
-    is_base_type,
-)
-from vyper.types import (
     are_units_compatible,
+    combine_units,
+    is_base_type,
     is_numeric_type,
-    combine_units
+)
+from vyper.utils import (
+    DECIMAL_DIVISOR,
+    MemoryPositions,
+    SizeLimits,
+    bytes_to_int,
+    check_valid_varname,
+    checksum_encode,
+    string_to_bytes,
 )
 
 

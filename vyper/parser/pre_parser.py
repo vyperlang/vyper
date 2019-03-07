@@ -4,16 +4,18 @@ from tokenize import (
     COMMENT,
     NAME,
     OP,
-
     TokenError,
     TokenInfo,
     tokenize,
     untokenize,
 )
+
+from vyper import (
+    __version__,
+)
 from vyper.exceptions import (
     StructureException,
 )
-from vyper import __version__
 
 
 def _parser_version_str(version_str):

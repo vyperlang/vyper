@@ -1,13 +1,18 @@
-from vyper.exceptions import StructureException
 from vyper.compiler import (
+    compile_code,
     compile_codes,
-    compile_code
+)
+from vyper.exceptions import (
+    StructureException,
+)
+from vyper.interfaces import (
+    ERC20,
+    ERC721,
 )
 from vyper.signatures.interface import (
     extract_file_interface_imports,
     extract_sigs,
 )
-from vyper.interfaces import ERC20, ERC721
 
 
 def test_basic_extract_interface():

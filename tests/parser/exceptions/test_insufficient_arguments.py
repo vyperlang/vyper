@@ -1,8 +1,14 @@
 import pytest
-from pytest import raises
+from pytest import (
+    raises,
+)
 
-from vyper import compiler
-from vyper.exceptions import StructureException
+from vyper import (
+    compiler,
+)
+from vyper.exceptions import (
+    StructureException,
+)
 
 fail_list = [
     """

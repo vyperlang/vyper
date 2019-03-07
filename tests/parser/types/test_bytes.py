@@ -1,6 +1,6 @@
 from vyper.exceptions import (
     ParserException,
-    TypeMismatchException
+    TypeMismatchException,
 )
 
 

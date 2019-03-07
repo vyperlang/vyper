@@ -1,32 +1,30 @@
 import ast
-import warnings
 import math
+import warnings
 
+from vyper.exceptions import (
+    InvalidLiteralException,
+    ParserException,
+    TypeMismatchException,
+)
 from vyper.functions.signature import (
-    signature
+    signature,
 )
 from vyper.parser.parser_utils import (
     LLLnode,
+    byte_array_to_num,
     getpos,
-    byte_array_to_num
-)
-from vyper.exceptions import (
-    InvalidLiteralException,
-    TypeMismatchException,
-    ParserException,
 )
 from vyper.types import (
     BaseType,
-    StringType,
     ByteArrayType,
-)
-from vyper.types import (
+    StringType,
     get_type,
 )
 from vyper.utils import (
     DECIMAL_DIVISOR,
     MemoryPositions,
-    SizeLimits
+    SizeLimits,
 )
 
 

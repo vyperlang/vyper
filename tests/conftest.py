@@ -1,21 +1,16 @@
+from functools import (
+    wraps,
+)
 import logging
-import pytest
-
-from functools import wraps
 
 from eth_tester import (
     EthereumTester,
 )
 from eth_tester.exceptions import (
-    TransactionFailed
+    TransactionFailed,
 )
-from web3.providers.eth_tester import (
-    EthereumTesterProvider,
-)
-
-from web3 import (
-    Web3,
-)
+import pytest
+from web3 import Web3
 from web3._utils.toolz import (
     compose,
 )
@@ -23,13 +18,17 @@ from web3.contract import (
     Contract,
     mk_collision_prop,
 )
-from vyper.parser.parser_utils import (
-    LLLnode
+from web3.providers.eth_tester import (
+    EthereumTesterProvider,
 )
+
 from vyper import (
     compile_lll,
     compiler,
     optimizer,
+)
+from vyper.parser.parser_utils import (
+    LLLnode,
 )
 
 

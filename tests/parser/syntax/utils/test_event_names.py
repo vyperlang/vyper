@@ -1,12 +1,15 @@
 import pytest
-from pytest import raises
-
-from vyper import compiler
-from vyper.exceptions import (
-    EventDeclarationException,
-    InvalidTypeException
+from pytest import (
+    raises,
 )
 
+from vyper import (
+    compiler,
+)
+from vyper.exceptions import (
+    EventDeclarationException,
+    InvalidTypeException,
+)
 
 fail_list = [  # noqa: E122
     """
