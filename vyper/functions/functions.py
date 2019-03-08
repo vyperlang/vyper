@@ -57,7 +57,7 @@ from vyper.types.convert import (
 
 SHA256_ADDRESS = 2
 SHA256_BASE_GAS = 60
-SHA256_PER_WORD_GAS = 6
+SHA256_PER_WORD_GAS = 12
 
 
 def enforce_units(typ, obj, expected):
@@ -370,7 +370,7 @@ def _make_sha256_call(inp_start, inp_len, out_start, out_len):
     ]
 
 
-@signature(('str_literal', 'bytes', 'string', 'bytes32'))
+@signature(('bytes_literal', 'str_literal', 'bytes', 'string', 'bytes32'))
 def sha256(expr, args, kwargs, context):
     sub = args[0]
     # Literal input

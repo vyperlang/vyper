@@ -1,7 +1,7 @@
 import hashlib
 
 
-def test_sha256_literal(get_contract_with_gas_estimation):
+def test_sha256_string_literal(get_contract_with_gas_estimation):
     code = """
 @public
 def bar() -> bytes32:
@@ -11,6 +11,19 @@ def bar() -> bytes32:
     c = get_contract_with_gas_estimation(code)
 
     assert c.bar() == hashlib.sha256(b"test").digest()
+
+
+def test_sha256_literal_bytes(get_contract_with_gas_estimation):
+    code = """
+@public
+def bar() -> (bytes32 , bytes32):
+    x: bytes32 = sha256("test")
+    y: bytes32 = sha256(b"test")
+    return x, y
+    """
+    c = get_contract_with_gas_estimation(code)
+    h = hashlib.sha256(b"test").digest()
+    assert c.bar() == [h, h]
 
 
 def test_sha256_bytes32(get_contract_with_gas_estimation):
