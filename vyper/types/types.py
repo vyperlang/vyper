@@ -1,10 +1,14 @@
 import abc
 import ast
+from collections import (
+    OrderedDict,
+)
 import copy
 import warnings
-from collections import OrderedDict
 
-from vyper.exceptions import InvalidTypeException
+from vyper.exceptions import (
+    InvalidTypeException,
+)
 from vyper.utils import (
     base_types,
     ceil32,

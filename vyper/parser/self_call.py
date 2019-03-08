@@ -1,17 +1,17 @@
 import itertools
 
 from vyper.exceptions import (
-    ConstancyViolationException
+    ConstancyViolationException,
 )
 from vyper.parser.lll_node import (
-    LLLnode
+    LLLnode,
 )
 from vyper.parser.parser_utils import (
+    getpos,
     pack_arguments,
-    getpos
 )
 from vyper.signatures.function_signature import (
-    FunctionSignature
+    FunctionSignature,
 )
 from vyper.types import (
     BaseType,

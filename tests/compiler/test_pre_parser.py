@@ -1,5 +1,10 @@
-from vyper.exceptions import StructureException
-from pytest import raises
+from pytest import (
+    raises,
+)
+
+from vyper.exceptions import (
+    StructureException,
+)
 
 
 def test_semicolon_prohibited(get_contract):

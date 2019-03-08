@@ -1,19 +1,26 @@
 import ast
 import copy
-import os
-
 import importlib
+import os
 import pkgutil
-import vyper.interfaces
 
 from vyper.exceptions import (
     ParserException,
-    StructureException
+    StructureException,
 )
-from vyper.parser import parser
-from vyper.parser.constants import Constants
-from vyper.signatures.event_signature import EventSignature
-from vyper.signatures.function_signature import FunctionSignature
+import vyper.interfaces
+from vyper.parser import (
+    parser,
+)
+from vyper.parser.constants import (
+    Constants,
+)
+from vyper.signatures.event_signature import (
+    EventSignature,
+)
+from vyper.signatures.function_signature import (
+    FunctionSignature,
+)
 
 
 # Populate built-in interfaces.

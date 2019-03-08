@@ -1,5 +1,5 @@
 from vyper.exceptions import (
-    InvalidLiteralException
+    InvalidLiteralException,
 )
 
 

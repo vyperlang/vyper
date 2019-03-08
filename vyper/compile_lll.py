@@ -1,8 +1,15 @@
 import functools
 
-from vyper.parser.parser import LLLnode
-from .opcodes import opcodes
-from vyper.utils import MemoryPositions
+from vyper.parser.parser import (
+    LLLnode,
+)
+from vyper.utils import (
+    MemoryPositions,
+)
+
+from .opcodes import (
+    opcodes,
+)
 
 
 def num_to_bytearray(x):

@@ -1,11 +1,11 @@
+from eth_tester.exceptions import (
+    TransactionFailed,
+)
 import pytest
 
 from vyper.exceptions import (
-    StructureException,
     ConstancyViolationException,
-)
-from eth_tester.exceptions import (
-    TransactionFailed
+    StructureException,
 )
 
 

@@ -1,38 +1,36 @@
 import ast
 
-from vyper.utils import GAS_IDENTITY, GAS_IDENTITYWORD
-
 from vyper.exceptions import (
     InvalidLiteralException,
+    StructureException,
     TypeMismatchException,
-    StructureException
 )
 from vyper.parser.lll_node import (
     LLLnode,
 )
 from vyper.types import (
     BaseType,
-    ByteArrayType,
     ByteArrayLike,
+    ByteArrayType,
+    ListType,
+    MappingType,
     NullType,
     StringType,
     StructType,
-    MappingType,
-    TupleType,
     TupleLike,
-    ListType,
-)
-from vyper.types import (
-    is_base_type,
+    TupleType,
     are_units_compatible,
+    ceil32,
     get_size_of_type,
     has_dynamic_data,
-    ceil32
+    is_base_type,
 )
 from vyper.utils import (
-    SizeLimits,
+    DECIMAL_DIVISOR,
+    GAS_IDENTITY,
+    GAS_IDENTITYWORD,
     MemoryPositions,
-    DECIMAL_DIVISOR
+    SizeLimits,
 )
 
 

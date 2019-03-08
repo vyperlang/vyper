@@ -8,11 +8,9 @@ from vyper.exceptions import (
     StructureException,
     VariableDeclarationException,
 )
-from vyper.utils import (
-    check_valid_varname,
-    valid_global_keywords,
+from vyper.parser.constants import (
+    Constants,
 )
-from vyper.parser.constants import Constants
 from vyper.parser.parser_utils import (
     decorate_ast,
     getpos,
@@ -20,22 +18,25 @@ from vyper.parser.parser_utils import (
 )
 from vyper.signatures.function_signature import (
     ContractRecord,
-    VariableRecord
-)
-from vyper.types import (
-    parse_type,
-    ContractType,
-    ByteArrayLike,
-    ListType,
-    MappingType,
-    StructType,
-    BaseType,
+    VariableRecord,
 )
 from vyper.signatures.interface import (
     extract_sigs,
-    get_builtin_interfaces
+    get_builtin_interfaces,
 )
-
+from vyper.types import (
+    BaseType,
+    ByteArrayLike,
+    ContractType,
+    ListType,
+    MappingType,
+    StructType,
+    parse_type,
+)
+from vyper.utils import (
+    check_valid_varname,
+    valid_global_keywords,
+)
 
 NONRENTRANT_STORAGE_OFFSET = 0xffffff
 

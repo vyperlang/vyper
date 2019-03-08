@@ -2,9 +2,16 @@
 import argparse
 
 import vyper
-from vyper import compile_lll, optimizer
-from vyper.parser.parser_utils import LLLnode
-from vyper.parser.s_expressions import parse_s_exp
+from vyper import (
+    compile_lll,
+    optimizer,
+)
+from vyper.parser.parser_utils import (
+    LLLnode,
+)
+from vyper.parser.s_expressions import (
+    parse_s_exp,
+)
 
 parser = argparse.ArgumentParser(description='Vyper LLL for Ethereum')
 parser.add_argument(

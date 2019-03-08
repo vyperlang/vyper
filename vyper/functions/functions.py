@@ -4,54 +4,51 @@ import hashlib
 from vyper.exceptions import (
     ConstancyViolationException,
     InvalidLiteralException,
+    ParserException,
     StructureException,
     TypeMismatchException,
-    ParserException,
 )
-from .signature import (
-    signature,
-    Optional,
+from vyper.parser.expr import (
+    Expr,
 )
 from vyper.parser.parser_utils import (
-    byte_array_to_num,
     LLLnode,
+    add_variable_offset,
+    byte_array_to_num,
     get_length,
     get_number_as_fraction,
     getpos,
     make_byte_array_copier,
     make_byte_slice_copier,
-    add_variable_offset,
-    unwrap_location
-)
-from vyper.parser.expr import (
-    Expr,
+    unwrap_location,
 )
 from vyper.types import (
     BaseType,
-    ByteArrayType,
     ByteArrayLike,
+    ByteArrayType,
+    ListType,
     StringType,
     TupleType,
-    ListType
-)
-from vyper.types import (
     are_units_compatible,
-    is_base_type,
     get_size_of_type,
+    is_base_type,
+)
+from vyper.types.convert import (
+    convert,
 )
 from vyper.utils import (
+    DECIMAL_DIVISOR,
+    RLP_DECODER_ADDRESS,
     MemoryPositions,
     SizeLimits,
-    DECIMAL_DIVISOR,
-    RLP_DECODER_ADDRESS
-)
-from vyper.utils import (
     bytes_to_int,
     fourbytes_to_int,
     sha3,
 )
-from vyper.types.convert import (
-    convert,
+
+from .signature import (
+    Optional,
+    signature,
 )
 
 

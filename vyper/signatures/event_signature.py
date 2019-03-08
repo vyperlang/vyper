@@ -1,24 +1,26 @@
 import ast
 
-from vyper.types import (
-    get_size_of_type,
-    canonicalize_type,
-    print_unit,
-    unit_from_type,
-    delete_unit_if_empty,
-    ByteArrayType
-)
-from vyper.utils import (
-    sha3,
-    check_valid_varname,
-    bytes_to_int,
-    ceil32
-)
-from vyper.signatures.function_signature import VariableRecord
 from vyper.exceptions import (
+    EventDeclarationException,
     InvalidTypeException,
     VariableDeclarationException,
-    EventDeclarationException
+)
+from vyper.signatures.function_signature import (
+    VariableRecord,
+)
+from vyper.types import (
+    ByteArrayType,
+    canonicalize_type,
+    delete_unit_if_empty,
+    get_size_of_type,
+    print_unit,
+    unit_from_type,
+)
+from vyper.utils import (
+    bytes_to_int,
+    ceil32,
+    check_valid_varname,
+    sha3,
 )
 
 

@@ -1,5 +1,10 @@
-from vyper import optimizer, compile_lll
-from vyper.parser.parser_utils import LLLnode
+from vyper import (
+    compile_lll,
+    optimizer,
+)
+from vyper.parser.parser_utils import (
+    LLLnode,
+)
 
 
 def call_data_char(position):

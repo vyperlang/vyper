@@ -1,12 +1,16 @@
 import binascii
+from collections import (
+    OrderedDict,
+)
 import re
 
-from collections import OrderedDict
 from vyper.exceptions import (
     InvalidLiteralException,
-    VariableDeclarationException
+    VariableDeclarationException,
 )
-from vyper.opcodes import opcodes
+from vyper.opcodes import (
+    opcodes,
+)
 
 try:
     from Crypto.Hash import keccak

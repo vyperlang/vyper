@@ -1,4 +1,6 @@
-from decimal import Decimal
+from decimal import (
+    Decimal,
+)
 
 
 def test_minmax(get_contract_with_gas_estimation):

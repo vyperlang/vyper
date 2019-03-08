@@ -1,7 +1,15 @@
-from ethereum import transactions, utils
-from ethereum.tools import tester as t
-from rlp_decoder import rlp_decoder_bytes
 import rlp
+
+from ethereum import (
+    transactions,
+    utils,
+)
+from ethereum.tools import (
+    tester as t,
+)
+from rlp_decoder import (
+    rlp_decoder_bytes,
+)
 
 config_string = (
     ':info,eth.vm.log:trace,eth.vm.op:trace,eth.vm.stack'

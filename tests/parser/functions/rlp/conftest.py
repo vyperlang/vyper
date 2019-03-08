@@ -1,7 +1,9 @@
-import pytest
 import eth_tester
+import pytest
 
-from vyper import utils as vyper_utils
+from vyper import (
+    utils as vyper_utils,
+)
 
 
 @pytest.fixture(autouse=True)

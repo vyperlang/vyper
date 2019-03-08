@@ -1,12 +1,15 @@
 import pytest
-from pytest import raises
-
-from vyper import compiler
-from vyper.exceptions import (
-    VariableDeclarationException,
-    InvalidTypeException
+from pytest import (
+    raises,
 )
 
+from vyper import (
+    compiler,
+)
+from vyper.exceptions import (
+    InvalidTypeException,
+    VariableDeclarationException,
+)
 
 fail_list = [
     """

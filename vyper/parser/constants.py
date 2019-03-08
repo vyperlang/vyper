@@ -1,20 +1,24 @@
 import ast
 import copy
 
-from vyper.parser.expr import Expr
-from vyper.parser.context import Context
 from vyper.exceptions import (
     StructureException,
     TypeMismatchException,
-    VariableDeclarationException
+    VariableDeclarationException,
+)
+from vyper.parser.context import (
+    Context,
+)
+from vyper.parser.expr import (
+    Expr,
 )
 from vyper.types.types import (
     BaseType,
-    ByteArrayType
+    ByteArrayType,
 )
 from vyper.utils import (
+    SizeLimits,
     is_instances,
-    SizeLimits
 )
 
 
