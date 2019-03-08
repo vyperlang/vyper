@@ -55,6 +55,9 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
                         )
                     bytez += bytes([ord(c)])
                 return bytez
+        elif expected_arg == 'bytes_literal':
+            if isinstance(arg, ast.Bytes):
+                return arg.s
         elif expected_arg == 'name_literal':
             if isinstance(arg, ast.Name):
                 return arg.id

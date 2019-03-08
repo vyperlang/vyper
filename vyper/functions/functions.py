@@ -1,4 +1,5 @@
 import ast
+import hashlib
 
 from vyper.exceptions import (
     ConstancyViolationException,
@@ -52,6 +53,11 @@ from vyper.utils import (
 from vyper.types.convert import (
     convert,
 )
+
+
+SHA256_ADDRESS = 2
+SHA256_BASE_GAS = 60
+SHA256_PER_WORD_GAS = 12
 
 
 def enforce_units(typ, obj, expected):
@@ -301,12 +307,16 @@ def concat(expr, context):
     )
 
 
-@signature(('str_literal', 'bytes', 'string', 'bytes32'))
+@signature(('bytes_literal', 'str_literal', 'bytes', 'string', 'bytes32'))
 def _sha3(expr, args, kwargs, context):
     sub = args[0]
     # Can hash literals
     if isinstance(sub, bytes):
-        return LLLnode.from_list(bytes_to_int(sha3(sub)), typ=BaseType('bytes32'), pos=getpos(expr))
+        return LLLnode.from_list(
+            bytes_to_int(sha3(sub)),
+            typ=BaseType('bytes32'),
+            pos=getpos(expr)
+        )
     # Can hash bytes32 objects
     if is_base_type(sub.typ, 'bytes32'):
         return LLLnode.from_list(
@@ -348,6 +358,99 @@ def _sha3(expr, args, kwargs, context):
         typ=BaseType('bytes32'),
         pos=getpos(expr)
     )
+
+
+def _make_sha256_call(inp_start, inp_len, out_start, out_len):
+    return [
+        'assert', [
+            'call',
+            ['gas'],  # gas
+            SHA256_ADDRESS,  # address
+            0,  # value
+            inp_start,
+            inp_len,
+            out_start,
+            out_len
+        ]
+    ]
+
+
+@signature(('bytes_literal', 'str_literal', 'bytes', 'string', 'bytes32'))
+def sha256(expr, args, kwargs, context):
+    sub = args[0]
+    # Literal input
+    if isinstance(sub, bytes):
+        return LLLnode.from_list(
+            bytes_to_int(hashlib.sha256(sub).digest()),
+            typ=BaseType('bytes32'),
+            pos=getpos(expr)
+        )
+    # bytes32 input
+    elif is_base_type(sub.typ, 'bytes32'):
+        return LLLnode.from_list(
+            [
+                'seq',
+                ['mstore', MemoryPositions.FREE_VAR_SPACE, sub],
+                _make_sha256_call(
+                    inp_start=MemoryPositions.FREE_VAR_SPACE,
+                    inp_len=32,
+                    out_start=MemoryPositions.FREE_VAR_SPACE,
+                    out_len=32
+                ),
+                ['mload', MemoryPositions.FREE_VAR_SPACE]  # push value onto stack
+            ],
+            typ=BaseType('bytes32'),
+            pos=getpos(expr),
+            add_gas_estimate=SHA256_BASE_GAS + 1 * SHA256_PER_WORD_GAS
+        )
+    # bytearay-like input
+    if sub.location == "storage":
+        # Copy storage to memory
+        placeholder = context.new_placeholder(sub.typ)
+        placeholder_node = LLLnode.from_list(placeholder, typ=sub.typ, location='memory')
+        copier = make_byte_array_copier(
+            placeholder_node,
+            LLLnode.from_list('_sub', typ=sub.typ, location=sub.location),
+        )
+        return LLLnode.from_list(
+            [
+                'with', '_sub', sub, [
+                    'seq',
+                    copier,
+                    _make_sha256_call(
+                        inp_start=['add', placeholder, 32],
+                        inp_len=['mload', placeholder],
+                        out_start=MemoryPositions.FREE_VAR_SPACE,
+                        out_len=32
+                    ),
+                    ['mload', MemoryPositions.FREE_VAR_SPACE]
+                ],
+            ],
+            typ=BaseType('bytes32'),
+            pos=getpos(expr),
+            add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS
+        )
+    elif sub.location == "memory":
+        return LLLnode.from_list(
+            [
+                'with', '_sub', sub, [
+                    'seq',
+                    _make_sha256_call(
+                        inp_start=['add', '_sub', 32],
+                        inp_len=['mload', '_sub'],
+                        out_start=MemoryPositions.FREE_VAR_SPACE,
+                        out_len=32
+                    ),
+                    ['mload', MemoryPositions.FREE_VAR_SPACE]
+                ]
+            ],
+            typ=BaseType('bytes32'),
+            pos=getpos(expr),
+            add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS
+        )
+    else:
+        # This should never happen, but just left here for future compiler-writers.
+        raise Exception("Unsupported location: %s" % sub.location)  # pragma: no test
 
 
 @signature('str_literal', 'name_literal')
@@ -1142,6 +1245,7 @@ dispatch_table = {
     'len': _len,
     'concat': concat,
     'sha3': _sha3,
+    'sha256': sha256,
     'method_id': method_id,
     'keccak256': _sha3,
     'ecrecover': ecrecover,
