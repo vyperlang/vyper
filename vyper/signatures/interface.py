@@ -1,4 +1,5 @@
 import ast
+import copy
 import os
 
 import importlib
@@ -201,3 +202,49 @@ def extract_file_interface_imports(code):
                     )
                 imports_dict[a_name.asname] = a_name.name
     return imports_dict
+
+
+def check_valid_contract_interface(global_ctx, contract_sigs):
+
+    if global_ctx._interface:
+        funcs_left = global_ctx._interface.copy()
+
+        for sig, func_sig in contract_sigs.items():
+            if isinstance(func_sig, FunctionSignature):
+                # Remove units, as inteface signatures should not enforce units.
+                clean_sig_output_type = func_sig.output_type
+                if func_sig.output_type:
+                    clean_sig_output_type = copy.deepcopy(func_sig.output_type)
+                    clean_sig_output_type.unit = {}
+                if (
+                    sig in funcs_left and  # noqa: W504
+                    not func_sig.private and  # noqa: W504
+                    funcs_left[sig].output_type == clean_sig_output_type
+                ):
+                    del funcs_left[sig]
+            if isinstance(func_sig, EventSignature) and func_sig.sig in funcs_left:
+                del funcs_left[func_sig.sig]
+
+        if funcs_left:
+            error_message = 'Contract does not comply to supplied Interface(s).\n'
+            missing_functions = [
+                str(func_sig)
+                for sig_name, func_sig
+                in funcs_left.items()
+                if isinstance(func_sig, FunctionSignature)
+            ]
+            missing_events = [
+                sig_name
+                for sig_name, func_sig
+                in funcs_left.items()
+                if isinstance(func_sig, EventSignature)
+            ]
+            if missing_functions:
+                error_message += 'Missing interface functions:\n\t{}'.format(
+                    '\n\t'.join(missing_functions)
+                )
+            if missing_events:
+                error_message += 'Missing interface events:\n\t{}'.format(
+                    '\n\t'.join(missing_events)
+                )
+            raise StructureException(error_message)

@@ -24,8 +24,7 @@ class Constancy(enum.Enum):
 
 
 # Contains arguments, variables, etc
-class Context():
-
+class Context:
     def __init__(self,
                  vars,
                  global_ctx,

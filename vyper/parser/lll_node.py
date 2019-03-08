@@ -32,7 +32,7 @@ else:
     ENDC = ''
 
 
-class NullAttractor():
+class NullAttractor:
     def __add__(self, other):
         return NullAttractor()
 
@@ -44,7 +44,7 @@ class NullAttractor():
 
 
 # Data structure for LLL parse tree
-class LLLnode():
+class LLLnode:
     repr_show_gas = False
 
     def __init__(self,

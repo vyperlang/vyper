@@ -290,3 +290,31 @@ def test2(a: uint256):
     c = get_contract(code, interface_codes=interface_codes)
 
     assert c.test(2) == 3
+
+
+def test_units_interface(w3, get_contract):
+    code = """
+import balanceof as BalanceOf
+
+implements: BalanceOf
+
+@public
+@constant
+def balanceOf(owner: address) -> wei_value:
+    return as_wei_value(1, "ether")
+    """
+    interface_code = """
+@public
+@constant
+def balanceOf(owner: address) -> uint256:
+    pass
+    """
+    interface_codes = {
+        "BalanceOf": {
+            'type': 'vyper',
+            'code': interface_code
+        }
+    }
+    c = get_contract(code, interface_codes=interface_codes)
+
+    assert c.balanceOf(w3.eth.accounts[0]) == w3.toWei(1, "ether")
