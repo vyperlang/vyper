@@ -51,7 +51,6 @@ from .signature import (
     signature,
 )
 
-
 SHA256_ADDRESS = 2
 SHA256_BASE_GAS = 60
 SHA256_PER_WORD_GAS = 12
