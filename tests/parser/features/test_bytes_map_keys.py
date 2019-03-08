@@ -1,10 +1,13 @@
 import pytest
-from vyper.exceptions import TypeMismatchException
+
+from vyper.exceptions import (
+    TypeMismatchException,
+)
 
 
-def test_basic_bytes_keys(get_contract):
+def test_basic_bytes_keys(w3, get_contract):
     code = """
-mapped_bytes: int128[bytes[5]]
+mapped_bytes: map(bytes[5], int128)
 
 @public
 def set(k: bytes[5], v: int128):
@@ -17,18 +20,18 @@ def get(k: bytes[5]) -> int128:
 
     c = get_contract(code)
 
-    c.set("test", 54321)
+    c.set(b"test", 54321, transact={})
 
-    assert c.get("test") == 54321
+    assert c.get(b"test") == 54321
 
 
 def test_basic_bytes_literal_key(get_contract):
     code = """
-mapped_bytes: int128[bytes[5]]
+mapped_bytes: map(bytes[5], int128)
 
 @public
 def set(v: int128):
-    self.mapped_bytes["test"] = v
+    self.mapped_bytes[b"test"] = v
 
 @public
 def get(k: bytes[5]) -> int128:
@@ -37,14 +40,14 @@ def get(k: bytes[5]) -> int128:
 
     c = get_contract(code)
 
-    c.set(54321)
+    c.set(54321, transact={})
 
-    assert c.get("test") == 54321
+    assert c.get(b"test") == 54321
 
 
 def test_basic_long_bytes_as_keys(get_contract):
     code = """
-mapped_bytes: int128[bytes[34]]
+mapped_bytes: map(bytes[34], int128)
 
 @public
 def set(k: bytes[34], v: int128):
@@ -57,34 +60,14 @@ def get(k: bytes[34]) -> int128:
 
     c = get_contract(code)
 
-    c.set("a" * 34, 6789)
+    c.set(b"a" * 34, 6789, transact={'gas': 10**6})
 
-    assert c.get("a" * 34) == 6789
-
-
-def test_basic_very_long_bytes_as_keys(get_contract):
-    code = """
-mapped_bytes: int128[bytes[4096]]
-
-@public
-def set(k: bytes[4096], v: int128):
-    self.mapped_bytes[k] = v
-
-@public
-def get(k: bytes[4096]) -> int128:
-    return self.mapped_bytes[k]
-    """
-
-    c = get_contract(code)
-
-    c.set("test" * 1024, 6789)
-
-    assert c.get("test" * 1024) == 6789
+    assert c.get(b"a" * 34) == 6789
 
 
 def test_mismatched_byte_length(get_contract):
     code = """
-mapped_bytes: int128[bytes[34]]
+mapped_bytes: map(bytes[34], int128)
 
 @public
 def set(k: bytes[35], v: int128):
@@ -97,20 +80,20 @@ def set(k: bytes[35], v: int128):
 
 def test_extended_bytes_key_from_storage(get_contract):
     code = """
-a: int128[bytes[100000]]
+a: map(bytes[100000], int128)
 
 @public
 def __init__():
-    self.a["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"] = 1069
+    self.a[b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"] = 1069
 
 @public
 def get_it1() -> int128:
-    key: bytes[100000] = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    key: bytes[100000] = b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     return self.a[key]
 
 @public
 def get_it2() -> int128:
-    return self.a["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+    return self.a[b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
 
 @public
 def get_it3(key: bytes[100000]) -> int128:

@@ -9,6 +9,8 @@ build/
 dist/
 .eggs/
 
+.pytest_cache/
+
 # pyenv
 .python-version
 
@@ -31,3 +33,5 @@ docs/modules.rst
 
 # IDEs
 .idea/
+
+.tox

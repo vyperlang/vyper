@@ -1,9 +1,14 @@
 import pytest
-from pytest import raises
+from pytest import (
+    raises,
+)
 
-from vyper import compiler
-from vyper.exceptions import ConstancyViolationException
-
+from vyper import (
+    compiler,
+)
+from vyper.exceptions import (
+    ConstancyViolationException,
+)
 
 fail_list = [
     """
@@ -38,14 +43,14 @@ def foo() -> int128(sec):
 @public
 @constant
 def foo() -> int128:
-    x = raw_call(0x1234567890123456789012345678901234567890, "cow", outsize=4, gas=595757, value=9)
+    x = raw_call(0x1234567890123456789012345678901234567890, b"cow", outsize=4, gas=595757, value=9)
     return 5
     """,
     """
 @public
 @constant
 def foo() -> int128:
-    x = create_with_code_of(0x1234567890123456789012345678901234567890, value=9)
+    x = create_forwarder_to(0x1234567890123456789012345678901234567890, value=9)
     return 5
     """,
     """
@@ -84,4 +89,4 @@ def b():
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_constancy_violation_exception(bad_code):
     with raises(ConstancyViolationException):
-        compiler.compile(bad_code)
+        compiler.compile_code(bad_code)

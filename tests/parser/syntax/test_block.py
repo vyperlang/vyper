@@ -1,15 +1,23 @@
 import pytest
-from pytest import raises
+from pytest import (
+    raises,
+)
 
-from vyper import compiler
-from vyper.exceptions import TypeMismatchException
-
+from vyper import (
+    compiler,
+)
+from vyper.exceptions import (
+    TypeMismatchException,
+)
 
 fail_list = [
     """
 @public
 def foo() -> int128:
-    x: address = create_with_code_of(0x1234567890123456789012345678901234567890, value=block.timestamp)
+    x: address = create_forwarder_to(
+        0x1234567890123456789012345678901234567890,
+        value=block.timestamp,
+    )
     return 5
     """,
     """
@@ -46,24 +54,28 @@ def foo():
     y = min(block.timestamp + 30 - block.timestamp, block.timestamp)
     """,
     """
-a: int128[timestamp]
+a: map(timestamp, int128)
 
 @public
 def add_record():
     self.a[block.timestamp] = block.timestamp + 20
     """,
     """
-a: timestamp[int128]
+a: map(int128, timestamp)
 
 @public
 def add_record():
     self.a[block.timestamp] = block.timestamp + 20
     """,
     """
+struct X:
+    x: timestamp
+struct Y:
+    y: int128
 @public
 def add_record():
-    a: {x: timestamp} = {x: block.timestamp}
-    b: {y: int128} = {y: 5}
+    a: X = X({x: block.timestamp})
+    b: Y = Y({y: 5})
     a.x = b.y
     """,
     """
@@ -89,16 +101,15 @@ def test_block_fail(bad_code):
 
     if isinstance(bad_code, tuple):
         with raises(bad_code[1]):
-            compiler.compile(bad_code[0])
+            compiler.compile_code(bad_code[0])
     else:
         with raises(TypeMismatchException):
-            compiler.compile(bad_code)
+            compiler.compile_code(bad_code)
 
 
 valid_list = [
     """
-a: timestamp[timestamp]
-
+a: map(timestamp, timestamp)
 
 @public
 def add_record():
@@ -106,9 +117,9 @@ def add_record():
     """,
     """
 @public
-def foo() -> decimal(wei / sec):
-    x: int128(wei) = as_wei_value(5, "finney")
-    y: int128(sec) = block.timestamp + 50 - block.timestamp
+def foo() -> uint256(wei / sec):
+    x: uint256(wei) = as_wei_value(5, "finney")
+    y: uint256(sec) = block.timestamp + 50 - block.timestamp
     return x / y
     """,
     """
@@ -123,25 +134,27 @@ def foo():
     """,
     """
 @public
-def foo() -> int128:
+def foo() -> uint256:
     return as_unitless_number(block.timestamp)
     """,
     """
+struct X:
+    x: timestamp
 @public
 def add_record():
-    a: {x: timestamp} = {x: block.timestamp}
+    a: X = X({x: block.timestamp})
     a.x = 5
     """,
     """
 @public
 def foo():
-    x: int128 = block.difficulty + 185
+    x: uint256 = block.difficulty + 185
     if tx.origin == self:
-        y: bytes[35] = concat(block.prevhash, "dog")
+        y: bytes[35] = concat(block.prevhash, b"dog")
     """
 ]
 
 
 @pytest.mark.parametrize('good_code', valid_list)
 def test_block_success(good_code):
-    assert compiler.compile(good_code) is not None
+    assert compiler.compile_code(good_code) is not None

@@ -1,7 +1,8 @@
 import pytest
 
-from vyper import compiler
-
+from vyper import (
+    compiler,
+)
 
 valid_list = [
     """
@@ -13,7 +14,7 @@ y: public(int128(wei / sec ** 2))
 z: public(int128(1 / sec))
 
 @public
-def foo() -> decimal(sec ** 2):
+def foo() -> int128(sec ** 2):
     return self.x / self.y / self.z
     """
 ]
@@ -21,4 +22,4 @@ def foo() -> decimal(sec ** 2):
 
 @pytest.mark.parametrize('good_code', valid_list)
 def test_public_success(good_code):
-    assert compiler.compile(good_code) is not None
+    assert compiler.compile_code(good_code) is not None

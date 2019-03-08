@@ -1,92 +1,166 @@
-# Test for Safe Remote Purchase (https://github.com/ethereum/solidity/blob/develop/docs/solidity-by-example.rst) ported to vyper and optimized
+# Test for Safe Remote Purchase
+# (https://github.com/ethereum/solidity/blob/develop/docs/solidity-by-example.rst)
+# ported to vyper and optimized
 
 # Rundown of the transaction:
-# 1. Seller posts item for sale and posts safety deposit of double the item value. Balance is 2*value.
+# 1. Seller posts item for sale and posts safety deposit of double the item
+#    value. Balance is 2*value.
 # (1.1. Seller can reclaim deposit and close the sale as long as nothing was purchased.)
-# 2. Buyer purchases item (value) plus posts an additional safety deposit (Item value). Balance is 4*value
+# 2. Buyer purchases item (value) plus posts an additional safety deposit (Item
+#    value). Balance is 4*value
 # 3. Seller ships item
-# 4. Buyer confirms receiving the item. Buyer's deposit (value) is returned. Seller's deposit (2*value) + items value is returned. Balance is 0.
+# 4. Buyer confirms receiving the item. Buyer's deposit (value) is returned.
+#    Seller's deposit (2*value) + items value is returned. Balance is 0.
 import pytest
-from ethereum.tools import tester
-from ethereum import utils
-
-contract_code = open("examples/safe_remote_purchase/safe_remote_purchase.v.py").read()
-# Inital balance of accounts
-INIT_BAL = 1000000000000000000000000
 
 
 @pytest.fixture
-def srp_tester():
-    t = tester
-    tester.s = t.Chain()
-    from vyper import compiler
-    t.languages["vyper"] = compiler.Compiler()
-    return tester
+def contract_code(get_contract):
+    with open("examples/safe_remote_purchase/safe_remote_purchase.vy") as f:
+        contract_code = f.read()
+    return contract_code
 
 
 @pytest.fixture
-def check_balance(tester):
-    # balance of a0 = seller, a1 = buyer
-    sbal = tester.s.head_state.get_balance(tester.a0)
-    bbal = tester.s.head_state.get_balance(tester.a1)
-    return [sbal, bbal]
+def get_balance(w3, tester):
+    def get_balance():
+        a0, a1 = w3.eth.accounts[:2]
+        # balance of a1 = seller, a2 = buyer
+        return w3.eth.getBalance(a0), w3.eth.getBalance(a1)
+    return get_balance
 
 
-def test_initial_state(srp_tester, assert_tx_failed):
-    assert check_balance(srp_tester) == [INIT_BAL, INIT_BAL]
+def test_initial_state(w3, assert_tx_failed, get_contract, get_balance, contract_code):
     # Inital deposit has to be divisible by two
-    assert_tx_failed(lambda: srp_tester.s.contract(contract_code, language="vyper", args=[], value=1))
+    assert_tx_failed(lambda: get_contract(contract_code, value=13))
     # Seller puts item up for sale
-    srp_tester.c = tester.s.contract(contract_code, language="vyper", args=[], value=2)
+    a0_pre_bal, a1_pre_bal = get_balance()
+    c = get_contract(contract_code, value_in_eth=2)
     # Check that the seller is set correctly
-    assert utils.remove_0x_head(srp_tester.c.seller()) == srp_tester.accounts[0].hex()
+    assert c.seller() == w3.eth.accounts[0]
     # Check if item value is set correctly (Half of deposit)
-    assert srp_tester.c.value() == 1
+    assert c.value() == w3.toWei(1, 'ether')
     # Check if unlocked() works correctly after initialization
-    assert srp_tester.c.unlocked() is True
+    assert c.unlocked() is True
     # Check that sellers (and buyers) balance is correct
-    assert check_balance(srp_tester) == [INIT_BAL - 2, INIT_BAL]
+    assert get_balance() == ((a1_pre_bal - w3.toWei(2, 'ether')), a1_pre_bal)
 
 
-def test_abort(srp_tester, assert_tx_failed):
-    srp_tester.c = srp_tester.s.contract(contract_code, language="vyper", args=[], value=2)
+def test_abort(w3, assert_tx_failed, get_balance, get_contract, contract_code):
+    a0, a1, a2 = w3.eth.accounts[:3]
+
+    a0_pre_bal, a1_pre_bal = get_balance()
+    c = get_contract(contract_code, value=w3.toWei(2, 'ether'))
+    assert c.value() == w3.toWei(1, 'ether')
     # Only sender can trigger refund
-    assert_tx_failed(lambda: srp_tester.c.abort(sender=srp_tester.k2))
+    assert_tx_failed(lambda: c.abort(transact={'from': a2}))
     # Refund works correctly
-    srp_tester.c.abort(sender=srp_tester.k0)
-    assert check_balance(srp_tester) == [INIT_BAL, INIT_BAL]
+    c.abort(transact={'from': a0, 'gasPrice': 0})
+    assert get_balance() == (a0_pre_bal, a1_pre_bal)
     # Purchase in process, no refund possible
-    srp_tester.c = srp_tester.s.contract(contract_code, language="vyper", args=[], value=2)
-    srp_tester.c.purchase(value=2, sender=srp_tester.k1)
-    assert_tx_failed(lambda: srp_tester.c.abort(sender=srp_tester.k0))
+    c = get_contract(contract_code, value=2)
+    c.purchase(transact={'value': 2, 'from': a1, 'gasPrice': 0})
+    assert_tx_failed(lambda: c.abort(transact={'from': a0}))
 
 
-def test_purchase(srp_tester, assert_tx_failed):
-    srp_tester.c = srp_tester.s.contract(contract_code, language="vyper", args=[], value=2)
+def test_purchase(w3, get_contract, assert_tx_failed, get_balance, contract_code):
+    a0, a1, a2, a3 = w3.eth.accounts[:4]
+    init_bal_a0, init_bal_a1 = get_balance()
+    c = get_contract(contract_code, value=2)
     # Purchase for too low/high price
-    assert_tx_failed(lambda: srp_tester.c.purchase(value=1, sender=srp_tester.k1))
-    assert_tx_failed(lambda: srp_tester.c.purchase(value=3, sender=srp_tester.k1))
+    assert_tx_failed(lambda: c.purchase(transact={'value': 1, 'from': a1}))
+    assert_tx_failed(lambda: c.purchase(transact={'value': 3, 'from': a1}))
     # Purchase for the correct price
-    srp_tester.c.purchase(value=2, sender=srp_tester.k1)
+    c.purchase(transact={'value': 2, 'from': a1, 'gasPrice': 0})
     # Check if buyer is set correctly
-    assert utils.remove_0x_head(srp_tester.c.buyer()) == srp_tester.accounts[1].hex()
+    assert c.buyer() == a1
     # Check if contract is locked correctly
-    assert srp_tester.c.unlocked() is False
+    assert c.unlocked() is False
     # Check balances, both deposits should have been deducted
-    assert check_balance(srp_tester) == [INIT_BAL - 2, INIT_BAL - 2]
+    assert get_balance() == (init_bal_a0 - 2, init_bal_a1 - 2)
     # Allow nobody else to purchase
-    assert_tx_failed(lambda: srp_tester.c.purchase(value=2, sender=srp_tester.k3))
+    assert_tx_failed(lambda: c.purchase(transact={'value': 2, 'from': a3}))
 
 
-def test_received(srp_tester, assert_tx_failed):
-    srp_tester.c = srp_tester.s.contract(contract_code, language="vyper", args=[], value=2)
+def test_received(w3, get_contract, assert_tx_failed, get_balance, contract_code):
+    a0, a1 = w3.eth.accounts[:2]
+    init_bal_a0, init_bal_a1 = get_balance()
+    c = get_contract(contract_code, value=2)
     # Can only be called after purchase
-    assert_tx_failed(lambda: srp_tester.c.received(sender=srp_tester.k1))
+    assert_tx_failed(lambda: c.received(transact={'from': a1, 'gasPrice': 0}))
     # Purchase completed
-    srp_tester.c.purchase(value=2, sender=srp_tester.k1)
+    c.purchase(transact={'value': 2, 'from': a1, 'gasPrice': 0})
     # Check that e.g. sender cannot trigger received
-    assert_tx_failed(lambda: srp_tester.c.received(sender=srp_tester.k0))
+    assert_tx_failed(lambda: c.received(transact={'from': a0, 'gasPrice': 0}))
     # Check if buyer can call receive
-    srp_tester.c.received(sender=srp_tester.k1)
+    c.received(transact={'from': a1, 'gasPrice': 0})
     # Final check if everything worked. 1 value has been transferred
-    assert check_balance(srp_tester) == [INIT_BAL + 1, INIT_BAL - 1]
+    assert get_balance() == (init_bal_a0 + 1, init_bal_a1 - 1)
+
+
+def test_received_reentrancy(w3, get_contract, assert_tx_failed, get_balance, contract_code):
+
+    buyer_contract_code = """
+contract PurchaseContract:
+
+    def received(): modifying
+    def purchase(): modifying
+    def unlocked() -> bool: constant
+
+purchase_contract: PurchaseContract
+
+
+@public
+def __init__(_purchase_contract: address):
+    self.purchase_contract = PurchaseContract(_purchase_contract)
+
+
+@payable
+@public
+def start_purchase():
+    self.purchase_contract.purchase(value=2)
+
+
+@payable
+@public
+def start_received():
+    self.purchase_contract.received()
+
+
+@public
+@payable
+def __default__():
+    self.purchase_contract.received()
+
+    """
+
+    a0 = w3.eth.accounts[0]
+    c = get_contract(contract_code, value=2)
+    buyer_contract = get_contract(buyer_contract_code, *[c.address])
+    buyer_contract_address = buyer_contract.address
+    init_bal_a0, init_bal_buyer_contract = (
+        w3.eth.getBalance(a0),
+        w3.eth.getBalance(buyer_contract_address),
+    )
+    # Start purchase
+    buyer_contract.start_purchase(transact={
+        'gasPrice': 0,
+        'value': 4,
+        'from': w3.eth.accounts[1],
+        'gas': 100000,
+    })
+    assert c.unlocked() is False
+    assert c.buyer() == buyer_contract_address
+
+    # Trigger "re-entry"
+    buyer_contract.start_received(transact={
+        'from': w3.eth.accounts[1],
+        'gasPrice': 0,
+        'gas': 100000,
+    })
+
+    # Final check if everything worked. 1 value has been transferred
+    assert w3.eth.getBalance(a0), w3.eth.getBalance(buyer_contract_address) == (
+        init_bal_a0 + 1,
+        init_bal_buyer_contract - 1,
+    )

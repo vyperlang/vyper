@@ -1,46 +1,43 @@
-from ethereum.abi import ValueOutOfBounds
 
-
-def test_uint256_code(t, chain, assert_tx_failed, get_contract_with_gas_estimation):
+def test_uint256_code(assert_tx_failed, get_contract_with_gas_estimation):
     uint256_code = """
 @public
 def _uint256_add(x: uint256, y: uint256) -> uint256:
-    return uint256_add(x, y)
+    return x + y
 
 @public
 def _uint256_sub(x: uint256, y: uint256) -> uint256:
-    return uint256_sub(x, y)
+    return x - y
 
 @public
 def _uint256_mul(x: uint256, y: uint256) -> uint256:
-    return uint256_mul(x, y)
+    return x * y
 
 @public
 def _uint256_div(x: uint256, y: uint256) -> uint256:
-    return uint256_div(x, y)
+    return x / y
 
 @public
 def _uint256_gt(x: uint256, y: uint256) -> bool:
-    return uint256_gt(x, y)
+    return x > y
 
 @public
 def _uint256_ge(x: uint256, y: uint256) -> bool:
-    return uint256_ge(x, y)
+    return x >= y
 
 @public
 def _uint256_lt(x: uint256, y: uint256) -> bool:
-    return uint256_lt(x, y)
+    return x < y
 
 @public
 def _uint256_le(x: uint256, y: uint256) -> bool:
-    return uint256_le(x, y)
+    return x <= y
     """
 
     c = get_contract_with_gas_estimation(uint256_code)
     x = 126416208461208640982146408124
     y = 7128468721412412459
 
-    t.s = chain
     uint256_MAX = 2 ** 256 - 1  # Max possible uint256 value
     assert c._uint256_add(x, y) == x + y
     assert c._uint256_add(0, y) == y
@@ -73,11 +70,11 @@ def _uint256_le(x: uint256, y: uint256) -> bool:
     print("Passed uint256 operation tests")
 
 
-def test_uint256_mod(t, chain, assert_tx_failed, get_contract_with_gas_estimation):
+def test_uint256_mod(assert_tx_failed, get_contract_with_gas_estimation):
     uint256_code = """
 @public
 def _uint256_mod(x: uint256, y: uint256) -> uint256:
-    return uint256_mod(x, y)
+    return x % y
 
 @public
 def _uint256_addmod(x: uint256, y: uint256, z: uint256) -> uint256:
@@ -89,7 +86,6 @@ def _uint256_mulmod(x: uint256, y: uint256, z: uint256) -> uint256:
     """
 
     c = get_contract_with_gas_estimation(uint256_code)
-    t.s = chain
 
     assert c._uint256_mod(3, 2) == 1
     assert c._uint256_mod(34, 32) == 2
@@ -106,15 +102,14 @@ def _uint256_mulmod(x: uint256, y: uint256, z: uint256) -> uint256:
     assert_tx_failed(lambda: c._uint256_mulmod(2, 2, 0))
 
 
-def test_uint256_with_exponents(t, chain, assert_tx_failed, get_contract_with_gas_estimation):
+def test_uint256_with_exponents(assert_tx_failed, get_contract_with_gas_estimation):
     exp_code = """
 @public
 def _uint256_exp(x: uint256, y: uint256) -> uint256:
-        return uint256_exp(x,y)
+        return x ** y
     """
 
     c = get_contract_with_gas_estimation(exp_code)
-    t.s = chain
 
     assert c._uint256_exp(2, 0) == 1
     assert c._uint256_exp(2, 1) == 2
@@ -124,53 +119,86 @@ def _uint256_exp(x: uint256, y: uint256) -> uint256:
     assert c._uint256_exp(7**23, 3) == 7**69
 
 
-def test_uint256_to_num_casting(t, chain, assert_tx_failed, get_contract_with_gas_estimation):
-    code = """
-@public
-def _uint256_to_num(x: int128(uint256)) -> int128:
-    return x
-
-@public
-def _uint256_to_num_call(x: uint256) -> int128:
-    return self._uint256_to_num(x)
-
-@public
-def built_in_conversion(x: uint256) -> int128:
-    return convert(x, 'int128')
-    """
-
-    c = get_contract_with_gas_estimation(code)
-
-    # Ensure uint256 function signature.
-    assert c.translator.function_data['_uint256_to_num']['encode_types'] == ['uint256']
-
-    assert c._uint256_to_num(1) == 1
-    assert c._uint256_to_num((2**127) - 1) == 2**127 - 1
-    t.s = chain
-    assert_tx_failed(lambda: c._uint256_to_num((2**128)) == 0)
-    assert c._uint256_to_num_call(1) == 1
-
-    # Check that casting matches manual conversion
-    assert c._uint256_to_num_call(2**127 - 1) == c.built_in_conversion(2**127 - 1)
-
-    # Pass in negative int.
-    assert_tx_failed(lambda: c._uint256_to_num(-1) != -1, ValueOutOfBounds)
-    # Make sure it can't be coherced into a negative number.
-    assert_tx_failed(lambda: c._uint256_to_num_call(2**127))
-
-
 def test_modmul(get_contract_with_gas_estimation):
     modexper = """
 @public
-def exp(base: uint256, exponent: uint256, modulus: uint256) -> uint256:
-    o: uint256 = convert(1, 'uint256')
+def exponential(base: uint256, exponent: uint256, modulus: uint256) -> uint256:
+    o: uint256 = convert(1, uint256)
     for i in range(256):
         o = uint256_mulmod(o, o, modulus)
-        if bitwise_and(exponent, shift(convert(1, 'uint256'), 255 - i)) != convert(0, 'uint256'):
+        if bitwise_and(exponent, shift(convert(1, uint256), 255 - i)) != convert(0, uint256):
             o = uint256_mulmod(o, base, modulus)
     return o
     """
 
     c = get_contract_with_gas_estimation(modexper)
-    assert c.exp(3, 5, 100) == 43
-    assert c.exp(2, 997, 997) == 2
+    assert c.exponential(3, 5, 100) == 43
+    assert c.exponential(2, 997, 997) == 2
+
+
+def test_uint256_literal(get_contract_with_gas_estimation):
+    modexper = """
+@public
+def test() -> uint256:
+    o: uint256
+    o = 340282366920938463463374607431768211459
+    return o
+    """
+
+    c = get_contract_with_gas_estimation(modexper)
+    assert c.test() == 340282366920938463463374607431768211459
+
+
+def test_uint256_comparison(get_contract_with_gas_estimation):
+    code = """
+max_uint_256: public(uint256)
+
+@public
+def __init__():
+    self.max_uint_256 = 2*(2**255-1)+1
+
+@public
+def max_lt() -> (bool):
+  return 30 < self.max_uint_256
+
+@public
+def max_lte() -> (bool):
+  return 30  <= self.max_uint_256
+
+@public
+def max_gte() -> (bool):
+  return 30 >=  self.max_uint_256
+
+@public
+def max_gt() -> (bool):
+  return 30 > self.max_uint_256
+
+@public
+def max_ne() -> (bool):
+  return 30 != self.max_uint_256
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.max_lt() is True
+    assert c.max_lte() is True
+    assert c.max_gte() is False
+    assert c.max_gt() is False
+    assert c.max_ne() is True
+
+
+def test_uint256_constant_folding(get_contract_with_gas_estimation):
+    code = """
+@public
+def maximum() -> uint256:
+    return 2**256 - 1
+
+
+@public
+def minimum() -> uint256:
+    return 2**256 - 2**256
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.maximum() == 2**256 - 1
+    assert c.minimum() == 0

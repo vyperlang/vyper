@@ -1,28 +1,44 @@
-from vyper.utils import (
-    MemoryPositions,
-    is_varname_valid,
-)
-from vyper.types import (
-    get_size_of_type
-)
+import contextlib
+import enum
 
 from vyper.exceptions import (
     VariableDeclarationException,
 )
-
-from vyper.function_signature import (
+from vyper.signatures.function_signature import (
     VariableRecord,
+)
+from vyper.types import (
+    get_size_of_type,
+)
+from vyper.utils import (
+    MemoryPositions,
+    check_valid_varname,
 )
 
 
+class Constancy(enum.Enum):
+    Mutable = 0
+    Constant = 1
+
+
 # Contains arguments, variables, etc
-class Context():
-    def __init__(self, vars=None, globals=None, sigs=None, forvars=None, return_type=None, is_constant=False, is_payable=False, origcode=''):
+class Context:
+    def __init__(self,
+                 vars,
+                 global_ctx,
+                 sigs=None,
+                 forvars=None,
+                 return_type=None,
+                 constancy=Constancy.Mutable,
+                 is_private=False,
+                 is_payable=False,
+                 origcode='',
+                 method_id=''):
         # In-memory variables, in the form (name, memory location, type)
         self.vars = vars or {}
         self.next_mem = MemoryPositions.RESERVED_MEMORY
         # Global variables, in the form (name, storage location, type)
-        self.globals = globals or {}
+        self.globals = global_ctx._globals
         # ABI objects, in the form {classname: ABI JSON}
         self.sigs = sigs or {}
         # Variables defined in for loops, e.g. for i in range(6): ...
@@ -30,7 +46,9 @@ class Context():
         # Return type of the function
         self.return_type = return_type
         # Is the function constant?
-        self.is_constant = is_constant
+        self.constancy = constancy
+        # Whether body is currently in an assert statement
+        self.in_assertion = False
         # Is the function payable?
         self.is_payable = is_payable
         # Number of placeholders generated (used to generate random names)
@@ -43,22 +61,52 @@ class Context():
         self.function_return_count = 0
         # Current block scope
         self.blockscopes = set()
-        # In assignment. Whether expressiong is currently evaluating an assignment expression.
+        # In assignment. Whether expression is currently evaluating an assignment expression.
         self.in_assignment = False
+        # List of custom units that have been defined.
+        self.custom_units = global_ctx._custom_units
+        # List of custom structs that have been defined.
+        self.structs = global_ctx._structs
+        # defined constants
+        self.constants = global_ctx._constants
+        # Callback pointer to jump back to, used in private functions.
+        self.callback_ptr = None
+        self.is_private = is_private
+        # method_id of current function
+        self.method_id = method_id
+        # store global context
+        self.global_ctx = global_ctx
 
-    def set_in_assignment(self, state: bool):
-        self.in_assignment = state
+    def is_constant(self):
+        return self.constancy is Constancy.Constant or self.in_assertion
 
-    def set_in_for_loop(self, name_of_list):
+    #
+    # Context Managers
+    # - Context managers are used to ensure proper wrapping of scopes and context states.
+
+    @contextlib.contextmanager
+    def in_for_loop_scope(self, name_of_list):
         self.in_for_loop.add(name_of_list)
-
-    def remove_in_for_loop(self, name_of_list):
+        yield
         self.in_for_loop.remove(name_of_list)
 
-    def start_blockscope(self, blockscope_id):
-        self.blockscopes.add(blockscope_id)
+    @contextlib.contextmanager
+    def assignment_scope(self):
+        self.in_assignment = True
+        yield
+        self.in_assignment = False
 
-    def end_blockscope(self, blockscope_id):
+    @contextlib.contextmanager
+    def assertion_scope(self):
+        prev_value = self.in_assertion
+        self.in_assertion = True
+        yield
+        self.in_assertion = prev_value
+
+    @contextlib.contextmanager
+    def make_blockscope(self, blockscope_id):
+        self.blockscopes.add(blockscope_id)
+        yield
         # Remove all variables that have specific blockscope_id attached.
         self.vars = {
             name: var_record for name, var_record in self.vars.items()
@@ -70,16 +118,34 @@ class Context():
     def increment_return_counter(self):
         self.function_return_count += 1
 
+    def is_valid_varname(self, name, pos):
+        # Global context check first.
+        if self.global_ctx.is_valid_varname(name, pos):
+            check_valid_varname(
+                name,
+                custom_units=self.custom_units,
+                custom_structs=self.structs,
+                constants=self.constants, pos=pos,
+            )
+            # Local context duplicate context check.
+            if any((name in self.vars, name in self.globals, name in self.constants)):
+                raise VariableDeclarationException("Duplicate variable name: %s" % name, name)
+        return True
+
+    # TODO location info for errors
     # Add a new variable
-    def new_variable(self, name, typ):
-        if not is_varname_valid(name):
-            raise VariableDeclarationException("Variable name invalid or reserved: " + name)
-        if name in self.vars or name in self.globals:
-            raise VariableDeclarationException("Duplicate variable name: %s" % name)
-        self.vars[name] = VariableRecord(name, self.next_mem, typ, True, self.blockscopes.copy())
-        pos = self.next_mem
-        self.next_mem += 32 * get_size_of_type(typ)
-        return pos
+    def new_variable(self, name, typ, pos=None):
+        if self.is_valid_varname(name, pos):
+            self.vars[name] = VariableRecord(
+                name,
+                self.next_mem,
+                typ,
+                True,
+                self.blockscopes.copy(),
+            )
+            pos = self.next_mem
+            self.next_mem += 32 * get_size_of_type(typ)
+            return pos
 
     # Add an anonymous variable (used in some complex function definitions)
     def new_placeholder(self, typ):
@@ -90,3 +156,14 @@ class Context():
     # Get the next unused memory location
     def get_next_mem(self):
         return self.next_mem
+
+    def parse_type(self, ast_node, location):
+        return self.global_ctx.parse_type(ast_node, location)
+
+    # Pretty print constancy for error messages
+    def pp_constancy(self):
+        if self.in_assertion:
+            return 'an assertion'
+        elif self.constancy == Constancy.Constant:
+            return 'a constant function'
+        raise ValueError('Compiler error: unknown constancy in pp_constancy: %r' % self.constancy)

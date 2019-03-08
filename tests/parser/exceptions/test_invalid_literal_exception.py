@@ -1,9 +1,14 @@
 import pytest
-from pytest import raises
+from pytest import (
+    raises,
+)
 
-from vyper import compiler
-from vyper.exceptions import InvalidLiteralException
-
+from vyper import (
+    compiler,
+)
+from vyper.exceptions import (
+    InvalidLiteralException,
+)
 
 fail_list = [
     """
@@ -24,12 +29,12 @@ def foo():
     """
 @public
 def foo():
-    x = -170141183460469231731687303715884105729 # -2**127 - 1
+    x: int128 = -170141183460469231731687303715884105729 # -2**127 - 1
     """,
     """
 @public
 def foo():
-    x = -170141183460469231731687303715884105728.
+    x: decimal = -170141183460469231731687303715884105728.
     """,
     """
 b: decimal
@@ -55,17 +60,17 @@ def foo():
     """
 @public
 def foo():
-    x = create_with_code_of(0x123456789012345678901234567890123456789)
+    x = create_forwarder_to(0x123456789012345678901234567890123456789)
     """,
     """
 @public
 def foo():
-    x = as_wei_value(5.1824, "ada")
+    x = as_wei_value(5.1824, "babbage")
     """,
     """
 @public
 def foo():
-    x = as_wei_value(0x05, "ada")
+    x = as_wei_value(0x05, "babbage")
     """,
     """
 @public
@@ -80,17 +85,12 @@ def foo():
     """
 @public
 def foo():
-    x: uint256 = convert(821649876217461872458712528745872158745214187264875632587324658732648753245328764872135671285218762145, 'uint256')
+    x: uint256 = convert(821649876217461872458712528745872158745214187264875632587324658732648753245328764872135671285218762145, uint256)  # noqa: E501
     """,
     """
 @public
 def foo():
-    x = convert(-1, 'uint256')
-    """,
-    """
-@public
-def foo():
-    x = convert(3.1415, 'uint256')
+    x = convert(-1, uint256)
     """,
     """
 # Test decimal limit.
@@ -109,6 +109,17 @@ def foo():
 @public
 def foo():
     a: bytes32 = sha3("ѓtest")
+    """,
+    """
+@public
+def overflow() -> uint256:
+    return 2**256
+    """,
+    """
+@public
+def overflow2() -> uint256:
+    a: uint256 = 2**256
+    return a
     """
 ]
 
@@ -116,4 +127,4 @@ def foo():
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_invalid_literal_exception(bad_code):
     with raises(InvalidLiteralException):
-        compiler.compile(bad_code)
+        compiler.compile_code(bad_code)

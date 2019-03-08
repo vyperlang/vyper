@@ -1,9 +1,14 @@
 import pytest
-from pytest import raises
+from pytest import (
+    raises,
+)
 
-from vyper import compiler
-from vyper.exceptions import TypeMismatchException
-
+from vyper import (
+    compiler,
+)
+from vyper.exceptions import (
+    TypeMismatchException,
+)
 
 fail_list = [
     """
@@ -30,7 +35,7 @@ def test_logging_fail(bad_code):
 
     if isinstance(bad_code, tuple):
         with raises(bad_code[1]):
-            compiler.compile(bad_code[0])
+            compiler.compile_code(bad_code[0])
     else:
         with raises(TypeMismatchException):
-            compiler.compile(bad_code)
+            compiler.compile_code(bad_code)

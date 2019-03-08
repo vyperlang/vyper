@@ -1,9 +1,14 @@
 import pytest
-from pytest import raises
+from pytest import (
+    raises,
+)
 
-from vyper import compiler
-from vyper.exceptions import TypeMismatchException
-
+from vyper import (
+    compiler,
+)
+from vyper.exceptions import (
+    TypeMismatchException,
+)
 
 fail_list = [
     """
@@ -53,7 +58,7 @@ def foo():
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_send_fail(bad_code):
     with raises(TypeMismatchException):
-        compiler.compile(bad_code)
+        compiler.compile_code(bad_code)
 
 
 valid_list = [
@@ -82,10 +87,21 @@ def foo():
 @public
 def foo():
     send(0xde0B295669a9FD93d5F28D9Ec85E40f4cb697BAe, 5)
+    """,
+    """
+# Test custom send method
+@public
+def send(a: address, w: wei_value):
+    send(0xde0B295669a9FD93d5F28D9Ec85E40f4cb697BAe, 1)
+
+@public
+@payable
+def foo():
+    self.send(msg.sender, msg.value)
     """
 ]
 
 
 @pytest.mark.parametrize('good_code', valid_list)
 def test_block_success(good_code):
-    assert compiler.compile(good_code) is not None
+    assert compiler.compile_code(good_code) is not None

@@ -1,3 +1,8 @@
+from decimal import (
+    Decimal,
+)
+
+
 def test_floor(get_contract_with_gas_estimation):
     code = """
 x: decimal
@@ -32,8 +37,8 @@ def fot() -> int128:
 
 @public
 def fou() -> int128:
-    a: int128 = 305
-    b: int128 = 100
+    a: decimal = 305.0
+    b: decimal = 100.0
     c: decimal = a / b
     return floor(c)
 """
@@ -62,7 +67,7 @@ def x_floor() -> int128:
 @public
 def foo() -> int128:
     a: int128 = -65
-    b: decimal = a / 10
+    b: decimal = convert(a, decimal) / 10.0
     return floor(b)
 
 @public
@@ -83,8 +88,8 @@ def fot() -> int128:
 
 @public
 def fou() -> int128:
-    a: int128 = -305
-    b: int128 = 100
+    a: decimal = -305.0
+    b: decimal = 100.0
     c: decimal = a / b
     return floor(c)
 
@@ -92,7 +97,9 @@ def fou() -> int128:
 def floor_param(p: decimal) -> int128:
     return floor(p)
 """
+
     c = get_contract_with_gas_estimation(code)
+
     assert c.x_floor() == -505
     assert c.foo() == -7
     assert c.fop() == -27
@@ -100,5 +107,5 @@ def floor_param(p: decimal) -> int128:
     assert c.fos() == -1
     assert c.fot() == -170141183460469231731687303715884105728
     assert c.fou() == -4
-    assert c.floor_param(-5.6) == -6
-    assert c.floor_param(-0.0000000001) == -1
+    assert c.floor_param(Decimal('-5.6')) == -6
+    assert c.floor_param(Decimal('-0.0000000001')) == -1

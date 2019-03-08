@@ -1,4 +1,11 @@
-from vyper.exceptions import StructureException, VariableDeclarationException
+from decimal import (
+    Decimal,
+)
+
+from vyper.exceptions import (
+    StructureException,
+    VariableDeclarationException,
+)
 
 
 def test_basic_for_in_list(get_contract_with_gas_estimation):
@@ -51,7 +58,7 @@ def data() -> int128:
     c = get_contract_with_gas_estimation(code)
 
     assert c.data() == -1
-    assert c.set() is None
+    c.set(transact={})
     assert c.data() == 7
 
 
@@ -74,7 +81,7 @@ def data() -> address:
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.data() == "0x82a978b3f5962a5b0957d9ee9eef472ee55b42f1"
+    assert c.data() == "0x82A978B3f5962A5b0957d9ee9eEf472EE55B42F1"
 
 
 def test_multiple_for_loops_1(get_contract_with_gas_estimation):
@@ -163,11 +170,11 @@ def iterate_return_second() -> address:
 
     c = get_contract_with_gas_estimation(code)
 
-    c.set(0, '0x82A978B3f5962A5b0957d9ee9eEf472EE55B42F1')
-    c.set(1, '0x7d577a597B2742b498Cb5Cf0C26cDCD726d39E6e')
-    c.set(2, '0xDCEceAF3fc5C0a63d195d69b1A90011B7B19650D')
+    c.set(0, '0x82A978B3f5962A5b0957d9ee9eEf472EE55B42F1', transact={})
+    c.set(1, '0x7d577a597B2742b498Cb5Cf0C26cDCD726d39E6e', transact={})
+    c.set(2, '0xDCEceAF3fc5C0a63d195d69b1A90011B7B19650D', transact={})
 
-    assert c.ret(1) == c.iterate_return_second() == "0x7d577a597b2742b498cb5cf0c26cdcd726d39e6e"
+    assert c.ret(1) == c.iterate_return_second() == "0x7d577a597B2742b498Cb5Cf0C26cDCD726d39E6e"
 
 
 def test_basic_for_list_storage_decimal(get_contract_with_gas_estimation):
@@ -193,13 +200,13 @@ def i_return(break_count: int128) -> decimal:
 
     c = get_contract_with_gas_estimation(code)
 
-    c.set(0, 0.0001)
-    c.set(1, 1.1)
-    c.set(2, 2.2)
+    c.set(0, Decimal('0.0001'), transact={})
+    c.set(1, Decimal('1.1'), transact={})
+    c.set(2, Decimal('2.2'), transact={})
 
-    assert c.ret(2) == c.i_return(2) == 2.2
-    assert c.ret(1) == c.i_return(1) == 1.1
-    assert c.ret(0) == c.i_return(0) == 0.0001
+    assert c.ret(2) == c.i_return(2) == Decimal('2.2')
+    assert c.ret(1) == c.i_return(1) == Decimal('1.1')
+    assert c.ret(0) == c.i_return(0) == Decimal('0.0001')
 
 
 def test_altering_list_within_for_loop_1(assert_compile_failed, get_contract_with_gas_estimation):
@@ -231,7 +238,8 @@ def foo():
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), StructureException)
 
 
-def test_altering_list_within_for_loop_storage(assert_compile_failed, get_contract_with_gas_estimation):
+def test_altering_list_within_for_loop_storage(assert_compile_failed,
+                                               get_contract_with_gas_estimation):
     code = """
 s: int128[6]
 
@@ -261,7 +269,9 @@ def foo(x: int128):
         for i in range(5):
             pass
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), VariableDeclarationException)
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(code), VariableDeclarationException
+    )
 
 
 def test_invalid_nested_for_loop_2(assert_compile_failed, get_contract_with_gas_estimation):
@@ -272,7 +282,9 @@ def foo(x: int128):
         for i in [1,2]:
             pass
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), VariableDeclarationException)
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(code), VariableDeclarationException,
+    )
 
 
 def test_invalid_iterator_assignment_1(assert_compile_failed, get_contract_with_gas_estimation):
@@ -293,3 +305,71 @@ def foo(x: int128):
         i += 2
 """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), StructureException)
+
+
+def test_range_constant(get_contract_with_gas_estimation):
+    code = """
+TREE_FIDDY: constant(int128)  = 350
+
+
+@public
+def a() -> uint256:
+    x: uint256 = 0
+    for i in range(TREE_FIDDY):
+        x += 1
+    return x
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.a() == 350
+
+    code = """
+ONE_HUNDRED: constant(int128)  = 100
+
+@public
+def a() -> uint256:
+    x: uint256 = 0
+    for i in range(1, 1 + ONE_HUNDRED):
+        x += 1
+    return x
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.a() == 100
+
+    code = """
+START: constant(int128)  = 100
+END: constant(int128)  = 199
+
+@public
+def a() -> uint256:
+    x: uint256 = 0
+    for i in range(START, END):
+        x += 1
+    return x
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.a() == 99
+
+
+def test_for_in_list_iter_type(get_contract_with_gas_estimation):
+    code = """
+@public
+@constant
+def func(amounts: wei_value[3]) -> wei_value:
+    total: wei_value = as_wei_value(0, "wei")
+
+    # calculate total
+    for amount in amounts:
+        total += amount
+
+    return total
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.func([100, 200, 300]) == 600

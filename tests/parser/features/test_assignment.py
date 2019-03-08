@@ -1,4 +1,9 @@
-from vyper.exceptions import ConstancyViolationException
+from vyper.exceptions import (
+    ConstancyViolationException,
+    InvalidLiteralException,
+    ParserException,
+    TypeMismatchException,
+)
 
 
 def test_augassign(get_contract_with_gas_estimation):
@@ -43,7 +48,9 @@ def test_invalid_assign(assert_compile_failed, get_contract_with_gas_estimation)
 def foo(x: int128):
     x = 5
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ConstancyViolationException)
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(code), ConstancyViolationException
+    )
 
 
 def test_invalid_augassign(assert_compile_failed, get_contract_with_gas_estimation):
@@ -52,4 +59,204 @@ def test_invalid_augassign(assert_compile_failed, get_contract_with_gas_estimati
 def foo(x: int128):
     x += 5
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ConstancyViolationException)
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(code), ConstancyViolationException
+    )
+
+
+def test_valid_literal_increment(get_contract_with_gas_estimation):
+    code = """
+storx: uint256
+
+@public
+def foo1() -> int128:
+    x: int128 = 122
+    x += 1
+    return x
+
+@public
+def foo2() -> uint256:
+    x: uint256 = 122
+    x += 1
+    return x
+
+@public
+def foo3(y: uint256) -> uint256:
+    self.storx = y
+    self.storx += 1
+    return self.storx
+"""
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.foo1() == 123
+    assert c.foo2() == 123
+    assert c.foo3(11) == 12
+
+
+def test_invalid_uin256_assignment(assert_compile_failed, get_contract_with_gas_estimation):
+    code = """
+storx: uint256
+
+@public
+def foo2() -> uint256:
+    x: uint256 = -1
+    x += 1
+    return x
+"""
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidLiteralException)
+
+
+def test_invalid_uin256_assignment_calculate_literals(get_contract_with_gas_estimation):
+    code = """
+storx: uint256
+
+@public
+def foo2() -> uint256:
+    x: uint256
+    x = 3 * 4 / 2 + 1 - 2
+    return x
+"""
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.foo2() == 5
+
+
+def test_calculate_literals_invalid(assert_compile_failed, get_contract_with_gas_estimation):
+    code = """
+@public
+def foo2() -> uint256:
+    x: uint256
+    x = 3 ^ 3  # invalid operator
+    return x
+"""
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ParserException)
+
+
+# See #838. Confirm that nested keys and structs work properly.
+def test_nested_map_key_works(get_contract_with_gas_estimation):
+    code = """
+struct X:
+    a: int128
+    b: int128
+struct Y:
+    c: int128
+    d: int128
+test_map1: map(int128, X)
+test_map2: map(int128, Y)
+
+@public
+def set():
+    self.test_map1[1].a = 333
+    self.test_map2[333].c = 111
+
+
+@public
+def get(i: int128) -> int128:
+    idx: int128 = self.test_map1[i].a
+    return self.test_map2[idx].c
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.set(transact={})
+    assert c.get(1) == 111
+
+
+def test_nested_map_key_problem(get_contract_with_gas_estimation):
+    code = """
+struct X:
+    a: int128
+    b: int128
+struct Y:
+    c: int128
+    d: int128
+test_map1: map(int128, X)
+test_map2: map(int128, Y)
+
+@public
+def set():
+    self.test_map1[1].a = 333
+    self.test_map2[333].c = 111
+
+
+@public
+def get() -> int128:
+    return self.test_map2[self.test_map1[1].a].c
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.set(transact={})
+    assert c.get() == 111
+
+
+def test_invalid_implicit_conversions(assert_compile_failed, get_contract_with_gas_estimation):
+    contracts = [  # noqa: E501
+"""
+@public
+def foo():
+   y: int128 = 1
+   z: decimal = y
+""",
+"""
+@public
+def foo():
+    y: int128 = 1
+    z: decimal
+    z = y
+""",
+"""
+@public
+def foo():
+   y: bool = False
+   z: decimal = y
+""",
+"""
+@public
+def foo():
+    y: bool = False
+    z: decimal
+    z = y
+""",
+"""
+@public
+def foo():
+   y: uint256 = 1
+   z: int128 = y
+""",
+"""
+@public
+def foo():
+    y: uint256 = 1
+    z: int128
+    z = y
+""",
+"""
+@public
+def foo():
+   y: int128 = 1
+   z: bytes32 = y
+""",
+"""
+@public
+def foo():
+    y: int128 = 1
+    z: bytes32
+    z = y
+""",
+"""
+@public
+def foo():
+   y: uint256 = 1
+   z: bytes32 = y
+""",
+"""
+@public
+def foo():
+    y: uint256 = 1
+    z: bytes32
+    z = y
+"""
+    ]
+
+    for contract in contracts:
+        assert_compile_failed(
+            lambda: get_contract_with_gas_estimation(contract),
+            TypeMismatchException
+        )

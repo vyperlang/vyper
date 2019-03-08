@@ -1,18 +1,23 @@
-from vyper.parser.parser import parse_to_lll
-from vyper.parser import parser_utils
+from vyper.parser import (
+    parser_utils,
+)
+from vyper.parser.parser import (
+    parse_to_lll,
+)
 
 
 def test_gas_call(get_contract_with_gas_estimation):
     gas_call = """
 @public
-def foo() -> int128:
+def foo() -> uint256:
     return msg.gas
     """
 
     c = get_contract_with_gas_estimation(gas_call)
 
-    assert c.foo(startgas=50000) < 50000
-    assert c.foo(startgas=50000) > 25000
+    assert c.foo(call={"gas": 50000}) < 50000
+    assert c.foo(call={"gas": 50000}) > 25000
+
     print('Passed gas test')
 
 
@@ -26,5 +31,5 @@ def __init__():
     """
     parser_utils.LLLnode.repr_show_gas = True
     out = parse_to_lll(code)
-    assert str(out)[:30] == '\x1b[94m{\x1b[0m20303\x1b[94m} \x1b[0m[seq'
+    assert '35303' in str(out)[:28]
     parser_utils.LLLnode.repr_show_gas = False

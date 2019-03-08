@@ -1,13 +1,16 @@
 import pytest
-from pytest import raises
-
-from vyper import compiler
-from vyper.exceptions import (
-    VariableDeclarationException,
-    TypeMismatchException,
-    StructureException
+from pytest import (
+    raises,
 )
 
+from vyper import (
+    compiler,
+)
+from vyper.exceptions import (
+    StructureException,
+    TypeMismatchException,
+    VariableDeclarationException,
+)
 
 fail_list = [
     """
@@ -31,6 +34,9 @@ def test():
     a: int128 = 33.33
     """, TypeMismatchException),
     ("""
+struct S:
+    a: int128
+    b: decimal
 @private
 def do_stuff() -> bool:
     return True
@@ -54,15 +60,21 @@ def data() -> int128:
     s: int128[5] = [1, 2, 3, 4, 5, 6]
     """, TypeMismatchException),
     ("""
+struct S:
+    a: int128
+    b: decimal
 @public
 def foo() -> int128:
-    struct: {a: int128, b: decimal} = {a: 1.2, b: 1}
+    struct: S = S({a: 1.2, b: 1})
     return struct.a
     """, TypeMismatchException),
     ("""
+struct S:
+    a: int128
+    b: decimal
 @public
 def foo() -> int128:
-    struct: {a: int128, b: decimal} = {b: 1.2, c: 1, d: 33, e: 55}
+    struct: S = S({b: 1.2, c: 1, d: 33, e: 55})
     return struct.a
     """, TypeMismatchException)
 ]
@@ -72,10 +84,10 @@ def foo() -> int128:
 def test_as_wei_fail(bad_code):
     if isinstance(bad_code, tuple):
         with raises(bad_code[1]):
-            compiler.compile(bad_code[0])
+            compiler.compile_code(bad_code[0])
     else:
         with raises(VariableDeclarationException):
-            compiler.compile(bad_code)
+            compiler.compile_code(bad_code)
 
 
 valid_list = [
@@ -98,4 +110,4 @@ def test():
 
 @pytest.mark.parametrize('good_code', valid_list)
 def test_ann_assign_success(good_code):
-    assert compiler.compile(good_code) is not None
+    assert compiler.compile_code(good_code) is not None

@@ -1,78 +1,47 @@
-def test_string_literal_code(get_contract_with_gas_estimation):
-    string_literal_code = """
+
+def test_string_literal_return(get_contract_with_gas_estimation):
+    code = """
 @public
-def foo() -> bytes[5]:
-    return "horse"
+def test() -> string[100]:
+    return "hello world!"
+
 
 @public
-def bar() -> bytes[10]:
-    return concat("b", "a", "d", "m", "i", "", "nton")
-
-@public
-def baz() -> bytes[40]:
-    return concat("0123456789012345678901234567890", "12")
-
-@public
-def baz2() -> bytes[40]:
-    return concat("01234567890123456789012345678901", "12")
-
-@public
-def baz3() -> bytes[40]:
-    return concat("0123456789012345678901234567890", "1")
-
-@public
-def baz4() -> bytes[100]:
-    return concat("01234567890123456789012345678901234567890123456789",
-                  "01234567890123456789012345678901234567890123456789")
+def testb() -> bytes[100]:
+    return b"hello world!"
     """
 
-    c = get_contract_with_gas_estimation(string_literal_code)
-    assert c.foo() == b"horse"
-    assert c.bar() == b"badminton"
-    assert c.baz() == b"012345678901234567890123456789012"
-    assert c.baz2() == b"0123456789012345678901234567890112"
-    assert c.baz3() == b"01234567890123456789012345678901"
-    assert c.baz4() == b"0123456789" * 10
+    c = get_contract_with_gas_estimation(code)
 
-    print("Passed string literal test")
+    assert c.test() == "hello world!"
+    assert c.testb() == b"hello world!"
 
 
-def test_string_literal_splicing_fuzz(get_contract_with_gas_estimation):
-    for i in range(95, 96, 97):
-        kode = """
-moo: bytes[100]
+def test_string_convert(get_contract_with_gas_estimation):
+    code = """
+@public
+def testb() -> string[100]:
+    return convert(b"hello world!", string[100])
 
 @public
-def foo(s: int128, L: int128) -> bytes[100]:
-        x: int128 = 27
-        r: bytes[100] = slice("%s", start=s, len=L)
-        y: int128 = 37
-        if x * y == 999:
-            return r
+def testbb() -> string[100]:
+    return convert(convert("hello world!", bytes[100]), string[100])
+    """
 
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.testb() == "hello world!"
+    assert c.testbb() == "hello world!"
+
+
+def test_str_assign(get_contract_with_gas_estimation):
+    code = """
 @public
-def bar(s: int128, L: int128) -> bytes[100]:
-        self.moo = "%s"
-        x: int128 = 27
-        r: bytes[100] = slice(self.moo, start=s, len=L)
-        y: int128  = 37
-        if x * y == 999:
-            return r
+def test() -> string[100]:
+    a: string[100] = "baba black sheep"
+    return a
+    """
 
-@public
-def baz(s: int128, L: int128) -> bytes[100]:
-        x: int128 = 27
-        self.moo = slice("%s", start=s, len=L)
-        y: int128 = 37
-        if x * y == 999:
-            return self.moo
-        """ % (("c" * i), ("c" * i), ("c" * i))
-        c = get_contract_with_gas_estimation(kode)
-        for e in range(63, 64, 65):
-            for _s in range(31, 32, 33):
-                o1 = c.foo(_s, e - _s)
-                o2 = c.bar(_s, e - _s)
-                o3 = c.baz(_s, e - _s)
-                assert o1 == o2 == o3 == b"c" * (e - _s), (i, _s, e - _s, o1, o2, o3)
+    c = get_contract_with_gas_estimation(code)
 
-    print("Passed string literal splicing fuzz-test")
+    assert c.test() == "baba black sheep"

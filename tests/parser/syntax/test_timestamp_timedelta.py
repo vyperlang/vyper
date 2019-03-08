@@ -1,9 +1,14 @@
 import pytest
-from pytest import raises
+from pytest import (
+    raises,
+)
 
-from vyper import compiler
-from vyper.exceptions import TypeMismatchException
-
+from vyper import (
+    compiler,
+)
+from vyper.exceptions import (
+    TypeMismatchException,
+)
 
 fail_list = [
     """
@@ -63,8 +68,8 @@ def foo(x: timestamp, y: int128 (wei/sec)) -> wei_value:
 
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_timestamp_fail(bad_code):
-        with raises(TypeMismatchException):
-            compiler.compile(bad_code)
+    with raises(TypeMismatchException):
+        compiler.compile_code(bad_code)
 
 
 valid_list = [
@@ -156,33 +161,33 @@ def foo(x: timedelta) -> timedelta:
     """,
     """
 @public
-def foo(x: timedelta, y: int128 (wei/sec)) -> wei_value:
+def foo(x: timedelta, y: uint256(wei/sec)) -> wei_value:
     return x * y
     """,
     """
 @public
-def foo(x: int128(sec, positional)) -> timestamp:
+def foo(x: uint256(sec, positional)) -> timestamp:
     return x
     """,
     """
 x: timedelta
 @public
-def foo() -> int128(sec):
+def foo() -> uint256(sec):
     return self.x
     """,
     """
 x: timedelta
-y: int128
+y: uint256
 @public
 @constant
-def foo() -> int128(sec):
+def foo() -> uint256(sec):
     return self.x
     """,
     """
 x: timedelta
-y: int128
+y: uint256
 @public
-def foo() -> int128(sec):
+def foo() -> uint256(sec):
     self.y = 9
     return 5
     """,
@@ -191,4 +196,4 @@ def foo() -> int128(sec):
 
 @pytest.mark.parametrize('good_code', valid_list)
 def test_timestamp_success(good_code):
-    assert compiler.compile(good_code) is not None
+    assert compiler.compile_code(good_code) is not None

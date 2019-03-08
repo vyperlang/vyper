@@ -1,6 +1,6 @@
 
 *************
-Event logging
+Event Logging
 *************
 
 Like Solidity and other EVM languages, Vyper can log events to be caught and displayed by user interfaces.
@@ -8,16 +8,16 @@ Like Solidity and other EVM languages, Vyper can log events to be caught and dis
 Example of Logging
 ==================
 
-This example is taken from the `sample ERC20 contract <https://github.com/ethereum/vyper/blob/master/examples/tokens/ERC20_solidity_compatible/ERC20.v.py>`_ and shows the basic flow of event logging.
+This example is taken from the `sample ERC20 contract <https://github.com/ethereum/vyper/blob/master/examples/tokens/ERC20_solidity_compatible/ERC20.vy>`_ and shows the basic flow of event logging.
 
 ::
 
     # Events of the token.
-    Transfer: event({_from: indexed(address), _to: indexed(address), _value: num256})
-    Approval: event({_owner: indexed(address), _spender: indexed(address), _value: num256})
+    Transfer: event({_from: indexed(address), _to: indexed(address), _value: uint256})
+    Approval: event({_owner: indexed(address), _spender: indexed(address), _value: uint256})
 
     # Transfer some tokens from message sender to another address
-    def transfer(_to : address, _value : num256) -> bool:
+    def transfer(_to : address, _value : uint256) -> bool:
 
        ... Logic here to do the real work ...
 
@@ -55,7 +55,7 @@ Let's look at an event declaration in more detail.
 
 ::
 
-    Transfer: event({_from: indexed(address), _to: indexed(address), _value: num256})
+    Transfer: event({_from: indexed(address), _to: indexed(address), _value: uint256})
 
 Event declarations look like state variable declarations but use the special keyword event. event takes a as its argument that consist of all the arguments to be passed as part of the event. Typical events will contain two kinds of arguments:
 

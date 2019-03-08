@@ -1,22 +1,28 @@
 import pytest
 
-from vyper import compiler
-
+from vyper import (
+    compiler,
+)
 
 valid_list = [
     """
 @public
-def foo() -> bytes[10]:
+def foo() -> string[10]:
     return "badminton"
     """,
     """
 @public
 def foo():
-    x: bytes[11] = "¡très bien!"
+    x: string[11] = "¡très bien!"
+    """,
+    """
+@public
+def test() -> string[100]:
+    return "hello world!"
     """
 ]
 
 
 @pytest.mark.parametrize('good_code', valid_list)
 def test_byte_string_success(good_code):
-    assert compiler.compile(good_code) is not None
+    assert compiler.compile_code(good_code) is not None

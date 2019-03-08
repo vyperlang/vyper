@@ -1,21 +1,28 @@
-#!/usr/bin/env python3.6
+#!/usr/bin/env python3
 
 import argparse
-import sys
+from http.server import (
+    BaseHTTPRequestHandler,
+    HTTPServer,
+)
 import json
-
-from http.server import BaseHTTPRequestHandler, HTTPServer
-from socketserver import ThreadingMixIn
+from socketserver import (
+    ThreadingMixIn,
+)
+import sys
 
 import vyper
-
-from vyper.parser.parser import parse_to_lll
-from vyper import compiler, optimizer
-
+from vyper.exceptions import (
+    ParserException,
+)
+from vyper.parser import (
+    lll_node,
+)
 
 parser = argparse.ArgumentParser(
-    description='Serve Vyper compiler as an HTTP Service, Vyper {0}'.format(vyper.__version__)
+    description='Serve Vyper compiler as an HTTP Service'
 )
+parser.add_argument('--version', action='version', version='{0}'.format(vyper.__version__))
 parser.add_argument(
     '-b',
     help='Address to bind JSON server on, default: localhost:8000',
@@ -33,12 +40,21 @@ class VyperRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         return
 
-    def do_GET(self):
+    def send_cors_all(self):
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Headers", "X-Requested-With, Content-type")
 
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_cors_all()
+        self.end_headers()
+
+    def do_GET(self):
         if self.path == '/':
             self.send_response(200)
+            self.send_cors_all()
             self.end_headers()
-            self.wfile.write(b'Vyper Compiler.\n')
+            self.wfile.write('Vyper Compiler. Version: {} \n'.format(vyper.__version__).encode())
         else:
             self.send_404()
 
@@ -55,6 +71,7 @@ class VyperRequestHandler(BaseHTTPRequestHandler):
 
             self.send_response(status_code)
             self.send_header("Content-type", "application/json")
+            self.send_cors_all()
             self.end_headers()
             self.wfile.write(json.dumps(response).encode())
 
@@ -68,19 +85,30 @@ class VyperRequestHandler(BaseHTTPRequestHandler):
         if not code:
             return {'status': 'failed', 'message': 'No "code" key supplied'}, 400
         if not isinstance(code, str):
-            return {'status': 'failed', 'message': '"code" must be a non-emtpy string'}, 400
+            return {'status': 'failed', 'message': '"code" must be a non-empty string'}, 400
 
         try:
             code = data['code']
-            out_dict = {
-                'abi': compiler.mk_full_signature(code),
-                'bytecode': '0x' + compiler.compile(code).hex(),
-                'ir': str(optimizer.optimize(parse_to_lll(code)))
-            }
-        except Exception as e:
+            out_dict = vyper.compile_codes(
+                {'': code},
+                vyper.compiler.output_formats_map.keys(),
+                output_type='dict',
+            )['']
+            out_dict['ir'] = str(out_dict['ir'])
+        except ParserException as e:
             return {
-                'status': 'failed', 'message': str(e)
-            }, 500
+                'status': 'failed',
+                'message': str(e),
+                'column': e.col_offset,
+                'line': e.lineno
+            }, 400
+        except SyntaxError as e:
+            return {
+                'status': 'failed',
+                'message': str(e),
+                'column': e.offset,
+                'line': e.lineno
+            }, 400
 
         out_dict.update({'status': "success"})
 
@@ -101,6 +129,7 @@ def runserver(host='', port=8000):
 
 if __name__ == '__main__':
     if ':' in args.bind_address:
+        lll_node.APPLY_COLOR = False
         runserver(*args.bind_address.split(':'))
     else:
         print('Provide bind address in "{address}:{port}" format')

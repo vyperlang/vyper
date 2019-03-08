@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+import argparse
+
+import vyper
+from vyper import (
+    compile_lll,
+    optimizer,
+)
+from vyper.parser.parser_utils import (
+    LLLnode,
+)
+from vyper.parser.s_expressions import (
+    parse_s_exp,
+)
+
+parser = argparse.ArgumentParser(description='Vyper LLL for Ethereum')
+parser.add_argument(
+    'input_file',
+    help='Vyper sourcecode to compile',
+)
+parser.add_argument(
+    '--version',
+    action='version',
+    version='{0}'.format(vyper.__version__),
+)
+parser.add_argument(
+    '-f',
+    help='Format to print csv list of ir,opt_ir,asm,bytecode',
+    default='bytecode',
+    dest='format',
+)
+parser.add_argument(
+    '--show-gas-estimates',
+    help='Show gas estimates in ir output mode.',
+    action='store_true',
+)
+
+args = parser.parse_args()
+
+if __name__ == '__main__':
+    with open(args.input_file) as f:
+        if args.show_gas_estimates:
+            LLLnode.repr_show_gas = True
+
+        format_set = set(dict.fromkeys(args.format.split(',')))
+        s_expressions = parse_s_exp(f.read())
+
+        lll = LLLnode.from_list(s_expressions[0])
+        if 'ir' in format_set:
+            print(lll)
+
+        optimised = optimizer.optimize(lll)
+        if 'opt_ir' in format_set:
+            print(optimised)
+
+        asm = compile_lll.compile_to_assembly(lll)
+        if 'asm' in format_set:
+            print(asm)
+
+        (bytecode, _srcmap) = compile_lll.assembly_to_evm(asm)
+        if 'bytecode' in format_set:
+            print('0x' + bytecode.hex())

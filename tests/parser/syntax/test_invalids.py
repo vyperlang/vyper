@@ -1,9 +1,16 @@
 import pytest
-from pytest import raises
+from pytest import (
+    raises,
+)
 
-from vyper import compiler
-from vyper.exceptions import TypeMismatchException
-
+from vyper import (
+    compiler,
+)
+from vyper.exceptions import (
+    InvalidLiteralException,
+    StructureException,
+    TypeMismatchException,
+)
 
 # These functions register test cases
 # for pytest functions at the end
@@ -102,42 +109,42 @@ def foo():
 """, TypeMismatchException)
 
 must_succeed("""
-b: int128[int128]
+b: map(int128, int128)
 @public
 def foo():
     x: int128 = self.b[5]
 """)
 
 must_fail("""
-b: int128[int128]
+b: map(int128, int128)
 @public
 def foo():
     x: int128 = self.b[5.7]
 """, TypeMismatchException)
 
 must_succeed("""
-b: int128[decimal]
+b: map(decimal, int128)
 @public
 def foo():
     x: int128 = self.b[5]
 """)
 
 must_fail("""
-b: int128[int128]
+b: map(int128, int128)
 @public
 def foo():
     self.b[3] = 5.6
 """, TypeMismatchException)
 
 must_succeed("""
-b: int128[int128]
+b: map(int128, int128)
 @public
 def foo():
     self.b[3] = -5
 """)
 
 must_succeed("""
-b: int128[int128]
+b: map(int128, int128)
 @public
 def foo():
     self.b[-3] = 5
@@ -185,8 +192,11 @@ def foo() -> address:
 """, TypeMismatchException)
 
 must_succeed("""
+units: {
+    currency: "currency"
+}
 @public
-def foo(x: wei_value, y: currency_value, z: int128 (wei*currency/sec**2)) -> decimal(sec**2):
+def foo(x: wei_value, y: uint256(currency), z: uint256(wei*currency/sec**2)) -> uint256(sec**2):
     return x * y / z
 """)
 
@@ -236,21 +246,43 @@ def foo():
     return 3
 """, TypeMismatchException)
 
-# We disabled these keywords
-# throws AttributeError in this case
 must_fail("""
 @public
 def foo():
     suicide(msg.sender)
-    """, AttributeError)
+    """, StructureException)
+
+must_succeed('''
+@public
+def sum(a: int128, b: int128) -> int128:
+    """
+    Sum two signed integers.
+    """
+    return a + b
+''')
+
+must_fail('''
+@public
+def a():
+    "Test"
+''', InvalidLiteralException)
+
+must_fail('''
+struct StructX:
+    x: int128
+
+@public
+def a():
+    x: int128 = StructX({y: 1})
+''', TypeMismatchException)
 
 
 @pytest.mark.parametrize('bad_code,exception_type', fail_list)
 def test_compilation_fails_with_exception(bad_code, exception_type):
     with raises(exception_type):
-        compiler.compile(bad_code)
+        compiler.compile_code(bad_code)
 
 
 @pytest.mark.parametrize('good_code', pass_list)
 def test_compilation_succeeds(good_code):
-    assert compiler.compile(good_code) is not None
+    assert compiler.compile_code(good_code) is not None

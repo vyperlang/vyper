@@ -1,7 +1,13 @@
-from pytest import raises
+from pytest import (
+    raises,
+)
 
-from vyper import compiler
-from vyper.exceptions import StructureException
+from vyper import (
+    compiler,
+)
+from vyper.exceptions import (
+    StructureException,
+)
 
 
 def test_undef_toplevel():
@@ -11,7 +17,7 @@ def foo():
     x = bar(55)
     """
     with raises(StructureException) as ex:
-        compiler.compile(code)
+        compiler.compile_code(code)
     assert "Not a top-level function: bar" in str(ex.value)
 
 
@@ -26,6 +32,6 @@ def foo() -> int128:
     return bar(20)
     """
     with raises(StructureException) as ex:
-        compiler.compile(code)
+        compiler.compile_code(code)
     assert "Not a top-level function: bar" in str(ex.value)
     assert "Did you mean self.bar?" in str(ex.value)
