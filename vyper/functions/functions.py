@@ -307,7 +307,7 @@ def concat(expr, context):
     )
 
 
-@signature(('str_literal', 'bytes', 'string', 'bytes32'))
+@signature(('bytes_literal', 'str_literal', 'bytes', 'string', 'bytes32'))
 def _sha3(expr, args, kwargs, context):
     sub = args[0]
     # Can hash literals
