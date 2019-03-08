@@ -348,6 +348,7 @@ def to_address(expr, args, kwargs, context):
         pos=getpos(expr)
     )
 
+
 def _to_bytelike(expr, args, kwargs, context, bytetype):
 
     if bytetype == 'string':

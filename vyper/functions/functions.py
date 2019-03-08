@@ -312,7 +312,11 @@ def _sha3(expr, args, kwargs, context):
     sub = args[0]
     # Can hash literals
     if isinstance(sub, bytes):
-        return LLLnode.from_list(bytes_to_int(sha3(sub)), typ=BaseType('bytes32'), pos=getpos(expr))
+        return LLLnode.from_list(
+            bytes_to_int(sha3(sub)),
+            typ=BaseType('bytes32'),
+            pos=getpos(expr)
+        )
     # Can hash bytes32 objects
     if is_base_type(sub.typ, 'bytes32'):
         return LLLnode.from_list(
@@ -357,7 +361,8 @@ def _sha3(expr, args, kwargs, context):
 
 
 def _make_sha256_call(inp_start, inp_len, out_start, out_len):
-    return ['assert', [
+    return [
+        'assert', [
             'call',
             ['gas'],  # gas
             SHA256_ADDRESS,  # address
@@ -375,7 +380,11 @@ def sha256(expr, args, kwargs, context):
     sub = args[0]
     # Literal input
     if isinstance(sub, bytes):
-        return LLLnode.from_list(bytes_to_int(hashlib.sha256(sub).digest()), typ=BaseType('bytes32'), pos=getpos(expr))
+        return LLLnode.from_list(
+            bytes_to_int(hashlib.sha256(sub).digest()),
+            typ=BaseType('bytes32'),
+            pos=getpos(expr)
+        )
     # bytes32 input
     elif is_base_type(sub.typ, 'bytes32'):
         return LLLnode.from_list(
@@ -423,7 +432,8 @@ def sha256(expr, args, kwargs, context):
         )
     elif sub.location == "memory":
         return LLLnode.from_list(
-            ['with', '_sub', sub, [
+            [
+                'with', '_sub', sub, [
                     'seq',
                     _make_sha256_call(
                         inp_start=['add', '_sub', 32],
