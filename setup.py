@@ -6,6 +6,8 @@ from setuptools import setup, find_packages
 test_deps = [
     'pytest>=3.6',
     'pytest-cov==2.4.0',
+    'coverage==4.0.3',
+    'python-coveralls==2.9.1',
     'pytest-xdist==1.18.1',
     'py-evm==0.2.0a39',
     'eth-tester==0.1.0b37',
@@ -13,7 +15,6 @@ test_deps = [
     'tox>=3.7,<4',
 ]
 lint_deps = [
-    'coveralls>=1.6,<2',
     'flake8>=3.7,<4',
     'flake8-bugbear==18.8.0',
     'isort>=4.2.15,<5',
