@@ -452,8 +452,8 @@ class Stmt(object):
                     'Reason parameter of assert needs to be a literal string.',
                     msg)
         if len(msg.s.strip()) == 0:
-            raise StructureException('Empty reason string not allowed.',
-                    self.stmt)
+            raise StructureException(
+                    'Empty reason string not allowed.', self.stmt)
         reason_str = msg.s.strip()
         sig_placeholder = self.context.new_placeholder(BaseType(32))
         arg_placeholder = self.context.new_placeholder(BaseType(32))
