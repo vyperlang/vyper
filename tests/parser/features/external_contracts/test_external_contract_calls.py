@@ -1,8 +1,8 @@
 from vyper.exceptions import (
-    StructureException,
-    VariableDeclarationException,
     InvalidTypeException,
-    TypeMismatchException
+    StructureException,
+    TypeMismatchException,
+    VariableDeclarationException,
 )
 
 

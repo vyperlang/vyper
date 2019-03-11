@@ -1,11 +1,11 @@
+from eth_tester.exceptions import (
+    TransactionFailed,
+)
 import pytest
 
 from vyper.exceptions import (
-    StructureException,
     ConstancyViolationException,
-)
-from eth_tester.exceptions import (
-    TransactionFailed
+    StructureException,
 )
 
 
@@ -121,7 +121,7 @@ def test():
     code = """
 @public
 def test():
-    assert create_with_code_of(self) == 1
+    assert create_forwarder_to(self) == 1
     """
     assert_compile_failed(lambda: get_contract(code), ConstancyViolationException)
 

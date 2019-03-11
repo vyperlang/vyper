@@ -1,22 +1,24 @@
 import ast
 
-from vyper.parser.lll_node import LLLnode
-from vyper.parser.parser_utils import (
-    getpos,
-    unwrap_location,
-    pack_arguments
-)
 from vyper.exceptions import (
     FunctionDeclarationException,
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
 )
+from vyper.parser.lll_node import (
+    LLLnode,
+)
+from vyper.parser.parser_utils import (
+    getpos,
+    pack_arguments,
+    unwrap_location,
+)
 from vyper.types import (
-    get_size_of_type,
     BaseType,
     ByteArrayLike,
-    TupleType
+    TupleType,
+    get_size_of_type,
 )
 
 

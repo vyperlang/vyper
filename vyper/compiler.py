@@ -1,13 +1,25 @@
-from vyper.opcodes import opcodes
-from vyper.parser import parser
-from vyper import compile_lll
-from vyper import optimizer
-from collections import OrderedDict, deque
-from vyper.signatures.interface import (
-    extract_interface_str,
-    extract_external_interface,
+from collections import (
+    OrderedDict,
+    deque,
 )
-from vyper.signatures import sig_utils
+
+from vyper import (
+    compile_lll,
+    optimizer,
+)
+from vyper.opcodes import (
+    opcodes,
+)
+from vyper.parser import (
+    parser,
+)
+from vyper.signatures import (
+    sig_utils,
+)
+from vyper.signatures.interface import (
+    extract_external_interface,
+    extract_interface_str,
+)
 
 
 def __compile(code, interface_codes=None, *args, **kwargs):
@@ -208,7 +220,7 @@ def compile_codes(codes,
                 out[contract_name][output_format] = output_formats_map[output_format](
                     code=code,
                     contract_name=contract_name,
-                    interface_codes=interface_codes
+                    interface_codes=interface_codes,
                 )
             except Exception as exc:
                 if exc_handler is not None:

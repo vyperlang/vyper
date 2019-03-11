@@ -1,6 +1,6 @@
 from vyper.compiler import (
+    compile_codes,
     mk_full_signature,
-    compile_codes
 )
 
 

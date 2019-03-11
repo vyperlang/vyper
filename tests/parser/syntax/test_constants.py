@@ -1,14 +1,17 @@
 import pytest
-from pytest import raises
+from pytest import (
+    raises,
+)
 
-from vyper import compiler
+from vyper import (
+    compiler,
+)
 from vyper.exceptions import (
+    FunctionDeclarationException,
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
-    FunctionDeclarationException
 )
-
 
 fail_list = [
     # no value

@@ -1,57 +1,59 @@
 import ast
+import hashlib
 
 from vyper.exceptions import (
     ConstancyViolationException,
     InvalidLiteralException,
+    ParserException,
     StructureException,
     TypeMismatchException,
-    ParserException,
 )
-from .signature import (
-    signature,
-    Optional,
+from vyper.parser.expr import (
+    Expr,
 )
 from vyper.parser.parser_utils import (
-    byte_array_to_num,
     LLLnode,
+    add_variable_offset,
+    byte_array_to_num,
     get_length,
     get_number_as_fraction,
     getpos,
     make_byte_array_copier,
     make_byte_slice_copier,
-    add_variable_offset,
-    unwrap_location
-)
-from vyper.parser.expr import (
-    Expr,
+    unwrap_location,
 )
 from vyper.types import (
     BaseType,
-    ByteArrayType,
     ByteArrayLike,
+    ByteArrayType,
+    ListType,
     StringType,
     TupleType,
-    ListType
-)
-from vyper.types import (
     are_units_compatible,
-    is_base_type,
     get_size_of_type,
-)
-from vyper.utils import (
-    MemoryPositions,
-    SizeLimits,
-    DECIMAL_DIVISOR,
-    RLP_DECODER_ADDRESS
-)
-from vyper.utils import (
-    bytes_to_int,
-    fourbytes_to_int,
-    sha3,
+    is_base_type,
 )
 from vyper.types.convert import (
     convert,
 )
+from vyper.utils import (
+    DECIMAL_DIVISOR,
+    RLP_DECODER_ADDRESS,
+    MemoryPositions,
+    SizeLimits,
+    bytes_to_int,
+    fourbytes_to_int,
+    sha3,
+)
+
+from .signature import (
+    Optional,
+    signature,
+)
+
+SHA256_ADDRESS = 2
+SHA256_BASE_GAS = 60
+SHA256_PER_WORD_GAS = 12
 
 
 def enforce_units(typ, obj, expected):
@@ -301,12 +303,16 @@ def concat(expr, context):
     )
 
 
-@signature(('str_literal', 'bytes', 'string', 'bytes32'))
+@signature(('bytes_literal', 'str_literal', 'bytes', 'string', 'bytes32'))
 def _sha3(expr, args, kwargs, context):
     sub = args[0]
     # Can hash literals
     if isinstance(sub, bytes):
-        return LLLnode.from_list(bytes_to_int(sha3(sub)), typ=BaseType('bytes32'), pos=getpos(expr))
+        return LLLnode.from_list(
+            bytes_to_int(sha3(sub)),
+            typ=BaseType('bytes32'),
+            pos=getpos(expr)
+        )
     # Can hash bytes32 objects
     if is_base_type(sub.typ, 'bytes32'):
         return LLLnode.from_list(
@@ -348,6 +354,99 @@ def _sha3(expr, args, kwargs, context):
         typ=BaseType('bytes32'),
         pos=getpos(expr)
     )
+
+
+def _make_sha256_call(inp_start, inp_len, out_start, out_len):
+    return [
+        'assert', [
+            'call',
+            ['gas'],  # gas
+            SHA256_ADDRESS,  # address
+            0,  # value
+            inp_start,
+            inp_len,
+            out_start,
+            out_len
+        ]
+    ]
+
+
+@signature(('bytes_literal', 'str_literal', 'bytes', 'string', 'bytes32'))
+def sha256(expr, args, kwargs, context):
+    sub = args[0]
+    # Literal input
+    if isinstance(sub, bytes):
+        return LLLnode.from_list(
+            bytes_to_int(hashlib.sha256(sub).digest()),
+            typ=BaseType('bytes32'),
+            pos=getpos(expr)
+        )
+    # bytes32 input
+    elif is_base_type(sub.typ, 'bytes32'):
+        return LLLnode.from_list(
+            [
+                'seq',
+                ['mstore', MemoryPositions.FREE_VAR_SPACE, sub],
+                _make_sha256_call(
+                    inp_start=MemoryPositions.FREE_VAR_SPACE,
+                    inp_len=32,
+                    out_start=MemoryPositions.FREE_VAR_SPACE,
+                    out_len=32
+                ),
+                ['mload', MemoryPositions.FREE_VAR_SPACE]  # push value onto stack
+            ],
+            typ=BaseType('bytes32'),
+            pos=getpos(expr),
+            add_gas_estimate=SHA256_BASE_GAS + 1 * SHA256_PER_WORD_GAS
+        )
+    # bytearay-like input
+    if sub.location == "storage":
+        # Copy storage to memory
+        placeholder = context.new_placeholder(sub.typ)
+        placeholder_node = LLLnode.from_list(placeholder, typ=sub.typ, location='memory')
+        copier = make_byte_array_copier(
+            placeholder_node,
+            LLLnode.from_list('_sub', typ=sub.typ, location=sub.location),
+        )
+        return LLLnode.from_list(
+            [
+                'with', '_sub', sub, [
+                    'seq',
+                    copier,
+                    _make_sha256_call(
+                        inp_start=['add', placeholder, 32],
+                        inp_len=['mload', placeholder],
+                        out_start=MemoryPositions.FREE_VAR_SPACE,
+                        out_len=32
+                    ),
+                    ['mload', MemoryPositions.FREE_VAR_SPACE]
+                ],
+            ],
+            typ=BaseType('bytes32'),
+            pos=getpos(expr),
+            add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS
+        )
+    elif sub.location == "memory":
+        return LLLnode.from_list(
+            [
+                'with', '_sub', sub, [
+                    'seq',
+                    _make_sha256_call(
+                        inp_start=['add', '_sub', 32],
+                        inp_len=['mload', '_sub'],
+                        out_start=MemoryPositions.FREE_VAR_SPACE,
+                        out_len=32
+                    ),
+                    ['mload', MemoryPositions.FREE_VAR_SPACE]
+                ]
+            ],
+            typ=BaseType('bytes32'),
+            pos=getpos(expr),
+            add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS
+        )
+    else:
+        # This should never happen, but just left here for future compiler-writers.
+        raise Exception("Unsupported location: %s" % sub.location)  # pragma: no test
 
 
 @signature('str_literal', 'name_literal')
@@ -1007,7 +1106,7 @@ def shift(expr, args, kwargs, context):
     )
 
 
-def get_create_with_code_of_bytecode():
+def get_create_forwarder_to_bytecode():
     from vyper.compile_lll import (
         assembly_to_evm,
         num_to_bytearray
@@ -1047,7 +1146,7 @@ def get_create_with_code_of_bytecode():
 
 
 @signature('address', value=Optional('uint256', zero_value))
-def create_with_code_of(expr, args, kwargs, context):
+def create_forwarder_to(expr, args, kwargs, context):
 
     value = kwargs['value']
     if value != zero_value:
@@ -1060,7 +1159,7 @@ def create_with_code_of(expr, args, kwargs, context):
         )
     placeholder = context.new_placeholder(ByteArrayType(96))
 
-    kode = get_create_with_code_of_bytecode()
+    kode = get_create_forwarder_to_bytecode()
     high = bytes_to_int(kode[:32])
     low = bytes_to_int((kode + b'\x00' * 32)[47:79])
 
@@ -1142,6 +1241,7 @@ dispatch_table = {
     'len': _len,
     'concat': concat,
     'sha3': _sha3,
+    'sha256': sha256,
     'method_id': method_id,
     'keccak256': _sha3,
     'ecrecover': ecrecover,
@@ -1159,7 +1259,7 @@ dispatch_table = {
     'uint256_addmod': uint256_addmod,
     'uint256_mulmod': uint256_mulmod,
     'shift': shift,
-    'create_with_code_of': create_with_code_of,
+    'create_forwarder_to': create_forwarder_to,
     'min': _min,
     'max': _max,
 }
@@ -1170,5 +1270,5 @@ stmt_dispatch_table = {
     'selfdestruct': selfdestruct,
     'raw_call': raw_call,
     'raw_log': raw_log,
-    'create_with_code_of': create_with_code_of,
+    'create_forwarder_to': create_forwarder_to,
 }

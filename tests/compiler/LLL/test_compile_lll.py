@@ -1,8 +1,11 @@
 import pytest
 
-from vyper.parser.parser import LLLnode
-from vyper.parser.s_expressions import parse_s_exp
-
+from vyper.parser.parser import (
+    LLLnode,
+)
+from vyper.parser.s_expressions import (
+    parse_s_exp,
+)
 
 fail_list = [
     [-2**255 - 3],

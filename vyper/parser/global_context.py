@@ -8,11 +8,9 @@ from vyper.exceptions import (
     StructureException,
     VariableDeclarationException,
 )
-from vyper.utils import (
-    check_valid_varname,
-    valid_global_keywords,
+from vyper.parser.constants import (
+    Constants,
 )
-from vyper.parser.constants import Constants
 from vyper.parser.parser_utils import (
     decorate_ast,
     getpos,
@@ -20,22 +18,21 @@ from vyper.parser.parser_utils import (
 )
 from vyper.signatures.function_signature import (
     ContractRecord,
-    VariableRecord
+    VariableRecord,
 )
 from vyper.types import (
-    parse_type,
-    ContractType,
+    BaseType,
     ByteArrayLike,
+    ContractType,
     ListType,
     MappingType,
     StructType,
-    BaseType,
+    parse_type,
 )
-from vyper.signatures.interface import (
-    extract_sigs,
-    get_builtin_interfaces
+from vyper.utils import (
+    check_valid_varname,
+    valid_global_keywords,
 )
-
 
 NONRENTRANT_STORAGE_OFFSET = 0xffffff
 
@@ -62,6 +59,10 @@ class GlobalContext:
     # Parse top-level functions and variables
     @classmethod
     def get_global_context(cls, code, interface_codes=None):
+        from vyper.signatures.interface import (
+            extract_sigs,
+            get_builtin_interfaces,
+        )
         interface_codes = {} if interface_codes is None else interface_codes
         global_ctx = cls()
 

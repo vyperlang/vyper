@@ -1,8 +1,10 @@
-from decimal import Decimal
+from decimal import (
+    Decimal,
+)
 
 from vyper.exceptions import (
-    TypeMismatchException,
     InvalidLiteralException,
+    TypeMismatchException,
 )
 
 

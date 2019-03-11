@@ -1,4 +1,6 @@
-from vyper.compiler import compile_code
+from vyper.compiler import (
+    compile_code,
+)
 
 
 def test_struct_return_abi(get_contract_with_gas_estimation):

@@ -1,9 +1,14 @@
 import pytest
-from pytest import raises
+from pytest import (
+    raises,
+)
 
-from vyper import compiler
-from vyper.exceptions import ConstancyViolationException
-
+from vyper import (
+    compiler,
+)
+from vyper.exceptions import (
+    ConstancyViolationException,
+)
 
 fail_list = [
     """
@@ -45,7 +50,7 @@ def foo() -> int128:
 @public
 @constant
 def foo() -> int128:
-    x = create_with_code_of(0x1234567890123456789012345678901234567890, value=9)
+    x = create_forwarder_to(0x1234567890123456789012345678901234567890, value=9)
     return 5
     """,
     """

@@ -1,16 +1,18 @@
 import os
 import re
 
+from vyper.opcodes import (
+    comb_opcodes,
+)
 from vyper.types import (
-    ceil32,
     BaseType,
     NodeType,
-    NullType
+    NullType,
+    ceil32,
 )
-from vyper.opcodes import (
-    comb_opcodes
+from vyper.utils import (
+    valid_lll_macros,
 )
-from vyper.utils import valid_lll_macros
 
 # Set default string representation for ints in LLL output.
 AS_HEX_DEFAULT = False
@@ -32,7 +34,7 @@ else:
     ENDC = ''
 
 
-class NullAttractor():
+class NullAttractor:
     def __add__(self, other):
         return NullAttractor()
 
@@ -44,7 +46,7 @@ class NullAttractor():
 
 
 # Data structure for LLL parse tree
-class LLLnode():
+class LLLnode:
     repr_show_gas = False
 
     def __init__(self,

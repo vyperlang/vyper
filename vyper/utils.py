@@ -1,12 +1,16 @@
 import binascii
+from collections import (
+    OrderedDict,
+)
 import re
 
-from collections import OrderedDict
 from vyper.exceptions import (
     InvalidLiteralException,
-    VariableDeclarationException
+    VariableDeclarationException,
 )
-from vyper.opcodes import opcodes
+from vyper.opcodes import (
+    opcodes,
+)
 
 try:
     from Crypto.Hash import keccak
@@ -228,9 +232,9 @@ def is_varname_valid(varname, custom_units, custom_structs, constants):
     if varname.upper() in opcodes:
         return False, "%s is a reserved keyword (EVM opcode)." % varname
     if varname.lower() in built_in_functions:
-        return False, "%s is a built in function."
+        return False, "%s is a built in function." % varname
     if not re.match('^[_a-zA-Z][a-zA-Z0-9_]*$', varname):
-        return False, "%s contains invalid character(s)."
+        return False, "%s contains invalid character(s)." % varname
     return True, ""
 
 

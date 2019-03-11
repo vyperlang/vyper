@@ -4,16 +4,15 @@ from tokenize import (
     COMMENT,
     NAME,
     OP,
-
     TokenError,
     TokenInfo,
     tokenize,
     untokenize,
 )
+
 from vyper.exceptions import (
     StructureException,
 )
-from vyper import __version__
 
 
 def _parser_version_str(version_str):
@@ -25,6 +24,10 @@ def _parser_version_str(version_str):
 
 # Do a version check.
 def parse_version_pragma(version_str):
+    from vyper import (
+        __version__,
+    )
+
     version_arr = version_str.split('@version')
 
     file_version = version_arr[1].strip()

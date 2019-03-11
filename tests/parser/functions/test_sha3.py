@@ -5,6 +5,10 @@ def foo(inp: bytes[100]) -> bytes32:
     return sha3(inp)
 
 @public
+def foob() -> bytes32:
+    return sha3(b"inp")
+
+@public
 def bar() -> bytes32:
     return sha3("inp")
     """
@@ -14,6 +18,7 @@ def bar() -> bytes32:
         assert '0x' + c.foo(inp).hex() == keccak(inp).hex()
 
     assert '0x' + c.bar().hex() == keccak(b"inp").hex()
+    assert '0x' + c.foob().hex() == keccak(b"inp").hex()
 
 
 def test_hash_code2(get_contract_with_gas_estimation):

@@ -161,6 +161,22 @@ Takes 2 or more bytes arrays of type ``bytes32`` or ``bytes`` and combines them 
 Returns ``keccak256`` (Ethereum's sha3) hash of input.
 Note that it can be called either by using ``sha3`` or ``keccak256``.
 
+
+**sha256**
+--------------------
+::
+
+  def sha256(a) -> b:
+    """
+    :param a: value to hash
+    :type a: either str_literal, bytes, bytes32
+
+    :output b: bytes32
+    """
+
+Returns ``sha256`` (SHA2 256bit output) hash of input.
+
+
 **method_id**
 ---------------
 ::
@@ -376,11 +392,11 @@ Note: To give it a more Python like syntax, the assert function can be called wi
 
 Emits a log without specifying the abi type, with the arguments entered as the first input.
 
-**create_with_code_of**
+**create_forwarder_to**
 -----------------------
 ::
 
-  def create_with_code_of(a, value=b):
+  def create_forwarder_to(a, value=b):
     """
     :param a: the address of the contract to duplicate.
     :type a: address

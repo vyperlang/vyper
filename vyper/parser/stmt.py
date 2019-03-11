@@ -3,29 +3,32 @@ import re
 
 from vyper.exceptions import (
     ConstancyViolationException,
+    EventDeclarationException,
+    InvalidLiteralException,
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
-    EventDeclarationException,
-    InvalidLiteralException
 )
 from vyper.functions import (
+    dispatch_table,
     stmt_dispatch_table,
-    dispatch_table
 )
 from vyper.parser import (
+    external_call,
     self_call,
-    external_call
+)
+from vyper.parser.expr import (
+    Expr,
 )
 from vyper.parser.parser_utils import (
-    base_type_conversion,
-    getpos,
     LLLnode,
+    base_type_conversion,
+    gen_tuple_return,
+    getpos,
     make_byte_array_copier,
+    make_return_stmt,
     make_setter,
     unwrap_location,
-    gen_tuple_return,
-    make_return_stmt,
 )
 from vyper.types import (
     BaseType,
@@ -33,24 +36,19 @@ from vyper.types import (
     ByteArrayType,
     ContractType,
     ListType,
+    NodeType,
     NullType,
     StructType,
     TupleType,
-)
-from vyper.types import (
     get_size_of_type,
     is_base_type,
     parse_type,
-    NodeType
 )
 from vyper.utils import (
     SizeLimits,
-    sha3,
+    bytes_to_int,
     fourbytes_to_int,
-    bytes_to_int
-)
-from vyper.parser.expr import (
-    Expr
+    sha3,
 )
 
 

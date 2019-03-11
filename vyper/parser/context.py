@@ -1,20 +1,18 @@
 import contextlib
 import enum
 
-from vyper.utils import (
-    MemoryPositions,
-    check_valid_varname,
+from vyper.exceptions import (
+    VariableDeclarationException,
+)
+from vyper.signatures.function_signature import (
+    VariableRecord,
 )
 from vyper.types import (
     get_size_of_type,
 )
-
-from vyper.exceptions import (
-    VariableDeclarationException,
-)
-
-from vyper.signatures.function_signature import (
-    VariableRecord,
+from vyper.utils import (
+    MemoryPositions,
+    check_valid_varname,
 )
 
 
@@ -24,8 +22,7 @@ class Constancy(enum.Enum):
 
 
 # Contains arguments, variables, etc
-class Context():
-
+class Context:
     def __init__(self,
                  vars,
                  global_ctx,

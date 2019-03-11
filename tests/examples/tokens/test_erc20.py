@@ -2,9 +2,8 @@
 # Modified from Philip Daian's tests:
 # https://github.com/ethereum/vyper/blob/v0.1.0-beta.5/tests/examples/tokens/ERC20_solidity_compatible/test/erc20_tests_1.py
 import pytest
-
 from web3.exceptions import (
-    ValidationError
+    ValidationError,
 )
 
 ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'

@@ -1,35 +1,41 @@
 import ast
-from collections import Counter
+from collections import (
+    Counter,
+)
 
 from vyper.exceptions import (
+    FunctionDeclarationException,
     InvalidTypeException,
     StructureException,
-    FunctionDeclarationException
 )
-from vyper.types import ByteArrayLike
+from vyper.parser.lll_node import (
+    LLLnode,
+)
+from vyper.parser.parser_utils import (
+    getpos,
+)
 from vyper.types import (
+    ByteArrayLike,
+    TupleLike,
+    TupleType,
     canonicalize_type,
+    delete_unit_if_empty,
     get_size_of_type,
     parse_type,
     print_unit,
     unit_from_type,
-    delete_unit_if_empty,
-    TupleType,
-    TupleLike
 )
 from vyper.utils import (
-    fourbytes_to_int,
-    is_varname_valid,
     check_valid_varname,
+    fourbytes_to_int,
     function_whitelist,
+    is_varname_valid,
     sha3,
 )
-from vyper.parser.parser_utils import getpos
-from vyper.parser.lll_node import LLLnode
 
 
 # Function argument
-class VariableRecord():
+class VariableRecord:
     def __init__(self, name, pos, typ, mutable, blockscopes=None, defined_at=None):
         self.name = name
         self.pos = pos
@@ -49,7 +55,7 @@ class ContractRecord(VariableRecord):
 
 
 # Function signature object
-class FunctionSignature():
+class FunctionSignature:
     def __init__(self,
                  name,
                  args,

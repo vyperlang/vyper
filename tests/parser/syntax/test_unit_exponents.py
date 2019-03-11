@@ -1,8 +1,14 @@
 import pytest
-from pytest import raises
+from pytest import (
+    raises,
+)
 
-from vyper import compiler
-from vyper.exceptions import TypeMismatchException
+from vyper import (
+    compiler,
+)
+from vyper.exceptions import (
+    TypeMismatchException,
+)
 
 fail_list = [
     """

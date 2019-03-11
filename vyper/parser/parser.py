@@ -1,57 +1,71 @@
 import ast
-import copy
 import functools
 
 from vyper.exceptions import (
-    ParserException,
+    EventDeclarationException,
+    FunctionDeclarationException,
     InvalidLiteralException,
+    ParserException,
     StructureException,
     TypeMismatchException,
-    FunctionDeclarationException,
-    EventDeclarationException
 )
-from vyper.signatures import (
-    FunctionSignature,
-    VariableRecord,
-    EventSignature,
+from vyper.parser.context import (
+    Constancy,
+    Context,
 )
-from vyper.signatures import sig_utils
-from vyper.parser.stmt import Stmt
-from vyper.parser.expr import Expr
-from vyper.parser.context import Context, Constancy
-from vyper.parser.global_context import GlobalContext
-from vyper.parser.lll_node import LLLnode
-from vyper.parser.pre_parser import pre_parse
+from vyper.parser.expr import (
+    Expr,
+)
+from vyper.parser.global_context import (
+    GlobalContext,
+)
+from vyper.parser.lll_node import (
+    LLLnode,
+)
 from vyper.parser.parser_utils import (
-    make_setter,
     base_type_conversion,
     byte_array_to_num,
     decorate_ast,
     getpos,
     make_byte_array_copier,
+    make_setter,
     resolve_negative_literals,
     unwrap_location,
+)
+from vyper.parser.pre_parser import (
+    pre_parse,
+)
+from vyper.parser.stmt import (
+    Stmt,
+)
+from vyper.signatures import (
+    sig_utils,
+)
+from vyper.signatures.event_signature import (
+    EventSignature,
+)
+from vyper.signatures.function_signature import (
+    FunctionSignature,
+    VariableRecord,
+)
+from vyper.signatures.interface import (
+    check_valid_contract_interface,
 )
 from vyper.types import (
     BaseType,
     ByteArrayLike,
     ListType,
-)
-from vyper.types import (
+    ceil32,
     get_size_of_type,
     is_base_type,
-    ceil32,
 )
 from vyper.utils import (
-    MemoryPositions,
     LOADED_LIMIT_MAP,
-    string_to_bytes,
-)
-from vyper.utils import (
+    MemoryPositions,
     bytes_to_int,
     calc_mem_gas,
+    string_to_bytes,
 )
-
 
 if not hasattr(ast, 'AnnAssign'):
     raise Exception("Requires python 3.6 or higher for annotation support")
@@ -223,44 +237,8 @@ def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None):
             o, otherfuncs, sigs, external_contracts, origcode, global_ctx, defaultfunc, runtime_only
         )
 
-    # Check interface.
-    if global_ctx._interface:
-        funcs_left = global_ctx._interface.copy()
-
-        for sig, func_sig in sigs.items():
-            if isinstance(func_sig, FunctionSignature):
-                if (
-                    sig in funcs_left and  # noqa: W504
-                    not func_sig.private and  # noqa: W504
-                    funcs_left[sig].output_type == func_sig.output_type
-                ):
-                    del funcs_left[sig]
-            if isinstance(func_sig, EventSignature) and func_sig.sig in funcs_left:
-                del funcs_left[func_sig.sig]
-
-        if funcs_left:
-            error_message = 'Contract does not comply to supplied Interface(s).\n'
-            missing_functions = [
-                str(func_sig)
-                for sig_name, func_sig
-                in funcs_left.items()
-                if isinstance(func_sig, FunctionSignature)
-            ]
-            missing_events = [
-                sig_name
-                for sig_name, func_sig
-                in funcs_left.items()
-                if isinstance(func_sig, EventSignature)
-            ]
-            if missing_functions:
-                error_message += 'Missing interface functions:\n\t{}'.format(
-                    '\n\t'.join(missing_functions)
-                )
-            if missing_events:
-                error_message += 'Missing interface events:\n\t{}'.format(
-                    '\n\t'.join(missing_events)
-                )
-            raise StructureException(error_message)
+    # Check if interface of contract is correct.
+    check_valid_contract_interface(global_ctx, sigs)
 
     return LLLnode.from_list(o, typ=None)
 

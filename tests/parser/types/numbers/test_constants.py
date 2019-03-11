@@ -1,5 +1,10 @@
-from decimal import Decimal
-from vyper.compiler import compile_code
+from decimal import (
+    Decimal,
+)
+
+from vyper.compiler import (
+    compile_code,
+)
 
 
 def test_builtin_constants(get_contract_with_gas_estimation):
