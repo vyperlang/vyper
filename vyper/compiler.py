@@ -13,6 +13,9 @@ from vyper.opcodes import (
 from vyper.parser import (
     parser,
 )
+from vyper.signatures import (
+    sig_utils,
+)
 from vyper.signatures.interface import (
     extract_external_interface,
     extract_interface_str,
@@ -62,7 +65,7 @@ def gas_estimate(origcode, *args, **kwargs):
 
 
 def mk_full_signature(code, *args, **kwargs):
-    abi = parser.mk_full_signature(parser.parse_to_ast(code), *args, **kwargs)
+    abi = sig_utils.mk_full_signature(parser.parse_to_ast(code), *args, **kwargs)
     # Add gas estimates for each function to ABI
     gas_estimates = gas_estimate(code, *args, **kwargs)
     for func in abi:
@@ -164,7 +167,7 @@ def _mk_source_map_output(code, contract_name, interface_codes):
 
 
 def _mk_method_identifiers_output(code, contract_name, interface_codes):
-    return parser.mk_method_identifiers(code, interface_codes=interface_codes)
+    return sig_utils.mk_method_identifiers(code, interface_codes=interface_codes)
 
 
 def _mk_interface_output(code, contract_name, interface_codes):

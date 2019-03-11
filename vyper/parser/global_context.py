@@ -20,10 +20,6 @@ from vyper.signatures.function_signature import (
     ContractRecord,
     VariableRecord,
 )
-from vyper.signatures.interface import (
-    extract_sigs,
-    get_builtin_interfaces,
-)
 from vyper.types import (
     BaseType,
     ByteArrayLike,
@@ -63,6 +59,10 @@ class GlobalContext:
     # Parse top-level functions and variables
     @classmethod
     def get_global_context(cls, code, interface_codes=None):
+        from vyper.signatures.interface import (
+            extract_sigs,
+            get_builtin_interfaces,
+        )
         interface_codes = {} if interface_codes is None else interface_codes
         global_ctx = cls()
 
