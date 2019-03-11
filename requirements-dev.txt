@@ -1,3 +1,0 @@
-bumpversion
-flake8
-tox
