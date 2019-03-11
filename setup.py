@@ -4,7 +4,8 @@ from setuptools import setup, find_packages
 import subprocess, os, tempfile
 
 test_deps = [
-    'pytest>=3.6',
+    'pytest>=3.9',
+    'pytest-console-scripts==0.1.9',
     'pytest-cov==2.4.0',
     'coveralls[yaml]==1.6.0',
     'pytest-xdist==1.18.1',
