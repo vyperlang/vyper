@@ -224,7 +224,7 @@ def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None):
         external_contracts = parse_external_contracts(external_contracts, global_ctx)
     # If there is an init func...
     if initfunc:
-        o.append(['seq', initializer_lll])
+        o.append(initializer_lll)
         o.append(parse_func(
             initfunc[0],
             {**{'self': sigs}, **external_contracts},
