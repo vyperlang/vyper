@@ -162,9 +162,10 @@ class ByteArrayType(ByteArrayLike):
 
 # Data structure for a list with some fixed length
 class ListType(NodeType):
-    def __init__(self, subtype, count):
+    def __init__(self, subtype, count, is_literal=False):
         self.subtype = subtype
         self.count = count
+        self.is_literal = is_literal
 
     def eq(self, other):
         return other.subtype == self.subtype and other.count == self.count
