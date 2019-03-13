@@ -11,7 +11,6 @@ from vyper.types import (
     get_size_of_type,
 )
 from vyper.utils import (
-    MemoryPositions,
     check_valid_varname,
 )
 
@@ -26,6 +25,7 @@ class Context:
     def __init__(self,
                  vars,
                  global_ctx,
+                 memory_allocator,
                  sigs=None,
                  forvars=None,
                  return_type=None,
@@ -36,7 +36,8 @@ class Context:
                  method_id=''):
         # In-memory variables, in the form (name, memory location, type)
         self.vars = vars or {}
-        self.next_mem = MemoryPositions.RESERVED_MEMORY
+        # Memory alloctor, keeps track of currently allocated memory.
+        self.memory_allocator = memory_allocator
         # Global variables, in the form (name, storage location, type)
         self.globals = global_ctx._globals
         # ABI objects, in the form {classname: ABI JSON}
@@ -136,16 +137,16 @@ class Context:
     # Add a new variable
     def new_variable(self, name, typ, pos=None):
         if self.is_valid_varname(name, pos):
+            var_size = 32 * get_size_of_type(typ)
+            var_pos, _ = self.memory_allocator.increase_memory(var_size)
             self.vars[name] = VariableRecord(
                 name,
-                self.next_mem,
+                var_pos,
                 typ,
                 True,
                 self.blockscopes.copy(),
             )
-            pos = self.next_mem
-            self.next_mem += 32 * get_size_of_type(typ)
-            return pos
+            return var_pos
 
     # Add an anonymous variable (used in some complex function definitions)
     def new_placeholder(self, typ):
@@ -153,9 +154,8 @@ class Context:
         self.placeholder_count += 1
         return self.new_variable(name, typ)
 
-    # Get the next unused memory location
     def get_next_mem(self):
-        return self.next_mem
+        return self.memory_allocator.get_next_mem()
 
     def parse_type(self, ast_node, location):
         return self.global_ctx.parse_type(ast_node, location)
