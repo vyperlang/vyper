@@ -46,7 +46,7 @@ from vyper.utils import (
     sha3,
 )
 
-from .signature import (
+from .signatures import (
     Optional,
     signature,
 )

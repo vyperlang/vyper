@@ -7,7 +7,7 @@ from vyper.exceptions import (
     ParserException,
     TypeMismatchException,
 )
-from vyper.functions.signature import (
+from vyper.functions.signatures import (
     signature,
 )
 from vyper.parser.parser_utils import (

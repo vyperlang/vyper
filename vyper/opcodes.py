@@ -1,4 +1,10 @@
-opcodes = {
+from typing import (
+    Dict,
+    List,
+    Optional,
+)
+
+opcodes: Dict[str, List[Optional[int]]] = {
     'STOP': [0x00, 0, 0, 0],
     'ADD': [0x01, 2, 1, 3],
     'MUL': [0x02, 2, 1, 5],
@@ -136,7 +142,7 @@ opcodes = {
     'DEBUG': [0xa5, 1, 0, 0]
 }
 
-pseudo_opcodes = {
+pseudo_opcodes: Dict[str, List[Optional[int]]] = {
     'CLAMP': [None, 3, 1, 70],
     'UCLAMPLT': [None, 2, 1, 25],
     'UCLAMPLE': [None, 2, 1, 30],
@@ -160,8 +166,7 @@ pseudo_opcodes = {
     'GOTO': [None, 1, 0, 8]
 }
 
-comb_opcodes = {}
-for k in opcodes:
-    comb_opcodes[k] = opcodes[k]
-for k in pseudo_opcodes:
-    comb_opcodes[k] = pseudo_opcodes[k]
+comb_opcodes: Dict[str, List[Optional[int]]] = {}
+
+comb_opcodes.update(opcodes)
+comb_opcodes.update(pseudo_opcodes)
