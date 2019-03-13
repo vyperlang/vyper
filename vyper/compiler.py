@@ -59,7 +59,7 @@ def gas_estimate(origcode, *args, **kwargs):
 
     assert code.value == 'seq'
     for arg in code.args:
-        if hasattr(arg, 'func_name'):
+        if arg.func_name is not None:
             o[arg.func_name] = arg.total_gas
     return o
 

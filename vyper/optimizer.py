@@ -235,7 +235,7 @@ def optimize(node):
             add_gas_estimate=node.add_gas_estimate,
             valency=node.valency,
         )
-    elif hasattr(node, 'total_gas'):
+    elif node.total_gas is not None:
         o = LLLnode(
             node.value,
             argz,

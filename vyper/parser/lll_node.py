@@ -73,6 +73,10 @@ class LLLnode:
         self.add_gas_estimate = add_gas_estimate
         self.as_hex = AS_HEX_DEFAULT
 
+        # Optional annotation properties for gas estimation
+        self.total_gas = None
+        self.func_name = None
+
         # Determine this node's valency (1 if it pushes a value on the stack,
         # 0 otherwise) and checks to make sure the number and valencies of
         # children are correct. Also, find an upper bound on gas consumption
