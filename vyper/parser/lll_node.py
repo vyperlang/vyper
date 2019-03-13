@@ -308,6 +308,7 @@ class LLLnode:
                   valency=None):
         if isinstance(typ, str):
             typ = BaseType(typ)
+
         if isinstance(obj, LLLnode):
             if typ is not None:
                 obj.typ = typ

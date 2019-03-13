@@ -52,20 +52,24 @@ def print_unit(unit, unit_descriptions=None):
 
     if unit is None:
         return '*'
+
     if not isinstance(unit, dict):
         return unit
+
     pos = ''
     for k in sorted([x for x in unit.keys() if unit[x] > 0]):
         if unit[k] > 1:
             pos += mul + humanize_unit(k) + humanize_power(unit[k])
         else:
             pos += mul + humanize_unit(k)
+
     neg = ''
     for k in sorted([x for x in unit.keys() if unit[x] < 0]):
         if unit[k] < -1:
             neg += div + humanize_unit(k) + humanize_power(-unit[k])
         else:
             neg += div + humanize_unit(k)
+
     if pos and neg:
         return pos[1:] + neg
     elif neg:
@@ -139,7 +143,6 @@ class ContractType(BaseType):
 
 
 class ByteArrayLike(NodeType):
-
     def __init__(self, maxlen):
         self.maxlen = maxlen
 
@@ -151,14 +154,12 @@ class ByteArrayLike(NodeType):
 
 
 class StringType(ByteArrayLike):
-
     def __repr__(self):
         return 'string[%d]' % self.maxlen
 
 
 # Data structure for a byte array
 class ByteArrayType(ByteArrayLike):
-
     def __repr__(self):
         return 'bytes[%d]' % self.maxlen
 
@@ -254,14 +255,17 @@ def canonicalize_type(t, is_indexed=False):
             return '{}{}'.format(byte_type, t.maxlen)
         else:
             return '{}'.format(byte_type)
+
     if isinstance(t, ListType):
         if not isinstance(t.subtype, (ListType, BaseType)):
             raise Exception("List of byte arrays not allowed")
         return canonicalize_type(t.subtype) + "[%d]" % t.count
+
     if isinstance(t, TupleLike):
         return "({})".format(
             ",".join(canonicalize_type(x) for x in t.tuple_members())
         )
+
     if not isinstance(t, BaseType):
         raise Exception("Cannot canonicalize non-base type: %r" % t)
 
@@ -270,6 +274,7 @@ def canonicalize_type(t, is_indexed=False):
         return t
     elif t == 'decimal':
         return 'fixed168x10'
+
     raise Exception("Invalid or unsupported type: " + repr(t))
 
 
@@ -309,8 +314,8 @@ def parse_unit(item, custom_units):
 
 def make_struct_type(name, location, members, custom_units, custom_structs, constants):
     o = OrderedDict()
-    for key, value in members:
 
+    for key, value in members:
         if not isinstance(key, ast.Name):
             raise InvalidTypeException(
                 "Invalid member variable for struct %r, expected a name." % key.id,
@@ -323,7 +328,6 @@ def make_struct_type(name, location, members, custom_units, custom_structs, cons
             constants,
             "Invalid member variable for struct",
         )
-
         o[key.id] = parse_type(
             value,
             location,
@@ -331,6 +335,7 @@ def make_struct_type(name, location, members, custom_units, custom_structs, cons
             custom_structs=custom_structs,
             constants=constants,
         )
+
     return StructType(o, name)
 
 
