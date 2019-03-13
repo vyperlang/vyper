@@ -17,6 +17,7 @@ def get_int_at(args, pos, signed=False):
         o = LOADED_LIMIT_MAP[args[pos].args[0].value]
     else:
         return None
+
     if signed or o < 0:
         return ((o + 2**255) % 2**256) - 2**255
     else:
@@ -30,9 +31,11 @@ def int_at(args, pos):
 def search_for_set(node, var):
     if node.value == "set" and node.args[0].value == var:
         return True
+
     for arg in node.args:
         if search_for_set(arg, var):
             return True
+
     return False
 
 
