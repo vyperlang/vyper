@@ -1,3 +1,5 @@
+import operator
+
 from vyper.parser.parser_utils import (
     LLLnode,
 )
@@ -60,11 +62,11 @@ def replace_with_value(node, var, value):
 
 
 arith = {
-    "add": (lambda x, y: x + y, '+'),
-    "sub": (lambda x, y: x - y, '-'),
-    "mul": (lambda x, y: x * y, '*'),
-    "div": (lambda x, y: x // y, '/'),
-    "mod": (lambda x, y: x % y, '%'),
+    "add": (operator.add, '+'),
+    "sub": (operator.sub, '-'),
+    "mul": (operator.mul, '*'),
+    "div": (operator.floordiv, '/'),
+    "mod": (operator.mod, '%'),
 }
 
 
