@@ -92,7 +92,7 @@ def _is_with_without_set(node, args):
     )
 
 
-def optimize(node):
+def optimize(node: LLLnode) -> LLLnode:
     argz = [optimize(arg) for arg in node.args]
     if node.value in arith and int_at(argz, 0) and int_at(argz, 1):
         left, right = get_int_at(argz, 0), get_int_at(argz, 1)
