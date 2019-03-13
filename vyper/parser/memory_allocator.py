@@ -8,6 +8,7 @@ from vyper.utils import (
 
 
 class MemoryAllocator():
+    next_mem: int
 
     def __init__(self, start_position: int = MemoryPositions.RESERVED_MEMORY):
         self.next_mem = start_position
