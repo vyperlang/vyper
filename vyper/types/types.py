@@ -4,6 +4,9 @@ from collections import (
     OrderedDict,
 )
 import copy
+from typing import (
+    Any,
+)
 import warnings
 
 from vyper.exceptions import (
@@ -90,11 +93,11 @@ def combine_units(unit1, unit2, div=False):
 
 # Data structure for a type
 class NodeType(abc.ABC):
-    def __eq__(self, other: 'NodeType'):
+    def __eq__(self, other: Any) -> bool:
         return type(self) is type(other) and self.eq(other)
 
     @abc.abstractmethod
-    def eq(self, other: 'NodeType'):  # pragma: no cover
+    def eq(self, other: 'NodeType') -> bool:  # pragma: no cover
         """
         Checks whether or not additional properties of a ``NodeType`` subclass
         instance make it equal to another instance of the same type.
