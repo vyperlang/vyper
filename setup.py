@@ -17,6 +17,7 @@ lint_deps = [
     'flake8>=3.7,<4',
     'flake8-bugbear==18.8.0',
     'isort>=4.2.15,<5',
+    'mypy==0.670',
 ]
 
 
