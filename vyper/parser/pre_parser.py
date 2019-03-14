@@ -71,8 +71,8 @@ def pre_parse(code):
     class_types = ('contract', 'struct')
 
     try:
-        code = code.encode('utf-8')
-        g = tokenize(io.BytesIO(code).readline)
+        code_bytes = code.encode('utf-8')
+        g = tokenize(io.BytesIO(code_bytes).readline)
 
         for token in g:
             toks = [token]
