@@ -22,7 +22,10 @@ def _parse_version_str(version_str, start):
     match = VERSION_RE.match(version_str)
 
     if match is None:
-        raise VersionException('Could not parse given version: %s' % version_str, start)
+        raise VersionException(
+            f'Could not parse given version string "{version_str}"',
+            start,
+        )
 
     return match.groups()
 
@@ -40,10 +43,11 @@ def validate_version_pragma(version_str, start):
     compiler_major, compiler_minor, compiler_patch = _parse_version_str(__version__, start)
 
     if (file_major, file_minor) != (compiler_major, compiler_minor):
-        raise VersionException('Given version "{}" is not compatible with the compiler ({}): '.format(
-            file_version,
-            __version__,
-        ), start)
+        raise VersionException(
+            f'File version "{file_version}" is not compatible '
+            f'with compiler version "{__version__}"',
+            start,
+        )
 
 
 # Minor pre-parser checks.
