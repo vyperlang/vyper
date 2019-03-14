@@ -9,16 +9,24 @@ from tokenize import (
     tokenize,
     untokenize,
 )
+from typing import (
+    Sequence,
+    Tuple,
+)
 
 from vyper.exceptions import (
     StructureException,
     VersionException,
 )
+from vyper.typing import (
+    ClassNames,
+    ParserPosition,
+)
 
 VERSION_RE = re.compile(r'^(\d+\.)(\d+\.)(\w*)$')
 
 
-def _parse_version_str(version_str, start):
+def _parse_version_str(version_str: str, start: ParserPosition) -> Sequence[str]:
     match = VERSION_RE.match(version_str)
 
     if match is None:
@@ -30,7 +38,7 @@ def _parse_version_str(version_str, start):
     return match.groups()
 
 
-def validate_version_pragma(version_str, start):
+def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
     """
     Validates a version pragma directive against the current compiler version.
     """
@@ -52,7 +60,7 @@ def validate_version_pragma(version_str, start):
         )
 
 
-def pre_parse(code):
+def pre_parse(code: str) -> Tuple[ClassNames, str]:
     """
     Re-formats a vyper source string into a python source string and performs
     some validation.  More specifically,
@@ -67,7 +75,7 @@ def pre_parse(code):
     """
     result = []
     previous_keyword = None
-    class_names = {}
+    class_names: ClassNames = {}
     class_types = ('contract', 'struct')
 
     try:
