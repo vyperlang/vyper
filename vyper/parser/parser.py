@@ -1,5 +1,8 @@
 import ast
 import functools
+from typing import (
+    List,
+)
 
 from vyper.exceptions import (
     EventDeclarationException,
@@ -72,7 +75,7 @@ if not hasattr(ast, 'AnnAssign'):
 
 
 # Converts code to parse tree
-def parse_to_ast(code):
+def parse_to_ast(code: str) -> List[ast.stmt]:
     class_names, code = pre_parse(code)
 
     if '\x00' in code:
