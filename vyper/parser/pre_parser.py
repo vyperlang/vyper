@@ -30,8 +30,10 @@ def _parse_version_str(version_str, start):
     return match.groups()
 
 
-# Do a version check.
 def validate_version_pragma(version_str, start):
+    """
+    Validates a version pragma directive against the current compiler version.
+    """
     from vyper import (
         __version__,
     )
@@ -50,8 +52,19 @@ def validate_version_pragma(version_str, start):
         )
 
 
-# Minor pre-parser checks.
 def pre_parse(code):
+    """
+    Re-formats a vyper source string into a python source string and performs
+    some validation.  More specifically,
+
+    * Translates "contract" and "struct" keyword into python "class" keyword
+    * Validates "@version" pragma against current compiler version
+    * Prevents direct use of python "class" keyword
+    * Prevents use of python semi-colon statement separator
+
+    Also returns a mapping of contract and struct names to their associated
+    class keyword ("contract" or "struct").
+    """
     result = []
     fetch_name = None
     class_names = {}
