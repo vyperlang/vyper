@@ -90,10 +90,14 @@ def pre_parse(code):
                     token.start,
                 )
 
+            # Make note of contract or struct names along with the type keyword
+            # that preceded it
             if token.type == NAME and previous_keyword:
                 class_names[string] = previous_keyword
                 previous_keyword = None
 
+            # Translate vyper-specific class keywords into python "class"
+            # keyword
             if token.type == NAME and string in class_types and start[1] == 0:
                 toks = [TokenInfo(NAME, "class", start, end, line)]
                 previous_keyword = string
