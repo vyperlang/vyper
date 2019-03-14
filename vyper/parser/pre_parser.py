@@ -76,34 +76,36 @@ def pre_parse(code):
 
         for token in g:
             toks = [token]
-            line = token.line
+
+            typ = token.type
+            string = token.string
             start = token.start
             end = token.end
-            string = token.string
+            line = token.line
 
-            if token.type == COMMENT and "@version" in token.string:
-                validate_version_pragma(token.string[1:], start)
+            if typ == COMMENT and "@version" in string:
+                validate_version_pragma(string[1:], start)
 
-            if token.type == NAME and string == "class" and start[1] == 0:
+            if typ == NAME and string == "class" and start[1] == 0:
                 raise StructureException(
                     "The `class` keyword is not allowed. Perhaps you meant `contract` or `struct`?",
-                    token.start,
+                    start,
                 )
 
             # Make note of contract or struct names along with the type keyword
             # that preceded it
-            if token.type == NAME and previous_keyword is not None:
+            if typ == NAME and previous_keyword is not None:
                 class_names[string] = previous_keyword
                 previous_keyword = None
 
             # Translate vyper-specific class keywords into python "class"
             # keyword
-            if token.type == NAME and string in class_types and start[1] == 0:
+            if typ == NAME and string in class_types and start[1] == 0:
                 toks = [TokenInfo(NAME, "class", start, end, line)]
                 previous_keyword = string
 
-            if (token.type, token.string) == (OP, ";"):
-                raise StructureException("Semi-colon statements not allowed.", token.start)
+            if (typ, string) == (OP, ";"):
+                raise StructureException("Semi-colon statements not allowed.", start)
 
             result.extend(toks)
     except TokenError as e:
