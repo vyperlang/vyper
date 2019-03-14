@@ -12,22 +12,23 @@ from tokenize import (
 
 from vyper.exceptions import (
     StructureException,
+    VersionException,
 )
 
 VERSION_RE = re.compile(r'^(\d+\.)(\d+\.)(\w*)$')
 
 
-def _parse_version_str(version_str):
+def _parse_version_str(version_str, start):
     match = VERSION_RE.match(version_str)
 
     if match is None:
-        raise Exception('Could not parse given version: %s' % version_str)
+        raise VersionException('Could not parse given version: %s' % version_str, start)
 
     return match.groups()
 
 
 # Do a version check.
-def parse_version_pragma(version_str):
+def parse_version_pragma(version_str, start):
     from vyper import (
         __version__,
     )
@@ -35,13 +36,14 @@ def parse_version_pragma(version_str):
     version_arr = version_str.split('@version')
 
     file_version = version_arr[1].strip()
-    file_major, file_minor, file_patch = _parse_version_str(file_version)
-    compiler_major, compiler_minor, compiler_patch = _parse_version_str(__version__)
+    file_major, file_minor, file_patch = _parse_version_str(file_version, start)
+    compiler_major, compiler_minor, compiler_patch = _parse_version_str(__version__, start)
 
     if (file_major, file_minor) != (compiler_major, compiler_minor):
-        raise Exception('Given version "{}" is not compatible with the compiler ({}): '.format(
-            file_version, __version__
-        ))
+        raise VersionException('Given version "{}" is not compatible with the compiler ({}): '.format(
+            file_version,
+            __version__,
+        ), start)
 
 
 # Minor pre-parser checks.
@@ -56,7 +58,6 @@ def pre_parse(code):
         g = tokenize(io.BytesIO(code).readline)
 
         for token in g:
-
             toks = [token]
             line = token.line
             start = token.start
@@ -64,7 +65,7 @@ def pre_parse(code):
             string = token.string
 
             if token.type == COMMENT and "@version" in token.string:
-                parse_version_pragma(token.string[1:])
+                parse_version_pragma(token.string[1:], start)
 
             if token.type == NAME and string == "class" and start[1] == 0:
                 raise StructureException(
