@@ -66,7 +66,7 @@ def pre_parse(code):
     class keyword ("contract" or "struct").
     """
     result = []
-    fetch_name = None
+    previous_keyword = None
     class_names = {}
     class_types = ('contract', 'struct')
 
@@ -90,13 +90,13 @@ def pre_parse(code):
                     token.start,
                 )
 
-            if token.type == NAME and fetch_name:
-                class_names[string] = fetch_name
-                fetch_name = None
+            if token.type == NAME and previous_keyword:
+                class_names[string] = previous_keyword
+                previous_keyword = None
 
             if token.type == NAME and string in class_types and start[1] == 0:
                 toks = [TokenInfo(NAME, "class", start, end, line)]
-                fetch_name = string
+                previous_keyword = string
 
             # Prevent semi-colon line statements.
             if (token.type, token.string) == (OP, ";"):
