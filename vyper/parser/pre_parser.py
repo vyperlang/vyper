@@ -14,12 +14,16 @@ from vyper.exceptions import (
     StructureException,
 )
 
+VERSION_RE = re.compile(r'^(\d+\.)(\d+\.)(\w*)$')
+
 
 def _parser_version_str(version_str):
-    version_regex = re.compile(r'^(\d+\.)?(\d+\.)?(\w*)$')
-    if None in version_regex.match(version_str).groups():
+    match = VERSION_RE.match(version_str)
+
+    if match is None:
         raise Exception('Could not parse given version: %s' % version_str)
-    return version_regex.match(version_str).groups()
+
+    return match.groups()
 
 
 # Do a version check.
