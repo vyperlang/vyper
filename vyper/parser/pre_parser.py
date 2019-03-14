@@ -102,7 +102,6 @@ def pre_parse(code):
                 toks = [TokenInfo(NAME, "class", start, end, line)]
                 previous_keyword = string
 
-            # Prevent semi-colon line statements.
             if (token.type, token.string) == (OP, ";"):
                 raise StructureException("Semi-colon statements not allowed.", token.start)
 
