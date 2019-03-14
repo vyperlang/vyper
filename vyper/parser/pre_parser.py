@@ -28,7 +28,7 @@ def _parse_version_str(version_str, start):
 
 
 # Do a version check.
-def parse_version_pragma(version_str, start):
+def validate_version_pragma(version_str, start):
     from vyper import (
         __version__,
     )
@@ -65,7 +65,7 @@ def pre_parse(code):
             string = token.string
 
             if token.type == COMMENT and "@version" in token.string:
-                parse_version_pragma(token.string[1:], start)
+                validate_version_pragma(token.string[1:], start)
 
             if token.type == NAME and string == "class" and start[1] == 0:
                 raise StructureException(
