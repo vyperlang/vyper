@@ -92,7 +92,7 @@ def pre_parse(code):
 
             # Make note of contract or struct names along with the type keyword
             # that preceded it
-            if token.type == NAME and previous_keyword:
+            if token.type == NAME and previous_keyword is not None:
                 class_names[string] = previous_keyword
                 previous_keyword = None
 
