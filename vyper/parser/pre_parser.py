@@ -76,8 +76,12 @@ def pre_parse(code: str) -> Tuple[ClassTypes, str]:
     * Prevents direct use of python "class" keyword
     * Prevents use of python semi-colon statement separator
 
-    Also returns a mapping of contract and struct names to their associated
-    class keyword ("contract" or "struct").
+    Also returns a mapping of detected contract and struct names to their
+    respective vyper class types ("contract" or "struct").
+
+    :param code: The vyper source code to be re-formatted.
+    :return: A tuple including the class type mapping and the reformatted python
+        source string.
     """
     result = []
     previous_keyword = None
