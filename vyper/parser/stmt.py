@@ -94,9 +94,8 @@ class Stmt(object):
             raise StructureException("Unsupported statement type: %s" % type(self.stmt), self.stmt)
 
     def parse_raise(self):
-        # should allow raise with no reason?
         if self.stmt.exc is None:
-            raise StructureException('Raise must have a reason', pos=getpos(self.stmt))
+            raise StructureException('Raise must have a reason', self.stmt)
         return self._assert_reason(0, self.stmt.exc)
 
     def _check_valid_assign(self, sub):
