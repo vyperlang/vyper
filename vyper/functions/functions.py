@@ -1235,14 +1235,19 @@ def sqrt(expr, args, kwargs, context):
     arg = args[0]
     sqrt_code = """
 assert x >= 0.0
-z: decimal = (x + 1.0) / 2.0
-y: decimal = x
+z: decimal
 
-for i in range(256):
-    if (z >= y):
-        break
-    y = z
-    z = (x / z + z) / 2.0
+if x == 0.0:
+    z = 0.0
+else:
+    z = (x + 1.0) / 2.0
+    y: decimal = x
+
+    for i in range(256):
+        if z == y:
+            break
+        y = z
+        z = (x / z + z) / 2.0
     """
 
     x_type = BaseType('decimal')
@@ -1272,7 +1277,6 @@ for i in range(256):
     return LLLnode.from_list(
         [
             'seq_unchecked',
-            ['if', ['eq', arg, 0], 0],
             placeholder_copy,  # load x variable
             sqrt_lll,
             ['mload', new_ctx.vars['z'].pos]  # unload z variable into the stack,
