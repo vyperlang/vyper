@@ -1,4 +1,7 @@
 import ast
+from typing import (
+    Optional,
+)
 
 from vyper.exceptions import (
     InvalidLiteralException,
@@ -699,6 +702,44 @@ def make_setter(left, right, location, pos, in_function_call=False):
             )
     else:
         raise Exception("Invalid type for setters")
+
+
+class AnnotatingVisitor(ast.NodeTransformer):
+    _source_code: str
+    _class_types: ClassTypes
+
+    def __init__(self, source_code: str, class_types: Optional[ClassTypes] = None):
+        self._source_code = source_code
+        if class_types is not None:
+            self._class_types = class_types
+        else:
+            self._class_types = {}
+
+    def generic_visit(self, node):
+        # Decorate every node in the AST with the original source code. This is
+        # necessary to facilitate error pretty-printing.
+        node.source_code = self._source_code
+
+        return super().generic_visit(node)
+
+    def visit_ClassDef(self, node):
+        self.generic_visit(node)
+
+        # Decorate class definitions with their respective class types
+        node.class_type = self._class_types.get(node.name)
+
+        return node
+
+
+class OptimizingVisitor(ast.NodeTransformer):
+    def visit_UnaryOp(self, node):
+        self.generic_visit(node)
+
+        if isinstance(node.op, ast.USub) and isinstance(node.operand, ast.Num):
+            node.operand.n = 0 - node.operand.n
+            return node.operand
+        else:
+            return node
 
 
 def decorate_ast(_ast, code, class_names=None):
