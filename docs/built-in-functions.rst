@@ -381,14 +381,18 @@ Note: To give it a more Python like syntax, the raise function can be called wit
 ----------
 ::
 
-  def assert(a):
+  def assert(a, reason=None):
     """
     :param a: the boolean condition to assert
     :type a: bool
+    :param reason: the reason provided to REVERT
+    :type b: str
     """
 
-Asserts the specified condition, if the condition is equals to true the code will continue to run.
-Otherwise, the OPCODE ``REVERT`` (0xfd) will be triggered, the code will stop it's operation, the contract's state will be reverted to the state before the transaction took place and the remaining gas will be returned to the transaction's sender.
+Asserts the specified condition. The behavior is equivalent to::
+  if not a:
+    raise reason
+(the only difference in behavior is that ``assert`` can be called without a reason string, while ``raise`` requires a reason string).
 
 Note: To give it a more Python like syntax, the assert function can be called without parenthesis, the syntax would be ``assert your_bool_condition``. Even though both options will compile, it's recommended to use the Pythonic version without parenthesis.
 
