@@ -25,6 +25,9 @@ from vyper.types import (
     has_dynamic_data,
     is_base_type,
 )
+from vyper.typing import (
+    ClassTypes,
+)
 from vyper.utils import (
     DECIMAL_DIVISOR,
     GAS_IDENTITY,

@@ -19,7 +19,7 @@ from vyper.exceptions import (
     VersionException,
 )
 from vyper.typing import (
-    ClassNames,
+    ClassTypes,
     ParserPosition,
 )
 
@@ -60,7 +60,13 @@ def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
         )
 
 
-def pre_parse(code: str) -> Tuple[ClassNames, str]:
+VYPER_CLASS_TYPES = (
+    'contract',
+    'struct',
+)
+
+
+def pre_parse(code: str) -> Tuple[ClassTypes, str]:
     """
     Re-formats a vyper source string into a python source string and performs
     some validation.  More specifically,
@@ -75,8 +81,7 @@ def pre_parse(code: str) -> Tuple[ClassNames, str]:
     """
     result = []
     previous_keyword = None
-    class_names: ClassNames = {}
-    class_types = ('contract', 'struct')
+    class_types: ClassTypes = {}
 
     try:
         code_bytes = code.encode('utf-8')
@@ -100,15 +105,15 @@ def pre_parse(code: str) -> Tuple[ClassNames, str]:
                     start,
                 )
 
-            # Make note of contract or struct names along with the type keyword
+            # Make note of contract or struct name along with the type keyword
             # that preceded it
             if typ == NAME and previous_keyword is not None:
-                class_names[string] = previous_keyword
+                class_types[string] = previous_keyword
                 previous_keyword = None
 
             # Translate vyper-specific class keywords into python "class"
             # keyword
-            if typ == NAME and string in class_types and start[1] == 0:
+            if typ == NAME and string in VYPER_CLASS_TYPES and start[1] == 0:
                 toks = [TokenInfo(NAME, "class", start, end, line)]
                 previous_keyword = string
 
@@ -119,4 +124,4 @@ def pre_parse(code: str) -> Tuple[ClassNames, str]:
     except TokenError as e:
         raise StructureException(e.args[0], e.args[1]) from e
 
-    return class_names, untokenize(result).decode('utf-8')
+    return class_types, untokenize(result).decode('utf-8')

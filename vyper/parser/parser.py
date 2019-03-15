@@ -84,13 +84,13 @@ def parse_to_ast(code: str) -> List[ast.stmt]:
     :return: The post-processed list of python AST objects for each statement in
         ``code``.
     """
-    class_names, code = pre_parse(code)
+    class_types, code = pre_parse(code)
 
     if '\x00' in code:
         raise ParserException('No null bytes (\\x00) allowed in the source code.')
 
-    o = ast.parse(code)  # python ast
-    decorate_ast(o, code, class_names)  # decorated python ast
+    o = ast.parse(code)
+    decorate_ast(o, code, class_types)
     o = resolve_negative_literals(o)
 
     return o.body
