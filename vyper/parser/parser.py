@@ -74,8 +74,16 @@ if not hasattr(ast, 'AnnAssign'):
     raise Exception("Requires python 3.6 or higher for annotation support")
 
 
-# Converts code to parse tree
 def parse_to_ast(code: str) -> List[ast.stmt]:
+    """
+    Parses the given vyper source code and returns a list of python AST objects
+    for all statements in the source.  Performs pre-processing of ``code``
+    before parsing as well as post-processing of the resulting AST.
+
+    :param code: The vyper source code to be parsed.
+    :return: The post-processed list of python AST objects for each statement in
+        ``code``.
+    """
     class_names, code = pre_parse(code)
 
     if '\x00' in code:
