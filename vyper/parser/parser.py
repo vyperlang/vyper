@@ -28,11 +28,10 @@ from vyper.parser.lll_node import (
 from vyper.parser.parser_utils import (
     base_type_conversion,
     byte_array_to_num,
-    decorate_ast,
+    annotate_and_optimize_ast,
     getpos,
     make_byte_array_copier,
     make_setter,
-    resolve_negative_literals,
     unwrap_location,
 )
 from vyper.parser.pre_parser import (
@@ -89,11 +88,10 @@ def parse_to_ast(code: str) -> List[ast.stmt]:
     if '\x00' in code:
         raise ParserException('No null bytes (\\x00) allowed in the source code.')
 
-    o = ast.parse(code)
-    decorate_ast(o, code, class_types)
-    o = resolve_negative_literals(o)
+    parsed_ast = ast.parse(code)
+    annotate_and_optimize_ast(parsed_ast, code, class_types)
 
-    return o.body
+    return parsed_ast.body
 
 
 # Header code

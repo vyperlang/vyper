@@ -12,9 +12,8 @@ from vyper.parser.constants import (
     Constants,
 )
 from vyper.parser.parser_utils import (
-    decorate_ast,
+    annotate_and_optimize_ast,
     getpos,
-    resolve_negative_literals,
 )
 from vyper.signatures.function_signature import (
     ContractRecord,
@@ -244,10 +243,10 @@ class GlobalContext:
     # Parser for a single line
     @staticmethod
     def parse_line(code):
-        o = ast.parse(code).body[0]
-        decorate_ast(o, code)
-        o = resolve_negative_literals(o)
-        return o
+        parsed_ast = ast.parse(code).body[0]
+        annotate_and_optimize_ast(parsed_ast, code)
+
+        return parsed_ast
 
     # A struct is a list of members
     def make_struct(self, name, body):
