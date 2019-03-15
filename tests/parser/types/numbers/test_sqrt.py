@@ -80,12 +80,12 @@ def test_sqrt_inline_memory_correct(get_contract_with_gas_estimation):
     code = """
 @public
 def test(a: decimal) -> (decimal, decimal, decimal, decimal, decimal, string[100]):
-    b: decimal = 1.0
-    c: decimal = 2.0
-    d: decimal = 3.0
+    x: decimal = 1.0
+    y: decimal = 2.0
+    z: decimal = 3.0
     e: decimal = sqrt(a)
     f: string[100] = 'hello world'
-    return a, b, c, d, e, f
+    return a, x, y, z, e, f
     """
 
     c = get_contract_with_gas_estimation(code)
