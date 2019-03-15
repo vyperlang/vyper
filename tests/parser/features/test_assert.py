@@ -72,28 +72,28 @@ def test3() :
 def test_assert_reason_invalid(get_contract, assert_compile_failed):
     codes = [
         """
-    @public
-    def test(a: int128) -> int128:
-        assert a > 1, ""
-        return 1 + a
+@public
+def test(a: int128) -> int128:
+    assert a > 1, ""
+    return 1 + a
         """,
         # Must be a literal string.
         """
-    @public
-    def mint(_to: address, _value: uint256):
-        assert msg.sender == self,minter
+@public
+def mint(_to: address, _value: uint256):
+    assert msg.sender == self,minter
         """,
         # Raise must have a reason
         """
-    @public
-    def mint(_to: address, _value: uint256):
-        raise
+@public
+def mint(_to: address, _value: uint256):
+    raise
         """,
         # Raise reason must be string
         """
-    @public
-    def mint(_to: address, _value: uint256):
-        raise 1
+@public
+def mint(_to: address, _value: uint256):
+    raise 1
         """]
 
     for code in codes:
