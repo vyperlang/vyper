@@ -703,22 +703,23 @@ def decorate_ast(_ast, code, class_names=None):
         class_names = {}
 
     class MyVisitor(ast.NodeTransformer):
-
         def visit(self, node):
             self.generic_visit(node)
+
             # Decorate every node of an AST tree with the original source code.
             # This is necessary to facilitate error pretty-printing.
             node.source_code = code
+
             # Decorate class definition with the type of classes they are.
             if isinstance(node, ast.ClassDef):
                 node.class_type = class_names.get(node.name)
+
             return node
 
     MyVisitor().visit(_ast)
 
 
 def resolve_negative_literals(_ast):
-
     class RewriteUnaryOp(ast.NodeTransformer):
         def visit_UnaryOp(self, node):
             if isinstance(node.op, ast.USub) and isinstance(node.operand, ast.Num):

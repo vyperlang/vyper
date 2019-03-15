@@ -1,5 +1,8 @@
 import ast
 import functools
+from typing import (
+    List,
+)
 
 from vyper.exceptions import (
     EventDeclarationException,
@@ -72,13 +75,16 @@ if not hasattr(ast, 'AnnAssign'):
 
 
 # Converts code to parse tree
-def parse_to_ast(code):
+def parse_to_ast(code: str) -> List[ast.stmt]:
     class_names, code = pre_parse(code)
+
     if '\x00' in code:
         raise ParserException('No null bytes (\\x00) allowed in the source code.')
+
     o = ast.parse(code)  # python ast
     decorate_ast(o, code, class_names)  # decorated python ast
     o = resolve_negative_literals(o)
+
     return o.body
 
 
@@ -224,7 +230,7 @@ def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None):
         external_contracts = parse_external_contracts(external_contracts, global_ctx)
     # If there is an init func...
     if initfunc:
-        o.append(['seq', initializer_lll])
+        o.append(initializer_lll)
         o.append(parse_func(
             initfunc[0],
             {**{'self': sigs}, **external_contracts},

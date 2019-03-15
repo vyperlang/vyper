@@ -78,3 +78,7 @@ class FunctionDeclarationException(ParserException):
 
 class EventDeclarationException(ParserException):
     pass
+
+
+class VersionException(ParserException):
+    pass

@@ -178,7 +178,7 @@ Vyper supports exporting and importing contract interfaces, this is done using a
 
     implements: FooBarInterface
 
-This will import the defined interface in vyper file at `an_interface.vy` and make sure the current contract implements all the necessary public functions.
+This will import the defined interface in vyper file at `an_interface.vy` (or `an_interface.json` if using ABI json interface type) and make sure the current contract implements all the necessary public functions.
 Note that all interface is valid vyper code, without the return type check. Meaning you can use a contract with code in in the function body as interface as well (but default to a function body with a `pass`).
 
 

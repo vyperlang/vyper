@@ -1,13 +1,16 @@
-.PHONY: test lint clean clean-pyc clean-build clean-test docs docker-build
+.PHONY: test dev-deps lint clean clean-pyc clean-build clean-test docs docker-build
 
 init:
 	python setup.py install
+
+dev-deps:
+	pip install .[test,lint]
 
 test:
 	python setup.py test
 
 lint:
-	flake8 vyper tests
+	tox -e lint
 
 clean: clean-build clean-pyc clean-test
 
@@ -44,4 +47,3 @@ release: clean
 	git push upstream && git push upstream --tags
 	python setup.py sdist bdist_wheel
 	twine upload dist/*
-

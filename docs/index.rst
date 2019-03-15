@@ -104,3 +104,4 @@ Glossary
     frequently-asked-questions.rst
     built-in-functions.rst
     types.rst
+    release-notes.rst

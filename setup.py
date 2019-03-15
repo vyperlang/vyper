@@ -17,6 +17,7 @@ lint_deps = [
     'flake8>=3.7,<4',
     'flake8-bugbear==18.8.0',
     'isort>=4.2.15,<5',
+    'mypy==0.670',
 ]
 
 
@@ -29,7 +30,7 @@ extras = {
 setup(
     name='vyper',
     # *IMPORTANT*: Don't manually change the version here. Use the 'bumpversion' utility.
-    version='0.1.0-beta.8',
+    version='0.1.0-beta.9',
     description='Vyper Programming Language for Ethereum',
     long_description_markdown_filename='README.md',
     author='Vitalik Buterin',

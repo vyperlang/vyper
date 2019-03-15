@@ -2,7 +2,7 @@
 <img src="https://raw.githubusercontent.com/ethereum/vyper/master/logo/vyper-logo-transparent.svg?sanitize=true" alt="" width="110">
 
 [![Join the chat at https://gitter.im/bethereum/vyper](https://badges.gitter.im/ethereum/vyper.svg)](https://gitter.im/ethereum/vyper?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
-[![Build Status](https://travis-ci.org/ethereum/vyper.svg?branch=master)](https://travis-ci.org/ethereum/vyper)
+[![Build Status](https://circleci.com/gh/ethereum/vyper.svg?style=shield)](https://circleci.com/gh/ethereum/vyper)
 [![Documentation Status](https://readthedocs.org/projects/vyper/badge/?version=latest)](http://vyper.readthedocs.io/en/latest/?badge=latest)
 [![Coverage Status](https://coveralls.io/repos/github/ethereum/vyper/badge.svg?branch=master)](https://coveralls.io/github/ethereum/vyper?branch=master)
 

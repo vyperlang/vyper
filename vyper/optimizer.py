@@ -1,3 +1,5 @@
+import operator
+
 from vyper.parser.parser_utils import (
     LLLnode,
 )
@@ -15,6 +17,7 @@ def get_int_at(args, pos, signed=False):
         o = LOADED_LIMIT_MAP[args[pos].args[0].value]
     else:
         return None
+
     if signed or o < 0:
         return ((o + 2**255) % 2**256) - 2**255
     else:
@@ -28,9 +31,11 @@ def int_at(args, pos):
 def search_for_set(node, var):
     if node.value == "set" and node.args[0].value == var:
         return True
+
     for arg in node.args:
         if search_for_set(arg, var):
             return True
+
     return False
 
 
@@ -60,11 +65,11 @@ def replace_with_value(node, var, value):
 
 
 arith = {
-    "add": (lambda x, y: x + y, '+'),
-    "sub": (lambda x, y: x - y, '-'),
-    "mul": (lambda x, y: x * y, '*'),
-    "div": (lambda x, y: x // y, '/'),
-    "mod": (lambda x, y: x % y, '%'),
+    "add": (operator.add, '+'),
+    "sub": (operator.sub, '-'),
+    "mul": (operator.mul, '*'),
+    "div": (operator.floordiv, '/'),
+    "mod": (operator.mod, '%'),
 }
 
 
@@ -92,7 +97,7 @@ def _is_with_without_set(node, args):
     )
 
 
-def optimize(node):
+def optimize(node: LLLnode) -> LLLnode:
     argz = [optimize(arg) for arg in node.args]
     if node.value in arith and int_at(argz, 0) and int_at(argz, 1):
         left, right = get_int_at(argz, 0), get_int_at(argz, 1)
@@ -235,7 +240,7 @@ def optimize(node):
             add_gas_estimate=node.add_gas_estimate,
             valency=node.valency,
         )
-    elif hasattr(node, 'total_gas'):
+    elif node.total_gas is not None:
         o = LLLnode(
             node.value,
             argz,
