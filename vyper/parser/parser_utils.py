@@ -742,6 +742,29 @@ class OptimizingVisitor(ast.NodeTransformer):
             return node
 
 
+def annotate_and_optimize_ast(
+    parsed_ast: ast.Module,
+    source_code: str,
+    class_types: Optional[ClassTypes] = None,
+) -> None:
+    """
+    Performs annotation and optimization on a parsed python AST by doing the
+    following:
+
+    * Annotating all AST nodes with the originating source code of the AST
+    * Annotating class definition nodes with their original class type
+      ("contract" or "struct")
+    * Substituting negative values for unary subtractions
+
+    :param parsed_ast: The AST to be annotated and optimized.
+    :param source_code: The originating source code of the AST.
+    :param class_types: A mapping of class names to original class types.
+    :return: The annotated and optmized AST.
+    """
+    AnnotatingVisitor(source_code, class_types).visit(parsed_ast)
+    OptimizingVisitor().visit(parsed_ast)
+
+
 def decorate_ast(_ast, code, class_names=None):
     if class_names is None:
         class_names = {}
