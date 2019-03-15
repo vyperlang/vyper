@@ -79,7 +79,7 @@ def test2() -> decimal:
 def test_sqrt_inline_memory_correct(get_contract_with_gas_estimation):
     code = """
 @public
-def test(a: decimal) -> (decimal, decimal, decimal, decimal, decimal):
+def test(a: decimal) -> (decimal, decimal, decimal, decimal, decimal, string[100]):
     b: decimal = 1.0
     c: decimal = 2.0
     d: decimal = 3.0
