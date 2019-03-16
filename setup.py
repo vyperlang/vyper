@@ -6,8 +6,7 @@ from setuptools import setup, find_packages
 test_deps = [
     'pytest>=3.6',
     'pytest-cov==2.4.0',
-    'coverage==4.0.3',
-    'python-coveralls==2.9.1',
+    'coveralls[yaml]==1.6.0',
     'pytest-xdist==1.18.1',
     'py-evm==0.2.0a39',
     'eth-tester==0.1.0b37',
