@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 
-if [[ -z "${COVERALLS_REPO_TOKEN}" ]]; then
-  printf 'COVERALLS_REPO_TOKEN env var not set\n'
+output=$(coveralls 2>&1)
+
+if [[ $? -eq 0 ]]; then
+  printf '%s\n' "$output"
 else
-  coveralls
+  printf 'Skipping coverage upload.\n'
 fi
