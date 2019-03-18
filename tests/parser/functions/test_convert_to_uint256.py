@@ -222,6 +222,17 @@ def foo() -> uint256:
     )
 
     code = """
+@public
+def foo() -> uint256:
+    return convert(-(-(-27.2319)), uint256)
+    """
+
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(code),
+        InvalidLiteralException
+    )
+
+    code = """
 bar: decimal
 
 @public
