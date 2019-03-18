@@ -2,13 +2,13 @@ from typing import (
     Tuple,
 )
 
+from vyper.exceptions import (
+    CompilerPanic,
+)
+
 from vyper.utils import (
     MemoryPositions,
 )
-
-
-class MemoryAlignmentException(Exception):
-    pass
 
 
 class MemoryAllocator:
@@ -24,9 +24,8 @@ class MemoryAllocator:
     # Grow memory by x bytes
     def increase_memory(self, size: int) -> Tuple[int, int]:
         if size % 32 != 0:
-            raise MemoryAlignmentException(
+            raise CompilerPanic(
                 'Memory misaligment, only multiples of 32 supported.'
-                'Please create an issue.'
             )
         before_value = self.next_mem
         self.next_mem += size
