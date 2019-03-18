@@ -26,9 +26,9 @@ from vyper.parser.lll_node import (
     LLLnode,
 )
 from vyper.parser.parser_utils import (
+    annotate_and_optimize_ast,
     base_type_conversion,
     byte_array_to_num,
-    annotate_and_optimize_ast,
     getpos,
     make_byte_array_copier,
     make_setter,
