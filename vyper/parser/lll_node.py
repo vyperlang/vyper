@@ -2,7 +2,7 @@ import os
 import re
 
 from vyper.exceptions import (
-    CompilerPanic
+    CompilerPanic,
 )
 from vyper.opcodes import (
     comb_opcodes,
@@ -16,7 +16,6 @@ from vyper.types import (
 from vyper.utils import (
     valid_lll_macros,
 )
-
 
 # Set default string representation for ints in LLL output.
 AS_HEX_DEFAULT = False
@@ -200,7 +199,9 @@ class LLLnode:
             elif self.value == 'multi':
                 for arg in self.args:
                     if not arg.valency:
-                        raise CompilerPanic("Multi expects all children to not be zerovalent: %r" % arg)
+                        raise CompilerPanic(
+                            "Multi expects all children to not be zerovalent: %r" % arg
+                        )
                 self.valency = sum([arg.valency for arg in self.args])
                 self.gas = sum([arg.gas for arg in self.args])
             # LLL brackets (don't bother gas counting)
