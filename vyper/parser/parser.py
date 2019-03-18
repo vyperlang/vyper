@@ -73,23 +73,23 @@ if not hasattr(ast, 'AnnAssign'):
     raise Exception("Requires python 3.6 or higher for annotation support")
 
 
-def parse_to_ast(code: str) -> List[ast.stmt]:
+def parse_to_ast(source_code: str) -> List[ast.stmt]:
     """
     Parses the given vyper source code and returns a list of python AST objects
-    for all statements in the source.  Performs pre-processing of ``code``
+    for all statements in the source.  Performs pre-processing of source code
     before parsing as well as post-processing of the resulting AST.
 
-    :param code: The vyper source code to be parsed.
+    :param source_code: The vyper source code to be parsed.
     :return: The post-processed list of python AST objects for each statement in
-        ``code``.
+        ``source_code``.
     """
-    class_types, code = pre_parse(code)
+    class_types, reformatted_code = pre_parse(source_code)
 
-    if '\x00' in code:
+    if '\x00' in reformatted_code:
         raise ParserException('No null bytes (\\x00) allowed in the source code.')
 
-    parsed_ast = ast.parse(code)
-    annotate_and_optimize_ast(parsed_ast, code, class_types)
+    parsed_ast = ast.parse(reformatted_code)
+    annotate_and_optimize_ast(parsed_ast, reformatted_code, class_types)
 
     return parsed_ast.body
 
