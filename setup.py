@@ -11,6 +11,7 @@ test_deps = [
     'eth-tester==0.1.0b37',
     'web3==5.0.0a6',
     'tox>=3.7,<4',
+    'hypothesis==4.11.7'
 ]
 lint_deps = [
     'coveralls>=1.6,<2',
