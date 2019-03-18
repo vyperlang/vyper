@@ -25,6 +25,7 @@ from vyper.parser.parser_utils import (
 )
 from vyper.types import (
     BaseType,
+    ByteArrayLike,
     ByteArrayType,
     ContractType,
     ListType,
@@ -798,12 +799,15 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 self.expr,
             )
 
-        if isinstance(left.typ, ByteArrayType) and isinstance(right.typ, ByteArrayType):
+        if isinstance(left.typ, ByteArrayLike) and isinstance(right.typ, ByteArrayLike):
             if left.typ.maxlen != right.typ.maxlen:
-                raise TypeMismatchException('Can only compare bytes of the same length', self.expr)
+                raise TypeMismatchException(
+                    'Can only compare strings or bytes of the same length, shorter than 32 bytes.',
+                    self.expr
+                )
             if left.typ.maxlen > 32 or right.typ.maxlen > 32:
                 raise ParserException(
-                    'Can only compare bytes of length shorter than 32 bytes',
+                    'Can only compare strings/bytes of length shorter than 32 bytes',
                     self.expr,
                 )
         elif isinstance(self.expr.ops[0], ast.In) and isinstance(right.typ, ListType):
@@ -838,7 +842,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             raise Exception("Unsupported comparison operator")
 
         # Compare (limited to 32) byte arrays.
-        if isinstance(left.typ, ByteArrayType) and isinstance(left.typ, ByteArrayType):
+        if isinstance(left.typ, ByteArrayLike) and isinstance(left.typ, ByteArrayLike):
             left = Expr(self.expr.left, self.context).lll_node
             right = Expr(self.expr.comparators[0], self.context).lll_node
 

@@ -80,6 +80,10 @@ class EventDeclarationException(ParserException):
     pass
 
 
+class VersionException(ParserException):
+    pass
+
+
 class CompilerPanic(Exception):
 
     def __init__(self, message):

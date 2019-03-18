@@ -39,7 +39,6 @@ NONRENTRANT_STORAGE_OFFSET = 0xffffff
 
 # Datatype to store all global context information.
 class GlobalContext:
-
     def __init__(self):
         self._contracts = dict()
         self._structs = dict()
