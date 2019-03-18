@@ -1,10 +1,20 @@
 from decimal import (
     ROUND_FLOOR,
     Decimal,
+    getcontext,
 )
 
+from eth_tester.exceptions import (
+    TransactionFailed,
+)
+import hypothesis
 import pytest
 
+from vyper.utils import (
+    SizeLimits,
+)
+
+getcontext().prec = 168
 DECIMAL_PLACES = 10
 DECIMAL_RANGE = [
     Decimal('0.' + '0' * d + '2')
@@ -12,11 +22,16 @@ DECIMAL_RANGE = [
 ]
 
 
-def decimal_sqrt(val, decimal_places=DECIMAL_PLACES, rounding=ROUND_FLOOR):
+def decimal_truncate(val, decimal_places=DECIMAL_PLACES, rounding=ROUND_FLOOR):
     q = '0'
     if decimal_places != 0:
         q += '.' + '0' * decimal_places
-    return val.sqrt().quantize(Decimal(q), rounding=rounding)
+
+    return val.quantize(Decimal(q), rounding=rounding)
+
+
+def decimal_sqrt(val):
+    return decimal_truncate(val.sqrt())
 
 
 def test_sqrt_literal(get_contract_with_gas_estimation):
@@ -51,6 +66,9 @@ def test2() -> decimal:
 
     assert c.test(Decimal('0.0')) == Decimal('0.0')
     assert c.test2() == decimal_sqrt(Decimal('44.001'))
+
+    with pytest.raises(TransactionFailed):
+        c.test(Decimal('-1.1'))
 
 
 def test_sqrt_storage(get_contract_with_gas_estimation):
@@ -101,8 +119,8 @@ def test(a: decimal) -> (decimal, decimal, decimal, decimal, decimal, string[100
     ]
 
 
-@pytest.mark.parametrize('sub_val', DECIMAL_RANGE)
-def test_sqrt_sub_decimal_places(sub_val, get_contract):
+@pytest.mark.parametrize('value', DECIMAL_RANGE)
+def test_sqrt_sub_decimal_places(value, get_contract):
     code = """
 @public
 def test(a: decimal) -> decimal:
@@ -111,6 +129,33 @@ def test(a: decimal) -> decimal:
 
     c = get_contract(code)
 
-    vyper_sqrt = c.test(sub_val)
-    actual_sqrt = decimal_sqrt(sub_val)
+    vyper_sqrt = c.test(value)
+    actual_sqrt = decimal_sqrt(value)
     assert vyper_sqrt == actual_sqrt
+
+
+class TestFuzzSqrt:
+
+    @pytest.fixture(autouse=True)
+    def setup_sqrt(self, get_contract):
+        code = """
+@public
+def test(a: decimal) -> decimal:
+    return sqrt(a)
+        """
+        self.c = get_contract(code)
+
+    @hypothesis.given(
+        value=hypothesis.strategies.decimals(
+            min_value=Decimal(0),
+            max_value=Decimal(SizeLimits.MAXNUM),
+            places=DECIMAL_PLACES
+        )
+    )
+    @hypothesis.settings(
+        deadline=400
+    )
+    def test_fuzz_sqrt(self, value):
+        vyper_sqrt = self.c.test(value)
+        actual_sqrt = decimal_sqrt(value)
+        assert vyper_sqrt == actual_sqrt
