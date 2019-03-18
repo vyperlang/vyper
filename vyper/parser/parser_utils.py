@@ -731,7 +731,7 @@ class AnnotatingVisitor(ast.NodeTransformer):
         return node
 
 
-class OptimizingVisitor(ast.NodeTransformer):
+class RewriteUnarySubVisitor(ast.NodeTransformer):
     def visit_UnaryOp(self, node):
         self.generic_visit(node)
 
@@ -762,7 +762,7 @@ def annotate_and_optimize_ast(
     :return: The annotated and optmized AST.
     """
     AnnotatingVisitor(source_code, class_types).visit(parsed_ast)
-    OptimizingVisitor().visit(parsed_ast)
+    RewriteUnarySubVisitor().visit(parsed_ast)
 
 
 def zero_pad(bytez_placeholder, maxlen, context):
