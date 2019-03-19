@@ -134,28 +134,28 @@ def test(a: decimal) -> decimal:
     assert vyper_sqrt == actual_sqrt
 
 
-class TestFuzzSqrt:
-
-    @pytest.fixture(autouse=True)
-    def setup_sqrt(self, get_contract):
-        code = """
+@pytest.fixture(scope='module')
+def sqrt_contract(get_contract_module):
+    code = """
 @public
 def test(a: decimal) -> decimal:
     return sqrt(a)
-        """
-        self.c = get_contract(code)
+    """
+    c = get_contract_module(code)
+    return c
 
-    @hypothesis.given(
-        value=hypothesis.strategies.decimals(
-            min_value=Decimal(0),
-            max_value=Decimal(SizeLimits.MAXNUM),
-            places=DECIMAL_PLACES
-        )
+
+@hypothesis.given(
+    value=hypothesis.strategies.decimals(
+        min_value=Decimal(0),
+        max_value=Decimal(SizeLimits.MAXNUM),
+        places=DECIMAL_PLACES
     )
-    @hypothesis.settings(
-        deadline=400
-    )
-    def test_fuzz_sqrt(self, value):
-        vyper_sqrt = self.c.test(value)
-        actual_sqrt = decimal_sqrt(value)
-        assert vyper_sqrt == actual_sqrt
+)
+@hypothesis.settings(
+    deadline=400,
+)
+def test_fuzz_sqrt(sqrt_contract, value):
+    vyper_sqrt = sqrt_contract.test(value)
+    actual_sqrt = decimal_sqrt(value)
+    assert vyper_sqrt == actual_sqrt
