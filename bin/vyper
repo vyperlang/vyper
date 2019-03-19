@@ -82,6 +82,18 @@ def exc_handler(contract_name, exception):
     raise exception
 
 
+def import_file_paths(dirs, importpath):
+    """ Get the possible import paths for an interface import """
+    extensions = ('.vy', '.json')
+    valid_paths = list()
+    for d in dirs:
+        for ext in extensions:
+            resolved_path = os.path.join(d, os.path.normpath(importpath.replace('.', '/'))) + ext
+            if os.path.isfile(resolved_path):
+                valid_paths.append(resolved_path)
+    return valid_paths
+
+
 if __name__ == '__main__':
     if args.show_gas_estimates:
         parser_utils.LLLnode.repr_show_gas = True
@@ -114,18 +126,17 @@ if __name__ == '__main__':
             formats.append(translate_map.get(f, f))
 
         interface_codes = {}
+        import_paths = set()
 
-        for code in codes.values():
+        for code_path, code in codes.items():
             interface_codes.update(extract_file_interface_imports(code))
+            dir_path = os.path.dirname(code_path)
+            if dir_path:
+                import_paths.add(dir_path)
 
         if interface_codes:
             for interface_name, interface_path in interface_codes.items():
-                file_path = os.path.join(os.path.normpath(interface_path.replace('.', '/')))
-                extensions = ('.vy', '.json')
-                valid_paths = [
-                    file_path + ex
-                    for ex in extensions if os.path.exists(file_path + ex)
-                ]
+                valid_paths = import_file_paths(import_paths, interface_path)
                 if not valid_paths:
                     raise Exception('Imported interface "{}{.vy,.json}" does not exist.'.format(
                         interface_path,
