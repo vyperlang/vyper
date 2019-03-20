@@ -111,7 +111,7 @@ class Expr(object):
                 raise InvalidLiteralException("Too many decimal places: " + numstring, self.expr)
             return LLLnode.from_list(
                 num * DECIMAL_DIVISOR // den,
-                typ=BaseType('decimal', unit=None),
+                typ=BaseType('decimal', unit=None, is_literal=True),
                 pos=getpos(self.expr),
             )
 
@@ -445,7 +445,8 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
 
         # Special Case: Simplify any literal to literal arithmetic at compile time.
         if left.typ.is_literal and right.typ.is_literal and \
-           isinstance(right.value, int) and isinstance(left.value, int):
+           isinstance(right.value, int) and isinstance(left.value, int) and \
+           arithmetic_pair.issubset({'uint256', 'int128'}):
 
             if isinstance(self.expr.op, ast.Add):
                 val = left.value + right.value

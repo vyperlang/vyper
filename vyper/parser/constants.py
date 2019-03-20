@@ -12,6 +12,9 @@ from vyper.parser.context import (
 from vyper.parser.expr import (
     Expr,
 )
+from vyper.parser.memory_allocator import (
+    MemoryAllocator,
+)
 from vyper.types.types import (
     BaseType,
     ByteArrayType,
@@ -32,12 +35,15 @@ class Constants(object):
         return key in self._constants
 
     def unroll_constant(self, const, global_ctx):
-        # const = self._constants[self.expr.id]
-
         ann_expr = None
         expr = Expr.parse_value_expr(
             const.value,
-            Context(vars=None, global_ctx=global_ctx, origcode=const.source_code),
+            Context(
+                vars=None,
+                global_ctx=global_ctx,
+                origcode=const.source_code,
+                memory_allocator=MemoryAllocator()
+            ),
         )
         annotation_type = global_ctx.parse_type(const.annotation.args[0], None)
         fail = False

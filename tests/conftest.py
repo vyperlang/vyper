@@ -233,6 +233,18 @@ def get_contract(w3):
     return get_contract
 
 
+@pytest.fixture(scope='module')
+def get_contract_module():
+    tester = EthereumTester()
+    w3 = Web3(EthereumTesterProvider(tester))
+    w3.eth.setGasPriceStrategy(zero_gas_price_strategy)
+
+    def get_contract_module(source_code, *args, **kwargs):
+        return _get_contract(w3, source_code, *args, **kwargs)
+
+    return get_contract_module
+
+
 def get_compiler_gas_estimate(code, func):
     if func:
         return compiler.gas_estimate(code)[func] + 22000

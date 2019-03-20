@@ -25,6 +25,9 @@ from vyper.parser.global_context import (
 from vyper.parser.lll_node import (
     LLLnode,
 )
+from vyper.parser.memory_allocator import (
+    MemoryAllocator,
+)
 from vyper.parser.parser_utils import (
     annotate_and_optimize_ast,
     base_type_conversion,
@@ -401,10 +404,12 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
         nonreentrant_post = [['sstore', nkey, 0]]
 
     # Create a local (per function) context.
+    memory_allocator = MemoryAllocator()
     context = Context(
         vars=_vars,
         global_ctx=global_ctx,
         sigs=sigs,
+        memory_allocator=memory_allocator,
         return_type=sig.output_type,
         constancy=Constancy.Constant if sig.const else Constancy.Mutable,
         is_payable=sig.payable,
@@ -422,7 +427,8 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
         32 if isinstance(arg.typ, ByteArrayLike) else get_size_of_type(arg.typ) * 32
         for arg in base_args
     ])
-    context.next_mem += max_copy_size
+    # context.next_mem += max_copy_size
+    context.memory_allocator.increase_memory(max_copy_size)
 
     clampers = []
 
@@ -467,15 +473,16 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
     # Fill variable positions
     for i, arg in enumerate(sig.args):
         if i < len(base_args) and not sig.private:
+
             clampers.append(make_clamper(
                 arg.pos,
-                context.next_mem,
+                context.memory_allocator.get_next_memory_position(),
                 arg.typ,
                 sig.name == '__init__',
             ))
         if isinstance(arg.typ, ByteArrayLike):
-            context.vars[arg.name] = VariableRecord(arg.name, context.next_mem, arg.typ, False)
-            context.next_mem += 32 * get_size_of_type(arg.typ)
+            mem_pos, _ = context.memory_allocator.increase_memory(32 * get_size_of_type(arg.typ))
+            context.vars[arg.name] = VariableRecord(arg.name, mem_pos, arg.typ, False)
         else:
             context.vars[arg.name] = VariableRecord(
                 arg.name,
@@ -689,7 +696,9 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
         )
 
     o.context = context
-    o.total_gas = o.gas + calc_mem_gas(o.context.next_mem)
+    o.total_gas = o.gas + calc_mem_gas(
+        o.context.memory_allocator.get_next_memory_position()
+    )
     o.func_name = sig.name
     return o
 

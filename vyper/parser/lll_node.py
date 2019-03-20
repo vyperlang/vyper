@@ -1,6 +1,9 @@
 import os
 import re
 
+from vyper.exceptions import (
+    CompilerPanic,
+)
 from vyper.opcodes import (
     comb_opcodes,
 )
@@ -90,7 +93,7 @@ class LLLnode:
                 _, ins, outs, gas = comb_opcodes[self.value.upper()]
                 self.valency = outs
                 if len(self.args) != ins:
-                    raise Exception(
+                    raise CompilerPanic(
                         "Number of arguments mismatched: %r %r" % (self.value, self.args)
                     )
                 # We add 2 per stack height at push time and take it back
@@ -102,7 +105,7 @@ class LLLnode:
                     # allowed argument.
                     zero_valency_whitelist = {'pass', 'pop'}
                     if arg.valency == 0 and arg.value not in zero_valency_whitelist:
-                        raise Exception(
+                        raise CompilerPanic(
                             "Can't have a zerovalent argument to an opcode or a pseudo-opcode! "
                             "%r: %r. Please file a bug report." % (arg.value, arg)
                         )
@@ -134,21 +137,21 @@ class LLLnode:
                 if len(self.args) == 2:
                     self.gas = self.args[0].gas + self.args[1].gas + 17
                 if not self.args[0].valency:
-                    raise Exception((
+                    raise CompilerPanic((
                         "Can't have a zerovalent argument as a test to an if "
                         "statement! %r"
                     ) % self.args[0])
                 if len(self.args) not in (2, 3):
-                    raise Exception("If can only have 2 or 3 arguments")
+                    raise CompilerPanic("If can only have 2 or 3 arguments")
                 self.valency = self.args[1].valency
             # With statements: with <var> <initial> <statement>
             elif self.value == 'with':
                 if len(self.args) != 3:
-                    raise Exception("With statement must have 3 arguments")
+                    raise CompilerPanic("With statement must have 3 arguments")
                 if len(self.args[0].args) or not isinstance(self.args[0].value, str):
-                    raise Exception("First argument to with statement must be a variable")
+                    raise CompilerPanic("First argument to with statement must be a variable")
                 if not self.args[1].valency:
-                    raise Exception((
+                    raise CompilerPanic((
                         "Second argument to with statement (initial value) "
                         "cannot be zerovalent: %r"
                     ) % self.args[1])
@@ -163,22 +166,22 @@ class LLLnode:
                 ))
 
                 if is_invalid_repeat_count:
-                    raise Exception((
+                    raise CompilerPanic((
                         "Number of times repeated must be a constant nonzero "
                         "positive integer: %r"
                     ) % self.args[2])
                 if not self.args[0].valency:
-                    raise Exception((
+                    raise CompilerPanic((
                         "First argument to repeat (memory location) cannot be "
                         "zerovalent: %r"
                     ) % self.args[0])
                 if not self.args[1].valency:
-                    raise Exception((
+                    raise CompilerPanic((
                         "Second argument to repeat (start value) cannot be "
                         "zerovalent: %r"
                     ) % self.args[1])
                 if self.args[3].valency:
-                    raise Exception((
+                    raise CompilerPanic((
                         "Third argument to repeat (clause to be repeated) must "
                         "be zerovalent: %r"
                     ) % self.args[3])
@@ -196,7 +199,9 @@ class LLLnode:
             elif self.value == 'multi':
                 for arg in self.args:
                     if not arg.valency:
-                        raise Exception("Multi expects all children to not be zerovalent: %r" % arg)
+                        raise CompilerPanic(
+                            "Multi expects all children to not be zerovalent: %r" % arg
+                        )
                 self.valency = sum([arg.valency for arg in self.args])
                 self.gas = sum([arg.gas for arg in self.args])
             # LLL brackets (don't bother gas counting)
@@ -215,7 +220,7 @@ class LLLnode:
             self.valency = 1
             self.gas = 5
         else:
-            raise Exception("Invalid value for LLL AST node: %r" % self.value)
+            raise CompilerPanic("Invalid value for LLL AST node: %r" % self.value)
         assert isinstance(self.args, list)
 
         if valency is not None:

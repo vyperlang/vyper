@@ -177,6 +177,21 @@ Note that it can be called either by using ``sha3`` or ``keccak256``.
 Returns ``sha256`` (SHA2 256bit output) hash of input.
 
 
+**sqrt**
+--------
+::
+
+  def sqrt(a: decimal) -> decimal:
+    """
+    :param a:
+    :type a: decimal, larger than 0.0
+
+    :output sqrt: decimal
+    """
+
+Returns the suare of the provided decimal number, using the Babylonian square root algorithm.
+
+
 **method_id**
 ---------------
 ::

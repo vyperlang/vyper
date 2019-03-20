@@ -22,6 +22,9 @@ from vyper.parser.parser_utils import (
     make_byte_slice_copier,
     unwrap_location,
 )
+from vyper.signatures.function_signature import (
+    VariableRecord,
+)
 from vyper.types import (
     BaseType,
     ByteArrayLike,
@@ -1224,6 +1227,65 @@ def minmax(expr, args, kwargs, context, is_min):
     )
 
 
+@signature('decimal')
+def sqrt(expr, args, kwargs, context):
+    from vyper.functions.utils import (
+        generate_inline_function,
+    )
+    arg = args[0]
+    sqrt_code = """
+assert x >= 0.0
+z: decimal
+
+if x == 0.0:
+    z = 0.0
+else:
+    z = (x + 1.0) / 2.0
+    y: decimal = x
+
+    for i in range(256):
+        if z == y:
+            break
+        y = z
+        z = (x / z + z) / 2.0
+    """
+
+    x_type = BaseType('decimal')
+    placeholder_copy = ['pass']
+    # Steal current position if variable is already allocated.
+    if arg.value == 'mload':
+        new_var_pos = arg.args[0]
+    # Other locations need to be copied.
+    else:
+        new_var_pos = context.new_placeholder(x_type)
+        placeholder_copy = ['mstore', new_var_pos, arg]
+    # Create input variables.
+    variables = {
+        'x': VariableRecord(
+            name='x',
+            pos=new_var_pos,
+            typ=x_type,
+            mutable=False
+        )
+    }
+    # Generate inline LLL.
+    new_ctx, sqrt_lll = generate_inline_function(
+        code=sqrt_code,
+        variables=variables,
+        memory_allocator=context.memory_allocator
+    )
+    return LLLnode.from_list(
+        [
+            'seq_unchecked',
+            placeholder_copy,  # load x variable
+            sqrt_lll,
+            ['mload', new_ctx.vars['z'].pos]  # unload z variable into the stack,
+        ],
+        typ=BaseType('decimal'),
+        pos=getpos(expr),
+    )
+
+
 def _clear():
     raise ParserException(
         "This function should never be called! `clear()` is currently handled "
@@ -1258,6 +1320,7 @@ dispatch_table = {
     'bitwise_not': bitwise_not,
     'uint256_addmod': uint256_addmod,
     'uint256_mulmod': uint256_mulmod,
+    'sqrt': sqrt,
     'shift': shift,
     'create_forwarder_to': create_forwarder_to,
     'min': _min,
