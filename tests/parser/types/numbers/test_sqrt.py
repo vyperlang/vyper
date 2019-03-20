@@ -68,7 +68,7 @@ def test2() -> decimal:
     assert c.test2() == decimal_sqrt(Decimal('44.001'))
 
     with pytest.raises(TransactionFailed):
-        c.test(Decimal('-1.1'))
+        c.test(Decimal('-1E-10'))
 
 
 def test_sqrt_storage(get_contract_with_gas_estimation):
