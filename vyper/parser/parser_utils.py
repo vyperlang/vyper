@@ -1,4 +1,7 @@
 import ast
+from typing import (
+    Optional,
+)
 
 from vyper.exceptions import (
     InvalidLiteralException,
@@ -24,6 +27,9 @@ from vyper.types import (
     get_size_of_type,
     has_dynamic_data,
     is_base_type,
+)
+from vyper.typing import (
+    ClassTypes,
 )
 from vyper.utils import (
     DECIMAL_DIVISOR,
@@ -698,37 +704,65 @@ def make_setter(left, right, location, pos, in_function_call=False):
         raise Exception("Invalid type for setters")
 
 
-def decorate_ast(_ast, code, class_names=None):
-    if class_names is None:
-        class_names = {}
+class AnnotatingVisitor(ast.NodeTransformer):
+    _source_code: str
+    _class_types: ClassTypes
 
-    class MyVisitor(ast.NodeTransformer):
-        def visit(self, node):
-            self.generic_visit(node)
+    def __init__(self, source_code: str, class_types: Optional[ClassTypes] = None):
+        self._source_code = source_code
+        if class_types is not None:
+            self._class_types = class_types
+        else:
+            self._class_types = {}
 
-            # Decorate every node of an AST tree with the original source code.
-            # This is necessary to facilitate error pretty-printing.
-            node.source_code = code
+    def generic_visit(self, node):
+        # Decorate every node in the AST with the original source code. This is
+        # necessary to facilitate error pretty-printing.
+        node.source_code = self._source_code
 
-            # Decorate class definition with the type of classes they are.
-            if isinstance(node, ast.ClassDef):
-                node.class_type = class_names.get(node.name)
+        return super().generic_visit(node)
 
+    def visit_ClassDef(self, node):
+        self.generic_visit(node)
+
+        # Decorate class definitions with their respective class types
+        node.class_type = self._class_types.get(node.name)
+
+        return node
+
+
+class RewriteUnarySubVisitor(ast.NodeTransformer):
+    def visit_UnaryOp(self, node):
+        self.generic_visit(node)
+
+        if isinstance(node.op, ast.USub) and isinstance(node.operand, ast.Num):
+            node.operand.n = 0 - node.operand.n
+            return node.operand
+        else:
             return node
 
-    MyVisitor().visit(_ast)
 
+def annotate_and_optimize_ast(
+    parsed_ast: ast.Module,
+    source_code: str,
+    class_types: Optional[ClassTypes] = None,
+) -> None:
+    """
+    Performs annotation and optimization on a parsed python AST by doing the
+    following:
 
-def resolve_negative_literals(_ast):
-    class RewriteUnaryOp(ast.NodeTransformer):
-        def visit_UnaryOp(self, node):
-            if isinstance(node.op, ast.USub) and isinstance(node.operand, ast.Num):
-                node.operand.n = 0 - node.operand.n
-                return node.operand
-            else:
-                return node
+    * Annotating all AST nodes with the originating source code of the AST
+    * Annotating class definition nodes with their original class type
+      ("contract" or "struct")
+    * Substituting negative values for unary subtractions
 
-    return RewriteUnaryOp().visit(_ast)
+    :param parsed_ast: The AST to be annotated and optimized.
+    :param source_code: The originating source code of the AST.
+    :param class_types: A mapping of class names to original class types.
+    :return: The annotated and optmized AST.
+    """
+    AnnotatingVisitor(source_code, class_types).visit(parsed_ast)
+    RewriteUnarySubVisitor().visit(parsed_ast)
 
 
 def zero_pad(bytez_placeholder, maxlen, context):

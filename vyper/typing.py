@@ -4,5 +4,5 @@ from typing import (
 )
 
 # Parser types
-ClassNames = Dict[str, str]
+ClassTypes = Dict[str, str]
 ParserPosition = Tuple[int, int]
