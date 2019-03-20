@@ -67,9 +67,6 @@ def test2() -> decimal:
     assert c.test(Decimal('0.0')) == Decimal('0.0')
     assert c.test2() == decimal_sqrt(Decimal('44.001'))
 
-    with pytest.raises(TransactionFailed):
-        c.test(Decimal('-1E-10'))
-
 
 def test_sqrt_storage(get_contract_with_gas_estimation):
     code = """
@@ -152,10 +149,29 @@ def test(a: decimal) -> decimal:
         places=DECIMAL_PLACES
     )
 )
+@hypothesis.example(Decimal(SizeLimits.MAXNUM))
+@hypothesis.example(Decimal(0))
 @hypothesis.settings(
     deadline=400,
 )
-def test_fuzz_sqrt(sqrt_contract, value):
+def test_sqrt_valid_range(sqrt_contract, value):
     vyper_sqrt = sqrt_contract.test(value)
     actual_sqrt = decimal_sqrt(value)
     assert vyper_sqrt == actual_sqrt
+
+
+@hypothesis.given(
+    value=hypothesis.strategies.decimals(
+        min_value=Decimal(SizeLimits.MINNUM),
+        max_value=Decimal('-1E10'),
+        places=DECIMAL_PLACES
+    )
+)
+@hypothesis.settings(
+    deadline=400,
+)
+@hypothesis.example(Decimal(SizeLimits.MINNUM))
+@hypothesis.example(Decimal('-1E10'))
+def test_sqrt_invalid_range(sqrt_contract, value):
+    with pytest.raises(TransactionFailed):
+        sqrt_contract.test(value)
