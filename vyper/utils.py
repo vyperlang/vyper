@@ -165,10 +165,11 @@ reserved_words = {
     # control flow
     'if', 'for', 'while', 'until', 'pass',
     'def',
-    # EVM operations
+    # EVM operations and transaction properties
     'push', 'dup', 'swap', 'send', 'call',
     'selfdestruct', 'assert', 'stop', 'throw',
     'raise', 'init', '_init_', '___init___', '____init____',
+    'msg',
     # boolean literals
     'true', 'false',
     # more control flow and special operations
@@ -180,8 +181,8 @@ reserved_words = {
     # denominations
     'ether', 'wei', 'finney', 'szabo', 'shannon', 'lovelace', 'ada', 'babbage',
     'gwei', 'kwei', 'mwei', 'twei', 'pwei',
-    # contract keyword
-    'contract',
+    # contract keywords
+    'contract', 'struct',
     # units
     'units',
     # sentinal constant values
