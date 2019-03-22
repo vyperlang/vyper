@@ -73,6 +73,7 @@ class Stmt(object):
             ast.Delete: self.parse_delete,
             ast.Str: self.parse_docblock,  # docblock
             ast.Name: self.parse_name,
+            ast.Raise: self.parse_raise,
         }
         stmt_type = self.stmt.__class__
         if stmt_type in self.stmt_table:
@@ -89,10 +90,13 @@ class Stmt(object):
     def parse_name(self):
         if self.stmt.id == "vdb":
             return LLLnode('debugger', typ=None, pos=getpos(self.stmt))
-        elif self.stmt.id == "throw":
-            return LLLnode.from_list(['assert', 0], typ=None, pos=getpos(self.stmt))
         else:
             raise StructureException("Unsupported statement type: %s" % type(self.stmt), self.stmt)
+
+    def parse_raise(self):
+        if self.stmt.exc is None:
+            raise StructureException('Raise must have a reason', self.stmt)
+        return self._assert_reason(0, self.stmt.exc)
 
     def _check_valid_assign(self, sub):
         if isinstance(self.stmt.annotation, ast.Call):  # unit style: num(wei)
@@ -441,27 +445,21 @@ class Stmt(object):
         else:
             return external_call.make_external_call(self.stmt, self.context)
 
-    def parse_assert(self):
-
-        with self.context.assertion_scope():
-            test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
-
-        if not self.is_bool_expr(test_expr):
-            raise TypeMismatchException('Only boolean expressions allowed', self.stmt.test)
-        if self.stmt.msg:
-            if not isinstance(self.stmt.msg, ast.Str):
-                raise StructureException(
-                    'Reason parameter of assert needs to be a literal string.', self.stmt.msg
-                )
-            if len(self.stmt.msg.s.strip()) == 0:
-                raise StructureException('Empty reason string not allowed.', self.stmt)
-            reason_str = self.stmt.msg.s.strip()
-            sig_placeholder = self.context.new_placeholder(BaseType(32))
-            arg_placeholder = self.context.new_placeholder(BaseType(32))
-            reason_str_type = ByteArrayType(len(reason_str))
-            placeholder_bytes = Expr(self.stmt.msg, self.context).lll_node
-            method_id = fourbytes_to_int(sha3(b"Error(string)")[:4])
-            assert_reason = [
+    def _assert_reason(self, test_expr, msg):
+        if not isinstance(msg, ast.Str):
+            raise StructureException(
+                    'Reason parameter of assert needs to be a literal string.',
+                    msg)
+        if len(msg.s.strip()) == 0:
+            raise StructureException(
+                    'Empty reason string not allowed.', self.stmt)
+        reason_str = msg.s.strip()
+        sig_placeholder = self.context.new_placeholder(BaseType(32))
+        arg_placeholder = self.context.new_placeholder(BaseType(32))
+        reason_str_type = ByteArrayType(len(reason_str))
+        placeholder_bytes = Expr(msg, self.context).lll_node
+        method_id = fourbytes_to_int(sha3(b"Error(string)")[:4])
+        assert_reason = [
                 'seq',
                 ['mstore', sig_placeholder, method_id],
                 ['mstore', arg_placeholder, 32],
@@ -471,9 +469,19 @@ class Stmt(object):
                     test_expr,
                     int(sig_placeholder + 28),
                     int(4 + 32 + get_size_of_type(reason_str_type) * 32),
-                ],
-            ]
-            return LLLnode.from_list(assert_reason, typ=None, pos=getpos(self.stmt))
+                    ],
+                ]
+        return LLLnode.from_list(assert_reason, typ=None, pos=getpos(self.stmt))
+
+    def parse_assert(self):
+
+        with self.context.assertion_scope():
+            test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
+
+        if not self.is_bool_expr(test_expr):
+            raise TypeMismatchException('Only boolean expressions allowed', self.stmt.test)
+        if self.stmt.msg:
+            return self._assert_reason(test_expr, self.stmt.msg)
         else:
             return LLLnode.from_list(['assert', test_expr], typ=None, pos=getpos(self.stmt))
 

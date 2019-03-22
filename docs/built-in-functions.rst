@@ -378,18 +378,36 @@ Returns the data returned by the call as a bytes array with the outsize as the m
 Causes a self destruction of the contract, triggers the ``SELFDESTRUCT`` opcode (0xff).
 CAUTION! This method will delete the contract from the Ethereum blockchain. All none ether assets associated with this contract will be "burned" and the contract will be inaccessible.
 
+**raise**
+----------
+::
+
+  def raise(msg):
+    """
+    :param a: the exception reason (must be <= 32 bytes)
+    :type a: str
+    """
+
+Raises an exception by triggering the OPCODE ``REVERT`` (0xfd) with the provided reason given as the error message. The code will stop operation, the contract's state will be reverted to the state before the transaction took place and the remaining gas will be returned to the transaction's sender.
+
+Note: To give it a more Python like syntax, the raise function can be called without parenthesis, the syntax would be ``raise "An exception"``. Even though both options will compile, it's recommended to use the Pythonic version without parentheses.
+
 **assert**
 ----------
 ::
 
-  def assert(a):
+  def assert(a, reason=None):
     """
     :param a: the boolean condition to assert
     :type a: bool
+    :param reason: the reason provided to REVERT
+    :type b: str
     """
 
-Asserts the specified condition, if the condition is equals to true the code will continue to run.
-Otherwise, the OPCODE ``REVERT`` (0xfd) will be triggered, the code will stop it's operation, the contract's state will be reverted to the state before the transaction took place and the remaining gas will be returned to the transaction's sender.
+Asserts the specified condition. The behavior is equivalent to::
+  if not a:
+    raise reason
+(the only difference in behavior is that ``assert`` can be called without a reason string, while ``raise`` requires a reason string).
 
 Note: To give it a more Python like syntax, the assert function can be called without parenthesis, the syntax would be ``assert your_bool_condition``. Even though both options will compile, it's recommended to use the Pythonic version without parenthesis.
 
