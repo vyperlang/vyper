@@ -1335,3 +1335,9 @@ stmt_dispatch_table = {
     'raw_log': raw_log,
     'create_forwarder_to': create_forwarder_to,
 }
+
+built_in_functions = [
+    x for x in stmt_dispatch_table.keys()
+] + [
+    x for x in dispatch_table.keys()
+]

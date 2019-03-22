@@ -65,8 +65,8 @@ struct S:
     b: decimal
 @public
 def foo() -> int128:
-    struct: S = S({a: 1.2, b: 1})
-    return struct.a
+    s: S = S({a: 1.2, b: 1})
+    return s.a
     """, TypeMismatchException),
     ("""
 struct S:
@@ -74,8 +74,8 @@ struct S:
     b: decimal
 @public
 def foo() -> int128:
-    struct: S = S({b: 1.2, c: 1, d: 33, e: 55})
-    return struct.a
+    s: S = S({b: 1.2, c: 1, d: 33, e: 55})
+    return s.a
     """, TypeMismatchException)
 ]
 
