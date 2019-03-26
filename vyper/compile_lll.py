@@ -11,8 +11,6 @@ from .opcodes import (
     opcodes,
 )
 
-
-
 PUSH_OFFSET = 0x5f
 DUP_OFFSET = 0x7f
 SWAP_OFFSET = 0x8f
