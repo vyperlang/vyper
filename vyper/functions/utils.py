@@ -1,7 +1,13 @@
-from vyper.parser.parser import (
+from vyper.parser.context import (
     Context,
+)
+from vyper.parser.global_context import (
     GlobalContext,
+)
+from vyper.parser.stmt import (
     parse_body,
+)
+from vyper.parser.parser import (
     parse_to_ast,
 )
 
