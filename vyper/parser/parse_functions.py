@@ -17,6 +17,9 @@ from vyper.parser.lll_node import (
 from vyper.parser.memory_allocator import (
     MemoryAllocator,
 )
+from vyper.parser.parse_private_function import (
+    parse_private_function,
+)
 from vyper.parser.parser_utils import (
     getpos,
     make_setter,
@@ -68,16 +71,9 @@ def get_sig_statements(sig, pos):
     return sig_compare, private_label
 
 
-def get_arg_copier(sig, total_size, memory_dest, offset=4):
+def get_public_arg_copier(sig, total_size, memory_dest, offset=4):
     # Copy arguments.
-    # For private function, MSTORE arguments and callback pointer from the stack.
-    if sig.private:
-        copier = ['seq']
-        for pos in range(0, total_size, 32):
-            copier.append(['mstore', memory_dest + pos, 'pass'])
-    else:
-        copier = ['calldatacopy', memory_dest, offset, total_size]
-
+    copier = ['calldatacopy', memory_dest, offset, total_size]
     return copier
 
 
@@ -104,113 +100,28 @@ def make_unpacker(ident, i_placeholder, begin_pos):
         ['label', end_label]]
 
 
-def parse_private_function():
-    pass
+def parse_public_function(code, sig, context):
 
+    validate_public_function(code, sig, context.global_ctx)
 
-def parse_public_function():
-    pass
+    # Get nonreentrant lock
+    nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(sig, context.global_ctx)
 
+    # Calculate variable space.
+    max_copy_size, base_copy_size = calculate_variable_space(sig, sig.base_args)
 
-def parse_function(code, sigs, origcode, global_ctx, _vars=None):
-    """
-    Parses a function and produces LLL code for the function, includes:
-        - Signature method if statement
-        - Argument handling
-        - Clamping and copying of arguments
-        - Function body
-    """
-
-    if _vars is None:
-        _vars = {}
-    sig = FunctionSignature.from_definition(
-        code,
-        sigs=sigs,
-        custom_units=global_ctx._custom_units,
-        custom_structs=global_ctx._structs,
-        constants=global_ctx._constants
-    )
-    # Get base args for function.
-    total_default_args = len(code.args.defaults)
-    base_args = sig.args[:-total_default_args] if total_default_args > 0 else sig.args
-    default_args = code.args.args[-total_default_args:]
-    default_values = dict(zip([arg.arg for arg in default_args], code.args.defaults))
-    # __init__ function may not have defaults.
-    if sig.name == '__init__' and total_default_args > 0:
-        raise FunctionDeclarationException("__init__ function may not have default parameters.")
-    # Check for duplicate variables with globals
-    for arg in sig.args:
-        if arg.name in global_ctx._globals:
-            raise FunctionDeclarationException(
-                "Variable name duplicated between function arguments and globals: " + arg.name
-            )
-
-    nonreentrant_pre = [['pass']]
-    nonreentrant_post = [['pass']]
-    if sig.nonreentrant_key:
-        nkey = global_ctx.get_nonrentrant_counter(sig.nonreentrant_key)
-        nonreentrant_pre = [
-            ['seq',
-                ['assert', ['iszero', ['sload', nkey]]],
-                ['sstore', nkey, 1]]]
-        nonreentrant_post = [['sstore', nkey, 0]]
-
-    # Create a local (per function) context.
-    memory_allocator = MemoryAllocator()
-    context = Context(
-        vars=_vars,
-        global_ctx=global_ctx,
-        sigs=sigs,
-        memory_allocator=memory_allocator,
-        return_type=sig.output_type,
-        constancy=Constancy.Constant if sig.const else Constancy.Mutable,
-        is_payable=sig.payable,
-        origcode=origcode,
-        is_private=sig.private,
-        method_id=sig.method_id
-    )
-
-    # Copy calldata to memory for fixed-size arguments
-    max_copy_size = sum([
-        32 if isinstance(arg.typ, ByteArrayLike) else get_size_of_type(arg.typ) * 32
-        for arg in sig.args
-    ])
-    base_copy_size = sum([
-        32 if isinstance(arg.typ, ByteArrayLike) else get_size_of_type(arg.typ) * 32
-        for arg in base_args
-    ])
-    # context.next_mem += max_copy_size
+    # Allocate variable space.
     context.memory_allocator.increase_memory(max_copy_size)
 
     clampers = []
 
-    # Create callback_ptr, this stores a destination in the bytecode for a private
-    # function to jump to after a function has executed.
-    _post_callback_ptr = "{}_{}_post_callback_ptr".format(sig.name, sig.method_id)
-    if sig.private:
-        context.callback_ptr = context.new_placeholder(typ=BaseType('uint256'))
-        clampers.append(
-            LLLnode.from_list(
-                ['mstore', context.callback_ptr, 'pass'],
-                annotation='pop callback pointer',
-            )
-        )
-        if total_default_args > 0:
-            clampers.append(['label', _post_callback_ptr])
-
-    # private functions without return types need to jump back to
-    # the calling function, as there is no return statement to handle the
-    # jump.
-    stop_func = [['stop']]
-    if sig.output_type is None and sig.private:
-        stop_func = [['jump', ['mload', context.callback_ptr]]]
-
-    if not len(base_args):
+    # Generate copiers
+    if not len(sig.base_args):
         copier = 'pass'
     elif sig.name == '__init__':
         copier = ['codecopy', MemoryPositions.RESERVED_MEMORY, '~codelen', base_copy_size]
     else:
-        copier = get_arg_copier(
+        copier = get_public_arg_copier(
             sig=sig,
             total_size=base_copy_size,
             memory_dest=MemoryPositions.RESERVED_MEMORY
@@ -218,14 +129,12 @@ def parse_function(code, sigs, origcode, global_ctx, _vars=None):
     clampers.append(copier)
 
     # Add asserts for payable and internal
-    # private never gets payable check.
-    if not sig.payable and not sig.private:
+    if not sig.payable:
         clampers.append(['assert', ['iszero', 'callvalue']])
 
     # Fill variable positions
     for i, arg in enumerate(sig.args):
-        if i < len(base_args) and not sig.private:
-
+        if i < len(sig.base_args):
             clampers.append(make_arg_clamper(
                 arg.pos,
                 context.memory_allocator.get_next_memory_position(),
@@ -243,28 +152,6 @@ def parse_function(code, sigs, origcode, global_ctx, _vars=None):
                 False,
             )
 
-    # Private function copiers. No clamping for private functions.
-    dyn_variable_names = [a.name for a in base_args if isinstance(a.typ, ByteArrayLike)]
-    if sig.private and dyn_variable_names:
-        i_placeholder = context.new_placeholder(typ=BaseType('uint256'))
-        unpackers = []
-        for idx, var_name in enumerate(dyn_variable_names):
-            var = context.vars[var_name]
-            ident = "_load_args_%d_dynarg%d" % (sig.method_id, idx)
-            o = make_unpacker(ident=ident, i_placeholder=i_placeholder, begin_pos=var.pos)
-            unpackers.append(o)
-
-        if not unpackers:
-            unpackers = ['pass']
-
-        clampers.append(LLLnode.from_list(
-            # [0] to complete full overarching 'seq' statement, see private_label.
-            ['seq_unchecked'] + unpackers + [0],
-            typ=None,
-            annotation='dynamic unpacker',
-            pos=getpos(code),
-        ))
-
     # Create "clampers" (input well-formedness checkers)
     # Return function body
     if sig.name == '__init__':
@@ -272,24 +159,24 @@ def parse_function(code, sigs, origcode, global_ctx, _vars=None):
             ['seq'] + clampers + [parse_body(code.body, context)],
             pos=getpos(code),
         )
+    # Is default function.
     elif is_default_func(sig):
         if len(sig.args) > 0:
             raise FunctionDeclarationException(
                 'Default function may not receive any arguments.', code
             )
-        if sig.private:
-            raise FunctionDeclarationException(
-                'Default function may only be public.', code,
-            )
         o = LLLnode.from_list(
             ['seq'] + clampers + [parse_body(code.body, context)],
             pos=getpos(code),
         )
+    # Is a normal function.
     else:
-
-        if total_default_args > 0:  # Function with default parameters.
+        # Function with default parameters.
+        if sig.total_default_args > 0:
             function_routine = "{}_{}".format(sig.name, sig.method_id)
-            default_sigs = sig_utils.generate_default_arg_sigs(code, sigs, global_ctx)
+            default_sigs = sig_utils.generate_default_arg_sigs(
+                code, context.sigs, context.global_ctx
+            )
             sig_chain = ['seq']
 
             for default_sig in default_sigs:
@@ -303,26 +190,21 @@ def parse_function(code, sigs, origcode, global_ctx, _vars=None):
                     missing_arg_names = [
                         arg.arg
                         for arg
-                        in default_args
+                        in sig.default_args
                         if arg.arg not in current_sig_arg_names
                     ]
                     for arg_name in missing_arg_names:
-                        value = Expr(default_values[arg_name], context).lll_node
+                        value = Expr(sig.default_values[arg_name], context).lll_node
                         var = context.vars[arg_name]
                         left = LLLnode.from_list(var.pos, typ=var.typ, location='memory',
                                                  pos=getpos(code), mutable=var.mutable)
                         set_defaults.append(make_setter(left, value, 'memory', pos=getpos(code)))
 
                 current_sig_arg_names = {x.name for x in default_sig.args}
-                base_arg_names = {arg.name for arg in base_args}
-                if sig.private:
-                    # Load all variables in default section, if private,
-                    # because the stack is a linear pipe.
-                    copier_arg_count = len(default_sig.args)
-                    copier_arg_names = current_sig_arg_names
-                else:
-                    copier_arg_count = len(default_sig.args) - len(base_args)
-                    copier_arg_names = current_sig_arg_names - base_arg_names
+                base_arg_names = {arg.name for arg in sig.base_args}
+                copier_arg_count = len(default_sig.args) - len(sig.base_args)
+                copier_arg_names = current_sig_arg_names - base_arg_names
+
                 # Order copier_arg_names, this is very important.
                 copier_arg_names = [x.name for x in default_sig.args if x.name in copier_arg_names]
 
@@ -351,7 +233,7 @@ def parse_function(code, sigs, origcode, global_ctx, _vars=None):
                                 dynamics.append(var.pos)
                             else:
                                 _size = var.size * 32
-                            default_copiers.append(get_arg_copier(
+                            default_copiers.append(get_public_arg_copier(
                                 sig=sig,
                                 memory_dest=var.pos,
                                 total_size=_size,
@@ -369,7 +251,7 @@ def parse_function(code, sigs, origcode, global_ctx, _vars=None):
                                 _offset = ['add', 4, ['calldataload', calldata_offset]]
                             else:
                                 _offset = calldata_offset
-                            default_copiers.append(get_arg_copier(
+                            default_copiers.append(get_public_arg_copier(
                                 sig=sig,
                                 memory_dest=var.pos,
                                 total_size=var.size * 32,
@@ -391,23 +273,10 @@ def parse_function(code, sigs, origcode, global_ctx, _vars=None):
                 sig_chain.append([
                     'if', sig_compare,
                     ['seq',
-                        private_label,
-                        ['pass'] if not sig.private else LLLnode.from_list([
-                            'mstore',
-                            context.callback_ptr,
-                            'pass',
-                        ], annotation='pop callback pointer', pos=getpos(code)),
                         ['seq'] + set_defaults if set_defaults else ['pass'],
                         ['seq_unchecked'] + default_copiers if default_copiers else ['pass'],
-                        ['goto', _post_callback_ptr if sig.private else function_routine]]
+                        ['goto', function_routine]]
                 ])
-
-            # With private functions all variable loading occurs in the default
-            # function sub routine.
-            if sig.private:
-                _clampers = [['label', _post_callback_ptr]]
-            else:
-                _clampers = clampers
 
             # Function with default parameters.
             o = LLLnode.from_list(
@@ -419,27 +288,118 @@ def parse_function(code, sigs, origcode, global_ctx, _vars=None):
                         [
                             'seq',
                             ['label', function_routine] if not sig.private else ['pass'],
-                            ['seq'] + nonreentrant_pre + _clampers + [
+                            ['seq'] + nonreentrant_pre + clampers + [
                                 parse_body(c, context)
                                 for c in code.body
-                            ] + nonreentrant_post + stop_func
+                            ] + nonreentrant_post + [['stop']]
                         ],
                     ],
                 ], typ=None, pos=getpos(code))
 
         else:
             # Function without default parameters.
-            sig_compare, private_label = get_sig_statements(sig, getpos(code))
+            sig_compare, _ = get_sig_statements(sig, getpos(code))
             o = LLLnode.from_list(
                 [
                     'if',
                     sig_compare,
-                    ['seq'] + [private_label] + nonreentrant_pre + clampers + [
+                    ['seq'] + nonreentrant_pre + clampers + [
                         parse_body(c, context)
                         for c
                         in code.body
-                    ] + nonreentrant_post + stop_func
+                    ] + nonreentrant_post + [['stop']]
                 ], typ=None, pos=getpos(code))
+    return o
+
+
+def get_nonreentrant_lock(sig, global_ctx):
+    nonreentrant_pre = [['pass']]
+    nonreentrant_post = [['pass']]
+    if sig.nonreentrant_key:
+        nkey = global_ctx.get_nonrentrant_counter(sig.nonreentrant_key)
+        nonreentrant_pre = [
+            ['seq',
+                ['assert', ['iszero', ['sload', nkey]]],
+                ['sstore', nkey, 1]]]
+        nonreentrant_post = [['sstore', nkey, 0]]
+    return nonreentrant_pre, nonreentrant_post
+
+
+def calculate_variable_space(sig, base_args):
+    max_copy_size = sum([
+        32 if isinstance(arg.typ, ByteArrayLike) else get_size_of_type(arg.typ) * 32
+        for arg in sig.args
+    ])
+    base_copy_size = sum([
+        32 if isinstance(arg.typ, ByteArrayLike) else get_size_of_type(arg.typ) * 32
+        for arg in base_args
+    ])
+    return max_copy_size, base_copy_size
+
+
+def validate_public_function(code, sig, global_ctx):
+    # __init__ function may not have defaults.
+    if sig.is_initializer() and sig.total_default_args > 0:
+        raise FunctionDeclarationException(
+            "__init__ function may not have default parameters.",
+            code
+        )
+
+    # Check for duplicate variables with globals
+    for arg in sig.args:
+        if arg.name in global_ctx._globals:
+            raise FunctionDeclarationException(
+                "Variable name duplicated between "
+                "function arguments and globals: " + arg.name,
+                code
+            )
+
+
+def parse_function(code, sigs, origcode, global_ctx, _vars=None):
+    """
+    Parses a function and produces LLL code for the function, includes:
+        - Signature method if statement
+        - Argument handling
+        - Clamping and copying of arguments
+        - Function body
+    """
+    if _vars is None:
+        _vars = {}
+    sig = FunctionSignature.from_definition(
+        code,
+        sigs=sigs,
+        custom_units=global_ctx._custom_units,
+        custom_structs=global_ctx._structs,
+        constants=global_ctx._constants
+    )
+
+    # Create a local (per function) context.
+    memory_allocator = MemoryAllocator()
+    context = Context(
+        vars=_vars,
+        global_ctx=global_ctx,
+        sigs=sigs,
+        memory_allocator=memory_allocator,
+        return_type=sig.output_type,
+        constancy=Constancy.Constant if sig.const else Constancy.Mutable,
+        is_payable=sig.payable,
+        origcode=origcode,
+        is_private=sig.private,
+        method_id=sig.method_id
+    )
+
+    if sig.private:
+        o = parse_private_function(
+            code=code,
+            sig=sig,
+            context=context,
+        )
+    else:
+        o = parse_public_function(
+            code=code,
+            sig=sig,
+            context=context,
+        )
 
     # Check for at leasts one return statement if necessary.
     if context.return_type and context.function_return_count == 0:
