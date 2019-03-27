@@ -103,7 +103,10 @@ class FunctionSignature:
                 self.base_args = self.args
 
             self.default_args = code.args.args[-self.total_default_args:]
-            self.default_values = dict(zip([arg.arg for arg in self.default_args], code.args.defaults))
+            self.default_values = dict(zip(
+                [arg.arg for arg in self.default_args],
+                code.args.defaults
+            ))
         else:
             self.total_default_args = 0
 
@@ -144,6 +147,11 @@ class FunctionSignature:
         valid_name, msg = is_varname_valid(name, custom_units, custom_structs, constants)
         if not valid_name and (not name.lower() in function_whitelist):
             raise FunctionDeclarationException("Function name invalid. " + msg, code)
+
+        # Validate default values.
+        for default_value in getattr(code.args, 'defaults', []):
+            if not isinstance(default_value, (ast.Num, ast.Str, ast.Bytes, ast.List)):
+                raise FunctionDeclarationException("Default parameter values have to be literals.")
 
         # Determine the arguments, expects something of the form def foo(arg1:
         # int128, arg2: int128 ...

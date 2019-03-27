@@ -226,37 +226,24 @@ def parse_public_function(code, sig, context):
                     for arg_name in copier_arg_names:
                         var = context.vars[arg_name]
                         calldata_offset = calldata_offset_map[arg_name]
-                        if sig.private:
-                            _offset = calldata_offset
-                            if isinstance(var.typ, ByteArrayLike):
-                                _size = 32
-                                dynamics.append(var.pos)
-                            else:
-                                _size = var.size * 32
-                            default_copiers.append(get_public_arg_copier(
-                                sig=sig,
-                                memory_dest=var.pos,
-                                total_size=_size,
-                                offset=_offset,
-                            ))
+
+                        # Add clampers.
+                        default_copiers.append(make_arg_clamper(
+                            calldata_offset - 4,
+                            var.pos,
+                            var.typ,
+                        ))
+                        # Add copying code.
+                        if isinstance(var.typ, ByteArrayLike):
+                            _offset = ['add', 4, ['calldataload', calldata_offset]]
                         else:
-                            # Add clampers.
-                            default_copiers.append(make_arg_clamper(
-                                calldata_offset - 4,
-                                var.pos,
-                                var.typ,
-                            ))
-                            # Add copying code.
-                            if isinstance(var.typ, ByteArrayLike):
-                                _offset = ['add', 4, ['calldataload', calldata_offset]]
-                            else:
-                                _offset = calldata_offset
-                            default_copiers.append(get_public_arg_copier(
-                                sig=sig,
-                                memory_dest=var.pos,
-                                total_size=var.size * 32,
-                                offset=_offset,
-                            ))
+                            _offset = calldata_offset
+                        default_copiers.append(get_public_arg_copier(
+                            sig=sig,
+                            memory_dest=var.pos,
+                            total_size=var.size * 32,
+                            offset=_offset,
+                        ))
 
                     # Unpack byte array if necessary.
                     if dynamics:
@@ -287,7 +274,7 @@ def parse_public_function(code, sig, context):
                         'if', 0,  # can only be jumped into
                         [
                             'seq',
-                            ['label', function_routine] if not sig.private else ['pass'],
+                            ['label', function_routine],
                             ['seq'] + nonreentrant_pre + clampers + [
                                 parse_body(c, context)
                                 for c in code.body
