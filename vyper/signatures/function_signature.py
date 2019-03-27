@@ -66,7 +66,8 @@ class FunctionSignature:
                  nonreentrant_key,
                  sig,
                  method_id,
-                 custom_units):
+                 custom_units,
+                 func_ast_code):
         self.name = name
         self.args = args
         self.output_type = output_type
@@ -78,12 +79,33 @@ class FunctionSignature:
         self.gas = None
         self.custom_units = custom_units
         self.nonreentrant_key = nonreentrant_key
+        self.func_ast_code = func_ast_code
+        self.calculate_arg_totals()
 
     def __str__(self):
         input_name = 'def ' + self.name + '(' + ','.join([str(arg.typ) for arg in self.args]) + ')'
         if self.output_type:
             return input_name + ' -> ' + str(self.output_type) + ':'
         return input_name + ':'
+
+    def calculate_arg_totals(self):
+        """
+        Calculate base arguments, and totals.
+        """
+
+        code = self.func_ast_code
+
+        if hasattr(code.args, 'defaults'):
+            self.total_default_args = len(code.args.defaults)
+            if self.total_default_args > 0:
+                self.base_args = self.args[:-self.total_default_args]
+            else:
+                self.base_args = self.args
+
+            self.default_args = code.args.args[-self.total_default_args:]
+            self.default_values = dict(zip([arg.arg for arg in self.default_args], code.args.defaults))
+        else:
+            self.total_default_args = 0
 
     # Get the canonical function signature
     @staticmethod
@@ -252,6 +274,7 @@ class FunctionSignature:
             sig,
             method_id,
             custom_units,
+            code
         )
 
     def _generate_output_abi(self, custom_units_descriptions=None):
@@ -360,3 +383,9 @@ class FunctionSignature:
                     "call functions later in code than themselves): %s" % method_name
                 )
             return ssig[0]
+
+    def is_default_func(self):
+        return self.name == '__default__'
+
+    def is_initializer(self):
+        return self.name == '__init__'
