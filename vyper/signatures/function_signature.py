@@ -92,6 +92,7 @@ class FunctionSignature:
         """ Calculate base arguments, and totals. """
 
         code = self.func_ast_code
+        self.base_args = []
 
         if hasattr(code.args, 'defaults'):
             self.total_default_args = len(code.args.defaults)
