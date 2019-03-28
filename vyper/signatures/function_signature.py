@@ -89,26 +89,39 @@ class FunctionSignature:
         return input_name + ':'
 
     def calculate_arg_totals(self):
-        """
-        Calculate base arguments, and totals.
-        """
+        """ Calculate base arguments, and totals. """
 
         code = self.func_ast_code
 
         if hasattr(code.args, 'defaults'):
             self.total_default_args = len(code.args.defaults)
             if self.total_default_args > 0:
+                # all argument w/o defaults
                 self.base_args = self.args[:-self.total_default_args]
             else:
+                # No default args, so base_args = args.
                 self.base_args = self.args
-
+            # All default argument name/type definitions.
             self.default_args = code.args.args[-self.total_default_args:]
+            # Keep all the value to assign to default parameters.
             self.default_values = dict(zip(
                 [arg.arg for arg in self.default_args],
                 code.args.defaults
             ))
         else:
             self.total_default_args = 0
+
+        # Calculate the total sizes in memory the function arguments will take use.
+        # Total memory size of all arguments (base + default together).
+        self.max_copy_size = sum([
+            32 if isinstance(arg.typ, ByteArrayLike) else get_size_of_type(arg.typ) * 32
+            for arg in self.args
+        ])
+        # Total memory size of base arguments (arguments exclude default parameters).
+        self.base_copy_size = sum([
+            32 if isinstance(arg.typ, ByteArrayLike) else get_size_of_type(arg.typ) * 32
+            for arg in self.base_args
+        ])
 
     # Get the canonical function signature
     @staticmethod

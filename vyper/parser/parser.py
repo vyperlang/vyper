@@ -9,16 +9,16 @@ from vyper.exceptions import (
     ParserException,
     StructureException,
 )
+from vyper.parser.function_definitions import (
+    is_default_func,
+    is_initializer,
+    parse_function,
+)
 from vyper.parser.global_context import (
     GlobalContext,
 )
 from vyper.parser.lll_node import (
     LLLnode,
-)
-from vyper.parser.parse_functions import (
-    is_default_func,
-    is_initializer,
-    parse_function,
 )
 from vyper.parser.parser_utils import (
     annotate_and_optimize_ast,
