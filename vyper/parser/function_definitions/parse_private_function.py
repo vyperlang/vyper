@@ -1,5 +1,14 @@
+import ast
+from typing import (
+    Any,
+    List,
+)
+
 from vyper.exceptions import (
     FunctionDeclarationException,
+)
+from vyper.parser.context import (
+    Context,
 )
 from vyper.parser.expr import (
     Expr,
@@ -20,6 +29,7 @@ from vyper.parser.stmt import (
     parse_body,
 )
 from vyper.signatures import (
+    FunctionSignature,
     sig_utils,
 )
 from vyper.signatures.function_signature import (
@@ -35,23 +45,40 @@ from vyper.utils import (
 )
 
 
-def get_private_arg_copier(total_size, memory_dest):
-    # Copy arguments.
-    # For private function, MSTORE arguments and callback pointer from the stack.
-    copier = ['seq']
+def get_private_arg_copier(total_size: int, memory_dest: int) -> List[Any]:
+    """
+    Copy arguments.
+    For private functions, MSTORE arguments and callback pointer from the stack.
+
+    :param  total_size: total size to copy
+    :param  memory_dest: base memory position to copy to
+    :return: LLL list that copies total_size of memory
+    """
+
+    copier: List[Any] = ['seq']
     for pos in range(0, total_size, 32):
         copier.append(['mstore', memory_dest + pos, 'pass'])
     return copier
 
 
-def validate_private_function(code, sig):
+def validate_private_function(code: ast.FunctionDef, sig: FunctionSignature) -> None:
+    """ Validate private function defintion """
     if sig.is_default_func():
         raise FunctionDeclarationException(
             'Default function may only be public.', code
         )
 
 
-def parse_private_function(code, sig, context):
+def parse_private_function(code: ast.FunctionDef,
+                           sig: FunctionSignature,
+                           context: Context) -> LLLnode:
+    """
+    Parse a private function (FuncDef), and produce full function body.
+
+    :param sig: the FuntionSignature
+    :param code: ast of function
+    :return: full sig compare & function body
+    """
 
     validate_private_function(code, sig)
 
@@ -79,13 +106,14 @@ def parse_private_function(code, sig, context):
     # private functions without return types need to jump back to
     # the calling function, as there is no return statement to handle the
     # jump.
-    stop_func = [['stop']]
     if sig.output_type is None:
         stop_func = [['jump', ['mload', context.callback_ptr]]]
+    else:
+        stop_func = [['stop']]
 
     # Generate copiers
     if len(sig.base_args) == 0:
-        copier = 'pass'
+        copier = ['pass']
         clampers.append(copier)
     elif sig.total_default_args == 0:
         copier = get_private_arg_copier(
@@ -111,7 +139,7 @@ def parse_private_function(code, sig, context):
     dyn_variable_names = [a.name for a in sig.base_args if isinstance(a.typ, ByteArrayLike)]
     if dyn_variable_names:
         i_placeholder = context.new_placeholder(typ=BaseType('uint256'))
-        unpackers = []
+        unpackers: List[Any] = []
         for idx, var_name in enumerate(dyn_variable_names):
             var = context.vars[var_name]
             ident = "_load_args_%d_dynarg%d" % (sig.method_id, idx)
@@ -121,9 +149,10 @@ def parse_private_function(code, sig, context):
         if not unpackers:
             unpackers = ['pass']
 
+        # 0 added to complete full overarching 'seq' statement, see private_label.
+        unpackers.append(0)
         clampers.append(LLLnode.from_list(
-            # [0] to complete full overarching 'seq' statement, see private_label.
-            ['seq_unchecked'] + unpackers + [0],
+            ['seq_unchecked'] + unpackers,
             typ=None,
             annotation='dynamic unpacker',
             pos=getpos(code),
@@ -133,7 +162,7 @@ def parse_private_function(code, sig, context):
     if sig.total_default_args > 0:  # Function with default parameters.
 
         default_sigs = sig_utils.generate_default_arg_sigs(code, context.sigs, context.global_ctx)
-        sig_chain = ['seq']
+        sig_chain: List[Any] = ['seq']
 
         for default_sig in default_sigs:
             sig_compare, private_label = get_sig_statements(default_sig, getpos(code))
@@ -142,7 +171,7 @@ def parse_private_function(code, sig, context):
             populate_arg_count = len(sig.args) - len(default_sig.args)
             set_defaults = []
             if populate_arg_count > 0:
-                current_sig_arg_names = {x.name for x in default_sig.args}
+                current_sig_arg_names = [x.name for x in default_sig.args]
                 missing_arg_names = [
                     arg.arg
                     for arg
@@ -156,7 +185,7 @@ def parse_private_function(code, sig, context):
                                              pos=getpos(code), mutable=var.mutable)
                     set_defaults.append(make_setter(left, value, 'memory', pos=getpos(code)))
 
-            current_sig_arg_names = {x.name for x in default_sig.args}
+            current_sig_arg_names = [x.name for x in default_sig.args]
 
             # Load all variables in default section, if private,
             # because the stack is a linear pipe.
@@ -164,10 +193,14 @@ def parse_private_function(code, sig, context):
             copier_arg_names = current_sig_arg_names
 
             # Order copier_arg_names, this is very important.
-            copier_arg_names = [x.name for x in default_sig.args if x.name in copier_arg_names]
+            copier_arg_names = [
+                x.name
+                for x in default_sig.args
+                if x.name in copier_arg_names
+            ]
 
             # Variables to be populated from calldata/stack.
-            default_copiers = []
+            default_copiers: List[Any] = []
             if copier_arg_count > 0:
                 # Get map of variables in calldata, with thier offsets
                 offset = 4
