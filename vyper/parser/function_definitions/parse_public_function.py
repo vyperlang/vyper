@@ -1,3 +1,10 @@
+import ast
+from typing import (
+    Any,
+    List,
+    Union,
+)
+
 from vyper.exceptions import (
     FunctionDeclarationException,
 )
@@ -5,6 +12,7 @@ from vyper.parser.arg_clamps import (
     make_arg_clamper,
 )
 from vyper.parser.context import (
+    Context,
     VariableRecord,
 )
 from vyper.parser.expr import (
@@ -14,6 +22,9 @@ from vyper.parser.function_definitions.utils import (
     get_nonreentrant_lock,
     get_sig_statements,
     make_unpacker,
+)
+from vyper.parser.global_context import (
+    GlobalContext,
 )
 from vyper.parser.lll_node import (
     LLLnode,
@@ -28,6 +39,9 @@ from vyper.parser.stmt import (
 from vyper.signatures import (
     sig_utils,
 )
+from vyper.signatures.function_signature import (
+    FunctionSignature,
+)
 from vyper.types.types import (
     BaseType,
     ByteArrayLike,
@@ -38,13 +52,25 @@ from vyper.utils import (
 )
 
 
-def get_public_arg_copier(sig, total_size, memory_dest, offset=4):
-    # Copy arguments.
+def get_public_arg_copier(total_size: int,
+                          memory_dest: int,
+                          offset: Union[int, List[Any]] = 4) -> List[Any]:
+    """
+    Generate argument copier.
+
+    :param total_size: total memory size to copy
+    :param memory_dest: base memory address to start from
+    :param offset: starting offset, used for ByteArrays
+    """
     copier = ['calldatacopy', memory_dest, offset, total_size]
     return copier
 
 
-def validate_public_function(code, sig, global_ctx):
+def validate_public_function(code: ast.FunctionDef,
+                             sig: FunctionSignature,
+                             global_ctx: GlobalContext) -> None:
+    """ Validate public function definition. """
+
     # __init__ function may not have defaults.
     if sig.is_initializer() and sig.total_default_args > 0:
         raise FunctionDeclarationException(
@@ -62,7 +88,16 @@ def validate_public_function(code, sig, global_ctx):
             )
 
 
-def parse_public_function(code, sig, context):
+def parse_public_function(code: ast.FunctionDef,
+                          sig: FunctionSignature,
+                          context: Context) -> List[Any]:
+    """
+    Parse a public function (FuncDef), and produce full function body.
+
+    :param sig: the FuntionSignature
+    :param code: ast of function
+    :return: full sig compare & function body
+    """
 
     validate_public_function(code, sig, context.global_ctx)
 
@@ -75,13 +110,13 @@ def parse_public_function(code, sig, context):
     clampers = []
 
     # Generate copiers
+    copier: List[Any] = ['pass']
     if not len(sig.base_args):
-        copier = 'pass'
+        copier = ['pass']
     elif sig.name == '__init__':
         copier = ['codecopy', MemoryPositions.RESERVED_MEMORY, '~codelen', sig.base_copy_size]
     else:
         copier = get_public_arg_copier(
-            sig=sig,
             total_size=sig.base_copy_size,
             memory_dest=MemoryPositions.RESERVED_MEMORY
         )
@@ -115,7 +150,7 @@ def parse_public_function(code, sig, context):
     # Return function body
     if sig.name == '__init__':
         o = LLLnode.from_list(
-            ['seq'] + clampers + [parse_body(code.body, context)],
+            ['seq'] + clampers + [parse_body(code.body, context)],  # type: ignore
             pos=getpos(code),
         )
     # Is default function.
@@ -125,7 +160,7 @@ def parse_public_function(code, sig, context):
                 'Default function may not receive any arguments.', code
             )
         o = LLLnode.from_list(
-            ['seq'] + clampers + [parse_body(code.body, context)],
+            ['seq'] + clampers + [parse_body(code.body, context)],  # type: ignore
             pos=getpos(code),
         )
     # Is a normal function.
@@ -136,10 +171,10 @@ def parse_public_function(code, sig, context):
             default_sigs = sig_utils.generate_default_arg_sigs(
                 code, context.sigs, context.global_ctx
             )
-            sig_chain = ['seq']
+            sig_chain: List[Any] = ['seq']
 
             for default_sig in default_sigs:
-                sig_compare, private_label = get_sig_statements(default_sig, getpos(code))
+                sig_compare, _ = get_sig_statements(default_sig, getpos(code))
 
                 # Populate unset default variables
                 populate_arg_count = len(sig.args) - len(default_sig.args)
@@ -165,10 +200,10 @@ def parse_public_function(code, sig, context):
                 copier_arg_names = current_sig_arg_names - base_arg_names
 
                 # Order copier_arg_names, this is very important.
-                copier_arg_names = [x.name for x in default_sig.args if x.name in copier_arg_names]
+                copier_arg_names = {x.name for x in default_sig.args if x.name in copier_arg_names}
 
                 # Variables to be populated from calldata/stack.
-                default_copiers = []
+                default_copiers: List[Any] = []
                 if copier_arg_count > 0:
                     # Get map of variables in calldata, with thier offsets
                     offset = 4
@@ -180,8 +215,9 @@ def parse_public_function(code, sig, context):
                             if isinstance(arg.typ, ByteArrayLike)
                             else get_size_of_type(arg.typ) * 32
                         )
-                    # Copy set default parameters from calldata
-                    dynamics = []
+
+                    # Copy default parameters from calldata.
+                    dynamics: List[Any] = []
                     for arg_name in copier_arg_names:
                         var = context.vars[arg_name]
                         calldata_offset = calldata_offset_map[arg_name]
@@ -193,12 +229,10 @@ def parse_public_function(code, sig, context):
                             var.typ,
                         ))
                         # Add copying code.
+                        _offset: Union[int, List[Any]] = calldata_offset
                         if isinstance(var.typ, ByteArrayLike):
                             _offset = ['add', 4, ['calldataload', calldata_offset]]
-                        else:
-                            _offset = calldata_offset
                         default_copiers.append(get_public_arg_copier(
-                            sig=sig,
                             memory_dest=var.pos,
                             total_size=var.size * 32,
                             offset=_offset,
