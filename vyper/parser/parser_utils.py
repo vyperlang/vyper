@@ -28,6 +28,9 @@ from vyper.types import (
     has_dynamic_data,
     is_base_type,
 )
+from vyper.types.types import (
+    ContractType,
+)
 from vyper.typing import (
     ClassTypes,
 )
@@ -371,6 +374,8 @@ def base_type_conversion(orig, frm, to, pos, in_function_call=False):
             "Base type conversion from or to non-base type: %r %r" % (frm, to), pos
         )
     elif is_base_type(frm, to.typ) and are_units_compatible(frm, to):
+        return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
+    elif isinstance(frm, ContractType) and to == BaseType('address'):
         return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
     elif is_valid_int128_to_decimal:
         return LLLnode.from_list(
