@@ -34,8 +34,16 @@ def external_contract_call(node,
         value = 0
     if gas is None:
         gas = 'gas'
+    if not contract_name:
+        raise StructureException(
+            f'Invalid external contract call "{node.func.attr}".',
+            node
+        )
     if contract_name not in context.sigs:
-        raise VariableDeclarationException("Contract not declared yet: %s" % contract_name)
+        raise VariableDeclarationException(
+            f'Contract "{contract_name}" not declared yet',
+            node
+        )
     method_name = node.func.attr
     if method_name not in context.sigs[contract_name]:
         raise FunctionDeclarationException(
