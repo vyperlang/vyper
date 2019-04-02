@@ -195,8 +195,8 @@ To run the compiler use the `docker run` command:
 Alternatively you can log into the docker image and execute vyper on the prompt.
 ::
 
-    docker run -v $(pwd):/code/ -it --entrypoint /bin/bash vyper
-    root@d35252d1fb1b:/code# ethereum/vyper <contract_file.vy>
+    docker run -v $(pwd):/code/ -it --entrypoint /bin/bash ethereum/vyper
+    root@d35252d1fb1b:/code# vyper <contract_file.vy>
 
 The normal paramaters are also supported, for example:
 ::
