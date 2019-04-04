@@ -84,6 +84,10 @@ class VersionException(ParserException):
     pass
 
 
+class SyntaxException(ParserException):
+    pass
+
+
 class CompilerPanic(Exception):
 
     def __init__(self, message):
