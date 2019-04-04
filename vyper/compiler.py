@@ -2,7 +2,6 @@ from collections import (
     OrderedDict,
     deque,
 )
-import json
 
 from vyper import (
     compile_lll,
@@ -190,17 +189,17 @@ def _mk_opcodes_runtime(code, contract_name, interface_codes):
     return get_opcodes(code, contract_name, bytecodes_runtime=True, interface_codes=interface_codes)
 
 
-def _mk_ast_json(code, contract_name, interface_codes):
+def _mk_ast_dict(code, contract_name, interface_codes):
     o = {
         'contract_name': contract_name,
         'ast': ast_to_dict(parser.parse_to_ast(code))
     }
-    return json.dumps(o)
+    return o
 
 
 output_formats_map = {
     'abi': _mk_abi_output,
-    'ast_json': _mk_ast_json,
+    'ast_dict': _mk_ast_dict,
     'bytecode': _mk_bytecode_output,
     'bytecode_runtime': _mk_bytecode_runtime_output,
     'ir': _mk_ir_output,

@@ -13,7 +13,7 @@ from vyper.parser.pre_parser import (
 )
 
 
-def parse_python_ast(source_code, node):
+def parse_python_ast(source_code: str, node: python_ast.AST):
     if isinstance(node, list):
         o = []
         for n in node:
@@ -79,7 +79,7 @@ def ast_to_dict(node):
     skip_list = ('source_code', )
     if isinstance(node, vyper_ast.VyperNode):
         o = {
-            f: ast_to_dict(getattr(node, f))
+            f: ast_to_dict(getattr(node, f, None))
             for f in node.get_slots()
             if f not in skip_list
         }
@@ -92,3 +92,50 @@ def ast_to_dict(node):
         ]
     else:
         return node
+
+
+def dict_to_ast(ast_struct):
+    if isinstance(ast_struct, dict) and 'ast_type' in ast_struct:
+        vyper_class = getattr(vyper_ast, ast_struct['ast_type'])
+        klass = vyper_class(**{
+            k: dict_to_ast(v)
+            for k, v in ast_struct.items()
+            if k in vyper_class.get_slots()
+        })
+        return klass
+    elif isinstance(ast_struct, list):
+        return [
+            dict_to_ast(x)
+            for x in ast_struct
+        ]
+    else:
+        return ast_struct
+
+
+def to_python_ast(vyper_ast_node):
+    if isinstance(vyper_ast_node, list):
+        return [
+            to_python_ast(n)
+            for n in vyper_ast_node
+        ]
+    elif isinstance(vyper_ast_node, vyper_ast.VyperNode):
+        class_name = vyper_ast_node.__class__.__name__
+        if hasattr(python_ast, class_name):
+            py_klass = getattr(python_ast, class_name)
+            return py_klass(**{
+                k: to_python_ast(
+                    getattr(vyper_ast_node, k, None)
+                )
+                for k in vyper_ast_node.get_slots()
+            })
+    else:
+        return vyper_ast_node
+
+
+def ast_to_string(vyper_ast_node):
+    py_ast_node = to_python_ast(vyper_ast_node)
+    return python_ast.dump(
+        python_ast.Module(
+            body=py_ast_node
+        )
+    )
