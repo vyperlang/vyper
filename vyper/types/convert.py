@@ -1,7 +1,7 @@
-import ast
 import math
 import warnings
 
+from vyper import ast
 from vyper.exceptions import (
     InvalidLiteralException,
     ParserException,

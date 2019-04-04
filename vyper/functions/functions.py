@@ -1,6 +1,6 @@
-import ast
 import hashlib
 
+from vyper import ast
 from vyper.exceptions import (
     ConstancyViolationException,
     InvalidLiteralException,

@@ -1,8 +1,8 @@
-import ast
 from collections import (
     Counter,
 )
 
+from vyper import ast
 from vyper.exceptions import (
     FunctionDeclarationException,
     InvalidTypeException,

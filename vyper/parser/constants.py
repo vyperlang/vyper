@@ -1,6 +1,6 @@
-import ast
 import copy
 
+from vyper import ast
 from vyper.exceptions import (
     StructureException,
     TypeMismatchException,

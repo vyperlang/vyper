@@ -1,9 +1,9 @@
-from vyper import ast
 import copy
 import importlib
 import os
 import pkgutil
 
+from vyper import ast
 from vyper.exceptions import (
     ParserException,
     StructureException,

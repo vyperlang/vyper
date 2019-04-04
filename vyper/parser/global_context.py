@@ -1,5 +1,7 @@
-import ast
-
+from vyper import ast
+from vyper.ast_utils import (
+    parse_to_ast,
+)
 from vyper.exceptions import (
     EventDeclarationException,
     FunctionDeclarationException,
@@ -12,7 +14,6 @@ from vyper.parser.constants import (
     Constants,
 )
 from vyper.parser.parser_utils import (
-    annotate_and_optimize_ast,
     getpos,
 )
 from vyper.signatures.function_signature import (
@@ -243,9 +244,7 @@ class GlobalContext:
     # Parser for a single line
     @staticmethod
     def parse_line(code):
-        parsed_ast = ast.parse(code).body[0]
-        annotate_and_optimize_ast(parsed_ast, code)
-
+        parsed_ast = parse_to_ast(code)[0]
         return parsed_ast
 
     # A struct is a list of members

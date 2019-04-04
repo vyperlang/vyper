@@ -1,5 +1,4 @@
-import ast
-
+from vyper import ast
 from vyper.exceptions import (
     FunctionDeclarationException,
     StructureException,
@@ -173,4 +172,4 @@ def make_external_call(stmt_expr, context):
         )
 
     else:
-        raise StructureException("Unsupported operator: %r" % ast.dump(stmt_expr), stmt_expr)
+        raise StructureException("Unsupported operator.", stmt_expr)

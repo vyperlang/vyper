@@ -1,6 +1,6 @@
-import ast
 import warnings
 
+from vyper import ast
 from vyper.exceptions import (
     InvalidLiteralException,
     NonPayableViolationException,
@@ -77,7 +77,7 @@ class Expr(object):
         if expr_type in self.expr_table:
             self.lll_node = self.expr_table[expr_type]()
         else:
-            raise Exception("Unsupported operator: %r" % ast.dump(self.expr))
+            raise Exception("Unsupported operator.", self.expr)
 
     def get_expr(self):
         return self.expr
@@ -397,7 +397,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
     def subscript(self):
         sub = Expr.parse_variable_location(self.expr.value, self.context)
         if isinstance(sub.typ, (MappingType, ListType)):
-            if 'value' not in vars(self.expr.slice):
+            if not isinstance(self.expr.slice, ast.Index):
                 raise StructureException(
                     "Array access must access a single element, not a slice",
                     self.expr,
@@ -466,7 +466,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                     self.expr,
                 )
 
-            num = ast.Num(val)
+            num = ast.Num(n=val)
             num.source_code = self.expr.source_code
             num.lineno = self.expr.lineno
             num.col_offset = self.expr.col_offset
@@ -964,7 +964,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 )
 
             if operand.typ.is_literal and 'int' in operand.typ.typ:
-                num = ast.Num(0 - operand.value)
+                num = ast.Num(n=0 - operand.value)
                 num.source_code = self.expr.source_code
                 num.lineno = self.expr.lineno
                 num.col_offset = self.expr.col_offset
@@ -1069,7 +1069,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             " favor of named structs, see VIP300",
             DeprecationWarning
         )
-        raise InvalidLiteralException("Invalid literal: %r" % ast.dump(self.expr), self.expr)
+        raise InvalidLiteralException("Invalid literal.", self.expr)
 
     @staticmethod
     def struct_literals(expr, name, context):
@@ -1078,7 +1078,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         for key, value in zip(expr.keys, expr.values):
             if not isinstance(key, ast.Name):
                 raise TypeMismatchException(
-                    "Invalid member variable for struct: %r" % vars(key).get('id', key),
+                    "Invalid member variable for struct: %r" % getattr(key, 'id', ''),
                     key,
                 )
             check_valid_varname(
