@@ -1,6 +1,10 @@
 from itertools import (
     chain,
 )
+from typing import (
+    Any,
+    List as ListTyping,
+)
 
 from vyper.exceptions import (
     CompilerPanic,
@@ -9,8 +13,8 @@ from vyper.exceptions import (
 
 class VyperNode:
     __slots__ = ('node_id', 'source_code', 'col_offset', 'lineno')
-    ignored_fields = ('ctx', )
-    only_empty_fields = ()
+    ignored_fields = ['ctx', ]
+    only_empty_fields: ListTyping[Any] = []
 
     @classmethod
     def get_slots(cls):
@@ -24,11 +28,21 @@ class VyperNode:
         for field_name, value in kwargs.items():
             if field_name in self.get_slots():
                 setattr(self, field_name, value)
-            # elif value:
-            #     raise CompilerPanic(
-            #         f'Unsupported non-empty value field_name: {field_name}, '
-            #         f' class: {type(self)} value: {value}'
-            #     )
+            elif value:
+                raise CompilerPanic(
+                    f'Unsupported non-empty value field_name: {field_name}, '
+                    f' class: {type(self)} value: {value}'
+                )
+
+    def __eq__(self, other):
+        if isinstance(other, type(self)):
+            for field_name in self.get_slots():
+                if field_name not in ('node_id', 'source_code', 'col_offset', 'lineno'):
+                    if getattr(self, field_name, None) != getattr(other, field_name, None):
+                        return False
+            return True
+        else:
+            return False
 
 
 class Module(VyperNode):
@@ -61,11 +75,11 @@ class FunctionDef(VyperNode):
 
 class arguments(VyperNode):
     __slots__ = ('args', 'defaults', 'default')
-    only_empty_fields = ('vararg', 'kwonlyargs', 'kwarg', 'kw_defaults')
+    only_empty_fields = ['vararg', 'kwonlyargs', 'kwarg', 'kw_defaults']
 
 
 class Import(VyperNode):
-    pass
+    __slots__ = ('names', )
 
 
 class Call(VyperNode):
@@ -100,16 +114,16 @@ class Op(VyperNode):
     __slots__ = ('op', 'left', 'right')
 
 
+class BoolOp(Op):
+    __slots__ = ('values', )
+
+
 class BinOp(Op):
     pass
 
 
-class BoolOp(Op):
-    pass
-
-
 class UnaryOp(Op):
-    operand = ('operand', )
+    __slots__ = ('operand', )
 
 
 class List(VyperNode):
@@ -237,7 +251,7 @@ class Return(VyperNode):
 
 
 class Delete(VyperNode):
-    pass
+    __slots__ = ('targets', )
 
 
 class stmt(VyperNode):
@@ -248,13 +262,17 @@ class ClassDef(VyperNode):
     __slots__ = ('class_type', 'name', 'body')
 
 
-class ImportFrom(VyperNode):
-    pass
-
-
 class Raise(VyperNode):
-    pass
+    __slots__ = ('exc', )
 
 
 class Slice(VyperNode):
-    pass
+    only_empty_fields = ['lower']
+
+
+class alias(VyperNode):
+    __slots__ = ('name', 'asname')
+
+
+class ImportFrom(VyperNode):
+    __slots__ = ('module', 'names')
