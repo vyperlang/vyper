@@ -78,7 +78,10 @@ token: ERC20
 
 @public
 def test():
-   assert self.factory.getExchange(self.token) == self
+    assert self.factory.getExchange(self.token) == self
+    exchange: address = self.factory.getExchange(self.token)
+    assert exchange == self.token
+    assert self.token.totalSupply() > 0
     """,
     """
 from vyper.interfaces import ERC20
