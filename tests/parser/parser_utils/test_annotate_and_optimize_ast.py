@@ -1,8 +1,5 @@
 import ast as python_ast
 
-from vyper.ast_utils import (
-    parse_to_ast,
-)
 from vyper.parser.parser_utils import (
     annotate_and_optimize_ast,
 )

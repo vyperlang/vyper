@@ -90,11 +90,6 @@ def foo():
     """
 @public
 def foo():
-    x = convert(-1, uint256)
-    """,
-    """
-@public
-def foo():
     x = convert(-(-(-1)), uint256)
     """,
     """
