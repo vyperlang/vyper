@@ -13,7 +13,7 @@ from vyper.parser.pre_parser import (
 )
 
 
-def parse_python_ast(source_code: str, node: python_ast.AST):
+def parse_python_ast(source_code, node):
     if isinstance(node, list):
         o = []
         for n in node:
