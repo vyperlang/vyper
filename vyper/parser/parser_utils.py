@@ -1,8 +1,9 @@
-import ast
+import ast as python_ast
 from typing import (
     Optional,
 )
 
+from vyper import ast
 from vyper.exceptions import (
     InvalidLiteralException,
     StructureException,
@@ -709,12 +710,13 @@ def make_setter(left, right, location, pos, in_function_call=False):
         raise Exception("Invalid type for setters")
 
 
-class AnnotatingVisitor(ast.NodeTransformer):
+class AnnotatingVisitor(python_ast.NodeTransformer):
     _source_code: str
     _class_types: ClassTypes
 
     def __init__(self, source_code: str, class_types: Optional[ClassTypes] = None):
-        self._source_code = source_code
+        self._source_code: str = source_code
+        self.counter: int = 0
         if class_types is not None:
             self._class_types = class_types
         else:
@@ -724,6 +726,8 @@ class AnnotatingVisitor(ast.NodeTransformer):
         # Decorate every node in the AST with the original source code. This is
         # necessary to facilitate error pretty-printing.
         node.source_code = self._source_code
+        node.node_id = self.counter
+        self.counter += 1
 
         return super().generic_visit(node)
 
@@ -736,11 +740,10 @@ class AnnotatingVisitor(ast.NodeTransformer):
         return node
 
 
-class RewriteUnarySubVisitor(ast.NodeTransformer):
+class RewriteUnarySubVisitor(python_ast.NodeTransformer):
     def visit_UnaryOp(self, node):
         self.generic_visit(node)
-
-        if isinstance(node.op, ast.USub) and isinstance(node.operand, ast.Num):
+        if isinstance(node.op, python_ast.USub) and isinstance(node.operand, python_ast.Num):
             node.operand.n = 0 - node.operand.n
             return node.operand
         else:
@@ -748,7 +751,7 @@ class RewriteUnarySubVisitor(ast.NodeTransformer):
 
 
 def annotate_and_optimize_ast(
-    parsed_ast: ast.Module,
+    parsed_ast: python_ast.Module,
     source_code: str,
     class_types: Optional[ClassTypes] = None,
 ) -> None:
