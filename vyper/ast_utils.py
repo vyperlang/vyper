@@ -31,7 +31,8 @@ def parse_python_ast(source_code, node):
             init_kwargs = {
                 'col_offset': getattr(node, 'col_offset', None),
                 'lineno': getattr(node, 'lineno', None),
-                'node_id': node.node_id
+                'node_id': node.node_id,
+                'source_code': source_code
             }
             if isinstance(node, python_ast.ClassDef):
                 init_kwargs['class_type'] = node.class_type
@@ -41,8 +42,10 @@ def parse_python_ast(source_code, node):
                     continue
                 elif val and field_name in vyper_class.only_empty_fields:
                     raise SyntaxException(
+                        'Invalid Vyper Syntax. '
                         f'"{field_name}" is an unsupported attribute field '
-                        f'on Python AST "{class_name}" class.', node
+                        f'on Python AST "{class_name}" class.',
+                        val
                     )
                 else:
                     init_kwargs[field_name] = parse_python_ast(
