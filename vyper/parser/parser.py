@@ -378,6 +378,8 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
         custom_structs=global_ctx._structs,
         constants=global_ctx._constants
     )
+    # Validate return statements.
+    sig.validate_return_statement_balance()
     # Get base args for function.
     total_default_args = len(code.args.defaults)
     base_args = sig.args[:-total_default_args] if total_default_args > 0 else sig.args
@@ -688,12 +690,6 @@ def parse_func(code, sigs, origcode, global_ctx, _vars=None):
                         in code.body
                     ] + nonreentrant_post + stop_func
                 ], typ=None, pos=getpos(code))
-
-    # Check for at leasts one return statement if necessary.
-    if context.return_type and context.function_return_count == 0:
-        raise FunctionDeclarationException(
-            "Missing return statement in function '%s' " % sig.name, code
-        )
 
     o.context = context
     o.total_gas = o.gas + calc_mem_gas(
