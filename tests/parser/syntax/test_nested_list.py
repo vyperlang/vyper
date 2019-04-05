@@ -40,6 +40,7 @@ y: address[2][2]
 @public
 def foo(x: int128[2][2]) -> int128:
     self.y = x
+    return 768
     """,
     ("""
 bar: int128[3][3]
@@ -50,6 +51,7 @@ def foo() -> int128[3]:
     for x in self.bar:
         if x == [4, 5, 6]:
             return x
+    return [-1, -2, -3]
     """, StructureException)
 ]
 

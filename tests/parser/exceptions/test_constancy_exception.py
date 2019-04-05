@@ -17,18 +17,21 @@ x: int128
 @constant
 def foo() -> int128:
     self.x = 5
+    return 1
     """,
     """
 @public
 @constant
 def foo() -> int128:
     send(0x1234567890123456789012345678901234567890, 5)
+    return 1
     """,
     """
 @public
 @constant
 def foo() -> int128:
     selfdestruct(0x1234567890123456789012345678901234567890)
+    return 1
     """,
     """
 x: timedelta

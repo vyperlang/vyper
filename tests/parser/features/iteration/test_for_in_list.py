@@ -166,6 +166,7 @@ def iterate_return_second() -> address:
         count += 1
         if count == 2:
             return i
+    return ZERO_ADDRESS
     """
 
     c = get_contract_with_gas_estimation(code)
@@ -196,6 +197,7 @@ def i_return(break_count: int128) -> decimal:
         if count == break_count:
             return i
         count += 1
+    return -1.111
     """
 
     c = get_contract_with_gas_estimation(code)
