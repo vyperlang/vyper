@@ -1,6 +1,9 @@
 import ast
 from typing import (
+    Any,
+    List,
     Optional,
+    Union,
 )
 
 from vyper.exceptions import (
@@ -745,6 +748,38 @@ class RewriteUnarySubVisitor(ast.NodeTransformer):
             return node.operand
         else:
             return node
+
+
+class UnmatchedReturnChecker(ast.NodeVisitor):
+    """
+    Make sure all return statement are balanced
+    (both branches of if statement should have returns statements).
+    """
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self.handle_primary_function_def(node)
+
+    def handle_primary_function_def(self,  node: ast.FunctionDef) -> None:
+        if node.returns and not self.return_check(node.body):
+            raise StructureException(
+                f'Missing or Unmatched return statements in function "{node.name}". '
+                'All control flow statements (like if) need balanced return statements.',
+                node
+            )
+
+    def return_check(self, node: Union[ast.AST, List[Any]]) -> bool:
+        if isinstance(node, ast.Return):
+            return True
+        elif isinstance(node, list):
+            return any(self.return_check(stmt) for stmt in node)
+        elif isinstance(node, ast.If):
+            if_body_check = self.return_check(node.body)
+            else_body_check = self.return_check(node.orelse)
+            if if_body_check and else_body_check:  # both side need to match.
+                return True
+            else:
+                return False
+        return False
 
 
 def annotate_and_optimize_ast(
