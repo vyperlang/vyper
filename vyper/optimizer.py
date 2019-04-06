@@ -97,6 +97,10 @@ def _is_with_without_set(node, args):
     )
 
 
+def has_cond_arg(node):
+    return node.value in ['if', 'assert', 'assert_reason']
+
+
 def optimize(node: LLLnode) -> LLLnode:
     argz = [optimize(arg) for arg in node.args]
     if node.value in arith and int_at(argz, 0) and int_at(argz, 1):
@@ -209,6 +213,20 @@ def optimize(node: LLLnode) -> LLLnode:
         return LLLnode(
             'iszero',
             [argz[0]],
+            node.typ,
+            node.location,
+            node.pos,
+            node.annotation,
+            add_gas_estimate=node.add_gas_estimate,
+            valency=node.valency,
+        )
+    # [ne, x, y] has the same truthyness as [xor, x, y]
+    # rewrite 'ne' as 'xor' in places where truthy is accepted.
+    elif has_cond_arg(node) and argz[0].value == 'ne':
+        argz[0].value = 'xor'
+        return LLLnode(
+            node.value,
+            argz,
             node.typ,
             node.location,
             node.pos,
