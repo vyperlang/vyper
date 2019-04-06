@@ -390,10 +390,7 @@ def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=No
     # != operator
     elif code.value == 'ne':
         return compile_to_assembly(LLLnode.from_list(
-            [
-                'iszero',
-                ['eq', code.args[0], code.args[1]],
-            ]
+            ['xor', code.args[0], code.args[1]],
         ), withargs, existing_labels, break_dest, height)
     # e.g. 95 -> 96, 96 -> 96, 97 -> 128
     elif code.value == "ceil32":
