@@ -712,6 +712,23 @@ def make_setter(left, right, location, pos, in_function_call=False):
         raise Exception("Invalid type for setters")
 
 
+def is_return_from_function(node: ast.AST):
+    is_selfdesctruct = (
+        isinstance(node, ast.Expr)
+        and isinstance(node.value, ast.Call)
+        and isinstance(node.value.func, ast.Name)
+        and node.value.func.id == 'selfdestruct'
+    )
+    if isinstance(node, ast.Return):
+        return True
+    elif isinstance(node, ast.Raise):
+        return True
+    elif is_selfdesctruct:
+        return True
+    else:
+        return False
+
+
 class AnnotatingVisitor(ast.NodeTransformer):
     _source_code: str
     _class_types: ClassTypes
@@ -750,6 +767,25 @@ class RewriteUnarySubVisitor(ast.NodeTransformer):
             return node
 
 
+class EnsureSingleExitChecker(ast.NodeVisitor):
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self.check_return_body(node, node.body)
+
+    def visit_If(self, node: ast.FunctionDef) -> None:
+        self.check_return_body(node, node.body)
+        if node.orelse:
+            self.check_return_body(node, node.orelse)
+
+    def check_return_body(self, node, node_list):
+        return_count = len([n for n in node_list if is_return_from_function(n)])
+        if return_count > 1:
+            raise StructureException(
+                f'Too too many exit statements (return, raise or selfdestruct).',
+                node
+            )
+
+
 class UnmatchedReturnChecker(ast.NodeVisitor):
     """
     Make sure all return statement are balanced
@@ -767,24 +803,8 @@ class UnmatchedReturnChecker(ast.NodeVisitor):
                 node
             )
 
-    def is_return_from_function(self, node):
-        is_selfdesctruct = (
-            isinstance(node, ast.Expr)
-            and isinstance(node.value, ast.Call)
-            and isinstance(node.value.func, ast.Name)
-            and node.value.func.id == 'selfdestruct'
-        )
-        if isinstance(node, ast.Return):
-            return True
-        elif isinstance(node, ast.Raise):
-            return True
-        elif is_selfdesctruct:
-            return True
-        else:
-            return False
-
     def return_check(self, node: Union[ast.AST, List[Any]]) -> bool:
-        if self.is_return_from_function(node):
+        if is_return_from_function(node):
             return True
         elif isinstance(node, list):
             return any(self.return_check(stmt) for stmt in node)
@@ -819,6 +839,7 @@ def annotate_and_optimize_ast(
     """
     AnnotatingVisitor(source_code, class_types).visit(parsed_ast)
     RewriteUnarySubVisitor().visit(parsed_ast)
+    EnsureSingleExitChecker().visit(parsed_ast)
 
 
 def zero_pad(bytez_placeholder, maxlen, context):

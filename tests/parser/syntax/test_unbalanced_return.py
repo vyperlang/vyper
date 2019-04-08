@@ -31,6 +31,12 @@ def test() -> int128:
             return 0
     else:
         assert False
+    """,
+    """
+@private
+def valid_address(sender: address) -> bool:
+    selfdestruct(sender)
+    return True
     """
 ]
 

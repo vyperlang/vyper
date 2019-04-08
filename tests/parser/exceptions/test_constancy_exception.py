@@ -31,7 +31,6 @@ def foo() -> int128:
 @constant
 def foo() -> int128:
     selfdestruct(0x1234567890123456789012345678901234567890)
-    return 1
     """,
     """
 x: timedelta
