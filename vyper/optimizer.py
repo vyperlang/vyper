@@ -224,13 +224,14 @@ def optimize(node: LLLnode) -> LLLnode:
     # rewrite 'ne' as 'xor' in places where truthy is accepted.
     elif has_cond_arg(node) and argz[0].value == 'ne':
         argz[0] = LLLnode.from_list(['xor'] + argz[0].args)
-        return LLLnode.from_list([node.value] + argz,
-            typ=node.typ,
-            location=node.location,
-            pos=node.pos,
-            annotation=node.annotation,
-            # let from_list handle valency and gas_estimate
-        )
+        return LLLnode.from_list(
+                [node.value] + argz,
+                typ=node.typ,
+                location=node.location,
+                pos=node.pos,
+                annotation=node.annotation,
+                # let from_list handle valency and gas_estimate
+                )
     elif _is_with_without_set(node, argz):
         # TODO: This block is currently unreachable due to
         # `_is_with_without_set` unconditionally returning `False` this appears

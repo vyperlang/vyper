@@ -237,7 +237,7 @@ class LLLnode:
     def to_list(self):
         return [self.value] + [a.to_list() for a in self.args]
 
-    def __eq__(self, other) :
+    def __eq__(self, other):
         return self.value == other.value and \
                 self.args == other.args and \
                 self.typ == other.typ and \
