@@ -767,8 +767,24 @@ class UnmatchedReturnChecker(ast.NodeVisitor):
                 node
             )
 
-    def return_check(self, node: Union[ast.AST, List[Any]]) -> bool:
+    def is_return_from_function(self, node):
+        is_selfdesctruct = (
+            isinstance(node, ast.Expr)
+            and isinstance(node.value, ast.Call)
+            and isinstance(node.value.func, ast.Name)
+            and node.value.func.id == 'selfdestruct'
+        )
         if isinstance(node, ast.Return):
+            return True
+        elif isinstance(node, ast.Raise):
+            return True
+        elif is_selfdesctruct:
+            return True
+        else:
+            return False
+
+    def return_check(self, node: Union[ast.AST, List[Any]]) -> bool:
+        if self.is_return_from_function(node):
             return True
         elif isinstance(node, list):
             return any(self.return_check(stmt) for stmt in node)

@@ -50,6 +50,22 @@ def foo() -> int128:
     """
 @public
 def foo() -> int128:
+    if True:
+        return 123
+    else:
+        raise "test"
+    """,
+    """
+@public
+def foo() -> int128:
+    if False:
+        return 123
+    else:
+        selfdestruct(msg.sender)
+    """,
+    """
+@public
+def foo() -> int128:
     if False:
         return 123
     return 333
