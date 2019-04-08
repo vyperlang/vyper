@@ -712,7 +712,7 @@ def make_setter(left, right, location, pos, in_function_call=False):
         raise Exception("Invalid type for setters")
 
 
-def is_return_from_function(node: ast.AST):
+def is_return_from_function(node: Union[ast.AST, List[Any]]) -> bool:
     is_selfdesctruct = (
         isinstance(node, ast.Expr)
         and isinstance(node.value, ast.Call)
@@ -772,7 +772,7 @@ class EnsureSingleExitChecker(ast.NodeVisitor):
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         self.check_return_body(node, node.body)
 
-    def visit_If(self, node: ast.FunctionDef) -> None:
+    def visit_If(self, node: ast.If) -> None:
         self.check_return_body(node, node.body)
         if node.orelse:
             self.check_return_body(node, node.orelse)
