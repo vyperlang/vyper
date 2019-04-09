@@ -17,7 +17,7 @@ from vyper.parser.parser_utils import (
 from vyper.types import (
     BaseType,
     ByteArrayLike,
-    TupleType,
+    TupleLike,
     get_size_of_type,
 )
 
@@ -97,7 +97,7 @@ def get_external_contract_call_output(sig, context):
         returner = [0, output_placeholder]
     elif isinstance(sig.output_type, ByteArrayLike):
         returner = [0, output_placeholder + 32]
-    elif isinstance(sig.output_type, TupleType):
+    elif isinstance(sig.output_type, TupleLike):
         returner = [0, output_placeholder]
     else:
         raise TypeMismatchException("Invalid output type: %s" % sig.output_type)
