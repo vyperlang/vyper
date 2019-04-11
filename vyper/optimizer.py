@@ -97,6 +97,10 @@ def _is_with_without_set(node, args):
     )
 
 
+def has_cond_arg(node):
+    return node.value in ['if', 'assert', 'assert_reason']
+
+
 def optimize(node: LLLnode) -> LLLnode:
     argz = [optimize(arg) for arg in node.args]
     if node.value in arith and int_at(argz, 0) and int_at(argz, 1):
@@ -216,6 +220,18 @@ def optimize(node: LLLnode) -> LLLnode:
             add_gas_estimate=node.add_gas_estimate,
             valency=node.valency,
         )
+    # [ne, x, y] has the same truthyness as [xor, x, y]
+    # rewrite 'ne' as 'xor' in places where truthy is accepted.
+    elif has_cond_arg(node) and argz[0].value == 'ne':
+        argz[0] = LLLnode.from_list(['xor'] + argz[0].args)
+        return LLLnode.from_list(
+                [node.value] + argz,
+                typ=node.typ,
+                location=node.location,
+                pos=node.pos,
+                annotation=node.annotation,
+                # let from_list handle valency and gas_estimate
+                )
     elif _is_with_without_set(node, argz):
         # TODO: This block is currently unreachable due to
         # `_is_with_without_set` unconditionally returning `False` this appears
