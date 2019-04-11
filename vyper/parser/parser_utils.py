@@ -779,7 +779,7 @@ class EnsureSingleExitChecker(ast.NodeVisitor):
         if node.orelse:
             self.check_return_body(node, node.orelse)
 
-    def check_return_body(self, node: ast.AST, node_list: List[Any]):
+    def check_return_body(self, node: ast.AST, node_list: List[Any]) -> None:
         return_count = len([n for n in node_list if is_return_from_function(n)])
         if return_count > 1:
             raise StructureException(
