@@ -770,20 +770,31 @@ class RewriteUnarySubVisitor(ast.NodeTransformer):
 class EnsureSingleExitChecker(ast.NodeVisitor):
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self.generic_visit(node)
         self.check_return_body(node, node.body)
 
     def visit_If(self, node: ast.If) -> None:
+        self.generic_visit(node)
         self.check_return_body(node, node.body)
         if node.orelse:
             self.check_return_body(node, node.orelse)
 
-    def check_return_body(self, node, node_list):
+    def check_return_body(self, node: ast.AST, node_list: List[Any]):
         return_count = len([n for n in node_list if is_return_from_function(n)])
         if return_count > 1:
             raise StructureException(
                 f'Too too many exit statements (return, raise or selfdestruct).',
                 node
             )
+        # Check for invalid code after returns.
+        last_node_pos = len(node_list) - 1
+        for idx, n in enumerate(node_list):
+            if is_return_from_function(n) and idx < last_node_pos:
+                # is not last statement in body.
+                raise StructureException(
+                    'Exit statement with succeeding code (that will not execute).',
+                    node_list[idx + 1]
+                )
 
 
 class UnmatchedReturnChecker(ast.NodeVisitor):
@@ -793,6 +804,7 @@ class UnmatchedReturnChecker(ast.NodeVisitor):
     """
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self.generic_visit(node)
         self.handle_primary_function_def(node)
 
     def handle_primary_function_def(self,  node: ast.FunctionDef) -> None:

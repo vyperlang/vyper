@@ -37,12 +37,27 @@ def test() -> int128:
 def valid_address(sender: address) -> bool:
     selfdestruct(sender)
     return True
+    """,
+    """
+@private
+def valid_address(sender: address) -> bool:
+    selfdestruct(sender)
+    a: address = sender
+    """,
+    """
+@private
+def valid_address(sender: address) -> bool:
+    if sender == ZERO_ADDRESS:
+        selfdestruct(sender)
+        _sender: address = sender
+    else:
+        return False
     """
 ]
 
 
 @pytest.mark.parametrize('bad_code', fail_list)
-def test_missing_return(bad_code):
+def test_return_mismatch(bad_code):
     with raises(StructureException):
         compiler.compile_code(bad_code)
 
@@ -90,12 +105,14 @@ def test() -> int128:
 def test() -> int128:
     x: bytes32
     if False:
-        return 0
+        if False:
+            return 0
+        else:
+            x = sha3(x)
+            return 1
     else:
         x = sha3(x)
         return 1
-        if False:
-            return 1
     return 1
     """
 ]
