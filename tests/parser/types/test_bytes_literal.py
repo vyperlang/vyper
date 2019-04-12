@@ -49,6 +49,7 @@ def foo(s: int128, L: int128) -> bytes[100]:
         y: int128 = 37
         if x * y == 999:
             return r
+        return b"3434346667777"
 
 @public
 def bar(s: int128, L: int128) -> bytes[100]:
@@ -58,6 +59,7 @@ def bar(s: int128, L: int128) -> bytes[100]:
         y: int128  = 37
         if x * y == 999:
             return r
+        return b"3434346667777"
 
 @public
 def baz(s: int128, L: int128) -> bytes[100]:
@@ -66,6 +68,7 @@ def baz(s: int128, L: int128) -> bytes[100]:
         y: int128 = 37
         if x * y == 999:
             return self.moo
+        return b"3434346667777"
         """ % (("c" * i), ("c" * i), ("c" * i))
 
         c = get_contract_with_gas_estimation(kode)

@@ -782,7 +782,7 @@ class Stmt(object):
             return zero_padder
 
         sub = Expr(self.stmt.value, self.context).lll_node
-        self.context.increment_return_counter()
+
         # Returning a value (most common case)
         if isinstance(sub.typ, BaseType):
             sub = unwrap_location(sub)

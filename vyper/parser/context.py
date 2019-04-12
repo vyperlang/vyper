@@ -116,9 +116,6 @@ class Context:
         # Remove block scopes
         self.blockscopes.remove(blockscope_id)
 
-    def increment_return_counter(self):
-        self.function_return_count += 1
-
     def is_valid_varname(self, name, pos):
         # Global context check first.
         if self.global_ctx.is_valid_varname(name, pos):

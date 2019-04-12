@@ -58,6 +58,7 @@ def test():
 @public
 def data() -> int128:
     s: int128[5] = [1, 2, 3, 4, 5, 6]
+    return 235357
     """, TypeMismatchException),
     ("""
 struct S:

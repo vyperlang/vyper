@@ -55,6 +55,7 @@ Following the principles and goals, Vyper **does not** provide the following fea
 Compatibility-breaking Changelog
 ********************************
 
+* **2019.04.05**: Add stricter checking of unbalanced return statements. (`#590 <https://github.com/ethereum/vyper/issues/590>`_)
 * **2019.03.04**: `create_with_code_of` has been renamed to `create_forwarder_to`. (`#1177 <https://github.com/ethereum/vyper/issues/1177>`_)
 * **2019.02.14**: Assigning a persistent contract address can only be done using the `bar_contact = ERC20(<address>)` syntax.
 * **2019.02.12**: ERC20 interface has to be imported using `from vyper.interfaces import ERC20` to use.
