@@ -713,7 +713,7 @@ def make_setter(left, right, location, pos, in_function_call=False):
 
 
 def is_return_from_function(node: Union[ast.AST, List[Any]]) -> bool:
-    is_selfdesctruct = (
+    is_selfdestruct = (
         isinstance(node, ast.Expr)
         and isinstance(node.value, ast.Call)
         and isinstance(node.value.func, ast.Name)
@@ -723,7 +723,7 @@ def is_return_from_function(node: Union[ast.AST, List[Any]]) -> bool:
         return True
     elif isinstance(node, ast.Raise):
         return True
-    elif is_selfdesctruct:
+    elif is_selfdestruct:
         return True
     else:
         return False
