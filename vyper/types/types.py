@@ -141,6 +141,9 @@ class ContractType(BaseType):
     def __init__(self, name):
         super().__init__('address', name)
 
+    def __eq__(self, other: Any) -> bool:
+        return isinstance(other, BaseType) and other.typ == 'address'
+
 
 class ByteArrayLike(NodeType):
     def __init__(self, maxlen):

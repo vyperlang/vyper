@@ -304,7 +304,7 @@ class Stmt(object):
 
                 # Checks to see if assignment is valid
                 target = self.get_target(self.stmt.targets[0])
-                if isinstance(target.typ, ContractType) and sub.typ == BaseType('address'):
+                if isinstance(target.typ, ContractType) and not isinstance(sub.typ, ContractType):
                     raise TypeMismatchException(
                         'Contract assignment expects casted address: '
                         f'{target.typ.unit}(<address_var>)',
@@ -785,7 +785,7 @@ class Stmt(object):
             return zero_padder
 
         sub = Expr(self.stmt.value, self.context).lll_node
-        self.context.increment_return_counter()
+
         # Returning a value (most common case)
         if isinstance(sub.typ, BaseType):
             sub = unwrap_location(sub)

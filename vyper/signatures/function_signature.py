@@ -3,6 +3,9 @@ from collections import (
 )
 
 from vyper import ast
+from vyper.ast_utils import (
+    to_python_ast,
+)
 from vyper.exceptions import (
     FunctionDeclarationException,
     InvalidTypeException,
@@ -12,6 +15,7 @@ from vyper.parser.lll_node import (
     LLLnode,
 )
 from vyper.parser.parser_utils import (
+    UnmatchedReturnChecker,
     getpos,
 )
 from vyper.types import (
@@ -66,7 +70,8 @@ class FunctionSignature:
                  nonreentrant_key,
                  sig,
                  method_id,
-                 custom_units):
+                 custom_units,
+                 func_ast_code):
         self.name = name
         self.args = args
         self.output_type = output_type
@@ -78,6 +83,7 @@ class FunctionSignature:
         self.gas = None
         self.custom_units = custom_units
         self.nonreentrant_key = nonreentrant_key
+        self.func_ast_code = func_ast_code
 
     def __str__(self):
         input_name = 'def ' + self.name + '(' + ','.join([str(arg.typ) for arg in self.args]) + ')'
@@ -252,6 +258,7 @@ class FunctionSignature:
             sig,
             method_id,
             custom_units,
+            code
         )
 
     def _generate_output_abi(self, custom_units_descriptions=None):
@@ -360,3 +367,7 @@ class FunctionSignature:
                     "call functions later in code than themselves): %s" % method_name
                 )
             return ssig[0]
+
+    def validate_return_statement_balance(self):
+        # Run balanced return statement check.
+        UnmatchedReturnChecker().visit(to_python_ast(self.func_ast_code))

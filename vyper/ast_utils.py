@@ -16,6 +16,7 @@ from vyper.utils import (
     iterable_cast,
 )
 
+
 DICT_AST_SKIPLIST = ('source_code', )
 
 

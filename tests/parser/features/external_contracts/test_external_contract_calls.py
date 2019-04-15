@@ -777,3 +777,33 @@ def test(addr: address) -> (int128, address, bytes[10]):
 
     assert c1.out_literals() == [1, "0x0000000000000000000000000000000000000123", b"random"]
     assert c2.test(c1.address) == [1, "0x0000000000000000000000000000000000000123", b"random"]
+
+
+def test_struct_return_external_contract_call(get_contract_with_gas_estimation):
+    contract_1 = """
+struct X:
+    x: int128
+    y: address
+@public
+def out_literals() -> X:
+    return X({x: 1, y: 0x0000000000000000000000000000000000012345})
+    """
+
+    contract_2 = """
+struct X:
+    x: int128
+    y: address
+contract Test:
+    def out_literals() -> X : constant
+
+@public
+def test(addr: address) -> (int128, address):
+    ret: X = Test(addr).out_literals()
+    return ret.x, ret.y
+
+    """
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.out_literals() == [1, "0x0000000000000000000000000000000000012345"]
+    assert c2.test(c1.address) == c1.out_literals()
