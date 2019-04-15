@@ -1,7 +1,7 @@
 import ast as python_ast
 
 from vyper.parser.parser_utils import (
-    annotate_and_optimize_ast,
+    annotate_ast,
 )
 from vyper.parser.pre_parser import (
     pre_parse,
@@ -36,7 +36,7 @@ def get_contract_info(source_code):
     class_types, reformatted_code = pre_parse(source_code)
     py_ast = python_ast.parse(reformatted_code)
 
-    annotate_and_optimize_ast(py_ast, reformatted_code, class_types)
+    annotate_ast(py_ast, reformatted_code, class_types)
 
     return py_ast, reformatted_code
 

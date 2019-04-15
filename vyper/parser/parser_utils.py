@@ -750,7 +750,7 @@ class RewriteUnarySubVisitor(python_ast.NodeTransformer):
             return node
 
 
-def annotate_and_optimize_ast(
+def annotate_ast(
     parsed_ast: python_ast.Module,
     source_code: str,
     class_types: Optional[ClassTypes] = None,

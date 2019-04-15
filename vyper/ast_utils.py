@@ -2,56 +2,73 @@ import ast as python_ast
 
 import vyper.ast as vyper_ast
 from vyper.exceptions import (
+    CompilerPanic,
     ParserException,
     SyntaxException,
 )
 from vyper.parser.parser_utils import (
-    annotate_and_optimize_ast,
+    annotate_ast,
 )
 from vyper.parser.pre_parser import (
     pre_parse,
 )
+from vyper.utils import (
+    iterable_cast,
+)
+
+DICT_AST_SKIPLIST = ('source_code', )
+
+
+@iterable_cast(list)
+def _build_vyper_ast_list(source_code, node):
+    for n in node:
+        yield parse_python_ast(
+            source_code=source_code,
+            node=n,
+        )
+
+
+@iterable_cast(dict)
+def _build_vyper_ast_init_kwargs(source_code, node, vyper_class, class_name):
+    yield ('col_offset', getattr(node, 'col_offset', None))
+    yield ('lineno', getattr(node, 'lineno', None))
+    yield ('node_id', node.node_id)
+    yield ('source_code', source_code)
+
+    if isinstance(node, python_ast.ClassDef):
+        yield ('class_type', node.class_type)
+
+    for field_name in node._fields:
+        val = getattr(node, field_name)
+        if field_name in vyper_class.ignored_fields:
+            continue
+        elif val and field_name in vyper_class.only_empty_fields:
+            raise SyntaxException(
+                'Invalid Vyper Syntax. '
+                f'"{field_name}" is an unsupported attribute field '
+                f'on Python AST "{class_name}" class.',
+                val
+            )
+        else:
+            yield (
+                field_name,
+                parse_python_ast(
+                    source_code=source_code,
+                    node=val,
+                )
+            )
 
 
 def parse_python_ast(source_code, node):
     if isinstance(node, list):
-        o = []
-        for n in node:
-            o.append(
-                parse_python_ast(
-                    source_code=source_code,
-                    node=n,
-                )
-            )
-        return o
+        return _build_vyper_ast_list(source_code, node)
     elif isinstance(node, python_ast.AST):
         class_name = node.__class__.__name__
         if hasattr(vyper_ast, class_name):
             vyper_class = getattr(vyper_ast, class_name)
-            init_kwargs = {
-                'col_offset': getattr(node, 'col_offset', None),
-                'lineno': getattr(node, 'lineno', None),
-                'node_id': node.node_id,
-                'source_code': source_code
-            }
-            if isinstance(node, python_ast.ClassDef):
-                init_kwargs['class_type'] = node.class_type
-            for field_name in node._fields:
-                val = getattr(node, field_name)
-                if field_name in vyper_class.ignored_fields:
-                    continue
-                elif val and field_name in vyper_class.only_empty_fields:
-                    raise SyntaxException(
-                        'Invalid Vyper Syntax. '
-                        f'"{field_name}" is an unsupported attribute field '
-                        f'on Python AST "{class_name}" class.',
-                        val
-                    )
-                else:
-                    init_kwargs[field_name] = parse_python_ast(
-                        source_code=source_code,
-                        node=val,
-                    )
+            init_kwargs = _build_vyper_ast_init_kwargs(
+                source_code, node, vyper_class, class_name
+            )
             return vyper_class(**init_kwargs)
         else:
             raise SyntaxException(
@@ -62,11 +79,11 @@ def parse_python_ast(source_code, node):
 
 
 def parse_to_ast(source_code):
-    class_types, reformatted_code = pre_parse(source_code)
-    if '\x00' in reformatted_code:
+    if '\x00' in source_code:
         raise ParserException('No null bytes (\\x00) allowed in the source code.')
+    class_types, reformatted_code = pre_parse(source_code)
     py_ast = python_ast.parse(reformatted_code)
-    annotate_and_optimize_ast(py_ast, source_code, class_types)
+    annotate_ast(py_ast, source_code, class_types)
     # Convert to Vyper AST.
     vyper_ast = parse_python_ast(
         source_code=source_code,
@@ -75,23 +92,29 @@ def parse_to_ast(source_code):
     return vyper_ast.body
 
 
-def ast_to_dict(node):
-    skip_list = ('source_code', )
+@iterable_cast(list)
+def _ast_to_list(node):
+    for x in node:
+        yield ast_to_dict(x)
+
+
+@iterable_cast(dict)
+def _ast_to_dict(node):
+    for f in node.get_slots():
+        if f not in DICT_AST_SKIPLIST:
+            yield (f, ast_to_dict(getattr(node, f, None)))
+    yield ('ast_type', node.__class__.__name__)
+
+
+def ast_to_dict(node: vyper_ast.VyperNode) -> dict:
     if isinstance(node, vyper_ast.VyperNode):
-        o = {
-            f: ast_to_dict(getattr(node, f, None))
-            for f in node.get_slots()
-            if f not in skip_list
-        }
-        o.update({'ast_type': node.__class__.__name__})
-        return o
+        return _ast_to_dict(node)
     elif isinstance(node, list):
-        return [
-            ast_to_dict(x)
-            for x in node
-        ]
-    else:
+        return _ast_to_list(node)
+    elif node is None or isinstance(node, (str, int)):
         return node
+    else:
+        raise CompilerPanic('Unknown vyper AST node provided.')
 
 
 def dict_to_ast(ast_struct):
@@ -108,8 +131,10 @@ def dict_to_ast(ast_struct):
             dict_to_ast(x)
             for x in ast_struct
         ]
-    else:
+    elif ast_struct is None or isinstance(ast_struct, (str, int)):
         return ast_struct
+    else:
+        raise CompilerPanic('Unknown ast_struct provided.')
 
 
 def to_python_ast(vyper_ast_node):
