@@ -2,6 +2,7 @@ import binascii
 from collections import (
     OrderedDict,
 )
+import functools
 import re
 
 from vyper.exceptions import (
@@ -258,3 +259,12 @@ def check_valid_varname(varname,
 
 def is_instances(instances, instance_type):
     return all([isinstance(inst, instance_type) for inst in instances])
+
+
+def iterable_cast(cast_type):
+    def yf(func):
+        @functools.wraps(func)
+        def f(*args, **kwargs):
+            return cast_type(func(*args, **kwargs))
+        return f
+    return yf
