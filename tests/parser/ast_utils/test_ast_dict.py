@@ -13,7 +13,6 @@ def get_node_ids(ast_struct, ids=None):
         ids = []
 
     for k, v in ast_struct.items():
-        print(k, v, ids)
         if isinstance(v, dict):
             ids = get_node_ids(v, ids)
         elif isinstance(v, list):
@@ -21,6 +20,10 @@ def get_node_ids(ast_struct, ids=None):
                 ids = get_node_ids(x, ids)
         elif k == 'node_id':
             ids.append(v)
+        elif v is None or isinstance(v, (str, int)):
+            continue
+        else:
+            raise Exception('Unknown ast_struct provided.')
     return ids
 
 
