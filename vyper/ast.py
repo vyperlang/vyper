@@ -1,27 +1,26 @@
 from itertools import (
     chain,
 )
-from typing import (
-    Any,
-    List as ListTyping,
-)
+import typing
 
 from vyper.exceptions import (
     CompilerPanic,
 )
 
+BASE_NODE_ATTRIBUTES = ('node_id', 'source_code', 'col_offset', 'lineno')
+
 
 class VyperNode:
-    __slots__ = ('node_id', 'source_code', 'col_offset', 'lineno')
-    ignored_fields = ['ctx', ]
-    only_empty_fields: ListTyping[Any] = []
+    __slots__ = BASE_NODE_ATTRIBUTES
+    ignored_fields: typing.Tuple = ('ctx', )
+    only_empty_fields: typing.Tuple = ()
 
     @classmethod
     def get_slots(cls):
-        return chain.from_iterable(
+        return set(chain.from_iterable(
             getattr(klass, '__slots__', [])
             for klass in cls.__class__.mro(cls)
-        )
+        ))
 
     def __init__(self, **kwargs):
 
@@ -75,7 +74,7 @@ class FunctionDef(VyperNode):
 
 class arguments(VyperNode):
     __slots__ = ('args', 'defaults', 'default')
-    only_empty_fields = ['vararg', 'kwonlyargs', 'kwarg', 'kw_defaults']
+    only_empty_fields = ('vararg', 'kwonlyargs', 'kwarg', 'kw_defaults')
 
 
 class Import(VyperNode):
@@ -119,7 +118,7 @@ class BoolOp(Op):
 
 
 class BinOp(Op):
-    pass
+    __slots__ = ()
 
 
 class UnaryOp(Op):
@@ -139,71 +138,71 @@ class Bytes(VyperNode):
 
 
 class Add(VyperNode):
-    pass
+    __slots__ = ()
 
 
 class Sub(VyperNode):
-    pass
+    __slots__ = ()
 
 
 class Mult(VyperNode):
-    pass
+    __slots__ = ()
 
 
 class Div(VyperNode):
-    pass
+    __slots__ = ()
 
 
 class Mod(VyperNode):
-    pass
+    __slots__ = ()
 
 
 class Pow(VyperNode):
-    pass
+    __slots__ = ()
 
 
 class In(VyperNode):
-    pass
+    __slots__ = ()
 
 
 class Gt(VyperNode):
-    pass
+    __slots__ = ()
 
 
 class GtE(VyperNode):
-    pass
+    __slots__ = ()
 
 
 class LtE(VyperNode):
-    pass
+    __slots__ = ()
 
 
 class Lt(VyperNode):
-    pass
+    __slots__ = ()
 
 
 class Eq(VyperNode):
-    pass
+    __slots__ = ()
 
 
 class NotEq(VyperNode):
-    pass
+    __slots__ = ()
 
 
 class And(VyperNode):
-    pass
+    __slots__ = ()
 
 
 class Or(VyperNode):
-    pass
+    __slots__ = ()
 
 
 class Not(VyperNode):
-    pass
+    __slots__ = ()
 
 
 class USub(VyperNode):
-    pass
+    __slots__ = ()
 
 
 class Expr(VyperNode):
@@ -211,7 +210,7 @@ class Expr(VyperNode):
 
 
 class Pass(VyperNode):
-    pass
+    __slots__ = ()
 
 
 class AnnAssign(VyperNode):
@@ -239,11 +238,11 @@ class AugAssign(VyperNode):
 
 
 class Break(VyperNode):
-    pass
+    __slots__ = ()
 
 
 class Continue(VyperNode):
-    pass
+    __slots__ = ()
 
 
 class Return(VyperNode):
@@ -255,7 +254,7 @@ class Delete(VyperNode):
 
 
 class stmt(VyperNode):
-    pass
+    __slots__ = ()
 
 
 class ClassDef(VyperNode):
@@ -267,7 +266,7 @@ class Raise(VyperNode):
 
 
 class Slice(VyperNode):
-    only_empty_fields = ['lower']
+    only_empty_fields = ('lower', )
 
 
 class alias(VyperNode):
