@@ -75,6 +75,17 @@ from vyper.utils import (
 if not hasattr(ast, 'AnnAssign'):
     raise Exception("Requires python 3.6 or higher for annotation support")
 
+# Header code
+STORE_CALLDATA = ['seq', ['mstore', 28, ['calldataload', 0]]]
+# Store limit constants at fixed addresses in memory.
+LIMIT_MEMORY_SET = [['mstore', pos, limit_size] for pos, limit_size in LOADED_LIMIT_MAP.items()]
+FUNC_INIT_LLL = LLLnode.from_list(
+    STORE_CALLDATA + LIMIT_MEMORY_SET, typ=None
+)
+INIT_FUNC_INIT_LLL = LLLnode.from_list(
+    ['seq'] + LIMIT_MEMORY_SET, typ=None
+)
+
 
 def parse_to_ast(source_code: str) -> List[ast.stmt]:
     """
@@ -95,13 +106,6 @@ def parse_to_ast(source_code: str) -> List[ast.stmt]:
     annotate_and_optimize_ast(parsed_ast, reformatted_code, class_types)
 
     return parsed_ast.body
-
-
-# Header code
-initializer_list = ['seq', ['mstore', 28, ['calldataload', 0]]]
-# Store limit constants at fixed addresses in memory.
-initializer_list += [['mstore', pos, limit_size] for pos, limit_size in LOADED_LIMIT_MAP.items()]
-initializer_lll = LLLnode.from_list(initializer_list, typ=None)
 
 
 # Is a function the initializer?
@@ -171,8 +175,8 @@ def parse_other_functions(o,
                           global_ctx,
                           default_function,
                           runtime_only):
-    sub = ['seq', initializer_lll]
-    add_gas = initializer_lll.gas
+    sub = ['seq', FUNC_INIT_LLL]
+    add_gas = FUNC_INIT_LLL.gas
     for _def in otherfuncs:
         sub.append(parse_func(_def, {**{'self': sigs}, **external_contracts}, origcode, global_ctx))
         sub[-1].total_gas += add_gas
@@ -239,7 +243,7 @@ def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None):
         external_contracts = parse_external_contracts(external_contracts, global_ctx)
     # If there is an init func...
     if initfunc:
-        o.append(initializer_lll)
+        o.append(INIT_FUNC_INIT_LLL)
         o.append(parse_func(
             initfunc[0],
             {**{'self': sigs}, **external_contracts},
