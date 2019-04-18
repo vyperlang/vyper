@@ -127,9 +127,9 @@ if __name__ == '__main__':
                     for ex in extensions if os.path.exists(file_path + ex)
                 ]
                 if not valid_paths:
-                    raise Exception('Imported interface "{}{.vy,.json}" does not exist.'.format(
-                        interface_path,
-                    ))
+                    raise Exception(
+                        f'Imported interface "{interface_path}{{.vy,.json}}" does not exist.'
+                    )
 
                 valid_path = valid_paths[0]
                 with open(valid_path) as fh:
