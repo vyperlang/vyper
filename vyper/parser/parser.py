@@ -1,6 +1,7 @@
 import ast
 import functools
 from typing import (
+    Any,
     List,
 )
 
@@ -76,9 +77,12 @@ if not hasattr(ast, 'AnnAssign'):
     raise Exception("Requires python 3.6 or higher for annotation support")
 
 # Header code
-STORE_CALLDATA = ['seq', ['mstore', 28, ['calldataload', 0]]]
+STORE_CALLDATA: List[Any] = ['seq', ['mstore', 28, ['calldataload', 0]]]
 # Store limit constants at fixed addresses in memory.
-LIMIT_MEMORY_SET = [['mstore', pos, limit_size] for pos, limit_size in LOADED_LIMIT_MAP.items()]
+LIMIT_MEMORY_SET: List[Any] = [
+    ['mstore', pos, limit_size]
+    for pos, limit_size in LOADED_LIMIT_MAP.items()
+]
 FUNC_INIT_LLL = LLLnode.from_list(
     STORE_CALLDATA + LIMIT_MEMORY_SET, typ=None
 )
