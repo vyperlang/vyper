@@ -1,6 +1,3 @@
-from vyper.exceptions import (
-    FunctionDeclarationException,
-)
 from vyper.parser.context import (
     Constancy,
     Context,

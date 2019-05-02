@@ -12,8 +12,8 @@ from vyper.parser.lll_node import (
     LLLnode,
 )
 from vyper.parser.parser_utils import (
-    UnmatchedReturnChecker,
     EnsureSingleExitChecker,
+    UnmatchedReturnChecker,
     getpos,
 )
 from vyper.types import (

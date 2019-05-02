@@ -43,7 +43,6 @@ from vyper.signatures.function_signature import (
     FunctionSignature,
 )
 from vyper.types.types import (
-    BaseType,
     ByteArrayLike,
     get_size_of_type,
 )
@@ -188,7 +187,7 @@ def parse_public_function(code: ast.FunctionDef,
                 current_sig_arg_names = {x.name for x in default_sig.args}
                 base_arg_names = {arg.name for arg in sig.base_args}
                 copier_arg_count = len(default_sig.args) - len(sig.base_args)
-                copier_arg_names = current_sig_arg_names - base_arg_names
+                copier_arg_names = list(current_sig_arg_names - base_arg_names)
 
                 # Order copier_arg_names, this is very important.
                 copier_arg_names = [x.name for x in default_sig.args if x.name in copier_arg_names]

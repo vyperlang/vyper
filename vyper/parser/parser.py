@@ -224,7 +224,6 @@ def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None):
     return LLLnode.from_list(o, typ=None)
 
 
-
 def parse_to_lll(kode, runtime_only=False, interface_codes=None):
     code = parse_to_ast(kode)
     return parse_tree_to_lll(code, kode, runtime_only=runtime_only, interface_codes=interface_codes)
