@@ -33,6 +33,7 @@ docs/modules.rst
 
 # IDEs
 .idea/
+.vscode/
 
 .tox
 .mypy_cache
