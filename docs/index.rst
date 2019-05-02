@@ -44,7 +44,7 @@ Following the principles and goals, Vyper **does not** provide the following fea
 * **Inline assembly:** Adding inline assembly would make it no longer possible to search for a variable name in order to find all instances where that variable is read or modified.
 * **Function overloading** - This can cause lots of confusion on which function is called at any given time. Thus it's easier to write missleading code (``foo("hello")`` logs "hello" but ``foo("hello", "world")`` steals you funds).
   Another problem with function overloading is that it makes the code much harder to search through as you have to keep track on which call refers to which function.
-* **Operator overloading:** Operator overloading makes writing misleading code possible. For example "+" could be overloaded so that it executes commands the are not visible at first glance, such as sending funds the
+* **Operator overloading:** Operator overloading makes writing misleading code possible. For example "+" could be overloaded so that it executes commands that are not visible at first glance, such as sending funds the
   user did not want to send.
 * **Recursive calling:** Recursive calling makes it impossible to set an upper bound on gas limits, opening the door for gas limit attacks.
 * **Infinite-length loops:** Similar to recursive calling, infinite-length loops make it impossible to set an upper bound on gas limits, opening the door for gas limit attacks.
