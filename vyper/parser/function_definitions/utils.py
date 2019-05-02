@@ -53,3 +53,15 @@ def get_nonreentrant_lock(sig, global_ctx):
                 ['sstore', nkey, 1]]]
         nonreentrant_post = [['sstore', nkey, 0]]
     return nonreentrant_pre, nonreentrant_post
+
+
+def get_default_names_to_set(primary_sig, default_sig):
+    """
+    Get names for default parameters that require a default value to be assigned.
+    """
+
+    populate_arg_count = len(primary_sig.args) - len(default_sig.args)
+    current_sig_arg_names = [x.name for x in default_sig.args]
+    for arg in primary_sig.default_args:
+        if arg.arg not in current_sig_arg_names:
+            yield arg.arg

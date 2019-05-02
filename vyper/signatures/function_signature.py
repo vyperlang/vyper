@@ -93,6 +93,7 @@ class FunctionSignature:
 
         code = self.func_ast_code
         self.base_args = []
+        self.total_default_args = 0
 
         if hasattr(code.args, 'defaults'):
             self.total_default_args = len(code.args.defaults)
@@ -109,8 +110,6 @@ class FunctionSignature:
                 [arg.arg for arg in self.default_args],
                 code.args.defaults
             ))
-        else:
-            self.total_default_args = 0
 
         # Calculate the total sizes in memory the function arguments will take use.
         # Total memory size of all arguments (base + default together).

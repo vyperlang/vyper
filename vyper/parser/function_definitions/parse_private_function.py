@@ -14,6 +14,7 @@ from vyper.parser.expr import (
     Expr,
 )
 from vyper.parser.function_definitions.utils import (
+    get_default_names_to_set,
     get_nonreentrant_lock,
     get_sig_statements,
     make_unpacker,
@@ -168,23 +169,13 @@ def parse_private_function(code: ast.FunctionDef,
             sig_compare, private_label = get_sig_statements(default_sig, getpos(code))
 
             # Populate unset default variables
-            populate_arg_count = len(sig.args) - len(default_sig.args)
             set_defaults = []
-            if populate_arg_count > 0:
-                current_sig_arg_names = [x.name for x in default_sig.args]
-                missing_arg_names = [
-                    arg.arg
-                    for arg
-                    in sig.default_args
-                    if arg.arg not in current_sig_arg_names
-                ]
-                for arg_name in missing_arg_names:
-                    value = Expr(sig.default_values[arg_name], context).lll_node
-                    var = context.vars[arg_name]
-                    left = LLLnode.from_list(var.pos, typ=var.typ, location='memory',
-                                             pos=getpos(code), mutable=var.mutable)
-                    set_defaults.append(make_setter(left, value, 'memory', pos=getpos(code)))
-
+            for arg_name in get_default_names_to_set(sig, default_sig):
+                value = Expr(sig.default_values[arg_name], context).lll_node
+                var = context.vars[arg_name]
+                left = LLLnode.from_list(var.pos, typ=var.typ, location='memory',
+                                         pos=getpos(code), mutable=var.mutable)
+                set_defaults.append(make_setter(left, value, 'memory', pos=getpos(code)))
             current_sig_arg_names = [x.name for x in default_sig.args]
 
             # Load all variables in default section, if private,

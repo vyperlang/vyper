@@ -19,9 +19,9 @@ from vyper.parser.expr import (
     Expr,
 )
 from vyper.parser.function_definitions.utils import (
+    get_default_names_to_set,
     get_nonreentrant_lock,
     get_sig_statements,
-    make_unpacker,
 )
 from vyper.parser.global_context import (
     GlobalContext,
@@ -177,22 +177,13 @@ def parse_public_function(code: ast.FunctionDef,
                 sig_compare, _ = get_sig_statements(default_sig, getpos(code))
 
                 # Populate unset default variables
-                populate_arg_count = len(sig.args) - len(default_sig.args)
                 set_defaults = []
-                if populate_arg_count > 0:
-                    current_sig_arg_names = {x.name for x in default_sig.args}
-                    missing_arg_names = [
-                        arg.arg
-                        for arg
-                        in sig.default_args
-                        if arg.arg not in current_sig_arg_names
-                    ]
-                    for arg_name in missing_arg_names:
-                        value = Expr(sig.default_values[arg_name], context).lll_node
-                        var = context.vars[arg_name]
-                        left = LLLnode.from_list(var.pos, typ=var.typ, location='memory',
-                                                 pos=getpos(code), mutable=var.mutable)
-                        set_defaults.append(make_setter(left, value, 'memory', pos=getpos(code)))
+                for arg_name in get_default_names_to_set(sig, default_sig):
+                    value = Expr(sig.default_values[arg_name], context).lll_node
+                    var = context.vars[arg_name]
+                    left = LLLnode.from_list(var.pos, typ=var.typ, location='memory',
+                                             pos=getpos(code), mutable=var.mutable)
+                    set_defaults.append(make_setter(left, value, 'memory', pos=getpos(code)))
 
                 current_sig_arg_names = {x.name for x in default_sig.args}
                 base_arg_names = {arg.name for arg in sig.base_args}
@@ -200,7 +191,7 @@ def parse_public_function(code: ast.FunctionDef,
                 copier_arg_names = current_sig_arg_names - base_arg_names
 
                 # Order copier_arg_names, this is very important.
-                copier_arg_names = {x.name for x in default_sig.args if x.name in copier_arg_names}
+                copier_arg_names = [x.name for x in default_sig.args if x.name in copier_arg_names]
 
                 # Variables to be populated from calldata/stack.
                 default_copiers: List[Any] = []
@@ -217,7 +208,6 @@ def parse_public_function(code: ast.FunctionDef,
                         )
 
                     # Copy default parameters from calldata.
-                    dynamics: List[Any] = []
                     for arg_name in copier_arg_names:
                         var = context.vars[arg_name]
                         calldata_offset = calldata_offset_map[arg_name]
@@ -238,16 +228,6 @@ def parse_public_function(code: ast.FunctionDef,
                             offset=_offset,
                         ))
 
-                    # Unpack byte array if necessary.
-                    if dynamics:
-                        i_placeholder = context.new_placeholder(typ=BaseType('uint256'))
-                        for idx, var_pos in enumerate(dynamics):
-                            ident = 'unpack_default_sig_dyn_%d_arg%d' % (default_sig.method_id, idx)
-                            default_copiers.append(make_unpacker(
-                                ident=ident,
-                                i_placeholder=i_placeholder,
-                                begin_pos=var_pos,
-                            ))
                     default_copiers.append(0)  # for over arching seq, POP
 
                 sig_chain.append([
