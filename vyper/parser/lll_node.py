@@ -237,6 +237,17 @@ class LLLnode:
     def to_list(self):
         return [self.value] + [a.to_list() for a in self.args]
 
+    def __eq__(self, other):
+        return self.value == other.value and \
+                self.args == other.args and \
+                self.typ == other.typ and \
+                self.location == other.location and \
+                self.pos == other.pos and \
+                self.annotation == other.annotation and \
+                self.mutable == other.mutable and \
+                self.add_gas_estimate == other.add_gas_estimate and \
+                self.valency == other.valency
+
     @property
     def repr_value(self):
         if isinstance(self.value, int) and self.as_hex:

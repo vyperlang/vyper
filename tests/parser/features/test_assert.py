@@ -132,7 +132,6 @@ def test():
 @private
 def valid_address(sender: address) -> bool:
     selfdestruct(sender)
-    return True
 @public
 def test():
     assert self.valid_address(msg.sender)

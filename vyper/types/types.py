@@ -141,6 +141,9 @@ class ContractType(BaseType):
     def __init__(self, name):
         super().__init__('address', name)
 
+    def __eq__(self, other: Any) -> bool:
+        return isinstance(other, BaseType) and other.typ == 'address'
+
 
 class ByteArrayLike(NodeType):
     def __init__(self, maxlen):
@@ -409,7 +412,7 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
         if not isinstance(item.func, ast.Name):
             raise InvalidTypeException("Malformed unit type:", item)
         base_type = item.func.id
-        if base_type not in ('int128', 'uint256', 'decimal'):
+        if base_type not in ('int128', 'uint256', 'decimal', 'address'):
             raise InvalidTypeException("You must use int128, uint256, decimal, address, contract, \
                 for variable declarations and indexed for logging topics ", item)
         if len(item.args) == 0:

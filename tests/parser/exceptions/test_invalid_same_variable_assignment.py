@@ -21,6 +21,7 @@ def test1(b: uint256) -> uint256:
 @public
 def test2(b: uint256, c: uint256) -> uint256:
     a: uint256 = a + b + c
+    return a
 """,
 """
 @public

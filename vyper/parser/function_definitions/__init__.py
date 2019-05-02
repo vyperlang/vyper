@@ -50,6 +50,9 @@ def parse_function(code, sigs, origcode, global_ctx, _vars=None):
         constants=global_ctx._constants
     )
 
+    # Validate return statements.
+    sig.validate_return_statement_balance()
+
     # Create a local (per function) context.
     memory_allocator = MemoryAllocator()
     context = Context(
@@ -76,12 +79,6 @@ def parse_function(code, sigs, origcode, global_ctx, _vars=None):
             code=code,
             sig=sig,
             context=context,
-        )
-
-    # Check for at leasts one return statement if necessary.
-    if context.return_type and context.function_return_count == 0:
-        raise FunctionDeclarationException(
-            "Missing return statement in function '%s' " % sig.name, code
         )
 
     o.context = context

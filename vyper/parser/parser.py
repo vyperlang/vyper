@@ -1,6 +1,7 @@
 import ast
 from typing import (
     List,
+    cast,
 )
 
 from vyper.exceptions import (
@@ -68,7 +69,8 @@ def parse_to_ast(source_code: str) -> List[ast.stmt]:
     if '\x00' in reformatted_code:
         raise ParserException('No null bytes (\\x00) allowed in the source code.')
 
-    parsed_ast = ast.parse(reformatted_code)
+    # The return type depends on the parse mode which is why we need to cast here
+    parsed_ast = cast(ast.Module, ast.parse(reformatted_code))
     annotate_and_optimize_ast(parsed_ast, reformatted_code, class_types)
 
     return parsed_ast.body
@@ -220,6 +222,7 @@ def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None):
     check_valid_contract_interface(global_ctx, sigs)
 
     return LLLnode.from_list(o, typ=None)
+
 
 
 def parse_to_lll(kode, runtime_only=False, interface_codes=None):

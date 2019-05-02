@@ -17,7 +17,7 @@ from vyper.parser.parser_utils import (
 from vyper.types import (
     BaseType,
     ByteArrayLike,
-    TupleType,
+    TupleLike,
     get_size_of_type,
 )
 
@@ -36,8 +36,16 @@ def external_contract_call(node,
         value = 0
     if gas is None:
         gas = 'gas'
+    if not contract_name:
+        raise StructureException(
+            f'Invalid external contract call "{node.func.attr}".',
+            node
+        )
     if contract_name not in context.sigs:
-        raise VariableDeclarationException("Contract not declared yet: %s" % contract_name)
+        raise VariableDeclarationException(
+            f'Contract "{contract_name}" not declared yet',
+            node
+        )
     method_name = node.func.attr
     if method_name not in context.sigs[contract_name]:
         raise FunctionDeclarationException(
@@ -91,7 +99,7 @@ def get_external_contract_call_output(sig, context):
         returner = [0, output_placeholder]
     elif isinstance(sig.output_type, ByteArrayLike):
         returner = [0, output_placeholder + 32]
-    elif isinstance(sig.output_type, TupleType):
+    elif isinstance(sig.output_type, TupleLike):
         returner = [0, output_placeholder]
     else:
         raise TypeMismatchException("Invalid output type: %s" % sig.output_type)

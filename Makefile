@@ -1,7 +1,7 @@
 .PHONY: test dev-deps lint clean clean-pyc clean-build clean-test docs docker-build
 
 init:
-	python setup.py install
+	pip install .
 
 dev-deps:
 	pip install .[test,lint]

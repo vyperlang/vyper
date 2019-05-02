@@ -979,7 +979,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             arg_lll = Expr(self.expr.args[0], self.context).lll_node
             if arg_lll.typ == BaseType('address'):
                 return True, arg_lll
-        return True, None
+        return False, None
 
     # Function calls
     def call(self):

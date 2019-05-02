@@ -281,10 +281,4 @@ def parse_private_function(code: ast.FunctionDef,
         )
         return o
 
-    # Check for at leasts one return statement if necessary.
-    if context.return_type and context.function_return_count == 0:
-        raise FunctionDeclarationException(
-            "Missing return statement in function '%s' " % sig.name, code
-        )
-
     return o

@@ -12,6 +12,8 @@ from vyper.parser.lll_node import (
     LLLnode,
 )
 from vyper.parser.parser_utils import (
+    UnmatchedReturnChecker,
+    EnsureSingleExitChecker,
     getpos,
 )
 from vyper.types import (
@@ -410,3 +412,8 @@ class FunctionSignature:
 
     def is_initializer(self):
         return self.name == '__init__'
+
+    def validate_return_statement_balance(self):
+        # Run balanced return statement check.
+        UnmatchedReturnChecker().visit(self.func_ast_code)
+        EnsureSingleExitChecker().visit(self.func_ast_code)
