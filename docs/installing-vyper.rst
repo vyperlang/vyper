@@ -160,6 +160,26 @@ If any unexpected errors or exceptions are encountered, please feel free create 
 
     You can then run `make` and `make test` again.
 
+*****
+BASH
+*****
+
+Vyper can be installed using a bash script.
+::
+
+    wget https://github.com/balajipachai/Scripts/blob/master/install_vyper/install_vyper_ubuntu.sh
+
+Changes file permission (make it executable).
+::
+
+        chmod 775 install_vyper_ubuntu.sh
+
+Executes the script.
+::
+
+    ./install_vyper_ubuntu.sh
+
+
 ***
 PIP
 ***
