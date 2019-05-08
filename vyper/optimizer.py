@@ -98,7 +98,7 @@ def _is_with_without_set(node, args):
 
 
 def has_cond_arg(node):
-    return node.value in ['if', 'assert', 'assert_reason']
+    return node.value in ['if', 'if_unchecked', 'assert', 'assert_reason']
 
 
 def optimize(node: LLLnode) -> LLLnode:
