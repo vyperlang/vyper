@@ -510,6 +510,23 @@ def get_size_of_type(typ):
         raise Exception("Can not get size of type, Unexpected type: %r" % repr(typ))
 
 
+# amount of space a type takes in the static section of its ABI encoding
+def get_static_size_of_type(typ):
+    if isinstance(typ, BaseType):
+        return 1
+    elif isinstance(typ, ByteArrayLike):
+        return 1
+    elif isinstance(typ, ListType):
+        return get_size_of_type(typ.subtype) * typ.count
+    elif isinstance(typ, MappingType):
+        raise Exception("Maps are not supported for function arguments or outputs.")
+    elif isinstance(typ, TupleLike):
+        return sum([get_size_of_type(v) for v in typ.tuple_members()])
+    else:
+        raise Exception("Can not get size of type, Unexpected type: %r" % repr(typ))
+
+
+# could be rewritten as get_static_size_of_type == get_size_of_type?
 def has_dynamic_data(typ):
     if isinstance(typ, BaseType):
         return False

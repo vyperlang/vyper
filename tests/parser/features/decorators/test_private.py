@@ -530,3 +530,19 @@ def start():
     assert c.test() is False
     c.start(transact={})
     assert c.test() is True
+
+
+def test_private_array_param(get_contract):
+    code = """
+@private
+def change_arr(arr: int128[2]):
+    pass
+@public
+def call_arr() -> int128:
+    a: int128[2] # test with zeroed arg
+    self.change_arr(a)
+    return 42
+    """
+
+    c = get_contract(code)
+    assert c.call_arr() == 42
