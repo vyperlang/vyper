@@ -604,7 +604,7 @@ class Stmt(object):
         return False
 
     def parse_for_list(self):
-        with self.context.range_scope() :
+        with self.context.range_scope():
             iter_list_node = Expr(self.stmt.iter, self.context).lll_node
         if not isinstance(iter_list_node.typ.subtype, BaseType):  # Sanity check on list subtype.
             raise StructureException('For loops allowed only on basetype lists.', self.stmt.iter)
