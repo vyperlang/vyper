@@ -1,5 +1,6 @@
 import ast
 from typing import (
+    Any,
     List,
     cast,
 )
@@ -45,6 +46,20 @@ from vyper.utils import (
 
 if not hasattr(ast, 'AnnAssign'):
     raise Exception("Requires python 3.6 or higher for annotation support")
+
+# Header code
+STORE_CALLDATA: List[Any] = ['seq', ['mstore', 28, ['calldataload', 0]]]
+# Store limit constants at fixed addresses in memory.
+LIMIT_MEMORY_SET: List[Any] = [
+    ['mstore', pos, limit_size]
+    for pos, limit_size in LOADED_LIMIT_MAP.items()
+]
+FUNC_INIT_LLL = LLLnode.from_list(
+    STORE_CALLDATA + LIMIT_MEMORY_SET, typ=None
+)
+INIT_FUNC_INIT_LLL = LLLnode.from_list(
+    ['seq'] + LIMIT_MEMORY_SET, typ=None
+)
 
 
 # Header code
@@ -133,8 +148,9 @@ def parse_other_functions(o,
                           global_ctx,
                           default_function,
                           runtime_only):
-    sub = ['seq', INITIALIZER_LLL]
-    add_gas = INITIALIZER_LLL.gas
+    sub = ['seq', FUNC_INIT_LLL]
+    add_gas = FUNC_INIT_LLL.gas
+
     for _def in otherfuncs:
         sub.append(
             parse_function(_def, {**{'self': sigs}, **external_contracts}, origcode, global_ctx)
@@ -203,15 +219,14 @@ def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None):
         external_contracts = parse_external_contracts(external_contracts, global_ctx)
     # If there is an init func...
     if initfunc:
-        o.append(INITIALIZER_LLL)
-        o.append(
-            parse_function(
-                initfunc[0],
-                {**{'self': sigs}, **external_contracts},
-                origcode,
-                global_ctx,
-            )
-        )
+        o.append(INIT_FUNC_INIT_LLL)
+        o.append(parse_function(
+            initfunc[0],
+            {**{'self': sigs}, **external_contracts},
+            origcode,
+            global_ctx,
+        ))
+
     # If there are regular functions...
     if otherfuncs or defaultfunc:
         o = parse_other_functions(
