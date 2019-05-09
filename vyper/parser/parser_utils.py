@@ -834,7 +834,7 @@ class UnmatchedReturnChecker(python_ast.NodeVisitor):
 
 
 def annotate_ast(
-    parsed_ast: python_ast.Module,
+    parsed_ast: Union[python_ast.AST, python_ast.Module],
     source_code: str,
     class_types: Optional[ClassTypes] = None,
 ) -> None:

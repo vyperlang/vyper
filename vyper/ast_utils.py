@@ -67,7 +67,7 @@ def _build_vyper_ast_init_kwargs(
             )
 
 
-def parse_python_ast(source_code: str, node: python_ast.Module) -> vyper_ast.Module:
+def parse_python_ast(source_code: str, node: python_ast.AST) -> vyper_ast.VyperNode:
     if isinstance(node, list):
         return _build_vyper_ast_list(source_code, node)
     elif isinstance(node, python_ast.AST):
