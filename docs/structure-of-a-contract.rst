@@ -51,18 +51,18 @@ Decorator                    Description
 `@public`                    Can be called from external contracts.
 `@private`                   Can only be called within current contract.
 `@constant`                  Does not alter contract state.
-`@payable`                   The contract is open to receive ethereum.
-`@nonrentant(<unique_key>)`  Function can only be called once, 
-                             both externally and internally. Used to 
+`@payable`                   The contract is open to receive Ether.
+`@nonreentrant(<unique_key>)`  Function can only be called once,
+                             both externally and internally. Used to
                              prevent reentrancy attacks.
 ===========================  ===========================================
 
-The visibility decorators `@public` or `@private` are mandatory on function declartions, whilst the other decorators are optional.
+The visibility decorators `@public` or `@private` are mandatory on function declarations, whilst the other decorators(@constant, @payable, @nonreentrant) are optional.
 
 Default function
 ----------------
 
-A contract can also have a default function, which is executed on a call to the contract if no other functions match the given function identifier (or if none was supplied at all, such as through someone sending it Eth). It is the same construct as fallback functions `in Solidity <https://solidity.readthedocs.io/en/latest/contracts.html?highlight=fallback#fallback-function>`_. 
+A contract can also have a default function, which is executed on a call to the contract if no other functions match the given function identifier (or if none was supplied at all, such as through someone sending it Eth). It is the same construct as fallback functions `in Solidity <https://solidity.readthedocs.io/en/latest/contracts.html?highlight=fallback#fallback-function>`_.
 
 This function is always named `__default__` and must be annotated with `@public`. It cannot have arguments and cannot return anything.
 
@@ -73,7 +73,7 @@ If the function is annotated as `@payable`, this function is executed whenever t
 ::
 
     Payment: event({amount: int128, from: indexed(address)})
-    
+
     @public
     @payable
     def __default__():
@@ -83,9 +83,9 @@ If the function is annotated as `@payable`, this function is executed whenever t
 Considerations
 ~~~~~~~~~~~~~~
 
-Just as in Solidity, Vyper generates a default function if one isn't found, in the form of a REVERT call. Note that this still `generates an exception <https://github.com/ethereum/wiki/wiki/Subtleties>`_ and thus will not succeed in receiving funds. 
+Just as in Solidity, Vyper generates a default function if one isn't found, in the form of a REVERT call. Note that this still `generates an exception <https://github.com/ethereum/wiki/wiki/Subtleties>`_ and thus will not succeed in receiving funds.
 
-Ethereum specifies that the operations will be rolled back if the contract runs out of gas in execution. ``send`` calls to the contract come with a free stipend of 2300 gas, which does not leave much room to perform other operations except basic logging. **However**, if the sender includes a higher gas amount through a ``call`` instead of ``send``, then more complex functionality can be run. 
+Ethereum specifies that the operations will be rolled back if the contract runs out of gas in execution. ``send`` calls to the contract come with a free stipend of 2300 gas, which does not leave much room to perform other operations except basic logging. **However**, if the sender includes a higher gas amount through a ``call`` instead of ``send``, then more complex functionality can be run.
 
 It is considered a best practice to ensure your payable default function is compatible with this stipend. The following operations will consume more than 2300 gas:
 
@@ -122,7 +122,7 @@ Events may be logged in specially indexed data structures that allow clients, in
 
 Events must be declared before global declarations and function definitions.
 
-.. structure-metedata:
+.. structure-metadata:
 
 NatSpec Metadata
 ================
@@ -150,7 +150,7 @@ Vyper supports structured documentation for state variables and functions and ev
     @param food The name of a food to evaluate (in English)
     @return true if Bugs will eat it, false otherwise
     """
-  
+
     // ...
 
 ::
@@ -165,7 +165,7 @@ Vyper supports structured documentation for state variables and functions and ev
 
 
 
-Additional information about Ethereum Natural Specification (NatSpec) can be found `here <https://github.com/ethereum/wiki/wiki/Ethereum-Natural-Specification-Format>`_. 
+Additional information about Ethereum Natural Specification (NatSpec) can be found `here <https://github.com/ethereum/wiki/wiki/Ethereum-Natural-Specification-Format>`_.
 
 Contract Interfaces
 ===================
@@ -239,7 +239,7 @@ To define external interfaces inline the `contract` keyword is used.
 
 The defined inline contract can then be use to make external calls, given a contract address.
 
-Specifying `modifying` annoated that the call made to the external contract will be able to alter storage, were as the `constant` call will using a `STATICCALL` ensuring no storage can be altered during execution.
+Specifying `modifying` annotation indicates that the call made to the external contract will be able to alter storage, whereas the `constant` call will use a `STATICCALL` ensuring no storage can be altered during execution.
 
 ::
 
@@ -248,7 +248,7 @@ Specifying `modifying` annoated that the call made to the external contract will
         FooBar(some_address).calculate()  # can not change storage
         FooBar(some_address).test1()  # storage can be altered
 
-An additional utility of storing a contract address in a contract is defined by the ``<global_var>: FooBar`` annotation. Note that assignment of and address requires the address value needs to be cast using the contract type e.g. ``FooBar(<address_var>)``.
+An additional utility of storing a contract address in a contract is defined by the ``<global_var>: FooBar`` annotation. Note that assignment of an address requires the address value to be casted using the contract type e.g. ``FooBar(<address_var>)``.
 
 ::
 
@@ -265,7 +265,7 @@ An additional utility of storing a contract address in a contract is defined by 
 To import interfaces to be used in externals calls, one uses the interface just as one would use an inlined interface definition.
 
 ::
-  
+
     import foo_bar as FooBar
 
     foobar_contract: FooBar

@@ -141,7 +141,7 @@ Returns the length of a given list of bytes.
     :param b: value to combine
     :type b: bytes, bytes32
 
-    :output b: bytes
+    :output c: bytes
     """
 
 Takes 2 or more bytes arrays of type ``bytes32`` or ``bytes`` and combines them into one.
@@ -242,7 +242,7 @@ Takes a signed hash and vrs and returns the public key of the signer.
     :output sum: uint256[2]
     """
 
-Takes two elliptical curves and adds them together.
+Takes two elliptic curves and adds them together.
 
 **ecmul**
 ---------------
@@ -258,7 +258,7 @@ Takes two elliptical curves and adds them together.
     :output product: uint256[2]
     """
 
-Takes two elliptical curves and multiplies them together.
+Takes two elliptic curves and multiplies them together.
 
 **extract32**
 ---------------
@@ -382,7 +382,7 @@ CAUTION! This method will delete the contract from the Ethereum blockchain. All 
 ----------
 ::
 
-  def raise(msg):
+  def raise(a):
     """
     :param a: the exception reason (must be <= 32 bytes)
     :type a: str
@@ -390,7 +390,7 @@ CAUTION! This method will delete the contract from the Ethereum blockchain. All 
 
 Raises an exception by triggering the OPCODE ``REVERT`` (0xfd) with the provided reason given as the error message. The code will stop operation, the contract's state will be reverted to the state before the transaction took place and the remaining gas will be returned to the transaction's sender.
 
-Note: To give it a more Python like syntax, the raise function can be called without parenthesis, the syntax would be ``raise "An exception"``. Even though both options will compile, it's recommended to use the Pythonic version without parentheses.
+Note: To give it a more Python-like syntax, the raise function can be called without parenthesis, the syntax would be ``raise "An exception"``. Even though both options will compile, it's recommended to use the Pythonic version without parentheses.
 
 **assert**
 ----------
@@ -409,7 +409,7 @@ Asserts the specified condition. The behavior is equivalent to::
     raise reason
 (the only difference in behavior is that ``assert`` can be called without a reason string, while ``raise`` requires a reason string).
 
-Note: To give it a more Python like syntax, the assert function can be called without parenthesis, the syntax would be ``assert your_bool_condition``. Even though both options will compile, it's recommended to use the Pythonic version without parenthesis.
+Note: To give it a more Python-like syntax, the assert function can be called without parenthesis, the syntax would be ``assert your_bool_condition``. Even though both options will compile, it's recommended to use the Pythonic version without parenthesis.
 
 **raw_log**
 -----------

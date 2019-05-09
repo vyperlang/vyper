@@ -111,7 +111,7 @@ and sending the highest bid amount to the beneficiary.
 
 And there you have it - an open auction contract. Of course, this is a
 simplified example with barebones functionality and can be improved.
-Hopefully, this has provided some insight to the possibilities of Vyper.
+Hopefully, this has provided some insight into the possibilities of Vyper.
 As we move on to exploring more complex examples, we will encounter more
 design patterns and features of the Vyper language.
 
@@ -147,7 +147,7 @@ Solidity, this blind auction allows for an auction where there is no time pressu
   :language: python
   :linenos:
 
-While this blind auction is almost functionally identical to the blind auction implemented in Solidity, the differences in their implementations help illustrate the differences between Solidy and Vyper.
+While this blind auction is almost functionally identical to the blind auction implemented in Solidity, the differences in their implementations help illustrate the differences between Solidity and Vyper.
 
 .. literalinclude:: ../examples/auctions/blind_auction.vy
   :language: python
@@ -199,7 +199,7 @@ logic. Let's break down this contract bit by bit.
   :lines: 16-19
 
 Like the other contracts, we begin by declaring our global variables public with
-their respective datatypes. Remember that the ``public`` function allows the
+their respective data types. Remember that the ``public`` function allows the
 variables to be *readable* by an external caller, but not *writeable*.
 
 .. literalinclude:: ../examples/safe_remote_purchase/safe_remote_purchase.vy
@@ -349,7 +349,7 @@ sends the collected funds to the beneficiary.
 .. note::
   Notice that we have access to the total amount sent to the contract by
   calling ``self.balance``, a variable we never explicitly set. Similar to ``msg``
-  and ``block``, ``self.balance`` is a built-in variable thats available in all
+  and ``block``, ``self.balance`` is a built-in variable that's available in all
   Vyper contracts.
 
 We can finalize the campaign if all goes well, but what happens if the
@@ -366,7 +366,7 @@ the  ``assert`` statement . If those two conditions pass, we then loop through
 every participant and call ``send()`` to send each participant their respective
 contribution. For the sake of gas limits, we group the number of contributors
 in batches of 30 and refund them one at a time. Unfortunately, if there's a
-large number of of participants, multiple calls to ``refund()`` may be
+large number of participants, multiple calls to ``refund()`` may be
 necessary.
 
 .. index:: voting, ballot
@@ -387,7 +387,7 @@ all the proposals and returns the one with the greatest number of votes.
   :language: python
   :linenos:
 
-As we can see, this is contract of moderate length which we will dissect
+As we can see, this is the contract of moderate length which we will dissect
 section by section. Let’s begin!
 
 .. literalinclude:: ../examples/voting/ballot.vy
@@ -397,7 +397,7 @@ section by section. Let’s begin!
 The variable ``voters`` is initialized as a mapping where the key is
 the voter’s public address and the value is a struct describing the
 voter’s properties: ``weight``, ``voted``, ``delegate``, and ``vote``, along
-with their respective datatypes.
+with their respective data types.
 
 Similarly, the ``proposals`` variable is initialized as a ``public`` mapping
 with ``int128`` as the key’s datatype and a struct to represent each proposal
@@ -514,7 +514,7 @@ Company Stock
 This contract is just a tad bit more thorough than the ones we've previously
 encountered. In this example, we are going to look at a comprehensive contract
 that manages the holdings of all shares of a company. The contract allows for
-a person to buy, sell, and transfer shares of a company as well as allowing for
+a person to buy, sell and transfer shares of a company as well as allowing for
 the company to pay a person in ether. The company, upon initialization of the
 contract, holds all shares of the company at first but can sell them all.
 

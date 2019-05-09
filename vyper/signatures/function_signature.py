@@ -12,6 +12,7 @@ from vyper.parser.lll_node import (
     LLLnode,
 )
 from vyper.parser.parser_utils import (
+    EnsureSingleExitChecker,
     UnmatchedReturnChecker,
     getpos,
 )
@@ -81,12 +82,48 @@ class FunctionSignature:
         self.custom_units = custom_units
         self.nonreentrant_key = nonreentrant_key
         self.func_ast_code = func_ast_code
+        self.calculate_arg_totals()
 
     def __str__(self):
         input_name = 'def ' + self.name + '(' + ','.join([str(arg.typ) for arg in self.args]) + ')'
         if self.output_type:
             return input_name + ' -> ' + str(self.output_type) + ':'
         return input_name + ':'
+
+    def calculate_arg_totals(self):
+        """ Calculate base arguments, and totals. """
+
+        code = self.func_ast_code
+        self.base_args = []
+        self.total_default_args = 0
+
+        if hasattr(code.args, 'defaults'):
+            self.total_default_args = len(code.args.defaults)
+            if self.total_default_args > 0:
+                # all argument w/o defaults
+                self.base_args = self.args[:-self.total_default_args]
+            else:
+                # No default args, so base_args = args.
+                self.base_args = self.args
+            # All default argument name/type definitions.
+            self.default_args = code.args.args[-self.total_default_args:]
+            # Keep all the value to assign to default parameters.
+            self.default_values = dict(zip(
+                [arg.arg for arg in self.default_args],
+                code.args.defaults
+            ))
+
+        # Calculate the total sizes in memory the function arguments will take use.
+        # Total memory size of all arguments (base + default together).
+        self.max_copy_size = sum([
+            32 if isinstance(arg.typ, ByteArrayLike) else get_size_of_type(arg.typ) * 32
+            for arg in self.args
+        ])
+        # Total memory size of base arguments (arguments exclude default parameters).
+        self.base_copy_size = sum([
+            32 if isinstance(arg.typ, ByteArrayLike) else get_size_of_type(arg.typ) * 32
+            for arg in self.base_args
+        ])
 
     # Get the canonical function signature
     @staticmethod
@@ -125,6 +162,11 @@ class FunctionSignature:
         valid_name, msg = is_varname_valid(name, custom_units, custom_structs, constants)
         if not valid_name and (not name.lower() in function_whitelist):
             raise FunctionDeclarationException("Function name invalid. " + msg, code)
+
+        # Validate default values.
+        for default_value in getattr(code.args, 'defaults', []):
+            if not isinstance(default_value, (ast.Num, ast.Str, ast.Bytes, ast.List)):
+                raise FunctionDeclarationException("Default parameter values have to be literals.")
 
         # Determine the arguments, expects something of the form def foo(arg1:
         # int128, arg2: int128 ...
@@ -365,6 +407,13 @@ class FunctionSignature:
                 )
             return ssig[0]
 
+    def is_default_func(self):
+        return self.name == '__default__'
+
+    def is_initializer(self):
+        return self.name == '__init__'
+
     def validate_return_statement_balance(self):
         # Run balanced return statement check.
         UnmatchedReturnChecker().visit(self.func_ast_code)
+        EnsureSingleExitChecker().visit(self.func_ast_code)

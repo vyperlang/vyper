@@ -215,7 +215,7 @@ Operator       Description
 ``x - y``      Subtraction
 ``-x``         Unary minus/Negation
 ``x * y``      Multiplication
-``x / y``      Divison
+``x / y``      Division
 ``x % y``      Modulo
 ``min(x, y)``  Minimum
 ``max(x, y)``  Maximum
@@ -304,7 +304,7 @@ Having defined the units they can be defined on variables as follows.
 32-bit-wide Byte Array
 ======================
 **Keyword:** ``bytes32``
-This is a 32-bit-wide byte array that is otherwise similiar to byte arrays.
+This is a 32-bit-wide byte array that is otherwise similar to byte arrays.
 
 **Example:**
 ::
@@ -462,7 +462,7 @@ Here ``_KeyType`` can be any base or bytes type. Mappings, contract or structs a
 .. index:: !initial
 
 *****************
-Builtin Constants
+Built In Constants
 *****************
 
 Vyper has a few convenience constants builtin.
@@ -514,7 +514,7 @@ Custom constants can be defined at a global level in Vyper. To define a constant
 Initial Values
 **************
 
-In Vyper, there is no ``null`` option like most programing languages have. Thus, every variable type has a default value. In order to check if a variable is empty, you will need to compare it to its type's default value.
+In Vyper, there is no ``null`` option like most programming languages have. Thus, every variable type has a default value. In order to check if a variable is empty, you will need to compare it to its type's default value.
 If you would like to reset a variable to its type's default value, use the built-in ``clear()`` function.  
 
 Here you can find a list of all types and default values:
