@@ -21,6 +21,7 @@ from vyper.parser.parser_utils import (
     get_number_as_fraction,
     get_original_if_0_prefixed,
     getpos,
+    make_setter,
     unwrap_location,
 )
 from vyper.types import (
@@ -701,7 +702,6 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             raise Exception("%r %r" % (o, o.typ))
 
     def build_in_comparator(self):
-        from vyper.parser.parser import make_setter
         left = Expr(self.expr.left, self.context).lll_node
         right = Expr(self.expr.comparators[0], self.context).lll_node
 

@@ -20,6 +20,10 @@ from vyper.parser import (
     external_call,
     self_call,
 )
+from vyper.parser.events import (
+    pack_logging_data,
+    pack_logging_topics,
+)
 from vyper.parser.expr import (
     Expr,
 )
@@ -324,10 +328,6 @@ class Stmt(object):
         return True
 
     def parse_if(self):
-        from .parser import (
-            parse_body,
-        )
-
         if self.stmt.orelse:
             block_scope_id = id(self.stmt.orelse)
             with self.context.make_blockscope(block_scope_id):
@@ -366,11 +366,6 @@ class Stmt(object):
         return o
 
     def call(self):
-        from .parser import (
-            pack_logging_data,
-            pack_logging_topics,
-        )
-
         is_self_function = (
             isinstance(self.stmt.func, ast.Attribute)
         ) and isinstance(self.stmt.func.value, ast.Name) and self.stmt.func.value.id == "self"
@@ -506,9 +501,9 @@ class Stmt(object):
         return arg_expr.value
 
     def parse_for(self):
-        from .parser import (
-            parse_body,
-        )
+        # from .parser import (
+        #     parse_body,
+        # )
         # Type 0 for, e.g. for i in list(): ...
         if self._is_list_iter():
             return self.parse_for_list()
@@ -609,11 +604,6 @@ class Stmt(object):
         return False
 
     def parse_for_list(self):
-        from .parser import (
-            parse_body,
-            make_setter
-        )
-
         iter_list_node = Expr(self.stmt.iter, self.context).lll_node
         if not isinstance(iter_list_node.typ.subtype, BaseType):  # Sanity check on list subtype.
             raise StructureException('For loops allowed only on basetype lists.', self.stmt.iter)
@@ -1018,3 +1008,19 @@ class Stmt(object):
         if '"""' not in self.context.origcode.splitlines()[self.stmt.lineno - 1]:
             raise InvalidLiteralException('Only valid """ docblocks allowed', self.stmt)
         return LLLnode.from_list('pass', typ=None, pos=getpos(self.stmt))
+
+
+# Parse a statement (usually one line of code but not always)
+def parse_stmt(stmt, context):
+    return Stmt(stmt, context).lll_node
+
+
+# Parse a piece of code
+def parse_body(code, context):
+    if not isinstance(code, list):
+        return parse_stmt(code, context)
+    o = []
+    for stmt in code:
+        lll = parse_stmt(stmt, context)
+        o.append(lll)
+    return LLLnode.from_list(['seq'] + o, pos=getpos(code[0]) if code else None)

@@ -28,7 +28,9 @@ def external_contract_call(node,
                            pos,
                            value=None,
                            gas=None):
-    from vyper.parser.parser import parse_expr
+    from vyper.parser.expr import (
+        Expr,
+    )
     if value is None:
         value = 0
     if gas is None:
@@ -56,7 +58,7 @@ def external_contract_call(node,
     sig = context.sigs[contract_name][method_name]
     inargs, inargsize, _ = pack_arguments(
         sig,
-        [parse_expr(arg, context) for arg in node.args],
+        [Expr(arg, context).lll_node for arg in node.args],
         context,
         pos=pos,
     )

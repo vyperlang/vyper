@@ -854,7 +854,6 @@ def annotate_ast(
     """
     AnnotatingVisitor(source_code, class_types).visit(parsed_ast)
     RewriteUnarySubVisitor().visit(parsed_ast)
-    EnsureSingleExitChecker().visit(parsed_ast)
 
 
 def zero_pad(bytez_placeholder, maxlen, context):
