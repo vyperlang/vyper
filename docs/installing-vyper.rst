@@ -61,6 +61,14 @@ Run the following commands to install:
 
        sudo apt-get install python3-dev
 
+Using a BASH script
+^^^^^^^^^^^^^^^^^^^
+Vyper can be installed using a bash script.
+::
+
+    https://github.com/balajipachai/Scripts/blob/master/install_vyper/install_vyper_ubuntu.sh
+
+
 Arch
 -----
 Using your aur helper of choice (`yay` here).
@@ -160,25 +168,6 @@ If any unexpected errors or exceptions are encountered, please feel free create 
 
     You can then run `make` and `make test` again.
 
-*****
-BASH
-*****
-
-Vyper can be installed using a bash script.
-::
-
-    wget https://github.com/balajipachai/Scripts/blob/master/install_vyper/install_vyper_ubuntu.sh
-
-Changes file permission (make it executable).
-::
-
-        chmod 775 install_vyper_ubuntu.sh
-
-Executes the script.
-::
-
-    ./install_vyper_ubuntu.sh
-
 
 ***
 PIP
@@ -249,9 +238,6 @@ Vyper is published in the snap store. In any of the `supported Linux distros <ht
 ::
 
     sudo snap install vyper --edge --devmode
-
-::
-
 
 To install the latest beta version use:
 
