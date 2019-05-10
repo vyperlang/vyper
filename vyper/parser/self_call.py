@@ -20,6 +20,7 @@ from vyper.types import (
     TupleLike,
     ceil32,
     get_size_of_type,
+    get_static_size_of_type,
 )
 
 
@@ -102,11 +103,14 @@ def call_self_private(stmt_expr, context, sig):
             pos=getpos(stmt_expr),
         )
         push_args += [inargs]  # copy arguments first, to not mess up the push/pop sequencing.
-        static_arg_count = len(expr_args) * 32
-        static_pos = arg_pos + static_arg_count
+
+        static_arg_size = 32 * sum(
+                [get_static_size_of_type(arg.typ)
+                    for arg in expr_args])
+        static_pos = arg_pos + static_arg_size
         total_arg_size = ceil32(inargsize - 4)
 
-        if len(expr_args) * 32 != total_arg_size:  # requires dynamic section.
+        if static_arg_size != total_arg_size:  # requires dynamic section.
             ident = 'push_args_%d_%d_%d' % (sig.method_id, stmt_expr.lineno, stmt_expr.col_offset)
             start_label = ident + '_start'
             end_label = ident + '_end'
