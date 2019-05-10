@@ -1,6 +1,9 @@
-import ast
 import re
 
+from vyper import ast
+from vyper.ast_utils import (
+    ast_to_dict,
+)
 from vyper.exceptions import (
     ConstancyViolationException,
     EventDeclarationException,
@@ -348,7 +351,7 @@ class Stmt(object):
 
     def _clear(self):
         # Create zero node
-        none = ast.NameConstant(None)
+        none = ast.NameConstant(value=None)
         none.lineno = self.stmt.lineno
         none.col_offset = self.stmt.col_offset
         zero = Expr(none, self.context).lll_node
@@ -549,15 +552,15 @@ class Stmt(object):
                         arg1,
                     )
 
-                if ast.dump(arg0) != ast.dump(arg1.left):
+                if arg0 != arg1.left:
                     raise StructureException(
                         (
                             "Two-arg for statements of the form `for i in "
                             "range(x, x + y): ...` must have x identical in both "
                             "places: %r %r"
                         ) % (
-                            ast.dump(arg0),
-                            ast.dump(arg1.left)
+                            ast_to_dict(arg0),
+                            ast_to_dict(arg1.left)
                         ),
                         self.stmt.iter,
                     )

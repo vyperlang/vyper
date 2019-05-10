@@ -1,14 +1,15 @@
-import ast
 from typing import (
     Any,
     List,
-    cast,
 )
 
+from vyper import ast
+from vyper.ast_utils import (
+    parse_to_ast,
+)
 from vyper.exceptions import (
     EventDeclarationException,
     FunctionDeclarationException,
-    ParserException,
     StructureException,
 )
 from vyper.parser.function_definitions import (
@@ -21,12 +22,6 @@ from vyper.parser.global_context import (
 )
 from vyper.parser.lll_node import (
     LLLnode,
-)
-from vyper.parser.parser_utils import (
-    annotate_and_optimize_ast,
-)
-from vyper.parser.pre_parser import (
-    pre_parse,
 )
 from vyper.signatures import (
     sig_utils,
@@ -67,28 +62,6 @@ INITIALIZER_LIST = ['seq', ['mstore', 28, ['calldataload', 0]]]
 # Store limit constants at fixed addresses in memory.
 INITIALIZER_LIST += [['mstore', pos, limit_size] for pos, limit_size in LOADED_LIMIT_MAP.items()]
 INITIALIZER_LLL = LLLnode.from_list(INITIALIZER_LIST, typ=None)
-
-
-def parse_to_ast(source_code: str) -> List[ast.stmt]:
-    """
-    Parses the given vyper source code and returns a list of python AST objects
-    for all statements in the source.  Performs pre-processing of source code
-    before parsing as well as post-processing of the resulting AST.
-
-    :param source_code: The vyper source code to be parsed.
-    :return: The post-processed list of python AST objects for each statement in
-        ``source_code``.
-    """
-    class_types, reformatted_code = pre_parse(source_code)
-
-    if '\x00' in reformatted_code:
-        raise ParserException('No null bytes (\\x00) allowed in the source code.')
-
-    # The return type depends on the parse mode which is why we need to cast here
-    parsed_ast = cast(ast.Module, ast.parse(reformatted_code))
-    annotate_and_optimize_ast(parsed_ast, reformatted_code, class_types)
-
-    return parsed_ast.body
 
 
 def parse_events(sigs, global_ctx):

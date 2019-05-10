@@ -1,5 +1,6 @@
 from vyper.exceptions import (
     InvalidLiteralException,
+    SyntaxException,
 )
 
 
@@ -123,7 +124,7 @@ def foo():
     for contract in contracts:
         assert_compile_failed(
             lambda: get_contract_with_gas_estimation(contract),
-            InvalidLiteralException
+            SyntaxException
         )
 
 
