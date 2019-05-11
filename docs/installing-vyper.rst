@@ -69,6 +69,7 @@ Vyper can be installed using a bash script.
     https://github.com/balajipachai/Scripts/blob/master/install_vyper/install_vyper_ubuntu.sh
 
 
+*Reminder*: Please read and understand the commands in any bash script before executing, especially with `sudo`.
 Arch
 -----
 Using your aur helper of choice (`yay` here).
