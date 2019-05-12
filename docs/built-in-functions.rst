@@ -186,7 +186,7 @@ Returns ``sha256`` (SHA2 256bit output) hash of input.
     :param a:
     :type a: decimal, larger than 0.0
 
-    :output sqrt: decimal
+    :output decimal: decimal
     """
 
 Returns the square of the provided decimal number, using the Babylonian square root algorithm.
