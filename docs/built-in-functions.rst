@@ -189,7 +189,7 @@ Returns ``sha256`` (SHA2 256bit output) hash of input.
     :output sqrt: decimal
     """
 
-Returns the suare of the provided decimal number, using the Babylonian square root algorithm.
+Returns the square of the provided decimal number, using the Babylonian square root algorithm.
 
 
 **method_id**
@@ -242,7 +242,7 @@ Takes a signed hash and vrs and returns the public key of the signer.
     :output sum: uint256[2]
     """
 
-Takes two elliptical curves and adds them together.
+Takes two elliptic curves and adds them together.
 
 **ecmul**
 ---------------
@@ -258,7 +258,7 @@ Takes two elliptical curves and adds them together.
     :output product: uint256[2]
     """
 
-Takes two elliptical curves and multiplies them together.
+Takes two elliptic curves and multiplies them together.
 
 **extract32**
 ---------------
@@ -362,7 +362,7 @@ Note that the amount to send should be specified in wei.
 
 Calls to the specified Ethereum address.
 The call should pass data and may optionally send eth value (specified in wei) as well.
-The call must specify a gas amount to attach the call and and the outsize.
+The call must specify a gas amount to attach the call and the outsize.
 Returns the data returned by the call as a bytes array with the outsize as the max length.
 
 **selfdestruct**
