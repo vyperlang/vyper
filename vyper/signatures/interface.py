@@ -1,9 +1,9 @@
-import ast
 import copy
 import importlib
 import os
 import pkgutil
 
+from vyper import ast
 from vyper.exceptions import (
     ParserException,
     StructureException,
@@ -48,17 +48,17 @@ def render_return(sig):
 
 def abi_type_to_ast(atype):
     if atype in ('int128', 'uint256', 'bool', 'address', 'bytes32'):
-        return ast.Name(atype, None)
+        return ast.Name(id=atype)
     elif atype == 'decimal':
-        return ast.Name('int128', None)
+        return ast.Name(id='int128')
     elif atype == 'bytes':
         return ast.Subscript(
-            value=ast.Name('bytes', None),
+            value=ast.Name(id='bytes'),
             slice=ast.Index(256)
         )
     elif atype == 'string':
         return ast.Subscript(
-            value=ast.Name('string', None),
+            value=ast.Name(id='string'),
             slice=ast.Index(256)
         )
     else:
@@ -91,11 +91,11 @@ def mk_full_signature_from_json(abi):
                 ]
             )
 
-        decorator_list = [ast.Name('public', None)]
+        decorator_list = [ast.Name(id='public')]
         if func['constant']:
-            decorator_list.append(ast.Name('constant', None))
+            decorator_list.append(ast.Name(id='constant'))
         if func['payable']:
-            decorator_list.append(ast.Name('payable', None))
+            decorator_list.append(ast.Name(id='payable'))
 
         sig = FunctionSignature.from_definition(
             code=ast.FunctionDef(

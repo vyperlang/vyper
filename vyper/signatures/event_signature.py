@@ -1,5 +1,4 @@
-import ast
-
+from vyper import ast
 from vyper.exceptions import (
     EventDeclarationException,
     InvalidTypeException,

@@ -1,8 +1,11 @@
-import ast
 from collections import (
     Counter,
 )
 
+from vyper import ast
+from vyper.ast_utils import (
+    to_python_ast,
+)
 from vyper.exceptions import (
     FunctionDeclarationException,
     InvalidTypeException,
@@ -415,5 +418,5 @@ class FunctionSignature:
 
     def validate_return_statement_balance(self):
         # Run balanced return statement check.
-        UnmatchedReturnChecker().visit(self.func_ast_code)
-        EnsureSingleExitChecker().visit(self.func_ast_code)
+        UnmatchedReturnChecker().visit(to_python_ast(self.func_ast_code))
+        EnsureSingleExitChecker().visit(to_python_ast(self.func_ast_code))

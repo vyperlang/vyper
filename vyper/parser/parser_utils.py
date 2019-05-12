@@ -1,4 +1,4 @@
-import ast
+import ast as python_ast
 from typing import (
     Any,
     List,
@@ -6,6 +6,7 @@ from typing import (
     Union,
 )
 
+from vyper import ast
 from vyper.exceptions import (
     InvalidLiteralException,
     StructureException,
@@ -712,16 +713,16 @@ def make_setter(left, right, location, pos, in_function_call=False):
         raise Exception("Invalid type for setters")
 
 
-def is_return_from_function(node: Union[ast.AST, List[Any]]) -> bool:
+def is_return_from_function(node: Union[python_ast.AST, List[Any]]) -> bool:
     is_selfdestruct = (
-        isinstance(node, ast.Expr)
-        and isinstance(node.value, ast.Call)
-        and isinstance(node.value.func, ast.Name)
+        isinstance(node, python_ast.Expr)
+        and isinstance(node.value, python_ast.Call)
+        and isinstance(node.value.func, python_ast.Name)
         and node.value.func.id == 'selfdestruct'
     )
-    if isinstance(node, ast.Return):
+    if isinstance(node, python_ast.Return):
         return True
-    elif isinstance(node, ast.Raise):
+    elif isinstance(node, python_ast.Raise):
         return True
     elif is_selfdestruct:
         return True
@@ -729,12 +730,13 @@ def is_return_from_function(node: Union[ast.AST, List[Any]]) -> bool:
         return False
 
 
-class AnnotatingVisitor(ast.NodeTransformer):
+class AnnotatingVisitor(python_ast.NodeTransformer):
     _source_code: str
     _class_types: ClassTypes
 
     def __init__(self, source_code: str, class_types: Optional[ClassTypes] = None):
-        self._source_code = source_code
+        self._source_code: str = source_code
+        self.counter: int = 0
         if class_types is not None:
             self._class_types = class_types
         else:
@@ -744,6 +746,8 @@ class AnnotatingVisitor(ast.NodeTransformer):
         # Decorate every node in the AST with the original source code. This is
         # necessary to facilitate error pretty-printing.
         node.source_code = self._source_code
+        node.node_id = self.counter
+        self.counter += 1
 
         return super().generic_visit(node)
 
@@ -756,30 +760,29 @@ class AnnotatingVisitor(ast.NodeTransformer):
         return node
 
 
-class RewriteUnarySubVisitor(ast.NodeTransformer):
+class RewriteUnarySubVisitor(python_ast.NodeTransformer):
     def visit_UnaryOp(self, node):
         self.generic_visit(node)
-
-        if isinstance(node.op, ast.USub) and isinstance(node.operand, ast.Num):
+        if isinstance(node.op, python_ast.USub) and isinstance(node.operand, python_ast.Num):
             node.operand.n = 0 - node.operand.n
             return node.operand
         else:
             return node
 
 
-class EnsureSingleExitChecker(ast.NodeVisitor):
+class EnsureSingleExitChecker(python_ast.NodeVisitor):
 
-    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+    def visit_FunctionDef(self, node: python_ast.FunctionDef) -> None:
         self.generic_visit(node)
         self.check_return_body(node, node.body)
 
-    def visit_If(self, node: ast.If) -> None:
+    def visit_If(self, node: python_ast.If) -> None:
         self.generic_visit(node)
         self.check_return_body(node, node.body)
         if node.orelse:
             self.check_return_body(node, node.orelse)
 
-    def check_return_body(self, node: ast.AST, node_list: List[Any]) -> None:
+    def check_return_body(self, node: python_ast.AST, node_list: List[Any]) -> None:
         return_count = len([n for n in node_list if is_return_from_function(n)])
         if return_count > 1:
             raise StructureException(
@@ -797,17 +800,17 @@ class EnsureSingleExitChecker(ast.NodeVisitor):
                 )
 
 
-class UnmatchedReturnChecker(ast.NodeVisitor):
+class UnmatchedReturnChecker(python_ast.NodeVisitor):
     """
     Make sure all return statement are balanced
     (both branches of if statement should have returns statements).
     """
 
-    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+    def visit_FunctionDef(self, node: python_ast.FunctionDef) -> None:
         self.generic_visit(node)
         self.handle_primary_function_def(node)
 
-    def handle_primary_function_def(self,  node: ast.FunctionDef) -> None:
+    def handle_primary_function_def(self,  node: python_ast.FunctionDef) -> None:
         if node.returns and not self.return_check(node.body):
             raise StructureException(
                 f'Missing or Unmatched return statements in function "{node.name}". '
@@ -815,12 +818,12 @@ class UnmatchedReturnChecker(ast.NodeVisitor):
                 node
             )
 
-    def return_check(self, node: Union[ast.AST, List[Any]]) -> bool:
+    def return_check(self, node: Union[python_ast.AST, List[Any]]) -> bool:
         if is_return_from_function(node):
             return True
         elif isinstance(node, list):
             return any(self.return_check(stmt) for stmt in node)
-        elif isinstance(node, ast.If):
+        elif isinstance(node, python_ast.If):
             if_body_check = self.return_check(node.body)
             else_body_check = self.return_check(node.orelse)
             if if_body_check and else_body_check:  # both side need to match.
@@ -830,8 +833,8 @@ class UnmatchedReturnChecker(ast.NodeVisitor):
         return False
 
 
-def annotate_and_optimize_ast(
-    parsed_ast: ast.Module,
+def annotate_ast(
+    parsed_ast: Union[python_ast.AST, python_ast.Module],
     source_code: str,
     class_types: Optional[ClassTypes] = None,
 ) -> None:

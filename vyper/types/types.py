@@ -1,5 +1,4 @@
 import abc
-import ast
 from collections import (
     OrderedDict,
 )
@@ -9,6 +8,7 @@ from typing import (
 )
 import warnings
 
+from vyper import ast
 from vyper.exceptions import (
     InvalidTypeException,
 )
@@ -429,8 +429,7 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
         return BaseType(base_type, unit, positional)
     # Subscripts
     elif isinstance(item, ast.Subscript):
-
-        if 'value' not in vars(item.slice):
+        if isinstance(item.slice, ast.Slice):
             raise InvalidTypeException(
                 "Array / ByteArray access must access a single element, not a slice",
                 item,
@@ -478,7 +477,7 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
             " favor of named structs, see VIP300",
             DeprecationWarning
         )
-        raise InvalidTypeException("Invalid type: %r" % ast.dump(item), item)
+        raise InvalidTypeException("Invalid type", item)
     elif isinstance(item, ast.Tuple):
         members = [
             parse_type(
@@ -491,7 +490,7 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
         ]
         return TupleType(members)
     else:
-        raise InvalidTypeException("Invalid type: %r" % ast.dump(item), item)
+        raise InvalidTypeException("Invalid type", item)
 
 
 # Gets the number of memory or storage keys needed to represent a given type
@@ -510,6 +509,23 @@ def get_size_of_type(typ):
         raise Exception("Can not get size of type, Unexpected type: %r" % repr(typ))
 
 
+# amount of space a type takes in the static section of its ABI encoding
+def get_static_size_of_type(typ):
+    if isinstance(typ, BaseType):
+        return 1
+    elif isinstance(typ, ByteArrayLike):
+        return 1
+    elif isinstance(typ, ListType):
+        return get_size_of_type(typ.subtype) * typ.count
+    elif isinstance(typ, MappingType):
+        raise Exception("Maps are not supported for function arguments or outputs.")
+    elif isinstance(typ, TupleLike):
+        return sum([get_size_of_type(v) for v in typ.tuple_members()])
+    else:
+        raise Exception("Can not get size of type, Unexpected type: %r" % repr(typ))
+
+
+# could be rewritten as get_static_size_of_type == get_size_of_type?
 def has_dynamic_data(typ):
     if isinstance(typ, BaseType):
         return False

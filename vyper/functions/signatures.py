@@ -1,6 +1,9 @@
-import ast
 import functools
 
+from vyper import ast
+from vyper.ast_utils import (
+    parse_to_ast,
+)
 from vyper.exceptions import (
     InvalidLiteralException,
     StructureException,
@@ -74,7 +77,7 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
         else:
             # Does not work for unit-endowed types inside compound types, e.g. timestamp[2]
             parsed_expected_type = context.parse_type(
-                ast.parse(expected_arg).body[0].value,
+                parse_to_ast(expected_arg)[0].value,
                 'memory',
             )
             if isinstance(parsed_expected_type, BaseType):

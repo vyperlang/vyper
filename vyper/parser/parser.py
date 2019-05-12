@@ -1,13 +1,15 @@
-import ast
 from typing import (
+    Any,
     List,
-    cast,
 )
 
+from vyper import ast
+from vyper.ast_utils import (
+    parse_to_ast,
+)
 from vyper.exceptions import (
     EventDeclarationException,
     FunctionDeclarationException,
-    ParserException,
     StructureException,
 )
 from vyper.parser.function_definitions import (
@@ -20,12 +22,6 @@ from vyper.parser.global_context import (
 )
 from vyper.parser.lll_node import (
     LLLnode,
-)
-from vyper.parser.parser_utils import (
-    annotate_and_optimize_ast,
-)
-from vyper.parser.pre_parser import (
-    pre_parse,
 )
 from vyper.signatures import (
     sig_utils,
@@ -46,34 +42,26 @@ from vyper.utils import (
 if not hasattr(ast, 'AnnAssign'):
     raise Exception("Requires python 3.6 or higher for annotation support")
 
+# Header code
+STORE_CALLDATA: List[Any] = ['seq', ['mstore', 28, ['calldataload', 0]]]
+# Store limit constants at fixed addresses in memory.
+LIMIT_MEMORY_SET: List[Any] = [
+    ['mstore', pos, limit_size]
+    for pos, limit_size in LOADED_LIMIT_MAP.items()
+]
+FUNC_INIT_LLL = LLLnode.from_list(
+    STORE_CALLDATA + LIMIT_MEMORY_SET, typ=None
+)
+INIT_FUNC_INIT_LLL = LLLnode.from_list(
+    ['seq'] + LIMIT_MEMORY_SET, typ=None
+)
+
 
 # Header code
 INITIALIZER_LIST = ['seq', ['mstore', 28, ['calldataload', 0]]]
 # Store limit constants at fixed addresses in memory.
 INITIALIZER_LIST += [['mstore', pos, limit_size] for pos, limit_size in LOADED_LIMIT_MAP.items()]
 INITIALIZER_LLL = LLLnode.from_list(INITIALIZER_LIST, typ=None)
-
-
-def parse_to_ast(source_code: str) -> List[ast.stmt]:
-    """
-    Parses the given vyper source code and returns a list of python AST objects
-    for all statements in the source.  Performs pre-processing of source code
-    before parsing as well as post-processing of the resulting AST.
-
-    :param source_code: The vyper source code to be parsed.
-    :return: The post-processed list of python AST objects for each statement in
-        ``source_code``.
-    """
-    class_types, reformatted_code = pre_parse(source_code)
-
-    if '\x00' in reformatted_code:
-        raise ParserException('No null bytes (\\x00) allowed in the source code.')
-
-    # The return type depends on the parse mode which is why we need to cast here
-    parsed_ast = cast(ast.Module, ast.parse(reformatted_code))
-    annotate_and_optimize_ast(parsed_ast, reformatted_code, class_types)
-
-    return parsed_ast.body
 
 
 def parse_events(sigs, global_ctx):
@@ -133,8 +121,9 @@ def parse_other_functions(o,
                           global_ctx,
                           default_function,
                           runtime_only):
-    sub = ['seq', INITIALIZER_LLL]
-    add_gas = INITIALIZER_LLL.gas
+    sub = ['seq', FUNC_INIT_LLL]
+    add_gas = FUNC_INIT_LLL.gas
+
     for _def in otherfuncs:
         sub.append(
             parse_function(_def, {**{'self': sigs}, **external_contracts}, origcode, global_ctx)
@@ -203,15 +192,14 @@ def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None):
         external_contracts = parse_external_contracts(external_contracts, global_ctx)
     # If there is an init func...
     if initfunc:
-        o.append(INITIALIZER_LLL)
-        o.append(
-            parse_function(
-                initfunc[0],
-                {**{'self': sigs}, **external_contracts},
-                origcode,
-                global_ctx,
-            )
-        )
+        o.append(INIT_FUNC_INIT_LLL)
+        o.append(parse_function(
+            initfunc[0],
+            {**{'self': sigs}, **external_contracts},
+            origcode,
+            global_ctx,
+        ))
+
     # If there are regular functions...
     if otherfuncs or defaultfunc:
         o = parse_other_functions(

@@ -31,5 +31,5 @@ def __init__():
     """
     parser_utils.LLLnode.repr_show_gas = True
     out = parse_to_lll(code)
-    assert '35273' in str(out)[:28]
+    assert '35261' in str(out)[:28]
     parser_utils.LLLnode.repr_show_gas = False

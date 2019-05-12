@@ -61,9 +61,6 @@ def foo(i: int128) -> int128:
 Transfer: eve.t({_from: indexed(address)})
     """, InvalidTypeException),
     """
-Transfer: event({_&rom: indexed(address)})
-    """,
-    """
 Transfer: event({_from: i.dexed(address), _to: indexed(address),lue: uint256})
     """
 ]
