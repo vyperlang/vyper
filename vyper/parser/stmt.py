@@ -484,7 +484,10 @@ class Stmt(object):
             return LLLnode.from_list(['assert', test_expr], typ=None, pos=getpos(self.stmt))
 
     def _check_valid_range_constant(self, arg_ast_node, raise_exception=True):
-        arg_expr = Expr.parse_value_expr(arg_ast_node, self.context)
+        with self.context.range_scope():
+            # TODO should catch if raise_exception == False?
+            arg_expr = Expr.parse_value_expr(arg_ast_node, self.context)
+
         is_integer_literal = (
             isinstance(arg_expr.typ, BaseType) and arg_expr.typ.is_literal
         ) and arg_expr.typ.typ in {'uint256', 'int128'}
@@ -604,7 +607,8 @@ class Stmt(object):
         return False
 
     def parse_for_list(self):
-        iter_list_node = Expr(self.stmt.iter, self.context).lll_node
+        with self.context.range_scope():
+            iter_list_node = Expr(self.stmt.iter, self.context).lll_node
         if not isinstance(iter_list_node.typ.subtype, BaseType):  # Sanity check on list subtype.
             raise StructureException('For loops allowed only on basetype lists.', self.stmt.iter)
         iter_var_type = (
