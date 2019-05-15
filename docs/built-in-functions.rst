@@ -181,12 +181,12 @@ Returns ``sha256`` (SHA2 256bit output) hash of input.
 --------
 ::
 
-  def sqrt(a: decimal) -> decimal:
+  def sqrt(a: decimal) -> b:
     """
     :param a:
     :type a: decimal, larger than 0.0
 
-    :output decimal: decimal
+    :output b: decimal
     """
 
 Returns the square of the provided decimal number, using the Babylonian square root algorithm.
