@@ -50,6 +50,8 @@ class Context:
         self.constancy = constancy
         # Whether body is currently in an assert statement
         self.in_assertion = False
+        # Whether we are currently parsing a range expression
+        self.in_range_expr = False
         # Is the function payable?
         self.is_payable = is_payable
         # Number of placeholders generated (used to generate random names)
@@ -79,7 +81,9 @@ class Context:
         self.global_ctx = global_ctx
 
     def is_constant(self):
-        return self.constancy is Constancy.Constant or self.in_assertion
+        return self.constancy is Constancy.Constant or \
+                self.in_assertion or \
+                self.in_range_expr
 
     #
     # Context Managers
@@ -103,6 +107,13 @@ class Context:
         self.in_assertion = True
         yield
         self.in_assertion = prev_value
+
+    @contextlib.contextmanager
+    def range_scope(self):
+        prev_value = self.in_range_expr
+        self.in_range_expr = True
+        yield
+        self.in_range_expr = prev_value
 
     @contextlib.contextmanager
     def make_blockscope(self, blockscope_id):
@@ -161,6 +172,8 @@ class Context:
     def pp_constancy(self):
         if self.in_assertion:
             return 'an assertion'
+        elif self.in_range_expr:
+            return 'a range expression'
         elif self.constancy == Constancy.Constant:
             return 'a constant function'
         raise ValueError('Compiler error: unknown constancy in pp_constancy: %r' % self.constancy)
