@@ -181,15 +181,15 @@ Returns ``sha256`` (SHA2 256bit output) hash of input.
 --------
 ::
 
-  def sqrt(a: decimal) -> decimal:
+  def sqrt(a: decimal) -> b:
     """
     :param a:
     :type a: decimal, larger than 0.0
 
-    :output sqrt: decimal
+    :output b: decimal
     """
 
-Returns the suare of the provided decimal number, using the Babylonian square root algorithm.
+Returns the square of the provided decimal number, using the Babylonian square root algorithm.
 
 
 **method_id**
@@ -362,7 +362,7 @@ Note that the amount to send should be specified in wei.
 
 Calls to the specified Ethereum address.
 The call should pass data and may optionally send eth value (specified in wei) as well.
-The call must specify a gas amount to attach the call and and the outsize.
+The call must specify a gas amount to attach the call and the outsize.
 Returns the data returned by the call as a bytes array with the outsize as the max length.
 
 **selfdestruct**
