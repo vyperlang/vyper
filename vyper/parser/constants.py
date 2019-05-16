@@ -18,6 +18,7 @@ from vyper.parser.memory_allocator import (
 from vyper.types.types import (
     BaseType,
     ByteArrayType,
+    StructType
 )
 from vyper.utils import (
     SizeLimits,
@@ -70,6 +71,27 @@ class Constants(object):
 
             if is_special_case_uint256_literal or is_special_case_int256_literal:
                 fail = False
+
+            #For StructType
+            if is_instances([expr.typ, annotation_type], StructType):
+                expr_keys = list(expr.typ.members.keys())
+                annotation_type_keys = list(annotation_type.members.keys())
+                for key1, key2 in expr_keys, annotation_type_keys:
+                    is_special_case_uint256_literal = (
+                    is_instances([expr.typ, annotation_type], StructType)
+                    ) and (
+                        [str(annotation_type.members[key2]), str(expr.typ.members[key1])] == ['uint256', 'int128']
+                    ) and SizeLimits.in_bounds('uint256', expr[1][0])
+
+                    is_special_case_int256_literal = (
+                        is_instances([expr.typ, annotation_type], StructType)
+                    ) and (
+                        [str(annotation_type.members[key2]), str(expr.typ.members[key1])] == ['int128', 'int128']
+                    ) and SizeLimits.in_bounds('int128', expr[1][0])
+
+                if is_special_case_uint256_literal or is_special_case_int256_literal:
+                    fail = False
+
 
         if fail:
             raise TypeMismatchException(
