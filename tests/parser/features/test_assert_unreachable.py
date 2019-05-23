@@ -1,8 +1,7 @@
-import pytest
-
 from eth_tester.exceptions import (
-    TransactionFailed
+    TransactionFailed,
 )
+import pytest
 
 
 def test_assure_refund(w3, get_contract):
