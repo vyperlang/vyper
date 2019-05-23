@@ -1,14 +1,17 @@
 import pytest
-from pytest import raises
+from pytest import (
+    raises,
+)
 
-from vyper import compiler
-
+from vyper import (
+    compiler,
+)
 
 fail_list = [
     """
 @public
 def foo():
-    x: address = create_with_code_of(0x1234567890123456789012345678901234567890, value=4, value=9)
+    x: address = create_forwarder_to(0x1234567890123456789012345678901234567890, value=4, value=9)
     """
 ]
 
@@ -23,12 +26,12 @@ valid_list = [
     """
 @public
 def foo():
-    x: address = create_with_code_of(0x1234567890123456789012345678901234567890)
+    x: address = create_forwarder_to(0x1234567890123456789012345678901234567890)
     """,
     """
 @public
 def foo():
-    x: address = create_with_code_of(
+    x: address = create_forwarder_to(
         0x1234567890123456789012345678901234567890,
         value=as_wei_value(9, "wei")
     )
@@ -36,7 +39,7 @@ def foo():
     """
 @public
 def foo():
-    x: address = create_with_code_of(0x1234567890123456789012345678901234567890, value=9)
+    x: address = create_forwarder_to(0x1234567890123456789012345678901234567890, value=9)
     """
 ]
 

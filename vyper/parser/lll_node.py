@@ -1,16 +1,21 @@
 import os
 import re
 
-from vyper.types import (
-    ceil32,
-    BaseType,
-    NodeType,
-    NullType
+from vyper.exceptions import (
+    CompilerPanic,
 )
 from vyper.opcodes import (
-    comb_opcodes
+    comb_opcodes,
 )
-from vyper.utils import valid_lll_macros
+from vyper.types import (
+    BaseType,
+    NodeType,
+    NullType,
+    ceil32,
+)
+from vyper.utils import (
+    valid_lll_macros,
+)
 
 # Set default string representation for ints in LLL output.
 AS_HEX_DEFAULT = False
@@ -32,7 +37,7 @@ else:
     ENDC = ''
 
 
-class NullAttractor():
+class NullAttractor:
     def __add__(self, other):
         return NullAttractor()
 
@@ -44,7 +49,7 @@ class NullAttractor():
 
 
 # Data structure for LLL parse tree
-class LLLnode():
+class LLLnode:
     repr_show_gas = False
 
     def __init__(self,
@@ -71,6 +76,10 @@ class LLLnode():
         self.add_gas_estimate = add_gas_estimate
         self.as_hex = AS_HEX_DEFAULT
 
+        # Optional annotation properties for gas estimation
+        self.total_gas = None
+        self.func_name = None
+
         # Determine this node's valency (1 if it pushes a value on the stack,
         # 0 otherwise) and checks to make sure the number and valencies of
         # children are correct. Also, find an upper bound on gas consumption
@@ -84,7 +93,7 @@ class LLLnode():
                 _, ins, outs, gas = comb_opcodes[self.value.upper()]
                 self.valency = outs
                 if len(self.args) != ins:
-                    raise Exception(
+                    raise CompilerPanic(
                         "Number of arguments mismatched: %r %r" % (self.value, self.args)
                     )
                 # We add 2 per stack height at push time and take it back
@@ -96,7 +105,7 @@ class LLLnode():
                     # allowed argument.
                     zero_valency_whitelist = {'pass', 'pop'}
                     if arg.valency == 0 and arg.value not in zero_valency_whitelist:
-                        raise Exception(
+                        raise CompilerPanic(
                             "Can't have a zerovalent argument to an opcode or a pseudo-opcode! "
                             "%r: %r. Please file a bug report." % (arg.value, arg)
                         )
@@ -128,21 +137,21 @@ class LLLnode():
                 if len(self.args) == 2:
                     self.gas = self.args[0].gas + self.args[1].gas + 17
                 if not self.args[0].valency:
-                    raise Exception((
+                    raise CompilerPanic((
                         "Can't have a zerovalent argument as a test to an if "
                         "statement! %r"
                     ) % self.args[0])
                 if len(self.args) not in (2, 3):
-                    raise Exception("If can only have 2 or 3 arguments")
+                    raise CompilerPanic("If can only have 2 or 3 arguments")
                 self.valency = self.args[1].valency
             # With statements: with <var> <initial> <statement>
             elif self.value == 'with':
                 if len(self.args) != 3:
-                    raise Exception("With statement must have 3 arguments")
+                    raise CompilerPanic("With statement must have 3 arguments")
                 if len(self.args[0].args) or not isinstance(self.args[0].value, str):
-                    raise Exception("First argument to with statement must be a variable")
+                    raise CompilerPanic("First argument to with statement must be a variable")
                 if not self.args[1].valency:
-                    raise Exception((
+                    raise CompilerPanic((
                         "Second argument to with statement (initial value) "
                         "cannot be zerovalent: %r"
                     ) % self.args[1])
@@ -157,22 +166,22 @@ class LLLnode():
                 ))
 
                 if is_invalid_repeat_count:
-                    raise Exception((
+                    raise CompilerPanic((
                         "Number of times repeated must be a constant nonzero "
                         "positive integer: %r"
                     ) % self.args[2])
                 if not self.args[0].valency:
-                    raise Exception((
+                    raise CompilerPanic((
                         "First argument to repeat (memory location) cannot be "
                         "zerovalent: %r"
                     ) % self.args[0])
                 if not self.args[1].valency:
-                    raise Exception((
+                    raise CompilerPanic((
                         "Second argument to repeat (start value) cannot be "
                         "zerovalent: %r"
                     ) % self.args[1])
                 if self.args[3].valency:
-                    raise Exception((
+                    raise CompilerPanic((
                         "Third argument to repeat (clause to be repeated) must "
                         "be zerovalent: %r"
                     ) % self.args[3])
@@ -190,7 +199,9 @@ class LLLnode():
             elif self.value == 'multi':
                 for arg in self.args:
                     if not arg.valency:
-                        raise Exception("Multi expects all children to not be zerovalent: %r" % arg)
+                        raise CompilerPanic(
+                            "Multi expects all children to not be zerovalent: %r" % arg
+                        )
                 self.valency = sum([arg.valency for arg in self.args])
                 self.gas = sum([arg.gas for arg in self.args])
             # LLL brackets (don't bother gas counting)
@@ -209,7 +220,7 @@ class LLLnode():
             self.valency = 1
             self.gas = 5
         else:
-            raise Exception("Invalid value for LLL AST node: %r" % self.value)
+            raise CompilerPanic("Invalid value for LLL AST node: %r" % self.value)
         assert isinstance(self.args, list)
 
         if valency is not None:
@@ -225,6 +236,17 @@ class LLLnode():
 
     def to_list(self):
         return [self.value] + [a.to_list() for a in self.args]
+
+    def __eq__(self, other):
+        return self.value == other.value and \
+                self.args == other.args and \
+                self.typ == other.typ and \
+                self.location == other.location and \
+                self.pos == other.pos and \
+                self.annotation == other.annotation and \
+                self.mutable == other.mutable and \
+                self.add_gas_estimate == other.add_gas_estimate and \
+                self.valency == other.valency
 
     @property
     def repr_value(self):
@@ -302,6 +324,7 @@ class LLLnode():
                   valency=None):
         if isinstance(typ, str):
             typ = BaseType(typ)
+
         if isinstance(obj, LLLnode):
             if typ is not None:
                 obj.typ = typ

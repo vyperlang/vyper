@@ -1,4 +1,6 @@
-from vyper.exceptions import StructureException
+from vyper.exceptions import (
+    StructureException,
+)
 
 
 def test_constant_test(get_contract_with_gas_estimation_for_constants):

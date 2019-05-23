@@ -1,7 +1,7 @@
 from vyper.exceptions import (
-    ParserException,
     ConstancyViolationException,
     InvalidLiteralException,
+    ParserException,
     TypeMismatchException,
 )
 

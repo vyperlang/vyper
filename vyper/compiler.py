@@ -1,11 +1,27 @@
-from vyper.opcodes import opcodes
-from vyper.parser import parser
-from vyper import compile_lll
-from vyper import optimizer
-from collections import OrderedDict, deque
+from collections import (
+    OrderedDict,
+    deque,
+)
+
+from vyper import (
+    compile_lll,
+    optimizer,
+)
+from vyper.ast_utils import (
+    ast_to_dict,
+)
+from vyper.opcodes import (
+    opcodes,
+)
+from vyper.parser import (
+    parser,
+)
+from vyper.signatures import (
+    sig_utils,
+)
 from vyper.signatures.interface import (
-    extract_interface_str,
     extract_external_interface,
+    extract_interface_str,
 )
 
 
@@ -46,13 +62,13 @@ def gas_estimate(origcode, *args, **kwargs):
 
     assert code.value == 'seq'
     for arg in code.args:
-        if hasattr(arg, 'func_name'):
+        if arg.func_name is not None:
             o[arg.func_name] = arg.total_gas
     return o
 
 
 def mk_full_signature(code, *args, **kwargs):
-    abi = parser.mk_full_signature(parser.parse_to_ast(code), *args, **kwargs)
+    abi = sig_utils.mk_full_signature(parser.parse_to_ast(code), *args, **kwargs)
     # Add gas estimates for each function to ABI
     gas_estimates = gas_estimate(code, *args, **kwargs)
     for func in abi:
@@ -154,7 +170,7 @@ def _mk_source_map_output(code, contract_name, interface_codes):
 
 
 def _mk_method_identifiers_output(code, contract_name, interface_codes):
-    return parser.mk_method_identifiers(code, interface_codes=interface_codes)
+    return sig_utils.mk_method_identifiers(code, interface_codes=interface_codes)
 
 
 def _mk_interface_output(code, contract_name, interface_codes):
@@ -173,8 +189,17 @@ def _mk_opcodes_runtime(code, contract_name, interface_codes):
     return get_opcodes(code, contract_name, bytecodes_runtime=True, interface_codes=interface_codes)
 
 
+def _mk_ast_dict(code, contract_name, interface_codes):
+    o = {
+        'contract_name': contract_name,
+        'ast': ast_to_dict(parser.parse_to_ast(code))
+    }
+    return o
+
+
 output_formats_map = {
     'abi': _mk_abi_output,
+    'ast_dict': _mk_ast_dict,
     'bytecode': _mk_bytecode_output,
     'bytecode_runtime': _mk_bytecode_runtime_output,
     'ir': _mk_ir_output,
@@ -207,7 +232,7 @@ def compile_codes(codes,
                 out[contract_name][output_format] = output_formats_map[output_format](
                     code=code,
                     contract_name=contract_name,
-                    interface_codes=interface_codes
+                    interface_codes=interface_codes,
                 )
             except Exception as exc:
                 if exc_handler is not None:

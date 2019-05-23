@@ -78,3 +78,20 @@ class FunctionDeclarationException(ParserException):
 
 class EventDeclarationException(ParserException):
     pass
+
+
+class VersionException(ParserException):
+    pass
+
+
+class SyntaxException(ParserException):
+    pass
+
+
+class CompilerPanic(Exception):
+
+    def __init__(self, message):
+        self.message = message
+
+    def __str__(self):
+        return self.message + ' Please create an issue.'

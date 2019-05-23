@@ -1,6 +1,11 @@
-from decimal import Decimal
+from decimal import (
+    Decimal,
+)
 
-from vyper.exceptions import TypeMismatchException, EventDeclarationException
+from vyper.exceptions import (
+    EventDeclarationException,
+    TypeMismatchException,
+)
 
 
 def test_empty_event_logging(w3, tester, keccak, get_contract_with_gas_estimation):

@@ -1,5 +1,10 @@
-from vyper.exceptions import TypeMismatchException
-from decimal import Decimal
+from decimal import (
+    Decimal,
+)
+
+from vyper.exceptions import (
+    TypeMismatchException,
+)
 
 
 def test_modulo(get_contract_with_gas_estimation):

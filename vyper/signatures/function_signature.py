@@ -1,35 +1,46 @@
-import ast
-from collections import Counter
+from collections import (
+    Counter,
+)
 
+from vyper import ast
+from vyper.ast_utils import (
+    to_python_ast,
+)
 from vyper.exceptions import (
+    FunctionDeclarationException,
     InvalidTypeException,
     StructureException,
-    FunctionDeclarationException
 )
-from vyper.types import ByteArrayLike
+from vyper.parser.lll_node import (
+    LLLnode,
+)
+from vyper.parser.parser_utils import (
+    EnsureSingleExitChecker,
+    UnmatchedReturnChecker,
+    getpos,
+)
 from vyper.types import (
+    ByteArrayLike,
+    TupleLike,
+    TupleType,
     canonicalize_type,
+    delete_unit_if_empty,
     get_size_of_type,
     parse_type,
     print_unit,
     unit_from_type,
-    delete_unit_if_empty,
-    TupleType,
-    TupleLike
 )
 from vyper.utils import (
-    fourbytes_to_int,
-    is_varname_valid,
     check_valid_varname,
+    fourbytes_to_int,
     function_whitelist,
+    is_varname_valid,
     sha3,
 )
-from vyper.parser.parser_utils import getpos
-from vyper.parser.lll_node import LLLnode
 
 
 # Function argument
-class VariableRecord():
+class VariableRecord:
     def __init__(self, name, pos, typ, mutable, blockscopes=None, defined_at=None):
         self.name = name
         self.pos = pos
@@ -49,7 +60,7 @@ class ContractRecord(VariableRecord):
 
 
 # Function signature object
-class FunctionSignature():
+class FunctionSignature:
     def __init__(self,
                  name,
                  args,
@@ -60,7 +71,8 @@ class FunctionSignature():
                  nonreentrant_key,
                  sig,
                  method_id,
-                 custom_units):
+                 custom_units,
+                 func_ast_code):
         self.name = name
         self.args = args
         self.output_type = output_type
@@ -72,12 +84,49 @@ class FunctionSignature():
         self.gas = None
         self.custom_units = custom_units
         self.nonreentrant_key = nonreentrant_key
+        self.func_ast_code = func_ast_code
+        self.calculate_arg_totals()
 
     def __str__(self):
         input_name = 'def ' + self.name + '(' + ','.join([str(arg.typ) for arg in self.args]) + ')'
         if self.output_type:
             return input_name + ' -> ' + str(self.output_type) + ':'
         return input_name + ':'
+
+    def calculate_arg_totals(self):
+        """ Calculate base arguments, and totals. """
+
+        code = self.func_ast_code
+        self.base_args = []
+        self.total_default_args = 0
+
+        if hasattr(code.args, 'defaults'):
+            self.total_default_args = len(code.args.defaults)
+            if self.total_default_args > 0:
+                # all argument w/o defaults
+                self.base_args = self.args[:-self.total_default_args]
+            else:
+                # No default args, so base_args = args.
+                self.base_args = self.args
+            # All default argument name/type definitions.
+            self.default_args = code.args.args[-self.total_default_args:]
+            # Keep all the value to assign to default parameters.
+            self.default_values = dict(zip(
+                [arg.arg for arg in self.default_args],
+                code.args.defaults
+            ))
+
+        # Calculate the total sizes in memory the function arguments will take use.
+        # Total memory size of all arguments (base + default together).
+        self.max_copy_size = sum([
+            32 if isinstance(arg.typ, ByteArrayLike) else get_size_of_type(arg.typ) * 32
+            for arg in self.args
+        ])
+        # Total memory size of base arguments (arguments exclude default parameters).
+        self.base_copy_size = sum([
+            32 if isinstance(arg.typ, ByteArrayLike) else get_size_of_type(arg.typ) * 32
+            for arg in self.base_args
+        ])
 
     # Get the canonical function signature
     @staticmethod
@@ -116,6 +165,11 @@ class FunctionSignature():
         valid_name, msg = is_varname_valid(name, custom_units, custom_structs, constants)
         if not valid_name and (not name.lower() in function_whitelist):
             raise FunctionDeclarationException("Function name invalid. " + msg, code)
+
+        # Validate default values.
+        for default_value in getattr(code.args, 'defaults', []):
+            if not isinstance(default_value, (ast.Num, ast.Str, ast.Bytes, ast.List)):
+                raise FunctionDeclarationException("Default parameter values have to be literals.")
 
         # Determine the arguments, expects something of the form def foo(arg1:
         # int128, arg2: int128 ...
@@ -246,6 +300,7 @@ class FunctionSignature():
             sig,
             method_id,
             custom_units,
+            code
         )
 
     def _generate_output_abi(self, custom_units_descriptions=None):
@@ -354,3 +409,14 @@ class FunctionSignature():
                     "call functions later in code than themselves): %s" % method_name
                 )
             return ssig[0]
+
+    def is_default_func(self):
+        return self.name == '__default__'
+
+    def is_initializer(self):
+        return self.name == '__init__'
+
+    def validate_return_statement_balance(self):
+        # Run balanced return statement check.
+        UnmatchedReturnChecker().visit(to_python_ast(self.func_ast_code))
+        EnsureSingleExitChecker().visit(to_python_ast(self.func_ast_code))

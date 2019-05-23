@@ -1,4 +1,7 @@
-from vyper.compiler import mk_full_signature
+from vyper.compiler import (
+    compile_codes,
+    mk_full_signature,
+)
 
 
 def test_only_init_function():
@@ -42,3 +45,24 @@ def __default__():
         'payable': True,
         'type': 'fallback'
     }]
+
+
+def test_method_identifiers():
+    code = """
+x: public(int128)
+
+@public
+def foo(x: uint256) -> bytes[100]:
+    return b"hello"
+    """
+
+    out = compile_codes(
+        codes={'t.vy': code},
+        output_formats=['method_identifiers'],
+        output_type='list'
+    )[0]
+
+    assert out['method_identifiers'] == {
+        'foo(uint256)': '0x2fbebd38',
+        'x()': '0xc55699c'
+    }

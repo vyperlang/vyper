@@ -1,6 +1,5 @@
 import pytest
 
-
 MAX_BIDS = 128
 
 BIDDING_TIME = 150

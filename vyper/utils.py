@@ -1,12 +1,17 @@
 import binascii
+from collections import (
+    OrderedDict,
+)
+import functools
 import re
 
-from collections import OrderedDict
 from vyper.exceptions import (
     InvalidLiteralException,
-    VariableDeclarationException
+    VariableDeclarationException,
 )
-from vyper.opcodes import opcodes
+from vyper.opcodes import (
+    opcodes,
+)
 
 try:
     from Crypto.Hash import keccak
@@ -161,10 +166,11 @@ reserved_words = {
     # control flow
     'if', 'for', 'while', 'until', 'pass',
     'def',
-    # EVM operations
+    # EVM operations and transaction properties
     'push', 'dup', 'swap', 'send', 'call',
     'selfdestruct', 'assert', 'stop', 'throw',
     'raise', 'init', '_init_', '___init___', '____init____',
+    'msg',
     # boolean literals
     'true', 'false',
     # more control flow and special operations
@@ -176,8 +182,8 @@ reserved_words = {
     # denominations
     'ether', 'wei', 'finney', 'szabo', 'shannon', 'lovelace', 'ada', 'babbage',
     'gwei', 'kwei', 'mwei', 'twei', 'pwei',
-    # contract keyword
-    'contract',
+    # contract keywords
+    'contract', 'struct',
     # units
     'units',
     # sentinal constant values
@@ -203,15 +209,14 @@ valid_lll_macros = {
 # Is a variable or member variable name valid?
 # Same conditions apply for function names and events
 def is_varname_valid(varname, custom_units, custom_structs, constants):
-    from vyper.functions import dispatch_table, stmt_dispatch_table
-    built_in_functions = [
-        x for x in stmt_dispatch_table.keys()
-    ] + [
-        x for x in dispatch_table.keys()
-    ]
+    from vyper.functions import built_in_functions
+
+    varname_lower = varname.lower()
+    varname_upper = varname.upper()
+
     if custom_units is None:
         custom_units = set()
-    if varname.lower() in {cu.lower() for cu in custom_units}:
+    if varname_lower in {cu.lower() for cu in custom_units}:
         return False, "%s is a unit name." % varname
 
     # struct names are case sensitive.
@@ -219,18 +224,19 @@ def is_varname_valid(varname, custom_units, custom_structs, constants):
         return False, "Duplicate name: %s, previously defined as a struct." % varname
     if varname in constants:
         return False, "Duplicate name: %s, previously defined as a constant." % varname
-    if varname.lower() in base_types:
+    if varname_lower in base_types:
         return False, "%s name is a base type." % varname
-    if varname.lower() in valid_units:
+    if varname_lower in valid_units:
         return False, "%s is a built in unit type." % varname
-    if varname.lower() in reserved_words:
+    if varname_lower in reserved_words:
         return False, "%s is a a reserved keyword." % varname
-    if varname.upper() in opcodes:
+    if varname_upper in opcodes:
         return False, "%s is a reserved keyword (EVM opcode)." % varname
-    if varname.lower() in built_in_functions:
-        return False, "%s is a built in function."
+    if varname_lower in built_in_functions:
+        return False, "%s is a built in function." % varname
     if not re.match('^[_a-zA-Z][a-zA-Z0-9_]*$', varname):
-        return False, "%s contains invalid character(s)."
+        return False, "%s contains invalid character(s)." % varname
+
     return True, ""
 
 
@@ -253,3 +259,12 @@ def check_valid_varname(varname,
 
 def is_instances(instances, instance_type):
     return all([isinstance(inst, instance_type) for inst in instances])
+
+
+def iterable_cast(cast_type):
+    def yf(func):
+        @functools.wraps(func)
+        def f(*args, **kwargs):
+            return cast_type(func(*args, **kwargs))
+        return f
+    return yf

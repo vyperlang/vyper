@@ -1,10 +1,14 @@
 import pytest
-from pytest import raises
+from pytest import (
+    raises,
+)
 
-from vyper import compiler
+from vyper import (
+    compiler,
+)
 from vyper.exceptions import (
+    InvalidLiteralException,
     TypeMismatchException,
-    InvalidLiteralException
 )
 
 fail_list = [
@@ -56,6 +60,7 @@ def foo(x: int128) -> bytes[75]:
 def foo() -> bytes[10]:
     x: bytes[10] = '0x1234567890123456789012345678901234567890'
     x = 0x1234567890123456789012345678901234567890
+    return x
     """,
     """
 @public

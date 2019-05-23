@@ -1,32 +1,30 @@
-import ast
-import warnings
 import math
+import warnings
 
-from vyper.functions.signature import (
-    signature
+from vyper import ast
+from vyper.exceptions import (
+    InvalidLiteralException,
+    ParserException,
+    TypeMismatchException,
+)
+from vyper.functions.signatures import (
+    signature,
 )
 from vyper.parser.parser_utils import (
     LLLnode,
+    byte_array_to_num,
     getpos,
-    byte_array_to_num
-)
-from vyper.exceptions import (
-    InvalidLiteralException,
-    TypeMismatchException,
-    ParserException,
 )
 from vyper.types import (
     BaseType,
-    StringType,
     ByteArrayType,
-)
-from vyper.types import (
+    StringType,
     get_type,
 )
 from vyper.utils import (
     DECIMAL_DIVISOR,
     MemoryPositions,
-    SizeLimits
+    SizeLimits,
 )
 
 
@@ -348,8 +346,8 @@ def to_address(expr, args, kwargs, context):
         pos=getpos(expr)
     )
 
-def _to_bytelike(expr, args, kwargs, context, bytetype):
 
+def _to_bytelike(expr, args, kwargs, context, bytetype):
     if bytetype == 'string':
         ReturnType = StringType
     elif bytetype == 'bytes':
@@ -363,6 +361,7 @@ def _to_bytelike(expr, args, kwargs, context, bytetype):
             f'Cannot convert as input {bytetype} are larger than max length',
             expr,
         )
+
     return LLLnode(
         value=in_arg.value,
         args=in_arg.args,

@@ -1,9 +1,14 @@
 import pytest
-from pytest import raises
+from pytest import (
+    raises,
+)
 
-from vyper import compiler
-from vyper.exceptions import StructureException
-
+from vyper import (
+    compiler,
+)
+from vyper.exceptions import (
+    StructureException,
+)
 
 fail_list = [
     """
@@ -20,24 +25,6 @@ send(0x1234567890123456789012345678901234567890, 5)
     """,
     """
 send(0x1234567890123456789012345678901234567890, 5)
-    """,
-    """
-x: int128[5]
-@public
-def foo():
-    self.x[2:4] = 3
-    """,
-    """
-x: int128[5]
-@public
-def foo():
-    z = self.x[2:4]
-    """,
-    """
-@public
-def foo():
-    x: int128[5]
-    z = x[2:4]
     """,
     """
 @public
@@ -98,7 +85,7 @@ def foo():
     """
 @public
 def foo():
-    x = create_with_code_of(0x1234567890123456789012345678901234567890, b"cow")
+    x = create_forwarder_to(0x1234567890123456789012345678901234567890, b"cow")
     """,
     """
 @public
@@ -108,7 +95,7 @@ def foo():
     """
 @public
 def foo():
-    x = create_with_code_of(0x1234567890123456789012345678901234567890, outsize=4)
+    x = create_forwarder_to(0x1234567890123456789012345678901234567890, outsize=4)
     """,
     """
 x: public()
@@ -139,11 +126,6 @@ def foo() -> int128(wei):
 def foo() -> int128:
     x: address = 0x1234567890123456789012345678901234567890
     return x.codesize()
-    """,
-    """
-@public
-def foo():
-    x: address = ~self
     """,
     """
 @public

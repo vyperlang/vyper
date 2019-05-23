@@ -9,7 +9,7 @@ def test_assure_refund(w3, get_contract):
     code = """
 @public
 def foo():
-    assure(1 == 2)
+    assert 1 == 2, UNREACHABLE
     """
 
     c = get_contract(code)
@@ -22,12 +22,12 @@ def foo():
     assert tx_receipt['gasUsed'] == gas_sent  # Drains all gains sent
 
 
-def test_basic_assure(w3, get_contract, assert_tx_failed):
+def test_basic_unreachable(w3, get_contract, assert_tx_failed):
     code = """
 @public
 def foo(val: int128) -> bool:
-    assure(val > 0)
-    assure(val == 2)
+    assert val > 0, UNREACHABLE
+    assert val == 2, UNREACHABLE
     return True
     """
 
@@ -44,7 +44,7 @@ def foo(val: int128) -> bool:
     assert 'Invalid opcode 0xf' in e_info.value.args[0]
 
 
-def test_basic_call_assure(w3, get_contract, assert_tx_failed):
+def test_basic_call_unreachable(w3, get_contract, assert_tx_failed):
     code = """
 
 @constant
@@ -54,7 +54,7 @@ def _test_me(val: int128) -> bool:
 
 @public
 def foo(val: int128) -> int128:
-    assure(self._test_me(val))
+    assert self._test_me(val), UNREACHABLE
     return -123
     """
 

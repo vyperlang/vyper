@@ -1,4 +1,6 @@
-from vyper.exceptions import StructureException
+from vyper.exceptions import (
+    StructureException,
+)
 
 
 def test_invalid_if_both_public_and_internal(assert_compile_failed,

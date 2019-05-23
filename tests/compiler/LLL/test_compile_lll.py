@@ -1,8 +1,14 @@
 import pytest
 
-from vyper.parser.parser import LLLnode
-from vyper.parser.s_expressions import parse_s_exp
-
+from vyper import (
+    compile_lll,
+)
+from vyper.parser.parser import (
+    LLLnode,
+)
+from vyper.parser.s_expressions import (
+    parse_s_exp,
+)
 
 fail_list = [
     [-2**255 - 3],
@@ -71,3 +77,14 @@ def test_lll_from_s_expression(get_contract_from_lll):
     lll = LLLnode.from_list(s_expressions[0])
     c = get_contract_from_lll(lll, abi=abi)
     assert c.test(-123456) == -123456
+
+
+def test_pc_debugger():
+    debugger_lll = [
+        'seq_unchecked',
+        ['mstore', 0, 32],
+        ['pc_debugger']
+    ]
+    lll_nodes = LLLnode.from_list(debugger_lll)
+    _, line_number_map = compile_lll.assembly_to_evm(compile_lll.compile_to_assembly(lll_nodes))
+    assert line_number_map['pc_breakpoints'][0] == 5

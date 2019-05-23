@@ -1,31 +1,41 @@
-import ast
 import re
 
+from vyper import ast
+from vyper.ast_utils import (
+    ast_to_dict,
+)
 from vyper.exceptions import (
     ConstancyViolationException,
+    EventDeclarationException,
+    InvalidLiteralException,
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
-    EventDeclarationException,
-    InvalidLiteralException
 )
 from vyper.functions import (
+    dispatch_table,
     stmt_dispatch_table,
-    dispatch_table
 )
 from vyper.parser import (
+    external_call,
     self_call,
-    external_call
+)
+from vyper.parser.events import (
+    pack_logging_data,
+    pack_logging_topics,
+)
+from vyper.parser.expr import (
+    Expr,
 )
 from vyper.parser.parser_utils import (
-    base_type_conversion,
-    getpos,
     LLLnode,
+    base_type_conversion,
+    gen_tuple_return,
+    getpos,
     make_byte_array_copier,
+    make_return_stmt,
     make_setter,
     unwrap_location,
-    gen_tuple_return,
-    make_return_stmt,
 )
 from vyper.types import (
     BaseType,
@@ -33,24 +43,19 @@ from vyper.types import (
     ByteArrayType,
     ContractType,
     ListType,
+    NodeType,
     NullType,
     StructType,
     TupleType,
-)
-from vyper.types import (
     get_size_of_type,
     is_base_type,
     parse_type,
-    NodeType
 )
 from vyper.utils import (
     SizeLimits,
-    sha3,
+    bytes_to_int,
     fourbytes_to_int,
-    bytes_to_int
-)
-from vyper.parser.expr import (
-    Expr
+    sha3,
 )
 
 
@@ -75,6 +80,7 @@ class Stmt(object):
             ast.Delete: self.parse_delete,
             ast.Str: self.parse_docblock,  # docblock
             ast.Name: self.parse_name,
+            ast.Raise: self.parse_raise,
         }
         stmt_type = self.stmt.__class__
         if stmt_type in self.stmt_table:
@@ -91,10 +97,13 @@ class Stmt(object):
     def parse_name(self):
         if self.stmt.id == "vdb":
             return LLLnode('debugger', typ=None, pos=getpos(self.stmt))
-        elif self.stmt.id == "throw":
-            return LLLnode.from_list(['assert', 0], typ=None, pos=getpos(self.stmt))
         else:
             raise StructureException("Unsupported statement type: %s" % type(self.stmt), self.stmt)
+
+    def parse_raise(self):
+        if self.stmt.exc is None:
+            raise StructureException('Raise must have a reason', self.stmt)
+        return self._assert_reason(0, self.stmt.exc)
 
     def _check_valid_assign(self, sub):
         if isinstance(self.stmt.annotation, ast.Call):  # unit style: num(wei)
@@ -299,7 +308,7 @@ class Stmt(object):
 
                 # Checks to see if assignment is valid
                 target = self.get_target(self.stmt.targets[0])
-                if isinstance(target.typ, ContractType) and sub.typ == BaseType('address'):
+                if isinstance(target.typ, ContractType) and not isinstance(sub.typ, ContractType):
                     raise TypeMismatchException(
                         'Contract assignment expects casted address: '
                         f'{target.typ.unit}(<address_var>)',
@@ -319,10 +328,6 @@ class Stmt(object):
         return True
 
     def parse_if(self):
-        from .parser import (
-            parse_body,
-        )
-
         if self.stmt.orelse:
             block_scope_id = id(self.stmt.orelse)
             with self.context.make_blockscope(block_scope_id):
@@ -346,7 +351,7 @@ class Stmt(object):
 
     def _clear(self):
         # Create zero node
-        none = ast.NameConstant(None)
+        none = ast.NameConstant(value=None)
         none.lineno = self.stmt.lineno
         none.col_offset = self.stmt.col_offset
         zero = Expr(none, self.context).lll_node
@@ -361,23 +366,34 @@ class Stmt(object):
         return o
 
     def call(self):
-        from .parser import (
-            pack_logging_data,
-            pack_logging_topics,
-        )
+        is_self_function = (
+            isinstance(self.stmt.func, ast.Attribute)
+        ) and isinstance(self.stmt.func.value, ast.Name) and self.stmt.func.value.id == "self"
 
-        is_self_function, is_log_call = False, False
-        if isinstance(self.stmt.func, ast.Attribute) and isinstance(self.stmt.func.value, ast.Name):
-            if self.stmt.func.value.id == "self":
-                is_self_function = True
-            elif self.stmt.func.value.id == "log":
-                    is_log_call = True
+        is_log_call = (
+            isinstance(self.stmt.func, ast.Attribute)
+        ) and isinstance(self.stmt.func.value, ast.Name) and self.stmt.func.value.id == 'log'
 
-        # self.<function_name> call
-        if is_self_function:
+        if isinstance(self.stmt.func, ast.Name):
+            if self.stmt.func.id in stmt_dispatch_table:
+                if self.stmt.func.id == 'clear':
+                    return self._clear()
+                else:
+                    return stmt_dispatch_table[self.stmt.func.id](self.stmt, self.context)
+            elif self.stmt.func.id in dispatch_table:
+                raise StructureException(
+                    "Function {} can not be called without being used.".format(
+                        self.stmt.func.id
+                    ),
+                    self.stmt,
+                )
+            else:
+                raise StructureException(
+                    "Unknown function: '{}'.".format(self.stmt.func.id),
+                    self.stmt,
+                )
+        elif is_self_function:
             return self_call.make_call(self.stmt, self.context)
-
-        # log.<event_name> call
         elif is_log_call:
             if self.stmt.func.attr not in self.context.sigs['self']:
                 raise EventDeclarationException("Event not declared yet: %s" % self.stmt.func.attr)
@@ -424,52 +440,34 @@ class Stmt(object):
                     add_gas_estimate=inargsize * 10,
                 )
             ], typ=None, pos=getpos(self.stmt))
-
-        # Function call
-        elif isinstance(self.stmt.func, ast.Name):
-            if self.stmt.func.id in stmt_dispatch_table:
-                if self.stmt.func.id == 'clear':
-                    return self._clear()
-                else:
-                    return stmt_dispatch_table[self.stmt.func.id](self.stmt, self.context)
-            elif self.stmt.func.id in dispatch_table:
-                raise StructureException(
-                    "Function {} can not be called without being used.".format(
-                        self.stmt.func.id
-                    ),
-                    self.stmt,
-                )
-            else:
-                raise StructureException(
-                    "Unknown function: '{}'.".format(self.stmt.func.id),
-                    self.stmt,
-                )
-
-        # External call
         else:
             return external_call.make_external_call(self.stmt, self.context)
 
-    def parse_assert(self):
+    @staticmethod
+    def _assert_unreachable(test_expr, msg):
+        return LLLnode.from_list(['assert_unreachable', test_expr], typ=None, pos=getpos(msg))
 
-        with self.context.assertion_scope():
-            test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
+    def _assert_reason(self, test_expr, msg):
+        if isinstance(msg, ast.Name) and msg.id == 'UNREACHABLE':
+            return self._assert_unreachable(test_expr, msg)
 
-        if not self.is_bool_expr(test_expr):
-            raise TypeMismatchException('Only boolean expressions allowed', self.stmt.test)
-        if self.stmt.msg:
-            if not isinstance(self.stmt.msg, ast.Str):
-                raise StructureException(
-                    'Reason parameter of assert needs to be a literal string.', self.stmt.msg
-                )
-            if len(self.stmt.msg.s.strip()) == 0:
-                raise StructureException('Empty reason string not allowed.', self.stmt)
-            reason_str = self.stmt.msg.s.strip()
-            sig_placeholder = self.context.new_placeholder(BaseType(32))
-            arg_placeholder = self.context.new_placeholder(BaseType(32))
-            reason_str_type = ByteArrayType(len(reason_str))
-            placeholder_bytes = Expr(self.stmt.msg, self.context).lll_node
-            method_id = fourbytes_to_int(sha3(b"Error(string)")[:4])
-            assert_reason = [
+        if not isinstance(msg, ast.Str):
+            raise StructureException(
+                'Reason parameter of assert needs to be a literal string '
+                '(or UNREACHABLE constant).',
+                msg
+            )
+        if len(msg.s.strip()) == 0:
+            raise StructureException(
+                'Empty reason string not allowed.', self.stmt
+            )
+        reason_str = msg.s.strip()
+        sig_placeholder = self.context.new_placeholder(BaseType(32))
+        arg_placeholder = self.context.new_placeholder(BaseType(32))
+        reason_str_type = ByteArrayType(len(reason_str))
+        placeholder_bytes = Expr(msg, self.context).lll_node
+        method_id = fourbytes_to_int(sha3(b"Error(string)")[:4])
+        assert_reason = [
                 'seq',
                 ['mstore', sig_placeholder, method_id],
                 ['mstore', arg_placeholder, 32],
@@ -479,14 +477,27 @@ class Stmt(object):
                     test_expr,
                     int(sig_placeholder + 28),
                     int(4 + 32 + get_size_of_type(reason_str_type) * 32),
-                ],
-            ]
-            return LLLnode.from_list(assert_reason, typ=None, pos=getpos(self.stmt))
+                    ],
+                ]
+        return LLLnode.from_list(assert_reason, typ=None, pos=getpos(self.stmt))
+
+    def parse_assert(self):
+
+        with self.context.assertion_scope():
+            test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
+
+        if not self.is_bool_expr(test_expr):
+            raise TypeMismatchException('Only boolean expressions allowed', self.stmt.test)
+        if self.stmt.msg:
+            return self._assert_reason(test_expr, self.stmt.msg)
         else:
             return LLLnode.from_list(['assert', test_expr], typ=None, pos=getpos(self.stmt))
 
     def _check_valid_range_constant(self, arg_ast_node, raise_exception=True):
-        arg_expr = Expr.parse_value_expr(arg_ast_node, self.context)
+        with self.context.range_scope():
+            # TODO should catch if raise_exception == False?
+            arg_expr = Expr.parse_value_expr(arg_ast_node, self.context)
+
         is_integer_literal = (
             isinstance(arg_expr.typ, BaseType) and arg_expr.typ.is_literal
         ) and arg_expr.typ.typ in {'uint256', 'int128'}
@@ -503,9 +514,9 @@ class Stmt(object):
         return arg_expr.value
 
     def parse_for(self):
-        from .parser import (
-            parse_body,
-        )
+        # from .parser import (
+        #     parse_body,
+        # )
         # Type 0 for, e.g. for i in list(): ...
         if self._is_list_iter():
             return self.parse_for_list()
@@ -554,15 +565,15 @@ class Stmt(object):
                         arg1,
                     )
 
-                if ast.dump(arg0) != ast.dump(arg1.left):
+                if arg0 != arg1.left:
                     raise StructureException(
                         (
                             "Two-arg for statements of the form `for i in "
                             "range(x, x + y): ...` must have x identical in both "
                             "places: %r %r"
                         ) % (
-                            ast.dump(arg0),
-                            ast.dump(arg1.left)
+                            ast_to_dict(arg0),
+                            ast_to_dict(arg1.left)
                         ),
                         self.stmt.iter,
                     )
@@ -606,12 +617,8 @@ class Stmt(object):
         return False
 
     def parse_for_list(self):
-        from .parser import (
-            parse_body,
-            make_setter
-        )
-
-        iter_list_node = Expr(self.stmt.iter, self.context).lll_node
+        with self.context.range_scope():
+            iter_list_node = Expr(self.stmt.iter, self.context).lll_node
         if not isinstance(iter_list_node.typ.subtype, BaseType):  # Sanity check on list subtype.
             raise StructureException('For loops allowed only on basetype lists.', self.stmt.iter)
         iter_var_type = (
@@ -782,7 +789,7 @@ class Stmt(object):
             return zero_padder
 
         sub = Expr(self.stmt.value, self.context).lll_node
-        self.context.increment_return_counter()
+
         # Returning a value (most common case)
         if isinstance(sub.typ, BaseType):
             sub = unwrap_location(sub)
@@ -1015,3 +1022,19 @@ class Stmt(object):
         if '"""' not in self.context.origcode.splitlines()[self.stmt.lineno - 1]:
             raise InvalidLiteralException('Only valid """ docblocks allowed', self.stmt)
         return LLLnode.from_list('pass', typ=None, pos=getpos(self.stmt))
+
+
+# Parse a statement (usually one line of code but not always)
+def parse_stmt(stmt, context):
+    return Stmt(stmt, context).lll_node
+
+
+# Parse a piece of code
+def parse_body(code, context):
+    if not isinstance(code, list):
+        return parse_stmt(code, context)
+    o = []
+    for stmt in code:
+        lll = parse_stmt(stmt, context)
+        o.append(lll)
+    return LLLnode.from_list(['seq'] + o, pos=getpos(code[0]) if code else None)

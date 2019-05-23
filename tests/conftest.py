@@ -1,21 +1,16 @@
+from functools import (
+    wraps,
+)
 import logging
-import pytest
-
-from functools import wraps
 
 from eth_tester import (
     EthereumTester,
 )
 from eth_tester.exceptions import (
-    TransactionFailed
+    TransactionFailed,
 )
-from web3.providers.eth_tester import (
-    EthereumTesterProvider,
-)
-
-from web3 import (
-    Web3,
-)
+import pytest
+from web3 import Web3
 from web3._utils.toolz import (
     compose,
 )
@@ -23,13 +18,17 @@ from web3.contract import (
     Contract,
     mk_collision_prop,
 )
-from vyper.parser.parser_utils import (
-    LLLnode
+from web3.providers.eth_tester import (
+    EthereumTesterProvider,
 )
+
 from vyper import (
     compile_lll,
     compiler,
     optimizer,
+)
+from vyper.parser.parser_utils import (
+    LLLnode,
 )
 
 
@@ -232,6 +231,18 @@ def get_contract(w3):
     def get_contract(source_code, *args, **kwargs):
         return _get_contract(w3, source_code, *args, **kwargs)
     return get_contract
+
+
+@pytest.fixture(scope='module')
+def get_contract_module():
+    tester = EthereumTester()
+    w3 = Web3(EthereumTesterProvider(tester))
+    w3.eth.setGasPriceStrategy(zero_gas_price_strategy)
+
+    def get_contract_module(source_code, *args, **kwargs):
+        return _get_contract(w3, source_code, *args, **kwargs)
+
+    return get_contract_module
 
 
 def get_compiler_gas_estimate(code, func):

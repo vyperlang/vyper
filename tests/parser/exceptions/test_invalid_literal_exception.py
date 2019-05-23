@@ -1,9 +1,14 @@
 import pytest
-from pytest import raises
+from pytest import (
+    raises,
+)
 
-from vyper import compiler
-from vyper.exceptions import InvalidLiteralException
-
+from vyper import (
+    compiler,
+)
+from vyper.exceptions import (
+    InvalidLiteralException,
+)
 
 fail_list = [
     """
@@ -55,7 +60,7 @@ def foo():
     """
 @public
 def foo():
-    x = create_with_code_of(0x123456789012345678901234567890123456789)
+    x = create_forwarder_to(0x123456789012345678901234567890123456789)
     """,
     """
 @public
@@ -85,7 +90,7 @@ def foo():
     """
 @public
 def foo():
-    x = convert(-1, uint256)
+    x = convert(-(-(-1)), uint256)
     """,
     """
 # Test decimal limit.

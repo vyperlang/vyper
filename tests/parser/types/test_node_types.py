@@ -1,4 +1,6 @@
-from pytest import raises
+from pytest import (
+    raises,
+)
 
 from vyper.types import (
     BaseType,

@@ -1,18 +1,29 @@
-import ast
-import os
-
+import copy
 import importlib
+import os
 import pkgutil
-import vyper.interfaces
 
+from vyper import ast
 from vyper.exceptions import (
     ParserException,
-    StructureException
+    StructureException,
 )
-from vyper.parser import parser
-from vyper.parser.constants import Constants
-from vyper.signatures.event_signature import EventSignature
-from vyper.signatures.function_signature import FunctionSignature
+import vyper.interfaces
+from vyper.parser import (
+    parser,
+)
+from vyper.parser.constants import (
+    Constants,
+)
+from vyper.signatures import (
+    sig_utils,
+)
+from vyper.signatures.event_signature import (
+    EventSignature,
+)
+from vyper.signatures.function_signature import (
+    FunctionSignature,
+)
 
 
 # Populate built-in interfaces.
@@ -37,17 +48,17 @@ def render_return(sig):
 
 def abi_type_to_ast(atype):
     if atype in ('int128', 'uint256', 'bool', 'address', 'bytes32'):
-        return ast.Name(atype, None)
+        return ast.Name(id=atype)
     elif atype == 'decimal':
-        return ast.Name('int128', None)
+        return ast.Name(id='int128')
     elif atype == 'bytes':
         return ast.Subscript(
-            value=ast.Name('bytes', None),
+            value=ast.Name(id='bytes'),
             slice=ast.Index(256)
         )
     elif atype == 'string':
         return ast.Subscript(
-            value=ast.Name('string', None),
+            value=ast.Name(id='string'),
             slice=ast.Index(256)
         )
     else:
@@ -80,11 +91,11 @@ def mk_full_signature_from_json(abi):
                 ]
             )
 
-        decorator_list = [ast.Name('public', None)]
+        decorator_list = [ast.Name(id='public')]
         if func['constant']:
-            decorator_list.append(ast.Name('constant', None))
+            decorator_list.append(ast.Name(id='constant'))
         if func['payable']:
-            decorator_list.append(ast.Name('payable', None))
+            decorator_list.append(ast.Name(id='payable'))
 
         sig = FunctionSignature.from_definition(
             code=ast.FunctionDef(
@@ -103,7 +114,7 @@ def mk_full_signature_from_json(abi):
 
 def extract_sigs(sig_code):
     if sig_code['type'] == 'vyper':
-        return parser.mk_full_signature(
+        return sig_utils.mk_full_signature(
             parser.parse_to_ast(sig_code['code']),
             sig_formatter=lambda x, y: x
         )
@@ -117,7 +128,7 @@ def extract_sigs(sig_code):
 
 
 def extract_interface_str(code, contract_name, interface_codes=None):
-    sigs = parser.mk_full_signature(
+    sigs = sig_utils.mk_full_signature(
         parser.parse_to_ast(code),
         sig_formatter=lambda x, y: (x, y),
         interface_codes=interface_codes,
@@ -159,7 +170,7 @@ def extract_interface_str(code, contract_name, interface_codes=None):
 
 
 def extract_external_interface(code, contract_name, interface_codes=None):
-    sigs = parser.mk_full_signature(
+    sigs = sig_utils.mk_full_signature(
         parser.parse_to_ast(code),
         sig_formatter=lambda x, y: (x, y),
         interface_codes=interface_codes,
@@ -201,3 +212,49 @@ def extract_file_interface_imports(code):
                     )
                 imports_dict[a_name.asname] = a_name.name
     return imports_dict
+
+
+def check_valid_contract_interface(global_ctx, contract_sigs):
+
+    if global_ctx._interface:
+        funcs_left = global_ctx._interface.copy()
+
+        for sig, func_sig in contract_sigs.items():
+            if isinstance(func_sig, FunctionSignature):
+                # Remove units, as inteface signatures should not enforce units.
+                clean_sig_output_type = func_sig.output_type
+                if func_sig.output_type:
+                    clean_sig_output_type = copy.deepcopy(func_sig.output_type)
+                    clean_sig_output_type.unit = {}
+                if (
+                    sig in funcs_left and  # noqa: W504
+                    not func_sig.private and  # noqa: W504
+                    funcs_left[sig].output_type == clean_sig_output_type
+                ):
+                    del funcs_left[sig]
+            if isinstance(func_sig, EventSignature) and func_sig.sig in funcs_left:
+                del funcs_left[func_sig.sig]
+
+        if funcs_left:
+            error_message = 'Contract does not comply to supplied Interface(s).\n'
+            missing_functions = [
+                str(func_sig)
+                for sig_name, func_sig
+                in funcs_left.items()
+                if isinstance(func_sig, FunctionSignature)
+            ]
+            missing_events = [
+                sig_name
+                for sig_name, func_sig
+                in funcs_left.items()
+                if isinstance(func_sig, EventSignature)
+            ]
+            if missing_functions:
+                error_message += 'Missing interface functions:\n\t{}'.format(
+                    '\n\t'.join(missing_functions)
+                )
+            if missing_events:
+                error_message += 'Missing interface events:\n\t{}'.format(
+                    '\n\t'.join(missing_events)
+                )
+            raise StructureException(error_message)

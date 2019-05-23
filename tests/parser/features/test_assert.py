@@ -1,11 +1,11 @@
+from eth_tester.exceptions import (
+    TransactionFailed,
+)
 import pytest
 
 from vyper.exceptions import (
-    StructureException,
     ConstancyViolationException,
-)
-from eth_tester.exceptions import (
-    TransactionFailed
+    StructureException,
 )
 
 
@@ -40,6 +40,10 @@ def test2(a: int128, b: int128) -> int128:
     assert a > 1, "a is not large enough"
     assert b == 1, "b may only be 1"
     return a + b + c
+
+@public
+def test3() :
+    raise "An exception"
     """
     c = get_contract_with_gas_estimation(code)
 
@@ -59,23 +63,40 @@ def test2(a: int128, b: int128) -> int128:
     # return correct value
     assert c.test2(5, 1) == 17
 
+    with pytest.raises(TransactionFailed) as e_info:
+        c.test3()
+    assert e_info.value.args[0] == 'An exception'
 
-def test_assert_reason_empty(get_contract, assert_compile_failed):
-    code = """
+
+def test_assert_reason_invalid(get_contract, assert_compile_failed):
+    codes = [
+        """
 @public
 def test(a: int128) -> int128:
     assert a > 1, ""
     return 1 + a
-    """
-    assert_compile_failed(lambda: get_contract(code), StructureException)
-
-    # Must be a literal string.
-    code = """
+        """,
+        # Must be a literal string.
+        """
 @public
 def mint(_to: address, _value: uint256):
     assert msg.sender == self,minter
-    """
-    assert_compile_failed(lambda: get_contract(code), StructureException)
+        """,
+        # Raise must have a reason
+        """
+@public
+def mint(_to: address, _value: uint256):
+    raise
+        """,
+        # Raise reason must be string
+        """
+@public
+def mint(_to: address, _value: uint256):
+    raise 1
+        """]
+
+    for code in codes:
+        assert_compile_failed(lambda: get_contract(code), StructureException)
 
 
 def test_assert_no_effects(get_contract, assert_compile_failed, assert_tx_failed):
@@ -110,7 +131,6 @@ def test():
 @private
 def valid_address(sender: address) -> bool:
     selfdestruct(sender)
-    return True
 @public
 def test():
     assert self.valid_address(msg.sender)
@@ -120,7 +140,7 @@ def test():
     code = """
 @public
 def test():
-    assert create_with_code_of(self) == 1
+    assert create_forwarder_to(self) == 1
     """
     assert_compile_failed(lambda: get_contract(code), ConstancyViolationException)
 

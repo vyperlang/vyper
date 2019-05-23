@@ -1,14 +1,17 @@
 import pytest
-from pytest import raises
+from pytest import (
+    raises,
+)
 
-from vyper import compiler
+from vyper import (
+    compiler,
+)
 from vyper.exceptions import (
+    FunctionDeclarationException,
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
-    FunctionDeclarationException
 )
-
 
 fail_list = [
     # no value
@@ -126,6 +129,15 @@ MAX_DEPOSIT: constant(decimal) = 32.0  # ETH
 def deposit(deposit_input: bytes[2048]):
     assert msg.value >= as_wei_value(MIN_DEPOSIT, "ether")
     assert msg.value <= as_wei_value(MAX_DEPOSIT, "ether")
+    """,
+    """
+BYTE32_LIST: constant(bytes32[2]) = [
+    0x0000000000000000000000000000000000000000000000000000000000000321,
+    0x0000000000000000000000000000000000000000000000000000000000000123
+]
+    """,
+    """
+ZERO_LIST: constant(int128[8]) = [0, 0, 0, 0, 0, 0, 0, 0]
     """
 ]
 

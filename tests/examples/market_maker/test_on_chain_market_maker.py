@@ -25,7 +25,7 @@ def erc20(get_contract):
     )
 
 
-def test_initial_statet(market_maker):
+def test_initial_state(market_maker):
     assert market_maker.totalEthQty() == 0
     assert market_maker.totalTokenQty() == 0
     assert market_maker.invariant() == 0

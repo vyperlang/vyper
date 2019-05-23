@@ -1,8 +1,25 @@
 import functools
 
-from vyper.parser.parser import LLLnode
-from .opcodes import opcodes
-from vyper.utils import MemoryPositions
+from vyper.parser.parser import (
+    LLLnode,
+)
+from vyper.utils import (
+    MemoryPositions,
+)
+
+from .opcodes import (
+    opcodes,
+)
+
+PUSH_OFFSET = 0x5f
+DUP_OFFSET = 0x7f
+SWAP_OFFSET = 0x8f
+
+next_symbol = [0]
+
+CLAMP_OP_NAMES = {
+    'uclamplt', 'uclample', 'clamplt', 'clample', 'uclampgt', 'uclampge', 'clampgt', 'clampge',
+}
 
 
 def num_to_bytearray(x):
@@ -13,16 +30,15 @@ def num_to_bytearray(x):
     return o
 
 
-PUSH_OFFSET = 0x5f
-DUP_OFFSET = 0x7f
-SWAP_OFFSET = 0x8f
-
-next_symbol = [0]
-
-
 def mksymbol():
     next_symbol[0] += 1
     return '_sym_' + str(next_symbol[0])
+
+
+def mkdebug(pc_debugger, pos):
+    i = instruction('DEBUG', pos)
+    i.pc_debugger = pc_debugger
+    return [i]
 
 
 def is_symbol(i):
@@ -47,6 +63,7 @@ class instruction(str):
         return super().__new__(cls, sstr)
 
     def __init__(self, sstr, pos=None):
+        self.pc_debugger = False
         if pos is not None:
             self.lineno, self.col_offset = pos
         else:
@@ -65,10 +82,6 @@ def apply_line_numbers(func):
         return new_ret
     return apply_line_no_wrapper
 
-
-CLAMP_OP_NAMES = {
-    'uclamplt', 'uclample', 'clamplt', 'clample', 'uclampgt', 'uclampge', 'clampgt', 'clampge',
-}
 
 # Compiles LLL to assembly
 @apply_line_numbers
@@ -240,7 +253,7 @@ def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=No
             #     o.append('POP')
         return o
     # Assure (if false, invalid opcode)
-    elif code.value == 'assure':
+    elif code.value == 'assert_unreachable':
         o = compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
         end_symbol = mksymbol()
         o.extend([
@@ -429,7 +442,10 @@ def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=No
         ]
     # inject debug opcode.
     elif code.value == 'debugger':
-        return ['DEBUG']
+        return mkdebug(pc_debugger=False, pos=code.pos)
+    # inject debug opcode.
+    elif code.value == 'pc_debugger':
+        return mkdebug(pc_debugger=True, pos=code.pos)
     else:
         raise Exception("Weird code element: " + repr(code))
 
@@ -438,18 +454,24 @@ def note_line_num(line_number_map, item, pos):
     # Record line number attached to pos.
     if isinstance(item, instruction) and item.lineno is not None:
         line_number_map['pc_pos_map'][pos] = item.lineno, item.col_offset
-    not_breakpoint(line_number_map, item, pos)
+    added_line_breakpoint = note_breakpoint(line_number_map, item, pos)
+    return added_line_breakpoint
 
 
-def not_breakpoint(line_number_map, item, pos):
+def note_breakpoint(line_number_map, item, pos):
     # Record line number attached to pos.
-    if item == 'DEBUG' and item.lineno not in line_number_map['breakpoints']:
-        line_number_map['breakpoints'].append(item.lineno + 1)
+    if item == 'DEBUG':
+        # Is PC debugger, create PC breakpoint.
+        if item.pc_debugger:
+            line_number_map['pc_breakpoints'].add(pos)
+        # Create line number breakpoint.
+        else:
+            line_number_map['breakpoints'].add(item.lineno + 1)
 
 
 # Assembles assembly into EVM
 def assembly_to_evm(assembly, map_line_numbers=True):
-    line_number_map = {'breakpoints': [], 'pc_pos_map': {}}
+    line_number_map = {'breakpoints': set(), 'pc_breakpoints': set(), 'pc_pos_map': {}}
     posmap = {}
     sub_assemblies = []
     codes = []
@@ -505,4 +527,6 @@ def assembly_to_evm(assembly, map_line_numbers=True):
             raise Exception("Weird symbol in assembly: " + str(item))  # pragma: no cover
 
     assert len(o) == pos
+    line_number_map['breakpoints'] = list(line_number_map['breakpoints'])
+    line_number_map['pc_breakpoints'] = list(line_number_map['pc_breakpoints'])
     return o, line_number_map

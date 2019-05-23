@@ -1,10 +1,14 @@
 import pytest
-from pytest import raises
+from pytest import (
+    raises,
+)
 
-from vyper import compiler
+from vyper import (
+    compiler,
+)
 from vyper.exceptions import (
     ParserException,
-    StructureException
+    StructureException,
 )
 
 fail_list = [
@@ -50,6 +54,20 @@ valid_list = [
 @public
 def foo() -> uint256:
     return convert(2, uint256)
+    """,
+    """
+from vyper.interfaces import ERC20
+
+contract Factory:
+    def getExchange(token_addr: address) -> address: constant
+
+token: ERC20
+factory: Factory
+
+@public
+def setup(token_addr: address):
+    self.token = ERC20(token_addr)
+    assert self.factory.getExchange(self.token) == self
     """
 ]
 

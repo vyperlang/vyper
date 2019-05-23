@@ -1,4 +1,7 @@
-from vyper.exceptions import StructureException, InvalidTypeException
+from vyper.exceptions import (
+    InvalidTypeException,
+    StructureException,
+)
 
 
 def test_external_contract_call_declaration_expr(get_contract, assert_tx_failed):

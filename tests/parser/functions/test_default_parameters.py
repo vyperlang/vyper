@@ -1,3 +1,8 @@
+import pytest
+
+from vyper.exceptions import (
+    FunctionDeclarationException,
+)
 
 
 def test_default_param_abi(get_contract):
@@ -146,3 +151,14 @@ def callMeMaybe() -> (bytes[100], uint256, bytes[20]):
 
     # assert c.callMe() == [b'hello there', 123456, b'crazy']
     assert c.callMeMaybe() == [b'here is my number', 555123456, b'baby']
+
+
+def test_default_param_literal(get_contract):
+    code = """
+x: int128
+
+@public
+def foo(xx: int128, y: int128 = xx): pass
+    """
+    with pytest.raises(FunctionDeclarationException):
+        get_contract(code)

@@ -61,6 +61,15 @@ Run the following commands to install:
 
        sudo apt-get install python3-dev
 
+Using a BASH script
+^^^^^^^^^^^^^^^^^^^
+Vyper can be installed using a bash script.
+::
+
+    https://github.com/balajipachai/Scripts/blob/master/install_vyper/install_vyper_ubuntu.sh
+
+
+*Reminder*: Please read and understand the commands in any bash script before executing, especially with `sudo`.
 Arch
 -----
 Using your aur helper of choice (`yay` here).
@@ -133,7 +142,7 @@ If any unexpected errors or exceptions are encountered, please feel free create 
 .. note::
     If you get the error `fatal error: openssl/aes.h: No such file or directory` in the output of `make`, then run `sudo apt-get install libssl-dev1`, then run `make` again.
 
-    **For MacOS users:**
+    **For MacOS users:**
 
     Apple has deprecated use of OpenSSL in favor of its own TLS and crypto
     libraries. This means that you will need to export some OpenSSL settings
@@ -159,6 +168,7 @@ If any unexpected errors or exceptions are encountered, please feel free create 
         export LDFLAGS="-L$(brew --prefix openssl)/lib -L$(brew --prefix libyaml)/lib"
 
     You can then run `make` and `make test` again.
+
 
 ***
 PIP
@@ -190,18 +200,18 @@ Vyper can be downloaded as docker image from dockerhub:
 To run the compiler use the `docker run` command:
 ::
 
-    docker run -v $(pwd):/code vyper /code/<contract_file.vy>
+    docker run -v $(pwd):/code ethereum/vyper /code/<contract_file.vy>
 
 Alternatively you can log into the docker image and execute vyper on the prompt.
 ::
 
-    docker run -v $(pwd):/code/ -it --entrypoint /bin/bash vyper
+    docker run -v $(pwd):/code/ -it --entrypoint /bin/bash ethereum/vyper
     root@d35252d1fb1b:/code# vyper <contract_file.vy>
 
 The normal paramaters are also supported, for example:
 ::
 
-    docker run -v $(pwd):/code vyper -f abi /code/<contract_file.vy>
+    docker run -v $(pwd):/code ethereum/vyper -f abi /code/<contract_file.vy>
     [{'name': 'test1', 'outputs': [], 'inputs': [{'type': 'uint256', 'name': 'a'}, {'type': 'bytes', 'name': 'b'}], 'constant': False, 'payable': False, 'type': 'function', 'gas': 441}, {'name': 'test2', 'outputs': [], 'inputs': [{'type': 'uint256', 'name': 'a'}], 'constant': False, 'payable': False, 'type': 'function', 'gas': 316}]
 
 
@@ -225,10 +235,13 @@ and try compiling a contract:
 Snap
 ****
 
-Vyper is published in the snap store. In any of the `supported Linux distros <https://snapcraft.io/docs/core/install>`_, install it with:
+Vyper is published in the snap store. In any of the `supported Linux distros <https://snapcraft.io/docs/core/install>`_, install it with (Note that installing the above snap is the latest master):
 ::
 
     sudo snap install vyper --edge --devmode
 
+To install the latest beta version use:
 
-(Note that installing the above snap is the latest master)
+::
+
+    sudo snap install vyper --beta --devmode

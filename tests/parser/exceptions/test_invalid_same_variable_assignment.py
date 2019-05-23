@@ -1,8 +1,14 @@
 import pytest
-from pytest import raises
+from pytest import (
+    raises,
+)
 
-from vyper import compiler
-from vyper.exceptions import VariableDeclarationException
+from vyper import (
+    compiler,
+)
+from vyper.exceptions import (
+    VariableDeclarationException,
+)
 
 fail_list = [  # noqa: E122
 """
@@ -15,6 +21,7 @@ def test1(b: uint256) -> uint256:
 @public
 def test2(b: uint256, c: uint256) -> uint256:
     a: uint256 = a + b + c
+    return a
 """,
 """
 @public

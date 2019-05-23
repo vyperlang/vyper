@@ -1,27 +1,28 @@
-import ast
 import functools
 
-from vyper.parser.parser_utils import (
-    get_original_if_0_prefixed,
+from vyper import ast
+from vyper.ast_utils import (
+    parse_to_ast,
 )
 from vyper.exceptions import (
-    TypeMismatchException,
-    StructureException,
     InvalidLiteralException,
-)
-from vyper.types import (
-    BaseType,
-    ByteArrayType,
-    StringType
-)
-from vyper.types import (
-    is_base_type
+    StructureException,
+    TypeMismatchException,
 )
 from vyper.parser.expr import (
     Expr,
 )
+from vyper.parser.parser_utils import (
+    get_original_if_0_prefixed,
+)
+from vyper.types import (
+    BaseType,
+    ByteArrayType,
+    StringType,
+    is_base_type,
+)
 from vyper.utils import (
-    SizeLimits
+    SizeLimits,
 )
 
 
@@ -55,6 +56,9 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
                         )
                     bytez += bytes([ord(c)])
                 return bytez
+        elif expected_arg == 'bytes_literal':
+            if isinstance(arg, ast.Bytes):
+                return arg.s
         elif expected_arg == 'name_literal':
             if isinstance(arg, ast.Name):
                 return arg.id
@@ -73,7 +77,7 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
         else:
             # Does not work for unit-endowed types inside compound types, e.g. timestamp[2]
             parsed_expected_type = context.parse_type(
-                ast.parse(expected_arg).body[0].value,
+                parse_to_ast(expected_arg)[0].value,
                 'memory',
             )
             if isinstance(parsed_expected_type, BaseType):

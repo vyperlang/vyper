@@ -141,7 +141,7 @@ Returns the length of a given list of bytes.
     :param b: value to combine
     :type b: bytes, bytes32
 
-    :output b: bytes
+    :output c: bytes
     """
 
 Takes 2 or more bytes arrays of type ``bytes32`` or ``bytes`` and combines them into one.
@@ -160,6 +160,37 @@ Takes 2 or more bytes arrays of type ``bytes32`` or ``bytes`` and combines them 
 
 Returns ``keccak256`` (Ethereum's sha3) hash of input.
 Note that it can be called either by using ``sha3`` or ``keccak256``.
+
+
+**sha256**
+--------------------
+::
+
+  def sha256(a) -> b:
+    """
+    :param a: value to hash
+    :type a: either str_literal, bytes, bytes32
+
+    :output b: bytes32
+    """
+
+Returns ``sha256`` (SHA2 256bit output) hash of input.
+
+
+**sqrt**
+--------
+::
+
+  def sqrt(a: decimal) -> decimal:
+    """
+    :param a:
+    :type a: decimal, larger than 0.0
+
+    :output sqrt: decimal
+    """
+
+Returns the suare of the provided decimal number, using the Babylonian square root algorithm.
+
 
 **method_id**
 ---------------
@@ -211,7 +242,7 @@ Takes a signed hash and vrs and returns the public key of the signer.
     :output sum: uint256[2]
     """
 
-Takes two elliptical curves and adds them together.
+Takes two elliptic curves and adds them together.
 
 **ecmul**
 ---------------
@@ -227,7 +258,7 @@ Takes two elliptical curves and adds them together.
     :output product: uint256[2]
     """
 
-Takes two elliptical curves and multiplies them together.
+Takes two elliptic curves and multiplies them together.
 
 **extract32**
 ---------------
@@ -347,37 +378,41 @@ Returns the data returned by the call as a bytes array with the outsize as the m
 Causes a self destruction of the contract, triggers the ``SELFDESTRUCT`` opcode (0xff).
 CAUTION! This method will delete the contract from the Ethereum blockchain. All none ether assets associated with this contract will be "burned" and the contract will be inaccessible.
 
+**raise**
+----------
+::
+
+  def raise(a):
+    """
+    :param a: the exception reason (must be <= 32 bytes)
+    :type a: str
+    """
+
+Raises an exception by triggering the OPCODE ``REVERT`` (0xfd) with the provided reason given as the error message. The code will stop operation, the contract's state will be reverted to the state before the transaction took place and the remaining gas will be returned to the transaction's sender.
+
+Note: To give it a more Python-like syntax, the raise function can be called without parenthesis, the syntax would be ``raise "An exception"``. Even though both options will compile, it's recommended to use the Pythonic version without parentheses.
+
 **assert**
 ----------
 ::
 
-  def assert(a, reason):
+  def assert(a, reason=None):
     """
     :param a: the boolean condition to assert
     :type a: bool
-    :type reason: string_literal
+    :param reason: the reason provided to REVERT
+    :param reason=UNREACHABLE: generate an INVALID opcode
+    :type b: str
     """
 
-Asserts the specified condition, if the condition is equals to true the code will continue to run.
-Otherwise, the OPCODE ``REVERT`` (0xfd) will be triggered, the code will stop it's operation, the contract's state will be reverted to the state before the transaction took place and the remaining gas will be returned to the transaction's sender.
+Asserts the specified condition. The behavior is equivalent to::
+  if not a:
+    raise reason
+(the only difference in behavior is that ``assert`` can be called without a reason string, while ``raise`` requires a reason string).
 
-An optional reason string literal can be supplied to the assert statement to help a programmer indicate why an assertion failed, this is done using `Error(string)` method as specified in `EIP838 <https://github.com/ethereum/EIPs/issues/838>`_.
+If assert is passed to an assert statement, an INVALID (0xFE) opcode will be used instead of an REVERT opcode.
 
-Note: To give it a more Python like syntax, the assert function can be called without parenthesis, the syntax would be ``assert your_bool_condition``. Even though both options will compile, it's recommended to use the Pythonic version without parenthesis.
-
-
-**assure**
-----------
-::
-
-  def assure(a):
-    """
-    :param a: the boolean condition to assure
-    :type a: bool
-    """
-
-Assure is the same as an `assert` function, but uses the OPCODE ``INVALID`` (0xfe) instead, when triggerd the code will stop it's operation, the contract's state will be reverted to the state before the transaction took place and the remaining gas will NOT be returned. The purpose of this function is for use with static analyzers and similar tools, and in general is not recommended for uses outside of this use case.
-
+Note: To give it a more Python-like syntax, the assert function can be called without parenthesis, the syntax would be ``assert your_bool_condition``. Even though both options will compile, it's recommended to use the Pythonic version without parenthesis.
 
 **raw_log**
 -----------
@@ -393,11 +428,11 @@ Assure is the same as an `assert` function, but uses the OPCODE ``INVALID`` (0xf
 
 Emits a log without specifying the abi type, with the arguments entered as the first input.
 
-**create_with_code_of**
+**create_forwarder_to**
 -----------------------
 ::
 
-  def create_with_code_of(a, value=b):
+  def create_forwarder_to(a, value=b):
     """
     :param a: the address of the contract to duplicate.
     :type a: address

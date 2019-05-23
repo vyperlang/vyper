@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
 import argparse
+from collections import (
+    OrderedDict,
+)
 import json
 import os
 import sys
-import vyper
 import warnings
 
-from collections import OrderedDict
-from vyper.parser import parser_utils
-from vyper.signatures.interface import extract_file_interface_imports
+import vyper
+from vyper.parser import (
+    parser_utils,
+)
+from vyper.signatures.interface import (
+    extract_file_interface_imports,
+)
 
 warnings.simplefilter('always')
 
@@ -17,6 +23,7 @@ format_options_help = """Format to print, one or more of:
  bytecode_runtime   - Bytecode at runtime
  abi                - ABI in JSON format
  abi_python         - ABI in python format
+ ast                - AST in JSON format
  source_map         - Vyper source map
  method_identifiers - Dictionary of method signature to method identifier.
  combined_json      - All of the above format options combined as single JSON output.
@@ -99,7 +106,8 @@ if __name__ == '__main__':
     else:  # Normal output.
         translate_map = {
             'abi_python': 'abi',
-            'json': 'abi'
+            'json': 'abi',
+            'ast': 'ast_dict'
         }
         formats = []
         orig_args = uniq(args.format.split(','))
@@ -121,9 +129,9 @@ if __name__ == '__main__':
                     for ex in extensions if os.path.exists(file_path + ex)
                 ]
                 if not valid_paths:
-                    raise Exception('Imported interface "{}{.vy,.json}" does not exist.'.format(
-                        interface_path,
-                    ))
+                    raise Exception(
+                        f'Imported interface "{interface_path}{{.vy,.json}}" does not exist.'
+                    )
 
                 valid_path = valid_paths[0]
                 with open(valid_path) as fh:
@@ -150,7 +158,7 @@ if __name__ == '__main__':
         for out in out_list:
             for f in orig_args:
                 o = out[translate_map.get(f, f)]
-                if f in ('abi', 'json'):
+                if f in ('abi', 'json', 'ast'):
                     print(json.dumps(o))
                 elif f == 'abi_python':
                     print(o)

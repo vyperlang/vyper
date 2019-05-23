@@ -1,20 +1,27 @@
-import ast
 import copy
 
-from vyper.parser.expr import Expr
-from vyper.parser.context import Context
+from vyper import ast
 from vyper.exceptions import (
     StructureException,
     TypeMismatchException,
-    VariableDeclarationException
+    VariableDeclarationException,
+)
+from vyper.parser.context import (
+    Context,
+)
+from vyper.parser.expr import (
+    Expr,
+)
+from vyper.parser.memory_allocator import (
+    MemoryAllocator,
 )
 from vyper.types.types import (
     BaseType,
-    ByteArrayType
+    ByteArrayType,
 )
 from vyper.utils import (
+    SizeLimits,
     is_instances,
-    SizeLimits
 )
 
 
@@ -28,12 +35,15 @@ class Constants(object):
         return key in self._constants
 
     def unroll_constant(self, const, global_ctx):
-        # const = self._constants[self.expr.id]
-
         ann_expr = None
         expr = Expr.parse_value_expr(
             const.value,
-            Context(vars=None, global_ctx=global_ctx, origcode=const.source_code),
+            Context(
+                vars=None,
+                global_ctx=global_ctx,
+                origcode=const.source_code,
+                memory_allocator=MemoryAllocator()
+            ),
         )
         annotation_type = global_ctx.parse_type(const.annotation.args[0], None)
         fail = False

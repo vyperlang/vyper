@@ -1,11 +1,15 @@
 import pytest
-from pytest import raises
+from pytest import (
+    raises,
+)
 
-from vyper import compiler
+from vyper import (
+    compiler,
+)
 from vyper.exceptions import (
-    TypeMismatchException,
+    InvalidLiteralException,
     StructureException,
-    InvalidLiteralException
+    TypeMismatchException,
 )
 
 # These functions register test cases
@@ -205,7 +209,7 @@ def baa() -> decimal:
 must_succeed("""
 @public
 def foo():
-    throw
+    raise "fail"
 """)
 
 must_succeed("""

@@ -1,9 +1,14 @@
 import pytest
-from pytest import raises
+from pytest import (
+    raises,
+)
 
-from vyper import compiler
-from vyper.exceptions import VariableDeclarationException
-
+from vyper import (
+    compiler,
+)
+from vyper.exceptions import (
+    VariableDeclarationException,
+)
 
 fail_list = [
     """
@@ -69,6 +74,16 @@ x: int128
 @public
 def foo():
     x = 5
+    """,
+    """
+@public
+def foo():
+    msg: bool = True
+    """,
+    """
+@public
+def foo():
+    struct: bool = True
     """,
 ]
 
