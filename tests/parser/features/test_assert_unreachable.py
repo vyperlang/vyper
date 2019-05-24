@@ -40,7 +40,7 @@ def foo(val: int128) -> bool:
     with pytest.raises(TransactionFailed) as e_info:
         c.foo(-2)
 
-    assert 'Invalid opcode 0xf' in e_info.value.args[0]
+    assert 'Invalid opcode 0xfe' in e_info.value.args[0]
 
 
 def test_basic_call_unreachable(w3, get_contract, assert_tx_failed):
