@@ -35,6 +35,12 @@ Please read prior audit reports for projects that use Vyper here:
 
 ## Known Vyper Vulnerabilities and Exposures (VVEs)
 
+The following is a list of all publicly disclosed vulnerabilities and exposures.
+Best Practices dictate that when we are first made aware of a potential vulnerability,
+we take the precaution of assessing it's potential impact to deployed projects first.
+When we are confident that a disclosure will not impact known projects that use Vyper,
+we will add an entry to this table for posterity and reference by others.
+
 | VVE | Description | Introduced | Fixed | Report Link |
 | --- | ----------- | ---------- | ----- | ----------- |
 
