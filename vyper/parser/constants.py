@@ -72,7 +72,7 @@ class Constants(object):
             if is_special_case_uint256_literal or is_special_case_int256_literal:
                 fail = False
 
-            #For StructType
+            # For StructType
             if is_instances([expr.typ, annotation_type], StructType):
                 expr_keys = list(expr.typ.members.keys())
                 annotation_type_keys = list(annotation_type.members.keys())
