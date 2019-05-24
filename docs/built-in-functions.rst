@@ -401,6 +401,7 @@ Note: To give it a more Python-like syntax, the raise function can be called wit
     :param a: the boolean condition to assert
     :type a: bool
     :param reason: the reason provided to REVERT
+    :param reason=UNREACHABLE: generate an INVALID opcode
     :type b: str
     """
 
@@ -408,6 +409,8 @@ Asserts the specified condition. The behavior is equivalent to::
   if not a:
     raise reason
 (the only difference in behavior is that ``assert`` can be called without a reason string, while ``raise`` requires a reason string).
+
+If assert is passed to an assert statement, an INVALID (0xFE) opcode will be used instead of an REVERT opcode.
 
 Note: To give it a more Python-like syntax, the assert function can be called without parenthesis, the syntax would be ``assert your_bool_condition``. Even though both options will compile, it's recommended to use the Pythonic version without parenthesis.
 

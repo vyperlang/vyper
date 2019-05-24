@@ -443,14 +443,24 @@ class Stmt(object):
         else:
             return external_call.make_external_call(self.stmt, self.context)
 
+    @staticmethod
+    def _assert_unreachable(test_expr, msg):
+        return LLLnode.from_list(['assert_unreachable', test_expr], typ=None, pos=getpos(msg))
+
     def _assert_reason(self, test_expr, msg):
+        if isinstance(msg, ast.Name) and msg.id == 'UNREACHABLE':
+            return self._assert_unreachable(test_expr, msg)
+
         if not isinstance(msg, ast.Str):
             raise StructureException(
-                    'Reason parameter of assert needs to be a literal string.',
-                    msg)
+                'Reason parameter of assert needs to be a literal string '
+                '(or UNREACHABLE constant).',
+                msg
+            )
         if len(msg.s.strip()) == 0:
             raise StructureException(
-                    'Empty reason string not allowed.', self.stmt)
+                'Empty reason string not allowed.', self.stmt
+            )
         reason_str = msg.s.strip()
         sig_placeholder = self.context.new_placeholder(BaseType(32))
         arg_placeholder = self.context.new_placeholder(BaseType(32))
