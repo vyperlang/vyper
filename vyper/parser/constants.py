@@ -94,7 +94,6 @@ class Constants(object):
                 if is_special_case_uint256_literal or is_special_case_int256_literal:
                     fail = False
 
-
         if fail:
             raise TypeMismatchException(
                 'Invalid value for constant type, expected %r got %r instead' % (
