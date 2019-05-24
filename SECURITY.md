@@ -33,6 +33,11 @@ Please read prior audit reports for projects that use Vyper here:
 | ------- | ------- | ----------- |
 | Uniswap | 35038d2 | https://medium.com/consensys-diligence/uniswap-audit-b90335ac007 |
 
+## Known Vyper Vulnerabilities and Exposures (VVEs)
+
+| VVE | Description | Introduced | Fixed | Report Link |
+| --- | ----------- | ---------- | ----- | ----------- |
+
 ## Reporting a Vulnerability
 
 If you think you have found a security vulnerability with a project that has used Vyper,
