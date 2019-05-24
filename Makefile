@@ -1,10 +1,17 @@
+
+ifeq (, $(shell which pip3))
+	pip := $(shell which pip3)
+else
+	pip := $(shell which pip)
+endif
+
 .PHONY: test dev-deps lint clean clean-pyc clean-build clean-test docs docker-build
 
 init:
-	pip install .
+	${pip} install .
 
 dev-deps:
-	pip install .[test,lint]
+	${pip} install .[test,lint]
 
 test:
 	python setup.py test
