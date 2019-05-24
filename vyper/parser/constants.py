@@ -78,7 +78,7 @@ class Constants(object):
                 annotation_type_keys = list(annotation_type.members.keys())
                 for key1, key2 in expr_keys, annotation_type_keys:
                     is_special_case_uint256_literal = (
-                    is_instances([expr.typ, annotation_type], StructType)
+                        is_instances([expr.typ, annotation_type], StructType)
                     ) and (
                         [str(annotation_type.members[key2]), str(expr.typ.members[key1])] == ['uint256', 'int128']
                     ) and SizeLimits.in_bounds('uint256', expr[1][0])
