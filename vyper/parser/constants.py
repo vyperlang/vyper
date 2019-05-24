@@ -80,7 +80,9 @@ class Constants(object):
                     is_special_case_uint256_literal = (
                         is_instances([expr.typ, annotation_type], StructType)
                     ) and (
-                        [str(annotation_type.members[key2]), str(expr.typ.members[key1])] == ['uint256', 'int128']
+                        str(annotation_type.members[key2]) == 'uint256'
+                    ) and (
+                        str(expr.typ.members[key1]) == 'int128'
                     ) and SizeLimits.in_bounds('uint256', expr[1][0])
 
                     is_special_case_int256_literal = (
