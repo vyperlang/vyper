@@ -26,9 +26,9 @@ from vyper.signatures.interface import (
 
 
 def __compile(code, interface_codes=None, *args, **kwargs):
-    to_ast = parser.parse_to_ast(code)
+    ast = parser.parse_to_ast(code)
     lll = parser.parse_tree_to_lll(
-        to_ast,
+        ast,
         code,
         interface_codes=interface_codes,
         runtime_only=kwargs.get('bytecode_runtime', False)
