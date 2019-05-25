@@ -26,15 +26,15 @@ from vyper.signatures.interface import (
 
 
 def __compile(code, interface_codes=None, *args, **kwargs):
-    lll = optimizer.optimize(
-        parser.parse_tree_to_lll(
-            parser.parse_to_ast(code),
-            code,
-            interface_codes=interface_codes,
-            runtime_only=kwargs.get('bytecode_runtime', False)
-        )
+    to_ast = parser.parse_to_ast(code)
+    lll = parser.parse_tree_to_lll(
+        to_ast,
+        code,
+        interface_codes=interface_codes,
+        runtime_only=kwargs.get('bytecode_runtime', False)
     )
-    asm = compile_lll.compile_to_assembly(lll)
+    opt_lll = optimizer.optimize(lll)
+    asm = compile_lll.compile_to_assembly(opt_lll)
 
     def find_nested_opcode(asm_list, key):
         if key in asm_list:
