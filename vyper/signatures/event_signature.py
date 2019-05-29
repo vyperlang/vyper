@@ -1,6 +1,3 @@
-from to_type import (
-    iterable_cast,
-)
 from vyper import ast
 from vyper.exceptions import (
     EventDeclarationException,
@@ -21,6 +18,7 @@ from vyper.utils import (
     bytes_to_int,
     ceil32,
     check_valid_varname,
+    iterable_cast,
     sha3,
 )
 
