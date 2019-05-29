@@ -8,7 +8,7 @@ test_deps = [
     'pytest-cov==2.4.0',
     'coveralls[yaml]==1.6.0',
     'pytest-xdist==1.18.1',
-    'py-evm==0.2.0a39',
+    'py-evm==0.2.0a42',
     'eth-tester==0.1.0b39',
     'eth-abi==2.0.0b9',
     'web3==5.0.0b2',
