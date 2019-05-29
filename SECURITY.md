@@ -29,6 +29,8 @@ Here are the audits we have undergone in the past:
 
 Please read prior audit reports for projects that use Vyper here:
 
+<!-- Please use the tagged version if possible, or commit hash if a non-tagged version was used. -->
+
 | Project | Version | Report Link |
 | ------- | ------- | ----------- |
 | Uniswap | 35038d2 | https://medium.com/consensys-diligence/uniswap-audit-b90335ac007 |
@@ -40,6 +42,8 @@ Best Practices dictate that when we are first made aware of a potential vulnerab
 we take the precaution of assessing it's potential impact to deployed projects first.
 When we are confident that a disclosure will not impact known projects that use Vyper,
 we will add an entry to this table for posterity and reference by others.
+
+<!-- Please use the tagged version if possible, or commit hash if a non-tagged version was used. -->
 
 | VVE | Description | Introduced | Fixed | Report Link |
 | --- | ----------- | ---------- | ----- | ----------- |
