@@ -21,8 +21,8 @@ from vyper.parser.parser_utils import (
 )
 from vyper.types import (
     ByteArrayLike,
-    TupleType,
     StructType,
+    TupleType,
     canonicalize_type,
     get_size_of_type,
     parse_type,

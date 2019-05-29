@@ -9,11 +9,11 @@ from eth_tester import (
 from eth_tester.exceptions import (
     TransactionFailed,
 )
-import pytest
-from web3 import Web3
 from eth_utils.toolz import (
     compose,
 )
+import pytest
+from web3 import Web3
 from web3.contract import (
     Contract,
     mk_collision_prop,
