@@ -78,15 +78,6 @@ def print_unit(unit, unit_descriptions=None):
         return pos[1:]
 
 
-def delete_unit_if_empty(abi_dict):
-    try:
-        if not abi_dict['unit']:
-            del abi_dict['unit']
-    except KeyError:
-        # unit is already removed
-        pass
-
-
 # Multiply or divide two units by each other
 def combine_units(unit1, unit2, div=False):
     o = {k: v for k, v in (unit1 or {}).items()}
