@@ -22,7 +22,7 @@ def test() -> Voter:
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.test() == [123, True]
+    assert c.test() == (123, True)
 
 
 def test_struct_return(get_contract_with_gas_estimation):
@@ -72,13 +72,13 @@ def pub6() -> Foo:
     foo: Foo = Foo({x: 123, y: 456})
     return self.return_arg(foo)
     """
-    foo = [123, 456]
+    foo = (123, 456)
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.pub1() == [1, 2]
-    assert c.pub2() == [3, 4]
-    assert c.pub3() == [5, 6]
-    assert c.pub4() == [7, 8]
-    # assert c.pub5(foo) == foo # eth_abi tuple interpretation issue
+    assert c.pub1() == (1, 2)
+    assert c.pub2() == (3, 4)
+    assert c.pub3() == (5, 6)
+    assert c.pub4() == (7, 8)
+    assert c.pub5(foo) == foo
     assert c.pub6() == foo
