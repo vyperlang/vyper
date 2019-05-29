@@ -9,8 +9,9 @@ test_deps = [
     'coveralls[yaml]==1.6.0',
     'pytest-xdist==1.18.1',
     'py-evm==0.2.0a39',
-    'eth-tester==0.1.0b37',
-    'web3==5.0.0a6',
+    'eth-tester==0.1.0b39',
+    'eth-abi==2.0.0b9',
+    'web3==5.0.0b2',
     'tox>=3.7,<4',
     'hypothesis==4.11.7'
 ]
