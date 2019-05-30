@@ -198,18 +198,16 @@ def _get_contract(w3, source_code, *args, **kwargs):
     bytecode = out['bytecode']
     contract = w3.eth.contract(abi=abi, bytecode=bytecode)
 
-    value = kwargs.pop('value', 0)
-    value_in_eth = kwargs.pop('value_in_eth', 0)
-    value = value_in_eth * 10**18 if value_in_eth else value  # Handle deploying with an eth value.
-    gasPrice = kwargs.pop('gasPrice', 0)
+    value = kwargs.pop('value_in_eth', 0) * 10**18  # Handle deploying with an eth value.
 
     c = w3.eth.contract(abi=abi, bytecode=bytecode)
-    deploy_transaction = c.constructor(*args, **kwargs)
+    deploy_transaction = c.constructor(*args)
     tx_info = {
         'from': w3.eth.accounts[0],
         'value': value,
-        'gasPrice': gasPrice,
+        'gasPrice': 0,
     }
+    tx_info.update(kwargs)
     tx_hash = deploy_transaction.transact(tx_info)
     address = w3.eth.getTransactionReceipt(tx_hash)['contractAddress']
     contract = w3.eth.contract(
