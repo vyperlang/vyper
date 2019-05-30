@@ -9,11 +9,11 @@ from eth_tester import (
 from eth_tester.exceptions import (
     TransactionFailed,
 )
-import pytest
-from web3 import Web3
-from web3._utils.toolz import (
+from eth_utils.toolz import (
     compose,
 )
+import pytest
+from web3 import Web3
 from web3.contract import (
     Contract,
     mk_collision_prop,
@@ -174,12 +174,10 @@ def get_contract_from_lll(w3):
         lll = optimizer.optimize(LLLnode.from_list(lll))
         bytecode, _ = compile_lll.assembly_to_evm(compile_lll.compile_to_assembly(lll))
         abi = kwargs.get('abi') or []
-        contract = w3.eth.contract(bytecode=bytecode, abi=abi)
-        deploy_transaction = {
-            'data': contract._encode_constructor_data(args, kwargs)
-        }
-        tx = w3.eth.sendTransaction(deploy_transaction)
-        address = w3.eth.getTransactionReceipt(tx)['contractAddress']
+        c = w3.eth.contract(abi=abi, bytecode=bytecode)
+        deploy_transaction = c.constructor()
+        tx_hash = deploy_transaction.transact()
+        address = w3.eth.getTransactionReceipt(tx_hash)['contractAddress']
         contract = w3.eth.contract(
             address,
             abi=abi,
@@ -200,29 +198,24 @@ def _get_contract(w3, source_code, *args, **kwargs):
     bytecode = out['bytecode']
     contract = w3.eth.contract(abi=abi, bytecode=bytecode)
 
-    value = kwargs.pop('value', 0)
-    value_in_eth = kwargs.pop('value_in_eth', 0)
-    value = value_in_eth * 10**18 if value_in_eth else value  # Handle deploying with an eth value.
-    gasPrice = kwargs.pop('gasPrice', 0)
-    deploy_transaction = {
+    value = kwargs.pop('value_in_eth', 0) * 10**18  # Handle deploying with an eth value.
+
+    c = w3.eth.contract(abi=abi, bytecode=bytecode)
+    deploy_transaction = c.constructor(*args)
+    tx_info = {
         'from': w3.eth.accounts[0],
-        'data': contract._encode_constructor_data(args, kwargs),
         'value': value,
-        'gasPrice': gasPrice,
+        'gasPrice': 0,
     }
-    tx = w3.eth.sendTransaction(deploy_transaction)
-    address = w3.eth.getTransactionReceipt(tx)['contractAddress']
+    tx_info.update(kwargs)
+    tx_hash = deploy_transaction.transact(tx_info)
+    address = w3.eth.getTransactionReceipt(tx_hash)['contractAddress']
     contract = w3.eth.contract(
         address,
         abi=abi,
         bytecode=bytecode,
         ContractFactoryClass=VyperContract,
     )
-    # Filter logs.
-    contract._logfilter = w3.eth.filter({
-        'fromBlock': w3.eth.blockNumber - 1,
-        'address': contract.address
-    })
     return contract
 
 

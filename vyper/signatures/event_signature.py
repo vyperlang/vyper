@@ -10,7 +10,6 @@ from vyper.signatures.function_signature import (
 from vyper.types import (
     ByteArrayType,
     canonicalize_type,
-    delete_unit_if_empty,
     get_size_of_type,
     print_unit,
     unit_from_type,
@@ -19,6 +18,7 @@ from vyper.utils import (
     bytes_to_int,
     ceil32,
     check_valid_varname,
+    iterable_cast,
     sha3,
 )
 
@@ -108,20 +108,23 @@ class EventSignature:
         event_id = bytes_to_int(sha3(bytes(sig, 'utf-8')))
         return cls(name, args, indexed_list, event_id, sig)
 
+    @iterable_cast(dict)
+    def to_abi_event_dict(self, arg, pos, custom_units_descriptions):
+        yield "type", canonicalize_type(arg.typ, self.indexed_list[pos]),
+        yield "name", arg.name,
+        yield "indexed", self.indexed_list[pos],
+        u = unit_from_type(arg.typ)
+        if u:
+            yield "unit", print_unit(u, custom_units_descriptions)
+
     def to_abi_dict(self, custom_units_descriptions=None):
         abi_dict = {
             "name": self.name,
-            "inputs": [{
-                "type": canonicalize_type(arg.typ, self.indexed_list[pos]),
-                "name": arg.name,
-                "indexed": self.indexed_list[pos],
-                "unit": print_unit(unit_from_type(arg.typ), custom_units_descriptions)
-            } for pos, arg in enumerate(self.args)] if self.args else [],
+            "inputs": [
+                self.to_abi_event_dict(arg, pos, custom_units_descriptions)
+                for pos, arg in enumerate(self.args)
+            ] if self.args else [],
             "anonymous": False,
             "type": "event"
         }
-
-        for abi_input in abi_dict['inputs']:
-            delete_unit_if_empty(abi_input)
-
         return abi_dict

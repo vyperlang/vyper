@@ -21,10 +21,9 @@ from vyper.parser.parser_utils import (
 )
 from vyper.types import (
     ByteArrayLike,
-    TupleLike,
+    StructType,
     TupleType,
     canonicalize_type,
-    delete_unit_if_empty,
     get_size_of_type,
     parse_type,
     print_unit,
@@ -35,6 +34,7 @@ from vyper.utils import (
     fourbytes_to_int,
     function_whitelist,
     is_varname_valid,
+    iterable_cast,
     sha3,
 )
 
@@ -303,29 +303,71 @@ class FunctionSignature:
             code
         )
 
-    def _generate_output_abi(self, custom_units_descriptions=None):
-        t = self.output_type
-        if not t:
+    @iterable_cast(dict)
+    def _generate_base_type(self, arg_type, name=None, custom_units_descriptions=None):
+        yield "type", canonicalize_type(arg_type)
+        u = unit_from_type(arg_type)
+        if u:
+            yield "unit", print_unit(u, custom_units_descriptions)
+        name = "out" if not name else name
+        yield "name", name
+
+    def _generate_param_abi(self, out_arg, name=None, custom_units_descriptions=None):
+        if isinstance(out_arg, StructType):
+            return {
+                'type': 'tuple',
+                'components': [
+                    self._generate_param_abi(
+                        member_type,
+                        name=name,
+                        custom_units_descriptions=custom_units_descriptions
+                    )
+                    for name, member_type in out_arg.tuple_items()
+                ]
+            }
+        elif isinstance(out_arg, TupleType):
+            return {
+                'type': 'tuple',
+                'components': [
+                    self._generate_param_abi(
+                        member_type,
+                        name=f"out{idx + 1}",
+                        custom_units_descriptions=custom_units_descriptions
+                    ) for idx, member_type in out_arg.tuple_items()
+                ]
+            }
+        else:
+            return self._generate_base_type(
+                arg_type=out_arg,
+                name=name,
+                custom_units_descriptions=custom_units_descriptions
+            )
+
+    def _generate_outputs_abi(self, custom_units_descriptions):
+        if not self.output_type:
             return []
-        elif isinstance(t, TupleType):
-            res = [
-                (canonicalize_type(x), print_unit(unit_from_type(x), custom_units_descriptions))
-                for x in t.members
-            ]
-        elif isinstance(t, TupleLike):
-            res = [
-                (canonicalize_type(x), print_unit(unit_from_type(x), custom_units_descriptions))
-                for x in t.tuple_members()
+        elif isinstance(self.output_type, TupleType):
+            return [
+                self._generate_param_abi(x, custom_units_descriptions=custom_units_descriptions)
+                for x in self.output_type.members
             ]
         else:
-            res = [(canonicalize_type(t), print_unit(unit_from_type(t), custom_units_descriptions))]
+            return [self._generate_param_abi(
+                self.output_type,
+                custom_units_descriptions=custom_units_descriptions
+            )]
 
-        abi_outputs = [{"type": x, "name": "out", "unit": unit} for x, unit in res]
-
-        for abi_output in abi_outputs:
-            delete_unit_if_empty(abi_output)
-
-        return abi_outputs
+    def _generate_inputs_abi(self, custom_units_descriptions):
+        if not self.args:
+            return []
+        else:
+            return [
+                self._generate_param_abi(
+                    x.typ,
+                    name=x.name,
+                    custom_units_descriptions=custom_units_descriptions
+                ) for x in self.args
+            ]
 
     def to_abi_dict(self, custom_units_descriptions=None):
         func_type = "function"
@@ -336,19 +378,12 @@ class FunctionSignature:
 
         abi_dict = {
             "name": self.name,
-            "outputs": self._generate_output_abi(custom_units_descriptions),
-            "inputs": [{
-                "type": canonicalize_type(arg.typ),
-                "name": arg.name,
-                "unit": print_unit(unit_from_type(arg.typ), custom_units_descriptions)
-            } for arg in self.args],
+            "outputs": self._generate_outputs_abi(custom_units_descriptions),
+            "inputs": self._generate_inputs_abi(custom_units_descriptions),
             "constant": self.const,
             "payable": self.payable,
             "type": func_type
         }
-
-        for abi_input in abi_dict['inputs']:
-            delete_unit_if_empty(abi_input)
 
         if self.name in ('__default__', '__init__'):
             del abi_dict['name']
