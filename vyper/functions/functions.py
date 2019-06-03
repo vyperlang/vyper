@@ -232,7 +232,7 @@ def concat(expr, context):
 
     # Maximum length of the output
     total_maxlen = sum([
-        arg.typ.maxlen if isinstance(arg.typ, ByteArrayType) else 32 for arg in args
+        arg.typ.maxlen if isinstance(arg.typ, ByteArrayLike) else 32 for arg in args
     ])
     # Node representing the position of the output in memory
     placeholder = context.new_placeholder(ReturnType(total_maxlen))
