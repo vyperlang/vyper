@@ -168,7 +168,8 @@ class FunctionSignature:
 
         # Validate default values.
         for default_value in getattr(code.args, 'defaults', []):
-            if not isinstance(default_value, (ast.Num, ast.Str, ast.Bytes, ast.List)):
+            allowed_types = (ast.Num, ast.Str, ast.Bytes, ast.List, ast.NameConstant)
+            if not isinstance(default_value, allowed_types):
                 raise FunctionDeclarationException("Default parameter values have to be literals.")
 
         # Determine the arguments, expects something of the form def foo(arg1:
