@@ -136,6 +136,8 @@ def call_self_private(stmt_expr, context, sig):
                             ['mstore', i_placeholder,
                                 ['add', 'len_pos', ['ceil32', 'len_value']]]]]]
             ]
+            # loop from end of dynamic section to start of dynamic section,
+            # pushing each element onto the stack.
             push_args += [
 
                 ['label', start_label],
