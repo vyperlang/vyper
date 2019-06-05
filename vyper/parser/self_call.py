@@ -18,7 +18,6 @@ from vyper.types import (
     ByteArrayLike,
     ListType,
     TupleLike,
-    ceil32,
     get_size_of_type,
     get_static_size_of_type,
     has_dynamic_data,
@@ -109,7 +108,6 @@ def call_self_private(stmt_expr, context, sig):
                 [get_static_size_of_type(arg.typ)
                     for arg in expr_args])
         static_pos = arg_pos + static_arg_size
-        total_arg_size = ceil32(inargsize - 4)
         needs_dyn_section = any(
                 [has_dynamic_data(arg.typ)
                     for arg in expr_args])
@@ -119,8 +117,19 @@ def call_self_private(stmt_expr, context, sig):
             start_label = ident + '_start'
             end_label = ident + '_end'
             i_placeholder = context.new_placeholder(BaseType('uint256'))
+            for idx, arg in enumerate(expr_args):
+                if isinstance(arg.typ, ByteArrayLike):
+                    xs = [['with', 'offset', ['mload', arg_pos + idx * 32],
+                          ['with', 'len_pos', ['add', arg_pos, 'offset'],
+                          ['with', 'len_value', ['mload', 'len_pos'],
+                              ['mstore', i_placeholder,
+                                  ['add',
+                                      'len_pos',
+                                      ['ceil32', 'len_value']]]]]]]
+            # xs must be defined since needs_dyn_section implies at least one
+            # arg must be dynamic
+            push_args += xs
             push_args += [
-                ['mstore', i_placeholder, arg_pos + total_arg_size],
                 ['label', start_label],
                 ['if', ['lt', ['mload', i_placeholder], static_pos],
                     ['goto', end_label]],
