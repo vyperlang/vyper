@@ -118,12 +118,9 @@ def call_self_private(stmt_expr, context, sig):
             push_args += [
                 ['mstore', i_placeholder, arg_pos + total_arg_size],
                 ['label', start_label],
-                ['if', ['lt', ['mload', i_placeholder], static_pos], ['goto', end_label]],
-                [
-                    'if_unchecked',
-                    ['ne', ['mload', ['mload', i_placeholder]], 0],
-                    ['mload', ['mload', i_placeholder]],
-                ],
+                ['if', ['lt', ['mload', i_placeholder], static_pos],
+                    ['goto', end_label]],
+                ['mload', ['mload', i_placeholder]],
                 ['mstore', i_placeholder, ['sub', ['mload', i_placeholder], 32]],  # decrease i
                 ['goto', start_label],
                 ['label', end_label]
