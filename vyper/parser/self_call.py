@@ -117,28 +117,27 @@ def call_self_private(stmt_expr, context, sig):
             start_label = ident + '_start'
             end_label = ident + '_end'
             i_placeholder = context.new_placeholder(BaseType('uint256'))
-if
+
+            # Calculate copy start position.
+            # Given | static | dynamic | section in memory,
+            # copy backwards so the values are in order on the stack.
+            # We calculate i, the end of the whole encoded part
+            # (i.e. the starting index for copy)
+            # by taking ceil32(len<arg>) + offset<arg> + arg_pos
+            # for the last dynamic argument and arg_pos is the start
+            # the whole argument section.
             for idx, arg in enumerate(expr_args):
-                # Calculate copy start position.
-                # Given | static | dynamic | section in memory,
-                # copy backwards so the values are in order on the stack.
-                # We calculate i, the end of the whole encoded part
-                # (i.e. the starting index for copy)
-                # by taking ceil32(len<arg>) + offset<arg> + arg_pos
-                # for the last dynamic argument and arg_pos is the start
-                # the whole argument section.
                 if isinstance(arg.typ, ByteArrayLike):
-                    xs = [['with', 'offset', ['mload', arg_pos + idx * 32],
-                          ['with', 'len_pos', ['add', arg_pos, 'offset'],
-                          ['with', 'len_value', ['mload', 'len_pos'],
-                              ['mstore', i_placeholder,
-                                  ['add',
-                                      'len_pos',
-                                      ['ceil32', 'len_value']]]]]]]
-            # xs must be defined since needs_dyn_section implies at least one
-            # arg must be dynamic. this picks the last dynamic arg.
-            push_args += xs
+                    last_idx = idx
             push_args += [
+                ['with', 'offset', ['mload', arg_pos + last_idx * 32],
+                    ['with', 'len_pos', ['add', arg_pos, 'offset'],
+                        ['with', 'len_value', ['mload', 'len_pos'],
+                            ['mstore', i_placeholder,
+                                ['add', 'len_pos', ['ceil32', 'len_value']]]]]]
+            ]
+            push_args += [
+
                 ['label', start_label],
                 ['if', ['lt', ['mload', i_placeholder], static_pos],
                     ['goto', end_label]],
