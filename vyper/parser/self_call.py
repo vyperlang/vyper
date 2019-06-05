@@ -21,6 +21,7 @@ from vyper.types import (
     ceil32,
     get_size_of_type,
     get_static_size_of_type,
+    has_dynamic_data,
 )
 
 
@@ -109,8 +110,11 @@ def call_self_private(stmt_expr, context, sig):
                     for arg in expr_args])
         static_pos = arg_pos + static_arg_size
         total_arg_size = ceil32(inargsize - 4)
+        needs_dyn_section = any(
+                [has_dynamic_data(arg.typ)
+                    for arg in expr_args])
 
-        if static_arg_size != total_arg_size:  # requires dynamic section.
+        if needs_dyn_section:
             ident = 'push_args_%d_%d_%d' % (sig.method_id, stmt_expr.lineno, stmt_expr.col_offset)
             start_label = ident + '_start'
             end_label = ident + '_end'
