@@ -22,8 +22,8 @@ def test_string_concat(get_contract_with_gas_estimation):
 @public
 def testb(inp: string[10]) -> string[128]:
     a: string[100] = "return message:"
-    a = concat(a, " ", inp)
-    return a
+    b: string[128] = concat(a, " ", inp)
+    return b
 
 @public
 def testa(inp: string[10]) -> string[160]:

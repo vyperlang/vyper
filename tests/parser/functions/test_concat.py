@@ -1,3 +1,8 @@
+from vyper.exceptions import (
+    TypeMismatchException,
+)
+
+
 def test_concat(get_contract_with_gas_estimation):
     test_concat = """
 @public
@@ -99,3 +104,29 @@ def hoo(x: bytes32, y: bytes32) -> bytes[64]:
     assert c.hoo(b'\x35' * 32, b'\x00' * 32) == b'\x35' * 32 + b'\x00' * 32
 
     print('Passed second concat tests')
+
+
+def test_small_output(get_contract_with_gas_estimation):
+    code = """
+@public
+def small_output(a: string[5], b: string[4]) -> string[9]:
+    c: string[9] = concat(a, b)
+    return c
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.small_output('abcde', 'fghi') == 'abcdefghi'
+    assert c.small_output('', '') == ''
+
+
+def test_large_output(get_contract_with_gas_estimation, assert_compile_failed):
+    code = """
+@public
+def large_output(a: string[33], b: string[33]) -> string[64]:
+    c: string[64] = concat(a, b)
+    return c
+    """
+
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(code),
+        TypeMismatchException
+    )
