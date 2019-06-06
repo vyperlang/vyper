@@ -18,9 +18,9 @@ from vyper.types import (
     ByteArrayLike,
     ListType,
     TupleLike,
-    ceil32,
     get_size_of_type,
     get_static_size_of_type,
+    has_dynamic_data,
 )
 
 
@@ -108,22 +108,42 @@ def call_self_private(stmt_expr, context, sig):
                 [get_static_size_of_type(arg.typ)
                     for arg in expr_args])
         static_pos = arg_pos + static_arg_size
-        total_arg_size = ceil32(inargsize - 4)
+        needs_dyn_section = any(
+                [has_dynamic_data(arg.typ)
+                    for arg in expr_args])
 
-        if static_arg_size != total_arg_size:  # requires dynamic section.
+        if needs_dyn_section:
             ident = 'push_args_%d_%d_%d' % (sig.method_id, stmt_expr.lineno, stmt_expr.col_offset)
             start_label = ident + '_start'
             end_label = ident + '_end'
             i_placeholder = context.new_placeholder(BaseType('uint256'))
+
+            # Calculate copy start position.
+            # Given | static | dynamic | section in memory,
+            # copy backwards so the values are in order on the stack.
+            # We calculate i, the end of the whole encoded part
+            # (i.e. the starting index for copy)
+            # by taking ceil32(len<arg>) + offset<arg> + arg_pos
+            # for the last dynamic argument and arg_pos is the start
+            # the whole argument section.
+            for idx, arg in enumerate(expr_args):
+                if isinstance(arg.typ, ByteArrayLike):
+                    last_idx = idx
             push_args += [
-                ['mstore', i_placeholder, arg_pos + total_arg_size],
+                ['with', 'offset', ['mload', arg_pos + last_idx * 32],
+                    ['with', 'len_pos', ['add', arg_pos, 'offset'],
+                        ['with', 'len_value', ['mload', 'len_pos'],
+                            ['mstore', i_placeholder,
+                                ['add', 'len_pos', ['ceil32', 'len_value']]]]]]
+            ]
+            # loop from end of dynamic section to start of dynamic section,
+            # pushing each element onto the stack.
+            push_args += [
+
                 ['label', start_label],
-                ['if', ['lt', ['mload', i_placeholder], static_pos], ['goto', end_label]],
-                [
-                    'if_unchecked',
-                    ['ne', ['mload', ['mload', i_placeholder]], 0],
-                    ['mload', ['mload', i_placeholder]],
-                ],
+                ['if', ['lt', ['mload', i_placeholder], static_pos],
+                    ['goto', end_label]],
+                ['mload', ['mload', i_placeholder]],
                 ['mstore', i_placeholder, ['sub', ['mload', i_placeholder], 32]],  # decrease i
                 ['goto', start_label],
                 ['label', end_label]

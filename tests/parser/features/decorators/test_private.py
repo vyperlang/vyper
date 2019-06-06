@@ -546,3 +546,18 @@ def call_arr() -> int128:
 
     c = get_contract(code)
     assert c.call_arr() == 42
+
+
+def test_private_zero_bytearray(get_contract):
+    private_test_code = """
+@private
+def inner(xs: bytes[256]):
+    pass
+@public
+def outer(xs: bytes[256] = "") -> bool:
+    self.inner(xs)
+    return True
+    """
+
+    c = get_contract(private_test_code)
+    assert c.outer()
