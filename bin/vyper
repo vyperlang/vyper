@@ -83,6 +83,41 @@ def exc_handler(contract_name, exception):
     raise exception
 
 
+def get_interface_codes(codes):
+    interface_codes = {}
+
+    for code in codes.values():
+        interface_codes.update(extract_file_interface_imports(code))
+
+    if interface_codes:
+        for interface_name, interface_path in interface_codes.items():
+            file_path = os.path.join(os.path.normpath(interface_path.replace('.', '/')))
+            extensions = ('.vy', '.json')
+            valid_paths = [
+                file_path + ex
+                for ex in extensions if os.path.exists(file_path + ex)
+            ]
+            if not valid_paths:
+                raise Exception(
+                    f'Imported interface "{interface_path}{{.vy,.json}}" does not exist.'
+                )
+
+            valid_path = valid_paths[0]
+            with open(valid_path) as fh:
+                code = fh.read()
+                if valid_path.endswith('.json'):
+                    interface_codes[interface_name] = {
+                        'type': 'json',
+                        'code': json.loads(code.encode())
+                    }
+                else:
+                    interface_codes[interface_name] = {
+                        'type': 'vyper',
+                        'code': code
+                    }
+    return interface_codes
+
+
 if __name__ == '__main__':
     if args.show_gas_estimates:
         parser_utils.LLLnode.repr_show_gas = True
@@ -98,7 +133,8 @@ if __name__ == '__main__':
             codes,
             ['bytecode', 'bytecode_runtime', 'abi', 'source_map', 'method_identifiers'],
             output_type='dict',
-            exc_handler=exc_handler
+            exc_handler=exc_handler,
+            interface_codes=get_interface_codes(codes)
         )
         out['version'] = vyper.__version__
         print(json.dumps(out))
@@ -115,44 +151,12 @@ if __name__ == '__main__':
         for f in orig_args:
             formats.append(translate_map.get(f, f))
 
-        interface_codes = {}
-
-        for code in codes.values():
-            interface_codes.update(extract_file_interface_imports(code))
-
-        if interface_codes:
-            for interface_name, interface_path in interface_codes.items():
-                file_path = os.path.join(os.path.normpath(interface_path.replace('.', '/')))
-                extensions = ('.vy', '.json')
-                valid_paths = [
-                    file_path + ex
-                    for ex in extensions if os.path.exists(file_path + ex)
-                ]
-                if not valid_paths:
-                    raise Exception(
-                        f'Imported interface "{interface_path}{{.vy,.json}}" does not exist.'
-                    )
-
-                valid_path = valid_paths[0]
-                with open(valid_path) as fh:
-                    code = fh.read()
-                    if valid_path.endswith('.json'):
-                        interface_codes[interface_name] = {
-                            'type': 'json',
-                            'code': json.loads(code.encode())
-                        }
-                    else:
-                        interface_codes[interface_name] = {
-                            'type': 'vyper',
-                            'code': code
-                        }
-
         out_list = vyper.compile_codes(
             codes,
             formats,
             output_type='list',
             exc_handler=exc_handler,
-            interface_codes=interface_codes
+            interface_codes=get_interface_codes(codes)
         )
 
         for out in out_list:
