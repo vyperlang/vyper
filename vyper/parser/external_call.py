@@ -74,7 +74,9 @@ def external_contract_call(node,
             "May not call non-constant function '%s' within %s." % (
                 method_name,
                 context.pp_constancy(),
-            ),
+            ) +
+            " For asserting the result of modifiable contract calls, try "
+            "`ret: bool = external_contract.modify();  assert ret`",
             node
         )
 
