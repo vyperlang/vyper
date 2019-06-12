@@ -1,5 +1,6 @@
 from vyper import ast
 from vyper.exceptions import (
+    ConstancyViolationException,
     FunctionDeclarationException,
     StructureException,
     TypeMismatchException,
@@ -68,6 +69,15 @@ def external_contract_call(node,
         ['assert', ['extcodesize', contract_address]],
         ['assert', ['ne', 'address', contract_address]],
     ]
+    if context.is_constant and not sig.const:
+        raise ConstancyViolationException(
+            "May not call non-constant function '%s' within %s." % (
+                method_name,
+                context.pp_constancy(),
+            ),
+            node
+        )
+
     if context.is_constant() or sig.const:
         sub.append([
             'assert',

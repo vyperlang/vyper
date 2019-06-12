@@ -257,6 +257,8 @@ def call_self_public(stmt_expr, context, sig):
     add_gas = sig.gas  # gas of call
     inargs, inargsize, _ = pack_arguments(sig, expr_args, context, pos=getpos(stmt_expr))
     output_placeholder, returner, output_size = call_make_placeholder(stmt_expr, context, sig)
+    # don't have to use static call, trust self-call since constancy analysis
+    # already propagates.
     assert_call = [
         'assert',
         ['call', ['gas'], ['address'], 0, inargs, inargsize, output_placeholder, output_size],
