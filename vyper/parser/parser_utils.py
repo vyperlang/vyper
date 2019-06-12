@@ -334,7 +334,7 @@ def add_variable_offset(parent, key, pos):
 
         subtype = typ.subtype
         sub = [
-            'uclamplt', base_type_conversion(key, key.typ, BaseType('int128'), pos=pos), typ.count
+            'uclamplt', base_type_conversion(key, key.typ, BaseType('uint256'), pos=pos), typ.count
         ]
 
         if location == 'storage':
