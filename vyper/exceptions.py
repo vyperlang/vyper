@@ -88,6 +88,10 @@ class SyntaxException(ParserException):
     pass
 
 
+class ArrayIndexException(ParserException):
+    pass
+
+
 class CompilerPanic(Exception):
 
     def __init__(self, message):
