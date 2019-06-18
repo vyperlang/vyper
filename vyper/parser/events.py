@@ -207,7 +207,8 @@ def pack_logging_data(expected_data, args, context, pos):
     if not args:
         return ['seq'], 0, None, 0
     holder = ['seq']
-    maxlen = len(args) * 32  # total size of all packed args (upper limit)
+    # total size of all packed args (upper limit)
+    maxlen = sum([get_size_of_type(arg.typ) for arg in expected_data]) * 32
 
     # Unroll any function calls, to temp variables.
     prealloacted = {}
@@ -283,12 +284,6 @@ def pack_logging_data(expected_data, args, context, pos):
     # Dynamic position starts right after the static args.
     if requires_dynamic_offset:
         holder.append(LLLnode.from_list(['mstore', dynamic_offset_counter, maxlen]))
-
-    # Calculate maximum dynamic offset placeholders, used for gas estimation.
-    for _arg, data in zip(args, expected_data):
-        typ = data.typ
-        if isinstance(typ, ByteArrayLike):
-            maxlen += 32 + ceil32(typ.maxlen)
 
     if requires_dynamic_offset:
         datamem_start = dynamic_placeholder + 32
