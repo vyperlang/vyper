@@ -346,9 +346,11 @@ def add_variable_offset(parent, key, pos):
                         'Index is %r but array size is %r' % (key.value, typ.count),
                         pos)
             sub = k
-        elif is_base_type(key.typ, 'int128'):
-            sub = ['clamplt', ['clampge', k, 0], typ.count]
         else:
+            # this works, even for int128. for int128, since two's-complement
+            # is used, if the index is negative, (unsigned) LT will interpret
+            # it as a very large number, larger than any practical value for
+            # an array index, and the clamp will throw an error.
             sub = ['uclamplt', k, typ.count]
 
         if location == 'storage':
