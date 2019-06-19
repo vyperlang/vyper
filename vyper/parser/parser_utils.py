@@ -243,7 +243,7 @@ def getpos(node):
 
 # Take a value representing a memory or storage location, and descend down to
 # an element or member variable
-def add_variable_offset(parent, key, pos):
+def add_variable_offset(parent, key, pos, array_bounds_check=True):
     typ, location = parent.typ, parent.location
     if isinstance(typ, (StructType, TupleType)):
         if isinstance(typ, StructType):
@@ -338,7 +338,9 @@ def add_variable_offset(parent, key, pos):
         if not is_base_type(key.typ, ('int128', 'uint256')):
             raise TypeMismatchException('Invalid type for array index: %r' % key.typ, pos)
 
-        if key.typ.is_literal:  # note: BaseType always has is_literal attr
+        if not array_bounds_check:
+            sub = k
+        elif key.typ.is_literal:  # note: BaseType always has is_literal attr
             # perform the check at compile time and elide the runtime check.
             if key.value < 0 or key.value >= typ.count:
                 raise ArrayIndexException(
@@ -565,9 +567,11 @@ def make_setter(left, right, location, pos, in_function_call=False):
                     left_token,
                     LLLnode.from_list(i, typ='int128'),
                     pos=pos,
+                    array_bounds_check=False,
                 ), right.args[i], location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If the right side is a null
+        # CC 20190619 probably not needed as of #1106
         elif isinstance(right.typ, NullType):
             subs = []
             for i in range(left.typ.count):
@@ -575,6 +579,7 @@ def make_setter(left, right, location, pos, in_function_call=False):
                     left_token,
                     LLLnode.from_list(i, typ='int128'),
                     pos=pos,
+                    array_bounds_check=False,
                 ), LLLnode.from_list(None, typ=NullType()), location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If the right side is a variable
@@ -586,10 +591,12 @@ def make_setter(left, right, location, pos, in_function_call=False):
                     left_token,
                     LLLnode.from_list(i, typ='int128'),
                     pos=pos,
+                    array_bounds_check=False,
                 ), add_variable_offset(
                     right_token,
                     LLLnode.from_list(i, typ='int128'),
                     pos=pos,
+                    array_bounds_check=False,
                 ), location, pos=pos))
             return LLLnode.from_list([
                 'with', '_L', left, [
