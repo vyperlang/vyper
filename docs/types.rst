@@ -50,7 +50,8 @@ Operator              Description
 ``x != y``            Inequality
 ====================  ===================
 
-The operators ``or`` and ``and`` apply the common short-circuiting rules.
+The operators ``or`` and ``and`` do not apply short-circuiting rules, i.e. both 
+`x` and `y` will always be evaluated.
 
 .. index:: ! int128, ! int, ! integer
 
