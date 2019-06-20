@@ -1,4 +1,5 @@
 import functools
+import uuid
 
 from vyper.parser.lll_node import (
     LLLnode,
@@ -64,10 +65,29 @@ def make_arg_clamper(datapos, mempos, typ, is_init=False):
         ], typ=None, annotation='checking bytearray input')
     # Lists: recurse
     elif isinstance(typ, ListType):
-        o = []
-        for i in range(typ.count):
-            offset = get_size_of_type(typ.subtype) * 32 * i
-            o.append(make_arg_clamper(datapos + offset, mempos + offset, typ.subtype, is_init))
+        if typ.count > 5 or (type(datapos) is list and type(mempos) is list):
+            subtype_size = get_size_of_type(typ.subtype)
+            i_incr = get_size_of_type(typ.subtype) * 32
+            
+            # for i in range(typ.count):
+            mem_to = subtype_size * 32 * (typ.count - 1)
+            loop_label = "_check_list_loop_%s" % str(uuid.uuid4())
+            
+            # use LOOP_FREE_INDEX to store i
+            offset = 288
+            o = [['mstore', offset, 0], # init loop
+                 ['label', loop_label],
+                 make_arg_clamper(['add', datapos, ['mload', offset]],
+                                  ['add', mempos, ['mload', offset]], typ.subtype, is_init),
+                 ['mstore', offset, ['add', ['mload', offset], i_incr]],
+                 ['if', ['lt', ['mload', offset], mem_to],
+                     ['goto', loop_label]]
+            ]
+        else:
+            o = []
+            for i in range(typ.count):
+                offset = get_size_of_type(typ.subtype) * 32 * i
+                o.append(make_arg_clamper(datapos + offset, mempos + offset, typ.subtype, is_init))
         return LLLnode.from_list(['seq'] + o, typ=None, annotation='checking list input')
     # Otherwise don't make any checks
     else:
