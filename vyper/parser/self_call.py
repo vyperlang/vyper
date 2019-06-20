@@ -111,7 +111,7 @@ def call_self_private(stmt_expr, context, sig):
             ]
         else:
             push_local_vars = [['mload', pos] for pos in range(mem_from, mem_to, 32)]
-            pop_local_vars = [['mstore', pos, 'pass'] for pos in range(mem_to - 32, mem_from - 32, -32)]
+            pop_local_vars = [['mstore', pos, 'pass'] for pos in range(mem_to-32, mem_from-32, -32)]
 
     # Push Arguments
     if expr_args:
