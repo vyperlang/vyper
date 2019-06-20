@@ -67,7 +67,7 @@ def make_arg_clamper(datapos, mempos, typ, is_init=False):
     elif isinstance(typ, ListType):
         if typ.count > 5 or (type(datapos) is list and type(mempos) is list):
             subtype_size = get_size_of_type(typ.subtype)
-            i_incr = get_size_of_type(typ.subtype) * 32
+            i_incr = subtype_size * 32
 
             # for i in range(typ.count):
             mem_to = subtype_size * 32 * (typ.count - 1)
