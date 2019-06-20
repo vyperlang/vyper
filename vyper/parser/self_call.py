@@ -88,7 +88,7 @@ def call_self_private(stmt_expr, context, sig):
         mem_from, mem_to = var_slots[0][0], var_slots[-1][0] + var_slots[-1][1] * 32
 
         i_placeholder = context.new_placeholder(BaseType('uint256'))
-        local_save_ident = "%d_%d" % (stmt_expr.lineno, stmt_expr.col_offset)
+        local_save_ident = "_%d_%d" % (stmt_expr.lineno, stmt_expr.col_offset)
         push_loop_label = 'save_locals_start' + local_save_ident
         pop_loop_label = 'restore_locals_start' + local_save_ident
 
