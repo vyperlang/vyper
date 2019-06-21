@@ -8,6 +8,7 @@ from typing import (
 
 from vyper import ast
 from vyper.exceptions import (
+    ArrayIndexException,
     InvalidLiteralException,
     StructureException,
     TypeMismatchException,
@@ -333,9 +334,24 @@ def add_variable_offset(parent, key, pos):
     elif isinstance(typ, ListType):
 
         subtype = typ.subtype
-        sub = [
-            'uclamplt', base_type_conversion(key, key.typ, BaseType('int128'), pos=pos), typ.count
-        ]
+        k = unwrap_location(key)
+        if not is_base_type(key.typ, ('int128', 'uint256')):
+            raise TypeMismatchException('Invalid type for array index: %r' % key.typ, pos)
+
+        if key.typ.is_literal:  # note: BaseType always has is_literal attr
+            # perform the check at compile time and elide the runtime check.
+            if key.value < 0 or key.value >= typ.count:
+                raise ArrayIndexException(
+                        'Array index determined to be out of bounds. '
+                        'Index is %r but array size is %r' % (key.value, typ.count),
+                        pos)
+            sub = k
+        else:
+            # this works, even for int128. for int128, since two's-complement
+            # is used, if the index is negative, (unsigned) LT will interpret
+            # it as a very large number, larger than any practical value for
+            # an array index, and the clamp will throw an error.
+            sub = ['uclamplt', k, typ.count]
 
         if location == 'storage':
             return LLLnode.from_list(['add', ['sha3_32', parent], sub],
