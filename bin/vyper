@@ -6,6 +6,9 @@ from collections import (
 import json
 import os
 import sys
+from typing import (
+    Dict,
+)
 import warnings
 
 import vyper
@@ -122,7 +125,7 @@ if __name__ == '__main__':
     if args.show_gas_estimates:
         parser_utils.LLLnode.repr_show_gas = True
 
-    codes = OrderedDict()
+    codes: Dict[str, str] = OrderedDict()
     for file_name in args.input_files:
         with open(file_name) as fh:
             codes[file_name] = fh.read()
