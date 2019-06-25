@@ -129,6 +129,7 @@ install and test commands:
     git clone https://github.com/ethereum/vyper.git
     cd vyper
     make
+    make dev-deps
     make test
 
 Additionally, you may try to compile an example contract by running:
@@ -159,6 +160,7 @@ If any unexpected errors or exceptions are encountered, please feel free create 
     ::
 
         make
+        make dev-deps
         make test
 
     If you get the error `ld: library not found for -lyaml` in the output of `make`, make sure `libyaml` is installed using `brew info libyaml`. If it is installed, add its location to the compile flags as well:
