@@ -303,11 +303,13 @@ def get_contract_with_gas_estimation_for_constants(w3):
 
 @pytest.fixture
 def assert_tx_failed(tester):
-    def assert_tx_failed(function_to_test, exception=TransactionFailed):
+    def assert_tx_failed(function_to_test, exception=TransactionFailed, exc_text=None):
         snapshot_id = tester.take_snapshot()
-        with pytest.raises(exception):
+        with pytest.raises(exception) as excinfo:
             function_to_test()
         tester.revert_to_snapshot(snapshot_id)
+        if exc_text:
+            assert exc_text in str(excinfo.value)
     return assert_tx_failed
 
 
