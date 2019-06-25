@@ -67,4 +67,3 @@ def test_events(w3, adv_storage_contract, get_logs):
     assert logs2[0].args._setter == k2
 
     assert not logs3   # tx3 does not generate a log
-
