@@ -1,4 +1,5 @@
 import pytest
+
 from web3.exceptions import ValidationError
 
 INITIAL_VALUE = 4
