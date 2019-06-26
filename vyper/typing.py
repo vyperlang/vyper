@@ -8,6 +8,7 @@ ClassTypes = Dict[str, str]
 ParserPosition = Tuple[int, int]
 
 # Compiler
+ContractName = str
 SourceCode = str
 
 # Interfaces

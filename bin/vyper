@@ -22,6 +22,9 @@ from vyper.parser import (
 from vyper.signatures.interface import (
     extract_file_interface_imports,
 )
+from vyper.typing import (
+    ContractName,
+)
 
 warnings.simplefilter('always')
 
@@ -100,7 +103,7 @@ def uniq(seq: Iterable[T]) -> List[T]:
     return result
 
 
-def exc_handler(contract_name, exception):
+def exc_handler(contract_name: ContractName, exception: Exception) -> None:
     print('Error compiling: ', contract_name)
     raise exception
 
