@@ -10,6 +10,7 @@ ParserPosition = Tuple[int, int]
 # Compiler
 ContractName = str
 SourceCode = str
+ContractCodes = Dict[ContractName, SourceCode]
 
 # Interfaces
 InterfaceAsName = str
