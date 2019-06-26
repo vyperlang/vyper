@@ -212,7 +212,7 @@ def extract_file_interface_imports(code: SourceCode) -> InterfaceImports:
                     )
                 if a_name.asname in imports_dict:
                     raise StructureException(
-                        'Interface with Alias {} already exists'.format(a_name.asname),
+                        'Interface with alias {} already exists'.format(a_name.asname),
                         item,
                     )
                 imports_dict[a_name.asname] = a_name.name

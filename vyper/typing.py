@@ -3,7 +3,7 @@ from typing import (
     Tuple,
 )
 
-# Parser types
+# Parser
 ClassTypes = Dict[str, str]
 ParserPosition = Tuple[int, int]
 
