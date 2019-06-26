@@ -8,6 +8,10 @@ import os
 import sys
 from typing import (
     Dict,
+    Iterable,
+    List,
+    Set,
+    TypeVar,
 )
 import warnings
 
@@ -76,9 +80,24 @@ elif not args.debug:
     sys.tracebacklimit = 0
 
 
-def uniq(seq):
-    exists = set()
-    return [x for x in seq if not (x in exists or exists.add(x))]
+T = TypeVar('T')
+
+
+def uniq(seq: Iterable[T]) -> List[T]:
+    """
+    Returns unique items in ``seq`` in order.
+    """
+    seen: Set[T] = set()
+    result = []
+
+    for x in seq:
+        if x in seen:
+            continue
+
+        seen.add(x)
+        result.append(x)
+
+    return result
 
 
 def exc_handler(contract_name, exception):
