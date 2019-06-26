@@ -115,11 +115,6 @@ def parse_public_function(code: ast.FunctionDef,
     elif sig.name == '__init__':
         copier = ['codecopy', MemoryPositions.RESERVED_MEMORY, '~codelen', sig.base_copy_size]
         context.memory_allocator.increase_memory(sig.max_copy_size)
-    # else:
-    #     copier = get_public_arg_copier(
-    #         total_size=sig.base_copy_size,
-    #         memory_dest=MemoryPositions.RESERVED_MEMORY
-    #     )
     clampers.append(copier)
 
     # Add asserts for payable and internal

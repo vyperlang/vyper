@@ -7,9 +7,9 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
+    ConstancyViolationException,
     TypeMismatchException,
     VariableDeclarationException,
-    ConstancyViolationException,
 )
 
 fail_list = [

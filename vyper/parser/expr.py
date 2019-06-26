@@ -262,7 +262,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             return LLLnode.from_list(
                 var.pos,
                 typ=var.typ,
-                location='memory',
+                location=var.location,
                 pos=getpos(self.expr),
                 annotation=self.expr.id,
                 mutable=var.mutable,
@@ -1112,7 +1112,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
     def parse_value_expr(cls, expr, context):
         return unwrap_location(cls(expr, context).lll_node)
 
-    # Parse an expression that represents an address in memory or storage
+    # Parse an expression that represents an address in memory/calldata or storage.
     @classmethod
     def parse_variable_location(cls, expr, context):
         o = cls(expr, context).lll_node

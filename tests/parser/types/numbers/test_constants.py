@@ -210,7 +210,7 @@ def test(some_dynamic_var: uint256) -> uint256:
     """
 
     lll = compile_code(code, ['ir'])['ir']
-    assert search_for_sublist(lll, ['add', ['mload', [320]], [4096]])
+    assert search_for_sublist(lll, ['add', ['calldataload', [4]], [4096]])
 
 
 def test_constant_lists(get_contract):
