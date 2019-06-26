@@ -9,6 +9,7 @@ from typing import (
 from vyper import ast
 from vyper.exceptions import (
     ArrayIndexException,
+    ConstancyViolationException,
     InvalidLiteralException,
     StructureException,
     TypeMismatchException,
@@ -286,13 +287,13 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
                 typ=subtype,
                 location='storage',
             )
-        elif location == 'memory':
+        elif location in ('calldata', 'memory'):
             offset = 0
             for i in range(index):
                 offset += 32 * get_size_of_type(typ.members[attrs[i]])
             return LLLnode.from_list(['add', offset, parent],
                                      typ=typ.members[key],
-                                     location='memory',
+                                     location=location,
                                      annotation=annotation)
         else:
             raise TypeMismatchException("Not expecting a member variable access", pos)
@@ -326,7 +327,7 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
             return LLLnode.from_list(['sha3_64', parent, sub],
                                      typ=subtype,
                                      location='storage')
-        elif location == 'memory':
+        elif location in ('memory', 'calldata'):
             raise TypeMismatchException(
                 "Can only have fixed-side arrays in memory, not mappings", pos
             )
@@ -363,12 +364,12 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
             return LLLnode.from_list(['add', parent, sub],
                                      typ=subtype,
                                      location='storage')
-        elif location == 'memory':
+        elif location in ('calldata', 'memory'):
             offset = 32 * get_size_of_type(subtype)
             return LLLnode.from_list(
                 ['add', ['mul', offset, sub], parent],
                 typ=subtype,
-                location='memory',
+                location=location,
             )
         else:
             raise TypeMismatchException("Not expecting an array access ", pos)
@@ -426,6 +427,8 @@ def unwrap_location(orig):
         return LLLnode.from_list(['mload', orig], typ=orig.typ)
     elif orig.location == 'storage':
         return LLLnode.from_list(['sload', orig], typ=orig.typ)
+    elif orig.location == 'calldata':
+        return LLLnode.from_list(['calldataload', orig], typ=orig.typ)
     else:
         return orig
 
@@ -690,6 +693,11 @@ def make_setter(left, right, location, pos, in_function_call=False):
             subs = []
             static_offset_counter = 0
             zipped_components = zip(left.args, right.typ.members, locations)
+            for var_arg in left.args:
+                if var_arg.location == 'calldata':
+                    raise ConstancyViolationException(
+                        f"Cannot modify function argument: {var_arg.annotation}", pos
+                    )
             for left_arg, right_arg, loc in zipped_components:
                 if isinstance(right_arg, ByteArrayLike):
                     RType = ByteArrayType if isinstance(right_arg, ByteArrayType) else StringType
