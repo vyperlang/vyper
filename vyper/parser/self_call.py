@@ -82,8 +82,11 @@ def call_self_private(stmt_expr, context, sig):
     push_args = []
 
     # Push local variables.
-    if context.vars:
-        var_slots = [(v.pos, v.size) for name, v in context.vars.items()]
+    var_slots = [
+        (v.pos, v.size) for name, v in context.vars.items()
+        if v.location == 'memory'
+    ]
+    if var_slots:
         var_slots.sort(key=lambda x: x[0])
         mem_from, mem_to = var_slots[0][0], var_slots[-1][0] + var_slots[-1][1] * 32
         push_local_vars = [
