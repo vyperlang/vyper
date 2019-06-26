@@ -186,7 +186,7 @@ class LLLnode:
                         "be zerovalent: %r"
                     ) % self.args[3])
                 self.valency = 0
-                if self.args[1].value == 'mload' or self.args[1].value == 'sload':
+                if self.args[1].value in ('calldataload', 'mload') or self.args[1].value == 'sload':
                     rounds = self.args[2].value
                 else:
                     rounds = abs(self.args[2].value - self.args[1].value)
