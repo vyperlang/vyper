@@ -172,7 +172,11 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder,
             check_list_type_match(context.vars[arg.id].typ.subtype)
             mem_offset = 0
             for _ in range(0, size):
-                arg2 = LLLnode.from_list(pos + mem_offset, typ=typ, location='memory')
+                arg2 = LLLnode.from_list(
+                    pos + mem_offset,
+                    typ=typ,
+                    location=context.vars[arg.id].location
+                )
                 holder, maxlen = pack_args_by_32(
                     holder,
                     maxlen,
