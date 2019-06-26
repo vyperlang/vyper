@@ -49,12 +49,14 @@ Rounds a decimal up to the nearest integer.
     :param a: value to convert
     :type a: either bool, decimal, int128, uint256 or bytes32
     :param b: the destination type to convert to
-    :type b: type of either decimal, int128, uint256 or bytes32
+    :type b: type of either bool, decimal, int128, uint256 or bytes32
 
     :output c: either decimal, int128, uint256 or bytes32
     """
 
-Converts a variable/ literal from one type to another.
+Converts a variable / literal from one type to another.
+
+For more details on available type conversions, see :ref:`type_conversions`.
 
 **clear**
 -------------------------
