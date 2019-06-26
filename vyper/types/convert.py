@@ -303,7 +303,7 @@ def to_decimal(expr, args, kwargs, context):
             raise InvalidLiteralException("Invalid input for decimal: %r" % in_arg, expr)
 
 
-@signature(('int128', 'uint256', 'address', 'bytes', 'bool'), '*')
+@signature(('int128', 'uint256', 'address', 'bytes', 'bool', 'decimal'), '*')
 def to_bytes32(expr, args, kwargs, context):
     in_arg = args[0]
     input_type, _len = get_type(in_arg)

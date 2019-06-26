@@ -80,3 +80,64 @@ def testConvertBytes32(flag: bool) -> bytes32:
     trueBytes = c.testConvertBytes32(True)
     assert trueBytes[31:32] == b'\x01'
     assert len(trueBytes) == 32
+
+
+def test_convert_from_decimal(get_contract_with_gas_estimation):
+    code = """
+bar: decimal
+nar: decimal
+mar: decimal
+
+@public
+def foo() -> bytes32:
+    return convert(0.0, bytes32)
+
+@public
+def foobar() -> bytes32:
+    self.bar = 0.0
+    return convert(self.bar, bytes32)
+
+@public
+def hoo() -> bytes32:
+    return convert(MIN_DECIMAL, bytes32)
+
+@public
+def hoonar() -> bytes32:
+    self.nar = MIN_DECIMAL
+    return convert(self.nar, bytes32)
+
+@public
+def goo() -> bytes32:
+    return convert(MAX_DECIMAL, bytes32)
+
+@public
+def goomar() -> bytes32:
+    self.mar = MAX_DECIMAL
+    return convert(self.mar, bytes32)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    fooVal = c.foo()
+    foobarVal = c.foobar()
+    assert fooVal == (b"\x00" * 32)
+    assert len(fooVal) == 32
+    assert foobarVal == (b"\x00" * 32)
+    assert len(foobarVal) == 32
+    assert fooVal == foobarVal
+
+    hooVal = c.hoo()
+    hoonarVal = c.hoonar()
+    assert hooVal[0:11] == (b"\xff" * 11)
+    assert len(hooVal) == 32
+    assert hoonarVal[0:11] == (b"\xff" * 11)
+    assert len(hoonarVal) == 32
+    assert hooVal == hoonarVal
+
+    gooVal = c.goo()
+    goomarVal = c.goomar()
+    assert gooVal[0:11] == (b"\x00" * 11)
+    assert len(gooVal) == 32
+    assert goomarVal[0:11] == (b"\x00" * 11)
+    assert len(goomarVal) == 32
+    assert gooVal == goomarVal
