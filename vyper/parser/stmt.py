@@ -5,6 +5,7 @@ from vyper.ast_utils import (
     ast_to_dict,
 )
 from vyper.exceptions import (
+    CompilerPanic,
     ConstancyViolationException,
     EventDeclarationException,
     InvalidLiteralException,
@@ -642,12 +643,21 @@ class Stmt(object):
             # make sure list cannot be altered whilst iterating.
             with self.context.in_for_loop_scope(list_name):
                 iter_var = self.context.vars.get(self.stmt.iter.id)
+                if iter_var.location == 'calldata':
+                    fetcher = 'calldataload'
+                elif iter_var.location == 'memory':
+                    fetcher = 'mload'
+                else:
+                    raise CompilerPanic(
+                        'List iteration only supported on in-memory types',
+                        self.expr
+                    )
                 body = [
                     'seq',
                     [
                         'mstore',
                         value_pos,
-                        ['mload', ['add', iter_var.pos, ['mul', ['mload', i_pos], 32]]],
+                        [fetcher, ['add', iter_var.pos, ['mul', ['mload', i_pos], 32]]],
                     ],
                     parse_body(self.stmt.body, self.context)
                 ]
