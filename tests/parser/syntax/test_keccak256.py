@@ -40,9 +40,9 @@ def foo():
 ]
 
 
-@pytest.mark.parametrize('bad_code', type_fail_list)
+@pytest.mark.parametrize('bad_code', structure_fail_list)
 def test_block_structure_fail(bad_code):
-    with raises(TypeMismatchException):
+    with raises(StructureException):
         compiler.compile_code(bad_code)
 
 
