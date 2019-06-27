@@ -86,12 +86,32 @@ def call_self_private(stmt_expr, context, sig):
         var_slots = [(v.pos, v.size) for name, v in context.vars.items()]
         var_slots.sort(key=lambda x: x[0])
         mem_from, mem_to = var_slots[0][0], var_slots[-1][0] + var_slots[-1][1] * 32
-        push_local_vars = [
-            ['mload', pos] for pos in range(mem_from, mem_to, 32)
-        ]
-        pop_local_vars = [
-            ['mstore', pos, 'pass'] for pos in reversed(range(mem_from, mem_to, 32))
-        ]
+
+        i_placeholder = context.new_placeholder(BaseType('uint256'))
+        local_save_ident = "_%d_%d" % (stmt_expr.lineno, stmt_expr.col_offset)
+        push_loop_label = 'save_locals_start' + local_save_ident
+        pop_loop_label = 'restore_locals_start' + local_save_ident
+
+        if mem_to - mem_from > 320:
+            push_local_vars = [
+                    ['mstore', i_placeholder, mem_from],
+                    ['label', push_loop_label],
+                    ['mload', ['mload', i_placeholder]],
+                    ['mstore', i_placeholder, ['add', ['mload', i_placeholder], 32]],
+                    ['if', ['lt', ['mload', i_placeholder], mem_to],
+                        ['goto', push_loop_label]]
+            ]
+            pop_local_vars = [
+                ['mstore', i_placeholder, mem_to - 32],
+                ['label', pop_loop_label],
+                ['mstore', ['mload', i_placeholder], 'pass'],
+                ['mstore', i_placeholder, ['sub', ['mload', i_placeholder], 32]],
+                ['if', ['ge', ['mload', i_placeholder], mem_from],
+                       ['goto', pop_loop_label]]
+            ]
+        else:
+            push_local_vars = [['mload', pos] for pos in range(mem_from, mem_to, 32)]
+            pop_local_vars = [['mstore', pos, 'pass'] for pos in range(mem_to-32, mem_from-32, -32)]
 
     # Push Arguments
     if expr_args:
