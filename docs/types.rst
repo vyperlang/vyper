@@ -544,4 +544,158 @@ Here you can find a list of all types and default values:
 .. note::
     In reference types all the type's members are set to their initial values.
 
+
+.. _type_conversions:
+
+**************
+Type Conversions
+**************
+
+All type conversions in Vyper must be made explicitly using the built-in ``convert(a, b)`` function. Currently, the following type conversions are supported:
+
+.. list-table:: Basic Type Conversions
+   :header-rows: 1
+
+   * - Destination Type (b)
+     - Input Type (a.type)
+     - Allowed Inputs Values (a)
+     - Additional Notes
+   * - ``bool``
+     - ``bool``
+     - `—`
+     - Do not allow converting to/from the same type
+   * - ``bool``
+     - ``decimal``
+     - ``MINNUM...MAXNUM``
+     - Has the effective conversion logic of: ``return (a != 0.0)``
+   * - ``bool``
+     - ``int128``
+     - ``MINNUM...MAXNUM``
+     - Has the effective conversion logic of: ``return (a != 0)``
+   * - ``bool``
+     - ``uint256``
+     - ``0...MAX_UINT256``
+     - Has the effective conversion logic of: ``return (a != 0)``
+   * - ``bool``
+     - ``bytes32``
+     - ``(0x00 * 32)...(0xFF * 32)``
+     - Has the effective conversion logic of: ``return (a != 0x00)``
+   * - ``bool``
+     - ``bytes``
+     - ``(0x00 * 1)...(0xFF * 32)``
+     - Has the effective conversion logic of: ``return (a != 0x00)``
+   * -
+     -
+     -
+     -
+   * - ``decimal``
+     - ``bool``
+     - ``True / False``
+     - Result will be ``0.0`` or ``1.0``
+   * - ``decimal``
+     - ``decimal``
+     - —
+     - Do not allow converting to/from the same type
+   * - ``decimal``
+     - ``int128``
+     - ``MINNUM...MAXNUM``
+     -
+   * - ``decimal``
+     - ``uint256``
+     - ``0...MAXDECIMAL``
+     -
+   * - ``decimal``
+     - ``bytes32``
+     - ``(0x00 * 32)...(0xFF * 32)``
+     -
+   * - ``decimal``
+     - ``bytes``
+     - ``(0x00 * 1)...(0xFF * 32)``
+     -
+   * -
+     -
+     -
+     -
+   * - ``int128``
+     - ``bool``
+     - ``True / False``
+     - Result will be ``0`` or ``1``
+   * - ``int128``
+     - ``decimal``
+     - ``MINNUM...MAXNUM``
+     - Only allow input within ``int128`` supported range, truncates the decimal value
+   * - ``int128``
+     - ``int128``
+     - —
+     - Do not allow converting to/from the same type
+   * - ``int128``
+     - ``uint256``
+     - ``0...MAXNUM``
+     -
+   * - ``int128``
+     - ``bytes32``
+     - ``(0x00 * 32)...(0xFF * 32)``
+     -
+   * - ``int128``
+     - ``bytes``
+     - ``(0x00 * 1)...(0xFF * 32)``
+     -
+   * -
+     -
+     -
+     -
+   * - ``uint256``
+     - ``bool``
+     - ``True / False``
+     - Result will be ``0`` or ``1``
+   * - ``uint256``
+     - ``decimal``
+     - ``0...MAXDECIMAL``
+     - Truncates the ``decimal`` value
+   * - ``uint256``
+     - ``int128``
+     - ``0...MAXNUM``
+     -
+   * - ``uint256``
+     - ``uint256``
+     - —
+     - Do not allow converting to/from the same type
+   * - ``uint256``
+     - ``bytes32``
+     - ``(0x00 * 32)...(0xFF * 32)``
+     -
+   * - ``uint256``
+     - ``bytes``
+     - ``(0x00 * 1)...(0xFF * 32)``
+     -
+   * -
+     -
+     -
+     -
+   * - ``bytes32``
+     - ``bool``
+     - ``True / False``
+     - Result will be either ``(0x00 * 32)`` or ``(0x00 * 31 + 0x01)``
+   * - ``bytes32``
+     - ``decimal``
+     - ``MINDECIMAL...MAXDECIMAL``
+     - Has the effective behavior of multiplying the ``decimal`` value by the decimal divisor ``10000000000`` and then converting that signed *integer* value to a ``bytes32`` byte array
+   * - ``bytes32``
+     - ``int128``
+     - ``MINNUM...MAXNUM``
+     -
+   * - ``bytes32``
+     - ``uint256``
+     - ``0...MAX_UINT256``
+     -
+   * - ``bytes32``
+     - ``bytes32``
+     - —
+     - Do not allow converting to/from the same type
+   * - ``bytes32``
+     - ``bytes``
+     - ``(0x00 * 1)...(0xFF * 32)``
+     - Left-pad input ``bytes`` to size of ``32``
+
+
 .. index:: !conversion
