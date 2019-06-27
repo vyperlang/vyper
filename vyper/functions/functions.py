@@ -305,6 +305,7 @@ def concat(expr, context):
         annotation='concat',
     )
 
+
 @signature(('bytes_literal', 'str_literal', 'bytes', 'string', 'bytes32'))
 def _sha3(expr, args, kwargs, context):
     raise StructureException("sha3 function has been deprecated in favor of keccak256")
