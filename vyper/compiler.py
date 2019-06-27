@@ -225,7 +225,7 @@ def compile_codes(codes,
     for contract_name, code in codes.items():
         for output_format in output_formats:
             if output_format not in output_formats_map:
-                raise Exception('Unsupported format type %s.' % output_format)
+                raise ValueError(f'Unsupported format type {repr(output_format)}')
 
             try:
                 out.setdefault(contract_name, {})
@@ -245,7 +245,7 @@ def compile_codes(codes,
     elif output_type == 'dict':
         return out
     else:
-        raise Exception('Unknown output_type')
+        raise ValueError(f'Unsupported output type {repr(output_type)}')
 
 
 def compile_code(code, output_formats=None, interface_codes=None):
