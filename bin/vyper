@@ -111,6 +111,7 @@ def exc_handler(contract_name: ContractName, exception: Exception) -> None:
 
 def get_interface_codes(codes: ContractCodes) -> Any:
     interface_codes = {}
+    interfaces = {}
 
     for code in codes.values():
         interface_codes.update(extract_file_interface_imports(code))
@@ -132,16 +133,17 @@ def get_interface_codes(codes: ContractCodes) -> Any:
             with open(valid_path) as fh:
                 code = fh.read()
                 if valid_path.endswith('.json'):
-                    interface_codes[interface_name] = {
+                    interfaces[interface_name] = {
                         'type': 'json',
                         'code': json.loads(code.encode())
                     }
                 else:
-                    interface_codes[interface_name] = {
+                    interfaces[interface_name] = {
                         'type': 'vyper',
                         'code': code
                     }
-    return interface_codes
+
+    return interfaces
 
 
 if __name__ == '__main__':

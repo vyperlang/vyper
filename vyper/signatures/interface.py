@@ -25,8 +25,8 @@ from vyper.signatures.function_signature import (
     FunctionSignature,
 )
 from vyper.typing import (
-    SourceCode,
     InterfaceImports,
+    SourceCode,
 )
 
 
@@ -219,8 +219,8 @@ def extract_file_interface_imports(code: SourceCode) -> InterfaceImports:
 
     return imports_dict
 
-def check_valid_contract_interface(global_ctx, contract_sigs):
 
+def check_valid_contract_interface(global_ctx, contract_sigs):
     if global_ctx._interface:
         funcs_left = global_ctx._interface.copy()
 
