@@ -679,7 +679,7 @@ All type conversions in Vyper must be made explicitly using the built-in ``conve
    * - ``bytes32``
      - ``decimal``
      - ``MINDECIMAL...MAXDECIMAL``
-     -
+     - Has the effective behavior of multiplying the ``decimal`` value by the decimal divisor ``10000000000`` and then converting that signed *integer* value to a ``bytes32`` byte array
    * - ``bytes32``
      - ``int128``
      - ``MINNUM...MAXNUM``
