@@ -1,5 +1,5 @@
 from vyper.compiler import (
-    compile_codes,
+    compile_code,
     mk_full_signature,
 )
 
@@ -56,11 +56,10 @@ def foo(x: uint256) -> bytes[100]:
     return b"hello"
     """
 
-    out = compile_codes(
-        codes={'t.vy': code},
+    out = compile_code(
+        code,
         output_formats=['method_identifiers'],
-        output_type='list'
-    )[0]
+    )
 
     assert out['method_identifiers'] == {
         'foo(uint256)': '0x2fbebd38',

@@ -215,7 +215,6 @@ output_formats_map = {
 
 def compile_codes(codes,
                   output_formats=None,
-                  output_type='list',
                   exc_handler=None,
                   interface_codes=None):
     if output_formats is None:
@@ -240,14 +239,17 @@ def compile_codes(codes,
                 else:
                     raise exc
 
-    if output_type == 'list':
-        return [v for v in out.values()]
-    elif output_type == 'dict':
-        return out
-    else:
-        raise ValueError(f'Unsupported output type {repr(output_type)}')
+    return out
+
+
+UNKNOWN_CONTRACT_NAME = '<unknown>'
 
 
 def compile_code(code, output_formats=None, interface_codes=None):
-    codes = {'': code}
-    return compile_codes(codes, output_formats, 'list', interface_codes=interface_codes)[0]
+    codes = {UNKNOWN_CONTRACT_NAME: code}
+
+    return compile_codes(
+        codes,
+        output_formats,
+        interface_codes=interface_codes,
+    )[UNKNOWN_CONTRACT_NAME]

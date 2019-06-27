@@ -60,7 +60,7 @@ contract One:
     def test(_owner: address): modifying
     """
 
-    out = compile_codes({'one.vy': code}, ['external_interface'])[0]
+    out = compile_codes({'one.vy': code}, ['external_interface'])['one.vy']
     out = out['external_interface']
 
     assert interface.strip() == out.strip()
@@ -79,7 +79,7 @@ def test() -> bool:
     """
 
     assert_compile_failed(
-        lambda: compile_codes({'one.vy': code}),
+        lambda: compile_code(code),
         StructureException
     )
 
@@ -121,7 +121,7 @@ def bar() -> uint256:
     return 2
     """
 
-    assert compile_codes({'one.vy': code}, interface_codes=interface_codes)[0]
+    assert compile_code(code, interface_codes=interface_codes)
 
     not_implemented_code = """
 import a as FooBarInterface
@@ -135,7 +135,7 @@ def foo() -> uint256:
     """
 
     assert_compile_failed(
-        lambda: compile_codes({'one.vy': not_implemented_code}, interface_codes=interface_codes)[0],
+        lambda: compile_code(not_implemented_code, interface_codes=interface_codes),
         StructureException
     )
 

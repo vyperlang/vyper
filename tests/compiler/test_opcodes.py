@@ -8,7 +8,7 @@ def a() -> bool:
     return True
     """
 
-    out = vyper.compile_codes({'': code}, ['opcodes_runtime', 'opcodes'])[0]
+    out = vyper.compile_code(code, ['opcodes_runtime', 'opcodes'])
 
     assert len(out['opcodes']) > len(out['opcodes_runtime'])
     assert out['opcodes_runtime'] in out['opcodes']

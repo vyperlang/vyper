@@ -92,7 +92,6 @@ class VyperRequestHandler(BaseHTTPRequestHandler):
             out_dict = vyper.compile_codes(
                 {'': code},
                 vyper.compiler.output_formats_map.keys(),
-                output_type='dict',
             )['']
             out_dict['ir'] = str(out_dict['ir'])
         except ParserException as e:

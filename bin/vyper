@@ -158,7 +158,6 @@ if __name__ == '__main__':
         out = vyper.compile_codes(
             codes,
             ['bytecode', 'bytecode_runtime', 'abi', 'source_map', 'method_identifiers'],
-            output_type='dict',
             exc_handler=exc_handler,
             interface_codes=get_interface_codes(codes)
         )
@@ -177,13 +176,12 @@ if __name__ == '__main__':
         for f in orig_args:
             formats.append(translate_map.get(f, f))
 
-        out_list = vyper.compile_codes(
+        out_list = list(vyper.compile_codes(
             codes,
             formats,
-            output_type='list',
             exc_handler=exc_handler,
             interface_codes=get_interface_codes(codes)
-        )
+        ).values())
 
         for out in out_list:
             for f in orig_args:
