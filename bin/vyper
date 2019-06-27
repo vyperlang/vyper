@@ -9,7 +9,7 @@ import sys
 from typing import (
     Any,
     Iterable,
-    List,
+    Iterator,
     Set,
     TypeVar,
 )
@@ -87,21 +87,18 @@ elif not args.debug:
 T = TypeVar('T')
 
 
-def uniq(seq: Iterable[T]) -> List[T]:
+def uniq(seq: Iterable[T]) -> Iterator[T]:
     """
-    Returns unique items in ``seq`` in order.
+    Yield unique items in ``seq`` in order.
     """
     seen: Set[T] = set()
-    result = []
 
     for x in seq:
         if x in seen:
             continue
 
         seen.add(x)
-        result.append(x)
-
-    return result
+        yield x
 
 
 def exc_handler(contract_name: ContractName, exception: Exception) -> None:
@@ -173,7 +170,7 @@ if __name__ == '__main__':
             'ast': 'ast_dict'
         }
         formats = []
-        orig_args = uniq(args.format.split(','))
+        orig_args = tuple(uniq(args.format.split(',')))
 
         for f in orig_args:
             formats.append(translate_map.get(f, f))
