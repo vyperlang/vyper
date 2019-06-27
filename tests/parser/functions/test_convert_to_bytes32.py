@@ -82,11 +82,27 @@ def testConvertBytes32(flag: bool) -> bytes32:
     assert len(trueBytes) == 32
 
 
+#################################################################################
+# NOTE: Vyper uses a decimal divisor of 10000000000 (or 10^10).
+#
+#       This means that `decimal` type variables can store values
+#       that are of 1/10000000000.
+#
+#       Because of this, when converting from `decimal` to `bytes32`,
+#       the conversion can be thought of as converting integer result of
+#       the decimal value of interest multiplied by 10000000000.
+#
+#       For example, converting the decimal value `5.0` to `byte32`
+#       can be thought of as giving the `bytes32` value of the integer
+#       result of 5 * 10000000000 = 50000000000
+#################################################################################
 def test_convert_from_decimal(get_contract_with_gas_estimation):
     code = """
 bar: decimal
 nar: decimal
 mar: decimal
+jar: decimal
+kar: decimal
 
 @public
 def foo() -> bytes32:
@@ -114,9 +130,28 @@ def goo() -> bytes32:
 def goomar() -> bytes32:
     self.mar = MAX_DECIMAL
     return convert(self.mar, bytes32)
+
+@public
+def zoo() -> bytes32:
+    return convert(5.0, bytes32)
+
+@public
+def zoojar() -> bytes32:
+    self.jar = 5.0
+    return convert(self.jar, bytes32)
+
+@public
+def xoo() -> bytes32:
+    return convert(-5.0, bytes32)
+
+@public
+def xookar() -> bytes32:
+    self.kar = -5.0
+    return convert(self.kar, bytes32)
     """
 
     c = get_contract_with_gas_estimation(code)
+    decimal_divisor = 10000000000
 
     fooVal = c.foo()
     foobarVal = c.foobar()
@@ -128,16 +163,24 @@ def goomar() -> bytes32:
 
     hooVal = c.hoo()
     hoonarVal = c.hoonar()
-    assert hooVal[0:11] == (b"\xff" * 11)
-    assert len(hooVal) == 32
-    assert hoonarVal[0:11] == (b"\xff" * 11)
-    assert len(hoonarVal) == 32
-    assert hooVal == hoonarVal
+    _hoo = ((-2**127) * 10000000000).to_bytes(32, byteorder="big", signed=True)
+    assert hooVal == _hoo
+    assert hoonarVal == _hoo
 
     gooVal = c.goo()
     goomarVal = c.goomar()
-    assert gooVal[0:11] == (b"\x00" * 11)
-    assert len(gooVal) == 32
-    assert goomarVal[0:11] == (b"\x00" * 11)
-    assert len(goomarVal) == 32
-    assert gooVal == goomarVal
+    _goo = ((2**127 - 1) * 10000000000).to_bytes(32, byteorder="big", signed=True)
+    assert gooVal == _goo
+    assert goomarVal == _goo
+
+    zooVal = c.zoo()
+    zoojarVal = c.zoojar()
+    _zoo = (5 * 10000000000).to_bytes(32, byteorder="big", signed=True)
+    assert zooVal == _zoo
+    assert zoojarVal == _zoo
+
+    xooVal = c.xoo()
+    xookarVal = c.xookar()
+    _xoo = (-5 * 10000000000).to_bytes(32, byteorder="big", signed=True)
+    assert xooVal == _xoo
+    assert xookarVal == _xoo
