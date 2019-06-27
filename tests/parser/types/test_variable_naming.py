@@ -20,6 +20,11 @@ def foo(max: int128) -> int128:
 @public
 def foo(len: int128, sha3: int128) -> int128:
     return len+sha3
+    """,
+    """
+@public
+def foo(len: int128, keccak256: int128) -> int128:
+    return len+keccak256
     """
 ]
 

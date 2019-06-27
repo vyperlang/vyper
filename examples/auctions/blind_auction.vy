@@ -43,7 +43,7 @@ def __init__(_beneficiary: address, _biddingTime: timedelta, _revealTime: timede
 
 # Place a blinded bid with:
 #
-# _blindedBid = sha3(concat(
+# _blindedBid = keccak256(concat(
 #       convert(value, bytes32),
 #       convert(fake, bytes32),
 #       secret)
@@ -117,7 +117,7 @@ def reveal(_numBids: int128, _values: wei_value[128], _fakes: bool[128], _secret
         value: wei_value = _values[i]
         fake: bool = _fakes[i]
         secret: bytes32 = _secrets[i]
-        blindedBid: bytes32 = sha3(concat(
+        blindedBid: bytes32 = keccak256(concat(
             convert(value, bytes32),
             convert(fake, bytes32),
             secret

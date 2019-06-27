@@ -35,7 +35,7 @@ from vyper.utils import (
     function_whitelist,
     is_varname_valid,
     iterable_cast,
-    sha3,
+    keccak256,
 )
 
 
@@ -289,7 +289,7 @@ class FunctionSignature:
         sig = cls.get_full_sig(name, code.args.args, sigs, custom_units, custom_structs, constants)
 
         # Take the first 4 bytes of the hash of the sig to get the method ID
-        method_id = fourbytes_to_int(sha3(bytes(sig, 'utf-8'))[:4])
+        method_id = fourbytes_to_int(keccak256(bytes(sig, 'utf-8'))[:4])
         return cls(
             name,
             args,

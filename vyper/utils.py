@@ -15,10 +15,10 @@ from vyper.opcodes import (
 
 try:
     from Crypto.Hash import keccak
-    sha3 = lambda x: keccak.new(digest_bits=256, data=x).digest()  # noqa: E731
+    keccak256 = lambda x: keccak.new(digest_bits=256, data=x).digest()  # noqa: E731
 except ImportError:
     import sha3 as _sha3
-    sha3 = lambda x: _sha3.sha3_256(x).digest()  # noqa: E731
+    keccak256 = lambda x: _sha3.sha3_256(x).digest()  # noqa: E731
 
 
 # Converts four bytes to an integer
@@ -56,7 +56,7 @@ def bytes_to_int(bytez):
 def checksum_encode(addr):  # Expects an input of the form 0x<40 hex chars>
     assert addr[:2] == '0x' and len(addr) == 42
     o = ''
-    v = bytes_to_int(sha3(addr[2:].lower().encode('utf-8')))
+    v = bytes_to_int(keccak256(addr[2:].lower().encode('utf-8')))
     for i, c in enumerate(addr[2:]):
         if c in '0123456789':
             o += c

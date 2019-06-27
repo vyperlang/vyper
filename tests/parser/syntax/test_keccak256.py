@@ -8,24 +8,23 @@ from vyper import (
 )
 from vyper.exceptions import (
     TypeMismatchException,
+    SyntaxException,
 )
 
-fail_list = [
+type_fail_list = [
     """
 @public
 def foo():
-    x: bytes32 = sha3(3)
+    x: bytes32 = keccak256(3)
     """
 ]
 
-
-@pytest.mark.parametrize('bad_code', fail_list)
-def test_block_fail(bad_code):
+@pytest.mark.parametrize('bad_code', type_fail_list)
+def test_block_type_fail(bad_code):
     with raises(TypeMismatchException):
         compiler.compile_code(bad_code)
 
-
-valid_list = [
+structure_fail_list = [
     """
 @public
 def foo():
@@ -38,6 +37,24 @@ def foo():
     """
 ]
 
+@pytest.mark.parametrize('bad_code', type_fail_list)
+def test_block_structure_fail(bad_code):
+    with raises(TypeMismatchException):
+        compiler.compile_code(bad_code)
+
+
+valid_list = [
+    """
+@public
+def foo():
+    x: bytes32 = keccak256("moose")
+    """,
+    """
+@public
+def foo():
+    x: bytes32 = keccak256(0x1234567890123456789012345678901234567890123456789012345678901234)
+    """
+]
 
 @pytest.mark.parametrize('good_code', valid_list)
 def test_block_success(good_code):

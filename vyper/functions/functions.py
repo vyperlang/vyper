@@ -46,7 +46,7 @@ from vyper.utils import (
     SizeLimits,
     bytes_to_int,
     fourbytes_to_int,
-    sha3,
+    keccak256,
 )
 
 from .signatures import (
@@ -305,14 +305,18 @@ def concat(expr, context):
         annotation='concat',
     )
 
-
 @signature(('bytes_literal', 'str_literal', 'bytes', 'string', 'bytes32'))
 def _sha3(expr, args, kwargs, context):
+    raise StructureException("sha3 function has been deprecated in favor of keccak256")
+
+
+@signature(('bytes_literal', 'str_literal', 'bytes', 'string', 'bytes32'))
+def _keccak256(expr, args, kwargs, context):
     sub = args[0]
     # Can hash literals
     if isinstance(sub, bytes):
         return LLLnode.from_list(
-            bytes_to_int(sha3(sub)),
+            bytes_to_int(keccak256(sub)),
             typ=BaseType('bytes32'),
             pos=getpos(expr)
         )
@@ -456,7 +460,7 @@ def sha256(expr, args, kwargs, context):
 def method_id(expr, args, kwargs, context):
     if b' ' in args[0]:
         raise TypeMismatchException('Invalid function signature no spaces allowed.')
-    method_id = fourbytes_to_int(sha3(args[0])[:4])
+    method_id = fourbytes_to_int(keccak256(args[0])[:4])
     if args[1] == 'bytes32':
         return LLLnode(method_id, typ=BaseType('bytes32'), pos=getpos(expr))
     elif args[1] == 'bytes[4]':
@@ -1305,7 +1309,7 @@ dispatch_table = {
     'sha3': _sha3,
     'sha256': sha256,
     'method_id': method_id,
-    'keccak256': _sha3,
+    'keccak256': _keccak256,
     'ecrecover': ecrecover,
     'ecadd': ecadd,
     'ecmul': ecmul,
