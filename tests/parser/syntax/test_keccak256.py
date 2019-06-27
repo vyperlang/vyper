@@ -7,8 +7,8 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
-    TypeMismatchException,
     StructureException,
+    TypeMismatchException,
 )
 
 type_fail_list = [
