@@ -108,10 +108,10 @@ def test() -> int128:
         if False:
             return 0
         else:
-            x = sha3(x)
+            x = keccak256(x)
             return 1
     else:
-        x = sha3(x)
+        x = keccak256(x)
         return 1
     return 1
     """

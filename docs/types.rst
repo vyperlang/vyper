@@ -50,7 +50,7 @@ Operator              Description
 ``x != y``            Inequality
 ====================  ===================
 
-The operators ``or`` and ``and`` do not apply short-circuiting rules, i.e. both 
+The operators ``or`` and ``and`` do not apply short-circuiting rules, i.e. both
 `x` and `y` will always be evaluated.
 
 .. index:: ! int128, ! int, ! integer
@@ -320,7 +320,7 @@ Operators
 ====================================  ============================================================
 Keyword                               Description
 ====================================  ============================================================
-``sha3(x)``                           Return the sha3 hash as bytes32.
+``keccak256(x)``                      Return the keccak256 hash as bytes32.
 ``concat(x, ...)``                    Concatenate multiple inputs.
 ``slice(x, start=_start, len=_len)``  Return a slice of ``_len`` starting at ``_start``.
 ====================================  ============================================================
@@ -361,13 +361,13 @@ Operators
 Keyword                               Description
 ====================================  ============================================================
 ``len(x)``                            Return the length as an integer.
-``sha3(x)``                           Return the sha3 hash as bytes32.
+``keccak256(x)``                      Return the keccak256 hash as bytes32.
 ``concat(x, ...)``                    Concatenate multiple inputs.
 ``slice(x, start=_start, len=_len)``  Return a slice of ``_len`` starting at ``_start``.
 ====================================  ============================================================
 
 Where ``x`` is a byte array or string while ``_start`` and ``_len`` are integers.
-The ``len``, ``sha3``, ``concat``, ``slice`` operators can be used with ``string`` and ``bytes`` types.
+The ``len``, ``keccak256``, ``concat``, ``slice`` operators can be used with ``string`` and ``bytes`` types.
 
 .. index:: !reference
 
@@ -516,7 +516,7 @@ Initial Values
 **************
 
 In Vyper, there is no ``null`` option like most programming languages have. Thus, every variable type has a default value. In order to check if a variable is empty, you will need to compare it to its type's default value.
-If you would like to reset a variable to its type's default value, use the built-in ``clear()`` function.  
+If you would like to reset a variable to its type's default value, use the built-in ``clear()`` function.
 
 Here you can find a list of all types and default values:
 

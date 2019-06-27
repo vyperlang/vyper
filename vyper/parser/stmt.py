@@ -55,7 +55,7 @@ from vyper.utils import (
     SizeLimits,
     bytes_to_int,
     fourbytes_to_int,
-    sha3,
+    keccak256,
 )
 
 
@@ -466,7 +466,7 @@ class Stmt(object):
         arg_placeholder = self.context.new_placeholder(BaseType(32))
         reason_str_type = ByteArrayType(len(reason_str))
         placeholder_bytes = Expr(msg, self.context).lll_node
-        method_id = fourbytes_to_int(sha3(b"Error(string)")[:4])
+        method_id = fourbytes_to_int(keccak256(b"Error(string)")[:4])
         assert_reason = [
                 'seq',
                 ['mstore', sig_placeholder, method_id],

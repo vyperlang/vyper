@@ -146,11 +146,11 @@ Returns the length of a given list of bytes.
 
 Takes 2 or more bytes arrays of type ``bytes32`` or ``bytes`` and combines them into one.
 
-**sha3/ keccak256**
+**keccak256**
 --------------------
 ::
 
-  def sha3(a) -> b:
+  def keccak256(a) -> b:
     """
     :param a: value to hash
     :type a: either str_literal, bytes, bytes32
@@ -158,9 +158,7 @@ Takes 2 or more bytes arrays of type ``bytes32`` or ``bytes`` and combines them 
     :output b: bytes32
     """
 
-Returns ``keccak256`` (Ethereum's sha3) hash of input.
-Note that it can be called either by using ``sha3`` or ``keccak256``.
-
+Returns ``keccak256`` hash of input.
 
 **sha256**
 --------------------
