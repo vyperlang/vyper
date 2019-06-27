@@ -163,24 +163,24 @@ def xookar() -> bytes32:
 
     hooVal = c.hoo()
     hoonarVal = c.hoonar()
-    _hoo = ((-2**127) * 10000000000).to_bytes(32, byteorder="big", signed=True)
+    _hoo = ((-2**127) * decimal_divisor).to_bytes(32, byteorder="big", signed=True)
     assert hooVal == _hoo
     assert hoonarVal == _hoo
 
     gooVal = c.goo()
     goomarVal = c.goomar()
-    _goo = ((2**127 - 1) * 10000000000).to_bytes(32, byteorder="big", signed=True)
+    _goo = ((2**127 - 1) * decimal_divisor).to_bytes(32, byteorder="big", signed=True)
     assert gooVal == _goo
     assert goomarVal == _goo
 
     zooVal = c.zoo()
     zoojarVal = c.zoojar()
-    _zoo = (5 * 10000000000).to_bytes(32, byteorder="big", signed=True)
+    _zoo = (5 * decimal_divisor).to_bytes(32, byteorder="big", signed=True)
     assert zooVal == _zoo
     assert zoojarVal == _zoo
 
     xooVal = c.xoo()
     xookarVal = c.xookar()
-    _xoo = (-5 * 10000000000).to_bytes(32, byteorder="big", signed=True)
+    _xoo = (-5 * decimal_divisor).to_bytes(32, byteorder="big", signed=True)
     assert xooVal == _xoo
     assert xookarVal == _xoo
