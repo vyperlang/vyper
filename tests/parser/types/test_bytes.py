@@ -1,8 +1,3 @@
-from vyper.exceptions import (
-    ParserException,
-    TypeMismatchException,
-)
-
 
 def test_test_bytes(get_contract_with_gas_estimation, assert_tx_failed):
     test_bytes = """
@@ -205,31 +200,23 @@ def testsome_storage(y: bytes[1]) -> bool:
     assert not c.testsome_storage(b'x')
 
 
-def test_bytes_comparison_fail_size_mismatch(assert_compile_failed,
-                                             get_contract_with_gas_estimation):
+def test_bytes_comparison(get_contract_with_gas_estimation):
     code = """
 @public
-def get(a: bytes[1]) -> bool:
+def get_mismatch(a: bytes[1]) -> bool:
     b: bytes[2] = 'ab'
     return a == b
-    """
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code),
-        TypeMismatchException
-    )
 
-
-def test_bytes_comparison_fail_too_large(assert_compile_failed, get_contract_with_gas_estimation):
-    code = """
 @public
-def get(a: bytes[100]) -> bool:
+def get_large(a: bytes[100]) -> bool:
     b: bytes[100] = 'ab'
     return a == b
     """
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code),
-        ParserException
-    )
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.get_mismatch(b'\x00') is False
+    assert c.get_large(b'\x00') is False
+    assert c.get_large(b'ab') is True
 
 
 def test_bytes32_literals(get_contract):

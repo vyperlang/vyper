@@ -13,6 +13,9 @@ from vyper.parser import (
     external_call,
     self_call,
 )
+from vyper.parser.keccak256_helper import (
+    keccak256_helper,
+)
 from vyper.parser.lll_node import (
     LLLnode,
 )
@@ -800,16 +803,9 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             )
 
         if isinstance(left.typ, ByteArrayLike) and isinstance(right.typ, ByteArrayLike):
-            if left.typ.maxlen != right.typ.maxlen:
-                raise TypeMismatchException(
-                    'Can only compare strings or bytes of the same length, shorter than 32 bytes.',
-                    self.expr
-                )
-            if left.typ.maxlen > 32 or right.typ.maxlen > 32:
-                raise ParserException(
-                    'Can only compare strings/bytes of length shorter than 32 bytes',
-                    self.expr,
-                )
+            # TODO: Can this if branch be removed ^
+            pass
+
         elif isinstance(self.expr.ops[0], ast.In) and isinstance(right.typ, ListType):
             if left.typ != right.typ.subtype:
                 raise TypeMismatchException(
@@ -842,21 +838,43 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             raise Exception("Unsupported comparison operator")
 
         # Compare (limited to 32) byte arrays.
-        if isinstance(left.typ, ByteArrayLike) and isinstance(left.typ, ByteArrayLike):
+        if isinstance(left.typ, ByteArrayLike) and isinstance(right.typ, ByteArrayLike):
             left = Expr(self.expr.left, self.context).lll_node
             right = Expr(self.expr.comparators[0], self.context).lll_node
 
-            def load_bytearray(side):
-                if side.location == 'memory':
-                    return ['mload', ['add', 32, side]]
-                elif side.location == 'storage':
-                    return ['sload', ['add', 1, ['sha3_32', side]]]
+            length_mismatch = (left.typ.maxlen != right.typ.maxlen)
+            left_over_32 = left.typ.maxlen > 32
+            right_over_32 = right.typ.maxlen > 32
+            if length_mismatch or left_over_32 or right_over_32:
+                left_keccak = keccak256_helper(self.expr, [left], None, self.context)
+                right_keccak = keccak256_helper(self.expr, [right], None, self.context)
 
-            return LLLnode.from_list(
-                [op, load_bytearray(left), load_bytearray(right)],
-                typ='bool',
-                pos=getpos(self.expr),
-            )
+                if op == 'eq' or op == 'ne':
+                    return LLLnode.from_list(
+                        [op, left_keccak, right_keccak],
+                        typ='bool',
+                        pos=getpos(self.expr),
+                    )
+
+                else:
+                    raise ParserException(
+                        "Can only compare strings/bytes of length shorter",
+                        " than 32 bytes other than equality comparisons",
+                        self.expr,
+                    )
+
+            else:
+                def load_bytearray(side):
+                    if side.location == 'memory':
+                        return ['mload', ['add', 32, side]]
+                    elif side.location == 'storage':
+                        return ['sload', ['add', 1, ['sha3_32', side]]]
+
+                return LLLnode.from_list(
+                    [op, load_bytearray(left), load_bytearray(right)],
+                    typ='bool',
+                    pos=getpos(self.expr),
+                )
 
         # Compare other types.
         if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
