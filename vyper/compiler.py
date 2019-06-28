@@ -2,6 +2,7 @@ from collections import (
     OrderedDict,
     deque,
 )
+import warnings
 
 from vyper import (
     compile_lll,
@@ -44,8 +45,10 @@ def __compile(code, interface_codes=None, *args, **kwargs):
             return any(find_nested_opcode(x, key) for x in sublists)
 
     if find_nested_opcode(asm, 'DEBUG'):
-        print('Please note this code contains DEBUG opcode.')
-        print('This will only work in a support EVM. This FAIL on any other nodes.')
+        warnings.warn(
+            'This code contains DEBUG opcodes! The DEBUG opcode will only work in '
+            'a supported EVM! It will FAIL on all other nodes!'
+        )
 
     c, line_number_map = compile_lll.assembly_to_evm(asm)
     return c
