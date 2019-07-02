@@ -46,9 +46,3 @@ Structs group variables and are accessed using ``struct.argname``. They are simi
 
  #access arg1 in struct
  struct.arg1 = 1
-
-
-
-******************
-Advanced Questions
-******************
