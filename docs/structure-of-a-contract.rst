@@ -98,7 +98,6 @@ Lastly, although the default function receives no arguments, it can still access
 - the amount of ETH sent (``msg.value``)
 - the gas provided (``msg.gas``).
 
-
 .. _structure-events:
 
 Events
@@ -160,8 +159,6 @@ Vyper supports structured documentation for state variables and functions and ev
   @dev Chewing does not count, carrots must pass the throat to be "eaten"
   @param food The name of a food that was eaten (in English)
   """
-
-
 
 Additional information about Ethereum Natural Specification (NatSpec) can be found `here <https://github.com/ethereum/wiki/wiki/Ethereum-Natural-Specification-Format>`_.
 

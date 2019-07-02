@@ -64,7 +64,6 @@ Next, we take a look at the two fixtures that will allow us to read the event lo
 The fixture to assert failed transactions defaults to check for a ``TransactionFailed`` exception, but can be used to check for different exceptions too, as shown below.
 Also note that the chain gets reverted to the state before the failed transaction.
 
-
 .. literalinclude:: ../tests/base_conftest.py
     :language: python
     :pyobject: get_logs
@@ -76,5 +75,3 @@ Finally, we create a new file ``test_advanced_storage.py`` where we use the new 
 
 .. literalinclude:: ../tests/examples/storage/test_advanced_storage.py
   :language: python
-
-

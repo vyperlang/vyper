@@ -3,7 +3,7 @@
 Release Notes
 #############
 
-v0.1.0-beta.10 
+v0.1.0-beta.10
 **************
 
 Date released: 24-05-2019

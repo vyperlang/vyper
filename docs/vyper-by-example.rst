@@ -163,7 +163,6 @@ Safe Remote Purchases
 
 .. _safe_remote_purchases:
 
-
 In this example, we have an escrow contract implementing a system for a trustless
 transaction between a buyer and a seller. In this system, a seller posts an item
 for sale and makes a deposit to the contract of twice the item's ``value``. At
@@ -256,7 +255,6 @@ funds. The contract is finally destroyed and the transaction is complete.
 
 Whenever we’re ready, let’s move on to the next example.
 
-
 .. index:: crowdfund
 
 Crowdfund
@@ -270,7 +268,6 @@ contribution to the campaign reaches or surpasses a predetermined funding goal,
 the funds will be sent to the  beneficiary at the end of the campaign deadline.
 Participants will be refunded their respective contributions if the total
 funding does not reach its target goal.
-
 
 .. literalinclude:: ../examples/crowdfund.vy
   :language: python
@@ -304,7 +301,6 @@ once the crowdfunding period is over—as determined by the ``deadline`` and
 ``timelimit`` variables. The ``goal`` variable is the target total contribution
 of all participants. ``refundIndex`` is a variable for bookkeeping purposes in
 order to avoid gas limit issues in the scenario of a refund.
-
 
 .. literalinclude:: ../examples/crowdfund.vy
   :language: python
@@ -375,7 +371,6 @@ participant the right to vote, and each participant may choose to vote, or
 delegate their vote to another voter. Finally, a winning proposal will be
 determined upon calling the ``winningProposals()`` method, which iterates through
 all the proposals and returns the one with the greatest number of votes.
-
 
 .. literalinclude:: ../examples/voting/ballot.vy
   :language: python
