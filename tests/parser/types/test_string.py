@@ -159,3 +159,107 @@ def test(a: uint256, b: string[50] = "foo") -> bytes[100]:
 
     assert c.test(12345)[-3:] == b"foo"
     assert c.test(12345, "bar")[-3:] == b"bar"
+
+
+def test_string_equality(get_contract_with_gas_estimation):
+    code = """
+_foo: string[100]
+_bar: string[100]
+
+@public
+def equal_true() -> bool:
+    foo: string[100] = "foobar"
+    bar: string[100] = "foobar"
+    return foo == bar
+
+@public
+def equal_false() -> bool:
+    foo: string[100] = "foobar"
+    bar: string[100] = "barfoo"
+    return foo == bar
+
+@public
+def not_equal_true() -> bool:
+    foo: string[100] = "foobar"
+    bar: string[100] = "barfoo"
+    return foo != bar
+
+@public
+def not_equal_false() -> bool:
+    foo: string[100] = "foobar"
+    bar: string[100] = "foobar"
+    return foo != bar
+
+@public
+def literal_equal_true() -> bool:
+    return "The quick brown fox jumps over the lazy dog" == \
+    "The quick brown fox jumps over the lazy dog"
+
+@public
+def literal_equal_false() -> bool:
+    return "The quick brown dog jumps over the lazy fox" == \
+    "The quick brown fox jumps over the lazy dog"
+
+@public
+def literal_not_equal_true() -> bool:
+    return "The quick fox jumps over the dog" != \
+    "The quick brown fox jumps over the lazy dog"
+
+@public
+def literal_not_equal_false() -> bool:
+    return "The quick brown fox jumps over the lazy dog" != \
+    "The quick brown fox jumps over the lazy dog"
+
+@public
+def storage_equal_true() -> bool:
+    self._foo = "foobar"
+    self._bar = "foobar"
+    return self._foo == self._bar
+
+@public
+def storage_equal_false() -> bool:
+    self._foo = "foobar"
+    self._bar = "barfoo"
+    return self._foo == self._bar
+
+@public
+def storage_not_equal_true() -> bool:
+    self._foo = "The quick fox jumps over the dog"
+    self._bar = "The quick brown fox jumps over the lazy dog"
+    return self._foo != self._bar
+
+@public
+def storage_not_equal_false() -> bool:
+    self._foo = "The quick brown fox jumps over the lazy dog"
+    self._bar = "The quick brown fox jumps over the lazy dog"
+    return self._foo != self._bar
+
+@public
+def string_compare_equal(str1: string[100], str2: string[100]) -> bool:
+    return str1 == str2
+
+@public
+def string_compare_not_equal(str1: string[100], str2: string[100]) -> bool:
+    return str1 != str2
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.equal_true() is True
+    assert c.equal_false() is False
+    assert c.not_equal_true() is True
+    assert c.not_equal_false() is False
+    assert c.literal_equal_true() is True
+    assert c.literal_equal_false() is False
+    assert c.literal_not_equal_true() is True
+    assert c.literal_not_equal_false() is False
+    assert c.storage_equal_true() is True
+    assert c.storage_equal_false() is False
+    assert c.storage_not_equal_true() is True
+    assert c.storage_not_equal_false() is False
+
+    a = "The quick brown fox jumps over the lazy dog"
+    b = "The quick fox jumps over the dog"
+    assert c.string_compare_equal(a, a) is True
+    assert c.string_compare_equal(a, b) is False
+    assert c.string_compare_not_equal(b, a) is True
+    assert c.string_compare_not_equal(b, b) is False
