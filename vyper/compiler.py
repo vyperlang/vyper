@@ -218,7 +218,6 @@ output_formats_map = {
 
 def compile_codes(codes,
                   output_formats=None,
-                  output_type='list',
                   exc_handler=None,
                   interface_codes=None):
     if output_formats is None:
@@ -228,7 +227,7 @@ def compile_codes(codes,
     for contract_name, code in codes.items():
         for output_format in output_formats:
             if output_format not in output_formats_map:
-                raise Exception('Unsupported format type %s.' % output_format)
+                raise ValueError(f'Unsupported format type {repr(output_format)}')
 
             try:
                 out.setdefault(contract_name, {})
@@ -243,14 +242,17 @@ def compile_codes(codes,
                 else:
                     raise exc
 
-    if output_type == 'list':
-        return [v for v in out.values()]
-    elif output_type == 'dict':
-        return out
-    else:
-        raise Exception('Unknown output_type')
+    return out
+
+
+UNKNOWN_CONTRACT_NAME = '<unknown>'
 
 
 def compile_code(code, output_formats=None, interface_codes=None):
-    codes = {'': code}
-    return compile_codes(codes, output_formats, 'list', interface_codes=interface_codes)[0]
+    codes = {UNKNOWN_CONTRACT_NAME: code}
+
+    return compile_codes(
+        codes,
+        output_formats,
+        interface_codes=interface_codes,
+    )[UNKNOWN_CONTRACT_NAME]

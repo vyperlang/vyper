@@ -24,6 +24,10 @@ from vyper.signatures.event_signature import (
 from vyper.signatures.function_signature import (
     FunctionSignature,
 )
+from vyper.typing import (
+    InterfaceImports,
+    SourceCode,
+)
 
 
 # Populate built-in interfaces.
@@ -194,12 +198,13 @@ def extract_external_interface(code, contract_name, interface_codes=None):
     return out
 
 
-def extract_file_interface_imports(code):
+def extract_file_interface_imports(code: SourceCode) -> InterfaceImports:
     ast_tree = parser.parse_to_ast(code)
-    imports_dict = {}
+
+    imports_dict: InterfaceImports = {}
     for item in ast_tree:
         if isinstance(item, ast.Import):
-            for a_name in item.names:
+            for a_name in item.names:  # type: ignore
                 if not a_name.asname:
                     raise StructureException(
                         'Interface statement requires an accompanying `as` statement.',
@@ -207,15 +212,15 @@ def extract_file_interface_imports(code):
                     )
                 if a_name.asname in imports_dict:
                     raise StructureException(
-                        'Interface with Alias {} already exists'.format(a_name.asname),
+                        'Interface with alias {} already exists'.format(a_name.asname),
                         item,
                     )
                 imports_dict[a_name.asname] = a_name.name
+
     return imports_dict
 
 
 def check_valid_contract_interface(global_ctx, contract_sigs):
-
     if global_ctx._interface:
         funcs_left = global_ctx._interface.copy()
 
