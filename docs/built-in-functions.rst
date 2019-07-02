@@ -5,7 +5,8 @@
 Built in Functions
 ******************
 
-Vyper contains a set amount of built in functions that would be timely and/or unachievable to write in Vyper.
+Vyper provides a collection of built in functions available in the global namespace of all
+contracts.
 
 .. _functions:
 
@@ -54,7 +55,7 @@ Rounds a decimal up to the nearest integer.
     :output c: either decimal, int128, uint256 or bytes32
     """
 
-Converts a variable / literal from one type to another.
+Converts a variable or literal from one type to another.
 
 For more details on available type conversions, see :ref:`type_conversions`.
 
@@ -84,7 +85,8 @@ Clears a variable's contents to the default value of its type.
     :output c: wei_value
     """
 
-The value of the input number as ``wei``, converted based on the specified unit.
+Takes an amount of ether currency specified by a number and a unit (e.g. ``"wei"``, ``"ether"``,
+``"gwei"``, etc.) and returns the integer quantity of wei equivalent to that amount.
 
 **as_unitless_number**
 ----------------------
@@ -98,7 +100,8 @@ The value of the input number as ``wei``, converted based on the specified unit.
     :output b: either decimal or int128
     """
 
-Turns a ``int128``, ``uint256``, ``decimal`` with units into one without units (used for assignment and math).
+Converts a ``int128``, ``uint256``, or ``decimal`` value with units into one without units (used for
+assignment and math).
 
 **slice**
 ---------
