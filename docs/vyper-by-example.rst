@@ -1,10 +1,8 @@
-###################
 Vyper by Example
-###################
+################
 
 .. index:: auction;open, open auction
 
-*******************
 Simple Open Auction
 *******************
 
@@ -130,9 +128,8 @@ Whenever you're ready, let's turn it up a notch in the next example.
 
 .. index:: auction;blind, blind auction
 
-*******************
 Blind Auction
-*******************
+*************
 
 .. _blind_auction:
 
@@ -161,7 +158,6 @@ need to do so from multiple addresses.
 
 .. index:: purchases
 
-*********************
 Safe Remote Purchases
 *********************
 
@@ -263,7 +259,6 @@ Whenever we’re ready, let’s move on to the next example.
 
 .. index:: crowdfund
 
-*********
 Crowdfund
 *********
 
@@ -371,7 +366,6 @@ necessary.
 
 .. index:: voting, ballot
 
-******
 Voting
 ******
 
@@ -505,7 +499,6 @@ Now that we're familiar with basic contracts. Let's step up the difficulty.
 
 .. index:: stock;company, company stock
 
-*************
 Company Stock
 *************
 
