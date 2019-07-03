@@ -406,8 +406,10 @@ Note: To give it a more Python-like syntax, the raise function can be called wit
     """
 
 Asserts the specified condition. The behavior is equivalent to::
+
   if not a:
     raise reason
+
 (the only difference in behavior is that ``assert`` can be called without a reason string, while ``raise`` requires a reason string).
 
 If assert is passed to an assert statement, an INVALID (0xFE) opcode will be used instead of an REVERT opcode.
