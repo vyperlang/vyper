@@ -44,17 +44,17 @@ Function calls can happen internally or externally and have different levels of 
 Decorators
 ----------
 
-===========================  ===========================================
-Decorator                    Description
-===========================  ===========================================
-`@public`                    Can be called from external contracts.
-`@private`                   Can only be called within current contract.
-`@constant`                  Does not alter contract state.
-`@payable`                   The contract is open to receive Ether.
-`@nonreentrant(<unique_key>)`  Function can only be called once,
-                             both externally and internally. Used to
-                             prevent reentrancy attacks.
-===========================  ===========================================
+============================= ===========================================
+Decorator                     Description
+============================= ===========================================
+`@public`                     Can be called from external contracts.
+`@private`                    Can only be called within current contract.
+`@constant`                   Does not alter contract state.
+`@payable`                    The contract is open to receive Ether.
+`@nonreentrant(<unique_key>)` Function can only be called once,
+                              both externally and internally. Used to
+                              prevent reentrancy attacks.
+============================= ===========================================
 
 The visibility decorators `@public` or `@private` are mandatory on function declarations, whilst the other decorators(@constant, @payable, @nonreentrant) are optional.
 
