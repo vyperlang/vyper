@@ -28,7 +28,7 @@ from vyper.utils import (
 )
 
 
-@signature(('decimal', 'int128', 'uint256', 'bytes32', 'bytes'), '*')
+@signature(('decimal', 'int128', 'uint256', 'address', 'bytes32', 'bytes'), '*')
 def to_bool(expr, args, kwargs, context):
     in_arg = args[0]
     input_type, _ = get_type(in_arg)
