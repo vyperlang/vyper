@@ -1,3 +1,8 @@
+from vyper.utils import (
+    DECIMAL_DIVISOR,
+    SizeLimits,
+)
+
 
 def test_convert_to_bytes32(w3, get_contract_with_gas_estimation, bytes_helper):
     code = """
@@ -82,6 +87,10 @@ def testConvertBytes32(flag: bool) -> bytes32:
     assert len(trueBytes) == 32
 
 
+def int_to_bytes_helper(val):
+    return (val).to_bytes(32, byteorder="big", signed=True)
+
+
 #################################################################################
 # NOTE: Vyper uses a decimal divisor of 10000000000 (or 10^10).
 #
@@ -98,89 +107,72 @@ def testConvertBytes32(flag: bool) -> bytes32:
 #################################################################################
 def test_convert_from_decimal(get_contract_with_gas_estimation):
     code = """
-bar: decimal
-nar: decimal
-mar: decimal
-jar: decimal
-kar: decimal
+temp: decimal
 
 @public
-def foo() -> bytes32:
+def convert_literal_zero() -> bytes32:
     return convert(0.0, bytes32)
 
 @public
-def foobar() -> bytes32:
-    self.bar = 0.0
-    return convert(self.bar, bytes32)
+def convert_literal_zero_storage() -> bytes32:
+    self.temp = 0.0
+    return convert(self.temp, bytes32)
 
 @public
-def hoo() -> bytes32:
+def convert_min_decimal() -> bytes32:
     return convert(MIN_DECIMAL, bytes32)
 
 @public
-def hoonar() -> bytes32:
-    self.nar = MIN_DECIMAL
-    return convert(self.nar, bytes32)
+def convert_min_decimal_storage() -> bytes32:
+    self.temp = MIN_DECIMAL
+    return convert(self.temp, bytes32)
 
 @public
-def goo() -> bytes32:
+def convert_max_decimal() -> bytes32:
     return convert(MAX_DECIMAL, bytes32)
 
 @public
-def goomar() -> bytes32:
-    self.mar = MAX_DECIMAL
-    return convert(self.mar, bytes32)
+def convert_max_decimal_storage() -> bytes32:
+    self.temp = MAX_DECIMAL
+    return convert(self.temp, bytes32)
 
 @public
-def zoo() -> bytes32:
+def convert_positive_decimal() -> bytes32:
     return convert(5.0, bytes32)
 
 @public
-def zoojar() -> bytes32:
-    self.jar = 5.0
-    return convert(self.jar, bytes32)
+def convert_positive_decimal_storage() -> bytes32:
+    self.temp = 5.0
+    return convert(self.temp, bytes32)
 
 @public
-def xoo() -> bytes32:
+def convert_negative_decimal() -> bytes32:
     return convert(-5.0, bytes32)
 
 @public
-def xookar() -> bytes32:
-    self.kar = -5.0
-    return convert(self.kar, bytes32)
+def convert_negative_decimal_storage() -> bytes32:
+    self.temp = -5.0
+    return convert(self.temp, bytes32)
     """
 
     c = get_contract_with_gas_estimation(code)
-    decimal_divisor = 10000000000
 
-    fooVal = c.foo()
-    foobarVal = c.foobar()
-    assert fooVal == (b"\x00" * 32)
-    assert len(fooVal) == 32
-    assert foobarVal == (b"\x00" * 32)
-    assert len(foobarVal) == 32
-    assert fooVal == foobarVal
+    _temp = (b"\x00" * 32)
+    assert _temp == c.convert_literal_zero()
+    assert _temp == c.convert_literal_zero_storage()
 
-    hooVal = c.hoo()
-    hoonarVal = c.hoonar()
-    _hoo = ((-2**127) * decimal_divisor).to_bytes(32, byteorder="big", signed=True)
-    assert hooVal == _hoo
-    assert hoonarVal == _hoo
+    _temp = int_to_bytes_helper(SizeLimits.MINDECIMAL)
+    assert _temp == c.convert_min_decimal()
+    assert _temp == c.convert_min_decimal_storage()
 
-    gooVal = c.goo()
-    goomarVal = c.goomar()
-    _goo = ((2**127 - 1) * decimal_divisor).to_bytes(32, byteorder="big", signed=True)
-    assert gooVal == _goo
-    assert goomarVal == _goo
+    _temp = int_to_bytes_helper(SizeLimits.MAXDECIMAL)
+    assert _temp == c.convert_max_decimal()
+    assert _temp == c.convert_max_decimal_storage()
 
-    zooVal = c.zoo()
-    zoojarVal = c.zoojar()
-    _zoo = (5 * decimal_divisor).to_bytes(32, byteorder="big", signed=True)
-    assert zooVal == _zoo
-    assert zoojarVal == _zoo
+    _temp = int_to_bytes_helper(5 * DECIMAL_DIVISOR)
+    assert _temp == c.convert_positive_decimal()
+    assert _temp == c.convert_positive_decimal_storage()
 
-    xooVal = c.xoo()
-    xookarVal = c.xookar()
-    _xoo = (-5 * decimal_divisor).to_bytes(32, byteorder="big", signed=True)
-    assert xooVal == _xoo
-    assert xookarVal == _xoo
+    _temp = int_to_bytes_helper(-5 * DECIMAL_DIVISOR)
+    assert _temp == c.convert_negative_decimal()
+    assert _temp == c.convert_negative_decimal_storage()
