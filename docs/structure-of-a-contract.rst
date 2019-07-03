@@ -221,7 +221,7 @@ Vyper supports a few built-in interfaces such as ERC20 and ERC721. These are imp
 
   implements: ERC20
 
-External Calls using Interfaces
+External Calls Using Interfaces
 -------------------------------
 
 To define external interfaces inline the `contract` keyword is used.
