@@ -41,11 +41,13 @@ from vyper.utils import (
 
 # Function argument
 class VariableRecord:
-    def __init__(self, name, pos, typ, mutable, blockscopes=None, defined_at=None):
+    def __init__(self, name, pos, typ, mutable, *,
+                 location='memory', blockscopes=None, defined_at=None):
         self.name = name
         self.pos = pos
         self.typ = typ
         self.mutable = mutable
+        self.location = location
         self.blockscopes = [] if blockscopes is None else blockscopes
         self.defined_at = defined_at  # source code location variable record was defined.
 

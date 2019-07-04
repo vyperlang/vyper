@@ -103,9 +103,6 @@ def parse_public_function(code: ast.FunctionDef,
     # Get nonreentrant lock
     nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(sig, context.global_ctx)
 
-    # Allocate variable space.
-    context.memory_allocator.increase_memory(sig.max_copy_size)
-
     clampers = []
 
     # Generate copiers
@@ -114,11 +111,7 @@ def parse_public_function(code: ast.FunctionDef,
         copier = ['pass']
     elif sig.name == '__init__':
         copier = ['codecopy', MemoryPositions.RESERVED_MEMORY, '~codelen', sig.base_copy_size]
-    else:
-        copier = get_public_arg_copier(
-            total_size=sig.base_copy_size,
-            memory_dest=MemoryPositions.RESERVED_MEMORY
-        )
+        context.memory_allocator.increase_memory(sig.max_copy_size)
     clampers.append(copier)
 
     # Add asserts for payable and internal
@@ -126,6 +119,7 @@ def parse_public_function(code: ast.FunctionDef,
         clampers.append(['assert', ['iszero', 'callvalue']])
 
     # Fill variable positions
+    default_args_start_pos = len(sig.base_args)
     for i, arg in enumerate(sig.args):
         if i < len(sig.base_args):
             clampers.append(make_arg_clamper(
@@ -138,12 +132,29 @@ def parse_public_function(code: ast.FunctionDef,
             mem_pos, _ = context.memory_allocator.increase_memory(32 * get_size_of_type(arg.typ))
             context.vars[arg.name] = VariableRecord(arg.name, mem_pos, arg.typ, False)
         else:
-            context.vars[arg.name] = VariableRecord(
-                arg.name,
-                MemoryPositions.RESERVED_MEMORY + arg.pos,
-                arg.typ,
-                False,
-            )
+            if sig.name == '__init__':
+                context.vars[arg.name] = VariableRecord(
+                    arg.name,
+                    MemoryPositions.RESERVED_MEMORY + arg.pos,
+                    arg.typ,
+                    False,
+                )
+            elif i >= default_args_start_pos:  # default args need to be allocated in memory.
+                default_arg_pos, _ = context.memory_allocator.increase_memory(32)
+                context.vars[arg.name] = VariableRecord(
+                    name=arg.name,
+                    pos=default_arg_pos,
+                    typ=arg.typ,
+                    mutable=False,
+                )
+            else:
+                context.vars[arg.name] = VariableRecord(
+                    name=arg.name,
+                    pos=4 + arg.pos,
+                    typ=arg.typ,
+                    mutable=False,
+                    location='calldata'
+                )
 
     # Create "clampers" (input well-formedness checkers)
     # Return function body

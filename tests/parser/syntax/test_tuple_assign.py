@@ -7,6 +7,7 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
+    ConstancyViolationException,
     TypeMismatchException,
     VariableDeclarationException,
 )
@@ -69,6 +70,21 @@ def test():
     c: bytes[1]
     a, b, c = self.out_literals()
     """,
+    ("""
+@private
+def _test(a: bytes32) -> (bytes32, uint256, int128):
+    b: uint256 = 1000
+    return a, b, -1200
+
+@public
+def test(a: bytes32) -> (bytes32, uint256, int128):
+    b: uint256 = 1
+    c: int128 = 1
+    d: int128 = 123
+    a, b, c = self._test(a)
+    assert d == 123
+    return a, b, c
+    """, ConstancyViolationException)
 ]
 
 

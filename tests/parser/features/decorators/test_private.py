@@ -318,9 +318,10 @@ def test(a: bytes32) -> (bytes32, uint256, int128):
     b: uint256 = 1
     c: int128 = 1
     d: int128 = 123
-    a, b, c = self._test(a)
+    f: bytes32
+    f, b, c = self._test(a)
     assert d == 123
-    return a, b, c
+    return f, b, c
 
 @public
 def test2(a: bytes32) -> (bytes32, uint256, int128):
