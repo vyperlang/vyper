@@ -2,7 +2,6 @@
 
 .. _types:
 
-#####
 Types
 #####
 
@@ -16,7 +15,6 @@ operators.
 
 .. index:: ! value
 
-***********
 Value Types
 ***********
 
@@ -35,6 +33,7 @@ A boolean is a type to store a logical/truth value.
 
 Values
 ------
+
 The only possible values are the constants ``True`` and ``False``.
 
 Operators
@@ -57,18 +56,22 @@ The operators ``or`` and ``and`` do not apply short-circuiting rules, i.e. both
 
 Signed Integer (128 bit)
 ========================
+
 **Keyword:** ``int128``
 
 A signed integer (128 bit) is a type to store positive and negative integers.
 
 Values
 ------
+
 Signed integer values between -2\ :sup:`127` and (2\ :sup:`127` - 1), inclusive.
 
 Operators
 ---------
+
 Comparisons
 ^^^^^^^^^^^
+
 Comparisons return a boolean value.
 
 ==========  ================
@@ -101,19 +104,20 @@ Operator       Description
 ``max(x, y)``  Maximum
 =============  ======================
 
-
 ``x`` and ``y`` must be of the type ``int128``.
 
 .. index:: ! unit, ! uint256
 
 Unsigned Integer (256 bit)
 ==========================
+
 **Keyword:** ``uint256``
 
 An unsigned integer (256 bit) is a type to store non-negative integers.
 
 Values
 ------
+
 Integer values between 0 and (2\ :sup:`256`-1).
 
 .. note::
@@ -121,8 +125,10 @@ Integer values between 0 and (2\ :sup:`256`-1).
 
 Operators
 ---------
+
 Comparisons
 ^^^^^^^^^^^
+
 Comparisons return a boolean value.
 
 ==========  ================
@@ -179,18 +185,22 @@ Operator              Description
 
 Decimals
 ========
+
 **Keyword:** ``decimal``
 
 A decimal is a type to store a decimal fixed point value.
 
 Values
 ------
+
 A value with a precision of 10 decimal places between -2\ :sup:`127` and (2\ :sup:`127` - 1).
 
 Operators
 ---------
+
 Comparisons
 ^^^^^^^^^^^
+
 Comparisons return a boolean value.
 
 ==========  ================
@@ -230,12 +240,14 @@ Operator       Description
 
 Address
 =======
+
 **Keyword:** ``address``
 
 The address type holds an Ethereum address.
 
 Values
 ------
+
 An address type can hold an Ethereum address which equates to 20 bytes or 160 bits. It returns in hexadecimal notation with a leading ``0x``.
 
 .. _members-of-addresses:
@@ -255,11 +267,13 @@ Syntax as follows: ``_address.<member>``, where ``_address`` is of the type ``ad
 
 Unit Types
 ==========
+
 Vyper allows the definition of types with discrete units e.g. meters, seconds, wei, ... . These types may only be based on either ``uint256``, ``int128`` or ``decimal``.
 Vyper has 3 unit types built in, which are the following:
 
 Time
------------------------------------------------------------
+----
+
 =============  =====  ===========  ==========================
 Keyword        Unit   Base type    Description
 =============  =====  ===========  ==========================
@@ -271,7 +285,8 @@ Keyword        Unit   Base type    Description
     Two ``timedelta`` can be added together, as can a ``timedelta`` and a ``timestamp``, but not two ``timestamps``.
 
 Wei
----------------------------------------------------------------------------------------------------------------------------------
+---
+
 ===================  ===========  ===========  ====================================================================================
 Keyword              Unit         Base type    Description
 ===================  ===========  ===========  ====================================================================================
@@ -304,6 +319,7 @@ Having defined the units they can be defined on variables as follows.
 
 32-bit-wide Byte Array
 ======================
+
 **Keyword:** ``bytes32``
 This is a 32-bit-wide byte array that is otherwise similar to byte arrays.
 
@@ -317,6 +333,7 @@ This is a 32-bit-wide byte array that is otherwise similar to byte arrays.
 
 Operators
 ---------
+
 ====================================  ============================================================
 Keyword                               Description
 ====================================  ============================================================
@@ -331,6 +348,7 @@ Where ``x`` is a byte array and ``_start`` as well as ``_len`` are integer value
 
 Fixed-size Byte Arrays
 ======================
+
 **Keyword:** ``bytes``
 
 A byte array with a fixed size.
@@ -346,6 +364,7 @@ On the ABI level the Fixed-size bytes array is annotated as ``bytes``.
 
 Fixed-size Strings
 ==================
+
 **Keyword:** ``string``
 Fixed-size strings can hold strings with equal or fewer characters than the maximum length of the string.
 On the ABI level the Fixed-size bytes array is annotated as ``string``.
@@ -357,6 +376,7 @@ On the ABI level the Fixed-size bytes array is annotated as ``string``.
 
 Operators
 ---------
+
 ====================================  ============================================================
 Keyword                               Description
 ====================================  ============================================================
@@ -371,7 +391,6 @@ The ``len``, ``keccak256``, ``concat``, ``slice`` operators can be used with ``s
 
 .. index:: !reference
 
-***************
 Reference Types
 ***************
 
@@ -387,6 +406,7 @@ Fixed-size lists hold a finite number of elements which belong to a specified ty
 
 Syntax
 ------
+
 Lists can be declared with ``_name: _ValueType[_Integer]``. Multidimensional lists are also possible.
 
 **Example:**
@@ -409,6 +429,7 @@ Structs are custom defined types that can group several variables.
 
 Syntax
 ------
+
 Structs can be accessed via ``struct.argname``.
 **Example:**
 ::
@@ -462,9 +483,8 @@ Here ``_KeyType`` can be any base or bytes type. Mappings, contract or structs a
 
 .. index:: !initial
 
-*****************
 Built In Constants
-*****************
+******************
 
 Vyper has a few convenience constants builtin.
 
@@ -480,7 +500,6 @@ decimal MIN_DECIMAL   (-2**127)
 uint256 MAX_UINT256   2**256 - 1
 ======= ============= ==========================================
 
-****************
 Custom Constants
 ****************
 
@@ -510,8 +529,6 @@ Custom constants can be defined at a global level in Vyper. To define a constant
   def market_cap() -> uint256(wei):
       return MAX_SHARES * SHARE_PRICE
 
-
-**************
 Initial Values
 **************
 
@@ -547,9 +564,8 @@ Here you can find a list of all types and default values:
 
 .. _type_conversions:
 
-**************
 Type Conversions
-**************
+****************
 
 All type conversions in Vyper must be made explicitly using the built-in ``convert(a, b)`` function. Currently, the following type conversions are supported:
 

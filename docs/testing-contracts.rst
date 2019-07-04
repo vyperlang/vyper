@@ -2,7 +2,6 @@
 
 .. _testing:
 
-******************
 Testing a Contract
 ******************
 
@@ -17,7 +16,6 @@ These fixtures will be used in every test file and should therefore be defined i
     `pytest.ini, tox.ini and setup.cfg <https://docs.pytest.org/en/latest/customize.html>`_ and you can use most IDEs'
     pytest plugins.
 
-=================================
 Vyper Contract and Basic Fixtures
 =================================
 
@@ -30,9 +28,6 @@ discussed later. The rest of this chapter assumes, that you have this code set u
 Alternatively, you can import the fixtures to ``conftest.py`` or use
 `pytest_plugins <https://docs.pytest.org/en/latest/plugins.html>`_.
 
-
-
-=============================
 Load Contract and Basic Tests
 =============================
 
@@ -52,7 +47,6 @@ We then use this fixture for our test functions to interact with the contract.
 .. note::
     To run the tests, call ``pytest`` or ``python -m pytest`` from your project directory.
 
-==============================
 Events and Failed Transactions
 ==============================
 
@@ -70,7 +64,6 @@ Next, we take a look at the two fixtures that will allow us to read the event lo
 The fixture to assert failed transactions defaults to check for a ``TransactionFailed`` exception, but can be used to check for different exceptions too, as shown below.
 Also note that the chain gets reverted to the state before the failed transaction.
 
-
 .. literalinclude:: ../tests/base_conftest.py
     :language: python
     :pyobject: get_logs
@@ -82,5 +75,3 @@ Finally, we create a new file ``test_advanced_storage.py`` where we use the new 
 
 .. literalinclude:: ../tests/examples/storage/test_advanced_storage.py
   :language: python
-
-

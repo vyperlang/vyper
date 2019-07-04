@@ -2,7 +2,6 @@
 
 .. _deploying:
 
-********************
 Deploying a Contract
 ********************
 

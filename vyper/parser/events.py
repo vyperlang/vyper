@@ -142,6 +142,10 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder,
                     "Log list type '%s' does not match provided, expected '%s'" % (provided, typ)
                 )
 
+        # NOTE: Below code could be refactored into iterators/getter functions for each type of
+        #       repetitive loop. But seeing how each one is a unique for loop, and in which way
+        #       the sub value makes the difference in each type of list clearer.
+
         # List from storage
         if isinstance(arg, ast.Attribute) and arg.value.id == 'self':
             stor_list = context.globals[arg.attr]
@@ -172,7 +176,11 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder,
             check_list_type_match(context.vars[arg.id].typ.subtype)
             mem_offset = 0
             for _ in range(0, size):
-                arg2 = LLLnode.from_list(pos + mem_offset, typ=typ, location='memory')
+                arg2 = LLLnode.from_list(
+                    pos + mem_offset,
+                    typ=typ,
+                    location=context.vars[arg.id].location
+                )
                 holder, maxlen = pack_args_by_32(
                     holder,
                     maxlen,

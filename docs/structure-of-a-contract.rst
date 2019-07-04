@@ -2,12 +2,11 @@
 
 .. _contract_structure:
 
-***********************
 Structure of a Contract
 ***********************
 
 Contracts in Vyper are contained within files, with each file being one smart-contract.  Files in Vyper are similar to classes in object-oriented languages.
-Each file can contain declarations of :ref:`structure-state-variables`, :ref:`structure-functions`, and :ref:`structure-structs-types`.
+Each file can contain declarations of :ref:`structure-state-variables` and :ref:`structure-functions`.
 
 .. _structure-state-variables:
 
@@ -20,9 +19,7 @@ State variables are values which are permanently stored in contract storage.
 
   storedData: int128
 
-See the :ref:`types` section for valid state variable types and
-:ref:`visibility-and-getters` for possible choices for
-visibility.
+See the :ref:`types` section for valid state variable types.
 
 .. _structure-functions:
 
@@ -38,24 +35,26 @@ Functions are the executable units of code within a contract.
   def bid(): // Function
     // ...
 
-:ref:`Function-calls` can happen internally or externally
-and have different levels of visibility (:ref:`visibility-and-getters`)
-towards other contracts. Functions must be decorated with either @public or @private.
+Function calls can happen internally or externally and have different levels of visibility (see
+:ref:`structure-decorators`) towards other contracts. Functions must be decorated with either
+@public or @private.
+
+.. _structure-decorators:
 
 Decorators
 ----------
 
-===========================  ===========================================
-Decorator                    Description
-===========================  ===========================================
-`@public`                    Can be called from external contracts.
-`@private`                   Can only be called within current contract.
-`@constant`                  Does not alter contract state.
-`@payable`                   The contract is open to receive Ether.
-`@nonreentrant(<unique_key>)`  Function can only be called once,
-                             both externally and internally. Used to
-                             prevent reentrancy attacks.
-===========================  ===========================================
+============================= ===========================================
+Decorator                     Description
+============================= ===========================================
+`@public`                     Can be called from external contracts.
+`@private`                    Can only be called within current contract.
+`@constant`                   Does not alter contract state.
+`@payable`                    The contract is open to receive Ether.
+`@nonreentrant(<unique_key>)` Function can only be called once,
+                              both externally and internally. Used to
+                              prevent reentrancy attacks.
+============================= ===========================================
 
 The visibility decorators `@public` or `@private` are mandatory on function declarations, whilst the other decorators(@constant, @payable, @nonreentrant) are optional.
 
@@ -79,7 +78,6 @@ If the function is annotated as `@payable`, this function is executed whenever t
     def __default__():
         log.Payment(msg.value, msg.sender)
 
-
 Considerations
 ~~~~~~~~~~~~~~
 
@@ -99,7 +97,6 @@ Lastly, although the default function receives no arguments, it can still access
 - the address of who is interacting with the contract (``msg.sender``)
 - the amount of ETH sent (``msg.value``)
 - the gas provided (``msg.gas``).
-
 
 .. _structure-events:
 
@@ -163,8 +160,6 @@ Vyper supports structured documentation for state variables and functions and ev
   @param food The name of a food that was eaten (in English)
   """
 
-
-
 Additional information about Ethereum Natural Specification (NatSpec) can be found `here <https://github.com/ethereum/wiki/wiki/Ethereum-Natural-Specification-Format>`_.
 
 Contract Interfaces
@@ -180,7 +175,6 @@ Vyper supports exporting and importing contract interfaces, this is done using a
 
 This will import the defined interface in vyper file at `an_interface.vy` (or `an_interface.json` if using ABI json interface type) and make sure the current contract implements all the necessary public functions.
 Note that all interface is valid vyper code, without the return type check. Meaning you can use a contract with code in in the function body as interface as well (but default to a function body with a `pass`).
-
 
 Extracting Interfaces
 ---------------------
@@ -218,6 +212,7 @@ The output can then easily be copy-pasted to be consumed.
 
 Built-in Interfaces
 -------------------
+
 Vyper supports a few built-in interfaces such as ERC20 and ERC721. These are imported from ``vyper.interfaces``:
 
 ::
@@ -226,7 +221,7 @@ Vyper supports a few built-in interfaces such as ERC20 and ERC721. These are imp
 
   implements: ERC20
 
-External Calls using Interfaces
+External Calls Using Interfaces
 -------------------------------
 
 To define external interfaces inline the `contract` keyword is used.
