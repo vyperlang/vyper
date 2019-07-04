@@ -142,6 +142,10 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder,
                     "Log list type '%s' does not match provided, expected '%s'" % (provided, typ)
                 )
 
+        # NOTE: Below code could be refactored into iterators/getter functions for each type of
+        #       repetitive loop. But seeing how each one is a unique for loop, and in which way
+        #       the sub value makes the difference in each type of list clearer.
+
         # List from storage
         if isinstance(arg, ast.Attribute) and arg.value.id == 'self':
             stor_list = context.globals[arg.attr]

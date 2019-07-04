@@ -103,9 +103,6 @@ def parse_public_function(code: ast.FunctionDef,
     # Get nonreentrant lock
     nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(sig, context.global_ctx)
 
-    # Allocate variable space.
-    # context.memory_allocator.increase_memory(sig.max_copy_size)
-
     clampers = []
 
     # Generate copiers
