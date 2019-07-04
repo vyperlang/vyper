@@ -241,6 +241,40 @@ def string_compare_equal(str1: string[100], str2: string[100]) -> bool:
 @public
 def string_compare_not_equal(str1: string[100], str2: string[100]) -> bool:
     return str1 != str2
+
+@public
+def compare_passed_storage_equal(str: string[100]) -> bool:
+    self._compA = "The quick brown fox jumps over the lazy dog"
+    return self._compA == str
+
+@public
+def compare_passed_storage_not_equal(str: string[100]) -> bool:
+    self._compA = "The quick brown fox jumps over the lazy dog"
+    return self._compA != str
+
+@public
+def compare_var_storage_equal_true() -> bool:
+    self._compA = "The quick brown fox jumps over the lazy dog"
+    compB: string[100] = "The quick brown fox jumps over the lazy dog"
+    return self._compA == compB
+
+@public
+def compare_var_storage_equal_false() -> bool:
+    self._compA = "The quick brown fox jumps over the lazy dog"
+    compB: string[100] = "The quick brown fox jumps over the lazy hog"
+    return self._compA == compB
+
+@public
+def compare_var_storage_not_equal_true() -> bool:
+    self._compA = "The quick brown fox jumps over the lazy dog"
+    compB: string[100] = "The quick brown fox jumps over the lazy hog"
+    return self._compA != compB
+
+@public
+def compare_var_storage_not_equal_false() -> bool:
+    self._compA = "The quick brown fox jumps over the lazy dog"
+    compB: string[100] = "The quick brown fox jumps over the lazy dog"
+    return self._compA != compB
     """
 
     c = get_contract_with_gas_estimation(code)
@@ -263,3 +297,13 @@ def string_compare_not_equal(str1: string[100], str2: string[100]) -> bool:
     assert c.string_compare_equal(a, b) is False
     assert c.string_compare_not_equal(b, a) is True
     assert c.string_compare_not_equal(b, b) is False
+
+    assert c.compare_passed_storage_equal(a) is True
+    assert c.compare_passed_storage_equal(b) is False
+    assert c.compare_passed_storage_not_equal(a) is False
+    assert c.compare_passed_storage_not_equal(b) is True
+
+    assert c.compare_var_storage_equal_true() is True
+    assert c.compare_var_storage_equal_false() is False
+    assert c.compare_var_storage_not_equal_true() is True
+    assert c.compare_var_storage_not_equal_false() is False
