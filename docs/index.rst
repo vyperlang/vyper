@@ -3,7 +3,6 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-#####
 Vyper
 #####
 
@@ -14,7 +13,6 @@ Vyper
 
 Vyper is a contract-oriented, pythonic programming language that targets the `Ethereum Virtual Machine (EVM) <http://ethdocs.org/en/latest/introduction/what-is-ethereum.html#ethereum-virtual-machine>`_
 
-********************
 Principles and Goals
 ********************
 
@@ -51,7 +49,6 @@ Following the principles and goals, Vyper **does not** provide the following fea
 * **Binary fixed point:** Decimal fixed point is better, because any decimal fixed point value written as a literal in code has an exact representation, whereas with binary fixed point approximations are often required
   (e.g. (0.2)\ :sub:`10` = (0.001100110011...)\ :sub:`2`, which needs to be truncated), leading to unintuitive results, e.g. in Python 0.3 + 0.3 + 0.3 + 0.1 != 1.
 
-********************************
 Compatibility-breaking Changelog
 ********************************
 
@@ -89,9 +86,9 @@ Compatibility-breaking Changelog
 * **2017.07.25**: A function can only call functions that are declared above it (that is, A can call B only if B appears earlier in the code than A does). This was introduced
   to prevent infinite looping through recursion.
 
-********
 Glossary
 ********
+
 .. toctree::
     :maxdepth: 2
 

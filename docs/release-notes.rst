@@ -1,11 +1,11 @@
 .. _release-notes:
 
-#############
 Release Notes
 #############
 
-v0.1.0-beta.10 
+v0.1.0-beta.10
 **************
+
 Date released: 24-05-2019
 
 - Lots of linting and refactoring!
@@ -20,7 +20,7 @@ Date released: 24-05-2019
 
 Special thanks to (`Charles Cooper <https://github.com/charles-cooper>`_), for some excellent contributions this release.
 
-v0.1.0-beta.9 
+v0.1.0-beta.9
 *************
 
 Date released: 12-03-2019

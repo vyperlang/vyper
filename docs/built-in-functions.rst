@@ -2,16 +2,17 @@
 
 .. _built_in_functions:
 
-***********************
 Built in Functions
-***********************
+******************
 
-Vyper contains a set amount of built in functions that would be timely and/or unachievable to write in Vyper.
+Vyper provides a collection of built in functions available in the global namespace of all
+contracts.
 
 .. _functions:
 
 Functions
 =========
+
 **floor**
 ---------
 ::
@@ -41,7 +42,7 @@ Rounds a decimal down to the nearest integer.
 Rounds a decimal up to the nearest integer.
 
 **convert**
--------------------------
+-----------
 ::
 
   def convert(a, b) -> c:
@@ -54,12 +55,12 @@ Rounds a decimal up to the nearest integer.
     :output c: either decimal, int128, uint256 or bytes32
     """
 
-Converts a variable / literal from one type to another.
+Converts a variable or literal from one type to another.
 
 For more details on available type conversions, see :ref:`type_conversions`.
 
 **clear**
--------------------------
+---------
 ::
 
   def clear(a):
@@ -71,7 +72,7 @@ For more details on available type conversions, see :ref:`type_conversions`.
 Clears a variable's contents to the default value of its type.
 
 **as_wei_value**
--------------------------
+----------------
 ::
 
   def as_wei_value(a, b) -> c:
@@ -84,10 +85,11 @@ Clears a variable's contents to the default value of its type.
     :output c: wei_value
     """
 
-The value of the input number as ``wei``, converted based on the specified unit.
+Takes an amount of ether currency specified by a number and a unit (e.g. ``"wei"``, ``"ether"``,
+``"gwei"``, etc.) and returns the integer quantity of wei equivalent to that amount.
 
 **as_unitless_number**
--------------------------
+----------------------
 ::
 
   def as_unitless_number(a) -> b:
@@ -98,7 +100,8 @@ The value of the input number as ``wei``, converted based on the specified unit.
     :output b: either decimal or int128
     """
 
-Turns a ``int128``, ``uint256``, ``decimal`` with units into one without units (used for assignment and math).
+Converts a ``int128``, ``uint256``, or ``decimal`` value with units into one without units (used for
+assignment and math).
 
 **slice**
 ---------
@@ -149,7 +152,7 @@ Returns the length of a given list of bytes.
 Takes 2 or more bytes arrays of type ``bytes32`` or ``bytes`` and combines them into one.
 
 **keccak256**
---------------------
+-------------
 ::
 
   def keccak256(a) -> b:
@@ -163,7 +166,7 @@ Takes 2 or more bytes arrays of type ``bytes32`` or ``bytes`` and combines them 
 Returns ``keccak256`` hash of input.
 
 **sha256**
---------------------
+----------
 ::
 
   def sha256(a) -> b:
@@ -175,7 +178,6 @@ Returns ``keccak256`` hash of input.
     """
 
 Returns ``sha256`` (SHA2 256bit output) hash of input.
-
 
 **sqrt**
 --------
@@ -191,9 +193,8 @@ Returns ``sha256`` (SHA2 256bit output) hash of input.
 
 Returns the suare of the provided decimal number, using the Babylonian square root algorithm.
 
-
 **method_id**
----------------
+-------------
 ::
 
   def method_id(a, b) -> c:
@@ -209,7 +210,7 @@ Returns the suare of the provided decimal number, using the Babylonian square ro
 Takes a function declaration and returns its method_id (used in data field to call it).
 
 **ecrecover**
----------------
+-------------
 ::
 
   def ecrecover(hash, v, r, s) -> b:
@@ -229,7 +230,7 @@ Takes a function declaration and returns its method_id (used in data field to ca
 Takes a signed hash and vrs and returns the public key of the signer.
 
 **ecadd**
----------------
+---------
 ::
 
   def ecadd(a, b) -> sum:
@@ -245,7 +246,7 @@ Takes a signed hash and vrs and returns the public key of the signer.
 Takes two elliptic curves and adds them together.
 
 **ecmul**
----------------
+---------
 ::
 
   def ecmul(a, b) -> product:
@@ -261,7 +262,7 @@ Takes two elliptic curves and adds them together.
 Takes two elliptic curves and multiplies them together.
 
 **extract32**
----------------
+-------------
 ::
 
   def extract32(a, b, type=c) -> d:
@@ -277,7 +278,7 @@ Takes two elliptic curves and multiplies them together.
     """
 
 **RLPList**
----------------
+-----------
 ::
 
   def _RLPList(a, b) -> c:
@@ -312,7 +313,6 @@ Note: RLP decoder needs to be deployed if one wishes to use it outside of the Vy
 
 \3. This is the contract address: 0xCb969cAAad21A78a24083164ffa81604317Ab603
 
-****************************
 Low Level Built in Functions
 ****************************
 
@@ -406,8 +406,10 @@ Note: To give it a more Python-like syntax, the raise function can be called wit
     """
 
 Asserts the specified condition. The behavior is equivalent to::
+
   if not a:
     raise reason
+
 (the only difference in behavior is that ``assert`` can be called without a reason string, while ``raise`` requires a reason string).
 
 If assert is passed to an assert statement, an INVALID (0xFE) opcode will be used instead of an REVERT opcode.
@@ -443,9 +445,8 @@ Emits a log without specifying the abi type, with the arguments entered as the f
 Duplicates a contract's code and deploys it as a new instance, by means of a DELEGATECALL.
 You can also specify wei value to send to the new contract as ``value=the_value``.
 
-
 **blockhash**
----------------
+-------------
 ::
 
   def blockhash(a) -> hash:
