@@ -422,9 +422,9 @@ Note: To give it a more Python-like syntax, the assert function can be called wi
 
   def raw_log(a, b):
     """
-    :param a: the address of the contract to duplicate.
-    :type a: * (any input)
-    :param b: the name of the logged event.
+    :param a: 0-4 topics.
+    :type a: list of bytes32 of length 0-4
+    :param b: the name of the logged event
     :type b: bytes
     """
 
