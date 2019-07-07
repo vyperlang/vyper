@@ -27,24 +27,6 @@ send(0x1234567890123456789012345678901234567890, 5)
 send(0x1234567890123456789012345678901234567890, 5)
     """,
     """
-x: int128[5]
-@public
-def foo():
-    self.x[2:4] = 3
-    """,
-    """
-x: int128[5]
-@public
-def foo():
-    z = self.x[2:4]
-    """,
-    """
-@public
-def foo():
-    x: int128[5]
-    z = x[2:4]
-    """,
-    """
 @public
 def foo():
     x: int128 = 5
@@ -88,7 +70,7 @@ def foo():
     """
 @public
 def foo():
-    x: bytes32 = sha3("moose", 3)
+    x: bytes32 = keccak256("moose", 3)
     """,
     """
 @public
@@ -144,11 +126,6 @@ def foo() -> int128(wei):
 def foo() -> int128:
     x: address = 0x1234567890123456789012345678901234567890
     return x.codesize()
-    """,
-    """
-@public
-def foo():
-    x: address = ~self
     """,
     """
 @public

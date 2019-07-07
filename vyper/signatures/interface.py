@@ -1,9 +1,9 @@
-import ast
 import copy
 import importlib
 import os
 import pkgutil
 
+from vyper import ast
 from vyper.exceptions import (
     ParserException,
     StructureException,
@@ -15,11 +15,18 @@ from vyper.parser import (
 from vyper.parser.constants import (
     Constants,
 )
+from vyper.signatures import (
+    sig_utils,
+)
 from vyper.signatures.event_signature import (
     EventSignature,
 )
 from vyper.signatures.function_signature import (
     FunctionSignature,
+)
+from vyper.typing import (
+    InterfaceImports,
+    SourceCode,
 )
 
 
@@ -45,17 +52,17 @@ def render_return(sig):
 
 def abi_type_to_ast(atype):
     if atype in ('int128', 'uint256', 'bool', 'address', 'bytes32'):
-        return ast.Name(atype, None)
+        return ast.Name(id=atype)
     elif atype == 'decimal':
-        return ast.Name('int128', None)
+        return ast.Name(id='int128')
     elif atype == 'bytes':
         return ast.Subscript(
-            value=ast.Name('bytes', None),
+            value=ast.Name(id='bytes'),
             slice=ast.Index(256)
         )
     elif atype == 'string':
         return ast.Subscript(
-            value=ast.Name('string', None),
+            value=ast.Name(id='string'),
             slice=ast.Index(256)
         )
     else:
@@ -88,11 +95,11 @@ def mk_full_signature_from_json(abi):
                 ]
             )
 
-        decorator_list = [ast.Name('public', None)]
+        decorator_list = [ast.Name(id='public')]
         if func['constant']:
-            decorator_list.append(ast.Name('constant', None))
+            decorator_list.append(ast.Name(id='constant'))
         if func['payable']:
-            decorator_list.append(ast.Name('payable', None))
+            decorator_list.append(ast.Name(id='payable'))
 
         sig = FunctionSignature.from_definition(
             code=ast.FunctionDef(
@@ -111,7 +118,7 @@ def mk_full_signature_from_json(abi):
 
 def extract_sigs(sig_code):
     if sig_code['type'] == 'vyper':
-        return parser.mk_full_signature(
+        return sig_utils.mk_full_signature(
             parser.parse_to_ast(sig_code['code']),
             sig_formatter=lambda x, y: x
         )
@@ -125,7 +132,7 @@ def extract_sigs(sig_code):
 
 
 def extract_interface_str(code, contract_name, interface_codes=None):
-    sigs = parser.mk_full_signature(
+    sigs = sig_utils.mk_full_signature(
         parser.parse_to_ast(code),
         sig_formatter=lambda x, y: (x, y),
         interface_codes=interface_codes,
@@ -167,7 +174,7 @@ def extract_interface_str(code, contract_name, interface_codes=None):
 
 
 def extract_external_interface(code, contract_name, interface_codes=None):
-    sigs = parser.mk_full_signature(
+    sigs = sig_utils.mk_full_signature(
         parser.parse_to_ast(code),
         sig_formatter=lambda x, y: (x, y),
         interface_codes=interface_codes,
@@ -191,12 +198,13 @@ def extract_external_interface(code, contract_name, interface_codes=None):
     return out
 
 
-def extract_file_interface_imports(code):
+def extract_file_interface_imports(code: SourceCode) -> InterfaceImports:
     ast_tree = parser.parse_to_ast(code)
-    imports_dict = {}
+
+    imports_dict: InterfaceImports = {}
     for item in ast_tree:
         if isinstance(item, ast.Import):
-            for a_name in item.names:
+            for a_name in item.names:  # type: ignore
                 if not a_name.asname:
                     raise StructureException(
                         'Interface statement requires an accompanying `as` statement.',
@@ -204,15 +212,15 @@ def extract_file_interface_imports(code):
                     )
                 if a_name.asname in imports_dict:
                     raise StructureException(
-                        'Interface with Alias {} already exists'.format(a_name.asname),
+                        'Interface with alias {} already exists'.format(a_name.asname),
                         item,
                     )
                 imports_dict[a_name.asname] = a_name.name
+
     return imports_dict
 
 
 def check_valid_contract_interface(global_ctx, contract_sigs):
-
     if global_ctx._interface:
         funcs_left = global_ctx._interface.copy()
 

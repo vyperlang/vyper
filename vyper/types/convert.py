@@ -1,13 +1,13 @@
-import ast
 import math
 import warnings
 
+from vyper import ast
 from vyper.exceptions import (
     InvalidLiteralException,
     ParserException,
     TypeMismatchException,
 )
-from vyper.functions.signature import (
+from vyper.functions.signatures import (
     signature,
 )
 from vyper.parser.parser_utils import (
@@ -303,7 +303,7 @@ def to_decimal(expr, args, kwargs, context):
             raise InvalidLiteralException("Invalid input for decimal: %r" % in_arg, expr)
 
 
-@signature(('int128', 'uint256', 'address', 'bytes', 'bool'), '*')
+@signature(('int128', 'uint256', 'address', 'bytes', 'bool', 'decimal'), '*')
 def to_bytes32(expr, args, kwargs, context):
     in_arg = args[0]
     input_type, _len = get_type(in_arg)

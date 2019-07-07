@@ -1,6 +1,15 @@
-import ast
+import ast as python_ast
+from typing import (
+    Any,
+    List,
+    Optional,
+    Union,
+)
 
+from vyper import ast
 from vyper.exceptions import (
+    ArrayIndexException,
+    ConstancyViolationException,
     InvalidLiteralException,
     StructureException,
     TypeMismatchException,
@@ -24,6 +33,12 @@ from vyper.types import (
     get_size_of_type,
     has_dynamic_data,
     is_base_type,
+)
+from vyper.types.types import (
+    ContractType,
+)
+from vyper.typing import (
+    ClassTypes,
 )
 from vyper.utils import (
     DECIMAL_DIVISOR,
@@ -229,7 +244,7 @@ def getpos(node):
 
 # Take a value representing a memory or storage location, and descend down to
 # an element or member variable
-def add_variable_offset(parent, key, pos):
+def add_variable_offset(parent, key, pos, array_bounds_check=True):
     typ, location = parent.typ, parent.location
     if isinstance(typ, (StructType, TupleType)):
         if isinstance(typ, StructType):
@@ -272,13 +287,13 @@ def add_variable_offset(parent, key, pos):
                 typ=subtype,
                 location='storage',
             )
-        elif location == 'memory':
+        elif location in ('calldata', 'memory'):
             offset = 0
             for i in range(index):
                 offset += 32 * get_size_of_type(typ.members[attrs[i]])
             return LLLnode.from_list(['add', offset, parent],
                                      typ=typ.members[key],
-                                     location='memory',
+                                     location=location,
                                      annotation=annotation)
         else:
             raise TypeMismatchException("Not expecting a member variable access", pos)
@@ -312,7 +327,7 @@ def add_variable_offset(parent, key, pos):
             return LLLnode.from_list(['sha3_64', parent, sub],
                                      typ=subtype,
                                      location='storage')
-        elif location == 'memory':
+        elif location in ('memory', 'calldata'):
             raise TypeMismatchException(
                 "Can only have fixed-side arrays in memory, not mappings", pos
             )
@@ -320,9 +335,26 @@ def add_variable_offset(parent, key, pos):
     elif isinstance(typ, ListType):
 
         subtype = typ.subtype
-        sub = [
-            'uclamplt', base_type_conversion(key, key.typ, BaseType('int128'), pos=pos), typ.count
-        ]
+        k = unwrap_location(key)
+        if not is_base_type(key.typ, ('int128', 'uint256')):
+            raise TypeMismatchException('Invalid type for array index: %r' % key.typ, pos)
+
+        if not array_bounds_check:
+            sub = k
+        elif key.typ.is_literal:  # note: BaseType always has is_literal attr
+            # perform the check at compile time and elide the runtime check.
+            if key.value < 0 or key.value >= typ.count:
+                raise ArrayIndexException(
+                        'Array index determined to be out of bounds. '
+                        'Index is %r but array size is %r' % (key.value, typ.count),
+                        pos)
+            sub = k
+        else:
+            # this works, even for int128. for int128, since two's-complement
+            # is used, if the index is negative, (unsigned) LT will interpret
+            # it as a very large number, larger than any practical value for
+            # an array index, and the clamp will throw an error.
+            sub = ['uclamplt', k, typ.count]
 
         if location == 'storage':
             return LLLnode.from_list(['add', ['sha3_32', parent], sub],
@@ -332,12 +364,12 @@ def add_variable_offset(parent, key, pos):
             return LLLnode.from_list(['add', parent, sub],
                                      typ=subtype,
                                      location='storage')
-        elif location == 'memory':
+        elif location in ('calldata', 'memory'):
             offset = 32 * get_size_of_type(subtype)
             return LLLnode.from_list(
                 ['add', ['mul', offset, sub], parent],
                 typ=subtype,
-                location='memory',
+                location=location,
             )
         else:
             raise TypeMismatchException("Not expecting an array access ", pos)
@@ -366,6 +398,8 @@ def base_type_conversion(orig, frm, to, pos, in_function_call=False):
         )
     elif is_base_type(frm, to.typ) and are_units_compatible(frm, to):
         return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
+    elif isinstance(frm, ContractType) and to == BaseType('address'):
+        return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
     elif is_valid_int128_to_decimal:
         return LLLnode.from_list(
             ['mul', orig, DECIMAL_DIVISOR],
@@ -393,6 +427,8 @@ def unwrap_location(orig):
         return LLLnode.from_list(['mload', orig], typ=orig.typ)
     elif orig.location == 'storage':
         return LLLnode.from_list(['sload', orig], typ=orig.typ)
+    elif orig.location == 'calldata':
+        return LLLnode.from_list(['calldataload', orig], typ=orig.typ)
     else:
         return orig
 
@@ -534,9 +570,11 @@ def make_setter(left, right, location, pos, in_function_call=False):
                     left_token,
                     LLLnode.from_list(i, typ='int128'),
                     pos=pos,
+                    array_bounds_check=False,
                 ), right.args[i], location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If the right side is a null
+        # CC 20190619 probably not needed as of #1106
         elif isinstance(right.typ, NullType):
             subs = []
             for i in range(left.typ.count):
@@ -544,6 +582,7 @@ def make_setter(left, right, location, pos, in_function_call=False):
                     left_token,
                     LLLnode.from_list(i, typ='int128'),
                     pos=pos,
+                    array_bounds_check=False,
                 ), LLLnode.from_list(None, typ=NullType()), location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If the right side is a variable
@@ -555,10 +594,12 @@ def make_setter(left, right, location, pos, in_function_call=False):
                     left_token,
                     LLLnode.from_list(i, typ='int128'),
                     pos=pos,
+                    array_bounds_check=False,
                 ), add_variable_offset(
                     right_token,
                     LLLnode.from_list(i, typ='int128'),
                     pos=pos,
+                    array_bounds_check=False,
                 ), location, pos=pos))
             return LLLnode.from_list([
                 'with', '_L', left, [
@@ -652,6 +693,11 @@ def make_setter(left, right, location, pos, in_function_call=False):
             subs = []
             static_offset_counter = 0
             zipped_components = zip(left.args, right.typ.members, locations)
+            for var_arg in left.args:
+                if var_arg.location == 'calldata':
+                    raise ConstancyViolationException(
+                        f"Cannot modify function argument: {var_arg.annotation}", pos
+                    )
             for left_arg, right_arg, loc in zipped_components:
                 if isinstance(right_arg, ByteArrayLike):
                     RType = ByteArrayType if isinstance(right_arg, ByteArrayType) else StringType
@@ -698,36 +744,147 @@ def make_setter(left, right, location, pos, in_function_call=False):
         raise Exception("Invalid type for setters")
 
 
-def decorate_ast(_ast, code, class_names=None):
-    if class_names is None:
-        class_names = {}
+def is_return_from_function(node: Union[python_ast.AST, List[Any]]) -> bool:
+    is_selfdestruct = (
+        isinstance(node, python_ast.Expr)
+        and isinstance(node.value, python_ast.Call)
+        and isinstance(node.value.func, python_ast.Name)
+        and node.value.func.id == 'selfdestruct'
+    )
+    if isinstance(node, python_ast.Return):
+        return True
+    elif isinstance(node, python_ast.Raise):
+        return True
+    elif is_selfdestruct:
+        return True
+    else:
+        return False
 
-    class MyVisitor(ast.NodeTransformer):
 
-        def visit(self, node):
-            self.generic_visit(node)
-            # Decorate every node of an AST tree with the original source code.
-            # This is necessary to facilitate error pretty-printing.
-            node.source_code = code
-            # Decorate class definition with the type of classes they are.
-            if isinstance(node, ast.ClassDef):
-                node.class_type = class_names.get(node.name)
+class AnnotatingVisitor(python_ast.NodeTransformer):
+    _source_code: str
+    _class_types: ClassTypes
+
+    def __init__(self, source_code: str, class_types: Optional[ClassTypes] = None):
+        self._source_code: str = source_code
+        self.counter: int = 0
+        if class_types is not None:
+            self._class_types = class_types
+        else:
+            self._class_types = {}
+
+    def generic_visit(self, node):
+        # Decorate every node in the AST with the original source code. This is
+        # necessary to facilitate error pretty-printing.
+        node.source_code = self._source_code
+        node.node_id = self.counter
+        self.counter += 1
+
+        return super().generic_visit(node)
+
+    def visit_ClassDef(self, node):
+        self.generic_visit(node)
+
+        # Decorate class definitions with their respective class types
+        node.class_type = self._class_types.get(node.name)
+
+        return node
+
+
+class RewriteUnarySubVisitor(python_ast.NodeTransformer):
+    def visit_UnaryOp(self, node):
+        self.generic_visit(node)
+        if isinstance(node.op, python_ast.USub) and isinstance(node.operand, python_ast.Num):
+            node.operand.n = 0 - node.operand.n
+            return node.operand
+        else:
             return node
 
-    MyVisitor().visit(_ast)
+
+class EnsureSingleExitChecker(python_ast.NodeVisitor):
+
+    def visit_FunctionDef(self, node: python_ast.FunctionDef) -> None:
+        self.generic_visit(node)
+        self.check_return_body(node, node.body)
+
+    def visit_If(self, node: python_ast.If) -> None:
+        self.generic_visit(node)
+        self.check_return_body(node, node.body)
+        if node.orelse:
+            self.check_return_body(node, node.orelse)
+
+    def check_return_body(self, node: python_ast.AST, node_list: List[Any]) -> None:
+        return_count = len([n for n in node_list if is_return_from_function(n)])
+        if return_count > 1:
+            raise StructureException(
+                f'Too too many exit statements (return, raise or selfdestruct).',
+                node
+            )
+        # Check for invalid code after returns.
+        last_node_pos = len(node_list) - 1
+        for idx, n in enumerate(node_list):
+            if is_return_from_function(n) and idx < last_node_pos:
+                # is not last statement in body.
+                raise StructureException(
+                    'Exit statement with succeeding code (that will not execute).',
+                    node_list[idx + 1]
+                )
 
 
-def resolve_negative_literals(_ast):
+class UnmatchedReturnChecker(python_ast.NodeVisitor):
+    """
+    Make sure all return statement are balanced
+    (both branches of if statement should have returns statements).
+    """
 
-    class RewriteUnaryOp(ast.NodeTransformer):
-        def visit_UnaryOp(self, node):
-            if isinstance(node.op, ast.USub) and isinstance(node.operand, ast.Num):
-                node.operand.n = 0 - node.operand.n
-                return node.operand
+    def visit_FunctionDef(self, node: python_ast.FunctionDef) -> None:
+        self.generic_visit(node)
+        self.handle_primary_function_def(node)
+
+    def handle_primary_function_def(self,  node: python_ast.FunctionDef) -> None:
+        if node.returns and not self.return_check(node.body):
+            raise StructureException(
+                f'Missing or Unmatched return statements in function "{node.name}". '
+                'All control flow statements (like if) need balanced return statements.',
+                node
+            )
+
+    def return_check(self, node: Union[python_ast.AST, List[Any]]) -> bool:
+        if is_return_from_function(node):
+            return True
+        elif isinstance(node, list):
+            return any(self.return_check(stmt) for stmt in node)
+        elif isinstance(node, python_ast.If):
+            if_body_check = self.return_check(node.body)
+            else_body_check = self.return_check(node.orelse)
+            if if_body_check and else_body_check:  # both side need to match.
+                return True
             else:
-                return node
+                return False
+        return False
 
-    return RewriteUnaryOp().visit(_ast)
+
+def annotate_ast(
+    parsed_ast: Union[python_ast.AST, python_ast.Module],
+    source_code: str,
+    class_types: Optional[ClassTypes] = None,
+) -> None:
+    """
+    Performs annotation and optimization on a parsed python AST by doing the
+    following:
+
+    * Annotating all AST nodes with the originating source code of the AST
+    * Annotating class definition nodes with their original class type
+      ("contract" or "struct")
+    * Substituting negative values for unary subtractions
+
+    :param parsed_ast: The AST to be annotated and optimized.
+    :param source_code: The originating source code of the AST.
+    :param class_types: A mapping of class names to original class types.
+    :return: The annotated and optmized AST.
+    """
+    AnnotatingVisitor(source_code, class_types).visit(parsed_ast)
+    RewriteUnarySubVisitor().visit(parsed_ast)
 
 
 def zero_pad(bytez_placeholder, maxlen, context):

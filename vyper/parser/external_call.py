@@ -1,5 +1,4 @@
-import ast
-
+from vyper import ast
 from vyper.exceptions import (
     FunctionDeclarationException,
     StructureException,
@@ -17,7 +16,7 @@ from vyper.parser.parser_utils import (
 from vyper.types import (
     BaseType,
     ByteArrayLike,
-    TupleType,
+    TupleLike,
     get_size_of_type,
 )
 
@@ -29,13 +28,23 @@ def external_contract_call(node,
                            pos,
                            value=None,
                            gas=None):
-    from vyper.parser.parser import parse_expr
+    from vyper.parser.expr import (
+        Expr,
+    )
     if value is None:
         value = 0
     if gas is None:
         gas = 'gas'
+    if not contract_name:
+        raise StructureException(
+            f'Invalid external contract call "{node.func.attr}".',
+            node
+        )
     if contract_name not in context.sigs:
-        raise VariableDeclarationException("Contract not declared yet: %s" % contract_name)
+        raise VariableDeclarationException(
+            f'Contract "{contract_name}" not declared yet',
+            node
+        )
     method_name = node.func.attr
     if method_name not in context.sigs[contract_name]:
         raise FunctionDeclarationException(
@@ -49,7 +58,7 @@ def external_contract_call(node,
     sig = context.sigs[contract_name][method_name]
     inargs, inargsize, _ = pack_arguments(
         sig,
-        [parse_expr(arg, context) for arg in node.args],
+        [Expr(arg, context).lll_node for arg in node.args],
         context,
         pos=pos,
     )
@@ -89,7 +98,7 @@ def get_external_contract_call_output(sig, context):
         returner = [0, output_placeholder]
     elif isinstance(sig.output_type, ByteArrayLike):
         returner = [0, output_placeholder + 32]
-    elif isinstance(sig.output_type, TupleType):
+    elif isinstance(sig.output_type, TupleLike):
         returner = [0, output_placeholder]
     else:
         raise TypeMismatchException("Invalid output type: %s" % sig.output_type)
@@ -173,4 +182,4 @@ def make_external_call(stmt_expr, context):
         )
 
     else:
-        raise StructureException("Unsupported operator: %r" % ast.dump(stmt_expr), stmt_expr)
+        raise StructureException("Unsupported operator.", stmt_expr)

@@ -318,9 +318,10 @@ def test(a: bytes32) -> (bytes32, uint256, int128):
     b: uint256 = 1
     c: int128 = 1
     d: int128 = 123
-    a, b, c = self._test(a)
+    f: bytes32
+    f, b, c = self._test(a)
     assert d == 123
-    return a, b, c
+    return f, b, c
 
 @public
 def test2(a: bytes32) -> (bytes32, uint256, int128):
@@ -530,3 +531,34 @@ def start():
     assert c.test() is False
     c.start(transact={})
     assert c.test() is True
+
+
+def test_private_array_param(get_contract):
+    code = """
+@private
+def change_arr(arr: int128[2]):
+    pass
+@public
+def call_arr() -> int128:
+    a: int128[2] # test with zeroed arg
+    self.change_arr(a)
+    return 42
+    """
+
+    c = get_contract(code)
+    assert c.call_arr() == 42
+
+
+def test_private_zero_bytearray(get_contract):
+    private_test_code = """
+@private
+def inner(xs: bytes[256]):
+    pass
+@public
+def outer(xs: bytes[256] = "") -> bool:
+    self.inner(xs)
+    return True
+    """
+
+    c = get_contract(private_test_code)
+    assert c.outer()

@@ -14,6 +14,20 @@ def foo() -> string[10]:
 @public
 def foo():
     x: string[11] = "¡très bien!"
+    """,
+    """
+@public
+def foo() -> bool:
+    x: string[15] = "¡très bien!"
+    y: string[15] = "test"
+    return x != y
+    """,
+    """
+@public
+def foo() -> bool:
+    x: string[15] = "¡très bien!"
+    y: string[12] = "test"
+    return x != y
     """
 ]
 

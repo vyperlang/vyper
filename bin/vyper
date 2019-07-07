@@ -6,6 +6,13 @@ from collections import (
 import json
 import os
 import sys
+from typing import (
+    Any,
+    Iterable,
+    Iterator,
+    Set,
+    TypeVar,
+)
 import warnings
 
 import vyper
@@ -15,6 +22,10 @@ from vyper.parser import (
 from vyper.signatures.interface import (
     extract_file_interface_imports,
 )
+from vyper.typing import (
+    ContractCodes,
+    ContractName,
+)
 
 warnings.simplefilter('always')
 
@@ -23,6 +34,7 @@ format_options_help = """Format to print, one or more of:
  bytecode_runtime   - Bytecode at runtime
  abi                - ABI in JSON format
  abi_python         - ABI in python format
+ ast                - AST in JSON format
  source_map         - Vyper source map
  method_identifiers - Dictionary of method signature to method identifier.
  combined_json      - All of the above format options combined as single JSON output.
@@ -72,21 +84,70 @@ elif not args.debug:
     sys.tracebacklimit = 0
 
 
-def uniq(seq):
-    exists = set()
-    return [x for x in seq if not (x in exists or exists.add(x))]
+T = TypeVar('T')
 
 
-def exc_handler(contract_name, exception):
+def uniq(seq: Iterable[T]) -> Iterator[T]:
+    """
+    Yield unique items in ``seq`` in order.
+    """
+    seen: Set[T] = set()
+
+    for x in seq:
+        if x in seen:
+            continue
+
+        seen.add(x)
+        yield x
+
+
+def exc_handler(contract_name: ContractName, exception: Exception) -> None:
     print('Error compiling: ', contract_name)
     raise exception
+
+
+def get_interface_codes(codes: ContractCodes) -> Any:
+    interface_codes = {}
+    interfaces = {}
+
+    for code in codes.values():
+        interface_codes.update(extract_file_interface_imports(code))
+
+    if interface_codes:
+        for interface_name, interface_path in interface_codes.items():
+            file_path = os.path.join(os.path.normpath(interface_path.replace('.', '/')))
+            extensions = ('.vy', '.json')
+            valid_paths = [
+                file_path + ex
+                for ex in extensions if os.path.exists(file_path + ex)
+            ]
+            if not valid_paths:
+                raise Exception(
+                    f'Imported interface "{interface_path}{{.vy,.json}}" does not exist.'
+                )
+
+            valid_path = valid_paths[0]
+            with open(valid_path) as fh:
+                code = fh.read()
+                if valid_path.endswith('.json'):
+                    interfaces[interface_name] = {
+                        'type': 'json',
+                        'code': json.loads(code.encode())
+                    }
+                else:
+                    interfaces[interface_name] = {
+                        'type': 'vyper',
+                        'code': code
+                    }
+
+    return interfaces
 
 
 if __name__ == '__main__':
     if args.show_gas_estimates:
         parser_utils.LLLnode.repr_show_gas = True
 
-    codes = OrderedDict()
+    codes: ContractCodes = OrderedDict()
     for file_name in args.input_files:
         with open(file_name) as fh:
             codes[file_name] = fh.read()
@@ -96,8 +157,8 @@ if __name__ == '__main__':
         out = vyper.compile_codes(
             codes,
             ['bytecode', 'bytecode_runtime', 'abi', 'source_map', 'method_identifiers'],
-            output_type='dict',
-            exc_handler=exc_handler
+            exc_handler=exc_handler,
+            interface_codes=get_interface_codes(codes)
         )
         out['version'] = vyper.__version__
         print(json.dumps(out))
@@ -105,58 +166,26 @@ if __name__ == '__main__':
     else:  # Normal output.
         translate_map = {
             'abi_python': 'abi',
-            'json': 'abi'
+            'json': 'abi',
+            'ast': 'ast_dict'
         }
         formats = []
-        orig_args = uniq(args.format.split(','))
+        orig_args = tuple(uniq(args.format.split(',')))
 
         for f in orig_args:
             formats.append(translate_map.get(f, f))
 
-        interface_codes = {}
-
-        for code in codes.values():
-            interface_codes.update(extract_file_interface_imports(code))
-
-        if interface_codes:
-            for interface_name, interface_path in interface_codes.items():
-                file_path = os.path.join(os.path.normpath(interface_path.replace('.', '/')))
-                extensions = ('.vy', '.json')
-                valid_paths = [
-                    file_path + ex
-                    for ex in extensions if os.path.exists(file_path + ex)
-                ]
-                if not valid_paths:
-                    raise Exception('Imported interface "{}{.vy,.json}" does not exist.'.format(
-                        interface_path,
-                    ))
-
-                valid_path = valid_paths[0]
-                with open(valid_path) as fh:
-                    code = fh.read()
-                    if valid_path.endswith('.json'):
-                        interface_codes[interface_name] = {
-                            'type': 'json',
-                            'code': json.loads(code.encode())
-                        }
-                    else:
-                        interface_codes[interface_name] = {
-                            'type': 'vyper',
-                            'code': code
-                        }
-
-        out_list = vyper.compile_codes(
+        out_list = list(vyper.compile_codes(
             codes,
             formats,
-            output_type='list',
             exc_handler=exc_handler,
-            interface_codes=interface_codes
-        )
+            interface_codes=get_interface_codes(codes)
+        ).values())
 
         for out in out_list:
             for f in orig_args:
                 o = out[translate_map.get(f, f)]
-                if f in ('abi', 'json'):
+                if f in ('abi', 'json', 'ast'):
                     print(json.dumps(o))
                 elif f == 'abi_python':
                     print(o)

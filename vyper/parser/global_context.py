@@ -1,5 +1,7 @@
-import ast
-
+from vyper import ast
+from vyper.ast_utils import (
+    parse_to_ast,
+)
 from vyper.exceptions import (
     EventDeclarationException,
     FunctionDeclarationException,
@@ -12,17 +14,11 @@ from vyper.parser.constants import (
     Constants,
 )
 from vyper.parser.parser_utils import (
-    decorate_ast,
     getpos,
-    resolve_negative_literals,
 )
 from vyper.signatures.function_signature import (
     ContractRecord,
     VariableRecord,
-)
-from vyper.signatures.interface import (
-    extract_sigs,
-    get_builtin_interfaces,
 )
 from vyper.types import (
     BaseType,
@@ -43,7 +39,6 @@ NONRENTRANT_STORAGE_OFFSET = 0xffffff
 
 # Datatype to store all global context information.
 class GlobalContext:
-
     def __init__(self):
         self._contracts = dict()
         self._structs = dict()
@@ -63,6 +58,10 @@ class GlobalContext:
     # Parse top-level functions and variables
     @classmethod
     def get_global_context(cls, code, interface_codes=None):
+        from vyper.signatures.interface import (
+            extract_sigs,
+            get_builtin_interfaces,
+        )
         interface_codes = {} if interface_codes is None else interface_codes
         global_ctx = cls()
 
@@ -245,10 +244,8 @@ class GlobalContext:
     # Parser for a single line
     @staticmethod
     def parse_line(code):
-        o = ast.parse(code).body[0]
-        decorate_ast(o, code)
-        o = resolve_negative_literals(o)
-        return o
+        parsed_ast = parse_to_ast(code)[0]
+        return parsed_ast
 
     # A struct is a list of members
     def make_struct(self, name, body):

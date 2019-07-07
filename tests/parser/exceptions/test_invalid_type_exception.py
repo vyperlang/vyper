@@ -43,9 +43,6 @@ def foo(x): pass
 b: map((int128, decimal), int128)
     """,
     """
-b: int128[int128: address]
-    """,
-    """
 x: wei(wei)
     """,
     """
@@ -61,16 +58,10 @@ x: int128(2 ** 2)
 x: int128(wei ** -1)
     """,
     """
-x: int128(wei >> 3)
-    """,
-    """
 x: bytes <= wei
     """,
     """
 x: string <= 33
-    """,
-    """
-x: bytes[1:3]
     """,
     """
 x: bytes[33.3]

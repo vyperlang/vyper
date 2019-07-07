@@ -1,6 +1,6 @@
-import ast
 import warnings
 
+from vyper import ast
 from vyper.exceptions import (
     InvalidLiteralException,
     NonPayableViolationException,
@@ -13,6 +13,9 @@ from vyper.parser import (
     external_call,
     self_call,
 )
+from vyper.parser.keccak256_helper import (
+    keccak256_helper,
+)
 from vyper.parser.lll_node import (
     LLLnode,
 )
@@ -21,10 +24,12 @@ from vyper.parser.parser_utils import (
     get_number_as_fraction,
     get_original_if_0_prefixed,
     getpos,
+    make_setter,
     unwrap_location,
 )
 from vyper.types import (
     BaseType,
+    ByteArrayLike,
     ByteArrayType,
     ContractType,
     ListType,
@@ -76,7 +81,7 @@ class Expr(object):
         if expr_type in self.expr_table:
             self.lll_node = self.expr_table[expr_type]()
         else:
-            raise Exception("Unsupported operator: %r" % ast.dump(self.expr))
+            raise Exception("Unsupported operator.", self.expr)
 
     def get_expr(self):
         return self.expr
@@ -110,7 +115,7 @@ class Expr(object):
                 raise InvalidLiteralException("Too many decimal places: " + numstring, self.expr)
             return LLLnode.from_list(
                 num * DECIMAL_DIVISOR // den,
-                typ=BaseType('decimal', unit=None),
+                typ=BaseType('decimal', unit=None, is_literal=True),
                 pos=getpos(self.expr),
             )
 
@@ -260,7 +265,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             return LLLnode.from_list(
                 var.pos,
                 typ=var.typ,
-                location='memory',
+                location=var.location,  # either 'memory' or 'calldata' storage is handled above.
                 pos=getpos(self.expr),
                 annotation=self.expr.id,
                 mutable=var.mutable,
@@ -396,7 +401,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
     def subscript(self):
         sub = Expr.parse_variable_location(self.expr.value, self.context)
         if isinstance(sub.typ, (MappingType, ListType)):
-            if 'value' not in vars(self.expr.slice):
+            if not isinstance(self.expr.slice, ast.Index):
                 raise StructureException(
                     "Array access must access a single element, not a slice",
                     self.expr,
@@ -444,7 +449,8 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
 
         # Special Case: Simplify any literal to literal arithmetic at compile time.
         if left.typ.is_literal and right.typ.is_literal and \
-           isinstance(right.value, int) and isinstance(left.value, int):
+           isinstance(right.value, int) and isinstance(left.value, int) and \
+           arithmetic_pair.issubset({'uint256', 'int128'}):
 
             if isinstance(self.expr.op, ast.Add):
                 val = left.value + right.value
@@ -464,7 +470,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                     self.expr,
                 )
 
-            num = ast.Num(val)
+            num = ast.Num(n=val)
             num.source_code = self.expr.source_code
             num.lineno = self.expr.lineno
             num.col_offset = self.expr.col_offset
@@ -699,7 +705,6 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             raise Exception("%r %r" % (o, o.typ))
 
     def build_in_comparator(self):
-        from vyper.parser.parser import make_setter
         left = Expr(self.expr.left, self.context).lll_node
         right = Expr(self.expr.comparators[0], self.context).lll_node
 
@@ -797,14 +802,10 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 self.expr,
             )
 
-        if isinstance(left.typ, ByteArrayType) and isinstance(right.typ, ByteArrayType):
-            if left.typ.maxlen != right.typ.maxlen:
-                raise TypeMismatchException('Can only compare bytes of the same length', self.expr)
-            if left.typ.maxlen > 32 or right.typ.maxlen > 32:
-                raise ParserException(
-                    'Can only compare bytes of length shorter than 32 bytes',
-                    self.expr,
-                )
+        if isinstance(left.typ, ByteArrayLike) and isinstance(right.typ, ByteArrayLike):
+            # TODO: Can this if branch be removed ^
+            pass
+
         elif isinstance(self.expr.ops[0], ast.In) and isinstance(right.typ, ListType):
             if left.typ != right.typ.subtype:
                 raise TypeMismatchException(
@@ -837,21 +838,43 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             raise Exception("Unsupported comparison operator")
 
         # Compare (limited to 32) byte arrays.
-        if isinstance(left.typ, ByteArrayType) and isinstance(left.typ, ByteArrayType):
+        if isinstance(left.typ, ByteArrayLike) and isinstance(right.typ, ByteArrayLike):
             left = Expr(self.expr.left, self.context).lll_node
             right = Expr(self.expr.comparators[0], self.context).lll_node
 
-            def load_bytearray(side):
-                if side.location == 'memory':
-                    return ['mload', ['add', 32, side]]
-                elif side.location == 'storage':
-                    return ['sload', ['add', 1, ['sha3_32', side]]]
+            length_mismatch = (left.typ.maxlen != right.typ.maxlen)
+            left_over_32 = left.typ.maxlen > 32
+            right_over_32 = right.typ.maxlen > 32
+            if length_mismatch or left_over_32 or right_over_32:
+                left_keccak = keccak256_helper(self.expr, [left], None, self.context)
+                right_keccak = keccak256_helper(self.expr, [right], None, self.context)
 
-            return LLLnode.from_list(
-                [op, load_bytearray(left), load_bytearray(right)],
-                typ='bool',
-                pos=getpos(self.expr),
-            )
+                if op == 'eq' or op == 'ne':
+                    return LLLnode.from_list(
+                        [op, left_keccak, right_keccak],
+                        typ='bool',
+                        pos=getpos(self.expr),
+                    )
+
+                else:
+                    raise ParserException(
+                        "Can only compare strings/bytes of length shorter",
+                        " than 32 bytes other than equality comparisons",
+                        self.expr,
+                    )
+
+            else:
+                def load_bytearray(side):
+                    if side.location == 'memory':
+                        return ['mload', ['add', 32, side]]
+                    elif side.location == 'storage':
+                        return ['sload', ['add', 1, ['sha3_32', side]]]
+
+                return LLLnode.from_list(
+                    [op, load_bytearray(left), load_bytearray(right)],
+                    typ='bool',
+                    pos=getpos(self.expr),
+                )
 
         # Compare other types.
         if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
@@ -959,7 +982,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 )
 
             if operand.typ.is_literal and 'int' in operand.typ.typ:
-                num = ast.Num(0 - operand.value)
+                num = ast.Num(n=0 - operand.value)
                 num.source_code = self.expr.source_code
                 num.lineno = self.expr.lineno
                 num.col_offset = self.expr.col_offset
@@ -974,7 +997,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             arg_lll = Expr(self.expr.args[0], self.context).lll_node
             if arg_lll.typ == BaseType('address'):
                 return True, arg_lll
-        return True, None
+        return False, None
 
     # Function calls
     def call(self):
@@ -1064,7 +1087,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             " favor of named structs, see VIP300",
             DeprecationWarning
         )
-        raise InvalidLiteralException("Invalid literal: %r" % ast.dump(self.expr), self.expr)
+        raise InvalidLiteralException("Invalid literal.", self.expr)
 
     @staticmethod
     def struct_literals(expr, name, context):
@@ -1073,7 +1096,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         for key, value in zip(expr.keys, expr.values):
             if not isinstance(key, ast.Name):
                 raise TypeMismatchException(
-                    "Invalid member variable for struct: %r" % vars(key).get('id', key),
+                    "Invalid member variable for struct: %r" % getattr(key, 'id', ''),
                     key,
                 )
             check_valid_varname(
@@ -1107,7 +1130,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
     def parse_value_expr(cls, expr, context):
         return unwrap_location(cls(expr, context).lll_node)
 
-    # Parse an expression that represents an address in memory or storage
+    # Parse an expression that represents an address in memory/calldata or storage.
     @classmethod
     def parse_variable_location(cls, expr, context):
         o = cls(expr, context).lll_node

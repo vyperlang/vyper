@@ -1,3 +1,8 @@
+from vyper.exceptions import (
+    ArrayIndexException,
+)
+
+
 def test_list_tester_code(get_contract_with_gas_estimation):
     list_tester_code = """
 z: int128[3]
@@ -199,3 +204,53 @@ def test_multi4() -> uint256[2][2][2][2]:
         [[[1, 0], [0, 4]], [[0, 0], [0, 0]]],
         [[[444, 0], [0, 0]], [[1, 0], [0, 222]]],
     ]
+
+
+def test_uint256_accessor(get_contract_with_gas_estimation, assert_tx_failed):
+    code = """
+@public
+def bounds_check_uint256(ix: uint256) -> uint256:
+    xs: uint256[3] = [1,2,3]
+    return xs[ix]
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.bounds_check_uint256(0) == 1
+    assert c.bounds_check_uint256(2) == 3
+    assert_tx_failed(lambda: c.bounds_check_uint256(3))
+
+
+def test_int128_accessor(get_contract_with_gas_estimation, assert_tx_failed):
+    code = """
+@public
+def bounds_check_int128(ix: int128) -> uint256:
+    xs: uint256[3] = [1,2,3]
+    return xs[ix]
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.bounds_check_int128(0) == 1
+    assert c.bounds_check_int128(2) == 3
+    assert_tx_failed(lambda: c.bounds_check_int128(3))
+    assert_tx_failed(lambda: c.bounds_check_int128(-1))
+
+
+def test_compile_time_bounds_check(get_contract_with_gas_estimation, assert_compile_failed):
+    code = """
+@public
+def fail() -> uint256:
+    xs: uint256[3] = [1,2,3]
+    return xs[3]
+    """
+    assert_compile_failed(
+            lambda: get_contract_with_gas_estimation(code),
+            ArrayIndexException
+            )
+    code = """
+@public
+def fail() -> uint256:
+    xs: uint256[3] = [1,2,3]
+    return xs[-1]
+    """
+    assert_compile_failed(
+            lambda: get_contract_with_gas_estimation(code),
+            ArrayIndexException
+            )

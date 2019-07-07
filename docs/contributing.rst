@@ -1,4 +1,3 @@
-############
 Contributing
 ############
 
@@ -19,8 +18,6 @@ In particular, we need help in the following areas:
   <https://gitter.im/ethereum/vyper>`_
 * Suggesting Improvements
 * Fixing and responding to `Vyper's GitHub issues <https://github.com/ethereum/vyper/issues>`_
-
-
 
 How to Suggest Improvements
 ===========================

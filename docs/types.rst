@@ -2,7 +2,6 @@
 
 .. _types:
 
-#####
 Types
 #####
 
@@ -16,7 +15,6 @@ operators.
 
 .. index:: ! value
 
-***********
 Value Types
 ***********
 
@@ -35,6 +33,7 @@ A boolean is a type to store a logical/truth value.
 
 Values
 ------
+
 The only possible values are the constants ``True`` and ``False``.
 
 Operators
@@ -50,24 +49,29 @@ Operator              Description
 ``x != y``            Inequality
 ====================  ===================
 
-The operators ``or`` and ``and`` apply the common short-circuiting rules.
+The operators ``or`` and ``and`` do not apply short-circuiting rules, i.e. both
+`x` and `y` will always be evaluated.
 
 .. index:: ! int128, ! int, ! integer
 
 Signed Integer (128 bit)
 ========================
+
 **Keyword:** ``int128``
 
 A signed integer (128 bit) is a type to store positive and negative integers.
 
 Values
 ------
+
 Signed integer values between -2\ :sup:`127` and (2\ :sup:`127` - 1), inclusive.
 
 Operators
 ---------
+
 Comparisons
 ^^^^^^^^^^^
+
 Comparisons return a boolean value.
 
 ==========  ================
@@ -100,19 +104,20 @@ Operator       Description
 ``max(x, y)``  Maximum
 =============  ======================
 
-
 ``x`` and ``y`` must be of the type ``int128``.
 
 .. index:: ! unit, ! uint256
 
 Unsigned Integer (256 bit)
 ==========================
+
 **Keyword:** ``uint256``
 
 An unsigned integer (256 bit) is a type to store non-negative integers.
 
 Values
 ------
+
 Integer values between 0 and (2\ :sup:`256`-1).
 
 .. note::
@@ -120,8 +125,10 @@ Integer values between 0 and (2\ :sup:`256`-1).
 
 Operators
 ---------
+
 Comparisons
 ^^^^^^^^^^^
+
 Comparisons return a boolean value.
 
 ==========  ================
@@ -178,18 +185,22 @@ Operator              Description
 
 Decimals
 ========
+
 **Keyword:** ``decimal``
 
 A decimal is a type to store a decimal fixed point value.
 
 Values
 ------
+
 A value with a precision of 10 decimal places between -2\ :sup:`127` and (2\ :sup:`127` - 1).
 
 Operators
 ---------
+
 Comparisons
 ^^^^^^^^^^^
+
 Comparisons return a boolean value.
 
 ==========  ================
@@ -215,7 +226,7 @@ Operator       Description
 ``x - y``      Subtraction
 ``-x``         Unary minus/Negation
 ``x * y``      Multiplication
-``x / y``      Divison
+``x / y``      Division
 ``x % y``      Modulo
 ``min(x, y)``  Minimum
 ``max(x, y)``  Maximum
@@ -229,12 +240,14 @@ Operator       Description
 
 Address
 =======
+
 **Keyword:** ``address``
 
 The address type holds an Ethereum address.
 
 Values
 ------
+
 An address type can hold an Ethereum address which equates to 20 bytes or 160 bits. It returns in hexadecimal notation with a leading ``0x``.
 
 .. _members-of-addresses:
@@ -254,11 +267,13 @@ Syntax as follows: ``_address.<member>``, where ``_address`` is of the type ``ad
 
 Unit Types
 ==========
+
 Vyper allows the definition of types with discrete units e.g. meters, seconds, wei, ... . These types may only be based on either ``uint256``, ``int128`` or ``decimal``.
 Vyper has 3 unit types built in, which are the following:
 
 Time
------------------------------------------------------------
+----
+
 =============  =====  ===========  ==========================
 Keyword        Unit   Base type    Description
 =============  =====  ===========  ==========================
@@ -270,7 +285,8 @@ Keyword        Unit   Base type    Description
     Two ``timedelta`` can be added together, as can a ``timedelta`` and a ``timestamp``, but not two ``timestamps``.
 
 Wei
----------------------------------------------------------------------------------------------------------------------------------
+---
+
 ===================  ===========  ===========  ====================================================================================
 Keyword              Unit         Base type    Description
 ===================  ===========  ===========  ====================================================================================
@@ -303,8 +319,9 @@ Having defined the units they can be defined on variables as follows.
 
 32-bit-wide Byte Array
 ======================
+
 **Keyword:** ``bytes32``
-This is a 32-bit-wide byte array that is otherwise similiar to byte arrays.
+This is a 32-bit-wide byte array that is otherwise similar to byte arrays.
 
 **Example:**
 ::
@@ -316,10 +333,11 @@ This is a 32-bit-wide byte array that is otherwise similiar to byte arrays.
 
 Operators
 ---------
+
 ====================================  ============================================================
 Keyword                               Description
 ====================================  ============================================================
-``sha3(x)``                           Return the sha3 hash as bytes32.
+``keccak256(x)``                      Return the keccak256 hash as bytes32.
 ``concat(x, ...)``                    Concatenate multiple inputs.
 ``slice(x, start=_start, len=_len)``  Return a slice of ``_len`` starting at ``_start``.
 ====================================  ============================================================
@@ -330,6 +348,7 @@ Where ``x`` is a byte array and ``_start`` as well as ``_len`` are integer value
 
 Fixed-size Byte Arrays
 ======================
+
 **Keyword:** ``bytes``
 
 A byte array with a fixed size.
@@ -345,6 +364,7 @@ On the ABI level the Fixed-size bytes array is annotated as ``bytes``.
 
 Fixed-size Strings
 ==================
+
 **Keyword:** ``string``
 Fixed-size strings can hold strings with equal or fewer characters than the maximum length of the string.
 On the ABI level the Fixed-size bytes array is annotated as ``string``.
@@ -356,21 +376,21 @@ On the ABI level the Fixed-size bytes array is annotated as ``string``.
 
 Operators
 ---------
+
 ====================================  ============================================================
 Keyword                               Description
 ====================================  ============================================================
 ``len(x)``                            Return the length as an integer.
-``sha3(x)``                           Return the sha3 hash as bytes32.
+``keccak256(x)``                      Return the keccak256 hash as bytes32.
 ``concat(x, ...)``                    Concatenate multiple inputs.
 ``slice(x, start=_start, len=_len)``  Return a slice of ``_len`` starting at ``_start``.
 ====================================  ============================================================
 
 Where ``x`` is a byte array or string while ``_start`` and ``_len`` are integers.
-The ``len``, ``sha3``, ``concat``, ``slice`` operators can be used with ``string`` and ``bytes`` types.
+The ``len``, ``keccak256``, ``concat``, ``slice`` operators can be used with ``string`` and ``bytes`` types.
 
 .. index:: !reference
 
-***************
 Reference Types
 ***************
 
@@ -386,6 +406,7 @@ Fixed-size lists hold a finite number of elements which belong to a specified ty
 
 Syntax
 ------
+
 Lists can be declared with ``_name: _ValueType[_Integer]``. Multidimensional lists are also possible.
 
 **Example:**
@@ -408,6 +429,7 @@ Structs are custom defined types that can group several variables.
 
 Syntax
 ------
+
 Structs can be accessed via ``struct.argname``.
 **Example:**
 ::
@@ -461,9 +483,8 @@ Here ``_KeyType`` can be any base or bytes type. Mappings, contract or structs a
 
 .. index:: !initial
 
-*****************
-Builtin Constants
-*****************
+Built In Constants
+******************
 
 Vyper has a few convenience constants builtin.
 
@@ -479,7 +500,6 @@ decimal MIN_DECIMAL   (-2**127)
 uint256 MAX_UINT256   2**256 - 1
 ======= ============= ==========================================
 
-****************
 Custom Constants
 ****************
 
@@ -509,13 +529,11 @@ Custom constants can be defined at a global level in Vyper. To define a constant
   def market_cap() -> uint256(wei):
       return MAX_SHARES * SHARE_PRICE
 
-
-**************
 Initial Values
 **************
 
-In Vyper, there is no ``null`` option like most programing languages have. Thus, every variable type has a default value. In order to check if a variable is empty, you will need to compare it to its type's default value.
-If you would like to reset a variable to its type's default value, use the built-in ``clear()`` function.  
+In Vyper, there is no ``null`` option like most programming languages have. Thus, every variable type has a default value. In order to check if a variable is empty, you will need to compare it to its type's default value.
+If you would like to reset a variable to its type's default value, use the built-in ``clear()`` function.
 
 Here you can find a list of all types and default values:
 
@@ -542,5 +560,158 @@ Here you can find a list of all types and default values:
 
 .. note::
     In reference types all the type's members are set to their initial values.
+
+
+.. _type_conversions:
+
+Type Conversions
+****************
+
+All type conversions in Vyper must be made explicitly using the built-in ``convert(a, b)`` function. Currently, the following type conversions are supported:
+
+.. list-table:: Basic Type Conversions
+   :header-rows: 1
+
+   * - Destination Type (b)
+     - Input Type (a.type)
+     - Allowed Inputs Values (a)
+     - Additional Notes
+   * - ``bool``
+     - ``bool``
+     - `—`
+     - Do not allow converting to/from the same type
+   * - ``bool``
+     - ``decimal``
+     - ``MINNUM...MAXNUM``
+     - Has the effective conversion logic of: ``return (a != 0.0)``
+   * - ``bool``
+     - ``int128``
+     - ``MINNUM...MAXNUM``
+     - Has the effective conversion logic of: ``return (a != 0)``
+   * - ``bool``
+     - ``uint256``
+     - ``0...MAX_UINT256``
+     - Has the effective conversion logic of: ``return (a != 0)``
+   * - ``bool``
+     - ``bytes32``
+     - ``(0x00 * 32)...(0xFF * 32)``
+     - Has the effective conversion logic of: ``return (a != 0x00)``
+   * - ``bool``
+     - ``bytes``
+     - ``(0x00 * 1)...(0xFF * 32)``
+     - Has the effective conversion logic of: ``return (a != 0x00)``
+   * -
+     -
+     -
+     -
+   * - ``decimal``
+     - ``bool``
+     - ``True / False``
+     - Result will be ``0.0`` or ``1.0``
+   * - ``decimal``
+     - ``decimal``
+     - —
+     - Do not allow converting to/from the same type
+   * - ``decimal``
+     - ``int128``
+     - ``MINNUM...MAXNUM``
+     -
+   * - ``decimal``
+     - ``uint256``
+     - ``0...MAXDECIMAL``
+     -
+   * - ``decimal``
+     - ``bytes32``
+     - ``(0x00 * 32)...(0xFF * 32)``
+     -
+   * - ``decimal``
+     - ``bytes``
+     - ``(0x00 * 1)...(0xFF * 32)``
+     -
+   * -
+     -
+     -
+     -
+   * - ``int128``
+     - ``bool``
+     - ``True / False``
+     - Result will be ``0`` or ``1``
+   * - ``int128``
+     - ``decimal``
+     - ``MINNUM...MAXNUM``
+     - Only allow input within ``int128`` supported range, truncates the decimal value
+   * - ``int128``
+     - ``int128``
+     - —
+     - Do not allow converting to/from the same type
+   * - ``int128``
+     - ``uint256``
+     - ``0...MAXNUM``
+     -
+   * - ``int128``
+     - ``bytes32``
+     - ``(0x00 * 32)...(0xFF * 32)``
+     -
+   * - ``int128``
+     - ``bytes``
+     - ``(0x00 * 1)...(0xFF * 32)``
+     -
+   * -
+     -
+     -
+     -
+   * - ``uint256``
+     - ``bool``
+     - ``True / False``
+     - Result will be ``0`` or ``1``
+   * - ``uint256``
+     - ``decimal``
+     - ``0...MAXDECIMAL``
+     - Truncates the ``decimal`` value
+   * - ``uint256``
+     - ``int128``
+     - ``0...MAXNUM``
+     -
+   * - ``uint256``
+     - ``uint256``
+     - —
+     - Do not allow converting to/from the same type
+   * - ``uint256``
+     - ``bytes32``
+     - ``(0x00 * 32)...(0xFF * 32)``
+     -
+   * - ``uint256``
+     - ``bytes``
+     - ``(0x00 * 1)...(0xFF * 32)``
+     -
+   * -
+     -
+     -
+     -
+   * - ``bytes32``
+     - ``bool``
+     - ``True / False``
+     - Result will be either ``(0x00 * 32)`` or ``(0x00 * 31 + 0x01)``
+   * - ``bytes32``
+     - ``decimal``
+     - ``MINDECIMAL...MAXDECIMAL``
+     - Has the effective behavior of multiplying the ``decimal`` value by the decimal divisor ``10000000000`` and then converting that signed *integer* value to a ``bytes32`` byte array
+   * - ``bytes32``
+     - ``int128``
+     - ``MINNUM...MAXNUM``
+     -
+   * - ``bytes32``
+     - ``uint256``
+     - ``0...MAX_UINT256``
+     -
+   * - ``bytes32``
+     - ``bytes32``
+     - —
+     - Do not allow converting to/from the same type
+   * - ``bytes32``
+     - ``bytes``
+     - ``(0x00 * 1)...(0xFF * 32)``
+     - Left-pad input ``bytes`` to size of ``32``
+
 
 .. index:: !conversion

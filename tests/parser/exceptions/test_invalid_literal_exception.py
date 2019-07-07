@@ -90,7 +90,7 @@ def foo():
     """
 @public
 def foo():
-    x = convert(-1, uint256)
+    x = convert(-(-(-1)), uint256)
     """,
     """
 # Test decimal limit.
@@ -108,7 +108,7 @@ def foo():
     """
 @public
 def foo():
-    a: bytes32 = sha3("ѓtest")
+    a: bytes32 = keccak256("ѓtest")
     """,
     """
 @public

@@ -1,8 +1,11 @@
-import ast
 from collections import (
     Counter,
 )
 
+from vyper import ast
+from vyper.ast_utils import (
+    to_python_ast,
+)
 from vyper.exceptions import (
     FunctionDeclarationException,
     InvalidTypeException,
@@ -12,14 +15,15 @@ from vyper.parser.lll_node import (
     LLLnode,
 )
 from vyper.parser.parser_utils import (
+    EnsureSingleExitChecker,
+    UnmatchedReturnChecker,
     getpos,
 )
 from vyper.types import (
     ByteArrayLike,
-    TupleLike,
+    StructType,
     TupleType,
     canonicalize_type,
-    delete_unit_if_empty,
     get_size_of_type,
     parse_type,
     print_unit,
@@ -30,17 +34,20 @@ from vyper.utils import (
     fourbytes_to_int,
     function_whitelist,
     is_varname_valid,
-    sha3,
+    iterable_cast,
+    keccak256,
 )
 
 
 # Function argument
 class VariableRecord:
-    def __init__(self, name, pos, typ, mutable, blockscopes=None, defined_at=None):
+    def __init__(self, name, pos, typ, mutable, *,
+                 location='memory', blockscopes=None, defined_at=None):
         self.name = name
         self.pos = pos
         self.typ = typ
         self.mutable = mutable
+        self.location = location
         self.blockscopes = [] if blockscopes is None else blockscopes
         self.defined_at = defined_at  # source code location variable record was defined.
 
@@ -66,7 +73,8 @@ class FunctionSignature:
                  nonreentrant_key,
                  sig,
                  method_id,
-                 custom_units):
+                 custom_units,
+                 func_ast_code):
         self.name = name
         self.args = args
         self.output_type = output_type
@@ -78,12 +86,49 @@ class FunctionSignature:
         self.gas = None
         self.custom_units = custom_units
         self.nonreentrant_key = nonreentrant_key
+        self.func_ast_code = func_ast_code
+        self.calculate_arg_totals()
 
     def __str__(self):
         input_name = 'def ' + self.name + '(' + ','.join([str(arg.typ) for arg in self.args]) + ')'
         if self.output_type:
             return input_name + ' -> ' + str(self.output_type) + ':'
         return input_name + ':'
+
+    def calculate_arg_totals(self):
+        """ Calculate base arguments, and totals. """
+
+        code = self.func_ast_code
+        self.base_args = []
+        self.total_default_args = 0
+
+        if hasattr(code.args, 'defaults'):
+            self.total_default_args = len(code.args.defaults)
+            if self.total_default_args > 0:
+                # all argument w/o defaults
+                self.base_args = self.args[:-self.total_default_args]
+            else:
+                # No default args, so base_args = args.
+                self.base_args = self.args
+            # All default argument name/type definitions.
+            self.default_args = code.args.args[-self.total_default_args:]
+            # Keep all the value to assign to default parameters.
+            self.default_values = dict(zip(
+                [arg.arg for arg in self.default_args],
+                code.args.defaults
+            ))
+
+        # Calculate the total sizes in memory the function arguments will take use.
+        # Total memory size of all arguments (base + default together).
+        self.max_copy_size = sum([
+            32 if isinstance(arg.typ, ByteArrayLike) else get_size_of_type(arg.typ) * 32
+            for arg in self.args
+        ])
+        # Total memory size of base arguments (arguments exclude default parameters).
+        self.base_copy_size = sum([
+            32 if isinstance(arg.typ, ByteArrayLike) else get_size_of_type(arg.typ) * 32
+            for arg in self.base_args
+        ])
 
     # Get the canonical function signature
     @staticmethod
@@ -122,6 +167,12 @@ class FunctionSignature:
         valid_name, msg = is_varname_valid(name, custom_units, custom_structs, constants)
         if not valid_name and (not name.lower() in function_whitelist):
             raise FunctionDeclarationException("Function name invalid. " + msg, code)
+
+        # Validate default values.
+        for default_value in getattr(code.args, 'defaults', []):
+            allowed_types = (ast.Num, ast.Str, ast.Bytes, ast.List, ast.NameConstant)
+            if not isinstance(default_value, allowed_types):
+                raise FunctionDeclarationException("Default parameter values have to be literals.")
 
         # Determine the arguments, expects something of the form def foo(arg1:
         # int128, arg2: int128 ...
@@ -240,7 +291,7 @@ class FunctionSignature:
         sig = cls.get_full_sig(name, code.args.args, sigs, custom_units, custom_structs, constants)
 
         # Take the first 4 bytes of the hash of the sig to get the method ID
-        method_id = fourbytes_to_int(sha3(bytes(sig, 'utf-8'))[:4])
+        method_id = fourbytes_to_int(keccak256(bytes(sig, 'utf-8'))[:4])
         return cls(
             name,
             args,
@@ -252,31 +303,74 @@ class FunctionSignature:
             sig,
             method_id,
             custom_units,
+            code
         )
 
-    def _generate_output_abi(self, custom_units_descriptions=None):
-        t = self.output_type
-        if not t:
+    @iterable_cast(dict)
+    def _generate_base_type(self, arg_type, name=None, custom_units_descriptions=None):
+        yield "type", canonicalize_type(arg_type)
+        u = unit_from_type(arg_type)
+        if u:
+            yield "unit", print_unit(u, custom_units_descriptions)
+        name = "out" if not name else name
+        yield "name", name
+
+    def _generate_param_abi(self, out_arg, name=None, custom_units_descriptions=None):
+        if isinstance(out_arg, StructType):
+            return {
+                'type': 'tuple',
+                'components': [
+                    self._generate_param_abi(
+                        member_type,
+                        name=name,
+                        custom_units_descriptions=custom_units_descriptions
+                    )
+                    for name, member_type in out_arg.tuple_items()
+                ]
+            }
+        elif isinstance(out_arg, TupleType):
+            return {
+                'type': 'tuple',
+                'components': [
+                    self._generate_param_abi(
+                        member_type,
+                        name=f"out{idx + 1}",
+                        custom_units_descriptions=custom_units_descriptions
+                    ) for idx, member_type in out_arg.tuple_items()
+                ]
+            }
+        else:
+            return self._generate_base_type(
+                arg_type=out_arg,
+                name=name,
+                custom_units_descriptions=custom_units_descriptions
+            )
+
+    def _generate_outputs_abi(self, custom_units_descriptions):
+        if not self.output_type:
             return []
-        elif isinstance(t, TupleType):
-            res = [
-                (canonicalize_type(x), print_unit(unit_from_type(x), custom_units_descriptions))
-                for x in t.members
-            ]
-        elif isinstance(t, TupleLike):
-            res = [
-                (canonicalize_type(x), print_unit(unit_from_type(x), custom_units_descriptions))
-                for x in t.tuple_members()
+        elif isinstance(self.output_type, TupleType):
+            return [
+                self._generate_param_abi(x, custom_units_descriptions=custom_units_descriptions)
+                for x in self.output_type.members
             ]
         else:
-            res = [(canonicalize_type(t), print_unit(unit_from_type(t), custom_units_descriptions))]
+            return [self._generate_param_abi(
+                self.output_type,
+                custom_units_descriptions=custom_units_descriptions
+            )]
 
-        abi_outputs = [{"type": x, "name": "out", "unit": unit} for x, unit in res]
-
-        for abi_output in abi_outputs:
-            delete_unit_if_empty(abi_output)
-
-        return abi_outputs
+    def _generate_inputs_abi(self, custom_units_descriptions):
+        if not self.args:
+            return []
+        else:
+            return [
+                self._generate_param_abi(
+                    x.typ,
+                    name=x.name,
+                    custom_units_descriptions=custom_units_descriptions
+                ) for x in self.args
+            ]
 
     def to_abi_dict(self, custom_units_descriptions=None):
         func_type = "function"
@@ -287,19 +381,12 @@ class FunctionSignature:
 
         abi_dict = {
             "name": self.name,
-            "outputs": self._generate_output_abi(custom_units_descriptions),
-            "inputs": [{
-                "type": canonicalize_type(arg.typ),
-                "name": arg.name,
-                "unit": print_unit(unit_from_type(arg.typ), custom_units_descriptions)
-            } for arg in self.args],
+            "outputs": self._generate_outputs_abi(custom_units_descriptions),
+            "inputs": self._generate_inputs_abi(custom_units_descriptions),
             "constant": self.const,
             "payable": self.payable,
             "type": func_type
         }
-
-        for abi_input in abi_dict['inputs']:
-            delete_unit_if_empty(abi_input)
 
         if self.name in ('__default__', '__init__'):
             del abi_dict['name']
@@ -360,3 +447,14 @@ class FunctionSignature:
                     "call functions later in code than themselves): %s" % method_name
                 )
             return ssig[0]
+
+    def is_default_func(self):
+        return self.name == '__default__'
+
+    def is_initializer(self):
+        return self.name == '__init__'
+
+    def validate_return_statement_balance(self):
+        # Run balanced return statement check.
+        UnmatchedReturnChecker().visit(to_python_ast(self.func_ast_code))
+        EnsureSingleExitChecker().visit(to_python_ast(self.func_ast_code))

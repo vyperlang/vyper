@@ -17,12 +17,14 @@ x: int128
 @constant
 def foo() -> int128:
     self.x = 5
+    return 1
     """,
     """
 @public
 @constant
 def foo() -> int128:
     send(0x1234567890123456789012345678901234567890, 5)
+    return 1
     """,
     """
 @public
@@ -82,6 +84,62 @@ def a (x:int128):
 @public
 def b():
     self.a(10)
+    """,
+    # test constancy in range expressions
+    """
+glob: int128
+@public
+def foo() -> int128:
+    self.glob += 1
+    return 5
+@public
+def bar():
+    for i in range(self.foo(), self.foo() + 1):
+        pass
+    """,
+    """
+glob: int128
+@public
+def foo() -> int128:
+    self.glob += 1
+    return 5
+@public
+def bar():
+    for i in range(self.foo()):
+        pass
+    """,
+    """
+glob: int128
+@public
+def foo() -> int128:
+    self.glob += 1
+    return 5
+@public
+def bar():
+    for i in [1,2,3,4,self.foo()]:
+        pass
+    """,
+    """
+glob: int128
+@public
+def foo() -> int128:
+    self.glob += 1
+    return 5
+@public
+def bar():
+    for i in range(self.foo(), 7):
+        pass
+    """,
+    """
+glob: int128
+@public
+def foo() -> int128:
+    self.glob += 1
+    return 5
+@public
+def bar():
+    for i in range(3, self.foo()):
+        pass
     """
 ]
 

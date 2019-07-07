@@ -2,16 +2,23 @@ from collections import (
     OrderedDict,
     deque,
 )
+import warnings
 
 from vyper import (
     compile_lll,
     optimizer,
+)
+from vyper.ast_utils import (
+    ast_to_dict,
 )
 from vyper.opcodes import (
     opcodes,
 )
 from vyper.parser import (
     parser,
+)
+from vyper.signatures import (
+    sig_utils,
 )
 from vyper.signatures.interface import (
     extract_external_interface,
@@ -20,15 +27,15 @@ from vyper.signatures.interface import (
 
 
 def __compile(code, interface_codes=None, *args, **kwargs):
-    lll = optimizer.optimize(
-        parser.parse_tree_to_lll(
-            parser.parse_to_ast(code),
-            code,
-            interface_codes=interface_codes,
-            runtime_only=kwargs.get('bytecode_runtime', False)
-        )
+    ast = parser.parse_to_ast(code)
+    lll = parser.parse_tree_to_lll(
+        ast,
+        code,
+        interface_codes=interface_codes,
+        runtime_only=kwargs.get('bytecode_runtime', False)
     )
-    asm = compile_lll.compile_to_assembly(lll)
+    opt_lll = optimizer.optimize(lll)
+    asm = compile_lll.compile_to_assembly(opt_lll)
 
     def find_nested_opcode(asm_list, key):
         if key in asm_list:
@@ -38,8 +45,10 @@ def __compile(code, interface_codes=None, *args, **kwargs):
             return any(find_nested_opcode(x, key) for x in sublists)
 
     if find_nested_opcode(asm, 'DEBUG'):
-        print('Please note this code contains DEBUG opcode.')
-        print('This will only work in a support EVM. This FAIL on any other nodes.')
+        warnings.warn(
+            'This code contains DEBUG opcodes! The DEBUG opcode will only work in '
+            'a supported EVM! It will FAIL on all other nodes!'
+        )
 
     c, line_number_map = compile_lll.assembly_to_evm(asm)
     return c
@@ -56,13 +65,13 @@ def gas_estimate(origcode, *args, **kwargs):
 
     assert code.value == 'seq'
     for arg in code.args:
-        if hasattr(arg, 'func_name'):
+        if arg.func_name is not None:
             o[arg.func_name] = arg.total_gas
     return o
 
 
 def mk_full_signature(code, *args, **kwargs):
-    abi = parser.mk_full_signature(parser.parse_to_ast(code), *args, **kwargs)
+    abi = sig_utils.mk_full_signature(parser.parse_to_ast(code), *args, **kwargs)
     # Add gas estimates for each function to ABI
     gas_estimates = gas_estimate(code, *args, **kwargs)
     for func in abi:
@@ -164,7 +173,7 @@ def _mk_source_map_output(code, contract_name, interface_codes):
 
 
 def _mk_method_identifiers_output(code, contract_name, interface_codes):
-    return parser.mk_method_identifiers(code, interface_codes=interface_codes)
+    return sig_utils.mk_method_identifiers(code, interface_codes=interface_codes)
 
 
 def _mk_interface_output(code, contract_name, interface_codes):
@@ -183,8 +192,17 @@ def _mk_opcodes_runtime(code, contract_name, interface_codes):
     return get_opcodes(code, contract_name, bytecodes_runtime=True, interface_codes=interface_codes)
 
 
+def _mk_ast_dict(code, contract_name, interface_codes):
+    o = {
+        'contract_name': contract_name,
+        'ast': ast_to_dict(parser.parse_to_ast(code))
+    }
+    return o
+
+
 output_formats_map = {
     'abi': _mk_abi_output,
+    'ast_dict': _mk_ast_dict,
     'bytecode': _mk_bytecode_output,
     'bytecode_runtime': _mk_bytecode_runtime_output,
     'ir': _mk_ir_output,
@@ -200,7 +218,6 @@ output_formats_map = {
 
 def compile_codes(codes,
                   output_formats=None,
-                  output_type='list',
                   exc_handler=None,
                   interface_codes=None):
     if output_formats is None:
@@ -210,7 +227,7 @@ def compile_codes(codes,
     for contract_name, code in codes.items():
         for output_format in output_formats:
             if output_format not in output_formats_map:
-                raise Exception('Unsupported format type %s.' % output_format)
+                raise ValueError(f'Unsupported format type {repr(output_format)}')
 
             try:
                 out.setdefault(contract_name, {})
@@ -225,14 +242,17 @@ def compile_codes(codes,
                 else:
                     raise exc
 
-    if output_type == 'list':
-        return [v for v in out.values()]
-    elif output_type == 'dict':
-        return out
-    else:
-        raise Exception('Unknown output_type')
+    return out
+
+
+UNKNOWN_CONTRACT_NAME = '<unknown>'
 
 
 def compile_code(code, output_formats=None, interface_codes=None):
-    codes = {'': code}
-    return compile_codes(codes, output_formats, 'list', interface_codes=interface_codes)[0]
+    codes = {UNKNOWN_CONTRACT_NAME: code}
+
+    return compile_codes(
+        codes,
+        output_formats,
+        interface_codes=interface_codes,
+    )[UNKNOWN_CONTRACT_NAME]

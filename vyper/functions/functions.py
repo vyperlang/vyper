@@ -1,6 +1,6 @@
-import ast
 import hashlib
 
+from vyper import ast
 from vyper.exceptions import (
     ConstancyViolationException,
     InvalidLiteralException,
@@ -10,6 +10,9 @@ from vyper.exceptions import (
 )
 from vyper.parser.expr import (
     Expr,
+)
+from vyper.parser.keccak256_helper import (
+    keccak256_helper,
 )
 from vyper.parser.parser_utils import (
     LLLnode,
@@ -21,6 +24,9 @@ from vyper.parser.parser_utils import (
     make_byte_array_copier,
     make_byte_slice_copier,
     unwrap_location,
+)
+from vyper.signatures.function_signature import (
+    VariableRecord,
 )
 from vyper.types import (
     BaseType,
@@ -43,10 +49,10 @@ from vyper.utils import (
     SizeLimits,
     bytes_to_int,
     fourbytes_to_int,
-    sha3,
+    keccak256,
 )
 
-from .signature import (
+from .signatures import (
     Optional,
     signature,
 )
@@ -229,7 +235,7 @@ def concat(expr, context):
 
     # Maximum length of the output
     total_maxlen = sum([
-        arg.typ.maxlen if isinstance(arg.typ, ByteArrayType) else 32 for arg in args
+        arg.typ.maxlen if isinstance(arg.typ, ByteArrayLike) else 32 for arg in args
     ])
     # Node representing the position of the output in memory
     placeholder = context.new_placeholder(ReturnType(total_maxlen))
@@ -305,55 +311,12 @@ def concat(expr, context):
 
 @signature(('bytes_literal', 'str_literal', 'bytes', 'string', 'bytes32'))
 def _sha3(expr, args, kwargs, context):
-    sub = args[0]
-    # Can hash literals
-    if isinstance(sub, bytes):
-        return LLLnode.from_list(
-            bytes_to_int(sha3(sub)),
-            typ=BaseType('bytes32'),
-            pos=getpos(expr)
-        )
-    # Can hash bytes32 objects
-    if is_base_type(sub.typ, 'bytes32'):
-        return LLLnode.from_list(
-            [
-                'seq',
-                ['mstore', MemoryPositions.FREE_VAR_SPACE, sub],
-                ['sha3', MemoryPositions.FREE_VAR_SPACE, 32]
-            ],
-            typ=BaseType('bytes32'),
-            pos=getpos(expr),
-        )
-    # Copy the data to an in-memory array
-    if sub.location == "memory":
-        # If we are hashing a value in memory, no need to copy it, just hash in-place
-        return LLLnode.from_list(
-            ['with', '_sub', sub, ['sha3', ['add', '_sub', 32], ['mload', '_sub']]],
-            typ=BaseType('bytes32'),
-            pos=getpos(expr),
-        )
-    elif sub.location == "storage":
-        lengetter = LLLnode.from_list(['sload', ['sha3_32', '_sub']], typ=BaseType('int128'))
-    else:
-        # This should never happen, but just left here for future compiler-writers.
-        raise Exception("Unsupported location: %s" % sub.location)  # pragma: no test
-    placeholder = context.new_placeholder(sub.typ)
-    placeholder_node = LLLnode.from_list(placeholder, typ=sub.typ, location='memory')
-    copier = make_byte_array_copier(
-        placeholder_node,
-        LLLnode.from_list('_sub', typ=sub.typ, location=sub.location),
-    )
-    return LLLnode.from_list(
-        [
-            'with', '_sub', sub, [
-                'seq',
-                copier,
-                ['sha3', ['add', placeholder, 32], lengetter]
-            ],
-        ],
-        typ=BaseType('bytes32'),
-        pos=getpos(expr)
-    )
+    raise StructureException("sha3 function has been deprecated in favor of keccak256")
+
+
+@signature(('bytes_literal', 'str_literal', 'bytes', 'string', 'bytes32'))
+def _keccak256(expr, args, kwargs, context):
+    return keccak256_helper(expr, args, kwargs, context)
 
 
 def _make_sha256_call(inp_start, inp_len, out_start, out_len):
@@ -453,7 +416,7 @@ def sha256(expr, args, kwargs, context):
 def method_id(expr, args, kwargs, context):
     if b' ' in args[0]:
         raise TypeMismatchException('Invalid function signature no spaces allowed.')
-    method_id = fourbytes_to_int(sha3(args[0])[:4])
+    method_id = fourbytes_to_int(keccak256(args[0])[:4])
     if args[1] == 'bytes32':
         return LLLnode(method_id, typ=BaseType('bytes32'), pos=getpos(expr))
     elif args[1] == 'bytes[4]':
@@ -1224,6 +1187,65 @@ def minmax(expr, args, kwargs, context, is_min):
     )
 
 
+@signature('decimal')
+def sqrt(expr, args, kwargs, context):
+    from vyper.functions.utils import (
+        generate_inline_function,
+    )
+    arg = args[0]
+    sqrt_code = """
+assert x >= 0.0
+z: decimal
+
+if x == 0.0:
+    z = 0.0
+else:
+    z = (x + 1.0) / 2.0
+    y: decimal = x
+
+    for i in range(256):
+        if z == y:
+            break
+        y = z
+        z = (x / z + z) / 2.0
+    """
+
+    x_type = BaseType('decimal')
+    placeholder_copy = ['pass']
+    # Steal current position if variable is already allocated.
+    if arg.value == 'mload':
+        new_var_pos = arg.args[0]
+    # Other locations need to be copied.
+    else:
+        new_var_pos = context.new_placeholder(x_type)
+        placeholder_copy = ['mstore', new_var_pos, arg]
+    # Create input variables.
+    variables = {
+        'x': VariableRecord(
+            name='x',
+            pos=new_var_pos,
+            typ=x_type,
+            mutable=False
+        )
+    }
+    # Generate inline LLL.
+    new_ctx, sqrt_lll = generate_inline_function(
+        code=sqrt_code,
+        variables=variables,
+        memory_allocator=context.memory_allocator
+    )
+    return LLLnode.from_list(
+        [
+            'seq_unchecked',
+            placeholder_copy,  # load x variable
+            sqrt_lll,
+            ['mload', new_ctx.vars['z'].pos]  # unload z variable into the stack,
+        ],
+        typ=BaseType('decimal'),
+        pos=getpos(expr),
+    )
+
+
 def _clear():
     raise ParserException(
         "This function should never be called! `clear()` is currently handled "
@@ -1243,7 +1265,7 @@ dispatch_table = {
     'sha3': _sha3,
     'sha256': sha256,
     'method_id': method_id,
-    'keccak256': _sha3,
+    'keccak256': _keccak256,
     'ecrecover': ecrecover,
     'ecadd': ecadd,
     'ecmul': ecmul,
@@ -1258,6 +1280,7 @@ dispatch_table = {
     'bitwise_not': bitwise_not,
     'uint256_addmod': uint256_addmod,
     'uint256_mulmod': uint256_mulmod,
+    'sqrt': sqrt,
     'shift': shift,
     'create_forwarder_to': create_forwarder_to,
     'min': _min,
@@ -1272,3 +1295,9 @@ stmt_dispatch_table = {
     'raw_log': raw_log,
     'create_forwarder_to': create_forwarder_to,
 }
+
+built_in_functions = [
+    x for x in stmt_dispatch_table.keys()
+] + [
+    x for x in dispatch_table.keys()
+]

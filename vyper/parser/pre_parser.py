@@ -9,21 +9,39 @@ from tokenize import (
     tokenize,
     untokenize,
 )
+from typing import (
+    Sequence,
+    Tuple,
+)
 
 from vyper.exceptions import (
     StructureException,
+    VersionException,
+)
+from vyper.typing import (
+    ClassTypes,
+    ParserPosition,
 )
 
-
-def _parser_version_str(version_str):
-    version_regex = re.compile(r'^(\d+\.)?(\d+\.)?(\w*)$')
-    if None in version_regex.match(version_str).groups():
-        raise Exception('Could not parse given version: %s' % version_str)
-    return version_regex.match(version_str).groups()
+VERSION_RE = re.compile(r'^(\d+\.)(\d+\.)(\w*)$')
 
 
-# Do a version check.
-def parse_version_pragma(version_str):
+def _parse_version_str(version_str: str, start: ParserPosition) -> Sequence[str]:
+    match = VERSION_RE.match(version_str)
+
+    if match is None:
+        raise VersionException(
+            f'Could not parse given version string "{version_str}"',
+            start,
+        )
+
+    return match.groups()
+
+
+def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
+    """
+    Validates a version pragma directive against the current compiler version.
+    """
     from vyper import (
         __version__,
     )
@@ -31,57 +49,83 @@ def parse_version_pragma(version_str):
     version_arr = version_str.split('@version')
 
     file_version = version_arr[1].strip()
-    file_major, file_minor, file_patch = _parser_version_str(file_version)
-    compiler_major, compiler_minor, compiler_patch = _parser_version_str(__version__)
+    file_major, file_minor, file_patch = _parse_version_str(file_version, start)
+    compiler_major, compiler_minor, compiler_patch = _parse_version_str(__version__, start)
 
     if (file_major, file_minor) != (compiler_major, compiler_minor):
-        raise Exception('Given version "{}" is not compatible with the compiler ({}): '.format(
-            file_version, __version__
-        ))
+        raise VersionException(
+            f'File version "{file_version}" is not compatible '
+            f'with compiler version "{__version__}"',
+            start,
+        )
 
 
-# Minor pre-parser checks.
-def pre_parse(code):
+VYPER_CLASS_TYPES = (
+    'contract',
+    'struct',
+)
+
+
+def pre_parse(code: str) -> Tuple[ClassTypes, str]:
+    """
+    Re-formats a vyper source string into a python source string and performs
+    some validation.  More specifically,
+
+    * Translates "contract" and "struct" keyword into python "class" keyword
+    * Validates "@version" pragma against current compiler version
+    * Prevents direct use of python "class" keyword
+    * Prevents use of python semi-colon statement separator
+
+    Also returns a mapping of detected contract and struct names to their
+    respective vyper class types ("contract" or "struct").
+
+    :param code: The vyper source code to be re-formatted.
+    :return: A tuple including the class type mapping and the reformatted python
+        source string.
+    """
     result = []
-    fetch_name = None
-    class_names = {}
-    class_types = ('contract', 'struct')
+    previous_keyword = None
+    class_types: ClassTypes = {}
 
     try:
-        code = code.encode('utf-8')
-        g = tokenize(io.BytesIO(code).readline)
+        code_bytes = code.encode('utf-8')
+        g = tokenize(io.BytesIO(code_bytes).readline)
 
         for token in g:
-
             toks = [token]
-            line = token.line
+
+            typ = token.type
+            string = token.string
             start = token.start
             end = token.end
-            string = token.string
+            line = token.line
 
-            if token.type == COMMENT and "@version" in token.string:
-                parse_version_pragma(token.string[1:])
+            if typ == COMMENT and "@version" in string:
+                validate_version_pragma(string[1:], start)
 
-            if token.type == NAME and string == "class" and start[1] == 0:
+            if typ == NAME and string == "class" and start[1] == 0:
                 raise StructureException(
                     "The `class` keyword is not allowed. Perhaps you meant `contract` or `struct`?",
-                    token.start,
+                    start,
                 )
 
-            if token.type == NAME and fetch_name:
-                class_names[string] = fetch_name
-                fetch_name = None
+            # Make note of contract or struct name along with the type keyword
+            # that preceded it
+            if typ == NAME and previous_keyword is not None:
+                class_types[string] = previous_keyword
+                previous_keyword = None
 
-            if token.type == NAME and string in class_types and start[1] == 0:
+            # Translate vyper-specific class keywords into python "class"
+            # keyword
+            if typ == NAME and string in VYPER_CLASS_TYPES and start[1] == 0:
                 toks = [TokenInfo(NAME, "class", start, end, line)]
-                fetch_name = string
+                previous_keyword = string
 
-            # Prevent semi-colon line statements.
-            if (token.type, token.string) == (OP, ";"):
-                raise StructureException("Semi-colon statements not allowed.", token.start)
+            if (typ, string) == (OP, ";"):
+                raise StructureException("Semi-colon statements not allowed.", start)
 
             result.extend(toks)
     except TokenError as e:
         raise StructureException(e.args[0], e.args[1]) from e
 
-    return class_names, untokenize(result).decode('utf-8')
+    return class_types, untokenize(result).decode('utf-8')

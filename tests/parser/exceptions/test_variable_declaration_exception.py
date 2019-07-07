@@ -75,6 +75,16 @@ x: int128
 def foo():
     x = 5
     """,
+    """
+@public
+def foo():
+    msg: bool = True
+    """,
+    """
+@public
+def foo():
+    struct: bool = True
+    """,
 ]
 
 

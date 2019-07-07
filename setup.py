@@ -6,17 +6,20 @@ from setuptools import setup, find_packages
 test_deps = [
     'pytest>=3.6',
     'pytest-cov==2.4.0',
+    'coveralls[yaml]==1.6.0',
     'pytest-xdist==1.18.1',
-    'py-evm==0.2.0a39',
-    'eth-tester==0.1.0b37',
-    'web3==5.0.0a6',
+    'py-evm==0.2.0a42',
+    'eth-tester==0.1.0b39',
+    'eth-abi==2.0.0b9',
+    'web3==5.0.0b2',
     'tox>=3.7,<4',
+    'hypothesis==4.11.7'
 ]
 lint_deps = [
-    'coveralls>=1.6,<2',
     'flake8>=3.7,<4',
     'flake8-bugbear==18.8.0',
     'isort>=4.2.15,<5',
+    'mypy==0.701',
 ]
 
 
@@ -29,7 +32,7 @@ extras = {
 setup(
     name='vyper',
     # *IMPORTANT*: Don't manually change the version here. Use the 'bumpversion' utility.
-    version='0.1.0-beta.8',
+    version='0.1.0-beta.10',
     description='Vyper Programming Language for Ethereum',
     long_description_markdown_filename='README.md',
     author='Vitalik Buterin',

@@ -2,6 +2,10 @@
 # @author Takayuki Jimba (@yudetamago)
 # https://github.com/ethereum/EIPs/blob/master/EIPS/eip-20.md
 
+from vyper.interfaces import ERC20
+
+implements: ERC20
+
 Transfer: event({_from: indexed(address), _to: indexed(address), _value: uint256})
 Approval: event({_owner: indexed(address), _spender: indexed(address), _value: uint256})
 
@@ -59,7 +63,7 @@ def transfer(_to : address, _value : uint256) -> bool:
     @param _to The address to transfer to.
     @param _value The amount to be transferred.
     """
-    # NOTE: vyper does not allow unterflows
+    # NOTE: vyper does not allow underflows
     #       so the following subtraction would revert on insufficient balance
     self.balanceOf[msg.sender] -= _value
     self.balanceOf[_to] += _value
@@ -77,7 +81,7 @@ def transferFrom(_from : address, _to : address, _value : uint256) -> bool:
      @param _to address The address which you want to transfer to
      @param _value uint256 the amount of tokens to be transferred
     """
-    # NOTE: vyper does not allow unterflows
+    # NOTE: vyper does not allow underflows
     #       so the following subtraction would revert on insufficient balance
     self.balanceOf[_from] -= _value
     self.balanceOf[_to] += _value

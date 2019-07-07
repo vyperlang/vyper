@@ -3,7 +3,6 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-#####
 Vyper
 #####
 
@@ -14,7 +13,6 @@ Vyper
 
 Vyper is a contract-oriented, pythonic programming language that targets the `Ethereum Virtual Machine (EVM) <http://ethdocs.org/en/latest/introduction/what-is-ethereum.html#ethereum-virtual-machine>`_
 
-********************
 Principles and Goals
 ********************
 
@@ -44,17 +42,17 @@ Following the principles and goals, Vyper **does not** provide the following fea
 * **Inline assembly:** Adding inline assembly would make it no longer possible to search for a variable name in order to find all instances where that variable is read or modified.
 * **Function overloading** - This can cause lots of confusion on which function is called at any given time. Thus it's easier to write missleading code (``foo("hello")`` logs "hello" but ``foo("hello", "world")`` steals you funds).
   Another problem with function overloading is that it makes the code much harder to search through as you have to keep track on which call refers to which function.
-* **Operator overloading:** Operator overloading makes writing misleading code possible. For example "+" could be overloaded so that it executes commands the are not visible at first glance, such as sending funds the
+* **Operator overloading:** Operator overloading makes writing misleading code possible. For example "+" could be overloaded so that it executes commands that are not visible at a first glance, such as sending funds the
   user did not want to send.
 * **Recursive calling:** Recursive calling makes it impossible to set an upper bound on gas limits, opening the door for gas limit attacks.
-* **Infinite-length loops:** Similar to recurisve calling, infinite-length loops make it impossible to set an upper bound on gas limits, opening the door for gas limit attacks.
+* **Infinite-length loops:** Similar to recursive calling, infinite-length loops make it impossible to set an upper bound on gas limits, opening the door for gas limit attacks.
 * **Binary fixed point:** Decimal fixed point is better, because any decimal fixed point value written as a literal in code has an exact representation, whereas with binary fixed point approximations are often required
   (e.g. (0.2)\ :sub:`10` = (0.001100110011...)\ :sub:`2`, which needs to be truncated), leading to unintuitive results, e.g. in Python 0.3 + 0.3 + 0.3 + 0.1 != 1.
 
-********************************
 Compatibility-breaking Changelog
 ********************************
 
+* **2019.04.05**: Add stricter checking of unbalanced return statements. (`#590 <https://github.com/ethereum/vyper/issues/590>`_)
 * **2019.03.04**: `create_with_code_of` has been renamed to `create_forwarder_to`. (`#1177 <https://github.com/ethereum/vyper/issues/1177>`_)
 * **2019.02.14**: Assigning a persistent contract address can only be done using the `bar_contact = ERC20(<address>)` syntax.
 * **2019.02.12**: ERC20 interface has to be imported using `from vyper.interfaces import ERC20` to use.
@@ -88,15 +86,16 @@ Compatibility-breaking Changelog
 * **2017.07.25**: A function can only call functions that are declared above it (that is, A can call B only if B appears earlier in the code than A does). This was introduced
   to prevent infinite looping through recursion.
 
-********
 Glossary
 ********
+
 .. toctree::
     :maxdepth: 2
 
     installing-vyper.rst
     compiling-a-contract.rst
-    testing-deploying-contracts.rst
+    testing-contracts.rst
+    deploying-contracts.rst
     structure-of-a-contract.rst
     vyper-by-example.rst
     logging.rst
@@ -104,3 +103,4 @@ Glossary
     frequently-asked-questions.rst
     built-in-functions.rst
     types.rst
+    release-notes.rst

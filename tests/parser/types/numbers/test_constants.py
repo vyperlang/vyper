@@ -210,4 +210,34 @@ def test(some_dynamic_var: uint256) -> uint256:
     """
 
     lll = compile_code(code, ['ir'])['ir']
-    assert search_for_sublist(lll, ['add', ['mload', [320]], [4096]])
+    assert search_for_sublist(lll, ['add', ['calldataload', [4]], [4096]])
+
+
+def test_constant_lists(get_contract):
+    code = """
+BYTE32_LIST: constant(bytes32[2]) = [
+    0x0000000000000000000000000000000000000000000000000000000000001321,
+    0x0000000000000000000000000000000000000000000000000000000000001123
+]
+
+SPECIAL: constant(int128[3]) = [33, 44, 55]
+
+@public
+def test() -> bytes32:
+    a: bytes32[2] = BYTE32_LIST
+    return a[1]
+
+@constant
+@public
+def contains(a: int128) -> bool:
+    return a in SPECIAL
+    """
+
+    c = get_contract(code)
+
+    assert c.test()[-2:] == b'\x11\x23'
+
+    assert c.contains(55) is True
+    assert c.contains(44) is True
+    assert c.contains(33) is True
+    assert c.contains(3) is False

@@ -209,7 +209,7 @@ def baa() -> decimal:
 must_succeed("""
 @public
 def foo():
-    throw
+    raise "fail"
 """)
 
 must_succeed("""
