@@ -16,8 +16,8 @@ from vyper.parser.parser_utils import (
 from vyper.types import (
     BaseType,
     ByteArrayLike,
-    TupleLike,
     ListType,
+    TupleLike,
     get_size_of_type,
 )
 
