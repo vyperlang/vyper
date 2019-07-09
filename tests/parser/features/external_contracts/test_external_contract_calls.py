@@ -827,4 +827,5 @@ def get_array(arg1: address) -> uint256[3]:
 """
 
     c2 = get_contract(contract_2)
-    assert c2.get_array(c.address) == [0, 0, 0]
+    testList: uint256 = [0, 0, 0]
+    assert c2.get_array(c.address) == testList
