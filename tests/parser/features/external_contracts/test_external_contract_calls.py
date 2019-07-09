@@ -812,7 +812,7 @@ def test(addr: address) -> (int128, address):
 def test_list_external_contract_call(get_contract, get_contract_with_gas_estimation):
     contract_1 = """
 @public
-def array() -> uint256[3]:
+def array() -> int128[3]:
     return [0, 0, 0]
     """
 
@@ -820,12 +820,11 @@ def array() -> uint256[3]:
 
     contract_2 = """
 contract Foo:
-    def array() -> uint256[3]: constant
+    def array() -> int128[3]: constant
 @public
-def get_array(arg1: address) -> uint256[3]:
+def get_array(arg1: address) -> int128[3]:
     return Foo(arg1).array()
 """
 
     c2 = get_contract(contract_2)
-    testList: uint256 = [0, 0, 0]
-    assert c2.get_array(c.address) == testList
+    assert c2.get_array(c.address) == [0, 0, 0]
