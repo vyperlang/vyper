@@ -207,16 +207,6 @@ def test1():
     assert_tx_failed(lambda: c.test1())
 
 
-def test_convert_from_address(assert_compile_failed, get_contract_with_gas_estimation):
-    code = """
-@public
-def test2():
-    x: int128 = convert(msg.sender, int128)
-    """
-
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), Exception)
-
-
 def test_convert_out_of_range_literal(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
 @public
@@ -298,9 +288,12 @@ def foo() -> int128:
 
 
 def test_convert_from_address(w3, get_contract):
-    a = w3.eth.accounts[0]
     code = """
 stor: address
+
+@public
+def testCompiles():
+    x: int128 = convert(msg.sender, int128)
 
 @public
 def conv_neg1_stor() -> int128:
