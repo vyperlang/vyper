@@ -106,7 +106,6 @@ def to_int128(expr, args, kwargs, context):
             )
 
     elif input_type == 'address':
-        # TODO!!!
         return LLLnode.from_list(
             [
                 'signextend',
