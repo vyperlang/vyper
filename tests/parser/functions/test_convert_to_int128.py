@@ -2,6 +2,9 @@ from vyper.exceptions import (
     InvalidLiteralException,
     TypeMismatchException,
 )
+from vyper.utils import (
+    SizeLimits,
+)
 
 
 def test_convert_to_int128_units(get_contract, assert_tx_failed):
@@ -292,3 +295,104 @@ def foo() -> int128:
         lambda: get_contract_with_gas_estimation(code),
         InvalidLiteralException
     )
+
+
+def test_convert_from_address(w3, get_contract):
+    a = w3.eth.accounts[0]
+    code = """
+stor: address
+
+@public
+def conv_neg1_stor() -> int128:
+    self.stor = 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF
+    return convert(self.stor, int128)
+
+@public
+def conv_neg1_literal() -> int128:
+    return convert(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF, int128)
+
+@public
+def conv_neg1_stor_alt() -> int128:
+    self.stor = 0x00000000fFFFffffffFfFfFFffFfFffFFFfFffff
+    return convert(self.stor, int128)
+
+@public
+def conv_neg1_literal_alt() -> int128:
+    return convert(0x00000000fFFFffffffFfFfFFffFfFffFFFfFffff, int128)
+
+@public
+def conv_min_stor() -> int128:
+    self.stor = 0x0000000080000000000000000000000000000000
+    return convert(self.stor, int128)
+
+@public
+def conv_min_literal() -> int128:
+    return convert(0x0000000080000000000000000000000000000000, int128)
+
+@public
+def conv_min_stor_alt() -> int128:
+    self.stor = 0x1234567880000000000000000000000000000000
+    return convert(self.stor, int128)
+
+@public
+def conv_min_literal_alt() -> int128:
+    return convert(0x1234567880000000000000000000000000000000, int128)
+
+@public
+def conv_zero_stor() -> int128:
+    self.stor = ZERO_ADDRESS
+    return convert(self.stor, int128)
+
+@public
+def conv_zero_literal() -> int128:
+    return convert(ZERO_ADDRESS, int128)
+
+@public
+def conv_zero_stor_alt() -> int128:
+    self.stor = 0xffFFfFFf00000000000000000000000000000000
+    return convert(self.stor, int128)
+
+@public
+def conv_zero_literal_alt() -> int128:
+    return convert(0xffFFfFFf00000000000000000000000000000000, int128)
+
+@public
+def conv_max_stor() -> int128:
+    self.stor = 0xFffffFff7FFFFFFfFffFffFfFFffFffFFfFfffFF
+    return convert(self.stor, int128)
+
+@public
+def conv_max_literal() -> int128:
+    return convert(0xFffffFff7FFFFFFfFffFffFfFFffFffFFfFfffFF, int128)
+
+@public
+def conv_max_stor_alt() -> int128:
+    self.stor = 0x000000007FfFFffffFFFFfffffffFffFfFffffFF
+    return convert(self.stor, int128)
+
+@public
+def conv_max_literal_alt() -> int128:
+    return convert(0x000000007FfFFffffFFFFfffffffFffFfFffffFF, int128)
+    """
+
+    c = get_contract(code)
+
+    assert c.conv_neg1_stor() == -1
+    assert c.conv_neg1_literal() == -1
+    assert c.conv_neg1_stor_alt() == -1
+    assert c.conv_neg1_literal_alt() == -1
+
+    assert c.conv_min_stor() == SizeLimits.MINNUM
+    assert c.conv_min_literal() == SizeLimits.MINNUM
+    assert c.conv_min_stor_alt() == SizeLimits.MINNUM
+    assert c.conv_min_literal_alt() == SizeLimits.MINNUM
+
+    assert c.conv_zero_stor() == 0
+    assert c.conv_zero_literal() == 0
+    assert c.conv_zero_stor_alt() == 0
+    assert c.conv_zero_literal_alt() == 0
+
+    assert c.conv_max_stor() == SizeLimits.MAXNUM
+    assert c.conv_max_literal() == SizeLimits.MAXNUM
+    assert c.conv_max_stor_alt() == SizeLimits.MAXNUM
+    assert c.conv_max_literal_alt() == SizeLimits.MAXNUM
