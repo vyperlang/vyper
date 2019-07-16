@@ -193,3 +193,30 @@ def foo() -> bool:
         lambda: get_contract_with_gas_estimation(code),
         TypeMismatchException
     )
+
+
+def test_convert_from_address(w3, get_contract_with_gas_estimation):
+    code = """
+@public
+def test_address_to_bool(val: address) -> bool:
+    temp: bool = convert(val, bool)
+    return temp
+
+@public
+def test_literal_zero_address() -> bool:
+    return convert(ZERO_ADDRESS, bool)
+
+@public
+def test_sender() -> bool:
+    return convert(msg.sender, bool)
+    """
+
+    a = w3.eth.accounts[0]
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.test_address_to_bool((b'\x00' * 19) + (b'\x01')) is True
+    assert c.test_address_to_bool(a) is True
+    assert c.test_address_to_bool(b'\x00' * 20) is False
+
+    assert c.test_literal_zero_address() is False
+    assert c.test_sender() is True

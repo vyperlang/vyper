@@ -28,7 +28,7 @@ from vyper.utils import (
 )
 
 
-@signature(('decimal', 'int128', 'uint256', 'bytes32', 'bytes'), '*')
+@signature(('decimal', 'int128', 'uint256', 'address', 'bytes32', 'bytes'), '*')
 def to_bool(expr, args, kwargs, context):
     in_arg = args[0]
     input_type, _ = get_type(in_arg)
@@ -57,7 +57,8 @@ def to_bool(expr, args, kwargs, context):
         )
 
 
-@signature(('num_literal', 'bool', 'decimal', 'uint256', 'bytes32', 'bytes', 'string'), '*')
+@signature(('num_literal', 'bool', 'decimal', 'uint256', 'address',
+            'bytes32', 'bytes', 'string'), '*')
 def to_int128(expr, args, kwargs, context):
     in_arg = args[0]
     input_type, _ = get_type(in_arg)
@@ -104,6 +105,21 @@ def to_int128(expr, args, kwargs, context):
                 typ=BaseType('int128', _unit),
                 pos=getpos(expr)
             )
+
+    elif input_type == 'address':
+        return LLLnode.from_list(
+            [
+                'signextend',
+                15,
+                [
+                    'and',
+                    in_arg,
+                    (SizeLimits.ADDRSIZE - 1)
+                ],
+            ],
+            typ=BaseType('int128', _unit),
+            pos=getpos(expr)
+        )
 
     elif input_type in ('string', 'bytes'):
         if in_arg.typ.maxlen > 32:
@@ -221,7 +237,7 @@ def to_uint256(expr, args, kwargs, context):
         raise InvalidLiteralException("Invalid input for uint256: %r" % in_arg, expr)
 
 
-@signature(('bool', 'int128', 'uint256', 'bytes32', 'bytes'), '*')
+@signature(('bool', 'int128', 'uint256', 'bytes32', 'bytes', 'address'), '*')
 def to_decimal(expr, args, kwargs, context):
     in_arg = args[0]
     input_type, _ = get_type(in_arg)
@@ -266,6 +282,25 @@ def to_decimal(expr, args, kwargs, context):
                     typ=BaseType('decimal', _unit, _positional),
                     pos=getpos(expr)
                 )
+
+        elif input_type == 'address':
+            return LLLnode.from_list(
+                [
+                    'mul',
+                    [
+                        'signextend',
+                        15,
+                        [
+                            'and',
+                            in_arg,
+                            (SizeLimits.ADDRSIZE - 1)
+                        ],
+                    ],
+                    DECIMAL_DIVISOR
+                ],
+                typ=BaseType('decimal', _unit, _positional),
+                pos=getpos(expr)
+            )
 
         elif input_type == 'bytes32':
             if in_arg.typ.is_literal:

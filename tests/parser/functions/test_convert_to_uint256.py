@@ -112,6 +112,24 @@ def conv2() -> uint256:
 @public
 def conv3() -> uint256:
     return convert(0x744d70FDBE2Ba4CF95131626614a1763DF805B9E, uint256)
+
+@public
+def conv_max_stor() -> uint256:
+    self.stor_a = 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF
+    return convert(self.stor_a, uint256)
+
+@public
+def conv_max_literal() -> uint256:
+    return convert(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF, uint256)
+
+@public
+def conv_min_stor() -> uint256:
+    self.stor_a = ZERO_ADDRESS
+    return convert(self.stor_a, uint256)
+
+@public
+def conv_min_literal() -> uint256:
+    return convert(ZERO_ADDRESS, uint256)
     """
 
     c = get_contract(code)
@@ -119,6 +137,10 @@ def conv3() -> uint256:
     assert c.conv1(a) == int(a, 0)
     assert c.conv2() == 663969929716095361663590611662499625636445838238
     assert c.conv3() == 663969929716095361663590611662499625636445838238
+    assert c.conv_max_stor() == (2**160) - 1
+    assert c.conv_max_literal() == (2**160) - 1
+    assert c.conv_min_stor() == 0
+    assert c.conv_min_literal() == 0
 
 
 def test_convert_from_bool(get_contract_with_gas_estimation):
