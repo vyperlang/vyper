@@ -111,7 +111,11 @@ def to_int128(expr, args, kwargs, context):
             [
                 'signextend',
                 15,
-                ['and', in_arg, SizeLimits.ADDRSIZE],
+                [
+                    'and',
+                    in_arg,
+                    (SizeLimits.ADDRSIZE - 1)
+                ],
             ],
             typ=BaseType('int128', _unit),
             pos=getpos(expr)
@@ -286,7 +290,11 @@ def to_decimal(expr, args, kwargs, context):
                     [
                         'signextend',
                         15,
-                        ['and', in_arg, SizeLimits.ADDRSIZE],
+                        [
+                            'and',
+                            in_arg,
+                            (SizeLimits.ADDRSIZE - 1)
+                        ],
                     ],
                     DECIMAL_DIVISOR
                 ],
