@@ -56,7 +56,7 @@ parser.add_argument(
 parser.add_argument(
     '--version',
     action='version',
-    version='{0}'.format(vyper.__version__),
+    version='{0}'.format(vyper.extended_version),
 )
 parser.add_argument(
     '--show-gas-estimates',
