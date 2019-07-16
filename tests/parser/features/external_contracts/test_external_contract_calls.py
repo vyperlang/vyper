@@ -807,3 +807,24 @@ def test(addr: address) -> (int128, address):
 
     assert c1.out_literals() == (1, "0x0000000000000000000000000000000000012345")
     assert c2.test(c1.address) == list(c1.out_literals())
+
+
+def test_list_external_contract_call(get_contract, get_contract_with_gas_estimation):
+    contract_1 = """
+@public
+def array() -> int128[3]:
+    return [0, 0, 0]
+    """
+
+    c = get_contract_with_gas_estimation(contract_1)
+
+    contract_2 = """
+contract Foo:
+    def array() -> int128[3]: constant
+@public
+def get_array(arg1: address) -> int128[3]:
+    return Foo(arg1).array()
+"""
+
+    c2 = get_contract(contract_2)
+    assert c2.get_array(c.address) == [0, 0, 0]
