@@ -30,11 +30,14 @@ def set_callback(c: address):
 
 @public
 @nonreentrant('protect_special_value')
-def protected_function(val: string[100], do_callback: bool):
+def protected_function(val: string[100], do_callback: bool) -> uint256:
     self.special_value = val
 
     if do_callback:
         self.callback.updated_protected()
+        return 1
+    else:
+        return 2
 
 @public
 def unprotected_function(val: string[100], do_callback: bool):
