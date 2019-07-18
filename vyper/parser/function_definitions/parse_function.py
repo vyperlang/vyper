@@ -62,7 +62,8 @@ def parse_function(code, sigs, origcode, global_ctx, _vars=None):
         is_payable=sig.payable,
         origcode=origcode,
         is_private=sig.private,
-        method_id=sig.method_id
+        method_id=sig.method_id,
+        sig=sig
     )
 
     if sig.private:
