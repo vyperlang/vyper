@@ -906,6 +906,10 @@ def zero_pad(bytez_placeholder, maxlen, context):
 
 # Generate return code for stmt
 def make_return_stmt(stmt, context, begin_pos, _size, loop_memory_position=None):
+    from vyper.parser.function_definitions.utils import (
+        get_nonreentrant_lock
+    )
+    _, nonreentrant_post = get_nonreentrant_lock(context.sig, context.global_ctx)
     if context.is_private:
         if loop_memory_position is None:
             loop_memory_position = context.new_placeholder(typ=BaseType('uint256'))
@@ -922,7 +926,8 @@ def make_return_stmt(stmt, context, begin_pos, _size, loop_memory_position=None)
             mloads = [
                 ['mload', pos] for pos in range(begin_pos, _size, 32)
             ]
-            return ['seq_unchecked'] + mloads + [['jump', ['mload', context.callback_ptr]]]
+            return ['seq_unchecked'] + mloads + nonreentrant_post + \
+                [['jump', ['mload', context.callback_ptr]]]
         else:
             mloads = [
                 'seq_unchecked',
@@ -945,9 +950,10 @@ def make_return_stmt(stmt, context, begin_pos, _size, loop_memory_position=None)
                 ['goto', start_label],
                 ['label', exit_label]
             ]
-            return ['seq_unchecked'] + [mloads] + [['jump', ['mload', context.callback_ptr]]]
+            return ['seq_unchecked'] + [mloads] + nonreentrant_post + \
+                [['jump', ['mload', context.callback_ptr]]]
     else:
-        return ['return', begin_pos, _size]
+        return ['seq_unchecked'] + nonreentrant_post + [['return', begin_pos, _size]]
 
 
 # Generate code for returning a tuple or struct.

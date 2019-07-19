@@ -130,7 +130,7 @@ def call_self_private(stmt_expr, context, sig):
         static_arg_size = 32 * sum(
                 [get_static_size_of_type(arg.typ)
                     for arg in expr_args])
-        static_pos = arg_pos + static_arg_size
+        static_pos = int(arg_pos + static_arg_size)
         needs_dyn_section = any(
                 [has_dynamic_data(arg.typ)
                     for arg in expr_args])
