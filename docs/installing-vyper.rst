@@ -97,6 +97,16 @@ Also, ensure the following libraries are installed using `brew`:
 ::
 
     brew install gmp leveldb
+	
+Windows
+--------
+
+Windows users can first `install Windows Subsystem for Linux <https://docs.microsoft.com/en-us/windows/wsl/install-win10>`_ and then follow the instructions for Ubuntu, or `install Docker for Windows <https://docs.docker.com/docker-for-windows/install/>`_ and then follow the instructions for Docker.
+
+.. note::
+    - Windows Subsystem for Linux is only available for Windows 10.
+    - Windows versions that are < 10 and Windows 10 Home should install the slightly outdated `Docker Toolbox <https://docs.docker.com/toolbox/toolbox_install_windows/>`_, as explained in the link.
+   
 
 Creating a virtual environment
 ==============================
