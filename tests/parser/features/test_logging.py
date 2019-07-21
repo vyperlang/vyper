@@ -216,15 +216,20 @@ def foo():
     assert logs[0].args.arg1 == 123
 
 
-def test_event_logging_with_units(get_contract_with_gas_estimation):
+def test_event_logging_with_units(w3, get_contract_with_gas_estimation, get_logs):
     code = """
-MyLog: event({arg1: indexed(int128(wei)), arg2: int128(wei)})
+MyLog: event({arg1: indexed(uint256(wei)), arg2: uint256(wei)})
 
 @public
+@payable
 def foo():
-    log.MyLog(1, 2)
+    log.MyLog(msg.value, 2*msg.value)
 """
-    get_contract_with_gas_estimation(code)
+    c = get_contract_with_gas_estimation(code)
+    tx_hash = c.foo(transact={'value': w3.toWei(0.1, 'ether')})
+    logs = get_logs(tx_hash, c, 'MyLog')
+    assert logs[0].args.arg1 == w3.toWei(0.1, 'ether')
+    assert logs[0].args.arg2 == 2* w3.toWei(0.1, 'ether')
 
 
 def test_event_logging_with_fixed_array_data(w3,
