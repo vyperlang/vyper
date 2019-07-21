@@ -39,3 +39,6 @@ docs/modules.rst
 .mypy_cache
 .hypothesis
 
+# runtime specific git version
+vyper/git_version.txt
+
