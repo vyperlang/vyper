@@ -31,8 +31,8 @@ extras = {
 commithash = subprocess.check_output("git rev-parse HEAD".split())
 commithash = commithash.decode('utf-8').strip()
 
-
-hashfile = os.path.relpath('./vyper/git_version.txt')
+hash_file_rel_path = os.path.join('vyper', 'git_version.txt')
+hashfile = os.path.relpath(hash_file_rel_path)
 with open(hashfile, 'w') as f :
     f.write(commithash)
 
@@ -72,6 +72,6 @@ setup(
         'Programming Language :: Python :: 3.6',
     ],
     package_data={
-        '': ['vyper/git_version.txt']
+        '': [hash_file_rel_path]
     }
 )
