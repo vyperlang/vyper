@@ -58,6 +58,11 @@ def pack_logging_topics(event_id, args, expected_topics, context, pos):
                     size = ['sload', ['sha3_32', value]]
                 topics.append(byte_array_to_num(value, arg, 'uint256', size))
         else:
+            if arg_type != expected_type:
+                raise TypeMismatchException(
+                    f"Invalid type for logging topic, got {arg_type} expected {expected_type}",
+                    value.pos
+                )
             value = unwrap_location(value)
             value = base_type_conversion(value, arg_type, expected_type, pos=code_pos)
             topics.append(value)
