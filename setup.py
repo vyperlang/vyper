@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from setuptools import setup, find_packages
-
+import subprocess, os, tempfile
 
 test_deps = [
     'pytest>=3.6',
@@ -27,6 +27,16 @@ extras = {
     'test': test_deps,
     'lint': lint_deps,
 }
+
+commithash = subprocess.check_output("git rev-parse HEAD".split())
+commithash = commithash.decode('utf-8').strip()
+
+if not os.path.exists('build'):
+    os.mkdir('build')
+hash_file_rel_path = os.path.join('build', 'vyper_git_version.txt')
+hashfile = os.path.relpath(hash_file_rel_path)
+with open(hashfile, 'w') as f :
+    f.write(commithash)
 
 
 setup(
@@ -62,5 +72,6 @@ setup(
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 3.6',
-    ]
+    ],
+    data_files=[('', [hash_file_rel_path])]
 )
