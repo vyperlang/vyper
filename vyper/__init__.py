@@ -18,6 +18,7 @@ except _pkg_resources.DistributionNotFound:
     __version__ = '0.0.0development'
 
 try:
-    __commit__ = _pkg_resources.resource_string('vyper', 'git_version.txt').decode('utf-8')
+    __commit__ = _pkg_resources.resource_string('vyper', 'vyper_git_version.txt').decode('utf-8')
+    __commit__ = __commit__[:7]
 except FileNotFoundError:
-    __commit__ = '+commit.unknown'
+    __commit__ = 'unknown'
