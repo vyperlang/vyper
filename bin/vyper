@@ -56,7 +56,7 @@ parser.add_argument(
 parser.add_argument(
     '--version',
     action='version',
-    version='{0}\nGIT:{1}'.format(vyper.__version__, vyper.__commit__),
+    version='{0}+commit.{1}'.format(vyper.__version__, vyper.__commit__),
 )
 parser.add_argument(
     '--show-gas-estimates',
