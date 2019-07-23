@@ -38,6 +38,3 @@ docs/modules.rst
 .tox
 .mypy_cache
 .hypothesis
-
-# vyper version
-
