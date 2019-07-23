@@ -28,16 +28,16 @@ extras = {
     'lint': lint_deps,
 }
 
-commithash = subprocess.check_output("git rev-parse HEAD".split())
-commithash = commithash.decode('utf-8').strip()
-
-if not os.path.exists('build'):
-    os.mkdir('build')
-hash_file_rel_path = os.path.join('build', 'vyper_git_version.txt')
+hash_file_rel_path = os.path.join('vyper', 'vyper_git_version.txt')
 hashfile = os.path.relpath(hash_file_rel_path)
-with open(hashfile, 'w') as f :
-    f.write(commithash)
 
+try:
+    commithash = subprocess.check_output("git rev-parse HEAD".split())
+    commithash = commithash.decode('utf-8').strip()
+    with open(hashfile, 'w') as f :
+        f.write(commithash)
+except subprocess.CalledProcessError:
+    pass
 
 setup(
     name='vyper',
@@ -73,5 +73,5 @@ setup(
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 3.6',
     ],
-    data_files=[('', [hash_file_rel_path])]
+    data_files=[('', [hash_file_rel_path])],
 )
