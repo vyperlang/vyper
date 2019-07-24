@@ -55,6 +55,7 @@ from vyper.types import (
 from vyper.utils import (
     SizeLimits,
     bytes_to_int,
+    ceil32,
     fourbytes_to_int,
     keccak256,
 )
@@ -784,7 +785,7 @@ class Stmt(object):
                 zero_pad_i = self.context.new_placeholder(BaseType('uint256'))
                 zero_padder = LLLnode.from_list([
                     'with', '_ceil32_end', ['ceil32', ['mload', bytez_placeholder]], [
-                        'repeat', zero_pad_i, ['mload', bytez_placeholder], maxlen, [
+                        'repeat', zero_pad_i, ['mload', bytez_placeholder], ceil32(maxlen), [
                             'seq',
                             # stay within allocated bounds
                             ['if', ['gt', ['mload', zero_pad_i], '_ceil32_end'], 'break'],

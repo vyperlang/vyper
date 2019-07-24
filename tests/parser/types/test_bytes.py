@@ -232,3 +232,39 @@ def test() -> bool:
     c = get_contract(code)
 
     assert c.test() is True
+
+
+def test_zero_padding_with_private(get_contract):
+    code = """
+counter: uint256
+
+@private
+@constant
+def to_little_endian_64(value: uint256) -> bytes[8]:
+    y: uint256 = 0
+    x: uint256 = value
+    for _ in range(8):
+        y = shift(y, 8)
+        y = y + bitwise_and(x, 255)
+        x = shift(x, -8)
+    return slice(convert(y, bytes32), start=24, len=8)
+
+@public
+def set_count(i: uint256):
+    self.counter = i
+
+@public
+@constant
+def get_count() -> bytes[24]:
+    return self.to_little_endian_64(self.counter)
+    """
+
+    c = get_contract(code)
+
+    assert c.get_count() == b'\x00\x00\x00\x00\x00\x00\x00\x00'
+    c.set_count(1, transact={})
+    assert c.get_count() == b'\x01\x00\x00\x00\x00\x00\x00\x00'
+    c.set_count(0xf0f0f0, transact={})
+    assert c.get_count() == b'\xf0\xf0\xf0\x00\x00\x00\x00\x00'
+    c.set_count(0x0101010101010101, transact={})
+    assert c.get_count() == b'\x01\x01\x01\x01\x01\x01\x01\x01'
