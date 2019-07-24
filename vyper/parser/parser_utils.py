@@ -961,7 +961,7 @@ def gen_tuple_return(stmt, context, sub):
     # Is from a call expression.
     if sub.args and len(sub.args[0].args) > 0 and sub.args[0].args[0].value == 'call':
         # self-call to public.
-        mem_pos = sub.args[0].args[-1]
+        mem_pos = sub
         mem_size = get_size_of_type(sub.typ) * 32
         return LLLnode.from_list(['return', mem_pos, mem_size], typ=sub.typ)
 
