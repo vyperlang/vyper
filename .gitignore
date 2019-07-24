@@ -42,3 +42,5 @@ docs/modules.rst
 # vyper
 vyper/vyper_git_version.txt
 
+# snapcraft build file
+vyper*.snap
