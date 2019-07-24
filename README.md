@@ -5,6 +5,9 @@
 [![Build Status](https://circleci.com/gh/ethereum/vyper.svg?style=shield)](https://circleci.com/gh/ethereum/vyper)
 [![Documentation Status](https://readthedocs.org/projects/vyper/badge/?version=latest)](http://vyper.readthedocs.io/en/latest/?badge=latest)
 [![Coverage Status](https://coveralls.io/repos/github/ethereum/vyper/badge.svg?branch=master)](https://coveralls.io/github/ethereum/vyper?branch=master)
+[![PyPI](https://badge.fury.io/py/vyper.svg)](https://pypi.org/project/vyper)
+[![Snapcraft](https://snapcraft.io/vyper/badge.svg)](https://snapcraft.io/vyper)
+
 
 # Getting Started
 See [Installing Vyper](http://vyper.readthedocs.io/en/latest/installing-vyper.html) to install vyper.  
