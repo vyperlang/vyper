@@ -4,6 +4,7 @@ summary: Experimental language for the Ethereum Virtual Machine
 description: |
   Vyper is an contract-oriented, pythonic programming language that targets the Ethereum Virtual Machine (EVM)
 
+base: core18 # Ubuntu 18.04 LTS
 grade: devel # must be 'stable' to release into candidate/stable channels
 confinement: devmode # use 'strict' once you have the right plugs and slots
 
@@ -20,7 +21,7 @@ parts:
     stage:
       - -usr/bin/python3
   python:
-    source: https://www.python.org/ftp/python/3.6.3/Python-3.6.3.tar.xz
+    source: https://www.python.org/ftp/python/3.6.8/Python-3.6.8.tar.xz
     plugin: autotools
     configflags:
       - --prefix=/usr
