@@ -28,7 +28,8 @@ def external_contract_call(node,
                            contract_address,
                            pos,
                            value=None,
-                           gas=None):
+                           gas=None,
+                           delegate_call=None):
     from vyper.parser.expr import (
         Expr,
     )
@@ -36,6 +37,8 @@ def external_contract_call(node,
         value = 0
     if gas is None:
         gas = 'gas'
+    if delegate_call is None:
+        delegate_call = False
     if not contract_name:
         raise StructureException(
             f'Invalid external contract call "{node.func.attr}".',
@@ -69,7 +72,15 @@ def external_contract_call(node,
         ['assert', ['extcodesize', contract_address]],
         ['assert', ['ne', 'address', contract_address]],
     ]
-    if context.is_constant() or sig.const:
+    if delegate_call:
+        sub.append([
+            'assert',
+            [
+                'delegatecall',
+                gas, contract_address, inargs, inargsize, output_placeholder, output_size
+            ]
+        ])
+    elif context.is_constant() or sig.const:
         sub.append([
             'assert',
             [
@@ -110,24 +121,25 @@ def get_external_contract_call_output(sig, context):
 
 def get_external_contract_keywords(stmt_expr, context):
     from vyper.parser.expr import Expr
-    value, gas = None, None
+    value, gas, delegate_call = None, None, None
     for kw in stmt_expr.keywords:
-        if kw.arg not in ('value', 'gas'):
+        if kw.arg not in ('value', 'gas', "delegate_call"):
             raise TypeMismatchException(
-                'Invalid keyword argument, only "gas" and "value" supported.',
+                'Invalid keyword argument, only "gas", "value", and "delegate_call" supported.',
                 stmt_expr,
             )
         elif kw.arg == 'gas':
             gas = Expr.parse_value_expr(kw.value, context)
         elif kw.arg == 'value':
             value = Expr.parse_value_expr(kw.value, context)
-    return value, gas
+        elif kw.arg == 'delegate_call':
+            delegate_call = Expr.parse_value_expr(kw.value, context)
+    return value, gas, delegate_call
 
 
 def make_external_call(stmt_expr, context):
     from vyper.parser.expr import Expr
-    value, gas = get_external_contract_keywords(stmt_expr, context)
-
+    value, gas, delegate_call = get_external_contract_keywords(stmt_expr, context)
     if isinstance(stmt_expr.func, ast.Attribute) and isinstance(stmt_expr.func.value, ast.Call):
         contract_name = stmt_expr.func.value.func.id
         contract_address = Expr.parse_value_expr(stmt_expr.func.value.args[0], context)
@@ -140,6 +152,7 @@ def make_external_call(stmt_expr, context):
             pos=getpos(stmt_expr),
             value=value,
             gas=gas,
+            delegate_call=delegate_call
         )
 
     elif isinstance(stmt_expr.func.value, ast.Attribute) and stmt_expr.func.value.attr in context.sigs:  # noqa: E501
@@ -161,6 +174,7 @@ def make_external_call(stmt_expr, context):
             pos=getpos(stmt_expr),
             value=value,
             gas=gas,
+            delegate_call=delegate_call
         )
 
     elif isinstance(stmt_expr.func.value, ast.Attribute) and stmt_expr.func.value.attr in context.globals:  # noqa: E501
@@ -182,6 +196,7 @@ def make_external_call(stmt_expr, context):
             pos=getpos(stmt_expr),
             value=value,
             gas=gas,
+            delegate_call=delegate_call
         )
 
     else:
