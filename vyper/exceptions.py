@@ -1,3 +1,9 @@
+import os
+
+VYPER_ERROR_CONTEXT_LINES = int(os.environ.get('VYPER_ERROR_CONTEXT_LINES', '1'))
+VYPER_ERROR_LINE_NUMBERS = os.environ.get('VYPER_ERROR_LINE_NUMBERS', '1') == '1'
+
+
 # Attempts to display the line and column of violating code.
 class ParserException(Exception):
     def __init__(self, message='Error Message not found.', item=None):
@@ -10,7 +16,7 @@ class ParserException(Exception):
         elif item and hasattr(item, 'lineno'):
             self.set_err_pos(item.lineno, item.col_offset)
             if hasattr(item, 'source_code'):
-                self.source_code = item.source_code.splitlines()
+                self.source_code = item.source_code
 
     def set_err_pos(self, lineno, col_offset):
         if not self.lineno:
@@ -20,28 +26,25 @@ class ParserException(Exception):
                 self.col_offset = col_offset
 
     def __str__(self):
-        output = self.message
+        lineno, col_offset = self.lineno, self.col_offset
 
-        if self.lineno and hasattr(self, 'source_code'):
+        if lineno is not None and hasattr(self, 'source_code'):
+            from vyper.utils import annotate_source_code
 
-            output = 'line %d: %s\n%s' % (
-                self.lineno,
-                output,
-                self.source_code[self.lineno - 1]
+            source_annotation = annotate_source_code(
+                self.source_code,
+                lineno,
+                col_offset,
+                context_lines=VYPER_ERROR_CONTEXT_LINES,
+                line_numbers=VYPER_ERROR_LINE_NUMBERS,
             )
+            col_offset_str = '' if col_offset is None else str(col_offset)
+            return f'line {lineno}:{col_offset_str} {self.message}\n{source_annotation}'
 
-            if self.col_offset:
-                col = '-' * self.col_offset + '^'
-                output += '\n' + col
+        elif lineno is not None and col_offset is not None:
+            return f'line {lineno}:{col_offset} {self.message}'
 
-        elif self.lineno is not None and self.col_offset is not None:
-            output = 'line %d:%d %s' % (
-                self.lineno,
-                self.col_offset,
-                output
-            )
-
-        return output
+        return self.message
 
 
 class VariableDeclarationException(ParserException):
