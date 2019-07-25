@@ -157,7 +157,7 @@ class FunctionSignature:
                         custom_structs=None,
                         contract_def=False,
                         constants=None,
-                        constant=False):
+                        constant_override=False):
         if not custom_structs:
             custom_structs = {}
 
@@ -219,7 +219,7 @@ class FunctionSignature:
             else:
                 mem_pos += get_size_of_type(parsed_type) * 32
 
-        const, payable, private, public, nonreentrant_key = constant, False, False, False, ''
+        const, payable, private, public, nonreentrant_key = constant_override, False, False, False, ''
 
         # Update function properties from decorators
         for dec in code.decorator_list:
