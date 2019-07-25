@@ -366,8 +366,8 @@ def annotate_source_code(
 
         location_repr = indent(location_repr, indent_chars=justified_reprs)
 
-    # Do a bit of cleanup to ensure there are no unneeded trailing blank lines
-    # or whitespace chars
+    # Ensure no trailing whitespace and trailing blank lines are only included
+    # if they are part of the source code
     if col_offset is None:
         # Number of lines doesn't include column marker line
         num_lines = end_offset - start_offset
