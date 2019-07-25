@@ -208,3 +208,35 @@ def test_annotate_source_code_marks_positions_in_source_code():
      25         if self.lineno and hasattr(self, 'source_code'):
      26
 """[1:-1]
+
+    annotation = annotate_source_code(
+        TEST_SOURCE_CODE,
+        15,
+        col_offset=None,
+        context_lines=3,
+        line_numbers=True,
+    )
+    assert annotation == r"""
+     12             if hasattr(item, 'source_code'):
+     13                 self.source_code = item.source_code.splitlines()
+     14
+---> 15     def set_err_pos(self, lineno, col_offset):
+     16         if not self.lineno:
+     17             self.lineno = lineno
+     18
+"""[1:-1]
+
+    annotation = annotate_source_code(
+        TEST_SOURCE_CODE,
+        15,
+        col_offset=None,
+        context_lines=2,
+        line_numbers=False,
+    )
+    assert annotation == r"""
+                self.source_code = item.source_code.splitlines()
+
+    def set_err_pos(self, lineno, col_offset):
+        if not self.lineno:
+            self.lineno = lineno
+"""[1:-1]
