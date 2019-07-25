@@ -219,7 +219,11 @@ class FunctionSignature:
             else:
                 mem_pos += get_size_of_type(parsed_type) * 32
 
-        const, payable, private, public, nonreentrant_key = constant_override, False, False, False, ''
+        const = constant_override
+        payable = False
+        private = False
+        public = False
+        nonreentrant_key = ''
 
         # Update function properties from decorators
         for dec in code.decorator_list:
