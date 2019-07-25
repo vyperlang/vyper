@@ -157,7 +157,7 @@ class FunctionSignature:
                         custom_structs=None,
                         contract_def=False,
                         constants=None,
-                        constant=False):
+                        constant_override=False):
         if not custom_structs:
             custom_structs = {}
 
@@ -219,8 +219,13 @@ class FunctionSignature:
             else:
                 mem_pos += get_size_of_type(parsed_type) * 32
 
-        # Apply decorators
-        const, payable, private, public, nonreentrant_key = False, False, False, False, ''
+        const = constant_override
+        payable = False
+        private = False
+        public = False
+        nonreentrant_key = ''
+
+        # Update function properties from decorators
         for dec in code.decorator_list:
             if isinstance(dec, ast.Name) and dec.id == "constant":
                 const = True
@@ -258,10 +263,9 @@ class FunctionSignature:
                 "Function visibility must be declared (@public or @private)",
                 code,
             )
-        if constant and nonreentrant_key:
+        if const and nonreentrant_key:
             raise StructureException("@nonreentrant makes no sense on a @constant function.", code)
-        if constant:
-            const = True
+
         # Determine the return type and whether or not it's constant. Expects something
         # of the form:
         # def foo(): ...
