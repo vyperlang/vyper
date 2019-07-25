@@ -240,3 +240,15 @@ def test_annotate_source_code_marks_positions_in_source_code():
         if not self.lineno:
             self.lineno = lineno
 """[1:-1]
+
+
+@pytest.mark.parametrize(
+    'bad_lineno',
+    (-100, -1, 0, 45, 1000),
+)
+def test_annotate_source_code_raises_value_errors(bad_lineno):
+    with pytest.raises(
+        ValueError,
+        match='Line number is out of range',
+    ):
+        annotate_source_code(TEST_SOURCE_CODE, bad_lineno)
