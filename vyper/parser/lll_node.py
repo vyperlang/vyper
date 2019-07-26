@@ -6,14 +6,14 @@ from vyper.exceptions import (
 from vyper.opcodes import (
     comb_opcodes,
 )
+from vyper.settings import (
+    VYPER_COLOR_OUTPUT,
+)
 from vyper.types import (
     BaseType,
     NodeType,
     NullType,
     ceil32,
-)
-from vyper.settings import (
-    VYPER_COLOR_OUTPUT,
 )
 from vyper.utils import (
     valid_lll_macros,

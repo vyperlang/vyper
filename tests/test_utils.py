@@ -5,7 +5,6 @@ from vyper.utils import (
     indent,
 )
 
-
 TEST_TEXT = """
 test
 lines
