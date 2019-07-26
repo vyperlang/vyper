@@ -128,7 +128,7 @@ def runserver(host='', port=8000):
 
 if __name__ == '__main__':
     if ':' in args.bind_address:
-        lll_node.APPLY_COLOR = False
+        lll_node.VYPER_COLOR_OUTPUT = False
         runserver(*args.bind_address.split(':'))
     else:
         print('Provide bind address in "{address}:{port}" format')

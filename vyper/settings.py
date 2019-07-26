@@ -1,0 +1,5 @@
+import os
+
+VYPER_COLOR_OUTPUT = os.environ.get('VYPER_COLOR_OUTPUT', '0') == '1'
+VYPER_ERROR_CONTEXT_LINES = int(os.environ.get('VYPER_ERROR_CONTEXT_LINES', '1'))
+VYPER_ERROR_LINE_NUMBERS = os.environ.get('VYPER_ERROR_LINE_NUMBERS', '1') == '1'

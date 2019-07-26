@@ -1,7 +1,7 @@
-import os
-
-VYPER_ERROR_CONTEXT_LINES = int(os.environ.get('VYPER_ERROR_CONTEXT_LINES', '1'))
-VYPER_ERROR_LINE_NUMBERS = os.environ.get('VYPER_ERROR_LINE_NUMBERS', '1') == '1'
+from vyper.settings import (
+    VYPER_ERROR_CONTEXT_LINES,
+    VYPER_ERROR_LINE_NUMBERS,
+)
 
 
 # Attempts to display the line and column of violating code.
