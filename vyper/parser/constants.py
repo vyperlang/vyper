@@ -18,7 +18,7 @@ from vyper.parser.memory_allocator import (
 from vyper.types.types import (
     BaseType,
     ByteArrayType,
-    StructType
+    StructType,
 )
 from vyper.utils import (
     SizeLimits,
