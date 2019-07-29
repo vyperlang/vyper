@@ -74,24 +74,22 @@ class Constants(object):
 
             # For StructType
             if is_instances([expr.typ, annotation_type], StructType):
-                expr_keys = list(expr.typ.members.keys())
-                annotation_type_keys = list(annotation_type.members.keys())
-                for key1, key2 in expr_keys, annotation_type_keys:
+                for x, y, z in zip(expr.typ.members.keys(), annotation_type.members.keys(), expr.args):
                     is_special_case_uint256_literal = (
                         is_instances([expr.typ, annotation_type], StructType)
                     ) and (
-                        str(annotation_type.members[key2]) == 'uint256'
+                        str(annotation_type.members[y]) == 'uint256'
                     ) and (
-                        str(expr.typ.members[key1]) == 'int128'
-                    ) and SizeLimits.in_bounds('uint256', expr[1][0])
+                        str(expr.typ.members[x]) == 'int128'
+                    ) and SizeLimits.in_bounds('uint256', z.value)
 
                     is_special_case_int256_literal = (
                         is_instances([expr.typ, annotation_type], StructType)
                     ) and (
-                        str(annotation_type.members[key2]) == 'int128'
+                        str(annotation_type.members[y]) == 'int128'
                     ) and (
-                        str(expr.typ.members[key1]) == 'int128'
-                    ) and SizeLimits.in_bounds('int128', expr[1][0])
+                        str(expr.typ.members[x]) == 'int128'
+                    ) and SizeLimits.in_bounds('int128', z.value)
 
                 if is_special_case_uint256_literal or is_special_case_int256_literal:
                     fail = False
