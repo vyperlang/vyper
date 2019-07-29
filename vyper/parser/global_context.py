@@ -374,7 +374,7 @@ class GlobalContext:
 
         # Handle constants.
         if self.get_call_func_name(item) == "constant":
-            self.   _constants.add_constant(item, global_ctx=self)
+            self._constants.add_constant(item, global_ctx=self)
             return
 
         # Handle events.
