@@ -19,6 +19,9 @@ import vyper
 from vyper.parser import (
     parser_utils,
 )
+from vyper.settings import (
+    VYPER_TRACEBACK_LIMIT,
+)
 from vyper.signatures.interface import (
     extract_file_interface_imports,
 )
@@ -69,18 +72,21 @@ parser.add_argument(
     default='bytecode', dest='format',
 )
 parser.add_argument(
-    '--debug',
-    help='Add compiler debugging output',
-    action='store_true',
+    '--traceback-limit',
+    help='Set the traceback limit for error messages reported by the compiler',
+    type=int,
 )
 
 args = parser.parse_args()
 
-tb_limit = os.environ.get('VYPER_TRACEBACK_LIMIT')
-if tb_limit:
-    sys.tracebacklimit = int(tb_limit)
-elif not args.debug:
-    # sys.traceback limit defaults to 1000
+if args.traceback_limit is not None:
+    sys.tracebacklimit = args.traceback_limit
+elif VYPER_TRACEBACK_LIMIT is not None:
+    sys.tracebacklimit = VYPER_TRACEBACK_LIMIT
+else:
+    # Python usually defaults sys.tracebacklimit to 1000.  We use a default
+    # setting of zero so error printouts only include information about where
+    # an error occurred in a Vyper source file.
     sys.tracebacklimit = 0
 
 

@@ -1,4 +1,3 @@
-import os
 import re
 
 from vyper.exceptions import (
@@ -6,6 +5,9 @@ from vyper.exceptions import (
 )
 from vyper.opcodes import (
     comb_opcodes,
+)
+from vyper.settings import (
+    VYPER_COLOR_OUTPUT,
 )
 from vyper.types import (
     BaseType,
@@ -19,11 +21,8 @@ from vyper.utils import (
 
 # Set default string representation for ints in LLL output.
 AS_HEX_DEFAULT = False
-# Terminal color types
-APPLY_COLOR = os.environ.get('VYPER_COLOR_OUTPUT', '0') == '1'
 
-
-if APPLY_COLOR:
+if VYPER_COLOR_OUTPUT:
     OKBLUE = '\033[94m'
     OKMAGENTA = '\033[35m'
     OKLIGHTMAGENTA = '\033[95m'
