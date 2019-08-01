@@ -14,7 +14,14 @@ from vyper.utils import (
     annotate_source_code,
 )
 
-BASE_NODE_ATTRIBUTES = ('node_id', 'source_code', 'col_offset', 'lineno')
+BASE_NODE_ATTRIBUTES = (
+    'node_id',
+    'source_code',
+    'col_offset',
+    'lineno',
+    'end_col_offset',
+    'end_lineno'
+)
 
 
 class VyperNode:

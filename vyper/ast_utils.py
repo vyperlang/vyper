@@ -1,4 +1,5 @@
 import ast as python_ast
+import asttokens
 from typing import (
     Generator,
 )
@@ -42,6 +43,10 @@ def _build_vyper_ast_init_kwargs(
     yield ('lineno', getattr(node, 'lineno', None))
     yield ('node_id', node.node_id)  # type: ignore
     yield ('source_code', source_code)
+
+    end = node.last_token.end if hasattr(node, 'last_token') else (None, None)
+    yield ('end_lineno', end[0])
+    yield ('end_col_offset', end[1])
 
     if isinstance(node, python_ast.ClassDef):
         yield ('class_type', node.class_type)  # type: ignore
@@ -92,6 +97,7 @@ def parse_to_ast(source_code: str) -> list:
     class_types, reformatted_code = pre_parse(source_code)
     py_ast = python_ast.parse(reformatted_code)
     annotate_ast(py_ast, source_code, class_types)
+    asttokens.ASTTokens(source_code, tree=py_ast)
     # Convert to Vyper AST.
     vyper_ast = parse_python_ast(
         source_code=source_code,
