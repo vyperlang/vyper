@@ -65,9 +65,9 @@ class instruction(str):
     def __init__(self, sstr, pos=None):
         self.pc_debugger = False
         if pos is not None:
-            self.lineno, self.col_offset = pos
+            self.lineno, self.col_offset, self.end_lineno, self.end_col_offset = pos
         else:
-            self.lineno, self.col_offset = None, None
+            self.lineno, self.col_offset, self.end_lineno, self.end_col_offset = [None] * 4
 
 
 def apply_line_numbers(func):
@@ -453,7 +453,8 @@ def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=No
 def note_line_num(line_number_map, item, pos):
     # Record line number attached to pos.
     if isinstance(item, instruction) and item.lineno is not None:
-        line_number_map['pc_pos_map'][pos] = item.lineno, item.col_offset
+        offsets = (item.lineno, item.col_offset, item.end_lineno, item.end_col_offset)
+        line_number_map['pc_pos_map'][pos] = offsets
     added_line_breakpoint = note_breakpoint(line_number_map, item, pos)
     return added_line_breakpoint
 
