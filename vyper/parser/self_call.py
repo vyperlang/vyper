@@ -2,6 +2,10 @@ import itertools
 
 from vyper.exceptions import (
     ConstancyViolationException,
+    StructureException,
+)
+from vyper.parser.external_call import (
+    get_external_contract_keywords,
 )
 from vyper.parser.lll_node import (
     LLLnode,
@@ -278,11 +282,21 @@ def call_self_public(stmt_expr, context, sig):
     # self.* style call to a public function.
     method_name, expr_args, sig = call_lookup_specs(stmt_expr, context)
     add_gas = sig.gas  # gas of call
+    value, gas = get_external_contract_keywords(stmt_expr, context)
+    if value is None:
+        value = 0
+    if gas is None:
+        gas = ['gas']
+    if not sig.payable and value:
+        raise StructureException(
+            f"Cannot use 'value' kwarg when calling '{sig.name}' - it is not a payable function",
+            stmt_expr
+        )
     inargs, inargsize, _ = pack_arguments(sig, expr_args, context, pos=getpos(stmt_expr))
     output_placeholder, returner, output_size = call_make_placeholder(stmt_expr, context, sig)
     assert_call = [
         'assert',
-        ['call', ['gas'], ['address'], 0, inargs, inargsize, output_placeholder, output_size],
+        ['call', gas, ['address'], value, inargs, inargsize, output_placeholder, output_size],
     ]
     if output_size > 0:
         assert_call = ['seq', assert_call, returner]
