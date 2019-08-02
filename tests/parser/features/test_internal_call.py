@@ -2,8 +2,11 @@ from decimal import (
     Decimal,
 )
 
+import pytest
+
 from vyper.exceptions import (
     StructureException,
+    TypeMismatchException,
 )
 
 
@@ -362,3 +365,59 @@ def foo() -> int128:
     return self.bar(1)
 """
     assert_tx_failed(lambda: get_contract_with_gas_estimation(code), StructureException)
+
+
+def test_selfcall_with_value_private(get_contract_with_gas_estimation, assert_tx_failed):
+    code = """
+@private
+def foo():
+    pass
+
+@public
+def bar():
+    self.foo(value=100)"""
+
+    with pytest.raises(TypeMismatchException):
+        get_contract_with_gas_estimation(code)
+
+
+def test_selfcall_with_gas_private(get_contract_with_gas_estimation, assert_tx_failed):
+    code = """
+@private
+def foo():
+    pass
+
+@public
+def bar():
+    self.foo(gas=100)"""
+
+    with pytest.raises(TypeMismatchException):
+        get_contract_with_gas_estimation(code)
+
+
+def test_selfcall_unknown_kwargs_private(get_contract_with_gas_estimation, assert_tx_failed):
+    code = """
+@private
+def foo():
+    pass
+
+@public
+def bar():
+    self.foo(foo=100)"""
+
+    with pytest.raises(TypeMismatchException):
+        get_contract_with_gas_estimation(code)
+
+
+def test_selfcall_args_as_kwargs_private(get_contract_with_gas_estimation, assert_tx_failed):
+    code = """
+@private
+def foo(baz: int128):
+    pass
+
+@public
+def bar():
+    self.foo(baz=100)"""
+
+    with pytest.raises(TypeMismatchException):
+        get_contract_with_gas_estimation(code)
