@@ -3,6 +3,7 @@ import itertools
 from vyper.exceptions import (
     ConstancyViolationException,
     StructureException,
+    TypeMismatchException,
 )
 from vyper.parser.external_call import (
     get_external_contract_keywords,
@@ -84,6 +85,11 @@ def call_self_private(stmt_expr, context, sig):
     push_local_vars = []
     pop_return_values = []
     push_args = []
+
+    if len(stmt_expr.keywords):
+        raise TypeMismatchException(
+            "Cannot call private functions with keyword arguments", stmt_expr
+        )
 
     # Push local variables.
     var_slots = [
