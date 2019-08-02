@@ -2,8 +2,11 @@ from decimal import (
     Decimal,
 )
 
+import pytest
+
 from vyper.exceptions import (
     StructureException,
+    TypeMismatchException,
 )
 
 
@@ -362,3 +365,108 @@ def foo() -> int128:
     return self.bar(1)
 """
     assert_tx_failed(lambda: get_contract_with_gas_estimation(code), StructureException)
+
+
+def test_selfcall_with_value_public_payable(get_contract_with_gas_estimation):
+    code = """
+amount: wei_value
+
+@public
+def get_amount() -> wei_value:
+    return self.amount
+
+@public
+@payable
+def pay():
+    pass
+
+@private
+def get_and_set_amount() -> wei_value:
+    self.amount = self.amount + 1
+    return self.amount
+
+@public
+def send_money():
+    self.pay(value=self.get_and_set_amount())"""
+
+    c = get_contract_with_gas_estimation(code)
+    c.pay(transact={'value': 100})
+    assert c.get_amount() == 0
+    c.send_money(transact={})
+    assert c.get_amount() == 1
+
+
+def test_selfcall_with_gas_public(get_contract_with_gas_estimation, assert_tx_failed):
+    code = """
+@payable
+@public
+def pay():
+    pass
+
+@public
+def no_pay():
+    pass
+
+@public
+def foo():
+    self.pay(gas=100)
+    self.no_pay(gas=100)"""
+
+    c = get_contract_with_gas_estimation(code)
+    c.pay(transact={})
+
+
+def test_selfcall_unknown_kwargs_public(get_contract_with_gas_estimation, assert_tx_failed):
+    code = """
+@public
+def pay():
+    pass
+
+@public
+def send_money():
+    self.pay(foo=100)"""
+
+    with pytest.raises(TypeMismatchException):
+        get_contract_with_gas_estimation(code)
+
+
+def test_selfcall_with_value_private(get_contract_with_gas_estimation, assert_tx_failed):
+    code = """
+@private
+def pay():
+    pass
+
+@public
+def send_money():
+    self.pay(value=100)"""
+
+    with pytest.raises(TypeMismatchException):
+        get_contract_with_gas_estimation(code)
+
+
+def test_selfcall_with_gas_private(get_contract_with_gas_estimation, assert_tx_failed):
+    code = """
+@private
+def pay():
+    pass
+
+@public
+def send_money():
+    self.pay(gas=100)"""
+
+    with pytest.raises(TypeMismatchException):
+        get_contract_with_gas_estimation(code)
+
+
+def test_selfcall_unknown_kwargs_private(get_contract_with_gas_estimation, assert_tx_failed):
+    code = """
+@private
+def pay():
+    pass
+
+@public
+def send_money():
+    self.pay(foo=100)"""
+
+    with pytest.raises(TypeMismatchException):
+        get_contract_with_gas_estimation(code)
