@@ -64,10 +64,10 @@ def make_call(stmt_expr, context):
             getpos(stmt_expr)
         )
 
-    if sig.private:
-        return call_self_private(stmt_expr, context, sig)
-    else:
-        return call_self_public(stmt_expr, context, sig)
+    if not sig.private:
+        raise StructureException("Cannot call public functions via 'self'", stmt_expr)
+
+    return call_self_private(stmt_expr, context, sig)
 
 
 def call_make_placeholder(stmt_expr, context, sig):
@@ -296,32 +296,6 @@ def call_self_private(stmt_expr, context, sig):
         pos=getpos(stmt_expr),
         annotation='Internal Call: %s' % method_name,
         add_gas_estimate=sig.gas
-    )
-    o.gas += sig.gas
-    return o
-
-
-def call_self_public(stmt_expr, context, sig):
-    # self.* style call to a public function.
-    method_name, expr_args, sig = call_lookup_specs(stmt_expr, context)
-    add_gas = sig.gas  # gas of call
-    inargs, inargsize, _ = pack_arguments(sig, expr_args, context, stmt_expr)
-    output_placeholder, returner, output_size = call_make_placeholder(stmt_expr, context, sig)
-    # don't have to use static call, trust self-call since constancy analysis
-    # already propagates.
-    assert_call = [
-        'assert',
-        ['call', ['gas'], ['address'], 0, inargs, inargsize, output_placeholder, output_size],
-    ]
-    if output_size > 0:
-        assert_call = ['seq', assert_call, returner]
-    o = LLLnode.from_list(
-        assert_call,
-        typ=sig.output_type,
-        location='memory',
-        pos=getpos(stmt_expr),
-        add_gas_estimate=add_gas,
-        annotation='Internal Call: %s' % method_name,
     )
     o.gas += sig.gas
     return o
