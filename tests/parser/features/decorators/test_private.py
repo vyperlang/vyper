@@ -153,7 +153,7 @@ def set_greeting(_greeting: bytes[20]):
     if a + b + c + d + 3 == 1337:
         self.greeting = _greeting
 
-@public
+@private
 @constant
 def construct(greet: bytes[20]) -> bytes[40]:
     return concat(self.greeting, greet)
