@@ -324,6 +324,29 @@ def bar() -> (int128, decimal):
     assert c.bar() == [66, Decimal('66.77')]
 
 
+def test_private_function_multiple_lists(get_contract_with_gas_estimation):
+    code = """
+@private
+def _fooa(x: int128[5], y: bytes[42], z: uint256[3], a: bytes[2]) -> uint256:
+    return z[2]
+
+@private
+def _foob(x: bytes[42], y: uint256[3], z: bytes[2], a: int128[5]) -> bytes[42]:
+    return x
+
+@public
+def bar() -> (uint256, bytes[42]):
+    x: int128[5] = [1, 2, 3, 4, 5]
+    y: bytes[42] = b"you can do the thing!you can do the thing!"
+    z: uint256[3] = [44, 11, 2]
+    a: bytes[2] = "hi"
+    return self._fooa(x, y, z, a), self._foob(y, z, a, x)
+"""
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.bar() == [2, b"you can do the thing!you can do the thing!"]
+
+
 def test_multi_mixed_arg_list_bytes_call(get_contract_with_gas_estimation):
     code = """
 @public
