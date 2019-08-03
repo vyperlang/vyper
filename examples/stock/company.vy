@@ -44,7 +44,7 @@ def buyStock():
     buy_order: uint256(currency_value) = msg.value / self.price # rounds down
 
     # Check that there are enough shares to buy.
-    assert self.stockAvailable() >= buy_order
+    assert self.holdings[self.company] >= buy_order
 
     # Take the shares off the market and give them to the stockholder.
     self.holdings[self.company] -= buy_order
@@ -71,9 +71,9 @@ def sellStock(sell_order: uint256(currency_value)):
     assert sell_order > 0 # Otherwise, this would fail at send() below,
         # due to an OOG error (there would be zero value available for gas).
     # You can only sell as much stock as you own.
-    assert self.getHolding(msg.sender) >= sell_order
+    assert self.holdings[msg.sender] >= sell_order
     # Check that the company can pay you.
-    assert self.cash() >= (sell_order * self.price)
+    assert self.balance >= (sell_order * self.price)
 
     # Sell the stock, send the proceeds to the user
     # and put the stock back on the market.
@@ -90,7 +90,7 @@ def sellStock(sell_order: uint256(currency_value)):
 def transferStock(receiver: address, transfer_order: uint256(currency_value)):
     assert transfer_order > 0 # This is similar to sellStock above.
     # Similarly, you can only trade as much stock as you own.
-    assert self.getHolding(msg.sender) >= transfer_order
+    assert self.holdings[msg.sender] >= transfer_order
 
     # Debit the sender's stock and add to the receiver's address.
     self.holdings[msg.sender] -= transfer_order
@@ -105,7 +105,7 @@ def payBill(vendor: address, amount: wei_value):
     # Only the company can pay people.
     assert msg.sender == self.company
     # Also, it can pay only if there's enough to pay them with.
-    assert self.cash() >= amount
+    assert self.balance >= amount
 
     # Pay the bill!
     send(vendor, amount)
@@ -113,11 +113,20 @@ def payBill(vendor: address, amount: wei_value):
     # Log the payment event.
     log.Pay(vendor, amount)
 
+
 # Return the amount in wei that a company has raised in stock offerings.
+@private
+@constant
+def _debt() -> wei_value:
+    return (self.totalShares - self.holdings[self.company]) * self.price
+
+
+# Public function to call _debt
 @public
 @constant
 def debt() -> wei_value:
-    return (self.totalShares - self.holdings[self.company]) * self.price
+    return self._debt()
+
 
 # Return the cash holdings minus the debt of the company.
 # The share debt or liability only is included here,
@@ -125,4 +134,4 @@ def debt() -> wei_value:
 @public
 @constant
 def worth() -> wei_value:
-    return self.cash() - self.debt()
+    return self.balance - self._debt()
