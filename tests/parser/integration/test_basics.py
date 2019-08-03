@@ -23,7 +23,7 @@ def foo(x: int128) -> int128:
 
 def test_selfcall_code_3(get_contract_with_gas_estimation, keccak):
     selfcall_code_3 = """
-@public
+@private
 def _hashy2(x: bytes[100]) -> bytes32:
     return keccak256(x)
 
@@ -31,7 +31,7 @@ def _hashy2(x: bytes[100]) -> bytes32:
 def return_hash_of_cow_x_30() -> bytes32:
     return self._hashy2("cowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcow")  # noqa: E501
 
-@public
+@private
 def _len(x: bytes[100]) -> int128:
     return len(x)
 

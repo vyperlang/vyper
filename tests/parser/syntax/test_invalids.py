@@ -213,7 +213,7 @@ def foo():
 """)
 
 must_succeed("""
-@public
+@private
 def foo():
     pass
 

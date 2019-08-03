@@ -90,7 +90,7 @@ def foo():
     """,
     """
 # Test custom send method
-@public
+@private
 def send(a: address, w: wei_value):
     send(0xde0B295669a9FD93d5F28D9Ec85E40f4cb697BAe, 1)
 
