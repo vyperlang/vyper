@@ -156,7 +156,7 @@ Additionally, you may try to compile an example contract by running:
     vyper examples/crowdfund.vy
 
 If everything works correctly, you are now able to compile your own smart contracts written in Vyper.
-If any unexpected errors or exceptions are encountered, please feel free create an issue <https://github.com/ethereum/vyper/issues/new>.
+If any unexpected errors or exceptions are encountered, please feel free to `create an issue <https://github.com/ethereum/vyper/issues/new>`_.
 
 .. note::
     If you get the error `fatal error: openssl/aes.h: No such file or directory` in the output of `make`, then run `sudo apt-get install libssl-dev1`, then run `make` again.

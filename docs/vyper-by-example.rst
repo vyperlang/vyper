@@ -80,10 +80,8 @@ contract, we are provided with a built-in variable ``msg`` and we can access
 the public address of any method caller with ``msg.sender``. Similarly, the
 amount of ether a user sends can be accessed by calling ``msg.value``.
 
-.. warning:: ``msg.sender`` will change between internal function calls so that
-  if you're calling a function from the outside, it's correct for the first
-  function call. But then, for the function calls after, ``msg.sender`` will
-  reference the contract itself as opposed to the sender of the transaction.
+.. note:: ``msg.sender`` and ``msg.value`` can only be accessed from public
+  functions. If you require these values within a private function they must be passed as parameters.
 
 Here, we first check whether the current time is before the auction's end time
 using the ``assert`` function which takes any boolean statement. We also check
@@ -403,11 +401,9 @@ Let’s move onto the constructor.
   :language: python
   :pyobject: __init__
 
-.. warning:: Both ``msg.sender`` and ``msg.balance`` change between internal
-  function calls so that if you're calling a function from the outside, it's
-  correct for the first function call. But then, for the function calls after,
-  ``msg.sender`` and ``msg.balance`` reference the contract itself as opposed
-  to the sender of the transaction.
+.. note:: ``msg.sender`` and ``msg.value`` can only be accessed from public
+  functions. If you require these values within a private function they must be
+  passed as parameters.
 
 In the constructor, we hard-coded the contract to accept an
 array argument of exactly two proposal names of type ``bytes32`` for the contracts
@@ -426,6 +422,8 @@ Now that the initial setup is done, lets take a look at the functionality.
 .. literalinclude:: ../examples/voting/ballot.vy
   :language: python
   :pyobject: giveRightToVote
+
+.. note:: Throughout this contract, we use a pattern where ``@public`` functions return data from ``@private`` functions that have the same name prepended with an underscore. This is because Vyper does not allow calls between public functions within the same contract. The private function handles the logic and allows internal access, while the public function acts as a getter to allow external viewing.
 
 We need a way to control who has the ability to vote. The method
 ``giveRightToVote()`` is a method callable by only the chairperson by taking
