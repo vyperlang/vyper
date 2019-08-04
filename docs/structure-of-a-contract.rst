@@ -36,27 +36,52 @@ Functions are the executable units of code within a contract.
     // ...
 
 Function calls can happen internally or externally and have different levels of visibility (see
-:ref:`structure-decorators`) towards other contracts. Functions must be decorated with either
-@public or @private.
+:ref:`structure-decorators`) towards other contracts. Functions must be explicitely declared as public or private.
+
+Public Functions
+----------------
+
+Public functions (decorated with ``@public``) are a part of the contract interface and may be called via transactions or from other contracts. They cannot be called internally.
+
+Public functions in Vyper are equivalent to external functions in Solidity.
+
+Private Functions
+-----------------
+
+Private functions (decorated with ``@private``) are only accessible from other functions within the same contract. They are called via the ``self`` variable:
+
+::
+
+    @private
+    def _times_two(amount: uint256) -> uint256:
+        return amount * 2
+
+    @public
+    def calculate(amount: uint256) -> uint256:
+        return self._times_two(amount)
+
+Private functions do not have access to ``msg.sender`` or ``msg.value``. If you require these values within a private function they must be passed as parameters.
 
 .. _structure-decorators:
 
 Decorators
 ----------
 
-============================= ===========================================
-Decorator                     Description
-============================= ===========================================
-`@public`                     Can be called from external contracts.
-`@private`                    Can only be called within current contract.
-`@constant`                   Does not alter contract state.
-`@payable`                    The contract is open to receive Ether.
-`@nonreentrant(<unique_key>)` Function can only be called once,
-                              both externally and internally. Used to
-                              prevent reentrancy attacks.
-============================= ===========================================
+The following decorators are available:
 
-The visibility decorators `@public` or `@private` are mandatory on function declarations, whilst the other decorators(@constant, @payable, @nonreentrant) are optional.
+=============================== ===========================================
+Decorator                       Description
+=============================== ===========================================
+``@public``                     Can only be called externally.
+``@private``                    Can only be called within current contract.
+``@constant``                   Does not alter contract state.
+``@payable``                    The contract is open to receive Ether.
+``@nonreentrant(<unique_key>)`` Function can only be called once,
+                                both externally and internally. Used to
+                                prevent reentrancy attacks.
+=============================== ===========================================
+
+The visibility decorators ``@public`` or ``@private`` are mandatory on function declarations, whilst the other decorators(``@constant``, ``@payable``, ``@nonreentrant``) are optional.
 
 Default function
 ----------------
