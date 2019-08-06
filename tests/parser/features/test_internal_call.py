@@ -372,8 +372,8 @@ def foo() -> int128:
 
 FAILING_CONTRACTS = [
     """
-# should not compile - value kwarg when calling private function
-@private
+# should not compile - value kwarg when calling {0} function
+@{0}
 def foo():
     pass
 
@@ -382,8 +382,8 @@ def bar():
     self.foo(value=100)
     """,
     """
-# should not compile - gas kwarg when calling private function
-@private
+# should not compile - gas kwarg when calling {0} function
+@{0}
 def foo():
     pass
 
@@ -392,8 +392,8 @@ def bar():
     self.foo(gas=100)
     """,
     """
-# should not compile - arbitrary kwargs when calling private function
-@private
+# should not compile - arbitrary kwargs when calling {0} function
+@{0}
 def foo():
     pass
 
@@ -402,8 +402,8 @@ def bar():
     self.foo(baz=100)
     """,
     """
-# should not compile - args-as-kwargs to a private function
-@private
+# should not compile - args-as-kwargs to a {0} function
+@{0}
 def foo(baz: int128):
     pass
 
@@ -415,6 +415,8 @@ def bar():
 
 
 @pytest.mark.parametrize('failing_contract_code', FAILING_CONTRACTS)
-def test_selfcall_kwarg_raises(failing_contract_code):
+@pytest.mark.parametrize('decorator', ['public', 'private'])
+def test_selfcall_kwarg_raises(failing_contract_code, decorator):
+    code = failing_contract_code.format(decorator)
     with pytest.raises(TypeMismatchException):
-        compiler.compile_code(failing_contract_code)
+        compiler.compile_code(code)
