@@ -34,6 +34,12 @@ def call_lookup_specs(stmt_expr, context):
 
 
 def make_call(stmt_expr, context):
+
+    if len(stmt_expr.keywords):
+        raise TypeMismatchException(
+            "Cannot use keyword arguments in calls to functions via 'self'", stmt_expr
+        )
+
     method_name, _, sig = call_lookup_specs(stmt_expr, context)
 
     if context.is_constant() and not sig.const:
@@ -81,11 +87,6 @@ def call_self_private(stmt_expr, context, sig):
     push_local_vars = []
     pop_return_values = []
     push_args = []
-
-    if len(stmt_expr.keywords):
-        raise TypeMismatchException(
-            "Cannot call private functions with keyword arguments", stmt_expr
-        )
 
     # Push local variables.
     var_slots = [
