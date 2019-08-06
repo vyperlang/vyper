@@ -27,19 +27,31 @@ from vyper.types import (
 
 def call_lookup_specs(stmt_expr, context):
     from vyper.parser.expr import Expr
+
     method_name = stmt_expr.func.attr
-    expr_args = [Expr(arg, context).lll_node for arg in stmt_expr.args]
-    sig = FunctionSignature.lookup_sig(context.sigs, method_name, expr_args, stmt_expr, context)
+
+    if len(stmt_expr.keywords):
+        raise TypeMismatchException(
+            "Cannot use keyword arguments in calls to functions via 'self'",
+            stmt_expr,
+        )
+    expr_args = [
+        Expr(arg, context).lll_node
+        for arg in stmt_expr.args
+    ]
+
+    sig = FunctionSignature.lookup_sig(
+        context.sigs,
+        method_name,
+        expr_args,
+        stmt_expr,
+        context,
+    )
+
     return method_name, expr_args, sig
 
 
 def make_call(stmt_expr, context):
-
-    if len(stmt_expr.keywords):
-        raise TypeMismatchException(
-            "Cannot use keyword arguments in calls to functions via 'self'", stmt_expr
-        )
-
     method_name, _, sig = call_lookup_specs(stmt_expr, context)
 
     if context.is_constant() and not sig.const:
