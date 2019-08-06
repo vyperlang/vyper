@@ -2,6 +2,7 @@ import itertools
 
 from vyper.exceptions import (
     ConstancyViolationException,
+    TypeMismatchException,
 )
 from vyper.parser.lll_node import (
     LLLnode,
@@ -33,6 +34,12 @@ def call_lookup_specs(stmt_expr, context):
 
 
 def make_call(stmt_expr, context):
+
+    if len(stmt_expr.keywords):
+        raise TypeMismatchException(
+            "Cannot use keyword arguments in calls to functions via 'self'", stmt_expr
+        )
+
     method_name, _, sig = call_lookup_specs(stmt_expr, context)
 
     if context.is_constant() and not sig.const:

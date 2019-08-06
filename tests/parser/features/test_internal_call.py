@@ -2,8 +2,14 @@ from decimal import (
     Decimal,
 )
 
+import pytest
+
+from vyper import (
+    compiler,
+)
 from vyper.exceptions import (
     StructureException,
+    TypeMismatchException,
 )
 
 
@@ -386,3 +392,55 @@ def foo() -> int128:
     return self.bar(1)
 """
     assert_tx_failed(lambda: get_contract_with_gas_estimation(code), StructureException)
+
+
+FAILING_CONTRACTS = [
+    """
+# should not compile - value kwarg when calling {0} function
+@{0}
+def foo():
+    pass
+
+@public
+def bar():
+    self.foo(value=100)
+    """,
+    """
+# should not compile - gas kwarg when calling {0} function
+@{0}
+def foo():
+    pass
+
+@public
+def bar():
+    self.foo(gas=100)
+    """,
+    """
+# should not compile - arbitrary kwargs when calling {0} function
+@{0}
+def foo():
+    pass
+
+@public
+def bar():
+    self.foo(baz=100)
+    """,
+    """
+# should not compile - args-as-kwargs to a {0} function
+@{0}
+def foo(baz: int128):
+    pass
+
+@public
+def bar():
+    self.foo(baz=100)
+    """,
+]
+
+
+@pytest.mark.parametrize('failing_contract_code', FAILING_CONTRACTS)
+@pytest.mark.parametrize('decorator', ['public', 'private'])
+def test_selfcall_kwarg_raises(failing_contract_code, decorator):
+    code = failing_contract_code.format(decorator)
+    with pytest.raises(TypeMismatchException):
+        compiler.compile_code(code)
