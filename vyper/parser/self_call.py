@@ -149,9 +149,11 @@ def call_self_private(stmt_expr, context, sig):
             # by taking ceil32(len<arg>) + offset<arg> + arg_pos
             # for the last dynamic argument and arg_pos is the start
             # the whole argument section.
-            for idx, arg in enumerate(expr_args):
+            idx = 0
+            for arg in expr_args:
                 if isinstance(arg.typ, ByteArrayLike):
                     last_idx = idx
+                idx += get_static_size_of_type(arg.typ)
             push_args += [
                 ['with', 'offset', ['mload', arg_pos + last_idx * 32],
                     ['with', 'len_pos', ['add', arg_pos, 'offset'],
