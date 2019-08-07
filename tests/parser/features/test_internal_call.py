@@ -2,8 +2,14 @@ from decimal import (
     Decimal,
 )
 
+import pytest
+
+from vyper import (
+    compiler,
+)
 from vyper.exceptions import (
     StructureException,
+    TypeMismatchException,
 )
 
 
@@ -332,6 +338,30 @@ def bar() -> (int128, decimal):
     assert c.bar() == [66, Decimal('66.77')]
 
 
+def test_private_function_multiple_lists_as_args(get_contract_with_gas_estimation):
+    code = """
+@private
+def _foo(y: int128[2], x: bytes[5]) -> int128:
+    return y[0]
+
+@private
+def _foo2(x: bytes[5], y: int128[2]) -> int128:
+    return y[0]
+
+@public
+def bar() -> int128:
+    return self._foo([1, 2], b"hello")
+
+@public
+def bar2() -> int128:
+    return self._foo2(b"hello", [1, 2])
+"""
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.bar() == 1
+    assert c.bar2() == 1
+
+
 def test_multi_mixed_arg_list_bytes_call(get_contract_with_gas_estimation):
     code = """
 @private
@@ -371,3 +401,55 @@ def foo() -> int128:
     return self._bar(1)
 """
     assert_tx_failed(lambda: get_contract_with_gas_estimation(code), StructureException)
+
+
+FAILING_CONTRACTS = [
+    """
+# should not compile - value kwarg when calling {0} function
+@{0}
+def foo():
+    pass
+
+@public
+def bar():
+    self.foo(value=100)
+    """,
+    """
+# should not compile - gas kwarg when calling {0} function
+@{0}
+def foo():
+    pass
+
+@public
+def bar():
+    self.foo(gas=100)
+    """,
+    """
+# should not compile - arbitrary kwargs when calling {0} function
+@{0}
+def foo():
+    pass
+
+@public
+def bar():
+    self.foo(baz=100)
+    """,
+    """
+# should not compile - args-as-kwargs to a {0} function
+@{0}
+def foo(baz: int128):
+    pass
+
+@public
+def bar():
+    self.foo(baz=100)
+    """,
+]
+
+
+@pytest.mark.parametrize('failing_contract_code', FAILING_CONTRACTS)
+@pytest.mark.parametrize('decorator', ['public', 'private'])
+def test_selfcall_kwarg_raises(failing_contract_code, decorator):
+    code = failing_contract_code.format(decorator)
+    with pytest.raises(TypeMismatchException):
+        compiler.compile_code(code)

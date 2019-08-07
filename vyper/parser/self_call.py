@@ -3,6 +3,7 @@ import itertools
 from vyper.exceptions import (
     ConstancyViolationException,
     StructureException,
+    TypeMismatchException,
 )
 from vyper.parser.lll_node import (
     LLLnode,
@@ -27,9 +28,27 @@ from vyper.types import (
 
 def call_lookup_specs(stmt_expr, context):
     from vyper.parser.expr import Expr
+
     method_name = stmt_expr.func.attr
-    expr_args = [Expr(arg, context).lll_node for arg in stmt_expr.args]
-    sig = FunctionSignature.lookup_sig(context.sigs, method_name, expr_args, stmt_expr, context)
+
+    if len(stmt_expr.keywords):
+        raise TypeMismatchException(
+            "Cannot use keyword arguments in calls to functions via 'self'",
+            stmt_expr,
+        )
+    expr_args = [
+        Expr(arg, context).lll_node
+        for arg in stmt_expr.args
+    ]
+
+    sig = FunctionSignature.lookup_sig(
+        context.sigs,
+        method_name,
+        expr_args,
+        stmt_expr,
+        context,
+    )
+
     return method_name, expr_args, sig
 
 
@@ -150,9 +169,11 @@ def call_self_private(stmt_expr, context, sig):
             # by taking ceil32(len<arg>) + offset<arg> + arg_pos
             # for the last dynamic argument and arg_pos is the start
             # the whole argument section.
-            for idx, arg in enumerate(expr_args):
+            idx = 0
+            for arg in expr_args:
                 if isinstance(arg.typ, ByteArrayLike):
                     last_idx = idx
+                idx += get_static_size_of_type(arg.typ)
             push_args += [
                 ['with', 'offset', ['mload', arg_pos + last_idx * 32],
                     ['with', 'len_pos', ['add', arg_pos, 'offset'],
