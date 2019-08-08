@@ -10,9 +10,11 @@ from pathlib import (
 import sys
 from typing import (
     Any,
+    Dict,
     Iterable,
     Iterator,
     Set,
+    Tuple,
     TypeVar,
 )
 import warnings
@@ -78,6 +80,11 @@ parser.add_argument(
     help='Set the traceback limit for error messages reported by the compiler',
     type=int,
 )
+parser.add_argument(
+    '-p',
+    help='Set the root path for contract imports',
+    default='.', dest='root_path'
+)
 
 args = parser.parse_args()
 
@@ -114,28 +121,27 @@ def exc_handler(contract_name: ContractName, exception: Exception) -> None:
     raise exception
 
 
-def get_interface_codes(codes: ContractCodes) -> Any:
-    interface_codes = {}
+def get_interface_codes(root_path: Path, codes: ContractCodes) -> Any:
+    interface_codes: Dict = {}
     interfaces = {}
 
-    for code in codes.values():
-        interface_codes.update(extract_file_interface_imports(code))
+    for file_path, code in codes.items():
+        parent_path = root_path.joinpath(file_path).parent
+        base_paths = (parent_path, root_path)
+        new_codes = extract_file_interface_imports(code)
+        for key, value in new_codes.items():
+            interface_path = get_interface_file_path(base_paths, value)
+            if key in interface_codes and interface_codes[key] != interface_path:
+                raise Exception(
+                    f"Cannot assign same key to multiple interfaces - '{key}'"
+                )
+            interface_codes[key] = interface_path
 
     if interface_codes:
         for interface_name, interface_path in interface_codes.items():
-            file_path = Path(interface_path.replace('.', '/')).resolve()
-
-            try:
-                suffix = next(i for i in ('.vy', '.json') if file_path.with_suffix(i).exists())
-            except StopIteration:
-                raise Exception(
-                    f'Imported interface "{interface_path}{{.vy,.json}}" does not exist.'
-                )
-
-            valid_path = file_path.with_suffix(suffix)
-            with valid_path.open() as fh:
+            with interface_path.open() as fh:
                 code = fh.read()
-                if valid_path.suffix == '.json':
+                if interface_path.suffix == '.json':
                     interfaces[interface_name] = {
                         'type': 'json',
                         'code': json.loads(code.encode())
@@ -149,14 +155,34 @@ def get_interface_codes(codes: ContractCodes) -> Any:
     return interfaces
 
 
+def get_interface_file_path(base_paths: Tuple, import_path: str) -> Path:
+    relative_path = Path(import_path.replace('.', '/'))
+    for path in base_paths:
+        file_path = path.joinpath(relative_path)
+        try:
+            suffix = next(i for i in ('.vy', '.json') if file_path.with_suffix(i).exists())
+            return file_path.with_suffix(suffix)
+        except StopIteration:
+            continue
+    raise Exception(
+        f'Imported interface "{import_path}{{.vy,.json}}" does not exist.'
+    )
+
+
 if __name__ == '__main__':
     if args.show_gas_estimates:
         parser_utils.LLLnode.repr_show_gas = True
 
+    root_path = Path(args.root_path).resolve()
+    if not root_path.exists():
+        raise FileNotFoundError(f"Invalid root path - '{root_path.as_posix()}' does not exist")
+
     codes: ContractCodes = OrderedDict()
     for file_name in args.input_files:
-        with open(file_name) as fh:
-            codes[file_name] = fh.read()
+        file_path = Path(file_name).resolve()
+        file_str = file_path.relative_to(root_path).as_posix()
+        with file_path.open() as fh:
+            codes[file_str] = fh.read()
 
     # Combined json output
     if args.format == 'combined_json':
@@ -164,7 +190,7 @@ if __name__ == '__main__':
             codes,
             ['bytecode', 'bytecode_runtime', 'abi', 'source_map', 'method_identifiers'],
             exc_handler=exc_handler,
-            interface_codes=get_interface_codes(codes)
+            interface_codes=get_interface_codes(root_path, codes)
         )
         out['version'] = vyper.__version__
         print(json.dumps(out))
@@ -185,7 +211,7 @@ if __name__ == '__main__':
             codes,
             formats,
             exc_handler=exc_handler,
-            interface_codes=get_interface_codes(codes)
+            interface_codes=get_interface_codes(root_path, codes)
         ).values())
 
         for out in out_list:
