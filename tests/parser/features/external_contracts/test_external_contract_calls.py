@@ -1,9 +1,9 @@
 from vyper.exceptions import (
+    ConstancyViolationException,
     InvalidTypeException,
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
-    ConstancyViolationException,
 )
 
 
