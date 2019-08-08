@@ -4,7 +4,9 @@ from collections import (
     OrderedDict,
 )
 import json
-import os
+from pathlib import (
+    Path,
+)
 import sys
 from typing import (
     Any,
@@ -121,21 +123,19 @@ def get_interface_codes(codes: ContractCodes) -> Any:
 
     if interface_codes:
         for interface_name, interface_path in interface_codes.items():
-            file_path = os.path.join(os.path.normpath(interface_path.replace('.', '/')))
-            extensions = ('.vy', '.json')
-            valid_paths = [
-                file_path + ex
-                for ex in extensions if os.path.exists(file_path + ex)
-            ]
-            if not valid_paths:
+            file_path = Path(interface_path.replace('.', '/')).resolve()
+
+            try:
+                suffix = next(i for i in ('.vy', '.json') if file_path.with_suffix(i).exists())
+            except StopIteration:
                 raise Exception(
                     f'Imported interface "{interface_path}{{.vy,.json}}" does not exist.'
                 )
 
-            valid_path = valid_paths[0]
-            with open(valid_path) as fh:
+            valid_path = file_path.with_suffix(suffix)
+            with valid_path.open() as fh:
                 code = fh.read()
-                if valid_path.endswith('.json'):
+                if valid_path.suffix == '.json':
                     interfaces[interface_name] = {
                         'type': 'json',
                         'code': json.loads(code.encode())
