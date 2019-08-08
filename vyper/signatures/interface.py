@@ -1,6 +1,8 @@
 import copy
 import importlib
-import os
+from pathlib import (
+    Path,
+)
 import pkgutil
 from typing import (
     Sequence,
@@ -184,7 +186,7 @@ def extract_external_interface(code, contract_name, interface_codes=None):
         interface_codes=interface_codes,
     )
     functions = [sig for sig, _ in sigs if isinstance(sig, FunctionSignature)]
-    cname = os.path.basename(contract_name).split('.')[0].capitalize()
+    cname = Path(contract_name).stem.capitalize()
 
     out = ""
     offset = 4 * " "
