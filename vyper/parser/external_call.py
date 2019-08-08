@@ -76,8 +76,7 @@ def external_contract_call(node,
                 method_name,
                 context.pp_constancy(),
             ) +
-            " For asserting the result of modifiable contract calls, try "
-            "`ret: bool = external_contract.modify();  assert ret`",
+            " For asserting the result of modifiable contract calls, try assert_modifiable.",
             node
         )
 

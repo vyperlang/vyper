@@ -75,6 +75,14 @@ def get_keyword(expr, keyword):
     # Leaving exception for other use cases.
     raise Exception("Keyword %s not found" % keyword)  # pragma: no cover
 
+# like `assert foo`, but doesn't check constancy.
+# currently no option for reason string (easy to add, just need to refactor
+# vyper.parser.stmt so we can use _assert_reason).
+@signature('bool')
+def assert_modifiable(expr, args, kwargs, context):
+    # cf. vyper.parser.stmt.parse_assert
+    return LLLnode.from_list(['assert', args[0]], typ=None, pos=getpos(expr))
+
 
 @signature('decimal')
 def floor(expr, args, kwargs, context):
@@ -1288,6 +1296,7 @@ dispatch_table = {
 }
 
 stmt_dispatch_table = {
+    'assert_modifiable': assert_modifiable,
     'clear': _clear,
     'send': send,
     'selfdestruct': selfdestruct,
