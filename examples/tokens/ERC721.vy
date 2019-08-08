@@ -2,6 +2,10 @@
 # @author Ryuya Nakamura (@nrryuya)
 # Modified from: https://github.com/ethereum/vyper/blob/de74722bf2d8718cca46902be165f9fe0e3641dd/examples/tokens/ERC721.vy
 
+from vyper.interfaces import ERC721
+
+implements: ERC721
+
 # Interface for the contract called by safeTransferFrom()
 contract ERC721Receiver:
     def onERC721Received(

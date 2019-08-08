@@ -33,7 +33,8 @@ class Context:
                  is_private=False,
                  is_payable=False,
                  origcode='',
-                 method_id=''):
+                 method_id='',
+                 sig=None):
         # In-memory variables, in the form (name, memory location, type)
         self.vars = vars or {}
         # Memory alloctor, keeps track of currently allocated memory.
@@ -79,6 +80,8 @@ class Context:
         self.method_id = method_id
         # store global context
         self.global_ctx = global_ctx
+        # full function signature
+        self.sig = sig
 
     def is_constant(self):
         return self.constancy is Constancy.Constant or \
@@ -148,11 +151,11 @@ class Context:
             var_size = 32 * get_size_of_type(typ)
             var_pos, _ = self.memory_allocator.increase_memory(var_size)
             self.vars[name] = VariableRecord(
-                name,
-                var_pos,
-                typ,
-                True,
-                self.blockscopes.copy(),
+                name=name,
+                pos=var_pos,
+                typ=typ,
+                mutable=True,
+                blockscopes=self.blockscopes.copy(),
             )
             return var_pos
 

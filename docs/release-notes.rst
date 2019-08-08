@@ -1,11 +1,30 @@
 .. _release-notes:
 
-#############
 Release Notes
 #############
-
-v0.1.0-beta.10 
+v0.1.0-beta.11
 **************
+
+Date released: 23-07-2019
+
+Beta 11 brings some performance and stability fixes.
+
+- Using calldata instead of memory parameters. (`#1499 <https://github.com/ethereum/vyper/pull/1499>`_)
+- Reducing of contract size, for large parameter functions. (`#1486 <https://github.com/ethereum/vyper/pull/1486>`_)
+- Improvements for Windows users (`#1486 <https://github.com/ethereum/vyper/pull/1486>`_)  (`#1488 <https://github.com/ethereum/vyper/pull/1488>`_)
+- Array copy optimisation (`#1487 <https://github.com/ethereum/vyper/pull/1487>`_)
+- Fixing `@nonreentrant` decorator for return statements (`#1532 <https://github.com/ethereum/vyper/pull/1532>`_)
+- `sha3` builtin function removed  (`#1328 <https://github.com/ethereum/vyper/issues/1328>`_)
+- Disallow conflicting method IDs (`#1530 <https://github.com/ethereum/vyper/pull/1530>`_)
+- Additional `convert()` supported types (`#1524 <https://github.com/ethereum/vyper/pull/1524>`_) (`#1500 <https://github.com/ethereum/vyper/pull/1500>`_)
+- Equality operator for strings and bytes (`#1507 <https://github.com/ethereum/vyper/pull/1507>`_)
+- Change in `compile_codes` interface function (`#1504 <https://github.com/ethereum/vyper/pull/1504>`_)
+
+Thanks to all the contributors!
+
+v0.1.0-beta.10
+**************
+
 Date released: 24-05-2019
 
 - Lots of linting and refactoring!
@@ -20,7 +39,7 @@ Date released: 24-05-2019
 
 Special thanks to (`Charles Cooper <https://github.com/charles-cooper>`_), for some excellent contributions this release.
 
-v0.1.0-beta.9 
+v0.1.0-beta.9
 *************
 
 Date released: 12-03-2019

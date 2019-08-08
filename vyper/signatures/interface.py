@@ -1,7 +1,13 @@
 import copy
 import importlib
-import os
+from pathlib import (
+    Path,
+)
 import pkgutil
+from typing import (
+    Sequence,
+    Tuple,
+)
 
 from vyper import ast
 from vyper.exceptions import (
@@ -23,6 +29,10 @@ from vyper.signatures.event_signature import (
 )
 from vyper.signatures.function_signature import (
     FunctionSignature,
+)
+from vyper.typing import (
+    InterfaceImports,
+    SourceCode,
 )
 
 
@@ -176,7 +186,7 @@ def extract_external_interface(code, contract_name, interface_codes=None):
         interface_codes=interface_codes,
     )
     functions = [sig for sig, _ in sigs if isinstance(sig, FunctionSignature)]
-    cname = os.path.basename(contract_name).split('.')[0].capitalize()
+    cname = Path(contract_name).stem.capitalize()
 
     out = ""
     offset = 4 * " "
@@ -194,12 +204,13 @@ def extract_external_interface(code, contract_name, interface_codes=None):
     return out
 
 
-def extract_file_interface_imports(code):
+def extract_file_interface_imports(code: SourceCode) -> InterfaceImports:
     ast_tree = parser.parse_to_ast(code)
-    imports_dict = {}
+
+    imports_dict: InterfaceImports = {}
     for item in ast_tree:
         if isinstance(item, ast.Import):
-            for a_name in item.names:
+            for a_name in item.names:  # type: ignore
                 if not a_name.asname:
                     raise StructureException(
                         'Interface statement requires an accompanying `as` statement.',
@@ -207,14 +218,61 @@ def extract_file_interface_imports(code):
                     )
                 if a_name.asname in imports_dict:
                     raise StructureException(
-                        'Interface with Alias {} already exists'.format(a_name.asname),
+                        'Interface with alias {} already exists'.format(a_name.asname),
                         item,
                     )
                 imports_dict[a_name.asname] = a_name.name
+
     return imports_dict
 
 
+Conflict = Tuple[FunctionSignature, FunctionSignature]
+Conflicts = Tuple[Conflict, ...]
+
+
+def find_signature_conflicts(sigs: Sequence[FunctionSignature]) -> Conflicts:
+    """
+    Takes a sequence of function signature records and returns a tuple of
+    pairs of signatures from that sequence that produce the same internal
+    method id.
+    """
+    # Consider self-comparisons as having been seen by default (they will be
+    # skipped)
+    comparisons_seen = set([frozenset((sig.sig,)) for sig in sigs])
+    conflicts = []
+
+    for sig in sigs:
+        method_id = sig.method_id
+
+        for other_sig in sigs:
+            comparison_id = frozenset((sig.sig, other_sig.sig))
+            if comparison_id in comparisons_seen:
+                continue  # Don't make redundant or useless comparisons
+
+            other_method_id = other_sig.method_id
+            if method_id == other_method_id:
+                conflicts.append((sig, other_sig))
+
+            comparisons_seen.add(comparison_id)
+
+    return tuple(conflicts)
+
+
 def check_valid_contract_interface(global_ctx, contract_sigs):
+    public_func_sigs = [
+        sig for sig in contract_sigs.values()
+        if isinstance(sig, FunctionSignature) and not sig.private
+    ]
+    func_conflicts = find_signature_conflicts(public_func_sigs)
+
+    if len(func_conflicts) > 0:
+        sig_1, sig_2 = func_conflicts[0]
+
+        raise StructureException(
+            f'Methods {sig_1.sig} and {sig_2.sig} have conflicting IDs '
+            f'(id {sig_1.method_id})',
+            sig_1.func_ast_code,
+        )
 
     if global_ctx._interface:
         funcs_left = global_ctx._interface.copy()

@@ -26,7 +26,14 @@ Bar: event({_value: int128[4]})
 def foo():
     x: decimal[4]
     log.Bar(x)
+    """,
     """
+Sale: event({eth_sold: indexed(uint256(wei))})
+
+@public
+def logSale(amount: uint256):
+   log.Sale(amount)
+   """
 ]
 
 

@@ -48,6 +48,19 @@ docker-build:
 		--build-arg VCS_REF=`git rev-parse --short HEAD` \
 		--build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` .
 
+snap-build:
+	snapcraft
+
+vyper-snap := $(wildcard vyper*.snap)
+
+ifdef vyper-snap
+snap-release: $(vyper-snap)
+	snapcraft login
+	snapcraft push $<
+
+clean-snap: $(vyper-snap)
+	rm -fr $<
+endif
 
 release: clean
 	bumpversion devnum

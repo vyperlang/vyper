@@ -39,3 +39,8 @@ docs/modules.rst
 .mypy_cache
 .hypothesis
 
+# vyper
+vyper/vyper_git_version.txt
+
+# snapcraft build file
+vyper*.snap

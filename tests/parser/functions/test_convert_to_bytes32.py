@@ -1,3 +1,8 @@
+from vyper.utils import (
+    DECIMAL_DIVISOR,
+    SizeLimits,
+)
+
 
 def test_convert_to_bytes32(w3, get_contract_with_gas_estimation, bytes_helper):
     code = """
@@ -80,3 +85,94 @@ def testConvertBytes32(flag: bool) -> bytes32:
     trueBytes = c.testConvertBytes32(True)
     assert trueBytes[31:32] == b'\x01'
     assert len(trueBytes) == 32
+
+
+def int_to_bytes_helper(val):
+    return (val).to_bytes(32, byteorder="big", signed=True)
+
+
+#################################################################################
+# NOTE: Vyper uses a decimal divisor of 10000000000 (or 10^10).
+#
+#       This means that `decimal` type variables can store values
+#       that are of 1/10000000000.
+#
+#       Because of this, when converting from `decimal` to `bytes32`,
+#       the conversion can be thought of as converting integer result of
+#       the decimal value of interest multiplied by 10000000000.
+#
+#       For example, converting the decimal value `5.0` to `byte32`
+#       can be thought of as giving the `bytes32` value of the integer
+#       result of 5 * 10000000000 = 50000000000
+#################################################################################
+def test_convert_from_decimal(get_contract_with_gas_estimation):
+    code = """
+temp: decimal
+
+@public
+def convert_literal_zero() -> bytes32:
+    return convert(0.0, bytes32)
+
+@public
+def convert_literal_zero_storage() -> bytes32:
+    self.temp = 0.0
+    return convert(self.temp, bytes32)
+
+@public
+def convert_min_decimal() -> bytes32:
+    return convert(MIN_DECIMAL, bytes32)
+
+@public
+def convert_min_decimal_storage() -> bytes32:
+    self.temp = MIN_DECIMAL
+    return convert(self.temp, bytes32)
+
+@public
+def convert_max_decimal() -> bytes32:
+    return convert(MAX_DECIMAL, bytes32)
+
+@public
+def convert_max_decimal_storage() -> bytes32:
+    self.temp = MAX_DECIMAL
+    return convert(self.temp, bytes32)
+
+@public
+def convert_positive_decimal() -> bytes32:
+    return convert(5.0, bytes32)
+
+@public
+def convert_positive_decimal_storage() -> bytes32:
+    self.temp = 5.0
+    return convert(self.temp, bytes32)
+
+@public
+def convert_negative_decimal() -> bytes32:
+    return convert(-5.0, bytes32)
+
+@public
+def convert_negative_decimal_storage() -> bytes32:
+    self.temp = -5.0
+    return convert(self.temp, bytes32)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    _temp = (b"\x00" * 32)
+    assert _temp == c.convert_literal_zero()
+    assert _temp == c.convert_literal_zero_storage()
+
+    _temp = int_to_bytes_helper(SizeLimits.MINDECIMAL)
+    assert _temp == c.convert_min_decimal()
+    assert _temp == c.convert_min_decimal_storage()
+
+    _temp = int_to_bytes_helper(SizeLimits.MAXDECIMAL)
+    assert _temp == c.convert_max_decimal()
+    assert _temp == c.convert_max_decimal_storage()
+
+    _temp = int_to_bytes_helper(5 * DECIMAL_DIVISOR)
+    assert _temp == c.convert_positive_decimal()
+    assert _temp == c.convert_positive_decimal_storage()
+
+    _temp = int_to_bytes_helper(-5 * DECIMAL_DIVISOR)
+    assert _temp == c.convert_negative_decimal()
+    assert _temp == c.convert_negative_decimal_storage()

@@ -4,6 +4,10 @@ from collections import (
 )
 import functools
 import re
+from typing import (
+    List,
+    Union,
+)
 
 from vyper.exceptions import (
     InvalidLiteralException,
@@ -15,10 +19,10 @@ from vyper.opcodes import (
 
 try:
     from Crypto.Hash import keccak
-    sha3 = lambda x: keccak.new(digest_bits=256, data=x).digest()  # noqa: E731
+    keccak256 = lambda x: keccak.new(digest_bits=256, data=x).digest()  # noqa: E731
 except ImportError:
     import sha3 as _sha3
-    sha3 = lambda x: _sha3.sha3_256(x).digest()  # noqa: E731
+    keccak256 = lambda x: _sha3.sha3_256(x).digest()  # noqa: E731
 
 
 # Converts four bytes to an integer
@@ -56,7 +60,7 @@ def bytes_to_int(bytez):
 def checksum_encode(addr):  # Expects an input of the form 0x<40 hex chars>
     assert addr[:2] == '0x' and len(addr) == 42
     o = ''
-    v = bytes_to_int(sha3(addr[2:].lower().encode('utf-8')))
+    v = bytes_to_int(keccak256(addr[2:].lower().encode('utf-8')))
     for i, c in enumerate(addr[2:]):
         if c in '0123456789':
             o += c
@@ -268,3 +272,109 @@ def iterable_cast(cast_type):
             return cast_type(func(*args, **kwargs))
         return f
     return yf
+
+
+def indent(text: str, indent_chars: Union[str, List[str]] = ' ', level: int = 1) -> str:
+    """
+    Indent lines of text in the string ``text`` using the indentation
+    character(s) given in ``indent_chars`` ``level`` times.
+
+    :param text: A string containing the lines of text to be indented.
+    :param level: The number of times to indent lines in ``text``.
+    :param indent_chars: The characters to use for indentation.  If a string,
+        uses repetitions of that string for indentation.  If a list of strings,
+        uses repetitions of each string to indent each line.
+
+    :return: The indented text.
+    """
+    text_lines = text.splitlines(keepends=True)
+
+    if isinstance(indent_chars, str):
+        indented_lines = [indent_chars * level + line for line in text_lines]
+    elif isinstance(indent_chars, list):
+        if len(indent_chars) != len(text_lines):
+            raise ValueError('Must provide indentation chars for each line')
+
+        indented_lines = [
+            ind * level + line
+            for ind, line
+            in zip(indent_chars, text_lines)
+        ]
+    else:
+        raise ValueError('Unrecognized indentation characters value')
+
+    return ''.join(indented_lines)
+
+
+def annotate_source_code(
+    source_code: str,
+    lineno: int,
+    col_offset: int = None,
+    context_lines: int = 0,
+    line_numbers: bool = False,
+) -> str:
+    """
+    Annotate the location specified by ``lineno`` and ``col_offset`` in the
+    source code given by ``source_code`` with a location marker and optional
+    line numbers and context lines.
+
+    :param source_code: The source code containing the source location.
+    :param lineno: The 1-indexed line number of the source location.
+    :param col_offset: The 0-indexed column offset of the source location.
+    :param context_lines: The number of contextual lines to include above and
+        below the source location.
+    :param line_numbers: If true, line numbers are included in the location
+        representation.
+
+    :return: A string containing the annotated source code location.
+    """
+    source_lines = source_code.splitlines(keepends=True)
+    if lineno < 1 or lineno > len(source_lines):
+        raise ValueError('Line number is out of range')
+
+    line_offset = lineno - 1
+    start_offset = max(0, line_offset - context_lines)
+    end_offset = min(len(source_lines), line_offset + context_lines + 1)
+
+    line_repr = source_lines[line_offset]
+    if '\n' not in line_repr[-2:]:  # Handle certain edge cases
+        line_repr += '\n'
+    if col_offset is None:
+        mark_repr = ''
+    else:
+        mark_repr = '-' * col_offset + '^' + '\n'
+
+    before_lines = ''.join(source_lines[start_offset:line_offset])
+    after_lines = ''.join(source_lines[line_offset + 1:end_offset])
+    location_repr = ''.join((before_lines, line_repr, mark_repr, after_lines))
+
+    if line_numbers:
+        # Create line numbers
+        lineno_reprs = [f'{i} ' for i in range(start_offset + 1, end_offset + 1)]
+
+        # Highlight line identified by `lineno`
+        local_line_off = line_offset - start_offset
+        lineno_reprs[local_line_off] = '---> ' + lineno_reprs[local_line_off]
+
+        # Calculate width of widest line no
+        max_len = max(len(i) for i in lineno_reprs)
+
+        # Justify all line nos according to this width
+        justified_reprs = [i.rjust(max_len) for i in lineno_reprs]
+        if col_offset is not None:
+            justified_reprs.insert(local_line_off + 1, '-' * max_len)
+
+        location_repr = indent(location_repr, indent_chars=justified_reprs)
+
+    # Ensure no trailing whitespace and trailing blank lines are only included
+    # if they are part of the source code
+    if col_offset is None:
+        # Number of lines doesn't include column marker line
+        num_lines = end_offset - start_offset
+    else:
+        num_lines = end_offset - start_offset + 1
+
+    cleanup_lines = [l.rstrip() for l in location_repr.splitlines()]
+    cleanup_lines += [''] * (num_lines - len(cleanup_lines))
+
+    return '\n'.join(cleanup_lines)

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from setuptools import setup, find_packages
-
+import subprocess, os, tempfile
 
 test_deps = [
     'pytest>=3.6',
@@ -28,11 +28,21 @@ extras = {
     'lint': lint_deps,
 }
 
+hash_file_rel_path = os.path.join('vyper', 'vyper_git_version.txt')
+hashfile = os.path.relpath(hash_file_rel_path)
+
+try:
+    commithash = subprocess.check_output("git rev-parse HEAD".split())
+    commithash = commithash.decode('utf-8').strip()
+    with open(hashfile, 'w') as f :
+        f.write(commithash)
+except subprocess.CalledProcessError:
+    pass
 
 setup(
     name='vyper',
     # *IMPORTANT*: Don't manually change the version here. Use the 'bumpversion' utility.
-    version='0.1.0-beta.10',
+    version='0.1.0-beta.11',
     description='Vyper Programming Language for Ethereum',
     long_description_markdown_filename='README.md',
     author='Vitalik Buterin',
@@ -62,5 +72,6 @@ setup(
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 3.6',
-    ]
+    ],
+    data_files=[('', [hash_file_rel_path])],
 )

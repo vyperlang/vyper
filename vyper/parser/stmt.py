@@ -5,6 +5,7 @@ from vyper.ast_utils import (
     ast_to_dict,
 )
 from vyper.exceptions import (
+    CompilerPanic,
     ConstancyViolationException,
     EventDeclarationException,
     InvalidLiteralException,
@@ -55,7 +56,7 @@ from vyper.utils import (
     SizeLimits,
     bytes_to_int,
     fourbytes_to_int,
-    sha3,
+    keccak256,
 )
 
 
@@ -466,7 +467,7 @@ class Stmt(object):
         arg_placeholder = self.context.new_placeholder(BaseType(32))
         reason_str_type = ByteArrayType(len(reason_str))
         placeholder_bytes = Expr(msg, self.context).lll_node
-        method_id = fourbytes_to_int(sha3(b"Error(string)")[:4])
+        method_id = fourbytes_to_int(keccak256(b"Error(string)")[:4])
         assert_reason = [
                 'seq',
                 ['mstore', sig_placeholder, method_id],
@@ -642,12 +643,21 @@ class Stmt(object):
             # make sure list cannot be altered whilst iterating.
             with self.context.in_for_loop_scope(list_name):
                 iter_var = self.context.vars.get(self.stmt.iter.id)
+                if iter_var.location == 'calldata':
+                    fetcher = 'calldataload'
+                elif iter_var.location == 'memory':
+                    fetcher = 'mload'
+                else:
+                    raise CompilerPanic(
+                        'List iteration only supported on in-memory types',
+                        self.expr
+                    )
                 body = [
                     'seq',
                     [
                         'mstore',
                         value_pos,
-                        ['mload', ['add', iter_var.pos, ['mul', ['mload', i_pos], 32]]],
+                        [fetcher, ['add', iter_var.pos, ['mul', ['mload', i_pos], 32]]],
                     ],
                     parse_body(self.stmt.body, self.context)
                 ]
@@ -1010,11 +1020,13 @@ class Stmt(object):
                 "Cannot modify storage inside %s: %s" % (
                     self.context.pp_constancy(),
                     target.annotation,
-                )
+                ),
+                self.stmt,
             )
         if not target.mutable:
             raise ConstancyViolationException(
-                "Cannot modify function argument: %s" % target.annotation
+                "Cannot modify function argument: %s" % target.annotation,
+                self.stmt,
             )
         return target
 

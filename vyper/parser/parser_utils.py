@@ -8,6 +8,8 @@ from typing import (
 
 from vyper import ast
 from vyper.exceptions import (
+    ArrayIndexException,
+    ConstancyViolationException,
     InvalidLiteralException,
     StructureException,
     TypeMismatchException,
@@ -242,7 +244,7 @@ def getpos(node):
 
 # Take a value representing a memory or storage location, and descend down to
 # an element or member variable
-def add_variable_offset(parent, key, pos):
+def add_variable_offset(parent, key, pos, array_bounds_check=True):
     typ, location = parent.typ, parent.location
     if isinstance(typ, (StructType, TupleType)):
         if isinstance(typ, StructType):
@@ -285,13 +287,13 @@ def add_variable_offset(parent, key, pos):
                 typ=subtype,
                 location='storage',
             )
-        elif location == 'memory':
+        elif location in ('calldata', 'memory'):
             offset = 0
             for i in range(index):
                 offset += 32 * get_size_of_type(typ.members[attrs[i]])
             return LLLnode.from_list(['add', offset, parent],
                                      typ=typ.members[key],
-                                     location='memory',
+                                     location=location,
                                      annotation=annotation)
         else:
             raise TypeMismatchException("Not expecting a member variable access", pos)
@@ -325,7 +327,7 @@ def add_variable_offset(parent, key, pos):
             return LLLnode.from_list(['sha3_64', parent, sub],
                                      typ=subtype,
                                      location='storage')
-        elif location == 'memory':
+        elif location in ('memory', 'calldata'):
             raise TypeMismatchException(
                 "Can only have fixed-side arrays in memory, not mappings", pos
             )
@@ -333,9 +335,26 @@ def add_variable_offset(parent, key, pos):
     elif isinstance(typ, ListType):
 
         subtype = typ.subtype
-        sub = [
-            'uclamplt', base_type_conversion(key, key.typ, BaseType('int128'), pos=pos), typ.count
-        ]
+        k = unwrap_location(key)
+        if not is_base_type(key.typ, ('int128', 'uint256')):
+            raise TypeMismatchException('Invalid type for array index: %r' % key.typ, pos)
+
+        if not array_bounds_check:
+            sub = k
+        elif key.typ.is_literal:  # note: BaseType always has is_literal attr
+            # perform the check at compile time and elide the runtime check.
+            if key.value < 0 or key.value >= typ.count:
+                raise ArrayIndexException(
+                        'Array index determined to be out of bounds. '
+                        'Index is %r but array size is %r' % (key.value, typ.count),
+                        pos)
+            sub = k
+        else:
+            # this works, even for int128. for int128, since two's-complement
+            # is used, if the index is negative, (unsigned) LT will interpret
+            # it as a very large number, larger than any practical value for
+            # an array index, and the clamp will throw an error.
+            sub = ['uclamplt', k, typ.count]
 
         if location == 'storage':
             return LLLnode.from_list(['add', ['sha3_32', parent], sub],
@@ -345,12 +364,12 @@ def add_variable_offset(parent, key, pos):
             return LLLnode.from_list(['add', parent, sub],
                                      typ=subtype,
                                      location='storage')
-        elif location == 'memory':
+        elif location in ('calldata', 'memory'):
             offset = 32 * get_size_of_type(subtype)
             return LLLnode.from_list(
                 ['add', ['mul', offset, sub], parent],
                 typ=subtype,
-                location='memory',
+                location=location,
             )
         else:
             raise TypeMismatchException("Not expecting an array access ", pos)
@@ -408,6 +427,8 @@ def unwrap_location(orig):
         return LLLnode.from_list(['mload', orig], typ=orig.typ)
     elif orig.location == 'storage':
         return LLLnode.from_list(['sload', orig], typ=orig.typ)
+    elif orig.location == 'calldata':
+        return LLLnode.from_list(['calldataload', orig], typ=orig.typ)
     else:
         return orig
 
@@ -549,9 +570,11 @@ def make_setter(left, right, location, pos, in_function_call=False):
                     left_token,
                     LLLnode.from_list(i, typ='int128'),
                     pos=pos,
+                    array_bounds_check=False,
                 ), right.args[i], location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If the right side is a null
+        # CC 20190619 probably not needed as of #1106
         elif isinstance(right.typ, NullType):
             subs = []
             for i in range(left.typ.count):
@@ -559,6 +582,7 @@ def make_setter(left, right, location, pos, in_function_call=False):
                     left_token,
                     LLLnode.from_list(i, typ='int128'),
                     pos=pos,
+                    array_bounds_check=False,
                 ), LLLnode.from_list(None, typ=NullType()), location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If the right side is a variable
@@ -570,10 +594,12 @@ def make_setter(left, right, location, pos, in_function_call=False):
                     left_token,
                     LLLnode.from_list(i, typ='int128'),
                     pos=pos,
+                    array_bounds_check=False,
                 ), add_variable_offset(
                     right_token,
                     LLLnode.from_list(i, typ='int128'),
                     pos=pos,
+                    array_bounds_check=False,
                 ), location, pos=pos))
             return LLLnode.from_list([
                 'with', '_L', left, [
@@ -667,6 +693,11 @@ def make_setter(left, right, location, pos, in_function_call=False):
             subs = []
             static_offset_counter = 0
             zipped_components = zip(left.args, right.typ.members, locations)
+            for var_arg in left.args:
+                if var_arg.location == 'calldata':
+                    raise ConstancyViolationException(
+                        f"Cannot modify function argument: {var_arg.annotation}", pos
+                    )
             for left_arg, right_arg, loc in zipped_components:
                 if isinstance(right_arg, ByteArrayLike):
                     RType = ByteArrayType if isinstance(right_arg, ByteArrayType) else StringType
@@ -875,6 +906,10 @@ def zero_pad(bytez_placeholder, maxlen, context):
 
 # Generate return code for stmt
 def make_return_stmt(stmt, context, begin_pos, _size, loop_memory_position=None):
+    from vyper.parser.function_definitions.utils import (
+        get_nonreentrant_lock
+    )
+    _, nonreentrant_post = get_nonreentrant_lock(context.sig, context.global_ctx)
     if context.is_private:
         if loop_memory_position is None:
             loop_memory_position = context.new_placeholder(typ=BaseType('uint256'))
@@ -891,7 +926,8 @@ def make_return_stmt(stmt, context, begin_pos, _size, loop_memory_position=None)
             mloads = [
                 ['mload', pos] for pos in range(begin_pos, _size, 32)
             ]
-            return ['seq_unchecked'] + mloads + [['jump', ['mload', context.callback_ptr]]]
+            return ['seq_unchecked'] + mloads + nonreentrant_post + \
+                [['jump', ['mload', context.callback_ptr]]]
         else:
             mloads = [
                 'seq_unchecked',
@@ -914,9 +950,10 @@ def make_return_stmt(stmt, context, begin_pos, _size, loop_memory_position=None)
                 ['goto', start_label],
                 ['label', exit_label]
             ]
-            return ['seq_unchecked'] + [mloads] + [['jump', ['mload', context.callback_ptr]]]
+            return ['seq_unchecked'] + [mloads] + nonreentrant_post + \
+                [['jump', ['mload', context.callback_ptr]]]
     else:
-        return ['return', begin_pos, _size]
+        return ['seq_unchecked'] + nonreentrant_post + [['return', begin_pos, _size]]
 
 
 # Generate code for returning a tuple or struct.
@@ -924,7 +961,7 @@ def gen_tuple_return(stmt, context, sub):
     # Is from a call expression.
     if sub.args and len(sub.args[0].args) > 0 and sub.args[0].args[0].value == 'call':
         # self-call to public.
-        mem_pos = sub.args[0].args[-1]
+        mem_pos = sub
         mem_size = get_size_of_type(sub.typ) * 32
         return LLLnode.from_list(['return', mem_pos, mem_size], typ=sub.typ)
 

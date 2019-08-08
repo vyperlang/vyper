@@ -70,7 +70,7 @@ def foo():
     """
 @public
 def foo():
-    x: bytes32 = sha3("moose", 3)
+    x: bytes32 = keccak256("moose", 3)
     """,
     """
 @public

@@ -35,17 +35,19 @@ from vyper.utils import (
     function_whitelist,
     is_varname_valid,
     iterable_cast,
-    sha3,
+    keccak256,
 )
 
 
 # Function argument
 class VariableRecord:
-    def __init__(self, name, pos, typ, mutable, blockscopes=None, defined_at=None):
+    def __init__(self, name, pos, typ, mutable, *,
+                 location='memory', blockscopes=None, defined_at=None):
         self.name = name
         self.pos = pos
         self.typ = typ
         self.mutable = mutable
+        self.location = location
         self.blockscopes = [] if blockscopes is None else blockscopes
         self.defined_at = defined_at  # source code location variable record was defined.
 
@@ -155,7 +157,7 @@ class FunctionSignature:
                         custom_structs=None,
                         contract_def=False,
                         constants=None,
-                        constant=False):
+                        constant_override=False):
         if not custom_structs:
             custom_structs = {}
 
@@ -168,7 +170,8 @@ class FunctionSignature:
 
         # Validate default values.
         for default_value in getattr(code.args, 'defaults', []):
-            if not isinstance(default_value, (ast.Num, ast.Str, ast.Bytes, ast.List)):
+            allowed_types = (ast.Num, ast.Str, ast.Bytes, ast.List, ast.NameConstant)
+            if not isinstance(default_value, allowed_types):
                 raise FunctionDeclarationException("Default parameter values have to be literals.")
 
         # Determine the arguments, expects something of the form def foo(arg1:
@@ -216,8 +219,13 @@ class FunctionSignature:
             else:
                 mem_pos += get_size_of_type(parsed_type) * 32
 
-        # Apply decorators
-        const, payable, private, public, nonreentrant_key = False, False, False, False, ''
+        const = constant_override
+        payable = False
+        private = False
+        public = False
+        nonreentrant_key = ''
+
+        # Update function properties from decorators
         for dec in code.decorator_list:
             if isinstance(dec, ast.Name) and dec.id == "constant":
                 const = True
@@ -255,10 +263,9 @@ class FunctionSignature:
                 "Function visibility must be declared (@public or @private)",
                 code,
             )
-        if constant and nonreentrant_key:
+        if const and nonreentrant_key:
             raise StructureException("@nonreentrant makes no sense on a @constant function.", code)
-        if constant:
-            const = True
+
         # Determine the return type and whether or not it's constant. Expects something
         # of the form:
         # def foo(): ...
@@ -288,7 +295,7 @@ class FunctionSignature:
         sig = cls.get_full_sig(name, code.args.args, sigs, custom_units, custom_structs, constants)
 
         # Take the first 4 bytes of the hash of the sig to get the method ID
-        method_id = fourbytes_to_int(sha3(bytes(sig, 'utf-8'))[:4])
+        method_id = fourbytes_to_int(keccak256(bytes(sig, 'utf-8'))[:4])
         return cls(
             name,
             args,

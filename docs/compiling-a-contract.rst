@@ -1,6 +1,6 @@
-####################
 Compiling a Contract
 ####################
+
 To compile a contract, use:
 ::
 

@@ -4,16 +4,32 @@ from collections import (
     OrderedDict,
 )
 import json
-import os
+from pathlib import (
+    Path,
+)
 import sys
+from typing import (
+    Any,
+    Iterable,
+    Iterator,
+    Set,
+    TypeVar,
+)
 import warnings
 
 import vyper
 from vyper.parser import (
     parser_utils,
 )
+from vyper.settings import (
+    VYPER_TRACEBACK_LIMIT,
+)
 from vyper.signatures.interface import (
     extract_file_interface_imports,
+)
+from vyper.typing import (
+    ContractCodes,
+    ContractName,
 )
 
 warnings.simplefilter('always')
@@ -45,7 +61,7 @@ parser.add_argument(
 parser.add_argument(
     '--version',
     action='version',
-    version='{0}'.format(vyper.__version__),
+    version='{0}+commit.{1}'.format(vyper.__version__, vyper.__commit__),
 )
 parser.add_argument(
     '--show-gas-estimates',
@@ -58,71 +74,86 @@ parser.add_argument(
     default='bytecode', dest='format',
 )
 parser.add_argument(
-    '--debug',
-    help='Add compiler debugging output',
-    action='store_true',
+    '--traceback-limit',
+    help='Set the traceback limit for error messages reported by the compiler',
+    type=int,
 )
 
 args = parser.parse_args()
 
-tb_limit = os.environ.get('VYPER_TRACEBACK_LIMIT')
-if tb_limit:
-    sys.tracebacklimit = int(tb_limit)
-elif not args.debug:
-    # sys.traceback limit defaults to 1000
+if args.traceback_limit is not None:
+    sys.tracebacklimit = args.traceback_limit
+elif VYPER_TRACEBACK_LIMIT is not None:
+    sys.tracebacklimit = VYPER_TRACEBACK_LIMIT
+else:
+    # Python usually defaults sys.tracebacklimit to 1000.  We use a default
+    # setting of zero so error printouts only include information about where
+    # an error occurred in a Vyper source file.
     sys.tracebacklimit = 0
 
 
-def uniq(seq):
-    exists = set()
-    return [x for x in seq if not (x in exists or exists.add(x))]
+T = TypeVar('T')
 
 
-def exc_handler(contract_name, exception):
+def uniq(seq: Iterable[T]) -> Iterator[T]:
+    """
+    Yield unique items in ``seq`` in order.
+    """
+    seen: Set[T] = set()
+
+    for x in seq:
+        if x in seen:
+            continue
+
+        seen.add(x)
+        yield x
+
+
+def exc_handler(contract_name: ContractName, exception: Exception) -> None:
     print('Error compiling: ', contract_name)
     raise exception
 
 
-def get_interface_codes(codes):
+def get_interface_codes(codes: ContractCodes) -> Any:
     interface_codes = {}
+    interfaces = {}
 
     for code in codes.values():
         interface_codes.update(extract_file_interface_imports(code))
 
     if interface_codes:
         for interface_name, interface_path in interface_codes.items():
-            file_path = os.path.join(os.path.normpath(interface_path.replace('.', '/')))
-            extensions = ('.vy', '.json')
-            valid_paths = [
-                file_path + ex
-                for ex in extensions if os.path.exists(file_path + ex)
-            ]
-            if not valid_paths:
+            file_path = Path(interface_path.replace('.', '/')).resolve()
+
+            try:
+                suffix = next(i for i in ('.vy', '.json') if file_path.with_suffix(i).exists())
+            except StopIteration:
                 raise Exception(
                     f'Imported interface "{interface_path}{{.vy,.json}}" does not exist.'
                 )
 
-            valid_path = valid_paths[0]
-            with open(valid_path) as fh:
+            valid_path = file_path.with_suffix(suffix)
+            with valid_path.open() as fh:
                 code = fh.read()
-                if valid_path.endswith('.json'):
-                    interface_codes[interface_name] = {
+                if valid_path.suffix == '.json':
+                    interfaces[interface_name] = {
                         'type': 'json',
                         'code': json.loads(code.encode())
                     }
                 else:
-                    interface_codes[interface_name] = {
+                    interfaces[interface_name] = {
                         'type': 'vyper',
                         'code': code
                     }
-    return interface_codes
+
+    return interfaces
 
 
 if __name__ == '__main__':
     if args.show_gas_estimates:
         parser_utils.LLLnode.repr_show_gas = True
 
-    codes = OrderedDict()
+    codes: ContractCodes = OrderedDict()
     for file_name in args.input_files:
         with open(file_name) as fh:
             codes[file_name] = fh.read()
@@ -132,7 +163,6 @@ if __name__ == '__main__':
         out = vyper.compile_codes(
             codes,
             ['bytecode', 'bytecode_runtime', 'abi', 'source_map', 'method_identifiers'],
-            output_type='dict',
             exc_handler=exc_handler,
             interface_codes=get_interface_codes(codes)
         )
@@ -146,18 +176,17 @@ if __name__ == '__main__':
             'ast': 'ast_dict'
         }
         formats = []
-        orig_args = uniq(args.format.split(','))
+        orig_args = tuple(uniq(args.format.split(',')))
 
         for f in orig_args:
             formats.append(translate_map.get(f, f))
 
-        out_list = vyper.compile_codes(
+        out_list = list(vyper.compile_codes(
             codes,
             formats,
-            output_type='list',
             exc_handler=exc_handler,
             interface_codes=get_interface_codes(codes)
-        )
+        ).values())
 
         for out in out_list:
             for f in orig_args:

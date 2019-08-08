@@ -2,6 +2,7 @@ from collections import (
     OrderedDict,
     deque,
 )
+import warnings
 
 from vyper import (
     compile_lll,
@@ -44,8 +45,10 @@ def __compile(code, interface_codes=None, *args, **kwargs):
             return any(find_nested_opcode(x, key) for x in sublists)
 
     if find_nested_opcode(asm, 'DEBUG'):
-        print('Please note this code contains DEBUG opcode.')
-        print('This will only work in a support EVM. This FAIL on any other nodes.')
+        warnings.warn(
+            'This code contains DEBUG opcodes! The DEBUG opcode will only work in '
+            'a supported EVM! It will FAIL on all other nodes!'
+        )
 
     c, line_number_map = compile_lll.assembly_to_evm(asm)
     return c
@@ -215,7 +218,6 @@ output_formats_map = {
 
 def compile_codes(codes,
                   output_formats=None,
-                  output_type='list',
                   exc_handler=None,
                   interface_codes=None):
     if output_formats is None:
@@ -225,7 +227,7 @@ def compile_codes(codes,
     for contract_name, code in codes.items():
         for output_format in output_formats:
             if output_format not in output_formats_map:
-                raise Exception('Unsupported format type %s.' % output_format)
+                raise ValueError(f'Unsupported format type {repr(output_format)}')
 
             try:
                 out.setdefault(contract_name, {})
@@ -240,14 +242,17 @@ def compile_codes(codes,
                 else:
                     raise exc
 
-    if output_type == 'list':
-        return [v for v in out.values()]
-    elif output_type == 'dict':
-        return out
-    else:
-        raise Exception('Unknown output_type')
+    return out
+
+
+UNKNOWN_CONTRACT_NAME = '<unknown>'
 
 
 def compile_code(code, output_formats=None, interface_codes=None):
-    codes = {'': code}
-    return compile_codes(codes, output_formats, 'list', interface_codes=interface_codes)[0]
+    codes = {UNKNOWN_CONTRACT_NAME: code}
+
+    return compile_codes(
+        codes,
+        output_formats,
+        interface_codes=interface_codes,
+    )[UNKNOWN_CONTRACT_NAME]

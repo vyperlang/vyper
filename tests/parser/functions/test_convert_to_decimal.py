@@ -169,3 +169,43 @@ def foobar() -> decimal:
         lambda: get_contract_with_gas_estimation(code),
         TypeMismatchException
     )
+
+
+def test_convert_from_address(get_contract_with_gas_estimation):
+    code = """
+stor: address
+
+@public
+def conv(param: address) -> decimal:
+    return convert(param, decimal)
+
+@public
+def conv_zero_literal() -> decimal:
+    return convert(ZERO_ADDRESS, decimal)
+
+@public
+def conv_zero_stor() -> decimal:
+    self.stor = ZERO_ADDRESS
+    return convert(self.stor, decimal)
+
+@public
+def conv_neg1_literal() -> decimal:
+    return convert(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF, decimal)
+
+@public
+def conv_neg1_stor() -> decimal:
+    self.stor = 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF
+    return convert(self.stor, decimal)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.conv(b"\x00" * 20) == 0.0
+    assert c.conv_zero_literal() == 0.0
+    assert c.conv_zero_stor() == 0.0
+
+    assert c.conv(b"\xff" * 20) == -1.0
+    assert c.conv_neg1_literal() == -1.0
+    assert c.conv_neg1_stor() == -1.0
+
+    assert c.conv((b"\x00" * 19) + b"\x01") == 1.0
+    assert c.conv((b"\x00" * 18) + b"\x01\x00") == 256.0

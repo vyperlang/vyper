@@ -1,6 +1,6 @@
-################
 Installing Vyper
 ################
+
 Don't panic if the installation fails. Vyper is still under development and
 undergoes constant changes. Installation will be much more simplified and
 optimized after a stable version release.
@@ -13,19 +13,22 @@ any errors.
    The easiest way to try out the language, experiment with examples, and compile code to ``bytecode``
    or ``LLL`` is to use the online compiler at https://vyper.online/.
 
-*************
 Prerequisites
 *************
+
 Installing Python 3.6
 =====================
+
 Vyper can only be built using Python 3.6 and higher. If you are already running
 Python 3.6, skip to the next section, else follow the instructions here to make
 sure you have the correct Python version installed, and are using that version.
 
 Ubuntu
 ------
+
 16.04 and older
 ^^^^^^^^^^^^^^^
+
 Start by making sure your packages are up-to-date:
 ::
 
@@ -43,9 +46,9 @@ Install Python 3.6 and some necessary packages:
     sudo make
     sudo make install
 
-
 16.10 and newer
 ^^^^^^^^^^^^^^^
+
 From Ubuntu 16.10 onwards, the Python 3.6 version is in the `universe`
 repository.
 
@@ -63,6 +66,7 @@ Run the following commands to install:
 
 Using a BASH script
 ^^^^^^^^^^^^^^^^^^^
+
 Vyper can be installed using a bash script.
 ::
 
@@ -70,8 +74,10 @@ Vyper can be installed using a bash script.
 
 
 *Reminder*: Please read and understand the commands in any bash script before executing, especially with `sudo`.
+
 Arch
------
+----
+
 Using your aur helper of choice (`yay` here).
 ::
 
@@ -79,6 +85,7 @@ Using your aur helper of choice (`yay` here).
 
 MacOS
 -----
+
 Make sure you have Homebrew installed. If you don't have the `brew` command
 available on the terminal, follow `these instructions <https://docs.brew.sh/Installation.html>`_
 to get Homebrew on your system.
@@ -90,9 +97,20 @@ Also, ensure the following libraries are installed using `brew`:
 ::
 
     brew install gmp leveldb
+	
+Windows
+--------
+
+Windows users can first `install Windows Subsystem for Linux <https://docs.microsoft.com/en-us/windows/wsl/install-win10>`_ and then follow the instructions for Ubuntu, or `install Docker for Windows <https://docs.docker.com/docker-for-windows/install/>`_ and then follow the instructions for Docker.
+
+.. note::
+    - Windows Subsystem for Linux is only available for Windows 10.
+    - Windows versions that are < 10 and Windows 10 Home should install the slightly outdated `Docker Toolbox <https://docs.docker.com/toolbox/toolbox_install_windows/>`_, as explained in the link.
+   
 
 Creating a virtual environment
 ==============================
+
 It is **strongly recommended** to install Vyper in **a virtual Python
 environment**, so that new packages installed and dependencies built are
 strictly contained in your Vyper project and will not alter or affect your
@@ -116,9 +134,9 @@ You can also create a virtual environment without virtualenv:
    python3.6 -m venv ~/vyper-env
    source ~/vyper-env/bin/activate
 
-************
 Installation
 ************
+
 Again, it is **strongly recommended to install Vyper** in a **virtual Python environment**.
 This guide assumes you are in a virtual environment containing Python 3.6.
 
@@ -129,6 +147,7 @@ install and test commands:
     git clone https://github.com/ethereum/vyper.git
     cd vyper
     make
+    make dev-deps
     make test
 
 Additionally, you may try to compile an example contract by running:
@@ -159,6 +178,7 @@ If any unexpected errors or exceptions are encountered, please feel free create 
     ::
 
         make
+        make dev-deps
         make test
 
     If you get the error `ld: library not found for -lyaml` in the output of `make`, make sure `libyaml` is installed using `brew info libyaml`. If it is installed, add its location to the compile flags as well:
@@ -169,8 +189,6 @@ If any unexpected errors or exceptions are encountered, please feel free create 
 
     You can then run `make` and `make test` again.
 
-
-***
 PIP
 ***
 
@@ -184,8 +202,6 @@ To install a specific version use:
 
     pip install vyper==0.1.0b2
 
-
-******
 Docker
 ******
 
@@ -214,7 +230,6 @@ The normal paramaters are also supported, for example:
     docker run -v $(pwd):/code ethereum/vyper -f abi /code/<contract_file.vy>
     [{'name': 'test1', 'outputs': [], 'inputs': [{'type': 'uint256', 'name': 'a'}, {'type': 'bytes', 'name': 'b'}], 'constant': False, 'payable': False, 'type': 'function', 'gas': 441}, {'name': 'test2', 'outputs': [], 'inputs': [{'type': 'uint256', 'name': 'a'}], 'constant': False, 'payable': False, 'type': 'function', 'gas': 316}]
 
-
 Dockerfile
 ==========
 
@@ -231,7 +246,6 @@ and try compiling a contract:
     python setup.py test
     vyper examples/crowdfund.vy
 
-****
 Snap
 ****
 

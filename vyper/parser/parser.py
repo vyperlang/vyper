@@ -96,7 +96,7 @@ def parse_external_contracts(external_contracts, global_ctx):
             sig = FunctionSignature.from_definition(
                 _def,
                 contract_def=True,
-                constant=constant,
+                constant_override=constant,
                 custom_structs=global_ctx._structs,
                 constants=global_ctx._constants
             )

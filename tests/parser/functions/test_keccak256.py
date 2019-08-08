@@ -2,15 +2,15 @@ def test_hash_code(get_contract_with_gas_estimation, keccak):
     hash_code = """
 @public
 def foo(inp: bytes[100]) -> bytes32:
-    return sha3(inp)
+    return keccak256(inp)
 
 @public
 def foob() -> bytes32:
-    return sha3(b"inp")
+    return keccak256(b"inp")
 
 @public
 def bar() -> bytes32:
-    return sha3("inp")
+    return keccak256("inp")
     """
 
     c = get_contract_with_gas_estimation(hash_code)
@@ -25,7 +25,7 @@ def test_hash_code2(get_contract_with_gas_estimation):
     hash_code2 = """
 @public
 def foo(inp: bytes[100]) -> bool:
-    return sha3(inp) == sha3("badminton")
+    return keccak256(inp) == keccak256("badminton")
     """
     c = get_contract_with_gas_estimation(hash_code2)
     assert c.foo(b"badminto") is False
@@ -42,20 +42,20 @@ def set_test(inp: bytes[100]):
 
 @public
 def tryy(inp: bytes[100]) -> bool:
-    return sha3(inp) == sha3(self.test)
+    return keccak256(inp) == keccak256(self.test)
 
 @public
 def tryy_str(inp: string[100]) -> bool:
-    return sha3(inp) == sha3(self.test)
+    return keccak256(inp) == keccak256(self.test)
 
 @public
 def trymem(inp: bytes[100]) -> bool:
     x: bytes[100] = self.test
-    return sha3(inp) == sha3(x)
+    return keccak256(inp) == keccak256(x)
 
 @public
 def try32(inp: bytes32) -> bool:
-    return sha3(inp) == sha3(self.test)
+    return keccak256(inp) == keccak256(self.test)
 
     """
     c = get_contract_with_gas_estimation(hash_code3)
@@ -80,4 +80,4 @@ def try32(inp: bytes32) -> bool:
     assert c.try32(b"\x35" * 32) is False
     assert c.tryy(b"\x35" * 33) is True
 
-    print("Passed SHA3 hash test")
+    print("Passed KECCAK256 hash test")
