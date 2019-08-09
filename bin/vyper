@@ -123,31 +123,25 @@ def exc_handler(contract_name: ContractName, exception: Exception) -> None:
 
 def get_interface_codes(root_path: Path, codes: ContractCodes) -> Any:
     interface_codes: Dict = {}
-    interfaces = {}
+    interfaces: Dict = {}
 
     for file_path, code in codes.items():
+        interfaces[file_path] = {}
         parent_path = root_path.joinpath(file_path).parent
         base_paths = (parent_path, root_path)
-        new_codes = extract_file_interface_imports(code)
-        for key, value in new_codes.items():
-            interface_path = get_interface_file_path(base_paths, value)
-            if key in interface_codes and interface_codes[key] != interface_path:
-                raise Exception(
-                    f"Cannot assign same key to multiple interfaces - '{key}'"
-                )
-            interface_codes[key] = interface_path
 
-    if interface_codes:
+        interface_codes = extract_file_interface_imports(code)
         for interface_name, interface_path in interface_codes.items():
-            with interface_path.open() as fh:
+            valid_path = get_interface_file_path(base_paths, interface_path)
+            with valid_path.open() as fh:
                 code = fh.read()
-                if interface_path.suffix == '.json':
-                    interfaces[interface_name] = {
+                if valid_path.suffix == '.json':
+                    interfaces[file_path][interface_name] = {
                         'type': 'json',
                         'code': json.loads(code.encode())
                     }
                 else:
-                    interfaces[interface_name] = {
+                    interfaces[file_path][interface_name] = {
                         'type': 'vyper',
                         'code': code
                     }
