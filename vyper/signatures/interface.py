@@ -221,7 +221,22 @@ def extract_file_interface_imports(code: SourceCode) -> InterfaceImports:
                         'Interface with alias {} already exists'.format(a_name.asname),
                         item,
                     )
-                imports_dict[a_name.asname] = a_name.name
+                imports_dict[a_name.asname] = a_name.name.replace('.', '/')
+        elif isinstance(item, ast.ImportFrom):
+            for a_name in item.names:  # type: ignore
+                if a_name.asname:
+                    raise StructureException("From imports cannot use aliases", item)
+            level = item.level  # type: ignore
+            module = item.module or ""  # type: ignore
+            if not level and module == 'vyper.interfaces':
+                continue
+            if level:
+                base_path = f"{'.'*level}/{module.replace('.','/')}"
+            else:
+                base_path = module.replace('.', '/')
+            for a_name in item.names:  # type: ignore
+                asname = a_name.asname or a_name.name
+                imports_dict[asname] = f"{base_path}/{asname}"
 
     return imports_dict
 

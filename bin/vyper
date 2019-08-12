@@ -13,8 +13,8 @@ from typing import (
     Dict,
     Iterable,
     Iterator,
+    List,
     Set,
-    Tuple,
     TypeVar,
 )
 import warnings
@@ -128,10 +128,14 @@ def get_interface_codes(root_path: Path, codes: ContractCodes) -> Any:
     for file_path, code in codes.items():
         interfaces[file_path] = {}
         parent_path = root_path.joinpath(file_path).parent
-        base_paths = (parent_path, root_path)
 
         interface_codes = extract_file_interface_imports(code)
         for interface_name, interface_path in interface_codes.items():
+
+            base_paths = [parent_path]
+            if not interface_path.startswith('.'):
+                base_paths.append(root_path)
+
             valid_path = get_interface_file_path(base_paths, interface_path)
             with valid_path.open() as fh:
                 code = fh.read()
@@ -149,8 +153,8 @@ def get_interface_codes(root_path: Path, codes: ContractCodes) -> Any:
     return interfaces
 
 
-def get_interface_file_path(base_paths: Tuple, import_path: str) -> Path:
-    relative_path = Path(import_path.replace('.', '/'))
+def get_interface_file_path(base_paths: List, import_path: str) -> Path:
+    relative_path = Path(import_path)
     for path in base_paths:
         file_path = path.joinpath(relative_path)
         try:

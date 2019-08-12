@@ -295,4 +295,4 @@ class alias(VyperNode):
 
 
 class ImportFrom(VyperNode):
-    __slots__ = ('module', 'names')
+    __slots__ = ('level', 'module', 'names')
