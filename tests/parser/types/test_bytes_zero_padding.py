@@ -1,18 +1,5 @@
-from decimal import (
-    ROUND_FLOOR,
-    Decimal,
-    getcontext,
-)
-
-from eth_tester.exceptions import (
-    TransactionFailed,
-)
 import hypothesis
 import pytest
-
-from vyper.utils import (
-    SizeLimits,
-)
 
 
 @pytest.fixture(scope='module')
