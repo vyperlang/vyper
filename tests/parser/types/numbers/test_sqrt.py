@@ -152,7 +152,7 @@ def test(a: decimal) -> decimal:
 @hypothesis.example(Decimal(SizeLimits.MAXNUM))
 @hypothesis.example(Decimal(0))
 @hypothesis.settings(
-    deadline=400,
+    deadline=1000,
 )
 def test_sqrt_valid_range(sqrt_contract, value):
     vyper_sqrt = sqrt_contract.test(value)
