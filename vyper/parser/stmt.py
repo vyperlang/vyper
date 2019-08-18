@@ -1020,11 +1020,13 @@ class Stmt(object):
                 "Cannot modify storage inside %s: %s" % (
                     self.context.pp_constancy(),
                     target.annotation,
-                )
+                ),
+                self.stmt,
             )
         if not target.mutable:
             raise ConstancyViolationException(
-                "Cannot modify function argument: %s" % target.annotation
+                "Cannot modify function argument: %s" % target.annotation,
+                self.stmt,
             )
         return target
 
