@@ -135,6 +135,10 @@ def get_interface_codes(root_path: Path, codes: ContractCodes) -> Any:
             base_paths = [parent_path]
             if not interface_path.startswith('.'):
                 base_paths.append(root_path)
+            elif interface_path.startswith('../') and parent_path == root_path:
+                raise FileNotFoundError(
+                    f"{file_path} - Cannot perform relative import outside of base folder"
+                )
 
             valid_path = get_interface_file_path(base_paths, interface_path)
             with valid_path.open() as fh:
