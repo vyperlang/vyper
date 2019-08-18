@@ -124,8 +124,9 @@ def mk_full_signature_from_json(abi):
 
 def extract_sigs(sig_code):
     if sig_code['type'] == 'vyper':
+        interface_ast = parser.parse_to_ast(sig_code['code'])
         return sig_utils.mk_full_signature(
-            parser.parse_to_ast(sig_code['code']),
+            [i for i in interface_ast if not isinstance(i, (ast.Import, ast.ImportFrom))],
             sig_formatter=lambda x, y: x
         )
     elif sig_code['type'] == 'json':
