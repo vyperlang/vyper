@@ -119,9 +119,10 @@ def get_source_map(code, contract_name, interface_codes=None):
     c, line_number_map = compile_lll.assembly_to_evm(asm_list)
     # Sort line_number_map
     out = OrderedDict()
-    keylist = line_number_map.keys()
-    for k in sorted(keylist):
+    for k in sorted(line_number_map.keys()):
         out[k] = line_number_map[k]
+    # remove empty source map entries
+    out['pc_pos_map'] = dict((k, v) for k, v in out['pc_pos_map'].items() if v)
     return out
 
 

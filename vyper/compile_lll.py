@@ -452,8 +452,11 @@ def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=No
 
 def note_line_num(line_number_map, item, pos):
     # Record line number attached to pos.
-    if isinstance(item, instruction) and item.lineno is not None:
-        offsets = (item.lineno, item.col_offset, item.end_lineno, item.end_col_offset)
+    if isinstance(item, instruction):
+        if item.lineno is not None:
+            offsets = (item.lineno, item.col_offset, item.end_lineno, item.end_col_offset)
+        else:
+            offsets = None
         line_number_map['pc_pos_map'][pos] = offsets
     added_line_breakpoint = note_breakpoint(line_number_map, item, pos)
     return added_line_breakpoint
