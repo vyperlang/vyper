@@ -13,50 +13,60 @@ from vyper.parser.s_expressions import (
     parse_s_exp,
 )
 
-parser = argparse.ArgumentParser(description='Vyper LLL for Ethereum')
-parser.add_argument(
-    'input_file',
-    help='Vyper sourcecode to compile',
-)
-parser.add_argument(
-    '--version',
-    action='version',
-    version='{0}'.format(vyper.__version__),
-)
-parser.add_argument(
-    '-f',
-    help='Format to print csv list of ir,opt_ir,asm,bytecode',
-    default='bytecode',
-    dest='format',
-)
-parser.add_argument(
-    '--show-gas-estimates',
-    help='Show gas estimates in ir output mode.',
-    action='store_true',
-)
 
-args = parser.parse_args()
+def _parse_cli_args():
+    parser = argparse.ArgumentParser(description='Vyper LLL for Ethereum')
+    parser.add_argument(
+        'input_file',
+        help='Vyper sourcecode to compile',
+    )
+    parser.add_argument(
+        '--version',
+        action='version',
+        version='{0}'.format(vyper.__version__),
+    )
+    parser.add_argument(
+        '-f',
+        help='Format to print csv list of ir,opt_ir,asm,bytecode',
+        default='bytecode',
+        dest='format',
+    )
+    parser.add_argument(
+        '--show-gas-estimates',
+        help='Show gas estimates in ir output mode.',
+        action='store_true',
+    )
 
-if __name__ == '__main__':
-    with open(args.input_file) as f:
-        if args.show_gas_estimates:
-            LLLnode.repr_show_gas = True
+    args = parser.parse_args()
+    output_formats = set(dict.fromkeys(args.format.split(',')))
+    compiler_data = compile_to_lll(args.input_file, output_formats, args.show_gas_estimates)
 
-        format_set = set(dict.fromkeys(args.format.split(',')))
-        s_expressions = parse_s_exp(f.read())
+    for key in ('ir', 'opt_ir', 'asm', 'bytecode'):
+        if key in compiler_data:
+            print(compiler_data[key])
 
-        lll = LLLnode.from_list(s_expressions[0])
-        if 'ir' in format_set:
-            print(lll)
 
-        optimised = optimizer.optimize(lll)
-        if 'opt_ir' in format_set:
-            print(optimised)
+def compile_to_lll(input_file, output_formats, show_gas_estimates=False):
+    with open(input_file) as fh:
+        s_expressions = parse_s_exp(fh.read())
 
-        asm = compile_lll.compile_to_assembly(lll)
-        if 'asm' in format_set:
-            print(asm)
+    if show_gas_estimates:
+        LLLnode.repr_show_gas = True
 
+    compiler_data = {}
+    lll = LLLnode.from_list(s_expressions[0])
+    if 'ir' in output_formats:
+        compiler_data['ir'] = lll
+
+    if 'opt_ir' in output_formats:
+        compiler_data['opt_ir'] = optimizer.optimize(lll)
+
+    asm = compile_lll.compile_to_assembly(lll)
+    if 'asm' in output_formats:
+        compiler_data['asm'] = asm
+
+    if 'bytecode' in output_formats:
         (bytecode, _srcmap) = compile_lll.assembly_to_evm(asm)
-        if 'bytecode' in format_set:
-            print('0x' + bytecode.hex())
+        compiler_data['bytecode'] = '0x' + bytecode.hex()
+
+    return compiler_data
