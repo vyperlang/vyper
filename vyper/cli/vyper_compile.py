@@ -12,6 +12,7 @@ from typing import (
     Any,
     Iterable,
     Iterator,
+    Sequence,
     Set,
     TypeVar,
 )
@@ -32,67 +33,95 @@ from vyper.typing import (
     ContractName,
 )
 
-warnings.simplefilter('always')
-
-format_options_help = """Format to print, one or more of:
- bytecode (default) - Deployable bytecode
- bytecode_runtime   - Bytecode at runtime
- abi                - ABI in JSON format
- abi_python         - ABI in python format
- ast                - AST in JSON format
- source_map         - Vyper source map
- method_identifiers - Dictionary of method signature to method identifier.
- combined_json      - All of the above format options combined as single JSON output.
- interface          - Print Vyper interface of a contract
- external_interface - Print Externa Contract of a contract, to be used as outside contract calls.
- opcodes            - List of opcodes as a string
- opcodes_runtime    - List of runtime opcodes as a string
-"""
-
-parser = argparse.ArgumentParser(
-    description='Vyper programming language for Ethereum',
-    formatter_class=argparse.RawTextHelpFormatter
-)
-parser.add_argument(
-    'input_files',
-    help='Vyper sourcecode to compile',
-    nargs='+',
-)
-parser.add_argument(
-    '--version',
-    action='version',
-    version='{0}+commit.{1}'.format(vyper.__version__, vyper.__commit__),
-)
-parser.add_argument(
-    '--show-gas-estimates',
-    help='Show gas estimates in ir output mode.',
-    action="store_true",
-)
-parser.add_argument(
-    '-f',
-    help=format_options_help,
-    default='bytecode', dest='format',
-)
-parser.add_argument(
-    '--traceback-limit',
-    help='Set the traceback limit for error messages reported by the compiler',
-    type=int,
-)
-
-args = parser.parse_args()
-
-if args.traceback_limit is not None:
-    sys.tracebacklimit = args.traceback_limit
-elif VYPER_TRACEBACK_LIMIT is not None:
-    sys.tracebacklimit = VYPER_TRACEBACK_LIMIT
-else:
-    # Python usually defaults sys.tracebacklimit to 1000.  We use a default
-    # setting of zero so error printouts only include information about where
-    # an error occurred in a Vyper source file.
-    sys.tracebacklimit = 0
-
-
 T = TypeVar('T')
+
+
+def _parse_cli_args():
+
+    warnings.simplefilter('always')
+
+    format_options_help = """Format to print, one or more of:
+    bytecode (default) - Deployable bytecode
+    bytecode_runtime   - Bytecode at runtime
+    abi                - ABI in JSON format
+    abi_python         - ABI in python format
+    ast                - AST in JSON format
+    source_map         - Vyper source map
+    method_identifiers - Dictionary of method signature to method identifier.
+    combined_json      - All of the above format options combined as single JSON output.
+    interface          - Print Vyper interface of a contract
+    external_interface - Print Externa Contract of a contract, to be used as outside contract calls.
+    opcodes            - List of opcodes as a string
+    opcodes_runtime    - List of runtime opcodes as a string
+    """
+
+    parser = argparse.ArgumentParser(
+        description='Vyper programming language for Ethereum',
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+    parser.add_argument(
+        'input_files',
+        help='Vyper sourcecode to compile',
+        nargs='+',
+    )
+    parser.add_argument(
+        '--version',
+        action='version',
+        version='{0}+commit.{1}'.format(vyper.__version__, vyper.__commit__),
+    )
+    parser.add_argument(
+        '--show-gas-estimates',
+        help='Show gas estimates in ir output mode.',
+        action="store_true",
+    )
+    parser.add_argument(
+        '-f',
+        help=format_options_help,
+        default='bytecode', dest='format',
+    )
+    parser.add_argument(
+        '--traceback-limit',
+        help='Set the traceback limit for error messages reported by the compiler',
+        type=int,
+    )
+
+    args = parser.parse_args()
+
+    if args.traceback_limit is not None:
+        sys.tracebacklimit = args.traceback_limit
+    elif VYPER_TRACEBACK_LIMIT is not None:
+        sys.tracebacklimit = VYPER_TRACEBACK_LIMIT
+    else:
+        # Python usually defaults sys.tracebacklimit to 1000.  We use a default
+        # setting of zero so error printouts only include information about where
+        # an error occurred in a Vyper source file.
+        sys.tracebacklimit = 0
+
+    output_formats = tuple(uniq(args.format.split(',')))
+
+    translate_map = {
+        'abi_python': 'abi',
+        'json': 'abi',
+        'ast': 'ast_dict'
+    }
+    final_formats = []
+
+    for f in output_formats:
+        final_formats.append(translate_map.get(f, f))
+
+    compiled = compile_files(args.input_files, final_formats, args.show_gas_estimates)
+
+    if output_formats == ('combined_json',):
+        print(json.dumps(compiled))
+        return
+
+    for contract_data in list(compiled.values()):
+        for f in output_formats:
+            o = contract_data[translate_map.get(f, f)]
+            if f in ('abi', 'json', 'ast', 'source_map'):
+                print(json.dumps(o))
+            else:
+                print(o)
 
 
 def uniq(seq: Iterable[T]) -> Iterator[T]:
@@ -149,53 +178,30 @@ def get_interface_codes(codes: ContractCodes) -> Any:
     return interfaces
 
 
-if __name__ == '__main__':
-    if args.show_gas_estimates:
+def compile_files(input_files: Iterable[str],
+                  output_formats: Sequence[str],
+                  show_gas_estimates: bool = False) -> OrderedDict:
+
+    if show_gas_estimates:
         parser_utils.LLLnode.repr_show_gas = True
 
     codes: ContractCodes = OrderedDict()
-    for file_name in args.input_files:
+    for file_name in input_files:
         with open(file_name) as fh:
             codes[file_name] = fh.read()
 
-    # Combined json output
-    if args.format == 'combined_json':
-        out = vyper.compile_codes(
-            codes,
-            ['bytecode', 'bytecode_runtime', 'abi', 'source_map', 'method_identifiers'],
-            exc_handler=exc_handler,
-            interface_codes=get_interface_codes(codes)
-        )
-        out['version'] = vyper.__version__
-        print(json.dumps(out))
+    if 'combined_json' in output_formats:
+        if len(output_formats) > 1:
+            raise ValueError("If using combined_json it must be the only output format requested")
+        output_formats = ['bytecode', 'bytecode_runtime', 'abi', 'source_map', 'method_identifiers']
 
-    else:  # Normal output.
-        translate_map = {
-            'abi_python': 'abi',
-            'json': 'abi',
-            'ast': 'ast_dict'
-        }
-        formats = []
-        orig_args = tuple(uniq(args.format.split(',')))
+    compiler_data = vyper.compile_codes(
+        codes,
+        output_formats,
+        exc_handler=exc_handler,
+        interface_codes=get_interface_codes(codes)
+    )
+    if 'combined_json' in output_formats:
+        compiler_data['version'] = vyper.__version__
 
-        for f in orig_args:
-            formats.append(translate_map.get(f, f))
-
-        out_list = list(vyper.compile_codes(
-            codes,
-            formats,
-            exc_handler=exc_handler,
-            interface_codes=get_interface_codes(codes)
-        ).values())
-
-        for out in out_list:
-            for f in orig_args:
-                o = out[translate_map.get(f, f)]
-                if f in ('abi', 'json', 'ast'):
-                    print(json.dumps(o))
-                elif f == 'abi_python':
-                    print(o)
-                elif f == 'source_map':
-                    print(json.dumps(o))
-                else:
-                    print(o)
+    return compiler_data
