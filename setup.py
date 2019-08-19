@@ -63,11 +63,13 @@ setup(
     ],
     tests_require=test_deps,
     extras_require=extras,
-    scripts=[
-        'bin/vyper',
-        'bin/vyper-serve',
-        'bin/vyper-lll'
-    ],
+    entry_points={
+        'console_scripts': [
+            "vyper=vyper.cli.vyper_compile:_parse_cli_args",
+            "vyper-serve=vyper.cli.vyper_serve:_parse_cli_args",
+            "vyper-lll=vyper.cli.vyper_lll:_parse_cli_args"
+        ]
+    },
     classifiers=[
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
