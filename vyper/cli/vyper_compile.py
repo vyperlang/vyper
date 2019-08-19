@@ -35,25 +35,25 @@ from vyper.typing import (
 
 T = TypeVar('T')
 
+format_options_help = """Format to print, one or more of:
+bytecode (default) - Deployable bytecode
+bytecode_runtime   - Bytecode at runtime
+abi                - ABI in JSON format
+abi_python         - ABI in python format
+ast                - AST in JSON format
+source_map         - Vyper source map
+method_identifiers - Dictionary of method signature to method identifier.
+combined_json      - All of the above format options combined as single JSON output.
+interface          - Print Vyper interface of a contract
+external_interface - Print the External interface of a contract, used for outside contract calls.
+opcodes            - List of opcodes as a string
+opcodes_runtime    - List of runtime opcodes as a string
+"""
+
 
 def _parse_cli_args():
 
     warnings.simplefilter('always')
-
-    format_options_help = """Format to print, one or more of:
-    bytecode (default) - Deployable bytecode
-    bytecode_runtime   - Bytecode at runtime
-    abi                - ABI in JSON format
-    abi_python         - ABI in python format
-    ast                - AST in JSON format
-    source_map         - Vyper source map
-    method_identifiers - Dictionary of method signature to method identifier.
-    combined_json      - All of the above format options combined as single JSON output.
-    interface          - Print Vyper interface of a contract
-    external_interface - Print Externa Contract of a contract, to be used as outside contract calls.
-    opcodes            - List of opcodes as a string
-    opcodes_runtime    - List of runtime opcodes as a string
-    """
 
     parser = argparse.ArgumentParser(
         description='Vyper programming language for Ethereum',
