@@ -223,10 +223,12 @@ def compile_files(input_files: Iterable[str],
         with file_path.open() as fh:
             codes[file_str] = fh.read()
 
+    version = False
     if 'combined_json' in output_formats:
         if len(output_formats) > 1:
             raise ValueError("If using combined_json it must be the only output format requested")
         output_formats = ['bytecode', 'bytecode_runtime', 'abi', 'source_map', 'method_identifiers']
+        version = True
 
     compiler_data = vyper.compile_codes(
         codes,
@@ -234,7 +236,7 @@ def compile_files(input_files: Iterable[str],
         exc_handler=exc_handler,
         interface_codes=get_interface_codes(root_path, codes)
     )
-    if 'combined_json' in output_formats:
+    if version:
         compiler_data['version'] = vyper.__version__
 
     return compiler_data
