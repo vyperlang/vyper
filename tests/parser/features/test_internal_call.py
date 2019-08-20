@@ -420,6 +420,30 @@ def bar(a: int128) -> int128:
 @public
 def foo() -> int128:
     return self.bar(1, 2)
+    """,
+    """
+# should not compile - public to public
+@public
+def bar() -> int128:
+    return 1
+
+@public
+def foo() -> int128:
+    return self.bar()
+    """,
+    """
+# should not compile - private to public
+@public
+def bar() -> int128:
+    return 1
+
+@private
+def _baz() -> int128:
+    return self.bar()
+
+@public
+def foo() -> int128:
+    return self._baz()
     """
 ]
 
