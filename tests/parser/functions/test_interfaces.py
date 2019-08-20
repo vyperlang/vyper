@@ -103,7 +103,7 @@ def foo() -> uint256:
     base = extract_sigs({'type': 'vyper', 'code': interface_code.format("")})
 
     for stmt in ("import x as x", "from x import y"):
-        sigs = extract_sigs({'type': 'vyper', 'code':interface_code.format(stmt)})
+        sigs = extract_sigs({'type': 'vyper', 'code': interface_code.format(stmt)})
         assert [type(i) for i in base] == [type(i) for i in sigs]
 
 
