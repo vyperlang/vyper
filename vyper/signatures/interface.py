@@ -219,7 +219,7 @@ def extract_file_interface_imports(code: SourceCode) -> InterfaceImports:
                     )
                 if a_name.asname in imports_dict:
                     raise StructureException(
-                        'Interface with alias {} already exists'.format(a_name.asname),
+                        f'Interface with alias {a_name.asname} already exists',
                         item,
                     )
                 imports_dict[a_name.asname] = a_name.name.replace('.', '/')
@@ -236,8 +236,12 @@ def extract_file_interface_imports(code: SourceCode) -> InterfaceImports:
             else:
                 base_path = module.replace('.', '/')
             for a_name in item.names:  # type: ignore
-                asname = a_name.asname or a_name.name
-                imports_dict[asname] = f"{base_path}/{asname}"
+                if a_name.name in imports_dict:
+                    raise StructureException(
+                        f'Interface with name {a_name.name} already exists',
+                        item,
+                    )
+                imports_dict[a_name.name] = f"{base_path}/{a_name.name}"
 
     return imports_dict
 
