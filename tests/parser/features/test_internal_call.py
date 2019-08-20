@@ -4,8 +4,8 @@ from decimal import (
 
 import pytest
 
-from vyper import (
-    compiler,
+from vyper.compiler import (
+    compile_code,
 )
 from vyper.exceptions import (
     StructureException,
@@ -403,7 +403,43 @@ def foo() -> int128:
     assert_tx_failed(lambda: get_contract_with_gas_estimation(code), StructureException)
 
 
-FAILING_CONTRACTS = [
+FAILING_CONTRACTS_SELFCALL_PUBLIC = [
+    """
+# should not compile - public to public
+@public
+def bar() -> int128:
+    return 1
+
+@public
+def foo() -> int128:
+    return self.bar()
+    """,
+    """
+# should not compile - private to public
+@public
+def bar() -> int128:
+    return 1
+
+@private
+def _baz() -> int128:
+    return self.bar()
+
+@public
+def foo() -> int128:
+    return self._baz()
+    """
+]
+
+
+@pytest.mark.parametrize('failing_contract_code', FAILING_CONTRACTS_SELFCALL_PUBLIC)
+def test_selfcall_public_raises(failing_contract_code, assert_compile_failed):
+    assert_compile_failed(
+        lambda: compile_code(failing_contract_code),
+        StructureException
+    )
+
+
+FAILING_CONTRACTS_KWARGS = [
     """
 # should not compile - value kwarg when calling {0} function
 @{0}
@@ -447,9 +483,10 @@ def bar():
 ]
 
 
-@pytest.mark.parametrize('failing_contract_code', FAILING_CONTRACTS)
+@pytest.mark.parametrize('failing_contract_code', FAILING_CONTRACTS_KWARGS)
 @pytest.mark.parametrize('decorator', ['public', 'private'])
-def test_selfcall_kwarg_raises(failing_contract_code, decorator):
-    code = failing_contract_code.format(decorator)
-    with pytest.raises(TypeMismatchException):
-        compiler.compile_code(code)
+def test_selfcall_kwarg_raises(failing_contract_code, decorator, assert_compile_failed):
+    assert_compile_failed(
+        lambda: compile_code(failing_contract_code.format(decorator)),
+        TypeMismatchException
+    )

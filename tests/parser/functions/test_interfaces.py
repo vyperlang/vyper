@@ -323,3 +323,62 @@ def balanceOf(owner: address) -> uint256:
     c = get_contract(code, interface_codes=interface_codes)
 
     assert c.balanceOf(w3.eth.accounts[0]) == w3.toWei(1, "ether")
+
+
+def test_self_interface_cannot_compile(assert_compile_failed):
+    code = """
+contract Bar:
+    def foo() -> uint256: constant
+
+@public
+def foo() -> uint256 :
+    return 42
+
+@public
+def bar() -> uint256:
+    return Bar(self).foo()
+"""
+    assert_compile_failed(
+        lambda: compile_code(code),
+        StructureException
+    )
+
+
+def test_self_interface_via_storage_raises(get_contract, assert_tx_failed):
+    code = """
+contract Bar:
+    def foo() -> uint256: constant
+
+bar_contract: Bar
+
+@public
+def __init__():
+    self.bar_contract = Bar(self)
+
+@public
+def foo() -> uint256 :
+    return 42
+
+@public
+def bar() -> uint256:
+    return self.bar_contract.foo()
+    """
+    c = get_contract(code)
+    assert_tx_failed(lambda: c.bar())
+
+
+def test_self_interface_via_calldata_raises(get_contract, assert_tx_failed):
+    code = """
+contract Bar:
+    def foo() -> uint256: constant
+
+@public
+def foo() -> uint256 :
+    return 42
+
+@public
+def bar(a: address) -> uint256:
+    return Bar(a).foo()
+    """
+    c = get_contract(code)
+    assert_tx_failed(lambda: c.bar(c.address))
