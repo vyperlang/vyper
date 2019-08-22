@@ -475,7 +475,12 @@ def note_breakpoint(line_number_map, item, pos):
 
 # Assembles assembly into EVM
 def assembly_to_evm(assembly, map_line_numbers=True):
-    line_number_map = {'breakpoints': set(), 'pc_breakpoints': set(), 'pc_pos_map': {}}
+    line_number_map = {
+        'breakpoints': set(),
+        'pc_breakpoints': set(),
+        'pc_jump_map': {},
+        'pc_pos_map': {}
+    }
     posmap = {}
     sub_assemblies = []
     codes = []
@@ -484,6 +489,18 @@ def assembly_to_evm(assembly, map_line_numbers=True):
         note_line_num(line_number_map, item, pos)
         if item == 'DEBUG':
             continue  # skip debug
+
+        if item == "JUMP":
+            last = assembly[i - 1]
+            if last == "MLOAD":
+                line_number_map['pc_jump_map'][pos] = "o"
+            elif is_symbol(last) and "_priv_" in last:
+                line_number_map['pc_jump_map'][pos] = "i"
+            else:
+                line_number_map['pc_jump_map'][pos] = "-"
+        elif item in ("JUMPI", "JUMPDEST"):
+            line_number_map['pc_jump_map'][pos] = "-"
+
         if is_symbol(item):
             if assembly[i + 1] == 'JUMPDEST' or assembly[i + 1] == 'BLANK':
                 # Don't increment position as the symbol itself doesn't go into code
@@ -503,7 +520,6 @@ def assembly_to_evm(assembly, map_line_numbers=True):
     posmap['_sym_codeend'] = pos
     o = b''
     for i, item in enumerate(assembly):
-        note_line_num(line_number_map, item, pos)
         if item == 'DEBUG':
             continue  # skip debug
         elif is_symbol(item):
