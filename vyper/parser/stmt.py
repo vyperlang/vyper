@@ -729,6 +729,8 @@ class Stmt(object):
                     op=self.stmt.op,
                     lineno=self.stmt.lineno,
                     col_offset=self.stmt.col_offset,
+                    end_lineno=self.stmt.end_lineno,
+                    end_col_offset=self.stmt.end_col_offset
                 ),
                 self.context,
             )
