@@ -20,7 +20,8 @@ BASE_NODE_ATTRIBUTES = (
     'col_offset',
     'lineno',
     'end_col_offset',
-    'end_lineno'
+    'end_lineno',
+    'src'
 )
 
 
