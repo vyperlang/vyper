@@ -474,6 +474,8 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             num.source_code = self.expr.source_code
             num.lineno = self.expr.lineno
             num.col_offset = self.expr.col_offset
+            num.end_lineno = self.expr.end_lineno
+            num.end_col_offset = self.expr.end_col_offset
 
             return Expr.parse_value_expr(num, self.context)
 
@@ -986,6 +988,8 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 num.source_code = self.expr.source_code
                 num.lineno = self.expr.lineno
                 num.col_offset = self.expr.col_offset
+                num.end_lineno = self.expr.end_lineno
+                num.end_col_offset = self.expr.end_col_offset
                 return Expr.parse_value_expr(num, self.context)
 
             return LLLnode.from_list(["sub", 0, operand], typ=operand.typ, pos=getpos(self.expr))

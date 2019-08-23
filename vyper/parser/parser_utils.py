@@ -242,8 +242,8 @@ def getpos(node):
     return (
         node.lineno,
         node.col_offset,
-        node.end_lineno,
-        node.end_col_offset
+        getattr(node, 'end_lineno', None),
+        getattr(node, 'end_col_offset', None)
     )
 
 

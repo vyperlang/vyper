@@ -355,6 +355,8 @@ class Stmt(object):
         none = ast.NameConstant(value=None)
         none.lineno = self.stmt.lineno
         none.col_offset = self.stmt.col_offset
+        none.end_lineno = self.stmt.end_lineno
+        none.end_col_offset = self.stmt.end_col_offset
         zero = Expr(none, self.context).lll_node
 
         # Get target variable
@@ -730,7 +732,7 @@ class Stmt(object):
                     lineno=self.stmt.lineno,
                     col_offset=self.stmt.col_offset,
                     end_lineno=self.stmt.end_lineno,
-                    end_col_offset=self.stmt.end_col_offset
+                    end_col_offset=self.stmt.end_col_offset,
                 ),
                 self.context,
             )
@@ -749,6 +751,8 @@ class Stmt(object):
                     op=self.stmt.op,
                     lineno=self.stmt.lineno,
                     col_offset=self.stmt.col_offset,
+                    end_lineno=self.stmt.end_lineno,
+                    end_col_offset=self.stmt.end_col_offset,
                 ),
                 self.context,
             )
