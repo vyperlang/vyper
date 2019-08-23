@@ -4,6 +4,8 @@ from collections import (
 )
 import warnings
 
+import asttokens
+
 from vyper import (
     compile_lll,
     optimizer,
@@ -121,6 +123,32 @@ def get_source_map(code, contract_name, interface_codes=None):
     out = OrderedDict()
     for k in sorted(line_number_map.keys()):
         out[k] = line_number_map[k]
+
+    # create compressed source map
+    linenos = asttokens.LineNumbers(code)
+    compressed_map = "-1:-1:0:-;"
+    last_pos = [-1, -1, 0]
+    for k in sorted(out['pc_pos_map'])[1:]:
+        if not out['pc_pos_map'][k]:
+            current_pos = [-1, -1, 0]
+        else:
+            start = linenos.line_to_offset(*out['pc_pos_map'][k][:2])
+            length = linenos.line_to_offset(*out['pc_pos_map'][k][2:])-start
+            current_pos = [start, length, 0]
+
+        if k in out['pc_jump_map']:
+            current_pos.append(out['pc_jump_map'][k])
+
+        for i in range(2, -1, -1):
+            if current_pos[i] != last_pos[i]:
+                last_pos[i] = current_pos[i]
+            elif len(current_pos) == i+1:
+                current_pos.pop()
+            else:
+                current_pos[i] = ""
+        compressed_map += ":".join(str(i) for i in current_pos) + ";"
+    out['pc_pos_map_compressed'] = compressed_map
+
     # remove empty source map entries
     out['pc_pos_map'] = dict((k, v) for k, v in out['pc_pos_map'].items() if v)
     return out
