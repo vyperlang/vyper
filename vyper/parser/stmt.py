@@ -37,7 +37,7 @@ from vyper.parser.parser_utils import (
     make_return_stmt,
     make_setter,
     unwrap_location,
-    zero_pad
+    zero_pad,
 )
 from vyper.types import (
     BaseType,
@@ -56,7 +56,6 @@ from vyper.types import (
 from vyper.utils import (
     SizeLimits,
     bytes_to_int,
-    ceil32,
     fourbytes_to_int,
     keccak256,
 )

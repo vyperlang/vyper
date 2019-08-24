@@ -16,7 +16,7 @@ from vyper.parser.parser_utils import (
     make_byte_array_copier,
     make_setter,
     unwrap_location,
-    zero_pad
+    zero_pad,
 )
 from vyper.types.types import (
     BaseType,
