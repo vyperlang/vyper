@@ -194,11 +194,9 @@ def get_interface_file_path(base_paths: Sequence, import_path: str) -> Path:
     relative_path = Path(import_path)
     for path in base_paths:
         file_path = path.joinpath(relative_path)
-        try:
-            suffix = next(i for i in ('.vy', '.json') if file_path.with_suffix(i).exists())
+        suffix = next((i for i in ('.vy', '.json') if file_path.with_suffix(i).exists()), None)
+        if suffix:
             return file_path.with_suffix(suffix)
-        except StopIteration:
-            continue
     raise Exception(
         f'Imported interface "{import_path}{{.vy,.json}}" does not exist.'
     )
@@ -223,12 +221,12 @@ def compile_files(input_files: Iterable[str],
         with file_path.open() as fh:
             codes[file_str] = fh.read()
 
-    version = False
+    show_version = False
     if 'combined_json' in output_formats:
         if len(output_formats) > 1:
             raise ValueError("If using combined_json it must be the only output format requested")
         output_formats = ['bytecode', 'bytecode_runtime', 'abi', 'source_map', 'method_identifiers']
-        version = True
+        show_version = True
 
     compiler_data = vyper.compile_codes(
         codes,
@@ -236,7 +234,7 @@ def compile_files(input_files: Iterable[str],
         exc_handler=exc_handler,
         interface_codes=get_interface_codes(root_path, codes)
     )
-    if version:
+    if show_version:
         compiler_data['version'] = vyper.__version__
 
     return compiler_data
