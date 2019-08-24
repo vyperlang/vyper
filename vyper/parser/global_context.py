@@ -118,7 +118,7 @@ class GlobalContext:
                     )
                 global_ctx._defs.append(item)
             elif isinstance(item, ast.ImportFrom):
-                if item.module == 'vyper.interfaces':
+                if not item.level and item.module == 'vyper.interfaces':
                     built_in_interfaces = get_builtin_interfaces()
                     for item_alias in item.names:
                         interface_name = item_alias.name
@@ -132,15 +132,23 @@ class GlobalContext:
                             )
                         global_ctx._interfaces[interface_name] = built_in_interfaces[interface_name].copy()  # noqa: E501
                 else:
-                    raise StructureException((
-                        "Only built-in vyper.interfaces package supported for "
-                        "`from` statement."
-                    ), item)
+                    for item_alias in item.names:
+                        interface_name = item_alias.name
+
+                        if interface_name in global_ctx._interfaces:
+                            raise StructureException(
+                                'Duplicate import of {}'.format(interface_name), item
+                            )
+                        if interface_name not in interface_codes:
+                            raise StructureException(
+                                'Unknown interface {}'.format(interface_name), item
+                            )
+                        global_ctx._interfaces[interface_name] = extract_sigs(interface_codes[interface_name])  # noqa: E501
             elif isinstance(item, ast.Import):
                 for item_alias in item.names:
                     if not item_alias.asname:
                         raise StructureException(
-                            'External interface import expects and alias using `as` statement', item
+                            'External interface import expects an alias using `as` statement', item
                         )
 
                     interface_name = item_alias.asname

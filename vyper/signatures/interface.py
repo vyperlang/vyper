@@ -124,8 +124,9 @@ def mk_full_signature_from_json(abi):
 
 def extract_sigs(sig_code):
     if sig_code['type'] == 'vyper':
+        interface_ast = parser.parse_to_ast(sig_code['code'])
         return sig_utils.mk_full_signature(
-            parser.parse_to_ast(sig_code['code']),
+            [i for i in interface_ast if not isinstance(i, (ast.Import, ast.ImportFrom))],
             sig_formatter=lambda x, y: x
         )
     elif sig_code['type'] == 'json':
@@ -218,10 +219,29 @@ def extract_file_interface_imports(code: SourceCode) -> InterfaceImports:
                     )
                 if a_name.asname in imports_dict:
                     raise StructureException(
-                        'Interface with alias {} already exists'.format(a_name.asname),
+                        f'Interface with alias {a_name.asname} already exists',
                         item,
                     )
-                imports_dict[a_name.asname] = a_name.name
+                imports_dict[a_name.asname] = a_name.name.replace('.', '/')
+        elif isinstance(item, ast.ImportFrom):
+            for a_name in item.names:  # type: ignore
+                if a_name.asname:
+                    raise StructureException("From imports cannot use aliases", item)
+            level = item.level  # type: ignore
+            module = item.module or ""  # type: ignore
+            if not level and module == 'vyper.interfaces':
+                continue
+            if level:
+                base_path = f"{'.'*level}/{module.replace('.','/')}"
+            else:
+                base_path = module.replace('.', '/')
+            for a_name in item.names:  # type: ignore
+                if a_name.name in imports_dict:
+                    raise StructureException(
+                        f'Interface with name {a_name.name} already exists',
+                        item,
+                    )
+                imports_dict[a_name.name] = f"{base_path}/{a_name.name}"
 
     return imports_dict
 

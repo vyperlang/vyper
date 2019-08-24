@@ -165,16 +165,141 @@ Additional information about Ethereum Natural Specification (NatSpec) can be fou
 Contract Interfaces
 ===================
 
-Vyper supports exporting and importing contract interfaces, this is done using a `import` and `implements` statements.
+An interface is a set of function definitions used to enable communication between smart contracts. A contract interface defines all of that contract's publicly available functions. By importing the interface, your contract now knows how to call these functions in other contracts.
+
+Defining Interfaces and Making External Calls
+---------------------------------------------
+
+Interfaces can be added to contracts either through inline definition, or by importing them from a seperate file.
+
+The ``contract`` keyword is used to define an inline external interface:
+
+.. code-block:: python
+
+    contract FooBar:
+        def calculate() -> uint256: constant
+        def test1(): modifying
+
+The defined interface can then be use to make external calls, given a contract address:
+
+.. code-block:: python
+
+    @public
+    def test(some_address: address):
+        FooBar(some_address).calculate()
+
+The interface name can also be used as a type annotation for storage variables. You then assign an address value to the variable to access that interface. Note that assignment of an address requires the value to be cast using the contract type e.g. ``FooBar(<address_var>)``:
+
+.. code-block:: python
+
+    foobar_contract: FooBar
+
+    @public
+    def __init__(foobar_address: address):
+        self.foobar_contract = FooBar(foobar_address)
+
+    @public
+    def test():
+        self.foobar_contract.calculate()
+
+Specifying ``modifying`` annotation indicates that the call made to the external contract will be able to alter storage, whereas the ``constant`` call will use a ``STATICCALL`` ensuring no storage can be altered during execution.
 
 ::
+
+    contract FooBar:
+        def calculate() -> uint256: constant
+        def test1(): modifying
+
+    @public
+    def test(some_address: address):
+        FooBar(some_address).calculate()  # cannot change storage
+        FooBar(some_address).test1()  # storage can be altered
+
+
+Importing Interfaces
+--------------------
+
+Interfaces are imported with ``import`` or ``from ... import`` statements.
+
+Imported interfaces are written using standard Vyper syntax, with the body of each function replaced by a ``pass`` statement:
+
+.. code-block:: python
+
+    @public
+    def test1():
+        pass
+
+    @public
+    def calculate() -> uint256:
+        pass
+
+You can also import a fully implemented contract and Vyper will automatically convert it to an interface.
+
+Imports via ``import``
+~~~~~~~~~~~~~~~~~~~~~~
+
+With absolute ``import`` statements, you **must** include an alias as a name for the imported package. In the following example, failing to include ``as Foo`` will raise a compile error:
+
+.. code-block:: python
+
+    import contract.foo as Foo
+
+Imports via ``from ... import``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Using ``from`` you can perform both absolute and relative imports. With ``from`` import statements you **cannot** use an alias - the name of the interface will always be that of the file:
+
+.. code-block:: python
+
+    from contract import foo
+
+Relative imports are possible by prepending dots to the contract name. A single leading dot indicates a relative import starting with the current package. Two leading dots indicate a relative import from the parent of the current package:
+
+.. code-block:: python
+
+    from . import foo
+    from ..interfaces import baz
+
+Searching For Interface Files
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When looking for a file to import Vyper will first search relative to the same folder as the contract being compiled. For absolute imports, it also searches relative to the root path for the project. Vyper checks for the file name with a ``.vy`` suffix first, then ``.json``.
+
+When using the command line compiler, the root path defaults to to the current working directory. You can change it with the ``-p`` flag:
+
+::
+
+    $ vyper my_project/contracts/my_contract.vy -p my_project
+
+In the above example, the ``my_project`` folder is set as the root path. A contract cannot perform a relative import that goes beyond the top-level folder.
+
+Built-in Interfaces
+-------------------
+
+Vyper includes common built-in interfaces such as `ERC20 <https://eips.ethereum.org/EIPS/eip-20>`_ and `ERC721 <https://eips.ethereum.org/EIPS/eip-721>`_. These are imported from ``vyper.interfaces``:
+
+.. code-block:: python
+
+    from vyper.interfaces import ERC20
+
+    implements: ERC20
+
+You can see all the available built-in interfaces in the `Vyper GitHub <https://github.com/ethereum/vyper/tree/master/vyper/interfaces>`_ repo.
+
+
+Implementing an Interface
+-------------------------
+
+You can define an interface for your contract with the ``implements`` statement:
+
+.. code-block:: python
 
     import an_interface as FooBarInterface
 
     implements: FooBarInterface
 
-This will import the defined interface in vyper file at `an_interface.vy` (or `an_interface.json` if using ABI json interface type) and make sure the current contract implements all the necessary public functions.
-Note that all interface is valid vyper code, without the return type check. Meaning you can use a contract with code in in the function body as interface as well (but default to a function body with a `pass`).
+
+This imports the defined interface from the vyper file at ``an_interface.vy`` (or ``an_interface.json`` if using ABI json interface type) and ensures your current contract implements all the necessary public functions. If any interface functions are not included in the contract, it will fail to compile. This is especially useful when developing contracts around well-defined standards such as ERC20.
 
 Extracting Interfaces
 ---------------------
@@ -183,7 +308,7 @@ Vyper has a built-in format option to allow you to make your own vyper interface
 
 ::
 
-    vyper -f interface examples/voting/ballot.vy
+    $ vyper -f interface examples/voting/ballot.vy
 
     # Functions
 
@@ -198,7 +323,7 @@ If you want to do an external call to another contract, vyper provides an extern
 
 ::
 
-    vyper -f external_interface examples/voting/ballot.vy
+    $ vyper -f external_interface examples/voting/ballot.vy
 
     # External Contracts
     contract Ballot:
@@ -209,76 +334,3 @@ If you want to do an external call to another contract, vyper provides an extern
         # ...
 
 The output can then easily be copy-pasted to be consumed.
-
-Built-in Interfaces
--------------------
-
-Vyper supports a few built-in interfaces such as ERC20 and ERC721. These are imported from ``vyper.interfaces``:
-
-::
-
-  from vyper.interfaces import ERC20
-
-  implements: ERC20
-
-External Calls Using Interfaces
--------------------------------
-
-To define external interfaces inline the `contract` keyword is used.
-
-::
-
-    contract FooBar:
-        def test1(): modifying
-        def calculate() -> uint256: constant
-
-The defined inline contract can then be use to make external calls, given a contract address.
-
-Specifying `modifying` annotation indicates that the call made to the external contract will be able to alter storage, whereas the `constant` call will use a `STATICCALL` ensuring no storage can be altered during execution.
-
-::
-
-    @public
-    def test(some_address: address):
-        FooBar(some_address).calculate()  # can not change storage
-        FooBar(some_address).test1()  # storage can be altered
-
-An additional utility of storing a contract address in a contract is defined by the ``<global_var>: FooBar`` annotation. Note that assignment of an address requires the address value to be casted using the contract type e.g. ``FooBar(<address_var>)``.
-
-::
-
-    foobar_contract: FooBar
-
-    @public
-    def __init__(foobar_address: address):
-        self.foobar_contract = FooBar(foobar_address)
-
-    @public
-    def call_test1():
-      # ...
-
-To import interfaces to be used in externals calls, one uses the interface just as one would use an inlined interface definition.
-
-::
-
-    import foo_bar as FooBar
-
-    foobar_contract: FooBar
-
-    @public
-    def __init__(foobar_address: address):
-        self.foobar_contract = FooBar(foobar_address)
-
-    @public
-    def test():
-        self.foobar_contract.one()
-
-Or alternatively
-
-::
-
-    import foo_bar as FooBar
-
-    @public
-    def test(addy: address):
-      FooBar(addy).one()

@@ -10,6 +10,7 @@ from pathlib import (
 import sys
 from typing import (
     Any,
+    Dict,
     Iterable,
     Iterator,
     Sequence,
@@ -84,6 +85,11 @@ def _parse_cli_args():
         help='Set the traceback limit for error messages reported by the compiler',
         type=int,
     )
+    parser.add_argument(
+        '-p',
+        help='Set the root path for contract imports',
+        default='.', dest='root_folder'
+    )
 
     args = parser.parse_args()
 
@@ -109,7 +115,12 @@ def _parse_cli_args():
     for f in output_formats:
         final_formats.append(translate_map.get(f, f))
 
-    compiled = compile_files(args.input_files, final_formats, args.show_gas_estimates)
+    compiled = compile_files(
+        args.input_files,
+        final_formats,
+        args.root_folder,
+        args.show_gas_estimates
+    )
 
     if output_formats == ('combined_json',):
         print(json.dumps(compiled))
@@ -143,34 +154,35 @@ def exc_handler(contract_name: ContractName, exception: Exception) -> None:
     raise exception
 
 
-def get_interface_codes(codes: ContractCodes) -> Any:
-    interface_codes = {}
-    interfaces = {}
+def get_interface_codes(root_path: Path, codes: ContractCodes) -> Any:
+    interface_codes: Dict = {}
+    interfaces: Dict = {}
 
-    for code in codes.values():
-        interface_codes.update(extract_file_interface_imports(code))
+    for file_path, code in codes.items():
+        interfaces[file_path] = {}
+        parent_path = root_path.joinpath(file_path).parent
 
-    if interface_codes:
+        interface_codes = extract_file_interface_imports(code)
         for interface_name, interface_path in interface_codes.items():
-            file_path = Path(interface_path.replace('.', '/')).resolve()
 
-            try:
-                suffix = next(i for i in ('.vy', '.json') if file_path.with_suffix(i).exists())
-            except StopIteration:
-                raise Exception(
-                    f'Imported interface "{interface_path}{{.vy,.json}}" does not exist.'
+            base_paths = [parent_path]
+            if not interface_path.startswith('.'):
+                base_paths.append(root_path)
+            elif interface_path.startswith('../') and parent_path == root_path:
+                raise FileNotFoundError(
+                    f"{file_path} - Cannot perform relative import outside of base folder"
                 )
 
-            valid_path = file_path.with_suffix(suffix)
+            valid_path = get_interface_file_path(base_paths, interface_path)
             with valid_path.open() as fh:
                 code = fh.read()
                 if valid_path.suffix == '.json':
-                    interfaces[interface_name] = {
+                    interfaces[file_path][interface_name] = {
                         'type': 'json',
                         'code': json.loads(code.encode())
                     }
                 else:
-                    interfaces[interface_name] = {
+                    interfaces[file_path][interface_name] = {
                         'type': 'vyper',
                         'code': code
                     }
@@ -178,30 +190,51 @@ def get_interface_codes(codes: ContractCodes) -> Any:
     return interfaces
 
 
+def get_interface_file_path(base_paths: Sequence, import_path: str) -> Path:
+    relative_path = Path(import_path)
+    for path in base_paths:
+        file_path = path.joinpath(relative_path)
+        suffix = next((i for i in ('.vy', '.json') if file_path.with_suffix(i).exists()), None)
+        if suffix:
+            return file_path.with_suffix(suffix)
+    raise Exception(
+        f'Imported interface "{import_path}{{.vy,.json}}" does not exist.'
+    )
+
+
 def compile_files(input_files: Iterable[str],
                   output_formats: Sequence[str],
+                  root_folder: str = '.',
                   show_gas_estimates: bool = False) -> OrderedDict:
 
     if show_gas_estimates:
         parser_utils.LLLnode.repr_show_gas = True
 
+    root_path = Path(root_folder).resolve()
+    if not root_path.exists():
+        raise FileNotFoundError(f"Invalid root path - '{root_path.as_posix()}' does not exist")
+
     codes: ContractCodes = OrderedDict()
     for file_name in input_files:
-        with open(file_name) as fh:
-            codes[file_name] = fh.read()
+        file_path = Path(file_name).resolve()
+        file_str = file_path.relative_to(root_path).as_posix()
+        with file_path.open() as fh:
+            codes[file_str] = fh.read()
 
+    show_version = False
     if 'combined_json' in output_formats:
         if len(output_formats) > 1:
             raise ValueError("If using combined_json it must be the only output format requested")
         output_formats = ['bytecode', 'bytecode_runtime', 'abi', 'source_map', 'method_identifiers']
+        show_version = True
 
     compiler_data = vyper.compile_codes(
         codes,
         output_formats,
         exc_handler=exc_handler,
-        interface_codes=get_interface_codes(codes)
+        interface_codes=get_interface_codes(root_path, codes)
     )
-    if 'combined_json' in output_formats:
+    if show_version:
         compiler_data['version'] = vyper.__version__
 
     return compiler_data

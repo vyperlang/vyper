@@ -1,3 +1,5 @@
+import pytest
+
 from vyper.compiler import (
     compile_code,
     compile_codes,
@@ -89,6 +91,22 @@ def test_builtin_interfaces_parse():
     assert len(extract_sigs({'type': 'vyper', 'code': ERC721.interface_code})) == 13
 
 
+def test_extract_sigs_ignores_imports():
+    interface_code = """
+{}
+
+@public
+def foo() -> uint256:
+    pass
+    """
+
+    base = extract_sigs({'type': 'vyper', 'code': interface_code.format("")})
+
+    for stmt in ("import x as x", "from x import y"):
+        sigs = extract_sigs({'type': 'vyper', 'code': interface_code.format(stmt)})
+        assert [type(i) for i in base] == [type(i) for i in sigs]
+
+
 def test_external_interface_parsing(assert_compile_failed):
     interface_code = """
 @public
@@ -140,25 +158,41 @@ def foo() -> uint256:
     )
 
 
-def test_extract_file_interface_imports(assert_compile_failed):
-    code = """
-import a as FooBarInterface
-    """
+VALID_IMPORT_CODE = [
+    # import statement, import path without suffix
+    ("import a as Foo", 'a'),
+    ("import b.a as Foo", 'b/a'),
+    ("import Foo as Foo", 'Foo'),
+    ("from a import Foo", 'a/Foo'),
+    ("from b.a import Foo", 'b/a/Foo'),
+    ("from .a import Foo", './a/Foo'),
+    ("from ..a import Foo", '../a/Foo'),
+]
 
-    assert extract_file_interface_imports(code) == {'FooBarInterface': 'a'}
 
-    invalid_no_alias_code = """
-import a
-    """
+@pytest.mark.parametrize('code', VALID_IMPORT_CODE)
+def test_extract_file_interface_imports(code):
+
+    assert extract_file_interface_imports(code[0]) == {'Foo': code[1]}
+
+
+BAD_IMPORT_CODE = [
+    "import a",  # must alias absolute imports
+    "from a import a as A",  # cannot alias from imports
+    "from ..a import a as A",
+    "import a as A\nimport a as A",  # namespace collisions
+    "from b import a\nfrom a import a",
+    "from . import a\nimport a as a",
+    "import a as a\nfrom . import a",
+]
+
+
+@pytest.mark.parametrize('code', BAD_IMPORT_CODE)
+def test_extract_file_interface_imports_raises(code, assert_compile_failed):
     assert_compile_failed(
-        lambda: extract_file_interface_imports(invalid_no_alias_code), StructureException
+        lambda: extract_file_interface_imports(code),
+        StructureException
     )
-
-    invalid_interfac_already_exists_code = """
-import a as A
-import a as A
-    """
-    assert_compile_failed(lambda: extract_file_interface_imports(invalid_interfac_already_exists_code), StructureException)  # noqa: E501
 
 
 def test_external_call_to_interface(w3, get_contract):
@@ -323,3 +357,55 @@ def balanceOf(owner: address) -> uint256:
     c = get_contract(code, interface_codes=interface_codes)
 
     assert c.balanceOf(w3.eth.accounts[0]) == w3.toWei(1, "ether")
+
+
+def test_local_and_global_interface_namespaces():
+    interface_code = """
+@public
+def foo() -> uint256:
+    pass
+    """
+
+    global_interface_codes = {
+        'FooInterface': {
+            'type': 'vyper',
+            'code': interface_code
+        },
+        'BarInterface': {
+            'type': 'vyper',
+            'code': interface_code
+        }
+    }
+    local_interface_codes = {
+        'FooContract': {
+            'FooInterface': {
+                'type': 'vyper',
+                'code': interface_code
+            },
+        },
+        'BarContract': {
+            'BarInterface': {
+                'type': 'vyper',
+                'code': interface_code
+            }
+        }
+    }
+
+    code = """
+import a as {0}
+
+implements: {0}
+
+@public
+def foo() -> uint256:
+    return 1
+    """
+
+    codes = {
+        'FooContract': code.format('FooInterface'),
+        'BarContract': code.format('BarInterface')
+    }
+
+    global_compiled = compile_codes(codes, interface_codes=global_interface_codes)
+    local_compiled = compile_codes(codes, interface_codes=local_interface_codes)
+    assert global_compiled == local_compiled
