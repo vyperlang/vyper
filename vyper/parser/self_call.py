@@ -2,6 +2,7 @@ import itertools
 
 from vyper.exceptions import (
     ConstancyViolationException,
+    StructureException,
     TypeMismatchException,
 )
 from vyper.parser.lll_node import (
@@ -135,6 +136,7 @@ def call_self_private(stmt_expr, context, sig):
             push_local_vars = [['mload', pos] for pos in range(mem_from, mem_to, 32)]
             pop_local_vars = [['mstore', pos, 'pass'] for pos in range(mem_to-32, mem_from-32, -32)]
 
+
     # Push Arguments
     if expr_args:
         inargs, inargsize, arg_pos = pack_arguments(
@@ -197,6 +199,11 @@ def call_self_private(stmt_expr, context, sig):
         push_args += [
             ['mload', pos] for pos in reversed(range(arg_pos, static_pos, 32))
         ]
+    elif sig.args:
+        raise StructureException(
+            f"Wrong number of args for: {sig.name} (0 args given, expected {len(sig.args)})",
+            stmt_expr
+        )
 
     # Jump to function label.
     jump_to_func = [
