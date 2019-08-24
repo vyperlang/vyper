@@ -478,8 +478,8 @@ def assembly_to_evm(assembly, map_line_numbers=True):
     line_number_map = {
         'breakpoints': set(),
         'pc_breakpoints': set(),
-        'pc_jump_map': {},
-        'pc_pos_map': {}
+        'pc_jump_map': {0: '-'},
+        'pc_pos_map': {},
     }
     posmap = {}
     sub_assemblies = []
