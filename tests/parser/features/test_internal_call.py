@@ -4,8 +4,8 @@ from decimal import (
 
 import pytest
 
-from vyper import (
-    compiler,
+from vyper.compiler import (
+    compile_code,
 )
 from vyper.exceptions import (
     StructureException,
@@ -381,20 +381,49 @@ def bar() -> (bytes[11], decimal, int128):
     assert c.bar() == [b"hello world", Decimal('66.77'), 44]
 
 
-def test_selfcall_with_wrong_arg_count_fails(get_contract_with_gas_estimation, assert_tx_failed):
-    code = """
-@public
+FAILING_CONTRACTS_STRUCTURE_EXCEPTION = [
+    """
+# expected no args, args given
+@private
 def bar() -> int128:
     return 1
 
 @public
 def foo() -> int128:
     return self.bar(1)
-"""
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(code), StructureException)
+    """,
+    """
+# expected args, none given
+@private
+def bar(a: int128) -> int128:
+    return 1
+
+@public
+def foo() -> int128:
+    return self.bar()
+    """,
+    """
+# wrong arg count
+@private
+def bar(a: int128) -> int128:
+    return 1
+
+@public
+def foo() -> int128:
+    return self.bar(1, 2)
+    """
+]
 
 
-FAILING_CONTRACTS = [
+@pytest.mark.parametrize('failing_contract_code', FAILING_CONTRACTS_STRUCTURE_EXCEPTION)
+def test_selfcall_wrong_arg_count(failing_contract_code, assert_compile_failed):
+    assert_compile_failed(
+        lambda: compile_code(failing_contract_code),
+        StructureException
+    )
+
+
+FAILING_CONTRACTS_TYPE_MISMATCH = [
     """
 # should not compile - value kwarg when calling {0} function
 @{0}
@@ -438,9 +467,10 @@ def bar():
 ]
 
 
-@pytest.mark.parametrize('failing_contract_code', FAILING_CONTRACTS)
+@pytest.mark.parametrize('failing_contract_code', FAILING_CONTRACTS_TYPE_MISMATCH)
 @pytest.mark.parametrize('decorator', ['public', 'private'])
-def test_selfcall_kwarg_raises(failing_contract_code, decorator):
-    code = failing_contract_code.format(decorator)
-    with pytest.raises(TypeMismatchException):
-        compiler.compile_code(code)
+def test_selfcall_kwarg_raises(failing_contract_code, decorator, assert_compile_failed):
+    assert_compile_failed(
+        lambda: compile_code(failing_contract_code.format(decorator)),
+        TypeMismatchException
+    )

@@ -2,6 +2,7 @@ import itertools
 
 from vyper.exceptions import (
     ConstancyViolationException,
+    StructureException,
     TypeMismatchException,
 )
 from vyper.parser.lll_node import (
@@ -141,8 +142,8 @@ def call_self_private(stmt_expr, context, sig):
             sig,
             expr_args,
             context,
+            stmt_expr,
             return_placeholder=False,
-            pos=getpos(stmt_expr),
         )
         push_args += [inargs]  # copy arguments first, to not mess up the push/pop sequencing.
 
@@ -197,6 +198,11 @@ def call_self_private(stmt_expr, context, sig):
         push_args += [
             ['mload', pos] for pos in reversed(range(arg_pos, static_pos, 32))
         ]
+    elif sig.args:
+        raise StructureException(
+            f"Wrong number of args for: {sig.name} (0 args given, expected {len(sig.args)})",
+            stmt_expr
+        )
 
     # Jump to function label.
     jump_to_func = [
@@ -299,7 +305,7 @@ def call_self_public(stmt_expr, context, sig):
     # self.* style call to a public function.
     method_name, expr_args, sig = call_lookup_specs(stmt_expr, context)
     add_gas = sig.gas  # gas of call
-    inargs, inargsize, _ = pack_arguments(sig, expr_args, context, pos=getpos(stmt_expr))
+    inargs, inargsize, _ = pack_arguments(sig, expr_args, context, stmt_expr)
     output_placeholder, returner, output_size = call_make_placeholder(stmt_expr, context, sig)
     # don't have to use static call, trust self-call since constancy analysis
     # already propagates.

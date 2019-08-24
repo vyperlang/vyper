@@ -62,7 +62,7 @@ def external_contract_call(node,
         sig,
         [Expr(arg, context).lll_node for arg in node.args],
         context,
-        pos=pos,
+        node.func,
     )
     output_placeholder, output_size, returner = get_external_contract_call_output(sig, context)
     sub = [

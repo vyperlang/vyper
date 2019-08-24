@@ -1,3 +1,5 @@
+import pytest
+
 from vyper.exceptions import (
     ConstancyViolationException,
     InvalidTypeException,
@@ -664,27 +666,53 @@ bar_contract: Barr
     )
 
 
-def test_invalid_contract_declaration_pass(assert_compile_failed, get_contract_with_gas_estimation):
-
-    contract_1 = """
+FAILING_CONTRACTS_STRUCTURE_EXCEPTION = [
+    """
+# invalid contract declaration (pass)
 contract Bar:
     def set_lucky(arg1: int128): pass
+    """,
     """
-
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), StructureException)
-
-
-def test_invalid_contract_declaration_assign(assert_compile_failed,
-                                             get_contract_with_gas_estimation):
-
-    contract_1 = """
 contract Bar:
+# invalud contract declaration (assignment)
     def set_lucky(arg1: int128):
         arg1 = 1
         arg1 = 3
+    """,
     """
+# wrong arg count
+contract Bar:
+    def bar(arg1: int128) -> bool: constant
 
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), StructureException)
+@public
+def foo(a: address):
+    Bar(a).bar(1, 2)
+    """,
+    """
+# expected args, none given
+contract Bar:
+    def bar(arg1: int128) -> bool: constant
+
+@public
+def foo(a: address):
+    Bar(a).bar()
+    """,
+    """
+# expected no args, args given
+contract Bar:
+    def bar() -> bool: constant
+
+@public
+def foo(a: address):
+    Bar(a).bar(1)
+    """
+]
+
+
+@pytest.mark.parametrize('bad_code', FAILING_CONTRACTS_STRUCTURE_EXCEPTION)
+def test_bad_code_struct_exc(assert_compile_failed, get_contract_with_gas_estimation, bad_code):
+
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), StructureException)
 
 
 def test_external__value_arg_without_return(w3, get_contract_with_gas_estimation):
