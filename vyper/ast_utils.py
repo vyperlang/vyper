@@ -3,6 +3,8 @@ from typing import (
     Generator,
 )
 
+import asttokens
+
 import vyper.ast as vyper_ast
 from vyper.exceptions import (
     CompilerPanic,
@@ -38,10 +40,19 @@ def _build_vyper_ast_init_kwargs(
     vyper_class: vyper_ast.VyperNode,
     class_name: str
 ) -> Generator:
-    yield ('col_offset', getattr(node, 'col_offset', None))
-    yield ('lineno', getattr(node, 'lineno', None))
+    start = node.first_token.start if hasattr(node, 'first_token') else (None, None)  # type: ignore
+    yield ('col_offset', start[1])
+    yield ('lineno', start[0])
     yield ('node_id', node.node_id)  # type: ignore
     yield ('source_code', source_code)
+
+    end = node.last_token.end if hasattr(node, 'last_token') else (None, None)  # type: ignore
+    yield ('end_lineno', end[0])
+    yield ('end_col_offset', end[1])
+    if hasattr(node, 'last_token'):
+        start_pos = node.first_token.startpos  # type: ignore
+        end_pos = node.last_token.endpos  # type: ignore
+        yield ('src', f"{start_pos}:{end_pos-start_pos}:0")
 
     if isinstance(node, python_ast.ClassDef):
         yield ('class_type', node.class_type)  # type: ignore
@@ -92,6 +103,7 @@ def parse_to_ast(source_code: str) -> list:
     class_types, reformatted_code = pre_parse(source_code)
     py_ast = python_ast.parse(reformatted_code)
     annotate_ast(py_ast, source_code, class_types)
+    asttokens.ASTTokens(source_code, tree=py_ast)
     # Convert to Vyper AST.
     vyper_ast = parse_python_ast(
         source_code=source_code,

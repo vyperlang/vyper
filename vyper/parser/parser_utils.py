@@ -239,7 +239,12 @@ def get_length(arg):
 
 
 def getpos(node):
-    return (node.lineno, node.col_offset)
+    return (
+        node.lineno,
+        node.col_offset,
+        getattr(node, 'end_lineno', None),
+        getattr(node, 'end_col_offset', None)
+    )
 
 
 # Take a value representing a memory or storage location, and descend down to

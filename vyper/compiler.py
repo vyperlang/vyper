@@ -4,6 +4,8 @@ from collections import (
 )
 import warnings
 
+import asttokens
+
 from vyper import (
     compile_lll,
     optimizer,
@@ -119,10 +121,61 @@ def get_source_map(code, contract_name, interface_codes=None):
     c, line_number_map = compile_lll.assembly_to_evm(asm_list)
     # Sort line_number_map
     out = OrderedDict()
-    keylist = line_number_map.keys()
-    for k in sorted(keylist):
+    for k in sorted(line_number_map.keys()):
         out[k] = line_number_map[k]
+
+    out['pc_pos_map_compressed'] = compress_source_map(code, out['pc_pos_map'], out['pc_jump_map'])
+    out['pc_pos_map'] = dict((k, v) for k, v in out['pc_pos_map'].items() if v)
     return out
+
+
+def compress_source_map(code, pos_map, jump_map):
+    linenos = asttokens.LineNumbers(code)
+    compressed_map = "-1:-1:0:-;"
+    last_pos = [-1, -1, 0]
+
+    for pc in sorted(pos_map)[1:]:
+        current_pos = [-1, -1, 0]
+        if pos_map[pc]:
+            current_pos[0] = linenos.line_to_offset(*pos_map[pc][:2])
+            current_pos[1] = linenos.line_to_offset(*pos_map[pc][2:])-current_pos[0]
+
+        if pc in jump_map:
+            current_pos.append(jump_map[pc])
+
+        for i in range(2, -1, -1):
+            if current_pos[i] != last_pos[i]:
+                last_pos[i] = current_pos[i]
+            elif len(current_pos) == i+1:
+                current_pos.pop()
+            else:
+                current_pos[i] = ""
+
+        compressed_map += ":".join(str(i) for i in current_pos) + ";"
+
+    return compressed_map
+
+
+def expand_source_map(compressed_map):
+    source_map = [_expand_row(i) if i else None for i in compressed_map.split(';')[:-1]]
+
+    for i, value in enumerate(source_map[1:], 1):
+        if value is None:
+            source_map[i] = source_map[i - 1][:3] + [None]
+            continue
+        for x in range(3):
+            if source_map[i][x] is None:
+                source_map[i][x] = source_map[i - 1][x]
+
+    return source_map
+
+
+def _expand_row(row):
+    result = [None] * 4
+    for i, value in enumerate(row.split(':')):
+        if value:
+            result[i] = value if i == 3 else int(value)
+    return result
 
 
 def get_opcodes(code, contract_name, bytecodes_runtime=False, interface_codes=None):
