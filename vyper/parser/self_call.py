@@ -136,15 +136,14 @@ def call_self_private(stmt_expr, context, sig):
             push_local_vars = [['mload', pos] for pos in range(mem_from, mem_to, 32)]
             pop_local_vars = [['mstore', pos, 'pass'] for pos in range(mem_to-32, mem_from-32, -32)]
 
-
     # Push Arguments
     if expr_args:
         inargs, inargsize, arg_pos = pack_arguments(
             sig,
             expr_args,
             context,
+            stmt_expr,
             return_placeholder=False,
-            pos=getpos(stmt_expr),
         )
         push_args += [inargs]  # copy arguments first, to not mess up the push/pop sequencing.
 
@@ -306,7 +305,7 @@ def call_self_public(stmt_expr, context, sig):
     # self.* style call to a public function.
     method_name, expr_args, sig = call_lookup_specs(stmt_expr, context)
     add_gas = sig.gas  # gas of call
-    inargs, inargsize, _ = pack_arguments(sig, expr_args, context, pos=getpos(stmt_expr))
+    inargs, inargsize, _ = pack_arguments(sig, expr_args, context, stmt_expr)
     output_placeholder, returner, output_size = call_make_placeholder(stmt_expr, context, sig)
     assert_call = [
         'assert',

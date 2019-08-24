@@ -434,7 +434,8 @@ def unwrap_location(orig):
 
 
 # Pack function arguments for a call
-def pack_arguments(signature, args, context, pos, return_placeholder=True):
+def pack_arguments(signature, args, context, stmt_expr, return_placeholder=True):
+    pos = getpos(stmt_expr)
     placeholder_typ = ByteArrayType(
         maxlen=sum([get_size_of_type(arg.typ) for arg in signature.args]) * 32 + 32
     )
@@ -446,11 +447,9 @@ def pack_arguments(signature, args, context, pos, return_placeholder=True):
     actual_arg_count = len(args)
     if actual_arg_count != expected_arg_count:
         raise StructureException(
-            "Wrong number of args for: %s (%s args, expected %s)" % (
-                signature.name,
-                actual_arg_count,
-                expected_arg_count,
-            )
+            f"Wrong number of args for: {signature.name} "
+            f"({actual_arg_count} args given, expected {expected_arg_count}",
+            stmt_expr
         )
 
     for i, (arg, typ) in enumerate(zip(args, [arg.typ for arg in signature.args])):
@@ -483,7 +482,7 @@ def pack_arguments(signature, args, context, pos, return_placeholder=True):
 
         elif isinstance(typ, (StructType, ListType)):
             if has_dynamic_data(typ):
-                raise TypeMismatchException("Cannot pack bytearray in struct")
+                raise TypeMismatchException("Cannot pack bytearray in struct", stmt_expr)
             target = LLLnode.from_list(
                 [placeholder + 32 + staticarray_offset + i * 32],
                 typ=typ,
@@ -497,7 +496,7 @@ def pack_arguments(signature, args, context, pos, return_placeholder=True):
             staticarray_offset += 32 * (count - 1)
 
         else:
-            raise TypeMismatchException("Cannot pack argument of type %r" % typ)
+            raise TypeMismatchException(f"Cannot pack argument of type {typ}", stmt_expr)
 
     # For private call usage, doesn't use a returner.
     returner = [[placeholder + 28]] if return_placeholder else []
