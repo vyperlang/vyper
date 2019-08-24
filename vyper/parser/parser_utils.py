@@ -887,11 +887,12 @@ def annotate_ast(
     RewriteUnarySubVisitor().visit(parsed_ast)
 
 
-def zero_pad(bytez_placeholder, maxlen, context):
+def zero_pad(bytez_placeholder, maxlen, context=None, zero_pad_i=None):
     zero_padder = LLLnode.from_list(['pass'])
     if maxlen > 0:
         # Iterator used to zero pad memory.
-        zero_pad_i = context.new_placeholder(BaseType('uint256'))
+        if zero_pad_i is None:
+            zero_pad_i = context.new_placeholder(BaseType('uint256'))
         zero_padder = LLLnode.from_list([
             'repeat', zero_pad_i, ['mload', bytez_placeholder], ceil32(maxlen), [
                 'seq',
@@ -961,7 +962,7 @@ def gen_tuple_return(stmt, context, sub):
     # Is from a call expression.
     if sub.args and len(sub.args[0].args) > 0 and sub.args[0].args[0].value == 'call':
         # self-call to public.
-        mem_pos = sub.args[0].args[-1]
+        mem_pos = sub
         mem_size = get_size_of_type(sub.typ) * 32
         return LLLnode.from_list(['return', mem_pos, mem_size], typ=sub.typ)
 

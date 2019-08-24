@@ -37,6 +37,7 @@ from vyper.parser.parser_utils import (
     make_return_stmt,
     make_setter,
     unwrap_location,
+    zero_pad
 )
 from vyper.types import (
     BaseType,
@@ -778,27 +779,6 @@ class Stmt(object):
         if not self.stmt.value:
             raise TypeMismatchException("Expecting to return a value", self.stmt)
 
-        def zero_pad(bytez_placeholder, maxlen):
-            zero_padder = LLLnode.from_list(['pass'])
-            if maxlen > 0:
-                # Iterator used to zero pad memory.
-                zero_pad_i = self.context.new_placeholder(BaseType('uint256'))
-                zero_padder = LLLnode.from_list([
-                    'with', '_ceil32_end', ['ceil32', ['mload', bytez_placeholder]], [
-                        'repeat', zero_pad_i, ['mload', bytez_placeholder], ceil32(maxlen), [
-                            'seq',
-                            # stay within allocated bounds
-                            ['if', ['gt', ['mload', zero_pad_i], '_ceil32_end'], 'break'],
-                            [
-                                'mstore8',
-                                ['add', ['add', 32, bytez_placeholder], ['mload', zero_pad_i]],
-                                0
-                            ],
-                        ],
-                    ],
-                ], annotation="Zero pad")
-            return zero_padder
-
         sub = Expr(self.stmt.value, self.context).lll_node
 
         # Returning a value (most common case)
@@ -883,7 +863,7 @@ class Stmt(object):
                         sub,
                         pos=getpos(self.stmt)
                     ),
-                    zero_pad(bytez_placeholder, sub.typ.maxlen),
+                    zero_pad(bytez_placeholder, sub.typ.maxlen, self.context),
                     ['mstore', len_placeholder, 32],
                     make_return_stmt(
                         self.stmt,
