@@ -891,16 +891,17 @@ def annotate_ast(
     RewriteUnarySubVisitor().visit(parsed_ast)
 
 
-def zero_pad(bytez_placeholder, maxlen, context):
+def zero_pad(bytez_placeholder, maxlen, context=None, zero_pad_i=None):
     zero_padder = LLLnode.from_list(['pass'])
     if maxlen > 0:
         # Iterator used to zero pad memory.
-        zero_pad_i = context.new_placeholder(BaseType('uint256'))
+        if zero_pad_i is None:
+            zero_pad_i = context.new_placeholder(BaseType('uint256'))
         zero_padder = LLLnode.from_list([
-            'repeat', zero_pad_i, ['mload', bytez_placeholder], maxlen, [
+            'repeat', zero_pad_i, ['mload', bytez_placeholder], ceil32(maxlen), [
                 'seq',
                 # stay within allocated bounds
-                ['if', ['gt', ['mload', zero_pad_i], maxlen], 'break'],
+                ['if', ['gt', ['mload', zero_pad_i], ceil32(maxlen)], 'break'],
                 ['mstore8', ['add', ['add', 32, bytez_placeholder], ['mload', zero_pad_i]], 0]
             ]],
             annotation="Zero pad",
