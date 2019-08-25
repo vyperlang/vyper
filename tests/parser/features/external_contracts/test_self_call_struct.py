@@ -9,7 +9,7 @@ struct MyStruct:
     e1: decimal
     e2: timestamp
 
-@public
+@private
 @constant
 def get_my_struct(_e1: decimal, _e2: timestamp) -> MyStruct:
     return MyStruct({e1: _e1, e2: _e2})

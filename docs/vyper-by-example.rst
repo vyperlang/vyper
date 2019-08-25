@@ -80,10 +80,8 @@ contract, we are provided with a built-in variable ``msg`` and we can access
 the public address of any method caller with ``msg.sender``. Similarly, the
 amount of ether a user sends can be accessed by calling ``msg.value``.
 
-.. warning:: ``msg.sender`` will change between internal function calls so that
-  if you're calling a function from the outside, it's correct for the first
-  function call. But then, for the function calls after, ``msg.sender`` will
-  reference the contract itself as opposed to the sender of the transaction.
+.. note:: ``msg.sender`` and ``msg.value`` can only be accessed from public
+  functions. If you require these values within a private function they must be passed as parameters.
 
 Here, we first check whether the current time is before the auction's end time
 using the ``assert`` function which takes any boolean statement. We also check
@@ -403,11 +401,9 @@ Let’s move onto the constructor.
   :language: python
   :pyobject: __init__
 
-.. warning:: Both ``msg.sender`` and ``msg.balance`` change between internal
-  function calls so that if you're calling a function from the outside, it's
-  correct for the first function call. But then, for the function calls after,
-  ``msg.sender`` and ``msg.balance`` reference the contract itself as opposed
-  to the sender of the transaction.
+.. note:: ``msg.sender`` and ``msg.value`` can only be accessed from public
+  functions. If you require these values within a private function they must be
+  passed as parameters.
 
 In the constructor, we hard-coded the contract to accept an
 array argument of exactly two proposal names of type ``bytes32`` for the contracts
@@ -426,6 +422,8 @@ Now that the initial setup is done, lets take a look at the functionality.
 .. literalinclude:: ../examples/voting/ballot.vy
   :language: python
   :pyobject: giveRightToVote
+
+.. note:: Throughout this contract, we use a pattern where ``@public`` functions return data from ``@private`` functions that have the same name prepended with an underscore. This is because Vyper does not allow calls between public functions within the same contract. The private function handles the logic and allows internal access, while the public function acts as a getter to allow external viewing.
 
 We need a way to control who has the ability to vote. The method
 ``giveRightToVote()`` is a method callable by only the chairperson by taking
@@ -471,12 +469,14 @@ is a read-only function and we benefit by saving gas fees.
 
 .. literalinclude:: ../examples/voting/ballot.vy
   :language: python
-  :pyobject: winningProposal
+  :lines: 153-170
 
-The ``winningProposal()`` method returns the key of proposal in the ``proposals``
+The ``_winningProposal()`` method returns the key of proposal in the ``proposals``
 mapping. We will keep track of greatest number of votes and the winning
 proposal with the variables ``winningVoteCount`` and ``winningProposal``,
 respectively by looping through all the proposals.
+
+``winningProposal()`` is a public function allowing external access to ``_winningProposal()``.
 
 .. literalinclude:: ../examples/voting/ballot.vy
   :language: python
@@ -512,6 +512,8 @@ Let's get started.
   :language: python
   :linenos:
 
+.. note:: Throughout this contract, we use a pattern where ``@public`` functions return data from ``@private`` functions that have the same name prepended with an underscore. This is because Vyper does not allow calls between public functions within the same contract. The private function handles the logic and allows internal access, while the public function acts as a getter to allow external viewing.
+
 The contract contains a number of methods that modify the contract state as
 well as a few 'getter' methods to read it. We first declare several events
 that the contract logs. We then declare our global variables, followed by
@@ -519,7 +521,7 @@ function definitions.
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lines: 7-13
+  :lines: 11-18
 
 We initiate the ``company`` variable to be of type ``address`` that's public.
 The ``totalShares`` variable is of type ``currency_value``, which in this case
@@ -539,16 +541,18 @@ company's address is initialized to hold all shares of the company in the
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :pyobject: stockAvailable
+  :lines: 33-44
 
 We will be seeing a few ``@constant`` decorators in this contract—which is
 used to decorate methods that simply read the contract state or return a simple
 calculation on the contract state without modifying it. Remember, reading the
 blockchain is free, writing on it is not. Since Vyper is a statically typed
-language, we see an arrow following the definition of the ``stockAvailable()``
+language, we see an arrow following the definition of the ``_stockAvailable()``
 method, which simply represents the data type which the function is expected
 to return. In the method, we simply key into ``self.holdings`` with the
-company's address and check it's holdings.
+company's address and check it's holdings.  Because ``_stockAvailable()`` is a
+private method, we also include the public ``stockAvailable()`` method to allow
+external access.
 
 Now, lets take a look at a method that lets a person buy stock from the
 company's holding.
@@ -566,10 +570,11 @@ Now that people can buy shares, how do we check someone's holdings?
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :pyobject: getHolding
+  :lines: 63-74
 
-The ``getHolding()`` is another ``@constant`` method that takes an ``address``
+The ``_getHolding()`` is another ``@constant`` method that takes an ``address``
 and returns its corresponding stock holdings by keying into ``self.holdings``.
+Again, a public function ``getHolding()`` is included to allow external access.
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
@@ -613,11 +618,11 @@ sends its ether to an address.
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :pyobject: debt
+  :lines: 129-140
 
 We can also check how much the company has raised by multiplying the number of
-shares the company has sold and the price of each share. We can get this value
-by calling the ``debt()`` method.
+shares the company has sold and the price of each share. Internally, we get
+this value by calling the ``_debt()`` method. Externally it is accessed via ``debt()``.
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python

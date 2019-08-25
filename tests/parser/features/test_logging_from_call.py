@@ -3,12 +3,12 @@ def test_log_dynamic_static_combo(get_logs, get_contract_with_gas_estimation, w3
     code = """
 TestLog: event({testData1: bytes32,testData2: bytes[60], testData3: bytes[8]})
 
-@public
+@private
 @constant
 def to_bytes(value: uint256) -> bytes[8]:
     return slice(concat(b"", convert(value, bytes32)), start=24, len=8)
 
-@public
+@private
 @constant
 def to_bytes32(value: uint256) -> bytes32:
     return convert(value, bytes32)
@@ -44,12 +44,12 @@ def test_log_dynamic_static_combo2(get_logs, get_contract, w3):
     code = """
 TestLog: event({testData1: bytes32,testData2: bytes[133], testData3: bytes[8] })
 
-@public
+@private
 @constant
 def to_bytes(value: uint256) -> bytes[8]:
     return slice(concat(b"", convert(value, bytes32)), start=24, len=8)
 
-@public
+@private
 @constant
 def to_bytes32(value: uint256) -> bytes32:
     return convert(value, bytes32)
@@ -82,7 +82,7 @@ def test_log_single_function_call(get_logs, get_contract, w3):
     code = """
 TestLog: event({testData1: bytes32, testData2: bytes[133]})
 
-@public
+@private
 @constant
 def to_bytes32(value: uint256) -> bytes32:
     return convert(value, bytes32)
@@ -112,7 +112,7 @@ def test_original_problem_function(get_logs, get_contract, w3):
     code = """
 TestLog: event({testData1: bytes32,testData2: bytes[2064], testData3: bytes[8] })
 
-@public
+@private
 @constant
 def to_bytes(value: uint256) -> bytes[8]:
     return slice(concat(b"", convert(value, bytes32)), start=24, len=8)

@@ -22,7 +22,7 @@ def test():
     a, b, c = 1, 2, 3
     """, VariableDeclarationException),
     """
-@public
+@private
 def out_literals() -> (int128, int128, bytes[10]):
     return 1, 2, b"3333"
 
@@ -34,7 +34,7 @@ def test() -> (int128, address, bytes[10]):
     return a, b, c
     """,
     """
-@public
+@private
 def out_literals() -> (int128, int128, bytes[10]):
     return 1, 2, b"3333"
 
@@ -46,7 +46,7 @@ def test() -> (int128, address, bytes[10]):
     return
     """,
     """
-@public
+@private
 def out_literals() -> (int128, int128, int128):
     return 1, 2, 3
 
@@ -59,7 +59,7 @@ def test() -> (int128, int128, bytes[10]):
     return a, b, c
     """,
     """
-@public
+@private
 def out_literals() -> (int128, int128, bytes[100]):
     return 1, 2, b"test"
 

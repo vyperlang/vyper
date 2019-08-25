@@ -26,7 +26,7 @@ Vyper Contract and Basic Fixtures
 This is the base requirement to load a vyper contract and start testing. The last two fixtures are optional and will be
 discussed later. The rest of this chapter assumes, that you have this code set up in your ``conftest.py`` file.
 Alternatively, you can import the fixtures to ``conftest.py`` or use
-`pytest_plugins <https://docs.pytest.org/en/latest/plugins.html>`_.
+`pytest plugins <https://docs.pytest.org/en/latest/plugins.html>`_.
 
 Load Contract and Basic Tests
 =============================

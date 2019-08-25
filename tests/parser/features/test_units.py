@@ -103,7 +103,7 @@ def foo(a: uint256, b: uint256, c: uint256) -> uint256:
 
 def test_function_call_explicit_unit_literal(get_contract, assert_compile_failed):
     code = """
-@public
+@private
 def unit_func(a: uint256(wei)) -> uint256(wei):
     return a + 1
 

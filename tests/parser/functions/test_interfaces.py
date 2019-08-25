@@ -409,3 +409,62 @@ def foo() -> uint256:
     global_compiled = compile_codes(codes, interface_codes=global_interface_codes)
     local_compiled = compile_codes(codes, interface_codes=local_interface_codes)
     assert global_compiled == local_compiled
+
+
+def test_self_interface_cannot_compile(assert_compile_failed):
+    code = """
+contract Bar:
+    def foo() -> uint256: constant
+
+@public
+def foo() -> uint256 :
+    return 42
+
+@public
+def bar() -> uint256:
+    return Bar(self).foo()
+"""
+    assert_compile_failed(
+        lambda: compile_code(code),
+        StructureException
+    )
+
+
+def test_self_interface_via_storage_raises(get_contract, assert_tx_failed):
+    code = """
+contract Bar:
+    def foo() -> uint256: constant
+
+bar_contract: Bar
+
+@public
+def __init__():
+    self.bar_contract = Bar(self)
+
+@public
+def foo() -> uint256 :
+    return 42
+
+@public
+def bar() -> uint256:
+    return self.bar_contract.foo()
+    """
+    c = get_contract(code)
+    assert_tx_failed(lambda: c.bar())
+
+
+def test_self_interface_via_calldata_raises(get_contract, assert_tx_failed):
+    code = """
+contract Bar:
+    def foo() -> uint256: constant
+
+@public
+def foo() -> uint256 :
+    return 42
+
+@public
+def bar(a: address) -> uint256:
+    return Bar(a).foo()
+    """
+    c = get_contract(code)
+    assert_tx_failed(lambda: c.bar(c.address))
