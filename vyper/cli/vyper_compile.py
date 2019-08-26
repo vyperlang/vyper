@@ -31,7 +31,8 @@ from vyper.signatures.interface import (
 )
 from vyper.typing import (
     ContractCodes,
-    ContractName,
+    ContractPath,
+    OutputFormats,
 )
 
 T = TypeVar('T')
@@ -149,8 +150,8 @@ def uniq(seq: Iterable[T]) -> Iterator[T]:
         yield x
 
 
-def exc_handler(contract_name: ContractName, exception: Exception) -> None:
-    print('Error compiling: ', contract_name)
+def exc_handler(contract_path: ContractPath, exception: Exception) -> None:
+    print(f'Error compiling: {contract_path}')
     raise exception
 
 
@@ -203,7 +204,7 @@ def get_interface_file_path(base_paths: Sequence, import_path: str) -> Path:
 
 
 def compile_files(input_files: Iterable[str],
-                  output_formats: Sequence[str],
+                  output_formats: OutputFormats,
                   root_folder: str = '.',
                   show_gas_estimates: bool = False) -> OrderedDict:
 

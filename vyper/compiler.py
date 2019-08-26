@@ -2,6 +2,12 @@ from collections import (
     OrderedDict,
     deque,
 )
+from typing import (
+    Any,
+    Callable,
+    Sequence,
+    Union,
+)
 import warnings
 
 import asttokens
@@ -25,6 +31,13 @@ from vyper.signatures import (
 from vyper.signatures.interface import (
     extract_external_interface,
     extract_interface_str,
+)
+from vyper.typing import (
+    ContractCodes,
+    InterfaceDict,
+    InterfaceImports,
+    OutputDict,
+    OutputFormats,
 )
 
 
@@ -269,21 +282,24 @@ output_formats_map = {
 }
 
 
-def compile_codes(codes,
-                  output_formats=None,
-                  exc_handler=None,
-                  interface_codes=None):
+def compile_codes(codes: ContractCodes,
+                  output_formats: Union[OutputDict, OutputFormats, None] = None,
+                  exc_handler: Union[Callable, None] = None,
+                  interface_codes: Union[InterfaceDict, InterfaceImports, None] = None) -> OrderedDict:  # NOQA: E501
+
     if output_formats is None:
         output_formats = ('bytecode',)
+    if isinstance(output_formats, Sequence):
+        output_formats = dict((k, output_formats) for k in codes.keys())
 
-    out = OrderedDict()
+    out: OrderedDict = OrderedDict()
     for contract_name, code in codes.items():
-        for output_format in output_formats:
+        for output_format in output_formats[contract_name]:
             if output_format not in output_formats_map:
                 raise ValueError(f'Unsupported format type {repr(output_format)}')
 
             try:
-                interfaces = interface_codes
+                interfaces: Any = interface_codes
                 if (
                     isinstance(interfaces, dict) and
                     contract_name in interfaces and
