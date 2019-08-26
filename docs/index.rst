@@ -86,6 +86,14 @@ Compatibility-breaking Changelog
 * **2017.07.25**: A function can only call functions that are declared above it (that is, A can call B only if B appears earlier in the code than A does). This was introduced
   to prevent infinite looping through recursion.
 
+Some changes that may be considered after Metropolis when `STATICCALL <https://github.com/ethereum/EIPs/pull/214/files>`_ becomes available include:
+
+* Forbidding state changes after non-static calls unless the address being non-statically called is explicitly marked "trusted". This would reduce risk of re-entrancy attacks.
+* Forbidding "inline" non-static calls, e.g. `send(some_address, contract.do_something_and_return_a_weivalue())`, enforcing clear separation between "call to get a response" and "call to do something".
+
+Vyper does NOT strive to be a 100% replacement for everything that can be done in Solidity; it will deliberately forbid things or make things harder if it deems fit to do so for the goal of
+increasing security.
+
 Glossary
 ********
 
