@@ -18,6 +18,7 @@ Some of the bug and stability fixes:
 - Struct passthrough issue (`#1551 <https://github.com/ethereum/vyper/issues/1551>`_)
 - Private underflow issue (`#1470 <https://github.com/ethereum/vyper/issues/1470>`_)
 - Constancy check issue (`#1480 <https://github.com/ethereum/vyper/pull/1480>`_)
+- Prevent use of conflicting method IDs (`#1530 <https://github.com/ethereum/vyper/pull/1530>`_)
 - Missing arg check for private functions (`#1579 <https://github.com/ethereum/vyper/pull/1579>`_)
 - Zero padding issue (`#1563 <https://github.com/ethereum/vyper/issues/1563>`_)
 - ``vyper.cli`` rearchicture of scripts (`#1574 <https://github.com/ethereum/vyper/issues/1574>`_)
