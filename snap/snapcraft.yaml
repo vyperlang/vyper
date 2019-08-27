@@ -27,6 +27,7 @@ parts:
       - --prefix=/usr
     build-packages:
       - gcc
+      - git
       - libreadline-dev
       - libncursesw5-dev
       - zlib1g-dev
