@@ -49,42 +49,6 @@ Following the principles and goals, Vyper **does not** provide the following fea
 * **Binary fixed point:** Decimal fixed point is better, because any decimal fixed point value written as a literal in code has an exact representation, whereas with binary fixed point approximations are often required
   (e.g. (0.2)\ :sub:`10` = (0.001100110011...)\ :sub:`2`, which needs to be truncated), leading to unintuitive results, e.g. in Python 0.3 + 0.3 + 0.3 + 0.1 != 1.
 
-Compatibility-breaking Changelog
-********************************
-
-* **2019.04.05**: Add stricter checking of unbalanced return statements. (`#590 <https://github.com/ethereum/vyper/issues/590>`_)
-* **2019.03.04**: `create_with_code_of` has been renamed to `create_forwarder_to`. (`#1177 <https://github.com/ethereum/vyper/issues/1177>`_)
-* **2019.02.14**: Assigning a persistent contract address can only be done using the `bar_contact = ERC20(<address>)` syntax.
-* **2019.02.12**: ERC20 interface has to be imported using `from vyper.interfaces import ERC20` to use.
-* **2019.01.30**: Byte array literals need to be annoted using `b""`, strings are represented as `""`.
-* **2018.12.12**: Disallow use of `None`, disallow use of `del`, implemented `clear()` built-in function.
-* **2018.11.19**: Change mapping syntax to use map(). (`VIP564 <https://github.com/ethereum/vyper/issues/564>`_)
-* **2018.10.02**: Change the convert style to use types instead of string. (`VIP1026 <https://github.com/ethereum/vyper/issues/1026>`_)
-* **2018.09.24**: Add support for custom constants.
-* **2018.08.09**: Add support for default parameters.
-* **2018.06.08**: Tagged first beta.
-* **2018.05.23**: Changed `wei_value` to be `uint256`.
-* **2018.04.03**: Changed bytes declaration from 'bytes <= n' to 'bytes[n]'.
-* **2018.03.27**: Renaming ``signed256`` to ``int256``.
-* **2018.03.22**: Add modifiable and static keywords for external contract calls.
-* **2018.03.20**: Renaming ``__log__`` to ``event``.
-* **2018.02.22**: Renaming num to int128, and num256 to uint256.
-* **2018.02.13**: Ban functions with payable and constant decorators.
-* **2018.02.12**: Division by num returns decimal type.
-* **2018.02.09**: Standardize type conversions.
-* **2018.02.01**: Functions cannot have the same name as globals.
-* **2018.01.27**: Change getter from get_var to var.
-* **2018.01.11**: Change version from 0.0.2 to 0.0.3
-* **2018.01.04**: Types need to be specified on assignment (`VIP545 <https://github.com/ethereum/vyper/issues/545>`_).
-* **2017.01.02** Change ``as_wei_value`` to use quotes for units.
-* **2017.12.25**: Change name from Viper to Vyper.
-* **2017.12.22**: Add ``continue`` for loops
-* **2017.11.29**: ``@internal`` renamed to ``@private``.
-* **2017.11.15**: Functions require either ``@internal`` or ``@public`` decorators.
-* **2017.07.25**: The ``def foo() -> num(const): ...`` syntax no longer works; you now need to do ``def foo() -> num: ...`` with a ``@constant`` decorator on the previous line.
-* **2017.07.25**: Functions without a ``@payable`` decorator now fail when called with nonzero wei.
-* **2017.07.25**: A function can only call functions that are declared above it (that is, A can call B only if B appears earlier in the code than A does). This was introduced
-  to prevent infinite looping through recursion.
 
 Some changes that may be considered after Metropolis when `STATICCALL <https://github.com/ethereum/EIPs/pull/214/files>`_ becomes available include:
 
