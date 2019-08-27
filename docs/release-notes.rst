@@ -2,6 +2,30 @@
 
 Release Notes
 #############
+v0.1.0-beta.12
+**************
+
+Date released: 27-08-2019
+
+The following VIPs were implemented for Beta 12:
+
+- Support for relative imports (VIP `#1367 <https://github.com/ethereum/vyper/issues/1367>`_)
+- Restricted use of environment variables in private functions (VIP `#1199 <https://github.com/ethereum/vyper/issues/1199>`_)
+
+Some of the bug and stability fixes:
+
+- ``@nonreentrant``/``@constant`` logical inconsistency (`#1544 <https://github.com/ethereum/vyper/issues/1544>`_)
+- Struct passthrough issue (`#1551 <https://github.com/ethereum/vyper/issues/1551>`_)
+- Private underflow issue (`#1470 <https://github.com/ethereum/vyper/issues/1470>`_)
+- Constancy check issue (`#1480 <https://github.com/ethereum/vyper/pull/1480>`_)
+- Prevent use of conflicting method IDs (`#1530 <https://github.com/ethereum/vyper/pull/1530>`_)
+- Missing arg check for private functions (`#1579 <https://github.com/ethereum/vyper/pull/1579>`_)
+- Zero padding issue (`#1563 <https://github.com/ethereum/vyper/issues/1563>`_)
+- ``vyper.cli`` rearchitecture of scripts (`#1574 <https://github.com/ethereum/vyper/issues/1574>`_)
+- AST end offsets and Solidity-compatible compressed sourcemap (`#1580 <https://github.com/ethereum/vyper/pull/1580>`_)
+
+Special thanks to (`@iamdefinitelyahuman <https://github.com/iamdefinitelyahuman>`_) for lots of updates this release!
+
 v0.1.0-beta.11
 **************
 
