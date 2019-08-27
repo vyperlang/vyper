@@ -5,7 +5,7 @@ Release Notes
 v0.1.0-beta.12
 **************
 
-Date released: TBD
+Date released: 27-08-2019
 
 The following VIPs were implemented for Beta 12:
 
@@ -21,7 +21,7 @@ Some of the bug and stability fixes:
 - Prevent use of conflicting method IDs (`#1530 <https://github.com/ethereum/vyper/pull/1530>`_)
 - Missing arg check for private functions (`#1579 <https://github.com/ethereum/vyper/pull/1579>`_)
 - Zero padding issue (`#1563 <https://github.com/ethereum/vyper/issues/1563>`_)
-- ``vyper.cli`` rearchicture of scripts (`#1574 <https://github.com/ethereum/vyper/issues/1574>`_)
+- ``vyper.cli`` rearchitecture of scripts (`#1574 <https://github.com/ethereum/vyper/issues/1574>`_)
 - AST end offsets and Solidity-compatible compressed sourcemap (`#1580 <https://github.com/ethereum/vyper/pull/1580>`_)
 
 Special thanks to (`@iamdefinitelyahuman <https://github.com/iamdefinitelyahuman>`_) for lots of updates this release!
