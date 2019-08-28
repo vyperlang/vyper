@@ -91,10 +91,18 @@ pypi-release:
 	twine upload dist/*
 
 release: clean
+ifndef SKIP_TAG
 	$(MAKE) git-tag
+endif
+ifndef SKIP_SNAP
 	$(MAKE) snap-build
 	$(MAKE) snap-release
+endif
+ifndef SKIP_DOCKER
 	$(MAKE) docker-build
 	$(MAKE) docker-release
+endif
+ifndef SKIP_PYPI
 	$(MAKE) pypi-build
 	$(MAKE) pypi-release
+endif
