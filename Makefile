@@ -20,7 +20,7 @@ test:
 lint:
 	tox -e lint
 
-clean: clean-build clean-pyc clean-test
+clean: clean-build clean-pyc clean-snap clean-test
 
 clean-build:
 	rm -fr build/
@@ -54,13 +54,14 @@ snap-build:
 
 vyper-snap := $(wildcard vyper*.snap)
 
+clean-snap: $(vyper-snap)
+	snapcraft clean
 ifdef vyper-snap
+	rm -fr $<
+
 snap-release: $(vyper-snap)
 	snapcraft login
 	snapcraft push $<
-
-clean-snap: $(vyper-snap)
-	rm -fr $<
 endif
 
 release: clean
