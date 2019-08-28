@@ -23,18 +23,21 @@ lint:
 clean: clean-build clean-pyc clean-snap clean-test
 
 clean-build:
-	rm -fr build/
-	rm -fr dist/
-	rm -fr *.egg-info
+	@echo Cleaning python build files...
+	@rm -fr build/
+	@rm -fr dist/
+	@rm -fr *.egg-info
 
 clean-pyc:
-	find . -name '*.pyc' -exec rm -f {} +
-	find . -name '*.pyo' -exec rm -f {} +
-	find . -name '*~' -exec rm -f {} +
-	find . -name '__pycache__' -exec rmdir {} +
+	@echo Cleaning python files...
+	@find . -name '*.pyc' -exec rm -f {} +
+	@find . -name '*.pyo' -exec rm -f {} +
+	@find . -name '*~' -exec rm -f {} +
+	@find . -name '__pycache__' -exec rmdir {} +
 
 clean-test:
-	find . -name 'htmlcov' -exec rm -rf {} +
+	@echo Cleaning test files...
+	@find . -name 'htmlcov' -exec rm -rf {} +
 
 docs:
 	rm -f docs/vyper.rst
@@ -61,9 +64,10 @@ snap-build:
 vyper-snap := $(wildcard vyper*.snap)
 
 clean-snap: $(vyper-snap)
-	snapcraft clean
+	@echo Cleaning snapcraft build files...
+	@snapcraft clean
 ifdef vyper-snap
-	rm -fr $<
+	@rm -fr $<
 
 snap-release: $(vyper-snap)
 	snapcraft login
