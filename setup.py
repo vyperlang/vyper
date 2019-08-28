@@ -45,6 +45,7 @@ setup(
     version='0.1.0-beta.12',
     description='Vyper Programming Language for Ethereum',
     long_description_markdown_filename='README.md',
+    long_description_content_type='text/markdown',
     author='Vitalik Buterin',
     author_email='',
     url='https://github.com/ethereum/vyper',
