@@ -49,6 +49,12 @@ docker-build:
 		--build-arg VCS_REF=`git rev-parse --short HEAD` \
 		--build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` .
 
+# Get the part number from the built docker image, before the '+' symbol
+docker-release:
+	docker login
+	docker push vyper:latest
+	docker push vyper:$(firstword $(subst +, ,$(shell docker run vyper --version)))
+
 snap-build:
 	snapcraft
 
