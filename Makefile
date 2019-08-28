@@ -74,12 +74,27 @@ snap-release: $(vyper-snap)
 	snapcraft push $<
 endif
 
-release: clean
+# Asks to bump the dev partnumber
+# TODO Use semver automatic versioning via git log
+git-tag:
 	@echo -n "Bump the part number? [y/N]: "
 	@read line; if [ $$line == "y" ]; then \
 		bumpversion devnum; \
 		git push upstream && git push upstream --tags; \
 	 fi
+
+pypi-build:
 	python setup.py sdist bdist_wheel
+
+pypi-release:
 	twine check dist/*
 	twine upload dist/*
+
+release: clean
+	$(MAKE) git-tag
+	$(MAKE) snap-build
+	$(MAKE) snap-release
+	$(MAKE) docker-build
+	$(MAKE) docker-release
+	$(MAKE) pypi-build
+	$(MAKE) pypi-release
