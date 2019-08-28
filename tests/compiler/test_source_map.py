@@ -78,9 +78,10 @@ def foo() -> uint256:
     compressed = compress_source_map(
         code,
         {'0': None, '2': (2, 0, 4, 13), '3': (2, 0, 2, 7), '5': (2, 0, 2, 7)},
-        {'3': 'o'}
+        {'3': 'o'},
+        2
     )
-    assert compressed == "-1:-1:0:-;1:43;:7::o;;"
+    assert compressed == "-1:-1:2:-;1:43;:7::o;;"
 
 
 def test_expand_source_map():

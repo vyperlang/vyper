@@ -124,12 +124,12 @@ def get_asm(asm_list):
     return output_string
 
 
-def get_source_map(code, contract_name, interface_codes=None):
+def get_source_map(code, contract_name, interface_codes=None, runtime_only=True, source_id=0):
     asm_list = compile_lll.compile_to_assembly(
         optimizer.optimize(
             parser.parse_to_lll(
                 code,
-                runtime_only=True,
+                runtime_only=runtime_only,
                 interface_codes=interface_codes)))
     c, line_number_map = compile_lll.assembly_to_evm(asm_list)
     # Sort line_number_map
@@ -137,18 +137,23 @@ def get_source_map(code, contract_name, interface_codes=None):
     for k in sorted(line_number_map.keys()):
         out[k] = line_number_map[k]
 
-    out['pc_pos_map_compressed'] = compress_source_map(code, out['pc_pos_map'], out['pc_jump_map'])
+    out['pc_pos_map_compressed'] = compress_source_map(
+        code,
+        out['pc_pos_map'],
+        out['pc_jump_map'],
+        source_id
+    )
     out['pc_pos_map'] = dict((k, v) for k, v in out['pc_pos_map'].items() if v)
     return out
 
 
-def compress_source_map(code, pos_map, jump_map):
+def compress_source_map(code, pos_map, jump_map, source_id):
     linenos = asttokens.LineNumbers(code)
-    compressed_map = "-1:-1:0:-;"
-    last_pos = [-1, -1, 0]
+    compressed_map = f"-1:-1:{source_id}:-;"
+    last_pos = [-1, -1, source_id]
 
     for pc in sorted(pos_map)[1:]:
-        current_pos = [-1, -1, 0]
+        current_pos = [-1, -1, source_id]
         if pos_map[pc]:
             current_pos[0] = linenos.line_to_offset(*pos_map[pc][:2])
             current_pos[1] = linenos.line_to_offset(*pos_map[pc][2:])-current_pos[0]
@@ -212,56 +217,62 @@ def get_opcodes(code, contract_name, bytecodes_runtime=False, interface_codes=No
     return opcode_str[:-1]
 
 
-def _mk_abi_output(code, contract_name, interface_codes):
+def _mk_abi_output(code, contract_name, interface_codes, source_id):
     return mk_full_signature(code, interface_codes=interface_codes)
 
 
-def _mk_bytecode_output(code, contract_name, interface_codes):
+def _mk_bytecode_output(code, contract_name, interface_codes, source_id):
     return '0x' + __compile(code, interface_codes=interface_codes).hex()
 
 
-def _mk_bytecode_runtime_output(code, contract_name, interface_codes):
+def _mk_bytecode_runtime_output(code, contract_name, interface_codes, source_id):
     return '0x' + __compile(code, bytecode_runtime=True, interface_codes=interface_codes).hex()
 
 
-def _mk_ir_output(code, contract_name, interface_codes):
+def _mk_ir_output(code, contract_name, interface_codes, source_id):
     return optimizer.optimize(parser.parse_to_lll(code, interface_codes=interface_codes))
 
 
-def _mk_asm_output(code, contract_name, interface_codes):
+def _mk_asm_output(code, contract_name, interface_codes, source_id):
     return get_asm(compile_lll.compile_to_assembly(
         optimizer.optimize(parser.parse_to_lll(code, interface_codes=interface_codes))
     ))
 
 
-def _mk_source_map_output(code, contract_name, interface_codes):
-    return get_source_map(code, contract_name, interface_codes=interface_codes)
+def _mk_source_map_output(code, contract_name, interface_codes, source_id):
+    return get_source_map(
+        code,
+        contract_name,
+        interface_codes=interface_codes,
+        runtime_only=True,
+        source_id=source_id
+    )
 
 
-def _mk_method_identifiers_output(code, contract_name, interface_codes):
+def _mk_method_identifiers_output(code, contract_name, interface_codes, source_id):
     return sig_utils.mk_method_identifiers(code, interface_codes=interface_codes)
 
 
-def _mk_interface_output(code, contract_name, interface_codes):
+def _mk_interface_output(code, contract_name, interface_codes, source_id):
     return extract_interface_str(code, contract_name, interface_codes=interface_codes)
 
 
-def _mk_external_interface_output(code, contract_name, interface_codes):
+def _mk_external_interface_output(code, contract_name, interface_codes, source_id):
     return extract_external_interface(code, contract_name, interface_codes=interface_codes)
 
 
-def _mk_opcodes(code, contract_name, interface_codes):
+def _mk_opcodes(code, contract_name, interface_codes, source_id):
     return get_opcodes(code, contract_name, interface_codes=interface_codes)
 
 
-def _mk_opcodes_runtime(code, contract_name, interface_codes):
+def _mk_opcodes_runtime(code, contract_name, interface_codes, source_id):
     return get_opcodes(code, contract_name, bytecodes_runtime=True, interface_codes=interface_codes)
 
 
-def _mk_ast_dict(code, contract_name, interface_codes):
+def _mk_ast_dict(code, contract_name, interface_codes, source_id):
     o = {
         'contract_name': contract_name,
-        'ast': ast_to_dict(parser.parse_to_ast(code))
+        'ast': ast_to_dict(parser.parse_to_ast(code, source_id))
     }
     return o
 
@@ -293,7 +304,8 @@ def compile_codes(codes: ContractCodes,
         output_formats = dict((k, output_formats) for k in codes.keys())
 
     out: OrderedDict = OrderedDict()
-    for contract_name, code in codes.items():
+    for source_id, contract_name in enumerate(sorted(codes)):
+        code = codes[contract_name]
         for output_format in output_formats[contract_name]:
             if output_format not in output_formats_map:
                 raise ValueError(f'Unsupported format type {repr(output_format)}')
@@ -311,6 +323,7 @@ def compile_codes(codes: ContractCodes,
                     code=code,
                     contract_name=contract_name,
                     interface_codes=interfaces,
+                    source_id=source_id
                 )
             except Exception as exc:
                 if exc_handler is not None:
