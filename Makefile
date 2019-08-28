@@ -55,8 +55,8 @@ docker-build:
 # Get the part number from the built docker image, before the '+' symbol
 docker-release:
 	docker login
-	docker push vyper:latest
-	docker push vyper:$(firstword $(subst +, ,$(shell docker run vyper --version)))
+	docker push ethereum/vyper:latest
+	docker push ethereum/vyper:$(firstword $(subst +, ,$(shell docker run vyper --version)))
 
 snap-build:
 	snapcraft
