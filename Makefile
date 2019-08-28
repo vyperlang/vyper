@@ -1,3 +1,4 @@
+SHELL := /bin/bash
 
 ifeq (, $(shell which pip3))
 	pip := $(shell which pip3)
@@ -63,7 +64,11 @@ clean-snap: $(vyper-snap)
 endif
 
 release: clean
-	bumpversion devnum
-	git push upstream && git push upstream --tags
+	@echo -n "Bump the part number? [y/N]: "
+	@read line; if [ $$line == "y" ]; then \
+		bumpversion devnum; \
+		git push upstream && git push upstream --tags; \
+	 fi
 	python setup.py sdist bdist_wheel
+	twine check dist/*
 	twine upload dist/*
