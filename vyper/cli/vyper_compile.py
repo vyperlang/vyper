@@ -155,11 +155,11 @@ def exc_handler(contract_path: ContractPath, exception: Exception) -> None:
     raise exception
 
 
-def get_interface_codes(root_path: Path, codes: ContractCodes) -> Any:
+def get_interface_codes(root_path: Path, contract_sources: ContractCodes) -> Any:
     interface_codes: Dict = {}
     interfaces: Dict = {}
 
-    for file_path, code in codes.items():
+    for file_path, code in contract_sources.items():
         interfaces[file_path] = {}
         parent_path = root_path.joinpath(file_path).parent
 
@@ -215,12 +215,12 @@ def compile_files(input_files: Iterable[str],
     if not root_path.exists():
         raise FileNotFoundError(f"Invalid root path - '{root_path.as_posix()}' does not exist")
 
-    codes: ContractCodes = OrderedDict()
+    contract_sources: ContractCodes = OrderedDict()
     for file_name in input_files:
         file_path = Path(file_name).resolve()
         file_str = file_path.relative_to(root_path).as_posix()
         with file_path.open() as fh:
-            codes[file_str] = fh.read()
+            contract_sources[file_str] = fh.read()
 
     show_version = False
     if 'combined_json' in output_formats:
@@ -230,10 +230,10 @@ def compile_files(input_files: Iterable[str],
         show_version = True
 
     compiler_data = vyper.compile_codes(
-        codes,
+        contract_sources,
         output_formats,
         exc_handler=exc_handler,
-        interface_codes=get_interface_codes(root_path, codes)
+        interface_codes=get_interface_codes(root_path, contract_sources)
     )
     if show_version:
         compiler_data['version'] = vyper.__version__

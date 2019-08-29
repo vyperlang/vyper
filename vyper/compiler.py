@@ -293,7 +293,7 @@ output_formats_map = {
 }
 
 
-def compile_codes(codes: ContractCodes,
+def compile_codes(contract_sources: ContractCodes,
                   output_formats: Union[OutputDict, OutputFormats, None] = None,
                   exc_handler: Union[Callable, None] = None,
                   interface_codes: Union[InterfaceDict, InterfaceImports, None] = None) -> OrderedDict:  # NOQA: E501
@@ -301,11 +301,11 @@ def compile_codes(codes: ContractCodes,
     if output_formats is None:
         output_formats = ('bytecode',)
     if isinstance(output_formats, Sequence):
-        output_formats = dict((k, output_formats) for k in codes.keys())
+        output_formats = dict((k, output_formats) for k in contract_sources.keys())
 
     out: OrderedDict = OrderedDict()
-    for source_id, contract_name in enumerate(sorted(codes)):
-        code = codes[contract_name]
+    for source_id, contract_name in enumerate(sorted(contract_sources)):
+        code = contract_sources[contract_name]
         for output_format in output_formats[contract_name]:
             if output_format not in output_formats_map:
                 raise ValueError(f'Unsupported format type {repr(output_format)}')
@@ -338,10 +338,10 @@ UNKNOWN_CONTRACT_NAME = '<unknown>'
 
 
 def compile_code(code, output_formats=None, interface_codes=None):
-    codes = {UNKNOWN_CONTRACT_NAME: code}
+    contract_sources = {UNKNOWN_CONTRACT_NAME: code}
 
     return compile_codes(
-        codes,
+        contract_sources,
         output_formats,
         interface_codes=interface_codes,
     )[UNKNOWN_CONTRACT_NAME]
