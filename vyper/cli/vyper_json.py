@@ -18,6 +18,9 @@ from vyper.signatures.interface import (
 from vyper.typing import (
     ContractCodes,
 )
+from vyper.utils import (
+    keccak256,
+)
 
 
 def get_interface_codes(root_path: Union[Path, None],
@@ -117,15 +120,22 @@ def compile_from_input_dict(input_dict, root_folder=None):
 
     contract_sources: ContractCodes = {}
     for path, value in input_dict['sources'].items():
-        # TODO support for URLs
-        # TODO support for keccack
+        if 'content' not in value:
+            raise ValueError(f"{path} missing required field - 'content'")
+        if 'keccak256' in value:
+            hash_ = value['keccak256'].lower()
+            if hash_.startswith('0x'):
+                hash_ = hash_[2:]
+            if hash_ != keccak256(value['content'].encode('utf-8')):
+                raise ValueError(
+                    f"Calculated keccak of {path} does not match keccak given in input json"
+                )
         key = _standardize_path(path)
         contract_sources[key] = value['content']
 
     interface_sources: ContractCodes = {}
     for path, value in input_dict.get('interfaces', {}).items():
-        # TODO support for URLs
-        # TODO support for keccack
+        # TODO support for ABIs
         key = _standardize_path(path)
         interface_sources[key] = value['content']
 
