@@ -39,15 +39,18 @@ def get_interface_codes(root_path: Union[Path, None],
                 Path(file_path).parent.joinpath(interface_path).as_posix()+".vy",
                 interface_path+".vy"
             ]
-            for sources in (interface_sources, contract_sources):
-                key = next((i for i in keys if i in sources), None)
-                if key:
-                    interfaces[file_path][interface_name] = {
-                        'type': 'vyper',
-                        'code': sources[key]
-                    }
-                    break
+
+            key = next((i for i in keys if i in interface_sources), None)
             if key:
+                interfaces[file_path][interface_name] = interface_sources[key]
+                continue
+
+            key = next((i for i in keys if i in contract_sources), None)
+            if key:
+                interfaces[file_path][interface_name] = {
+                    'type': 'vyper',
+                    'code': contract_sources[key]
+                }
                 continue
 
             if root_path is None:
@@ -65,16 +68,16 @@ def get_interface_codes(root_path: Union[Path, None],
             valid_path = get_interface_file_path(base_paths, interface_path)
             with valid_path.open() as fh:
                 code = fh.read()
-                if valid_path.suffix == '.json':
-                    interfaces[file_path][interface_name] = {
-                        'type': 'json',
-                        'code': json.loads(code.encode())
-                    }
-                else:
-                    interfaces[file_path][interface_name] = {
-                        'type': 'vyper',
-                        'code': code
-                    }
+            if valid_path.suffix == '.json':
+                interfaces[file_path][interface_name] = {
+                    'type': 'json',
+                    'code': json.loads(code.encode())
+                }
+            else:
+                interfaces[file_path][interface_name] = {
+                    'type': 'vyper',
+                    'code': code
+                }
 
     return interfaces
 
@@ -120,6 +123,8 @@ def compile_from_input_dict(input_dict, root_folder=None):
 
     contract_sources: ContractCodes = {}
     for path, value in input_dict['sources'].items():
+        if 'urls' in value:
+            raise ValueError(f"{path} - 'urls' is not a supported field, use 'content' instead")
         if 'content' not in value:
             raise ValueError(f"{path} missing required field - 'content'")
         if 'keccak256' in value:
@@ -128,21 +133,28 @@ def compile_from_input_dict(input_dict, root_folder=None):
                 hash_ = hash_[2:]
             if hash_ != keccak256(value['content'].encode('utf-8')):
                 raise ValueError(
-                    f"Calculated keccak of {path} does not match keccak given in input json"
+                    f"Calculated keccak of '{path}' does not match keccak given in input JSON"
                 )
         key = _standardize_path(path)
         contract_sources[key] = value['content']
 
     interface_sources: ContractCodes = {}
     for path, value in input_dict.get('interfaces', {}).items():
-        # TODO support for ABIs
         key = _standardize_path(path)
-        interface_sources[key] = value['content']
+        if 'content' in value and 'abi' in value:
+            raise ValueError(f"Interface '{path}' should include 'content' or 'abi', but not both")
+        if 'content' in value:
+            interface_sources[key] = {'type': "vyper", 'code': value['content']}
+        elif 'abi' in value:
+            interface_sources[key] = {'type': "json", 'code': value['abi']}
+        else:
+            raise ValueError(f"Interface '{path}' must have either 'content' or 'abi' field")
 
     output_formats = {}
     for path, outputs in input_dict['outputSelection'].items():
 
         translate_map = {
+            'abi': 'abi',
             'ast': 'ast_dict',
             'evm.methodIdentifiers': 'method_identifiers',
             'evm.bytecode.object': 'bytecode',
