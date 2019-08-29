@@ -49,6 +49,7 @@ interface          - Print Vyper interface of a contract
 external_interface - Print the External interface of a contract, used for outside contract calls.
 opcodes            - List of opcodes as a string
 opcodes_runtime    - List of runtime opcodes as a string
+ir                 - Print Intermediate Representation in LLL
 """
 
 
