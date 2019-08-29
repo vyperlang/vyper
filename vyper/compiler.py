@@ -327,7 +327,9 @@ def compile_codes(contract_sources: ContractCodes,
                 )
             except Exception as exc:
                 if exc_handler is not None:
-                    exc_handler(contract_name, exc)
+                    response = exc_handler(contract_name, exc)
+                    if response is not None:
+                        return response
                 else:
                     raise exc
 

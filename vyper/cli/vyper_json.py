@@ -17,13 +17,7 @@ from vyper.signatures.interface import (
 )
 from vyper.typing import (
     ContractCodes,
-    ContractPath,
 )
-
-
-def exc_handler(contract_path: ContractPath, exception: Exception) -> None:
-    # TODO - return error message as JSON
-    raise exception
 
 
 def get_interface_codes(root_path: Union[Path, None],
@@ -230,8 +224,45 @@ def format_to_output_dict(compiler_data):
     return output_dict
 
 
-def compile_json(input_json):
-    input_dict = json.loads(input_json)
-    compiler_data = compile_from_input_dict(input_dict)
-    output_dict = format_to_output_dict(compiler_data)
-    return json.dumps(output_dict, indent=2, default=str, sort_keys=True)
+def compile_json(input_json, json_path="<stdin>"):
+    try:
+        input_dict = json.loads(input_json)
+    except json.decoder.JSONDecodeError as exc:
+        exc.col_offset = exc.colno
+        return exc_handler(json_path, exc, "json")
+    try:
+        compiler_data = compile_from_input_dict(input_dict)
+        if 'errors' in compiler_data:
+            return compiler_data
+    except KeyError as exc:
+        exc.args = (f"Input json missing required field: '{exc.args[0]}'",)
+        return exc_handler(json_path, exc, "json")
+    except Exception as exc:
+        return exc_handler(json_path, exc, "json")
+    try:
+        output_dict = format_to_output_dict(compiler_data)
+        return json.dumps(output_dict, indent=2, default=str, sort_keys=True)
+    except Exception as exc:
+        return exc_handler(None, exc, "vyper")
+
+
+def exc_handler(file_path: Union[str, None], exception: Exception, component="compiler") -> Dict:
+    err_dict = {
+        "type": type(exception).__name__,
+        "component": component,
+        "severity": "error",
+        "message": str(exception).strip('"'),
+    }
+    if hasattr(exception, 'message'):
+        err_dict.update({
+            'message': exception.message,
+            'formattedMessage': str(exception)
+        })
+    if file_path is not None:
+        err_dict['sourceLocation'] = {'file': file_path}
+        if hasattr(exception, 'lineno'):
+            err_dict['sourceLocation'].update({
+                'lineno': exception.lineno,
+                'col_offset': exception.col_offset,
+            })
+    return {'errors': [err_dict]}
