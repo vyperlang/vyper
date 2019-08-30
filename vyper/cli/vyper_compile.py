@@ -49,6 +49,7 @@ interface          - Print Vyper interface of a contract
 external_interface - Print the External interface of a contract, used for outside contract calls.
 opcodes            - List of opcodes as a string
 opcodes_runtime    - List of runtime opcodes as a string
+ir                 - Print Intermediate Representation in LLL
 """
 
 
@@ -166,7 +167,7 @@ def get_interface_codes(root_path: Path, contract_sources: ContractCodes) -> Dic
         for interface_name, interface_path in interface_codes.items():
 
             base_paths = [parent_path]
-            if not interface_path.startswith('.'):
+            if not interface_path.startswith('.') and root_path.joinpath(file_path).exists():
                 base_paths.append(root_path)
             elif interface_path.startswith('../') and parent_path == root_path:
                 raise FileNotFoundError(
@@ -214,8 +215,11 @@ def compile_files(input_files: Iterable[str],
 
     contract_sources: ContractCodes = OrderedDict()
     for file_name in input_files:
-        file_path = Path(file_name).resolve()
-        file_str = file_path.relative_to(root_path).as_posix()
+        file_path = Path(file_name)
+        try:
+            file_str = file_path.resolve().relative_to(root_path).as_posix()
+        except ValueError:
+            file_str = file_path.as_posix()
         with file_path.open() as fh:
             contract_sources[file_str] = fh.read()
 

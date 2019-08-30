@@ -64,6 +64,12 @@ Private functions do not have access to ``msg.sender`` or ``msg.value``. If you 
 
 .. _structure-decorators:
 
+Non-reentrant Functions
+-----------------------
+
+The `@nonreentrant(<key>)` decorator places a lock on the current function, and all functions with the same `<key>` value. An attempt by an external contract to call back into any of these functions will cause a REVERT call.
+
+
 Decorators
 ----------
 

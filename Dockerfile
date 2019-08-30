@@ -14,8 +14,15 @@ LABEL org.label-schema.build-date=$BUILD_DATE \
 
 # coincurve requires libgmp
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends apt-utils gcc libc6-dev libc-dev libssl-dev libgmp-dev && \
-    rm -rf /var/lib/apt/lists/*
+    apt-get install -y --no-install-recommends \
+        apt-utils \
+        gcc \
+        git \
+        libc6-dev \
+        libc-dev \
+        libssl-dev \
+        libgmp-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 ADD . /code
 
