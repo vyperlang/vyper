@@ -167,7 +167,7 @@ def get_interface_codes(root_path: Path, codes: ContractCodes) -> Any:
         for interface_name, interface_path in interface_codes.items():
 
             base_paths = [parent_path]
-            if not interface_path.startswith('.'):
+            if not interface_path.startswith('.') and root_path.joinpath(file_path).exists():
                 base_paths.append(root_path)
             elif interface_path.startswith('../') and parent_path == root_path:
                 raise FileNotFoundError(
@@ -199,7 +199,7 @@ def get_interface_file_path(base_paths: Sequence, import_path: str) -> Path:
         if suffix:
             return file_path.with_suffix(suffix)
     raise Exception(
-        f'Imported interface "{import_path}{{.vy,.json}}" does not exist.'
+        f'Cannot locate interface "{import_path}{{.vy,.json}}"'
     )
 
 
@@ -217,8 +217,11 @@ def compile_files(input_files: Iterable[str],
 
     codes: ContractCodes = OrderedDict()
     for file_name in input_files:
-        file_path = Path(file_name).resolve()
-        file_str = file_path.relative_to(root_path).as_posix()
+        file_path = Path(file_name)
+        try:
+            file_str = file_path.resolve().relative_to(root_path).as_posix()
+        except ValueError:
+            file_str = file_path.as_posix()
         with file_path.open() as fh:
             codes[file_str] = fh.read()
 
