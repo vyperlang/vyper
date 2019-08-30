@@ -9,7 +9,6 @@ from pathlib import (
 )
 import sys
 from typing import (
-    Any,
     Dict,
     Iterable,
     Iterator,
@@ -155,7 +154,7 @@ def exc_handler(contract_path: ContractPath, exception: Exception) -> None:
     raise exception
 
 
-def get_interface_codes(root_path: Path, contract_sources: ContractCodes) -> Any:
+def get_interface_codes(root_path: Path, contract_sources: ContractCodes) -> Dict:
     interface_codes: Dict = {}
     interfaces: Dict = {}
 

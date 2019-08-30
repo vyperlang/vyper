@@ -296,7 +296,8 @@ output_formats_map = {
 def compile_codes(contract_sources: ContractCodes,
                   output_formats: Union[OutputDict, OutputFormats, None] = None,
                   exc_handler: Union[Callable, None] = None,
-                  interface_codes: Union[InterfaceDict, InterfaceImports, None] = None) -> OrderedDict:  # NOQA: E501
+                  interface_codes: Union[InterfaceDict, InterfaceImports, None] = None,
+                  initial_id: int = 0) -> OrderedDict:
 
     if output_formats is None:
         output_formats = ('bytecode',)
@@ -304,7 +305,7 @@ def compile_codes(contract_sources: ContractCodes,
         output_formats = dict((k, output_formats) for k in contract_sources.keys())
 
     out: OrderedDict = OrderedDict()
-    for source_id, contract_name in enumerate(sorted(contract_sources)):
+    for source_id, contract_name in enumerate(sorted(contract_sources), start=initial_id):
         code = contract_sources[contract_name]
         for output_format in output_formats[contract_name]:
             if output_format not in output_formats_map:

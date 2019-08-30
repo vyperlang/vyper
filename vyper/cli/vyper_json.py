@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 
+import functools
 import json
 from pathlib import (
     Path,
 )
+import sys
 from typing import (
-    Any,
     Dict,
+    Tuple,
     Union,
 )
+import warnings
 
 import vyper
 from vyper.cli.vyper_compile import (
@@ -30,7 +33,7 @@ from vyper.utils import (
 
 def get_interface_codes(root_path: Union[Path, None],
                         contract_sources: ContractCodes,
-                        interface_sources: ContractCodes) -> Any:
+                        interface_sources: Dict) -> Dict:
     interface_codes: Dict = {}
     interfaces: Dict = {}
 
@@ -92,7 +95,8 @@ def _standardize_path(path_str: str) -> str:
     return path.as_posix()
 
 
-def compile_from_input_dict(input_dict, root_folder=None):
+def compile_from_input_dict(input_dict: Dict,
+                            root_folder: Union[str, None] = None) -> Tuple[Dict, Dict]:
     root_path = None
     if root_folder is not None:
         root_path = Path(root_folder).resolve()
@@ -126,7 +130,7 @@ def compile_from_input_dict(input_dict, root_folder=None):
         key = _standardize_path(path)
         contract_sources[key] = value['content']
 
-    interface_sources: ContractCodes = {}
+    interface_sources = {}
     for path, value in input_dict.get('interfaces', {}).items():
         key = _standardize_path(path)
         if key.endswith(".json"):
@@ -176,7 +180,7 @@ def compile_from_input_dict(input_dict, root_folder=None):
                 raise JSONError(f"Invalid outputSelection - {e}")
 
         if path == "*":
-            output_keys = contract_sources.keys()
+            output_keys = list(contract_sources.keys())
         else:
             output_keys = [_standardize_path(path)]
             if output_keys[0] not in contract_sources:
@@ -186,12 +190,26 @@ def compile_from_input_dict(input_dict, root_folder=None):
             output_formats[key] = outputs
 
     interface_codes = get_interface_codes(root_path, contract_sources, interface_sources)
-    return vyper.compile_codes(
-        contract_sources,
-        output_formats,
-        exc_handler=exc_handler,
-        interface_codes=interface_codes
-    )
+    compiler_data, warning_data = {}, {}
+
+    warnings.simplefilter('always')
+    for id_, key in enumerate(sorted(contract_sources)):
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            data = vyper.compile_codes(
+                {key: contract_sources[key]},
+                output_formats[key],
+                exc_handler=exc_handler,
+                interface_codes=interface_codes[key],
+                initial_id=id_
+            )
+
+            if 'errors' in data:
+                return data, {}
+            compiler_data[key] = data[key]
+            if caught_warnings:
+                warning_data[key] = caught_warnings
+
+    return compiler_data, warning_data
 
 
 def format_to_output_dict(compiler_data: Dict) -> Dict:
@@ -238,35 +256,50 @@ def format_to_output_dict(compiler_data: Dict) -> Dict:
     return output_dict
 
 
-def compile_json(input_json: str, json_path: Union[str, None] = "<stdin>") -> str:
+def compile_json(input_json: str,
+                 json_path: Union[str, None] = "<stdin>",
+                 indent: int = None) -> str:
+    to_json = functools.partial(json.dumps, indent=indent, sort_keys=True, default=str)
     try:
         try:
             input_dict = json.loads(input_json)
         except json.decoder.JSONDecodeError as exc:
             new_exc = JSONError(str(exc), exc.lineno, exc.colno)
-            return exc_handler(json_path, new_exc, "json")
+            return to_json(exc_handler(json_path, new_exc, "json"))
 
         try:
-            compiler_data = compile_from_input_dict(input_dict)
+            compiler_data, warning_data = compile_from_input_dict(input_dict)
             if 'errors' in compiler_data:
-                return compiler_data
+                return to_json(compiler_data)
         except KeyError as exc:
             new_exc = JSONError(f"Input JSON missing required field: {str(exc)}")
-            return exc_handler(json_path, new_exc, "json")
+            return to_json(exc_handler(json_path, new_exc, "json"))
         except (FileNotFoundError, JSONError) as exc:
-            return exc_handler(json_path, exc, "json")
+            return to_json(exc_handler(json_path, exc, "json"))
 
         output_dict = format_to_output_dict(compiler_data)
-        return json.dumps(output_dict, indent=2, default=str, sort_keys=True)
+        if warning_data:
+            output_dict['errors'] = []
+            for path, msg in ((k, x) for k, v in warning_data.items() for x in v):
+                output_dict['errors'].append({
+                    "type": msg.category.__name__,
+                    "component": "compiler",
+                    "severity": "warning",
+                    "message": msg.message,
+                    "sourceLocation": {'file': path}
+                })
+        return to_json(output_dict)
 
     except Exception as exc:
         exc = type(exc)(f"{exc} - Please create an issue")
-        return exc_handler(None, exc, "vyper")
+        exc.lineno = sys.exc_info()[-1].tb_lineno  # type: ignore
+        file_path = sys.exc_info()[-1].tb_frame.f_code.co_filename  # type: ignore
+        return to_json(exc_handler(file_path, exc, "vyper"))
 
 
 def exc_handler(file_path: Union[str, None],
                 exception: Exception,
-                component: str = "compiler") -> str:
+                component: str = "compiler") -> Dict:
     err_dict: Dict = {
         "type": type(exception).__name__,
         "component": component,
@@ -283,6 +316,6 @@ def exc_handler(file_path: Union[str, None],
         if getattr(exception, 'lineno', None) is not None:
             err_dict['sourceLocation'].update({
                 'lineno': exception.lineno,  # type: ignore
-                'col_offset': exception.col_offset,  # type: ignore
+                'col_offset': getattr(exception, 'col_offset', None),
             })
-    return json.dumps({'errors': [err_dict]}, indent=2, default=str, sort_keys=True)
+    return {'errors': [err_dict]}
