@@ -198,9 +198,7 @@ def get_interface_file_path(base_paths: Sequence, import_path: str) -> Path:
         suffix = next((i for i in ('.vy', '.json') if file_path.with_suffix(i).exists()), None)
         if suffix:
             return file_path.with_suffix(suffix)
-    raise Exception(
-        f'Imported interface "{import_path}{{.vy,.json}}" does not exist.'
-    )
+    raise FileNotFoundError(f" Cannot locate interface '{import_path}{{.vy,.json}}'")
 
 
 def compile_files(input_files: Iterable[str],

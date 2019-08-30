@@ -7,11 +7,16 @@ from pathlib import (
 from typing import (
     Any,
     Dict,
-    Sequence,
     Union,
 )
 
 import vyper
+from vyper.cli.vyper_compile import (
+    get_interface_file_path,
+)
+from vyper.exceptions import (
+    JSONError,
+)
 from vyper.signatures.interface import (
     extract_file_interface_imports,
 )
@@ -34,11 +39,7 @@ def get_interface_codes(root_path: Union[Path, None],
 
         interface_codes = extract_file_interface_imports(code)
         for interface_name, interface_path in interface_codes.items():
-
-            keys = [
-                Path(file_path).parent.joinpath(interface_path).as_posix()+".vy",
-                interface_path+".vy"
-            ]
+            keys = [Path(file_path).parent.joinpath(interface_path).as_posix(), interface_path]
 
             key = next((i for i in keys if i in interface_sources), None)
             if key:
@@ -54,7 +55,7 @@ def get_interface_codes(root_path: Union[Path, None],
                 continue
 
             if root_path is None:
-                raise Exception(f'Imported interface "{interface_path}.vy" does not exist.')
+                raise FileNotFoundError(f"Cannot locate interface '{interface_path}{{.vy,.json}}'")
 
             parent_path = root_path.joinpath(file_path).parent
             base_paths = [parent_path]
@@ -82,25 +83,12 @@ def get_interface_codes(root_path: Union[Path, None],
     return interfaces
 
 
-def get_interface_file_path(base_paths: Sequence, import_path: str) -> Path:
-    relative_path = Path(import_path)
-
-    for path in base_paths:
-        file_path = path.joinpath(relative_path)
-        suffix = next((i for i in ('.vy', '.json') if file_path.with_suffix(i).exists()), None)
-        if suffix:
-            return file_path.with_suffix(suffix)
-    raise Exception(
-        f'Imported interface "{import_path}{{.vy,.json}}" does not exist.'
-    )
-
-
 def _standardize_path(path_str: str) -> str:
     path = Path("/vyper/" + path_str.lstrip('/')).resolve()
     try:
         path = path.relative_to("/vyper")
     except ValueError:
-        raise ValueError(f"{path_str} - path exists outside base folder")
+        raise JSONError(f"{path_str} - path exists outside base folder")
     return path.as_posix()
 
 
@@ -112,27 +100,27 @@ def compile_from_input_dict(input_dict, root_folder=None):
             raise FileNotFoundError(f"Invalid root path - '{root_path.as_posix()}' does not exist")
 
     if input_dict['language'] != "Vyper":
-        raise ValueError("Wrong language.")
+        raise JSONError(f"Invalid language '{input_dict['language']}' - Only Vyper is supported.")
 
     if 'settings' in input_dict:
         evm_version = input_dict['settings'].get('evmVersion', 'byzantium')
         if evm_version in ('homestead', 'tangerineWhistle', 'spuriousDragon'):
-            raise ValueError("Vyper does not support pre-byzantium EVM versions")
+            raise JSONError("Vyper does not support pre-byzantium EVM versions")
         if evm_version not in ('byzantium', 'constantinople', 'petersburg'):
-            raise ValueError(f"Unknown EVM version - '{evm_version}'")
+            raise JSONError(f"Unknown EVM version - '{evm_version}'")
 
     contract_sources: ContractCodes = {}
     for path, value in input_dict['sources'].items():
         if 'urls' in value:
-            raise ValueError(f"{path} - 'urls' is not a supported field, use 'content' instead")
+            raise JSONError(f"{path} - 'urls' is not a supported field, use 'content' instead")
         if 'content' not in value:
-            raise ValueError(f"{path} missing required field - 'content'")
+            raise JSONError(f"{path} missing required field - 'content'")
         if 'keccak256' in value:
             hash_ = value['keccak256'].lower()
             if hash_.startswith('0x'):
                 hash_ = hash_[2:]
             if hash_ != keccak256(value['content'].encode('utf-8')):
-                raise ValueError(
+                raise JSONError(
                     f"Calculated keccak of '{path}' does not match keccak given in input JSON"
                 )
         key = _standardize_path(path)
@@ -141,14 +129,18 @@ def compile_from_input_dict(input_dict, root_folder=None):
     interface_sources: ContractCodes = {}
     for path, value in input_dict.get('interfaces', {}).items():
         key = _standardize_path(path)
-        if 'content' in value and 'abi' in value:
-            raise ValueError(f"Interface '{path}' should include 'content' or 'abi', but not both")
-        if 'content' in value:
-            interface_sources[key] = {'type': "vyper", 'code': value['content']}
-        elif 'abi' in value:
-            interface_sources[key] = {'type': "json", 'code': value['abi']}
+        if key.endswith(".json"):
+            if 'abi' not in value:
+                raise JSONError(f"Interface '{path}' must have 'abi' field")
+            interface = {'type': "json", 'code': value['abi']}
+        elif key.endswith(".vy"):
+            if 'content' not in value:
+                raise JSONError(f"Interface '{path}' must have 'content' field")
+            interface = {'type': "vyper", 'code': value['content']}
         else:
-            raise ValueError(f"Interface '{path}' must have either 'content' or 'abi' field")
+            raise JSONError(f"Interface '{path}' must have suffix '.vy' or '.json'")
+        key = key.rsplit('.', maxsplit=1)[0]
+        interface_sources[key] = interface
 
     output_formats = {}
     for path, outputs in input_dict['outputSelection'].items():
@@ -181,14 +173,14 @@ def compile_from_input_dict(input_dict, root_folder=None):
             try:
                 outputs = [translate_map[i] for i in outputs]
             except KeyError as e:
-                raise ValueError(f"Invalid outputSelection - {e}")
+                raise JSONError(f"Invalid outputSelection - {e}")
 
         if path == "*":
             output_keys = contract_sources.keys()
         else:
             output_keys = [_standardize_path(path)]
             if output_keys[0] not in contract_sources:
-                raise KeyError("outputSelection references an unknown contract - '{}'")
+                raise JSONError(f"outputSelection references unknown contract '{output_keys[0]}'")
 
         for key in output_keys:
             output_formats[key] = outputs
@@ -202,8 +194,8 @@ def compile_from_input_dict(input_dict, root_folder=None):
     )
 
 
-def format_to_output_dict(compiler_data):
-    output_dict = {
+def format_to_output_dict(compiler_data: Dict) -> Dict:
+    output_dict: Dict = {
         'compiler': f"vyper-{vyper.__version__}",
         'contracts': {},
         'sources': {},
@@ -246,30 +238,36 @@ def format_to_output_dict(compiler_data):
     return output_dict
 
 
-def compile_json(input_json, json_path="<stdin>"):
+def compile_json(input_json: str, json_path: Union[str, None] = "<stdin>") -> str:
     try:
-        input_dict = json.loads(input_json)
-    except json.decoder.JSONDecodeError as exc:
-        exc.col_offset = exc.colno
-        return exc_handler(json_path, exc, "json")
-    try:
-        compiler_data = compile_from_input_dict(input_dict)
-        if 'errors' in compiler_data:
-            return compiler_data
-    except KeyError as exc:
-        exc.args = (f"Input json missing required field: '{exc.args[0]}'",)
-        return exc_handler(json_path, exc, "json")
-    except Exception as exc:
-        return exc_handler(json_path, exc, "json")
-    try:
+        try:
+            input_dict = json.loads(input_json)
+        except json.decoder.JSONDecodeError as exc:
+            new_exc = JSONError(str(exc), exc.lineno, exc.colno)
+            return exc_handler(json_path, new_exc, "json")
+
+        try:
+            compiler_data = compile_from_input_dict(input_dict)
+            if 'errors' in compiler_data:
+                return compiler_data
+        except KeyError as exc:
+            new_exc = JSONError(f"Input JSON missing required field: {str(exc)}")
+            return exc_handler(json_path, new_exc, "json")
+        except (FileNotFoundError, JSONError) as exc:
+            return exc_handler(json_path, exc, "json")
+
         output_dict = format_to_output_dict(compiler_data)
         return json.dumps(output_dict, indent=2, default=str, sort_keys=True)
+
     except Exception as exc:
+        exc = type(exc)(f"{exc} - Please create an issue")
         return exc_handler(None, exc, "vyper")
 
 
-def exc_handler(file_path: Union[str, None], exception: Exception, component="compiler") -> Dict:
-    err_dict = {
+def exc_handler(file_path: Union[str, None],
+                exception: Exception,
+                component: str = "compiler") -> str:
+    err_dict: Dict = {
         "type": type(exception).__name__,
         "component": component,
         "severity": "error",
@@ -277,14 +275,14 @@ def exc_handler(file_path: Union[str, None], exception: Exception, component="co
     }
     if hasattr(exception, 'message'):
         err_dict.update({
-            'message': exception.message,
+            'message': exception.message,  # type: ignore
             'formattedMessage': str(exception)
         })
     if file_path is not None:
         err_dict['sourceLocation'] = {'file': file_path}
-        if hasattr(exception, 'lineno'):
+        if getattr(exception, 'lineno', None) is not None:
             err_dict['sourceLocation'].update({
-                'lineno': exception.lineno,
-                'col_offset': exception.col_offset,
+                'lineno': exception.lineno,  # type: ignore
+                'col_offset': exception.col_offset,  # type: ignore
             })
-    return {'errors': [err_dict]}
+    return json.dumps({'errors': [err_dict]}, indent=2, default=str, sort_keys=True)
