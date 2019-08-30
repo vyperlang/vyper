@@ -185,6 +185,13 @@ struct S:
     x: int128
 s: S = S()
     """,
+    """
+@public
+@nonreentrant("B")
+@nonreentrant("C")
+def double_nonreentrant():
+    pass
+    """
 ]
 
 

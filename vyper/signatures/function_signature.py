@@ -236,6 +236,11 @@ class FunctionSignature:
             elif isinstance(dec, ast.Name) and dec.id == "public":
                 public = True
             elif isinstance(dec, ast.Call) and dec.func.id == "nonreentrant":
+                if nonreentrant_key:
+                    raise StructureException(
+                        "Only one @nonreentrant decorator allowed per function",
+                        dec
+                    )
                 if dec.args and len(dec.args) == 1 and isinstance(dec.args[0], ast.Str) and dec.args[0].s:  # noqa: E501
                     nonreentrant_key = dec.args[0].s
                 else:
