@@ -228,3 +228,15 @@ def test_get_interface_file_path(tmp_path):
 
     with pytest.raises(Exception):
         get_interface_file_path(base_paths, 'potato')
+
+
+def test_compile_outside_root_path(tmp_path):
+    foo_path = tmp_path.joinpath('foo.vy')
+    with foo_path.open('w') as fp:
+        fp.write(FOO_CODE.format('import bar as Bar'))
+
+    bar_path = tmp_path.joinpath('bar.vy')
+    with bar_path.open('w') as fp:
+        fp.write(BAR_CODE)
+
+    assert compile_files([foo_path, bar_path], ['combined_json'], root_folder=".")
