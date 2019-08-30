@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 
-import functools
+import argparse
 import json
 from pathlib import (
     Path,
 )
 import sys
 from typing import (
+    Callable,
     Dict,
     Tuple,
     Union,
@@ -29,6 +30,69 @@ from vyper.typing import (
 from vyper.utils import (
     keccak256,
 )
+
+
+def _parse_cli_args():
+    parser = argparse.ArgumentParser(
+        description='Vyper programming language for Ethereum - JSON Compiler',
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+    parser.add_argument(
+        'input_file',
+        help='JSON file to compile from. If none is given, Vyper will receive it from stdin.',
+        nargs='?',
+    )
+    parser.add_argument(
+        '--version',
+        action='version',
+        version='{0}+commit.{1}'.format(vyper.__version__, vyper.__commit__),
+    )
+    parser.add_argument(
+        '-o',
+        help="Filename to save JSON output to. If the file exists it will be overwritten.",
+        default=None,
+        dest="output_file"
+    )
+    parser.add_argument(
+        '-p',
+        help='Set a base import path. Vyper searches here if a file is not found in the JSON.',
+        default=None, dest='root_folder'
+    )
+    parser.add_argument(
+        '--pretty-json',
+        help='Output JSON in pretty format.',
+        action='store_true'
+    )
+    parser.add_argument(
+        '--traceback',
+        help='Show python traceback on error instead of returning JSON',
+        action='store_true'
+    )
+
+    args = parser.parse_args()
+    if args.input_file:
+        with Path(args.input_file).open() as fh:
+            input_json = fh.read()
+        json_path = Path(args.input_file).resolve().as_posix()
+    else:
+        input_json = "".join(sys.stdin.read()).strip()
+        json_path = "<stdin>"
+
+    exc_handler = exc_handler_raises if args.traceback else exc_handler_to_json
+    output_json = json.dumps(
+        compile_json(input_json, exc_handler, args.root_folder, json_path),
+        indent=2 if args.pretty_json else None,
+        sort_keys=True,
+        default=str
+    )
+
+    if args.output_file is not None:
+        output_path = Path(args.output_file).resolve()
+        with output_path.open('w') as fh:
+            fh.write(output_json)
+        print(f"Results saved to {output_path}")
+    else:
+        print(output_json)
 
 
 def get_interface_codes(root_path: Union[Path, None],
@@ -105,7 +169,7 @@ def get_input_dict_settings(input_dict: Dict) -> None:
         raise JSONError(f"Unknown EVM version - '{evm_version}'")
 
 
-def get_contracts(input_dict: Dict) -> ContractCodes:
+def get_input_dict_contracts(input_dict: Dict) -> ContractCodes:
     contract_sources: ContractCodes = {}
     for path, value in input_dict['sources'].items():
         if 'urls' in value:
@@ -125,7 +189,7 @@ def get_contracts(input_dict: Dict) -> ContractCodes:
     return contract_sources
 
 
-def get_interfaces(input_dict: Dict) -> Dict:
+def get_input_dict_interfaces(input_dict: Dict) -> Dict:
     interface_sources = {}
     for path, value in input_dict.get('interfaces', {}).items():
         key = _standardize_path(path)
@@ -144,7 +208,7 @@ def get_interfaces(input_dict: Dict) -> Dict:
     return interface_sources
 
 
-def get_output_formats(input_dict: Dict, contract_sources: ContractCodes) -> Dict:
+def get_input_dict_output_formats(input_dict: Dict, contract_sources: ContractCodes) -> Dict:
     output_formats = {}
     for path, outputs in input_dict['outputSelection'].items():
 
@@ -192,6 +256,7 @@ def get_output_formats(input_dict: Dict, contract_sources: ContractCodes) -> Dic
 
 
 def compile_from_input_dict(input_dict: Dict,
+                            exc_handler: Callable,
                             root_folder: Union[str, None] = None) -> Tuple[Dict, Dict]:
     root_path = None
     if root_folder is not None:
@@ -204,9 +269,9 @@ def compile_from_input_dict(input_dict: Dict,
 
     get_input_dict_settings(input_dict)
 
-    contract_sources: ContractCodes = get_contracts(input_dict)
-    interface_sources = get_interfaces(input_dict)
-    output_formats = get_output_formats(input_dict, contract_sources)
+    contract_sources: ContractCodes = get_input_dict_contracts(input_dict)
+    interface_sources = get_input_dict_interfaces(input_dict)
+    output_formats = get_input_dict_output_formats(input_dict, contract_sources)
     interface_codes = get_interface_codes(root_path, contract_sources, interface_sources)
 
     compiler_data, warning_data = {}, {}
@@ -274,31 +339,35 @@ def format_to_output_dict(compiler_data: Dict) -> Dict:
     return output_dict
 
 
-def compile_json(input_json: str,
-                 json_path: Union[str, None] = "<stdin>",
-                 indent: int = None) -> str:
-    to_json = functools.partial(json.dumps, indent=indent, sort_keys=True, default=str)
+def compile_json(input_json: Union[Dict, str],
+                 exc_handler: Callable,
+                 root_path: Union[str, None] = None,
+                 json_path: Union[str, None] = None) -> Dict:
+
     try:
-        try:
-            input_dict = json.loads(input_json)
-        except json.decoder.JSONDecodeError as exc:
-            new_exc = JSONError(str(exc), exc.lineno, exc.colno)
-            return to_json(exc_handler(json_path, new_exc, "json"))
+        if isinstance(input_json, str):
+            try:
+                input_dict: Dict = json.loads(input_json)
+            except json.decoder.JSONDecodeError as exc:
+                new_exc = JSONError(str(exc), exc.lineno, exc.colno)
+                return exc_handler(json_path, new_exc, "json")
+        else:
+            input_dict = input_json
 
         try:
-            compiler_data, warning_data = compile_from_input_dict(input_dict)
+            compiler_data, warn_data = compile_from_input_dict(input_dict, exc_handler, root_path)
             if 'errors' in compiler_data:
-                return to_json(compiler_data)
+                return compiler_data
         except KeyError as exc:
             new_exc = JSONError(f"Input JSON missing required field: {str(exc)}")
-            return to_json(exc_handler(json_path, new_exc, "json"))
+            return exc_handler(json_path, new_exc, "json")
         except (FileNotFoundError, JSONError) as exc:
-            return to_json(exc_handler(json_path, exc, "json"))
+            return exc_handler(json_path, exc, "json")
 
         output_dict = format_to_output_dict(compiler_data)
-        if warning_data:
+        if warn_data:
             output_dict['errors'] = []
-            for path, msg in ((k, x) for k, v in warning_data.items() for x in v):
+            for path, msg in ((k, x) for k, v in warn_data.items() for x in v):
                 output_dict['errors'].append({
                     "type": msg.category.__name__,
                     "component": "compiler",
@@ -306,18 +375,28 @@ def compile_json(input_json: str,
                     "message": msg.message,
                     "sourceLocation": {'file': path}
                 })
-        return to_json(output_dict)
+        return output_dict
 
     except Exception as exc:
-        exc = type(exc)(f"{exc} - Please create an issue")
+        if hasattr(exc, '_exc_handler'):
+            raise
         exc.lineno = sys.exc_info()[-1].tb_lineno  # type: ignore
         file_path = sys.exc_info()[-1].tb_frame.f_code.co_filename  # type: ignore
-        return to_json(exc_handler(file_path, exc, "vyper"))
+        return exc_handler(file_path, exc, "vyper")
 
 
-def exc_handler(file_path: Union[str, None],
-                exception: Exception,
-                component: str = "compiler") -> Dict:
+def exc_handler_raises(file_path: Union[str, None],
+                       exception: Exception,
+                       component: str = "compiler") -> None:
+    if file_path:
+        print(f"Unhandled exception in '{file_path}':")
+    exception._exc_handler = True  # type: ignore
+    raise exception
+
+
+def exc_handler_to_json(file_path: Union[str, None],
+                        exception: Exception,
+                        component: str = "compiler") -> Dict:
     err_dict: Dict = {
         "type": type(exception).__name__,
         "component": component,
