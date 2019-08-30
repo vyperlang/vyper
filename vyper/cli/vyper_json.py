@@ -95,24 +95,17 @@ def _standardize_path(path_str: str) -> str:
     return path.as_posix()
 
 
-def compile_from_input_dict(input_dict: Dict,
-                            root_folder: Union[str, None] = None) -> Tuple[Dict, Dict]:
-    root_path = None
-    if root_folder is not None:
-        root_path = Path(root_folder).resolve()
-        if not root_path.exists():
-            raise FileNotFoundError(f"Invalid root path - '{root_path.as_posix()}' does not exist")
+def get_input_dict_settings(input_dict: Dict) -> None:
+    if 'settings' not in input_dict:
+        return
+    evm_version = input_dict['settings'].get('evmVersion', 'byzantium')
+    if evm_version in ('homestead', 'tangerineWhistle', 'spuriousDragon'):
+        raise JSONError("Vyper does not support pre-byzantium EVM versions")
+    if evm_version not in ('byzantium', 'constantinople', 'petersburg'):
+        raise JSONError(f"Unknown EVM version - '{evm_version}'")
 
-    if input_dict['language'] != "Vyper":
-        raise JSONError(f"Invalid language '{input_dict['language']}' - Only Vyper is supported.")
 
-    if 'settings' in input_dict:
-        evm_version = input_dict['settings'].get('evmVersion', 'byzantium')
-        if evm_version in ('homestead', 'tangerineWhistle', 'spuriousDragon'):
-            raise JSONError("Vyper does not support pre-byzantium EVM versions")
-        if evm_version not in ('byzantium', 'constantinople', 'petersburg'):
-            raise JSONError(f"Unknown EVM version - '{evm_version}'")
-
+def get_contracts(input_dict: Dict) -> ContractCodes:
     contract_sources: ContractCodes = {}
     for path, value in input_dict['sources'].items():
         if 'urls' in value:
@@ -129,7 +122,10 @@ def compile_from_input_dict(input_dict: Dict,
                 )
         key = _standardize_path(path)
         contract_sources[key] = value['content']
+    return contract_sources
 
+
+def get_interfaces(input_dict: Dict) -> Dict:
     interface_sources = {}
     for path, value in input_dict.get('interfaces', {}).items():
         key = _standardize_path(path)
@@ -145,7 +141,10 @@ def compile_from_input_dict(input_dict: Dict,
             raise JSONError(f"Interface '{path}' must have suffix '.vy' or '.json'")
         key = key.rsplit('.', maxsplit=1)[0]
         interface_sources[key] = interface
+    return interface_sources
 
+
+def get_output_formats(input_dict: Dict, contract_sources: ContractCodes) -> Dict:
     output_formats = {}
     for path, outputs in input_dict['outputSelection'].items():
 
@@ -189,9 +188,28 @@ def compile_from_input_dict(input_dict: Dict,
         for key in output_keys:
             output_formats[key] = outputs
 
-    interface_codes = get_interface_codes(root_path, contract_sources, interface_sources)
-    compiler_data, warning_data = {}, {}
+    return output_formats
 
+
+def compile_from_input_dict(input_dict: Dict,
+                            root_folder: Union[str, None] = None) -> Tuple[Dict, Dict]:
+    root_path = None
+    if root_folder is not None:
+        root_path = Path(root_folder).resolve()
+        if not root_path.exists():
+            raise FileNotFoundError(f"Invalid root path - '{root_path.as_posix()}' does not exist")
+
+    if input_dict['language'] != "Vyper":
+        raise JSONError(f"Invalid language '{input_dict['language']}' - Only Vyper is supported.")
+
+    get_input_dict_settings(input_dict)
+
+    contract_sources: ContractCodes = get_contracts(input_dict)
+    interface_sources = get_interfaces(input_dict)
+    output_formats = get_output_formats(input_dict, contract_sources)
+    interface_codes = get_interface_codes(root_path, contract_sources, interface_sources)
+
+    compiler_data, warning_data = {}, {}
     warnings.simplefilter('always')
     for id_, key in enumerate(sorted(contract_sources)):
         with warnings.catch_warnings(record=True) as caught_warnings:
