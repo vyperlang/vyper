@@ -291,6 +291,8 @@ Relative imports are possible by prepending dots to the contract name. A single 
     from . import foo
     from ..interfaces import baz
 
+.. _searching_for_imports:
+
 Searching For Interface Files
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
