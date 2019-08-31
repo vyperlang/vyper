@@ -26,10 +26,24 @@ from vyper.signatures.interface import (
 )
 from vyper.typing import (
     ContractCodes,
+    ContractPath,
 )
 from vyper.utils import (
     keccak256,
 )
+
+TRANSLATE_MAP = {
+    'abi': 'abi',
+    'ast': 'ast_dict',
+    'evm.methodIdentifiers': 'method_identifiers',
+    'evm.bytecode.object': 'bytecode',
+    'evm.bytecode.opcodes': 'opcodes',
+    'evm.deployedBytecode.object': 'bytecode_runtime',
+    'evm.deployedBytecode.opcodes': 'opcodes_runtime',
+    'evm.deployedBytecode.sourceMap': 'source_map',
+    'interface': 'interface',
+    'ir': 'ir',
+}
 
 
 def _parse_cli_args():
@@ -78,7 +92,7 @@ def _parse_cli_args():
         input_json = "".join(sys.stdin.read()).strip()
         json_path = "<stdin>"
 
-    exc_handler = exc_handler_raises if args.traceback else exc_handler_to_json
+    exc_handler = exc_handler_raises if args.traceback else exc_handler_to_dict
     output_json = json.dumps(
         compile_json(input_json, exc_handler, args.root_folder, json_path),
         indent=2 if args.pretty_json else None,
@@ -95,65 +109,43 @@ def _parse_cli_args():
         print(output_json)
 
 
-def get_interface_codes(root_path: Union[Path, None],
-                        contract_sources: ContractCodes,
-                        interface_sources: Dict) -> Dict:
-    interface_codes: Dict = {}
-    interfaces: Dict = {}
+def exc_handler_raises(file_path: Union[str, None],
+                       exception: Exception,
+                       component: str = "compiler") -> None:
+    if file_path:
+        print(f"Unhandled exception in '{file_path}':")
+    exception._exc_handler = True  # type: ignore
+    raise exception
 
-    for file_path, code in contract_sources.items():
-        interfaces[file_path] = {}
 
-        interface_codes = extract_file_interface_imports(code)
-        for interface_name, interface_path in interface_codes.items():
-            keys = [Path(file_path).parent.joinpath(interface_path).as_posix(), interface_path]
-
-            key = next((i for i in keys if i in interface_sources), None)
-            if key:
-                interfaces[file_path][interface_name] = interface_sources[key]
-                continue
-
-            key = next((i for i in keys if i in contract_sources), None)
-            if key:
-                interfaces[file_path][interface_name] = {
-                    'type': 'vyper',
-                    'code': contract_sources[key]
-                }
-                continue
-
-            if root_path is None:
-                raise FileNotFoundError(f"Cannot locate interface '{interface_path}{{.vy,.json}}'")
-
-            parent_path = root_path.joinpath(file_path).parent
-            base_paths = [parent_path]
-            if not interface_path.startswith('.'):
-                base_paths.append(root_path)
-            elif interface_path.startswith('../') and parent_path == root_path:
-                raise FileNotFoundError(
-                    f"{file_path} - Cannot perform relative import outside of base folder"
-                )
-
-            valid_path = get_interface_file_path(base_paths, interface_path)
-            with valid_path.open() as fh:
-                code = fh.read()
-            if valid_path.suffix == '.json':
-                interfaces[file_path][interface_name] = {
-                    'type': 'json',
-                    'code': json.loads(code.encode())
-                }
-            else:
-                interfaces[file_path][interface_name] = {
-                    'type': 'vyper',
-                    'code': code
-                }
-
-    return interfaces
+def exc_handler_to_dict(file_path: Union[str, None],
+                        exception: Exception,
+                        component: str = "compiler") -> Dict:
+    err_dict: Dict = {
+        "type": type(exception).__name__,
+        "component": component,
+        "severity": "error",
+        "message": str(exception).strip('"'),
+    }
+    if hasattr(exception, 'message'):
+        err_dict.update({
+            'message': exception.message,  # type: ignore
+            'formattedMessage': str(exception)
+        })
+    if file_path is not None:
+        err_dict['sourceLocation'] = {'file': file_path}
+        if getattr(exception, 'lineno', None) is not None:
+            err_dict['sourceLocation'].update({
+                'lineno': exception.lineno,  # type: ignore
+                'col_offset': getattr(exception, 'col_offset', None),
+            })
+    return {'errors': [err_dict]}
 
 
 def _standardize_path(path_str: str) -> str:
-    path = Path("/vyper/" + path_str.lstrip('/')).resolve()
+    path = Path("/__vyper/" + path_str.lstrip('/')).resolve()
     try:
-        path = path.relative_to("/vyper")
+        path = path.relative_to("/__vyper")
     except ValueError:
         raise JSONError(f"{path_str} - path exists outside base folder")
     return path.as_posix()
@@ -180,17 +172,19 @@ def get_input_dict_contracts(input_dict: Dict) -> ContractCodes:
             hash_ = value['keccak256'].lower()
             if hash_.startswith('0x'):
                 hash_ = hash_[2:]
-            if hash_ != keccak256(value['content'].encode('utf-8')):
+            if hash_ != keccak256(value['content'].encode('utf-8')).hex():
                 raise JSONError(
                     f"Calculated keccak of '{path}' does not match keccak given in input JSON"
                 )
         key = _standardize_path(path)
+        if key in contract_sources:
+            raise JSONError(f"Contract namespace collision: {key}")
         contract_sources[key] = value['content']
     return contract_sources
 
 
 def get_input_dict_interfaces(input_dict: Dict) -> Dict:
-    interface_sources = {}
+    interface_sources: Dict = {}
     for path, value in input_dict.get('interfaces', {}).items():
         key = _standardize_path(path)
         if key.endswith(".json"):
@@ -204,6 +198,8 @@ def get_input_dict_interfaces(input_dict: Dict) -> Dict:
         else:
             raise JSONError(f"Interface '{path}' must have suffix '.vy' or '.json'")
         key = key.rsplit('.', maxsplit=1)[0]
+        if key in interface_sources:
+            raise JSONError(f"Interface namespace collision: {key}")
         interface_sources[key] = interface
     return interface_sources
 
@@ -211,20 +207,6 @@ def get_input_dict_interfaces(input_dict: Dict) -> Dict:
 def get_input_dict_output_formats(input_dict: Dict, contract_sources: ContractCodes) -> Dict:
     output_formats = {}
     for path, outputs in input_dict['outputSelection'].items():
-
-        translate_map = {
-            'abi': 'abi',
-            'ast': 'ast_dict',
-            'evm.methodIdentifiers': 'method_identifiers',
-            'evm.bytecode.object': 'bytecode',
-            'evm.bytecode.opcodes': 'opcodes',
-            'evm.deployedBytecode.object': 'bytecode_runtime',
-            'evm.deployedBytecode.opcodes': 'opcodes_runtime',
-            'evm.deployedBytecode.sourceMap': 'source_map',
-            'interface': 'interface',
-            'ir': 'ir',
-        }
-
         if isinstance(outputs, dict):
             # if outputs are given in solc json format, collapse them into a single list
             outputs = set(x for i in outputs.values() for x in i)
@@ -233,12 +215,12 @@ def get_input_dict_output_formats(input_dict: Dict, contract_sources: ContractCo
 
         for key in [i for i in ('evm', 'evm.bytecode', 'evm.deployedBytecode') if i in outputs]:
             outputs.remove(key)
-            outputs.update([i for i in translate_map if i.startswith(key)])
+            outputs.update([i for i in TRANSLATE_MAP if i.startswith(key)])
         if '*' in outputs:
-            outputs = list(translate_map.values())
+            outputs = sorted(TRANSLATE_MAP.values())
         else:
             try:
-                outputs = [translate_map[i] for i in outputs]
+                outputs = sorted(TRANSLATE_MAP[i] for i in outputs)
             except KeyError as e:
                 raise JSONError(f"Invalid outputSelection - {e}")
 
@@ -255,8 +237,62 @@ def get_input_dict_output_formats(input_dict: Dict, contract_sources: ContractCo
     return output_formats
 
 
+def get_interface_codes(root_path: Union[Path, None],
+                        contract_path: ContractPath,
+                        contract_sources: ContractCodes,
+                        interface_sources: Dict) -> Dict:
+    interface_codes: Dict = {}
+    interfaces: Dict = {}
+
+    code = contract_sources[contract_path]
+    interface_codes = extract_file_interface_imports(code)
+    for interface_name, interface_path in interface_codes.items():
+        keys = [Path(contract_path).parent.joinpath(interface_path).as_posix(), interface_path]
+
+        key = next((i for i in keys if i in interface_sources), None)
+        if key:
+            interfaces[interface_name] = interface_sources[key]
+            continue
+
+        key = next((i+".vy" for i in keys if i+".vy" in contract_sources), None)
+        if key:
+            interfaces[interface_name] = {
+                'type': 'vyper',
+                'code': contract_sources[key]
+            }
+            continue
+
+        if root_path is None:
+            raise FileNotFoundError(f"Cannot locate interface '{interface_path}{{.vy,.json}}'")
+
+        parent_path = root_path.joinpath(contract_path).parent
+        base_paths = [parent_path]
+        if not interface_path.startswith('.'):
+            base_paths.append(root_path)
+        elif interface_path.startswith('../') and parent_path == root_path:
+            raise FileNotFoundError(
+                f"{contract_path} - Cannot perform relative import outside of base folder"
+            )
+
+        valid_path = get_interface_file_path(base_paths, interface_path)
+        with valid_path.open() as fh:
+            code = fh.read()
+        if valid_path.suffix == '.json':
+            interfaces[interface_name] = {
+                'type': 'json',
+                'code': json.loads(code.encode())
+            }
+        else:
+            interfaces[interface_name] = {
+                'type': 'vyper',
+                'code': code
+            }
+
+    return interfaces
+
+
 def compile_from_input_dict(input_dict: Dict,
-                            exc_handler: Callable,
+                            exc_handler: Callable = exc_handler_raises,
                             root_folder: Union[str, None] = None) -> Tuple[Dict, Dict]:
     root_path = None
     if root_folder is not None:
@@ -272,25 +308,29 @@ def compile_from_input_dict(input_dict: Dict,
     contract_sources: ContractCodes = get_input_dict_contracts(input_dict)
     interface_sources = get_input_dict_interfaces(input_dict)
     output_formats = get_input_dict_output_formats(input_dict, contract_sources)
-    interface_codes = get_interface_codes(root_path, contract_sources, interface_sources)
 
     compiler_data, warning_data = {}, {}
     warnings.simplefilter('always')
-    for id_, key in enumerate(sorted(contract_sources)):
+    for id_, contract_path in enumerate(sorted(contract_sources)):
         with warnings.catch_warnings(record=True) as caught_warnings:
-            data = vyper.compile_codes(
-                {key: contract_sources[key]},
-                output_formats[key],
-                exc_handler=exc_handler,
-                interface_codes=interface_codes[key],
-                initial_id=id_
-            )
-
-            if 'errors' in data:
-                return data, {}
-            compiler_data[key] = data[key]
+            try:
+                interface_codes = get_interface_codes(
+                    root_path,
+                    contract_path,
+                    contract_sources,
+                    interface_sources
+                )
+                data = vyper.compile_codes(
+                    {contract_path: contract_sources[contract_path]},
+                    output_formats[contract_path],
+                    interface_codes=interface_codes,
+                    initial_id=id_
+                )
+            except Exception as exc:
+                return exc_handler(contract_path, exc), {}
+            compiler_data[contract_path] = data[contract_path]
             if caught_warnings:
-                warning_data[key] = caught_warnings
+                warning_data[contract_path] = caught_warnings
 
     return compiler_data, warning_data
 
@@ -340,10 +380,9 @@ def format_to_output_dict(compiler_data: Dict) -> Dict:
 
 
 def compile_json(input_json: Union[Dict, str],
-                 exc_handler: Callable,
+                 exc_handler: Callable = exc_handler_raises,
                  root_path: Union[str, None] = None,
                  json_path: Union[str, None] = None) -> Dict:
-
     try:
         if isinstance(input_json, str):
             try:
@@ -379,40 +418,8 @@ def compile_json(input_json: Union[Dict, str],
 
     except Exception as exc:
         if hasattr(exc, '_exc_handler'):
+            # exception was already handled by exc_handler_raises
             raise
         exc.lineno = sys.exc_info()[-1].tb_lineno  # type: ignore
         file_path = sys.exc_info()[-1].tb_frame.f_code.co_filename  # type: ignore
         return exc_handler(file_path, exc, "vyper")
-
-
-def exc_handler_raises(file_path: Union[str, None],
-                       exception: Exception,
-                       component: str = "compiler") -> None:
-    if file_path:
-        print(f"Unhandled exception in '{file_path}':")
-    exception._exc_handler = True  # type: ignore
-    raise exception
-
-
-def exc_handler_to_json(file_path: Union[str, None],
-                        exception: Exception,
-                        component: str = "compiler") -> Dict:
-    err_dict: Dict = {
-        "type": type(exception).__name__,
-        "component": component,
-        "severity": "error",
-        "message": str(exception).strip('"'),
-    }
-    if hasattr(exception, 'message'):
-        err_dict.update({
-            'message': exception.message,  # type: ignore
-            'formattedMessage': str(exception)
-        })
-    if file_path is not None:
-        err_dict['sourceLocation'] = {'file': file_path}
-        if getattr(exception, 'lineno', None) is not None:
-            err_dict['sourceLocation'].update({
-                'lineno': exception.lineno,  # type: ignore
-                'col_offset': getattr(exception, 'col_offset', None),
-            })
-    return {'errors': [err_dict]}
