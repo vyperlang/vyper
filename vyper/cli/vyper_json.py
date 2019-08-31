@@ -111,7 +111,7 @@ def _parse_cli_args():
 
 def exc_handler_raises(file_path: Union[str, None],
                        exception: Exception,
-                       component: str = "compiler") -> None:
+                       component: str) -> None:
     if file_path:
         print(f"Unhandled exception in '{file_path}':")
     exception._exc_handler = True  # type: ignore
@@ -120,7 +120,7 @@ def exc_handler_raises(file_path: Union[str, None],
 
 def exc_handler_to_dict(file_path: Union[str, None],
                         exception: Exception,
-                        component: str = "compiler") -> Dict:
+                        component: str) -> Dict:
     err_dict: Dict = {
         "type": type(exception).__name__,
         "component": component,
@@ -320,6 +320,9 @@ def compile_from_input_dict(input_dict: Dict,
                     contract_sources,
                     interface_sources
                 )
+            except Exception as exc:
+                return exc_handler(contract_path, exc, "parser"), {}
+            try:
                 data = vyper.compile_codes(
                     {contract_path: contract_sources[contract_path]},
                     output_formats[contract_path],
@@ -327,7 +330,7 @@ def compile_from_input_dict(input_dict: Dict,
                     initial_id=id_
                 )
             except Exception as exc:
-                return exc_handler(contract_path, exc), {}
+                return exc_handler(contract_path, exc, "compiler"), {}
             compiler_data[contract_path] = data[contract_path]
             if caught_warnings:
                 warning_data[contract_path] = caught_warnings
