@@ -32,8 +32,8 @@ Ubuntu
 Start by making sure your packages are up-to-date:
 ::
 
-    $ sudo apt-get update
-    $ sudo apt-get -y upgrade
+    sudo apt-get update
+    sudo apt-get -y upgrade
 
 Install Python 3.6 and some necessary packages:
 ::
