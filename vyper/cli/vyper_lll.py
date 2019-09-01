@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import sys
 
 import vyper
 from vyper import (
@@ -15,6 +16,10 @@ from vyper.parser.s_expressions import (
 
 
 def _parse_cli_args():
+    return _parse_args(sys.argv[1:])
+
+
+def _parse_args(argv):
     parser = argparse.ArgumentParser(description='Vyper LLL for Ethereum')
     parser.add_argument(
         'input_file',
@@ -37,7 +42,7 @@ def _parse_cli_args():
         action='store_true',
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     output_formats = set(dict.fromkeys(args.format.split(',')))
     compiler_data = compile_to_lll(args.input_file, output_formats, args.show_gas_estimates)
 

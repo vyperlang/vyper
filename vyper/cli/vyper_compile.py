@@ -54,6 +54,10 @@ ir                 - Print Intermediate Representation in LLL
 
 
 def _parse_cli_args():
+    return _parse_args(sys.argv[1:])
+
+
+def _parse_args(argv):
 
     warnings.simplefilter('always')
 
@@ -92,7 +96,7 @@ def _parse_cli_args():
         default='.', dest='root_folder'
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.traceback_limit is not None:
         sys.tracebacklimit = args.traceback_limit

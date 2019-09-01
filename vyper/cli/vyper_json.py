@@ -47,6 +47,10 @@ TRANSLATE_MAP = {
 
 
 def _parse_cli_args():
+    return _parse_args(sys.argv[1:])
+
+
+def _parse_args(argv):
     parser = argparse.ArgumentParser(
         description='Vyper programming language for Ethereum - JSON Compiler',
         formatter_class=argparse.RawTextHelpFormatter
@@ -83,7 +87,7 @@ def _parse_cli_args():
         action='store_true'
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     if args.input_file:
         with Path(args.input_file).open() as fh:
             input_json = fh.read()
