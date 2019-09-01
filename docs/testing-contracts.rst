@@ -6,7 +6,7 @@ Testing a Contract
 ******************
 
 This documentation recommends the use of the `pytest <https://docs.pytest.org/en/latest/contents.html>`_ framework with
-the `ethereum-tester <https://github.com/ethereum/ethereum-tester>`_ package.
+the `ethereum-tester <https://github.com/ethereum/eth-tester>`_ package.
 Prior to testing, the vyper specific contract conversion and the blockchain related fixtures need to be set up.
 These fixtures will be used in every test file and should therefore be defined in
 `conftest.py <https://docs.pytest.org/en/latest/fixture.html#conftest-py-sharing-fixture-functions>`_.

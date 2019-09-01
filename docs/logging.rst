@@ -7,7 +7,7 @@ Like Solidity and other EVM languages, Vyper can log events to be caught and dis
 Example of Logging
 ==================
 
-This example is taken from the `sample ERC20 contract <https://github.com/ethereum/vyper/blob/master/examples/tokens/ERC20_solidity_compatible/ERC20.vy>`_ and shows the basic flow of event logging.
+This example is taken from the `sample ERC20 contract <https://github.com/ethereum/vyper/blob/master/examples/tokens/ERC20.vy>`_ and shows the basic flow of event logging.
 
 ::
 
@@ -25,11 +25,11 @@ This example is taken from the `sample ERC20 contract <https://github.com/ethere
 
 Let's look at what this is doing. First, we declare two event types to log. The two events are similar in that they contain
 two indexed address fields. Indexed fields do not make up part of the event data itself, but can be searched by clients that
-want to catch the event. Also, each event contains one single data field, in each case called _value. Events can contain several arguments with any names desired.
+want to catch the event. Also, each event contains one single data field, in each case called ``_value``. Events can contain several arguments with any names desired.
 
 Next, in the ``transfer`` function, after we do whatever work is necessary, we log the event. We pass three arguments, corresponding with the three arguments of the Transfer event declaration.
 
-Clients listening to the events will declare and handle the events they are interested in using a `library such as web3.js <http://solidity.readthedocs.io/en/develop/contracts.html#events>`_:
+Clients listening to the events will declare and handle the events they are interested in using a `library such as web3.js <https://solidity.readthedocs.io/en/latest/contracts.html#events>`_:
 
 ::
 
@@ -58,17 +58,17 @@ Let's look at an event declaration in more detail.
 
 Event declarations look like state variable declarations but use the special keyword event. event takes its arguments that consists of all the arguments to be passed as part of the event. Typical events will contain two kinds of arguments:
 
-* Indexed arguments, which can be searched for by listeners. Each indexed argument is identified by the `indexed` keyword.  Here, each indexed argument is an address. You can have any number of indexed arguments, but indexed arguments are not passed directly to listeners, although some of this information (such as the sender) may be available in the listener's `results` object.
+* Indexed arguments, which can be searched for by listeners. Each indexed argument is identified by the ``indexed`` keyword.  Here, each indexed argument is an address. You can have any number of indexed arguments, but indexed arguments are not passed directly to listeners, although some of this information (such as the sender) may be available in the listener's `results` object.
 * Value arguments, which are passed through to listeners. You can have any number of value arguments and they can have arbitrary names, but each is limited by the EVM to be no more than 32 bytes.
 
-Note that while the argument definition syntax looks like a Python dictionary, it's actually an order-sensitive definition. (Python dictionaries `maintain order starting with 3.7 <https://mail.python.org/pipermail/python-dev/2017-December/151283.html>`_.) Thus, the first element (_from) will be matched up with the first argument passed in the log.Transfer call.
+Note that while the argument definition syntax looks like a Python dictionary, it's actually an order-sensitive definition. (Python dictionaries `maintain order starting with 3.7 <https://mail.python.org/pipermail/python-dev/2017-December/151283.html>`_.) Thus, the first element (``_from``) will be matched up with the first argument passed in the log.Transfer call.
 
 Logging Events
 ==============
 
 Once an event is declared, you can log (send) events. You can send events as many times as you want to. Please note that events sent do not take state storage and thus do not cost gas: this makes events a good way to save some information. However, the drawback is that events are not available to contracts, only to clients.
 
-Logging events is done using the magic keyword `log`:
+Logging events is done using the magic keyword ``log``:
 
 ::
 
@@ -79,4 +79,4 @@ The order and types of arguments sent needs to match up with the order of declar
 Listening for Events
 ====================
 
-In the example listener above, the `result` arg actually passes a `large amount of information <https://github.com/ethereum/wiki/wiki/JavaScript-API#contract-events>`_. Here we're most interested in `result.args`. This is an object with properties that match the properties declared in the event. Note that this object does not contain the indexed properties, which can only be searched in the original `myToken.Transfer` that created the callback.
+In the example listener above, the ``result`` arg actually passes a `large amount of information <https://github.com/ethereum/wiki/wiki/JavaScript-API#contract-events>`_. Here we're most interested in ``result.args``. This is an object with properties that match the properties declared in the event. Note that this object does not contain the indexed properties, which can only be searched in the original ``myToken.Transfer`` that created the callback.
