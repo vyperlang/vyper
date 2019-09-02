@@ -535,6 +535,12 @@ def make_setter(left, right, location, pos, in_function_call=False):
             pos,
             in_function_call=in_function_call,
         )
+        if 'int' in left.typ.typ and isinstance(right.value, int):
+            if not SizeLimits.in_bounds(left.typ.typ, right.value):
+                raise InvalidLiteralException(
+                    f"Number out of range for {left.typ}: {right.value}",
+                    pos
+                )
         if location == 'storage':
             return LLLnode.from_list(['sstore', left, right], typ=None)
         elif location == 'memory':
