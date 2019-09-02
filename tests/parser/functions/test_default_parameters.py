@@ -1,7 +1,12 @@
 import pytest
 
+from vyper.compiler import (
+    compile_code,
+)
 from vyper.exceptions import (
     FunctionDeclarationException,
+    InvalidLiteralException,
+    TypeMismatchException,
 )
 
 
@@ -153,12 +158,48 @@ def callMeMaybe() -> (bytes[100], uint256, bytes[20]):
     assert c.callMeMaybe() == [b'here is my number', 555123456, b'baby']
 
 
-def test_default_param_literal(get_contract):
-    code = """
+FAILING_CONTRACTS = [
+    ("""
+# default params must be literals
 x: int128
 
 @public
 def foo(xx: int128, y: int128 = xx): pass
-    """
-    with pytest.raises(FunctionDeclarationException):
-        get_contract(code)
+    """, FunctionDeclarationException),
+    ("""
+# value out of range for uint256
+@public
+def foo(a: uint256 = -1): pass
+    """, InvalidLiteralException),
+    ("""
+# value out of range for int128
+@public
+def foo(a: int128 = 170141183460469231731687303715884105728): pass
+    """, TypeMismatchException),
+    ("""
+# value out of range for uint256 array
+@public
+def foo(a: uint256[2] = [13, -42]): pass
+     """, InvalidLiteralException),
+    ("""
+# value out of range for int128 array
+@public
+def foo(a: int128[2] = [12, 170141183460469231731687303715884105728]): pass
+    """, TypeMismatchException),
+    ("""
+# array type mismatch
+@public
+def foo(a: uint256[2] = [12, True]): pass
+    """, TypeMismatchException),
+    ("""
+# wrong length
+@public
+def foo(a: uint256[2] = [1, 2, 3]): pass
+    """, TypeMismatchException),
+]
+
+
+@pytest.mark.parametrize('failing_contract', FAILING_CONTRACTS)
+def test_bad_default_params(failing_contract, assert_compile_failed):
+    code, exc = failing_contract
+    assert_compile_failed(lambda: compile_code(code), exc)

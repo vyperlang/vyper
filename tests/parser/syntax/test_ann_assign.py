@@ -7,6 +7,7 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
+    InvalidLiteralException,
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
@@ -77,7 +78,25 @@ struct S:
 def foo() -> int128:
     s: S = S({b: 1.2, c: 1, d: 33, e: 55})
     return s.a
-    """, TypeMismatchException)
+    """, TypeMismatchException),
+    ("""
+@public
+def foo() -> bool:
+    a: uint256 = -1
+    return True
+""", InvalidLiteralException),
+    ("""
+@public
+def foo() -> bool:
+    a: uint256[2] = [13, -42]
+    return True
+""", InvalidLiteralException),
+    ("""
+@public
+def foo() -> bool:
+    a: int128 = 170141183460469231731687303715884105728
+    return True
+""", TypeMismatchException),
 ]
 
 
