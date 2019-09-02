@@ -158,6 +158,44 @@ def callMeMaybe() -> (bytes[100], uint256, bytes[20]):
     assert c.callMeMaybe() == [b'here is my number', 555123456, b'baby']
 
 
+PASSING_CONTRACTS = [
+    """
+@public
+def foo(a: bool = True, b: bool[2] = [True, False]): pass
+    """,
+    """
+@public
+def foo(
+    a: address = 0x0c04792e92e6b2896a18568fD936781E9857feB7,
+    b: address[2] = [
+        0x0c04792e92e6b2896a18568fD936781E9857feB7,
+        0x0c04792e92e6b2896a18568fD936781E9857feB7
+    ]): pass
+    """,
+    """
+@public
+def foo(a: uint256 = 12345, b: uint256[2] = [31337, 42]): pass
+    """,
+    """
+@public
+def foo(a: int128 = -31, b: int128[2] = [64, -46]): pass
+    """,
+    """
+@public
+def foo(a: bytes[6] = "potato"): pass
+    """,
+    """
+@public
+def foo(a: decimal = 3.14, b: decimal[2] = [1.337, 2.69]): pass
+    """
+]
+
+
+@pytest.mark.parametrize('code', PASSING_CONTRACTS)
+def test_good_default_params(code):
+    assert compile_code(code)
+
+
 FAILING_CONTRACTS = [
     ("""
 # default params must be literals
@@ -196,6 +234,25 @@ def foo(a: uint256[2] = [12, True]): pass
 @public
 def foo(a: uint256[2] = [1, 2, 3]): pass
     """, TypeMismatchException),
+    ("""
+# default params must be literals
+x: uint256
+
+@public
+def foo(a: uint256 = self.x): pass
+     """, FunctionDeclarationException),
+    ("""
+# default params must be literals inside array
+x: uint256
+
+@public
+def foo(a: uint256[2] = [2, self.x]): pass
+     """, FunctionDeclarationException),
+    ("""
+# default params still must be literals
+@public
+def foo(a: uint256 = 2**8): pass
+     """, FunctionDeclarationException),
 ]
 
 
