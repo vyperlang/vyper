@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import vyper
 from vyper.cli.vyper_json import (
     format_to_output_dict,
 )
@@ -21,6 +22,8 @@ def test_keys():
         output_formats=list(output_formats_map.keys())
     )
     output_json = format_to_output_dict(compiler_data)
+    assert sorted(output_json.keys()) == ['compiler', 'contracts', 'sources']
+    assert output_json['compiler'] == f"vyper-{vyper.__version__}"
     data = compiler_data['foo.vy']
     assert output_json['sources']['foo.vy'] == {'id': 0, 'ast': data['ast_dict']['ast']}
     assert output_json['contracts']['foo.vy']['foo'] == {

@@ -143,7 +143,12 @@ def exc_handler_to_dict(file_path: Union[str, None],
                 'lineno': exception.lineno,  # type: ignore
                 'col_offset': getattr(exception, 'col_offset', None),
             })
-    return {'errors': [err_dict]}
+
+    output_json = {
+        'compiler': f"vyper-{vyper.__version__}",
+        'errors': [err_dict],
+    }
+    return output_json
 
 
 def _standardize_path(path_str: str) -> str:

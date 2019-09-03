@@ -6,6 +6,7 @@ from copy import (
 
 import pytest
 
+import vyper
 from vyper.cli.vyper_json import (
     TRANSLATE_MAP,
     compile_from_input_dict,
@@ -103,7 +104,8 @@ def test_exc_handler_to_dict_compiler():
     input_json = deepcopy(INPUT_JSON)
     input_json['sources']['badcode.vy'] = {'content': BAD_COMPILER_CODE}
     result, _ = compile_from_input_dict(input_json, exc_handler_to_dict)
-    assert 'errors' in result
+    assert sorted(result.keys()) == ['compiler', 'errors']
+    assert result['compiler'] == f"vyper-{vyper.__version__}"
     assert len(result['errors']) == 1
     error = result['errors'][0]
     assert error['component'] == "compiler"
