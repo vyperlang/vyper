@@ -535,6 +535,8 @@ def make_setter(left, right, location, pos, in_function_call=False):
             pos,
             in_function_call=in_function_call,
         )
+        # TODO this overlaps a type check in parser.stmt.Stmt._check_valid_assign
+        # and should be examined during a refactor (@iamdefinitelyahuman)
         if 'int' in left.typ.typ and isinstance(right.value, int):
             if not SizeLimits.in_bounds(left.typ.typ, right.value):
                 raise InvalidLiteralException(
