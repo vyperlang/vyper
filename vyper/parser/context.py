@@ -146,8 +146,8 @@ class Context:
 
     # TODO location info for errors
     # Add a new variable
-    def new_variable(self, name, typ, pos=None):
-        if self.is_valid_varname(name, pos):
+    def new_variable(self, name, typ, anon=False, pos=None):
+        if anon or self.is_valid_varname(name, pos):
             var_size = 32 * get_size_of_type(typ)
             var_pos, _ = self.memory_allocator.increase_memory(var_size)
             self.vars[name] = VariableRecord(
@@ -161,9 +161,9 @@ class Context:
 
     # Add an anonymous variable (used in some complex function definitions)
     def new_placeholder(self, typ):
-        name = '_placeholder_' + str(self.placeholder_count)
+        name = '#_placeholder_' + str(self.placeholder_count)
         self.placeholder_count += 1
-        return self.new_variable(name, typ)
+        return self.new_variable(name, typ, anon=True)
 
     def get_next_mem(self):
         return self.memory_allocator.get_next_mem()
