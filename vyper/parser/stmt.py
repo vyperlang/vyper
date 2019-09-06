@@ -633,8 +633,9 @@ class Stmt(object):
             varname,
             BaseType(subtype, unit=iter_list_node.typ.subtype.unit),
         )
+        i_pos_raw_name = '_index_for_' + varname
         i_pos = self.context.new_variable(
-                '_index_for_' + varname,
+                i_pos_raw_name,
                 BaseType(subtype),
                 internal_var=True
                 )
@@ -712,7 +713,7 @@ class Stmt(object):
                 )
 
         del self.context.vars[varname]
-        del self.context.vars['_index_for_' + varname]
+        del self.context.vars[self.context._mangle(i_pos_raw_name)]
         del self.context.forvars[varname]
         return o
 

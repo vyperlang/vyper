@@ -144,13 +144,16 @@ class Context:
                 raise VariableDeclarationException("Duplicate variable name: %s" % name, name)
         return True
 
+    def _mangle(self, name):
+        return '#internal' + name
+
     # TODO location info for errors
     # Add a new variable
     def new_variable(self, name, typ, internal_var=False, pos=None):
         # mangle internally generated variables so they cannot collide
         # with user variables.
         if internal_var:
-            name = '#' + name
+            name = self._mangle(name)
         if internal_var or self.is_valid_varname(name, pos):
             var_size = 32 * get_size_of_type(typ)
             var_pos, _ = self.memory_allocator.increase_memory(var_size)
