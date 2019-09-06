@@ -166,11 +166,14 @@ class Context:
             )
             return var_pos
 
+    def new_internal_variable(self, name, typ, pos=None):
+        return self.new_variable(name, typ, pos=pos, internal_var=True)
+
     # Add an anonymous variable (used in some complex function definitions)
     def new_placeholder(self, typ):
         name = '_placeholder_' + str(self.placeholder_count)
         self.placeholder_count += 1
-        return self.new_variable(name, typ, internal_var=True)
+        return self.new_internal_variable(name, typ)
 
     def get_next_mem(self):
         return self.memory_allocator.get_next_mem()

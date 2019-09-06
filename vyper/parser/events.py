@@ -237,10 +237,9 @@ def pack_logging_data(expected_data, args, context, pos):
                         "Data input bytes are to big: %r %r" % (len(arg.s), typ), pos
                     )
 
-            tmp_variable = context.new_variable(
+            tmp_variable = context.new_internal_variable(
                 '_log_pack_var_%i_%i' % (arg.lineno, arg.col_offset),
                 source_lll.typ,
-                internal_var=True,
             )
             tmp_variable_node = LLLnode.from_list(
                 tmp_variable,
