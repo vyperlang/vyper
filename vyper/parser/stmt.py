@@ -633,7 +633,11 @@ class Stmt(object):
             varname,
             BaseType(subtype, unit=iter_list_node.typ.subtype.unit),
         )
-        i_pos = self.context.new_variable('_index_for_' + varname, BaseType(subtype), internal_var=True)
+        i_pos = self.context.new_variable(
+                '_index_for_' + varname,
+                BaseType(subtype),
+                internal_var=True
+                )
         self.context.forvars[varname] = True
 
         # Is a list that is already allocated to memory.
