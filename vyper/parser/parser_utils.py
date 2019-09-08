@@ -891,7 +891,7 @@ def annotate_ast(
 
 # zero pad a bytearray according to the ABI spec. The last word
 # of the byte array needs to be right-padded with zeroes.
-def zero_pad(bytez_placeholder, maxlen, context=None, zero_pad_i=None):
+def zero_pad(bytez_placeholder, maxlen):
     zero_padder = LLLnode.from_list(['pass'])
     if maxlen > 0:
         # calldatacopy from past-the-end gives zero bytes.
@@ -987,7 +987,7 @@ def gen_tuple_return(stmt, context, sub):
                 'add',
                 mem_pos,
                 ['mload', mem_pos + i * 32]
-            ], maxlen=x.maxlen, context=context)
+            ], maxlen=x.maxlen)
         return LLLnode.from_list(['seq'] + [sub] + [zero_padder] + [
             make_return_stmt(stmt, context, mem_pos, mem_size)
         ], typ=sub.typ, pos=getpos(stmt), valency=0)

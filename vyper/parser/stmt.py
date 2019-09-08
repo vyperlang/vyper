@@ -852,7 +852,7 @@ class Stmt(object):
                         sub,
                         pos=getpos(self.stmt)
                     ),
-                    zero_pad(bytez_placeholder, sub.typ.maxlen, self.context),
+                    zero_pad(bytez_placeholder, sub.typ.maxlen),
                     ['mstore', len_placeholder, 32],
                     make_return_stmt(
                         self.stmt,
