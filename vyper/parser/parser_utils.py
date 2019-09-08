@@ -894,24 +894,18 @@ def annotate_ast(
 def zero_pad(bytez_placeholder, maxlen, context=None, zero_pad_i=None):
     zero_padder = LLLnode.from_list(['pass'])
     if maxlen > 0:
-        # Iterator used to zero pad memory.
-        if zero_pad_i is None:
-            zero_pad_i = context.new_placeholder(BaseType('uint256'))
-        zero_padder = LLLnode.from_list([
-            # the runtime length of the data rounded up to nearest 32
-            # from spec:
-            #   the actual value of X as a byte sequence,
-            #   followed by the *minimum* number of zero-bytes
-            #   such that len(enc(X)) is a multiple of 32.
-            'with', '_ceil32_end', ['ceil32', ['mload', bytez_placeholder]],
-            ['repeat', zero_pad_i, ['mload', bytez_placeholder], ceil32(maxlen), [
-                'seq',
-                # stay within allocated bounds
-                ['if', ['ge', ['mload', zero_pad_i], '_ceil32_end'], 'break'],
-                ['mstore8', ['add', ['add', 32, bytez_placeholder], ['mload', zero_pad_i]], 0]
-                ]]],
-            annotation="Zero pad",
-        )
+        # calldatacopy from past-the-end gives zero bytes.
+        len_ = ['mload', bytez_placeholder]
+        dst = ['add', ['add', bytez_placeholder, 32], 'len']
+        num_zero_bytes = ['sub', ['sub', ceil32(maxlen), 'len'], 0]
+        zero_padder = LLLnode.from_list(
+                ['with', 'len', len_,
+                    ['with', 'dst', dst,
+                        # calldatacopy mempos calldatapos len
+                        ['calldatacopy', 'dst', 'calldatasize', num_zero_bytes]
+                        ]],
+                    annotation="Zero pad",
+                    )
     return zero_padder
 
 
