@@ -170,9 +170,7 @@ class FunctionSignature:
 
         # Validate default values.
         for default_value in getattr(code.args, 'defaults', []):
-            allowed_types = (ast.Num, ast.Str, ast.Bytes, ast.List, ast.NameConstant)
-            if not isinstance(default_value, allowed_types):
-                raise FunctionDeclarationException("Default parameter values have to be literals.")
+            validate_default_values(default_value)
 
         # Determine the arguments, expects something of the form def foo(arg1:
         # int128, arg2: int128 ...
@@ -467,3 +465,12 @@ class FunctionSignature:
         # Run balanced return statement check.
         UnmatchedReturnChecker().visit(to_python_ast(self.func_ast_code))
         EnsureSingleExitChecker().visit(to_python_ast(self.func_ast_code))
+
+
+def validate_default_values(node):
+    allowed_types = (ast.Num, ast.Str, ast.Bytes, ast.List, ast.NameConstant)
+    if not isinstance(node, allowed_types):
+        raise FunctionDeclarationException("Default parameter values have to be literals.", node)
+    if isinstance(node, ast.List):
+        for n in node.elts:
+            validate_default_values(n)
