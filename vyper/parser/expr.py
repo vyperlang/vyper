@@ -53,6 +53,23 @@ from vyper.utils import (
     string_to_bytes,
 )
 
+# var name: (lllnode, type)
+BUILTIN_CONSTANTS = {
+    'EMPTY_BYTES32': (0, 'bytes32'),
+    'ZERO_ADDRESS': (0, 'address'),
+    'MAX_INT128': (SizeLimits.MAXNUM, 'int128'),
+    'MIN_INT128': (SizeLimits.MINNUM, 'int128'),
+    'MAX_DECIMAL': (SizeLimits.MAXDECIMAL, 'decimal'),
+    'MIN_DECIMAL': (SizeLimits.MINDECIMAL, 'decimal'),
+    'MAX_UINT256': (SizeLimits.MAX_UINT256, 'uint256'),
+}
+
+ENVIRONMENT_VARIABLES = (
+    "block",
+    "msg",
+    "tx",
+)
+
 
 class Expr(object):
     # TODO: Once other refactors are made reevaluate all inline imports
@@ -220,43 +237,6 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
 
     # Variable names
     def variables(self):
-        builtin_constants = {
-            'EMPTY_BYTES32': LLLnode.from_list(
-                [0],
-                typ=BaseType('bytes32', None, is_literal=True),
-                pos=getpos(self.expr)
-            ),
-            'ZERO_ADDRESS': LLLnode.from_list(
-                [0],
-                typ=BaseType('address', None, is_literal=True),
-                pos=getpos(self.expr)
-            ),
-            'MAX_INT128': LLLnode.from_list(
-                [SizeLimits.MAXNUM],
-                typ=BaseType('int128', None, is_literal=True),
-                pos=getpos(self.expr)
-            ),
-            'MIN_INT128': LLLnode.from_list(
-                [SizeLimits.MINNUM],
-                typ=BaseType('int128', None, is_literal=True),
-                pos=getpos(self.expr)
-            ),
-            'MAX_DECIMAL': LLLnode.from_list(
-                [SizeLimits.MAXDECIMAL],
-                typ=BaseType('decimal', None, is_literal=True),
-                pos=getpos(self.expr)
-            ),
-            'MIN_DECIMAL': LLLnode.from_list(
-                [SizeLimits.MINDECIMAL],
-                typ=BaseType('decimal', None, is_literal=True),
-                pos=getpos(self.expr)
-            ),
-            'MAX_UINT256': LLLnode.from_list(
-                [SizeLimits.MAX_UINT256],
-                typ=BaseType('uint256', None, is_literal=True),
-                pos=getpos(self.expr)
-            ),
-        }
 
         if self.expr.id == 'self':
             return LLLnode.from_list(['address'], typ='address', pos=getpos(self.expr))
@@ -270,8 +250,13 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 annotation=self.expr.id,
                 mutable=var.mutable,
             )
-        elif self.expr.id in builtin_constants:
-            return builtin_constants[self.expr.id]
+
+        elif self.expr.id in BUILTIN_CONSTANTS:
+            obj, typ = BUILTIN_CONSTANTS[self.expr.id]
+            return LLLnode.from_list(
+                [obj],
+                typ=BaseType(typ, None, is_literal=True),
+                pos=getpos(self.expr))
         elif self.context.constants.ast_is_constant(self.expr):
             return self.context.constants.get_constant(self.expr.id, self.context)
         else:
@@ -329,7 +314,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 annotation='self.' + self.expr.attr,
             )
         # Reserved keywords
-        elif isinstance(self.expr.value, ast.Name) and self.expr.value.id in ("msg", "block", "tx"):
+        elif isinstance(self.expr.value, ast.Name) and self.expr.value.id in ENVIRONMENT_VARIABLES:
             key = self.expr.value.id + "." + self.expr.attr
             if key == "msg.sender":
                 if self.context.is_private:

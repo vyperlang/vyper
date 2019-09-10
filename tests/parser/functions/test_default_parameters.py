@@ -6,6 +6,8 @@ from vyper.compiler import (
 from vyper.exceptions import (
     FunctionDeclarationException,
     InvalidLiteralException,
+    NonPayableViolationException,
+    ParserException,
     TypeMismatchException,
 )
 
@@ -158,6 +160,44 @@ def callMeMaybe() -> (bytes[100], uint256, bytes[20]):
     assert c.callMeMaybe() == [b'here is my number', 555123456, b'baby']
 
 
+def test_builtin_constants_as_default(get_contract):
+    code = """
+@public
+def foo(a: int128 = MIN_INT128, b: int128 = MAX_INT128) -> (int128, int128):
+    return a, b
+    """
+    c = get_contract(code)
+    assert c.foo() == [-(2**127), 2**127-1]
+    assert c.foo(31337) == [31337, 2**127-1]
+    assert c.foo(13, 42) == [13, 42]
+
+
+def test_environment_vars_as_default(get_contract):
+    code = """
+xx: uint256(wei)
+
+@public
+@payable
+def foo(a: uint256(wei) = msg.value) -> bool:
+    self.xx += a
+    return True
+
+@public
+def bar() -> uint256(wei):
+    return self.xx
+
+@public
+def get_balance() -> uint256(wei):
+    return self.balance
+    """
+    c = get_contract(code)
+    c.foo(transact={'value': 31337})
+    assert c.bar() == 31337
+    c.foo(666, transact={'value': 9001})
+    assert c.bar() == 31337 + 666
+    assert c.get_balance() == 31337 + 9001
+
+
 PASSING_CONTRACTS = [
     """
 @public
@@ -187,7 +227,16 @@ def foo(a: bytes[6] = "potato"): pass
     """
 @public
 def foo(a: decimal = 3.14, b: decimal[2] = [1.337, 2.69]): pass
+    """,
     """
+@public
+def foo(a: address = msg.sender, b: address[3] = [msg.sender, tx.origin, block.coinbase]): pass
+    """,
+    """
+@public
+@payable
+def foo(a: uint256(wei) = msg.value): pass
+    """,
 ]
 
 
@@ -253,6 +302,16 @@ def foo(a: uint256[2] = [2, self.x]): pass
 @public
 def foo(a: uint256 = 2**8): pass
      """, FunctionDeclarationException),
+    ("""
+# msg.value in a nonpayable
+@public
+def foo(a: uint256 = msg.value): pass
+""", NonPayableViolationException),
+    ("""
+# msg.sender in a private function
+@private
+def foo(a: address = msg.sender): pass
+    """, ParserException),
 ]
 
 
