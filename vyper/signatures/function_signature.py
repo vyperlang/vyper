@@ -2,7 +2,10 @@ from collections import (
     Counter,
 )
 
-from vyper import ast
+from vyper import (
+    ast,
+    parser,
+)
 from vyper.ast_utils import (
     to_python_ast,
 )
@@ -468,9 +471,16 @@ class FunctionSignature:
 
 
 def validate_default_values(node):
+    if isinstance(node, ast.Name) and node.id in parser.expr.BUILTIN_CONSTANTS:
+        return
+    if isinstance(node, ast.Attribute) and node.value.id in parser.expr.ENVIRONMENT_VARIABLES:
+        return
     allowed_types = (ast.Num, ast.Str, ast.Bytes, ast.List, ast.NameConstant)
     if not isinstance(node, allowed_types):
-        raise FunctionDeclarationException("Default parameter values have to be literals.", node)
+        raise FunctionDeclarationException(
+            "Default value must be a literal, built-in constant, or environment variable.",
+            node
+        )
     if isinstance(node, ast.List):
         for n in node.elts:
             validate_default_values(n)
