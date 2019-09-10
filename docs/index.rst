@@ -65,14 +65,14 @@ Glossary
     :maxdepth: 2
 
     installing-vyper.rst
-    compiling-a-contract.rst
-    testing-contracts.rst
-    deploying-contracts.rst
-    structure-of-a-contract.rst
     vyper-by-example.rst
-    logging.rst
-    contributing.rst
-    frequently-asked-questions.rst
+    structure-of-a-contract.rst
     built-in-functions.rst
     types.rst
+    logging.rst
+    compiling-a-contract.rst
+    deploying-contracts.rst
+    testing-contracts.rst
+    frequently-asked-questions.rst
+    contributing.rst
     release-notes.rst

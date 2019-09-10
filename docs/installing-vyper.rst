@@ -49,7 +49,7 @@ Install Python 3.6 and some necessary packages:
 16.10 and newer
 ^^^^^^^^^^^^^^^
 
-From Ubuntu 16.10 onwards, the Python 3.6 version is in the `universe`
+From Ubuntu 16.10 onwards, the Python 3.6 version is in the ``universe``
 repository.
 
 Run the following commands to install:
@@ -59,7 +59,7 @@ Run the following commands to install:
     sudo apt-get install python3.6
 
 .. note::
-   If you get the error `Python.h: No such file or directory` you need to install the python header files for the Python C API with
+   If you get the error ``Python.h: No such file or directory`` you need to install the python header files for the Python C API with
    ::
 
        sudo apt-get install python3-dev
@@ -68,17 +68,19 @@ Using a BASH script
 ^^^^^^^^^^^^^^^^^^^
 
 Vyper can be installed using a bash script.
+
 ::
 
     https://github.com/balajipachai/Scripts/blob/master/install_vyper/install_vyper_ubuntu.sh
 
 
-*Reminder*: Please read and understand the commands in any bash script before executing, especially with `sudo`.
+**Reminder**: Please read and understand the commands in any bash script before executing, especially with ``sudo``.
 
 Arch
 ----
 
-Using your aur helper of choice (`yay` here).
+Using your aur helper of choice (``yay`` in this example).
+
 ::
 
     yay -S vyper
@@ -86,18 +88,18 @@ Using your aur helper of choice (`yay` here).
 MacOS
 -----
 
-Make sure you have Homebrew installed. If you don't have the `brew` command
+Make sure you have Homebrew installed. If you don't have the ``brew`` command
 available on the terminal, follow `these instructions <https://docs.brew.sh/Installation.html>`_
 to get Homebrew on your system.
 
 To install Python 3.6, follow the instructions here:
-`Installing Python 3 on Mac OS X <http://python-guide.readthedocs.io/en/latest/starting/install3/osx/>`_
+`Installing Python 3 on Mac OS X <https://python-guide.readthedocs.io/en/latest/starting/install3/osx/>`_
 
-Also, ensure the following libraries are installed using `brew`:
+Also, ensure the following libraries are installed using ``brew``:
 ::
 
     brew install gmp leveldb
-	
+
 Windows
 --------
 
@@ -106,7 +108,7 @@ Windows users can first `install Windows Subsystem for Linux <https://docs.micro
 .. note::
     - Windows Subsystem for Linux is only available for Windows 10.
     - Windows versions that are < 10 and Windows 10 Home should install the slightly outdated `Docker Toolbox <https://docs.docker.com/toolbox/toolbox_install_windows/>`_, as explained in the link.
-   
+
 
 Creating a virtual environment
 ==============================
@@ -156,10 +158,10 @@ Additionally, you may try to compile an example contract by running:
     vyper examples/crowdfund.vy
 
 If everything works correctly, you are now able to compile your own smart contracts written in Vyper.
-If any unexpected errors or exceptions are encountered, please feel free to `create an issue <https://github.com/ethereum/vyper/issues/new>`_.
+If any unexpected errors or exceptions are encountered, please feel free to `open an issue <https://github.com/ethereum/vyper/issues/new>`_.
 
 .. note::
-    If you get the error `fatal error: openssl/aes.h: No such file or directory` in the output of `make`, then run `sudo apt-get install libssl-dev1`, then run `make` again.
+    If you get the error ``fatal error: openssl/aes.h: No such file or directory`` in the output of ``make``, then run ``sudo apt-get install libssl-dev1``, then run ``make`` again.
 
     **For MacOS users:**
 
@@ -181,18 +183,18 @@ If any unexpected errors or exceptions are encountered, please feel free to `cre
         make dev-deps
         make test
 
-    If you get the error `ld: library not found for -lyaml` in the output of `make`, make sure `libyaml` is installed using `brew info libyaml`. If it is installed, add its location to the compile flags as well:
+    If you get the error ``ld: library not found for -lyaml`` in the output of `make`, make sure ``libyaml`` is installed using ``brew info libyaml``. If it is installed, add its location to the compile flags as well:
     ::
 
         export CFLAGS="-I$(brew --prefix openssl)/include -I$(brew --prefix libyaml)/include"
         export LDFLAGS="-L$(brew --prefix openssl)/lib -L$(brew --prefix libyaml)/lib"
 
-    You can then run `make` and `make test` again.
+    You can then run ``make`` and ``make test`` again.
 
 PIP
 ***
 
-Each tagged version of vyper is also uploaded to pypi, and can be installed using pip.
+Each tagged version of vyper is also uploaded to `pypi <https://pypi.org/project/vyper/>`_, and can be installed using ``pip``.
 ::
 
     pip install vyper
@@ -249,7 +251,7 @@ and try compiling a contract:
 Snap
 ****
 
-Vyper is published in the snap store. In any of the `supported Linux distros <https://snapcraft.io/docs/core/install>`_, install it with (Note that installing the above snap is the latest master):
+Vyper is published in the snap store. In any of the `supported Linux distros <https://snapcraft.io/docs/installing-snapd>`_, install it with (Note that installing the above snap is the latest master):
 ::
 
     sudo snap install vyper --edge --devmode
