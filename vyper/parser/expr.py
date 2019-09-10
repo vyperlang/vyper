@@ -55,13 +55,13 @@ from vyper.utils import (
 
 # var name: (lllnode, type)
 BUILTIN_CONSTANTS = {
-    'EMPTY_BYTES32': ([0], 'bytes32'),
-    'ZERO_ADDRESS': ([0], 'address'),
-    'MAX_INT128': ([SizeLimits.MAXNUM], 'int128'),
-    'MIN_INT128': ([SizeLimits.MINNUM], 'int128'),
-    'MAX_DECIMAL': ([SizeLimits.MAXDECIMAL], 'decimal'),
-    'MIN_DECIMAL': ([SizeLimits.MINDECIMAL], 'decimal'),
-    'MAX_UINT256': ([SizeLimits.MAX_UINT256], 'uint256'),
+    'EMPTY_BYTES32': (0, 'bytes32'),
+    'ZERO_ADDRESS': (0, 'address'),
+    'MAX_INT128': (SizeLimits.MAXNUM, 'int128'),
+    'MIN_INT128': (SizeLimits.MINNUM, 'int128'),
+    'MAX_DECIMAL': (SizeLimits.MAXDECIMAL, 'decimal'),
+    'MIN_DECIMAL': (SizeLimits.MINDECIMAL, 'decimal'),
+    'MAX_UINT256': (SizeLimits.MAX_UINT256, 'uint256'),
 }
 
 ENVIRONMENT_VARIABLES = (
@@ -254,7 +254,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         elif self.expr.id in BUILTIN_CONSTANTS:
             obj, typ = BUILTIN_CONSTANTS[self.expr.id]
             return LLLnode.from_list(
-                obj,
+                [obj],
                 typ=BaseType(typ, None, is_literal=True),
                 pos=getpos(self.expr))
         elif self.context.constants.ast_is_constant(self.expr):

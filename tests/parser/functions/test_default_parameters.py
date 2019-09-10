@@ -179,18 +179,23 @@ xx: uint256(wei)
 @public
 @payable
 def foo(a: uint256(wei) = msg.value) -> bool:
-    self.xx = a
+    self.xx += a
     return True
 
 @public
 def bar() -> uint256(wei):
     return self.xx
+
+@public
+def get_balance() -> uint256(wei):
+    return self.balance
     """
     c = get_contract(code)
     c.foo(transact={'value': 31337})
     assert c.bar() == 31337
     c.foo(666, transact={'value': 9001})
-    assert c.bar() == 666
+    assert c.bar() == 31337 + 666
+    assert c.get_balance() == 31337 + 9001
 
 
 PASSING_CONTRACTS = [
