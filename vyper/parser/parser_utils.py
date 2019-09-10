@@ -899,6 +899,8 @@ def annotate_ast(
     RewriteUnarySubVisitor().visit(parsed_ast)
 
 
+# zero pad a bytearray according to the ABI spec. The last word
+# of the byte array needs to be right-padded with zeroes.
 def zero_pad(bytez_placeholder, maxlen, context=None, zero_pad_i=None):
     zero_padder = LLLnode.from_list(['pass'])
     if maxlen > 0:
