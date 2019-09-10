@@ -110,9 +110,7 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder,
         holder.append(copier)
         item_maxlen = source_lll.typ.maxlen
         # Add zero padding.
-        holder.append(
-            zero_pad(dest_placeholder, item_maxlen)
-        )
+        holder.append(zero_pad(dest_placeholder))
 
         # Increment offset counter.
         increment_counter = LLLnode.from_list([
