@@ -909,7 +909,7 @@ def zero_pad(bytez_placeholder, maxlen, context=None, zero_pad_i=None):
             'repeat', zero_pad_i, ['mload', bytez_placeholder], ceil32(maxlen), [
                 'seq',
                 # stay within allocated bounds
-                ['if', ['gt', ['mload', zero_pad_i], ceil32(maxlen)], 'break'],
+                ['if', ['ge', ['mload', zero_pad_i], ceil32(maxlen)], 'break'],
                 ['mstore8', ['add', ['add', 32, bytez_placeholder], ['mload', zero_pad_i]], 0]
             ]],
             annotation="Zero pad",
