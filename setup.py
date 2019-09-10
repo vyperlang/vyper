@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
 
-from setuptools import setup, find_packages
-import subprocess, os, tempfile
+import os
+from setuptools import (
+    find_packages,
+    setup,
+)
+import subprocess
 
 test_deps = [
     'pytest>=3.6',
@@ -34,8 +38,8 @@ hashfile = os.path.relpath(hash_file_rel_path)
 try:
     commithash = subprocess.check_output("git rev-parse HEAD".split())
     commithash = commithash.decode('utf-8').strip()
-    with open(hashfile, 'w') as f :
-        f.write(commithash)
+    with open(hashfile, 'w') as fh:
+        fh.write(commithash)
 except subprocess.CalledProcessError:
     pass
 
@@ -69,7 +73,8 @@ setup(
         'console_scripts': [
             "vyper=vyper.cli.vyper_compile:_parse_cli_args",
             "vyper-serve=vyper.cli.vyper_serve:_parse_cli_args",
-            "vyper-lll=vyper.cli.vyper_lll:_parse_cli_args"
+            "vyper-lll=vyper.cli.vyper_lll:_parse_cli_args",
+            "vyper-json=vyper.cli.vyper_json:_parse_cli_args",
         ]
     },
     classifiers=[

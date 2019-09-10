@@ -9,6 +9,7 @@ import json
 from socketserver import (
     ThreadingMixIn,
 )
+import sys
 
 import vyper
 from vyper.exceptions import (
@@ -20,6 +21,10 @@ from vyper.parser import (
 
 
 def _parse_cli_args():
+    return _parse_args(sys.argv[1:])
+
+
+def _parse_args(argv):
     parser = argparse.ArgumentParser(
         description='Serve Vyper compiler as an HTTP Service'
     )
@@ -31,7 +36,7 @@ def _parse_cli_args():
         dest='bind_address'
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if ':' in args.bind_address:
         lll_node.VYPER_COLOR_OUTPUT = False
