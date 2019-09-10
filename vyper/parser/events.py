@@ -111,7 +111,7 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder,
         item_maxlen = source_lll.typ.maxlen
         # Add zero padding.
         holder.append(
-            zero_pad(dest_placeholder, maxlen)
+            zero_pad(dest_placeholder, item_maxlen)
         )
 
         # Increment offset counter.
