@@ -892,26 +892,23 @@ def annotate_ast(
 # zero pad a bytearray according to the ABI spec. The last word
 # of the byte array needs to be right-padded with zeroes.
 def zero_pad(bytez_placeholder):
-    zero_padder = LLLnode.from_list(['pass'])
-    if maxlen > 0:
-        # calldatacopy from past-the-end gives zero bytes.
-        len_ = ['mload', bytez_placeholder]
-        dst = ['add', ['add', bytez_placeholder, 32], 'len']
-        # the runtime length of the data rounded up to nearest 32
-        # from spec:
-        #   the actual value of X as a byte sequence,
-        #   followed by the *minimum* number of zero-bytes
-        #   such that len(enc(X)) is a multiple of 32.
-        num_zero_bytes = ['sub', ['ceil32', 'len'], 'len']
-        zero_padder = LLLnode.from_list(
-                ['with', 'len', len_,
-                    ['with', 'dst', dst,
-                        # calldatacopy mempos calldatapos len
-                        ['calldatacopy', 'dst', 'calldatasize', num_zero_bytes]
-                        ]],
-                    annotation="Zero pad",
-                    )
-    return zero_padder
+    # calldatacopy from past-the-end gives zero bytes.
+    len_ = ['mload', bytez_placeholder]
+    dst = ['add', ['add', bytez_placeholder, 32], 'len']
+    # the runtime length of the data rounded up to nearest 32
+    # from spec:
+    #   the actual value of X as a byte sequence,
+    #   followed by the *minimum* number of zero-bytes
+    #   such that len(enc(X)) is a multiple of 32.
+    num_zero_bytes = ['sub', ['ceil32', 'len'], 'len']
+    return LLLnode.from_list(
+            ['with', 'len', len_,
+                ['with', 'dst', dst,
+                    # calldatacopy mempos calldatapos len
+                    ['calldatacopy', 'dst', 'calldatasize', num_zero_bytes]
+                    ]],
+                annotation="Zero pad",
+                )
 
 
 # Generate return code for stmt
