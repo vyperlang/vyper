@@ -51,8 +51,10 @@ Find or report bugs at our `issues page <https://github.com/ethereum/vyper/issue
 Style Guide
 ===========
 
-Vyper's codebase follows the PEP-8 style guide, as interpreted by the `flake8` Python tool.
-Some of the things not covered by `flake8` that we maintain in our codebase is the use of
+
+Vyper's codebase follows the 
+`Snake Charmer's Style Guide <https://github.com/ethereum/snake-charmers-tactical-manual/blob/master/style-guide.md>`_.
+Some of the things not covered by style guide that we maintain in our codebase is the use of
 `f-strings <https://github.com/ethereum/vyper/issues/1567>`_ across the repository, and adherence
 to the `architectural design <https://vyper.readthedocs.io/en/latest/architecture.html>`_ of the Vyper codebase.
 
