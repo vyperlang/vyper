@@ -50,7 +50,7 @@ Operator              Description
 ====================  ===================
 
 The operators ``or`` and ``and`` do not apply short-circuiting rules, i.e. both
-`x` and `y` will always be evaluated.
+``x`` and ``y`` will always be evaluated.
 
 .. index:: ! int128, ! int, ! integer
 
@@ -483,52 +483,6 @@ Here ``_KeyType`` can be any base or bytes type. Mappings, contract or structs a
 
 .. index:: !initial
 
-Built In Constants
-******************
-
-Vyper has a few convenience constants builtin.
-
-======= ============= ==========================================
-Type    Name          Value
-======= ============= ==========================================
-address ZERO_ADDRESS  0x0000000000000000000000000000000000000000
-bytes32 EMPTY_BYTES32 0x0000000000000000000000000000000000000000000000000000000000000000
-int128  MAX_INT128    2**127 - 1
-int128  MIN_INT128    -2**127
-decimal MAX_DECIMAL   (2**127 - 1)
-decimal MIN_DECIMAL   (-2**127)
-uint256 MAX_UINT256   2**256 - 1
-======= ============= ==========================================
-
-Custom Constants
-****************
-
-Custom constants can be defined at a global level in Vyper. To define a constant make use of the `constant` keyword.
-
-**Example:**
-::
-
-  TOTAL_SUPPLY: constant(uint256) = 10000000
-  total_supply: public(uint256)
-
-  @public
-  def __init__():
-      self.total_supply = TOTAL_SUPPLY
-
-**Advanced Example:**
-::
-
-  units: {
-      share: "Share unit"
-  }
-
-  MAX_SHARES: constant(uint256(share)) = 1000
-  SHARE_PRICE: constant(uint256(wei/share)) = 5
-
-  @public
-  def market_cap() -> uint256(wei):
-      return MAX_SHARES * SHARE_PRICE
-
 Initial Values
 **************
 
@@ -578,7 +532,7 @@ All type conversions in Vyper must be made explicitly using the built-in ``conve
      - Additional Notes
    * - ``bool``
      - ``bool``
-     - `—`
+     - ``—``
      - Do not allow converting to/from the same type
    * - ``bool``
      - ``decimal``
