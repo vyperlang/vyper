@@ -93,7 +93,7 @@ class LLLnode:
                 self.valency = outs
                 if len(self.args) != ins:
                     raise CompilerPanic(
-                        "Number of arguments mismatched: %r %r" % (self.value, self.args)
+                        f"Number of arguments mismatched: {self.value} {self.args}"
                     )
                 # We add 2 per stack height at push time and take it back
                 # at pop time; this makes `break` easier to handle
@@ -106,7 +106,7 @@ class LLLnode:
                     if arg.valency == 0 and arg.value not in zero_valency_whitelist:
                         raise CompilerPanic(
                             "Can't have a zerovalent argument to an opcode or a pseudo-opcode! "
-                            "%r: %r. Please file a bug report." % (arg.value, arg)
+                            f"{arg.value}: {arg}. Please file a bug report."
                         )
                     self.gas += arg.gas
                 # Dynamic gas cost: 8 gas for each byte of logging data
@@ -138,8 +138,8 @@ class LLLnode:
                 if not self.args[0].valency:
                     raise CompilerPanic((
                         "Can't have a zerovalent argument as a test to an if "
-                        "statement! %r"
-                    ) % self.args[0])
+                        f"statement! {self.args[0]}"
+                    ))
                 if len(self.args) not in (2, 3):
                     raise CompilerPanic("If can only have 2 or 3 arguments")
                 self.valency = self.args[1].valency
@@ -152,8 +152,8 @@ class LLLnode:
                 if not self.args[1].valency:
                     raise CompilerPanic((
                         "Second argument to with statement (initial value) "
-                        "cannot be zerovalent: %r"
-                    ) % self.args[1])
+                        f"cannot be zerovalent: {self.args[1]}"
+                    ))
                 self.valency = self.args[2].valency
                 self.gas = sum([arg.gas for arg in self.args]) + 5
             # Repeat statements: repeat <index_memloc> <startval> <rounds> <body>
@@ -167,23 +167,23 @@ class LLLnode:
                 if is_invalid_repeat_count:
                     raise CompilerPanic((
                         "Number of times repeated must be a constant nonzero "
-                        "positive integer: %r"
-                    ) % self.args[2])
+                        f"positive integer: {self.args[2]}"
+                    ))
                 if not self.args[0].valency:
                     raise CompilerPanic((
                         "First argument to repeat (memory location) cannot be "
-                        "zerovalent: %r"
-                    ) % self.args[0])
+                        f"zerovalent: {self.args[0]}"
+                    ))
                 if not self.args[1].valency:
                     raise CompilerPanic((
                         "Second argument to repeat (start value) cannot be "
-                        "zerovalent: %r"
-                    ) % self.args[1])
+                        f"zerovalent: {self.args[1]}"
+                    ))
                 if self.args[3].valency:
                     raise CompilerPanic((
                         "Third argument to repeat (clause to be repeated) must "
-                        "be zerovalent: %r"
-                    ) % self.args[3])
+                        f"be zerovalent: {self.args[3]}"
+                    ))
                 self.valency = 0
                 if self.args[1].value in ('calldataload', 'mload') or self.args[1].value == 'sload':
                     rounds = self.args[2].value
@@ -199,7 +199,7 @@ class LLLnode:
                 for arg in self.args:
                     if not arg.valency:
                         raise CompilerPanic(
-                            "Multi expects all children to not be zerovalent: %r" % arg
+                            f"Multi expects all children to not be zerovalent: {arg}"
                         )
                 self.valency = sum([arg.valency for arg in self.args])
                 self.gas = sum([arg.gas for arg in self.args])
@@ -219,7 +219,7 @@ class LLLnode:
             self.valency = 1
             self.gas = 5
         else:
-            raise CompilerPanic("Invalid value for LLL AST node: %r" % self.value)
+            raise CompilerPanic(f"Invalid value for LLL AST node: {self.value}")
         assert isinstance(self.args, list)
 
         if valency is not None:
@@ -268,7 +268,7 @@ class LLLnode:
         if not len(self.args):
 
             if self.annotation:
-                return '%r ' % self.repr_value + OKLIGHTBLUE + '<%s>' % self.annotation + ENDC
+                return f'{self.repr_value} ' + OKLIGHTBLUE + f'<{self.annotation}>' + ENDC
             else:
                 return str(self.repr_value)
         # x = repr(self.to_list())
@@ -276,7 +276,7 @@ class LLLnode:
         #     return x
         o = ''
         if self.annotation:
-            o += '/* %s */ \n' % self.annotation
+            o += f'/* {self.annotation} */ \n'
         if self.repr_show_gas and self.gas:
             o += OKBLUE + "{" + ENDC + str(self.gas) + OKBLUE + "} " + ENDC  # add gas for info.
         o += '[' + self._colorise_keywords(self.repr_value)
@@ -288,7 +288,7 @@ class LLLnode:
             o += ',\n  '
             arg_lineno = arg.pos[0] if arg.pos else None
             if arg_lineno is not None and arg_lineno != prev_lineno and self.value in ('seq', 'if'):
-                o += '# Line %d\n  ' % (arg_lineno)
+                o += f'# Line {(arg_lineno)}\n  '
                 prev_lineno = arg_lineno
                 annotated = True
             arg_repr = arg.repr()

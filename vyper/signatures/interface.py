@@ -43,7 +43,7 @@ def get_builtin_interfaces():
         name: extract_sigs({
             'type': 'vyper',
             'code': importlib.import_module(
-                'vyper.interfaces.{}'.format(name),
+                f'vyper.interfaces.{name}',
             ).interface_code,
         })
         for name in interface_names
@@ -72,7 +72,7 @@ def abi_type_to_ast(atype):
             slice=ast.Index(256)
         )
     else:
-        raise ParserException('Type {} not supported by vyper.'.format(atype))
+        raise ParserException(f'Type {atype} not supported by vyper.')
 
 
 def mk_full_signature_from_json(abi):
@@ -133,8 +133,8 @@ def extract_sigs(sig_code):
         return mk_full_signature_from_json(sig_code['code'])
     else:
         raise Exception(
-            ("Unknown interface signature type '{}' supplied. "
-             "'vyper' & 'json' are supported").format(sig_code['type'])
+            (f"Unknown interface signature type '{sig_code['type']}' supplied. "
+             "'vyper' & 'json' are supported")
         )
 
 
@@ -151,10 +151,7 @@ def extract_interface_str(code, contract_name, interface_codes=None):
     for idx, event in enumerate(events):
         if idx == 0:
             out += "# Events\n\n"
-        out += "{event_name}: event({{{args}}})\n".format(
-            event_name=event.name,
-            args=", ".join([arg.name + ": " + str(arg.typ) for arg in event.args])
-        )
+        out += f"{event.name}: event({{{', '.join([arg.name + ': ' + str(arg.typ) for arg in event.args])}}})\n"  # noqa: E501
 
     # Print functions.
     def render_decorator(sig):
@@ -169,12 +166,8 @@ def extract_interface_str(code, contract_name, interface_codes=None):
         if idx == 0:
             out += "\n# Functions\n"
         if not func.private and func.name != '__init__':
-            out += "{decorator}def {name}({args}){ret}:\n    pass\n".format(
-                decorator=render_decorator(func),
-                name=func.name,
-                args=", ".join([arg.name + ": " + str(arg.typ) for arg in func.args]),
-                ret=render_return(func)
-            )
+            args = ", ".join([arg.name + ": " + str(arg.typ) for arg in func.args])
+            out += f"{render_decorator(func)}def {func.name}({args}){render_return(func)}:\n    pass\n"  # noqa: E501
     out += "\n"
 
     return out
@@ -193,14 +186,11 @@ def extract_external_interface(code, contract_name, interface_codes=None):
     offset = 4 * " "
     for idx, func in enumerate(functions):
         if idx == 0:
-            out += "\n# External Contracts\ncontract %s:\n" % cname
+            out += f"\n# External Contracts\ncontract {cname}:\n"
         if not func.private and func.name != '__init__':
-            out += offset + "def {name}({args}){ret}: {func_type}\n".format(
-                name=func.name,
-                args=", ".join([arg.name + ": " + str(arg.typ) for arg in func.args]),
-                ret=render_return(func),
-                func_type="constant" if func.const else "modifying",
-            )
+            args = ", ".join([arg.name + ": " + str(arg.typ) for arg in func.args])
+            func_type = "constant" if func.const else "modifying"
+            out += offset + f"def {func.name}({args}){render_return(func)}: {func_type}\n"
     out += "\n"
     return out
 
@@ -328,11 +318,9 @@ def check_valid_contract_interface(global_ctx, contract_sigs):
                 if isinstance(func_sig, EventSignature)
             ]
             if missing_functions:
-                error_message += 'Missing interface functions:\n\t{}'.format(
-                    '\n\t'.join(missing_functions)
-                )
+                err_join = "\n\t".join(missing_functions)
+                error_message += f'Missing interface functions:\n\t{err_join}'
             if missing_events:
-                error_message += 'Missing interface events:\n\t{}'.format(
-                    '\n\t'.join(missing_events)
-                )
+                err_join = "\n\t".join(missing_events)
+                error_message += f'Missing interface events:\n\t{err_join}'
             raise StructureException(error_message)

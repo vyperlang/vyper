@@ -88,13 +88,12 @@ def get_original_if_0_prefixed(expr, context):
 def make_byte_array_copier(destination, source, pos=None):
     if not isinstance(source.typ, (ByteArrayLike, NullType)):
         btype = 'byte array' if isinstance(destination.typ, ByteArrayType) else 'string'
-        raise TypeMismatchException("Can only set a {} to another {}".format(btype, btype), pos)
+        raise TypeMismatchException(f"Can only set a {btype} to another {btype}", pos)
     if isinstance(source.typ, ByteArrayLike) and source.typ.maxlen > destination.typ.maxlen:
         raise TypeMismatchException(
-            "Cannot cast from greater max-length %d to shorter max-length %d" % (
-                source.typ.maxlen,
-                destination.typ.maxlen,
-            ))
+            f"""Cannot cast from greater max-length {source.typ.maxlen} to shorter
+            max-length {destination.typ.maxlen}"""
+            )
     # Special case: memory to memory
     if source.location == "memory" and destination.location == "memory":
         gas_calculation = GAS_IDENTITY + GAS_IDENTITYWORD * (ceil32(source.typ.maxlen) // 32)
@@ -151,7 +150,7 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
                 'pop',
                 ['call', 18 + max_length // 10, 4, 0, source, '_l', destination, '_l']
             ]
-        ], typ=None, annotation='copy byte slice dest: %s' % str(destination))
+        ], typ=None, annotation=f'copy byte slice dest: {str(destination)}')
     # Copy over data
     if isinstance(source.typ, NullType):
         loader = 0
@@ -195,7 +194,7 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
     return LLLnode.from_list(
         o,
         typ=None,
-        annotation='copy byte slice src: %s dst: %s' % (source, destination),
+        annotation=f'copy byte slice src: {source} dst: {destination}',
         pos=pos,
     )
 
@@ -228,7 +227,7 @@ def byte_array_to_num(arg, expr, out_type, offset=32,):
                 result,
             ]
         ]
-    ], typ=BaseType(out_type), annotation='bytearray to number (%s)' % out_type)
+    ], typ=BaseType(out_type), annotation=f'bytearray to number ({out_type})')
 
 
 def get_length(arg):
@@ -255,19 +254,16 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
         if isinstance(typ, StructType):
             if not isinstance(key, str):
                 raise TypeMismatchException(
-                    "Expecting a member variable access; cannot access element %r" % key, pos
+                    f"Expecting a member variable access; cannot access element {key}", pos
                 )
             if key not in typ.members:
-                raise TypeMismatchException("Object does not have member variable %s" % key, pos)
+                raise TypeMismatchException(f"Object does not have member variable {key}", pos)
             subtype = typ.members[key]
             attrs = list(typ.members.keys())
 
             if key not in attrs:
                 raise TypeMismatchException(
-                    "Member %s not found. Only the following available: %s" % (
-                        key,
-                        " ".join(attrs)
-                    ),
+                    f"Member {key} not found. Only the following available: " + " ".join(attrs),
                     pos
                 )
             index = attrs.index(key)
@@ -275,7 +271,7 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
         else:
             if not isinstance(key, int):
                 raise TypeMismatchException(
-                    "Expecting a static index; cannot access element %r" % key, pos
+                    f"Expecting a static index; cannot access element {key}", pos
                 )
             attrs = list(range(len(typ.members)))
             index = key
@@ -308,9 +304,8 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
         if isinstance(key.typ, ByteArrayLike):
             if not isinstance(typ.keytype, ByteArrayLike) or (typ.keytype.maxlen < key.typ.maxlen):
                 raise TypeMismatchException(
-                    'Mapping keys of bytes cannot be cast, use exact same bytes type of: %s' % (
-                        str(typ.keytype),
-                    ),
+                    f'''Mapping keys of bytes cannot be cast, use exact same bytes type of:
+                    {str(typ.keytype)}''',
                     pos,
                 )
             subtype = typ.valuetype
@@ -342,7 +337,7 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
         subtype = typ.subtype
         k = unwrap_location(key)
         if not is_base_type(key.typ, ('int128', 'uint256')):
-            raise TypeMismatchException('Invalid type for array index: %r' % key.typ, pos)
+            raise TypeMismatchException(f'Invalid type for array index: {key.typ}', pos)
 
         if not array_bounds_check:
             sub = k
@@ -351,7 +346,7 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
             if key.value < 0 or key.value >= typ.count:
                 raise ArrayIndexException(
                         'Array index determined to be out of bounds. '
-                        'Index is %r but array size is %r' % (key.value, typ.count),
+                        f'Index is {key.value} but array size is {typ.count}',
                         pos)
             sub = k
         else:
@@ -379,7 +374,7 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
         else:
             raise TypeMismatchException("Not expecting an array access ", pos)
     else:
-        raise TypeMismatchException("Cannot access the child of a constant variable! %r" % typ, pos)
+        raise TypeMismatchException(f"Cannot access the child of a constant variable! {typ}", pos)
 
 
 # Convert from one base type to another
@@ -395,11 +390,11 @@ def base_type_conversion(orig, frm, to, pos, in_function_call=False):
         # Special Case: Literals in function calls should always convey unit type as well.
         if in_function_call and not (frm.unit == to.unit and frm.positional == to.positional):
             raise InvalidLiteralException(
-                "Function calls require explicit unit definitions on calls, expected %r" % to, pos
+                f"Function calls require explicit unit definitions on calls, expected {to}", pos
             )
     if not isinstance(frm, (BaseType, NullType)) or not isinstance(to, BaseType):
         raise TypeMismatchException(
-            "Base type conversion from or to non-base type: %r %r" % (frm, to), pos
+            f"Base type conversion from or to non-base type: {frm} {to}", pos
         )
     elif is_base_type(frm, to.typ) and are_units_compatible(frm, to):
         return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
@@ -414,7 +409,7 @@ def base_type_conversion(orig, frm, to, pos, in_function_call=False):
         if to.typ not in ('int128', 'bool', 'uint256', 'address', 'bytes32', 'decimal'):
             # This is only to future proof the use of  base_type_conversion.
             raise TypeMismatchException(  # pragma: no cover
-                "Cannot convert null-type object to type %r" % to, pos
+                f"Cannot convert null-type object to type {to}", pos
             )
         return LLLnode.from_list(0, typ=to)
     # Integer literal conversion.
@@ -422,7 +417,7 @@ def base_type_conversion(orig, frm, to, pos, in_function_call=False):
         return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
     else:
         raise TypeMismatchException(
-            "Typecasting from base type %r to %r unavailable" % (frm, to), pos
+            f"Typecasting from base type {frm} to {to} unavailable", pos
         )
 
 
@@ -560,7 +555,7 @@ def make_setter(left, right, location, pos, in_function_call=False):
             raise Exception("Target of set statement must be a single item")
         if not isinstance(right.typ, (ListType, NullType)):
             raise TypeMismatchException(
-                "Setter type mismatch: left side is array, right side is %r" % right.typ, pos
+                f"Setter type mismatch: left side is array, right side is {right.typ}", pos
             )
         left_token = LLLnode.from_list('_L', typ=left.typ, location=left.location)
         if left.location == "storage":
@@ -624,10 +619,7 @@ def make_setter(left, right, location, pos, in_function_call=False):
         if not isinstance(right.typ, NullType):
             if not isinstance(right.typ, left.typ.__class__):
                 raise TypeMismatchException(
-                    "Setter type mismatch: left side is %r, right side is %r" % (
-                        left.typ,
-                        right.typ,
-                    ),
+                    f"Setter type mismatch: left side is {left.typ}, right side is {right.typ}",
                     pos,
                 )
             if isinstance(left.typ, StructType):
@@ -640,24 +632,22 @@ def make_setter(left, right, location, pos, in_function_call=False):
                 for k in left.typ.members:
                     if k not in right.typ.members:
                         raise TypeMismatchException(
-                            "Keys don't match for structs, missing %s" % k,
+                            f"Keys don't match for structs, missing {k}",
                             pos,
                         )
                 for k in right.typ.members:
                     if k not in left.typ.members:
                         raise TypeMismatchException(
-                            "Keys don't match for structs, extra %s" % k,
+                            f"Keys don't match for structs, extra {k}",
                             pos,
                         )
                 if left.typ.name != right.typ.name:
-                    raise TypeMismatchException("Expected %r, got %r" % (left.typ, right.typ), pos)
+                    raise TypeMismatchException(f"Expected {left.typ}, got {right.typ}", pos)
             else:
                 if len(left.typ.members) != len(right.typ.members):
                     raise TypeMismatchException(
-                        "Tuple lengths don't match, %d vs %d" % (
-                            len(left.typ.members),
-                            len(right.typ.members),
-                        ),
+                        f"""Tuple lengths don't match,
+                        {len(left.typ.members)} vs {len(right.typ.members)}""",
                         pos,
                     )
 
@@ -929,8 +919,8 @@ def make_return_stmt(stmt, context, begin_pos, _size, loop_memory_position=None)
 
         # Make label for stack push loop.
         label_id = '_'.join([str(x) for x in (context.method_id, stmt.lineno, stmt.col_offset)])
-        exit_label = 'make_return_loop_exit_%s' % label_id
-        start_label = 'make_return_loop_start_%s' % label_id
+        exit_label = f'make_return_loop_exit_{label_id}'
+        start_label = f'make_return_loop_start_{label_id}'
 
         # Push prepared data onto the stack,
         # in reverse order so it can be popped of in order.
@@ -1035,7 +1025,7 @@ def gen_tuple_return(stmt, context, sub):
 
     if not isinstance(context.return_type, TupleLike):
         raise TypeMismatchException(
-            'Trying to return %r when expecting %r' % (sub.typ, context.return_type), getpos(stmt)
+            f'Trying to return {sub.typ} when expecting {context.return_type}', getpos(stmt)
         )
     items = context.return_type.tuple_items()
 
@@ -1073,7 +1063,7 @@ def gen_tuple_return(stmt, context, sub):
         else:
             # Maybe this should panic because the type error should be
             # caught at an earlier type-checking stage.
-            raise TypeMismatchException("Can't return type %s as part of tuple" % arg.typ, stmt)
+            raise TypeMismatchException(f"Can't return type {arg.typ} as part of tuple", stmt)
 
     setter = LLLnode.from_list(
         ['seq',

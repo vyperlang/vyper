@@ -73,10 +73,10 @@ class Constants(object):
 
         if fail:
             raise TypeMismatchException(
-                'Invalid value for constant type, expected %r got %r instead' % (
-                    annotation_type,
-                    expr.typ,
-                ),
+                f"""
+                Invalid value for constant type, expected {annotation_type} got
+                {expr.typ} instead'
+                """,
                 const.value,
             )
 
@@ -133,7 +133,7 @@ class Constants(object):
                 return expr
             else:
                 raise VariableDeclarationException(
-                    "ByteArray: Can not be used outside of a function context: %s" % const_name
+                    f"ByteArray: Can not be used outside of a function context: {const_name}"
                 )
 
         # Other types are already unwrapped, no need

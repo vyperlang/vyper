@@ -104,9 +104,9 @@ def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=No
     # Numbers
     elif isinstance(code.value, int):
         if code.value <= -2**255:
-            raise Exception("Value too low: %d" % code.value)
+            raise Exception(f"Value too low: {code.value}")
         elif code.value >= 2**256:
-            raise Exception("Value too high: %d" % code.value)
+            raise Exception(f"Value too high: {code.value}")
         bytez = num_to_bytearray(code.value % 2**256) or [0]
         return ['PUSH' + str(len(bytez))] + bytez
     # Variables connected to with statements
@@ -293,7 +293,7 @@ def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=No
                 )
             else:
                 raise Exception(
-                    "Invalid %r with values %r and %r" % (code.value, code.args[0], code.args[1])
+                    f"Invalid {code.value} with values {code.args[0]} and {code.args[1]}"
                 )
         o = compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
         o.extend(compile_to_assembly(
@@ -432,7 +432,7 @@ def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=No
         label_name = str(code.args[0])
 
         if label_name in existing_labels:
-            raise Exception('Label with name %s already exists!', label_name)
+            raise Exception(f'Label with name {label_name} already exists!')
         else:
             existing_labels.add(label_name)
 

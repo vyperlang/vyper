@@ -177,7 +177,7 @@ def parse_public_function(code: ast.FunctionDef,
     else:
         # Function with default parameters.
         if sig.total_default_args > 0:
-            function_routine = "{}_{}".format(sig.name, sig.method_id)
+            function_routine = f"{sig.name}_{sig.method_id}"
             default_sigs = sig_utils.generate_default_arg_sigs(
                 code, context.sigs, context.global_ctx
             )

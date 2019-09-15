@@ -35,7 +35,7 @@ def string_to_bytes(str):
     bytez = b''
     for c in str:
         if ord(c) >= 256:
-            raise InvalidLiteralException("Cannot insert special character %r into byte array" % c)
+            raise InvalidLiteralException(f"Cannot insert special character {c} into byte array")
         bytez += bytes([ord(c)])
     bytez_length = len(bytez)
     return bytez, bytez_length
@@ -120,7 +120,7 @@ class SizeLimits:
         elif type_str == 'int128':
             return cls.MINNUM <= value <= cls.MAXNUM
         else:
-            raise Exception('Unknown type "%s" supplied.' % type_str)
+            raise Exception(f'Unknown type "{type_str}" supplied.')
 
 
 # Map representing all limits loaded into a contract as part of the initializer
@@ -221,25 +221,25 @@ def is_varname_valid(varname, custom_units, custom_structs, constants):
     if custom_units is None:
         custom_units = set()
     if varname_lower in {cu.lower() for cu in custom_units}:
-        return False, "%s is a unit name." % varname
+        return False, f"{varname} is a unit name."
 
     # struct names are case sensitive.
     if varname in custom_structs:
-        return False, "Duplicate name: %s, previously defined as a struct." % varname
+        return False, f"Duplicate name: {varname}, previously defined as a struct."
     if varname in constants:
-        return False, "Duplicate name: %s, previously defined as a constant." % varname
+        return False, f"Duplicate name: {varname}, previously defined as a constant."
     if varname_lower in base_types:
-        return False, "%s name is a base type." % varname
+        return False, f"{varname} name is a base type."
     if varname_lower in valid_units:
-        return False, "%s is a built in unit type." % varname
+        return False, f"{varname} is a built in unit type."
     if varname_lower in reserved_words:
-        return False, "%s is a a reserved keyword." % varname
+        return False, f"{varname} is a a reserved keyword."
     if varname_upper in opcodes:
-        return False, "%s is a reserved keyword (EVM opcode)." % varname
+        return False, f"{varname} is a reserved keyword (EVM opcode)."
     if varname_lower in built_in_functions:
-        return False, "%s is a built in function." % varname
+        return False, f"{varname} is a built in function."
     if not re.match('^[_a-zA-Z][a-zA-Z0-9_]*$', varname):
-        return False, "%s contains invalid character(s)." % varname
+        return False, f"{varname} contains invalid character(s)."
 
     return True, ""
 

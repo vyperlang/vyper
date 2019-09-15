@@ -51,7 +51,7 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
                 for c in arg.s:
                     if ord(c) >= 256:
                         raise InvalidLiteralException(
-                            "Cannot insert special character %r into byte array" % c,
+                            f"Cannot insert special character {c} into byte array",
                             arg,
                         )
                     bytez += bytes([ord(c)])
@@ -63,7 +63,7 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
             if isinstance(arg, ast.Name):
                 return arg.id
             elif isinstance(arg, ast.Subscript) and arg.value.id == 'bytes':
-                return 'bytes[%s]' % arg.slice.value.n
+                return f'bytes[{arg.slice.value.n}]'
         elif expected_arg == '*':
             return arg
         elif expected_arg == 'bytes':
@@ -102,11 +102,15 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
                 if vsub.typ == parsed_expected_type:
                     return Expr(arg, context).lll_node
     if len(expected_arg_typelist) == 1:
-        raise TypeMismatchException("Expecting %s for argument %r of %s" %
-                                    (expected_arg, index, function_name), arg)
+        raise TypeMismatchException(
+            f"Expecting {expected_arg} for argument {index} of {function_name}",
+            arg
+        )
     else:
-        raise TypeMismatchException("Expecting one of %r for argument %r of %s" %
-                                    (expected_arg_typelist, index, function_name), arg)
+        raise TypeMismatchException(
+            f"Expecting one of {expected_arg_typelist} for argument {index} of {function_name}",
+            arg
+        )
 
 
 def signature(*argz, **kwargz):
@@ -115,9 +119,10 @@ def signature(*argz, **kwargz):
         def g(element, context):
             function_name = element.func.id
             if len(element.args) > len(argz):
-                raise StructureException("Expected %d arguments for %s, got %d" %
-                                         (len(argz), function_name, len(element.args)),
-                                         element)
+                raise StructureException(
+                    f"Expected {len(argz)} arguments for {function_name}, got {len(element.args)}",  # noqa: E501
+                    element
+                )
             subs = []
             for i, expected_arg in enumerate(argz):
                 if len(element.args) > i:
@@ -132,7 +137,7 @@ def signature(*argz, **kwargz):
                     subs.append(expected_arg.default)
                 else:
                     raise StructureException(
-                        "Not enough arguments for function: {}".format(element.func.id),
+                        f"Not enough arguments for function: {element.func.id}",
                         element
                     )
             kwsubs = {}
@@ -142,14 +147,14 @@ def signature(*argz, **kwargz):
                     if isinstance(expected_arg, Optional):
                         kwsubs[k] = expected_arg.default
                     else:
-                        raise StructureException("Function %s requires argument %s" %
-                                                 (function_name, k), element)
+                        raise StructureException(f"Function {function_name} requires argument {k}",
+                                                 element)
                 else:
                     kwsubs[k] = process_arg(k, element_kw[k], expected_arg, function_name, context)
             for k, _arg in element_kw.items():
                 if k not in kwargz:
-                    raise StructureException("Unexpected argument: %s"
-                                             % k, element)
+                    raise StructureException(f"Unexpected argument: {k}",
+                                             element)
             return f(element, subs, kwsubs, context)
         return g
     return decorator

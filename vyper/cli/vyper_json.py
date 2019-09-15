@@ -63,7 +63,7 @@ def _parse_args(argv):
     parser.add_argument(
         '--version',
         action='version',
-        version='{0}+commit.{1}'.format(vyper.__version__, vyper.__commit__),
+        version=f'{vyper.__version__}+commit.{vyper.__commit__}',
     )
     parser.add_argument(
         '-o',

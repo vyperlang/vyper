@@ -28,7 +28,7 @@ def _parse_args(argv):
     parser = argparse.ArgumentParser(
         description='Serve Vyper compiler as an HTTP Service'
     )
-    parser.add_argument('--version', action='version', version='{0}'.format(vyper.__version__))
+    parser.add_argument('--version', action='version', version=f'{vyper.__version__}')
     parser.add_argument(
         '-b',
         help='Address to bind JSON server on, default: localhost:8000',
@@ -66,7 +66,7 @@ class VyperRequestHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_cors_all()
             self.end_headers()
-            self.wfile.write('Vyper Compiler. Version: {} \n'.format(vyper.__version__).encode())
+            self.wfile.write('Vyper Compiler. Version: {vyper.__version__).encode()} \n')
         else:
             self.send_404()
 
@@ -134,5 +134,5 @@ class VyperHTTPServer(ThreadingMixIn, HTTPServer):
 def runserver(host='', port=8000):
     server_address = (host, int(port))
     httpd = VyperHTTPServer(server_address, VyperRequestHandler)
-    print('Listening on http://{0}:{1}'.format(host, port))
+    print(f'Listening on http://{host}:{port}')
     httpd.serve_forever()

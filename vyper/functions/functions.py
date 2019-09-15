@@ -73,7 +73,7 @@ def get_keyword(expr, keyword):
             return kw.value
     # This should never happen, as kwargs['value'] will KeyError first.
     # Leaving exception for other use cases.
-    raise Exception("Keyword %s not found" % keyword)  # pragma: no cover
+    raise Exception(f"Keyword {keyword} not found")  # pragma: no cover
 
 # like `assert foo`, but doesn't check constancy.
 # currently no option for reason string (easy to add, just need to refactor
@@ -417,7 +417,7 @@ def sha256(expr, args, kwargs, context):
         )
     else:
         # This should never happen, but just left here for future compiler-writers.
-        raise Exception("Unsupported location: %s" % sub.location)  # pragma: no test
+        raise Exception(f"Unsupported location: {sub.location}")  # pragma: no test
 
 
 @signature('str_literal', 'name_literal')
@@ -594,10 +594,8 @@ def as_wei_value(expr, args, kwargs, context):
             break
     else:
         raise InvalidLiteralException(
-            "Invalid denomination: %s, valid denominations are: %s" % (
-                args[1],
-                ",".join(x[0].decode() for x in names_denom)
-            ),
+            f"""Invalid denomination: {args[1]}, valid denominations are:
+            {','.join(x[0].decode() for x in names_denom)}""",
             expr.args[1]
         )
     # Compute the amount of wei and return that value
@@ -608,7 +606,7 @@ def as_wei_value(expr, args, kwargs, context):
             expr_args_0 = context.constants._constants_ast[expr.args[0].id]
         numstring, num, den = get_number_as_fraction(expr_args_0, context)
         if denomination % den:
-            raise InvalidLiteralException("Too many decimal places: %s" % numstring, expr.args[0])
+            raise InvalidLiteralException(f"Too many decimal places: {numstring}", expr.args[0])
         sub = num * denomination // den
     elif args[0].typ.is_literal:
         if args[0].value <= 0:
@@ -653,7 +651,7 @@ def raw_call(expr, args, kwargs, context):
         )
     if context.is_constant():
         raise ConstancyViolationException(
-            "Cannot make calls from %s" % context.pp_constancy(),
+            f"Cannot make calls from {context.pp_constancy()}",
             expr,
         )
     if value != zero_value:
@@ -727,7 +725,7 @@ def send(expr, args, kwargs, context):
     to, value = args
     if context.is_constant():
         raise ConstancyViolationException(
-            "Cannot send ether inside %s!" % context.pp_constancy(),
+            f"Cannot send ether inside {context.pp_constancy()}!",
             expr,
         )
     enforce_units(value.typ, expr.args[1], BaseType('uint256', {'wei': 1}))
@@ -742,7 +740,7 @@ def send(expr, args, kwargs, context):
 def selfdestruct(expr, args, kwargs, context):
     if context.is_constant():
         raise ConstancyViolationException(
-            "Cannot %s inside %s!" % (expr.func.id, context.pp_constancy()),
+            f"Cannot {expr.func.id} inside {context.pp_constancy()}!",
             expr.func,
         )
     return LLLnode.from_list(['selfdestruct', args[0]], typ=None, pos=getpos(expr))
@@ -776,7 +774,7 @@ def _RLPlist(expr, args, kwargs, context):
             if not isinstance(subtyp, BaseType):
                 raise TypeMismatchException("RLP lists only accept BaseTypes and byte arrays", arg)
             if not is_base_type(subtyp, ('int128', 'uint256', 'bytes32', 'address', 'bool')):
-                raise TypeMismatchException("Unsupported base type: %s" % subtyp.typ, arg)
+                raise TypeMismatchException(f"Unsupported base type: {subtyp.typ}", arg)
         _format.append(subtyp)
     output_type = TupleType(_format)
     output_placeholder_type = ByteArrayType(
@@ -885,7 +883,7 @@ def _RLPlist(expr, args, kwargs, context):
                 ],
                 typ,
                 location='memory',
-                annotation='getting and checking %s' % typ.typ,
+                annotation=f'getting and checking {typ.typ}',
             )
             decoder.append(byte_array_to_num(bytez, expr, typ.typ))
         # Decoder for bools
@@ -1125,7 +1123,7 @@ def create_forwarder_to(expr, args, kwargs, context):
                       BaseType('uint256', {'wei': 1}))
     if context.is_constant():
         raise ConstancyViolationException(
-            "Cannot make calls from %s" % context.pp_constancy(),
+            f"Cannot make calls from {context.pp_constancy()}",
             expr,
         )
     placeholder = context.new_placeholder(ByteArrayType(96))
@@ -1186,7 +1184,7 @@ def minmax(expr, args, kwargs, context, is_min):
         otyp.is_literal = False
     else:
         raise TypeMismatchException(
-            "Minmax types incompatible: %s %s" % (left.typ.typ, right.typ.typ)
+            f"Minmax types incompatible: {left.typ.typ} {right.typ.typ}"
         )
     return LLLnode.from_list(
         ['with', '_l', left, ['with', '_r', right, o]],

@@ -71,7 +71,7 @@ def make_arg_clamper(datapos, mempos, typ, is_init=False):
 
             # for i in range(typ.count):
             mem_to = subtype_size * 32 * (typ.count - 1)
-            loop_label = "_check_list_loop_%s" % str(uuid.uuid4())
+            loop_label = f"_check_list_loop_{str(uuid.uuid4())}"
 
             # use LOOP_FREE_INDEX to store i
             offset = 288

@@ -49,7 +49,7 @@ def keccak256_helper(expr, args, kwargs, context):
         lengetter = LLLnode.from_list(['sload', ['sha3_32', '_sub']], typ=BaseType('int128'))
     else:
         # This should never happen, but just left here for future compiler-writers.
-        raise Exception("Unsupported location: %s" % sub.location)  # pragma: no test
+        raise Exception(f"Unsupported location: {sub.location}")  # pragma: no test
     placeholder = context.new_placeholder(sub.typ)
     placeholder_node = LLLnode.from_list(placeholder, typ=sub.typ, location='memory')
     copier = make_byte_array_copier(
