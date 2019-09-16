@@ -167,7 +167,10 @@ def extract_interface_str(code, contract_name, interface_codes=None):
             out += "\n# Functions\n"
         if not func.private and func.name != '__init__':
             args = ", ".join([arg.name + ": " + str(arg.typ) for arg in func.args])
-            out += f"{render_decorator(func)}def {func.name}({args}){render_return(func)}:\n    pass\n"  # noqa: E501
+            out += (
+                    f"{render_decorator(func)}def {func.name}({args}){render_return(func)}:\n"
+                    "    pass\n"
+                    )
     out += "\n"
 
     return out

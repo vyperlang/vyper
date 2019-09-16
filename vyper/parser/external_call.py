@@ -77,7 +77,6 @@ def external_contract_call(node,
     if context.is_constant() and not sig.const:
         raise ConstancyViolationException(
             f"May not call non-constant function '{method_name}' within {context.pp_constancy()}."
-            +
             " For asserting the result of modifiable contract calls, try assert_modifiable.",
             node
         )

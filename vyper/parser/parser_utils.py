@@ -91,8 +91,8 @@ def make_byte_array_copier(destination, source, pos=None):
         raise TypeMismatchException(f"Can only set a {btype} to another {btype}", pos)
     if isinstance(source.typ, ByteArrayLike) and source.typ.maxlen > destination.typ.maxlen:
         raise TypeMismatchException(
-            f"""Cannot cast from greater max-length {source.typ.maxlen} to shorter
-            max-length {destination.typ.maxlen}"""
+            f"Cannot cast from greater max-length {source.typ.maxlen} to shorter "
+            f"max-length {destination.typ.maxlen}"
             )
     # Special case: memory to memory
     if source.location == "memory" and destination.location == "memory":
@@ -304,8 +304,8 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
         if isinstance(key.typ, ByteArrayLike):
             if not isinstance(typ.keytype, ByteArrayLike) or (typ.keytype.maxlen < key.typ.maxlen):
                 raise TypeMismatchException(
-                    f'''Mapping keys of bytes cannot be cast, use exact same bytes type of:
-                    {str(typ.keytype)}''',
+                    "Mapping keys of bytes cannot be cast, use exact same bytes type of: "
+                    f"{str(typ.keytype)}",
                     pos,
                 )
             subtype = typ.valuetype
@@ -646,8 +646,8 @@ def make_setter(left, right, location, pos, in_function_call=False):
             else:
                 if len(left.typ.members) != len(right.typ.members):
                     raise TypeMismatchException(
-                        f"""Tuple lengths don't match,
-                        {len(left.typ.members)} vs {len(right.typ.members)}""",
+                        "Tuple lengths don't match, "
+                        f"{len(left.typ.members)} vs {len(right.typ.members)}",
                         pos,
                     )
 

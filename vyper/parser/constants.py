@@ -73,10 +73,8 @@ class Constants(object):
 
         if fail:
             raise TypeMismatchException(
-                f"""
-                Invalid value for constant type, expected {annotation_type} got
-                {expr.typ} instead'
-                """,
+                f"Invalid value for constant type, expected {annotation_type} got "
+                f"{expr.typ} instead",
                 const.value,
             )
 

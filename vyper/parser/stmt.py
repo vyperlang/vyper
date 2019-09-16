@@ -399,8 +399,8 @@ class Stmt(object):
             event = self.context.sigs['self'][self.stmt.func.attr]
             if len(event.indexed_list) != len(self.stmt.args):
                 raise EventDeclarationException(
-                    f"""{event.name} received {len(self.stmt.args)} arguments but
-                    expected {len(event.indexed_list)}"""
+                    f"{event.name} received {len(self.stmt.args)} arguments but "
+                    f"expected {len(event.indexed_list)}"
                 )
             expected_topics, topics = [], []
             expected_data, data = [], []
@@ -786,8 +786,8 @@ class Stmt(object):
                 )
             elif self.context.return_type != sub.typ and not sub.typ.is_literal:
                 raise TypeMismatchException(
-                    f"""Trying to return base type {sub.typ}, output expecting
-                    {self.context.return_type}""",
+                    f"Trying to return base type {sub.typ}, output expecting "
+                    f"{self.context.return_type}",
                     self.stmt.value,
                 )
             elif sub.typ.is_literal and (self.context.return_type.typ == sub.typ or 'int' in self.context.return_type.typ and 'int' in sub.typ.typ):  # noqa: E501
@@ -823,14 +823,14 @@ class Stmt(object):
         elif isinstance(sub.typ, ByteArrayLike):
             if not sub.typ.eq_base(self.context.return_type):
                 raise TypeMismatchException(
-                    f"""Trying to return base type {sub.typ}, output expecting
-                    {self.context.return_type}""",
+                    f"Trying to return base type {sub.typ}, output expecting "
+                    f"{self.context.return_type}",
                     self.stmt.value,
                 )
             if sub.typ.maxlen > self.context.return_type.maxlen:
                 raise TypeMismatchException(
-                    f"""Cannot cast from greater max-length {sub.typ.maxlen} to shorter
-                    max-length {self.context.return_type.maxlen}""",
+                    f"Cannot cast from greater max-length {sub.typ.maxlen} to shorter "
+                    f"max-length {self.context.return_type.maxlen}",
                     self.stmt.value,
                 )
 
@@ -867,8 +867,8 @@ class Stmt(object):
             loop_memory_position = self.context.new_placeholder(typ=BaseType('uint256'))
             if sub_base_type != ret_base_type:
                 raise TypeMismatchException(
-                    f"""List return type {sub_base_type} does not match specified
-                    return type, expecting {ret_base_type}""",
+                    f"List return type {sub_base_type} does not match specified "
+                    f"return type, expecting {ret_base_type}",
                     self.stmt
                 )
             elif sub.location == "memory" and sub.value != "multi":
@@ -917,8 +917,8 @@ class Stmt(object):
         elif isinstance(sub.typ, TupleType):
             if not isinstance(self.context.return_type, TupleType):
                 raise TypeMismatchException(
-                    f"""Trying to return tuple type {sub.typ}, output expecting
-                    {self.context.return_type}""",
+                    f"Trying to return tuple type {sub.typ}, output expecting "
+                    f"{self.context.return_type}",
                     self.stmt.value,
                 )
 
@@ -931,8 +931,8 @@ class Stmt(object):
                 sub_type = s_member if isinstance(s_member, NodeType) else s_member.typ
                 if type(sub_type) is not type(ret_x):
                     raise StructureException(
-                        f"""Tuple return type does not match annotated return.
-                        {type(sub_type)} != {type(ret_x)}""",
+                        "Tuple return type does not match annotated return. "
+                        f"{type(sub_type)} != {type(ret_x)}",
                         self.stmt
                     )
             return gen_tuple_return(self.stmt, self.context, sub)

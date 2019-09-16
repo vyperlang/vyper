@@ -594,8 +594,8 @@ def as_wei_value(expr, args, kwargs, context):
             break
     else:
         raise InvalidLiteralException(
-            f"""Invalid denomination: {args[1]}, valid denominations are:
-            {','.join(x[0].decode() for x in names_denom)}""",
+            f"Invalid denomination: {args[1]}, valid denominations are: "
+            f"{','.join(x[0].decode() for x in names_denom)}",
             expr.args[1]
         )
     # Compute the amount of wei and return that value

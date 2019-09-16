@@ -120,7 +120,8 @@ def signature(*argz, **kwargz):
             function_name = element.func.id
             if len(element.args) > len(argz):
                 raise StructureException(
-                    f"Expected {len(argz)} arguments for {function_name}, got {len(element.args)}",  # noqa: E501
+                    f"Expected {len(argz)} arguments for {function_name}, "
+                    f"got {len(element.args)}",
                     element
                 )
             subs = []

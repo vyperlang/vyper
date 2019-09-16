@@ -94,4 +94,5 @@ print("RLP decoder")
 print("Instructions for launching:")
 print(f'First send {t.startgas * t.gasprice} wei to {utils.checksum_encode(t.sender)}')
 print(f'Publish this tx to create the contract: 0x{utils.encode_hex(rlp.encode(t))}')
-print(f'This is the contract address: {utils.checksum_encode(utils.mk_contract_address(t.sender, 0))}')  # noqa: E501
+print('This is the contract address: '
+      f'{utils.checksum_encode(utils.mk_contract_address(t.sender, 0))}')

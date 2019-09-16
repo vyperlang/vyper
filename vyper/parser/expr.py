@@ -147,8 +147,8 @@ class Expr(object):
             )
             if len(orignum[2:]) != total_bits:  # Support only full formed bit definitions.
                 raise InvalidLiteralException((
-                    f"""Bit notation requires a multiple of 8 bits / 1 byte.
-                    {total_bits - len(orignum[2:])} bit(s) are missing."""
+                    f"Bit notation requires a multiple of 8 bits / 1 byte. "
+                    f"{total_bits - len(orignum[2:])} bit(s) are missing."
                 ), self.expr)
             byte_len = int(total_bits / 8)
             placeholder = self.context.new_placeholder(ByteArrayType(byte_len))
@@ -168,8 +168,11 @@ class Expr(object):
             )
         elif len(orignum) == 42:
             if checksum_encode(orignum) != orignum:
-                raise InvalidLiteralException(f"""Address checksum mismatch. If you are sure this is the
-right address, the correct checksummed form is: {checksum_encode(orignum)}""", self.expr)
+                raise InvalidLiteralException(
+                    "Address checksum mismatch. If you are sure this is the "
+                    f"right address, the correct checksummed form is: {checksum_encode(orignum)}",
+                    self.expr
+                    )
             return LLLnode.from_list(
                 self.expr.n,
                 typ=BaseType('address', is_literal=True),
@@ -376,8 +379,8 @@ right address, the correct checksummed form is: {checksum_encode(orignum)}""", s
             attrs = list(sub.typ.members.keys())
             if self.expr.attr not in attrs:
                 raise TypeMismatchException(
-                    f"""Member {self.expr.attr} not found. Only the following available:
-                    {' '.join(attrs)}""",
+                    f"Member {self.expr.attr} not found. Only the following available: "
+                    f"{' '.join(attrs)}",
                     self.expr,
                 )
             return add_variable_offset(sub, self.expr.attr, pos=getpos(self.expr))

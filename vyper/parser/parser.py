@@ -77,8 +77,8 @@ def parse_external_contracts(external_contracts, global_ctx):
         contract = {}
         if len(set(_defnames)) < len(_contract_defs):
             raise FunctionDeclarationException(
-                f"""Duplicate function name:
-                {[name for name in _defnames if _defnames.count(name) > 1][0]}"""
+                "Duplicate function name: "
+                f"{[name for name in _defnames if _defnames.count(name) > 1][0]}"
             )
 
         for _def in _contract_defs:
@@ -158,8 +158,8 @@ def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None):
     # Checks for duplicate function names
     if len(set(_names_def)) < len(_names_def):
         raise FunctionDeclarationException(
-            f"""Duplicate function name:
-            {[name for name in _names_def if _names_def.count(name) > 1][0]}"""
+            "Duplicate function name: "
+            f"{[name for name in _names_def if _names_def.count(name) > 1][0]}"
         )
     _names_events = [_event.target.id for _event in global_ctx._events]
     # Checks for duplicate event names
