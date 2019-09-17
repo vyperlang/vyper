@@ -136,10 +136,10 @@ class LLLnode:
                 if len(self.args) == 2:
                     self.gas = self.args[0].gas + self.args[1].gas + 17
                 if not self.args[0].valency:
-                    raise CompilerPanic((
+                    raise CompilerPanic(
                         "Can't have a zerovalent argument as a test to an if "
                         f"statement! {self.args[0]}"
-                    ))
+                    )
                 if len(self.args) not in (2, 3):
                     raise CompilerPanic("If can only have 2 or 3 arguments")
                 self.valency = self.args[1].valency

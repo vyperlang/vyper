@@ -343,10 +343,10 @@ def to_bytes32(expr, args, kwargs, context):
 
     if input_type == 'bytes':
         if _len > 32:
-            raise TypeMismatchException((
+            raise TypeMismatchException(
                 f"Unable to convert bytes[{len}] to bytes32, max length is too "
                 "large."
-            ))
+            )
 
         if in_arg.location == "memory":
             return LLLnode.from_list(

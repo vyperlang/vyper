@@ -93,7 +93,7 @@ def make_byte_array_copier(destination, source, pos=None):
         raise TypeMismatchException(
             f"Cannot cast from greater max-length {source.typ.maxlen} to shorter "
             f"max-length {destination.typ.maxlen}"
-            )
+        )
     # Special case: memory to memory
     if source.location == "memory" and destination.location == "memory":
         gas_calculation = GAS_IDENTITY + GAS_IDENTITYWORD * (ceil32(source.typ.maxlen) // 32)
