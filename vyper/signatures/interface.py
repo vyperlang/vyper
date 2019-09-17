@@ -151,7 +151,8 @@ def extract_interface_str(code, contract_name, interface_codes=None):
     for idx, event in enumerate(events):
         if idx == 0:
             out += "# Events\n\n"
-        out += f"{event.name}: event({{{', '.join([arg.name + ': ' + str(arg.typ) for arg in event.args])}}})\n"  # noqa: E501
+event_args_str = ', '.join([arg.name + ': ' + str(arg.typ) for arg in event.args])
+out += f"{event.name}: event({{{event_args_str}}})\n"
 
     # Print functions.
     def render_decorator(sig):
