@@ -169,11 +169,10 @@ def extract_interface_str(code, contract_name, interface_codes=None):
         if not func.private and func.name != '__init__':
             args = ", ".join([arg.name + ": " + str(arg.typ) for arg in func.args])
             out += f"""
-{render_decorator(func)}
-def {func.name}({args}){render_return(func)}:
-    pass
-"""
-                    )
+                {render_decorator(func)}
+                def {func.name}({args}){render_return(func)}:
+                    pass
+                """
     out += "\n"
 
     return out
