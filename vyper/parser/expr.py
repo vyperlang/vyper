@@ -186,7 +186,7 @@ class Expr(object):
                 pos=getpos(self.expr),
             )
         else:
-             raise InvalidLiteralException(
+            raise InvalidLiteralException(
                 f"Cannot read 0x value with length {len(orignum)}. Expecting 42 (address "
                 "incl 0x) or 66 (bytes32 incl 0x)",
             self.expr
