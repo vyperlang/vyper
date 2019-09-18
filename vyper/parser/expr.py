@@ -149,8 +149,8 @@ class Expr(object):
                 raise InvalidLiteralException(
                     f"Bit notation requires a multiple of 8 bits / 1 byte. "
                     f"{total_bits - len(orignum[2:])} bit(s) are missing.",
-                self.expr,
-            )
+                    self.expr,
+                )
             byte_len = int(total_bits / 8)
             placeholder = self.context.new_placeholder(ByteArrayType(byte_len))
             seq = []
@@ -189,8 +189,8 @@ class Expr(object):
             raise InvalidLiteralException(
                 f"Cannot read 0x value with length {len(orignum)}. Expecting 42 (address "
                 "incl 0x) or 66 (bytes32 incl 0x)",
-            self.expr
-        )
+                self.expr
+            )
 
     # String literals
     def string(self):
