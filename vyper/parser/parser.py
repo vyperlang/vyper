@@ -45,6 +45,8 @@ if not hasattr(ast, 'AnnAssign'):
 # Header code
 STORE_CALLDATA: List[Any] = \
         ['seq',
+            # check that calldatasize is at least 4, otherwise
+            # calldataload will load zeros (cf. yellow paper).
             ['if', ['lt', 'calldatasize', 4],
                 ['goto', 'fallback']],
             ['mstore', 28, ['calldataload', 0]]]
