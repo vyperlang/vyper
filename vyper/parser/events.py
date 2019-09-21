@@ -72,7 +72,7 @@ def pack_logging_topics(event_id, args, expected_topics, context, pos):
 
 
 def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder,
-        dynamic_offset_counter=None, datamem_start=None, pos=None):
+                    dynamic_offset_counter=None, datamem_start=None, pos=None):
     """
     Copy necessary variables to pre-allocated memory section.
 

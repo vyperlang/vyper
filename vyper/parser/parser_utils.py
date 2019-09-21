@@ -905,10 +905,9 @@ def zero_pad(bytez_placeholder):
             ['with', 'len', len_,
                 ['with', 'dst', dst,
                     # calldatacopy mempos calldatapos len
-                    ['calldatacopy', 'dst', 'calldatasize', num_zero_bytes]
-                    ]],
-                annotation="Zero pad",
-                )
+                    ['calldatacopy', 'dst', 'calldatasize', num_zero_bytes]]],
+            annotation="Zero pad",
+            )
 
 
 # Generate return code for stmt
