@@ -483,11 +483,14 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
         raise InvalidTypeException("Invalid type", item)
 
 
-# Gets the number of memory or storage keys needed to represent a given type
+# Gets the maximum number of memory or storage keys needed to ABI-encode
+# a given type
 def get_size_of_type(typ):
     if isinstance(typ, BaseType):
         return 1
     elif isinstance(typ, ByteArrayLike):
+        # 1 word for offset (in static section), 1 word for length,
+        # up to maxlen words for actual data.
         return ceil32(typ.maxlen) // 32 + 2
     elif isinstance(typ, ListType):
         return get_size_of_type(typ.subtype) * typ.count
