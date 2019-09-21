@@ -182,6 +182,34 @@ class ABI_Tuple(ABIType):
         return sum([0 if not t.is_dynamic() else t.dynamic_size_bound()
             for t in self.subtyps])
 
+def abi_type_of(lll_typ):
+    if isinstance(lll_typ, BaseType):
+        t = lll_typ.typ
+        if 'uint256' == t:
+            return ABI_IntM(256, False)
+        elif 'int128' == t:
+            return ABI_IntM(128, False)
+        elif 'address' == t:
+            return ABI_Address()
+        elif 'bytes32' == t:
+            return ABI_Bytes(32)
+        elif 'bool' == t:
+            return ABI_Bool
+        elif 'decimal' == t:
+            return ABI_FixedMxN(168, 10)
+        else:
+            raise CompilerPanic(f'Unrecognized type {t}')
+    elif isinstance(lll_typ, TupleLike):
+        return ABI_Tuple([abi_type_of(t) for t in lll_type.tuple_members()])
+    elif isinstance(lll_typ, ListType):
+        return ABI_StaticArray(abi_type_of(lll_typ.subtype), lll_typ.count)
+    elif isinstance(lll_typ, ByteArrayType):
+        return ABI_Bytes(lll_typ.maxlen)
+    elif isinstance(lll_typ, StringType):
+        return ABI_String(lll_typ.maxlen)
+    else:
+        raise CompilerPanic(f'Unrecognized type {t}')
+
 # assume dst is a buffer in memory which 
 #def abi_encode(lll_node, dst, lll_dyn_loc):
 #    # lll_dyn_loc is an LLL expression which points to the current
