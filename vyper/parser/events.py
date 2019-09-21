@@ -108,7 +108,6 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder,
             typ=typ, location='memory', annotation="pack_args_by_32:dest_placeholder")
         copier = make_byte_array_copier(dest_placeholder, source_lll, pos=pos)
         holder.append(copier)
-        item_maxlen = source_lll.typ.maxlen
         # Add zero padding.
         holder.append(zero_pad(dest_placeholder))
 
