@@ -210,8 +210,89 @@ def abi_type_of(lll_typ):
     else:
         raise CompilerPanic(f'Unrecognized type {t}')
 
-# assume dst is a buffer in memory which 
-#def abi_encode(lll_node, dst, lll_dyn_loc):
-#    # lll_dyn_loc is an LLL expression which points to the current
-#    # location in the dynamic section.
-#    if has_dynamic_data
+# turn an lll node into a list, based on its type.
+def o_list(lll_node, pos=None):
+    lll_t = lll_node.typ
+    if isinstance(lll_t, (TupleLike, ListType)):
+        if lll_node.value == 'multi': # is literal
+            return lll_node.args
+        else:
+            ks = lll_t.tuple_keys() if isinstance(lll_t, TupleLike) else \
+                    [LLLnode.from_list(i) for i in range(lll_t.count)]
+
+            return [add_variable_offset(lll_node, k, pos, array_bounds_check=False)
+                    for k in ks]
+    else:
+        return [lll_node]
+
+
+# assume dst is a buffer in memory which has at least
+# static_size + dynamic_size_bound allocated.
+# The basic strategy is this:
+#   First, it is helpful to keep track of what variables are location
+#   dependent and which are location independent (offsets). Independent
+#   locations will be denoted with variables named `_ofst`.
+#   Since we cannot know beforehand where `dst` is (it could be
+#   a dynamically calculated value), we assign a stack variable
+#   to its value, `dst_loc`. In addition we need at most one more stack
+#   variable to keep track of our location in the dynamic section.
+#   It will also be convenient to keep the original `dst` around as a
+#   stack variable.  So, 2-3 stack variables for each level of nesting
+#   (as defined in the spec).
+#   For each element `elem` of the lll_node:
+#   - If `elem` is static, write its value to `dst_loc` and
+#     increment `dst_loc` by the size of `elem`.
+#   - If it is dynamic, ensure we have initialized a pointer (a stack
+#     variable named `dyn_ofst` set to the start of the dynamic section
+#     (i.e. static_size of lll_node). Write the 'tail' of `elem` to the
+#     dynamic section, then write current `dyn_ofst` to `dst_loc`, and
+#     then increment `dyn_ofst` by the number of bytes written. Note
+#     that in this step we may recurse, and the child call should return
+#     a stack item representing how many bytes were written.
+def abi_encode(lll_node, dst, pos=None, bufsz=None, returns=False):
+    if not isinstance(dst, int):
+        raise CompilerPanic('abi_encode requires a statically known destination')
+    parent_abi_t = abi_type_of(lll_node.typ)
+    if bufsz < parent_abi_t.static_size() + parent_abi_t.dynamic_size_bound():
+        raise CompilerPanic('buffer provided to abi_encode not large enough')
+
+    lll_ret  = []
+    dyn_ofst = 'dyn_ofst' # current offset in the dynamic section
+    dst      = 'dst'      # pointer to beginning of buffer
+    dst_loc  = 'dst_loc'  # pointer to write location in static section
+    for o in o_list(lll_node, pos):
+        abi_t = abi_type_of(o)
+
+        if abi_t.is_dynamic():
+            lll_ret.append(['mstore', 'dst_loc', 'dyn_ofst'])
+            if isinstance(o.typ, ByteArrayLike):
+                d = LLLnode.from_list(['dyn_loc'], typ=o.typ)
+                lll_ret.append(
+                        ['with', 'dyn_loc', ['add', 'dst', 'dyn_ofst'],
+                            ['seq',
+                                make_byte_array_copier(d, o, pos=pos),
+                                zero_pad(d, maxlen=d.typ.maxlen),
+                                ['mload', d]]])
+            else:
+                child = abi_encode(o, dyn_loc, pos, returns=True) # recurse
+            lll_ret.append(
+                    ['set', 'dyn_ofst',
+                        ['add', 'dyn_ofst', child]])
+        else:
+            # could be O(n^2) where n is depth of data type.
+            if isinstance(o.typ, BaseType):
+                lll_ret.append(['mstore', 'dst', o])
+            else:
+                # children guaranteed to be static.
+                lll_ret.append(abi_encode(o, dst_loc, pos))
+
+        sz = abi_t.static_size()
+        lll_ret.append(['set', dst_loc, ['add', dst_loc, sz]])
+
+    if returns:
+        lll_ret = ['seq', lll_ret, 'dyn_ofst']
+    else:
+        lll_ret = ['seq', lll_ret]
+    if parent_abi_t.is_dynamic():
+        lll_ret = ['with', 'dyn_ofst', parent_abi_t.static_size(), lll_ret]
+    return LLLnode.from_list(lll_ret)
