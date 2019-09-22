@@ -136,7 +136,7 @@ def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=No
                 ['codecopy', MemoryPositions.FREE_VAR_SPACE, code.args[0], 32],
                 ['mload', MemoryPositions.FREE_VAR_SPACE]
             ]
-        ), withargs, break_dest, height)
+        ), withargs, existing_labels, break_dest, height)
     # If statements (2 arguments, ie. if x: y)
     elif code.value in ('if', 'if_unchecked') and len(code.args) == 2:
         o = []
@@ -270,9 +270,9 @@ def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=No
         o.extend(get_revert())
         return o
     elif code.value == 'assert_reason':
-        o = compile_to_assembly(code.args[0], withargs, break_dest, height)
-        mem_start = compile_to_assembly(code.args[1], withargs, break_dest, height)
-        mem_len = compile_to_assembly(code.args[2], withargs, break_dest, height)
+        o = compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
+        mem_start = compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height)
+        mem_len = compile_to_assembly(code.args[2], withargs, existing_labels, break_dest, height)
         o.extend(get_revert(mem_start, mem_len))
         return o
     # Unsigned/signed clamp, check less-than
