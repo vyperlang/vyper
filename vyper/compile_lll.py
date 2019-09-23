@@ -1,5 +1,8 @@
 import functools
 
+from vyper.exceptions import (
+    CompilerPanic,
+)
 from vyper.parser.parser import (
     LLLnode,
 )
@@ -88,11 +91,13 @@ def apply_line_numbers(func):
 def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=None, height=0):
     if withargs is None:
         withargs = {}
-    assert isinstance(withargs, dict)
+    if not isinstance(withargs, dict):
+        raise CompilerPanic(f"Incorrect type for withargs: {type(withargs)}")
 
     if existing_labels is None:
         existing_labels = set()
-    assert isinstance(existing_labels, set)
+    if not isinstance(existing_labels, set):
+        raise CompilerPanic(f"Incorrect type for existing_labels: {type(existing_labels)}")
 
     # Opcodes
     if isinstance(code.value, str) and code.value.upper() in opcodes:
