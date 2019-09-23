@@ -77,9 +77,8 @@ def parse_external_contracts(external_contracts, global_ctx):
         contract = {}
         if len(set(_defnames)) < len(_contract_defs):
             raise FunctionDeclarationException(
-                "Duplicate function name: %s" % (
-                    [name for name in _defnames if _defnames.count(name) > 1][0]
-                )
+                "Duplicate function name: "
+                f"{[name for name in _defnames if _defnames.count(name) > 1][0]}"
             )
 
         for _def in _contract_defs:
@@ -159,17 +158,15 @@ def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None):
     # Checks for duplicate function names
     if len(set(_names_def)) < len(_names_def):
         raise FunctionDeclarationException(
-            "Duplicate function name: %s" % (
-                [name for name in _names_def if _names_def.count(name) > 1][0]
-            )
+            "Duplicate function name: "
+            f"{[name for name in _names_def if _names_def.count(name) > 1][0]}"
         )
     _names_events = [_event.target.id for _event in global_ctx._events]
     # Checks for duplicate event names
     if len(set(_names_events)) < len(_names_events):
         raise EventDeclarationException(
-            "Duplicate event name: %s" % (
-                [name for name in _names_events if _names_events.count(name) > 1][0]
-            )
+            f"""Duplicate event name:
+            {[name for name in _names_events if _names_events.count(name) > 1][0]}"""
         )
     # Initialization function
     initfunc = [_def for _def in global_ctx._defs if is_initializer(_def)]

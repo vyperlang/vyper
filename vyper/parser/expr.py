@@ -146,10 +146,11 @@ class Expr(object):
                 else total_bits + 8 - (total_bits % 8)  # ceil8 to get byte length.
             )
             if len(orignum[2:]) != total_bits:  # Support only full formed bit definitions.
-                raise InvalidLiteralException((
-                    "Bit notation requires a multiple of 8 bits / 1 byte. {} "
-                    "bit(s) are missing."
-                ).format(total_bits - len(orignum[2:])), self.expr)
+                raise InvalidLiteralException(
+                    f"Bit notation requires a multiple of 8 bits / 1 byte. "
+                    f"{total_bits - len(orignum[2:])} bit(s) are missing.",
+                    self.expr,
+                )
             byte_len = int(total_bits / 8)
             placeholder = self.context.new_placeholder(ByteArrayType(byte_len))
             seq = []
@@ -164,12 +165,15 @@ class Expr(object):
                 typ=ByteArrayType(byte_len),
                 location='memory',
                 pos=getpos(self.expr),
-                annotation='Create ByteArray (Binary literal): %s' % str_val,
+                annotation=f'Create ByteArray (Binary literal): {str_val}',
             )
         elif len(orignum) == 42:
             if checksum_encode(orignum) != orignum:
-                raise InvalidLiteralException("""Address checksum mismatch. If you are sure this is the
-right address, the correct checksummed form is: %s""" % checksum_encode(orignum), self.expr)
+                raise InvalidLiteralException(
+                    "Address checksum mismatch. If you are sure this is the "
+                    f"right address, the correct checksummed form is: {checksum_encode(orignum)}",
+                    self.expr
+                )
             return LLLnode.from_list(
                 self.expr.n,
                 typ=BaseType('address', is_literal=True),
@@ -182,10 +186,11 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 pos=getpos(self.expr),
             )
         else:
-            raise InvalidLiteralException((
-                "Cannot read 0x value with length %d. Expecting 42 (address "
-                "incl 0x) or 66 (bytes32 incl 0x)"
-            ) % len(orignum), self.expr)
+            raise InvalidLiteralException(
+                f"Cannot read 0x value with length {len(orignum)}. Expecting 42 (address "
+                "incl 0x) or 66 (bytes32 incl 0x)",
+                self.expr
+            )
 
     # String literals
     def string(self):
@@ -213,7 +218,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             typ=btype,
             location='memory',
             pos=getpos(self.expr),
-            annotation='Create %r: %s' % (btype, bytez),
+            annotation=f'Create {btype}: {bytez}',
         )
 
     # True, False, None constants
@@ -233,7 +238,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         elif self.expr.value is None:
             return LLLnode.from_list(None, typ=NullType(), pos=getpos(self.expr))
         else:
-            raise Exception("Unknown name constant: %r" % self.expr.value.value)
+            raise Exception(f"Unknown name constant: {self.expr.value.value}")
 
     # Variable names
     def variables(self):
@@ -260,7 +265,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         elif self.context.constants.ast_is_constant(self.expr):
             return self.context.constants.get_constant(self.expr.id, self.context)
         else:
-            raise VariableDeclarationException("Undeclared variable: " + self.expr.id, self.expr)
+            raise VariableDeclarationException(f"Undeclared variable: {self.expr.id}", self.expr)
 
     # x.y or x[5]
     def attribute(self):
@@ -376,9 +381,8 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             attrs = list(sub.typ.members.keys())
             if self.expr.attr not in attrs:
                 raise TypeMismatchException(
-                    "Member %s not found. Only the following available: %s" % (
-                        self.expr.attr, " ".join(attrs)
-                    ),
+                    f"Member {self.expr.attr} not found. Only the following available: "
+                    f"{' '.join(attrs)}",
                     self.expr,
                 )
             return add_variable_offset(sub, self.expr.attr, pos=getpos(self.expr))
@@ -426,7 +430,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
 
         if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
             raise TypeMismatchException(
-                "Unsupported types for arithmetic op: %r %r" % (left.typ, right.typ),
+                f"Unsupported types for arithmetic op: {left.typ} {right.typ}",
                 self.expr,
             )
 
@@ -451,7 +455,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 val = left.value ** right.value
             else:
                 raise ParserException(
-                    'Unsupported literal operator: %s' % str(type(self.expr.op)),
+                    f'Unsupported literal operator: {str(type(self.expr.op))}',
                     self.expr,
                 )
 
@@ -485,7 +489,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         # Only allow explicit conversions to occur.
         if left.typ.typ != right.typ.typ:
             raise TypeMismatchException(
-                "Cannot implicitly convert {} to {}.".format(left.typ.typ, right.typ.typ),
+                f"Cannot implicitly convert {left.typ.typ} to {right.typ.typ}.",
                 self.expr,
             )
 
@@ -493,7 +497,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         if isinstance(self.expr.op, (ast.Add, ast.Sub)):
             if left.typ.unit != right.typ.unit and left.typ.unit != {} and right.typ.unit != {}:
                 raise TypeMismatchException(
-                    "Unit mismatch: %r %r" % (left.typ.unit, right.typ.unit),
+                    f"Unit mismatch: {left.typ.unit} {right.typ.unit}",
                     self.expr,
                 )
             if left.typ.positional and right.typ.positional and isinstance(self.expr.op, ast.Add):
@@ -528,7 +532,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                     pos=getpos(self.expr),
                 )
             else:
-                raise Exception("Unsupported Operation '%r(%r, %r)'" % (op, ltyp, rtyp))
+                raise Exception(f"Unsupported Operation '{op}({ltyp}, {rtyp})'")
         elif isinstance(self.expr.op, ast.Mult):
             if left.typ.positional or right.typ.positional:
                 raise TypeMismatchException("Cannot multiply positional values!", self.expr)
@@ -566,7 +570,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                     ],
                 ], typ=BaseType('decimal', new_unit), pos=getpos(self.expr))
             else:
-                raise Exception("Unsupported Operation 'mul(%r, %r)'" % (ltyp, rtyp))
+                raise Exception(f"Unsupported Operation 'mul({ltyp}, {rtyp})'")
         elif isinstance(self.expr.op, ast.Div):
             if left.typ.positional or right.typ.positional:
                 raise TypeMismatchException("Cannot divide positional values!", self.expr)
@@ -595,7 +599,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                     ]
                 ], typ=BaseType('decimal', new_unit), pos=getpos(self.expr))
             else:
-                raise Exception("Unsupported Operation 'div(%r, %r)'" % (ltyp, rtyp))
+                raise Exception(f"Unsupported Operation 'div({ltyp}, {rtyp})'")
         elif isinstance(self.expr.op, ast.Mod):
             if left.typ.positional or right.typ.positional:
                 raise TypeMismatchException(
@@ -618,7 +622,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                     pos=getpos(self.expr),
                 )
             else:
-                raise Exception("Unsupported Operation 'mod(%r, %r)'" % (ltyp, rtyp))
+                raise Exception(f"Unsupported Operation 'mod({ltyp}, {rtyp})'")
         elif isinstance(self.expr.op, ast.Pow):
             if left.typ.positional or right.typ.positional:
                 raise TypeMismatchException(
@@ -660,7 +664,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             else:
                 raise TypeMismatchException('Only whole number exponents are supported', self.expr)
         else:
-            raise ParserException("Unsupported binary operator: %r" % self.expr.op, self.expr)
+            raise ParserException(f"Unsupported binary operator: {self.expr.op}", self.expr)
 
         p = ['seq']
 
@@ -689,7 +693,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             p.append(o)
             return LLLnode.from_list(p, typ=o.typ, pos=getpos(self.expr))
         else:
-            raise Exception("%r %r" % (o, o.typ))
+            raise Exception(f"{o} {o.typ}")
 
     def build_in_comparator(self):
         left = Expr(self.expr.left, self.context).lll_node
@@ -697,7 +701,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
 
         if left.typ != right.typ.subtype:
             raise TypeMismatchException(
-                "%s cannot be in a list of %s" % (left.typ, right.typ.subtype),
+                f"{left.typ} cannot be in a list of {right.typ.subtype}",
             )
 
         result_placeholder = self.context.new_placeholder(BaseType('bool'))
@@ -886,10 +890,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             op = self._signed_to_unsigned_comparision_op(op)
         elif (left_type in ('decimal', 'int128') or right_type in ('decimal', 'int128')) and left_type != right_type:  # noqa: E501
             raise TypeMismatchException(
-                'Implicit conversion from {} to {} disallowed, please convert.'.format(
-                    left_type,
-                    right_type,
-                ),
+                f'Implicit conversion from {left_type} to {right_type} disallowed, please convert.',
                 self.expr,
             )
 
@@ -897,7 +898,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
             return LLLnode.from_list([op, left, right], typ='bool', pos=getpos(self.expr))
         else:
             raise TypeMismatchException(
-                "Unsupported types for comparison: %r %r" % (left_type, right_type),
+                f"Unsupported types for comparison: {left_type} {right_type}",
                 self.expr,
             )
 
@@ -958,13 +959,13 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                 return LLLnode.from_list(["iszero", operand], typ='bool', pos=getpos(self.expr))
             else:
                 raise TypeMismatchException(
-                    "Only bool is supported for not operation, %r supplied." % operand.typ,
+                    f"Only bool is supported for not operation, {operand.typ} supplied.",
                     self.expr,
                 )
         elif isinstance(self.expr.op, ast.USub):
             if not is_numeric_type(operand.typ):
                 raise TypeMismatchException(
-                    "Unsupported type for negation: %r" % operand.typ,
+                    f"Unsupported type for negation: {operand.typ}",
                     operand,
                 )
 
@@ -1029,9 +1030,9 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
                         self.expr,
                     )
             else:
-                err_msg = "Not a top-level function: {}".format(function_name)
+                err_msg = f"Not a top-level function: {function_name}"
                 if function_name in [x.split('(')[0] for x, _ in self.context.sigs['self'].items()]:
-                    err_msg += ". Did you mean self.{}?".format(function_name)
+                    err_msg += f". Did you mean self.{function_name}?"
                 raise StructureException(err_msg, self.expr)
         elif isinstance(self.expr.func, ast.Attribute) and isinstance(self.expr.func.value, ast.Name) and self.expr.func.value.id == "self":  # noqa: E501
             return self_call.make_call(self.expr, self.context)
@@ -1085,7 +1086,7 @@ right address, the correct checksummed form is: %s""" % checksum_encode(orignum)
         for key, value in zip(expr.keys, expr.values):
             if not isinstance(key, ast.Name):
                 raise TypeMismatchException(
-                    "Invalid member variable for struct: %r" % getattr(key, 'id', ''),
+                    f"Invalid member variable for struct: {getattr(key, 'id', '')}",
                     key,
                 )
             check_valid_varname(

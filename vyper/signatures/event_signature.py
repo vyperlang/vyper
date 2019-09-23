@@ -77,7 +77,7 @@ class EventSignature:
                     raise EventDeclarationException("Indexed arguments are limited to 32 bytes")
                 if topics_count > 4:
                     raise EventDeclarationException(
-                        "Maximum of 3 topics {} given".format(topics_count - 1),
+                        f"Maximum of 3 topics {topics_count - 1} given",
                         arg,
                     )
                 if not isinstance(arg, str):

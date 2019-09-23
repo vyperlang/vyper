@@ -75,22 +75,14 @@ class ParserException(Exception):
 
         if self.lineno and hasattr(self, 'source_code'):
 
-            output = 'line %d: %s\n%s' % (
-                self.lineno,
-                output,
-                self.source_code[self.lineno - 1]
-            )
+            output = f'line {self.lineno}: {output}\n{self.source_code[self.lineno -1]}'
 
             if self.col_offset:
                 col = '-' * self.col_offset + '^'
                 output += '\n' + col
 
         elif self.lineno is not None and self.col_offset is not None:
-            output = 'line %d:%d %s' % (
-                self.lineno,
-                self.col_offset,
-                output
-            )
+            output = f'line {self.lineno}:{self.col_offset} {output}'
 
         return output
 """[1:-1]
@@ -156,21 +148,17 @@ def test_annotate_source_code_marks_positions_in_source_code():
 
     annotation = annotate_source_code(
         TEST_SOURCE_CODE,
-        44,
+        36,
         col_offset=8,
-        context_lines=8,
+        context_lines=4,
         line_numbers=True,
     )
     assert annotation == r"""
-     36
-     37         elif self.lineno is not None and self.col_offset is not None:
-     38             output = 'line %d:%d %s' % (
-     39                 self.lineno,
-     40                 self.col_offset,
-     41                 output
-     42             )
-     43
----> 44         return output
+     32
+     33         elif self.lineno is not None and self.col_offset is not None:
+     34             output = f'line {self.lineno}:{self.col_offset} {output}'
+     35
+---> 36         return output
 ----------------^
 """[1:-1]
 

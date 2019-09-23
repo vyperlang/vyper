@@ -254,15 +254,15 @@ class FunctionSignature:
 
         if public and private:
             raise StructureException(
-                "Cannot use public and private decorators on the same function: {}".format(name)
+                f"Cannot use public and private decorators on the same function: {name}"
             )
         if payable and const:
             raise StructureException(
-                "Function {} cannot be both constant and payable.".format(name)
+                f"Function {name} cannot be both constant and payable."
             )
         if payable and private:
             raise StructureException(
-                "Function {} cannot be both private and payable.".format(name)
+                f"Function {name} cannot be both private and payable."
             )
         if (not public and not private) and not contract_def:
             raise StructureException(
@@ -291,7 +291,7 @@ class FunctionSignature:
             )
         else:
             raise InvalidTypeException(
-                "Output type invalid or unsupported: %r" % parse_type(code.returns, None),
+                f"Output type invalid or unsupported: {parse_type(code.returns, None)}",
                 code.returns,
             )
         # Output type must be canonicalizable
@@ -429,7 +429,7 @@ class FunctionSignature:
         if method_name not in method_names_dict:
             raise FunctionDeclarationException(
                 "Function not declared yet (reminder: functions cannot "
-                "call functions later in code than themselves): %s" % method_name
+                f"call functions later in code than themselves): {method_name}"
             )
 
         if method_names_dict[method_name] == 1:
@@ -454,7 +454,7 @@ class FunctionSignature:
             if len(ssig) == 0:
                 raise FunctionDeclarationException(
                     "Function not declared yet (reminder: functions cannot "
-                    "call functions later in code than themselves): %s" % method_name
+                    f"call functions later in code than themselves): {method_name}"
                 )
             return ssig[0]
 

@@ -64,7 +64,7 @@ def create_and_return_forwarder(inp: address) -> address:
 
     print('Passed forwarder test')
     # TODO: This one is special
-    # print('Gas consumed: %d' % (chain.head_state.receipts[-1].gas_used - chain.head_state.receipts[-2].gas_used - chain.last_tx.intrinsic_gas_used))  # noqa: E501
+    # print(f'Gas consumed: {(chain.head_state.receipts[-1].gas_used - chain.head_state.receipts[-2].gas_used - chain.last_tx.intrinsic_gas_used)}')  # noqa: E501
 
 
 def test_multiple_levels2(assert_tx_failed, get_contract_with_gas_estimation):
