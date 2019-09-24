@@ -94,3 +94,34 @@ def __default__():
     log.Sent(msg.sender)
     """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code))
+
+
+def test_zero_method_id(w3, get_logs, get_contract_with_gas_estimation):
+    code = """
+Sent: event({sig: uint256})
+
+@public
+@payable
+# function selector: 0x00000000
+def blockHashAskewLimitary(v: uint256) -> uint256:
+    log.Sent(2)
+    return 7
+
+@public
+def __default__():
+    log.Sent(1)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.blockHashAskewLimitary(0) == 7
+
+    logs = get_logs(
+            w3.eth.sendTransaction({'to': c.address, 'value': 0}), c, 'Sent')
+    assert 1 == logs[0].args.sig
+
+    logs = get_logs(
+            # call blockHashAskewLimitary
+            w3.eth.sendTransaction({'to': c.address, 'value': 0, 'data': '0x00000000'}),
+            c, 'Sent')
+    assert 2 == logs[0].args.sig

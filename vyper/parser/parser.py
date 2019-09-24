@@ -43,7 +43,13 @@ if not hasattr(ast, 'AnnAssign'):
     raise Exception("Requires python 3.6 or higher for annotation support")
 
 # Header code
-STORE_CALLDATA: List[Any] = ['seq', ['mstore', 28, ['calldataload', 0]]]
+STORE_CALLDATA: List[Any] = \
+        ['seq',
+            # check that calldatasize is at least 4, otherwise
+            # calldataload will load zeros (cf. yellow paper).
+            ['if', ['lt', 'calldatasize', 4],
+                ['goto', 'fallback']],
+            ['mstore', 28, ['calldataload', 0]]]
 # Store limit constants at fixed addresses in memory.
 LIMIT_MEMORY_SET: List[Any] = [
     ['mstore', pos, limit_size]
@@ -55,13 +61,6 @@ FUNC_INIT_LLL = LLLnode.from_list(
 INIT_FUNC_INIT_LLL = LLLnode.from_list(
     ['seq'] + LIMIT_MEMORY_SET, typ=None
 )
-
-
-# Header code
-INITIALIZER_LIST = ['seq', ['mstore', 28, ['calldataload', 0]]]
-# Store limit constants at fixed addresses in memory.
-INITIALIZER_LIST += [['mstore', pos, limit_size] for pos, limit_size in LOADED_LIMIT_MAP.items()]
-INITIALIZER_LLL = LLLnode.from_list(INITIALIZER_LIST, typ=None)
 
 
 def parse_events(sigs, global_ctx):
@@ -141,9 +140,10 @@ def parse_other_functions(o,
             origcode,
             global_ctx,
         )
-        sub.append(default_func)
+        fallback = default_func
     else:
-        sub.append(LLLnode.from_list(['revert', 0, 0], typ=None, annotation='Default function'))
+        fallback = LLLnode.from_list(['revert', 0, 0], typ=None, annotation='Default function')
+    sub.append(['seq_unchecked', ['label', 'fallback'], fallback])
     if runtime_only:
         return sub
     else:
