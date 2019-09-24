@@ -1,7 +1,14 @@
 import pytest
 
+from vyper.compiler import (
+    compile_code,
+)
 from vyper.exceptions import (
     FunctionDeclarationException,
+    InvalidLiteralException,
+    NonPayableViolationException,
+    ParserException,
+    TypeMismatchException,
 )
 
 
@@ -153,12 +160,162 @@ def callMeMaybe() -> (bytes[100], uint256, bytes[20]):
     assert c.callMeMaybe() == [b'here is my number', 555123456, b'baby']
 
 
-def test_default_param_literal(get_contract):
+def test_builtin_constants_as_default(get_contract):
     code = """
+@public
+def foo(a: int128 = MIN_INT128, b: int128 = MAX_INT128) -> (int128, int128):
+    return a, b
+    """
+    c = get_contract(code)
+    assert c.foo() == [-(2**127), 2**127-1]
+    assert c.foo(31337) == [31337, 2**127-1]
+    assert c.foo(13, 42) == [13, 42]
+
+
+def test_environment_vars_as_default(get_contract):
+    code = """
+xx: uint256(wei)
+
+@public
+@payable
+def foo(a: uint256(wei) = msg.value) -> bool:
+    self.xx += a
+    return True
+
+@public
+def bar() -> uint256(wei):
+    return self.xx
+
+@public
+def get_balance() -> uint256(wei):
+    return self.balance
+    """
+    c = get_contract(code)
+    c.foo(transact={'value': 31337})
+    assert c.bar() == 31337
+    c.foo(666, transact={'value': 9001})
+    assert c.bar() == 31337 + 666
+    assert c.get_balance() == 31337 + 9001
+
+
+PASSING_CONTRACTS = [
+    """
+@public
+def foo(a: bool = True, b: bool[2] = [True, False]): pass
+    """,
+    """
+@public
+def foo(
+    a: address = 0x0c04792e92e6b2896a18568fD936781E9857feB7,
+    b: address[2] = [
+        0x0c04792e92e6b2896a18568fD936781E9857feB7,
+        0x0c04792e92e6b2896a18568fD936781E9857feB7
+    ]): pass
+    """,
+    """
+@public
+def foo(a: uint256 = 12345, b: uint256[2] = [31337, 42]): pass
+    """,
+    """
+@public
+def foo(a: int128 = -31, b: int128[2] = [64, -46]): pass
+    """,
+    """
+@public
+def foo(a: bytes[6] = "potato"): pass
+    """,
+    """
+@public
+def foo(a: decimal = 3.14, b: decimal[2] = [1.337, 2.69]): pass
+    """,
+    """
+@public
+def foo(a: address = msg.sender, b: address[3] = [msg.sender, tx.origin, block.coinbase]): pass
+    """,
+    """
+@public
+@payable
+def foo(a: uint256(wei) = msg.value): pass
+    """,
+]
+
+
+@pytest.mark.parametrize('code', PASSING_CONTRACTS)
+def test_good_default_params(code):
+    assert compile_code(code)
+
+
+FAILING_CONTRACTS = [
+    ("""
+# default params must be literals
 x: int128
 
 @public
 def foo(xx: int128, y: int128 = xx): pass
-    """
-    with pytest.raises(FunctionDeclarationException):
-        get_contract(code)
+    """, FunctionDeclarationException),
+    ("""
+# value out of range for uint256
+@public
+def foo(a: uint256 = -1): pass
+    """, InvalidLiteralException),
+    ("""
+# value out of range for int128
+@public
+def foo(a: int128 = 170141183460469231731687303715884105728): pass
+    """, TypeMismatchException),
+    ("""
+# value out of range for uint256 array
+@public
+def foo(a: uint256[2] = [13, -42]): pass
+     """, InvalidLiteralException),
+    ("""
+# value out of range for int128 array
+@public
+def foo(a: int128[2] = [12, 170141183460469231731687303715884105728]): pass
+    """, TypeMismatchException),
+    ("""
+# array type mismatch
+@public
+def foo(a: uint256[2] = [12, True]): pass
+    """, TypeMismatchException),
+    ("""
+# wrong length
+@public
+def foo(a: uint256[2] = [1, 2, 3]): pass
+    """, TypeMismatchException),
+    ("""
+# default params must be literals
+x: uint256
+
+@public
+def foo(a: uint256 = self.x): pass
+     """, FunctionDeclarationException),
+    ("""
+# default params must be literals inside array
+x: uint256
+
+@public
+def foo(a: uint256[2] = [2, self.x]): pass
+     """, FunctionDeclarationException),
+    ("""
+# default params still must be literals
+@public
+def foo(a: uint256 = 2**8): pass
+     """, FunctionDeclarationException),
+    ("""
+# msg.value in a nonpayable
+@public
+def foo(a: uint256 = msg.value): pass
+""", NonPayableViolationException),
+    ("""
+# msg.sender in a private function
+@private
+def foo(a: address = msg.sender): pass
+    """, ParserException),
+]
+
+
+@pytest.mark.parametrize('failing_contract', FAILING_CONTRACTS)
+def test_bad_default_params(failing_contract, assert_compile_failed):
+    code, exc = failing_contract
+    assert_compile_failed(lambda: compile_code(code), exc)

@@ -93,7 +93,7 @@ def parse_private_function(code: ast.FunctionDef,
     # Allocate variable space.
     context.memory_allocator.increase_memory(sig.max_copy_size)
 
-    _post_callback_ptr = "{}_{}_post_callback_ptr".format(sig.name, sig.method_id)
+    _post_callback_ptr = f"{sig.name}_{sig.method_id}_post_callback_ptr"
     context.callback_ptr = context.new_placeholder(typ=BaseType('uint256'))
     clampers.append(
         LLLnode.from_list(
@@ -143,7 +143,7 @@ def parse_private_function(code: ast.FunctionDef,
         unpackers: List[Any] = []
         for idx, var_name in enumerate(dyn_variable_names):
             var = context.vars[var_name]
-            ident = "_load_args_%d_dynarg%d" % (sig.method_id, idx)
+            ident = f"_load_args_{sig.method_id}_dynarg{idx}"
             o = make_unpacker(ident=ident, i_placeholder=i_placeholder, begin_pos=var.pos)
             unpackers.append(o)
 
@@ -222,7 +222,7 @@ def parse_private_function(code: ast.FunctionDef,
                 if dynamics:
                     i_placeholder = context.new_placeholder(typ=BaseType('uint256'))
                     for idx, var_pos in enumerate(dynamics):
-                        ident = 'unpack_default_sig_dyn_%d_arg%d' % (default_sig.method_id, idx)
+                        ident = f'unpack_default_sig_dyn_{default_sig.method_id}_arg{idx}'
                         default_copiers.append(make_unpacker(
                             ident=ident,
                             i_placeholder=i_placeholder,

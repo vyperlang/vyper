@@ -9,7 +9,6 @@ from pathlib import (
 )
 import sys
 from typing import (
-    Any,
     Dict,
     Iterable,
     Iterator,
@@ -31,7 +30,8 @@ from vyper.signatures.interface import (
 )
 from vyper.typing import (
     ContractCodes,
-    ContractName,
+    ContractPath,
+    OutputFormats,
 )
 
 T = TypeVar('T')
@@ -54,6 +54,10 @@ ir                 - Print Intermediate Representation in LLL
 
 
 def _parse_cli_args():
+    return _parse_args(sys.argv[1:])
+
+
+def _parse_args(argv):
 
     warnings.simplefilter('always')
 
@@ -69,7 +73,7 @@ def _parse_cli_args():
     parser.add_argument(
         '--version',
         action='version',
-        version='{0}+commit.{1}'.format(vyper.__version__, vyper.__commit__),
+        version=f'{vyper.__version__}+commit.{vyper.__commit__}',
     )
     parser.add_argument(
         '--show-gas-estimates',
@@ -92,7 +96,7 @@ def _parse_cli_args():
         default='.', dest='root_folder'
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.traceback_limit is not None:
         sys.tracebacklimit = args.traceback_limit
@@ -150,16 +154,16 @@ def uniq(seq: Iterable[T]) -> Iterator[T]:
         yield x
 
 
-def exc_handler(contract_name: ContractName, exception: Exception) -> None:
-    print('Error compiling: ', contract_name)
+def exc_handler(contract_path: ContractPath, exception: Exception) -> None:
+    print(f'Error compiling: {contract_path}')
     raise exception
 
 
-def get_interface_codes(root_path: Path, codes: ContractCodes) -> Any:
+def get_interface_codes(root_path: Path, contract_sources: ContractCodes) -> Dict:
     interface_codes: Dict = {}
     interfaces: Dict = {}
 
-    for file_path, code in codes.items():
+    for file_path, code in contract_sources.items():
         interfaces[file_path] = {}
         parent_path = root_path.joinpath(file_path).parent
 
@@ -198,13 +202,11 @@ def get_interface_file_path(base_paths: Sequence, import_path: str) -> Path:
         suffix = next((i for i in ('.vy', '.json') if file_path.with_suffix(i).exists()), None)
         if suffix:
             return file_path.with_suffix(suffix)
-    raise Exception(
-        f'Cannot locate interface "{import_path}{{.vy,.json}}"'
-    )
+    raise FileNotFoundError(f" Cannot locate interface '{import_path}{{.vy,.json}}'")
 
 
 def compile_files(input_files: Iterable[str],
-                  output_formats: Sequence[str],
+                  output_formats: OutputFormats,
                   root_folder: str = '.',
                   show_gas_estimates: bool = False) -> OrderedDict:
 
@@ -215,7 +217,7 @@ def compile_files(input_files: Iterable[str],
     if not root_path.exists():
         raise FileNotFoundError(f"Invalid root path - '{root_path.as_posix()}' does not exist")
 
-    codes: ContractCodes = OrderedDict()
+    contract_sources: ContractCodes = OrderedDict()
     for file_name in input_files:
         file_path = Path(file_name)
         try:
@@ -223,7 +225,7 @@ def compile_files(input_files: Iterable[str],
         except ValueError:
             file_str = file_path.as_posix()
         with file_path.open() as fh:
-            codes[file_str] = fh.read()
+            contract_sources[file_str] = fh.read()
 
     show_version = False
     if 'combined_json' in output_formats:
@@ -233,10 +235,10 @@ def compile_files(input_files: Iterable[str],
         show_version = True
 
     compiler_data = vyper.compile_codes(
-        codes,
+        contract_sources,
         output_formats,
         exc_handler=exc_handler,
-        interface_codes=get_interface_codes(root_path, codes)
+        interface_codes=get_interface_codes(root_path, contract_sources)
     )
     if show_version:
         compiler_data['version'] = vyper.__version__

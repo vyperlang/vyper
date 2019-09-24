@@ -88,7 +88,7 @@ class Stmt(object):
         if stmt_type in self.stmt_table:
             self.lll_node = self.stmt_table[stmt_type]()
         else:
-            raise StructureException("Unsupported statement type: %s" % type(stmt), stmt)
+            raise StructureException(f"Unsupported statement type: {type(stmt)}", stmt)
 
     def expr(self):
         return Stmt(self.stmt.value, self.context).lll_node
@@ -100,7 +100,7 @@ class Stmt(object):
         if self.stmt.id == "vdb":
             return LLLnode('debugger', typ=None, pos=getpos(self.stmt))
         else:
-            raise StructureException("Unsupported statement type: %s" % type(self.stmt), self.stmt)
+            raise StructureException(f"Unsupported statement type: {type(self.stmt)}", self.stmt)
 
     def parse_raise(self):
         if self.stmt.exc is None:
@@ -111,7 +111,7 @@ class Stmt(object):
         if isinstance(self.stmt.annotation, ast.Call):  # unit style: num(wei)
             if self.stmt.annotation.func.id != sub.typ.typ and not sub.typ.is_literal:
                 raise TypeMismatchException(
-                    'Invalid type, expected: %s' % self.stmt.annotation.func.id, self.stmt
+                    f'Invalid type, expected: {self.stmt.annotation.func.id}', self.stmt
                 )
         elif isinstance(self.stmt.annotation, ast.Name) and self.stmt.annotation.id == 'bytes32':
             if isinstance(sub.typ, ByteArrayLike):
@@ -129,14 +129,14 @@ class Stmt(object):
         elif isinstance(self.stmt.annotation, ast.Subscript):
             if not isinstance(sub.typ, (ListType, ByteArrayLike)):  # check list assign.
                 raise TypeMismatchException(
-                    'Invalid type, expected: %s' % self.stmt.annotation.value.id, self.stmt
+                    f'Invalid type, expected: {self.stmt.annotation.value.id}', self.stmt
                 )
         elif isinstance(sub.typ, StructType):
             # This needs to get more sophisticated in the presence of
             # foreign structs.
             if not sub.typ.name == self.stmt.annotation.id:
                 raise TypeMismatchException(
-                    "Invalid type, expected %s" % self.stmt.annotation.id, self.stmt
+                    f"Invalid type, expected {self.stmt.annotation.id}", self.stmt
                 )
         # Check that the integer literal, can be assigned to uint256 if necessary.
         elif (self.stmt.annotation.id, sub.typ.typ) == ('uint256', 'int128') and sub.typ.is_literal:
@@ -146,7 +146,7 @@ class Stmt(object):
                 )
         elif self.stmt.annotation.id != sub.typ.typ and not sub.typ.unit:
             raise TypeMismatchException(
-                'Invalid type %s, expected: %s' % (sub.typ.typ, self.stmt.annotation.id),
+                f'Invalid type {sub.typ.typ}, expected: {self.stmt.annotation.id}',
                 self.stmt,
             )
         else:
@@ -158,8 +158,8 @@ class Stmt(object):
         if lhs_var_name in rhs_names:
             raise VariableDeclarationException((
                 'Invalid variable assignment, same variable not allowed on '
-                'LHS and RHS: %s'
-            ) % lhs_var_name)
+                f'LHS and RHS: {lhs_var_name}'
+            ))
         else:
             return True
 
@@ -197,7 +197,7 @@ class Stmt(object):
             )
             if isinstance(self.stmt.target, ast.Attribute):
                 raise TypeMismatchException(
-                    'May not set type for field %r' % self.stmt.target.attr,
+                    f'May not set type for field {self.stmt.target.attr}',
                     self.stmt,
                 )
             varname = self.stmt.target.id
@@ -251,11 +251,8 @@ class Stmt(object):
         if isinstance(target_typ, BaseType) and isinstance(assign_typ, BaseType):
             if not assign_typ.is_literal and assign_typ.typ != target_typ.typ:
                 raise TypeMismatchException(
-                    'Invalid type {}, expected: {}'.format(
-                        assign_typ.typ,
-                        target_typ.typ,
-                        self.stmt,
-                    )
+                    f'Invalid type {assign_typ.typ}, expected: {target_typ.typ}',
+                    self.stmt
                 )
 
     def assign(self):
@@ -390,29 +387,24 @@ class Stmt(object):
                     return stmt_dispatch_table[self.stmt.func.id](self.stmt, self.context)
             elif self.stmt.func.id in dispatch_table:
                 raise StructureException(
-                    "Function {} can not be called without being used.".format(
-                        self.stmt.func.id
-                    ),
+                    f"Function {self.stmt.func.id} can not be called without being used.",
                     self.stmt,
                 )
             else:
                 raise StructureException(
-                    "Unknown function: '{}'.".format(self.stmt.func.id),
+                    f"Unknown function: '{self.stmt.func.id}'.",
                     self.stmt,
                 )
         elif is_self_function:
             return self_call.make_call(self.stmt, self.context)
         elif is_log_call:
             if self.stmt.func.attr not in self.context.sigs['self']:
-                raise EventDeclarationException("Event not declared yet: %s" % self.stmt.func.attr)
+                raise EventDeclarationException(f"Event not declared yet: {self.stmt.func.attr}")
             event = self.context.sigs['self'][self.stmt.func.attr]
             if len(event.indexed_list) != len(self.stmt.args):
                 raise EventDeclarationException(
-                    "%s received %s arguments but expected %s" % (
-                        event.name,
-                        len(self.stmt.args),
-                        len(event.indexed_list)
-                    )
+                    f"{event.name} received {len(self.stmt.args)} arguments but "
+                    f"expected {len(event.indexed_list)}"
                 )
             expected_topics, topics = [], []
             expected_data, data = [], []
@@ -578,10 +570,7 @@ class Stmt(object):
                         (
                             "Two-arg for statements of the form `for i in "
                             "range(x, x + y): ...` must have x identical in both "
-                            "places: %r %r"
-                        ) % (
-                            ast_to_dict(arg0),
-                            ast_to_dict(arg1.left)
+                            f"places: {ast_to_dict(arg0)} {ast_to_dict(arg1.left)}"
                         ),
                         self.stmt.iter,
                     )
@@ -796,18 +785,13 @@ class Stmt(object):
 
             if not isinstance(self.context.return_type, BaseType):
                 raise TypeMismatchException(
-                    "Return type units mismatch %r %r" % (
-                        sub.typ,
-                        self.context.return_type,
-                    ),
+                    f"Return type units mismatch {sub.typ} {self.context.return_type}",
                     self.stmt.value
                 )
             elif self.context.return_type != sub.typ and not sub.typ.is_literal:
                 raise TypeMismatchException(
-                    "Trying to return base type %r, output expecting %r" % (
-                        sub.typ,
-                        self.context.return_type,
-                    ),
+                    f"Trying to return base type {sub.typ}, output expecting "
+                    f"{self.context.return_type}",
                     self.stmt.value,
                 )
             elif sub.typ.is_literal and (self.context.return_type.typ == sub.typ or 'int' in self.context.return_type.typ and 'int' in sub.typ.typ):  # noqa: E501
@@ -836,25 +820,21 @@ class Stmt(object):
                 )
             else:
                 raise TypeMismatchException(
-                    "Unsupported type conversion: %r to %r" % (sub.typ, self.context.return_type),
+                    f"Unsupported type conversion: {sub.typ} to {self.context.return_type}",
                     self.stmt.value,
                 )
         # Returning a byte array
         elif isinstance(sub.typ, ByteArrayLike):
             if not sub.typ.eq_base(self.context.return_type):
                 raise TypeMismatchException(
-                    "Trying to return base type %r, output expecting %r" % (
-                        sub.typ,
-                        self.context.return_type,
-                    ),
+                    f"Trying to return base type {sub.typ}, output expecting "
+                    f"{self.context.return_type}",
                     self.stmt.value,
                 )
             if sub.typ.maxlen > self.context.return_type.maxlen:
                 raise TypeMismatchException(
-                    "Cannot cast from greater max-length %d to shorter max-length %d" % (
-                        sub.typ.maxlen,
-                        self.context.return_type.maxlen,
-                    ),
+                    f"Cannot cast from greater max-length {sub.typ.maxlen} to shorter "
+                    f"max-length {self.context.return_type.maxlen}",
                     self.stmt.value,
                 )
 
@@ -883,7 +863,7 @@ class Stmt(object):
                     )
                 ], typ=None, pos=getpos(self.stmt), valency=0)
             else:
-                raise Exception("Invalid location: %s" % sub.location)
+                raise Exception(f"Invalid location: {sub.location}")
 
         elif isinstance(sub.typ, ListType):
             sub_base_type = re.split(r'\(|\[', str(sub.typ.subtype))[0]
@@ -891,9 +871,8 @@ class Stmt(object):
             loop_memory_position = self.context.new_placeholder(typ=BaseType('uint256'))
             if sub_base_type != ret_base_type:
                 raise TypeMismatchException(
-                    "List return type %r does not match specified return type, expecting %r" % (
-                        sub_base_type, ret_base_type
-                    ),
+                    f"List return type {sub_base_type} does not match specified "
+                    f"return type, expecting {ret_base_type}",
                     self.stmt
                 )
             elif sub.location == "memory" and sub.value != "multi":
@@ -933,10 +912,7 @@ class Stmt(object):
             retty = self.context.return_type
             if not isinstance(retty, StructType) or retty.name != sub.typ.name:
                 raise TypeMismatchException(
-                    "Trying to return %r, output expecting %r" % (
-                        sub.typ,
-                        self.context.return_type,
-                    ),
+                    f"Trying to return {sub.typ}, output expecting {self.context.return_type}",
                     self.stmt.value,
                 )
             return gen_tuple_return(self.stmt, self.context, sub)
@@ -945,10 +921,8 @@ class Stmt(object):
         elif isinstance(sub.typ, TupleType):
             if not isinstance(self.context.return_type, TupleType):
                 raise TypeMismatchException(
-                    "Trying to return tuple type %r, output expecting %r" % (
-                        sub.typ,
-                        self.context.return_type,
-                    ),
+                    f"Trying to return tuple type {sub.typ}, output expecting "
+                    f"{self.context.return_type}",
                     self.stmt.value,
                 )
 
@@ -961,15 +935,14 @@ class Stmt(object):
                 sub_type = s_member if isinstance(s_member, NodeType) else s_member.typ
                 if type(sub_type) is not type(ret_x):
                     raise StructureException(
-                        "Tuple return type does not match annotated return. {} != {}".format(
-                            type(sub_type), type(ret_x)
-                        ),
+                        "Tuple return type does not match annotated return. "
+                        f"{type(sub_type)} != {type(ret_x)}",
                         self.stmt
                     )
             return gen_tuple_return(self.stmt, self.context, sub)
 
         else:
-            raise TypeMismatchException("Can't return type %r" % sub.typ, self.stmt)
+            raise TypeMismatchException(f"Can't return type {sub.typ}", self.stmt)
 
     def parse_delete(self):
         raise StructureException(
@@ -982,7 +955,7 @@ class Stmt(object):
         if isinstance(target, ast.Subscript) and self.context.in_for_loop:
             raise_exception = False
             if isinstance(target.value, ast.Attribute):
-                list_name = "%s.%s" % (target.value.value.id, target.value.attr)
+                list_name = f"{target.value.value.id}.{target.value.attr}"
                 if list_name in self.context.in_for_loop:
                     raise_exception = True
 
@@ -993,13 +966,13 @@ class Stmt(object):
 
             if raise_exception:
                 raise StructureException(
-                    "Altering list '%s' which is being iterated!" % list_name,
+                    f"Altering list '{list_name}' which is being iterated!",
                     self.stmt,
                 )
 
         if isinstance(target, ast.Name) and target.id in self.context.forvars:
             raise StructureException(
-                "Altering iterator '%s' which is in use!" % target.id,
+                f"Altering iterator '{target.id}' which is in use!",
                 self.stmt,
             )
         if isinstance(target, ast.Tuple):
@@ -1007,15 +980,12 @@ class Stmt(object):
         target = Expr.parse_variable_location(target, self.context)
         if target.location == 'storage' and self.context.is_constant():
             raise ConstancyViolationException(
-                "Cannot modify storage inside %s: %s" % (
-                    self.context.pp_constancy(),
-                    target.annotation,
-                ),
+                f"Cannot modify storage inside {self.context.pp_constancy()}: {target.annotation}",
                 self.stmt,
             )
         if not target.mutable:
             raise ConstancyViolationException(
-                "Cannot modify function argument: %s" % target.annotation,
+                f"Cannot modify function argument: {target.annotation}",
                 self.stmt,
             )
         return target

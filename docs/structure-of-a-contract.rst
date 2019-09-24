@@ -94,9 +94,9 @@ Default function
 
 A contract can also have a default function, which is executed on a call to the contract if no other functions match the given function identifier (or if none was supplied at all, such as through someone sending it Eth). It is the same construct as fallback functions `in Solidity <https://solidity.readthedocs.io/en/latest/contracts.html?highlight=fallback#fallback-function>`_.
 
-This function is always named `__default__` and must be annotated with `@public`. It cannot have arguments and cannot return anything.
+This function is always named ``__default__`` and must be annotated with ``@public``. It cannot have arguments and cannot return anything.
 
-If the function is annotated as `@payable`, this function is executed whenever the contract is sent Ether (without data). This is why the default function cannot accept arguments and return values - it is a design decision of Ethereum to make no differentiation between sending ether to a contract or a user address.
+If the function is annotated as ``@payable``, this function is executed whenever the contract is sent Ether (without data). This is why the default function cannot accept arguments and return values - it is a design decision of Ethereum to make no differentiation between sending ether to a contract or a user address.
 
 **Example:**
 
@@ -290,6 +290,8 @@ Relative imports are possible by prepending dots to the contract name. A single 
 
     from . import foo
     from ..interfaces import baz
+
+.. _searching_for_imports:
 
 Searching For Interface Files
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

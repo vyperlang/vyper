@@ -102,3 +102,11 @@ class CompilerPanic(Exception):
 
     def __str__(self):
         return self.message + ' Please create an issue.'
+
+
+class JSONError(Exception):
+
+    def __init__(self, msg, lineno=None, col_offset=None):
+        super().__init__(msg)
+        self.lineno = lineno
+        self.col_offset = col_offset

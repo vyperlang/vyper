@@ -2,7 +2,10 @@ from collections import (
     Counter,
 )
 
-from vyper import ast
+from vyper import (
+    ast,
+    parser,
+)
 from vyper.ast_utils import (
     to_python_ast,
 )
@@ -170,9 +173,7 @@ class FunctionSignature:
 
         # Validate default values.
         for default_value in getattr(code.args, 'defaults', []):
-            allowed_types = (ast.Num, ast.Str, ast.Bytes, ast.List, ast.NameConstant)
-            if not isinstance(default_value, allowed_types):
-                raise FunctionDeclarationException("Default parameter values have to be literals.")
+            validate_default_values(default_value)
 
         # Determine the arguments, expects something of the form def foo(arg1:
         # int128, arg2: int128 ...
@@ -253,15 +254,15 @@ class FunctionSignature:
 
         if public and private:
             raise StructureException(
-                "Cannot use public and private decorators on the same function: {}".format(name)
+                f"Cannot use public and private decorators on the same function: {name}"
             )
         if payable and const:
             raise StructureException(
-                "Function {} cannot be both constant and payable.".format(name)
+                f"Function {name} cannot be both constant and payable."
             )
         if payable and private:
             raise StructureException(
-                "Function {} cannot be both private and payable.".format(name)
+                f"Function {name} cannot be both private and payable."
             )
         if (not public and not private) and not contract_def:
             raise StructureException(
@@ -290,7 +291,7 @@ class FunctionSignature:
             )
         else:
             raise InvalidTypeException(
-                "Output type invalid or unsupported: %r" % parse_type(code.returns, None),
+                f"Output type invalid or unsupported: {parse_type(code.returns, None)}",
                 code.returns,
             )
         # Output type must be canonicalizable
@@ -428,7 +429,7 @@ class FunctionSignature:
         if method_name not in method_names_dict:
             raise FunctionDeclarationException(
                 "Function not declared yet (reminder: functions cannot "
-                "call functions later in code than themselves): %s" % method_name
+                f"call functions later in code than themselves): {method_name}"
             )
 
         if method_names_dict[method_name] == 1:
@@ -453,7 +454,7 @@ class FunctionSignature:
             if len(ssig) == 0:
                 raise FunctionDeclarationException(
                     "Function not declared yet (reminder: functions cannot "
-                    "call functions later in code than themselves): %s" % method_name
+                    f"call functions later in code than themselves): {method_name}"
                 )
             return ssig[0]
 
@@ -467,3 +468,19 @@ class FunctionSignature:
         # Run balanced return statement check.
         UnmatchedReturnChecker().visit(to_python_ast(self.func_ast_code))
         EnsureSingleExitChecker().visit(to_python_ast(self.func_ast_code))
+
+
+def validate_default_values(node):
+    if isinstance(node, ast.Name) and node.id in parser.expr.BUILTIN_CONSTANTS:
+        return
+    if isinstance(node, ast.Attribute) and node.value.id in parser.expr.ENVIRONMENT_VARIABLES:
+        return
+    allowed_types = (ast.Num, ast.Str, ast.Bytes, ast.List, ast.NameConstant)
+    if not isinstance(node, allowed_types):
+        raise FunctionDeclarationException(
+            "Default value must be a literal, built-in constant, or environment variable.",
+            node
+        )
+    if isinstance(node, ast.List):
+        for n in node.elts:
+            validate_default_values(n)

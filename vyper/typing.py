@@ -1,5 +1,6 @@
 from typing import (
     Dict,
+    Sequence,
     Tuple,
 )
 
@@ -8,11 +9,14 @@ ClassTypes = Dict[str, str]
 ParserPosition = Tuple[int, int]
 
 # Compiler
-ContractName = str
+ContractPath = str
 SourceCode = str
-ContractCodes = Dict[ContractName, SourceCode]
+ContractCodes = Dict[ContractPath, SourceCode]
+OutputFormats = Sequence[str]
+OutputDict = Dict[ContractPath, OutputFormats]
 
 # Interfaces
 InterfaceAsName = str
 InterfaceImportPath = str
 InterfaceImports = Dict[InterfaceAsName, InterfaceImportPath]
+InterfaceDict = Dict[ContractPath, InterfaceImports]

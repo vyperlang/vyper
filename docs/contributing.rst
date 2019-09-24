@@ -48,6 +48,16 @@ Fix Bugs
 
 Find or report bugs at our `issues page <https://github.com/ethereum/vyper/issues>`_. Anything tagged with "bug" is open to whoever wants to implement it.
 
+Style Guide
+===========
+
+
+Vyper's codebase follows the 
+`Snake Charmer's Style Guide <https://github.com/ethereum/snake-charmers-tactical-manual/blob/master/style-guide.md>`_.
+Some of the things not covered by style guide that we maintain in our codebase is the use of
+`f-strings <https://github.com/ethereum/vyper/issues/1567>`_ across the repository (when helpful for clarity),
+and adherence to the `architectural design <https://vyper.readthedocs.io/en/latest/architecture.html>`_ of the codebase.
+
 Workflow for Pull Requests
 ==========================
 

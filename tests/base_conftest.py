@@ -47,9 +47,9 @@ class VyperMethod:
             modifier, modifier_dict = kwargs.popitem()
             if modifier not in self.ALLOWED_MODIFIERS:
                 raise TypeError(
-                    "The only allowed keyword arguments are: %s" % self.ALLOWED_MODIFIERS)
+                    f"The only allowed keyword arguments are: {self.ALLOWED_MODIFIERS}")
         else:
-            raise TypeError("Use up to one keyword argument, one of: %s" % self.ALLOWED_MODIFIERS)
+            raise TypeError(f"Use up to one keyword argument, one of: {self.ALLOWED_MODIFIERS}")
         return getattr(self._function(*args), modifier)(modifier_dict)
 
 

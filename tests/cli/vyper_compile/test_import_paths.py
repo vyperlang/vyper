@@ -121,8 +121,8 @@ META_IMPORT_STMT = [
 @pytest.mark.parametrize('import_stmt', META_IMPORT_STMT)
 def test_import_self_interface(import_stmt, tmp_path):
     # a contract can access it's derived interface by importing itself
-    code = """
-{}
+    code = f"""
+{import_stmt}
 
 @public
 def know_thyself(a: address) -> uint256:
@@ -131,7 +131,7 @@ def know_thyself(a: address) -> uint256:
 @public
 def be_known() -> uint256:
     return 42
-    """.format(import_stmt)
+    """
 
     tmp_path.joinpath('contracts').mkdir()
 
@@ -157,8 +157,8 @@ DERIVED_IMPORT_STMT_FOO = [
 @pytest.mark.parametrize('import_stmt_foo', DERIVED_IMPORT_STMT_FOO)
 def test_derived_interface_imports(import_stmt_baz, import_stmt_foo, tmp_path):
     # contracts-as-interfaces should be able to contain import statements
-    baz_code = """
-{}
+    baz_code = f"""
+{import_stmt_baz}
 
 @public
 def foo(a: address) -> uint256:
@@ -167,7 +167,7 @@ def foo(a: address) -> uint256:
 @public
 def bar(_foo: address, _bar: address) -> uint256:
     return Foo(_foo).bar(_bar)
-    """.format(import_stmt_baz)
+    """
 
     with tmp_path.joinpath('Foo.vy').open('w') as fp:
         fp.write(FOO_CODE.format(import_stmt_foo))
