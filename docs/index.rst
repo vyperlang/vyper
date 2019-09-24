@@ -69,6 +69,7 @@ Glossary
     structure-of-a-contract.rst
     built-in-functions.rst
     types.rst
+    constants-and-vars.rst
     logging.rst
     compiling-a-contract.rst
     deploying-contracts.rst

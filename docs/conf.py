@@ -56,8 +56,8 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'Vyper'
-copyright = '2017, Vitalik Buterin'
-author = 'Vitalik Buterin'
+copyright = '2017-2019 CC-BY-4.0 Vyper Team'
+author = 'Vyper Team (originally created by Vitalik Buterin)'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -152,7 +152,7 @@ latex_elements = {
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
     (master_doc, 'Vyper.tex', 'Vyper Documentation',
-     'Vitalik Buterin', 'manual'),
+     'Vyper Team (originally created by Vitalik Buterin)', 'manual'),
 ]
 
 
