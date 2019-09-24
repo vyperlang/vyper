@@ -265,16 +265,16 @@ def abi_encode(lll_node, dst, pos=None, bufsz=None, returns=False):
 
         if abi_t.is_dynamic():
             lll_ret.append(['mstore', 'dst_loc', 'dyn_ofst'])
+            calc_dyn_loc = ['add', 'dst', 'dyn_ofset']
             if isinstance(o.typ, ByteArrayLike):
                 d = LLLnode.from_list(['dyn_loc'], typ=o.typ)
-                lll_ret.append(
-                        ['with', 'dyn_loc', ['add', 'dst', 'dyn_ofst'],
+                child = ['with', 'dyn_loc', calc_dyn_loc,
                             ['seq',
                                 make_byte_array_copier(d, o, pos=pos),
                                 zero_pad(d, maxlen=d.typ.maxlen),
                                 ['mload', d]]])
             else:
-                child = abi_encode(o, dyn_loc, pos, returns=True) # recurse
+                child = abi_encode(o, calc_dyn_loc, pos, returns=True) # recurse
             lll_ret.append(
                     ['set', 'dyn_ofst',
                         ['add', 'dyn_ofst', child]])
