@@ -147,9 +147,9 @@ def callMe() -> (bytes[100], uint256, bytes[20]):
 @public
 def callMeMaybe() -> (bytes[100], uint256, bytes[20]):
     # return self.fooBar(b'here is my number', 555123456, b'baby')
-    a: bytes[100]
-    b: uint256
-    c: bytes[20]
+    a: bytes[100] = b""
+    b: uint256 = 0
+    c: bytes[20] = b""
     a, b, c = self.fooBar(b'here is my number', 555123456, b'baby')
     return a, b, c
     """

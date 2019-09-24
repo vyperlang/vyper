@@ -77,9 +77,9 @@ def test_exponents_with_units(get_contract_with_gas_estimation):
     code = """
 @public
 def foo() -> int128(wei):
-    a: int128(wei)
-    b: int128
-    c: int128(wei)
+    a: int128(wei) = 0
+    b: int128 = 0
+    c: int128(wei) = 0
     a = 2
     b = 2
     c = a ** b
@@ -139,8 +139,8 @@ def test_invalid_unit_exponent(assert_compile_failed, get_contract_with_gas_esti
     code = """
 @public
 def foo():
-    a: int128(wei)
-    b: int128(wei)
+    a: int128(wei) = 0
+    b: int128(wei) = 0
     c = a ** b
 """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatchException)

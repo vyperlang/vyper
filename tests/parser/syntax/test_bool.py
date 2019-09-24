@@ -46,7 +46,7 @@ def foo() -> bool:
     """
 @public
 def foo() -> bool:
-    a: address
+    a: address = ZERO_ADDRESS
     return a == 1
     """,
     """
@@ -57,19 +57,19 @@ def foo(a: address) -> bool:
     """
 @public
 def foo() -> bool:
-    b: int128
+    b: int128 = 0
     return not b
     """,
     """
 @public
 def foo() -> bool:
-    b: uint256
+    b: uint256 = 0
     return not b
     """,
     """
 @public
 def foo() -> bool:
-    b: uint256
+    b: uint256 = 0
     return not b
     """,
     """

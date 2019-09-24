@@ -104,7 +104,7 @@ def reveal(_numBids: int128, _values: wei_value[128], _fakes: bool[128], _secret
     assert _numBids == self.bidCounts[msg.sender]
 
     # Calculate refund for sender
-    refund: wei_value
+    refund: wei_value = ZERO_WEI
     for i in range(MAX_BIDS):
         # Note that loop may break sooner than 128 iterations if i >= _numBids
         if (i >= _numBids):
@@ -136,7 +136,7 @@ def reveal(_numBids: int128, _values: wei_value[128], _fakes: bool[128], _secret
                 refund -= value
 
         # Make it impossible for the sender to re-claim the same deposit
-        zeroBytes32: bytes32
+        zeroBytes32: bytes32 = EMPTY_BYTES32
         bidToCheck.blindedBid = zeroBytes32
 
     # Send refund if non-zero

@@ -43,7 +43,7 @@ def pub1() -> Foo:
 
 @private
 def priv2() -> Foo:
-    foo: Foo
+    foo: Foo = Foo({x: 0, y: 0})
     foo.x = 3
     foo.y = 4
     return foo
