@@ -205,7 +205,7 @@ class Stmt(object):
             o = LLLnode.from_list('pass', typ=None, pos=pos)
             if self.stmt.value is None:
                 raise StructureException(
-                    'Fresh variables must be initialized explicitly',
+                    'New variables must be initialized explicitly',
                     self.stmt)
 
             sub = Expr(self.stmt.value, self.context).lll_node
