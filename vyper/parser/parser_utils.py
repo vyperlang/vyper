@@ -889,6 +889,8 @@ def annotate_ast(
     RewriteUnarySubVisitor().visit(parsed_ast)
 
 
+# zero pad a bytearray according to the ABI spec. The last word
+# of the byte array needs to be right-padded with zeroes.
 def zero_pad(bytez_placeholder, maxlen, context=None, zero_pad_i=None):
     zero_padder = LLLnode.from_list(['pass'])
     if maxlen > 0:
@@ -896,12 +898,18 @@ def zero_pad(bytez_placeholder, maxlen, context=None, zero_pad_i=None):
         if zero_pad_i is None:
             zero_pad_i = context.new_placeholder(BaseType('uint256'))
         zero_padder = LLLnode.from_list([
-            'repeat', zero_pad_i, ['mload', bytez_placeholder], ceil32(maxlen), [
+            # the runtime length of the data rounded up to nearest 32
+            # from spec:
+            #   the actual value of X as a byte sequence,
+            #   followed by the *minimum* number of zero-bytes
+            #   such that len(enc(X)) is a multiple of 32.
+            'with', '_ceil32_end', ['ceil32', ['mload', bytez_placeholder]],
+            ['repeat', zero_pad_i, ['mload', bytez_placeholder], ceil32(maxlen), [
                 'seq',
                 # stay within allocated bounds
-                ['if', ['gt', ['mload', zero_pad_i], ceil32(maxlen)], 'break'],
+                ['if', ['ge', ['mload', zero_pad_i], '_ceil32_end'], 'break'],
                 ['mstore8', ['add', ['add', 32, bytez_placeholder], ['mload', zero_pad_i]], 0]
-            ]],
+                ]]],
             annotation="Zero pad",
         )
     return zero_padder
