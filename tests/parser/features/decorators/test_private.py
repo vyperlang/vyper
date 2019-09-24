@@ -249,7 +249,7 @@ def get_msg() -> (bytes[100]):
 
 @public
 def test() -> (bytes[100]):
-    d: bytes[100]
+    d: bytes[100] = b""
     d = self._test()
     return d
 
@@ -318,7 +318,7 @@ def test(a: bytes32) -> (bytes32, uint256, int128):
     b: uint256 = 1
     c: int128 = 1
     d: int128 = 123
-    f: bytes32
+    f: bytes32 = EMPTY_BYTES32
     f, b, c = self._test(a)
     assert d == 123
     return f, b, c
@@ -349,7 +349,7 @@ def _test_combined(a: bytes[50], x: int128, c:bytes[50]) -> (int128, bytes[100],
 def test(a: int128, b: bytes[40]) -> (int128, bytes[100], bytes[50]):
     c: int128 = 1
     x: bytes[50] = concat(b, b"_one")
-    d: bytes[100]
+    d: bytes[100] = b""
     c, d = self._test(a + c, x)
     return c, d, x
 
@@ -357,7 +357,7 @@ def test(a: int128, b: bytes[40]) -> (int128, bytes[100], bytes[50]):
 def test2(b: bytes[40]) -> (int128, bytes[100]):
     a: int128 = 4
     x: bytes[50] = concat(b, b"_one")
-    d: bytes[100]
+    d: bytes[100] = b""
     return self._test(a, x)
 
 @public
@@ -540,7 +540,7 @@ def change_arr(arr: int128[2]):
     pass
 @public
 def call_arr() -> int128:
-    a: int128[2] # test with zeroed arg
+    a: int128[2] = [0, 0] # test with zeroed arg
     self.change_arr(a)
     return 42
     """

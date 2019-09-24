@@ -16,8 +16,7 @@ a: int128(cm)
 
 @public
 def test() -> int128(km):
-    b: int128(km)
-    b = 100
+    b: int128(km) = 100
     return b
     """
 

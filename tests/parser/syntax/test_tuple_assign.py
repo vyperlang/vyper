@@ -16,9 +16,9 @@ fail_list = [
     ("""
 @public
 def test():
-    a: int128
-    b: int128
-    c: int128
+    a: int128 = 0
+    b: int128 = 0
+    c: int128 = 0
     a, b, c = 1, 2, 3
     """, VariableDeclarationException),
     """
@@ -28,8 +28,8 @@ def out_literals() -> (int128, int128, bytes[10]):
 
 @public
 def test() -> (int128, address, bytes[10]):
-    a: int128
-    b: int128
+    a: int128 = 0
+    b: int128 = 0
     a, b, b = self.out_literals()  # incorrect bytes type
     return a, b, c
     """,
@@ -40,8 +40,8 @@ def out_literals() -> (int128, int128, bytes[10]):
 
 @public
 def test() -> (int128, address, bytes[10]):
-    a: int128
-    b: address
+    a: int128 = 0
+    b: address = ZERO_ADDRESS
     a, b = self.out_literals()  # tuple count mismatch
     return
     """,
@@ -52,9 +52,9 @@ def out_literals() -> (int128, int128, int128):
 
 @public
 def test() -> (int128, int128, bytes[10]):
-    a: int128
-    b: int128
-    c: bytes[10]
+    a: int128 = 0
+    b: int128 = 0
+    c: bytes[10] = b""
     a, b, c = self.out_literals()
     return a, b, c
     """,
@@ -65,9 +65,9 @@ def out_literals() -> (int128, int128, bytes[100]):
 
 @public
 def test():
-    a: int128
-    b: int128
-    c: bytes[1]
+    a: int128 = 0
+    b: int128 = 0
+    c: bytes[1] = b""
     a, b, c = self.out_literals()
     """,
     ("""

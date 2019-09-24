@@ -45,13 +45,13 @@ def foo():
 @public
 def foo():
     x = 5
-    x: int128
+    x: int128 = 0
     """,
     """
 @public
 def foo():
-    x: int128
-    x: int128
+    x: int128 = 0
+    x: int128 = 0
     """,
     """
 @public

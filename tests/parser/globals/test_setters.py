@@ -16,15 +16,12 @@ def fop() -> int128:
 
 @public
 def goo() -> int128:
-    goo: int128[3]
-    goo = [1, 2, 3]
+    goo: int128[3] = [1, 2, 3]
     return(goo[0] + goo[1] * 10 + goo[2] * 100)
 
 @public
 def gop() -> int128: # Following a standard naming scheme; nothing to do with the US republican party  # noqa: E501
-    gar: int128[3][3]
-    gar[0] = [1, 2, 3]
-    gar[1] = [4, 5, 6]
+    gar: int128[3][3] = [[1, 2, 3], [4, 5, 6], [0, 0, 0]]
     return gar[0][0] + gar[0][1] * 10 + gar[0][2] * 100 + \
         gar[1][0] * 1000 + gar[1][1] * 10000 + gar[1][2] * 100000
 
@@ -41,16 +38,13 @@ def hop() -> int128:
 
 @public
 def joo() -> int128:
-    goo: int128[3]
-    goo = [1, 2, 3]
+    goo: int128[3] = [1, 2, 3]
     clear(goo)
     return(goo[0] + goo[1] * 10 + goo[2] * 100)
 
 @public
 def jop() -> int128:
-    gar: int128[3][3]
-    gar[0] = [1, 2, 3]
-    gar[1] = [4, 5, 6]
+    gar: int128[3][3] = [[1, 2, 3], [4, 5, 6], [0, 0, 0]]
     clear(gar[1])
     return gar[0][0] + gar[0][1] * 10 + gar[0][2] * 100 + \
         gar[1][0] * 1000 + gar[1][1] * 10000 + gar[1][2] * 100000
@@ -119,10 +113,7 @@ def fop() -> int128:
 
 @public
 def goo() -> int128:
-    goo: Goo[3]
-    goo[0] = Goo({foo: 1, bar: 2})
-    goo[1] = Goo({foo: 3, bar: 4})
-    goo[2] = Goo({foo: 5, bar: 6})
+    goo: Goo[3] = [Goo({foo: 1, bar: 2}), Goo({foo: 3, bar: 4}), Goo({foo: 5, bar: 6})]
     return goo[0].foo + goo[0].bar * 10 + goo[1].foo * 100 + \
         goo[1].bar * 1000 + goo[2].foo * 10000 + goo[2].bar * 100000
 
