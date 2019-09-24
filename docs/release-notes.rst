@@ -2,6 +2,20 @@
 
 Release Notes
 #############
+v0.1.0-beta.13
+**************
+
+Date released: 25-09-2019
+
+The following VIPs were implemented for Beta 12:
+
+- <Add VIPs>
+
+Some of the bug and stability fixes:
+
+- <Add Closed issues/Stability fixes>
+
+#############
 v0.1.0-beta.12
 **************
 
