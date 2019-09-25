@@ -17,6 +17,8 @@ Some of the bug and stability fixes:
 
 - Type check for default params and arrays (`#1596 <https://github.com/ethereum/vyper/pull/1596>`_)
 - Fixed bug when using assertions inside for loops (`#1619 <https://github.com/ethereum/vyper/pull/1619>`_)
+- Fixed zero padding error for ABI encoder (`#1611 <https://github.com/ethereum/vyper/pull/1611>`_)
+- Check `calldatasize` before `calldataload` for function selector (`#1606 <https://github.com/ethereum/vyper/pull/1606>`_)
 
 #############
 v0.1.0-beta.12
