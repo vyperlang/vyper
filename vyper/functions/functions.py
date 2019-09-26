@@ -606,7 +606,12 @@ def as_wei_value(expr, args, kwargs, context):
             expr_args_0 = context.constants._constants_ast[expr.args[0].id]
         numstring, num, den = get_number_as_fraction(expr_args_0, context)
         if denomination % den:
-            raise InvalidLiteralException(f"Too many decimal places: {numstring}", expr.args[0])
+            max_len = len(str(denomination))-1
+            raise InvalidLiteralException(
+                f"Wei value of denomination '{args[1].decode()}' "
+                f"has maximum {max_len} decimal places",
+                expr.args[0]
+            )
         sub = num * denomination // den
     elif args[0].typ.is_literal:
         if args[0].value <= 0:
