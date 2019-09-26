@@ -577,50 +577,49 @@ def extract32(expr, args, kwargs, context):
 @signature(('num_literal', 'int128', 'uint256', 'decimal'), 'str_literal')
 def as_wei_value(expr, args, kwargs, context):
     # Denominations
-    names_denom = {
-        (b"wei", ): 1,
-        (b"femtoether", b"kwei", b"babbage"): 10**3,
-        (b"picoether", b"mwei", b"lovelace"): 10**6,
-        (b"nanoether", b"gwei", b"shannon"): 10**9,
-        (b"microether", b"szabo", ): 10**12,
-        (b"milliether", b"finney", ): 10**15,
-        (b"ether", ): 10**18,
-        (b"kether", b"grand"): 10**21,
+    wei_denominations = {
+        ("wei", ): 1,
+        ("femtoether", "kwei", "babbage"): 10**3,
+        ("picoether", "mwei", "lovelace"): 10**6,
+        ("nanoether", "gwei", "shannon"): 10**9,
+        ("microether", "szabo", ): 10**12,
+        ("milliether", "finney", ): 10**15,
+        ("ether", ): 10**18,
+        ("kether", "grand"): 10**21,
     }
 
-    for names, denom in names_denom.items():
-        if args[1] in names:
-            denomination = denom
-            break
-    else:
+    value, denom_name = args[0], args[1].decode()
+
+    denom_divisor = next((v for k, v in wei_denominations.items() if denom_name in k), False)
+    if not denom_divisor:
         raise InvalidLiteralException(
-            f"Invalid denomination: {args[1]}, valid denominations are: "
-            f"{','.join(x[0].decode() for x in names_denom)}",
+            f"Invalid denomination: {denom_name}, valid denominations are: "
+            f"{','.join(x[0] for x in wei_denominations)}",
             expr.args[1]
         )
+
     # Compute the amount of wei and return that value
-    if isinstance(args[0], (int, float)):
+    if isinstance(value, (int, float)):
         expr_args_0 = expr.args[0]
         # On constant reference fetch value node of constant assignment.
         if context.constants.ast_is_constant(expr.args[0]):
             expr_args_0 = context.constants._constants_ast[expr.args[0].id]
         numstring, num, den = get_number_as_fraction(expr_args_0, context)
-        if denomination % den:
-            max_len = len(str(denomination))-1
+        if denom_divisor % den:
+            max_len = len(str(denom_divisor))-1
             raise InvalidLiteralException(
-                f"Wei value of denomination '{args[1].decode()}' "
-                f"has maximum {max_len} decimal places",
+                f"Wei value of denomination '{denom_name}' has maximum {max_len} decimal places",
                 expr.args[0]
             )
-        sub = num * denomination // den
-    elif args[0].typ.is_literal:
-        if args[0].value <= 0:
+        sub = num * denom_divisor // den
+    elif value.typ.is_literal:
+        if value.value <= 0:
             raise InvalidLiteralException("Negative wei value not allowed", expr)
-        sub = ['mul', args[0].value, denomination]
-    elif args[0].typ.typ == 'uint256':
-        sub = ['mul', args[0], denomination]
+        sub = ['mul', value.value, denom_divisor]
+    elif value.typ.typ == 'uint256':
+        sub = ['mul', value, denom_divisor]
     else:
-        sub = ['div', ['mul', args[0], denomination], DECIMAL_DIVISOR]
+        sub = ['div', ['mul', value, denom_divisor], DECIMAL_DIVISOR]
 
     return LLLnode.from_list(
         sub,
