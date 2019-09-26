@@ -129,7 +129,10 @@ class Expr(object):
             if not (SizeLimits.MINNUM * den < num < SizeLimits.MAXNUM * den):
                 raise InvalidLiteralException("Number out of range: " + numstring, self.expr)
             if DECIMAL_DIVISOR % den:
-                raise InvalidLiteralException("Too many decimal places: " + numstring, self.expr)
+                raise InvalidLiteralException(
+                    "Type 'decimal' has maximum 10 decimal places",
+                    self.expr
+                )
             return LLLnode.from_list(
                 num * DECIMAL_DIVISOR // den,
                 typ=BaseType('decimal', unit=None, is_literal=True),
