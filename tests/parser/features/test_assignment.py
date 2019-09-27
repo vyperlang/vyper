@@ -198,7 +198,7 @@ def foo():
 @public
 def foo():
     y: int128 = 1
-    z: decimal = 0
+    z: decimal = 0.0
     z = y
 """,
 """
