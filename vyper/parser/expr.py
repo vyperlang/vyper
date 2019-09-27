@@ -55,13 +55,14 @@ from vyper.utils import (
 
 # var name: (lllnode, type)
 BUILTIN_CONSTANTS = {
-    'EMPTY_BYTES32': (0, 'bytes32'),
-    'ZERO_ADDRESS': (0, 'address'),
-    'MAX_INT128': (SizeLimits.MAXNUM, 'int128'),
-    'MIN_INT128': (SizeLimits.MINNUM, 'int128'),
-    'MAX_DECIMAL': (SizeLimits.MAXDECIMAL, 'decimal'),
-    'MIN_DECIMAL': (SizeLimits.MINDECIMAL, 'decimal'),
-    'MAX_UINT256': (SizeLimits.MAX_UINT256, 'uint256'),
+    'EMPTY_BYTES32': (0, 'bytes32', None),
+    'ZERO_ADDRESS': (0, 'address', None),
+    'MAX_INT128': (SizeLimits.MAXNUM, 'int128', None),
+    'MIN_INT128': (SizeLimits.MINNUM, 'int128', None),
+    'MAX_DECIMAL': (SizeLimits.MAXDECIMAL, 'decimal', None),
+    'MIN_DECIMAL': (SizeLimits.MINDECIMAL, 'decimal', None),
+    'MAX_UINT256': (SizeLimits.MAX_UINT256, 'uint256', None),
+    'ZERO_WEI': (0, 'uint256', {'wei': 1}),
 }
 
 ENVIRONMENT_VARIABLES = (
@@ -257,10 +258,10 @@ class Expr(object):
             )
 
         elif self.expr.id in BUILTIN_CONSTANTS:
-            obj, typ = BUILTIN_CONSTANTS[self.expr.id]
+            obj, typ, unit = BUILTIN_CONSTANTS[self.expr.id]
             return LLLnode.from_list(
                 [obj],
-                typ=BaseType(typ, None, is_literal=True),
+                typ=BaseType(typ, unit, is_literal=True),
                 pos=getpos(self.expr))
         elif self.context.constants.ast_is_constant(self.expr):
             return self.context.constants.get_constant(self.expr.id, self.context)

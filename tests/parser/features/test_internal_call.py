@@ -191,7 +191,7 @@ def foo1(x: int128[2]) -> int128:
 
 @public
 def bar() -> int128:
-    x: int128[2]
+    x: int128[2] = [0, 0]
     return self._foo0(x)
 
 @public
@@ -272,7 +272,7 @@ def foo1(x: int128[2], y: decimal) -> int128:
 
 @public
 def bar() -> int128:
-    x: int128[2]
+    x: int128[2] = [0, 0]
     return self._foo0(0.3434, x)
 
 # list as second parameter

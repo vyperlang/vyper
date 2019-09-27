@@ -140,8 +140,7 @@ def test_uint256_literal(get_contract_with_gas_estimation):
     modexper = """
 @public
 def test() -> uint256:
-    o: uint256
-    o = 340282366920938463463374607431768211459
+    o: uint256 = 340282366920938463463374607431768211459
     return o
     """
 

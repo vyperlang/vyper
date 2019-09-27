@@ -1201,7 +1201,7 @@ def sqrt(expr, args, kwargs, context):
     arg = args[0]
     sqrt_code = """
 assert x >= 0.0
-z: decimal
+z: decimal = 0.0
 
 if x == 0.0:
     z = 0.0

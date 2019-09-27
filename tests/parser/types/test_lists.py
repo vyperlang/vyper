@@ -125,7 +125,7 @@ def test_array_accessor(get_contract_with_gas_estimation):
     array_accessor = """
 @public
 def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
-    a: int128[4]
+    a: int128[4] = [0, 0, 0, 0]
     a[0] = x
     a[1] = y
     a[2] = z
@@ -142,7 +142,7 @@ def test_two_d_array_accessor(get_contract_with_gas_estimation):
     two_d_array_accessor = """
 @public
 def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
-    a: int128[2][2]
+    a: int128[2][2] = [[0, 0], [0, 0]]
     a[0][0] = x
     a[0][1] = y
     a[1][0] = z

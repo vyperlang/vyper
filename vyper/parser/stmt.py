@@ -203,41 +203,45 @@ class Stmt(object):
             varname = self.stmt.target.id
             pos = self.context.new_variable(varname, typ)
             o = LLLnode.from_list('pass', typ=None, pos=pos)
-            if self.stmt.value is not None:
-                sub = Expr(self.stmt.value, self.context).lll_node
+            if self.stmt.value is None:
+                raise StructureException(
+                    'New variables must be initialized explicitly',
+                    self.stmt)
 
-                # Disallow assignment to None
-                if isinstance(sub.typ, NullType):
-                    raise InvalidLiteralException(
-                        (
-                            'Assignment to None is not allowed, use a default '
-                            'value or built-in `clear()`.'
-                        ),
-                        self.stmt
-                    )
+            sub = Expr(self.stmt.value, self.context).lll_node
 
-                is_valid_bytes32_assign = (
-                    isinstance(sub.typ, ByteArrayType) and sub.typ.maxlen == 32
-                ) and isinstance(typ, BaseType) and typ.typ == 'bytes32'
+            # Disallow assignment to None
+            if isinstance(sub.typ, NullType):
+                raise InvalidLiteralException(
+                    (
+                        'Assignment to None is not allowed, use a default '
+                        'value or built-in `clear()`.'
+                    ),
+                    self.stmt
+                )
 
-                # If bytes[32] to bytes32 assignment rewrite sub as bytes32.
-                if is_valid_bytes32_assign:
-                    sub = LLLnode(
-                        bytes_to_int(self.stmt.value.s),
-                        typ=BaseType('bytes32'),
-                        pos=getpos(self.stmt),
-                    )
+            is_valid_bytes32_assign = (
+                isinstance(sub.typ, ByteArrayType) and sub.typ.maxlen == 32
+            ) and isinstance(typ, BaseType) and typ.typ == 'bytes32'
 
-                self._check_valid_assign(sub)
-                self._check_same_variable_assign(sub)
-                variable_loc = LLLnode.from_list(
-                    pos,
-                    typ=typ,
-                    location='memory',
+            # If bytes[32] to bytes32 assignment rewrite sub as bytes32.
+            if is_valid_bytes32_assign:
+                sub = LLLnode(
+                    bytes_to_int(self.stmt.value.s),
+                    typ=BaseType('bytes32'),
                     pos=getpos(self.stmt),
                 )
-                o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
-                # o.pos = getpos(self.stmt) # TODO: Should this be here like in assign()?
+
+            self._check_valid_assign(sub)
+            self._check_same_variable_assign(sub)
+            variable_loc = LLLnode.from_list(
+                pos,
+                typ=typ,
+                location='memory',
+                pos=getpos(self.stmt),
+            )
+            o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
+            # o.pos = getpos(self.stmt) # TODO: Should this be here like in assign()?
 
             return o
 

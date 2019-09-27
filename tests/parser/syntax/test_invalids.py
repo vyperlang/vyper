@@ -42,7 +42,7 @@ def foo(x: int128): pass
 must_succeed("""
 @public
 def foo():
-    x: int128
+    x: int128 = 0
     x = 5
 """)
 
@@ -153,7 +153,7 @@ def foo():
 must_succeed("""
 @public
 def foo():
-    x: int128[5]
+    x: int128[5] = [0, 0, 0, 0, 0]
     z: int128 = x[2]
 """)
 

@@ -103,7 +103,7 @@ def test() -> int128:
     """
 @public
 def test() -> int128:
-    x: bytes32
+    x: bytes32 = EMPTY_BYTES32
     if False:
         if False:
             return 0

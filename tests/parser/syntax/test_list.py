@@ -118,14 +118,14 @@ def foo():
     """
 @public
 def foo()->bool[2]:
-    a: decimal[2]
+    a: decimal[2] = [0.0, 0.0]
     a[0] = 1
     return a
     """,
     """
 @public
 def foo()->bool[2]:
-    a: bool[1000]
+    a: bool[10] = [True, True, True, True, True, True, True, True, True, True]
     a[0] = 1
     return a
     """,
@@ -234,7 +234,7 @@ def foo():
 b: int128[5]
 @public
 def foo():
-    a: int128[5]
+    a: int128[5] = [0, 0, 0, 0, 0]
     self.b[0] = a[0]
     """,
     """

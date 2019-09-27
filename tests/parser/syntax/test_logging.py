@@ -24,7 +24,7 @@ Bar: event({_value: int128[4]})
 
 @public
 def foo():
-    x: decimal[4]
+    x: decimal[4] = [0.0, 0.0, 0.0, 0.0]
     log.Bar(x)
     """,
     """

@@ -15,29 +15,29 @@ fail_list = [
     """
 @public
 def baa():
-    x: bytes[50]
-    y: bytes[50]
+    x: bytes[50] = b""
+    y: bytes[50] = b""
     z = x + y
     """,
     """
 @public
 def baa():
-    x: bytes[50]
-    y: int128
+    x: bytes[50] = b""
+    y: int128 = 0
     y = x
     """,
     """
 @public
 def baa():
-    x: bytes[50]
-    y: int128
+    x: bytes[50] = b""
+    y: int128 = 0
     x = y
     """,
     """
 @public
 def baa():
-    x: bytes[50]
-    y: bytes[60]
+    x: bytes[50] = b""
+    y: bytes[60] = b""
     x = y
     """,
     """
@@ -100,7 +100,7 @@ def foo(x: bytes[100]) -> bytes[150]:
     """
 @public
 def baa():
-    x: bytes[50]
+    x: bytes[50] = b""
     """
 ]
 
