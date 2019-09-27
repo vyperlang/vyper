@@ -211,7 +211,7 @@ def foo():
 @public
 def foo():
     y: bool = False
-    z: decimal = 0
+    z: decimal = 0.0
     z = y
 """,
 """

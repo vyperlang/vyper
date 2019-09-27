@@ -118,7 +118,7 @@ def foo():
     """
 @public
 def foo()->bool[2]:
-    a: decimal[2] = [0, 0]
+    a: decimal[2] = [0.0, 0.0]
     a[0] = 1
     return a
     """,
