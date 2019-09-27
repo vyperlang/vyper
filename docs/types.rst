@@ -489,6 +489,10 @@ Initial Values
 In Vyper, there is no ``null`` option like most programming languages have. Thus, every variable type has a default value. In order to check if a variable is empty, you will need to compare it to its type's default value.
 If you would like to reset a variable to its type's default value, use the built-in ``clear()`` function.
 
+.. note::
+
+    Memory variables must be assigned a value at the time they are declared. :ref:`types-constants` may be used to initialize memory variables with their default values.
+
 Here you can find a list of all types and default values:
 
 .. list-table:: Default Variable Values
