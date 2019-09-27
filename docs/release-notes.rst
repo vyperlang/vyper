@@ -2,6 +2,25 @@
 
 Release Notes
 #############
+v0.1.0-beta.13
+**************
+
+Date released: 27-09-2019
+
+The following VIPs were implemented for Beta 12:
+
+- Add `vyper-json` compilation mode (VIP `#1520 <https://github.com/ethereum/vyper/issues/1520>`_)
+- Environment variables and constants can now be used as default parameters (VIP `#1525 <https://github.com/ethereum/vyper/issues/1525>`_)
+- Require unitialized memory be set on creation (VIP `#1493 <https://github.com/ethereum/vyper/issues/1493>`_)
+
+Some of the bug and stability fixes:
+
+- Type check for default params and arrays (`#1596 <https://github.com/ethereum/vyper/pull/1596>`_)
+- Fixed bug when using assertions inside for loops (`#1619 <https://github.com/ethereum/vyper/pull/1619>`_)
+- Fixed zero padding error for ABI encoder (`#1611 <https://github.com/ethereum/vyper/pull/1611>`_)
+- Check `calldatasize` before `calldataload` for function selector (`#1606 <https://github.com/ethereum/vyper/pull/1606>`_)
+
+#############
 v0.1.0-beta.12
 **************
 
