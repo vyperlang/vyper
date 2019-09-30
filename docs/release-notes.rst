@@ -2,6 +2,7 @@
 
 Release Notes
 #############
+
 v0.1.0-beta.13
 **************
 
@@ -20,7 +21,6 @@ Some of the bug and stability fixes:
 - Fixed zero padding error for ABI encoder (`#1611 <https://github.com/ethereum/vyper/pull/1611>`_)
 - Check `calldatasize` before `calldataload` for function selector (`#1606 <https://github.com/ethereum/vyper/pull/1606>`_)
 
-#############
 v0.1.0-beta.12
 **************
 
