@@ -257,7 +257,7 @@ class Assert(VyperNode):
 
 
 class For(VyperNode):
-    __slots__ = ('iter', 'target', 'orelse', 'body')
+    __slots__ = ('iter', 'target', 'body')
 
 
 class AugAssign(VyperNode):
