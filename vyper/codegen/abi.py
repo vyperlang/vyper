@@ -211,17 +211,21 @@ def abi_type_of(lll_typ):
         raise CompilerPanic(f'Unrecognized type {t}')
 
 # turn an lll node into a list, based on its type.
+# returns it in the format (heads, tail). that way
+# the caller can easily tell if the list has multiple
+# elements.
 def o_list(lll_node, pos=None):
     lll_t = lll_node.typ
     if isinstance(lll_t, (TupleLike, ListType)):
         if lll_node.value == 'multi': # is literal
-            return lll_node.args
+            ret = lll_node.args
         else:
             ks = lll_t.tuple_keys() if isinstance(lll_t, TupleLike) else \
                     [LLLnode.from_list(i) for i in range(lll_t.count)]
 
-            return [add_variable_offset(lll_node, k, pos, array_bounds_check=False)
+            ret = [add_variable_offset(lll_node, k, pos, array_bounds_check=False)
                     for k in ks]
+        return ret
     else:
         return [lll_node]
 
@@ -237,8 +241,8 @@ def o_list(lll_node, pos=None):
 #   to its value, `dst_loc`. In addition we need at most one more stack
 #   variable to keep track of our location in the dynamic section.
 #   It will also be convenient to keep the original `dst` around as a
-#   stack variable.  So, 2-3 stack variables for each level of nesting
-#   (as defined in the spec).
+#   stack variable `dst_ptr`. So, 2-3 stack variables for each level of
+#   nesting (as defined in the spec).
 #   For each element `elem` of the lll_node:
 #   - If `elem` is static, write its value to `dst_loc` and
 #     increment `dst_loc` by the size of `elem`.
@@ -249,50 +253,81 @@ def o_list(lll_node, pos=None):
 #     then increment `dyn_ofst` by the number of bytes written. Note
 #     that in this step we may recurse, and the child call should return
 #     a stack item representing how many bytes were written.
+#     WARNING: abi_encode(bytes) != abi_encode((bytes,)) (a tuple
+#     with a single bytes member). The former is encoded as <len> <data>,
+#     the latter is encoded as <ofst> <len> <data>.
+# performance note: takes O(n^2) compilation time
+# where n is depth of data type, could be optimized but unlikely
+# that users will provide deeply nested data.
 def abi_encode(lll_node, dst, pos=None, bufsz=None, returns=False):
     if not isinstance(dst, int):
         raise CompilerPanic('abi_encode requires a statically known destination')
     parent_abi_t = abi_type_of(lll_node.typ)
+    # TODO handle bufsz is None
     if bufsz < parent_abi_t.static_size() + parent_abi_t.dynamic_size_bound():
         raise CompilerPanic('buffer provided to abi_encode not large enough')
 
+    # this type is dynamic if it has children which are dynamic.
+    has_children = isinstance(lll_node.typ, (TupleLike, ListType))
+
+    # has_static_section = not isinstance(lll_node.typ, ByteArrayLike)
+
     lll_ret  = []
     dyn_ofst = 'dyn_ofst' # current offset in the dynamic section
-    dst      = 'dst'      # pointer to beginning of buffer
+    dst_ptr  = 'dst'      # pointer to beginning of buffer
     dst_loc  = 'dst_loc'  # pointer to write location in static section
-    for o in o_list(lll_node, pos):
+    os = o_list(lll_node, pos=pos)
+
+    for i, o in enumerate(os):
         abi_t = abi_type_of(o)
 
         if abi_t.is_dynamic():
-            lll_ret.append(['mstore', 'dst_loc', 'dyn_ofst'])
-            calc_dyn_loc = ['add', 'dst', 'dyn_ofset']
-            if isinstance(o.typ, ByteArrayLike):
-                d = LLLnode.from_list(['dyn_loc'], typ=o.typ)
-                child = ['with', 'dyn_loc', calc_dyn_loc,
-                            ['seq',
-                                make_byte_array_copier(d, o, pos=pos),
-                                zero_pad(d, maxlen=d.typ.maxlen),
-                                ['mload', d]]])
-            else:
+            if has_children:
+                calc_dyn_loc = ['add', dst, dyn_ofst]
+                lll_ret.append(['mstore', dst_loc, dyn_ofst])
                 child = abi_encode(o, calc_dyn_loc, pos, returns=True) # recurse
-            lll_ret.append(
-                    ['set', 'dyn_ofst',
-                        ['add', 'dyn_ofst', child]])
-        else:
-            # could be O(n^2) where n is depth of data type.
-            if isinstance(o.typ, BaseType):
-                lll_ret.append(['mstore', 'dst', o])
+                lll_ret.append(
+                        ['set', 'dyn_ofst',
+                            ['add', 'dyn_ofst', child]])
+
+            elif isinstance(o.typ, ByteArrayLike):
+                d = LLLnode.from_list([dst_loc], typ=o.typ)
+                child = ['seq',
+                            make_byte_array_copier(d, o, pos=pos),
+                            zero_pad(d, maxlen=d.typ.maxlen)]
             else:
-                # children guaranteed to be static.
-                lll_ret.append(abi_encode(o, dst_loc, pos))
+                raise CompilerPanic(f'unreachable type: {o.typ}')
 
-        sz = abi_t.static_size()
-        lll_ret.append(['set', dst_loc, ['add', dst_loc, sz]])
+        else:
+            if isinstance(o.typ, BaseType):
+                lll_ret.append(['mstore', dst_loc, o])
+            else:
+                # returnse=False bc children guaranteed to be static.
+                # TODO set bufz = abi_t.static_size()
+                lll_ret.append(abi_encode(o, dst_loc, returns=False, pos=pos))
 
+        # optimize out the last increment to dst_loc
+        if i + 1 == len(os):
+            pass
+        else: # note: always false if should_recurse == False
+            sz = abi_t.static_size()
+            lll_ret.append(['set', dst_loc, ['add', dst_loc, sz]])
+
+    # declare LLL variables.
     if returns:
-        lll_ret = ['seq', lll_ret, 'dyn_ofst']
+        if has_children:
+            lll_ret = ['seq', lll_ret, 'dyn_ofst']
+        else:
+            calc_len = ['ceil32', ['add', 32, ['mload', dst_loc]]]
+            lll_ret = ['seq', lll_ret, calc_len]
     else:
         lll_ret = ['seq', lll_ret]
+
     if parent_abi_t.is_dynamic():
-        lll_ret = ['with', 'dyn_ofst', parent_abi_t.static_size(), lll_ret]
+        if has_children:
+            lll_ret = ['with', 'dyn_ofst', parent_abi_t.static_size(), lll_ret]
+
+    lll_ret = ['with', dst_ptr, dst,
+                ['with', dst_loc, dst_ptr, lll_ret]]
+
     return LLLnode.from_list(lll_ret)
