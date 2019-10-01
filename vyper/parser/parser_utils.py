@@ -893,6 +893,7 @@ def annotate_ast(
 # of the byte array needs to be right-padded with zeroes.
 def zero_pad(bytez_placeholder):
     # calldatacopy from past-the-end gives zero bytes.
+    # cf. YP H.2 (ops section) with CALLDATACOPY spec.
     len_ = ['mload', bytez_placeholder]
     dst = ['add', ['add', bytez_placeholder, 32], 'len']
     # the runtime length of the data rounded up to nearest 32
