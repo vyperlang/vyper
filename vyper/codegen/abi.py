@@ -18,6 +18,12 @@ class ABIType:
     def selector_name():
         raise NotImplementedError('ABIType.selector_name')
 
+    # Whether the type is a tuple at the ABI level.
+    # (This is important because if it does, it needs an offset.
+    #   Compare the difference in encoding between `bytes` and `(bytes,)`.)
+    def is_tuple():
+        raise NotImplementedError('ABIType.is_tuple')
+
 # uint<M>: unsigned integer type of M bits, 0 < M <= 256, M % 8 == 0. e.g. uint32, uint8, uint256.
 # int<M>: two’s complement signed integer type of M bits, 0 < M <= 256, M % 8 == 0.
 class ABI_GIntM(ABIType):
@@ -36,6 +42,9 @@ class ABI_GIntM(ABIType):
 
     def selector_name(self):
         return ('' if self.signed else 'u') + f'int{self.m_bits}'
+
+    def is_tuple(self):
+        return False
 
 # address: equivalent to uint160, except for the assumed interpretation and language typing. For computing the function selector, address is used.
 class ABI_Address(ABI_GIntM):
@@ -74,6 +83,9 @@ class ABI_FixedMxN(ABIType):
         return ('' if self.signed else 'u') + \
                 'fixed{self.m_bits}x{self.n_places}'
 
+    def is_tuple(self):
+        return False
+
 # bytes<M>: binary type of M bytes, 0 < M <= 32.
 class ABI_BytesM(ABIType):
     def __init__(self, m_bytes):
@@ -90,6 +102,9 @@ class ABI_BytesM(ABIType):
 
     def selector_name(self):
         return f'bytes{self.m_bytes}'
+
+    def is_tuple(self):
+        return False
 
 # function: an address (20 bytes) followed by a function selector (4 bytes). Encoded identical to bytes24.
 class ABI_Function(ABI_BytesM):
@@ -120,6 +135,9 @@ class ABI_StaticArray(ABIType):
     def selector_name(self):
         return f'{self.subtyp.selector_name()}[{self.m_elems}]'
 
+    def is_tuple(self):
+        return True
+
 def ABI_Bytes(ABIType):
     def __init__(self, bytes_bound):
         if not bytes_bound >= 0:
@@ -139,6 +157,9 @@ def ABI_Bytes(ABIType):
 
     def selector_name(self):
         return 'bytes'
+
+    def is_tuple(self):
+        return False
 
 def ABI_String(ABI_Bytes):
     def selector_name(self):
@@ -164,6 +185,9 @@ def ABI_DynamicArray(ABIType):
     def selector_name(self):
         return f'{self.subtyp.selector_name()}[]'
 
+    def is_tuple(self):
+        return False
+
 class ABI_Tuple(ABIType):
     def __init__(self, subtyps):
         self.subtyps = subtyps
@@ -181,6 +205,9 @@ class ABI_Tuple(ABIType):
 
         return sum([0 if not t.is_dynamic() else t.dynamic_size_bound()
             for t in self.subtyps])
+
+    def is_tuple(self):
+        return True
 
 def abi_type_of(lll_typ):
     if isinstance(lll_typ, BaseType):
@@ -211,9 +238,6 @@ def abi_type_of(lll_typ):
         raise CompilerPanic(f'Unrecognized type {t}')
 
 # turn an lll node into a list, based on its type.
-# returns it in the format (heads, tail). that way
-# the caller can easily tell if the list has multiple
-# elements.
 def o_list(lll_node, pos=None):
     lll_t = lll_node.typ
     if isinstance(lll_t, (TupleLike, ListType)):
@@ -230,7 +254,7 @@ def o_list(lll_node, pos=None):
         return [lll_node]
 
 
-# assume dst is a buffer in memory which has at least
+# assume dst is a buffer located in memory which has at least
 # static_size + dynamic_size_bound allocated.
 # The basic strategy is this:
 #   First, it is helpful to keep track of what variables are location
@@ -259,18 +283,10 @@ def o_list(lll_node, pos=None):
 # performance note: takes O(n^2) compilation time
 # where n is depth of data type, could be optimized but unlikely
 # that users will provide deeply nested data.
-def abi_encode(lll_node, dst, pos=None, bufsz=None, returns=False):
-    if not isinstance(dst, int):
-        raise CompilerPanic('abi_encode requires a statically known destination')
+def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
     parent_abi_t = abi_type_of(lll_node.typ)
-    # TODO handle bufsz is None
-    if bufsz < parent_abi_t.static_size() + parent_abi_t.dynamic_size_bound():
+    if bufsz is not None and bufsz < parent_abi_t.static_size() + parent_abi_t.dynamic_size_bound():
         raise CompilerPanic('buffer provided to abi_encode not large enough')
-
-    # this type is dynamic if it has children which are dynamic.
-    has_children = isinstance(lll_node.typ, (TupleLike, ListType))
-
-    # has_static_section = not isinstance(lll_node.typ, ByteArrayLike)
 
     lll_ret  = []
     dyn_ofst = 'dyn_ofst' # current offset in the dynamic section
@@ -282,10 +298,11 @@ def abi_encode(lll_node, dst, pos=None, bufsz=None, returns=False):
         abi_t = abi_type_of(o)
 
         if abi_t.is_dynamic():
-            if has_children:
+            if parent_abi_t.is_tuple():
                 calc_dyn_loc = ['add', dst, dyn_ofst]
                 lll_ret.append(['mstore', dst_loc, dyn_ofst])
-                child = abi_encode(o, calc_dyn_loc, pos, returns=True) # recurse
+                # recurse
+                child = abi_encode(calc_dyn_loc, o, pos, returns=True)
                 lll_ret.append(
                         ['set', 'dyn_ofst',
                             ['add', 'dyn_ofst', child]])
@@ -315,7 +332,7 @@ def abi_encode(lll_node, dst, pos=None, bufsz=None, returns=False):
 
     # declare LLL variables.
     if returns:
-        if has_children:
+        if parent_abi_t.is_tuple():
             lll_ret = ['seq', lll_ret, 'dyn_ofst']
         else:
             calc_len = ['ceil32', ['add', 32, ['mload', dst_loc]]]
@@ -324,10 +341,36 @@ def abi_encode(lll_node, dst, pos=None, bufsz=None, returns=False):
         lll_ret = ['seq', lll_ret]
 
     if parent_abi_t.is_dynamic():
-        if has_children:
+        if parent_abi_t.is_tuple():
             lll_ret = ['with', 'dyn_ofst', parent_abi_t.static_size(), lll_ret]
 
     lll_ret = ['with', dst_ptr, dst,
                 ['with', dst_loc, dst_ptr, lll_ret]]
 
     return LLLnode.from_list(lll_ret)
+
+# lll_node is the destination LLL item, src is the input buffer.
+# recursively copy the buffer items into lll_node, based on its type.
+def abi_decode(lll_node, src, pos=None):
+    os = o_list(lll_node, pos=pos)
+    lll_ret = []
+    src_ptr = 'src'      # pointer to beginning of buffer
+    src_loc = 'src_loc'  # pointer to read location in static section
+    for o in os:
+        abi_t = abi_type_of(o)
+        src_loc = LLLnode('src_loc', typ=o.typ, location=src.location)
+        if abi_t.is_tuple():
+            if abi_t.is_dynamic():
+                child_loc = ['add', src_ptr, unwrap_location(src_loc)]
+            else:
+                child_loc = src_loc
+            lll_ret.append(abi_decode(o, child_loc, pos=pos))
+        else:
+            lll_ret.append(make_setter(o, src_loc))
+        lll_ret.append(['set', 'src_loc', ['add', 'src_loc', ofst]])
+
+    lll_ret = ['with', 'src', src,
+              ['with', 'src_loc', 'src',
+              ['seq', lll_ret]]]
+
+    return lll_ret
