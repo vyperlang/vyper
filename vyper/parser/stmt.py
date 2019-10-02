@@ -534,7 +534,7 @@ class Stmt(object):
                 "..` or `for i in range(start, start + rounds): ..`"
             ), self.stmt.iter)
 
-        block_scope_id = id(self.stmt.orelse)
+        block_scope_id = id(self.stmt)
         with self.context.make_blockscope(block_scope_id):
             # Get arg0
             arg0 = self.stmt.iter.args[0]
