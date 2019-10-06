@@ -131,9 +131,9 @@ contract Test:
 
 @public
 def test(addr: address) -> (int128, address, string[10]):
-    a: int128
-    b: address
-    c: string[10]
+    a: int128 = 0
+    b: address = ZERO_ADDRESS
+    c: string[10] = ""
     (a, b, c) = Test(addr).out_literals()
     return a, b,c
     """

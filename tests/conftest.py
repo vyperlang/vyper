@@ -105,11 +105,9 @@ def check_gas_on_chain(w3, tester, code, func=None, res=None):
     # Computed upper bound on the gas consumption should
     # be greater than or equal to the amount of gas used
     if gas_estimate < gas_actual:
-        raise Exception("Gas upper bound fail: bound %d actual %d" % (gas_estimate, gas_actual))
+        raise Exception(f"Gas upper bound fail: bound {gas_estimate} actual {gas_actual}")
 
-    print('Function name: {} - Gas estimate {}, Actual: {}'.format(
-        func, gas_estimate, gas_actual)
-    )
+    print(f'Function name: {func} - Gas estimate {gas_estimate}, Actual: {gas_actual}')
 
 
 def gas_estimation_decorator(w3, tester, fn, source_code, func):

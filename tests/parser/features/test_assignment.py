@@ -112,7 +112,7 @@ storx: uint256
 
 @public
 def foo2() -> uint256:
-    x: uint256
+    x: uint256 = 0
     x = 3 * 4 / 2 + 1 - 2
     return x
 """
@@ -125,7 +125,7 @@ def test_calculate_literals_invalid(assert_compile_failed, get_contract_with_gas
     code = """
 @public
 def foo2() -> uint256:
-    x: uint256
+    x: uint256 = 0
     x = 3 ^ 3  # invalid operator
     return x
 """
@@ -198,7 +198,7 @@ def foo():
 @public
 def foo():
     y: int128 = 1
-    z: decimal
+    z: decimal = 0.0
     z = y
 """,
 """
@@ -211,7 +211,7 @@ def foo():
 @public
 def foo():
     y: bool = False
-    z: decimal
+    z: decimal = 0.0
     z = y
 """,
 """
@@ -224,7 +224,7 @@ def foo():
 @public
 def foo():
     y: uint256 = 1
-    z: int128
+    z: int128 = 0
     z = y
 """,
 """
@@ -237,7 +237,7 @@ def foo():
 @public
 def foo():
     y: int128 = 1
-    z: bytes32
+    z: bytes32 = EMPTY_BYTES32
     z = y
 """,
 """
@@ -250,7 +250,7 @@ def foo():
 @public
 def foo():
     y: uint256 = 1
-    z: bytes32
+    z: bytes32 = EMPTY_BYTES32
     z = y
 """
     ]

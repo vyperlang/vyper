@@ -73,7 +73,15 @@ def get_keyword(expr, keyword):
             return kw.value
     # This should never happen, as kwargs['value'] will KeyError first.
     # Leaving exception for other use cases.
-    raise Exception("Keyword %s not found" % keyword)  # pragma: no cover
+    raise Exception(f"Keyword {keyword} not found")  # pragma: no cover
+
+# like `assert foo`, but doesn't check constancy.
+# currently no option for reason string (easy to add, just need to refactor
+# vyper.parser.stmt so we can use _assert_reason).
+@signature('bool')
+def assert_modifiable(expr, args, kwargs, context):
+    # cf. vyper.parser.stmt.parse_assert
+    return LLLnode.from_list(['assert', args[0]], typ=None, pos=getpos(expr))
 
 
 @signature('decimal')
@@ -409,7 +417,7 @@ def sha256(expr, args, kwargs, context):
         )
     else:
         # This should never happen, but just left here for future compiler-writers.
-        raise Exception("Unsupported location: %s" % sub.location)  # pragma: no test
+        raise Exception(f"Unsupported location: {sub.location}")  # pragma: no test
 
 
 @signature('str_literal', 'name_literal')
@@ -569,47 +577,49 @@ def extract32(expr, args, kwargs, context):
 @signature(('num_literal', 'int128', 'uint256', 'decimal'), 'str_literal')
 def as_wei_value(expr, args, kwargs, context):
     # Denominations
-    names_denom = {
-        (b"wei", ): 1,
-        (b"femtoether", b"kwei", b"babbage"): 10**3,
-        (b"picoether", b"mwei", b"lovelace"): 10**6,
-        (b"nanoether", b"gwei", b"shannon"): 10**9,
-        (b"microether", b"szabo", ): 10**12,
-        (b"milliether", b"finney", ): 10**15,
-        (b"ether", ): 10**18,
-        (b"kether", b"grand"): 10**21,
+    wei_denominations = {
+        ("wei", ): 1,
+        ("femtoether", "kwei", "babbage"): 10**3,
+        ("picoether", "mwei", "lovelace"): 10**6,
+        ("nanoether", "gwei", "shannon"): 10**9,
+        ("microether", "szabo", ): 10**12,
+        ("milliether", "finney", ): 10**15,
+        ("ether", ): 10**18,
+        ("kether", "grand"): 10**21,
     }
 
-    for names, denom in names_denom.items():
-        if args[1] in names:
-            denomination = denom
-            break
-    else:
+    value, denom_name = args[0], args[1].decode()
+
+    denom_divisor = next((v for k, v in wei_denominations.items() if denom_name in k), False)
+    if not denom_divisor:
         raise InvalidLiteralException(
-            "Invalid denomination: %s, valid denominations are: %s" % (
-                args[1],
-                ",".join(x[0].decode() for x in names_denom)
-            ),
+            f"Invalid denomination: {denom_name}, valid denominations are: "
+            f"{','.join(x[0] for x in wei_denominations)}",
             expr.args[1]
         )
+
     # Compute the amount of wei and return that value
-    if isinstance(args[0], (int, float)):
+    if isinstance(value, (int, float)):
         expr_args_0 = expr.args[0]
         # On constant reference fetch value node of constant assignment.
         if context.constants.ast_is_constant(expr.args[0]):
             expr_args_0 = context.constants._constants_ast[expr.args[0].id]
         numstring, num, den = get_number_as_fraction(expr_args_0, context)
-        if denomination % den:
-            raise InvalidLiteralException("Too many decimal places: %s" % numstring, expr.args[0])
-        sub = num * denomination // den
-    elif args[0].typ.is_literal:
-        if args[0].value <= 0:
+        if denom_divisor % den:
+            max_len = len(str(denom_divisor))-1
+            raise InvalidLiteralException(
+                f"Wei value of denomination '{denom_name}' has maximum {max_len} decimal places",
+                expr.args[0]
+            )
+        sub = num * denom_divisor // den
+    elif value.typ.is_literal:
+        if value.value <= 0:
             raise InvalidLiteralException("Negative wei value not allowed", expr)
-        sub = ['mul', args[0].value, denomination]
-    elif args[0].typ.typ == 'uint256':
-        sub = ['mul', args[0], denomination]
+        sub = ['mul', value.value, denom_divisor]
+    elif value.typ.typ == 'uint256':
+        sub = ['mul', value, denom_divisor]
     else:
-        sub = ['div', ['mul', args[0], denomination], DECIMAL_DIVISOR]
+        sub = ['div', ['mul', value, denom_divisor], DECIMAL_DIVISOR]
 
     return LLLnode.from_list(
         sub,
@@ -645,7 +655,7 @@ def raw_call(expr, args, kwargs, context):
         )
     if context.is_constant():
         raise ConstancyViolationException(
-            "Cannot make calls from %s" % context.pp_constancy(),
+            f"Cannot make calls from {context.pp_constancy()}",
             expr,
         )
     if value != zero_value:
@@ -719,7 +729,7 @@ def send(expr, args, kwargs, context):
     to, value = args
     if context.is_constant():
         raise ConstancyViolationException(
-            "Cannot send ether inside %s!" % context.pp_constancy(),
+            f"Cannot send ether inside {context.pp_constancy()}!",
             expr,
         )
     enforce_units(value.typ, expr.args[1], BaseType('uint256', {'wei': 1}))
@@ -734,7 +744,7 @@ def send(expr, args, kwargs, context):
 def selfdestruct(expr, args, kwargs, context):
     if context.is_constant():
         raise ConstancyViolationException(
-            "Cannot %s inside %s!" % (expr.func.id, context.pp_constancy()),
+            f"Cannot {expr.func.id} inside {context.pp_constancy()}!",
             expr.func,
         )
     return LLLnode.from_list(['selfdestruct', args[0]], typ=None, pos=getpos(expr))
@@ -768,7 +778,7 @@ def _RLPlist(expr, args, kwargs, context):
             if not isinstance(subtyp, BaseType):
                 raise TypeMismatchException("RLP lists only accept BaseTypes and byte arrays", arg)
             if not is_base_type(subtyp, ('int128', 'uint256', 'bytes32', 'address', 'bool')):
-                raise TypeMismatchException("Unsupported base type: %s" % subtyp.typ, arg)
+                raise TypeMismatchException(f"Unsupported base type: {subtyp.typ}", arg)
         _format.append(subtyp)
     output_type = TupleType(_format)
     output_placeholder_type = ByteArrayType(
@@ -877,7 +887,7 @@ def _RLPlist(expr, args, kwargs, context):
                 ],
                 typ,
                 location='memory',
-                annotation='getting and checking %s' % typ.typ,
+                annotation=f'getting and checking {typ.typ}',
             )
             decoder.append(byte_array_to_num(bytez, expr, typ.typ))
         # Decoder for bools
@@ -1117,7 +1127,7 @@ def create_forwarder_to(expr, args, kwargs, context):
                       BaseType('uint256', {'wei': 1}))
     if context.is_constant():
         raise ConstancyViolationException(
-            "Cannot make calls from %s" % context.pp_constancy(),
+            f"Cannot make calls from {context.pp_constancy()}",
             expr,
         )
     placeholder = context.new_placeholder(ByteArrayType(96))
@@ -1178,7 +1188,7 @@ def minmax(expr, args, kwargs, context, is_min):
         otyp.is_literal = False
     else:
         raise TypeMismatchException(
-            "Minmax types incompatible: %s %s" % (left.typ.typ, right.typ.typ)
+            f"Minmax types incompatible: {left.typ.typ} {right.typ.typ}"
         )
     return LLLnode.from_list(
         ['with', '_l', left, ['with', '_r', right, o]],
@@ -1195,7 +1205,7 @@ def sqrt(expr, args, kwargs, context):
     arg = args[0]
     sqrt_code = """
 assert x >= 0.0
-z: decimal
+z: decimal = 0.0
 
 if x == 0.0:
     z = 0.0
@@ -1288,6 +1298,7 @@ dispatch_table = {
 }
 
 stmt_dispatch_table = {
+    'assert_modifiable': assert_modifiable,
     'clear': _clear,
     'send': send,
     'selfdestruct': selfdestruct,

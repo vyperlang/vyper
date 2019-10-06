@@ -12,7 +12,7 @@ class ParserException(Exception):
         self.col_offset = None
 
         if isinstance(item, tuple):  # is a position.
-            self.lineno, self.col_offset = item
+            self.lineno, self.col_offset = item[:2]
         elif item and hasattr(item, 'lineno'):
             self.set_err_pos(item.lineno, item.col_offset)
             if hasattr(item, 'source_code'):
@@ -102,3 +102,11 @@ class CompilerPanic(Exception):
 
     def __str__(self):
         return self.message + ' Please create an issue.'
+
+
+class JSONError(Exception):
+
+    def __init__(self, msg, lineno=None, col_offset=None):
+        super().__init__(msg)
+        self.lineno = lineno
+        self.col_offset = col_offset

@@ -43,7 +43,7 @@ def get_builtin_interfaces():
         name: extract_sigs({
             'type': 'vyper',
             'code': importlib.import_module(
-                'vyper.interfaces.{}'.format(name),
+                f'vyper.interfaces.{name}',
             ).interface_code,
         })
         for name in interface_names
@@ -72,7 +72,7 @@ def abi_type_to_ast(atype):
             slice=ast.Index(256)
         )
     else:
-        raise ParserException('Type {} not supported by vyper.'.format(atype))
+        raise ParserException(f'Type {atype} not supported by vyper.')
 
 
 def mk_full_signature_from_json(abi):
@@ -124,16 +124,17 @@ def mk_full_signature_from_json(abi):
 
 def extract_sigs(sig_code):
     if sig_code['type'] == 'vyper':
+        interface_ast = parser.parse_to_ast(sig_code['code'])
         return sig_utils.mk_full_signature(
-            parser.parse_to_ast(sig_code['code']),
+            [i for i in interface_ast if not isinstance(i, (ast.Import, ast.ImportFrom))],
             sig_formatter=lambda x, y: x
         )
     elif sig_code['type'] == 'json':
         return mk_full_signature_from_json(sig_code['code'])
     else:
         raise Exception(
-            ("Unknown interface signature type '{}' supplied. "
-             "'vyper' & 'json' are supported").format(sig_code['type'])
+            (f"Unknown interface signature type '{sig_code['type']}' supplied. "
+             "'vyper' & 'json' are supported")
         )
 
 
@@ -150,10 +151,8 @@ def extract_interface_str(code, contract_name, interface_codes=None):
     for idx, event in enumerate(events):
         if idx == 0:
             out += "# Events\n\n"
-        out += "{event_name}: event({{{args}}})\n".format(
-            event_name=event.name,
-            args=", ".join([arg.name + ": " + str(arg.typ) for arg in event.args])
-        )
+        event_args_str = ', '.join([arg.name + ': ' + str(arg.typ) for arg in event.args])
+        out += f"{event.name}: event({{{event_args_str}}})\n"
 
     # Print functions.
     def render_decorator(sig):
@@ -168,12 +167,8 @@ def extract_interface_str(code, contract_name, interface_codes=None):
         if idx == 0:
             out += "\n# Functions\n"
         if not func.private and func.name != '__init__':
-            out += "{decorator}def {name}({args}){ret}:\n    pass\n".format(
-                decorator=render_decorator(func),
-                name=func.name,
-                args=", ".join([arg.name + ": " + str(arg.typ) for arg in func.args]),
-                ret=render_return(func)
-            )
+            args = ", ".join([arg.name + ": " + str(arg.typ) for arg in func.args])
+            out += f"{render_decorator(func)}def {func.name}({args}){render_return(func)}:\n    pass\n"  # noqa: E501
     out += "\n"
 
     return out
@@ -192,14 +187,11 @@ def extract_external_interface(code, contract_name, interface_codes=None):
     offset = 4 * " "
     for idx, func in enumerate(functions):
         if idx == 0:
-            out += "\n# External Contracts\ncontract %s:\n" % cname
+            out += f"\n# External Contracts\ncontract {cname}:\n"
         if not func.private and func.name != '__init__':
-            out += offset + "def {name}({args}){ret}: {func_type}\n".format(
-                name=func.name,
-                args=", ".join([arg.name + ": " + str(arg.typ) for arg in func.args]),
-                ret=render_return(func),
-                func_type="constant" if func.const else "modifying",
-            )
+            args = ", ".join([arg.name + ": " + str(arg.typ) for arg in func.args])
+            func_type = "constant" if func.const else "modifying"
+            out += offset + f"def {func.name}({args}){render_return(func)}: {func_type}\n"
     out += "\n"
     return out
 
@@ -218,10 +210,29 @@ def extract_file_interface_imports(code: SourceCode) -> InterfaceImports:
                     )
                 if a_name.asname in imports_dict:
                     raise StructureException(
-                        'Interface with alias {} already exists'.format(a_name.asname),
+                        f'Interface with alias {a_name.asname} already exists',
                         item,
                     )
-                imports_dict[a_name.asname] = a_name.name
+                imports_dict[a_name.asname] = a_name.name.replace('.', '/')
+        elif isinstance(item, ast.ImportFrom):
+            for a_name in item.names:  # type: ignore
+                if a_name.asname:
+                    raise StructureException("From imports cannot use aliases", item)
+            level = item.level  # type: ignore
+            module = item.module or ""  # type: ignore
+            if not level and module == 'vyper.interfaces':
+                continue
+            if level:
+                base_path = f"{'.'*level}/{module.replace('.','/')}"
+            else:
+                base_path = module.replace('.', '/')
+            for a_name in item.names:  # type: ignore
+                if a_name.name in imports_dict:
+                    raise StructureException(
+                        f'Interface with name {a_name.name} already exists',
+                        item,
+                    )
+                imports_dict[a_name.name] = f"{base_path}/{a_name.name}"
 
     return imports_dict
 
@@ -308,11 +319,9 @@ def check_valid_contract_interface(global_ctx, contract_sigs):
                 if isinstance(func_sig, EventSignature)
             ]
             if missing_functions:
-                error_message += 'Missing interface functions:\n\t{}'.format(
-                    '\n\t'.join(missing_functions)
-                )
+                err_join = "\n\t".join(missing_functions)
+                error_message += f'Missing interface functions:\n\t{err_join}'
             if missing_events:
-                error_message += 'Missing interface events:\n\t{}'.format(
-                    '\n\t'.join(missing_events)
-                )
+                err_join = "\n\t".join(missing_events)
+                error_message += f'Missing interface events:\n\t{err_join}'
             raise StructureException(error_message)

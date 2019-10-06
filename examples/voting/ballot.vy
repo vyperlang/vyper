@@ -25,16 +25,28 @@ chairperson: public(address)
 int128Proposals: public(int128)
 
 
-@public
+@private
 @constant
-def delegated(addr: address) -> bool:
+def _delegated(addr: address) -> bool:
     return self.voters[addr].delegate != ZERO_ADDRESS
 
 
 @public
 @constant
-def directlyVoted(addr: address) -> bool:
+def delegated(addr: address) -> bool:
+    return self._delegated(addr)
+
+
+@private
+@constant
+def _directlyVoted(addr: address) -> bool:
     return self.voters[addr].voted and (self.voters[addr].delegate == ZERO_ADDRESS)
+
+
+@public
+@constant
+def directlyVoted(addr: address) -> bool:
+    return self._directlyVoted(addr)
 
 
 # Setup global variables
@@ -62,16 +74,16 @@ def giveRightToVote(voter: address):
     self.voters[voter].weight = 1
     self.voterCount += 1
 
-# Used by `delegate` below, and can be called by anyone.
-@public
-def forwardWeight(delegate_with_weight_to_forward: address):
-    assert self.delegated(delegate_with_weight_to_forward)
+# Used by `delegate` below, callable externally via `forwardWeight`
+@private
+def _forwardWeight(delegate_with_weight_to_forward: address):
+    assert self._delegated(delegate_with_weight_to_forward)
     # Throw if there is nothing to do:
     assert self.voters[delegate_with_weight_to_forward].weight > 0
 
     target: address = self.voters[delegate_with_weight_to_forward].delegate
     for i in range(4):
-        if self.delegated(target):
+        if self._delegated(target):
             target = self.voters[target].delegate
             # The following effectively detects cycles of length <= 5,
             # in which the delegation is given back to the delegator.
@@ -92,12 +104,17 @@ def forwardWeight(delegate_with_weight_to_forward: address):
     self.voters[delegate_with_weight_to_forward].weight = 0
     self.voters[target].weight += weight_to_forward
 
-    if self.directlyVoted(target):
+    if self._directlyVoted(target):
         self.proposals[self.voters[target].vote].voteCount += weight_to_forward
         self.voters[target].weight = 0
 
     # To reiterate: if target is also a delegate, this function will need
     # to be called again, similarly to as above.
+
+# Public function to call _forwardWeight
+@public
+def forwardWeight(delegate_with_weight_to_forward: address):
+    self._forwardWeight(delegate_with_weight_to_forward)
 
 # Delegate your vote to the voter `to`.
 @public
@@ -115,7 +132,7 @@ def delegate(to: address):
 
     # This call will throw if and only if this delegation would cause a loop
         # of length <= 5 that ends up delegating back to the delegator.
-    self.forwardWeight(msg.sender)
+    self._forwardWeight(msg.sender)
 
 # Give your vote (including votes delegated to you)
 # to proposal `proposals[proposal].name`.
@@ -135,9 +152,9 @@ def vote(proposal: int128):
 
 # Computes the winning proposal taking all
 # previous votes into account.
-@public
+@private
 @constant
-def winningProposal() -> int128:
+def _winningProposal() -> int128:
     winning_vote_count: int128 = 0
     winning_proposal: int128 = 0
     for i in range(2):
@@ -146,10 +163,16 @@ def winningProposal() -> int128:
             winning_proposal = i
     return winning_proposal
 
+@public
+@constant
+def winningProposal() -> int128:
+    return self._winningProposal()
+
+
 # Calls winningProposal() function to get the index
 # of the winner contained in the proposals array and then
 # returns the name of the winner
 @public
 @constant
 def winnerName() -> bytes32:
-    return self.proposals[self.winningProposal()].name
+    return self.proposals[self._winningProposal()].name

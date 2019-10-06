@@ -163,3 +163,37 @@ def test():
     c2 = get_contract(code, *[c1.address])
     # static call prohibits state change
     assert_tx_failed(lambda: c2.test())
+
+
+def test_assert_in_for_loop(get_contract, assert_tx_failed):
+    code = """
+@public
+def test(x: uint256[3]) -> bool:
+    for i in range(3):
+        assert x[i] < 5
+    return True
+    """
+
+    c = get_contract(code)
+
+    c.test([1, 2, 3])
+    assert_tx_failed(lambda: c.test([5, 1, 3]))
+    assert_tx_failed(lambda: c.test([1, 5, 3]))
+    assert_tx_failed(lambda: c.test([1, 3, 5]))
+
+
+def test_assert_with_reason_in_for_loop(get_contract, assert_tx_failed):
+    code = """
+@public
+def test(x: uint256[3]) -> bool:
+    for i in range(3):
+        assert x[i] < 5, "because reasons"
+    return True
+    """
+
+    c = get_contract(code)
+
+    c.test([1, 2, 3])
+    assert_tx_failed(lambda: c.test([5, 1, 3]))
+    assert_tx_failed(lambda: c.test([1, 5, 3]))
+    assert_tx_failed(lambda: c.test([1, 3, 5]))

@@ -19,8 +19,8 @@ def baa() -> decimal:
     """
 @public
 def foo(a: int128):
-    b:int128(sec)
-    c:int128(sec**2)
+    b:int128(sec) = 0
+    c:int128(sec**2) = 0
     c = b ** a
     """
 ]
@@ -37,8 +37,8 @@ valid_list = [
     """
 @public
 def foo():
-    a : int128(wei)
-    b : int128(wei**2)
+    a : int128(wei) = 0
+    b : int128(wei**2) = 0
     a = 2
     b = a**2
     """,

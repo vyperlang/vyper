@@ -49,21 +49,30 @@ a: int128
       'annotation': {
         'ast_type': 'Name',
         'col_offset': 3,
+        'end_col_offset': 9,
+        'end_lineno': 2,
         'id': 'int128',
         'lineno': 2,
-        'node_id': 4
+        'node_id': 4,
+        'src': "4:6:0",
       },
       'ast_type': 'AnnAssign',
       'col_offset': 0,
+      'end_col_offset': 9,
+      'end_lineno': 2,
       'lineno': 2,
       'node_id': 1,
       'simple': 1,
+      'src': '1:9:0',
       'target': {
         'ast_type': 'Name',
         'col_offset': 0,
+        'end_col_offset': 1,
+        'end_lineno': 2,
         'id': 'a',
         'lineno': 2,
-        'node_id': 2
+        'node_id': 2,
+        'src': '1:1:0',
       },
       'value': None
     }

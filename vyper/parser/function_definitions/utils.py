@@ -4,13 +4,13 @@ from vyper.parser.lll_node import (
 
 
 def get_sig_statements(sig, pos):
-    method_id_node = LLLnode.from_list(sig.method_id, pos=pos, annotation='%s' % sig.sig)
+    method_id_node = LLLnode.from_list(sig.method_id, pos=pos, annotation=f'{sig.sig}')
 
     if sig.private:
         sig_compare = 0
         private_label = LLLnode.from_list(
-            ['label', 'priv_{}'.format(sig.method_id)],
-            pos=pos, annotation='%s' % sig.sig
+            ['label', f'priv_{sig.method_id}'],
+            pos=pos, annotation=f'{sig.sig}'
         )
     else:
         sig_compare = ['eq', ['mload', 0], method_id_node]

@@ -439,7 +439,7 @@ struct Mom:
 nom: C[3]
 @public
 def foo():
-    mom: Mom
+    mom: Mom = Mom({a:[C({c:0}), C({c:0}), C({c:0})], b: 0})
     mom.a = self.nom
     """,
     """
@@ -475,7 +475,7 @@ struct Mom:
 mom: Mom
 @public
 def foo():
-    nom: C[3]
+    nom: C[3] = [C({c:0}), C({c:0}), C({c:0})]
     self.mom = Mom({a: nom, b: 5})
     """,
     """

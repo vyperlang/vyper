@@ -78,10 +78,10 @@ g4 = t.s.head_state.receipts[-1].gas_used \
     - t.s.head_state.receipts[-2].gas_used \
     - t.s.last_tx.intrinsic_gas_used
 
-print("500 bytes increment: %d" % (g2 - g1))
-print("500 bytes increment: %d" % (g4 - g3))
-print("25 items increment: %d" % (g3 - g1))
-print("25 items increment: %d" % (g4 - g2))
+print(f"500 bytes increment: {(g2 - g1)}")
+print(f"500 bytes increment: {(g4 - g3)}")
+print(f"25 items increment: {(g3 - g1)}")
+print(f"25 items increment: {(g4 - g2)}")
 
 # Create transaction
 t = transactions.Transaction(0, 30 * 10**9, 2999999, '', 0, rlp_decoder_bytes)
@@ -92,13 +92,7 @@ t.s = 79
 
 print("RLP decoder")
 print("Instructions for launching:")
-print('First send {} wei to {}'.format(
-    t.startgas * t.gasprice,
-    utils.checksum_encode(t.sender),
-))
-print('Publish this tx to create the contract: 0x{}'.format(
-    utils.encode_hex(rlp.encode(t)),
-))
-print('This is the contract address: {}'.format(
-    utils.checksum_encode(utils.mk_contract_address(t.sender, 0)),
-))
+print(f'First send {t.startgas * t.gasprice} wei to {utils.checksum_encode(t.sender)}')
+print(f'Publish this tx to create the contract: 0x{utils.encode_hex(rlp.encode(t))}')
+print('This is the contract address: '
+      f'{utils.checksum_encode(utils.mk_contract_address(t.sender, 0))}')

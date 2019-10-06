@@ -149,13 +149,13 @@ class ByteArrayLike(NodeType):
 
 class StringType(ByteArrayLike):
     def __repr__(self):
-        return 'string[%d]' % self.maxlen
+        return f'string[{self.maxlen}]'
 
 
 # Data structure for a byte array
 class ByteArrayType(ByteArrayLike):
     def __repr__(self):
-        return 'bytes[%d]' % self.maxlen
+        return f'bytes[{self.maxlen}]'
 
 
 # Data structure for a list with some fixed length
@@ -246,22 +246,20 @@ def canonicalize_type(t, is_indexed=False):
         # Check to see if maxlen is small enough for events
         byte_type = 'string' if isinstance(t, StringType) else 'bytes'
         if is_indexed:
-            return '{}{}'.format(byte_type, t.maxlen)
+            return f'{byte_type}{t.maxlen}'
         else:
-            return '{}'.format(byte_type)
+            return f'{byte_type}'
 
     if isinstance(t, ListType):
         if not isinstance(t.subtype, (ListType, BaseType)):
             raise Exception("List of byte arrays not allowed")
-        return canonicalize_type(t.subtype) + "[%d]" % t.count
+        return canonicalize_type(t.subtype) + f"[{t.count}]"
 
     if isinstance(t, TupleLike):
-        return "({})".format(
-            ",".join(canonicalize_type(x) for x in t.tuple_members())
-        )
+        return f"({','.join(canonicalize_type(x) for x in t.tuple_members())})"
 
     if not isinstance(t, BaseType):
-        raise Exception("Cannot canonicalize non-base type: %r" % t)
+        raise Exception(f"Cannot canonicalize non-base type: {t}")
 
     t = t.typ
     if t in ('int128', 'uint256', 'bool', 'address', 'bytes32'):
@@ -312,7 +310,7 @@ def make_struct_type(name, location, members, custom_units, custom_structs, cons
     for key, value in members:
         if not isinstance(key, ast.Name):
             raise InvalidTypeException(
-                "Invalid member variable for struct %r, expected a name." % key.id,
+                f"Invalid member variable for struct {key.id}, expected a name.",
                 key,
             )
         check_valid_varname(
@@ -497,7 +495,7 @@ def get_size_of_type(typ):
     elif isinstance(typ, TupleLike):
         return sum([get_size_of_type(v) for v in typ.tuple_members()])
     else:
-        raise Exception("Can not get size of type, Unexpected type: %r" % repr(typ))
+        raise Exception(f"Can not get size of type, Unexpected type: {repr(typ)}")
 
 
 # amount of space a type takes in the static section of its ABI encoding
@@ -513,7 +511,7 @@ def get_static_size_of_type(typ):
     elif isinstance(typ, TupleLike):
         return sum([get_size_of_type(v) for v in typ.tuple_members()])
     else:
-        raise Exception("Can not get size of type, Unexpected type: %r" % repr(typ))
+        raise Exception(f"Can not get size of type, Unexpected type: {repr(typ)}")
 
 
 # could be rewritten as get_static_size_of_type == get_size_of_type?
@@ -527,7 +525,7 @@ def has_dynamic_data(typ):
     elif isinstance(typ, TupleLike):
         return any([has_dynamic_data(v) for v in typ.tuple_members()])
     else:
-        raise Exception("Unexpected type: %r" % repr(typ))
+        raise Exception(f"Unexpected type: {repr(typ)}")
 
 
 def get_type(input):

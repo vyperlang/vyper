@@ -4,8 +4,8 @@ from decimal import (
 
 import pytest
 
-from vyper import (
-    compiler,
+from vyper.compiler import (
+    compile_code,
 )
 from vyper.exceptions import (
     StructureException,
@@ -15,13 +15,13 @@ from vyper.exceptions import (
 
 def test_selfcall_code(get_contract_with_gas_estimation):
     selfcall_code = """
-@public
-def foo() -> int128:
+@private
+def _foo() -> int128:
     return 3
 
 @public
 def bar() -> int128:
-    return self.foo()
+    return self._foo()
     """
 
     c = get_contract_with_gas_estimation(selfcall_code)
@@ -32,15 +32,15 @@ def bar() -> int128:
 
 def test_selfcall_code_2(get_contract_with_gas_estimation, keccak):
     selfcall_code_2 = """
-@public
-def double(x: int128) -> int128:
+@private
+def _double(x: int128) -> int128:
     return x * 2
 
 @public
 def returnten() -> int128:
-    return self.double(5)
+    return self._double(5)
 
-@public
+@private
 def _hashy(x: bytes32) -> bytes32:
     return keccak256(x)
 
@@ -58,7 +58,7 @@ def return_hash_of_rzpadded_cow() -> bytes32:
 
 def test_selfcall_code_3(get_contract_with_gas_estimation, keccak):
     selfcall_code_3 = """
-@public
+@private
 def _hashy2(x: bytes[100]) -> bytes32:
     return keccak256(x)
 
@@ -66,7 +66,7 @@ def _hashy2(x: bytes[100]) -> bytes32:
 def return_hash_of_cow_x_30() -> bytes32:
     return self._hashy2(b"cowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcow")  # noqa: E501
 
-@public
+@private
 def _len(x: bytes[100]) -> int128:
     return len(x)
 
@@ -84,37 +84,37 @@ def returnten() -> int128:
 
 def test_selfcall_code_4(get_contract_with_gas_estimation):
     selfcall_code_4 = """
-@public
-def summy(x: int128, y: int128) -> int128:
+@private
+def _summy(x: int128, y: int128) -> int128:
     return x + y
 
-@public
-def catty(x: bytes[5], y: bytes[5]) -> bytes[10]:
+@private
+def _catty(x: bytes[5], y: bytes[5]) -> bytes[10]:
     return concat(x, y)
 
-@public
-def slicey1(x: bytes[10], y: int128) -> bytes[10]:
+@private
+def _slicey1(x: bytes[10], y: int128) -> bytes[10]:
     return slice(x, start=0, len=y)
 
-@public
-def slicey2(y: int128, x: bytes[10]) -> bytes[10]:
+@private
+def _slicey2(y: int128, x: bytes[10]) -> bytes[10]:
     return slice(x, start=0, len=y)
 
 @public
 def returnten() -> int128:
-    return self.summy(3, 7)
+    return self._summy(3, 7)
 
 @public
 def return_mongoose() -> bytes[10]:
-    return self.catty(b"mon", b"goose")
+    return self._catty(b"mon", b"goose")
 
 @public
 def return_goose() -> bytes[10]:
-    return self.slicey1(b"goosedog", 5)
+    return self._slicey1(b"goosedog", 5)
 
 @public
 def return_goose2() -> bytes[10]:
-    return self.slicey2(5, b"goosedog")
+    return self._slicey2(5, b"goosedog")
     """
 
     c = get_contract_with_gas_estimation(selfcall_code_4)
@@ -130,14 +130,14 @@ def test_selfcall_code_5(get_contract_with_gas_estimation):
     selfcall_code_5 = """
 counter: int128
 
-@public
-def increment():
+@private
+def _increment():
     self.counter += 1
 
 @public
 def returnten() -> int128:
     for i in range(10):
-        self.increment()
+        self._increment()
     return self.counter
     """
     c = get_contract_with_gas_estimation(selfcall_code_5)
@@ -150,22 +150,22 @@ def test_selfcall_code_6(get_contract_with_gas_estimation):
     selfcall_code_6 = """
 excls: bytes[32]
 
-@public
-def set_excls(arg: bytes[32]):
+@private
+def _set_excls(arg: bytes[32]):
     self.excls = arg
 
-@public
-def underscore() -> bytes[1]:
+@private
+def _underscore() -> bytes[1]:
     return b"_"
 
-@public
-def hardtest(x: bytes[100], y: int128, z: int128, a: bytes[100], b: int128, c: int128) -> bytes[201]:  # noqa: E501
-    return concat(slice(x, start=y, len=z), self.underscore(), slice(a, start=b, len=c))
+@private
+def _hardtest(x: bytes[100], y: int128, z: int128, a: bytes[100], b: int128, c: int128) -> bytes[201]:  # noqa: E501
+    return concat(slice(x, start=y, len=z), self._underscore(), slice(a, start=b, len=c))
 
 @public
 def return_mongoose_revolution_32_excls() -> bytes[201]:
-    self.set_excls(b"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-    return self.hardtest("megamongoose123", 4, 8, concat(b"russian revolution", self.excls), 8, 42)
+    self._set_excls(b"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    return self._hardtest("megamongoose123", 4, 8, concat(b"russian revolution", self.excls), 8, 42)
     """
 
     c = get_contract_with_gas_estimation(selfcall_code_6)
@@ -176,29 +176,33 @@ def return_mongoose_revolution_32_excls() -> bytes[201]:
 
 def test_list_call(get_contract_with_gas_estimation):
     code = """
-@public
-def foo0(x: int128[2]) -> int128:
+@private
+def _foo0(x: int128[2]) -> int128:
     return x[0]
 
-@public
-def foo1(x: int128[2]) -> int128:
+@private
+def _foo1(x: int128[2]) -> int128:
     return x[1]
 
 
 @public
+def foo1(x: int128[2]) -> int128:
+    return self._foo1(x)
+
+@public
 def bar() -> int128:
-    x: int128[2]
-    return self.foo0(x)
+    x: int128[2] = [0, 0]
+    return self._foo0(x)
 
 @public
 def bar2() -> int128:
     x: int128[2] = [55, 66]
-    return self.foo0(x)
+    return self._foo0(x)
 
 @public
 def bar3() -> int128:
     x: int128[2] = [55, 66]
-    return self.foo1(x)
+    return self._foo1(x)
     """
 
     c = get_contract_with_gas_estimation(code)
@@ -212,12 +216,12 @@ def test_list_storage_call(get_contract_with_gas_estimation):
     code = """
 y: int128[2]
 
-@public
-def foo0(x: int128[2]) -> int128:
+@private
+def _foo0(x: int128[2]) -> int128:
     return x[0]
 
-@public
-def foo1(x: int128[2]) -> int128:
+@private
+def _foo1(x: int128[2]) -> int128:
     return x[1]
 
 @public
@@ -226,11 +230,11 @@ def set():
 
 @public
 def bar0() -> int128:
-    return self.foo0(self.y)
+    return self._foo0(self.y)
 
 @public
 def bar1() -> int128:
-    return self.foo1(self.y)
+    return self._foo1(self.y)
     """
 
     c = get_contract_with_gas_estimation(code)
@@ -241,60 +245,64 @@ def bar1() -> int128:
 
 def test_multi_arg_list_call(get_contract_with_gas_estimation):
     code = """
-@public
-def foo0(y: decimal, x: int128[2]) -> int128:
+@private
+def _foo0(y: decimal, x: int128[2]) -> int128:
     return x[0]
 
-@public
-def foo1(x: int128[2], y: decimal) -> int128:
+@private
+def _foo1(x: int128[2], y: decimal) -> int128:
     return x[1]
 
-@public
-def foo2(y: decimal, x: int128[2]) -> decimal:
+@private
+def _foo2(y: decimal, x: int128[2]) -> decimal:
     return y
 
-@public
-def foo3(x: int128[2], y: decimal) -> int128:
+@private
+def _foo3(x: int128[2], y: decimal) -> int128:
     return x[0]
 
-@public
-def foo4(x: int128[2], y: int128[2]) -> int128:
+@private
+def _foo4(x: int128[2], y: int128[2]) -> int128:
     return y[0]
 
 
 @public
+def foo1(x: int128[2], y: decimal) -> int128:
+    return self._foo1(x, y)
+
+@public
 def bar() -> int128:
-    x: int128[2]
-    return self.foo0(0.3434, x)
+    x: int128[2] = [0, 0]
+    return self._foo0(0.3434, x)
 
 # list as second parameter
 @public
 def bar2() -> int128:
     x: int128[2] = [55, 66]
-    return self.foo0(0.01, x)
+    return self._foo0(0.01, x)
 
 @public
 def bar3() -> decimal:
     x: int128[2] = [88, 77]
-    return self.foo2(1.33, x)
+    return self._foo2(1.33, x)
 
 # list as first parameter
 @public
 def bar4() -> int128:
     x: int128[2] = [88, 77]
-    return self.foo1(x, 1.33)
+    return self._foo1(x, 1.33)
 
 @public
 def bar5() -> int128:
     x: int128[2] = [88, 77]
-    return self.foo3(x, 1.33)
+    return self._foo3(x, 1.33)
 
 # two lists
 @public
 def bar6() -> int128:
     x: int128[2] = [88, 77]
     y: int128[2] = [99, 66]
-    return self.foo4(x, y)
+    return self._foo4(x, y)
 
     """
 
@@ -309,12 +317,12 @@ def bar6() -> int128:
 
 def test_multi_mixed_arg_list_call(get_contract_with_gas_estimation):
     code = """
-@public
-def fooz(x: int128[2], y: decimal, z: int128[2], a: decimal) -> int128:
+@private
+def _fooz(x: int128[2], y: decimal, z: int128[2], a: decimal) -> int128:
     return z[1]
 
-@public
-def fooa(x: int128[2], y: decimal, z: int128[2], a: decimal) -> decimal:
+@private
+def _fooa(x: int128[2], y: decimal, z: int128[2], a: decimal) -> decimal:
     return a
 
 @public
@@ -324,7 +332,7 @@ def bar() -> (int128, decimal):
     z: int128[2] = [55, 66]
     a: decimal = 66.77
 
-    return self.fooz(x, y, z, a), self.fooa(x, y, z, a)
+    return self._fooz(x, y, z, a), self._fooa(x, y, z, a)
     """
     c = get_contract_with_gas_estimation(code)
     assert c.bar() == [66, Decimal('66.77')]
@@ -356,17 +364,18 @@ def bar2() -> int128:
 
 def test_multi_mixed_arg_list_bytes_call(get_contract_with_gas_estimation):
     code = """
-@public
-def fooz(x: int128[2], y: decimal, z: bytes[11], a: decimal) -> bytes[11]:
+@private
+def _fooz(x: int128[2], y: decimal, z: bytes[11], a: decimal) -> bytes[11]:
     return z
 
-@public
-def fooa(x: int128[2], y: decimal, z: bytes[11], a: decimal) -> decimal:
+@private
+def _fooa(x: int128[2], y: decimal, z: bytes[11], a: decimal) -> decimal:
     return a
 
-@public
-def foox(x: int128[2], y: decimal, z: bytes[11], a: decimal) -> int128:
+@private
+def _foox(x: int128[2], y: decimal, z: bytes[11], a: decimal) -> int128:
     return x[1]
+
 
 @public
 def bar() -> (bytes[11], decimal, int128):
@@ -375,26 +384,79 @@ def bar() -> (bytes[11], decimal, int128):
     z: bytes[11] = b"hello world"
     a: decimal = 66.77
 
-    return self.fooz(x, y, z, a), self.fooa(x, y, z, a), self.foox(x, y, z, a)
+    return self._fooz(x, y, z, a), self._fooa(x, y, z, a), self._foox(x, y, z, a)
     """
     c = get_contract_with_gas_estimation(code)
     assert c.bar() == [b"hello world", Decimal('66.77'), 44]
 
 
-def test_selfcall_with_wrong_arg_count_fails(get_contract_with_gas_estimation, assert_tx_failed):
-    code = """
-@public
+FAILING_CONTRACTS_STRUCTURE_EXCEPTION = [
+    """
+# expected no args, args given
+@private
 def bar() -> int128:
     return 1
 
 @public
 def foo() -> int128:
     return self.bar(1)
-"""
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(code), StructureException)
+    """,
+    """
+# expected args, none given
+@private
+def bar(a: int128) -> int128:
+    return 1
+
+@public
+def foo() -> int128:
+    return self.bar()
+    """,
+    """
+# wrong arg count
+@private
+def bar(a: int128) -> int128:
+    return 1
+
+@public
+def foo() -> int128:
+    return self.bar(1, 2)
+    """,
+    """
+# should not compile - public to public
+@public
+def bar() -> int128:
+    return 1
+
+@public
+def foo() -> int128:
+    return self.bar()
+    """,
+    """
+# should not compile - private to public
+@public
+def bar() -> int128:
+    return 1
+
+@private
+def _baz() -> int128:
+    return self.bar()
+
+@public
+def foo() -> int128:
+    return self._baz()
+    """
+]
 
 
-FAILING_CONTRACTS = [
+@pytest.mark.parametrize('failing_contract_code', FAILING_CONTRACTS_STRUCTURE_EXCEPTION)
+def test_selfcall_wrong_arg_count(failing_contract_code, assert_compile_failed):
+    assert_compile_failed(
+        lambda: compile_code(failing_contract_code),
+        StructureException
+    )
+
+
+FAILING_CONTRACTS_TYPE_MISMATCH = [
     """
 # should not compile - value kwarg when calling {0} function
 @{0}
@@ -438,9 +500,10 @@ def bar():
 ]
 
 
-@pytest.mark.parametrize('failing_contract_code', FAILING_CONTRACTS)
+@pytest.mark.parametrize('failing_contract_code', FAILING_CONTRACTS_TYPE_MISMATCH)
 @pytest.mark.parametrize('decorator', ['public', 'private'])
-def test_selfcall_kwarg_raises(failing_contract_code, decorator):
-    code = failing_contract_code.format(decorator)
-    with pytest.raises(TypeMismatchException):
-        compiler.compile_code(code)
+def test_selfcall_kwarg_raises(failing_contract_code, decorator, assert_compile_failed):
+    assert_compile_failed(
+        lambda: compile_code(failing_contract_code.format(decorator)),
+        TypeMismatchException
+    )

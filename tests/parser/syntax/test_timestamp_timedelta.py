@@ -48,9 +48,8 @@ def foo(x: timedelta, y: timedelta) -> timedelta:
     """,
     """
 @public
-def foo() -> timestamp:
+def foo(y: timestamp) -> timestamp:
     x: int128 = 30
-    y: timestamp
     return x + y
     """,
     """
@@ -139,8 +138,8 @@ def foo(x: timestamp) -> bool:
     """,
     """
 @public
-def foo() -> timestamp:
-    x: timestamp
+def foo(i: timestamp) -> timestamp:
+    x: timestamp = i
     x = 30
     return x
     """,

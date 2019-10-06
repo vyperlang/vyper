@@ -16,7 +16,7 @@ def test_digit_reverser(get_contract_with_gas_estimation):
     digit_reverser = """
 @public
 def reverse_digits(x: int128) -> int128:
-    dig: int128[6]
+    dig: int128[6] = [0, 0, 0, 0, 0, 0]
     z: int128 = x
     for i in range(6):
         dig[i] = z % 10

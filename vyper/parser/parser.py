@@ -43,7 +43,13 @@ if not hasattr(ast, 'AnnAssign'):
     raise Exception("Requires python 3.6 or higher for annotation support")
 
 # Header code
-STORE_CALLDATA: List[Any] = ['seq', ['mstore', 28, ['calldataload', 0]]]
+STORE_CALLDATA: List[Any] = \
+        ['seq',
+            # check that calldatasize is at least 4, otherwise
+            # calldataload will load zeros (cf. yellow paper).
+            ['if', ['lt', 'calldatasize', 4],
+                ['goto', 'fallback']],
+            ['mstore', 28, ['calldataload', 0]]]
 # Store limit constants at fixed addresses in memory.
 LIMIT_MEMORY_SET: List[Any] = [
     ['mstore', pos, limit_size]
@@ -55,13 +61,6 @@ FUNC_INIT_LLL = LLLnode.from_list(
 INIT_FUNC_INIT_LLL = LLLnode.from_list(
     ['seq'] + LIMIT_MEMORY_SET, typ=None
 )
-
-
-# Header code
-INITIALIZER_LIST = ['seq', ['mstore', 28, ['calldataload', 0]]]
-# Store limit constants at fixed addresses in memory.
-INITIALIZER_LIST += [['mstore', pos, limit_size] for pos, limit_size in LOADED_LIMIT_MAP.items()]
-INITIALIZER_LLL = LLLnode.from_list(INITIALIZER_LIST, typ=None)
 
 
 def parse_events(sigs, global_ctx):
@@ -77,9 +76,8 @@ def parse_external_contracts(external_contracts, global_ctx):
         contract = {}
         if len(set(_defnames)) < len(_contract_defs):
             raise FunctionDeclarationException(
-                "Duplicate function name: %s" % (
-                    [name for name in _defnames if _defnames.count(name) > 1][0]
-                )
+                "Duplicate function name: "
+                f"{[name for name in _defnames if _defnames.count(name) > 1][0]}"
             )
 
         for _def in _contract_defs:
@@ -142,9 +140,10 @@ def parse_other_functions(o,
             origcode,
             global_ctx,
         )
-        sub.append(default_func)
+        fallback = default_func
     else:
-        sub.append(LLLnode.from_list(['revert', 0, 0], typ=None, annotation='Default function'))
+        fallback = LLLnode.from_list(['revert', 0, 0], typ=None, annotation='Default function')
+    sub.append(['seq_unchecked', ['label', 'fallback'], fallback])
     if runtime_only:
         return sub
     else:
@@ -159,17 +158,15 @@ def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None):
     # Checks for duplicate function names
     if len(set(_names_def)) < len(_names_def):
         raise FunctionDeclarationException(
-            "Duplicate function name: %s" % (
-                [name for name in _names_def if _names_def.count(name) > 1][0]
-            )
+            "Duplicate function name: "
+            f"{[name for name in _names_def if _names_def.count(name) > 1][0]}"
         )
     _names_events = [_event.target.id for _event in global_ctx._events]
     # Checks for duplicate event names
     if len(set(_names_events)) < len(_names_events):
         raise EventDeclarationException(
-            "Duplicate event name: %s" % (
-                [name for name in _names_events if _names_events.count(name) > 1][0]
-            )
+            f"""Duplicate event name:
+            {[name for name in _names_events if _names_events.count(name) > 1][0]}"""
         )
     # Initialization function
     initfunc = [_def for _def in global_ctx._defs if is_initializer(_def)]

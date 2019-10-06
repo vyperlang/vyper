@@ -3,6 +3,8 @@ from typing import (
     Generator,
 )
 
+import asttokens
+
 import vyper.ast as vyper_ast
 from vyper.exceptions import (
     CompilerPanic,
@@ -23,11 +25,12 @@ DICT_AST_SKIPLIST = ('source_code', )
 
 
 @iterable_cast(list)
-def _build_vyper_ast_list(source_code: str, node: list) -> Generator:
+def _build_vyper_ast_list(source_code: str, node: list, source_id: int) -> Generator:
     for n in node:
         yield parse_python_ast(
             source_code=source_code,
             node=n,
+            source_id=source_id,
         )
 
 
@@ -36,12 +39,22 @@ def _build_vyper_ast_init_kwargs(
     source_code: str,
     node: python_ast.AST,
     vyper_class: vyper_ast.VyperNode,
-    class_name: str
+    class_name: str,
+    source_id: int,
 ) -> Generator:
-    yield ('col_offset', getattr(node, 'col_offset', None))
-    yield ('lineno', getattr(node, 'lineno', None))
+    start = node.first_token.start if hasattr(node, 'first_token') else (None, None)  # type: ignore
+    yield ('col_offset', start[1])
+    yield ('lineno', start[0])
     yield ('node_id', node.node_id)  # type: ignore
     yield ('source_code', source_code)
+
+    end = node.last_token.end if hasattr(node, 'last_token') else (None, None)  # type: ignore
+    yield ('end_lineno', end[0])
+    yield ('end_col_offset', end[1])
+    if hasattr(node, 'last_token'):
+        start_pos = node.first_token.startpos  # type: ignore
+        end_pos = node.last_token.endpos  # type: ignore
+        yield ('src', f"{start_pos}:{end_pos-start_pos}:{source_id}")
 
     if isinstance(node, python_ast.ClassDef):
         yield ('class_type', node.class_type)  # type: ignore
@@ -63,19 +76,22 @@ def _build_vyper_ast_init_kwargs(
                 parse_python_ast(
                     source_code=source_code,
                     node=val,
+                    source_id=source_id
                 )
             )
 
 
-def parse_python_ast(source_code: str, node: python_ast.AST) -> vyper_ast.VyperNode:
+def parse_python_ast(source_code: str,
+                     node: python_ast.AST,
+                     source_id: int = 0) -> vyper_ast.VyperNode:
     if isinstance(node, list):
-        return _build_vyper_ast_list(source_code, node)
+        return _build_vyper_ast_list(source_code, node, source_id)
     elif isinstance(node, python_ast.AST):
         class_name = node.__class__.__name__
         if hasattr(vyper_ast, class_name):
             vyper_class = getattr(vyper_ast, class_name)
             init_kwargs = _build_vyper_ast_init_kwargs(
-                source_code, node, vyper_class, class_name
+                source_code, node, vyper_class, class_name, source_id
             )
             return vyper_class(**init_kwargs)
         else:
@@ -86,16 +102,18 @@ def parse_python_ast(source_code: str, node: python_ast.AST) -> vyper_ast.VyperN
         return node
 
 
-def parse_to_ast(source_code: str) -> list:
+def parse_to_ast(source_code: str, source_id: int = 0) -> list:
     if '\x00' in source_code:
         raise ParserException('No null bytes (\\x00) allowed in the source code.')
     class_types, reformatted_code = pre_parse(source_code)
     py_ast = python_ast.parse(reformatted_code)
     annotate_ast(py_ast, source_code, class_types)
+    asttokens.ASTTokens(source_code, tree=py_ast)
     # Convert to Vyper AST.
     vyper_ast = parse_python_ast(
         source_code=source_code,
         node=py_ast,
+        source_id=source_id,
     )
     return vyper_ast.body  # type: ignore
 

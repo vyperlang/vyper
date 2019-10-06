@@ -1,4 +1,7 @@
+import pytest
+
 from vyper.exceptions import (
+    ConstancyViolationException,
     InvalidTypeException,
     StructureException,
     TypeMismatchException,
@@ -114,21 +117,10 @@ def set_lucky(arg1: address, arg2: int128):
     print('Successfully executed an external contract call state change')
 
 
-def test_constant_external_contract_call_cannot_change_state(assert_tx_failed,
-                                                             get_contract_with_gas_estimation):
-    contract_1 = """
-lucky: public(int128)
-
-@public
-def set_lucky(_lucky: int128) -> int128:
-    self.lucky = _lucky
-    return _lucky
-    """
-
-    lucky_number = 7
-    c = get_contract_with_gas_estimation(contract_1)
-
-    contract_2 = """
+def test_constant_external_contract_call_cannot_change_state(
+        assert_compile_failed,
+        get_contract_with_gas_estimation):
+    c = """
 contract Foo:
     def set_lucky(_lucky: int128) -> int128: modifying
 
@@ -142,11 +134,11 @@ def set_lucky_expr(arg1: address, arg2: int128):
 def set_lucky_stmt(arg1: address, arg2: int128) -> int128:
     return Foo(arg1).set_lucky(arg2)
     """
-    c2 = get_contract_with_gas_estimation(contract_2)
+    assert_compile_failed(
+            lambda: get_contract_with_gas_estimation(c),
+            ConstancyViolationException)
 
-    assert_tx_failed(lambda: c2.set_lucky_expr(c.address, lucky_number, transact={}))
-    assert_tx_failed(lambda: c2.set_lucky_stmt(c.address, lucky_number, transact={}))
-    print('Successfully tested an constant external contract call attempted state change')
+    print('Successfully blocked an external contract call from a constant function')
 
 
 def test_external_contract_can_be_changed_based_on_address(get_contract):
@@ -674,27 +666,53 @@ bar_contract: Barr
     )
 
 
-def test_invalid_contract_declaration_pass(assert_compile_failed, get_contract_with_gas_estimation):
-
-    contract_1 = """
+FAILING_CONTRACTS_STRUCTURE_EXCEPTION = [
+    """
+# invalid contract declaration (pass)
 contract Bar:
     def set_lucky(arg1: int128): pass
+    """,
     """
-
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), StructureException)
-
-
-def test_invalid_contract_declaration_assign(assert_compile_failed,
-                                             get_contract_with_gas_estimation):
-
-    contract_1 = """
 contract Bar:
+# invalud contract declaration (assignment)
     def set_lucky(arg1: int128):
         arg1 = 1
         arg1 = 3
+    """,
     """
+# wrong arg count
+contract Bar:
+    def bar(arg1: int128) -> bool: constant
 
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), StructureException)
+@public
+def foo(a: address):
+    Bar(a).bar(1, 2)
+    """,
+    """
+# expected args, none given
+contract Bar:
+    def bar(arg1: int128) -> bool: constant
+
+@public
+def foo(a: address):
+    Bar(a).bar()
+    """,
+    """
+# expected no args, args given
+contract Bar:
+    def bar() -> bool: constant
+
+@public
+def foo(a: address):
+    Bar(a).bar(1)
+    """
+]
+
+
+@pytest.mark.parametrize('bad_code', FAILING_CONTRACTS_STRUCTURE_EXCEPTION)
+def test_bad_code_struct_exc(assert_compile_failed, get_contract_with_gas_estimation, bad_code):
+
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), StructureException)
 
 
 def test_external__value_arg_without_return(w3, get_contract_with_gas_estimation):
@@ -765,9 +783,9 @@ contract Test:
 
 @public
 def test(addr: address) -> (int128, address, bytes[10]):
-    a: int128
-    b: address
-    c: bytes[10]
+    a: int128 = 0
+    b: address = ZERO_ADDRESS
+    c: bytes[10] = b""
     (a, b, c) = Test(addr).out_literals()
     return a, b,c
 

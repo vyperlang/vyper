@@ -16,6 +16,7 @@ from vyper.parser.parser_utils import (
     make_byte_array_copier,
     make_setter,
     unwrap_location,
+    zero_pad,
 )
 from vyper.types.types import (
     BaseType,
@@ -42,7 +43,7 @@ def pack_logging_topics(event_id, args, expected_topics, context, pos):
         if isinstance(arg_type, ByteArrayLike) and isinstance(expected_type, ByteArrayLike):
             if arg_type.maxlen > expected_type.maxlen:
                 raise TypeMismatchException(
-                    "Topic input bytes are too big: %r %r" % (arg_type, expected_type), code_pos
+                    f"Topic input bytes are too big: {arg_type} {expected_type}", code_pos
                 )
             if isinstance(arg, ast.Str):
                 bytez, bytez_length = string_to_bytes(arg.s)
@@ -107,25 +108,11 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder,
             typ=typ, location='memory', annotation="pack_args_by_32:dest_placeholder")
         copier = make_byte_array_copier(dest_placeholder, source_lll, pos=pos)
         holder.append(copier)
+        item_maxlen = source_lll.typ.maxlen
         # Add zero padding.
-        new_maxlen = ceil32(source_lll.typ.maxlen)
-
-        holder.append([
-            'with', '_ceil32_end', ['ceil32', ['mload', dest_placeholder]], [
-                'seq', ['with', '_bytearray_loc', dest_placeholder, [
-                    'seq', ['repeat', zero_pad_i, ['mload', '_bytearray_loc'], new_maxlen, [
-                        'seq',
-                        # stay within allocated bounds
-                        ['if', ['ge', ['mload', zero_pad_i], '_ceil32_end'], 'break'],
-                        [
-                            'mstore8',
-                            ['add', ['add', '_bytearray_loc', 32], ['mload', zero_pad_i]],
-                            0,
-                        ],
-                    ]],
-                ]],
-            ]
-        ])
+        holder.append(
+            zero_pad(dest_placeholder, item_maxlen, zero_pad_i=zero_pad_i)
+        )
 
         # Increment offset counter.
         increment_counter = LLLnode.from_list([
@@ -144,7 +131,7 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder,
         def check_list_type_match(provided):  # Check list types match.
             if provided != typ:
                 raise TypeMismatchException(
-                    "Log list type '%s' does not match provided, expected '%s'" % (provided, typ)
+                    f"Log list type '{provided}' does not match provided, expected '{typ}'"
                 )
 
         # NOTE: Below code could be refactored into iterators/getter functions for each type of
@@ -234,11 +221,11 @@ def pack_logging_data(expected_data, args, context, pos):
             if isinstance(arg, ast.Str):
                 if len(arg.s) > typ.maxlen:
                     raise TypeMismatchException(
-                        "Data input bytes are to big: %r %r" % (len(arg.s), typ), pos
+                        f"Data input bytes are to big: {len(arg.s)} {typ}", pos
                     )
 
             tmp_variable = context.new_internal_variable(
-                '_log_pack_var_%i_%i' % (arg.lineno, arg.col_offset),
+                f'_log_pack_var_{arg.lineno}_{arg.col_offset}',
                 source_lll.typ,
             )
             tmp_variable_node = LLLnode.from_list(
@@ -246,7 +233,7 @@ def pack_logging_data(expected_data, args, context, pos):
                 typ=source_lll.typ,
                 pos=getpos(arg),
                 location="memory",
-                annotation='log_prealloacted %r' % source_lll.typ,
+                annotation=f'log_prealloacted {source_lll.typ}',
             )
             # Store len.
             # holder.append(['mstore', len_placeholder, ['mload', unwrap_location(source_lll)]])

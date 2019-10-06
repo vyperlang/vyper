@@ -84,7 +84,7 @@ class GlobalContext:
                 elif item.class_type == 'contract':
                     if item.name in global_ctx._contracts or item.name in global_ctx._interfaces:
                         raise StructureException(
-                            "Contract '{}' is already defined".format(item.name),
+                            f"Contract '{item.name}' is already defined",
                             item,
                         )
                     global_ctx._contracts[item.name] = GlobalContext.make_contract(item.body)
@@ -105,7 +105,7 @@ class GlobalContext:
                     interface_name = item.annotation.id
                     if interface_name not in global_ctx._interfaces:
                         raise StructureException(
-                            'Unknown interface specified: {}'.format(interface_name), item
+                            f'Unknown interface specified: {interface_name}', item
                         )
                     global_ctx._implemented_interfaces.add(interface_name)
                 else:
@@ -114,43 +114,51 @@ class GlobalContext:
             elif isinstance(item, ast.FunctionDef):
                 if item.name in global_ctx._globals:
                     raise FunctionDeclarationException(
-                        "Function name shadowing a variable name: %s" % item.name
+                        f"Function name shadowing a variable name: {item.name}"
                     )
                 global_ctx._defs.append(item)
             elif isinstance(item, ast.ImportFrom):
-                if item.module == 'vyper.interfaces':
+                if not item.level and item.module == 'vyper.interfaces':
                     built_in_interfaces = get_builtin_interfaces()
                     for item_alias in item.names:
                         interface_name = item_alias.name
                         if interface_name in global_ctx._interfaces:
                             raise StructureException(
-                                'Duplicate import of {}'.format(interface_name), item
+                                f'Duplicate import of {interface_name}', item
                             )
                         if interface_name not in built_in_interfaces:
                             raise StructureException(
-                                'Built-In interface {} does not exist.'.format(interface_name), item
+                                f'Built-In interface {interface_name} does not exist.', item
                             )
                         global_ctx._interfaces[interface_name] = built_in_interfaces[interface_name].copy()  # noqa: E501
                 else:
-                    raise StructureException((
-                        "Only built-in vyper.interfaces package supported for "
-                        "`from` statement."
-                    ), item)
+                    for item_alias in item.names:
+                        interface_name = item_alias.name
+
+                        if interface_name in global_ctx._interfaces:
+                            raise StructureException(
+                                f'Duplicate import of {interface_name}', item
+                            )
+                        if interface_name not in interface_codes:
+                            raise StructureException(
+                                f'Unknown interface {interface_name}', item
+                            )
+                        global_ctx._interfaces[interface_name] = extract_sigs(interface_codes[interface_name])  # noqa: E501
             elif isinstance(item, ast.Import):
                 for item_alias in item.names:
                     if not item_alias.asname:
                         raise StructureException(
-                            'External interface import expects and alias using `as` statement', item
+                            'External interface import expects an alias using `as` statement', item
                         )
 
                     interface_name = item_alias.asname
                     if interface_name in global_ctx._interfaces:
                         raise StructureException(
-                            'Duplicate import of {}'.format(interface_name), item
+                            f'Duplicate import of {interface_name}', item
                         )
                     if interface_name not in interface_codes:
                         raise StructureException(
-                            'Unknown interface {}'.format(interface_name), item
+                            f'Unknown interface {interface_name}', item
                         )
                     global_ctx._interfaces[interface_name] = extract_sigs(interface_codes[interface_name])  # noqa: E501
             else:
@@ -202,8 +210,8 @@ class GlobalContext:
             for funname, head, tail, base in cls._mk_getter_helper(typ.subtype, depth + 1):
                 o.append((
                     funname,
-                    ("arg%d: int128, " % depth) + head,
-                    ("[arg%d]" % depth) + tail,
+                    (f"arg{depth}: int128, ") + head,
+                    (f"[arg{depth}]") + tail,
                     base,
                 ))
             return o
@@ -214,8 +222,8 @@ class GlobalContext:
             for funname, head, tail, base in cls._mk_getter_helper(typ.valuetype, depth + 1):
                 o.append((
                     funname,
-                    ("arg%d: %r, " % (depth, typ.keytype)) + head,
-                    ("[arg%d]" % depth) + tail,
+                    (f"arg{depth}: {typ.keytype}, ") + head,
+                    (f"[arg{depth}]") + tail,
                     base,
                 ))
             return o
@@ -236,9 +244,7 @@ class GlobalContext:
     def mk_getter(cls, varname, typ):
         funs = cls._mk_getter_helper(typ)
         return [
-            """@public\n@constant\ndef %s%s(%s) -> %s: return self.%s%s""" % (
-                varname, funname, head.rstrip(', '), base, varname, tail
-            ) for (funname, head, tail, base) in funs
+            f"@public\n@constant\ndef {varname}{funname}({head.rstrip(', ')}) -> {base}: return self.{varname}{tail}" for (funname, head, tail, base) in funs  # noqa: E501
         ]
 
     # Parser for a single line
@@ -257,7 +263,7 @@ class GlobalContext:
                 # Check well-formedness of member names
                 if not isinstance(member_name, ast.Name):
                     raise InvalidTypeException(
-                        "Invalid member name for struct %r, needs to be a valid name. " % name,
+                        f"Invalid member name for struct {name}, needs to be a valid name. ",
                         item
                     )
                 check_valid_varname(
@@ -322,7 +328,7 @@ class GlobalContext:
             attributes[item.func.id] = True
             # Raise for multiple args
             if len(item.args) != 1:
-                raise StructureException("%s expects one arg (the type)" % item.func.id)
+                raise StructureException(f"{item.func.id} expects one arg (the type)")
             return self.get_item_name_and_attributes(item.args[0], attributes)
         return None, attributes
 
@@ -331,7 +337,7 @@ class GlobalContext:
         check_valid_varname(name, self._custom_units, self._structs, self._constants, item)
         if name in self._globals:
             raise VariableDeclarationException(
-                'Invalid name "%s", previously defined as global.' % name, item
+                f'Invalid name "{name}", previously defined as global.', item
             )
         return True
 
@@ -362,9 +368,7 @@ class GlobalContext:
 
         if len(self._globals) > NONRENTRANT_STORAGE_OFFSET:
             raise ParserException(
-                "Too many globals defined, only {} globals are allowed".format(
-                    NONRENTRANT_STORAGE_OFFSET
-                ),
+                f"Too many globals defined, only {NONRENTRANT_STORAGE_OFFSET} globals are allowed",
                 item,
             )
 
@@ -381,7 +385,7 @@ class GlobalContext:
         if not (self.get_call_func_name(item) == "event"):
             item_name, item_attributes = self.get_item_name_and_attributes(item, item_attributes)
             if not all([attr in valid_global_keywords for attr in item_attributes.keys()]):
-                raise StructureException('Invalid global keyword used: %s' % item_attributes, item)
+                raise StructureException(f'Invalid global keyword used: {item_attributes}', item)
 
         if item.value is not None:
             raise StructureException('May not assign value whilst defining type', item)

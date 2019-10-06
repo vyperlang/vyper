@@ -1,5 +1,6 @@
 from vyper import ast
 from vyper.exceptions import (
+    ConstancyViolationException,
     FunctionDeclarationException,
     StructureException,
     TypeMismatchException,
@@ -46,14 +47,18 @@ def external_contract_call(node,
             f'Contract "{contract_name}" not declared yet',
             node
         )
+    if contract_address.value == "address":
+        raise StructureException(
+            f"External calls to self are not permitted.", node
+        )
     method_name = node.func.attr
     if method_name not in context.sigs[contract_name]:
         raise FunctionDeclarationException(
             (
-                "Function not declared yet: %s (reminder: "
+                f"Function not declared yet: {method_name} (reminder: "
                 "function must be declared in the correct contract)"
-                " The available methods are: %s"
-            ) % (method_name, ",".join(context.sigs[contract_name].keys())),
+                f"The available methods are: {','.join(context.sigs[contract_name].keys())}"
+            ),
             node.func
         )
     sig = context.sigs[contract_name][method_name]
@@ -61,7 +66,7 @@ def external_contract_call(node,
         sig,
         [Expr(arg, context).lll_node for arg in node.args],
         context,
-        pos=pos,
+        node.func,
     )
     output_placeholder, output_size, returner = get_external_contract_call_output(sig, context)
     sub = [
@@ -69,6 +74,13 @@ def external_contract_call(node,
         ['assert', ['extcodesize', contract_address]],
         ['assert', ['ne', 'address', contract_address]],
     ]
+    if context.is_constant() and not sig.const:
+        raise ConstancyViolationException(
+            f"May not call non-constant function '{method_name}' within {context.pp_constancy()}."
+            " For asserting the result of modifiable contract calls, try assert_modifiable.",
+            node
+        )
+
     if context.is_constant() or sig.const:
         sub.append([
             'assert',
@@ -104,7 +116,7 @@ def get_external_contract_call_output(sig, context):
     elif isinstance(sig.output_type, ListType):
         returner = [0, output_placeholder]
     else:
-        raise TypeMismatchException("Invalid output type: %s" % sig.output_type)
+        raise TypeMismatchException(f"Invalid output type: {sig.output_type}")
     return output_placeholder, output_size, returner
 
 

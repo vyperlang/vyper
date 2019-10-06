@@ -28,10 +28,10 @@ def foo() -> int128:
 
 @public
 def fop() -> int128:
-    _x: int128
-    _y: int128[5]
-    _z: Z
-    _a: int128
+    _x: int128 = 0
+    _y: int128[5] = [0, 0, 0, 0, 0]
+    _z: Z = Z({foo: [0, 0, 0], bar: [Bar({a: 0, b: 0}), Bar({a: 0, b: 0})]})
+    _a: int128 = 0
     _x = 1
     _y[0] = 2
     _y[4] = 4

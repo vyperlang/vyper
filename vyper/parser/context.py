@@ -141,7 +141,7 @@ class Context:
             )
             # Local context duplicate context check.
             if any((name in self.vars, name in self.globals, name in self.constants)):
-                raise VariableDeclarationException("Duplicate variable name: %s" % name, name)
+                raise VariableDeclarationException(f"Duplicate variable name: {name}", name)
         return True
 
     def _mangle(self, name):
@@ -189,4 +189,4 @@ class Context:
             return 'a range expression'
         elif self.constancy == Constancy.Constant:
             return 'a constant function'
-        raise ValueError('Compiler error: unknown constancy in pp_constancy: %r' % self.constancy)
+        raise ValueError(f'Compiler error: unknown constancy in pp_constancy: {self.constancy}')

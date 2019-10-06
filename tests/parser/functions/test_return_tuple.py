@@ -83,19 +83,21 @@ def out_literals() -> (int128, address, bytes[6]):
 
 def test_return_tuple_assign(get_contract_with_gas_estimation):
     code = """
-@public
-def out_literals() -> (int128, address, bytes[10]):
+@private
+def _out_literals() -> (int128, address, bytes[10]):
     return 1, 0x0000000000000000000000000000000000000000, b"random"
 
+@public
+def out_literals() -> (int128, address, bytes[10]):
+    return self._out_literals()
 
 @public
 def test() -> (int128, address, bytes[10]):
-    a: int128
-    b: address
-    c: bytes[10]
-    (a, b, c) = self.out_literals()
+    a: int128 = 0
+    b: address = ZERO_ADDRESS
+    c: bytes[10] = b""
+    (a, b, c) = self._out_literals()
     return a, b, c
-
     """
 
     c = get_contract_with_gas_estimation(code)
@@ -110,26 +112,29 @@ b: address
 c: bytes[20]
 d: bytes[20]
 
-@public
-def out_literals() -> (int128, bytes[20], address, bytes[20]):
+@private
+def _out_literals() -> (int128, bytes[20], address, bytes[20]):
     return 1, b"testtesttest", 0x0000000000000000000000000000000000000023, b"random"
 
+@public
+def out_literals() -> (int128, bytes[20], address, bytes[20]):
+    return self._out_literals()
 
 @public
 def test1() -> (int128, bytes[20], address, bytes[20]):
-    self.a, self.c, self.b, self.d = self.out_literals()
+    self.a, self.c, self.b, self.d = self._out_literals()
     return self.a, self.c, self.b, self.d
 
 @public
 def test2() -> (int128, address):
-    x: int128
-    x, self.c, self.b, self.d = self.out_literals()
+    x: int128 = 0
+    x, self.c, self.b, self.d = self._out_literals()
     return x, self.b
 
 @public
 def test3() -> (address, int128):
-    x: address
-    self.a, self.c, x, self.d = self.out_literals()
+    x: address = ZERO_ADDRESS
+    self.a, self.c, x, self.d = self._out_literals()
     return x, self.a
     """
 
