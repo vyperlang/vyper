@@ -153,6 +153,11 @@ Import statements are supported for use with import interfaces, and do not impor
 `raise` is supported, uses the `REVERT` opcode to throw an exception (with reason string smaller 
 than 32 bytes)
 
+** Return Statements **
+
+- `return` statements are supported.
+- There is a checker in place to ensure return statements are not missing in branches.
+
 *Compound Statements*
 
 **Functions**
