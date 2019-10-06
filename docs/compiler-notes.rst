@@ -38,6 +38,9 @@ Types in the compiler are represented by the follwing Classes:
 - TupleLike: Represents any compound encoded types.
   - StructType
   - TupleType
+- ListType: Represents an Array (fixed length).
+- MappingTYpes: Represents a mapping in storage.
+
 
 Global Namespace
 ~~~~~~~~~~~~~~~~
@@ -77,6 +80,12 @@ Unsupported python statements and expressions
 - `yield`
 - `async`
 - `await`
+- `async for`
+- `try`
+- `with`
+- `while`
+- `global`
+- `nonlocal`
 - `lambda` functions
 - bitwise shifting operators
   - The use of bitwise shiftiing operators is not supported, instead `bitewise_*` functions exist.
@@ -127,10 +136,28 @@ Vyper has support for integer, decimal, string and byte python literals.
 
 - Array membership e.g. `assert a in self.owners` is supported.
 
+** del Delete Statement **
+
+Vyper does not support `del ..` to clear values from storage use `clear()` instead.
+
+** Import Statements **
+
+Import statements are supported for use with import interfaces, and do not import functions.
+
+** Assert Statements **
+
+`assert` is supported and uses the `REVERT` opcode. To `INVALID` opcode, use assert <expre>, UNREACHABLE
+
+** Raise Statements **
+
+`raise` is supported, uses the `REVERT` opcode to throw an exception (with reason string smaller 
+than 32 bytes)
+
 *Compound Statements*
 
 **Functions**
 
+- Vyper support default arguments for both public and private functions.
 - Function Annotations are forced, as Vyper is statically typed.
 - Inline (or inline private) functions are not permitted, this could lead to confusion,
   especially with regards to scoping (naming the inline function the same as another global
@@ -146,6 +173,11 @@ def test() -> uint256:
 
 - All function require either a `@public` or `@private` decorator.
 - Option decorator for locking a function call against re-entrancy: `@nonreentrant`.
+- When calling functions, Vyper only support positional arguments - there is no support for keyword
+  arguments for self defined functions (could be useful to add support).
+  Keyword arguments are sometimes used/enforced on builtin functions to improve readability,
+  for example ` slice(inp1, start=3, len=3)`.
+- Vyper does not support arbitary argument lists such as `*args` and `**kwargs`.
 
 **For Statements**
 
@@ -157,6 +189,18 @@ def test() -> uint256:
   4.) `for i in range(x, x + 10)`
   As can be seen all these have been picked to ensure execution of a finite number of steps.
 
+- Vyper supports `break` and `continue` just as python.
+- Vyper does not support `for...else` statements.
+
+**Docmentation strings**
+
+- Vyper support documentation strings, with no effect on the program.
+
+** Classes **
+
+Vyper has no support for Classes.
+The `contract` and `struct` types use the python `ast.Class`, to represent structs and inlined
+interfaces. These are annotated on `ast.Class` are mapped out in the `class_types` dictionary.
 
 Expressions
 ~~~~~~~~~~~
@@ -164,3 +208,7 @@ Expressions
 
 Unit System
 ~~~~~~~~~~~
+
+Vyper adds support for a unit system, which uses the `unit: {...}` declaration at the ast.Module
+level. The unit system is checked along side the type checking, and is stored as part of `BaseType`.
+The units can only be applied to base (BaseType) types.
