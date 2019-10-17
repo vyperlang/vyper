@@ -967,7 +967,8 @@ class Expr(object):
                     self.expr,
                 )
         elif isinstance(self.expr.op, ast.USub):
-            if not is_numeric_type(operand.typ):
+            # Must be a signed integer
+            if not is_numeric_type(operand.typ) or operand.typ.typ.lower().startswith('u'):
                 raise TypeMismatchException(
                     f"Unsupported type for negation: {operand.typ}",
                     operand,
@@ -982,9 +983,16 @@ class Expr(object):
                 num.end_col_offset = self.expr.end_col_offset
                 return Expr.parse_value_expr(num, self.context)
 
-            return LLLnode.from_list(["sub", 0, operand], typ=operand.typ, pos=getpos(self.expr))
+            # Clamp on minimum integer value as we cannot negate that value
+            # (all other integer values are fine)
+            min_int_val, _, _ = BUILTIN_CONSTANTS['MIN_'+operand.typ.typ.upper()]
+            return LLLnode.from_list(
+                    ["sub", 0, ["clampgt", operand, min_int_val]],
+                    typ=operand.typ,
+                    pos=getpos(self.expr)
+                )
         else:
-            raise StructureException("Only the 'not' unary operator is supported")
+            raise StructureException("Only the 'not' or 'neg' unary operators are supported")
 
     def _is_valid_contract_assign(self):
         if self.expr.args and len(self.expr.args) == 1:
