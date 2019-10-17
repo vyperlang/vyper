@@ -25,8 +25,8 @@ def test2(b: uint256, c: uint256) -> uint256:
 """,
 """
 @public
-def test3(b: uint256, c: uint256) -> uint256:
-    a: uint256 = - a
+def test3(b: int128, c: int128) -> int128:
+    a: int128 = - a
     return a
 """,
 """
