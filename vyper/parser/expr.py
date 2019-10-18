@@ -72,6 +72,13 @@ ENVIRONMENT_VARIABLES = (
 )
 
 
+def get_min_val_for_type(typ: str) -> int:
+    if "int" not in typ.lower():
+        raise Exception("Not an integer type: {typ}")
+    min_val, _, _ = BUILTIN_CONSTANTS['MIN_'+typ.upper()]
+    return min_val
+
+
 class Expr(object):
     # TODO: Once other refactors are made reevaluate all inline imports
     def __init__(self, expr, context):
@@ -985,7 +992,7 @@ class Expr(object):
 
             # Clamp on minimum integer value as we cannot negate that value
             # (all other integer values are fine)
-            min_int_val, _, _ = BUILTIN_CONSTANTS['MIN_'+operand.typ.typ.upper()]
+            min_int_val = get_min_val_for_type(operand.typ.typ)
             return LLLnode.from_list(
                     ["sub", 0, ["clampgt", operand, min_int_val]],
                     typ=operand.typ,
