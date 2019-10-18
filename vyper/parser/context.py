@@ -145,6 +145,8 @@ class Context:
         return True
 
     def _mangle(self, name):
+        # ensure it is not possible to use an internal variable in source
+        # code because source code identifiers cannot start with `#`
         return '#internal' + name
 
     # TODO location info for errors
