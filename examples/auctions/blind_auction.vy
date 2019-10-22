@@ -76,32 +76,29 @@ def revealBid(_secret: bytes32, _bidAmount: wei_value):
         _secret
     ))
 
-    # Handle a valid new highest bid
-    if block.timestamp < self.revealEnd
-        if _bidAmount > self.highestBid
-            if self.bids[blindedBid] >= _bidAmount
-                # Refund prior locked-up funds
-                self.pendingReturns[self.highestBidder] += self.highestBid
+    # Handle revealing a valid new highest bid
+    if (block.timestamp < self.revealEnd and
+        _bidAmount > self.highestBid and
+        self.bids[blindedBid] >= _bidAmount):
+        
+        # Refund prior locked-up funds
+        self.pendingReturns[self.highestBidder] += self.highestBid
 
-                # Recognize new bidder
-                self.highestBidder = msg.sender
-                self.highestBid = _bidAmount
-                self.pendingReturns[msg.sender] += self.highestBid
-                log.NewHighestBidder(msg.sender, _bidAmount)
+        # Recognize new bidder
+        self.highestBidder = msg.sender
+        self.highestBid = _bidAmount
+        self.pendingReturns[msg.sender] += self.highestBid
+        log.NewHighestBidder(msg.sender, _bidAmount)
 
-                # Return unused funds
-                amount_to_refund: wei_value = self.bids[blindedBid] - _bidAmount
-                if amount_to_refund > 0
-                    self.pendingReturns[msg.sender] += amount_to_refund
+        # Return overcommitted funds
+        amount_to_refund: wei_value = self.bids[blindedBid] - _bidAmount
+        if amount_to_refund > 0
+            self.pendingReturns[msg.sender] += amount_to_refund
 
-                # Return unused storage space
-                self.bids[blindedBid] = 0
-                
-                # End processing
-                return
-
-    # Return unused funds for unsuccessful reveal
-    self.pendingReturns[msg.sender] += self.bids[blindedBid]
+    # Handle a revealing any other bid
+    else:
+        # Return unused funds for unsuccessful reveal
+        self.pendingReturns[msg.sender] += self.bids[blindedBid]
 
     # Return unused storage space
     self.bids[blindedBid] = 0
