@@ -79,8 +79,6 @@ def revealBid(_secret: bytes32, _bidAmount: wei_value) -> bool:
         if _bidAmount > self.highestBid
             if self.bids[blindedBid] >= _bidAmount
                 # Refund prior locked-up funds
-                # Security notice: overflow on += is not a concern because the
-                # amount of Ether in exististance fits in 256-bit number
                 self.pendingReturns[self.highestBidder] += self.highestBid
 
                 # Recognize new bidder
