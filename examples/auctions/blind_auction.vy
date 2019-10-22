@@ -87,7 +87,7 @@ def revealBid(_secret: bytes32, _bidAmount: wei_value) -> bool:
                 self.pendingReturns[msg.sender] += self.highestBid
 
                 # Return unused funds
-                amount_to_refund = wei_value = self.bids[blindedBid] - _bidAmount
+                amount_to_refund: wei_value = self.bids[blindedBid] - _bidAmount
                 if amount_to_refund > 0
                     self.pendingReturns[msg.sender] += amount_to_refund
 
