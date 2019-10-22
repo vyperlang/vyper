@@ -111,6 +111,7 @@ def revealBid(_secret: bytes32, _bidAmount: wei_value):
 @public
 def withdraw():
     amount_to_send: wei_value = self.pendingReturns[msg.sender]
+    assert amount_to_send > 0
     self.pendingReturns[msg.sender] = 0
 
     # ⚠️ The send operation permits reentrancy, be sure that checks and
