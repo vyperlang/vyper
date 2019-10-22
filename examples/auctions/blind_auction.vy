@@ -6,6 +6,9 @@
 # Event for logging that auction has ended
 AuctionEnded: event({_highestBidder: address, _highestBid: wei_value})
 
+# Event for a new highest bidder revealed
+NewHighestBidder: event({_highestBidder: address, _highestBid: wei_value})
+
 # Auction parameters
 beneficiary: public(address)
 biddingEnd: public(timestamp)
@@ -61,9 +64,8 @@ def submitBlindedBid(_blindedBid: bytes32):
 #
 # @param  _secret    a secret value used as part of the blinded bid
 # @param  _bidAmount the effective bid amount
-# @return True if bid is not the highest bid, False otherwise
 @public
-def revealBid(_secret: bytes32, _bidAmount: wei_value) -> bool:
+def revealBid(_secret: bytes32, _bidAmount: wei_value):
     # Check that bidding period is over
     assert block.timestamp > self.biddingEnd
 
@@ -85,6 +87,7 @@ def revealBid(_secret: bytes32, _bidAmount: wei_value) -> bool:
                 self.highestBidder = msg.sender
                 self.highestBid = _bidAmount
                 self.pendingReturns[msg.sender] += self.highestBid
+                log.NewHighestBidder(msg.sender, _bidAmount)
 
                 # Return unused funds
                 amount_to_refund: wei_value = self.bids[blindedBid] - _bidAmount
@@ -93,17 +96,15 @@ def revealBid(_secret: bytes32, _bidAmount: wei_value) -> bool:
 
                 # Return unused storage space
                 self.bids[blindedBid] = 0
-
+                
                 # End processing
-                return True
+                return
 
     # Return unused funds for unsuccessful reveal
     self.pendingReturns[msg.sender] += self.bids[blindedBid]
 
     # Return unused storage space
     self.bids[blindedBid] = 0
-
-    return False
 
 
 # Withdraw losing bids and overcommitted funds
