@@ -28,25 +28,29 @@ bids: map(bytes32, wei_value) # Indexed by blinded bid
 pendingReturns: map(address, wei_value)
 
 
-# Create a blinded auction
-#
-# @param _beneficiary the recipient of funds at auction end
-# @param _biddingTime the amount of seconds that bidding is allowed
-# @param _revealTime  the amount of time the bid reveals are allowed
 @public
 def __init__(_beneficiary: address, _biddingTime: timedelta, _revealTime: timedelta):
+    """
+    @notice Create a blinded auction
+    @param _beneficiary the recipient of funds at auction end
+    @param _biddingTime the amount of seconds that bidding is allowed
+    @param _revealTime  the amount of time the bid reveals are allowed
+    """
+
     self.beneficiary = _beneficiary
     self.biddingEnd = block.timestamp + _biddingTime
     self.revealEnd = self.biddingEnd + _revealTime
 
 
-# Place a blinded bid with:
-#
-# @param _blindedBib a blinded bid equal to:
-#        keccak256(concat(convert(bid_amount, bytes32),bidder,secret))
 @public
 @payable
 def submitBlindedBid(_blindedBid: bytes32):
+    """
+    @notice Place a blinded bid
+    @param _blindedBib a blinded bid equal to:
+           keccak256(concat(convert(bid_amount, bytes32),bidder,secret))
+    """
+
     # Check if bidding period is still open
     assert block.timestamp < self.biddingEnd
 
@@ -60,12 +64,14 @@ def submitBlindedBid(_blindedBid: bytes32):
     self.bids[_blandedBid] = msg.value
 
 
-# Reveal a bid during the bid reveal period
-#
-# @param  _secret    a secret value used as part of the blinded bid
-# @param  _bidAmount the effective bid amount
 @public
 def revealBid(_secret: bytes32, _bidAmount: wei_value):
+    """
+    @notice Reveal a bid during the bid reveal period
+    @param _secret    a secret value used as part of the blinded bid
+    @param _bidAmount the effective bid amount
+    """
+
     # Check that bidding period is over
     assert block.timestamp > self.biddingEnd
 
@@ -104,9 +110,12 @@ def revealBid(_secret: bytes32, _bidAmount: wei_value):
     self.bids[blindedBid] = 0
 
 
-# Withdraw losing bids and overcommitted funds
 @public
 def withdraw():
+    """
+    @notice Withdraw losing bids and overcommitted funds
+    """
+
     amount_to_send: wei_value = self.pendingReturns[msg.sender]
     assert amount_to_send > 0
     self.pendingReturns[msg.sender] = 0
@@ -116,9 +125,12 @@ def withdraw():
     send(msg.sender, pendingAmount)
 
 
-# End the auction and send the highest bid to the beneficiary
 @public
 def auctionEnd():
+    """
+    @notice End the auction and send the highest bid to the beneficiary
+    """
+
     # Check that the bid reveal period has passed
     assert block.timestamp > self.revealEnd
 
