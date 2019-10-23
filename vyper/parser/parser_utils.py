@@ -891,28 +891,24 @@ def annotate_ast(
 
 # zero pad a bytearray according to the ABI spec. The last word
 # of the byte array needs to be right-padded with zeroes.
-def zero_pad(bytez_placeholder, maxlen, context=None, zero_pad_i=None):
-    zero_padder = LLLnode.from_list(['pass'])
-    if maxlen > 0:
-        # Iterator used to zero pad memory.
-        if zero_pad_i is None:
-            zero_pad_i = context.new_placeholder(BaseType('uint256'))
-        zero_padder = LLLnode.from_list([
-            # the runtime length of the data rounded up to nearest 32
-            # from spec:
-            #   the actual value of X as a byte sequence,
-            #   followed by the *minimum* number of zero-bytes
-            #   such that len(enc(X)) is a multiple of 32.
-            'with', '_ceil32_end', ['ceil32', ['mload', bytez_placeholder]],
-            ['repeat', zero_pad_i, ['mload', bytez_placeholder], ceil32(maxlen), [
-                'seq',
-                # stay within allocated bounds
-                ['if', ['ge', ['mload', zero_pad_i], '_ceil32_end'], 'break'],
-                ['mstore8', ['add', ['add', 32, bytez_placeholder], ['mload', zero_pad_i]], 0]
-                ]]],
+def zero_pad(bytez_placeholder):
+    # calldatacopy from past-the-end gives zero bytes.
+    # cf. YP H.2 (ops section) with CALLDATACOPY spec.
+    len_ = ['mload', bytez_placeholder]
+    dst = ['add', ['add', bytez_placeholder, 32], 'len']
+    # the runtime length of the data rounded up to nearest 32
+    # from spec:
+    #   the actual value of X as a byte sequence,
+    #   followed by the *minimum* number of zero-bytes
+    #   such that len(enc(X)) is a multiple of 32.
+    num_zero_bytes = ['sub', ['ceil32', 'len'], 'len']
+    return LLLnode.from_list(
+            ['with', 'len', len_,
+                ['with', 'dst', dst,
+                    # calldatacopy mempos calldatapos len
+                    ['calldatacopy', 'dst', 'calldatasize', num_zero_bytes]]],
             annotation="Zero pad",
-        )
-    return zero_padder
+            )
 
 
 # Generate return code for stmt
@@ -993,7 +989,7 @@ def gen_tuple_return(stmt, context, sub):
                 'add',
                 mem_pos,
                 ['mload', mem_pos + i * 32]
-            ], maxlen=x.maxlen, context=context)
+            ])
         return LLLnode.from_list(['seq'] + [sub] + [zero_padder] + [
             make_return_stmt(stmt, context, mem_pos, mem_size)
         ], typ=sub.typ, pos=getpos(stmt), valency=0)

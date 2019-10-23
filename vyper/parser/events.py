@@ -72,7 +72,7 @@ def pack_logging_topics(event_id, args, expected_topics, context, pos):
 
 
 def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder,
-                    dynamic_offset_counter=None, datamem_start=None, zero_pad_i=None, pos=None):
+                    dynamic_offset_counter=None, datamem_start=None, pos=None):
     """
     Copy necessary variables to pre-allocated memory section.
 
@@ -108,11 +108,8 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder,
             typ=typ, location='memory', annotation="pack_args_by_32:dest_placeholder")
         copier = make_byte_array_copier(dest_placeholder, source_lll, pos=pos)
         holder.append(copier)
-        item_maxlen = source_lll.typ.maxlen
         # Add zero padding.
-        holder.append(
-            zero_pad(dest_placeholder, item_maxlen, zero_pad_i=zero_pad_i)
-        )
+        holder.append(zero_pad(dest_placeholder))
 
         # Increment offset counter.
         increment_counter = LLLnode.from_list([
@@ -246,13 +243,10 @@ def pack_logging_data(expected_data, args, context, pos):
 
     requires_dynamic_offset = any([isinstance(data.typ, ByteArrayLike) for data in expected_data])
     if requires_dynamic_offset:
-        # Iterator used to zero pad memory.
-        zero_pad_i = context.new_placeholder(BaseType('uint256'))
         dynamic_offset_counter = context.new_placeholder(BaseType(32))
         dynamic_placeholder = context.new_placeholder(BaseType(32))
     else:
         dynamic_offset_counter = None
-        zero_pad_i = None
 
     # Create placeholder for static args. Note: order of new_*() is important.
     placeholder_map = {}
@@ -276,7 +270,6 @@ def pack_logging_data(expected_data, args, context, pos):
                 typ,
                 context,
                 placeholder,
-                zero_pad_i=zero_pad_i,
                 pos=pos,
             )
 
@@ -308,7 +301,6 @@ def pack_logging_data(expected_data, args, context, pos):
                 placeholder=placeholder_map[i],
                 datamem_start=datamem_start,
                 dynamic_offset_counter=dynamic_offset_counter,
-                zero_pad_i=zero_pad_i,
                 pos=pos
             )
 
