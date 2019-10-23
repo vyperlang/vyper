@@ -82,6 +82,10 @@ def get_contract_from_lll(w3):
 
 @pytest.fixture(scope='module')
 def get_contract_module():
+    """
+    This fixture is used for Hypothesis tests to ensure that
+    the same contract is called over multiple runs of the test.
+    """
     tester = EthereumTester()
     w3 = Web3(EthereumTesterProvider(tester))
     w3.eth.setGasPriceStrategy(zero_gas_price_strategy)
