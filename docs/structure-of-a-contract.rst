@@ -33,7 +33,7 @@ Functions are the executable units of code within a contract.
   @public
   @payable
   def bid(): // Function
-    // ...
+      // ...
 
 Function calls can happen internally or externally and have different levels of visibility (see
 :ref:`structure-decorators`) towards other contracts. Functions must be explicitely declared as public or private.
@@ -171,15 +171,15 @@ Vyper supports structured documentation for state variables and functions and ev
   @public
   @payable
   def doesEat(food: string):
-    """
-    @author Bob Clampett
-    @notice Determine if Bugs will accept `food` to eat
-    @dev Compares the entire string and does not rely on a hash
-    @param food The name of a food to evaluate (in English)
-    @return true if Bugs will eat it, false otherwise
-    """
+      """
+      @author Bob Clampett
+      @notice Determine if Bugs will accept `food` to eat
+      @dev Compares the entire string and does not rely on a hash
+      @param food The name of a food to evaluate (in English)
+      @return true if Bugs will eat it, false otherwise
+      """
 
-    // ...
+      // ...
 
 ::
 
