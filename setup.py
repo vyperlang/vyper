@@ -8,22 +8,20 @@ from setuptools import (
 import subprocess
 
 test_deps = [
-    'pytest>=3.6',
-    'pytest-cov==2.4.0',
-    'coveralls[yaml]==1.6.0',
-    'pytest-xdist==1.18.1',
-    'py-evm==0.2.0a42',
-    'eth-tester==0.1.0b39',
-    'eth-abi==2.0.0b9',
-    'web3==5.0.0b2',
+    'pytest>=5.2.0,<6',
+    'pytest-cov>=2.8.1,<3',
+    'coveralls[yaml]>=1.8.2,<2',
+    'pytest-xdist>=1.30.0,<2',
+    'eth-tester[py-evm]==0.1.0b39',
+    'web3>=5.2.0,<5.3.0',
     'tox>=3.7,<4',
-    'hypothesis==4.11.7'
+    'hypothesis>=4.41.3,<5'
 ]
 lint_deps = [
     'flake8>=3.7,<4',
-    'flake8-bugbear==18.8.0',
+    'flake8-bugbear>=19.8.0,<20',
     'isort>=4.2.15,<5',
-    'mypy==0.701',
+    'mypy>=0.740,<1',
 ]
 
 
