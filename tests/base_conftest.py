@@ -1,5 +1,6 @@
 from eth_tester import (
     EthereumTester,
+    PyEVMBackend,
 )
 from eth_tester.exceptions import (
     TransactionFailed,
@@ -99,8 +100,9 @@ CONCISE_NORMALIZERS = (_none_addr,)
 
 @pytest.fixture
 def tester():
-    t = EthereumTester()
-    return t
+    custom_genesis = PyEVMBackend._generate_genesis_params(overrides={'gas_limit': 4500000})
+    backend = PyEVMBackend(genesis_parameters=custom_genesis)
+    return EthereumTester(backend=backend)
 
 
 def zero_gas_price_strategy(web3, transaction_params=None):

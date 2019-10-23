@@ -34,9 +34,6 @@ pytest_plugins = ['tests.base_conftest']
 # PATCHING #
 ############
 
-# setattr(eth_tester.backends.pyevm.main, 'GENESIS_GAS_LIMIT', 10**9)
-# setattr(eth_tester.backends.pyevm.main, 'GENESIS_DIFFICULTY', 1)
-
 
 def set_evm_verbose_logging():
     logger = logging.getLogger('evm')

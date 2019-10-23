@@ -1,14 +1,8 @@
-import eth_tester
 import pytest
 
 from vyper import (
     utils as vyper_utils,
 )
-
-
-@pytest.fixture(autouse=True)
-def patch_large_gas_limit(monkeypatch):
-    monkeypatch.setattr(eth_tester.backends.pyevm.main, 'GENESIS_GAS_LIMIT', 10**9)
 
 
 @pytest.fixture
