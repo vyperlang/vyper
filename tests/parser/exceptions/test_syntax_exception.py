@@ -46,6 +46,15 @@ x: int128(wei >> 3)
     """
 Transfer: event({_&rom: indexed(address)})
     """,
+    """
+@public
+def test() -> uint256:
+    for i in range(0, 4):
+      return 0
+    else:
+      return 1
+    return 1
+    """
 ]
 
 

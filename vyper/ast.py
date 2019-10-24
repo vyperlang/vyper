@@ -4,7 +4,7 @@ from itertools import (
 import typing
 
 from vyper.exceptions import (
-    CompilerPanic,
+    SyntaxException,
 )
 from vyper.settings import (
     VYPER_ERROR_CONTEXT_LINES,
@@ -43,9 +43,9 @@ class VyperNode:
             if field_name in self.get_slots():
                 setattr(self, field_name, value)
             elif value:
-                raise CompilerPanic(
-                    f'Unsupported non-empty value field_name: {field_name}, '
-                    f' class: {type(self)} value: {value}'
+                raise SyntaxException(
+                    f'Unsupported non-empty value (valid in Python, but invalid in Vyper) \n'
+                    f' field_name: {field_name}, class: {type(self)} value: {value}'
                 )
 
     def __eq__(self, other):
@@ -257,7 +257,7 @@ class Assert(VyperNode):
 
 
 class For(VyperNode):
-    __slots__ = ('iter', 'target', 'orelse', 'body')
+    __slots__ = ('iter', 'target', 'body')
 
 
 class AugAssign(VyperNode):
