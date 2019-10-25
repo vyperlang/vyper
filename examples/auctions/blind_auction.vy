@@ -98,7 +98,7 @@ def revealBid(_secret: bytes32, _bidAmount: wei_value):
 
         # Return overcommitted funds
         amount_to_refund: wei_value = self.bids[blindedBid] - _bidAmount
-        if amount_to_refund > 0
+        if amount_to_refund > 0:
             self.pendingReturns[msg.sender] += amount_to_refund
 
     # Handle a revealing any other bid
