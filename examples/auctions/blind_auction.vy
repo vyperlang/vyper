@@ -122,7 +122,7 @@ def withdraw():
 
     # ⚠️ The send operation permits reentrancy, be sure that checks and
     # deductions are handled before this line! ⚠️
-    send(msg.sender, pendingAmount)
+    send(msg.sender, amount_to_send)
 
 
 @public
