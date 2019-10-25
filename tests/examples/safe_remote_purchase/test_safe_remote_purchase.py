@@ -22,7 +22,7 @@ def contract_code(get_contract):
 
 
 @pytest.fixture
-def get_balance(w3, tester):
+def get_balance(w3):
     def get_balance():
         a0, a1 = w3.eth.accounts[:2]
         # balance of a1 = seller, a2 = buyer

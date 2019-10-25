@@ -71,7 +71,7 @@ def test_eth_to_tokens(w3, market_maker, erc20):
     assert market_maker.totalEthQty() == 2000000000000000100
 
 
-def test_tokens_to_eth(w3, tester, market_maker, erc20):
+def test_tokens_to_eth(w3, market_maker, erc20):
     a1 = w3.eth.accounts[1]
     a1_balance_before = w3.eth.getBalance(a1)
 
@@ -98,7 +98,7 @@ def test_tokens_to_eth(w3, tester, market_maker, erc20):
     assert market_maker.totalEthQty() == w3.toWei(1, "ether")
 
 
-def test_owner_withdraw(w3, tester, market_maker, erc20, assert_tx_failed):
+def test_owner_withdraw(w3, market_maker, erc20, assert_tx_failed):
     a0, a1 = w3.eth.accounts[:2]
     a0_balance_before = w3.eth.getBalance(a0)
     # Approve 2 eth transfers.
