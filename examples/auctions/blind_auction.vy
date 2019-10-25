@@ -61,7 +61,7 @@ def submitBlindedBid(_blindedBid: bytes32):
     assert msg.value > 0
 
     # Register the bid
-    self.bids[_blandedBid] = msg.value
+    self.bids[_blindedBid] = msg.value
 
 
 @public
