@@ -55,7 +55,7 @@ def submitBlindedBid(_blindedBid: bytes32):
     assert block.timestamp < self.biddingEnd
 
     # Check that this bid was not accepted already
-    assert self.bids[_blandedBid] == 0
+    assert self.bids[_blindedBid] == 0
 
     # Check that some funds are committed
     assert msg.value > 0
