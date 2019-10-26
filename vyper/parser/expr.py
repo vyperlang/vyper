@@ -523,11 +523,11 @@ class Expr(object):
 
             op = 'add' if isinstance(self.expr.op, ast.Add) else 'sub'
             if ltyp == 'uint256' and isinstance(self.expr.op, ast.Add):
-                o = LLLnode.from_list([
-                    'seq',
+                o = LLLnode.from_list(['with', 'l', left, ['with', 'r', right,
+                    ['seq',
                     # Checks that: a + b >= a
-                    ['assert', ['ge', ['add', left, right], left]],
-                    ['add', left, right],
+                    ['assert', ['ge', ['add', 'l', 'r'], 'l']],
+                    ['add', 'l', 'r']]]
                 ], typ=BaseType('uint256', new_unit, new_positional), pos=getpos(self.expr))
             elif ltyp == 'uint256' and isinstance(self.expr.op, ast.Sub):
                 o = LLLnode.from_list([
