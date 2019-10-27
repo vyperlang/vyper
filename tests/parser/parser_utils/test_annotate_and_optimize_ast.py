@@ -10,7 +10,7 @@ from vyper.parser.pre_parser import (
 
 class AssertionVisitor(python_ast.NodeVisitor):
     def assert_about_node(self, node):
-        assert False
+        raise AssertionError()
 
     def generic_visit(self, node):
         self.assert_about_node(node)

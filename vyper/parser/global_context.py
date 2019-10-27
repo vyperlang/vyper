@@ -169,7 +169,7 @@ class GlobalContext:
             for interface_name, sigs in global_ctx._interfaces.items():
                 if interface_name in global_ctx._implemented_interfaces:
                     for func_sig in sigs:
-                        setattr(func_sig, 'defined_in_interface', interface_name)
+                        func_sig.defined_in_interface = interface_name
                         global_ctx._interface[func_sig.sig] = func_sig
 
         # Add getters to _defs
