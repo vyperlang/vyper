@@ -8,6 +8,19 @@ Structure of a Contract
 Contracts in Vyper are contained within files, with each file being one smart-contract.  Files in Vyper are similar to classes in object-oriented languages.
 Each file can contain declarations of :ref:`structure-state-variables` and :ref:`structure-functions`.
 
+.. _structure-versions:
+
+Versions
+========
+
+Vyper supports version pragma which is used to reject being compiled with future compiler versions that might introduce incompatible changes.
+
+::
+
+  # @version 0.1.0b13
+  
+The version pragma checks that the compiler version is not a major version.
+
 .. _structure-state-variables:
 
 State Variables
