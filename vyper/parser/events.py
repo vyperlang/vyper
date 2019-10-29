@@ -221,7 +221,7 @@ def pack_logging_data(expected_data, args, context, pos):
                         f"Data input bytes are to big: {len(arg.s)} {typ}", pos
                     )
 
-            tmp_variable = context.new_variable(
+            tmp_variable = context.new_internal_variable(
                 f'_log_pack_var_{arg.lineno}_{arg.col_offset}',
                 source_lll.typ,
             )
