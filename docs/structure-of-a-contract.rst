@@ -17,7 +17,7 @@ Vyper supports version pragma which is used to reject being compiled with future
 
 ::
 
-  #@version0.1.13b
+  # @version 0.1.0b13
   
 The version pragma checks that the compiler version is not a major version.
 
