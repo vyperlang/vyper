@@ -200,17 +200,20 @@ def market_cap() -> uint256(wei):
 
 
 def test_constant_folds(search_for_sublist):
-    code = """
+    some_prime = 10013677
+    code = f"""
 SOME_CONSTANT: constant(uint256) = 11 + 1
-
+SOME_PRIME: constant(uint256) = {some_prime}
 
 @public
-def test(some_dynamic_var: uint256) -> uint256:
-    return some_dynamic_var  +  2**SOME_CONSTANT
+def test() -> uint256:
+    # calculate some constant which is really unlikely to be randomly
+    # in bytecode
+    return 2**SOME_CONSTANT * SOME_PRIME
     """
 
     lll = compile_code(code, ['ir'])['ir']
-    assert search_for_sublist(lll, ['add', ['calldataload', [4]], [4096]])
+    assert search_for_sublist(lll, ['mstore', [0], [2**12 * some_prime]])
 
 
 def test_constant_lists(get_contract):
