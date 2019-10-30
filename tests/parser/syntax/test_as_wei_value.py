@@ -53,6 +53,11 @@ def foo():
 def foo() -> uint256(wei):
     x: address = 0x1234567890123456789012345678901234567890
     return x.balance
+    """,
+    """
+@public
+def f(i: int128) -> wei_value:
+    return as_wei_value(i, "kwei")
     """
 ]
 

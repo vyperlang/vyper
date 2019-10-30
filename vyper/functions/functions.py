@@ -616,10 +616,8 @@ def as_wei_value(expr, args, kwargs, context):
         if value.value <= 0:
             raise InvalidLiteralException("Negative wei value not allowed", expr)
         sub = ['mul', value.value, denom_divisor]
-    elif value.typ.typ == 'uint256':
-        sub = ['mul', value, denom_divisor]
     else:
-        sub = ['div', ['mul', value, denom_divisor], DECIMAL_DIVISOR]
+        sub = ['mul', value, denom_divisor]
 
     return LLLnode.from_list(
         sub,
