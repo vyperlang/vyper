@@ -56,8 +56,9 @@ def foo() -> uint256(wei):
     """,
     """
 @public
-def f(i: int128) -> wei_value:
-    return as_wei_value(i, "kwei")
+def f() -> wei_value:
+    x: int128 = 5
+    return as_wei_value(x, "kwei")
     """
 ]
 
