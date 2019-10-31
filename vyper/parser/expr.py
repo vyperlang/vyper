@@ -617,17 +617,17 @@ class Expr(object):
                 new_unit = {left.typ.unit.copy().popitem()[0]: self.expr.right.n}
             new_typ = BaseType(ltyp, new_unit)
 
-            if ltyp == rtyp == 'uint256':
-                arith = ['seq',
-                         ['assert',
-                             ['or',
-                                 # r == 1 | iszero(r)
-                                 # could be simplified to ~(r & 1)
-                                 ['or', ['eq', 'r', 1], ['iszero', 'r']],
-                                 ['lt', 'l', ['exp', 'l', 'r']]]],
-                         ['exp', 'l', 'r']]
-            elif ltyp == rtyp == 'int128':
-                arith = ['exp', 'l', 'r']
+            # exp pays 10 + 50 * (1 + log256(l**r) gas.
+            # to check if there was an overflow, profile to check that
+            # gas used was < 110.
+            # TODO handle r < 0?
+            if ltyp == rtyp and ltyp in ('uint256', 'int128'):
+                arith = ['with', 'g0', 'gas',
+                         ['with', 'exponent', ['exp', 'l', 'r'],
+                          ['with', 'g1', 'gas',
+                           ['seq',
+                            ['clamplt', ['sub', 'g1', 'g0'], 110],
+                            'exponent']]]]
 
             else:
                 raise TypeMismatchException('Only whole number exponents are supported', self.expr)
