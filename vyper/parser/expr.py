@@ -512,15 +512,14 @@ class Expr(object):
             if ltyp == 'uint256' and isinstance(self.expr.op, ast.Add):
                 # safeadd
                 arith = ['seq',
-                        # Checks that: a + b >= a
-                        ['assert', ['ge', ['add', 'l', 'r'], 'l']],
-                        ['add', 'l', 'r']]
+                         ['assert', ['ge', ['add', 'l', 'r'], 'l']],
+                         ['add', 'l', 'r']]
 
             elif ltyp == 'uint256' and isinstance(self.expr.op, ast.Sub):
+                # safesub
                 arith = ['seq',
-                        # Checks that: a >= b
-                        ['assert', ['ge', 'l', 'r']],
-                        ['sub', 'l', 'r']]
+                         ['assert', ['ge', 'l', 'r']],
+                         ['sub', 'l', 'r']]
 
             elif ltyp == rtyp:
                 arith = [op, 'l', 'r']
@@ -536,13 +535,12 @@ class Expr(object):
 
             if ltyp == rtyp == 'uint256':
                 arith = ['with', 'ans', ['mul', 'l', 'r'],
-                        ['seq',
-                            ['assert',
-                                ['or',
-                                    ['eq', ['div', 'ans', 'l'], 'r'],
-                                ['iszero', 'l']]
-                                ],
-                            'ans']]
+                         ['seq',
+                             ['assert',
+                                 ['or',
+                                     ['eq', ['div', 'ans', 'l'], 'r'],
+                                     ['iszero', 'l']]],
+                             'ans']]
 
             elif ltyp == rtyp == 'int128':
                 # TODO should this be 'smul' (note edge cases in YP for smul)
@@ -550,13 +548,12 @@ class Expr(object):
 
             elif ltyp == rtyp == 'decimal':
                 arith = ['with', 'ans', ['mul', 'l', 'r'],
-                        ['seq',
-                            ['assert',
-                                ['or',
-                                    ['eq', ['sdiv', 'ans', 'l'], 'r'],
-                                    ['iszero', 'l']]
-                                ],
-                            ['sdiv', 'ans', DECIMAL_DIVISOR]]]
+                         ['seq',
+                             ['assert',
+                                 ['or',
+                                     ['eq', ['sdiv', 'ans', 'l'], 'r'],
+                                     ['iszero', 'l']]],
+                             ['sdiv', 'ans', DECIMAL_DIVISOR]]]
             else:
                 raise Exception(f"Unsupported Operation 'mul({ltyp}, {rtyp})'")
 
@@ -573,9 +570,9 @@ class Expr(object):
 
             elif ltyp == rtyp == 'decimal':
                 arith = ['sdiv',
-                        # TODO check overflow cases
-                        ['mul', 'l', DECIMAL_DIVISOR],
-                        ['clamp_nonzero', 'r']]
+                         # TODO check overflow cases
+                         ['mul', 'l', DECIMAL_DIVISOR],
+                         ['clamp_nonzero', 'r']]
 
             else:
                 raise Exception(f"Unsupported Operation 'div({ltyp}, {rtyp})'")
@@ -622,15 +619,13 @@ class Expr(object):
 
             if ltyp == rtyp == 'uint256':
                 arith = ['seq',
-                        ['assert',
-                            ['or',
-                                # r == 1 | iszero(r)
-                                # could be simplified to ~(r & 1)
-                                ['or', ['eq', 'r', 1], ['iszero', 'r']],
-                                ['lt', 'l', ['exp', 'l', 'r']]
-                                ]
-                            ],
-                        ['exp', 'l', 'r']]
+                         ['assert',
+                             ['or',
+                                 # r == 1 | iszero(r)
+                                 # could be simplified to ~(r & 1)
+                                 ['or', ['eq', 'r', 1], ['iszero', 'r']],
+                                 ['lt', 'l', ['exp', 'l', 'r']]]],
+                         ['exp', 'l', 'r']]
             elif ltyp == rtyp == 'int128':
                 arith = ['exp', 'l', 'r']
 
