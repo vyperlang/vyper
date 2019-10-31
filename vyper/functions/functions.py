@@ -615,11 +615,18 @@ def as_wei_value(expr, args, kwargs, context):
     elif value.typ.is_literal:
         if value.value <= 0:
             raise InvalidLiteralException("Negative wei value not allowed", expr)
-        sub = ['mul', value.value, denom_divisor]
-    elif value.typ.typ in ['uint256', 'int128']:
-        sub = ['mul', value, denom_divisor]
+        
+        max_value = int(2**128 / denom_divisor)
+        sub = ['mul', ['clample', value.value, max_value], denom_divisor]
+    elif value.typ.typ == 'uint256':
+        max_value = int(2**256 / denom_divisor)
+        sub = ['mul', ['uclample', value, max_value], denom_divisor]
+    elif value.typ.typ == 'int128':
+        max_value =  int(2**128 / denom_divisor)
+        sub = ['mul', ['clample', ['clampge', value, 0], max_value], denom_divisor]
     else:
-        sub = ['div', ['mul', value, denom_divisor], DECIMAL_DIVISOR]
+        max_value = int(2**128 / denom_divisor)
+        sub = ['div', ['mul', ['clample', ['clampge', value, 0], max_value], denom_divisor], DECIMAL_DIVISOR]
 
     return LLLnode.from_list(
         sub,

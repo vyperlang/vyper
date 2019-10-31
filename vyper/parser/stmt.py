@@ -231,7 +231,6 @@ class Stmt(object):
                     typ=BaseType('bytes32'),
                     pos=getpos(self.stmt),
                 )
-
             self._check_valid_assign(sub)
             self._check_same_variable_assign(sub)
             variable_loc = LLLnode.from_list(
