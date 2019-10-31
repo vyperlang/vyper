@@ -417,27 +417,9 @@ class Expr(object):
         o.mutable = sub.mutable
         return o
 
-    def arithmetic_get_reference(self, item):
-        item_lll = Expr.parse_value_expr(item, self.context)
-        if item_lll.typ is None:
-            raise TypeMismatchException(
-                'Arithmetic can not be performed on None (return) type.',
-                self.expr,
-            )
-        if isinstance(item, ast.Call):
-            # Perform call statements once.
-            placeholder = self.context.new_placeholder(item_lll.typ)
-            pre_alloc = ['mstore', placeholder, item_lll]
-            return (
-                pre_alloc,
-                LLLnode.from_list(['mload', placeholder], location='memory', typ=item_lll.typ),
-            )
-        else:
-            return None, item_lll
-
     def arithmetic(self):
-        pre_alloc_left, left = self.arithmetic_get_reference(self.expr.left)
-        pre_alloc_right, right = self.arithmetic_get_reference(self.expr.right)
+        left = Expr.parse_value_expr(self.expr.left, self.context)
+        right = Expr.parse_value_expr(self.expr.right, self.context)
 
         if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
             raise TypeMismatchException(
@@ -479,6 +461,8 @@ class Expr(object):
 
             return Expr.parse_value_expr(num, self.context)
 
+        pos = getpos(self.expr)
+
         # Special case with uint256 were int literal may be casted.
         if arithmetic_pair == {'uint256', 'int128'}:
             # Check right side literal.
@@ -486,7 +470,7 @@ class Expr(object):
                 right = LLLnode.from_list(
                     right.value,
                     typ=BaseType('uint256', None, is_literal=True),
-                    pos=getpos(self.expr),
+                    pos=pos,
                 )
 
             # Check left side literal.
@@ -494,7 +478,7 @@ class Expr(object):
                 left = LLLnode.from_list(
                     left.value,
                     typ=BaseType('uint256', None, is_literal=True),
-                    pos=getpos(self.expr),
+                    pos=pos,
                 )
 
         # Only allow explicit conversions to occur.
@@ -521,117 +505,98 @@ class Expr(object):
             # xor, as subtracting two positionals gives a delta
             new_positional = left.typ.positional ^ right.typ.positional
 
+            new_typ = BaseType(ltyp, new_unit, new_positional)
+
             op = 'add' if isinstance(self.expr.op, ast.Add) else 'sub'
+
             if ltyp == 'uint256' and isinstance(self.expr.op, ast.Add):
-                o = LLLnode.from_list(['with', 'l', left, ['with', 'r', right,
-                    ['seq',
-                    # Checks that: a + b >= a
-                    ['assert', ['ge', ['add', 'l', 'r'], 'l']],
-                    ['add', 'l', 'r']]]
-                ], typ=BaseType('uint256', new_unit, new_positional), pos=getpos(self.expr))
+                # safeadd
+                arith = ['seq',
+                        # Checks that: a + b >= a
+                        ['assert', ['ge', ['add', 'l', 'r'], 'l']],
+                        ['add', 'l', 'r']]
+
             elif ltyp == 'uint256' and isinstance(self.expr.op, ast.Sub):
-                o = LLLnode.from_list([
-                    'seq',
-                    # Checks that: a >= b
-                    ['assert', ['ge', left, right]],
-                    ['sub', left, right]
-                ], typ=BaseType('uint256', new_unit, new_positional), pos=getpos(self.expr))
+                arith = ['seq',
+                        # Checks that: a >= b
+                        ['assert', ['ge', 'l', 'r']],
+                        ['sub', 'l', 'r']]
+
             elif ltyp == rtyp:
-                o = LLLnode.from_list(
-                    [op, left, right],
-                    typ=BaseType(ltyp, new_unit, new_positional),
-                    pos=getpos(self.expr),
-                )
+                arith = [op, 'l', 'r']
+
             else:
                 raise Exception(f"Unsupported Operation '{op}({ltyp}, {rtyp})'")
+
         elif isinstance(self.expr.op, ast.Mult):
             if left.typ.positional or right.typ.positional:
                 raise TypeMismatchException("Cannot multiply positional values!", self.expr)
             new_unit = combine_units(left.typ.unit, right.typ.unit)
+            new_typ = BaseType(ltyp, new_unit)
+
             if ltyp == rtyp == 'uint256':
-                o = LLLnode.from_list([
-                    'if',
-                    ['eq', left, 0],
-                    [0],
-                    [
-                        'seq', ['assert', ['eq', ['div', ['mul', left, right], left], right]],
-                        ['mul', left, right]
-                    ],
-                ], typ=BaseType('uint256', new_unit), pos=getpos(self.expr))
-            elif ltyp == rtyp == 'int128':
-                o = LLLnode.from_list(
-                    ['mul', left, right],
-                    typ=BaseType('int128', new_unit),
-                    pos=getpos(self.expr),
-                )
-            elif ltyp == rtyp == 'decimal':
-                o = LLLnode.from_list([
-                    'with', 'r', right, [
-                        'with', 'l', left, [
-                            'with', 'ans', ['mul', 'l', 'r'],
-                            [
-                                'seq',
-                                [
-                                    'assert',
-                                    ['or', ['eq', ['sdiv', 'ans', 'l'], 'r'], ['iszero', 'l']]
+                arith = ['with', 'ans', ['mul', 'l', 'r'],
+                        ['seq',
+                            ['assert',
+                                ['or',
+                                    ['eq', ['div', 'ans', 'l'], 'r'],
+                                ['iszero', 'l']]
                                 ],
-                                ['sdiv', 'ans', DECIMAL_DIVISOR],
-                            ],
-                        ],
-                    ],
-                ], typ=BaseType('decimal', new_unit), pos=getpos(self.expr))
+                            'ans']]
+
+            elif ltyp == rtyp == 'int128':
+                # TODO should this be 'smul' (note edge cases in YP for smul)
+                arith = ['mul', 'l', 'r']
+
+            elif ltyp == rtyp == 'decimal':
+                arith = ['with', 'ans', ['mul', 'l', 'r'],
+                        ['seq',
+                            ['assert',
+                                ['or',
+                                    ['eq', ['sdiv', 'ans', 'l'], 'r'],
+                                    ['iszero', 'l']]
+                                ],
+                            ['sdiv', 'ans', DECIMAL_DIVISOR]]]
             else:
                 raise Exception(f"Unsupported Operation 'mul({ltyp}, {rtyp})'")
+
         elif isinstance(self.expr.op, ast.Div):
             if left.typ.positional or right.typ.positional:
                 raise TypeMismatchException("Cannot divide positional values!", self.expr)
             new_unit = combine_units(left.typ.unit, right.typ.unit, div=True)
+            new_typ = BaseType(ltyp, new_unit)
             if ltyp == rtyp == 'uint256':
-                o = LLLnode.from_list([
-                    'seq',
-                    # Checks that:  b != 0
-                    ['assert', right],
-                    ['div', left, right],
-                ], typ=BaseType('uint256', new_unit), pos=getpos(self.expr))
+                arith = ['div', 'l', ['clamp_nonzero', 'r']]
+
             elif ltyp == rtyp == 'int128':
-                o = LLLnode.from_list(
-                    ['sdiv', left, ['clamp_nonzero', right]],
-                    typ=BaseType('int128', new_unit),
-                    pos=getpos(self.expr),
-                )
+                arith = ['sdiv', 'l', ['clamp_nonzero', 'r']]
+
             elif ltyp == rtyp == 'decimal':
-                o = LLLnode.from_list([
-                    'with', 'l', left, [
-                        'with', 'r', ['clamp_nonzero', right], [
-                            'sdiv',
-                            ['mul', 'l', DECIMAL_DIVISOR],
-                            'r',
-                        ],
-                    ]
-                ], typ=BaseType('decimal', new_unit), pos=getpos(self.expr))
+                arith = ['sdiv',
+                        # TODO check overflow cases
+                        ['mul', 'l', DECIMAL_DIVISOR],
+                        ['clamp_nonzero', 'r']]
+
             else:
                 raise Exception(f"Unsupported Operation 'div({ltyp}, {rtyp})'")
+
         elif isinstance(self.expr.op, ast.Mod):
             if left.typ.positional or right.typ.positional:
                 raise TypeMismatchException(
                     "Cannot use positional values as modulus arguments!",
                     self.expr,
                 )
+
             if not are_units_compatible(left.typ, right.typ) and not (left.typ.unit or right.typ.unit):  # noqa: E501
                 raise TypeMismatchException("Modulus arguments must have same unit", self.expr)
             new_unit = left.typ.unit or right.typ.unit
+            new_typ = BaseType(ltyp, new_unit)
+
             if ltyp == rtyp == 'uint256':
-                o = LLLnode.from_list([
-                    'seq',
-                    ['assert', right],
-                    ['mod', left, right]
-                ], typ=BaseType('uint256', new_unit), pos=getpos(self.expr))
+                arith = ['mod', 'l', ['clamp_nonzero', 'r']]
             elif ltyp == rtyp:
-                o = LLLnode.from_list(
-                    ['smod', left, ['clamp_nonzero', right]],
-                    typ=BaseType(ltyp, new_unit),
-                    pos=getpos(self.expr),
-                )
+                arith = ['smod', 'l', ['clamp_nonzero', 'r']]
+
             else:
                 raise Exception(f"Unsupported Operation 'mod({ltyp}, {rtyp})'")
         elif isinstance(self.expr.op, ast.Pow):
@@ -650,28 +615,25 @@ class Expr(object):
                     "Cannot use dynamic values as exponents, for unit base types",
                     self.expr,
                 )
+            new_unit = left.typ.unit
+            if left.typ.unit and not isinstance(self.expr.right, ast.Name):
+                new_unit = {left.typ.unit.copy().popitem()[0]: self.expr.right.n}
+            new_typ = BaseType(ltyp, new_unit)
+
             if ltyp == rtyp == 'uint256':
-                o = LLLnode.from_list([
-                    'seq',
-                    [
-                        'assert',
-                        [
-                            'or',
-                            ['or', ['eq', right, 1], ['iszero', right]],
-                            ['lt', left, ['exp', left, right]]
-                        ],
-                    ],
-                    ['exp', left, right],
-                ], typ=BaseType('uint256'), pos=getpos(self.expr))
+                arith = ['seq',
+                        ['assert',
+                            ['or',
+                                # r == 1 | iszero(r)
+                                # could be simplified to ~(r & 1)
+                                ['or', ['eq', 'r', 1], ['iszero', 'r']],
+                                ['lt', 'l', ['exp', 'l', 'r']]
+                                ]
+                            ],
+                        ['exp', 'l', 'r']]
             elif ltyp == rtyp == 'int128':
-                new_unit = left.typ.unit
-                if left.typ.unit and not isinstance(self.expr.right, ast.Name):
-                    new_unit = {left.typ.unit.copy().popitem()[0]: self.expr.right.n}
-                o = LLLnode.from_list(
-                    ['exp', left, right],
-                    typ=BaseType('int128', new_unit),
-                    pos=getpos(self.expr),
-                )
+                arith = ['exp', 'l', 'r']
+
             else:
                 raise TypeMismatchException('Only whole number exponents are supported', self.expr)
         else:
@@ -679,32 +641,27 @@ class Expr(object):
 
         p = ['seq']
 
-        if pre_alloc_left:
-            p.append(pre_alloc_left)
-        if pre_alloc_right:
-            p.append(pre_alloc_right)
-
-        if o.typ.typ == 'int128':
+        if new_typ.typ == 'int128':
             p.append([
                 'clamp',
                 ['mload', MemoryPositions.MINNUM],
-                o,
+                arith,
                 ['mload', MemoryPositions.MAXNUM],
             ])
-            return LLLnode.from_list(p, typ=o.typ, pos=getpos(self.expr))
-        elif o.typ.typ == 'decimal':
+        elif new_typ.typ == 'decimal':
             p.append([
                 'clamp',
                 ['mload', MemoryPositions.MINDECIMAL],
-                o,
+                arith,
                 ['mload', MemoryPositions.MAXDECIMAL],
             ])
-            return LLLnode.from_list(p, typ=o.typ, pos=getpos(self.expr))
-        if o.typ.typ == 'uint256':
-            p.append(o)
-            return LLLnode.from_list(p, typ=o.typ, pos=getpos(self.expr))
+        elif new_typ.typ == 'uint256':
+            p.append(arith)
         else:
-            raise Exception(f"{o} {o.typ}")
+            raise Exception(f"{arith} {new_typ}")
+
+        p = ['with', 'l', left, ['with', 'r', right, p]]
+        return LLLnode.from_list(p, typ=new_typ, pos=pos)
 
     def build_in_comparator(self):
         left = Expr(self.expr.left, self.context).lll_node
