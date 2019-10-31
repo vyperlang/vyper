@@ -347,6 +347,46 @@ def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=No
         o.extend(['DUP1'])
         o.extend(get_revert())
         return o
+    # Safe math method
+    elif code.value == 'safe_add':
+        return compile_to_assembly(LLLnode.from_list(
+            [
+                'add',
+                ['lt', code.args[0], ['sub', 2**128, code.args[1]]],
+            ]
+        ), withargs, existing_labels, break_dest, height)
+    elif code.value == 'safe_uadd':
+        return compile_to_assembly(LLLnode.from_list(
+            [
+                'add',
+                ['lt', code.args[0], ['sub', 2**256, code.args[1]]],
+            ]
+        ), withargs, existing_labels, break_dest, height)
+    elif code.value == 'safe_mul':
+        return compile_to_assembly(LLLnode.from_list(
+            [
+                'mul',
+                ['iszero', 
+                ['gt', code.args[0], ['div', 2**128, code.args[1]]]],
+            ]
+        ), withargs, existing_labels, break_dest, height)
+    elif code.value == 'safe_umul':
+        return compile_to_assembly(LLLnode.from_list(
+            [
+                'mul',
+                ['iszero', 
+                ['gt', code.args[0], ['div', 2**256, code.args[1]]]],
+            ]
+        ), withargs, existing_labels, break_dest, height)
+    elif code.value == 'safe_usub':
+        return compile_to_assembly(LLLnode.from_list(
+            [
+                'sub',
+                ['iszero', 
+                ['lt', code.args[0], code.args[1]]],
+            ]
+        ), withargs, existing_labels, break_dest, height)
+    # TODO: safe_sub
     # SHA3 a single value
     elif code.value == 'sha3_32':
         o = compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
