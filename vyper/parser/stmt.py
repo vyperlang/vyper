@@ -629,7 +629,11 @@ class Stmt(object):
             varname,
             BaseType(subtype, unit=iter_list_node.typ.subtype.unit),
         )
-        i_pos = self.context.new_variable('_index_for_' + varname, BaseType(subtype))
+        i_pos_raw_name = '_index_for_' + varname
+        i_pos = self.context.new_internal_variable(
+                i_pos_raw_name,
+                BaseType(subtype),
+                )
         self.context.forvars[varname] = True
 
         # Is a list that is already allocated to memory.
@@ -704,7 +708,10 @@ class Stmt(object):
                 )
 
         del self.context.vars[varname]
-        del self.context.vars['_index_for_' + varname]
+        # this kind of open access to the vars dict should be disallowed.
+        # we should use member functions to provide an API for these kinds
+        # of operations.
+        del self.context.vars[self.context._mangle(i_pos_raw_name)]
         del self.context.forvars[varname]
         return o
 

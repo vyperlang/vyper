@@ -144,10 +144,19 @@ class Context:
                 raise VariableDeclarationException(f"Duplicate variable name: {name}", name)
         return True
 
+    def _mangle(self, name):
+        # ensure it is not possible to use an internal variable in source
+        # code because source code identifiers cannot start with `#`
+        return '#internal' + name
+
     # TODO location info for errors
     # Add a new variable
-    def new_variable(self, name, typ, pos=None):
-        if self.is_valid_varname(name, pos):
+    def new_variable(self, name, typ, internal_var=False, pos=None):
+        # mangle internally generated variables so they cannot collide
+        # with user variables.
+        if internal_var:
+            name = self._mangle(name)
+        if internal_var or self.is_valid_varname(name, pos):
             var_size = 32 * get_size_of_type(typ)
             var_pos, _ = self.memory_allocator.increase_memory(var_size)
             self.vars[name] = VariableRecord(
@@ -159,11 +168,14 @@ class Context:
             )
             return var_pos
 
+    def new_internal_variable(self, name, typ, pos=None):
+        return self.new_variable(name, typ, pos=pos, internal_var=True)
+
     # Add an anonymous variable (used in some complex function definitions)
     def new_placeholder(self, typ):
         name = '_placeholder_' + str(self.placeholder_count)
         self.placeholder_count += 1
-        return self.new_variable(name, typ)
+        return self.new_internal_variable(name, typ)
 
     def get_next_mem(self):
         return self.memory_allocator.get_next_mem()

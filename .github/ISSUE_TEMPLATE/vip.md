@@ -5,9 +5,6 @@ about: This is the suggested template for new VIPs.
 ## Simple Summary
 "If you can't explain it simply, you don't understand it well enough." Provide a simplified and layman-accessible explanation of the VIP.
 
-## Abstract
-A short description of the technical issue being addressed.
-
 ## Motivation
 The motivation is critical for VIPs that add or change Vyper's functionality. It should clearly explain why the existing Vyper functionality is inadequate to address the problem that the VIP solves as well as how the VIP is in line with Vyper's goals and design philosophy.
 
