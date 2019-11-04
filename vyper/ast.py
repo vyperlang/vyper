@@ -117,7 +117,7 @@ class keyword(VyperNode):
 
 
 class Str(VyperNode):
-    __slots__ = ('s', )
+    __slots__ = ('s', 'value')
 
 
 class Compare(VyperNode):
@@ -125,7 +125,7 @@ class Compare(VyperNode):
 
 
 class Num(VyperNode):
-    __slots__ = ('n', )
+    __slots__ = ('n', 'value')
 
 
 class NameConstant(VyperNode):
