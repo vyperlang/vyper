@@ -87,7 +87,19 @@ def parse_python_ast(source_code: str,
     if isinstance(node, list):
         return _build_vyper_ast_list(source_code, node, source_id)
     elif isinstance(node, python_ast.AST):
-        class_name = node.__class__.__name__
+        if isinstance(node, python_ast.Num):
+            class_name = "Num"
+            node._fields += ('n',)
+        elif isinstance(node, python_ast.Str):
+            class_name = "Str"
+            node._fields += ('s',)
+        elif isinstance(node, python_ast.Bytes):
+            class_name = "Bytes"
+            node._fields += ('s',)
+        elif isinstance(node, python_ast.NameConstant):
+            class_name = "NameConstant"
+        else:
+            class_name = node.__class__.__name__
         if hasattr(vyper_ast, class_name):
             vyper_class = getattr(vyper_ast, class_name)
             init_kwargs = _build_vyper_ast_init_kwargs(
