@@ -39,7 +39,6 @@ def _build_vyper_ast_init_kwargs(
     source_code: str,
     node: python_ast.AST,
     vyper_class: vyper_ast.VyperNode,
-    class_name: str,
     source_id: int,
 ) -> Generator:
     start = node.first_token.start if hasattr(node, 'first_token') else (None, None)  # type: ignore
@@ -59,23 +58,13 @@ def _build_vyper_ast_init_kwargs(
     if isinstance(node, python_ast.ClassDef):
         yield ('class_type', node.class_type)  # type: ignore
 
-    for field_name in node._fields:
-        val = getattr(node, field_name)
-        if field_name in vyper_class.ignored_fields:
-            continue
-        elif val and field_name in vyper_class.only_empty_fields:
-            raise SyntaxException(
-                'Invalid Vyper Syntax. '
-                f'"{field_name}" is an unsupported attribute field '
-                f'on Python AST "{class_name}" class.',
-                val
-            )
-        else:
+    for field_name in vyper_class.get_slots():
+        if hasattr(node, field_name):
             yield (
                 field_name,
                 parse_python_ast(
                     source_code=source_code,
-                    node=val,
+                    node=getattr(node, field_name),
                     source_id=source_id
                 )
             )
@@ -87,29 +76,33 @@ def parse_python_ast(source_code: str,
     if isinstance(node, list):
         return _build_vyper_ast_list(source_code, node, source_id)
     elif isinstance(node, python_ast.AST):
+        # necessary for python3.8 compatibility
         if isinstance(node, python_ast.Num):
             class_name = "Num"
-            node._fields += ('n',)
         elif isinstance(node, python_ast.Str):
             class_name = "Str"
-            node._fields += ('s',)
         elif isinstance(node, python_ast.Bytes):
             class_name = "Bytes"
-            node._fields += ('s',)
         elif isinstance(node, python_ast.NameConstant):
             class_name = "NameConstant"
         else:
             class_name = node.__class__.__name__
-        if hasattr(vyper_ast, class_name):
-            vyper_class = getattr(vyper_ast, class_name)
-            init_kwargs = _build_vyper_ast_init_kwargs(
-                source_code, node, vyper_class, class_name, source_id
-            )
-            return vyper_class(**init_kwargs)
-        else:
+
+        if not hasattr(vyper_ast, class_name):
             raise SyntaxException(
                 f'Invalid syntax (unsupported "{class_name}" Python AST node).', node
             )
+        vyper_class = getattr(vyper_ast, class_name)
+        for field_name in vyper_class.only_empty_fields:
+            if field_name in node._fields and getattr(node, field_name, None):
+                raise SyntaxException(
+                    'Invalid Vyper Syntax. '
+                    f'"{field_name}" is an unsupported attribute field '
+                    f'on Python AST "{class_name}" class.',
+                    field_name
+                )
+        init_kwargs = _build_vyper_ast_init_kwargs(source_code, node, vyper_class, source_id)
+        return vyper_class(**init_kwargs)
     else:
         return node
 
