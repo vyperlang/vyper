@@ -1210,7 +1210,7 @@ z: decimal = 0.0
 if x == 0.0:
     z = 0.0
 else:
-    z = (x + 1.0) / 2.0
+    z = x / 2.0 + 0.5
     y: decimal = x
 
     for i in range(256):
