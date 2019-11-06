@@ -60,7 +60,7 @@ def test(VAL: uint256):
 
 
 @pytest.mark.parametrize('bad_code', fail_list)
-def test_as_wei_fail(bad_code):
+def test_constants_fail(bad_code):
     if isinstance(bad_code, tuple):
         with raises(bad_code[1]):
             compiler.compile_code(bad_code[0])
@@ -143,5 +143,5 @@ ZERO_LIST: constant(int128[8]) = [0, 0, 0, 0, 0, 0, 0, 0]
 
 
 @pytest.mark.parametrize('good_code', valid_list)
-def test_as_wei_success(good_code):
+def test_constant_success(good_code):
     assert compiler.compile_code(good_code) is not None
