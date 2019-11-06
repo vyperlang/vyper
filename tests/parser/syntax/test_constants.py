@@ -8,6 +8,7 @@ from vyper import (
 )
 from vyper.exceptions import (
     FunctionDeclarationException,
+    InvalidLiteralException,
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
@@ -55,7 +56,10 @@ VAL: constant(bytes[4]) = b"t"
 @public
 def test(VAL: uint256):
     pass
-    """, FunctionDeclarationException)
+    """, FunctionDeclarationException),
+    ("""
+VAL: constant(decimal) = 2e-8
+    """, InvalidLiteralException),
 ]
 
 
