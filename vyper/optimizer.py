@@ -1,4 +1,8 @@
 import operator
+from typing import (
+    Any,
+    List,
+)
 
 from vyper.parser.parser_utils import (
     LLLnode,
@@ -39,31 +43,6 @@ def search_for_set(node, var):
     return False
 
 
-def replace_with_value(node, var, value):
-    if node.value == "with" and node.args[0].value == var:
-        return LLLnode(
-            node.value,
-            [
-                node.args[0],
-                replace_with_value(node.args[1], var, value),
-                node.args[2]
-            ],
-            node.typ,
-            node.location,
-            node.annotation,
-        )
-    elif node.value == var:
-        return LLLnode(value, [], node.typ, node.location, node.annotation)
-    else:
-        return LLLnode(
-            node.value,
-            [replace_with_value(arg, var, value) for arg in node.args],
-            node.typ,
-            node.location,
-            node.annotation,
-        )
-
-
 arith = {
     "add": (operator.add, '+'),
     "sub": (operator.sub, '-'),
@@ -79,20 +58,6 @@ def _is_constant_add(node, args):
             node.value == "add" and int_at(args, 0)
         ) and (
             args[1].value == "add" and int_at(args[1].args, 0)
-        )
-    )
-
-
-def _is_with_without_set(node, args):
-    # TODO: this unconditionally returns `False`.  Corresponding optimizer path
-    # should likely be removed.
-    return (
-        (
-            node.value == "with" and int_at(args, 1)
-        ) and (
-            not search_for_set(args[2], args[0].value)
-        ) and (
-            False
         )
     )
 
@@ -232,23 +197,16 @@ def optimize(node: LLLnode) -> LLLnode:
                 annotation=node.annotation,
                 # let from_list handle valency and gas_estimate
                 )
-    elif _is_with_without_set(node, argz):
-        # TODO: This block is currently unreachable due to
-        # `_is_with_without_set` unconditionally returning `False` this appears
-        # to be because this "is actually not such a good optimization after
-        # all" accordiing to previous comment.
-        o = replace_with_value(argz[2], argz[0].value, argz[1].value)
-        return o
     elif node.value == "seq":
-        o = []
+        xs: List[Any] = []
         for arg in argz:
             if arg.value == "seq":
-                o.extend(arg.args)
+                xs.extend(arg.args)
             else:
-                o.append(arg)
+                xs.append(arg)
         return LLLnode(
             node.value,
-            o,
+            xs,
             node.typ,
             node.location,
             node.pos,
