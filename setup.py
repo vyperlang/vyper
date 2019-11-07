@@ -12,7 +12,7 @@ test_deps = [
     'pytest-cov>=2.8.1,<3',
     'coveralls[yaml]>=1.8.2,<2',
     'pytest-xdist>=1.30.0,<2',
-    'eth-tester[py-evm]==0.1.0b39',
+    'eth-tester[py-evm]>=0.3.0b1,<0.4',
     'web3>=5.2.0,<5.3.0',
     'tox>=3.7,<4',
     'hypothesis>=4.41.3,<5'
