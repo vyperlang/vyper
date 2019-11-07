@@ -1,4 +1,8 @@
 import operator
+from typing import (
+    Any,
+    List,
+)
 
 from vyper.parser.parser_utils import (
     LLLnode,
@@ -194,15 +198,15 @@ def optimize(node: LLLnode) -> LLLnode:
                 # let from_list handle valency and gas_estimate
                 )
     elif node.value == "seq":
-        o = []
+        xs: List[Any] = []
         for arg in argz:
             if arg.value == "seq":
-                o.extend(arg.args)
+                xs.extend(arg.args)
             else:
-                o.append(arg)
+                xs.append(arg)
         return LLLnode(
             node.value,
-            o,
+            xs,
             node.typ,
             node.location,
             node.pos,
