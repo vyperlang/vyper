@@ -269,7 +269,7 @@ def safeTransferFrom(
          Throws if `_to` is the zero address.
          Throws if `_tokenId` is not a valid NFT.
          If `_to` is a smart contract, it calls `onERC721Received` on `_to` and throws if
-         the return value is not `bytes4(keccak256("onERC721Received(address,uint256,bytes)"))`.
+         the return value is not `bytes4(keccak256("onERC721Received(address,address,uint256,bytes)"))`.
          NOTE: bytes4 is represented by bytes32 with padding
     @param _from The current owner of the NFT.
     @param _to The new owner.
