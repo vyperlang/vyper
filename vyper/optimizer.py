@@ -198,7 +198,7 @@ def optimize(node: LLLnode) -> LLLnode:
         for arg in argz:
             if arg.value == "seq":
                 o.extend(arg.args)
-            elif arg.value != "pass":
+            else:
                 o.append(arg)
         return LLLnode(
             node.value,

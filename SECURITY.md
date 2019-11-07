@@ -34,6 +34,7 @@ Please read prior audit reports for projects that use Vyper here:
 | Project | Version | Report Link |
 | ------- | ------- | ----------- |
 | [Uniswap](https://uniswap.io) | 35038d2 | https://medium.com/consensys-diligence/uniswap-audit-b90335ac007 |
+| [Computable](https://www.computable.io/) | 0.1.0b10 | https://github.com/trailofbits/publications/raw/master/reviews/computable.pdf |
 
 ## Known Vyper Vulnerabilities and Exposures (VVEs)
 

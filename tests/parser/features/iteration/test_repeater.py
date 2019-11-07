@@ -84,3 +84,20 @@ def sum(frm: int128, to: int128) -> int128:
     assert c.sum(70, 131) == 6100
 
     print('Passed more complex repeater with offset test')
+
+
+def test_loop_call_priv(get_contract_with_gas_estimation):
+    code = """
+@private
+def _bar() -> bool:
+    return True
+
+@public
+def foo() -> bool:
+    for i in range(3):
+        self._bar()
+    return True
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.foo() is True

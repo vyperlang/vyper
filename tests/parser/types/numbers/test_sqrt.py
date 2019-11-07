@@ -142,6 +142,13 @@ def test(a: decimal) -> decimal:
     return c
 
 
+@pytest.mark.parametrize('value', [Decimal(0), Decimal(SizeLimits.MAXNUM)])
+def test_sqrt_bounds(sqrt_contract, value):
+    vyper_sqrt = sqrt_contract.test(value)
+    actual_sqrt = decimal_sqrt(value)
+    assert vyper_sqrt == actual_sqrt
+
+
 @hypothesis.given(
     value=hypothesis.strategies.decimals(
         min_value=Decimal(0),
