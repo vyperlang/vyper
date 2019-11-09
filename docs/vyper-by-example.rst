@@ -31,7 +31,7 @@ Let's get started!
 .. literalinclude:: ../examples/auctions/simple_open_auction.vy
   :language: python
   :lineno-start: 3
-  :lines: 3-14
+  :lines: 3-17
 
 We begin by declaring a few variables to keep track of our contract state.
 We initialize a global variable ``beneficiary`` by calling ``public`` on the
@@ -40,7 +40,8 @@ the highest bidder.  We also initialize the variables ``auctionStart`` and
 ``auctionEnd`` with the datatype ``timestamp`` to manage the open auction
 period and ``highestBid`` with datatype ``wei_value``, the smallest
 denomination of ether, to manage auction state. The variable ``ended`` is a
-boolean to determine whether the auction is officially over.
+boolean to determine whether the auction is officially over. The variable ``pendingReturns`` is a ``map`` which
+enables the use of key-value pairs to keep proper track of the auctions withdrawal pattern.
 
 You may notice all of the variables being passed into the ``public``
 function. By declaring the variable *public*, the variable is
