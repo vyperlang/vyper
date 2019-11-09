@@ -80,14 +80,14 @@ def parse_python_ast(source_code: str,
 
     class_name = node.__class__.__name__
     if isinstance(node, python_ast.Constant):
-        if isinstance(node.value, (int, float)):
+        if node.value is None or isinstance(node.value, bool):
+            class_name = "NameConstant"
+        elif isinstance(node.value, (int, float)):
             class_name = "Num"
         elif isinstance(node.value, str):
             class_name = "Str"
         elif isinstance(node.value, bytes):
             class_name = "Bytes"
-        elif node.value is None or isinstance(node.value, bool):
-            class_name = "NameConstant"
     if not hasattr(vyper_ast, class_name):
         raise SyntaxException(f'Invalid syntax (unsupported "{class_name}" Python AST node).', node)
 
