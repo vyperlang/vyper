@@ -981,8 +981,7 @@ def raw_log(expr, args, kwargs, context):
                     "log" + str(len(topics)),
                     placeholder,
                     32,
-                ] + topics
-            ] , typ=None, pos=getpos(expr))
+                ] + topics], typ=None, pos=getpos(expr))
     if args[1].location == "memory":
         return LLLnode.from_list([
             "with", "_arr", args[1], [
