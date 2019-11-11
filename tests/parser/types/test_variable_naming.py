@@ -8,6 +8,11 @@ from vyper import (
 )
 from vyper.exceptions import (
     FunctionDeclarationException,
+    VariableDeclarationException,
+)
+from vyper.parser.expr import (
+    BUILTIN_CONSTANTS,
+    ENVIRONMENT_VARIABLES,
 )
 
 fail_list = [
@@ -34,3 +39,29 @@ def test_variable_naming_fail(bad_code):
 
     with raises(FunctionDeclarationException):
         compiler.compile_code(bad_code)
+
+
+@pytest.mark.parametrize('constant', list(BUILTIN_CONSTANTS)+list(ENVIRONMENT_VARIABLES))
+def test_reserved_keywords_memory(constant, get_contract, assert_compile_failed):
+    code = f"""
+@public
+def test():
+    {constant}: int128 = 31337
+    """
+    assert_compile_failed(lambda: get_contract(code), VariableDeclarationException)
+
+
+@pytest.mark.parametrize('constant', list(BUILTIN_CONSTANTS)+list(ENVIRONMENT_VARIABLES))
+def test_reserved_keywords_storage(constant, get_contract, assert_compile_failed):
+    code = f"{constant}: int128"
+    assert_compile_failed(lambda: get_contract(code), VariableDeclarationException)
+
+
+@pytest.mark.parametrize('constant', list(BUILTIN_CONSTANTS)+list(ENVIRONMENT_VARIABLES))
+def test_reserved_keywords_fn_args(constant, get_contract, assert_compile_failed):
+    code = f"""
+@public
+def test({constant}: int128):
+    pass
+    """
+    assert_compile_failed(lambda: get_contract(code), FunctionDeclarationException)

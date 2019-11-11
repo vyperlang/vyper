@@ -113,15 +113,6 @@ def zoo() -> uint256:
     assert c.zoo() == 2**256 - 1
 
 
-def test_reserved_keyword(get_contract, assert_compile_failed):
-    code = """
-@public
-def test():
-    ZERO_ADDRESS: address
-    """
-    assert_compile_failed(lambda: get_contract(code))
-
-
 def test_custom_constants(get_contract):
     code = """
 X_VALUE: constant(uint256) = 33
