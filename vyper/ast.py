@@ -258,6 +258,7 @@ class Assert(VyperNode):
 
 class For(VyperNode):
     __slots__ = ('iter', 'target', 'body')
+    only_empty_fields = ('orelse', )
 
 
 class AugAssign(VyperNode):
