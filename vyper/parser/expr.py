@@ -547,6 +547,7 @@ class Expr(object):
                 arith = ['mul', 'l', 'r']
 
             elif ltyp == rtyp == 'decimal':
+                # TODO should this be smul
                 arith = ['with', 'ans', ['mul', 'l', 'r'],
                          ['seq',
                              ['assert',
@@ -570,7 +571,7 @@ class Expr(object):
 
             elif ltyp == rtyp == 'decimal':
                 arith = ['sdiv',
-                         # TODO check overflow cases
+                         # TODO check overflow cases, also should it be smul
                          ['mul', 'l', DECIMAL_DIVISOR],
                          ['clamp_nonzero', 'r']]
 
@@ -592,6 +593,7 @@ class Expr(object):
             if ltyp == rtyp == 'uint256':
                 arith = ['mod', 'l', ['clamp_nonzero', 'r']]
             elif ltyp == rtyp:
+                # TODO should this be regular mod
                 arith = ['smod', 'l', ['clamp_nonzero', 'r']]
 
             else:
