@@ -206,13 +206,15 @@ class Expr(object):
     # String literals
     def string(self):
         bytez, bytez_length = string_to_bytes(self.expr.s)
-        return self._make_bytelike(StringType(bytez_length), bytez, bytez_length)
+        typ = StringType(bytez_length, is_literal=True)
+        return self._make_bytelike(typ, bytez, bytez_length)
 
     # Byte literals
     def bytes(self):
         bytez = self.expr.s
         bytez_length = len(self.expr.s)
-        return self._make_bytelike(ByteArrayType(bytez_length), bytez, bytez_length)
+        typ = ByteArrayType(bytez_length, is_literal=True)
+        return self._make_bytelike(typ, bytez, bytez_length)
 
     def _make_bytelike(self, btype, bytez, bytez_length):
         placeholder = self.context.new_placeholder(btype)

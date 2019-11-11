@@ -137,8 +137,9 @@ class ContractType(BaseType):
 
 
 class ByteArrayLike(NodeType):
-    def __init__(self, maxlen):
+    def __init__(self, maxlen, is_literal=False):
         self.maxlen = maxlen
+        self.is_literal = is_literal
 
     def eq(self, other):
         return self.maxlen == other.maxlen

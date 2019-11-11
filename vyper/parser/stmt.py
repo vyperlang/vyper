@@ -225,7 +225,7 @@ class Stmt(object):
                 and sub.typ.maxlen == 32
                 and isinstance(typ, BaseType)
                 and typ.typ == 'bytes32'
-                and typ.is_literal
+                and sub.typ.is_literal
             )
 
             # If bytes[32] to bytes32 assignment rewrite sub as bytes32.
