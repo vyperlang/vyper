@@ -170,11 +170,12 @@ reserved_words = {
     # control flow
     'if', 'for', 'while', 'until', 'pass',
     'def',
-    # EVM operations and transaction properties
+    # EVM operations
     'push', 'dup', 'swap', 'send', 'call',
     'selfdestruct', 'assert', 'stop', 'throw',
     'raise', 'init', '_init_', '___init___', '____init____',
-    'msg',
+    # environment variables
+    'block', 'msg', 'tx',
     # boolean literals
     'true', 'false',
     # more control flow and special operations
@@ -192,7 +193,7 @@ reserved_words = {
     'units',
     # sentinal constant values
     'zero_address', 'empty_bytes32' 'max_int128', 'min_int128', 'max_decimal',
-    'min_decimal', 'max_uint256',
+    'min_decimal', 'max_uint256', 'zero_wei',
 }
 
 # Otherwise reserved words that are whitelisted for function declarations
