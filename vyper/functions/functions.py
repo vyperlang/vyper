@@ -962,7 +962,7 @@ def _RLPlist(expr, args, kwargs, context):
     )
 
 
-@signature('*', 'bytes')
+@signature('*', ('bytes32', 'bytes'))
 def raw_log(expr, args, kwargs, context):
     if not isinstance(args[0], ast.List) or len(args[0].elts) > 4:
         raise StructureException("Expecting a list of 0-4 topics as first argument", args[0])
@@ -972,6 +972,17 @@ def raw_log(expr, args, kwargs, context):
         if not is_base_type(arg.typ, 'bytes32'):
             raise TypeMismatchException("Expecting a bytes32 argument as topic", elt)
         topics.append(arg)
+    if args[1].typ == BaseType('bytes32'):
+        placeholder = context.new_placeholder(BaseType('bytes32'))
+        return LLLnode.from_list(
+            ['seq',
+                ['mstore', placeholder, unwrap_location(args[1])],
+                [
+                    "log" + str(len(topics)),
+                    placeholder,
+                    32,
+                ] + topics
+            ] , typ=None, pos=getpos(expr))
     if args[1].location == "memory":
         return LLLnode.from_list([
             "with", "_arr", args[1], [
