@@ -1,5 +1,6 @@
 from vyper.exceptions import (
     ArrayIndexException,
+    TypeMismatchException,
 )
 
 
@@ -233,7 +234,7 @@ def bounds_check_int128(ix: int128) -> uint256:
     assert_tx_failed(lambda: c.bounds_check_int128(-1))
 
 
-def test_compile_time_bounds_check(get_contract_with_gas_estimation, assert_compile_failed):
+def test_list_check_heterogeneous_types(get_contract_with_gas_estimation, assert_compile_failed):
     code = """
 @public
 def fail() -> uint256:
@@ -253,4 +254,17 @@ def fail() -> uint256:
     assert_compile_failed(
             lambda: get_contract_with_gas_estimation(code),
             ArrayIndexException
+            )
+
+
+def test_compile_time_bounds_check(get_contract_with_gas_estimation, assert_compile_failed):
+    code = """
+@public
+def parse_list_fail():
+    xs: uint256[3] = [2**255, 1, 3]
+    pass
+    """
+    assert_compile_failed(
+            lambda: get_contract_with_gas_estimation(code),
+            TypeMismatchException
             )

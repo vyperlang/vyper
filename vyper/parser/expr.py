@@ -1078,7 +1078,7 @@ class Expr(object):
                 out_type = current_lll_node.typ
 
             current_type = get_out_type(current_lll_node)
-            if len(o) > 1 and previous_type != current_type:
+            if len(o) > 0 and previous_type != current_type:
                 raise TypeMismatchException("Lists may only contain one type", self.expr)
             else:
                 o.append(current_lll_node)
