@@ -6,7 +6,9 @@ from vyper.exceptions import (
     EventDeclarationException,
     TypeMismatchException,
 )
-from vyper.utils import keccak256
+from vyper.utils import (
+    keccak256,
+)
 
 
 def test_empty_event_logging(w3, tester, keccak, get_contract_with_gas_estimation):
