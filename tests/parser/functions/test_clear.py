@@ -1,3 +1,6 @@
+from vyper.exceptions import (
+    TypeMismatchException
+)
 
 def test_clear_basic_type(get_contract_with_gas_estimation):
     contracts = [  # noqa: E122
@@ -258,20 +261,22 @@ def test_clear_bytes(get_contract_with_gas_estimation):
 foobar: bytes[5]
 
 @public
-def foo() -> (bytes[5], bytes[5]):
+def foo() -> (bytes[5], bytes[5], bytes[5]):
     self.foobar = b'Hello'
     bar: bytes[5] = b'World'
 
     clear(self.foobar)
     clear(bar)
 
-    return (self.foobar, bar)
+    baz: bytes[5] = 'world'
+    baz = clear(bytes[5])
+
+    return (self.foobar, bar, baz)
     """
 
     c = get_contract_with_gas_estimation(code)
-    a, b = c.foo()
-    assert a == b''
-    assert b == b''
+    a, b, c = c.foo()
+    assert a == b == c == b''
 
 
 def test_clear_struct(get_contract_with_gas_estimation):
@@ -410,3 +415,24 @@ def delete():
     assert c.get() == [333, 444]
     c.delete(transact={})
     assert c.get() == [0, 0]
+
+
+def test_clear_typecheck(get_contract, assert_compile_failed):
+    contracts = [
+    """
+@public
+def foo():
+    xs: uint256[10] = clear(uint256[11])
+    """,
+    """
+@public
+def bar():
+    ys: bytes[33] = clear(bytes[32])
+    """
+    ]
+
+    for contract in contracts:
+        assert_compile_failed(
+            lambda: get_contract(contract),
+            TypeMismatchException
+        )

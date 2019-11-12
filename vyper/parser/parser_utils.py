@@ -12,6 +12,7 @@ from vyper.exceptions import (
     InvalidLiteral,
     StructureException,
     TypeMismatch,
+    CompilerPanic,
 )
 from vyper.parser.lll_node import (
     LLLnode,
@@ -79,6 +80,13 @@ def make_byte_array_copier(destination, source, pos=None):
             f"Cannot cast from greater max-length {source.typ.maxlen} to shorter "
             f"max-length {destination.typ.maxlen}"
         )
+
+    # stricter check for zeroing a byte array.
+    if isinstance(source.typ, ByteArrayLike) and source.value is None and source.typ.maxlen != destination.typ.maxlen:
+        raise TypeMismatchException(
+                f"Bad type for clearing bytes: expected {destination.typ}"
+                f" but got {source.typ}")
+
     # Special case: memory to memory
     if source.location == "memory" and destination.location == "memory":
         gas_calculation = GAS_IDENTITY + GAS_IDENTITYWORD * (ceil32(source.typ.maxlen) // 32)
@@ -90,7 +98,10 @@ def make_byte_array_copier(destination, source, pos=None):
         )
         return o
 
-    pos_node = LLLnode.from_list('_pos', typ=source.typ, location=source.location)
+    if source.value is None:
+        pos_node = source
+    else:
+        pos_node = LLLnode.from_list('_pos', typ=source.typ, location=source.location)
     # Get the length
     if source.value is None:
         length = 1
@@ -104,7 +115,7 @@ def make_byte_array_copier(destination, source, pos=None):
             location=source.location,
         )
     else:
-        raise Exception("Unsupported location:" + source.location)
+        raise CompilerPanic("Unsupported location:" + source.location)
     if destination.location == "storage":
         destination = LLLnode.from_list(
             ['sha3_32', destination],
@@ -136,16 +147,22 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
                 ['call', ['gas'], 4, 0, source, '_l', destination, '_l']
             ]
         ], typ=None, annotation=f'copy byte slice dest: {str(destination)}')
+
     # special case: rhs is zero
     if source.value is None:
-        return mzero(destination, max_length)
+
+        if destination.location == 'memory':
+            return mzero(destination, max_length)
+
+        else:
+            loader = 0
     # Copy over data
-    if source.location == "memory":
+    elif source.location == "memory":
         loader = ['mload', ['add', '_pos', ['mul', 32, ['mload', MemoryPositions.FREE_LOOP_INDEX]]]]
     elif source.location == "storage":
         loader = ['sload', ['add', '_pos', ['mload', MemoryPositions.FREE_LOOP_INDEX]]]
     else:
-        raise Exception("Unsupported location:" + source.location)
+        raise CompilerPanic(f'Unsupported location: {source}')
     # Where to paste it?
     if destination.location == "memory":
         setter = [
@@ -156,7 +173,7 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
     elif destination.location == "storage":
         setter = ['sstore', ['add', '_opos', ['mload', MemoryPositions.FREE_LOOP_INDEX]], loader]
     else:
-        raise Exception("Unsupported location:" + destination.location)
+        raise CompilerPanic("Unsupported location:" + destination.location)
     # Check to see if we hit the length
     checker = [
         'if',
@@ -164,8 +181,9 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
         'break'
     ]
     # Make a loop to do the copying
+    ipos = 0 if source.value is None else source
     o = [
-        'with', '_pos', source, [
+        'with', '_pos', ipos, [
             'with', '_opos', destination, [
                 'with', '_actual_len', length, [
                     'repeat',
@@ -568,7 +586,7 @@ def make_setter(left, right, location, pos, in_function_call=False):
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         elif right.value is None:
             if left.location == 'memory':
-                return mzero(left, get_size_of_type(left.typ))
+                return mzero(left, 32*get_size_of_type(left.typ))
 
             subs = []
             for i in range(left.typ.count):
@@ -671,7 +689,7 @@ def make_setter(left, right, location, pos, in_function_call=False):
         # If the right side is a null
         elif right.value is None:
             if left.location == 'memory':
-                return mzero(left, get_size_of_type(left.typ))
+                return mzero(left, 32*get_size_of_type(left.typ))
 
             subs = []
             for key, loc in zip(keyz, locations):
