@@ -235,8 +235,11 @@ class TupleType(TupleLike):
         return list(enumerate(self.members))
 
 
-# Data structure for the type used by None/null
+# Sentinel type to represent zeroing operations
 class NullType(NodeType):
+    def __init__(self, typ=None):
+        self.typ = typ # optional type for typechecking
+
     def eq(self, other):
         return True
 
