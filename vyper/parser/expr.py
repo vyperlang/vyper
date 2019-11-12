@@ -257,7 +257,10 @@ class Expr(object):
                 pos=getpos(self.expr),
             )
         elif self.expr.value is None:
-            return LLLnode.from_list(None, typ=NullType(), pos=getpos(self.expr))
+            # block None
+            raise InvalidLiteralException(
+                    'None is not allowed in vyper'
+                    '(use a default value or built-in `clear()`')
         else:
             raise Exception(f"Unknown name constant: {self.expr.value.value}")
 

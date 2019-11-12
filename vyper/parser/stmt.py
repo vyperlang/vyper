@@ -120,11 +120,17 @@ class Stmt(object):
                     raise TypeMismatch('Invalid type, expected: bytes32', self.stmt)
                 return
             else:
+<<<<<<< HEAD
                 raise TypeMismatch('Invalid type, expected: bytes32', self.stmt)
         elif isinstance(self.stmt.annotation, vy_ast.Subscript):
-            if not isinstance(sub.typ, (ListType, ByteArrayLike)):  # check list assign.
+            check_typ = sub.typ
+            if isinstance(check_typ, NullType):
+                check_typ = check_typ.typ
+            good = isinstance(check_typ, (ListType, ByteArrayLike)) # check list assign.
+            if not good:
                 raise TypeMismatch(
-                    f'Invalid type, expected: {self.stmt.annotation.value.id}', self.stmt
+                    f'Invalid type, expected: {self.stmt.annotation.value.id},'
+                    f' got: {sub.typ}', self.stmt
                 )
         elif isinstance(sub.typ, StructType):
             # This needs to get more sophisticated in the presence of
@@ -198,16 +204,6 @@ class Stmt(object):
 
             sub = Expr(self.stmt.value, self.context).lll_node
 
-            # Disallow assignment to None
-            if isinstance(sub.typ, NullType):
-                raise InvalidLiteral(
-                    (
-                        'Assignment to None is not allowed, use a default '
-                        'value or built-in `clear()`.'
-                    ),
-                    self.stmt
-                )
-
             is_literal_bytes32_assign = (
                 isinstance(sub.typ, ByteArrayType)
                 and sub.typ.maxlen == 32
@@ -251,16 +247,6 @@ class Stmt(object):
 
         with self.context.assignment_scope():
             sub = Expr(self.stmt.value, self.context).lll_node
-
-            # Disallow assignment to None
-            if isinstance(sub.typ, NullType):
-                raise InvalidLiteral(
-                    (
-                        'Assignment to None is not allowed, use a default value '
-                        'or built-in `clear()`.'
-                    ),
-                    self.stmt,
-                )
 
             is_valid_rlp_list_assign = (
                 isinstance(self.stmt.value, vy_ast.Call)
@@ -342,16 +328,10 @@ class Stmt(object):
         return o
 
     def _clear(self):
-        # Create zero node
-        none = vy_ast.NameConstant(value=None)
-        none.lineno = self.stmt.lineno
-        none.col_offset = self.stmt.col_offset
-        none.end_lineno = self.stmt.end_lineno
-        none.end_col_offset = self.stmt.end_col_offset
-        zero = Expr(none, self.context).lll_node
-
         # Get target variable
         target = self.get_target(self.stmt.args[0])
+
+        zero = LLLnode(None, typ=NullType(target.typ), pos=getpos(self.expr))
 
         # Generate LLL node to set to zero
         o = make_setter(target, zero, target.location, pos=getpos(self.stmt))

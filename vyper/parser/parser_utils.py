@@ -137,10 +137,11 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
                 ['call', ['gas'], 4, 0, source, '_l', destination, '_l']
             ]
         ], typ=None, annotation=f'copy byte slice dest: {str(destination)}')
-    # Copy over data
+    # special case: rhs is zero
     if isinstance(source.typ, NullType):
-        loader = 0
-    elif source.location == "memory":
+        return mzero(destination, max_length)
+    # Copy over data
+    if source.location == "memory":
         loader = ['mload', ['add', '_pos', ['mul', 32, ['mload', MemoryPositions.FREE_LOOP_INDEX]]]]
     elif source.location == "storage":
         loader = ['sload', ['add', '_pos', ['mload', MemoryPositions.FREE_LOOP_INDEX]]]
@@ -525,6 +526,9 @@ def pack_arguments(signature, args, context, stmt_expr, return_placeholder=True)
 
 # Create an x=y statement, where the types may be compound
 def make_setter(left, right, location, pos, in_function_call=False):
+    if isinstance(right.typ, NullType):
+        if right.typ.typ is not None and right.typ.typ != left.typ:
+            raise TypeMismatchException('attempt to clear {left.typ} but provided {right.typ.typ}')
     # Basic types
     if isinstance(left.typ, BaseType):
         right = base_type_conversion(
@@ -576,9 +580,10 @@ def make_setter(left, right, location, pos, in_function_call=False):
                     array_bounds_check=False,
                 ), right.args[i], location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
-        # If the right side is a null
-        # CC 20190619 probably not needed as of #1106
         elif isinstance(right.typ, NullType):
+            if left.location == 'memory':
+                return mzero(left, get_size_of_type(left.typ))
+
             subs = []
             for i in range(left.typ.count):
                 subs.append(make_setter(add_variable_offset(
@@ -586,7 +591,7 @@ def make_setter(left, right, location, pos, in_function_call=False):
                     LLLnode.from_list(i, typ='int128'),
                     pos=pos,
                     array_bounds_check=False,
-                ), LLLnode.from_list(None, typ=NullType()), location, pos=pos))
+                ), LLLnode.from_list(None, typ=NullType(left.typ)), location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If the right side is a variable
         else:
@@ -678,11 +683,14 @@ def make_setter(left, right, location, pos, in_function_call=False):
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If the right side is a null
         elif isinstance(right.typ, NullType):
+            if left.location == 'memory':
+                return mzero(left, get_size_of_type(left.typ))
+
             subs = []
             for typ, loc in zip(keyz, locations):
                 subs.append(make_setter(
                     add_variable_offset(left_token, typ, pos=pos),
-                    LLLnode.from_list(None, typ=NullType()),
+                    LLLnode.from_list(None, typ=NullType(typ)),
                     loc,
                     pos=pos,
                 ))
