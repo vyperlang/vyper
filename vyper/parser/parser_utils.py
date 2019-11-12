@@ -55,6 +55,8 @@ def get_number_as_fraction(expr, context):
     t = 0
     while t < len(context_slice) and context_slice[t] in '0123456789.':
         t += 1
+    if t < len(context_slice) and context_slice[t] == 'e':
+        raise InvalidLiteralException("Literals in scientific notation not accepted.")
     top = int(context_slice[:t].replace('.', ''))
     bottom = 1 if '.' not in context_slice[:t] else 10**(t - context_slice[:t].index('.') - 1)
 

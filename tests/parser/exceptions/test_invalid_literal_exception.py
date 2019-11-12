@@ -120,7 +120,12 @@ def overflow() -> uint256:
 def overflow2() -> uint256:
     a: uint256 = 2**256
     return a
+    """,
     """
+@public
+def scientific_notation() -> decimal:
+    return 2e-8  # not valid decimal literal
+    """,
 ]
 
 
