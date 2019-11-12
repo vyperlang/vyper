@@ -287,67 +287,73 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
     parent_abi_t = abi_type_of(lll_node.typ)
     if bufsz is not None and bufsz < parent_abi_t.static_size() + parent_abi_t.dynamic_size_bound():
         raise CompilerPanic('buffer provided to abi_encode not large enough')
+    if returns and not parent_abi_t.is_dynamic():
+        raise CompilerPanic('invariant violated')
 
-    lll_ret  = []
-    dyn_ofst = 'dyn_ofst' # current offset in the dynamic section
-    dst_ptr  = 'dst'      # pointer to beginning of buffer
-    dst_loc  = 'dst_loc'  # pointer to write location in static section
+    lll_ret   = ['seq']
+    dyn_ofst  = 'dyn_ofst' # current offset in the dynamic section
+    dst_begin = 'dst'      # pointer to beginning of buffer
+    dst_loc   = 'dst_loc'  # pointer to write location in static section
     os = o_list(lll_node, pos=pos)
 
     for i, o in enumerate(os):
         abi_t = abi_type_of(o)
 
-        if abi_t.is_dynamic():
-            if parent_abi_t.is_tuple():
-                calc_dyn_loc = ['add', dst, dyn_ofst]
+        if parent_abi_t.is_tuple():
+            if abi_t.is_dynamic():
                 lll_ret.append(['mstore', dst_loc, dyn_ofst])
                 # recurse
-                child = abi_encode(calc_dyn_loc, o, pos, returns=True)
+                child_dst = ['add', dst_begin, dyn_ofst]
+                child = abi_encode(child_dst, o, pos=pos, returns=True)
+                # increment dyn ofst for the return
+                # (optimization note:
+                #   if non-returning and this is the last dyn member in
+                #   the tuple, this set can be elided.)
                 lll_ret.append(
-                        ['set', 'dyn_ofst',
-                            ['add', 'dyn_ofst', child]])
-
-            elif isinstance(o.typ, ByteArrayLike):
-                d = LLLnode.from_list([dst_loc], typ=o.typ)
-                child = ['seq',
-                            make_byte_array_copier(d, o, pos=pos),
-                            zero_pad(d, maxlen=d.typ.maxlen)]
+                        ['set', dyn_ofst,
+                            ['add', dyn_ofst, child]])
             else:
-                raise CompilerPanic(f'unreachable type: {o.typ}')
+                # recurse
+                lll_ret.append(abi_encode(dst_loc, o, pos=pos, returns=False))
 
+        elif isinstance(o.typ, BaseType):
+            lll_ret.append(['mstore', dst_loc, o])
+        elif isinstance(o.typ, ByteArrayLike):
+            d = LLLnode(dst_loc, typ=o.typ, location=o.location)
+            lll_ret.append(
+                    ['seq',
+                        make_byte_array_copier(d, o, pos=pos),
+                        zero_pad(d, maxlen=d.typ.maxlen)])
         else:
-            if isinstance(o.typ, BaseType):
-                lll_ret.append(['mstore', dst_loc, o])
-            else:
-                # returnse=False bc children guaranteed to be static.
-                # TODO set bufz = abi_t.static_size()
-                lll_ret.append(abi_encode(o, dst_loc, returns=False, pos=pos))
+            raise CompilerPanic(f'unreachable type: {o.typ}')
 
-        # optimize out the last increment to dst_loc
         if i + 1 == len(os):
-            pass
-        else: # note: always false if should_recurse == False
+            pass # optimize out the last increment to dst_loc
+        else: # note: always false for non-tuple types
             sz = abi_t.static_size()
             lll_ret.append(['set', dst_loc, ['add', dst_loc, sz]])
 
     # declare LLL variables.
     if returns:
         if parent_abi_t.is_tuple():
-            lll_ret = ['seq', lll_ret, 'dyn_ofst']
-        else:
+            lll_ret.append('dyn_ofst')
+        elif isinstance(lll_node.typ, ByteArrayLike):
+            # for abi purposes, return zero-padded length
             calc_len = ['ceil32', ['add', 32, ['mload', dst_loc]]]
-            lll_ret = ['seq', lll_ret, calc_len]
+            lll_ret.append(calc_len)
+        else:
+            raise CompilerPanic('unknown type {lll_node.typ}')
+
+    if not (parent_abi_t.is_dynamic() and parent_abi_t.is_tuple()):
+        pass # optimize out dyn_ofst allocation if we don't need it
     else:
-        lll_ret = ['seq', lll_ret]
+        lll_ret = ['with', 'dyn_ofst', parent_abi_t.static_size(), lll_ret]
 
-    if parent_abi_t.is_dynamic():
-        if parent_abi_t.is_tuple():
-            lll_ret = ['with', 'dyn_ofst', parent_abi_t.static_size(), lll_ret]
-
-    lll_ret = ['with', dst_ptr, dst,
-                ['with', dst_loc, dst_ptr, lll_ret]]
+    lll_ret = ['with', dst_begin, dst,
+              ['with', dst_loc, dst_ptr, lll_ret]]
 
     return LLLnode.from_list(lll_ret)
+
 
 # lll_node is the destination LLL item, src is the input buffer.
 # recursively copy the buffer items into lll_node, based on its type.
@@ -365,6 +371,7 @@ def abi_decode(lll_node, src, pos=None):
                 child_loc = ['add', src_ptr, unwrap_location(src_loc)]
             else:
                 child_loc = src_loc
+            # descend into the child tuple
             lll_ret.append(abi_decode(o, child_loc, pos=pos))
         else:
             lll_ret.append(make_setter(o, src_loc))
@@ -372,7 +379,7 @@ def abi_decode(lll_node, src, pos=None):
         if i + 1 == len(os):
             pass # optimize out the last pointer increment
         else:
-            lll_ret.append(['set', 'src_loc', ['add', 'src_loc', ofst]])
+            lll_ret.append(['set', src_loc, ['add', src_loc, ofst]])
 
     lll_ret = ['with', 'src', src,
               ['with', 'src_loc', 'src',
