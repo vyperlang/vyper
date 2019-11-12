@@ -379,7 +379,8 @@ def abi_decode(lll_node, src, pos=None):
         if i + 1 == len(os):
             pass # optimize out the last pointer increment
         else:
-            lll_ret.append(['set', src_loc, ['add', src_loc, ofst]])
+            sz = abi_t.static_size()
+            lll_ret.append(['set', src_loc, ['add', src_loc, sz]])
 
     lll_ret = ['with', 'src', src,
               ['with', 'src_loc', 'src',
