@@ -159,7 +159,7 @@ class ABI_StaticArray(ABIType):
     def is_tuple(self):
         return True
 
-def ABI_Bytes(ABIType):
+class ABI_Bytes(ABIType):
     def __init__(self, bytes_bound):
         if not bytes_bound >= 0:
             raise CompilerPanic('Negative bytes_bound provided to ABI_Bytes')
@@ -182,14 +182,14 @@ def ABI_Bytes(ABIType):
     def is_tuple(self):
         return False
 
-def ABI_String(ABI_Bytes):
+class ABI_String(ABI_Bytes):
     def __init__(self, bytes_bound):
         super().__init__(bytes_bound)
 
     def selector_name(self):
         return 'string'
 
-def ABI_DynamicArray(ABIType):
+class ABI_DynamicArray(ABIType):
     def __init__(self, subtyp, elems_bound):
         if not elems_bound >= 0:
             raise CompilerPanic('Negative bound provided to DynamicArray')
