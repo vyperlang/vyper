@@ -804,11 +804,18 @@ def _return_check(node):
     return False
 
 
+def mzero(dst, nbytes):
+    # calldatacopy from past-the-end gives zero bytes.
+    # cf. YP H.2 (ops section) with CALLDATACOPY spec.
+    return LLLnode.from_list(
+            # calldatacopy mempos calldatapos len
+            ['calldatacopy', dst, 'calldatasize', nbytes],
+            annotation="mzero")
+
+
 # zero pad a bytearray according to the ABI spec. The last word
 # of the byte array needs to be right-padded with zeroes.
 def zero_pad(bytez_placeholder):
-    # calldatacopy from past-the-end gives zero bytes.
-    # cf. YP H.2 (ops section) with CALLDATACOPY spec.
     len_ = ['mload', bytez_placeholder]
     dst = ['add', ['add', bytez_placeholder, 32], 'len']
     # the runtime length of the data rounded up to nearest 32
@@ -820,7 +827,6 @@ def zero_pad(bytez_placeholder):
     return LLLnode.from_list(
             ['with', 'len', len_,
                 ['with', 'dst', dst,
-                    # calldatacopy mempos calldatapos len
-                    ['calldatacopy', 'dst', 'calldatasize', num_zero_bytes]]],
+                    mzero('dst', num_zero_bytes)]],
             annotation="Zero pad",
             )
