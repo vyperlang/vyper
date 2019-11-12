@@ -3,6 +3,7 @@ from vyper.exceptions import (
 )
 from vyper.types import (
     BaseType,
+    ByteArrayLike,
     ByteArrayType,
     ListType,
     StringType,
@@ -14,6 +15,10 @@ from vyper.parser.lll_node import (
 from vyper.parser.parser_utils import (
     add_variable_offset,
     make_setter,
+    zero_pad,
+)
+from vyper.utils import (
+    ceil32,
 )
 # https://solidity.readthedocs.io/en/latest/abi-spec.html#types
 class ABIType:
@@ -346,7 +351,7 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
             lll_ret.append(
                     ['seq',
                         make_setter(d, o, o.location, pos=pos),
-                        zero_pad(d, maxlen=d.typ.maxlen)])
+                        zero_pad(d)])
         else:
             raise CompilerPanic(f'unreachable type: {o.typ}')
 
