@@ -244,7 +244,6 @@ class Stmt(object):
                 pos=getpos(self.stmt),
             )
             o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
-            # o.pos = getpos(self.stmt) # TODO: Should this be here like in assign()?
 
             return o
 
