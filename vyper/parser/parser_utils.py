@@ -570,9 +570,9 @@ def make_setter(left, right, location, pos, in_function_call=False):
             if left.typ.count != right.typ.count:
                 raise TypeMismatchException("Mismatched number of elements", pos)
         # If the right side is a literal
+        if right.typ.count != left.typ.count:
+            raise TypeMismatchException("Mismatched number of elements", pos)
         if right.value == "multi":
-            if len(right.args) != left.typ.count:
-                raise TypeMismatchException("Mismatched number of elements", pos)
             subs = []
             for i in range(left.typ.count):
                 subs.append(make_setter(add_variable_offset(
