@@ -270,13 +270,13 @@ def o_list(lll_node, pos=None):
     if isinstance(lll_t, (TupleLike, ListType)):
         if lll_node.value == 'multi': # is literal
             ret = lll_node.args
+            #print(f'TRACE o_list {ret}')
         else:
             ks = lll_t.tuple_keys() if isinstance(lll_t, TupleLike) else \
                     [LLLnode.from_list(i) for i in range(lll_t.count)]
 
             ret = [add_variable_offset(lll_node, k, pos, array_bounds_check=False)
                     for k in ks]
-        #print(f'TRACE o_list {ret}')
         return ret
     else:
         return [lll_node]
@@ -345,7 +345,7 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
 
         elif isinstance(o.typ, BaseType):
             d = LLLnode(dst_loc, typ=o.typ, location=o.location)
-            lll_ret.append(make_setter(d, o, o.location, pos))
+            lll_ret.append(make_setter(d, o, "memory", pos))
         elif isinstance(o.typ, ByteArrayLike):
             d = LLLnode(dst_loc, typ=o.typ, location=o.location)
             lll_ret.append(

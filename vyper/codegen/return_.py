@@ -10,6 +10,8 @@ from vyper.parser.parser_utils import (
 )
 from vyper.types import (
     BaseType,
+    ByteArrayLike,
+    get_size_of_type,
 )
 
 # Generate return code for stmt
