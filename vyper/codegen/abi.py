@@ -344,10 +344,10 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
                 lll_ret.append(abi_encode(dst_loc, o, pos=pos, returns=False))
 
         elif isinstance(o.typ, BaseType):
-            d = LLLnode(dst_loc, typ=o.typ, location=o.location)
+            d = LLLnode(dst_loc, typ=o.typ, location='memory')
             lll_ret.append(make_setter(d, o, "memory", pos))
         elif isinstance(o.typ, ByteArrayLike):
-            d = LLLnode(dst_loc, typ=o.typ, location=o.location)
+            d = LLLnode.from_list(dst_loc, typ=o.typ, location='memory')
             lll_ret.append(
                     ['seq',
                         make_setter(d, o, o.location, pos=pos),
