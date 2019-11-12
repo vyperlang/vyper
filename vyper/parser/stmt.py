@@ -46,7 +46,6 @@ from vyper.types import (
     ContractType,
     ListType,
     NodeType,
-    NullType,
     StructType,
     TupleType,
     get_size_of_type,
@@ -127,11 +126,7 @@ class Stmt(object):
             else:
                 raise TypeMismatchException('Invalid type, expected: bytes32', self.stmt)
         elif isinstance(self.stmt.annotation, ast.Subscript):
-            check_typ = sub.typ
-            if isinstance(check_typ, NullType):
-                check_typ = check_typ.typ
-            good = isinstance(check_typ, (ListType, ByteArrayLike))
-            if not good:
+            if not isinstance(sub.typ, (ListType, ByteArrayLike)):
                 raise TypeMismatchException(
                     f'Invalid type, expected: {self.stmt.annotation.value.id},'
                     f' got: {sub.typ}', self.stmt
@@ -343,11 +338,12 @@ class Stmt(object):
         # Get target variable
         target = self.get_target(self.stmt.args[0])
 
-        zero = LLLnode(None, typ=NullType(target.typ), pos=getpos(self.expr))
+        pos = getpos(self.stmt)
+
+        zero = LLLnode(None, typ=target.typ, pos=pos)
 
         # Generate LLL node to set to zero
-        o = make_setter(target, zero, target.location, pos=getpos(self.stmt))
-        o.pos = getpos(self.stmt)
+        o = make_setter(target, zero, target.location, pos=pos)
 
         return o
 
@@ -361,14 +357,14 @@ class Stmt(object):
         ) and isinstance(self.stmt.func.value, ast.Name) and self.stmt.func.value.id == 'log'
 
         if isinstance(self.stmt.func, ast.Name):
-            if self.stmt.func.id in STMT_DISPATCH_TABLE:
-                if self.stmt.func.id == 'clear':
-                    return self._clear()
-                else:
-                    return STMT_DISPATCH_TABLE[self.stmt.func.id](self.stmt, self.context)
-            elif self.stmt.func.id in DISPATCH_TABLE:
+            funcname = self.stmt.func.id
+            if funcname == 'clear':
+                return self._clear()
+            if funcname in STMT_DISPATCH_TABLE:
+                return STMT_DISPATCH_TABLE[funcname](self.stmt, self.context)
+            elif funcname in DISPATCH_TABLE:
                 raise StructureException(
-                    f"Function {self.stmt.func.id} can not be called without being used.",
+                    f"Function {funcname} can not be called without being used.",
                     self.stmt,
                 )
             else:

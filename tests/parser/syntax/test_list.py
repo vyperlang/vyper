@@ -140,6 +140,20 @@ def test() -> int128:
 def test() -> int128:
     a = [1, 2, True]
     return a[0]
+    """,
+    """
+@public
+def test():
+    xs: uint256[2] = [1,2]
+    ys: uint256[3] = [1,2,3]
+    xs = ys
+    """,
+    """
+@public
+def test():
+    xs: uint256[3] = [1,2,3]
+    ys: uint256[2] = [1,2]
+    xs = ys
     """
 ]
 
