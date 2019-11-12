@@ -7,6 +7,7 @@ from vyper.parser.lll_node import (
 )
 from vyper.parser.parser_utils import (
     getpos,
+    zero_pad,
 )
 from vyper.types import (
     BaseType,
