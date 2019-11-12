@@ -13,6 +13,7 @@ from vyper.parser.lll_node import (
 )
 from vyper.parser.parser_utils import (
     add_variable_offset,
+    make_setter,
 )
 # https://solidity.readthedocs.io/en/latest/abi-spec.html#types
 class ABIType:
@@ -270,6 +271,7 @@ def o_list(lll_node, pos=None):
 
             ret = [add_variable_offset(lll_node, k, pos, array_bounds_check=False)
                     for k in ks]
+        #print(f'TRACE o_list {ret}')
         return ret
     else:
         return [lll_node]
@@ -337,12 +339,13 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
                 lll_ret.append(abi_encode(dst_loc, o, pos=pos, returns=False))
 
         elif isinstance(o.typ, BaseType):
-            lll_ret.append(['mstore', dst_loc, o])
+            d = LLLnode(dst_loc, typ=o.typ, location=o.location)
+            lll_ret.append(make_setter(d, o, o.location, pos))
         elif isinstance(o.typ, ByteArrayLike):
             d = LLLnode(dst_loc, typ=o.typ, location=o.location)
             lll_ret.append(
                     ['seq',
-                        make_byte_array_copier(d, o, pos=pos),
+                        make_setter(d, o, o.location, pos=pos),
                         zero_pad(d, maxlen=d.typ.maxlen)])
         else:
             raise CompilerPanic(f'unreachable type: {o.typ}')
