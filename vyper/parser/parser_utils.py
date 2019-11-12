@@ -1,4 +1,8 @@
 import ast as python_ast
+from decimal import (
+    Decimal,
+    InvalidOperation,
+)
 from typing import (
     Any,
     List,
@@ -52,16 +56,25 @@ from vyper.utils import (
 # Get a decimal number as a fraction with denominator multiple of 10
 def get_number_as_fraction(expr, context):
     context_slice = context.origcode.splitlines()[expr.lineno - 1][expr.col_offset:]
-    t = 0
-    while t < len(context_slice) and context_slice[t] in '0123456789.':
-        t += 1
-    if t < len(context_slice) and context_slice[t] == 'e':
-        raise InvalidLiteralException("Literals in scientific notation not accepted.")
-    top = int(context_slice[:t].replace('.', ''))
-    bottom = 1 if '.' not in context_slice[:t] else 10**(t - context_slice[:t].index('.') - 1)
+    # Get the largest string that converts to decimal
+    t = len(context_slice)
+    while t > 0:  # Breaks if we exhaust the context
+        try:
+            literal = Decimal(context_slice[:t])
+            break  # We got our result!
+        except InvalidOperation:  # Only except our Decimal syntax exception
+            # If it does not convert, shrink the context and try again
+            t -= 1
+    if t <= 0:  # We've exhausted the context
+        raise InvalidLiteralException(
+            f'Unable to parse literal from context: "{context_slice}"',
+            expr,
+        )
 
-    if expr.n < 0:
-        top *= -1
+    # TODO: Would be best to raise >10 decimal place exception here
+    #       (unless Decimal is used more widely)
+
+    top, bottom = literal.as_integer_ratio()
 
     return context_slice[:t], top, bottom
 
