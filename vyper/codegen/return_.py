@@ -1,6 +1,16 @@
-from vyper.parse.lll_node import (
+from .abi import (
+    abi_encode,
+)
+from vyper.parser.lll_node import (
     LLLnode,
 )
+from vyper.parser.parser_utils import (
+    getpos,
+)
+from vyper.types import (
+    BaseType,
+)
+
 # Generate return code for stmt
 def make_return_stmt(stmt, context, begin_pos, _size, loop_memory_position=None):
     from vyper.parser.function_definitions.utils import (
@@ -92,8 +102,8 @@ def gen_tuple_return(stmt, context, sub):
     )
     left_token = LLLnode.from_list('_loc', typ=new_sub.typ, location="memory")
 
-    return LLLnode.from_list([
-        'seq',
-        abi_encode(left_token, sub, pos=getpos(stmt)),
-        make_return_stmt(stmt, context, new_sub, get_dynamic_offset_value(), loop_memory_position)
+    encode_out = abi_encode(left_token, sub, pos=getpos(stmt), returns=True)
+    return LLLnode.from_list(
+            ['with', 'return_len', encode_out,
+                make_return_stmt(stmt, context, new_sub, 'return_len')
     ], typ=None, pos=getpos(stmt), valency=0)
