@@ -27,7 +27,7 @@ class ABIType:
 # uint<M>: unsigned integer type of M bits, 0 < M <= 256, M % 8 == 0. e.g. uint32, uint8, uint256.
 # int<M>: two’s complement signed integer type of M bits, 0 < M <= 256, M % 8 == 0.
 class ABI_GIntM(ABIType):
-    def __init__(m_bits, signed):
+    def __init__(self, m_bits, signed):
         if not (0 < m_bits and m_bits <= 256) or not (0 == m_bits % 8) :
             raise CompilerPanic('Invalid M provided for GIntM')
 
@@ -64,7 +64,7 @@ class ABI_Bool(ABI_GIntM):
 # fixed, ufixed: synonyms for fixed128x18, ufixed128x18 respectively. For computing the function selector, fixed128x18 and ufixed128x18 have to be used.
 class ABI_FixedMxN(ABIType):
     def __init__(self, m_bits, n_places, signed):
-        if not (0 < m_bits and m_bits <= 256 and 0==m%8):
+        if not (0 < m_bits and m_bits <= 256 and 0==m_bits%8):
             raise CompilerPanic('Invalid M for FixedMxN')
         if not (0 < n_places and n_places <= 80):
             raise CompilerPanic('Invalid N for FixedMxN')
@@ -356,10 +356,11 @@ def abi_decode(lll_node, src, pos=None):
     lll_ret = []
     src_ptr = 'src'      # pointer to beginning of buffer
     src_loc = 'src_loc'  # pointer to read location in static section
-    for o in os:
+    parent_abi_t = abi_type_of(src)
+    for i, o in enumerate(os):
         abi_t = abi_type_of(o)
         src_loc = LLLnode('src_loc', typ=o.typ, location=src.location)
-        if abi_t.is_tuple():
+        if parent_abi_t.is_tuple():
             if abi_t.is_dynamic():
                 child_loc = ['add', src_ptr, unwrap_location(src_loc)]
             else:
@@ -367,7 +368,11 @@ def abi_decode(lll_node, src, pos=None):
             lll_ret.append(abi_decode(o, child_loc, pos=pos))
         else:
             lll_ret.append(make_setter(o, src_loc))
-        lll_ret.append(['set', 'src_loc', ['add', 'src_loc', ofst]])
+
+        if i + 1 == len(os):
+            pass # optimize out the last pointer increment
+        else:
+            lll_ret.append(['set', 'src_loc', ['add', 'src_loc', ofst]])
 
     lll_ret = ['with', 'src', src,
               ['with', 'src_loc', 'src',
