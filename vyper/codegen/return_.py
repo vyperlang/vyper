@@ -1,5 +1,6 @@
 from .abi import (
     abi_encode,
+    abi_type_of,
 )
 from vyper.parser.lll_node import (
     LLLnode,
@@ -94,16 +95,13 @@ def gen_tuple_return(stmt, context, sub):
             make_return_stmt(stmt, context, mem_pos, mem_size)
         ], typ=sub.typ, pos=getpos(stmt), valency=0)
 
-    new_sub = LLLnode.from_list(
-        context.new_placeholder(typ=BaseType('uint256')),
-        typ=context.return_type,
-        location='memory',
-        annotation='new_sub',
-    )
-    left_token = LLLnode.from_list('_loc', typ=new_sub.typ, location="memory")
+    abi_typ = abi_type_of(context.return_type)
+    abi_bytes_needed = abi_typ.static_size() + abi_typ.dynamic_size_bound()
+    dst, _ = context.memory_allocator.increase_memory(32 * abi_bytes_needed)
+    return_buffer = LLLnode(dst, location='memory', annotation='return_buffer')
 
-    encode_out = abi_encode(left_token, sub, pos=getpos(stmt), returns=True)
+    encode_out = abi_encode(return_buffer, sub, pos=getpos(stmt), returns=True)
     return LLLnode.from_list(
             ['with', 'return_len', encode_out,
-                make_return_stmt(stmt, context, new_sub, 'return_len')
+                make_return_stmt(stmt, context, return_buffer, 'return_len')
     ], typ=None, pos=getpos(stmt), valency=0)
