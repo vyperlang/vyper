@@ -6,6 +6,9 @@ from vyper.exceptions import (
     EventDeclarationException,
     TypeMismatchException,
 )
+from vyper.utils import (
+    keccak256,
+)
 
 
 def test_empty_event_logging(w3, tester, keccak, get_contract_with_gas_estimation):
@@ -748,6 +751,29 @@ def ioo(inp: bytes[100]):
     assert w3.toText(logs[0]['data']) == 'moo4'
 
     print("Passed raw log tests")
+
+
+def test_raw_call_bytes32_data(w3, tester, get_contract_with_gas_estimation):
+    code = """
+b: uint256
+
+@public
+def foo():
+    a: uint256 = 1234
+    self.b = 4321
+    raw_log([], convert(a, bytes32))
+    raw_log([], convert(self.b, bytes32))
+    raw_log([], convert(b"testmessage", bytes32))
+    raw_log([], keccak256(b""))
+    """
+    c = get_contract_with_gas_estimation(code)
+    tx_hash = c.foo(transact={})
+    receipt = tester.get_transaction_receipt(tx_hash.hex())
+    logs = receipt['logs']
+    assert logs[0]['data'] == w3.toHex((1234).to_bytes(32, 'big'))
+    assert logs[1]['data'] == w3.toHex((4321).to_bytes(32, 'big'))
+    assert logs[2]['data'] == w3.toHex(b"testmessage").ljust(32*2 + 2, '0')
+    assert logs[3]['data'] == w3.toHex(keccak256(b""))
 
 
 def test_variable_list_packing(get_logs, get_contract_with_gas_estimation):

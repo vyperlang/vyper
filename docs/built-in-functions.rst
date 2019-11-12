@@ -248,9 +248,10 @@ Vyper contains a set of built in functions which execute opcodes such as ``SEND`
     Provides low level access to the ``LOG`` opcodes, emitting a log without having to specify an ABI type.
 
     * ``topics``: List of ``bytes32`` log topics
-    * ``data``: Unindexed event data to include in the log
+    * ``data``: Unindexed event data to include in the log, bytes or bytes32
 
-    This method provides low-level access to the ``LOG`` opcodes (``0xA0``..``0xA4``). The length of ``topics`` determines which opcode will be used.
+    This method provides low-level access to the ``LOG`` opcodes (``0xA0``..``0xA4``). The length of ``topics`` determines which opcode will be used. ``topics`` is a list of bytes32 topics that will be indexed. The remaining unindexed parameters can be placed in the ``data`` parameter.
+
 
 .. py:function:: create_forwarder_to(target: address, value: uint256(wei) = 0) -> address
 
