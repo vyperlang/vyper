@@ -1,3 +1,7 @@
+from vyper.exceptions import (
+    TypeMismatchException,
+)
+
 
 def test_test_bytes(get_contract_with_gas_estimation, assert_tx_failed):
     test_bytes = """
@@ -268,3 +272,13 @@ def get_count() -> bytes[24]:
     assert c.get_count() == b'\xf0\xf0\xf0\x00\x00\x00\x00\x00'
     c.set_count(0x0101010101010101, transact={})
     assert c.get_count() == b'\x01\x01\x01\x01\x01\x01\x01\x01'
+
+
+def test_bytes_to_bytes32_assigment(get_contract, assert_compile_failed):
+    code = """
+@public
+def assign():
+    xs: bytes[32] = b'abcdef'
+    y: bytes32 = xs
+    """
+    assert_compile_failed(lambda: get_contract(code), TypeMismatchException)

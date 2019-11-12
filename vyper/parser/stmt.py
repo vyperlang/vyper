@@ -220,12 +220,16 @@ class Stmt(object):
                     self.stmt
                 )
 
-            is_valid_bytes32_assign = (
-                isinstance(sub.typ, ByteArrayType) and sub.typ.maxlen == 32
-            ) and isinstance(typ, BaseType) and typ.typ == 'bytes32'
+            is_literal_bytes32_assign = (
+                isinstance(sub.typ, ByteArrayType)
+                and sub.typ.maxlen == 32
+                and isinstance(typ, BaseType)
+                and typ.typ == 'bytes32'
+                and sub.typ.is_literal
+            )
 
             # If bytes[32] to bytes32 assignment rewrite sub as bytes32.
-            if is_valid_bytes32_assign:
+            if is_literal_bytes32_assign:
                 sub = LLLnode(
                     bytes_to_int(self.stmt.value.s),
                     typ=BaseType('bytes32'),
