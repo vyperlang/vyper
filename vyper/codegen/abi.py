@@ -109,7 +109,7 @@ class ABI_FixedMxN(ABIType):
 # bytes<M>: binary type of M bytes, 0 < M <= 32.
 class ABI_BytesM(ABIType):
     def __init__(self, m_bytes):
-        if not m_bytes <= 32:
+        if not 0 < m_bytes <= 32:
             raise CompilerPanic('Invalid M for BytesM')
 
         self.m_bytes = m_bytes
@@ -129,7 +129,7 @@ class ABI_BytesM(ABIType):
 # function: an address (20 bytes) followed by a function selector (4 bytes). Encoded identical to bytes24.
 class ABI_Function(ABI_BytesM):
     def __init__(self):
-        return super(24)
+        return super().__init__(24)
 
     def selector_name(self):
         return 'function'
@@ -182,6 +182,9 @@ def ABI_Bytes(ABIType):
         return False
 
 def ABI_String(ABI_Bytes):
+    def __init__(self, bytes_bound):
+        super().__init__(bytes_bound)
+
     def selector_name(self):
         return 'string'
 
@@ -226,6 +229,7 @@ class ABI_Tuple(ABIType):
         return True
 
 def abi_type_of(lll_typ):
+    #print(f'abi_typ_of({lll_typ})')
     if isinstance(lll_typ, BaseType):
         t = lll_typ.typ
         if 'uint256' == t:
@@ -235,9 +239,9 @@ def abi_type_of(lll_typ):
         elif 'address' == t:
             return ABI_Address()
         elif 'bytes32' == t:
-            return ABI_Bytes(32)
+            return ABI_BytesM(32)
         elif 'bool' == t:
-            return ABI_Bool
+            return ABI_Bool()
         elif 'decimal' == t:
             return ABI_FixedMxN(168, 10)
         else:
@@ -250,6 +254,7 @@ def abi_type_of(lll_typ):
         return ABI_Bytes(lll_typ.maxlen)
     elif isinstance(lll_typ, StringType):
         return ABI_String(lll_typ.maxlen)
+        #print(f'TRACE {ret}')
     else:
         raise CompilerPanic(f'Unrecognized type {lll_typ}')
 
