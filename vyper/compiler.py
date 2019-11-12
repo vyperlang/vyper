@@ -321,7 +321,9 @@ def compile_codes(contract_sources: ContractCodes,
                     interfaces = interfaces[contract_name]
                 out.setdefault(contract_name, {})
                 out[contract_name][output_format] = output_formats_map[output_format](
-                    code=code,
+                    # trailing newline fixes python parsing bug when source ends in a comment
+                    # https://bugs.python.org/issue35107
+                    code=f"{code}\n",
                     contract_name=contract_name,
                     interface_codes=interfaces,
                     source_id=source_id
