@@ -1,4 +1,6 @@
-
+from vyper.parser.lll_node import (
+    LLLnode,
+)
 # https://solidity.readthedocs.io/en/latest/abi-spec.html#types
 class ABIType:
     # aka has tail
