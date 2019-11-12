@@ -343,9 +343,7 @@ class Stmt(object):
         zero = LLLnode(None, typ=target.typ, pos=pos)
 
         # Generate LLL node to set to zero
-        o = make_setter(target, zero, target.location, pos=pos)
-
-        return o
+        return make_setter(target, zero, target.location, pos=pos)
 
     def call(self):
         is_self_function = (
