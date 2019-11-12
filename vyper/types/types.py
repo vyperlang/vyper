@@ -165,15 +165,6 @@ class TupleType(TupleLike):
         return list(enumerate(self.members))
 
 
-# Sentinel type to represent zeroing operations
-class NullType(NodeType):
-    def __init__(self, typ=None):
-        self.typ = typ # optional type for typechecking
-
-    def eq(self, other):
-        return True
-
-
 # Convert type into common form used in ABI
 def canonicalize_type(t, is_indexed=False):
     if isinstance(t, ByteArrayLike):

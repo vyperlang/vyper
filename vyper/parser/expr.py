@@ -39,7 +39,6 @@ from vyper.types import (
     ContractType,
     ListType,
     MappingType,
-    NullType,
     StringType,
     StructType,
     TupleType,
@@ -782,7 +781,7 @@ class Expr(object):
         left = Expr.parse_value_expr(self.expr.left, self.context)
         right = Expr.parse_value_expr(self.expr.right, self.context)
 
-        if isinstance(right.typ, NullType):
+        if right.value is None:
             raise InvalidLiteral(
                 'Comparison to None is not allowed, compare against a default value.',
                 self.expr,

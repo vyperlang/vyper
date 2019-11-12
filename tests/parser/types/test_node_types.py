@@ -7,19 +7,11 @@ from vyper.types import (
     ByteArrayType,
     ListType,
     MappingType,
-    NullType,
     StructType,
     TupleType,
     canonicalize_type,
     get_size_of_type,
 )
-
-
-def test_null_type():
-    node1 = NullType()
-    node2 = NullType()
-
-    assert node1 == node2
 
 
 def test_bytearray_node_type():

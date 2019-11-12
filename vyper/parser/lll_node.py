@@ -19,7 +19,6 @@ from vyper.settings import (
 from vyper.types import (
     BaseType,
     NodeType,
-    NullType,
     ceil32,
 )
 from vyper.utils import (
@@ -236,7 +235,8 @@ class LLLnode:
                     self.gas = sum([arg.gas for arg in self.args]) + 30
                 if self.value == 'if_unchecked':
                     self.gas = self.args[0].gas + self.args[1].gas + 17
-        elif self.value is None and isinstance(self.typ, NullType):
+        elif self.value is None:
+            # TODO revisit this
             self.valency = 1
             self.gas = 5
         else:

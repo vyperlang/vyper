@@ -22,7 +22,6 @@ from vyper.types import (
     ByteArrayType,
     ListType,
     MappingType,
-    NullType,
     StringType,
     StructType,
     TupleLike,
@@ -72,7 +71,7 @@ def get_number_as_fraction(expr, context):
 
 # Copies byte array
 def make_byte_array_copier(destination, source, pos=None):
-    if not isinstance(source.typ, (ByteArrayLike, NullType)):
+    if not isinstance(source.typ, ByteArrayLike):
         btype = 'byte array' if isinstance(destination.typ, ByteArrayType) else 'string'
         raise TypeMismatch(f"Can only set a {btype} to another {btype}", pos)
     if isinstance(source.typ, ByteArrayLike) and source.typ.maxlen > destination.typ.maxlen:
@@ -93,7 +92,7 @@ def make_byte_array_copier(destination, source, pos=None):
 
     pos_node = LLLnode.from_list('_pos', typ=source.typ, location=source.location)
     # Get the length
-    if isinstance(source.typ, NullType):
+    if source.value is None:
         length = 1
     elif source.location == "memory":
         length = ['add', ['mload', '_pos'], 32]
@@ -113,10 +112,10 @@ def make_byte_array_copier(destination, source, pos=None):
             location=destination.location,
         )
     # Maximum theoretical length
-    max_length = 32 if isinstance(source.typ, NullType) else source.typ.maxlen + 32
+    max_length = 32 if source.value is None else source.typ.maxlen + 32
     return LLLnode.from_list([
         'with', '_pos',
-        0 if isinstance(source.typ, NullType) else source,
+        0 if source.value is None else source,
         make_byte_slice_copier(destination, pos_node, length, max_length, pos=pos)
     ], typ=None)
 
@@ -138,7 +137,7 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
             ]
         ], typ=None, annotation=f'copy byte slice dest: {str(destination)}')
     # special case: rhs is zero
-    if isinstance(source.typ, NullType):
+    if source.value is None:
         return mzero(destination, max_length)
     # Copy over data
     if source.location == "memory":
@@ -388,6 +387,7 @@ def base_type_conversion(orig, frm, to, pos, in_function_call=False):
         is_base_type(frm, 'int128') and is_base_type(to, 'decimal')
     )
 
+<<<<<<< HEAD
     if getattr(frm, 'is_literal', False):
         if frm.typ in ('int128', 'uint256'):
             if not SizeLimits.in_bounds(frm.typ, orig.value):
@@ -397,7 +397,7 @@ def base_type_conversion(orig, frm, to, pos, in_function_call=False):
             if not SizeLimits.in_bounds(to.typ, orig.value):
                 raise InvalidLiteral(f"Number out of range: {orig.value}", pos)
 
-    if not isinstance(frm, (BaseType, NullType)) or not isinstance(to, BaseType):
+    if not isinstance(frm, BaseType) or not isinstance(to, BaseType):
         raise TypeMismatch(
             f"Base type conversion from or to non-base type: {frm} {to}", pos
         )
@@ -410,13 +410,6 @@ def base_type_conversion(orig, frm, to, pos, in_function_call=False):
             ['mul', orig, DECIMAL_DIVISOR],
             typ=BaseType('decimal'),
         )
-    elif isinstance(frm, NullType):
-        if to.typ not in ('int128', 'bool', 'uint256', 'address', 'bytes32', 'decimal'):
-            # This is only to future proof the use of  base_type_conversion.
-            raise TypeMismatch(  # pragma: no cover
-                f"Cannot convert null-type object to type {to}", pos
-            )
-        return LLLnode.from_list(0, typ=to)
     # Integer literal conversion.
     elif (frm.typ, to.typ, frm.is_literal) == ('int128', 'uint256', True):
         return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
@@ -526,9 +519,6 @@ def pack_arguments(signature, args, context, stmt_expr, return_placeholder=True)
 
 # Create an x=y statement, where the types may be compound
 def make_setter(left, right, location, pos, in_function_call=False):
-    if isinstance(right.typ, NullType):
-        if right.typ.typ is not None and right.typ.typ != left.typ:
-            raise TypeMismatchException('attempt to clear {left.typ} but provided {right.typ.typ}')
     # Basic types
     if isinstance(left.typ, BaseType):
         right = base_type_conversion(
@@ -553,24 +543,20 @@ def make_setter(left, right, location, pos, in_function_call=False):
         # Cannot do something like [a, b, c] = [1, 2, 3]
         if left.value == "multi":
             raise Exception("Target of set statement must be a single item")
-        if not isinstance(right.typ, (ListType, NullType)):
+
+        if not isinstance(right.typ, ListType):
             raise TypeMismatch(
-                f"Setter type mismatch: left side is array, right side is {right.typ}", pos
+                f"Setter type mismatch: left side is {left.typ}, right side is {right.typ}", pos
             )
+        if right.typ.count != left.typ.count:
+            raise TypeMismatch("Mismatched number of elements", pos)
+
         left_token = LLLnode.from_list('_L', typ=left.typ, location=left.location)
         if left.location == "storage":
             left = LLLnode.from_list(['sha3_32', left], typ=left.typ, location="storage_prehashed")
             left_token.location = "storage_prehashed"
-        # Type checks
-        if not isinstance(right.typ, NullType):
-            if not isinstance(right.typ, ListType):
-                raise TypeMismatch("Left side is array, right side is not", pos)
-            if left.typ.count != right.typ.count:
-                raise TypeMismatch("Mismatched number of elements", pos)
         # If the right side is a literal
         if right.value == "multi":
-            if len(right.args) != left.typ.count:
-                raise TypeMismatch("Mismatched number of elements", pos)
             subs = []
             for i in range(left.typ.count):
                 subs.append(make_setter(add_variable_offset(
@@ -580,7 +566,7 @@ def make_setter(left, right, location, pos, in_function_call=False):
                     array_bounds_check=False,
                 ), right.args[i], location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
-        elif isinstance(right.typ, NullType):
+        elif right.value is None:
             if left.location == 'memory':
                 return mzero(left, get_size_of_type(left.typ))
 
@@ -591,7 +577,7 @@ def make_setter(left, right, location, pos, in_function_call=False):
                     LLLnode.from_list(i, typ='int128'),
                     pos=pos,
                     array_bounds_check=False,
-                ), LLLnode.from_list(None, typ=NullType(left.typ)), location, pos=pos))
+                ), LLLnode.from_list(None, typ=left.typ.subtype), location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If the right side is a variable
         else:
@@ -617,7 +603,7 @@ def make_setter(left, right, location, pos, in_function_call=False):
     elif isinstance(left.typ, TupleLike):
         if left.value == "multi" and isinstance(left.typ, StructType):
             raise Exception("Target of set statement must be a single item")
-        if not isinstance(right.typ, NullType):
+        if right.value is not None:
             if not isinstance(right.typ, left.typ.__class__):
                 raise TypeMismatch(
                     f"Setter type mismatch: left side is {left.typ}, right side is {right.typ}",
@@ -626,6 +612,7 @@ def make_setter(left, right, location, pos, in_function_call=False):
             if isinstance(left.typ, StructType):
                 for k in right.args:
                     if k.value is None:
+                        raise CompilerPanic("Unreachable", pos)
                         raise InvalidLiteral(
                             'Setting struct value to None is not allowed, use a default value.',
                             pos,
@@ -682,15 +669,15 @@ def make_setter(left, right, location, pos, in_function_call=False):
                 ))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If the right side is a null
-        elif isinstance(right.typ, NullType):
+        elif right.value is None:
             if left.location == 'memory':
                 return mzero(left, get_size_of_type(left.typ))
 
             subs = []
-            for typ, loc in zip(keyz, locations):
+            for key, loc in zip(keyz, locations):
                 subs.append(make_setter(
-                    add_variable_offset(left_token, typ, pos=pos),
-                    LLLnode.from_list(None, typ=NullType(typ)),
+                    add_variable_offset(left_token, key, pos=pos),
+                    LLLnode.from_list(None, typ=left.typ.members[key]),
                     loc,
                     pos=pos,
                 ))
