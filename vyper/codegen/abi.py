@@ -249,7 +249,7 @@ def abi_type_of(lll_typ):
         elif 'bool' == t:
             return ABI_Bool()
         elif 'decimal' == t:
-            return ABI_FixedMxN(168, 10)
+            return ABI_FixedMxN(168, 10, True)
         else:
             raise CompilerPanic(f'Unrecognized type {t}')
     elif isinstance(lll_typ, TupleLike):
