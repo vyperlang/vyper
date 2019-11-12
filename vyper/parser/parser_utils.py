@@ -82,10 +82,11 @@ def make_byte_array_copier(destination, source, pos=None):
         )
 
     # stricter check for zeroing a byte array.
-    if isinstance(source.typ, ByteArrayLike) and source.value is None and source.typ.maxlen != destination.typ.maxlen:
-        raise TypeMismatchException(
-                f"Bad type for clearing bytes: expected {destination.typ}"
-                f" but got {source.typ}")
+    if isinstance(source.typ, ByteArrayLike):
+        if source.value is None and source.typ.maxlen != destination.typ.maxlen:
+            raise TypeMismatchException(
+                    f"Bad type for clearing bytes: expected {destination.typ}"
+                    f" but got {source.typ}")
 
     # Special case: memory to memory
     if source.location == "memory" and destination.location == "memory":

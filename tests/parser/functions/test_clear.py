@@ -1,6 +1,7 @@
 from vyper.exceptions import (
-    TypeMismatchException
+    TypeMismatchException,
 )
+
 
 def test_clear_basic_type(get_contract_with_gas_estimation):
     contracts = [  # noqa: E122
@@ -418,7 +419,7 @@ def delete():
 
 
 def test_clear_typecheck(get_contract, assert_compile_failed):
-    contracts = [
+    contracts = [  # noqa: E122
     """
 @public
 def foo():
