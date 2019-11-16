@@ -26,11 +26,11 @@ class ABIType:
     def is_dynamic(self):
         raise NotImplementedError('ABIType.is_dynamic')
 
-    # size (in words) in the static section, (aka 'head')
+    # size (in bytes) in the static section, (aka 'head')
     def static_size(self):
         raise NotImplementedError('ABIType.static_size')
 
-    # max size (in words) in the dynamic section (aka 'tail')
+    # max size (in bytes) in the dynamic section (aka 'tail')
     def dynamic_size_bound(self):
         return 0
 
@@ -58,7 +58,7 @@ class ABI_GIntM(ABIType):
         return False
 
     def static_size(self):
-        return 1
+        return 32
 
     def selector_name(self):
         return ('' if self.signed else 'u') + f'int{self.m_bits}'
@@ -103,7 +103,7 @@ class ABI_FixedMxN(ABIType):
         return False
 
     def static_size(self):
-        return 1
+        return 32
 
     def selector_name(self):
         return ('' if self.signed else 'u') + \
@@ -124,7 +124,7 @@ class ABI_BytesM(ABIType):
         return False
 
     def static_size(self):
-        return 1
+        return 32
 
     def selector_name(self):
         return f'bytes{self.m_bytes}'
@@ -175,11 +175,11 @@ class ABI_Bytes(ABIType):
         return True
 
     def static_size(self):
-        return 1
+        return 32
 
     def dynamic_size_bound(self):
         # length word + data
-        return 1 + ceil32(self.bytes_bound) // 32
+        return 32 + ceil32(self.bytes_bound)
 
     def selector_name(self):
         return 'bytes'
@@ -206,7 +206,7 @@ class ABI_DynamicArray(ABIType):
         return True
 
     def static_size(self):
-        return 1
+        return 32
 
     def dynamic_size_bound(self):
         return self.subtyp.dynamic_size_bound() * self.elems_bound
@@ -225,7 +225,8 @@ class ABI_Tuple(ABIType):
         return any([t.is_dynamic() for t in self.subtyps])
 
     def static_size(self):
-        return 1 if self.is_dynamic() else \
+        # perhaps this should be renamed to "static size in parent"
+        return 32 if self.is_dynamic() else \
                 sum([t.static_size() for t in self.subtyps])
 
     def dynamic_size_bound(self):
@@ -358,13 +359,13 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
         if i + 1 == len(os):
             pass # optimize out the last increment to dst_loc
         else: # note: always false for non-tuple types
-            sz = 32 * abi_t.static_size()
+            sz = abi_t.static_size()
             lll_ret.append(['set', dst_loc, ['add', dst_loc, sz]])
 
     # declare LLL variables.
     if returns:
         if not parent_abi_t.is_dynamic():
-            lll_ret.append(32 * parent_abi_t.static_size())
+            lll_ret.append(parent_abi_t.static_size())
         elif parent_abi_t.is_tuple():
             lll_ret.append('dyn_ofst')
         elif isinstance(lll_node.typ, ByteArrayLike):
@@ -377,7 +378,7 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
     if not (parent_abi_t.is_dynamic() and parent_abi_t.is_tuple()):
         pass # optimize out dyn_ofst allocation if we don't need it
     else:
-        lll_ret = ['with', 'dyn_ofst', 32*parent_abi_t.static_size(), lll_ret]
+        lll_ret = ['with', 'dyn_ofst', parent_abi_t.static_size(), lll_ret]
 
     lll_ret = ['with', dst_begin, dst,
               ['with', dst_loc, dst_begin, lll_ret]]
@@ -409,7 +410,7 @@ def abi_decode(lll_node, src, pos=None):
         if i + 1 == len(os):
             pass # optimize out the last pointer increment
         else:
-            sz = 32 * abi_t.static_size()
+            sz = abi_t.static_size()
             lll_ret.append(['set', src_loc, ['add', src_loc, sz]])
 
     lll_ret = ['with', 'src', src,
