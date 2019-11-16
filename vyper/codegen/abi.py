@@ -378,7 +378,10 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
     if not (parent_abi_t.is_dynamic() and parent_abi_t.is_tuple()):
         pass # optimize out dyn_ofst allocation if we don't need it
     else:
-        lll_ret = ['with', 'dyn_ofst', parent_abi_t.static_size(), lll_ret]
+        dyn_section_start = sum(
+                [abi_type_of(o.typ).static_size() for o in os])
+        #lll_ret = ['with', 'dyn_ofst', parent_abi_t.static_size(), lll_ret]
+        lll_ret = ['with', 'dyn_ofst', dyn_section_start, lll_ret]
 
     lll_ret = ['with', dst_begin, dst,
               ['with', dst_loc, dst_begin, lll_ret]]
