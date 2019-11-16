@@ -14,6 +14,9 @@ from vyper.types import (
     ByteArrayLike,
     get_size_of_type,
 )
+from vyper.utils import (
+    MemoryPositions,
+)
 
 # Generate return code for stmt
 def make_return_stmt(stmt, context, begin_pos, _size, loop_memory_position=None):
@@ -104,7 +107,9 @@ def gen_tuple_return(stmt, context, sub):
     return_buffer = LLLnode(dst, location='memory', annotation='return_buffer')
 
     encode_out = abi_encode(return_buffer, sub, pos=getpos(stmt), returns=True)
+    load_return_len = ['mload', MemoryPositions.FREE_VAR_SPACE]
     return LLLnode.from_list(
-            ['with', 'return_len', encode_out,
-                make_return_stmt(stmt, context, return_buffer, 'return_len')
+            ['seq',
+                ['mstore', MemoryPositions.FREE_VAR_SPACE, encode_out],
+                make_return_stmt(stmt, context, return_buffer, load_return_len)
     ], typ=None, pos=getpos(stmt), valency=0)
