@@ -3,12 +3,34 @@
 Release Notes
 #############
 
+v0.1.0-beta.14
+**************
+
+Date released: 13-11-2019
+
+Some of the bug and stability fixes:
+
+- Mucho Documentation and Example cleanup!
+- Python 3.8 support (`#1678 <https://github.com/ethereum/vyper/pull/1678>`_)
+- Disallow scientific notation in literals, which previously parsed incorrectly (`#1681 <https://github.com/ethereum/vyper/pull/1681>`_)
+- Add implicit rewrite rule for ``bytes[32]`` -> ``bytes32`` (`#1718 <https://github.com/ethereum/vyper/pull/1718>`_)
+- Support ``bytes32`` in ``raw_log`` (`#1719 <https://github.com/ethereum/vyper/pull/1719>`_)
+- Fixed EOF parsing bug (`#1720 <https://github.com/ethereum/vyper/pull/1720>`_)
+- Cleaned up arithmetic expressions (`#1661 <https://github.com/ethereum/vyper/pull/1661>`_)
+- Fixed off-by-one in check for homogeneous list element types (`#1673 <https://github.com/ethereum/vyper/pull/1673>`_)
+- Fixed stack valency issues in if and for statements (`#1665 <https://github.com/ethereum/vyper/pull/1665>`_)
+- Prevent overflow when using ``sqrt`` on certain datatypes (`#1679 <https://github.com/ethereum/vyper/pull/1679>`_)
+- Prevent shadowing of internal variables (`#1601 <https://github.com/ethereum/vyper/pull/1601>`_)
+- Reject unary substraction on unsigned types  (`#1638 <https://github.com/ethereum/vyper/pull/1638>`_)
+- Disallow ``orelse`` syntax in ``for`` loops (`#1633 <https://github.com/ethereum/vyper/pull/1633>`_)
+- Increased clarity and efficiency of zero-padding (`#1605 <https://github.com/ethereum/vyper/pull/1605>`_)
+
 v0.1.0-beta.13
 **************
 
 Date released: 27-09-2019
 
-The following VIPs were implemented for Beta 12:
+The following VIPs were implemented for Beta 13:
 
 - Add `vyper-json` compilation mode (VIP `#1520 <https://github.com/ethereum/vyper/issues/1520>`_)
 - Environment variables and constants can now be used as default parameters (VIP `#1525 <https://github.com/ethereum/vyper/issues/1525>`_)

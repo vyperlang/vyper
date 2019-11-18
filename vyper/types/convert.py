@@ -192,7 +192,7 @@ def to_uint256(expr, args, kwargs, context):
                 pos=getpos(expr)
             )
         else:
-            raise InvalidLiteralException("Unknown numeric literal type: {}".fornat(in_arg))
+            raise InvalidLiteralException("Unknown numeric literal type: {}".format(in_arg))
 
     elif isinstance(in_arg, LLLnode) and input_type == 'int128':
         return LLLnode.from_list(
