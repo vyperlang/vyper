@@ -8,7 +8,9 @@ from vyper.parser.lll_node import (
 from vyper.parser.parser_utils import (
     getpos,
     zero_pad,
-    make_setter, # typechecker
+)
+from vyper.types.check import (
+    check_assign, # typechecker
 )
 from vyper.types import (
     BaseType,
@@ -110,8 +112,7 @@ def gen_tuple_return(stmt, context, sub):
             annotation='return_buffer',
             typ=context.return_type)
 
-    # call make_setter for its typechecking side effects :)
-    make_setter(return_buffer, sub, 'memory', pos=getpos(stmt))
+    check_assign(return_buffer, sub, pos=getpos(stmt))
 
     encode_out = abi_encode(return_buffer, sub, pos=getpos(stmt), returns=True)
     load_return_len = ['mload', MemoryPositions.FREE_VAR_SPACE]
