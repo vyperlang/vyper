@@ -4,9 +4,6 @@ from vyper import ast
 from vyper.ast_utils import (
     ast_to_dict,
 )
-from vyper.codegen.abi import (
-    abi_encode,
-)
 from vyper.codegen.return_ import (
     gen_tuple_return,
     make_return_stmt,

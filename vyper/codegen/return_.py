@@ -1,7 +1,3 @@
-from .abi import (
-    abi_encode,
-    abi_type_of,
-)
 from vyper.parser.lll_node import (
     LLLnode,
 )
@@ -9,17 +5,23 @@ from vyper.parser.parser_utils import (
     getpos,
     zero_pad,
 )
-from vyper.types.check import (
-    check_assign, # typechecker
-)
 from vyper.types import (
     BaseType,
     ByteArrayLike,
     get_size_of_type,
 )
+from vyper.types.check import (
+    check_assign,
+)
 from vyper.utils import (
     MemoryPositions,
 )
+
+from .abi import (
+    abi_encode,
+    abi_type_of,
+)
+
 
 # Generate return code for stmt
 def make_return_stmt(stmt, context, begin_pos, _size, loop_memory_position=None):
@@ -107,7 +109,8 @@ def gen_tuple_return(stmt, context, sub):
     abi_typ = abi_type_of(context.return_type)
     abi_bytes_needed = abi_typ.static_size() + abi_typ.dynamic_size_bound()
     dst, _ = context.memory_allocator.increase_memory(32 * abi_bytes_needed)
-    return_buffer = LLLnode(dst,
+    return_buffer = LLLnode(
+            dst,
             location='memory',
             annotation='return_buffer',
             typ=context.return_type)
@@ -116,8 +119,7 @@ def gen_tuple_return(stmt, context, sub):
 
     encode_out = abi_encode(return_buffer, sub, pos=getpos(stmt), returns=True)
     load_return_len = ['mload', MemoryPositions.FREE_VAR_SPACE]
-    return LLLnode.from_list(
-            ['seq',
-                ['mstore', MemoryPositions.FREE_VAR_SPACE, encode_out],
-                make_return_stmt(stmt, context, return_buffer, load_return_len)
-    ], typ=None, pos=getpos(stmt), valency=0)
+    os = ['seq',
+          ['mstore', MemoryPositions.FREE_VAR_SPACE, encode_out],
+          make_return_stmt(stmt, context, return_buffer, load_return_len)]
+    return LLLnode.from_list(os, typ=None, pos=getpos(stmt), valency=0)

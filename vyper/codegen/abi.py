@@ -1,6 +1,15 @@
 from vyper.exceptions import (
     CompilerPanic,
 )
+from vyper.parser.lll_node import (
+    LLLnode,
+)
+from vyper.parser.parser_utils import (
+    add_variable_offset,
+    make_setter,
+    unwrap_location,
+    zero_pad,
+)
 from vyper.types import (
     BaseType,
     ByteArrayLike,
@@ -9,17 +18,11 @@ from vyper.types import (
     StringType,
     TupleLike,
 )
-from vyper.parser.lll_node import (
-    LLLnode,
-)
-from vyper.parser.parser_utils import (
-    add_variable_offset,
-    make_setter,
-    zero_pad,
-)
 from vyper.utils import (
     ceil32,
 )
+
+
 # https://solidity.readthedocs.io/en/latest/abi-spec.html#types
 class ABIType:
     # aka has tail
@@ -36,20 +39,21 @@ class ABIType:
         return 0
 
     # The canonical name of the type for calculating the function selector
-    def selector_name():
+    def selector_name(self):
         raise NotImplementedError('ABIType.selector_name')
 
     # Whether the type is a tuple at the ABI level.
     # (This is important because if it does, it needs an offset.
     #   Compare the difference in encoding between `bytes` and `(bytes,)`.)
-    def is_tuple():
+    def is_tuple(self):
         raise NotImplementedError('ABIType.is_tuple')
+
 
 # uint<M>: unsigned integer type of M bits, 0 < M <= 256, M % 8 == 0. e.g. uint32, uint8, uint256.
 # int<M>: two’s complement signed integer type of M bits, 0 < M <= 256, M % 8 == 0.
 class ABI_GIntM(ABIType):
     def __init__(self, m_bits, signed):
-        if not (0 < m_bits and m_bits <= 256) or not (0 == m_bits % 8) :
+        if not (0 < m_bits <= 256 and 0 == m_bits % 8):
             raise CompilerPanic('Invalid M provided for GIntM')
 
         self.m_bits = m_bits
@@ -67,31 +71,37 @@ class ABI_GIntM(ABIType):
     def is_tuple(self):
         return False
 
-# address: equivalent to uint160, except for the assumed interpretation and language typing. For computing the function selector, address is used.
+
+# address: equivalent to uint160, except for the assumed interpretation
+#   and language typing. For computing the function selector, address is used.
 class ABI_Address(ABI_GIntM):
     def __init__(self):
-        return super().__init__(160, False) # ABI is the same
+        return super().__init__(160, False)
 
     def selector_name(self):
         return 'address'
 
-# bool: equivalent to uint8 restricted to the values 0 and 1. For computing the function selector, bool is used.
+
+# bool: equivalent to uint8 restricted to the values 0 and 1.
+#  For computing the function selector, bool is used.
+#  (thought: is vyper required to check that the value is restricted to 0 and
+#  1, i.e. that 248 bits or 255 bits are zeroed? - CC 20191119)
 class ABI_Bool(ABI_GIntM):
-    # "equivalent to uint8 restricted to the values 0 and 1. For computing the function selector, bool is used."
-    # ^ is vyper required to check that the value is restricted to 0 and 1,
-    # i.e. that 248 bits or 255 bits are zeroed?
     def __init__(self):
         return super().__init__(8, False)
 
     def selector_name(self):
         return 'bool'
 
-# fixed<M>x<N>: signed fixed-point decimal number of M bits, 8 <= M <= 256, M % 8 ==0, and 0 < N <= 80, which denotes the value v as v / (10 ** N).
+
+# fixed<M>x<N>: signed fixed-point decimal number of M bits, 8 <= M <= 256,
+#   M % 8 ==0, and 0 < N <= 80, which denotes the value v as v / (10 ** N).
 # ufixed<M>x<N>: unsigned variant of fixed<M>x<N>.
-# fixed, ufixed: synonyms for fixed128x18, ufixed128x18 respectively. For computing the function selector, fixed128x18 and ufixed128x18 have to be used.
+# fixed, ufixed: synonyms for fixed128x18, ufixed128x18 respectively.
+#   For computing the function selector, fixed128x18 and ufixed128x18 have to be used.
 class ABI_FixedMxN(ABIType):
     def __init__(self, m_bits, n_places, signed):
-        if not (0 < m_bits and m_bits <= 256 and 0==m_bits%8):
+        if not (0 < m_bits <= 256 and 0 == m_bits % 8):
             raise CompilerPanic('Invalid M for FixedMxN')
         if not (0 < n_places and n_places <= 80):
             raise CompilerPanic('Invalid N for FixedMxN')
@@ -113,6 +123,7 @@ class ABI_FixedMxN(ABIType):
     def is_tuple(self):
         return False
 
+
 # bytes<M>: binary type of M bytes, 0 < M <= 32.
 class ABI_BytesM(ABIType):
     def __init__(self, m_bytes):
@@ -133,13 +144,16 @@ class ABI_BytesM(ABIType):
     def is_tuple(self):
         return False
 
-# function: an address (20 bytes) followed by a function selector (4 bytes). Encoded identical to bytes24.
+
+# function: an address (20 bytes) followed by a function selector (4 bytes).
+# Encoded identical to bytes24.
 class ABI_Function(ABI_BytesM):
     def __init__(self):
         return super().__init__(24)
 
     def selector_name(self):
         return 'function'
+
 
 # <type>[M]: a fixed-length array of M elements, M >= 0, of the given type.
 class ABI_StaticArray(ABIType):
@@ -165,6 +179,7 @@ class ABI_StaticArray(ABIType):
     def is_tuple(self):
         return True
 
+
 class ABI_Bytes(ABIType):
     def __init__(self, bytes_bound):
         if not bytes_bound >= 0:
@@ -188,12 +203,14 @@ class ABI_Bytes(ABIType):
     def is_tuple(self):
         return False
 
+
 class ABI_String(ABI_Bytes):
     def __init__(self, bytes_bound):
         super().__init__(bytes_bound)
 
     def selector_name(self):
         return 'string'
+
 
 class ABI_DynamicArray(ABIType):
     def __init__(self, subtyp, elems_bound):
@@ -218,6 +235,7 @@ class ABI_DynamicArray(ABIType):
     def is_tuple(self):
         return False
 
+
 class ABI_Tuple(ABIType):
     def __init__(self, subtyps):
         self.subtyps = subtyps
@@ -236,8 +254,8 @@ class ABI_Tuple(ABIType):
     def is_tuple(self):
         return True
 
+
 def abi_type_of(lll_typ):
-    #print(f'abi_typ_of({lll_typ})')
     if isinstance(lll_typ, BaseType):
         t = lll_typ.typ
         if 'uint256' == t:
@@ -262,23 +280,22 @@ def abi_type_of(lll_typ):
         return ABI_Bytes(lll_typ.maxlen)
     elif isinstance(lll_typ, StringType):
         return ABI_String(lll_typ.maxlen)
-        #print(f'TRACE {ret}')
     else:
         raise CompilerPanic(f'Unrecognized type {lll_typ}')
+
 
 # turn an lll node into a list, based on its type.
 def o_list(lll_node, pos=None):
     lll_t = lll_node.typ
     if isinstance(lll_t, (TupleLike, ListType)):
-        if lll_node.value == 'multi': # is literal
+        if lll_node.value == 'multi':  # is literal
             ret = lll_node.args
-            #print(f'TRACE o_list {ret}')
         else:
             ks = lll_t.tuple_keys() if isinstance(lll_t, TupleLike) else \
                     [LLLnode.from_list(i) for i in range(lll_t.count)]
 
             ret = [add_variable_offset(lll_node, k, pos, array_bounds_check=False)
-                    for k in ks]
+                   for k in ks]
         return ret
     else:
         return [lll_node]
@@ -319,10 +336,10 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
     if bufsz is not None and bufsz < 32 * size_bound:
         raise CompilerPanic('buffer provided to abi_encode not large enough')
 
-    lll_ret   = ['seq']
-    dyn_ofst  = 'dyn_ofst' # current offset in the dynamic section
+    lll_ret = ['seq']
+    dyn_ofst = 'dyn_ofst'  # current offset in the dynamic section
     dst_begin = 'dst'      # pointer to beginning of buffer
-    dst_loc   = 'dst_loc'  # pointer to write location in static section
+    dst_loc = 'dst_loc'    # pointer to write location in static section
     os = o_list(lll_node, pos=pos)
 
     for i, o in enumerate(os):
@@ -358,8 +375,8 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
             raise CompilerPanic(f'unreachable type: {o.typ}')
 
         if i + 1 == len(os):
-            pass # optimize out the last increment to dst_loc
-        else: # note: always false for non-tuple types
+            pass  # optimize out the last increment to dst_loc
+        else:  # note: always false for non-tuple types
             sz = abi_t.static_size()
             lll_ret.append(['set', dst_loc, ['add', dst_loc, sz]])
 
@@ -377,15 +394,14 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
             raise CompilerPanic('unknown type {lll_node.typ}')
 
     if not (parent_abi_t.is_dynamic() and parent_abi_t.is_tuple()):
-        pass # optimize out dyn_ofst allocation if we don't need it
+        pass  # optimize out dyn_ofst allocation if we don't need it
     else:
         dyn_section_start = sum(
                 [abi_type_of(o.typ).static_size() for o in os])
-        #lll_ret = ['with', 'dyn_ofst', parent_abi_t.static_size(), lll_ret]
         lll_ret = ['with', 'dyn_ofst', dyn_section_start, lll_ret]
 
     lll_ret = ['with', dst_begin, dst,
-              ['with', dst_loc, dst_begin, lll_ret]]
+               ['with', dst_loc, dst_begin, lll_ret]]
 
     return LLLnode.from_list(lll_ret)
 
@@ -412,13 +428,13 @@ def abi_decode(lll_node, src, pos=None):
             lll_ret.append(make_setter(o, src_loc))
 
         if i + 1 == len(os):
-            pass # optimize out the last pointer increment
+            pass  # optimize out the last pointer increment
         else:
             sz = abi_t.static_size()
             lll_ret.append(['set', src_loc, ['add', src_loc, sz]])
 
     lll_ret = ['with', 'src', src,
-              ['with', 'src_loc', 'src',
-              ['seq', lll_ret]]]
+               ['with', 'src_loc', 'src',
+                ['seq', lll_ret]]]
 
     return lll_ret

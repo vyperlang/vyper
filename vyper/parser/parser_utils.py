@@ -252,7 +252,7 @@ def getpos(node):
 # an element or member variable
 def add_variable_offset(parent, key, pos, array_bounds_check=True):
     typ, location = parent.typ, parent.location
-    if isinstance(typ, (StructType, TupleType)):
+    if isinstance(typ, TupleLike):
         if isinstance(typ, StructType):
             if not isinstance(key, str):
                 raise TypeMismatchException(
@@ -278,6 +278,7 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
             attrs = list(range(len(typ.members)))
             index = key
             annotation = None
+
         if location == 'storage':
             return LLLnode.from_list(
                 ['add', ['sha3_32', parent], LLLnode.from_list(index, annotation=annotation)],
