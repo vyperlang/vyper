@@ -26,7 +26,8 @@ class ABIType:
     def is_dynamic(self):
         raise NotImplementedError('ABIType.is_dynamic')
 
-    # size (in bytes) in the static section, (aka 'head')
+    # size (in bytes) in the static section (aka 'head')
+    # when embedded in a tuple.
     def static_size(self):
         raise NotImplementedError('ABIType.static_size')
 
