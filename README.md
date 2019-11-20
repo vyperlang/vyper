@@ -3,7 +3,7 @@
 
 [![Build Status](https://github.com/vyperlang/vyper/workflows/Test/badge.svg)](https://github.com/vyperlang/vyper/actions)
 [![Documentation Status](https://readthedocs.org/projects/vyper/badge/?version=latest)](http://vyper.readthedocs.io/en/latest/?badge=latest "ReadTheDocs")
-[![Coverage Status](https://coveralls.io/repos/github/ethereum/vyper/badge.svg?branch=master)](https://coveralls.io/github/ethereum/vyper?branch=master "Coveralls")
+[![Coverage Status](https://coveralls.io/repos/github/vyperlang/vyper/badge.svg?branch=master)](https://coveralls.io/github/vyperlang/vyper?branch=master "Coveralls")
 [![PyPI](https://badge.fury.io/py/vyper.svg)](https://pypi.org/project/vyper "PyPI")
 [![Docker](https://images.microbadger.com/badges/version/vyperlang/vyper.svg)](https://hub.docker.com/r/vyperlang/vyper "DockerHub")
 [![Snapcraft](https://snapcraft.io/vyper/badge.svg)](https://snapcraft.io/vyper "Snapcraft")
