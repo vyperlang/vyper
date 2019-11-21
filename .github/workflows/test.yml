@@ -46,10 +46,13 @@ jobs:
       run: TOXENV=py36-core tox -r
 
     - name: Install Coveralls
-      run: pip install python-coveralls
+      run: pip install coveralls
 
-    - name: Updated Coveralls
-      run: COVERALLS_REPO_TOKEN=${{ secrets.COVERALLS_SECRET_KEY }} coveralls
+    - name: Send Coveralls Results
+      run: coveralls
+      env:
+        COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_SECRET_KEY }}
+        COVERALLS_PARALLEL: true  # So results get merged
 
   py37-core:
     runs-on: ubuntu-latest
