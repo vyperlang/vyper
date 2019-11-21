@@ -45,14 +45,11 @@ jobs:
     - name: Run Tox
       run: TOXENV=py36-core tox -r
 
-    - name: Install Coveralls
-      run: pip install coveralls
-
-    - name: Send Coveralls Results
-      run: coveralls
-      env:
-        COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_SECRET_KEY }}
-        COVERALLS_PARALLEL: true  # So results get merged
+    - name: Upload Coverage
+      uses: codecov/codecov-action@v1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        file: ./coverage.xml
 
   py37-core:
     runs-on: ubuntu-latest
