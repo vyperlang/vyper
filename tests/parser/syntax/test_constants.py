@@ -58,9 +58,6 @@ def test(VAL: uint256):
     pass
     """, FunctionDeclarationException),
     ("""
-VAL: constant(decimal) = 2e-8
-    """, InvalidLiteralException),
-    ("""
 C1: constant(uint256) = block.number
 C2: constant(uint256) = convert(C1, uint256)
     """, InvalidLiteralException),
