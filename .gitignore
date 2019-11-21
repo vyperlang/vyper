@@ -26,6 +26,7 @@ ENV/
 .coverage
 .cache/
 htmlcov/
+coverage.xml
 
 # sphinx
 docs/_build

@@ -45,11 +45,11 @@ jobs:
     - name: Run Tox
       run: TOXENV=py36-core tox -r
 
-    - name: Install Coveralls
-      run: pip install python-coveralls
-
-    - name: Updated Coveralls
-      run: COVERALLS_REPO_TOKEN=${{ secrets.COVERALLS_SECRET_KEY }} coveralls
+    - name: Upload Coverage
+      uses: codecov/codecov-action@v1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        file: ./coverage.xml
 
   py37-core:
     runs-on: ubuntu-latest
