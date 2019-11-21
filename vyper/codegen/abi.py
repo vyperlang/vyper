@@ -438,3 +438,50 @@ def abi_decode(lll_node, src, pos=None):
                 ['seq', lll_ret]]]
 
     return lll_ret
+
+
+def _add_ofst(loc, ofst):
+    if isinstance(loc.value, int):
+        return LLLnode(loc.value + ofst)
+    return ['add', loc, ofst]
+
+
+# decode a buffer containing abi-encoded data structure in place
+# for dynamical data, a layer of indirection will be
+# added for every level of nesting. for instance,
+# `lazy_abi_decode(<int128>, <320>)`
+# might return (mload 320),
+# whereas
+# `lazy_abi_decode(<(int128,bytes)>, <320>)`
+# might return
+# (multi
+#   (mload 320/*int128*/)
+#   (mload (add 320/*buf start*/ (mload 352/*ofst loc*/))))
+# thought of the day: it might be nice to have an argument like `sanitize`
+# which will add well-formedness checks (clamps) for all inputs.
+def lazy_abi_decode(typ, src, pos=None):
+    if isinstance(typ, (ListType, TupleLike)):
+        if isinstance(typ, TupleLike):
+            ts = typ.tuple_members()
+        else:
+            ts = [typ.subtyp for _ in range(typ.count)]
+        ofst = 0
+        os = []
+        for t in ts:
+            child_abi_t = abi_type_of(t)
+            loc = _add_ofst(src, ofst)
+            if child_abi_t.is_dynamic():
+                # load the offset word, which is the
+                # (location-independent) offset from the start of the
+                # src buffer.
+                dyn_ofst = unwrap_location(ofst)
+                loc = _add_ofst(src, dyn_ofst)
+            os.append(lazy_abi_decode(t, loc, pos))
+            ofst += child_abi_t.static_size()
+
+        return LLLnode.from_list(['multi'] + os, typ=typ, pos=pos)
+
+    elif isinstance(typ, (BaseType, ByteArrayLike)):
+        return unwrap_location(src)
+    else:
+        raise CompilerPanic(f'unknown type for lazy_abi_decode {typ}')
