@@ -1,4 +1,4 @@
-FROM python:3.6-slim
+FROM python:3.7-slim
 
 # Specify label-schema specific arguments and labels.
 ARG BUILD_DATE
