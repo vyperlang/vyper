@@ -1,4 +1,5 @@
 import re
+from typing import Tuple
 
 from vyper import ast
 from vyper.ast_utils import (
@@ -107,7 +108,7 @@ class Stmt(object):
             raise StructureException('Raise must have a reason', self.stmt)
         return self._assert_reason(0, self.stmt.exc)
 
-    def _check_valid_assign(self, sub):
+    def _check_valid_assign(self, sub: LLLnode) -> bool:
         if isinstance(self.stmt.annotation, ast.Call):  # unit style: num(wei)
             if self.stmt.annotation.func.id != sub.typ.typ and not sub.typ.is_literal:
                 raise TypeMismatchException(
@@ -119,11 +120,11 @@ class Stmt(object):
                     raise TypeMismatchException(
                         'Invalid type, expected: bytes32. String is incorrect length.', self.stmt
                     )
-                return
+                return False
             elif isinstance(sub.typ, BaseType):
                 if sub.typ.typ != 'bytes32':
                     raise TypeMismatchException('Invalid type, expected: bytes32', self.stmt)
-                return
+                return False
             else:
                 raise TypeMismatchException('Invalid type, expected: bytes32', self.stmt)
         elif isinstance(self.stmt.annotation, ast.Subscript):
@@ -513,9 +514,25 @@ class Stmt(object):
                 raise StructureException("Range only accepts literal (constant) values", arg_expr)
             return False, arg_expr
 
-    def _get_range_const_value(self, arg_ast_node):
+    def _get_range_const_value_expr(self, arg_ast_node):
         _, arg_expr = self._check_valid_range_constant(arg_ast_node)
-        return arg_expr.value
+        return arg_expr
+
+    def _test_constant_ranges(self,
+                              constants: Tuple[Tuple[int, str]],
+                              ast_node: ast.VyperNode) -> None:
+        for val, typ in constants:
+            if not SizeLimits.in_bounds(typ, val):
+                raise InvalidLiteralException('Invalid range value supplied', self.stmt)
+
+    def _get_outtype(self, arg0_expr, arg1_expr):
+        if arg0_expr.typ.typ != arg1_expr.typ.typ:
+            if {arg0_expr.typ.typ, arg1_expr.typ.typ} != {'uint256', 'int128'}:
+                raise CompilerPanic('Only uint256 and int128 supported.')
+            out_type = 'uint256'
+        else:
+            out_type = arg0_expr.typ.typ
+        return out_type
 
     def parse_for(self):
         # from .parser import (
@@ -546,16 +563,35 @@ class Stmt(object):
 
             # Type 1 for, e.g. for i in range(10): ...
             if num_of_args == 1:
-                arg0_val = self._get_range_const_value(arg0)
-                start = LLLnode.from_list(0, typ='int128', pos=getpos(self.stmt))
+                arg0_expr = self._get_range_const_value_expr(arg0)
+                arg0_val = arg0_expr.value
+                out_type = arg0_expr.typ
+                start = LLLnode.from_list(0, typ=out_type, pos=getpos(self.stmt))
+                self._test_constant_ranges(((arg0_val, out_type.typ), ), self.stmt)
                 rounds = arg0_val
 
             # Type 2 for, e.g. for i in range(100, 110): ...
             elif self._check_valid_range_constant(self.stmt.iter.args[1], raise_exception=False)[0]:
-                arg0_val = self._get_range_const_value(arg0)
-                arg1_val = self._get_range_const_value(self.stmt.iter.args[1])
-                start = LLLnode.from_list(arg0_val, typ='int128', pos=getpos(self.stmt))
-                rounds = LLLnode.from_list(arg1_val - arg0_val, typ='int128', pos=getpos(self.stmt))
+                arg0_expr = self._get_range_const_value_expr(arg0)
+                arg1_expr = self._get_range_const_value_expr(self.stmt.iter.args[1])
+                arg0_val = arg0_expr.value
+                arg1_val = arg1_expr.value
+                if arg1_val <= arg0_val:
+                    raise StructureException(
+                        "Range start value may not be bigger or equal to end value",
+                        self.stmt
+                    )
+                out_type = self._get_outtype(arg0_expr, arg1_expr)
+                self._test_constant_ranges(
+                    (
+                        (arg0_val, out_type),
+                        (arg1_val, out_type)
+                    ),
+                    self.stmt
+                )
+
+                start = LLLnode.from_list(arg0_val, typ=out_type, pos=getpos(self.stmt))
+                rounds = LLLnode.from_list(arg1_val - arg0_val, typ=out_type, pos=getpos(self.stmt))
 
             # Type 3 for, e.g. for i in range(x, x + 10): ...
             else:
@@ -578,12 +614,20 @@ class Stmt(object):
                         ),
                         self.stmt.iter,
                     )
-
-                rounds = self._get_range_const_value(arg1.right)
-                start = Expr.parse_value_expr(arg0, self.context)
+                arg1_expr = self._get_range_const_value_expr(arg1.right)
+                arg0_expr = Expr.parse_value_expr(arg0, self.context)
+                out_type = self._get_outtype(arg0_expr, arg1_expr)
+                self._test_constant_ranges(
+                    (
+                        (arg1_expr.value, out_type),
+                    ),
+                    self.stmt
+                )
+                rounds = arg1_expr.value
+                start = arg0_expr
 
             varname = self.stmt.target.id
-            pos = self.context.new_variable(varname, BaseType('int128'), pos=getpos(self.stmt))
+            pos = self.context.new_variable(varname, BaseType(out_type), pos=getpos(self.stmt))
             self.context.forvars[varname] = True
             o = LLLnode.from_list(
                 ['repeat', pos, start, rounds, parse_body(self.stmt.body, self.context)],
