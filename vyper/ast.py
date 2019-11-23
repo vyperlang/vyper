@@ -71,16 +71,25 @@ class VyperNode:
         return f'{class_repr}:\n{source_annotation}'
 
 
+class Expr(VyperNode):
+    __slots__ = ('value', )
+
+
 class Module(VyperNode):
     __slots__ = ('body', )
 
 
-class Name(VyperNode):
+class Name(Expr):
     __slots__ = ('id', )
+    if typing.TYPE_CHECKING:
+        id = None  # type: str
 
 
 class Subscript(VyperNode):
     __slots__ = ('slice', 'value')
+    if typing.TYPE_CHECKING:
+        slice = None  # type: Expr
+        value = None  # type: Expr
 
 
 class Index(VyperNode):
@@ -110,6 +119,11 @@ class Import(VyperNode):
 
 class Call(VyperNode):
     __slots__ = ('func', 'args', 'keywords', 'keyword')
+    if typing.TYPE_CHECKING:
+        func = None  # type: Name
+        args = None  # type: typing.List[Expr]
+        keywords = None  # type: typing.List[VyperNode]
+        keyword = None  # type: VyperNode
 
 
 class keyword(VyperNode):
@@ -230,10 +244,6 @@ class Not(VyperNode):
 
 class USub(VyperNode):
     __slots__ = ()
-
-
-class Expr(VyperNode):
-    __slots__ = ('value', )
 
 
 class Pass(VyperNode):

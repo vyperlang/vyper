@@ -1,5 +1,7 @@
 import re
-from typing import Tuple
+from typing import (
+    Tuple,
+)
 
 from vyper import ast
 from vyper.ast_utils import (
@@ -129,8 +131,11 @@ class Stmt(object):
                 raise TypeMismatchException('Invalid type, expected: bytes32', self.stmt)
         elif isinstance(self.stmt.annotation, ast.Subscript):
             if not isinstance(sub.typ, (ListType, ByteArrayLike)):  # check list assign.
+                expected = 'Unknown'
+                if isinstance(self.stmt.annotation.value, ast.Name):
+                    expected = self.stmt.annotation.value.id
                 raise TypeMismatchException(
-                    f'Invalid type, expected: {self.stmt.annotation.value.id}', self.stmt
+                    f'Invalid type, expected: {expected}', self.stmt
                 )
         elif isinstance(sub.typ, StructType):
             # This needs to get more sophisticated in the presence of
@@ -150,8 +155,8 @@ class Stmt(object):
                 f'Invalid type {sub.typ.typ}, expected: {self.stmt.annotation.id}',
                 self.stmt,
             )
-        else:
-            return True
+
+        return True
 
     def _check_same_variable_assign(self, sub):
         lhs_var_name = self.stmt.target.id

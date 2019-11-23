@@ -111,7 +111,7 @@ class SizeLimits:
     MAX_UINT256 = 2**256 - 1
 
     @classmethod
-    def in_bounds(cls, type_str: str, value: Union[float, int]):
+    def in_bounds(cls, type_str: str, value: Union[float, int]) -> bool:
         assert isinstance(type_str, str)
         if type_str == 'decimal':
             return float(cls.MINDECIMAL) <= value <= float(cls.MAXDECIMAL)
