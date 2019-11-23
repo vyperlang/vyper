@@ -1,8 +1,8 @@
 import pytest
-
 from pytest import (
     raises,
 )
+
 from vyper import (
     compiler,
 )
