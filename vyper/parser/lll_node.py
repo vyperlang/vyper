@@ -1,4 +1,11 @@
 import re
+from typing import (
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 from vyper.exceptions import (
     CompilerPanic,
@@ -36,11 +43,12 @@ else:
     ENDC = ''
 
 
-class NullAttractor:
-    def __add__(self, other):
+class NullAttractor(int):
+
+    def __add__(self, other: int) -> 'NullAttractor':
         return NullAttractor()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return 'None'
 
     __radd__ = __add__
@@ -50,17 +58,21 @@ class NullAttractor:
 # Data structure for LLL parse tree
 class LLLnode:
     repr_show_gas = False
+    gas: int
+    valency: int
+    args: List['LLLnode']
+    value: Union[str, int]
 
     def __init__(self,
-                 value,
-                 args=None,
-                 typ=None,
-                 location=None,
-                 pos=None,
-                 annotation='',
-                 mutable=True,
-                 add_gas_estimate=0,
-                 valency=None):
+                 value: Union[str, int],
+                 args: List['LLLnode'] = None,
+                 typ: 'BaseType' = None,
+                 location: str = None,
+                 pos: Optional[Tuple[int, int]] = None,
+                 annotation: Optional[str] = None,
+                 mutable: bool = True,
+                 add_gas_estimate: int = 0,
+                 valency: int = 0):
         if args is None:
             args = []
 
@@ -110,7 +122,7 @@ class LLLnode:
                         )
                     self.gas += arg.gas
                 # Dynamic gas cost: 8 gas for each byte of logging data
-                if self.value.upper()[0:3] == 'LOG' and isinstance(self.args[1].value, int):
+                if isinstance(self.args[1].value, int) and self.value.upper()[0:3] == 'LOG':
                     self.gas += self.args[1].value * 8
                 # Dynamic gas cost: non-zero-valued call
                 if self.value.upper() == 'CALL' and self.args[2].value != 0:
@@ -159,7 +171,7 @@ class LLLnode:
                 is_invalid_repeat_count = any((
                     len(self.args[2].args),
                     not isinstance(self.args[2].value, int),
-                    self.args[2].value <= 0,
+                    isinstance(self.args[2].value, int) and self.args[2].value <= 0,
                 ))
 
                 if is_invalid_repeat_count:
@@ -183,10 +195,17 @@ class LLLnode:
                         f"be zerovalent: {self.args[3]}"
                     ))
                 self.valency = 0
+                rounds: int
                 if self.args[1].value in ('calldataload', 'mload') or self.args[1].value == 'sload':
-                    rounds = self.args[2].value
+                    if isinstance(self.args[2].value, int):
+                        rounds = self.args[2].value
+                    else:
+                        raise CompilerPanic('Unsupported rounds argument type.')
                 else:
-                    rounds = abs(self.args[2].value - self.args[1].value)
+                    if isinstance(self.args[2].value, int) and isinstance(self.args[1].value, int):
+                        rounds = abs(self.args[2].value - self.args[1].value)
+                    else:
+                        raise CompilerPanic('Unsupported second argument types.')
                 self.gas = rounds * (self.args[3].gas + 50) + 30
             # Seq statements: seq <statement> <statement> ...
             elif self.value == 'seq':
@@ -311,14 +330,14 @@ class LLLnode:
 
     @classmethod
     def from_list(cls,
-                  obj,
-                  typ=None,
-                  location=None,
-                  pos=None,
-                  annotation=None,
-                  mutable=True,
-                  add_gas_estimate=0,
-                  valency=None):
+                  obj: Union[Sequence[Union[int, str, 'LLLnode']], Union[int, str, 'LLLnode']],
+                  typ: 'BaseType' = None,
+                  location: str = None,
+                  pos: Tuple[int, int] = None,
+                  annotation: Optional[str] = None,
+                  mutable: bool = True,
+                  add_gas_estimate: int = 0,
+                  valency: int = 0) -> 'LLLnode':
         if isinstance(typ, str):
             typ = BaseType(typ)
 
@@ -337,10 +356,10 @@ class LLLnode:
                 obj,
                 [],
                 typ,
-                location,
-                pos,
-                annotation,
-                mutable,
+                location=location,
+                pos=pos,
+                annotation=annotation,
+                mutable=mutable,
                 add_gas_estimate=add_gas_estimate,
             )
         else:
@@ -348,10 +367,10 @@ class LLLnode:
                 obj[0],
                 [cls.from_list(o, pos=pos) for o in obj[1:]],
                 typ,
-                location,
-                pos,
-                annotation,
-                mutable,
+                location=location,
+                pos=pos,
+                annotation=annotation,
+                mutable=mutable,
                 add_gas_estimate=add_gas_estimate,
                 valency=valency,
             )
