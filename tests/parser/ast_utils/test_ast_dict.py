@@ -45,6 +45,7 @@ def test_basic_ast():
 a: int128
     """
     dict_out = compiler.compile_code(code, ['ast_dict'])
+    print(dict_out['ast_dict']['ast'][0])
     assert dict_out['ast_dict']['ast'][0] == {
       'annotation': {
         'ast_type': 'Name',
@@ -55,6 +56,7 @@ a: int128
         'lineno': 2,
         'node_id': 4,
         'src': "4:6:0",
+        'value': None
       },
       'ast_type': 'AnnAssign',
       'col_offset': 0,
@@ -73,6 +75,7 @@ a: int128
         'lineno': 2,
         'node_id': 2,
         'src': '1:1:0',
+        'value': None
       },
       'value': None
     }

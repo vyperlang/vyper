@@ -131,7 +131,7 @@ class Stmt(object):
                 raise TypeMismatchException('Invalid type, expected: bytes32', self.stmt)
         elif isinstance(self.stmt.annotation, ast.Subscript):
             if not isinstance(sub.typ, (ListType, ByteArrayLike)):  # check list assign.
-                expected = 'Unknown'
+                expected = None
                 if isinstance(self.stmt.annotation.value, ast.Name):
                     expected = self.stmt.annotation.value.id
                 raise TypeMismatchException(
@@ -530,7 +530,7 @@ class Stmt(object):
             if not SizeLimits.in_bounds(typ, val):
                 raise InvalidLiteralException('Invalid range value supplied', self.stmt)
 
-    def _get_outtype(self, arg0_expr, arg1_expr):
+    def _get_outtype(self, arg0_expr: LLLnode, arg1_expr: LLLnode) -> str:
         if arg0_expr.typ.typ != arg1_expr.typ.typ:
             if {arg0_expr.typ.typ, arg1_expr.typ.typ} != {'uint256', 'int128'}:
                 raise CompilerPanic('Only uint256 and int128 supported.')
@@ -570,9 +570,9 @@ class Stmt(object):
             if num_of_args == 1:
                 arg0_expr = self._get_range_const_value_expr(arg0)
                 arg0_val = arg0_expr.value
-                out_type = arg0_expr.typ
-                start = LLLnode.from_list(0, typ=out_type, pos=getpos(self.stmt))
-                self._test_constant_ranges(((arg0_val, out_type.typ), ), self.stmt)
+                out_type_str = arg0_expr.typ.typ
+                start = LLLnode.from_list(0, typ=out_type_str, pos=getpos(self.stmt))
+                self._test_constant_ranges(((arg0_val, out_type_str), ), self.stmt)
                 rounds = arg0_val
 
             # Type 2 for, e.g. for i in range(100, 110): ...
@@ -586,17 +586,21 @@ class Stmt(object):
                         "Range start value may not be bigger or equal to end value",
                         self.stmt
                     )
-                out_type = self._get_outtype(arg0_expr, arg1_expr)
+                out_type_str = self._get_outtype(arg0_expr, arg1_expr)
                 self._test_constant_ranges(
                     (
-                        (arg0_val, out_type),
-                        (arg1_val, out_type)
+                        (arg0_val, out_type_str),
+                        (arg1_val, out_type_str)
                     ),
                     self.stmt
                 )
 
-                start = LLLnode.from_list(arg0_val, typ=out_type, pos=getpos(self.stmt))
-                rounds = LLLnode.from_list(arg1_val - arg0_val, typ=out_type, pos=getpos(self.stmt))
+                start = LLLnode.from_list(
+                    arg0_val, typ=out_type_str, pos=getpos(self.stmt)
+                )
+                rounds = LLLnode.from_list(
+                    arg1_val - arg0_val, typ=out_type_str, pos=getpos(self.stmt)
+                )
 
             # Type 3 for, e.g. for i in range(x, x + 10): ...
             else:
@@ -621,10 +625,10 @@ class Stmt(object):
                     )
                 arg1_expr = self._get_range_const_value_expr(arg1.right)
                 arg0_expr = Expr.parse_value_expr(arg0, self.context)
-                out_type = self._get_outtype(arg0_expr, arg1_expr)
+                out_type_str = self._get_outtype(arg0_expr, arg1_expr)
                 self._test_constant_ranges(
                     (
-                        (arg1_expr.value, out_type),
+                        (arg1_expr.value, out_type_str),
                     ),
                     self.stmt
                 )
@@ -632,7 +636,7 @@ class Stmt(object):
                 start = arg0_expr
 
             varname = self.stmt.target.id
-            pos = self.context.new_variable(varname, BaseType(out_type), pos=getpos(self.stmt))
+            pos = self.context.new_variable(varname, BaseType(out_type_str), pos=getpos(self.stmt))
             self.context.forvars[varname] = True
             o = LLLnode.from_list(
                 ['repeat', pos, start, rounds, parse_body(self.stmt.body, self.context)],
