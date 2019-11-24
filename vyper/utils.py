@@ -122,8 +122,7 @@ class SizeLimits:
 
 # Map representing all limits loaded into a contract as part of the initializer
 # code.
-
-LOADED_LIMIT_MAP: OrderedDict[int, int] = OrderedDict((
+LOADED_LIMIT_MAP: 'OrderedDict[int, int]' = OrderedDict((
     (MemoryPositions.ADDRSIZE, SizeLimits.ADDRSIZE),
     (MemoryPositions.MAXNUM, SizeLimits.MAXNUM),
     (MemoryPositions.MINNUM, SizeLimits.MINNUM),

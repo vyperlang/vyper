@@ -72,7 +72,7 @@ class LLLnode:
                  annotation: Optional[str] = None,
                  mutable: bool = True,
                  add_gas_estimate: int = 0,
-                 valency: int = 0):
+                 valency: Optional[int] = None):
         if args is None:
             args = []
 
@@ -122,7 +122,7 @@ class LLLnode:
                         )
                     self.gas += arg.gas
                 # Dynamic gas cost: 8 gas for each byte of logging data
-                if isinstance(self.args[1].value, int) and self.value.upper()[0:3] == 'LOG':
+                if self.value.upper()[0:3] == 'LOG' and isinstance(self.args[1].value, int):
                     self.gas += self.args[1].value * 8
                 # Dynamic gas cost: non-zero-valued call
                 if self.value.upper() == 'CALL' and self.args[2].value != 0:
@@ -337,7 +337,7 @@ class LLLnode:
                   annotation: Optional[str] = None,
                   mutable: bool = True,
                   add_gas_estimate: int = 0,
-                  valency: int = 0) -> 'LLLnode':
+                  valency: Optional[int] = None) -> 'LLLnode':
         if isinstance(typ, str):
             typ = BaseType(typ)
 
