@@ -45,7 +45,6 @@ def test_basic_ast():
 a: int128
     """
     dict_out = compiler.compile_code(code, ['ast_dict'])
-    print(dict_out['ast_dict']['ast'][0])
     assert dict_out['ast_dict']['ast'][0] == {
       'annotation': {
         'ast_type': 'Name',
