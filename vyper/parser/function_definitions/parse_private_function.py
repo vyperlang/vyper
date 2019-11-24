@@ -88,7 +88,7 @@ def parse_private_function(code: ast.FunctionDef,
 
     # Create callback_ptr, this stores a destination in the bytecode for a private
     # function to jump to after a function has executed.
-    clampers = []
+    clampers: List[LLLnode] = []
 
     # Allocate variable space.
     context.memory_allocator.increase_memory(sig.max_copy_size)
@@ -102,7 +102,7 @@ def parse_private_function(code: ast.FunctionDef,
         )
     )
     if sig.total_default_args > 0:
-        clampers.append(['label', _post_callback_ptr])
+        clampers.append(LLLnode.from_list(['label', _post_callback_ptr]))
 
     # private functions without return types need to jump back to
     # the calling function, as there is no return statement to handle the
@@ -115,13 +115,13 @@ def parse_private_function(code: ast.FunctionDef,
     # Generate copiers
     if len(sig.base_args) == 0:
         copier = ['pass']
-        clampers.append(copier)
+        clampers.append(LLLnode.from_list(copier))
     elif sig.total_default_args == 0:
         copier = get_private_arg_copier(
             total_size=sig.base_copy_size,
             memory_dest=MemoryPositions.RESERVED_MEMORY
         )
-        clampers.append(copier)
+        clampers.append(LLLnode.from_list(copier))
 
     # Fill variable positions
     for arg in sig.args:

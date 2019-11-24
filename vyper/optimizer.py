@@ -2,6 +2,7 @@ import operator
 from typing import (
     Any,
     List,
+    Optional,
 )
 
 from vyper.parser.parser_utils import (
@@ -12,13 +13,15 @@ from vyper.utils import (
 )
 
 
-def get_int_at(args, pos, signed=False):
+def get_int_at(args: List[LLLnode], pos: int, signed: bool = False) -> Optional[int]:
     value = args[pos].value
 
     if isinstance(value, int):
         o = value
-    elif value == "mload" and args[pos].args[0].value in LOADED_LIMITS.keys():
-        o = LOADED_LIMITS[args[pos].args[0].value]
+    elif (value == "mload" and
+            args[pos].args[0].value in LOADED_LIMIT_MAP.keys() and
+            isinstance(args[pos].args[0].value, int)):
+        o = LOADED_LIMIT_MAP[int(args[pos].args[0].value)]
     else:
         return None
 
@@ -28,11 +31,11 @@ def get_int_at(args, pos, signed=False):
         return o % 2**256
 
 
-def int_at(args, pos):
-    return get_int_at(args, pos) is not None
+def int_at(args: List[LLLnode], pos: int, signed: bool = False) -> Optional[int]:
+    return get_int_at(args, pos, signed) is not None
 
 
-def search_for_set(node, var):
+def search_for_set(node: LLLnode, var: List[LLLnode]) -> bool:
     if node.value == "set" and node.args[0].value == var:
         return True
 
@@ -52,9 +55,11 @@ arith = {
 }
 
 
-def _is_constant_add(node, args):
-    return (
+def _is_constant_add(node: LLLnode, args: List[LLLnode]) -> bool:
+    return bool(
         (
+            isinstance(node.value, str)
+        ) and (
             node.value == "add" and int_at(args, 0)
         ) and (
             args[1].value == "add" and int_at(args[1].args, 0)
@@ -70,7 +75,7 @@ def optimize(node: LLLnode) -> LLLnode:
     argz = [optimize(arg) for arg in node.args]
     if node.value in arith and int_at(argz, 0) and int_at(argz, 1):
         left, right = get_int_at(argz, 0), get_int_at(argz, 1)
-        calcer, symb = arith[node.value]
+        calcer, symb = arith[str(node.value)]
         new_value = calcer(left, right)
         if argz[0].annotation and argz[1].annotation:
             annotation = argz[0].annotation + symb + argz[1].annotation
@@ -93,7 +98,7 @@ def optimize(node: LLLnode) -> LLLnode:
             valency=node.valency,
         )
     elif _is_constant_add(node, argz):
-        calcer, symb = arith[node.value]
+        calcer, symb = arith[str(node.value)]
         if argz[0].annotation and argz[1].args[0].annotation:
             annotation = argz[0].annotation + symb + argz[1].args[0].annotation
         elif argz[0].annotation or argz[1].args[0].annotation:
@@ -107,12 +112,12 @@ def optimize(node: LLLnode) -> LLLnode:
         return LLLnode(
             "add",
             [
-                LLLnode(argz[0].value + argz[1].args[0].value, annotation=annotation),
+                LLLnode(int(argz[0].value) + int(argz[1].args[0].value), annotation=annotation),
                 argz[1].args[1],
             ],
             node.typ,
             None,
-            node.annotation,
+            annotation=node.annotation,
             add_gas_estimate=node.add_gas_estimate,
             valency=node.valency,
         )
@@ -123,7 +128,7 @@ def optimize(node: LLLnode) -> LLLnode:
             node.typ,
             node.location,
             node.pos,
-            argz[1].annotation,
+            annotation=argz[1].annotation,
             add_gas_estimate=node.add_gas_estimate,
             valency=node.valency,
         )
@@ -139,14 +144,14 @@ def optimize(node: LLLnode) -> LLLnode:
             valency=node.valency,
         )
     elif node.value == "clamp" and int_at(argz, 0) and int_at(argz, 1) and int_at(argz, 2):
-        if get_int_at(argz, 0, True) > get_int_at(argz, 1, True):
+        if get_int_at(argz, 0, True) > get_int_at(argz, 1, True):  # type: ignore
             raise Exception("Clamp always fails")
-        elif get_int_at(argz, 1, True) > get_int_at(argz, 2, True):
+        elif get_int_at(argz, 1, True) > get_int_at(argz, 2, True):  # type: ignore
             raise Exception("Clamp always fails")
         else:
             return argz[1]
     elif node.value == "clamp" and int_at(argz, 0) and int_at(argz, 1):
-        if get_int_at(argz, 0, True) > get_int_at(argz, 1, True):
+        if get_int_at(argz, 0, True) > get_int_at(argz, 1, True):  # type: ignore
             raise Exception("Clamp always fails")
         else:
             return LLLnode(
@@ -188,9 +193,9 @@ def optimize(node: LLLnode) -> LLLnode:
     # [ne, x, y] has the same truthyness as [xor, x, y]
     # rewrite 'ne' as 'xor' in places where truthy is accepted.
     elif has_cond_arg(node) and argz[0].value == 'ne':
-        argz[0] = LLLnode.from_list(['xor'] + argz[0].args)
+        argz[0] = LLLnode.from_list(['xor'] + argz[0].args)  # type: ignore
         return LLLnode.from_list(
-                [node.value] + argz,
+                [node.value] + argz,  # type: ignore
                 typ=node.typ,
                 location=node.location,
                 pos=node.pos,

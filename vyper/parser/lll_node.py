@@ -1,8 +1,8 @@
 import re
 from typing import (
+    Any,
     List,
     Optional,
-    Sequence,
     Tuple,
     Union,
 )
@@ -280,7 +280,7 @@ class LLLnode:
             return OKMAGENTA + val + ENDC
         return val
 
-    def repr(self):
+    def repr(self) -> str:
 
         if not len(self.args):
 
@@ -330,7 +330,7 @@ class LLLnode:
 
     @classmethod
     def from_list(cls,
-                  obj: Union[Sequence[Union[int, str, 'LLLnode']], Union[int, str, 'LLLnode']],
+                  obj: Any,
                   typ: 'BaseType' = None,
                   location: str = None,
                   pos: Tuple[int, int] = None,
