@@ -1,7 +1,6 @@
 import ast as python_ast
 from decimal import (
     Decimal,
-    InvalidOperation,
 )
 from typing import (
     Any,
@@ -55,28 +54,28 @@ from vyper.utils import (
 
 # Get a decimal number as a fraction with denominator multiple of 10
 def get_number_as_fraction(expr, context):
-    context_slice = context.origcode.splitlines()[expr.lineno - 1][expr.col_offset:]
-    # Get the largest string that converts to decimal
-    t = len(context_slice)
-    while t > 0:  # Breaks if we exhaust the context
-        try:
-            literal = Decimal(context_slice[:t])
-            break  # We got our result!
-        except InvalidOperation:  # Only except our Decimal syntax exception
-            # If it does not convert, shrink the context and try again
-            t -= 1
-    if t <= 0:  # We've exhausted the context
+    context_line = context.origcode.splitlines()[expr.lineno - 1]
+    context_slice = context_line[expr.col_offset:expr.end_col_offset]
+    literal = Decimal(context_slice)
+    sign, digits, exponent = literal.as_tuple()
+
+    if exponent < -10:
         raise InvalidLiteralException(
-            f'Unable to parse literal from context: "{context_slice}"',
-            expr,
-        )
+                "`decimal` literal cannot have more than 10 decimal places: {literal}",
+                expr
+            )
+
+    sign = (-1 if sign == 1 else 1)  # Positive Decimal has `sign` of 0, negative `sign` of 1
+    # Decimal `digits` is a tuple of each digit, so convert to a regular integer
+    top = int(Decimal((0, digits, 0)))
+    top = sign * top * 10**(exponent if exponent > 0 else 0)  # Convert to a fixed point integer
+    bottom = (1 if exponent > 0 else 10**abs(exponent))  # Make denominator a power of 10
+    assert Decimal(top) / Decimal(bottom) == literal  # Sanity check
 
     # TODO: Would be best to raise >10 decimal place exception here
     #       (unless Decimal is used more widely)
 
-    top, bottom = literal.as_integer_ratio()
-
-    return context_slice[:t], top, bottom
+    return context_slice, top, bottom
 
 
 # Is a number of decimal form (e.g. 65281) or 0x form (e.g. 0xff01) or 0b binary form (e.g. 0b0001)
