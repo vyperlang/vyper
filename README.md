@@ -7,7 +7,7 @@
 [![PyPI](https://badge.fury.io/py/vyper.svg)](https://pypi.org/project/vyper "PyPI")
 [![Docker](https://images.microbadger.com/badges/version/vyperlang/vyper.svg)](https://hub.docker.com/r/vyperlang/vyper "DockerHub")
 [![Snapcraft](https://snapcraft.io/vyper/badge.svg)](https://snapcraft.io/vyper "Snapcraft")
-[![Join the chat at https://gitter.im/ethereum/vyper](https://badges.gitter.im/ethereum/vyper.svg)](https://gitter.im/ethereum/vyper?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge "Gitter")
+[![Join the chat at https://gitter.im/vyperlang/community](https://badges.gitter.im/vyperlang/vyper.svg)](https://gitter.im/vyperlang/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge "Gitter")
 
 
 # Getting Started
