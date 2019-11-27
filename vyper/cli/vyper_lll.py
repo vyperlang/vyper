@@ -20,7 +20,7 @@ def _parse_cli_args():
 
 
 def _parse_args(argv):
-    parser = argparse.ArgumentParser(description='Vyper LLL for Ethereum')
+    parser = argparse.ArgumentParser(description='Vyper LLL IR compiler')
     parser.add_argument(
         'input_file',
         help='Vyper sourcecode to compile',

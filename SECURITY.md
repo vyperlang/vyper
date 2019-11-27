@@ -7,7 +7,7 @@ This means that we only support the latest release and that you may encounter is
 It is un-audited software, use with caution.
 
 If you have questions or concerns, please contact us on gitter:
-[![Join the chat at https://gitter.im/bethereum/vyper](https://badges.gitter.im/ethereum/vyper.svg)](https://gitter.im/ethereum/vyper?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Join the chat at https://gitter.im/vyperlang/community](https://badges.gitter.im/vyperlang/community.svg)](https://gitter.im/vyperlang/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge "Gitter")
 
 ## Audit reports
 
@@ -48,7 +48,7 @@ we will add an entry to this table for posterity and reference by others.
 
 | VVE | Description | Introduced | Fixed | Report Link |
 | --- | ----------- | ---------- | ----- | ----------- |
-| VVE-2019-0001 | Stack Exhaustion via Private Calls w/ Arrays | v0.1.0-beta.4 | v0.1.0-beta.10 | https://github.com/ethereum/vyper/issues/1418#issuecomment-496509570 |
+| VVE-2019-0001 | Stack Exhaustion via Private Calls w/ Arrays | v0.1.0-beta.4 | v0.1.0-beta.10 | https://github.com/vyperlang/vyper/issues/1418#issuecomment-496509570 |
 
 ## Reporting a Vulnerability
 

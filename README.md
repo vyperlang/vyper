@@ -7,7 +7,7 @@
 [![PyPI](https://badge.fury.io/py/vyper.svg)](https://pypi.org/project/vyper "PyPI")
 [![Docker](https://images.microbadger.com/badges/version/vyperlang/vyper.svg)](https://hub.docker.com/r/vyperlang/vyper "DockerHub")
 [![Snapcraft](https://snapcraft.io/vyper/badge.svg)](https://snapcraft.io/vyper "Snapcraft")
-[![Join the chat at https://gitter.im/vyperlang/community](https://badges.gitter.im/vyperlang/vyper.svg)](https://gitter.im/vyperlang/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge "Gitter")
+[![Join the chat at https://gitter.im/vyperlang/community](https://badges.gitter.im/vyperlang/community.svg)](https://gitter.im/vyperlang/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge "Gitter")
 
 
 # Getting Started
@@ -46,5 +46,5 @@ python setup.py test
 # Contributing
 * See Issues tab, and feel free to submit your own issues
 * Add PRs if you discover a solution to an existing issue
-* For further discussions and questions talk to us on [gitter](https://gitter.im/ethereum/vyper)
+* For further discussions and questions talk to us on [gitter](https://gitter.im/vyperlang/vyper)
 * For more information, see [Contributing](http://vyper.readthedocs.io/en/latest/contributing.html)
