@@ -41,8 +41,10 @@ def test_variable_naming_fail(bad_code):
         compiler.compile_code(bad_code)
 
 
-ALL_RESERVED_KEYWORDS = list(BUILTIN_CONSTANTS) + \
-                        list(ENVIRONMENT_VARIABLES)
+ALL_RESERVED_KEYWORDS = sorted(
+                                set(BUILTIN_CONSTANTS.keys())
+                                .union(ENVIRONMENT_VARIABLES)
+                            )
 
 
 @pytest.mark.parametrize('constant', ALL_RESERVED_KEYWORDS)
