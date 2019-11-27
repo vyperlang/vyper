@@ -20,7 +20,7 @@ from vyper.ast_utils import (
     ast_to_dict,
 )
 from vyper.opcodes import (
-    opcodes,
+    OPCODES,
 )
 from vyper.parser import (
     parser,
@@ -203,7 +203,7 @@ def get_opcodes(code, contract_name, bytecodes_runtime=False, interface_codes=No
         interface_codes=interface_codes
     ).hex().upper()
     bytecode = deque(bytecode[i:i + 2] for i in range(0, len(bytecode), 2))
-    opcode_map = dict((v[0], k) for k, v in opcodes.items())
+    opcode_map = dict((v[0], k) for k, v in OPCODES.items())
     opcode_str = ""
 
     while bytecode:

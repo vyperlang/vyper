@@ -35,7 +35,7 @@ from vyper.types import (
 from vyper.utils import (
     check_valid_varname,
     fourbytes_to_int,
-    function_whitelist,
+    FUNCTION_WHITELIST,
     is_varname_valid,
     iterable_cast,
     keccak256,
@@ -168,7 +168,7 @@ class FunctionSignature:
         mem_pos = 0
 
         valid_name, msg = is_varname_valid(name, custom_units, custom_structs, constants)
-        if not valid_name and (not name.lower() in function_whitelist):
+        if not valid_name and (not name.lower() in FUNCTION_WHITELIST):
             raise FunctionDeclarationException("Function name invalid. " + msg, code)
 
         # Validate default values.

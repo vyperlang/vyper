@@ -31,7 +31,7 @@ from vyper.types import (
 )
 from vyper.utils import (
     check_valid_varname,
-    valid_global_keywords,
+    VALID_GLOBAL_KEYWORDS,
 )
 
 NONRENTRANT_STORAGE_OFFSET = 0xffffff
@@ -384,7 +384,7 @@ class GlobalContext:
         # Handle events.
         if not (self.get_call_func_name(item) == "event"):
             item_name, item_attributes = self.get_item_name_and_attributes(item, item_attributes)
-            if not all([attr in valid_global_keywords for attr in item_attributes.keys()]):
+            if not all([attr in VALID_GLOBAL_KEYWORDS for attr in item_attributes.keys()]):
                 raise StructureException(f'Invalid global keyword used: {item_attributes}', item)
 
         if item.value is not None:

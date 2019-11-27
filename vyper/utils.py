@@ -14,7 +14,7 @@ from vyper.exceptions import (
     VariableDeclarationException,
 )
 from vyper.opcodes import (
-    opcodes,
+    OPCODES,
 )
 
 try:
@@ -142,25 +142,25 @@ RLP_DECODER_ADDRESS = hex_to_int('0x5185D17c44699cecC3133114F8df70753b856709')
 # This is the contract address: 0xCb969cAAad21A78a24083164ffa81604317Ab603
 
 # Available base types
-base_types = {'int128', 'decimal', 'bytes32', 'uint256', 'bool', 'address'}
+BASE_TYPES = {'int128', 'decimal', 'bytes32', 'uint256', 'bool', 'address'}
 
 # Keywords available for ast.Call type
-valid_call_keywords = {'uint256', 'int128', 'decimal', 'address', 'contract', 'indexed'}
+VALID_CALL_KEYWORDS = {'uint256', 'int128', 'decimal', 'address', 'contract', 'indexed'}
 
 # Valid base units
-valid_units = {'wei', 'sec'}
+VALID_UNITS = {'wei', 'sec'}
 
 # Valid attributes for global variables
-valid_global_keywords = {
+VALID_GLOBAL_KEYWORDS = {
     'public',
     'modifying',
     'event',
     'constant',
-} | valid_units | valid_call_keywords
+} | VALID_UNITS | VALID_CALL_KEYWORDS
 
 
 # Cannot be used for variable or member naming
-reserved_words = {
+RESERVED_WORDS = {
     # types
     'int128', 'uint256',
     'address',
@@ -197,24 +197,24 @@ reserved_words = {
 }
 
 # Otherwise reserved words that are whitelisted for function declarations
-function_whitelist = {
-    'send'
+FUNCTION_WHITELIST = {
+    'send',
 }
 
 # List of valid LLL macros.
-valid_lll_macros = {
+VALID_LLL_MACROS = {
     'assert', 'break', 'ceil32', 'clamp', 'clamp', 'clamp_nonzero', 'clampge',
     'clampgt', 'clample', 'clamplt', 'codeload', 'continue', 'debugger', 'ge',
     'if', 'le', 'lll', 'ne', 'pass', 'repeat', 'seq', 'set', 'sge', 'sha3_32',
     'sha3_64', 'sle', 'uclampge', 'uclampgt', 'uclample', 'uclamplt', 'with',
-    '~codelen', 'label', 'goto'
+    '~codelen', 'label', 'goto',
 }
 
 
 # Is a variable or member variable name valid?
 # Same conditions apply for function names and events
 def is_varname_valid(varname, custom_units, custom_structs, constants):
-    from vyper.functions import built_in_functions
+    from vyper.functions import BUILTIN_FUNCTIONS
 
     varname_lower = varname.lower()
     varname_upper = varname.upper()
@@ -229,15 +229,15 @@ def is_varname_valid(varname, custom_units, custom_structs, constants):
         return False, f"Duplicate name: {varname}, previously defined as a struct."
     if varname in constants:
         return False, f"Duplicate name: {varname}, previously defined as a constant."
-    if varname_lower in base_types:
+    if varname_lower in BASE_TYPES:
         return False, f"{varname} name is a base type."
-    if varname_lower in valid_units:
+    if varname_lower in VALID_UNITS:
         return False, f"{varname} is a built in unit type."
-    if varname_lower in reserved_words:
+    if varname_lower in RESERVED_WORDS:
         return False, f"{varname} is a a reserved keyword."
-    if varname_upper in opcodes:
+    if varname_upper in OPCODES:
         return False, f"{varname} is a reserved keyword (EVM opcode)."
-    if varname_lower in built_in_functions:
+    if varname_lower in BUILTIN_FUNCTIONS:
         return False, f"{varname} is a built in function."
     if not re.match('^[_a-zA-Z][a-zA-Z0-9_]*$', varname):
         return False, f"{varname} contains invalid character(s)."

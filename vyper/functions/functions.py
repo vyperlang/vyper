@@ -1274,7 +1274,7 @@ def _clear():
     )
 
 
-dispatch_table = {
+DISPATCH_TABLE = {
     'floor': floor,
     'ceil': ceil,
     'as_unitless_number': as_unitless_number,
@@ -1307,7 +1307,7 @@ dispatch_table = {
     'max': _max,
 }
 
-stmt_dispatch_table = {
+STMT_DISPATCH_TABLE = {
     'assert_modifiable': assert_modifiable,
     'clear': _clear,
     'send': send,
@@ -1317,8 +1317,8 @@ stmt_dispatch_table = {
     'create_forwarder_to': create_forwarder_to,
 }
 
-built_in_functions = [
-    x for x in stmt_dispatch_table.keys()
+BUILTIN_FUNCTIONS = [
+    x for x in STMT_DISPATCH_TABLE.keys()
 ] + [
-    x for x in dispatch_table.keys()
+    x for x in DISPATCH_TABLE.keys()
 ]
