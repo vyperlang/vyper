@@ -8,7 +8,7 @@ from vyper.parser.parser_utils import (
     LLLnode,
 )
 from vyper.utils import (
-    LOADED_LIMIT_MAP,
+    LOADED_LIMITS,
 )
 
 
@@ -17,8 +17,8 @@ def get_int_at(args, pos, signed=False):
 
     if isinstance(value, int):
         o = value
-    elif value == "mload" and args[pos].args[0].value in LOADED_LIMIT_MAP.keys():
-        o = LOADED_LIMIT_MAP[args[pos].args[0].value]
+    elif value == "mload" and args[pos].args[0].value in LOADED_LIMITS.keys():
+        o = LOADED_LIMITS[args[pos].args[0].value]
     else:
         return None
 

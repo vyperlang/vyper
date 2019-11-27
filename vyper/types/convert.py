@@ -431,13 +431,13 @@ def convert(expr, context):
     else:
         raise ParserException("Invalid conversion type, use valid Vyper type.", expr)
 
-    if output_type in conversion_table:
-        return conversion_table[output_type](expr, context)
+    if output_type in CONVERSION_TABLE:
+        return CONVERSION_TABLE[output_type](expr, context)
     else:
         raise ParserException(f"Conversion to {output_type} is invalid.", expr)
 
 
-conversion_table = {
+CONVERSION_TABLE = {
     'bool': to_bool,
     'int128': to_int128,
     'uint256': to_uint256,

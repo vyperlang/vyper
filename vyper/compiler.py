@@ -277,7 +277,7 @@ def _mk_ast_dict(code, contract_name, interface_codes, source_id):
     return o
 
 
-output_formats_map = {
+OUTPUT_FORMATS = {
     'abi': _mk_abi_output,
     'ast_dict': _mk_ast_dict,
     'bytecode': _mk_bytecode_output,
@@ -308,7 +308,7 @@ def compile_codes(contract_sources: ContractCodes,
     for source_id, contract_name in enumerate(sorted(contract_sources), start=initial_id):
         code = contract_sources[contract_name]
         for output_format in output_formats[contract_name]:
-            if output_format not in output_formats_map:
+            if output_format not in OUTPUT_FORMATS:
                 raise ValueError(f'Unsupported format type {repr(output_format)}')
 
             try:
@@ -320,7 +320,7 @@ def compile_codes(contract_sources: ContractCodes,
                 ):
                     interfaces = interfaces[contract_name]
                 out.setdefault(contract_name, {})
-                out[contract_name][output_format] = output_formats_map[output_format](
+                out[contract_name][output_format] = OUTPUT_FORMATS[output_format](
                     # trailing newline fixes python parsing bug when source ends in a comment
                     # https://bugs.python.org/issue35107
                     code=f"{code}\n",
