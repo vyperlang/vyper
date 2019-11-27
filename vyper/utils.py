@@ -160,7 +160,7 @@ VALID_GLOBAL_KEYWORDS = {
 
 
 # Cannot be used for variable or member naming
-RESERVED_WORDS = {
+RESERVED_KEYWORDS = {
     # types
     'int128', 'uint256',
     'address',
@@ -233,7 +233,7 @@ def is_varname_valid(varname, custom_units, custom_structs, constants):
         return False, f"{varname} name is a base type."
     if varname_lower in VALID_UNITS:
         return False, f"{varname} is a built in unit type."
-    if varname_lower in RESERVED_WORDS:
+    if varname_lower in RESERVED_KEYWORDS:
         return False, f"{varname} is a a reserved keyword."
     if varname_upper in OPCODES:
         return False, f"{varname} is a reserved keyword (EVM opcode)."
