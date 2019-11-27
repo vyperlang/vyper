@@ -1,48 +1,24 @@
 import pytest
-from pytest import (
-    raises,
-)
 
-from vyper import (
-    compiler,
-)
 from vyper.exceptions import (
     FunctionDeclarationException,
     VariableDeclarationException,
+)
+from vyper.functions import (
+    BUILTIN_FUNCTIONS,
 )
 from vyper.parser.expr import (
     BUILTIN_CONSTANTS,
     ENVIRONMENT_VARIABLES,
 )
-
-fail_list = [
-    """
-@public
-def foo(max: int128) -> int128:
-    return max
-    """,
-    """
-@public
-def foo(len: int128, sha3: int128) -> int128:
-    return len+sha3
-    """,
-    """
-@public
-def foo(len: int128, keccak256: int128) -> int128:
-    return len+keccak256
-    """
-]
-
-
-@pytest.mark.parametrize('bad_code', fail_list)
-def test_variable_naming_fail(bad_code):
-
-    with raises(FunctionDeclarationException):
-        compiler.compile_code(bad_code)
-
+from vyper.utils import (
+    RESERVED_KEYWORDS,
+)
 
 ALL_RESERVED_KEYWORDS = sorted(
                                 set(BUILTIN_CONSTANTS.keys())
+                                .union(BUILTIN_FUNCTIONS)
+                                .union(RESERVED_KEYWORDS)
                                 .union(ENVIRONMENT_VARIABLES)
                             )
 
@@ -68,6 +44,16 @@ def test_reserved_keywords_fn_args(constant, get_contract, assert_compile_failed
     code = f"""
 @public
 def test({constant}: int128):
+    pass
+    """
+    assert_compile_failed(lambda: get_contract(code), FunctionDeclarationException)
+
+
+@pytest.mark.parametrize('constant', ALL_RESERVED_KEYWORDS)
+def test_reserved_keywords_fns(constant, get_contract, assert_compile_failed):
+    code = f"""
+@public
+def {constant}(var: int128):
     pass
     """
     assert_compile_failed(lambda: get_contract(code), FunctionDeclarationException)
