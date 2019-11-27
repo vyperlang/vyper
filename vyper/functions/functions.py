@@ -1317,8 +1317,4 @@ STMT_DISPATCH_TABLE = {
     'create_forwarder_to': create_forwarder_to,
 }
 
-BUILTIN_FUNCTIONS = [
-    x for x in STMT_DISPATCH_TABLE.keys()
-] + [
-    x for x in DISPATCH_TABLE.keys()
-]
+BUILTIN_FUNCTIONS = {**STMT_DISPATCH_TABLE, **DISPATCH_TABLE}.keys()

@@ -167,7 +167,4 @@ PSEUDO_OPCODES: Dict[str, List[Optional[int]]] = {
     'GOTO': [None, 1, 0, 8]
 }
 
-COMB_OPCODES: Dict[str, List[Optional[int]]] = {}
-
-COMB_OPCODES.update(OPCODES)
-COMB_OPCODES.update(PSEUDO_OPCODES)
+COMB_OPCODES: Dict[str, List[Optional[int]]] = {**OPCODES, **PSEUDO_OPCODES}
