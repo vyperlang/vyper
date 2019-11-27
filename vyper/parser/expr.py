@@ -65,11 +65,11 @@ BUILTIN_CONSTANTS = {
     'ZERO_WEI': (0, 'uint256', {'wei': 1}),
 }
 
-ENVIRONMENT_VARIABLES = (
+ENVIRONMENT_VARIABLES = {
     "block",
     "msg",
     "tx",
-)
+}
 
 
 def get_min_val_for_type(typ: str) -> int:
