@@ -1,7 +1,4 @@
 import binascii
-from collections import (
-    OrderedDict,
-)
 import functools
 import re
 from typing import (
@@ -125,13 +122,13 @@ class SizeLimits:
 
 # Map representing all limits loaded into a contract as part of the initializer
 # code.
-LOADED_LIMITS = OrderedDict((
-    (MemoryPositions.ADDRSIZE, SizeLimits.ADDRSIZE),
-    (MemoryPositions.MAXNUM, SizeLimits.MAXNUM),
-    (MemoryPositions.MINNUM, SizeLimits.MINNUM),
-    (MemoryPositions.MAXDECIMAL, SizeLimits.MAXDECIMAL),
-    (MemoryPositions.MINDECIMAL, SizeLimits.MINDECIMAL),
-))
+LOADED_LIMITS = {
+    MemoryPositions.ADDRSIZE: SizeLimits.ADDRSIZE,
+    MemoryPositions.MAXNUM: SizeLimits.MAXNUM,
+    MemoryPositions.MINNUM: SizeLimits.MINNUM,
+    MemoryPositions.MAXDECIMAL: SizeLimits.MAXDECIMAL,
+    MemoryPositions.MINDECIMAL: SizeLimits.MINDECIMAL,
+}
 
 
 RLP_DECODER_ADDRESS = hex_to_int('0x5185D17c44699cecC3133114F8df70753b856709')
