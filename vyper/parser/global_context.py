@@ -30,8 +30,8 @@ from vyper.types import (
     parse_type,
 )
 from vyper.utils import (
-    check_valid_varname,
     VALID_GLOBAL_KEYWORDS,
+    check_valid_varname,
 )
 
 NONRENTRANT_STORAGE_OFFSET = 0xffffff

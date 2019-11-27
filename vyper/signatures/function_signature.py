@@ -33,9 +33,9 @@ from vyper.types import (
     unit_from_type,
 )
 from vyper.utils import (
+    FUNCTION_WHITELIST,
     check_valid_varname,
     fourbytes_to_int,
-    FUNCTION_WHITELIST,
     is_varname_valid,
     iterable_cast,
     keccak256,

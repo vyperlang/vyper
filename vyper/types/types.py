@@ -14,9 +14,9 @@ from vyper.exceptions import (
 )
 from vyper.utils import (
     BASE_TYPES,
+    VALID_UNITS,
     ceil32,
     check_valid_varname,
-    VALID_UNITS,
 )
 
 
