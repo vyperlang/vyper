@@ -31,6 +31,10 @@ class ABIType:
 
     # size (in bytes) in the static section (aka 'head')
     # when embedded in a tuple.
+    def embedded_static_size(self):
+        return 32 if self.is_dynamic() else self.static_size()
+
+    # size (in bytes) of the static section
     def static_size(self):
         raise NotImplementedError('ABIType.static_size')
 
@@ -190,8 +194,10 @@ class ABI_Bytes(ABIType):
     def is_dynamic(self):
         return True
 
+    # note that static_size for dynamic types is always 0
+    # (and embedded_static_size is always 32)
     def static_size(self):
-        return 32
+        return 0
 
     def dynamic_size_bound(self):
         # length word + data
@@ -244,9 +250,7 @@ class ABI_Tuple(ABIType):
         return any([t.is_dynamic() for t in self.subtyps])
 
     def static_size(self):
-        # perhaps this should be renamed to "static size in parent"
-        return 32 if self.is_dynamic() else \
-                sum([t.static_size() for t in self.subtyps])
+        return sum([t.embedded_static_size() for t in self.subtyps])
 
     def dynamic_size_bound(self):
         return sum([t.dynamic_size_bound() for t in self.subtyps])
@@ -377,13 +381,13 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
         if i + 1 == len(os):
             pass  # optimize out the last increment to dst_loc
         else:  # note: always false for non-tuple types
-            sz = abi_t.static_size()
+            sz = abi_t.embedded_static_size()
             lll_ret.append(['set', dst_loc, ['add', dst_loc, sz]])
 
     # declare LLL variables.
     if returns:
         if not parent_abi_t.is_dynamic():
-            lll_ret.append(parent_abi_t.static_size())
+            lll_ret.append(parent_abi_t.embedded_static_size())
         elif parent_abi_t.is_tuple():
             lll_ret.append('dyn_ofst')
         elif isinstance(lll_node.typ, ByteArrayLike):
@@ -396,8 +400,7 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
     if not (parent_abi_t.is_dynamic() and parent_abi_t.is_tuple()):
         pass  # optimize out dyn_ofst allocation if we don't need it
     else:
-        dyn_section_start = sum(
-                [abi_type_of(o.typ).static_size() for o in os])
+        dyn_section_start = parent_abi_t.static_size()
         lll_ret = ['with', 'dyn_ofst', dyn_section_start, lll_ret]
 
     lll_ret = ['with', dst_begin, dst,
@@ -430,7 +433,7 @@ def abi_decode(lll_node, src, pos=None):
         if i + 1 == len(os):
             pass  # optimize out the last pointer increment
         else:
-            sz = abi_t.static_size()
+            sz = abi_t.embedded_static_size()
             lll_ret.append(['set', src_loc, ['add', src_loc, sz]])
 
     lll_ret = ['with', 'src', src,
@@ -477,7 +480,7 @@ def lazy_abi_decode(typ, src, pos=None):
                 dyn_ofst = unwrap_location(ofst)
                 loc = _add_ofst(src, dyn_ofst)
             os.append(lazy_abi_decode(t, loc, pos))
-            ofst += child_abi_t.static_size()
+            ofst += child_abi_t.embedded_static_size()
 
         return LLLnode.from_list(['multi'] + os, typ=typ, pos=pos)
 
