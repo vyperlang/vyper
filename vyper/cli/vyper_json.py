@@ -52,7 +52,7 @@ def _parse_cli_args():
 
 def _parse_args(argv):
     parser = argparse.ArgumentParser(
-        description='Vyper programming language for Ethereum - JSON Compiler',
+        description='Vyper programming language for EVM - JSON Compiler',
         formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument(

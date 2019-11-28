@@ -1,6 +1,6 @@
 # Author: Takayuki Jimba (@yudetamago), Ryuya Nakamura (@nrryuya)
 # Modified from Philip Daian's tests:
-# https://github.com/ethereum/vyper/blob/v0.1.0-beta.5/tests/examples/tokens/ERC20_solidity_compatible/test/erc20_tests_1.py
+# https://github.com/vyperlang/vyper/blob/v0.1.0-beta.5/tests/examples/tokens/ERC20_solidity_compatible/test/erc20_tests_1.py
 import pytest
 from web3.exceptions import (
     ValidationError,

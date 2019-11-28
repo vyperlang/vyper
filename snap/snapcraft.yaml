@@ -1,6 +1,6 @@
 name: vyper
 version: 0.1.0-beta.14
-summary: Experimental language for the Ethereum Virtual Machine
+summary: Pythonic Smart Contract Language for the EVM
 description: |
   Vyper is an contract-oriented, pythonic programming language that targets the Ethereum Virtual Machine (EVM)
 

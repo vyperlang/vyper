@@ -62,7 +62,7 @@ def _parse_args(argv):
     warnings.simplefilter('always')
 
     parser = argparse.ArgumentParser(
-        description='Vyper programming language for Ethereum',
+        description='Pythonic Smart Contract Language for the EVM',
         formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument(

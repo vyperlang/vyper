@@ -330,7 +330,7 @@ Vyper includes common built-in interfaces such as `ERC20 <https://eips.ethereum.
 
     implements: ERC20
 
-You can see all the available built-in interfaces in the `Vyper GitHub <https://github.com/ethereum/vyper/tree/master/vyper/interfaces>`_ repo.
+You can see all the available built-in interfaces in the `Vyper GitHub <https://github.com/vyperlang/vyper/tree/master/vyper/interfaces>`_ repo.
 
 
 Implementing an Interface
