@@ -215,7 +215,7 @@ class LLLnode:
         elif self.value is None:
             # TODO revisit this
             self.valency = 1
-            self.gas = 5
+            self.gas = None
         else:
             raise CompilerPanic(f"Invalid value for LLL AST node: {self.value}")
         assert isinstance(self.args, list)
