@@ -13,6 +13,7 @@ from vyper.parser.expr import (
     ENVIRONMENT_VARIABLES,
 )
 from vyper.utils import (
+    FUNCTION_WHITELIST,
     RESERVED_KEYWORDS,
 )
 
@@ -53,7 +54,10 @@ def test({constant}: int128):
                           (PythonSyntaxException, FunctionDeclarationException))
 
 
-@pytest.mark.parametrize('constant', sorted(ALL_RESERVED_KEYWORDS))
+RESERVED_KEYWORDS_NOT_WHITELISTED = sorted(ALL_RESERVED_KEYWORDS.difference(FUNCTION_WHITELIST))
+
+
+@pytest.mark.parametrize('constant', sorted(RESERVED_KEYWORDS_NOT_WHITELISTED))
 def test_reserved_keywords_fns(constant, get_contract, assert_compile_failed):
     code = f"""
 @public
