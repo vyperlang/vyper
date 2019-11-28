@@ -261,7 +261,7 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
             if key not in typ.members:
                 raise TypeMismatchException(f"Object does not have member variable {key}", pos)
             subtype = typ.members[key]
-            attrs = list(typ.members.keys())
+            attrs = list(typ.tuple_keys())
 
             if key not in attrs:
                 raise TypeMismatchException(
@@ -615,7 +615,7 @@ def make_setter(left, right, location, pos, in_function_call=False):
                     'with', '_R', right, ['seq'] + subs]
             ], typ=None)
     # Structs
-    elif isinstance(left.typ, (StructType, TupleType)):
+    elif isinstance(left.typ, TupleLike):
         if left.value == "multi" and isinstance(left.typ, StructType):
             raise Exception("Target of set statement must be a single item")
         if not isinstance(right.typ, NullType):
@@ -657,10 +657,7 @@ def make_setter(left, right, location, pos, in_function_call=False):
         if left.location == "storage":
             left = LLLnode.from_list(['sha3_32', left], typ=left.typ, location="storage_prehashed")
             left_token.location = "storage_prehashed"
-        if isinstance(left.typ, StructType):
-            keyz = list(left.typ.members.keys())
-        else:
-            keyz = list(range(len(left.typ.members)))
+        keyz = left.typ.tuple_keys()
 
         # If the left side is a literal
         if left.value == 'multi':
@@ -672,11 +669,15 @@ def make_setter(left, right, location, pos, in_function_call=False):
         if right.value == "multi":
             if len(right.args) != len(keyz):
                 raise TypeMismatchException("Mismatched number of elements", pos)
+            # get the RHS arguments into a dict because
+            # they are not guaranteed to be in the same order
+            # the LHS keys.
+            right_args = dict(zip(right.typ.tuple_keys(), right.args))
             subs = []
-            for i, (typ, loc) in enumerate(zip(keyz, locations)):
+            for (key, loc) in zip(keyz, locations):
                 subs.append(make_setter(
-                    add_variable_offset(left_token, typ, pos=pos),
-                    right.args[i],
+                    add_variable_offset(left_token, key, pos=pos),
+                    right_args[key],
                     loc,
                     pos=pos,
                 ))

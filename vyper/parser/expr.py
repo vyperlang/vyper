@@ -1056,8 +1056,8 @@ class Expr(object):
 
     @staticmethod
     def struct_literals(expr, name, context):
-        o = {}
-        members = {}
+        member_subs = {}
+        member_typs = {}
         for key, value in zip(expr.keys, expr.values):
             if not isinstance(key, ast.Name):
                 raise TypeMismatchException(
@@ -1071,13 +1071,14 @@ class Expr(object):
                 context.constants,
                 "Invalid member variable for struct",
             )
-            if key.id in o:
+            if key.id in member_subs:
                 raise TypeMismatchException("Member variable duplicated: " + key.id, key)
-            o[key.id] = Expr(value, context).lll_node
-            members[key.id] = o[key.id].typ
+            sub = Expr(value, context).lll_node
+            member_subs[key.id] = sub
+            member_typs[key.id] = sub.typ
         return LLLnode.from_list(
-            ["multi"] + [o[key] for key in (list(o.keys()))],
-            typ=StructType(members, name, is_literal=True),
+            ["multi"] + [member_subs[key] for key in member_subs.keys()],
+            typ=StructType(member_typs, name, is_literal=True),
             pos=getpos(expr),
         )
 

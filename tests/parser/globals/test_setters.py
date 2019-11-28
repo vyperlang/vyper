@@ -147,6 +147,29 @@ def gop() -> int128:
     print('Passed multi-setter struct test')
 
 
+def test_struct_assignment_order(get_contract_with_gas_estimation):
+    code = """
+struct Foo:
+    a: uint256
+    b: uint256
+
+@public
+@constant
+def test1() -> uint256:
+    foo: Foo = Foo({a: 297, b: 2})
+    return foo.a
+
+@public
+@constant
+def test2() -> uint256:
+    foo: Foo = Foo({b: 2, a: 297})
+    return foo.a
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.test1() == c.test2() == 297
+    print('Passed struct assignment order test')
+
+
 def test_type_converter_setter_test(get_contract_with_gas_estimation):
     type_converter_setter_test = """
 pap: decimal[2][2]
