@@ -7,6 +7,7 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
+    PythonSyntaxException,
     TypeMismatchException,
 )
 
@@ -15,7 +16,7 @@ fail_list = [
 @public
 def foo():
     x: bytes[9] = raw_call(0x1234567890123456789012345678901234567890, b"cow", outsize=4, outsize=9)
-    """, SyntaxError),
+    """, PythonSyntaxException),
     """
 @public
 def foo():

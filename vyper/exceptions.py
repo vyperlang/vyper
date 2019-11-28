@@ -1,3 +1,5 @@
+import types
+
 from vyper.settings import (
     VYPER_ERROR_CONTEXT_LINES,
     VYPER_ERROR_LINE_NUMBERS,
@@ -45,6 +47,18 @@ class ParserException(Exception):
             return f'line {lineno}:{col_offset} {self.message}'
 
         return self.message
+
+
+class PythonSyntaxException(ParserException):
+    """
+    Conversion from error using ast.parse()
+    """
+    def __init__(self, syntax_error: SyntaxError, source_code: str):
+        item = types.SimpleNamespace()  # TODO: Create an actual object for this
+        item.lineno = syntax_error.lineno
+        item.col_offset = syntax_error.offset
+        item.source_code = source_code
+        super().__init__(message=f'SyntaxError: {syntax_error.msg}', item=item)
 
 
 class VariableDeclarationException(ParserException):

@@ -9,6 +9,7 @@ import vyper.ast as vyper_ast
 from vyper.exceptions import (
     CompilerPanic,
     ParserException,
+    PythonSyntaxException,
     SyntaxException,
 )
 from vyper.parser.parser_utils import (
@@ -108,7 +109,11 @@ def parse_to_ast(source_code: str, source_id: int = 0) -> list:
     if '\x00' in source_code:
         raise ParserException('No null bytes (\\x00) allowed in the source code.')
     class_types, reformatted_code = pre_parse(source_code)
-    py_ast = python_ast.parse(reformatted_code)
+    try:
+        py_ast = python_ast.parse(reformatted_code)
+    except SyntaxError as e:
+        # TODO: Ensure 1-to-1 match of source_code:reformatted_code SyntaxErrors
+        raise PythonSyntaxException(e, source_code)
     annotate_ast(py_ast, source_code, class_types)
     asttokens.ASTTokens(source_code, tree=py_ast)
     # Convert to Vyper AST.
