@@ -5,8 +5,8 @@ from vyper.cli.vyper_json import (
     format_to_output_dict,
 )
 from vyper.compiler import (
+    OUTPUT_FORMATS,
     compile_codes,
-    output_formats_map,
 )
 
 FOO_CODE = """
@@ -19,7 +19,7 @@ def foo() -> bool:
 def test_keys():
     compiler_data = compile_codes(
         {'foo.vy': FOO_CODE},
-        output_formats=list(output_formats_map.keys())
+        output_formats=list(OUTPUT_FORMATS.keys())
     )
     output_json = format_to_output_dict(compiler_data)
     assert sorted(output_json.keys()) == ['compiler', 'contracts', 'sources']

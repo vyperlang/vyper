@@ -65,11 +65,11 @@ BUILTIN_CONSTANTS = {
     'ZERO_WEI': (0, 'uint256', {'wei': 1}),
 }
 
-ENVIRONMENT_VARIABLES = (
+ENVIRONMENT_VARIABLES = {
     "block",
     "msg",
     "tx",
-)
+}
 
 
 def get_min_val_for_type(typ: str) -> int:
@@ -967,14 +967,14 @@ class Expr(object):
     # Function calls
     def call(self):
         from vyper.functions import (
-            dispatch_table,
+            DISPATCH_TABLE,
         )
 
         if isinstance(self.expr.func, ast.Name):
             function_name = self.expr.func.id
 
-            if function_name in dispatch_table:
-                return dispatch_table[function_name](self.expr, self.context)
+            if function_name in DISPATCH_TABLE:
+                return DISPATCH_TABLE[function_name](self.expr, self.context)
 
             # Struct constructors do not need `self` prefix.
             elif function_name in self.context.structs:

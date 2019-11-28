@@ -14,8 +14,8 @@ from vyper.exceptions import (
     VariableDeclarationException,
 )
 from vyper.functions import (
-    dispatch_table,
-    stmt_dispatch_table,
+    DISPATCH_TABLE,
+    STMT_DISPATCH_TABLE,
 )
 from vyper.parser import (
     external_call,
@@ -384,12 +384,12 @@ class Stmt(object):
         ) and isinstance(self.stmt.func.value, ast.Name) and self.stmt.func.value.id == 'log'
 
         if isinstance(self.stmt.func, ast.Name):
-            if self.stmt.func.id in stmt_dispatch_table:
+            if self.stmt.func.id in STMT_DISPATCH_TABLE:
                 if self.stmt.func.id == 'clear':
                     return self._clear()
                 else:
-                    return stmt_dispatch_table[self.stmt.func.id](self.stmt, self.context)
-            elif self.stmt.func.id in dispatch_table:
+                    return STMT_DISPATCH_TABLE[self.stmt.func.id](self.stmt, self.context)
+            elif self.stmt.func.id in DISPATCH_TABLE:
                 raise StructureException(
                     f"Function {self.stmt.func.id} can not be called without being used.",
                     self.stmt,

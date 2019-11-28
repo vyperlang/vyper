@@ -60,10 +60,10 @@ def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
         )
 
 
-VYPER_CLASS_TYPES = (
+VYPER_CLASS_TYPES = {
     'contract',
     'struct',
-)
+}
 
 
 def pre_parse(code: str) -> Tuple[ClassTypes, str]:

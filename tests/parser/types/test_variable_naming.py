@@ -41,7 +41,13 @@ def test_variable_naming_fail(bad_code):
         compiler.compile_code(bad_code)
 
 
-@pytest.mark.parametrize('constant', list(BUILTIN_CONSTANTS)+list(ENVIRONMENT_VARIABLES))
+ALL_RESERVED_KEYWORDS = sorted(
+                                set(BUILTIN_CONSTANTS.keys())
+                                .union(ENVIRONMENT_VARIABLES)
+                            )
+
+
+@pytest.mark.parametrize('constant', ALL_RESERVED_KEYWORDS)
 def test_reserved_keywords_memory(constant, get_contract, assert_compile_failed):
     code = f"""
 @public
@@ -51,13 +57,13 @@ def test():
     assert_compile_failed(lambda: get_contract(code), VariableDeclarationException)
 
 
-@pytest.mark.parametrize('constant', list(BUILTIN_CONSTANTS)+list(ENVIRONMENT_VARIABLES))
+@pytest.mark.parametrize('constant', ALL_RESERVED_KEYWORDS)
 def test_reserved_keywords_storage(constant, get_contract, assert_compile_failed):
     code = f"{constant}: int128"
     assert_compile_failed(lambda: get_contract(code), VariableDeclarationException)
 
 
-@pytest.mark.parametrize('constant', list(BUILTIN_CONSTANTS)+list(ENVIRONMENT_VARIABLES))
+@pytest.mark.parametrize('constant', ALL_RESERVED_KEYWORDS)
 def test_reserved_keywords_fn_args(constant, get_contract, assert_compile_failed):
     code = f"""
 @public

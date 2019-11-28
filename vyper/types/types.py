@@ -13,10 +13,10 @@ from vyper.exceptions import (
     InvalidTypeException,
 )
 from vyper.utils import (
-    base_types,
+    BASE_TYPES,
+    VALID_UNITS,
     ceil32,
     check_valid_varname,
-    valid_units,
 )
 
 
@@ -272,7 +272,7 @@ def canonicalize_type(t, is_indexed=False):
 
 
 # Special types
-special_types = {
+SPECIAL_TYPES = {
     'timestamp': BaseType('uint256', {'sec': 1}, True),
     'timedelta': BaseType('uint256', {'sec': 1}, False),
     'wei_value': BaseType('uint256', {'wei': 1}, False),
@@ -282,7 +282,7 @@ special_types = {
 # Parse an expression representing a unit
 def parse_unit(item, custom_units):
     if isinstance(item, ast.Name):
-        if (item.id not in valid_units) and (custom_units is not None) and (item.id not in custom_units):  # noqa: E501
+        if (item.id not in VALID_UNITS) and (custom_units is not None) and (item.id not in custom_units):  # noqa: E501
             raise InvalidTypeException("Invalid base unit", item)
         return {item.id: 1}
     elif isinstance(item, ast.Num) and item.n == 1:
@@ -337,10 +337,10 @@ def make_struct_type(name, location, members, custom_units, custom_structs, cons
 def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None, constants=None):
     # Base and custom types, e.g. num
     if isinstance(item, ast.Name):
-        if item.id in base_types:
+        if item.id in BASE_TYPES:
             return BaseType(item.id)
-        elif item.id in special_types:
-            return special_types[item.id]
+        elif item.id in SPECIAL_TYPES:
+            return SPECIAL_TYPES[item.id]
         elif (custom_structs is not None) and (item.id in custom_structs):
             return make_struct_type(
                 item.id,
