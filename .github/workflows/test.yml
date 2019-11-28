@@ -68,6 +68,12 @@ jobs:
     - name: Run Tox
       run: TOXENV=py37-core tox -r
 
+    - name: Upload Coverage
+      uses: codecov/codecov-action@v1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        file: ./coverage.xml
+
   py38-core:
     runs-on: ubuntu-latest
 
@@ -84,3 +90,9 @@ jobs:
 
     - name: Run Tox
       run: TOXENV=py38-core tox -r
+
+    - name: Upload Coverage
+      uses: codecov/codecov-action@v1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        file: ./coverage.xml
