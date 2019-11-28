@@ -288,6 +288,14 @@ def abi_type_of(lll_typ):
         raise CompilerPanic(f'Unrecognized type {lll_typ}')
 
 
+# there are a lot of places in the calling convention where a tuple
+# must be passed, so here's a convenience function for that.
+def ensure_tuple(abi_typ):
+    if not abi_typ.is_tuple():
+        return ABI_Tuple([abi_typ])
+    return abi_typ
+
+
 # turn an lll node into a list, based on its type.
 def o_list(lll_node, pos=None):
     lll_t = lll_node.typ
