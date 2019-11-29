@@ -20,6 +20,7 @@ test_deps = [
 lint_deps = [
     'flake8>=3.7,<4',
     'flake8-bugbear>=19.8.0,<20',
+    'flake8-use-fstring>=1.0.0,<2.0.0',
     'isort>=4.2.15,<5',
     'mypy>=0.740,<1',
 ]
