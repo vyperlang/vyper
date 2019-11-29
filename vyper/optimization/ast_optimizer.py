@@ -1,8 +1,3 @@
-from typing import (
-    Dict,
-    Union,
-)
-
 import vyper.ast as vyper_ast
 
 
@@ -14,7 +9,7 @@ class FoldConstants(vyper_ast.NodeTransformer):
 
     All node visitors either return themself or a literal (vyper_ast.Num)
     """
-    def visit_UnaryOp(self, node: vyper_ast.UnaryOp) -> Union[vyper_ast.UnaryOp, vyper_ast.Num]:
+    def visit_UnaryOp(self, node):
         if not isinstance(node.operand, vyper_ast.Num):
             # Recurse deeply to reduce complex literal expressions
             node.operand = self.visit(node.operand)
@@ -30,7 +25,7 @@ class FoldConstants(vyper_ast.NodeTransformer):
 
 
 # TODO: Use cachetools?
-def get_optimizations() -> Dict[str, vyper_ast.NodeTransformer]:
+def get_optimizations():
     import inspect
     import sys
     optimizations = dict()
@@ -43,7 +38,7 @@ def get_optimizations() -> Dict[str, vyper_ast.NodeTransformer]:
 AVAILABLE_OPTIMIZATIONS = set(get_optimizations().keys())
 
 
-def optimize(node: vyper_ast.VyperNode, selected=AVAILABLE_OPTIMIZATIONS) -> vyper_ast.VyperNode:
+def optimize(node, selected=AVAILABLE_OPTIMIZATIONS):
     """
     Visit the given node and apply the selected optimizations
     """
