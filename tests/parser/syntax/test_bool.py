@@ -7,6 +7,7 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
+    PythonSyntaxException,
     TypeMismatchException,
 )
 
@@ -21,7 +22,7 @@ def foo():
 @public
 def foo():
     True = 3
-    """, SyntaxError),
+    """, PythonSyntaxException),
     """
 @public
 def foo():
