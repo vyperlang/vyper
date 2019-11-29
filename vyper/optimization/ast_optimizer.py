@@ -15,6 +15,10 @@ class FoldConstants(vyper_ast.NodeTransformer):
     All node visitors either return themself or a literal (vyper_ast.Num)
     """
     def visit_UnaryOp(self, node: vyper_ast.UnaryOp) -> Union[vyper_ast.UnaryOp, vyper_ast.Num]:
+        if not isinstance(node.operand, vyper_ast.Num):
+            # Recurse deeply to reduce complex literal expressions
+            node.operand = self.visit(node.operand)
+
         # TODO: This should actually be USub... but we're directly using Python's AST class
         #       instead of fully converting it to our own
         if isinstance(node.op, vyper_ast.USub) and isinstance(node.operand, vyper_ast.Num):
