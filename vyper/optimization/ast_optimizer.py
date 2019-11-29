@@ -6,6 +6,25 @@ from typing import (
 import vyper.ast as vyper_ast
 
 
+class FoldConstants(vyper_ast.NodeTransformer):
+    """
+    Series of rewrites rules that attempt to reduce arithmatic expressions between 1
+    or more literals down to a literal itself, by executing the expressions at compile
+    time (assuming EVM execution).
+
+    All node visitors either return themself or a literal (vyper_ast.Num)
+    """
+    def visit_UnaryOp(self, node: vyper_ast.UnaryOp) -> Union[vyper_ast.UnaryOp, vyper_ast.Num]:
+        # TODO: This should actually be USub... but we're directly using Python's AST class
+        #       instead of fully converting it to our own
+        if isinstance(node.op, vyper_ast.USub) and isinstance(node.operand, vyper_ast.Num):
+            new_node = node.operand
+            new_node.n = -new_node.n
+            new_node.col_offset = node.col_offset
+            return new_node
+        return node
+
+
 # TODO: Use cachetools?
 def get_optimizations() -> Dict[str, vyper_ast.NodeTransformer]:
     import inspect
