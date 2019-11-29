@@ -59,13 +59,3 @@ def test_it_annotates_ast_with_class_types():
 
     assert struct_def.class_type == 'struct'
     assert contract_def.class_type == 'contract'
-
-
-def test_it_rewrites_unary_subtractions():
-    contract_ast, _ = get_contract_info(TEST_CONTRACT_SOURCE_CODE)
-
-    function_def = contract_ast.body[2]
-    return_stmt = function_def.body[0]
-
-    assert isinstance(return_stmt.value, python_ast.Num)
-    assert return_stmt.value.n == -1

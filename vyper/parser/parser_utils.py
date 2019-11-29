@@ -826,18 +826,6 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         return node
 
 
-class RewriteUnarySubVisitor(python_ast.NodeTransformer):
-    def visit_UnaryOp(self, node):
-        self.generic_visit(node)
-        if isinstance(node.op, python_ast.USub) and isinstance(node.operand, python_ast.Num):
-            node.operand.n = 0 - node.operand.n
-            # NOTE: This is done so that decimal literal now sees the negative sign as part of it
-            node.operand.col_offset = node.col_offset
-            return node.operand
-        else:
-            return node
-
-
 class EnsureSingleExitChecker(python_ast.NodeVisitor):
 
     def visit_FunctionDef(self, node: python_ast.FunctionDef) -> None:
@@ -913,7 +901,6 @@ def annotate_ast(
     * Annotating all AST nodes with the originating source code of the AST
     * Annotating class definition nodes with their original class type
       ("contract" or "struct")
-    * Substituting negative values for unary subtractions
 
     :param parsed_ast: The AST to be annotated and optimized.
     :param source_code: The originating source code of the AST.
@@ -921,7 +908,6 @@ def annotate_ast(
     :return: The annotated and optmized AST.
     """
     AnnotatingVisitor(source_code, class_types).visit(parsed_ast)
-    RewriteUnarySubVisitor().visit(parsed_ast)
 
 
 # zero pad a bytearray according to the ABI spec. The last word
