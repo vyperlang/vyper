@@ -9,6 +9,9 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatchException,
 )
+from vyper.optimization import (
+    optimize_ast,
+)
 from vyper.parser.expr import (
     Expr,
 )
@@ -75,9 +78,12 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
             if isinstance(sub.typ, StringType):
                 return sub
         else:
-            # Does not work for unit-endowed types inside compound types, e.g. timestamp[2]
+            # TODO: Does not work for unit-endowed types inside compound types, e.g. timestamp[2]
+            parsed_ast = parse_to_ast(expected_arg)
+            parsed_ast = [optimize_ast(node) for node in parsed_ast]
+            # TODO: Remove usage of parse_to_ast() here
             parsed_expected_type = context.parse_type(
-                parse_to_ast(expected_arg)[0].value,
+                parsed_ast[0].value,
                 'memory',
             )
             if isinstance(parsed_expected_type, BaseType):

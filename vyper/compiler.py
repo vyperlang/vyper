@@ -94,7 +94,10 @@ def gas_estimate(origcode, *args, **kwargs):
 
 
 def mk_full_signature(code, *args, **kwargs):
-    abi = sig_utils.mk_full_signature(parser.parse_to_ast(code), *args, **kwargs)
+    interface_ast = parser.parse_to_ast(code)
+    interface_ast = [optimize_ast(node) for node in interface_ast]
+    # TODO: Remove use of parse_to_ast() here
+    abi = sig_utils.mk_full_signature(interface_ast, *args, **kwargs)
     # Add gas estimates for each function to ABI
     gas_estimates = gas_estimate(code, *args, **kwargs)
     for func in abi:
@@ -278,9 +281,12 @@ def _mk_opcodes_runtime(code, contract_name, interface_codes, source_id):
 
 
 def _mk_ast_dict(code, contract_name, interface_codes, source_id):
+    parsed_ast = parser.parse_to_ast(code, source_id)
+    parsed_ast = [optimize_ast(node) for node in parsed_ast]
+    # TODO: Remove use of parse_to_ast() here
     o = {
         'contract_name': contract_name,
-        'ast': ast_to_dict(parser.parse_to_ast(code, source_id))
+        'ast': ast_to_dict(parsed_ast)
     }
     return o
 

@@ -12,6 +12,9 @@ from vyper.exceptions import (
     FunctionDeclarationException,
     StructureException,
 )
+from vyper.optimization import (
+    optimize_ast,
+)
 from vyper.parser.function_definitions import (
     is_default_func,
     is_initializer,
@@ -217,4 +220,6 @@ def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None):
 
 def parse_to_lll(kode, runtime_only=False, interface_codes=None):
     code = parse_to_ast(kode)
+    code = [optimize_ast(node) for node in code]
+    # TODO: Remove usage of parse_to_ast() here
     return parse_tree_to_lll(code, kode, runtime_only=runtime_only, interface_codes=interface_codes)

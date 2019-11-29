@@ -15,6 +15,9 @@ from vyper.exceptions import (
     StructureException,
 )
 import vyper.interfaces
+from vyper.optimization import (
+    optimize_ast,
+)
 from vyper.parser import (
     parser,
 )
@@ -129,6 +132,8 @@ def extract_sigs(sig_code):
             isinstance(i, ast.FunctionDef) or
             (isinstance(i, ast.AnnAssign) and i.target.id != "implements")
         ]
+        interface_ast = [optimize_ast(node) for node in interface_ast]
+        # TODO: Remove use of parse_to_ast() here
         return sig_utils.mk_full_signature(interface_ast, sig_formatter=lambda x, y: x)
     elif sig_code['type'] == 'json':
         return mk_full_signature_from_json(sig_code['code'])
@@ -140,8 +145,11 @@ def extract_sigs(sig_code):
 
 
 def extract_interface_str(code, contract_name, interface_codes=None):
+    interface_ast = parser.parse_to_ast(code)
+    interface_ast = [optimize_ast(node) for node in interface_ast]
+    # TODO: Remove use of parse_to_ast() here
     sigs = sig_utils.mk_full_signature(
-        parser.parse_to_ast(code),
+        interface_ast,
         sig_formatter=lambda x, y: (x, y),
         interface_codes=interface_codes,
     )
@@ -176,8 +184,11 @@ def extract_interface_str(code, contract_name, interface_codes=None):
 
 
 def extract_external_interface(code, contract_name, interface_codes=None):
+    interface_ast = parser.parse_to_ast(code)
+    interface_ast = [optimize_ast(node) for node in interface_ast]
+    # TODO: Remove use of parse_to_ast() here
     sigs = sig_utils.mk_full_signature(
-        parser.parse_to_ast(code),
+        interface_ast,
         sig_formatter=lambda x, y: (x, y),
         interface_codes=interface_codes,
     )
@@ -199,6 +210,8 @@ def extract_external_interface(code, contract_name, interface_codes=None):
 
 def extract_file_interface_imports(code: SourceCode) -> InterfaceImports:
     ast_tree = parser.parse_to_ast(code)
+    ast_tree = [optimize_ast(node) for node in ast_tree]
+    # TODO: Remove use of parse_to_ast() here
 
     imports_dict: InterfaceImports = {}
     for item in ast_tree:

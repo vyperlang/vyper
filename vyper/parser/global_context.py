@@ -10,6 +10,9 @@ from vyper.exceptions import (
     StructureException,
     VariableDeclarationException,
 )
+from vyper.optimization import (
+    optimize_ast,
+)
 from vyper.parser.constants import (
     Constants,
 )
@@ -252,6 +255,8 @@ class GlobalContext:
     @staticmethod
     def parse_line(code):
         parsed_ast = parse_to_ast(code)[0]
+        parsed_ast = optimize_ast(parsed_ast)
+        # TODO: Remove usage of parse_to_ast() here
         return parsed_ast
 
     # A struct is a list of members

@@ -1,3 +1,6 @@
+from vyper.optimization import (
+    optimize_ast,
+)
 from vyper.parser.context import (
     Context,
 )
@@ -14,6 +17,8 @@ from vyper.parser.stmt import (
 
 def generate_inline_function(code, variables, memory_allocator):
     ast_code = parse_to_ast(code)
+    ast_code = [optimize_ast(node) for node in ast_code]
+    # TODO: Remove usage of parse_to_ast() here
     new_context = Context(
         vars=variables,
         global_ctx=GlobalContext(),
