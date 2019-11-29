@@ -33,7 +33,7 @@ def get_count(counter: uint256) -> bytes[24]:
     )
 )
 @hypothesis.settings(
-    deadline=400,
+    deadline=None,
 )
 def test_zero_pad_range(little_endian_contract, value):
     actual_bytes = value.to_bytes(8, byteorder="little")
