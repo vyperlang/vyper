@@ -143,7 +143,13 @@ BYTE32_LIST: constant(bytes32[2]) = [
     """,
     """
 ZERO_LIST: constant(int128[8]) = [0, 0, 0, 0, 0, 0, 0, 0]
+    """,
     """
+MY_DECIMAL: constant(decimal) = 1e-10
+    """,
+    """
+MY_DECIMAL: constant(decimal) = -1e38
+    """,
 ]
 
 
