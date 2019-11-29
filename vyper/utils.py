@@ -229,11 +229,11 @@ def is_varname_valid(varname, custom_units, custom_structs, constants):
         return False, f"Duplicate name: {varname}, previously defined as a struct."
     if varname in constants:
         return False, f"Duplicate name: {varname}, previously defined as a constant."
-    if varname_lower in map(lambda k: k.lower(), RESERVED_KEYWORDS):
+    if varname_lower in [k.lower() for k in RESERVED_KEYWORDS]:
         return False, f"{varname} is a reserved keyword (Vyper language)."
-    if varname_upper in map(lambda o: o.upper(), OPCODES):
+    if varname_upper in [o.upper() for o in OPCODES]:
         return False, f"{varname} is a reserved keyword (EVM opcode)."
-    if varname_lower in map(lambda f: f.lower(), BUILTIN_FUNCTIONS):
+    if varname_lower in [f.lower() for f in BUILTIN_FUNCTIONS]:
         return False, f"{varname} is a built in function."
     if not re.match('^[_a-zA-Z][a-zA-Z0-9_]*$', varname):
         return False, f"{varname} contains invalid character(s)."
