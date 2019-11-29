@@ -5,7 +5,9 @@ import sys
 import vyper
 from vyper import (
     compile_lll,
-    optimizer,
+)
+from vyper.optimization import (
+    optimize_lll,
 )
 from vyper.parser.parser_utils import (
     LLLnode,
@@ -64,7 +66,7 @@ def compile_to_lll(input_file, output_formats, show_gas_estimates=False):
         compiler_data['ir'] = lll
 
     if 'opt_ir' in output_formats:
-        compiler_data['opt_ir'] = optimizer.optimize(lll)
+        compiler_data['opt_ir'] = optimize_lll(lll)
 
     asm = compile_lll.compile_to_assembly(lll)
     if 'asm' in output_formats:

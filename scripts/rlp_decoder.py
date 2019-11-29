@@ -1,6 +1,8 @@
 from vyper import (
     compile_lll,
-    optimizer,
+)
+from vyper.optimization import (
+    optimize_lll,
 )
 from vyper.parser.parser_utils import (
     LLLnode,
@@ -102,5 +104,5 @@ rlp_decoder_lll = LLLnode.from_list(
                 [0]]]]
 )
 
-rlp_decoder_lll = optimizer.optimize(rlp_decoder_lll)
+rlp_decoder_lll = optimize_lll(rlp_decoder_lll)
 rlp_decoder_bytes, _ = compile_lll.assembly_to_evm(compile_lll.compile_to_assembly(rlp_decoder_lll))

@@ -15,7 +15,6 @@ import asttokens
 from vyper import (
     compile_lll,
     opcodes,
-    optimizer,
 )
 from vyper.ast_utils import (
     ast_to_dict,
@@ -23,6 +22,9 @@ from vyper.ast_utils import (
 from vyper.opcodes import (
     DEFAULT_EVM_VERSION,
     evm_wrapper,
+)
+from vyper.optimization import (
+    optimize_lll,
 )
 from vyper.parser import (
     parser,
@@ -51,7 +53,7 @@ def __compile(code, interface_codes=None, *args, **kwargs):
         interface_codes=interface_codes,
         runtime_only=kwargs.get('bytecode_runtime', False)
     )
-    opt_lll = optimizer.optimize(lll)
+    opt_lll = optimize_lll(lll)
     asm = compile_lll.compile_to_assembly(opt_lll)
 
     def find_nested_opcode(asm_list, key):
@@ -73,7 +75,7 @@ def __compile(code, interface_codes=None, *args, **kwargs):
 
 def gas_estimate(origcode, *args, **kwargs):
     o = {}
-    code = optimizer.optimize(parser.parse_to_lll(origcode, *args, **kwargs))
+    code = optimize_lll(parser.parse_to_lll(origcode, *args, **kwargs))
 
     # Extract the stuff inside the LLL bracket
     if code.value == 'seq':
@@ -128,7 +130,7 @@ def get_asm(asm_list):
 
 def get_source_map(code, contract_name, interface_codes=None, runtime_only=True, source_id=0):
     asm_list = compile_lll.compile_to_assembly(
-        optimizer.optimize(
+        optimize_lll(
             parser.parse_to_lll(
                 code,
                 runtime_only=runtime_only,
@@ -232,12 +234,12 @@ def _mk_bytecode_runtime_output(code, contract_name, interface_codes, source_id)
 
 
 def _mk_ir_output(code, contract_name, interface_codes, source_id):
-    return optimizer.optimize(parser.parse_to_lll(code, interface_codes=interface_codes))
+    return optimize_lll(parser.parse_to_lll(code, interface_codes=interface_codes))
 
 
 def _mk_asm_output(code, contract_name, interface_codes, source_id):
     return get_asm(compile_lll.compile_to_assembly(
-        optimizer.optimize(parser.parse_to_lll(code, interface_codes=interface_codes))
+        _mk_ir_output(code, contract_name, interface_codes, source_id)
     ))
 
 

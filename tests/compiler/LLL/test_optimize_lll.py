@@ -1,7 +1,7 @@
 import pytest
 
-from vyper import (
-    optimizer,
+from vyper.optimization import (
+    optimize_lll,
 )
 from vyper.parser.parser import (
     LLLnode,
@@ -18,7 +18,7 @@ optimize_list = [
 
 @pytest.mark.parametrize('lll', optimize_list)
 def test_lll_compile_fail(lll):
-    optimized = optimizer.optimize(LLLnode.from_list(lll[0]))
+    optimized = optimize_lll(LLLnode.from_list(lll[0]))
     optimized.repr_show_gas = True
     hand_optimized = LLLnode.from_list(lll[1])
     hand_optimized.repr_show_gas = True

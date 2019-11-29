@@ -15,7 +15,9 @@ from web3.providers.eth_tester import (
 from vyper import (
     compile_lll,
     compiler,
-    optimizer,
+)
+from vyper.optimization import (
+    optimize_lll,
 )
 from vyper.parser.parser_utils import (
     LLLnode,
@@ -60,7 +62,7 @@ def bytes_helper():
 @pytest.fixture
 def get_contract_from_lll(w3):
     def lll_compiler(lll, *args, **kwargs):
-        lll = optimizer.optimize(LLLnode.from_list(lll))
+        lll = optimize_lll(LLLnode.from_list(lll))
         bytecode, _ = compile_lll.assembly_to_evm(compile_lll.compile_to_assembly(lll))
         abi = kwargs.get('abi') or []
         c = w3.eth.contract(abi=abi, bytecode=bytecode)
