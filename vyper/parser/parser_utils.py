@@ -1,6 +1,7 @@
 import ast as python_ast
 from decimal import (
     Decimal,
+    getcontext,
 )
 from typing import (
     Any,
@@ -50,6 +51,8 @@ from vyper.utils import (
     MemoryPositions,
     SizeLimits,
 )
+
+getcontext().prec = 78  # MAX_UINT256 < 1e78
 
 
 # Get a decimal number as a fraction with denominator multiple of 10
