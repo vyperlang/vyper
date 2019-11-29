@@ -813,6 +813,8 @@ class RewriteUnarySubVisitor(python_ast.NodeTransformer):
         self.generic_visit(node)
         if isinstance(node.op, python_ast.USub) and isinstance(node.operand, python_ast.Num):
             node.operand.n = 0 - node.operand.n
+            # NOTE: This is done so that decimal literal now sees the negative sign as part of it
+            node.operand.col_offset = node.col_offset
             return node.operand
         else:
             return node
