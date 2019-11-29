@@ -113,7 +113,7 @@ def parse_to_ast(source_code: str, source_id: int = 0) -> list:
         py_ast = python_ast.parse(reformatted_code)
     except SyntaxError as e:
         # TODO: Ensure 1-to-1 match of source_code:reformatted_code SyntaxErrors
-        raise PythonSyntaxException(e, source_code)
+        raise PythonSyntaxException(e, source_code) from e
     annotate_ast(py_ast, source_code, class_types)
     asttokens.ASTTokens(source_code, tree=py_ast)
     # Convert to Vyper AST.
