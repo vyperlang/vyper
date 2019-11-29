@@ -1,4 +1,4 @@
-def test_test_wei(get_contract_with_gas_estimation):
+def test_wei_conversion(get_contract_with_gas_estimation):
     test_wei = """
 @public
 def return_2_finney() -> wei_value:
@@ -18,7 +18,7 @@ def return_3p5_ether() -> wei_value:
 
 @public
 def return_2pow64_wei() -> wei_value:
-    return as_wei_value(18446744.073709551616, "szabo")
+    return as_wei_value(18446744073.709551616, "gwei")
     """
 
     c = get_contract_with_gas_estimation(test_wei)
