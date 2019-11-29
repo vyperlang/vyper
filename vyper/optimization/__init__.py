@@ -1,3 +1,4 @@
+from .ast_optimizer import optimize as optimize_ast
 from .lll_optimizer import optimize as optimize_lll
 
 

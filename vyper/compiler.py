@@ -24,6 +24,7 @@ from vyper.opcodes import (
     evm_wrapper,
 )
 from vyper.optimization import (
+    optimize_ast,
     optimize_lll,
 )
 from vyper.parser import (
@@ -47,8 +48,11 @@ from vyper.typing import (
 
 def __compile(code, interface_codes=None, *args, **kwargs):
     ast = parser.parse_to_ast(code)
+    opt_ast = [optimize_ast(node) for node in ast]
+    # TODO Actually make all methods take node instead of list
+    #      Then, convert above to `opt_ast = optimize_ast(ast)`
     lll = parser.parse_tree_to_lll(
-        ast,
+        opt_ast,
         code,
         interface_codes=interface_codes,
         runtime_only=kwargs.get('bytecode_runtime', False)
