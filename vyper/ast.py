@@ -307,3 +307,55 @@ class alias(VyperNode):
 
 class ImportFrom(VyperNode):
     __slots__ = ('level', 'module', 'names')
+
+
+def iter_fields(node):
+    """
+    Yield a tuple ``(fieldname, value)`` for each field in a node's slots.
+    """
+    for field in node.get_slots():
+        try:
+            yield field, getattr(node, field)
+        except AttributeError:
+            pass
+
+
+class NodeVisitor:
+    def visit(self, node: VyperNode) -> VyperNode:
+        method = f'visit_{node.__class__.__name__}'
+        visitor = getattr(self, method, self.generic_visit)
+        return visitor(node)
+
+    def generic_visit(self, node: VyperNode) -> VyperNode:
+        for _field, value in iter_fields(node):
+            if isinstance(value, list):
+                for item in value:
+                    if isinstance(item, VyperNode):
+                        self.visit(item)
+            elif isinstance(value, VyperNode):
+                self.visit(value)
+        return node
+
+
+class NodeTransformer(NodeVisitor):
+    def generic_visit(self, node: VyperNode) -> VyperNode:
+        for field, old_value in iter_fields(node):
+            if isinstance(old_value, list):
+                new_values = []
+                for item in old_value:
+                    if isinstance(item, VyperNode):
+                        item = self.visit(item)
+                        if item is None:
+                            continue  # AST node was deleted
+                        elif not isinstance(item, VyperNode):
+                            new_values.extend(item)
+                            continue
+                    new_values.append(item)
+                old_value[:] = new_values
+            elif isinstance(old_value, VyperNode):
+                new_node = self.visit(old_value)
+                if new_node is None:
+                    delattr(node, field)  # AST node was deleted
+                else:
+                    setattr(node, field, new_node)  # Update AST node
+        return node
