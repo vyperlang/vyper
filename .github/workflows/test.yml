@@ -28,6 +28,24 @@ jobs:
     - name: Run Tox
       run: TOXENV=lint tox -r
 
+
+  mypy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v1
+
+    - name: Set up Python 3.6
+      uses: actions/setup-python@v1
+      with:
+        python-version: 3.6
+
+    - name: Install Tox
+      run: pip install tox
+
+    - name: Run Tox
+      run: TOXENV=mypy tox -r
+
   py36-core:
     runs-on: ubuntu-latest
 
