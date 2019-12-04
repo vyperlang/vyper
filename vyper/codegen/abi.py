@@ -211,9 +211,6 @@ class ABI_Bytes(ABIType):
 
 
 class ABI_String(ABI_Bytes):
-    def __init__(self, bytes_bound):
-        super().__init__(bytes_bound)
-
     def selector_name(self):
         return 'string'
 
