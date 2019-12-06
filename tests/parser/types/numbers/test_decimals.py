@@ -1,6 +1,9 @@
 from decimal import (
     Decimal,
+    getcontext,
 )
+
+getcontext().prec = 78  # MAX_UINT256 < 1e78
 
 
 def test_decimal_test(get_contract_with_gas_estimation):
@@ -142,3 +145,19 @@ def minimum():
 
     assert c.maximum() == []
     assert c.minimum() == []
+
+
+def test_scientific_notation(get_contract_with_gas_estimation):
+    code = """
+@public
+def foo() -> decimal:
+    return 1e-10
+
+@public
+def bar(num: decimal) -> decimal:
+    return num + -1e38
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.foo() == Decimal('1e-10')  # Smallest possible decimal
+    assert c.bar(Decimal('1e37')) == Decimal('-9e37')  # Math lines up

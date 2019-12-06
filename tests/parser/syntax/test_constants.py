@@ -58,9 +58,6 @@ def test(VAL: uint256):
     pass
     """, FunctionDeclarationException),
     ("""
-VAL: constant(decimal) = 2e-8
-    """, InvalidLiteralException),
-    ("""
 C1: constant(uint256) = block.number
 C2: constant(uint256) = convert(C1, uint256)
     """, InvalidLiteralException),
@@ -146,7 +143,13 @@ BYTE32_LIST: constant(bytes32[2]) = [
     """,
     """
 ZERO_LIST: constant(int128[8]) = [0, 0, 0, 0, 0, 0, 0, 0]
+    """,
     """
+MY_DECIMAL: constant(decimal) = 1e-10
+    """,
+    """
+MY_DECIMAL: constant(decimal) = -1e38
+    """,
 ]
 
 

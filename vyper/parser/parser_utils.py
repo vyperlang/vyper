@@ -1,4 +1,8 @@
 import ast as python_ast
+from decimal import (
+    Decimal,
+    getcontext,
+)
 from typing import (
     Any,
     List,
@@ -48,22 +52,33 @@ from vyper.utils import (
     SizeLimits,
 )
 
+getcontext().prec = 78  # MAX_UINT256 < 1e78
+
 
 # Get a decimal number as a fraction with denominator multiple of 10
 def get_number_as_fraction(expr, context):
-    context_slice = context.origcode.splitlines()[expr.lineno - 1][expr.col_offset:]
-    t = 0
-    while t < len(context_slice) and context_slice[t] in '0123456789.':
-        t += 1
-    if t < len(context_slice) and context_slice[t] == 'e':
-        raise InvalidLiteralException("Literals in scientific notation not accepted.")
-    top = int(context_slice[:t].replace('.', ''))
-    bottom = 1 if '.' not in context_slice[:t] else 10**(t - context_slice[:t].index('.') - 1)
+    context_line = context.origcode.splitlines()[expr.lineno - 1]
+    context_slice = context_line[expr.col_offset:expr.end_col_offset]
+    literal = Decimal(context_slice)
+    sign, digits, exponent = literal.as_tuple()
 
-    if expr.n < 0:
-        top *= -1
+    if exponent < -10:
+        raise InvalidLiteralException(
+                "`decimal` literal cannot have more than 10 decimal places: {literal}",
+                expr
+            )
 
-    return context_slice[:t], top, bottom
+    sign = (-1 if sign == 1 else 1)  # Positive Decimal has `sign` of 0, negative `sign` of 1
+    # Decimal `digits` is a tuple of each digit, so convert to a regular integer
+    top = int(Decimal((0, digits, 0)))
+    top = sign * top * 10**(exponent if exponent > 0 else 0)  # Convert to a fixed point integer
+    bottom = (1 if exponent > 0 else 10**abs(exponent))  # Make denominator a power of 10
+    assert Decimal(top) / Decimal(bottom) == literal  # Sanity check
+
+    # TODO: Would be best to raise >10 decimal place exception here
+    #       (unless Decimal is used more widely)
+
+    return context_slice, top, bottom
 
 
 # Is a number of decimal form (e.g. 65281) or 0x form (e.g. 0xff01) or 0b binary form (e.g. 0b0001)
@@ -801,6 +816,8 @@ class RewriteUnarySubVisitor(python_ast.NodeTransformer):
         self.generic_visit(node)
         if isinstance(node.op, python_ast.USub) and isinstance(node.operand, python_ast.Num):
             node.operand.n = 0 - node.operand.n
+            # NOTE: This is done so that decimal literal now sees the negative sign as part of it
+            node.operand.col_offset = node.col_offset
             return node.operand
         else:
             return node
