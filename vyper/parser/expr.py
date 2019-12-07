@@ -73,9 +73,11 @@ ENVIRONMENT_VARIABLES = {
 
 
 def get_min_val_for_type(typ: str) -> int:
-    if "int" not in typ.lower():
-        raise Exception(f"Not an integer type: {typ}")
-    min_val, _, _ = BUILTIN_CONSTANTS['MIN_'+typ.upper()]
+    key = 'MIN_' + typ.upper()
+    try:
+        min_val, _, _ = BUILTIN_CONSTANTS[key]
+    except KeyError as e:
+        raise TypeMismatchException(f"Not a signed type: {typ}") from e
     return min_val
 
 
