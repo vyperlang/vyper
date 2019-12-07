@@ -77,7 +77,7 @@ def get_min_val_for_type(typ: str) -> int:
     try:
         min_val, _, _ = BUILTIN_CONSTANTS[key]
     except KeyError as e:
-        raise TypeMismatchException(f"Not an integer type: {typ}") from e
+        raise TypeMismatchException(f"Not a signed type: {typ}") from e
     return min_val
 
 
