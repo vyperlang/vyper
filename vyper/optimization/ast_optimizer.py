@@ -18,7 +18,7 @@ class FoldConstants(vyper_ast.NodeTransformer):
         #       instead of fully converting it to our own
         if isinstance(node.op, vyper_ast.USub) and isinstance(node.operand, vyper_ast.Num):
             new_node = node.operand
-            new_node.n = -new_node.n
+            new_node.n = -(node.operand.n)
             new_node.col_offset = node.col_offset
             return new_node
         return node
