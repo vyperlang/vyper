@@ -16,11 +16,13 @@ class FoldConstants(vyper_ast.NodeTransformer):
 
         # TODO: This should actually be USub... but we're directly using Python's AST class
         #       instead of fully converting it to our own
-        if isinstance(node.op, vyper_ast.USub) and isinstance(node.operand, vyper_ast.Num):
-            new_node = node.operand
-            new_node.n = -(node.operand.n)
-            new_node.col_offset = node.col_offset
-            return new_node
+        if isinstance(node.operand, vyper_ast.Num):
+            if isinstance(node.op, vyper_ast.USub):
+                new_node = node.operand
+                new_node.n = -(node.operand.n)
+                new_node.col_offset = node.col_offset
+                return new_node
+
         return node
 
 
