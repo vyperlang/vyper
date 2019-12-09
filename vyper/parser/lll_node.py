@@ -323,6 +323,8 @@ class LLLnode:
             typ = BaseType(typ)
 
         if isinstance(obj, LLLnode):
+            # note: this modify-and-returnclause is a little weird since
+            # the input gets modified. CC 20191121.
             if typ is not None:
                 obj.typ = typ
             if obj.pos is None:

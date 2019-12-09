@@ -4,6 +4,10 @@ from vyper import ast
 from vyper.ast_utils import (
     ast_to_dict,
 )
+from vyper.codegen.return_ import (
+    gen_tuple_return,
+    make_return_stmt,
+)
 from vyper.exceptions import (
     CompilerPanic,
     ConstancyViolationException,
@@ -31,10 +35,8 @@ from vyper.parser.expr import (
 from vyper.parser.parser_utils import (
     LLLnode,
     base_type_conversion,
-    gen_tuple_return,
     getpos,
     make_byte_array_copier,
-    make_return_stmt,
     make_setter,
     unwrap_location,
     zero_pad,
