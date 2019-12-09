@@ -13,4 +13,4 @@ def check_assign(lhs, rhs, pos, in_function_call=False):
                 location='memory',
                 pos=pos,
                 in_function_call=in_function_call)
-    pass
+    # TODO Refactor into an actual type-checking function
