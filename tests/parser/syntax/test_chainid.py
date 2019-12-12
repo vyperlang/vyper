@@ -86,3 +86,14 @@ def check_chain_id(c: uint256) -> bool:
 @pytest.mark.parametrize('good_code', valid_list)
 def test_chain_success(good_code):
     assert compiler.compile_code(good_code) is not None
+
+
+def test_chainid_operation(get_contract_with_gas_estimation):
+    code = """
+@public
+@constant
+def get_chain_id() -> uint256:
+    return chain.id
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.get_chain_id() == 0  # Default value of py-evm
