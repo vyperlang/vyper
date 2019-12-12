@@ -48,6 +48,7 @@ OPCODES: Dict[str, List[Optional[int]]] = {
     'NUMBER': [0x43, 0, 1, 2],
     'DIFFICULTY': [0x44, 0, 1, 2],
     'GASLIMIT': [0x45, 0, 1, 2],
+    'CHAINID': [0x46, 0, 1, 2],
     'POP': [0x50, 1, 0, 2],
     'MLOAD': [0x51, 1, 1, 3],
     'MSTORE': [0x52, 2, 0, 3],
