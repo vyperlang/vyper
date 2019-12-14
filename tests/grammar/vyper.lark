@@ -18,9 +18,8 @@ eval_input: testlist _NEWLINE*
 
 decorator: "@" dotted_name [ "(" [arguments] ")" ] _NEWLINE
 decorators: decorator+
-decorated: decorators (classdef | funcdef | async_funcdef)
+decorated: decorators (funcdef)
 
-async_funcdef: "async" funcdef
 funcdef: "def" NAME "(" parameters? ")" ["->" test] ":" suite
 
 parameters: paramvalue ("," paramvalue)* ["," [ starparams | kwparams]]
@@ -40,7 +39,7 @@ vfpdef: NAME
 
 ?stmt: simple_stmt | compound_stmt
 ?simple_stmt: small_stmt (";" small_stmt)* [";"] _NEWLINE
-?small_stmt: (expr_stmt | del_stmt | pass_stmt | flow_stmt | import_stmt | global_stmt | nonlocal_stmt | assert_stmt)
+?small_stmt: (expr_stmt | del_stmt | pass_stmt | flow_stmt | import_stmt | assert_stmt)
 ?expr_stmt: testlist_star_expr (annassign | augassign (yield_expr|testlist)
          | ("=" (yield_expr|testlist_star_expr))*)
 annassign: ":" test ["=" test]
@@ -65,12 +64,10 @@ dotted_as_name: dotted_name ["as" NAME]
 import_as_names: import_as_name ("," import_as_name)* [","]
 dotted_as_names: dotted_as_name ("," dotted_as_name)*
 dotted_name: NAME ("." NAME)*
-global_stmt: "global" NAME ("," NAME)*
-nonlocal_stmt: "nonlocal" NAME ("," NAME)*
+decorator_name: ("private"|"public"|"payable"|"constant"|"payable"|"nonreentrant")
 assert_stmt: "assert" test ["," test]
 
-compound_stmt: if_stmt | while_stmt | for_stmt | try_stmt | with_stmt | funcdef | classdef | decorated | async_stmt
-async_stmt: "async" (funcdef | with_stmt | for_stmt)
+compound_stmt: if_stmt | while_stmt | for_stmt | try_stmt | with_stmt | funcdef | classdef | decorated
 if_stmt: "if" test ":" suite ("elif" test ":" suite)* ["else" ":" suite]
 while_stmt: "while" test ":" suite ["else" ":" suite]
 for_stmt: "for" exprlist "in" testlist ":" suite ["else" ":" suite]
@@ -149,8 +146,7 @@ kwargs: "**" test
 
 
 
-comp_iter: comp_for | comp_if | async_for
-async_for: "async" "for" exprlist "in" or_test [comp_iter]
+comp_iter: comp_for | comp_if
 comp_for: "for" exprlist "in" or_test [comp_iter]
 comp_if: "if" test_nocond [comp_iter]
 
@@ -178,7 +174,6 @@ HEX_NUMBER.2: /0x[\da-f]*/i
 OCT_NUMBER.2: /0o[0-7]*/i
 BIN_NUMBER.2 : /0b[0-1]*/i
 FLOAT_NUMBER.2: /((\d+\.\d*|\.\d+)(e[-+]?\d+)?|\d+(e[-+]?\d+))/i
-IMAG_NUMBER.2: /\d+j/i | FLOAT_NUMBER "j"i
 
 %ignore /[\t \f]+/  // WS
 %ignore /\\[\t \f]*\r?\n/   // LINE_CONT
