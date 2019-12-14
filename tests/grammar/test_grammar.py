@@ -1,33 +1,19 @@
 import textwrap
 
 import hypothesis
-
-from lark import Lark
-from lark.indenter import Indenter
-
+from hypothesis import given
+from hypothesis.extra.lark import from_lark
+import hypothesis.strategies as st
+from conftest import get_lark_grammar
 from vyper.parser import (
     parser,
 )
 
 
-class PythonIndenter(Indenter):
-    NL_type = '_NEWLINE'
-    OPEN_PAREN_types = ['LPAR', 'LSQB', 'LBRACE']
-    CLOSE_PAREN_types = ['RPAR', 'RSQB', 'RBRACE']
-    INDENT_type = '_INDENT'
-    DEDENT_type = '_DEDENT'
-    tab_len = 8
+l = get_lark_grammar()
 
 
-l = Lark.open(
-    'tests/grammar/vyper.lark',
-    parser='lalr',
-    start='file_input',
-    postlex=PythonIndenter()
-)
-
-
-def test_basic_grammar():
+def test_basic_grammar(lark_grammar):
     code = """
     a: uint256
     b: uint128
@@ -38,16 +24,35 @@ def test_basic_grammar():
         return 123123123
     """
 
-    assert l.parse(textwrap.dedent(code) + "\n")
+    assert lark_grammar.parse(textwrap.dedent(code) + "\n")
     assert parser.parse_to_ast(textwrap.dedent(code))
 
-    assert l.parse(textwrap.dedent(code_func) + "\n")
+    assert lark_grammar.parse(textwrap.dedent(code_func) + "\n")
     assert parser.parse_to_ast(textwrap.dedent(code_func))
 
 
-# @hypothesis.extra.lark.from_lark(
+def test_basic_grammar_empty(lark_grammar):
+    code = """
+    """
+    tree = lark_grammar.parse(textwrap.dedent(code) + "\n")
+    assert len(tree.children) == 0
 
-# )
-# def test_grammar(code):
-#     parser.parse_to_ast(code)
-#     pass
+# With help from hyposmith
+# https://github.com/Zac-HD/hypothesmith/blob/master/src/hypothesmith/syntactic.py
+@given(
+    code=from_lark(
+        grammar=l,
+        explicit=dict(  # from hyposmith
+            _INDENT=st.just(" " * 4),
+            _DEDENT=st.just(""),
+            NAME=st.from_regex(r"[a-z_A-Z]+", fullmatch=True).filter(str.isidentifier),
+        )
+    )
+)
+@hypothesis.settings(
+    deadline=400,
+    max_examples=10000
+)
+def test_grammar_bruteforce(code):
+    tree = parser.parse_to_ast(code + "\n")
+    assert isinstance(tree, list)

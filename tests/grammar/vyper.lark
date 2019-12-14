@@ -39,7 +39,7 @@ varargslist: (vfpdef ["=" test] ("," vfpdef ["=" test])* ["," [ "*" [vfpdef] (",
 vfpdef: NAME
 
 ?stmt: simple_stmt | compound_stmt
-?simple_stmt: small_stmt (";" small_stmt)* [";"] _NEWLINE
+?simple_stmt: small_stmt (small_stmt)* _NEWLINE
 ?small_stmt: (expr_stmt | del_stmt | pass_stmt | flow_stmt | import_stmt | assert_stmt)
 ?expr_stmt: testlist_star_expr (annassign | augassign (yield_expr|testlist)
          | ("=" (yield_expr|testlist_star_expr))*)

@@ -10,7 +10,7 @@ class PythonIndenter(Indenter):
     CLOSE_PAREN_types = ['RPAR', 'RSQB', 'RBRACE']
     INDENT_type = '_INDENT'
     DEDENT_type = '_DEDENT'
-    tab_len = 8
+    tab_len = 4
 
 
 def get_lark_grammar():
