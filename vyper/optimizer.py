@@ -64,7 +64,7 @@ def optimize(node: LLLnode) -> LLLnode:
     argz = [optimize(arg) for arg in node.args]
     if node.value in arith and int_at(argz, 0) and int_at(argz, 1):
         left, right = get_int_at(argz, 0), get_int_at(argz, 1)
-        calcer, symb = arith[str(node.value)]
+        calcer, symb = arith[str(node.value)]  # `node.value in arith` implies that `node.value` is a `str`
         new_value = calcer(left, right)
         if argz[0].annotation and argz[1].annotation:
             annotation = argz[0].annotation + symb + argz[1].annotation
@@ -87,7 +87,7 @@ def optimize(node: LLLnode) -> LLLnode:
             valency=node.valency,
         )
     elif _is_constant_add(node, argz):
-        calcer, symb = arith[str(node.value)]
+        calcer, symb = arith[str(node.value)]  # `node.value in arith` implies that `node.value` is a `str`
         if argz[0].annotation and argz[1].args[0].annotation:
             annotation = argz[0].annotation + symb + argz[1].args[0].annotation
         elif argz[0].annotation or argz[1].args[0].annotation:
