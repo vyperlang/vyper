@@ -21,7 +21,8 @@ def get_int_at(args: List[LLLnode], pos: int, signed: bool = False) -> Optional[
     elif (value == "mload" and
             args[pos].args[0].value in LOADED_LIMITS.keys() and
             isinstance(args[pos].args[0].value, int)):
-        o = LOADED_LIMITS[args[pos].args[0].value]
+        idx = int(args[pos].args[0].value)  # isinstance in if confirms type is int.
+        o = LOADED_LIMITS[idx]
     else:
         return None
 

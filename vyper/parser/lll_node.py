@@ -200,12 +200,16 @@ class LLLnode:
                     if isinstance(self.args[2].value, int):
                         rounds = self.args[2].value
                     else:
-                        raise CompilerPanic('Unsupported rounds argument type.', self.args[2])
+                        raise CompilerPanic(
+                            f'Unsupported rounds argument type. {self.args[2]}'
+                        )
                 else:
                     if isinstance(self.args[2].value, int) and isinstance(self.args[1].value, int):
                         rounds = abs(self.args[2].value - self.args[1].value)
                     else:
-                        raise CompilerPanic('Unsupported second argument types.', self.args)
+                        raise CompilerPanic(
+                            f'Unsupported second argument types. {self.args}'
+                        )
                 self.gas = rounds * (self.args[3].gas + 50) + 30
             # Seq statements: seq <statement> <statement> ...
             elif self.value == 'seq':
