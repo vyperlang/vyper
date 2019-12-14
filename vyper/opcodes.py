@@ -4,7 +4,7 @@ from typing import (
     Union,
 )
 
-opcodes: Dict[str, Tuple[Union[int, None], int, int, int]] = {
+OPCODES: Dict[str, Tuple[Union[int, None], int, int, int]] = {
     'STOP': (0x00, 0, 0, 0),
     'ADD': (0x01, 2, 1, 3),
     'MUL': (0x02, 2, 1, 5),
@@ -142,7 +142,7 @@ opcodes: Dict[str, Tuple[Union[int, None], int, int, int]] = {
     'DEBUG': (0xa5, 1, 0, 0)
 }
 
-pseudo_opcodes: Dict[str, Tuple[Union[int, None], int, int, int]] = {
+PSEUDO_OPCODES: Dict[str, Tuple[Union[int, None], int, int, int]] = {
     'CLAMP': (None, 3, 1, 70),
     'UCLAMPLT': (None, 2, 1, 25),
     'UCLAMPLE': (None, 2, 1, 30),
@@ -168,7 +168,4 @@ pseudo_opcodes: Dict[str, Tuple[Union[int, None], int, int, int]] = {
 }
 
 
-comb_opcodes: Dict[str, Tuple[Union[int, None], int, int, int]] = {}
-
-comb_opcodes.update(opcodes)
-comb_opcodes.update(pseudo_opcodes)
+COMB_OPCODES: Dict[str, Tuple[Union[int, None], int, int, int]] = {**OPCODES, **PSEUDO_OPCODES}
