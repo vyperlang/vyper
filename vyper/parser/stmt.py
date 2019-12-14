@@ -204,7 +204,6 @@ class Stmt(object):
                 )
             varname = self.stmt.target.id
             pos = self.context.new_variable(varname, typ)
-            o = LLLnode.from_list('pass', typ=None, pos=pos)
             if self.stmt.value is None:
                 raise StructureException(
                     'New variables must be initialized explicitly',
@@ -655,8 +654,7 @@ class Stmt(object):
                     fetcher = 'mload'
                 else:
                     raise CompilerPanic(
-                        'List iteration only supported on in-memory types',
-                        self.expr
+                        f'List iteration only supported on in-memory types {self.expr}',
                     )
                 body = [
                     'seq',

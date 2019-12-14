@@ -433,7 +433,7 @@ def abi_decode(lll_node, src, pos=None):
             # descend into the child tuple
             lll_ret.append(abi_decode(o, child_loc, pos=pos))
         else:
-            lll_ret.append(make_setter(o, src_loc))
+            lll_ret.append(make_setter(o, src_loc, location=src.location, pos=pos))
 
         if i + 1 == len(os):
             pass  # optimize out the last pointer increment
