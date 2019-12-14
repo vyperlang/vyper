@@ -16,7 +16,8 @@ single_input: _NEWLINE | simple_stmt | compound_stmt _NEWLINE
 file_input: (_NEWLINE | stmt)*
 eval_input: testlist _NEWLINE*
 
-decorator: "@" dotted_name [ "(" [arguments] ")" ] _NEWLINE
+decorator: "@" decorator_names _NEWLINE
+         | "@" decorator_with_args_names [ "(" [arguments] ")" ] _NEWLINE
 decorators: decorator+
 decorated: decorators (funcdef)
 
@@ -64,7 +65,8 @@ dotted_as_name: dotted_name ["as" NAME]
 import_as_names: import_as_name ("," import_as_name)* [","]
 dotted_as_names: dotted_as_name ("," dotted_as_name)*
 dotted_name: NAME ("." NAME)*
-decorator_name: ("private"|"public"|"payable"|"constant"|"payable"|"nonreentrant")
+decorator_names: ("private"|"public"|"payable"|"constant"|"payable")
+decorator_with_args_names: ("nonreentrant")
 assert_stmt: "assert" test ["," test]
 
 compound_stmt: if_stmt | while_stmt | for_stmt | try_stmt | with_stmt | funcdef | classdef | decorated
@@ -157,7 +159,7 @@ yield_expr: "yield" [yield_arg]
 yield_arg: "from" test | testlist
 
 
-number: DEC_NUMBER | HEX_NUMBER | BIN_NUMBER | OCT_NUMBER | FLOAT_NUMBER | IMAG_NUMBER
+number: DEC_NUMBER | HEX_NUMBER | BIN_NUMBER | OCT_NUMBER | FLOAT_NUMBER
 string: STRING | LONG_STRING
 // Tokens
 
