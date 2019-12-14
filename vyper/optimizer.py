@@ -35,17 +35,6 @@ def int_at(args: List[LLLnode], pos: int, signed: bool = False) -> Optional[int]
     return get_int_at(args, pos, signed) is not None
 
 
-def search_for_set(node: LLLnode, var: List[LLLnode]) -> bool:
-    if node.value == "set" and node.args[0].value == var:
-        return True
-
-    for arg in node.args:
-        if search_for_set(arg, var):
-            return True
-
-    return False
-
-
 arith = {
     "add": (operator.add, '+'),
     "sub": (operator.sub, '-'),
