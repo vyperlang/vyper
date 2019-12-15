@@ -89,6 +89,7 @@ def parse_python_ast(source_code: str,
             class_name = "Str"
         elif isinstance(node.value, bytes):
             class_name = "Bytes"
+
     if not hasattr(vyper_ast, class_name):
         raise SyntaxException(f'Invalid syntax (unsupported "{class_name}" Python AST node).', node)
 
