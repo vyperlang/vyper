@@ -1,9 +1,5 @@
-// Python 3 grammar for Lark
-
-// NOTE: Work in progress!!! (XXX TODO)
-// This grammar should parse all python 3.x code successfully,
-// but the resulting parse-tree is still not well-organized.
-
+// Vyper grammar for Lark
+// Adapter from Lark repo. https://github.com/lark-parser/lark/blob/master/examples/python3.lark
 // Adapted from: https://docs.python.org/3/reference/grammar.html
 // Adapted by: Erez Shinan
 

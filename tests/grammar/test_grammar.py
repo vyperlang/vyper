@@ -1,20 +1,17 @@
 import textwrap
 
-import pytest
 import hypothesis
 from hypothesis import (
     assume,
-    example,
     given,
 )
 from hypothesis.extra.lark import (
     LarkStrategy,
-    from_lark
 )
 import hypothesis.strategies as st
-from conftest import get_lark_grammar
-from vyper.parser.pre_parser import (
-    pre_parse,
+
+from conftest import (
+    get_lark_grammar,
 )
 from vyper.parser import (
     parser,
@@ -124,7 +121,7 @@ def from_grammar(start: str = "file_input") -> st.SearchStrategy[str]:
 )
 @hypothesis.settings(
     deadline=400,
-    max_examples=1000
+    max_examples=2000
 )
 def test_grammar_bruteforce(code):
     if utf8_encodable(code):

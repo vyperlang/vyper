@@ -1,7 +1,9 @@
 import pytest
 
 from lark import Lark
-from lark.indenter import Indenter
+from lark.indenter import (
+    Indenter,
+)
 
 
 class PythonIndenter(Indenter):
@@ -14,16 +16,14 @@ class PythonIndenter(Indenter):
 
 
 def get_lark_grammar():
-    l = Lark.open(
+    return Lark.open(
         'tests/grammar/vyper.lark',
         parser='lalr',
         start='file_input',
         postlex=PythonIndenter()
     )
-    return l
 
 
 @pytest.fixture
 def lark_grammar():
-    l = get_lark_grammar()
-    return l
+    return get_lark_grammar()

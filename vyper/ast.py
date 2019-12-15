@@ -231,8 +231,10 @@ class Not(VyperNode):
 class USub(VyperNode):
     __slots__ = ()
 
+
 class UAdd(VyperNode):
     __slots__ = ()
+
 
 class Expr(VyperNode):
     __slots__ = ('value', )
