@@ -3,12 +3,14 @@
 
 [![Build Status](https://github.com/vyperlang/vyper/workflows/Test/badge.svg)](https://github.com/vyperlang/vyper/actions)
 [![Documentation Status](https://readthedocs.org/projects/vyper/badge/?version=latest)](http://vyper.readthedocs.io/en/latest/?badge=latest "ReadTheDocs")
-[![Coverage Status](https://codecov.io/gh/vyperlang/vyper/branch/master/graph/badge.svg)](https://codecov.io/gh/vyperlang/vyper "Codecov")
+[![Join the chat at https://gitter.im/vyperlang/community](https://badges.gitter.im/vyperlang/community.svg)](https://gitter.im/vyperlang/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge "Gitter")
+
 [![PyPI](https://badge.fury.io/py/vyper.svg)](https://pypi.org/project/vyper "PyPI")
 [![Docker](https://images.microbadger.com/badges/version/vyperlang/vyper.svg)](https://hub.docker.com/r/vyperlang/vyper "DockerHub")
 [![Snapcraft](https://snapcraft.io/vyper/badge.svg)](https://snapcraft.io/vyper "Snapcraft")
-[![Join the chat at https://gitter.im/vyperlang/community](https://badges.gitter.im/vyperlang/community.svg)](https://gitter.im/vyperlang/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge "Gitter")
 
+[![Coverage Status](https://codecov.io/gh/vyperlang/vyper/branch/master/graph/badge.svg)](https://codecov.io/gh/vyperlang/vyper "Codecov")
+[![Language grade: Python](https://img.shields.io/lgtm/grade/python/g/vyperlang/vyper.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/vyperlang/vyper/context:python)
 
 # Getting Started
 See [Installing Vyper](http://vyper.readthedocs.io/en/latest/installing-vyper.html) to install vyper.  
