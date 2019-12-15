@@ -88,7 +88,7 @@ class GrammarStrategy(LarkStrategy):
                 compile(
                     source="".join(
                         draw_state.result[count:]
-                    ),
+                    ).replace("contract", "class").replace("struct", "class"),
                     filename="<string>",
                     mode=COMPILE_MODES[symbol.name],
                 )
