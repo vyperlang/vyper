@@ -54,5 +54,5 @@ def test_basic_grammar_empty(lark_grammar):
     max_examples=10000
 )
 def test_grammar_bruteforce(code):
-    tree = parser.parse_to_ast(code + "\n")
+    tree = parser.parse_to_ast(textwrap.dedent(code) + "\n")
     assert isinstance(tree, list)
