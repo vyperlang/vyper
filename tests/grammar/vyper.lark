@@ -99,8 +99,7 @@ suite: simple_stmt | _NEWLINE _INDENT stmt+ _DEDENT
      | "False"   -> const_false
 
 subscriptlist: subscript ("," subscript)*
-subscript: test | [test] ":" [test] [sliceop]
-sliceop: ":" [test]
+subscript: test
 exprlist: (expr) ("," (expr))* [","]
 testlist: test ("," test)* [","]
 dictorsetmaker: ( ((test ":" test | "**" expr) (comp_for | ("," (test ":" test | "**" expr))* [","])) | ((test) (comp_for | ("," (test))* [","])) )

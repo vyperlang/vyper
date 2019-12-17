@@ -4,6 +4,7 @@ import hypothesis
 from hypothesis import (
     assume,
     given,
+    HealthCheck,
 )
 from hypothesis.extra.lark import (
     LarkStrategy,
@@ -116,7 +117,8 @@ def from_grammar(start: str = "file_input") -> st.SearchStrategy[str]:
 )
 @hypothesis.settings(
     deadline=400,
-    max_examples=5000
+    max_examples=5000,
+    suppress_health_check=(HealthCheck.too_slow, )
 )
 def test_grammar_bruteforce(code):
     if utf8_encodable(code):
