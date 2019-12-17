@@ -91,7 +91,7 @@ suite: simple_stmt | _NEWLINE _INDENT stmt+ _DEDENT
           | atom_expr "." NAME               -> getattr
           | atom
 
-?atom: "{" [dictorsetmaker] "}" -> dict
+?atom: "{" [dictmaker] "}" -> dict
      | NAME -> var
      | number | string+
      | "(" test ")"
@@ -102,7 +102,7 @@ subscriptlist: subscript ("," subscript)*
 subscript: test
 exprlist: (expr) ("," (expr))* [","]
 testlist: test ("," test)* [","]
-dictorsetmaker: ( ((test ":" test | "**" expr) (comp_for | ("," (test ":" test | "**" expr))* [","])) | ((test) (comp_for | ("," (test))* [","])) )
+dictmaker: ( ((test ":" test) ("," (test ":" test))* [","]) )
 
 classdef: ("contract"|"struct") NAME ["(" [arguments] ")"] ":" suite
 
