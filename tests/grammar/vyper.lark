@@ -37,7 +37,7 @@ vfpdef: NAME
          | ("=" (testlist_star_expr))*)
 annassign: ":" test ["=" test]
 ?testlist_star_expr: (test) ("," (test))* [","]
-!augassign: ("+=" | "-=" | "*=" | "@=" | "/=" | "%=" | "&=" | "|=" | "^=" | "<<=" | ">>=" | "**=" | "//=")
+!augassign: ("+=" | "-=" | "*=" | "/=" | "**=")
 // For normal and annotated assignments, additional restrictions enforced by the interpreter
 pass_stmt: "pass"
 ?flow_stmt: break_stmt | continue_stmt | return_stmt | raise_stmt
@@ -78,10 +78,10 @@ suite: simple_stmt | _NEWLINE _INDENT stmt+ _DEDENT
 ?term: factor (_mul_op factor)*
 ?factor: _factor_op factor | power
 
-!_factor_op: "+"|"-"|"~"
+!_factor_op: "+"|"-"
 !_add_op: "+"|"-"
 !_shift_op: "<<"|">>"
-!_mul_op: "*"|"@"|"/"|"%"|"//"
+!_mul_op: "*"|"/"|"%"
 !_comp_op: "<"|">"|"=="|">="|"<="|"!="|"in"|"not" "in"|"is"|"is" "not"
 
 ?power: atom_expr ["**" factor]
@@ -91,17 +91,14 @@ suite: simple_stmt | _NEWLINE _INDENT stmt+ _DEDENT
           | atom_expr "." NAME               -> getattr
           | atom
 
-?atom: "(" [testlist_comp] ")" -> tuple
-     | "[" [testlist_comp] "]"  -> list
-     | "{" [dictorsetmaker] "}" -> dict
+?atom: "{" [dictorsetmaker] "}" -> dict
      | NAME -> var
      | number | string+
      | "(" test ")"
      | "True"    -> const_true
      | "False"   -> const_false
 
-?testlist_comp: (test) [comp_for | ("," (test))+ [","] | ","]
-subscriptlist: subscript ("," subscript)* [","]
+subscriptlist: subscript ("," subscript)*
 subscript: test | [test] ":" [test] [sliceop]
 sliceop: ":" [test]
 exprlist: (expr) ("," (expr))* [","]
