@@ -449,7 +449,7 @@ def ecrecover(expr, args, kwargs, context):
         ['mstore', ['add', placeholder_node, 32], args[1]],
         ['mstore', ['add', placeholder_node, 64], args[2]],
         ['mstore', ['add', placeholder_node, 96], args[3]],
-        ['pop', ['call', 3000, 1, 0, placeholder_node, 128, MemoryPositions.FREE_VAR_SPACE, 32]],
+        ['pop', ['call', ['gas'], 1, 0, placeholder_node, 128, MemoryPositions.FREE_VAR_SPACE, 32]],
         ['mload', MemoryPositions.FREE_VAR_SPACE],
     ], typ=BaseType('address'), pos=getpos(expr))
 
@@ -470,7 +470,7 @@ def ecadd(expr, args, kwargs, context):
         ['mstore', ['add', placeholder_node, 32], avo(args[0], 1, pos)],
         ['mstore', ['add', placeholder_node, 64], avo(args[1], 0, pos)],
         ['mstore', ['add', placeholder_node, 96], avo(args[1], 1, pos)],
-        ['assert', ['call', 500, 6, 0, placeholder_node, 128, placeholder_node, 64]],
+        ['assert', ['call', ['gas'], 6, 0, placeholder_node, 128, placeholder_node, 64]],
         placeholder_node,
     ], typ=ListType(BaseType('uint256'), 2), pos=getpos(expr), location='memory')
     return o
@@ -487,7 +487,7 @@ def ecmul(expr, args, kwargs, context):
         ['mstore', placeholder_node, avo(args[0], 0, pos)],
         ['mstore', ['add', placeholder_node, 32], avo(args[0], 1, pos)],
         ['mstore', ['add', placeholder_node, 64], args[1]],
-        ['assert', ['call', 40000, 7, 0, placeholder_node, 96, placeholder_node, 64]],
+        ['assert', ['call', ['gas'], 7, 0, placeholder_node, 96, placeholder_node, 64]],
         placeholder_node,
     ], typ=ListType(BaseType('uint256'), 2), pos=pos, location='memory')
     return o
