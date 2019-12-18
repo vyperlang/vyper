@@ -69,6 +69,7 @@ ENVIRONMENT_VARIABLES = {
     "block",
     "msg",
     "tx",
+    "chain",
 }
 
 
@@ -380,6 +381,8 @@ class Expr(object):
                 )
             elif key == "tx.origin":
                 return LLLnode.from_list(['origin'], typ='address', pos=getpos(self.expr))
+            elif key == "chain.id":
+                return LLLnode.from_list(['chainid'], typ='uint256', pos=getpos(self.expr))
             else:
                 raise ParserException("Unsupported keyword: " + key, self.expr)
         # Other variables

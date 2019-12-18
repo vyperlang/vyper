@@ -117,7 +117,7 @@ def make_byte_array_copier(destination, source, pos=None):
         o = LLLnode.from_list([
             'with', '_source', source, [
                 'with', '_sz', ['add', 32, ['mload', '_source']], [
-                    'assert', ['call', ['add', 18, ['div', '_sz', 10]], 4, 0, '_source', '_sz', destination, '_sz']]]],  # noqa: E501
+                    'assert', ['call', ['gas'], 4, 0, '_source', '_sz', destination, '_sz']]]],  # noqa: E501
             typ=None, add_gas_estimate=gas_calculation, annotation='Memory copy'
         )
         return o
@@ -165,7 +165,7 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
             'with', '_l', max_length,
             [
                 'pop',
-                ['call', 18 + max_length // 10, 4, 0, source, '_l', destination, '_l']
+                ['call', ['gas'], 4, 0, source, '_l', destination, '_l']
             ]
         ], typ=None, annotation=f'copy byte slice dest: {str(destination)}')
     # Copy over data
