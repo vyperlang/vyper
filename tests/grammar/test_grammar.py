@@ -58,8 +58,8 @@ COMPILE_MODES = {
 
 def utf8_encodable(terminal: str) -> bool:
     try:
-        if '\x00' not in terminal and '\\ ' not in terminal:
-            terminal.encode()
+        if '\x00' not in terminal and '\\ ' not in terminal and '\x0c' not in terminal:
+            terminal.encode("utf-8-sig")
             return True
         else:
             return False
@@ -117,7 +117,7 @@ def from_grammar(start: str = "file_input") -> st.SearchStrategy[str]:
 )
 @hypothesis.settings(
     deadline=400,
-    max_examples=5000,
+    max_examples=500,
     suppress_health_check=(HealthCheck.too_slow, )
 )
 def test_grammar_bruteforce(code):

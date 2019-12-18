@@ -1,5 +1,5 @@
 // Vyper grammar for Lark
-// Adapter from Lark repo. https://github.com/lark-parser/lark/blob/master/examples/python3.lark
+// Adapted from Lark repo. https://github.com/lark-parser/lark/blob/master/examples/python3.lark
 // Adapted from: https://docs.python.org/3/reference/grammar.html
 // Adapted by: Erez Shinan
 
@@ -19,16 +19,10 @@ decorated: decorators (funcdef)
 
 funcdef: "def" NAME "(" parameters? ")" ["->" test] ":" suite
 
-parameters: paramvalue ("," paramvalue)* [","]
+parameters: paramvalue ("," paramvalue?)*
 
 ?paramvalue: typedparam ["=" test]
 ?typedparam: NAME [":" test]
-
-varargslist: (vfpdef ["=" test] ("," vfpdef ["=" test])* ["," [ "*" [vfpdef] ("," vfpdef ["=" test])* ["," ["**" vfpdef [","]]] | "**" vfpdef [","]]]
-  | "*" [vfpdef] ("," vfpdef ["=" test])* ["," ["**" vfpdef [","]]]
-  | "**" vfpdef [","])
-
-vfpdef: NAME
 
 ?stmt: simple_stmt | compound_stmt
 ?simple_stmt: small_stmt (small_stmt)* _NEWLINE
@@ -37,7 +31,7 @@ vfpdef: NAME
          | ("=" (testlist_star_expr))*)
 annassign: ":" test ["=" test]
 ?testlist_star_expr: (test) ("," (test))* [","]
-!augassign: ("+=" | "-=" | "*=" | "/=" | "**=")
+!augassign: ("+=" | "-=" | "*=" | "/=" | "**=" | "%=")
 // For normal and annotated assignments, additional restrictions enforced by the interpreter
 pass_stmt: "pass"
 ?flow_stmt: break_stmt | continue_stmt | return_stmt | raise_stmt
@@ -58,7 +52,7 @@ decorator_names: ("private"|"public"|"payable"|"constant"|"payable")
 decorator_with_args_names: ("nonreentrant")
 assert_stmt: "assert" test ["," test]
 
-compound_stmt: if_stmt | for_stmt | classdef | decorated
+compound_stmt: if_stmt | for_stmt | classdef | funcdef | decorated
 if_stmt: "if" test ":" suite ("elif" test ":" suite)* ["else" ":" suite]
 for_stmt: "for" exprlist "in" testlist ":" suite ["else" ":" suite]
 
@@ -91,13 +85,16 @@ suite: simple_stmt | _NEWLINE _INDENT stmt+ _DEDENT
           | atom_expr "." NAME               -> getattr
           | atom
 
-?atom: "{" [dictmaker] "}" -> dict
+?atom: "(" [testlist_comp] ")" -> tuple
+     | "[" [testlist_comp] "]"  -> list
+     |"{" [dictmaker] "}" -> dict
      | NAME -> var
      | number | string+
      | "(" test ")"
      | "True"    -> const_true
      | "False"   -> const_false
 
+?testlist_comp: (test) [("," (test))+ [","] | ","]
 subscriptlist: subscript ("," subscript)*
 subscript: test
 exprlist: (expr) ("," (expr))* [","]
