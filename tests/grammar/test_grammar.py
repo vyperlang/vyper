@@ -2,9 +2,9 @@ import textwrap
 
 import hypothesis
 from hypothesis import (
+    HealthCheck,
     assume,
     given,
-    HealthCheck,
 )
 from hypothesis.extra.lark import (
     LarkStrategy,

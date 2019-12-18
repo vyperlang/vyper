@@ -21,7 +21,10 @@ from web3.providers.eth_tester import (
 from vyper import (
     compiler,
 )
-from .grammar.conftest import get_lark_grammar
+
+from .grammar.conftest import (
+    get_lark_grammar,
+)
 
 
 class VyperMethod:
@@ -123,7 +126,7 @@ def _get_contract(w3, source_code, *args, **kwargs):
         ['abi', 'bytecode'],
         interface_codes=kwargs.pop('interface_codes', None),
     )
-    get_lark_grammar().parse(source_code + "\n") # Test grammar.
+    get_lark_grammar().parse(source_code + "\n")  # Test grammar.
     abi = out['abi']
     bytecode = out['bytecode']
     value = kwargs.pop('value_in_eth', 0) * 10 ** 18  # Handle deploying with an eth value.
