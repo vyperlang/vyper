@@ -530,7 +530,7 @@ class Stmt(object):
             if not SizeLimits.in_bounds(typ, val):
                 raise InvalidLiteralException('Invalid range value supplied', self.stmt)
 
-    def _get_outtype(self, arg0_expr: LLLnode, arg1_expr: LLLnode) -> str:
+    def _get_range_type(self, arg0_expr: LLLnode, arg1_expr: LLLnode) -> str:
         if arg0_expr.typ.typ != arg1_expr.typ.typ:
             if {arg0_expr.typ.typ, arg1_expr.typ.typ} != {'uint256', 'int128'}:
                 raise CompilerPanic('Only uint256 and int128 supported.')
@@ -571,6 +571,7 @@ class Stmt(object):
                 arg0_expr = self._get_range_const_value_expr(arg0)
                 arg0_val = arg0_expr.value
                 out_type = arg0_expr.typ
+                out_type_str = arg0_expr.typ.typ
                 start = LLLnode.from_list(0, typ=out_type, pos=getpos(self.stmt))
                 start = LLLnode.from_list(0, typ=out_type_str, pos=getpos(self.stmt))
                 self._test_constant_ranges(((arg0_val, out_type_str), ), self.stmt)
@@ -587,7 +588,7 @@ class Stmt(object):
                         "Range start value may not be bigger or equal to end value",
                         self.stmt
                     )
-                out_type_str = self._get_outtype(arg0_expr, arg1_expr)
+                out_type_str = self._get_range_type(arg0_expr, arg1_expr)
                 self._test_constant_ranges(
                     (
                         (arg0_val, out_type_str),
@@ -626,7 +627,7 @@ class Stmt(object):
                     )
                 arg1_expr = self._get_range_const_value_expr(arg1.right)
                 arg0_expr = Expr.parse_value_expr(arg0, self.context)
-                out_type_str = self._get_outtype(arg0_expr, arg1_expr)
+                out_type_str = self._get_range_type(arg0_expr, arg1_expr)
                 self._test_constant_ranges(
                     (
                         (arg1_expr.value, out_type_str),
