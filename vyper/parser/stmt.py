@@ -570,7 +570,8 @@ class Stmt(object):
             if num_of_args == 1:
                 arg0_expr = self._get_range_const_value_expr(arg0)
                 arg0_val = arg0_expr.value
-                out_type_str = arg0_expr.typ.typ
+                out_type = arg0_expr.typ
+                start = LLLnode.from_list(0, typ=out_type, pos=getpos(self.stmt))
                 start = LLLnode.from_list(0, typ=out_type_str, pos=getpos(self.stmt))
                 self._test_constant_ranges(((arg0_val, out_type_str), ), self.stmt)
                 rounds = arg0_val
