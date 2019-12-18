@@ -1,7 +1,4 @@
 import binascii
-from collections import (
-    OrderedDict,
-)
 import functools
 import re
 from typing import (
@@ -14,7 +11,7 @@ from vyper.exceptions import (
     VariableDeclarationException,
 )
 from vyper.opcodes import (
-    opcodes,
+    OPCODES,
 )
 
 try:
@@ -125,13 +122,13 @@ class SizeLimits:
 
 # Map representing all limits loaded into a contract as part of the initializer
 # code.
-LOADED_LIMIT_MAP = OrderedDict((
-    (MemoryPositions.ADDRSIZE, SizeLimits.ADDRSIZE),
-    (MemoryPositions.MAXNUM, SizeLimits.MAXNUM),
-    (MemoryPositions.MINNUM, SizeLimits.MINNUM),
-    (MemoryPositions.MAXDECIMAL, SizeLimits.MAXDECIMAL),
-    (MemoryPositions.MINDECIMAL, SizeLimits.MINDECIMAL),
-))
+LOADED_LIMITS = {
+    MemoryPositions.ADDRSIZE: SizeLimits.ADDRSIZE,
+    MemoryPositions.MAXNUM: SizeLimits.MAXNUM,
+    MemoryPositions.MINNUM: SizeLimits.MINNUM,
+    MemoryPositions.MAXDECIMAL: SizeLimits.MAXDECIMAL,
+    MemoryPositions.MINDECIMAL: SizeLimits.MINDECIMAL,
+}
 
 
 RLP_DECODER_ADDRESS = hex_to_int('0x5185D17c44699cecC3133114F8df70753b856709')
@@ -141,45 +138,46 @@ RLP_DECODER_ADDRESS = hex_to_int('0x5185D17c44699cecC3133114F8df70753b856709')
 # Publish this tx to create the contract: 0xf90237808506fc23ac00830330888080b902246102128061000e60003961022056600060007f010000000000000000000000000000000000000000000000000000000000000060003504600060c082121515585760f882121561004d5760bf820336141558576001905061006e565b600181013560f783036020035260005160f6830301361415585760f6820390505b5b368112156101c2577f010000000000000000000000000000000000000000000000000000000000000081350483602086026040015260018501945060808112156100d55760018461044001526001828561046001376001820191506021840193506101bc565b60b881121561014357608081038461044001526080810360018301856104600137608181141561012e5760807f010000000000000000000000000000000000000000000000000000000000000060018401350412151558575b607f81038201915060608103840193506101bb565b60c08112156101b857600182013560b782036020035260005160388112157f010000000000000000000000000000000000000000000000000000000000000060018501350402155857808561044001528060b6838501038661046001378060b6830301830192506020810185019450506101ba565bfe5b5b5b5061006f565b601f841315155857602060208502016020810391505b6000821215156101fc578082604001510182826104400301526020820391506101d8565b808401610420528381018161044003f350505050505b6000f31b2d4f  # noqa: E501
 # This is the contract address: 0xCb969cAAad21A78a24083164ffa81604317Ab603
 
-# Available base types
-base_types = {'int128', 'decimal', 'bytes32', 'uint256', 'bool', 'address'}
-
 # Keywords available for ast.Call type
-valid_call_keywords = {'uint256', 'int128', 'decimal', 'address', 'contract', 'indexed'}
+VALID_CALL_KEYWORDS = {'uint256', 'int128', 'decimal', 'address', 'contract', 'indexed'}
 
 # Valid base units
-valid_units = {'wei', 'sec'}
+VALID_UNITS = {'wei', 'sec'}
 
-# Valid attributes for global variables
-valid_global_keywords = {
+# Valid attributes for variables and methods
+VALID_GLOBAL_KEYWORDS = {
     'public',
     'modifying',
     'event',
     'constant',
-} | valid_units | valid_call_keywords
+    'private',
+    'payable',
+    'nonreentrant',
+} | VALID_UNITS | VALID_CALL_KEYWORDS
 
+# Available base types
+BASE_TYPES = {'int128', 'decimal', 'bytes32', 'uint256', 'bool', 'address'}
 
 # Cannot be used for variable or member naming
-reserved_words = {
-    # types
-    'int128', 'uint256',
-    'address',
-    'bytes32',
-    'map',
-    'string', 'bytes',
+RESERVED_KEYWORDS = {
+    # reference types
+    'map', 'string', 'bytes',
     # control flow
-    'if', 'for', 'while', 'until', 'pass',
-    'def',
+    'if', 'for', 'while', 'until', 'pass', 'def',
     # EVM operations
     'push', 'dup', 'swap', 'send', 'call',
     'selfdestruct', 'assert', 'stop', 'throw',
-    'raise', 'init', '_init_', '___init___', '____init____',
+    'raise', 'init', 'default',
+    # special function (name mangling)
+    '_init_', '___init___', '____init____',
+    '_default_', '___default___', '____default____',
     # environment variables
-    'block', 'msg', 'tx',
+    'block', 'msg', 'tx', 'chain', 'chainid',
+    'blockhash', 'timestamp', 'timedelta',
     # boolean literals
     'true', 'false',
     # more control flow and special operations
-    'self', 'this', 'continue',
+    'self', 'this', 'continue', 'range',
     # None sentinal value
     'none',
     # more special operations
@@ -187,6 +185,8 @@ reserved_words = {
     # denominations
     'ether', 'wei', 'finney', 'szabo', 'shannon', 'lovelace', 'ada', 'babbage',
     'gwei', 'kwei', 'mwei', 'twei', 'pwei',
+    # `address` members
+    'balance', 'codesize', 'is_contract',
     # contract keywords
     'contract', 'struct',
     # units
@@ -194,27 +194,27 @@ reserved_words = {
     # sentinal constant values
     'zero_address', 'empty_bytes32', 'max_int128', 'min_int128', 'max_decimal',
     'min_decimal', 'max_uint256', 'zero_wei',
-}
+} | VALID_GLOBAL_KEYWORDS | BASE_TYPES
 
 # Otherwise reserved words that are whitelisted for function declarations
-function_whitelist = {
-    'send'
+FUNCTION_WHITELIST = {
+    'send',
 }
 
 # List of valid LLL macros.
-valid_lll_macros = {
+VALID_LLL_MACROS = {
     'assert', 'break', 'ceil32', 'clamp', 'clamp', 'clamp_nonzero', 'clampge',
     'clampgt', 'clample', 'clamplt', 'codeload', 'continue', 'debugger', 'ge',
     'if', 'le', 'lll', 'ne', 'pass', 'repeat', 'seq', 'set', 'sge', 'sha3_32',
     'sha3_64', 'sle', 'uclampge', 'uclampgt', 'uclample', 'uclamplt', 'with',
-    '~codelen', 'label', 'goto'
+    '~codelen', 'label', 'goto',
 }
 
 
 # Is a variable or member variable name valid?
 # Same conditions apply for function names and events
 def is_varname_valid(varname, custom_units, custom_structs, constants):
-    from vyper.functions import built_in_functions
+    from vyper.functions import BUILTIN_FUNCTIONS
 
     varname_lower = varname.lower()
     varname_upper = varname.upper()
@@ -229,15 +229,11 @@ def is_varname_valid(varname, custom_units, custom_structs, constants):
         return False, f"Duplicate name: {varname}, previously defined as a struct."
     if varname in constants:
         return False, f"Duplicate name: {varname}, previously defined as a constant."
-    if varname_lower in base_types:
-        return False, f"{varname} name is a base type."
-    if varname_lower in valid_units:
-        return False, f"{varname} is a built in unit type."
-    if varname_lower in reserved_words:
-        return False, f"{varname} is a a reserved keyword."
-    if varname_upper in opcodes:
+    if varname_lower in [k.lower() for k in RESERVED_KEYWORDS]:
+        return False, f"{varname} is a reserved keyword (Vyper language)."
+    if varname_upper in [o.upper() for o in OPCODES]:
         return False, f"{varname} is a reserved keyword (EVM opcode)."
-    if varname_lower in built_in_functions:
+    if varname_lower in [f.lower() for f in BUILTIN_FUNCTIONS]:
         return False, f"{varname} is a built in function."
     if not re.match('^[_a-zA-Z][a-zA-Z0-9_]*$', varname):
         return False, f"{varname} contains invalid character(s)."

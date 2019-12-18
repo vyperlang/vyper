@@ -23,7 +23,7 @@ venv/
 ENV/
 
 # Coverage tests
-.coverage
+.coverage*
 .cache/
 htmlcov/
 coverage.xml

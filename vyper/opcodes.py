@@ -4,7 +4,7 @@ from typing import (
     Optional,
 )
 
-opcodes: Dict[str, List[Optional[int]]] = {
+OPCODES: Dict[str, List[Optional[int]]] = {
     'STOP': [0x00, 0, 0, 0],
     'ADD': [0x01, 2, 1, 3],
     'MUL': [0x02, 2, 1, 5],
@@ -30,7 +30,7 @@ opcodes: Dict[str, List[Optional[int]]] = {
     'BYTE': [0x1a, 2, 1, 3],
     'SHA3': [0x20, 2, 1, 30],
     'ADDRESS': [0x30, 0, 1, 2],
-    'BALANCE': [0x31, 1, 1, 400],
+    'BALANCE': [0x31, 1, 1, 700],  # Updated Istanbul Ruleset
     'ORIGIN': [0x32, 0, 1, 2],
     'CALLER': [0x33, 0, 1, 2],
     'CALLVALUE': [0x34, 0, 1, 2],
@@ -48,11 +48,12 @@ opcodes: Dict[str, List[Optional[int]]] = {
     'NUMBER': [0x43, 0, 1, 2],
     'DIFFICULTY': [0x44, 0, 1, 2],
     'GASLIMIT': [0x45, 0, 1, 2],
+    'CHAINID': [0x46, 0, 1, 2],  # Added Istanbul Ruleset
     'POP': [0x50, 1, 0, 2],
     'MLOAD': [0x51, 1, 1, 3],
     'MSTORE': [0x52, 2, 0, 3],
     'MSTORE8': [0x53, 2, 0, 3],
-    'SLOAD': [0x54, 1, 1, 200],
+    'SLOAD': [0x54, 1, 1, 800],  # Updated Istanbul Ruleset
     'SSTORE': [0x55, 2, 0, 20000],
     'JUMP': [0x56, 1, 0, 8],
     'JUMPI': [0x57, 2, 0, 10],
@@ -142,7 +143,7 @@ opcodes: Dict[str, List[Optional[int]]] = {
     'DEBUG': [0xa5, 1, 0, 0]
 }
 
-pseudo_opcodes: Dict[str, List[Optional[int]]] = {
+PSEUDO_OPCODES: Dict[str, List[Optional[int]]] = {
     'CLAMP': [None, 3, 1, 70],
     'UCLAMPLT': [None, 2, 1, 25],
     'UCLAMPLE': [None, 2, 1, 30],
@@ -167,7 +168,4 @@ pseudo_opcodes: Dict[str, List[Optional[int]]] = {
     'GOTO': [None, 1, 0, 8]
 }
 
-comb_opcodes: Dict[str, List[Optional[int]]] = {}
-
-comb_opcodes.update(opcodes)
-comb_opcodes.update(pseudo_opcodes)
+COMB_OPCODES: Dict[str, List[Optional[int]]] = {**OPCODES, **PSEUDO_OPCODES}

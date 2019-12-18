@@ -15,21 +15,21 @@ In particular, we need help in the following areas:
 * Improving the documentation
 * Responding to questions from other users on `StackExchange
   <https://ethereum.stackexchange.com>`_ and the `Vyper Gitter
-  <https://gitter.im/ethereum/vyper>`_
+  <https://gitter.im/vyperlang/community>`_
 * Suggesting Improvements
-* Fixing and responding to `Vyper's GitHub issues <https://github.com/ethereum/vyper/issues>`_
+* Fixing and responding to `Vyper's GitHub issues <https://github.com/vyperlang/vyper/issues>`_
 
 How to Suggest Improvements
 ===========================
 
 To suggest an improvement, please create a Vyper Improvement Proposal (VIP for short)
-using the `VIP Template <https://github.com/ethereum/vyper/blob/master/.github/ISSUE_TEMPLATE/vip.md>`_.
+using the `VIP Template <https://github.com/vyperlang/vyper/blob/master/.github/ISSUE_TEMPLATE/vip.md>`_.
 
 How to Report Issues
 ====================
 
 To report an issue, please use the
-`GitHub issues tracker <https://github.com/ethereum/vyper/issues>`_. When
+`GitHub issues tracker <https://github.com/vyperlang/vyper/issues>`_. When
 reporting issues, please mention the following details:
 
 * Which version of Vyper you are using
@@ -46,7 +46,7 @@ very helpful and sometimes even clarifies a misunderstanding.
 Fix Bugs
 ========
 
-Find or report bugs at our `issues page <https://github.com/ethereum/vyper/issues>`_. Anything tagged with "bug" is open to whoever wants to implement it.
+Find or report bugs at our `issues page <https://github.com/vyperlang/vyper/issues>`_. Anything tagged with "bug" is open to whoever wants to implement it.
 
 Style Guide
 ===========
@@ -55,7 +55,7 @@ Style Guide
 Vyper's codebase follows the 
 `Snake Charmer's Style Guide <https://github.com/ethereum/snake-charmers-tactical-manual/blob/master/style-guide.md>`_.
 Some of the things not covered by style guide that we maintain in our codebase is the use of
-`f-strings <https://github.com/ethereum/vyper/issues/1567>`_ across the repository (when helpful for clarity),
+`f-strings <https://github.com/vyperlang/vyper/issues/1567>`_ across the repository (when helpful for clarity),
 and adherence to the `architectural design <https://vyper.readthedocs.io/en/latest/architecture.html>`_ of the codebase.
 
 Workflow for Pull Requests

@@ -65,17 +65,20 @@ BUILTIN_CONSTANTS = {
     'ZERO_WEI': (0, 'uint256', {'wei': 1}),
 }
 
-ENVIRONMENT_VARIABLES = (
+ENVIRONMENT_VARIABLES = {
     "block",
     "msg",
     "tx",
-)
+    "chain",
+}
 
 
 def get_min_val_for_type(typ: str) -> int:
-    if "int" not in typ.lower():
-        raise Exception("Not an integer type: {typ}")
-    min_val, _, _ = BUILTIN_CONSTANTS['MIN_'+typ.upper()]
+    key = 'MIN_' + typ.upper()
+    try:
+        min_val, _, _ = BUILTIN_CONSTANTS[key]
+    except KeyError as e:
+        raise TypeMismatchException(f"Not a signed type: {typ}") from e
     return min_val
 
 
@@ -378,6 +381,8 @@ class Expr(object):
                 )
             elif key == "tx.origin":
                 return LLLnode.from_list(['origin'], typ='address', pos=getpos(self.expr))
+            elif key == "chain.id":
+                return LLLnode.from_list(['chainid'], typ='uint256', pos=getpos(self.expr))
             else:
                 raise ParserException("Unsupported keyword: " + key, self.expr)
         # Other variables
@@ -967,14 +972,14 @@ class Expr(object):
     # Function calls
     def call(self):
         from vyper.functions import (
-            dispatch_table,
+            DISPATCH_TABLE,
         )
 
         if isinstance(self.expr.func, ast.Name):
             function_name = self.expr.func.id
 
-            if function_name in dispatch_table:
-                return dispatch_table[function_name](self.expr, self.context)
+            if function_name in DISPATCH_TABLE:
+                return DISPATCH_TABLE[function_name](self.expr, self.context)
 
             # Struct constructors do not need `self` prefix.
             elif function_name in self.context.structs:
@@ -1056,8 +1061,8 @@ class Expr(object):
 
     @staticmethod
     def struct_literals(expr, name, context):
-        o = {}
-        members = {}
+        member_subs = {}
+        member_typs = {}
         for key, value in zip(expr.keys, expr.values):
             if not isinstance(key, ast.Name):
                 raise TypeMismatchException(
@@ -1071,13 +1076,14 @@ class Expr(object):
                 context.constants,
                 "Invalid member variable for struct",
             )
-            if key.id in o:
+            if key.id in member_subs:
                 raise TypeMismatchException("Member variable duplicated: " + key.id, key)
-            o[key.id] = Expr(value, context).lll_node
-            members[key.id] = o[key.id].typ
+            sub = Expr(value, context).lll_node
+            member_subs[key.id] = sub
+            member_typs[key.id] = sub.typ
         return LLLnode.from_list(
-            ["multi"] + [o[key] for key in (list(o.keys()))],
-            typ=StructType(members, name, is_literal=True),
+            ["multi"] + [member_subs[key] for key in member_subs.keys()],
+            typ=StructType(member_typs, name, is_literal=True),
             pos=getpos(expr),
         )
 

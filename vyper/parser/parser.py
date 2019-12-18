@@ -36,7 +36,7 @@ from vyper.signatures.interface import (
     check_valid_contract_interface,
 )
 from vyper.utils import (
-    LOADED_LIMIT_MAP,
+    LOADED_LIMITS,
 )
 
 if not hasattr(ast, 'AnnAssign'):
@@ -53,7 +53,7 @@ STORE_CALLDATA: List[Any] = \
 # Store limit constants at fixed addresses in memory.
 LIMIT_MEMORY_SET: List[Any] = [
     ['mstore', pos, limit_size]
-    for pos, limit_size in LOADED_LIMIT_MAP.items()
+    for pos, limit_size in LOADED_LIMITS.items()
 ]
 FUNC_INIT_LLL = LLLnode.from_list(
     STORE_CALLDATA + LIMIT_MEMORY_SET, typ=None

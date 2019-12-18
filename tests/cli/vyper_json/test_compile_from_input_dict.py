@@ -15,6 +15,7 @@ from vyper.cli.vyper_json import (
 )
 from vyper.exceptions import (
     JSONError,
+    PythonSyntaxException,
     TypeMismatchException,
 )
 
@@ -78,7 +79,7 @@ def test_wrong_language():
 def test_exc_handler_raises_syntax():
     input_json = deepcopy(INPUT_JSON)
     input_json['sources']['badcode.vy'] = {'content': BAD_SYNTAX_CODE}
-    with pytest.raises(SyntaxError):
+    with pytest.raises(PythonSyntaxException):
         compile_from_input_dict(input_json, exc_handler_raises)
 
 
@@ -90,7 +91,7 @@ def test_exc_handler_to_dict_syntax():
     assert len(result['errors']) == 1
     error = result['errors'][0]
     assert error['component'] == "parser"
-    assert error['type'] == "SyntaxError"
+    assert error['type'] == "PythonSyntaxException"
 
 
 def test_exc_handler_raises_compiler():

@@ -6,7 +6,7 @@ undergoes constant changes. Installation will be much more simplified and
 optimized after a stable version release.
 
 Take a deep breath, follow the instructions, and please
-`create an issue <https://github.com/ethereum/vyper/issues>`_ if you encounter
+`create an issue <https://github.com/vyperlang/vyper/issues>`_ if you encounter
 any errors.
 
 .. note::
@@ -146,7 +146,7 @@ Get the latest version of Vyper by cloning the Github repository, and run the
 install and test commands:
 ::
 
-    git clone https://github.com/ethereum/vyper.git
+    git clone https://github.com/vyperlang/vyper.git
     cd vyper
     make
     make dev-deps
@@ -158,7 +158,7 @@ Additionally, you may try to compile an example contract by running:
     vyper examples/crowdfund.vy
 
 If everything works correctly, you are now able to compile your own smart contracts written in Vyper.
-If any unexpected errors or exceptions are encountered, please feel free to `open an issue <https://github.com/ethereum/vyper/issues/new>`_.
+If any unexpected errors or exceptions are encountered, please feel free to `open an issue <https://github.com/vyperlang/vyper/issues/new>`_.
 
 .. note::
     If you get the error ``fatal error: openssl/aes.h: No such file or directory`` in the output of ``make``, then run ``sudo apt-get install libssl-dev1``, then run ``make`` again.
@@ -213,23 +213,23 @@ Dockerhub
 Vyper can be downloaded as docker image from dockerhub:
 ::
 
-    docker pull ethereum/vyper
+    docker pull vyperlang/vyper
 
 To run the compiler use the `docker run` command:
 ::
 
-    docker run -v $(pwd):/code ethereum/vyper /code/<contract_file.vy>
+    docker run -v $(pwd):/code vyperlang/vyper /code/<contract_file.vy>
 
 Alternatively you can log into the docker image and execute vyper on the prompt.
 ::
 
-    docker run -v $(pwd):/code/ -it --entrypoint /bin/bash ethereum/vyper
+    docker run -v $(pwd):/code/ -it --entrypoint /bin/bash vyperlang/vyper
     root@d35252d1fb1b:/code# vyper <contract_file.vy>
 
 The normal paramaters are also supported, for example:
 ::
 
-    docker run -v $(pwd):/code ethereum/vyper -f abi /code/<contract_file.vy>
+    docker run -v $(pwd):/code vyperlang/vyper -f abi /code/<contract_file.vy>
     [{'name': 'test1', 'outputs': [], 'inputs': [{'type': 'uint256', 'name': 'a'}, {'type': 'bytes', 'name': 'b'}], 'constant': False, 'payable': False, 'type': 'function', 'gas': 441}, {'name': 'test2', 'outputs': [], 'inputs': [{'type': 'uint256', 'name': 'a'}], 'constant': False, 'payable': False, 'type': 'function', 'gas': 316}]
 
 Dockerfile
@@ -238,7 +238,7 @@ Dockerfile
 A Dockerfile is provided in the master branch of the repository. In order to build a Docker Image please run:
 ::
 
-    docker build https://github.com/ethereum/vyper.git -t vyper:1
+    docker build https://github.com/vyperlang/vyper.git -t vyper:1
     docker run -it --entrypoint /bin/bash vyper:1
 
 To ensure that everything works correctly after the installtion, please run the test commands

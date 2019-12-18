@@ -38,6 +38,11 @@ clean-pyc:
 clean-test:
 	@echo Cleaning test files...
 	@find . -name 'htmlcov' -exec rm -rf {} +
+	@rm -fr coverage.xml
+	@rm -fr .coverage
+	@rm -fr .eggs/
+	@rm -fr .pytest_cache/
+
 
 docs:
 	rm -f docs/vyper.rst

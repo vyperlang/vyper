@@ -4,7 +4,7 @@ from vyper.exceptions import (
     CompilerPanic,
 )
 from vyper.opcodes import (
-    comb_opcodes,
+    COMB_OPCODES,
 )
 from vyper.settings import (
     VYPER_COLOR_OUTPUT,
@@ -16,7 +16,7 @@ from vyper.types import (
     ceil32,
 )
 from vyper.utils import (
-    valid_lll_macros,
+    VALID_LLL_MACROS,
 )
 
 # Set default string representation for ints in LLL output.
@@ -88,8 +88,8 @@ class LLLnode:
             self.gas = 5
         elif isinstance(self.value, str):
             # Opcodes and pseudo-opcodes (e.g. clamp)
-            if self.value.upper() in comb_opcodes:
-                _, ins, outs, gas = comb_opcodes[self.value.upper()]
+            if self.value.upper() in COMB_OPCODES:
+                _, ins, outs, gas = COMB_OPCODES[self.value.upper()]
                 self.valency = outs
                 if len(self.args) != ins:
                     raise CompilerPanic(
@@ -255,9 +255,9 @@ class LLLnode:
 
     @staticmethod
     def _colorise_keywords(val):
-        if val.lower() in valid_lll_macros:  # highlight macro
+        if val.lower() in VALID_LLL_MACROS:  # highlight macro
             return OKLIGHTMAGENTA + val + ENDC
-        elif val.upper() in comb_opcodes.keys():
+        elif val.upper() in COMB_OPCODES.keys():
             return OKMAGENTA + val + ENDC
         return val
 
@@ -323,6 +323,8 @@ class LLLnode:
             typ = BaseType(typ)
 
         if isinstance(obj, LLLnode):
+            # note: this modify-and-returnclause is a little weird since
+            # the input gets modified. CC 20191121.
             if typ is not None:
                 obj.typ = typ
             if obj.pos is None:

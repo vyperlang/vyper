@@ -20,6 +20,7 @@ test_deps = [
 lint_deps = [
     'flake8>=3.7,<4',
     'flake8-bugbear>=19.8.0,<20',
+    'flake8-use-fstring>=1.0.0,<2.0.0',
     'isort>=4.2.15,<5',
     'mypy>=0.740,<1',
 ]
@@ -45,14 +46,14 @@ setup(
     name='vyper',
     # *IMPORTANT*: Don't manually change the version here. Use the 'bumpversion' utility.
     version='0.1.0-beta.14',
-    description='Vyper Programming Language for Ethereum',
+    description='Vyper: the Pythonic Programming Language for the EVM',
     long_description_markdown_filename='README.md',
     long_description_content_type='text/markdown',
-    author='Vitalik Buterin',
+    author='Vyper Team',
     author_email='',
-    url='https://github.com/ethereum/vyper',
+    url='https://github.com/vyperlang/vyper',
     license="MIT",
-    keywords='ethereum',
+    keywords='ethereum evm smart contract language',
     include_package_data=True,
     packages=find_packages(exclude=('tests', 'docs')),
     python_requires='>=3.6',

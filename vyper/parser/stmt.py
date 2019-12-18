@@ -7,6 +7,10 @@ from vyper import ast
 from vyper.ast_utils import (
     ast_to_dict,
 )
+from vyper.codegen.return_ import (
+    gen_tuple_return,
+    make_return_stmt,
+)
 from vyper.exceptions import (
     CompilerPanic,
     ConstancyViolationException,
@@ -17,8 +21,8 @@ from vyper.exceptions import (
     VariableDeclarationException,
 )
 from vyper.functions import (
-    dispatch_table,
-    stmt_dispatch_table,
+    DISPATCH_TABLE,
+    STMT_DISPATCH_TABLE,
 )
 from vyper.parser import (
     external_call,
@@ -34,10 +38,8 @@ from vyper.parser.expr import (
 from vyper.parser.parser_utils import (
     LLLnode,
     base_type_conversion,
-    gen_tuple_return,
     getpos,
     make_byte_array_copier,
-    make_return_stmt,
     make_setter,
     unwrap_location,
     zero_pad,
@@ -390,12 +392,12 @@ class Stmt(object):
         ) and isinstance(self.stmt.func.value, ast.Name) and self.stmt.func.value.id == 'log'
 
         if isinstance(self.stmt.func, ast.Name):
-            if self.stmt.func.id in stmt_dispatch_table:
+            if self.stmt.func.id in STMT_DISPATCH_TABLE:
                 if self.stmt.func.id == 'clear':
                     return self._clear()
                 else:
-                    return stmt_dispatch_table[self.stmt.func.id](self.stmt, self.context)
-            elif self.stmt.func.id in dispatch_table:
+                    return STMT_DISPATCH_TABLE[self.stmt.func.id](self.stmt, self.context)
+            elif self.stmt.func.id in DISPATCH_TABLE:
                 raise StructureException(
                     f"Function {self.stmt.func.id} can not be called without being used.",
                     self.stmt,

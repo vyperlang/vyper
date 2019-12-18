@@ -8,8 +8,8 @@ LABEL org.label-schema.build-date=$BUILD_DATE \
     org.label-schema.description="Vyper is an experimental programming language" \
     org.label-schema.url="https://vyper.readthedocs.io/en/latest/" \
     org.label-schema.vcs-ref=$VCS_REF \
-    org.label-schema.vcs-url="https://github.com/ethereum/vyper" \
-    org.label-schema.vendor="Ethereum" \
+    org.label-schema.vcs-url="https://github.com/vyperlang/vyper" \
+    org.label-schema.vendor="Vyper Team" \
     org.label-schema.schema-version="1.0"
 
 # coincurve requires libgmp
