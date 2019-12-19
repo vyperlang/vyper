@@ -1,5 +1,6 @@
 import textwrap
 
+import pytest
 import hypothesis
 from hypothesis import (
     HealthCheck,
@@ -112,6 +113,7 @@ def from_grammar(start: str = "file_input") -> st.SearchStrategy[str]:
     return GrammarStrategy(grammar, start, explicit_strategies)
 
 
+@pytest.mark.long_run_time
 @given(
     code=from_grammar()
 )
