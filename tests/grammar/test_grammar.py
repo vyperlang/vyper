@@ -1,6 +1,5 @@
 import textwrap
 
-import pytest
 import hypothesis
 from hypothesis import (
     HealthCheck,
@@ -11,6 +10,7 @@ from hypothesis.extra.lark import (
     LarkStrategy,
 )
 import hypothesis.strategies as st
+import pytest
 
 from conftest import (
     get_lark_grammar,
