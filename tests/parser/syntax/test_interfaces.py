@@ -134,3 +134,31 @@ def test():
 @pytest.mark.parametrize('good_code', valid_list)
 def test_interfaces_success(good_code):
     assert compiler.compile_code(good_code) is not None
+
+
+def test_imports_and_implements_within_interface():
+    interface_code = """
+from vyper.interfaces import ERC20
+import foo.bar as Baz
+
+implements: Baz
+
+@public
+def foobar():
+    pass
+"""
+
+    code = """
+import foo as Foo
+
+implements: Foo
+
+@public
+def foobar():
+    pass
+"""
+
+    assert compiler.compile_code(
+        code,
+        interface_codes={'Foo': {'type': "vyper", 'code': interface_code}}
+    ) is not None
