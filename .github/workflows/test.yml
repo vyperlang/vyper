@@ -130,10 +130,4 @@ jobs:
       run: pip install tox
 
     - name: Run Tox
-      run: TOXENV=py38-core tox -r
-
-    - name: Upload Coverage
-      uses: codecov/codecov-action@v1
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        file: ./coverage.xml
+      run: TOXENV=long_run_time tox -r
