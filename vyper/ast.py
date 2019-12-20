@@ -1,3 +1,4 @@
+from ast import AST
 from itertools import (
     chain,
 )
@@ -25,7 +26,13 @@ BASE_NODE_ATTRIBUTES = (
 )
 
 
-class VyperNode:
+class VyperNode(AST):
+    """
+    Base class for all Vyper AST nodes
+
+    Subclasses the Python AST base node so we can use methods from the ast module
+    """
+    # NOTE: __slots__ has an integration with MyPy
     __slots__ = BASE_NODE_ATTRIBUTES
     ignored_fields: typing.Tuple = ('ctx', )
     only_empty_fields: typing.Tuple = ()
