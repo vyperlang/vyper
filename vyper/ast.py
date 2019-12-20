@@ -37,6 +37,12 @@ class VyperNode:
             for klass in cls.__class__.mro(cls)
         ))
 
+    @property
+    def _fields(self):
+        # NOTE: Returns all the fields of a node in a manner compliant
+        #       with the expectations of the Python AST module
+        return self.get_slots()
+
     def __init__(self, **kwargs):
 
         for field_name, value in kwargs.items():
