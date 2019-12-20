@@ -24,6 +24,9 @@ def get_lark_grammar():
     )
 
 
+LARK_GRAMMAR = get_lark_grammar()
+
+
 @pytest.fixture
 def lark_grammar():
-    return get_lark_grammar()
+    return LARK_GRAMMAR
