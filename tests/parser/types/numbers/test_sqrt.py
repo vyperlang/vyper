@@ -149,7 +149,7 @@ def test_sqrt_bounds(sqrt_contract, value):
     assert vyper_sqrt == actual_sqrt
 
 
-@pytest.mark.long_run_time
+@pytest.mark.fuzzing
 @hypothesis.given(
     value=hypothesis.strategies.decimals(
         min_value=Decimal(0),
@@ -168,7 +168,7 @@ def test_sqrt_valid_range(sqrt_contract, value):
     assert vyper_sqrt == actual_sqrt
 
 
-@pytest.mark.long_run_time
+@pytest.mark.fuzzing
 @hypothesis.given(
     value=hypothesis.strategies.decimals(
         min_value=Decimal(SizeLimits.MINNUM),
