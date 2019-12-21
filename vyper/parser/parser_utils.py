@@ -264,6 +264,7 @@ def getpos(node):
 
 
 def set_offsets(node, pos):
+    # TODO replace this with a visitor pattern
     for field in node.get_slots():
         item = getattr(node, field, None)
         if isinstance(item, ast.VyperNode):
