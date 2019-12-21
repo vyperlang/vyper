@@ -215,7 +215,11 @@ def get_input_dict_interfaces(input_dict: Dict) -> Dict:
 
 def get_input_dict_output_formats(input_dict: Dict, contract_sources: ContractCodes) -> Dict:
     output_formats = {}
-    for path, outputs in input_dict['outputSelection'].items():
+    try:
+        output_selection = input_dict['settings']['outputSelection']
+    except KeyError:
+        output_selection = input_dict['outputSelection']
+    for path, outputs in output_selection.items():
         if isinstance(outputs, dict):
             # if outputs are given in solc json format, collapse them into a single list
             outputs = set(x for i in outputs.values() for x in i)

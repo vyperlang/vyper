@@ -98,35 +98,35 @@ The following example describes the expected input format of ``vyper-json``. Com
         },
         // Optional
         "settings": {
-            "evmVersion": "byzantium"  // EVM version to compile for. Can be byzantium, constantinople or petersburg.
-        },
-        // The following is used to select desired outputs based on file names.
-        // File names are given as keys, a star as a file name matches all files.
-        // Outputs can also follow the Solidity format where second level keys
-        // denoting contract names - all 2nd level outputs are applied to the file.
-        //
-        // To select all possible compiler outputs: "outputSelection: { '*': ["*"] }"
-        // Note that this might slow down the compilation process needlessly.
-        //
-        // The available output types are as follows:
-        //
-        //    abi - The contract ABI
-        //    ast - Abstract syntax tree
-        //    interface - Derived interface of the contract, in proper Vyper syntax
-        //    ir - LLL intermediate representation of the code
-        //    evm.bytecode.object - Bytecode object
-        //    evm.bytecode.opcodes - Opcodes list
-        //    evm.deployedBytecode.object - Deployed bytecode object
-        //    evm.deployedBytecode.opcodes - Deployed opcodes list
-        //    evm.deployedBytecode.sourceMap - Deployed source mapping (useful for debugging)
-        //    evm.methodIdentifiers - The list of function hashes
-        //
-        // Using `evm`, `evm.bytecode`, etc. will select every target part of that output.
-        // Additionally, `*` can be used as a wildcard to request everything.
-        //
-        "outputSelection": {
-            "*": ["evm.bytecode", "abi"],  // Enable the abi and bytecode outputs for every single contract
-            "contracts/foo.vy": ["ast"]  // Enable the ast output for contracts/foo.vy
+            "evmVersion": "byzantium",  // EVM version to compile for. Can be byzantium, constantinople or petersburg.
+            // The following is used to select desired outputs based on file names.
+            // File names are given as keys, a star as a file name matches all files.
+            // Outputs can also follow the Solidity format where second level keys
+            // denoting contract names - all 2nd level outputs are applied to the file.
+            //
+            // To select all possible compiler outputs: "outputSelection: { '*': ["*"] }"
+            // Note that this might slow down the compilation process needlessly.
+            //
+            // The available output types are as follows:
+            //
+            //    abi - The contract ABI
+            //    ast - Abstract syntax tree
+            //    interface - Derived interface of the contract, in proper Vyper syntax
+            //    ir - LLL intermediate representation of the code
+            //    evm.bytecode.object - Bytecode object
+            //    evm.bytecode.opcodes - Opcodes list
+            //    evm.deployedBytecode.object - Deployed bytecode object
+            //    evm.deployedBytecode.opcodes - Deployed opcodes list
+            //    evm.deployedBytecode.sourceMap - Deployed source mapping (useful for debugging)
+            //    evm.methodIdentifiers - The list of function hashes
+            //
+            // Using `evm`, `evm.bytecode`, etc. will select every target part of that output.
+            // Additionally, `*` can be used as a wildcard to request everything.
+            //
+            "outputSelection": {
+                "*": ["evm.bytecode", "abi"],  // Enable the abi and bytecode outputs for every single contract
+                "contracts/foo.vy": ["ast"]  // Enable the ast output for contracts/foo.vy
+            }
         }
     }
 
