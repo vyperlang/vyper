@@ -21,6 +21,6 @@ def test_early_evm(evm_version):
         get_input_dict_settings({'settings': {'evmVersion': evm_version}})
 
 
-@pytest.mark.parametrize('evm_version', ['byzantium', 'constantinople', 'petersburg'])
+@pytest.mark.parametrize('evm_version', ['byzantium', 'constantinople', 'petersburg', 'istanbul'])
 def test_valid_evm(evm_version):
     get_input_dict_settings({'settings': {'evmVersion': evm_version}})

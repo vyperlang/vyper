@@ -98,7 +98,7 @@ The following example describes the expected input format of ``vyper-json``. Com
         },
         // Optional
         "settings": {
-            "evmVersion": "byzantium",  // EVM version to compile for. Can be byzantium, constantinople or petersburg.
+            "evmVersion": "byzantium",  // EVM version to compile for. Can be byzantium, constantinople, petersburg or istanbul.
             // The following is used to select desired outputs based on file names.
             // File names are given as keys, a star as a file name matches all files.
             // Outputs can also follow the Solidity format where second level keys

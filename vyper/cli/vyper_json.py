@@ -166,7 +166,7 @@ def get_input_dict_settings(input_dict: Dict) -> None:
     evm_version = input_dict['settings'].get('evmVersion', 'byzantium')
     if evm_version in ('homestead', 'tangerineWhistle', 'spuriousDragon'):
         raise JSONError("Vyper does not support pre-byzantium EVM versions")
-    if evm_version not in ('byzantium', 'constantinople', 'petersburg'):
+    if evm_version not in ('byzantium', 'constantinople', 'petersburg', 'istanbul'):
         raise JSONError(f"Unknown EVM version - '{evm_version}'")
 
 
