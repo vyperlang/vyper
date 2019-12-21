@@ -389,17 +389,20 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
         if location == 'storage':
             return LLLnode.from_list(['add', ['sha3_32', parent], sub],
                                      typ=subtype,
-                                     location='storage')
+                                     location='storage',
+                                     pos=pos)
         elif location == 'storage_prehashed':
             return LLLnode.from_list(['add', parent, sub],
                                      typ=subtype,
-                                     location='storage')
+                                     location='storage',
+                                     pos=pos)
         elif location in ('calldata', 'memory'):
             offset = 32 * get_size_of_type(subtype)
             return LLLnode.from_list(
                 ['add', ['mul', offset, sub], parent],
                 typ=subtype,
                 location=location,
+                pos=pos
             )
         else:
             raise TypeMismatchException("Not expecting an array access ", pos)
