@@ -262,6 +262,19 @@ def getpos(node):
     )
 
 
+def set_offsets(node, pos):
+    # TODO replace this with a visitor pattern
+    for field in node.get_slots():
+        item = getattr(node, field, None)
+        if isinstance(item, ast.VyperNode):
+            set_offsets(item, pos)
+        elif isinstance(item, list):
+            for i in item:
+                if isinstance(i, ast.VyperNode):
+                    set_offsets(i, pos)
+    node.lineno, node.col_offset, node.end_lineno, node.end_col_offset = pos
+
+
 # Take a value representing a memory or storage location, and descend down to
 # an element or member variable
 def add_variable_offset(parent, key, pos, array_bounds_check=True):
@@ -376,17 +389,20 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
         if location == 'storage':
             return LLLnode.from_list(['add', ['sha3_32', parent], sub],
                                      typ=subtype,
-                                     location='storage')
+                                     location='storage',
+                                     pos=pos)
         elif location == 'storage_prehashed':
             return LLLnode.from_list(['add', parent, sub],
                                      typ=subtype,
-                                     location='storage')
+                                     location='storage',
+                                     pos=pos)
         elif location in ('calldata', 'memory'):
             offset = 32 * get_size_of_type(subtype)
             return LLLnode.from_list(
                 ['add', ['mul', offset, sub], parent],
                 typ=subtype,
                 location=location,
+                pos=pos
             )
         else:
             raise TypeMismatchException("Not expecting an array access ", pos)
