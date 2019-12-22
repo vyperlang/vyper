@@ -173,7 +173,7 @@ RESERVED_KEYWORDS = {
     '_init_', '___init___', '____init____',
     '_default_', '___default___', '____default____',
     # environment variables
-    'block', 'msg', 'tx',
+    'block', 'msg', 'tx', 'chain', 'chainid',
     'blockhash', 'timestamp', 'timedelta',
     # boolean literals
     'true', 'false',

@@ -48,11 +48,12 @@ OPCODES: Dict[str, Tuple[Union[int, None], int, int, int]] = {
     'NUMBER': (0x43, 0, 1, 2),
     'DIFFICULTY': (0x44, 0, 1, 2),
     'GASLIMIT': (0x45, 0, 1, 2),
+    'CHAINID': (0x46, 0, 1, 2),  # Added Istanbul Ruleset
     'POP': (0x50, 1, 0, 2),
     'MLOAD': (0x51, 1, 1, 3),
     'MSTORE': (0x52, 2, 0, 3),
     'MSTORE8': (0x53, 2, 0, 3),
-    'SLOAD': (0x54, 1, 1, 800),
+    'SLOAD': (0x54, 1, 1, 800),  # Updated Istanbul Ruleset
     'SSTORE': (0x55, 2, 0, 20000),
     'JUMP': (0x56, 1, 0, 8),
     'JUMPI': (0x57, 2, 0, 10),
@@ -141,6 +142,7 @@ OPCODES: Dict[str, Tuple[Union[int, None], int, int, int]] = {
     'INVALID': (0xfe, 0, 0, 0),
     'DEBUG': (0xa5, 1, 0, 0)
 }
+
 
 PSEUDO_OPCODES: Dict[str, Tuple[Union[int, None], int, int, int]] = {
     'CLAMP': (None, 3, 1, 70),
