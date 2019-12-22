@@ -378,7 +378,7 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
             d = LLLnode.from_list(dst_loc, typ=o.typ, location='memory')
             lll_ret.append(
                     ['seq',
-                        make_setter(d, o, location=o.location,  pos=pos),
+                        make_setter(d, o, location=d.location,  pos=pos),
                         zero_pad(d)])
         else:
             raise CompilerPanic(f'unreachable type: {o.typ}')
