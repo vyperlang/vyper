@@ -373,12 +373,12 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
 
         elif isinstance(o.typ, BaseType):
             d = LLLnode(dst_loc, typ=o.typ, location='memory')
-            lll_ret.append(make_setter(d, o, "memory", pos))
+            lll_ret.append(make_setter(d, o, location=d.location, pos=pos))
         elif isinstance(o.typ, ByteArrayLike):
             d = LLLnode.from_list(dst_loc, typ=o.typ, location='memory')
             lll_ret.append(
                     ['seq',
-                        make_setter(d, o, o.location, pos=pos),
+                        make_setter(d, o, location=d.location,  pos=pos),
                         zero_pad(d)])
         else:
             raise CompilerPanic(f'unreachable type: {o.typ}')
@@ -433,7 +433,7 @@ def abi_decode(lll_node, src, pos=None):
             # descend into the child tuple
             lll_ret.append(abi_decode(o, child_loc, pos=pos))
         else:
-            lll_ret.append(make_setter(o, src_loc))
+            lll_ret.append(make_setter(o, src_loc, location=o.location, pos=pos))
 
         if i + 1 == len(os):
             pass  # optimize out the last pointer increment
