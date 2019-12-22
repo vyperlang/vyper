@@ -10,6 +10,7 @@ from typing import (
     Union,
 )
 
+from vyper import ast
 from vyper.exceptions import (
     ArrayIndexException,
     ConstancyViolationException,
