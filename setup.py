@@ -59,7 +59,7 @@ setup(
     python_requires='>=3.6',
     py_modules=['vyper'],
     install_requires=[
-        'asttokens==1.1.13',
+        'asttokens==2.0.3',
         'pycryptodome>=3.5.1,<4',
     ],
     setup_requires=[
