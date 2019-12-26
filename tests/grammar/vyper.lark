@@ -75,7 +75,7 @@ body: simple_stmt | _NEWLINE _INDENT stmt+ _DEDENT
 
 ?power: atom_expr ["**" factor]
 
-?atom_expr: atom_expr "(" [arguments] ")"      -> funccall
+?atom_expr: atom_expr "(" [arguments] ")"    -> call
           | atom_expr "[" subscriptlist "]"  -> getitem
           | atom_expr "." NAME               -> getattr
           | atom
