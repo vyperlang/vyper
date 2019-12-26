@@ -14,13 +14,11 @@ import asttokens
 
 from vyper import (
     compile_lll,
+    opcodes,
     optimizer,
 )
 from vyper.ast_utils import (
     ast_to_dict,
-)
-from vyper.opcodes import (
-    OPCODES,
 )
 from vyper.parser import (
     parser,
@@ -203,7 +201,7 @@ def get_opcodes(code, contract_name, bytecodes_runtime=False, interface_codes=No
         interface_codes=interface_codes
     ).hex().upper()
     bytecode = deque(bytecode[i:i + 2] for i in range(0, len(bytecode), 2))
-    opcode_map = dict((v[0], k) for k, v in OPCODES.items())
+    opcode_map = dict((v[0], k) for k, v in opcodes.get_opcodes().items())
     opcode_str = ""
 
     while bytecode:

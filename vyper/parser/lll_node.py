@@ -4,7 +4,7 @@ from vyper.exceptions import (
     CompilerPanic,
 )
 from vyper.opcodes import (
-    COMB_OPCODES,
+    get_comb_opcodes,
 )
 from vyper.settings import (
     VYPER_COLOR_OUTPUT,
@@ -88,8 +88,8 @@ class LLLnode:
             self.gas = 5
         elif isinstance(self.value, str):
             # Opcodes and pseudo-opcodes (e.g. clamp)
-            if self.value.upper() in COMB_OPCODES:
-                _, ins, outs, gas = COMB_OPCODES[self.value.upper()]
+            if self.value.upper() in get_comb_opcodes():
+                _, ins, outs, gas = get_comb_opcodes()[self.value.upper()]
                 self.valency = outs
                 if len(self.args) != ins:
                     raise CompilerPanic(
@@ -257,7 +257,7 @@ class LLLnode:
     def _colorise_keywords(val):
         if val.lower() in VALID_LLL_MACROS:  # highlight macro
             return OKLIGHTMAGENTA + val + ENDC
-        elif val.upper() in COMB_OPCODES.keys():
+        elif val.upper() in get_comb_opcodes().keys():
             return OKMAGENTA + val + ENDC
         return val
 

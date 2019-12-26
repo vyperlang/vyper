@@ -11,7 +11,7 @@ from vyper.utils import (
 )
 
 from .opcodes import (
-    OPCODES,
+    get_opcodes,
 )
 
 PUSH_OFFSET = 0x5f
@@ -100,7 +100,7 @@ def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=No
         raise CompilerPanic(f"Incorrect type for existing_labels: {type(existing_labels)}")
 
     # Opcodes
-    if isinstance(code.value, str) and code.value.upper() in OPCODES:
+    if isinstance(code.value, str) and code.value.upper() in get_opcodes():
         o = []
         for i, c in enumerate(code.args[::-1]):
             o.extend(compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
@@ -534,8 +534,8 @@ def assembly_to_evm(assembly, start_pos=0):
                 o += bytes([PUSH_OFFSET + 2, posmap[item] // 256, posmap[item] % 256])
         elif isinstance(item, int):
             o += bytes([item])
-        elif isinstance(item, str) and item.upper() in OPCODES:
-            o += bytes([OPCODES[item.upper()][0]])
+        elif isinstance(item, str) and item.upper() in get_opcodes():
+            o += bytes([get_opcodes()[item.upper()][0]])
         elif item[:4] == 'PUSH':
             o += bytes([PUSH_OFFSET + int(item[4:])])
         elif item[:3] == 'DUP':
