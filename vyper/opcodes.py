@@ -4,6 +4,16 @@ from typing import (
     Optional,
 )
 
+active_evm_version: int = None
+
+EVM_VERSIONS = {
+    'byzantium': 0,
+    'constantinople': 1,
+    'petersburg': 2,
+    'istanbul': 3,
+}
+
+# opcode as hex value, number of values removed from stack, added to stack, gas cost
 OPCODES: Dict[str, List[Optional[int]]] = {
     'STOP': [0x00, 0, 0, 0],
     'ADD': [0x01, 2, 1, 3],
@@ -169,3 +179,26 @@ PSEUDO_OPCODES: Dict[str, List[Optional[int]]] = {
 }
 
 COMB_OPCODES: Dict[str, List[Optional[int]]] = {**OPCODES, **PSEUDO_OPCODES}
+
+
+def set_evm_version(version_name):
+    global active_evm_version
+    active_evm_version = EVM_VERSIONS[version_name]
+
+
+def _gas(opcode_name):
+    if isinstance(COMB_OPCODES[opcode_name][3], int):
+        return COMB_OPCODES[opcode_name][3]
+    return COMB_OPCODES[opcode_name][3][active_evm_version]
+
+
+def get_opcodes():
+    if active_evm_version is None:
+        raise
+    return dict((k, v[:3]+[_gas(k)]) for k, v in OPCODES.items() if _gas(k) is not None)
+
+
+def get_comb_opcodes():
+    if active_evm_version is None:
+        raise
+    return dict((k, v[:3]+[_gas(k)]) for k, v in COMB_OPCODES.items() if _gas(k) is not None)
