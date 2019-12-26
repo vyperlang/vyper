@@ -17,6 +17,7 @@ module: ( COMMENT
         | event
         | _NEWLINE )*
 
+// Import statements (Supports all styles of Python imports)
 !dots: "."+
 import_as_name: NAME ["as" NAME]
 dotted_as_name: dotted_name ["as" NAME]
@@ -27,9 +28,11 @@ import_name: "import" dotted_as_names
 import_from: "from" (dots? dotted_name | dots) "import" ("*" | "(" import_as_names ")" | import_as_names)
 import: import_name | import_from
 
+// Unit definitions
 unit: NAME ":" STRING
 units: "units" ":" "{" (unit)+ "}"
 
+// Constant definitions
 constant: NAME ":" "constant" "(" ( memory_type | BASIC_TYPE | CUSTOM_TYPE ) ")" "=" test
 
 // NOTE: NAME as type should refer to a custom type that is already defined
