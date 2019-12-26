@@ -19,7 +19,7 @@ def get_lark_grammar():
     return Lark.open(
         'tests/grammar/vyper.lark',
         parser='lalr',
-        start='file_input',
+        start='module',
         postlex=PythonIndenter()
     )
 
