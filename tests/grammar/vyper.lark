@@ -10,14 +10,14 @@ module: (_NEWLINE | stmt)*
 decorator: "@" decorator_names _NEWLINE
          | "@" decorator_with_args_names [ "(" [arguments] ")" ] _NEWLINE
 decorators: decorator+
-decorated: decorators (funcdef)
+decorated: decorators (method)
 
-funcdef: "def" NAME "(" parameters? ")" ["->" test] ":" body
 
 parameters: paramvalue ("," paramvalue?)*
 
 ?paramvalue: typedparam ["=" test]
 ?typedparam: NAME [":" test]
+method: "def" NAME "(" parameters? ")" ["->" test] ":" body
 
 ?stmt: simple_stmt | compound_stmt
 ?simple_stmt: small_stmt (small_stmt)* _NEWLINE
@@ -47,7 +47,7 @@ decorator_names: ("private"|"public"|"payable"|"constant"|"payable")
 decorator_with_args_names: ("nonreentrant")
 assert_stmt: "assert" test ["," test]
 
-compound_stmt: if_stmt | for_stmt | classdef | funcdef | decorated
+compound_stmt: if_stmt | for_stmt | classdef | method | decorated
 if_stmt: "if" test ":" body ("elif" test ":" body)* ["else" ":" body]
 for_stmt: "for" exprlist "in" testlist ":" body ["else" ":" body]
 
