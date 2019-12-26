@@ -26,7 +26,8 @@ decorators: decorator+
 ?parameter: NAME ":" parameter_type ["=" test]
 parameters: parameter ("," parameter?)*
 
-method: [decorators] "def" NAME "(" parameters? ")" ["->" parameter_type] ":" body
+method_type: "def" NAME "(" parameters? ")" ["->" parameter_type]
+method: [decorators] method_type ":" body
 
 ?stmt: simple_stmt | compound_stmt
 ?simple_stmt: small_stmt (small_stmt)* _NEWLINE
