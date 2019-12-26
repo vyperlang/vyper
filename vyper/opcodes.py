@@ -15,7 +15,10 @@ EVM_VERSIONS = {
 DEFAULT_EVM_VERSION = "byzantium"
 
 
-# opcode as hex value, number of values removed from stack, added to stack, gas cost
+# opcode as hex value
+# number of values removed from stack
+# number of values added to stack
+# gas cost (byzantium, constantinople, istanbul)
 OPCODES: Dict[str, List[Optional[int]]] = {
     'STOP': [0x00, 0, 0, 0],
     'ADD': [0x01, 2, 1, 3],
@@ -204,17 +207,27 @@ def evm_wrapper(fn, *args, **kwargs):
     return _wrapper
 
 
-def _gas(opcode_name):
-    if isinstance(COMB_OPCODES[opcode_name][3], int):
-        return COMB_OPCODES[opcode_name][3]
-    if len(COMB_OPCODES[opcode_name][3]) <= active_evm_version:
-        return COMB_OPCODES[opcode_name][3][-1]
-    return COMB_OPCODES[opcode_name][3][active_evm_version]
+def _gas(value, idx):
+    if isinstance(value[3], int):
+        return value
+    if len(value[3]) <= idx:
+        return value[:3] + [value[3][-1]]
+    if value[3][idx] is None:
+        return None
+    return value[:3] + [value[3][idx]]
+
+
+def _mk_version_opcodes(opcodes, idx):
+    return dict((k, _gas(v, idx)) for k, v in opcodes.items() if _gas(v, idx) is not None)
+
+
+_evm_opcodes = dict((v, _mk_version_opcodes(OPCODES, v)) for v in EVM_VERSIONS.values())
+_evm_combined = dict((v, _mk_version_opcodes(COMB_OPCODES, v)) for v in EVM_VERSIONS.values())
 
 
 def get_opcodes():
-    return dict((k, v[:3]+[_gas(k)]) for k, v in OPCODES.items() if _gas(k) is not None)
+    return _evm_opcodes[active_evm_version]
 
 
 def get_comb_opcodes():
-    return dict((k, v[:3]+[_gas(k)]) for k, v in COMB_OPCODES.items() if _gas(k) is not None)
+    return _evm_combined[active_evm_version]
