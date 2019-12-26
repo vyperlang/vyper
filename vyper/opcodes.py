@@ -9,8 +9,8 @@ active_evm_version: int = None
 EVM_VERSIONS = {
     'byzantium': 0,
     'constantinople': 1,
-    'petersburg': 2,
-    'istanbul': 3,
+    'petersburg': 1,
+    'istanbul': 2,
 }
 
 # opcode as hex value, number of values removed from stack, added to stack, gas cost
@@ -38,9 +38,12 @@ OPCODES: Dict[str, List[Optional[int]]] = {
     'XOR': [0x18, 2, 1, 3],
     'NOT': [0x19, 1, 1, 3],
     'BYTE': [0x1a, 2, 1, 3],
+    'SHL': [0x1b, 2, 1, (None, 3)],
+    'SHR': [0x1c, 2, 1, (None, 3)],
+    'SAR': [0x1d, 2, 1, (None, 3)],
     'SHA3': [0x20, 2, 1, 30],
     'ADDRESS': [0x30, 0, 1, 2],
-    'BALANCE': [0x31, 1, 1, 700],  # Updated Istanbul Ruleset
+    'BALANCE': [0x31, 1, 1, (400, 400, 700)],
     'ORIGIN': [0x32, 0, 1, 2],
     'CALLER': [0x33, 0, 1, 2],
     'CALLVALUE': [0x34, 0, 1, 2],
@@ -52,18 +55,22 @@ OPCODES: Dict[str, List[Optional[int]]] = {
     'GASPRICE': [0x3a, 0, 1, 2],
     'EXTCODESIZE': [0x3b, 1, 1, 700],
     'EXTCODECOPY': [0x3c, 4, 0, 700],
+    'RETURNDATASIZE': [0x3d, 0, 1, 2],
+    'RETURNDATACOPY': [0x3e, 3, 0, 3],
+    'EXTCODEHASH': [0x3f, 1, 1, (None, 400, 700)],
     'BLOCKHASH': [0x40, 1, 1, 20],
     'COINBASE': [0x41, 0, 1, 2],
     'TIMESTAMP': [0x42, 0, 1, 2],
     'NUMBER': [0x43, 0, 1, 2],
     'DIFFICULTY': [0x44, 0, 1, 2],
     'GASLIMIT': [0x45, 0, 1, 2],
-    'CHAINID': [0x46, 0, 1, 2],  # Added Istanbul Ruleset
+    'CHAINID': [0x46, 0, 1, (None, None, 2)],
+    'SELFBALANCE': [0x47, 0, 1, (None, None, 5)],
     'POP': [0x50, 1, 0, 2],
     'MLOAD': [0x51, 1, 1, 3],
     'MSTORE': [0x52, 2, 0, 3],
     'MSTORE8': [0x53, 2, 0, 3],
-    'SLOAD': [0x54, 1, 1, 800],  # Updated Istanbul Ruleset
+    'SLOAD': [0x54, 1, 1, (200, 200, 800)],
     'SSTORE': [0x55, 2, 0, 20000],
     'JUMP': [0x56, 1, 0, 8],
     'JUMPI': [0x57, 2, 0, 10],
@@ -145,7 +152,7 @@ OPCODES: Dict[str, List[Optional[int]]] = {
     'CALLCODE': [0xf2, 7, 1, 700],
     'RETURN': [0xf3, 2, 0, 0],
     'DELEGATECALL': [0xf4, 6, 1, 700],
-    'CALLBLACKBOX': [0xf5, 7, 1, 700],
+    'CREATE2': [0xf5, 4, 1, (None, 32000)],
     'SELFDESTRUCT': [0xff, 1, 0, 25000],
     'STATICCALL': [0xfa, 6, 1, 40],
     'REVERT': [0xfd, 2, 0, 0],
@@ -189,6 +196,8 @@ def set_evm_version(version_name):
 def _gas(opcode_name):
     if isinstance(COMB_OPCODES[opcode_name][3], int):
         return COMB_OPCODES[opcode_name][3]
+    if len(COMB_OPCODES[opcode_name][3]) <= active_evm_version:
+        return COMB_OPCODES[opcode_name][3][-1]
     return COMB_OPCODES[opcode_name][3][active_evm_version]
 
 
