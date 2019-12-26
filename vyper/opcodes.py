@@ -4,7 +4,7 @@ from typing import (
     Optional,
 )
 
-active_evm_version: int = None
+active_evm_version = None
 
 EVM_VERSIONS = {
     'byzantium': 0,
@@ -188,9 +188,18 @@ PSEUDO_OPCODES: Dict[str, List[Optional[int]]] = {
 COMB_OPCODES: Dict[str, List[Optional[int]]] = {**OPCODES, **PSEUDO_OPCODES}
 
 
-def set_evm_version(version_name):
-    global active_evm_version
-    active_evm_version = EVM_VERSIONS[version_name]
+def evm_wrapper(fn, *args, **kwargs):
+
+    def _wrapper(*args, **kwargs):
+        global active_evm_version
+        evm_version = kwargs.pop('evm_version', 'byzantium')
+        active_evm_version = EVM_VERSIONS[evm_version]
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            active_evm_version = None
+
+    return _wrapper
 
 
 def _gas(opcode_name):
