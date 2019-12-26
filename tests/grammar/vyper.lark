@@ -91,7 +91,7 @@ body: simple_stmt | _NEWLINE _INDENT stmt+ _DEDENT
      | "[" [testlist_comp] "]"  -> list
      |"{" [dictmaker] "}" -> dict
      | NAME -> var
-     | number | string+
+     | number_literal | string_literal+
      | "(" test ")"
      | "True"    -> const_true
      | "False"   -> const_false
@@ -120,8 +120,8 @@ comp_if: "if" test_nocond [comp_iter]
 encoding_decl: NAME
 
 
-number: DEC_NUMBER | HEX_NUMBER | BIN_NUMBER | OCT_NUMBER | FLOAT_NUMBER
-string: STRING | LONG_STRING
+number_literal: DEC_NUMBER | HEX_NUMBER | BIN_NUMBER | OCT_NUMBER | FLOAT_NUMBER
+string_literal: STRING | LONG_STRING
 // Tokens
 
 NAME: /[a-zA-Z_]\w*/
