@@ -17,6 +17,16 @@ module: ( COMMENT
         | event
         | _NEWLINE )*
 
+!dots: "."+
+import_as_name: NAME ["as" NAME]
+dotted_as_name: dotted_name ["as" NAME]
+import_as_names: import_as_name ("," import_as_name)* [","]
+dotted_as_names: dotted_as_name ("," dotted_as_name)*
+dotted_name: NAME ("." NAME)*
+import_name: "import" dotted_as_names
+import_from: "from" (dots? dotted_name | dots) "import" ("*" | "(" import_as_names ")" | import_as_names)
+import: import_name | import_from
+
 unit: NAME ":" STRING
 units: "units" ":" "{" (unit)+ "}"
 
@@ -72,15 +82,6 @@ break_stmt: "break"
 continue_stmt: "continue"
 return_stmt: "return" [testlist]
 raise_stmt: "raise" [test ["from" test]]
-import: import_name | import_from
-import_name: "import" dotted_as_names
-import_from: "from" (dots? dotted_name | dots) "import" ("*" | "(" import_as_names ")" | import_as_names)
-!dots: "."+
-import_as_name: NAME ["as" NAME]
-dotted_as_name: dotted_name ["as" NAME]
-import_as_names: import_as_name ("," import_as_name)* [","]
-dotted_as_names: dotted_as_name ("," dotted_as_name)*
-dotted_name: NAME ("." NAME)*
 assert_stmt: "assert" test ["," test]
 
 compound_stmt: if_stmt | for_stmt | struct | interface | method
