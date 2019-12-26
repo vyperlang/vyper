@@ -6,6 +6,7 @@
 // A module is a sequence of definitions and methods (and comments).
 // NOTE: Start symbol for the grammar
 module: ( COMMENT
+        | import_stmt
         | struct
         | interface
         | constant
