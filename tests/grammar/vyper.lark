@@ -161,10 +161,10 @@ mutability: ( "modifying"
 interface_def: method_type ":" mutability
 interface: "contract" NAME ":" _NEWLINE _INDENT (interface_def _NEWLINE)+ _DEDENT
 
-// Maps take a basic type as a key and can return a basic, memory,
+// Maps take a hashable type as a key and can return a basic, memory,
 // or a custom type (or another map recursively)
 // NOTE: NAME as type should refer to a custom type that is already defined
-map: "map" "(" BASIC_TYPE "," ( map | memory_type | BASIC_TYPE | CUSTOM_TYPE ) ")"
+map: "map" "(" (BASIC_TYPE | bytes | string) "," ( map | memory_type | BASIC_TYPE | CUSTOM_TYPE ) ")"
 
 // Types requiring storage allocation
 storage_type: ( map ) -> storage
