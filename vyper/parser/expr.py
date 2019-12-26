@@ -2,12 +2,16 @@ import warnings
 
 from vyper import ast
 from vyper.exceptions import (
+    EvmVersionException,
     InvalidLiteralException,
     NonPayableViolationException,
     ParserException,
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
+)
+from vyper.opcodes import (
+    get_active_evm_id,
 )
 from vyper.parser import (
     external_call,
@@ -382,6 +386,11 @@ class Expr(object):
             elif key == "tx.origin":
                 return LLLnode.from_list(['origin'], typ='address', pos=getpos(self.expr))
             elif key == "chain.id":
+                if get_active_evm_id() < 2:
+                    raise EvmVersionException(
+                        "chain.id is unavailable prior to istanbul ruleset",
+                        self.expr
+                    )
                 return LLLnode.from_list(['chainid'], typ='uint256', pos=getpos(self.expr))
             else:
                 raise ParserException("Unsupported keyword: " + key, self.expr)

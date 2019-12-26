@@ -121,6 +121,7 @@ def _get_contract(w3, source_code, *args, **kwargs):
         source_code,
         ['abi', 'bytecode'],
         interface_codes=kwargs.pop('interface_codes', None),
+        evm_version=kwargs.pop('evm_version', None),
     )
     abi = out['abi']
     bytecode = out['bytecode']

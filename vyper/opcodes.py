@@ -197,7 +197,7 @@ def evm_wrapper(fn, *args, **kwargs):
 
     def _wrapper(*args, **kwargs):
         global active_evm_version
-        evm_version = kwargs.pop('evm_version', DEFAULT_EVM_VERSION)
+        evm_version = kwargs.pop('evm_version', None) or DEFAULT_EVM_VERSION
         active_evm_version = EVM_VERSIONS[evm_version]
         try:
             return fn(*args, **kwargs)
@@ -231,3 +231,7 @@ def get_opcodes():
 
 def get_comb_opcodes():
     return _evm_combined[active_evm_version]
+
+
+def get_active_evm_id():
+    return active_evm_version
