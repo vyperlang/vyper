@@ -21,7 +21,8 @@ from vyper.ast_utils import (
     ast_to_dict,
 )
 from vyper.opcodes import (
-    evm_wrapper
+    DEFAULT_EVM_VERSION,
+    evm_wrapper,
 )
 from vyper.parser import (
     parser,
@@ -342,7 +343,11 @@ def compile_codes(contract_sources: ContractCodes,
 UNKNOWN_CONTRACT_NAME = '<unknown>'
 
 
-def compile_code(code, output_formats=None, interface_codes=None, evm_version="byzantium"):
+def compile_code(code,
+                 output_formats=None,
+                 interface_codes=None,
+                 evm_version=DEFAULT_EVM_VERSION):
+
     contract_sources = {UNKNOWN_CONTRACT_NAME: code}
 
     return compile_codes(

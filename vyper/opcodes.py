@@ -4,7 +4,7 @@ from typing import (
     Optional,
 )
 
-active_evm_version = None
+active_evm_version = 0
 
 EVM_VERSIONS = {
     'byzantium': 0,
@@ -12,6 +12,8 @@ EVM_VERSIONS = {
     'petersburg': 1,
     'istanbul': 2,
 }
+DEFAULT_EVM_VERSION = "byzantium"
+
 
 # opcode as hex value, number of values removed from stack, added to stack, gas cost
 OPCODES: Dict[str, List[Optional[int]]] = {
@@ -192,12 +194,12 @@ def evm_wrapper(fn, *args, **kwargs):
 
     def _wrapper(*args, **kwargs):
         global active_evm_version
-        evm_version = kwargs.pop('evm_version', 'byzantium')
+        evm_version = kwargs.pop('evm_version', DEFAULT_EVM_VERSION)
         active_evm_version = EVM_VERSIONS[evm_version]
         try:
             return fn(*args, **kwargs)
         finally:
-            active_evm_version = None
+            active_evm_version = EVM_VERSIONS[DEFAULT_EVM_VERSION]
 
     return _wrapper
 
@@ -211,12 +213,8 @@ def _gas(opcode_name):
 
 
 def get_opcodes():
-    if active_evm_version is None:
-        raise
     return dict((k, v[:3]+[_gas(k)]) for k, v in OPCODES.items() if _gas(k) is not None)
 
 
 def get_comb_opcodes():
-    if active_evm_version is None:
-        raise
     return dict((k, v[:3]+[_gas(k)]) for k, v in COMB_OPCODES.items() if _gas(k) is not None)
