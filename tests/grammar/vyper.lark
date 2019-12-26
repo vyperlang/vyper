@@ -47,7 +47,7 @@ decorator_names: ("private"|"public"|"payable"|"constant"|"payable")
 decorator_with_args_names: ("nonreentrant")
 assert_stmt: "assert" test ["," test]
 
-compound_stmt: if_stmt | for_stmt | classdef | method | decorated
+compound_stmt: if_stmt | for_stmt | struct | interface | method | decorated
 if_stmt: "if" test ":" body ("elif" test ":" body)* ["else" ":" body]
 for_stmt: "for" exprlist "in" testlist ":" body ["else" ":" body]
 
@@ -96,7 +96,8 @@ exprlist: (expr) ("," (expr))* [","]
 testlist: test ("," test)* [","]
 dictmaker: ( ((test ":" test) ("," (test ":" test))* [","]) )
 
-classdef: ("contract"|"struct") NAME ["(" [arguments] ")"] ":" body
+struct: "struct" NAME ["(" [arguments] ")"] ":" body
+interface: "contract" NAME ["(" [arguments] ")"] ":" body
 
 arguments: argvalue ("," argvalue)*  // [","]
          | test comp_for
