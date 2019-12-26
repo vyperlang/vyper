@@ -13,11 +13,15 @@ decorators: decorator+
 decorated: decorators (method)
 
 
-parameters: paramvalue ("," paramvalue?)*
+// Methods take a list of zero or more typed parameters,
+// and can return up to one parameter.
+// NOTE: Parameters can have a default value,
+//       which must be a constant or environment variable.
+?parameter_type: test
+?parameter: NAME ":" parameter_type ["=" test]
+parameters: parameter ("," parameter?)*
 
-?paramvalue: typedparam ["=" test]
-?typedparam: NAME [":" test]
-method: "def" NAME "(" parameters? ")" ["->" test] ":" body
+method: "def" NAME "(" parameters? ")" ["->" parameter_type] ":" body
 
 ?stmt: simple_stmt | compound_stmt
 ?simple_stmt: small_stmt (small_stmt)* _NEWLINE
