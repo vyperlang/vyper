@@ -12,6 +12,7 @@ module: ( COMMENT
         | variable
         | variable_with_getter
         | method
+        | event
         | _NEWLINE )*
 
 constant: NAME ":" "constant" "(" ( memory_type | BASIC_TYPE | CUSTOM_TYPE ) ")" "=" test
@@ -46,6 +47,10 @@ parameters: parameter ("," parameter?)*
 
 method_type: "def" NAME "(" parameters? ")" ["->" parameter_type]
 method: [decorators] method_type ":" body
+
+event_arg: NAME ":" parameter_type
+indexed_event_arg: NAME ":" "indexed" "(" parameter_type ")"
+event: NAME ":" "event" "(" "{" (event_arg | indexed_event_arg)? ("," (event_arg | indexed_event_arg))* "}" ")"
 
 ?stmt: simple_stmt | compound_stmt
 ?simple_stmt: small_stmt (small_stmt)* _NEWLINE
