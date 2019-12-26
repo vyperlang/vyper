@@ -12,7 +12,7 @@ decorator: "@" decorator_names _NEWLINE
 decorators: decorator+
 decorated: decorators (funcdef)
 
-funcdef: "def" NAME "(" parameters? ")" ["->" test] ":" suite
+funcdef: "def" NAME "(" parameters? ")" ["->" test] ":" body
 
 parameters: paramvalue ("," paramvalue?)*
 
@@ -48,12 +48,12 @@ decorator_with_args_names: ("nonreentrant")
 assert_stmt: "assert" test ["," test]
 
 compound_stmt: if_stmt | for_stmt | classdef | funcdef | decorated
-if_stmt: "if" test ":" suite ("elif" test ":" suite)* ["else" ":" suite]
-for_stmt: "for" exprlist "in" testlist ":" suite ["else" ":" suite]
+if_stmt: "if" test ":" body ("elif" test ":" body)* ["else" ":" body]
+for_stmt: "for" exprlist "in" testlist ":" body ["else" ":" body]
 
 // // NB compile.c makes sure that the default except clause is last
 // except_clause: "except" [test ["as" NAME]]
-suite: simple_stmt | _NEWLINE _INDENT stmt+ _DEDENT
+body: simple_stmt | _NEWLINE _INDENT stmt+ _DEDENT
 
 ?test: or_test ["if" or_test "else" test]
 ?test_nocond: or_test
@@ -96,7 +96,7 @@ exprlist: (expr) ("," (expr))* [","]
 testlist: test ("," test)* [","]
 dictmaker: ( ((test ":" test) ("," (test ":" test))* [","]) )
 
-classdef: ("contract"|"struct") NAME ["(" [arguments] ")"] ":" suite
+classdef: ("contract"|"struct") NAME ["(" [arguments] ")"] ":" body
 
 arguments: argvalue ("," argvalue)*  // [","]
          | test comp_for
