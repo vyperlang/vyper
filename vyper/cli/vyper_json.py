@@ -21,6 +21,10 @@ from vyper.cli.vyper_compile import (
 from vyper.exceptions import (
     JSONError,
 )
+from vyper.opcodes import (
+    DEFAULT_EVM_VERSION,
+    EVM_VERSIONS,
+)
 from vyper.signatures.interface import (
     extract_file_interface_imports,
 )
@@ -162,12 +166,15 @@ def _standardize_path(path_str: str) -> str:
 
 def get_input_dict_settings(input_dict: Dict) -> None:
     if 'settings' not in input_dict:
-        return
-    evm_version = input_dict['settings'].get('evmVersion', 'byzantium')
+        return {'evm_version': DEFAULT_EVM_VERSION}
+
+    evm_version = input_dict['settings'].get('evmVersion', DEFAULT_EVM_VERSION)
     if evm_version in ('homestead', 'tangerineWhistle', 'spuriousDragon'):
         raise JSONError("Vyper does not support pre-byzantium EVM versions")
-    if evm_version not in ('byzantium', 'constantinople', 'petersburg'):
+    if evm_version not in EVM_VERSIONS:
         raise JSONError(f"Unknown EVM version - '{evm_version}'")
+
+    return {'evm_version': evm_version}
 
 
 def get_input_dict_contracts(input_dict: Dict) -> ContractCodes:
@@ -312,7 +319,7 @@ def compile_from_input_dict(input_dict: Dict,
     if input_dict['language'] != "Vyper":
         raise JSONError(f"Invalid language '{input_dict['language']}' - Only Vyper is supported.")
 
-    get_input_dict_settings(input_dict)
+    settings = get_input_dict_settings(input_dict)
 
     contract_sources: ContractCodes = get_input_dict_contracts(input_dict)
     interface_sources = get_input_dict_interfaces(input_dict)
@@ -336,7 +343,8 @@ def compile_from_input_dict(input_dict: Dict,
                     {contract_path: contract_sources[contract_path]},
                     output_formats[contract_path],
                     interface_codes=interface_codes,
-                    initial_id=id_
+                    initial_id=id_,
+                    evm_version=settings['evm_version']
                 )
             except Exception as exc:
                 return exc_handler(contract_path, exc, "compiler"), {}
