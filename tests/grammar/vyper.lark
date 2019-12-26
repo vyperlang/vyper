@@ -139,7 +139,7 @@ BASIC_TYPE: ( ["u"] "int" ("8"|"16"|"32"|"64"|"128"|"256")
             | "bool" )
 
 // Types requiring memory allocation
-array: (BASIC_TYPE | CUSTOM_TYPE) "[" (DEC_NUMBER | NAME) "]"
+array: (BASIC_TYPE | CUSTOM_TYPE) ("[" (DEC_NUMBER | NAME) "]")+
 bytes: "bytes" "[" (DEC_NUMBER | NAME) "]"
 string: "string" "[" (DEC_NUMBER | NAME) "]"
 memory_type: ( array
