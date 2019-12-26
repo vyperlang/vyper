@@ -7,11 +7,16 @@
 // NOTE: Start symbol for the grammar
 module: (_NEWLINE | stmt)*
 
-decorator: "@" decorator_names _NEWLINE
-         | "@" decorator_with_args_names [ "(" [arguments] ")" ] _NEWLINE
+// A decorator "wraps" a method, modifying it's context.
+// NOTE: One or more can be applied (some combos might conflict)
+DECORATOR_NAME: ( "private"
+                | "public"
+                | "payable"
+                | "constant")
+DECORATOR_WITH_ARGS_NAME: ( "nonreentrant" )
+decorator: "@" DECORATOR_NAME _NEWLINE
+         | "@" DECORATOR_WITH_ARGS_NAME [ "(" [arguments] ")" ] _NEWLINE
 decorators: decorator+
-decorated: decorators (method)
-
 
 // Methods take a list of zero or more typed parameters,
 // and can return up to one parameter.
@@ -21,7 +26,7 @@ decorated: decorators (method)
 ?parameter: NAME ":" parameter_type ["=" test]
 parameters: parameter ("," parameter?)*
 
-method: "def" NAME "(" parameters? ")" ["->" parameter_type] ":" body
+method: [decorators] "def" NAME "(" parameters? ")" ["->" parameter_type] ":" body
 
 ?stmt: simple_stmt | compound_stmt
 ?simple_stmt: small_stmt (small_stmt)* _NEWLINE
@@ -47,11 +52,9 @@ dotted_as_name: dotted_name ["as" NAME]
 import_as_names: import_as_name ("," import_as_name)* [","]
 dotted_as_names: dotted_as_name ("," dotted_as_name)*
 dotted_name: NAME ("." NAME)*
-decorator_names: ("private"|"public"|"payable"|"constant"|"payable")
-decorator_with_args_names: ("nonreentrant")
 assert_stmt: "assert" test ["," test]
 
-compound_stmt: if_stmt | for_stmt | struct | interface | method | decorated
+compound_stmt: if_stmt | for_stmt | struct | interface | method
 if_stmt: "if" test ":" body ("elif" test ":" body)* ["else" ":" body]
 for_stmt: "for" exprlist "in" testlist ":" body ["else" ":" body]
 
