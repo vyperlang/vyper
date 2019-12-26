@@ -22,9 +22,9 @@ method: "def" NAME "(" parameters? ")" ["->" test] ":" body
 ?stmt: simple_stmt | compound_stmt
 ?simple_stmt: small_stmt (small_stmt)* _NEWLINE
 ?small_stmt: (expr_stmt | pass_stmt | flow_stmt | import_stmt | assert_stmt)
-?expr_stmt: testlist_star_expr (annassign | augassign (testlist)
+?expr_stmt: testlist_star_expr (assign | augassign (testlist)
          | ("=" (testlist_star_expr))*)
-annassign: ":" test ["=" test]
+assign: ":" test ["=" test]
 ?testlist_star_expr: (test) ("," (test))* [","]
 !augassign: ("+=" | "-=" | "*=" | "/=" | "**=" | "%=")
 // For normal and annotated assignments, additional restrictions enforced by the interpreter
