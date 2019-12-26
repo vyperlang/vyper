@@ -83,6 +83,11 @@ body: simple_stmt | _NEWLINE _INDENT stmt+ _DEDENT
 
 ?power: atom_expr ["**" factor]
 
+arguments: argument ("," argument)*  // [","]
+         | test comp_for
+
+?argument: test ["=" test]
+
 ?atom_expr: atom_expr "(" [arguments] ")"    -> call
           | atom_expr "[" subscriptlist "]"  -> getitem
           | atom_expr "." NAME               -> getattr
@@ -106,12 +111,6 @@ dictmaker: ( ((test ":" test) ("," (test ":" test))* [","]) )
 
 struct: "struct" NAME ["(" [arguments] ")"] ":" body
 interface: "contract" NAME ["(" [arguments] ")"] ":" body
-
-arguments: argvalue ("," argvalue)*  // [","]
-         | test comp_for
-
-?argvalue: test ["=" test]
-
 
 comp_iter: comp_for | comp_if
 comp_for: "for" exprlist "in" or_test [comp_iter]
