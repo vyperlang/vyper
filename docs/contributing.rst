@@ -52,7 +52,7 @@ Style Guide
 ===========
 
 
-Vyper's codebase follows the 
+Vyper's codebase follows the
 `Snake Charmer's Style Guide <https://github.com/ethereum/snake-charmers-tactical-manual/blob/master/style-guide.md>`_.
 Some of the things not covered by style guide that we maintain in our codebase is the use of
 `f-strings <https://github.com/vyperlang/vyper/issues/1567>`_ across the repository (when helpful for clarity),
@@ -71,8 +71,7 @@ and instead, ``git rebase`` your branch.
 
 **Implement Features**
 
-If you are writing a new feature, please ensure you write appropriate
-Boost test cases and place them under ``tests/``.
+If you are writing a new feature, please ensure you write appropriate Pytest test cases and place them under ``tests/``.
 
 If you are making a larger change, please consult first with the Gitter channel.
 
