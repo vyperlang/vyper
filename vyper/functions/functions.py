@@ -1036,7 +1036,6 @@ def uint256_addmod(expr, args, kwargs, context):
         [
             'seq',
             ['assert', args[2]],
-            ['assert', ['or', ['iszero', args[1]], ['gt', ['add', args[0], args[1]], args[0]]]],
             ['addmod', args[0], args[1], args[2]],
         ],
         typ=BaseType('uint256'),
@@ -1050,11 +1049,6 @@ def uint256_mulmod(expr, args, kwargs, context):
         [
             'seq',
             ['assert', args[2]],
-            ['assert', [
-                'or',
-                ['iszero', args[0]],
-                ['eq', ['div', ['mul', args[0], args[1]], args[0]], args[1]],
-            ]],
             ['mulmod', args[0], args[1], args[2]],
         ],
         typ=BaseType('uint256'),
