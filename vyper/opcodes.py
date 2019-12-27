@@ -11,7 +11,7 @@ EVM_VERSIONS: Dict[str, int] = {
     'petersburg': 1,
     'istanbul': 2,
 }
-DEFAULT_EVM_VERSION: str = "byzantium"
+DEFAULT_EVM_VERSION: str = "istanbul"
 
 
 # opcode as hex value
