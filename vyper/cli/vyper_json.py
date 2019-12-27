@@ -164,7 +164,7 @@ def _standardize_path(path_str: str) -> str:
     return path.as_posix()
 
 
-def get_input_dict_settings(input_dict: Dict) -> None:
+def get_input_dict_settings(input_dict: Dict) -> Dict:
     if 'settings' not in input_dict:
         return {'evm_version': DEFAULT_EVM_VERSION}
 

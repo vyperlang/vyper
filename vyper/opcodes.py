@@ -1,25 +1,24 @@
 from typing import (
     Dict,
     List,
-    Optional,
 )
 
-active_evm_version = 0
+active_evm_version: int = 0
 
-EVM_VERSIONS = {
+EVM_VERSIONS: Dict[str, int] = {
     'byzantium': 0,
     'constantinople': 1,
     'petersburg': 1,
     'istanbul': 2,
 }
-DEFAULT_EVM_VERSION = "byzantium"
+DEFAULT_EVM_VERSION: str = "byzantium"
 
 
 # opcode as hex value
 # number of values removed from stack
 # number of values added to stack
 # gas cost (byzantium, constantinople, istanbul)
-OPCODES: Dict[str, List[Optional[int]]] = {
+OPCODES: Dict[str, List] = {
     'STOP': [0x00, 0, 0, 0],
     'ADD': [0x01, 2, 1, 3],
     'MUL': [0x02, 2, 1, 5],
@@ -165,7 +164,7 @@ OPCODES: Dict[str, List[Optional[int]]] = {
     'DEBUG': [0xa5, 1, 0, 0]
 }
 
-PSEUDO_OPCODES: Dict[str, List[Optional[int]]] = {
+PSEUDO_OPCODES: Dict[str, List] = {
     'CLAMP': [None, 3, 1, 70],
     'UCLAMPLT': [None, 2, 1, 25],
     'UCLAMPLE': [None, 2, 1, 30],
@@ -190,7 +189,7 @@ PSEUDO_OPCODES: Dict[str, List[Optional[int]]] = {
     'GOTO': [None, 1, 0, 8]
 }
 
-COMB_OPCODES: Dict[str, List[Optional[int]]] = {**OPCODES, **PSEUDO_OPCODES}
+COMB_OPCODES: Dict[str, List] = {**OPCODES, **PSEUDO_OPCODES}
 
 
 def evm_wrapper(fn, *args, **kwargs):
