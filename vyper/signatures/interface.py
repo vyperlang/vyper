@@ -223,17 +223,21 @@ def extract_file_interface_imports(code: SourceCode) -> InterfaceImports:
             module = item.module or ""  # type: ignore
             if not level and module == 'vyper.interfaces':
                 continue
-            if level:
-                base_path = f"{'.'*level}/{module.replace('.','/')}"
-            else:
-                base_path = module.replace('.', '/')
+
+            base_path = ""
+            if level > 1:
+                base_path = "../" * (level-1)
+            elif level == 1:
+                base_path = "./"
+            base_path = f"{base_path}{module.replace('.','/')}/"
+
             for a_name in item.names:  # type: ignore
                 if a_name.name in imports_dict:
                     raise StructureException(
                         f'Interface with name {a_name.name} already exists',
                         item,
                     )
-                imports_dict[a_name.name] = f"{base_path}/{a_name.name}"
+                imports_dict[a_name.name] = f"{base_path}{a_name.name}"
 
     return imports_dict
 

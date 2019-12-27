@@ -256,7 +256,10 @@ def get_interface_codes(root_path: Union[Path, None],
     code = contract_sources[contract_path]
     interface_codes = extract_file_interface_imports(code)
     for interface_name, interface_path in interface_codes.items():
-        keys = [Path(contract_path).parent.joinpath(interface_path).as_posix(), interface_path]
+        path = Path(contract_path).parent.joinpath(interface_path).as_posix()
+        keys = [_standardize_path(path)]
+        if not interface_path.startswith('.'):
+            keys.append(interface_path)
 
         key = next((i for i in keys if i in interface_sources), None)
         if key:
@@ -278,7 +281,10 @@ def get_interface_codes(root_path: Union[Path, None],
         base_paths = [parent_path]
         if not interface_path.startswith('.'):
             base_paths.append(root_path)
-        elif interface_path.startswith('../') and parent_path == root_path:
+        elif (
+            interface_path.startswith('../') and
+            len(Path(contract_path).parent.parts) < Path(interface_path).parts.count('..')
+        ):
             raise FileNotFoundError(
                 f"{contract_path} - Cannot perform relative import outside of base folder"
             )
