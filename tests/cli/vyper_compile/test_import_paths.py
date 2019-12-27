@@ -96,10 +96,11 @@ def test_import_other_folder(import_stmt, tmp_path):
 
 def test_import_parent_folder(tmp_path, assert_compile_failed):
     tmp_path.joinpath('contracts').mkdir()
+    tmp_path.joinpath('contracts/baz').mkdir()
 
-    foo_path = tmp_path.joinpath('contracts/foo.vy')
+    foo_path = tmp_path.joinpath('contracts/baz/foo.vy')
     with foo_path.open('w') as fp:
-        fp.write(FOO_CODE.format("from .. import Bar"))
+        fp.write(FOO_CODE.format("from ... import Bar"))
 
     with tmp_path.joinpath('Bar.vy').open('w') as fp:
         fp.write(BAR_CODE)
