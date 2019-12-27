@@ -20,3 +20,27 @@ def test_combined_json_keys(tmp_path):
 def test_invalid_root_path():
     with pytest.raises(FileNotFoundError):
         compile_files([], [], root_folder="path/that/does/not/exist")
+
+
+def test_evm_versions(tmp_path):
+    # should compile differently because of SELFBALANCE
+    code = """
+@public
+def foo() -> uint256(wei):
+    return self.balance
+"""
+
+    bar_path = tmp_path.joinpath('bar.vy')
+    with bar_path.open('w') as fp:
+        fp.write(code)
+
+    compile_data = compile_files(
+        [bar_path],
+        output_formats=['bytecode_runtime'],
+        evm_version="byzantium"
+    )
+    assert compile_data != compile_files(
+        [bar_path],
+        output_formats=['bytecode_runtime'],
+        evm_version="istanbul"
+    )
