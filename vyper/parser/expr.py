@@ -291,6 +291,13 @@ class Expr(object):
     def attribute(self):
         # x.balance: balance of address x
         if self.expr.attr == 'balance':
+            if self.expr.value.id == "self" and get_active_evm_id() >= 2:
+                return LLLnode.from_list(
+                    ['selfbalance'],
+                    typ=BaseType('uint256', {'wei': 1}),
+                    location=None,
+                    pos=getpos(self.expr),
+                )
             addr = Expr.parse_value_expr(self.expr.value, self.context)
             if not is_base_type(addr.typ, 'address'):
                 raise TypeMismatchException(
