@@ -11,7 +11,7 @@ from vyper.exceptions import (
     VariableDeclarationException,
 )
 from vyper.opcodes import (
-    get_active_evm_id,
+    version_check,
 )
 from vyper.parser import (
     external_call,
@@ -291,7 +291,7 @@ class Expr(object):
     def attribute(self):
         # x.balance: balance of address x
         if self.expr.attr == 'balance':
-            if self.expr.value.id == "self" and get_active_evm_id() >= 2:
+            if self.expr.value.id == "self" and version_check(begin="istanbul"):
                 return LLLnode.from_list(
                     ['selfbalance'],
                     typ=BaseType('uint256', {'wei': 1}),
@@ -393,7 +393,7 @@ class Expr(object):
             elif key == "tx.origin":
                 return LLLnode.from_list(['origin'], typ='address', pos=getpos(self.expr))
             elif key == "chain.id":
-                if get_active_evm_id() < 2:
+                if not version_check(begin="istanbul"):
                     raise EvmVersionException(
                         "chain.id is unavailable prior to istanbul ruleset",
                         self.expr

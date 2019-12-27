@@ -233,5 +233,14 @@ def get_comb_opcodes():
     return _evm_combined[active_evm_version]
 
 
-def get_active_evm_id():
-    return active_evm_version
+def version_check(begin=None, end=None):
+    assert begin is not None or end is not None
+    if begin is None:
+        begin = min(EVM_VERSIONS.values())
+    else:
+        begin = EVM_VERSIONS[begin]
+    if end is None:
+        end = max(EVM_VERSIONS.values())
+    else:
+        end = EVM_VERSIONS[end]
+    return begin <= active_evm_version <= end
