@@ -1162,15 +1162,15 @@ def create_forwarder_to(expr, args, kwargs, context):
 
 @signature(('int128', 'decimal', 'uint256'), ('int128', 'decimal', 'uint256'))
 def _min(expr, args, kwargs, context):
-    return minmax(expr, args, kwargs, context, True)
+    return minmax(expr, args, kwargs, context, 'gt')
 
 
 @signature(('int128', 'decimal', 'uint256'), ('int128', 'decimal', 'uint256'))
 def _max(expr, args, kwargs, context):
-    return minmax(expr, args, kwargs, context, False)
+    return minmax(expr, args, kwargs, context, 'lt')
 
 
-def minmax(expr, args, kwargs, context, is_min):
+def minmax(expr, args, kwargs, context, comparator):
     def _can_compare_with_uint256(operand):
         if operand.typ.typ == 'uint256':
             return True
@@ -1181,11 +1181,10 @@ def minmax(expr, args, kwargs, context, is_min):
     left, right = args[0], args[1]
     if not are_units_compatible(left.typ, right.typ) and not are_units_compatible(right.typ, left.typ):  # noqa: E501
         raise TypeMismatchException("Units must be compatible", expr)
-    if left.typ.typ == 'uint256':
-        comparator = 'gt' if is_min else 'lt'
-    else:
-        comparator = 'sgt' if is_min else 'slt'
     if left.typ.typ == right.typ.typ:
+        if left.typ.typ != 'uint256':
+            # if comparing like types that are not uint256, use SLT or SGT
+            comparator = f's{comparator}'
         o = ['if', [comparator, '_l', '_r'], '_r', '_l']
         otyp = left.typ
         otyp.is_literal = False
