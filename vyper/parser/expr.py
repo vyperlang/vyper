@@ -674,6 +674,7 @@ class Expr(object):
         if left.typ != right.typ.subtype:
             raise TypeMismatchException(
                 f"{left.typ} cannot be in a list of {right.typ.subtype}",
+                self.expr,
             )
 
         result_placeholder = self.context.new_placeholder(BaseType('bool'))
@@ -938,6 +939,7 @@ class Expr(object):
             if not is_numeric_type(operand.typ):
                 raise TypeMismatchException(
                     f"Unsupported type for negation: {operand.typ}",
+                    self.expr,
                 )
 
             if operand.typ.is_literal:
