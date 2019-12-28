@@ -8,6 +8,7 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
+    ZeroDivisionException,
 )
 from vyper.parser import (
     external_call,
@@ -572,6 +573,8 @@ class Expr(object):
                 raise Exception(f"Unsupported Operation 'mul({ltyp}, {rtyp})'")
 
         elif isinstance(self.expr.op, ast.Div):
+            if right.typ.is_literal and right.value == 0:
+                raise ZeroDivisionException("Cannot divide by 0.", self.expr)
             if left.typ.positional or right.typ.positional:
                 raise TypeMismatchException("Cannot divide positional values!", self.expr)
             new_unit = combine_units(left.typ.unit, right.typ.unit, div=True)
@@ -592,6 +595,8 @@ class Expr(object):
                 raise Exception(f"Unsupported Operation 'div({ltyp}, {rtyp})'")
 
         elif isinstance(self.expr.op, ast.Mod):
+            if right.typ.is_literal and right.value == 0:
+                raise ZeroDivisionException("Cannot calculate modulus of 0.", self.expr)
             if left.typ.positional or right.typ.positional:
                 raise TypeMismatchException(
                     "Cannot use positional values as modulus arguments!",
