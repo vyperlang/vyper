@@ -488,6 +488,12 @@ class Expr(object):
                     pos=pos,
                 )
 
+        if left.typ.typ == "decimal" and isinstance(self.expr.op, ast.Pow):
+            raise TypeMismatchException(
+                "Cannot perform exponentiation on decimal values.",
+                self.expr,
+            )
+
         # Only allow explicit conversions to occur.
         if left.typ.typ != right.typ.typ:
             raise TypeMismatchException(
