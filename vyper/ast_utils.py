@@ -144,10 +144,10 @@ def ast_to_dict(node: vyper_ast.VyperNode) -> dict:
         return _ast_to_dict(node)
     elif isinstance(node, list):
         return _ast_to_list(node)
-    elif node is None or isinstance(node, (str, int)):
+    elif node is None or isinstance(node, (str, int, bytes)):
         return node
     else:
-        raise CompilerPanic('Unknown vyper AST node provided.')
+        raise CompilerPanic(f'Unknown vyper AST node provided: "{type(node)}".')
 
 
 def dict_to_ast(ast_struct: dict) -> vyper_ast.VyperNode:
