@@ -3,6 +3,10 @@ from decimal import (
     getcontext,
 )
 
+from vyper.exceptions import (
+    TypeMismatchException,
+)
+
 getcontext().prec = 78  # MAX_UINT256 < 1e78
 
 
@@ -161,3 +165,13 @@ def bar(num: decimal) -> decimal:
 
     assert c.foo() == Decimal('1e-10')  # Smallest possible decimal
     assert c.bar(Decimal('1e37')) == Decimal('-9e37')  # Math lines up
+
+
+def test_exponents(assert_compile_failed, get_contract):
+    code = """
+@public
+def foo() -> decimal:
+    return 2.2 ** 2.0
+    """
+
+    assert_compile_failed(lambda: get_contract(code), TypeMismatchException)
