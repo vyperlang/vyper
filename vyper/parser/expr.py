@@ -448,15 +448,24 @@ class Expr(object):
                 val = left.value - right.value
             elif isinstance(self.expr.op, ast.Mult):
                 val = left.value * right.value
-            elif isinstance(self.expr.op, ast.Div):
-                val = left.value // right.value
-            elif isinstance(self.expr.op, ast.Mod):
-                val = left.value % right.value
             elif isinstance(self.expr.op, ast.Pow):
                 val = left.value ** right.value
+            elif isinstance(self.expr.op, (ast.Div, ast.Mod)):
+                if right.value == 0:
+                    raise ZeroDivisionException(
+                        "integer division or modulo by zero",
+                        self.expr,
+                    )
+                if isinstance(self.expr.op, ast.Div):
+                    val = left.value // right.value
+                elif isinstance(self.expr.op, ast.Mod):
+                    # modified modulo logic to remain consistent with EVM behaviour
+                    val = abs(left.value) % abs(right.value)
+                    if left.value < 0:
+                        val = -val
             else:
                 raise ParserException(
-                    f'Unsupported literal operator: {str(type(self.expr.op))}',
+                    f'Unsupported literal operator: {type(self.expr.op)}',
                     self.expr,
                 )
 
