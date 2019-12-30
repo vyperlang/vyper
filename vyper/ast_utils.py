@@ -60,7 +60,7 @@ def _build_vyper_ast_init_kwargs(
         yield ('class_type', node.class_type)  # type: ignore
 
     for field_name in vyper_class.get_slots():
-        if hasattr(node, field_name):
+        if field_name not in vyper_ast.BASE_NODE_ATTRIBUTES and hasattr(node, field_name):
             yield (
                 field_name,
                 parse_python_ast(
