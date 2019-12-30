@@ -84,7 +84,21 @@ def test(a: bytes32) -> (bytes32, uint256, int128):
     a, b, c = self._test(a)
     assert d == 123
     return a, b, c
-    """, ConstancyViolationException)
+    """, ConstancyViolationException),
+    ("""
+x: public(uint256)
+
+@private
+@constant
+def return_two() -> (uint256, uint256):
+    return 1, 2
+
+@public
+@constant
+def foo():
+    a: uint256 = 0
+    a, self.x = self.return_two()
+     """, ConstancyViolationException),
 ]
 
 
