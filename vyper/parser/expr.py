@@ -674,6 +674,7 @@ class Expr(object):
         if left.typ != right.typ.subtype:
             raise TypeMismatchException(
                 f"{left.typ} cannot be in a list of {right.typ.subtype}",
+                self.expr,
             )
 
         result_placeholder = self.context.new_placeholder(BaseType('bool'))
@@ -935,21 +936,19 @@ class Expr(object):
                     self.expr,
                 )
         elif isinstance(self.expr.op, ast.USub):
-            # Must be a signed integer
-            if not is_numeric_type(operand.typ) or operand.typ.typ.lower().startswith('u'):
+            if not is_numeric_type(operand.typ):
                 raise TypeMismatchException(
                     f"Unsupported type for negation: {operand.typ}",
-                    operand,
+                    self.expr,
                 )
 
-            if operand.typ.is_literal and 'int' in operand.typ.typ:
-                num = ast.Num(n=0 - operand.value)
-                num.source_code = self.expr.source_code
-                num.lineno = self.expr.lineno
-                num.col_offset = self.expr.col_offset
-                num.end_lineno = self.expr.end_lineno
-                num.end_col_offset = self.expr.end_col_offset
-                return Expr.parse_value_expr(num, self.context)
+            if operand.typ.is_literal:
+                typ = "decimal" if operand.typ.typ == "decimal" else "int128"
+                return LLLnode.from_list(
+                    0-operand.value,
+                    typ=BaseType(typ, unit=operand.typ.unit, is_literal=True),
+                    pos=getpos(self.expr),
+                )
 
             # Clamp on minimum integer value as we cannot negate that value
             # (all other integer values are fine)

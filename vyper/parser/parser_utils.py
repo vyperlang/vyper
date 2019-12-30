@@ -64,7 +64,7 @@ def get_number_as_fraction(expr, context):
 
     if exponent < -10:
         raise InvalidLiteralException(
-                "`decimal` literal cannot have more than 10 decimal places: {literal}",
+                f"`decimal` literal cannot have more than 10 decimal places: {literal}",
                 expr
             )
 
