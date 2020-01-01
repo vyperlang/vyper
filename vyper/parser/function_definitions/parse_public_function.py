@@ -89,7 +89,7 @@ def validate_public_function(code: ast.FunctionDef,
 
 def parse_public_function(code: ast.FunctionDef,
                           sig: FunctionSignature,
-                          context: Context) -> List[Any]:
+                          context: Context) -> LLLnode:
     """
     Parse a public function (FuncDef), and produce full function body.
 
