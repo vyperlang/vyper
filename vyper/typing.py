@@ -1,7 +1,9 @@
 from typing import (
     Dict,
+    Optional,
     Sequence,
     Tuple,
+    Union,
 )
 
 # Parser
@@ -20,3 +22,9 @@ InterfaceAsName = str
 InterfaceImportPath = str
 InterfaceImports = Dict[InterfaceAsName, InterfaceImportPath]
 InterfaceDict = Dict[ContractPath, InterfaceImports]
+
+# Opcodes
+OpcodeValue = Tuple[Optional[int], int, int, Union[int, Tuple]]
+OpcodeMap = Dict[str, OpcodeValue]
+OpcodeRulesetValue = Tuple[Optional[int], int, int, int]
+OpcodeRulesetMap = Dict[str, OpcodeRulesetValue]
