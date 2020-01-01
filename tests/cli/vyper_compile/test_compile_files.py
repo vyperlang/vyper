@@ -34,13 +34,19 @@ def foo() -> uint256(wei):
     with bar_path.open('w') as fp:
         fp.write(code)
 
-    compile_data = compile_files(
+    byzantium_bytecode = compile_files(
         [bar_path],
-        output_formats=['bytecode_runtime'],
+        output_formats=['bytecode'],
         evm_version="byzantium"
-    )
-    assert compile_data != compile_files(
+    )[str(bar_path)]['bytecode']
+    istanbul_bytecode = compile_files(
         [bar_path],
-        output_formats=['bytecode_runtime'],
+        output_formats=['bytecode'],
         evm_version="istanbul"
-    )
+    )[str(bar_path)]['bytecode']
+
+    assert byzantium_bytecode != istanbul_bytecode
+
+    # SELFBALANCE opcode is 0x47
+    assert "47" not in byzantium_bytecode
+    assert "47" in istanbul_bytecode
