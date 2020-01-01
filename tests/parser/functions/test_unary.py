@@ -37,9 +37,8 @@ def negate(a: int128) -> int128:
     assert c.negate(val) == -val
 
 
-decimal_divisor = Decimal('1e10')
-min_decimal = (-2**127 + 1) / decimal_divisor
-max_decimal = (2**127 - 1) / decimal_divisor
+min_decimal = -2**127 + 1
+max_decimal = 2**127 - 1
 @pytest.mark.parametrize("val", [min_decimal, 0, max_decimal])
 def test_unary_sub_decimal_pass(get_contract, val):
     code = """@public
@@ -48,3 +47,39 @@ def negate(a: decimal) -> decimal:
     """
     c = get_contract(code)
     assert c.negate(val) == -val
+
+
+def test_negation_decimal(get_contract):
+    code = """
+a: constant(decimal) = 170141183460469231731687303715884105726.9999999999
+b: constant(decimal) = -170141183460469231731687303715884105726.9999999999
+
+@public
+def foo() -> decimal:
+    return -a
+
+@public
+def bar() -> decimal:
+    return -b
+    """
+
+    c = get_contract(code)
+    assert c.foo() == Decimal("-170141183460469231731687303715884105726.9999999999")
+    assert c.bar() == Decimal("170141183460469231731687303715884105726.9999999999")
+
+
+def test_negation_int128(get_contract):
+    code = """
+a: constant(int128) = -2**127
+
+@public
+def foo() -> int128:
+    return -2**127
+
+@public
+def bar() -> int128:
+    return -(a+1)
+    """
+    c = get_contract(code)
+    assert c.foo() == -2**127
+    assert c.bar() == 2**127-1

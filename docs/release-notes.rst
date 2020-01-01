@@ -32,7 +32,7 @@ Date released: 27-09-2019
 
 The following VIPs were implemented for Beta 13:
 
-- Add `vyper-json` compilation mode (VIP `#1520 <https://github.com/vyperlang/vyper/issues/1520>`_)
+- Add ``vyper-json`` compilation mode (VIP `#1520 <https://github.com/vyperlang/vyper/issues/1520>`_)
 - Environment variables and constants can now be used as default parameters (VIP `#1525 <https://github.com/vyperlang/vyper/issues/1525>`_)
 - Require unitialized memory be set on creation (VIP `#1493 <https://github.com/vyperlang/vyper/issues/1493>`_)
 
@@ -41,7 +41,7 @@ Some of the bug and stability fixes:
 - Type check for default params and arrays (`#1596 <https://github.com/vyperlang/vyper/pull/1596>`_)
 - Fixed bug when using assertions inside for loops (`#1619 <https://github.com/vyperlang/vyper/pull/1619>`_)
 - Fixed zero padding error for ABI encoder (`#1611 <https://github.com/vyperlang/vyper/pull/1611>`_)
-- Check `calldatasize` before `calldataload` for function selector (`#1606 <https://github.com/vyperlang/vyper/pull/1606>`_)
+- Check ``calldatasize`` before ``calldataload`` for function selector (`#1606 <https://github.com/vyperlang/vyper/pull/1606>`_)
 
 v0.1.0-beta.12
 **************
@@ -79,7 +79,7 @@ Beta 11 brings some performance and stability fixes.
 - Improvements for Windows users (`#1486 <https://github.com/vyperlang/vyper/pull/1486>`_)  (`#1488 <https://github.com/vyperlang/vyper/pull/1488>`_)
 - Array copy optimisation (`#1487 <https://github.com/vyperlang/vyper/pull/1487>`_)
 - Fixing ``@nonreentrant`` decorator for return statements (`#1532 <https://github.com/vyperlang/vyper/pull/1532>`_)
-- `sha3` builtin function removed  (`#1328 <https://github.com/vyperlang/vyper/issues/1328>`_)
+- ``sha3`` builtin function removed  (`#1328 <https://github.com/vyperlang/vyper/issues/1328>`_)
 - Disallow conflicting method IDs (`#1530 <https://github.com/vyperlang/vyper/pull/1530>`_)
 - Additional ``convert()`` supported types (`#1524 <https://github.com/vyperlang/vyper/pull/1524>`_) (`#1500 <https://github.com/vyperlang/vyper/pull/1500>`_)
 - Equality operator for strings and bytes (`#1507 <https://github.com/vyperlang/vyper/pull/1507>`_)
@@ -110,9 +110,9 @@ v0.1.0-beta.9
 Date released: 12-03-2019
 
 - Add support for list constants (`#1211 <https://github.com/vyperlang/vyper/issues/1211>`_)
-- Add sha256 function (`#1327 <https://github.com/vyperlang/vyper/issues/1327>`_)
-- Renamed create_with_code_of to create_forwarder_to (`#1177 <https://github.com/vyperlang/vyper/issues/1177>`_)
-- @nonreentrant Decorator  (`#1204 <https://github.com/vyperlang/vyper/issues/1204>`_)
+- Add ``sha256`` function (`#1327 <https://github.com/vyperlang/vyper/issues/1327>`_)
+- Renamed ``create_with_code_of`` to ``create_forwarder_to`` (`#1177 <https://github.com/vyperlang/vyper/issues/1177>`_)
+- ``@nonreentrant`` Decorator  (`#1204 <https://github.com/vyperlang/vyper/issues/1204>`_)
 - Add opcodes and opcodes_runtime flags to compiler (`#1255 <https://github.com/vyperlang/vyper/pull/1255>`_)
 - Improved External contract call interfaces (`#885 <https://github.com/vyperlang/vyper/issues/885>`_)
 

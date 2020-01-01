@@ -156,9 +156,10 @@ def exc_handler_to_dict(file_path: Union[str, None],
 
 
 def _standardize_path(path_str: str) -> str:
-    path = Path("/__vyper/" + path_str.lstrip('/')).resolve()
+    root_path = Path('/__vyper').resolve()
+    path = root_path.joinpath(path_str.lstrip('/')).resolve()
     try:
-        path = path.relative_to("/__vyper")
+        path = path.relative_to(root_path)
     except ValueError:
         raise JSONError(f"{path_str} - path exists outside base folder")
     return path.as_posix()

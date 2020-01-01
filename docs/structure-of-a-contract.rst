@@ -15,10 +15,10 @@ Versions
 
 Vyper supports version pragma which is used to reject being compiled with future compiler versions that might introduce incompatible changes.
 
-::
+.. code-block:: python
 
-  # @version 0.1.0b13
-  
+    # @version 0.1.0b13
+
 The version pragma checks that the compiler version is not a major version.
 
 .. _structure-state-variables:
@@ -26,11 +26,11 @@ The version pragma checks that the compiler version is not a major version.
 State Variables
 ===============
 
-State variables are values which are permanently stored in contract storage.
+State variables are values which are permanently stored in contract storage. They must be declared at deployment (outside of any functions), and if not initialized they will take the corresponding :ref:`initial value<types-initial>` for their type. State variables are accessed via the :ref:`self<constants-self>` variable.
 
-::
+.. code-block:: python
 
-  storedData: int128
+    storedData: int128
 
 See the :ref:`types` section for valid state variable types.
 
@@ -41,12 +41,12 @@ Functions
 
 Functions are the executable units of code within a contract.
 
-::
+.. code-block:: python
 
-  @public
-  @payable
-  def bid(): // Function
-      // ...
+    @public
+    @payable
+    def bid(): // Function
+        // ...
 
 Function calls can happen internally or externally and have different levels of visibility (see
 :ref:`structure-decorators`) towards other contracts. Functions must be explicitely declared as public or private.
@@ -58,12 +58,14 @@ Public functions (decorated with ``@public``) are a part of the contract interfa
 
 Public functions in Vyper are equivalent to external functions in Solidity.
 
+.. _structure-functions-private:
+
 Private Functions
 -----------------
 
-Private functions (decorated with ``@private``) are only accessible from other functions within the same contract. They are called via the ``self`` variable:
+Private functions (decorated with ``@private``) are only accessible from other functions within the same contract. They are called via the :ref:`self<constants-self>` variable:
 
-::
+.. code-block:: python
 
     @private
     def _times_two(amount: uint256) -> uint256:
@@ -80,8 +82,7 @@ Private functions do not have access to ``msg.sender`` or ``msg.value``. If you 
 Non-reentrant Functions
 -----------------------
 
-The `@nonreentrant(<key>)` decorator places a lock on the current function, and all functions with the same `<key>` value. An attempt by an external contract to call back into any of these functions will cause a REVERT call.
-
+The ``@nonreentrant(<key>)`` decorator places a lock on the current function, and all functions with the same ``<key>`` value. An attempt by an external contract to call back into any of these functions will cause a ``REVERT`` call.
 
 Decorators
 ----------
@@ -113,7 +114,7 @@ If the function is annotated as ``@payable``, this function is executed whenever
 
 **Example:**
 
-::
+.. code-block:: python
 
     Payment: event({amount: int128, from: indexed(address)})
 
@@ -125,7 +126,7 @@ If the function is annotated as ``@payable``, this function is executed whenever
 Considerations
 ~~~~~~~~~~~~~~
 
-Just as in Solidity, Vyper generates a default function if one isn't found, in the form of a REVERT call. Note that this still `generates an exception <https://github.com/ethereum/wiki/wiki/Subtleties>`_ and thus will not succeed in receiving funds.
+Just as in Solidity, Vyper generates a default function if one isn't found, in the form of a ``REVERT`` call. Note that this still `generates an exception <https://github.com/ethereum/wiki/wiki/Subtleties>`_ and thus will not succeed in receiving funds.
 
 Ethereum specifies that the operations will be rolled back if the contract runs out of gas in execution. ``send`` calls to the contract come with a free stipend of 2300 gas, which does not leave much room to perform other operations except basic logging. **However**, if the sender includes a higher gas amount through a ``call`` instead of ``send``, then more complex functionality can be run.
 
@@ -149,7 +150,7 @@ Events
 
 Events may be logged in specially indexed data structures that allow clients, including light clients, to efficiently search for them.
 
-::
+.. code-block:: python
 
     Payment: event({amount: int128, arg2: indexed(address)})
 
@@ -163,46 +164,46 @@ Events may be logged in specially indexed data structures that allow clients, in
 
 Events must be declared before global declarations and function definitions.
 
-.. structure-metadata:
+.. _structure-metadata:
 
 NatSpec Metadata
 ================
 
 Vyper supports structured documentation for state variables and functions and events.
 
-::
+.. code-block:: python
 
-  carrotsEaten: int128
-  """
-  @author Bob Clampett
-  @notice Number of carrots eaten
-  @dev Chewing does not count, carrots must pass the throat to be "eaten"
-  """
+    carrotsEaten: int128
+    """
+    @author Bob Clampett
+    @notice Number of carrots eaten
+    @dev Chewing does not count, carrots must pass the throat to be "eaten"
+    """
 
-::
+.. code-block:: python
 
-  @public
-  @payable
-  def doesEat(food: string):
-      """
-      @author Bob Clampett
-      @notice Determine if Bugs will accept `food` to eat
-      @dev Compares the entire string and does not rely on a hash
-      @param food The name of a food to evaluate (in English)
-      @return true if Bugs will eat it, false otherwise
-      """
+    @public
+    @payable
+    def doesEat(food: string):
+        """
+        @author Bob Clampett
+        @notice Determine if Bugs will accept `food` to eat
+        @dev Compares the entire string and does not rely on a hash
+        @param food The name of a food to evaluate (in English)
+        @return true if Bugs will eat it, false otherwise
+        """
 
-      // ...
+        // ...
 
-::
+.. code-block:: python
 
-  Ate: event({food: string})
-  """
-  @author Bob Clampett
-  @notice Bugs did eat `food`
-  @dev Chewing does not count, carrots must pass the throat to be "eaten"
-  @param food The name of a food that was eaten (in English)
-  """
+    Ate: event({food: string})
+    """
+    @author Bob Clampett
+    @notice Bugs did eat `food`
+    @dev Chewing does not count, carrots must pass the throat to be "eaten"
+    @param food The name of a food that was eaten (in English)
+    """
 
 Additional information about Ethereum Natural Specification (NatSpec) can be found `here <https://github.com/ethereum/wiki/wiki/Ethereum-Natural-Specification-Format>`_.
 
@@ -248,7 +249,7 @@ The interface name can also be used as a type annotation for storage variables. 
 
 Specifying ``modifying`` annotation indicates that the call made to the external contract will be able to alter storage, whereas the ``constant`` call will use a ``STATICCALL`` ensuring no storage can be altered during execution.
 
-::
+.. code-block:: python
 
     contract FooBar:
         def calculate() -> uint256: constant
