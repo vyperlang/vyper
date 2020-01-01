@@ -57,7 +57,7 @@ must_fail("""
 def foo():
     x: int128 = 5
     x = 0x1234567890123456789012345678901234567890
-""", TypeMismatchException)
+""", InvalidLiteralException)
 
 must_fail("""
 @public
