@@ -1,5 +1,13 @@
-def test_test_bitwise(get_contract_with_gas_estimation):
-    test_bitwise = """
+import pytest
+
+from vyper.compiler import (
+    compile_code,
+)
+from vyper.opcodes import (
+    EVM_VERSIONS,
+)
+
+code = """
 @public
 def _bitwise_and(x: uint256, y: uint256) -> uint256:
     return bitwise_and(x, y)
@@ -21,7 +29,21 @@ def _shift(x: uint256, y: int128) -> uint256:
     return shift(x, y)
     """
 
-    c = get_contract_with_gas_estimation(test_bitwise)
+
+@pytest.mark.parametrize('evm_version', list(EVM_VERSIONS))
+def test_bitwise_opcodes(evm_version):
+    opcodes = compile_code(code, ['opcodes'], evm_version=evm_version)['opcodes']
+    if evm_version == "byzantium":
+        assert "SHL" not in opcodes
+        assert "SHR" not in opcodes
+    else:
+        assert "SHL" in opcodes
+        assert "SHR" in opcodes
+
+
+@pytest.mark.parametrize('evm_version', list(EVM_VERSIONS))
+def test_test_bitwise(get_contract_with_gas_estimation, evm_version):
+    c = get_contract_with_gas_estimation(code, evm_version=evm_version)
     x = 126416208461208640982146408124
     y = 7128468721412412459
     assert c._bitwise_and(x, y) == (x & y)
@@ -36,5 +58,3 @@ def _shift(x: uint256, y: int128) -> uint256:
     assert c._shift(x, -1) == x // 2
     assert c._shift(x, -3) == x // 8
     assert c._shift(x, -256) == 0
-
-    print("Passed bitwise operation tests")

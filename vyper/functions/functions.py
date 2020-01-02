@@ -8,6 +8,9 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatchException,
 )
+from vyper.opcodes import (
+    version_check,
+)
 from vyper.parser.expr import (
     Expr,
 )
@@ -1063,18 +1066,23 @@ def bitwise_not(expr, args, kwargs, context):
 
 @signature('uint256', 'int128')
 def shift(expr, args, kwargs, context):
+
+    if version_check(begin="constantinople"):
+        left = ['shl', '_s', '_v']
+        right = ['shr', ['sub', 0, '_s'], '_v']
+    else:
+        # If second argument is positive, left-shift so multiply by a power of two
+        # If it is negative, divide by a power of two
+        # node that if the abs of the second argument >= 256, then in the EVM
+        # 2**(second arg) = 0, and multiplying OR dividing by 0 gives 0
+        left = ['mul', '_v', ['exp', 2, '_s']]
+        right = ['div', '_v', ['exp', 2, ['sub', 0, '_s']]]
+
     return LLLnode.from_list(
         [
             'with', '_v', args[0], [
                 'with', '_s', args[1], [
-                    # If second argument is positive, left-shift so multiply by a power of two
-                    # If it is negative, divide by a power of two
-                    # node that if the abs of the second argument >= 256, then in the EVM
-                    # 2**(second arg) = 0, and multiplying OR dividing by 0 gives 0
-                    'if',
-                    ['slt', '_s', 0],
-                    ['div', '_v', ['exp', 2, ['sub', 0, '_s']]],
-                    ['mul', '_v', ['exp', 2, '_s']]
+                    'if', ['slt', '_s', 0], right, left
                 ],
             ],
         ],
