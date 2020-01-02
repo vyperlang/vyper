@@ -25,6 +25,7 @@ def get_count(counter: uint256) -> bytes[24]:
     return c
 
 
+@pytest.mark.fuzzing
 @hypothesis.given(
     value=hypothesis.strategies.integers(
         min_value=0,
