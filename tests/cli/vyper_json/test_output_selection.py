@@ -17,14 +17,14 @@ def test_no_outputs():
 
 
 def test_invalid_output():
-    input_json = {'outputSelection': {'foo.vy': ['abi', 'foobar']}}
+    input_json = {'settings': {'outputSelection': {'foo.vy': ['abi', 'foobar']}}}
     sources = {'foo.vy': ""}
     with pytest.raises(JSONError):
         get_input_dict_output_formats(input_json, sources)
 
 
 def test_unknown_contract():
-    input_json = {'outputSelection': {'bar.vy': ['abi']}}
+    input_json = {'settings': {'outputSelection': {'bar.vy': ['abi']}}}
     sources = {'foo.vy': ""}
     with pytest.raises(JSONError):
         get_input_dict_output_formats(input_json, sources)
@@ -32,13 +32,13 @@ def test_unknown_contract():
 
 @pytest.mark.parametrize('output', TRANSLATE_MAP.items())
 def test_translate_map(output):
-    input_json = {'outputSelection': {'foo.vy': [output[0]]}}
+    input_json = {'settings': {'outputSelection': {'foo.vy': [output[0]]}}}
     sources = {'foo.vy': ""}
     assert get_input_dict_output_formats(input_json, sources) == {'foo.vy': [output[1]]}
 
 
 def test_star():
-    input_json = {'outputSelection': {'*': ['*']}}
+    input_json = {'settings': {'outputSelection': {'*': ['*']}}}
     sources = {'foo.vy': "", 'bar.vy': ""}
     expected = sorted(TRANSLATE_MAP.values())
     result = get_input_dict_output_formats(input_json, sources)
@@ -46,7 +46,7 @@ def test_star():
 
 
 def test_evm():
-    input_json = {'outputSelection': {'foo.vy': ['abi', 'evm']}}
+    input_json = {'settings': {'outputSelection': {'foo.vy': ['abi', 'evm']}}}
     sources = {'foo.vy': ""}
     expected = ['abi'] + sorted(v for k, v in TRANSLATE_MAP.items() if k.startswith('evm'))
     result = get_input_dict_output_formats(input_json, sources)
@@ -54,6 +54,6 @@ def test_evm():
 
 
 def test_solc_style():
-    input_json = {'outputSelection': {'foo.vy': {'': ['abi'], 'foo.vy': ['ir']}}}
+    input_json = {'settings': {'outputSelection': {'foo.vy': {'': ['abi'], 'foo.vy': ['ir']}}}}
     sources = {'foo.vy': ""}
     assert get_input_dict_output_formats(input_json, sources) == {'foo.vy': ['abi', 'ir']}
