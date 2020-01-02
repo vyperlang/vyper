@@ -58,3 +58,20 @@ def test_test_bitwise(get_contract_with_gas_estimation, evm_version):
     assert c._shift(x, -1) == x // 2
     assert c._shift(x, -3) == x // 8
     assert c._shift(x, -256) == 0
+
+
+@pytest.mark.parametrize('evm_version', list(EVM_VERSIONS))
+def test_literals(get_contract, evm_version):
+    code = """
+@public
+def left(x: uint256) -> uint256:
+    return shift(x, -3)
+
+@public
+def right(x: uint256) -> uint256:
+    return shift(x, 3)
+    """
+
+    c = get_contract(code, evm_version=evm_version)
+    assert c.left(80) == 10
+    assert c.right(80) == 640
