@@ -2,6 +2,7 @@ import binascii
 import functools
 import re
 from typing import (
+    Dict,
     List,
     Union,
 )
@@ -122,7 +123,7 @@ class SizeLimits:
 
 # Map representing all limits loaded into a contract as part of the initializer
 # code.
-LOADED_LIMITS = {
+LOADED_LIMITS: Dict[int, int] = {
     MemoryPositions.ADDRSIZE: SizeLimits.ADDRSIZE,
     MemoryPositions.MAXNUM: SizeLimits.MAXNUM,
     MemoryPositions.MINNUM: SizeLimits.MINNUM,

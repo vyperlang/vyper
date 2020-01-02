@@ -60,7 +60,7 @@ def _build_vyper_ast_init_kwargs(
         yield ('class_type', node.class_type)  # type: ignore
 
     for field_name in vyper_class.get_slots():
-        if hasattr(node, field_name):
+        if field_name not in vyper_ast.BASE_NODE_ATTRIBUTES and hasattr(node, field_name):
             yield (
                 field_name,
                 parse_python_ast(
@@ -89,6 +89,7 @@ def parse_python_ast(source_code: str,
             class_name = "Str"
         elif isinstance(node.value, bytes):
             class_name = "Bytes"
+
     if not hasattr(vyper_ast, class_name):
         raise SyntaxException(f'Invalid syntax (unsupported "{class_name}" Python AST node).', node)
 
@@ -144,10 +145,10 @@ def ast_to_dict(node: vyper_ast.VyperNode) -> dict:
         return _ast_to_dict(node)
     elif isinstance(node, list):
         return _ast_to_list(node)
-    elif node is None or isinstance(node, (str, int)):
+    elif node is None or isinstance(node, (str, int, bytes, float)):
         return node
     else:
-        raise CompilerPanic('Unknown vyper AST node provided.')
+        raise CompilerPanic(f'Unknown vyper AST node provided: "{type(node)}".')
 
 
 def dict_to_ast(ast_struct: dict) -> vyper_ast.VyperNode:
@@ -164,10 +165,10 @@ def dict_to_ast(ast_struct: dict) -> vyper_ast.VyperNode:
             dict_to_ast(x)
             for x in ast_struct
         ]
-    elif ast_struct is None or isinstance(ast_struct, (str, int)):
+    elif ast_struct is None or isinstance(ast_struct, (str, int, bytes, float)):
         return ast_struct
     else:
-        raise CompilerPanic('Unknown ast_struct provided.')
+        raise CompilerPanic(f'Unknown ast_struct provided: "{type(ast_struct)}".')
 
 
 def to_python_ast(vyper_ast_node: vyper_ast.VyperNode) -> python_ast.AST:

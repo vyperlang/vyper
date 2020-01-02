@@ -7,8 +7,28 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
+    EvmVersionException,
     TypeMismatchException,
 )
+from vyper.opcodes import (
+    EVM_VERSIONS,
+)
+
+
+@pytest.mark.parametrize('evm_version', list(EVM_VERSIONS))
+def test_evm_version(evm_version):
+    code = """
+@public
+def foo():
+    a: uint256 = chain.id
+    """
+
+    if EVM_VERSIONS[evm_version] < 2:
+        with raises(EvmVersionException):
+            compiler.compile_code(code, evm_version=evm_version)
+    else:
+        compiler.compile_code(code, evm_version=evm_version)
+
 
 fail_list = [
     """
@@ -61,10 +81,10 @@ def test_chain_fail(bad_code):
 
     if isinstance(bad_code, tuple):
         with raises(bad_code[1]):
-            compiler.compile_code(bad_code[0])
+            compiler.compile_code(bad_code[0], evm_version="istanbul")
     else:
         with raises(TypeMismatchException):
-            compiler.compile_code(bad_code)
+            compiler.compile_code(bad_code, evm_version="istanbul")
 
 
 valid_list = [
@@ -85,7 +105,7 @@ def check_chain_id(c: uint256) -> bool:
 
 @pytest.mark.parametrize('good_code', valid_list)
 def test_chain_success(good_code):
-    assert compiler.compile_code(good_code) is not None
+    assert compiler.compile_code(good_code, evm_version="istanbul") is not None
 
 
 def test_chainid_operation(get_contract_with_gas_estimation):
@@ -95,5 +115,5 @@ def test_chainid_operation(get_contract_with_gas_estimation):
 def get_chain_id() -> uint256:
     return chain.id
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract_with_gas_estimation(code, evm_version="istanbul")
     assert c.get_chain_id() == 0  # Default value of py-evm

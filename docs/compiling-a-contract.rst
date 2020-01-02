@@ -1,8 +1,8 @@
 Compiling a Contract
 ********************
 
-Command-Line Tools
-==================
+Command-Line Compiler Tools
+===========================
 
 Vyper includes the following command-line scripts for compiling contracts:
 
@@ -37,13 +37,12 @@ The ``-p`` flag allows you to set a root path that is used when searching for in
 
     $ vyper -p yourProject yourProject/yourFileName.vy
 
+.. _vyper-json:
 
 vyper-json
 ----------
 
-``vyper-json`` provides a JSON interface for the compiler. It expects a JSON formatted input and returns the compilation result in a JSON formatted output.
-
-Where possible, the JSON formats used by this script follow those of `Solidity <https://solidity.readthedocs.io/en/latest/using-the-compiler.html#compiler-input-and-output-json-description>`_.
+``vyper-json`` provides a JSON interface for the compiler. It expects a :ref:`JSON formatted input<vyper-json-input>` and returns the compilation result in a :ref:`JSON formatted output<vyper-json-output>`.
 
 To compile from JSON supplied via ``stdin``:
 
@@ -63,8 +62,92 @@ By default, the output is sent to ``stdout``. To redirect to a file, use the ``-
 
     $ vyper-json -o compiled.json
 
+Importing Interfaces
+~~~~~~~~~~~~~~~~~~~~
+
+``vyper-json`` searches for imported interfaces in the following sequence:
+
+1. Interfaces defined in the ``interfaces`` field of the input JSON
+2. Derived interfaces generated from contracts in the ``sources`` field of the input JSON
+3. (Optional) The local filesystem, if a root path was explicitely declared via the ``-p`` flag.
+
+See :ref:`searching_for_imports` for more information on Vyper's import system.
+
+Online Compilers
+================
+
+Vyper Online Compiler
+---------------------
+
+`Vyper Online Compiler <https://vyper.online/>`_ is an online compiler which lets you experiment with the language without having to install Vyper. It allows you to compile to ``bytecode`` as well as ``LLL``.
+
+.. note::
+
+    While the vyper version of the online compiler is updated on a regular basis it might be a bit behind the latest version found in the master branch of the repository.
+
+Remix IDE
+---------
+
+`Remix IDE <https://remix.ethereum.org>`_ is a compiler and Javascript VM for developing and testing contracts in Vyper as well as Solidity.
+
+.. note::
+
+   While the vyper version of the Remix IDE compiler is updated on a regular basis it might be a bit behind the latest version found in the master branch of the repository. Make sure the byte code matches the output from your local compiler.
+
+
+Setting the Target EVM Version
+==============================
+
+When you compile your contract code you can specify the Ethereum virtual machine version to compile for to avoid particular features or behaviours.
+
+.. warning::
+
+    Compiling for the wrong EVM version can result in wrong, strange and failing behaviour. Please ensure, especially if running a private chain, that you use matching EVM versions.
+
+When compiling via ``vyper``, include the ``--evm-version`` flag:
+
+::
+
+    $ vyper --evm-version [VERSION]
+
+When using the JSON interface, include the ``"evmVersion"`` key within the ``"settings"`` field:
+
+.. code-block:: javascript
+
+    {
+        "settings": {
+            "evmVersion": "[VERSION]"
+        }
+    }
+
+Target Options
+--------------
+
+The following is a list of supported EVM versions, and changes in the compiler introduced with each version. Backward compatibility is not guaranteed between each version.
+
+- ``byzantium``
+   - The oldest EVM version supported by Vyper.
+- ``constantinople``
+   - The compiler behaves the same way as with byzantium.
+- ``petersburg``
+   - The compiler behaves the same way as with consantinople.
+- ``istanbul`` **(default)**
+   - The ``CHAINID`` opcode is accessible via ``chain.id``
+   - The ``SELFBALANCE`` opcode is used for calls to ``self.balance``
+   - Gas estimates changed for ``SLOAD`` and ``BALANCE``
+
+
+Compiler Input and Output JSON Description
+==========================================
+
+Especially when dealing with complex or automated setups, the recommended way to compile is to use :ref:`vyper-json` and the JSON-input-output interface.
+
+Where possible, the Vyper JSON compiler formats follow those of `Solidity <https://solidity.readthedocs.io/en/latest/using-the-compiler.html#compiler-input-and-output-json-description>`_.
+
+.. _vyper-json-input:
+
 Input JSON Description
-~~~~~~~~~~~~~~~~~~~~~~
+----------------------
 
 The following example describes the expected input format of ``vyper-json``. Comments are of course not permitted and used here only for explanatory purposes.
 
@@ -98,40 +181,42 @@ The following example describes the expected input format of ``vyper-json``. Com
         },
         // Optional
         "settings": {
-            "evmVersion": "byzantium"  // EVM version to compile for. Can be byzantium, constantinople or petersburg.
-        },
-        // The following is used to select desired outputs based on file names.
-        // File names are given as keys, a star as a file name matches all files.
-        // Outputs can also follow the Solidity format where second level keys
-        // denoting contract names - all 2nd level outputs are applied to the file.
-        //
-        // To select all possible compiler outputs: "outputSelection: { '*': ["*"] }"
-        // Note that this might slow down the compilation process needlessly.
-        //
-        // The available output types are as follows:
-        //
-        //    abi - The contract ABI
-        //    ast - Abstract syntax tree
-        //    interface - Derived interface of the contract, in proper Vyper syntax
-        //    ir - LLL intermediate representation of the code
-        //    evm.bytecode.object - Bytecode object
-        //    evm.bytecode.opcodes - Opcodes list
-        //    evm.deployedBytecode.object - Deployed bytecode object
-        //    evm.deployedBytecode.opcodes - Deployed opcodes list
-        //    evm.deployedBytecode.sourceMap - Deployed source mapping (useful for debugging)
-        //    evm.methodIdentifiers - The list of function hashes
-        //
-        // Using `evm`, `evm.bytecode`, etc. will select every target part of that output.
-        // Additionally, `*` can be used as a wildcard to request everything.
-        //
-        "outputSelection": {
-            "*": ["evm.bytecode", "abi"],  // Enable the abi and bytecode outputs for every single contract
-            "contracts/foo.vy": ["ast"]  // Enable the ast output for contracts/foo.vy
+            "evmVersion": "istanbul",  // EVM version to compile for. Can be byzantium, constantinople, petersburg or istanbul.
+            // The following is used to select desired outputs based on file names.
+            // File names are given as keys, a star as a file name matches all files.
+            // Outputs can also follow the Solidity format where second level keys
+            // denoting contract names - all 2nd level outputs are applied to the file.
+            //
+            // To select all possible compiler outputs: "outputSelection: { '*': ["*"] }"
+            // Note that this might slow down the compilation process needlessly.
+            //
+            // The available output types are as follows:
+            //
+            //    abi - The contract ABI
+            //    ast - Abstract syntax tree
+            //    interface - Derived interface of the contract, in proper Vyper syntax
+            //    ir - LLL intermediate representation of the code
+            //    evm.bytecode.object - Bytecode object
+            //    evm.bytecode.opcodes - Opcodes list
+            //    evm.deployedBytecode.object - Deployed bytecode object
+            //    evm.deployedBytecode.opcodes - Deployed opcodes list
+            //    evm.deployedBytecode.sourceMap - Deployed source mapping (useful for debugging)
+            //    evm.methodIdentifiers - The list of function hashes
+            //
+            // Using `evm`, `evm.bytecode`, etc. will select every target part of that output.
+            // Additionally, `*` can be used as a wildcard to request everything.
+            //
+            "outputSelection": {
+                "*": ["evm.bytecode", "abi"],  // Enable the abi and bytecode outputs for every single contract
+                "contracts/foo.vy": ["ast"]  // Enable the ast output for contracts/foo.vy
+            }
         }
     }
 
+.. _vyper-json-output:
+
 Output JSON Description
-~~~~~~~~~~~~~~~~~~~~~~~
+-----------------------
 
 The following example describes the output format of ``vyper-json``. Comments are of course not permitted and used here only for explanatory purposes.
 
@@ -206,17 +291,6 @@ The following example describes the output format of ``vyper-json``. Comments ar
         }
     }
 
-Importing Interfaces
-~~~~~~~~~~~~~~~~~~~~
-
-``vyper-json`` searches for imported interfaces in the following sequence:
-
-1. Interfaces defined in the ``interfaces`` field of the input JSON
-2. Derived interfaces generated from contracts in the ``sources`` field of the input JSON
-3. (Optional) The local filesystem, if a root path was explicitely declared via the ``-p`` flag.
-
-See :ref:`searching_for_imports` for more information on Vyper's import system.
-
 Errors
 ~~~~~~
 
@@ -228,25 +302,3 @@ Each error includes a ``component`` field, indicating the stage at which it occu
 * ``vyper``: Unexpected errors that occur within Vyper. If you receive an error of this type, please open an issue.
 
 You can also use the ``--traceback`` flag to receive a standard Python traceback when an error is encountered.
-
-
-Online Compilers
-================
-
-Vyper Online Compiler
----------------------
-
-`Vyper Online Compiler <https://vyper.online/>`_ is an online compiler which lets you experiment with the language without having to install Vyper. It allows you to compile to ``bytecode`` as well as ``LLL``.
-
-.. note::
-
-    While the vyper version of the online compiler is updated on a regular basis it might be a bit behind the latest version found in the master branch of the repository.
-
-Remix IDE
----------
-
-`Remix IDE <https://remix.ethereum.org>`_ is a compiler and Javascript VM for developing and testing contracts in Vyper as well as Solidity.
-
-.. note::
-
-   While the vyper version of the Remix IDE compiler is updated on a regular basis it might be a bit behind the latest version found in the master branch of the repository. Make sure the byte code matches the output from your local compiler.

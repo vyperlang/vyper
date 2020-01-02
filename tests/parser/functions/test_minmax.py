@@ -185,3 +185,55 @@ def foo() -> uint256:
         lambda: get_contract_with_gas_estimation(code_2),
         TypeMismatchException
     )
+
+
+def test_unsigned(get_contract_with_gas_estimation):
+    code = """
+@public
+def foo1() -> uint256:
+    return min(0, 2**255)
+
+@public
+def foo2() -> uint256:
+    return min(2**255, 0)
+
+@public
+def foo3() -> uint256:
+    return max(0, 2**255)
+
+@public
+def foo4() -> uint256:
+    return max(2**255, 0)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.foo1() == 0
+    assert c.foo2() == 0
+    assert c.foo3() == 2**255
+    assert c.foo4() == 2**255
+
+
+def test_signed(get_contract_with_gas_estimation):
+    code = """
+@public
+def foo1() -> int128:
+    return min(MIN_INT128, MAX_INT128)
+
+@public
+def foo2() -> int128:
+    return min(MAX_INT128, MIN_INT128)
+
+@public
+def foo3() -> int128:
+    return max(MIN_INT128, MAX_INT128)
+
+@public
+def foo4() -> int128:
+    return max(MAX_INT128, MIN_INT128)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.foo1() == -2**127
+    assert c.foo2() == -2**127
+    assert c.foo3() == 2**127-1
+    assert c.foo4() == 2**127-1

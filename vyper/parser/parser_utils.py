@@ -64,7 +64,7 @@ def get_number_as_fraction(expr, context):
 
     if exponent < -10:
         raise InvalidLiteralException(
-                "`decimal` literal cannot have more than 10 decimal places: {literal}",
+                f"`decimal` literal cannot have more than 10 decimal places: {literal}",
                 expr
             )
 
@@ -418,14 +418,20 @@ def base_type_conversion(orig, frm, to, pos, in_function_call=False):
         is_base_type(frm, 'int128') and is_base_type(to, 'decimal')
     ) and are_units_compatible(frm, to)
 
-    if getattr(frm, 'is_literal', False) and frm.typ in ('int128', 'uint256'):
-        if not SizeLimits.in_bounds(frm.typ, orig.value):
-            raise InvalidLiteralException("Number out of range: " + str(orig.value), pos)
-        # Special Case: Literals in function calls should always convey unit type as well.
-        if in_function_call and not (frm.unit == to.unit and frm.positional == to.positional):
-            raise InvalidLiteralException(
-                f"Function calls require explicit unit definitions on calls, expected {to}", pos
-            )
+    if getattr(frm, 'is_literal', False):
+        if frm.typ in ('int128', 'uint256'):
+            if not SizeLimits.in_bounds(frm.typ, orig.value):
+                raise InvalidLiteralException(f"Number out of range: {orig.value}", pos)
+            # Special Case: Literals in function calls should always convey unit type as well.
+            if in_function_call and not (frm.unit == to.unit and frm.positional == to.positional):
+                raise InvalidLiteralException(
+                    f"Function calls require explicit unit definitions on calls, expected {to}",
+                    pos
+                )
+        if to.typ in ('int128', 'uint256'):
+            if not SizeLimits.in_bounds(to.typ, orig.value):
+                raise InvalidLiteralException(f"Number out of range: {orig.value}", pos)
+
     if not isinstance(frm, (BaseType, NullType)) or not isinstance(to, BaseType):
         raise TypeMismatchException(
             f"Base type conversion from or to non-base type: {frm} {to}", pos
@@ -564,14 +570,6 @@ def make_setter(left, right, location, pos, in_function_call=False):
             pos,
             in_function_call=in_function_call,
         )
-        # TODO this overlaps a type check in parser.stmt.Stmt._check_valid_assign
-        # and should be examined during a refactor (@iamdefinitelyahuman)
-        if 'int' in left.typ.typ and isinstance(right.value, int):
-            if not SizeLimits.in_bounds(left.typ.typ, right.value):
-                raise InvalidLiteralException(
-                    f"Number out of range for {left.typ}: {right.value}",
-                    pos
-                )
         if location == 'storage':
             return LLLnode.from_list(['sstore', left, right], typ=None)
         elif location == 'memory':
