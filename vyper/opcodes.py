@@ -4,6 +4,7 @@ from typing import (
 )
 
 from vyper.typing import (
+    OpcodeGasCost,
     OpcodeMap,
     OpcodeRulesetMap,
     OpcodeRulesetValue,
@@ -214,7 +215,7 @@ def evm_wrapper(fn, *args, **kwargs):
 
 
 def _gas(value: OpcodeValue, idx: int) -> Optional[OpcodeRulesetValue]:
-    gas = value[3]
+    gas: OpcodeGasCost = value[3]
     if isinstance(gas, int):
         return value[:3] + (gas,)
     if len(gas) <= idx:
