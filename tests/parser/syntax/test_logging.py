@@ -7,6 +7,7 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
+    InvalidLiteralException,
     TypeMismatchException,
 )
 
@@ -33,7 +34,14 @@ Sale: event({eth_sold: indexed(uint256(wei))})
 @public
 def logSale(amount: uint256):
    log.Sale(amount)
-   """
+   """,
+    ("""
+Test: event({ n: uint256 })
+
+@public
+def test():
+    log.Test(-7)
+   """, InvalidLiteralException),
 ]
 
 

@@ -116,6 +116,13 @@ def foo():
 """)
 
 must_fail("""
+b: map(uint256, uint256)
+@public
+def foo():
+    x: int128 = self.b[-5]
+""", InvalidLiteralException)
+
+must_fail("""
 b: map(int128, int128)
 @public
 def foo():
