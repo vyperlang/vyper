@@ -36,7 +36,7 @@ def to_bool(expr, args, kwargs, context):
     if input_type == 'bytes':
         if in_arg.typ.maxlen > 32:
             raise TypeMismatchException(
-                f"Cannot convert bytes array of max length {in_arg.value} to bool",
+                f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to bool",
                 expr,
             )
         else:
@@ -122,7 +122,7 @@ def to_int128(expr, args, kwargs, context):
     elif input_type in ('string', 'bytes'):
         if in_arg.typ.maxlen > 32:
             raise TypeMismatchException(
-                f"Cannot convert bytes array of max length {in_arg.value} to int128",
+                f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to int128",
                 expr,
             )
         return byte_array_to_num(in_arg, expr, 'int128')
@@ -226,7 +226,7 @@ def to_uint256(expr, args, kwargs, context):
     elif isinstance(in_arg, LLLnode) and input_type == 'bytes':
         if in_arg.typ.maxlen > 32:
             raise InvalidLiteralException(
-                f"Cannot convert bytes array of max length {in_arg.value} to uint256",
+                f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to uint256",
                 expr,
             )
         return byte_array_to_num(in_arg, expr, 'uint256')
@@ -243,7 +243,7 @@ def to_decimal(expr, args, kwargs, context):
     if input_type == 'bytes':
         if in_arg.typ.maxlen > 32:
             raise TypeMismatchException(
-                f"Cannot convert bytes array of max length {in_arg.value} to decimal",
+                f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to decimal",
                 expr,
             )
         num = byte_array_to_num(in_arg, expr, 'int128')

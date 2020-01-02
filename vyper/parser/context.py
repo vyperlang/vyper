@@ -42,7 +42,7 @@ class Context:
         # Global variables, in the form (name, storage location, type)
         self.globals = global_ctx._globals
         # ABI objects, in the form {classname: ABI JSON}
-        self.sigs = sigs or {}
+        self.sigs = sigs or {'self': {}}
         # Variables defined in for loops, e.g. for i in range(6): ...
         self.forvars = forvars or {}
         # Return type of the function

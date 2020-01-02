@@ -120,19 +120,9 @@ def _parse_args(argv):
 
     output_formats = tuple(uniq(args.format.split(',')))
 
-    translate_map = {
-        'abi_python': 'abi',
-        'json': 'abi',
-        'ast': 'ast_dict'
-    }
-    final_formats = []
-
-    for f in output_formats:
-        final_formats.append(translate_map.get(f, f))
-
     compiled = compile_files(
         args.input_files,
-        final_formats,
+        output_formats,
         args.root_folder,
         args.show_gas_estimates,
         args.evm_version,
@@ -142,13 +132,12 @@ def _parse_args(argv):
         print(json.dumps(compiled))
         return
 
-    for contract_data in list(compiled.values()):
-        for f in output_formats:
-            o = contract_data[translate_map.get(f, f)]
-            if f in ('abi', 'json', 'ast', 'source_map'):
-                print(json.dumps(o))
+    for key in args.input_files:
+        for data in compiled[key].values():
+            if isinstance(data, (list, dict)):
+                print(json.dumps(data))
             else:
-                print(o)
+                print(data)
 
 
 def uniq(seq: Iterable[T]) -> Iterator[T]:
@@ -246,9 +235,16 @@ def compile_files(input_files: Iterable[str],
         output_formats = ['bytecode', 'bytecode_runtime', 'abi', 'source_map', 'method_identifiers']
         show_version = True
 
+    translate_map = {
+        'abi_python': 'abi',
+        'json': 'abi',
+        'ast': 'ast_dict'
+    }
+    final_formats = [translate_map.get(i, i) for i in output_formats]
+
     compiler_data = vyper.compile_codes(
         contract_sources,
-        output_formats,
+        final_formats,
         exc_handler=exc_handler,
         interface_codes=get_interface_codes(root_path, contract_sources),
         evm_version=evm_version,

@@ -61,6 +61,14 @@ def test(VAL: uint256):
 C1: constant(uint256) = block.number
 C2: constant(uint256) = convert(C1, uint256)
     """, InvalidLiteralException),
+    # cannot assign function result to a constant
+    """
+@public
+def foo() -> uint256:
+    return 42
+
+c1: constant(uint256) = foo()
+     """
 ]
 
 
