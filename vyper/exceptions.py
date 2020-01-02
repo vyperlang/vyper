@@ -109,6 +109,10 @@ class ArrayIndexException(ParserException):
     pass
 
 
+class ZeroDivisionException(ParserException):
+    pass
+
+
 class EvmVersionException(ParserException):
     pass
 

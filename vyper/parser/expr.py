@@ -9,6 +9,7 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
+    ZeroDivisionException,
 )
 from vyper.opcodes import (
     version_check,
@@ -463,15 +464,24 @@ class Expr(object):
                 val = left.value - right.value
             elif isinstance(self.expr.op, ast.Mult):
                 val = left.value * right.value
-            elif isinstance(self.expr.op, ast.Div):
-                val = left.value // right.value
-            elif isinstance(self.expr.op, ast.Mod):
-                val = left.value % right.value
             elif isinstance(self.expr.op, ast.Pow):
                 val = left.value ** right.value
+            elif isinstance(self.expr.op, (ast.Div, ast.Mod)):
+                if right.value == 0:
+                    raise ZeroDivisionException(
+                        "integer division or modulo by zero",
+                        self.expr,
+                    )
+                if isinstance(self.expr.op, ast.Div):
+                    val = left.value // right.value
+                elif isinstance(self.expr.op, ast.Mod):
+                    # modified modulo logic to remain consistent with EVM behaviour
+                    val = abs(left.value) % abs(right.value)
+                    if left.value < 0:
+                        val = -val
             else:
                 raise ParserException(
-                    f'Unsupported literal operator: {str(type(self.expr.op))}',
+                    f'Unsupported literal operator: {type(self.expr.op)}',
                     self.expr,
                 )
 
@@ -503,6 +513,12 @@ class Expr(object):
                     typ=BaseType('uint256', None, is_literal=True),
                     pos=pos,
                 )
+
+        if left.typ.typ == "decimal" and isinstance(self.expr.op, ast.Pow):
+            raise TypeMismatchException(
+                "Cannot perform exponentiation on decimal values.",
+                self.expr,
+            )
 
         # Only allow explicit conversions to occur.
         if left.typ.typ != right.typ.typ:
@@ -582,6 +598,8 @@ class Expr(object):
                 raise Exception(f"Unsupported Operation 'mul({ltyp}, {rtyp})'")
 
         elif isinstance(self.expr.op, ast.Div):
+            if right.typ.is_literal and right.value == 0:
+                raise ZeroDivisionException("Cannot divide by 0.", self.expr)
             if left.typ.positional or right.typ.positional:
                 raise TypeMismatchException("Cannot divide positional values!", self.expr)
             new_unit = combine_units(left.typ.unit, right.typ.unit, div=True)
@@ -602,6 +620,8 @@ class Expr(object):
                 raise Exception(f"Unsupported Operation 'div({ltyp}, {rtyp})'")
 
         elif isinstance(self.expr.op, ast.Mod):
+            if right.typ.is_literal and right.value == 0:
+                raise ZeroDivisionException("Cannot calculate modulus of 0.", self.expr)
             if left.typ.positional or right.typ.positional:
                 raise TypeMismatchException(
                     "Cannot use positional values as modulus arguments!",
