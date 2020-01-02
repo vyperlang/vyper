@@ -25,6 +25,10 @@ import contracts.bar as Bar
 @public
 def foo(a: address) -> bool:
     return Bar(a).bar(1)
+
+@public
+def baz() -> uint256(wei):
+    return self.balance
 """
 
 BAR_CODE = """
@@ -62,7 +66,10 @@ INPUT_JSON = {
     'interfaces': {
         'contracts/bar.json': {'abi': BAR_ABI}
     },
-    'outputSelection': {'*': ["*"]}
+    'settings': {
+        'outputSelection': {'*': ["*"]}
+    }
+
 }
 
 
@@ -115,7 +122,7 @@ def test_exc_handler_to_dict_compiler():
 
 def test_source_ids_increment():
     input_json = deepcopy(INPUT_JSON)
-    input_json['outputSelection'] = {'*': ['evm.deployedBytecode.sourceMap']}
+    input_json['settings']['outputSelection'] = {'*': ['evm.deployedBytecode.sourceMap']}
     result, _ = compile_from_input_dict(input_json)
     assert result['contracts/bar.vy']['source_map']['pc_pos_map_compressed'].startswith('-1:-1:0')
     assert result['contracts/foo.vy']['source_map']['pc_pos_map_compressed'].startswith('-1:-1:1')
@@ -125,3 +132,12 @@ def test_outputs():
     result, _ = compile_from_input_dict(INPUT_JSON)
     assert sorted(result.keys()) == ['contracts/bar.vy', 'contracts/foo.vy']
     assert sorted(result['contracts/bar.vy'].keys()) == sorted(TRANSLATE_MAP.values())
+
+
+def test_evm_version():
+    # should compile differently because of SELFBALANCE
+    input_json = deepcopy(INPUT_JSON)
+    input_json['settings']['evmVersion'] = "byzantium"
+    compiled = compile_from_input_dict(input_json)
+    input_json['settings']['evmVersion'] = "istanbul"
+    assert compiled != compile_from_input_dict(input_json)

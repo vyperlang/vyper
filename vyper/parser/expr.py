@@ -2,6 +2,7 @@ import warnings
 
 from vyper import ast
 from vyper.exceptions import (
+    EvmVersionException,
     InvalidLiteralException,
     NonPayableViolationException,
     ParserException,
@@ -9,6 +10,9 @@ from vyper.exceptions import (
     TypeMismatchException,
     VariableDeclarationException,
     ZeroDivisionException,
+)
+from vyper.opcodes import (
+    version_check,
 )
 from vyper.parser import (
     external_call,
@@ -288,6 +292,13 @@ class Expr(object):
     def attribute(self):
         # x.balance: balance of address x
         if self.expr.attr == 'balance':
+            if self.expr.value.id == "self" and version_check(begin="istanbul"):
+                return LLLnode.from_list(
+                    ['selfbalance'],
+                    typ=BaseType('uint256', {'wei': 1}),
+                    location=None,
+                    pos=getpos(self.expr),
+                )
             addr = Expr.parse_value_expr(self.expr.value, self.context)
             if not is_base_type(addr.typ, 'address'):
                 raise TypeMismatchException(
@@ -383,6 +394,11 @@ class Expr(object):
             elif key == "tx.origin":
                 return LLLnode.from_list(['origin'], typ='address', pos=getpos(self.expr))
             elif key == "chain.id":
+                if not version_check(begin="istanbul"):
+                    raise EvmVersionException(
+                        "chain.id is unavailable prior to istanbul ruleset",
+                        self.expr
+                    )
                 return LLLnode.from_list(['chainid'], typ='uint256', pos=getpos(self.expr))
             else:
                 raise ParserException("Unsupported keyword: " + key, self.expr)
@@ -694,6 +710,7 @@ class Expr(object):
         if left.typ != right.typ.subtype:
             raise TypeMismatchException(
                 f"{left.typ} cannot be in a list of {right.typ.subtype}",
+                self.expr,
             )
 
         result_placeholder = self.context.new_placeholder(BaseType('bool'))
@@ -955,21 +972,19 @@ class Expr(object):
                     self.expr,
                 )
         elif isinstance(self.expr.op, ast.USub):
-            # Must be a signed integer
-            if not is_numeric_type(operand.typ) or operand.typ.typ.lower().startswith('u'):
+            if not is_numeric_type(operand.typ):
                 raise TypeMismatchException(
                     f"Unsupported type for negation: {operand.typ}",
-                    operand,
+                    self.expr,
                 )
 
-            if operand.typ.is_literal and 'int' in operand.typ.typ:
-                num = ast.Num(n=0 - operand.value)
-                num.source_code = self.expr.source_code
-                num.lineno = self.expr.lineno
-                num.col_offset = self.expr.col_offset
-                num.end_lineno = self.expr.end_lineno
-                num.end_col_offset = self.expr.end_col_offset
-                return Expr.parse_value_expr(num, self.context)
+            if operand.typ.is_literal:
+                typ = "decimal" if operand.typ.typ == "decimal" else "int128"
+                return LLLnode.from_list(
+                    0-operand.value,
+                    typ=BaseType(typ, unit=operand.typ.unit, is_literal=True),
+                    pos=getpos(self.expr),
+                )
 
             # Clamp on minimum integer value as we cannot negate that value
             # (all other integer values are fine)

@@ -1,10 +1,17 @@
 import re
+from typing import (
+    Any,
+    List,
+    Optional,
+    Tuple,
+    Union,
+)
 
 from vyper.exceptions import (
     CompilerPanic,
 )
 from vyper.opcodes import (
-    COMB_OPCODES,
+    get_comb_opcodes,
 )
 from vyper.settings import (
     VYPER_COLOR_OUTPUT,
@@ -36,11 +43,12 @@ else:
     ENDC = ''
 
 
-class NullAttractor:
-    def __add__(self, other):
+class NullAttractor(int):
+
+    def __add__(self, other: int) -> 'NullAttractor':
         return NullAttractor()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return 'None'
 
     __radd__ = __add__
@@ -50,17 +58,21 @@ class NullAttractor:
 # Data structure for LLL parse tree
 class LLLnode:
     repr_show_gas = False
+    gas: int
+    valency: int
+    args: List['LLLnode']
+    value: Union[str, int]
 
     def __init__(self,
-                 value,
-                 args=None,
-                 typ=None,
-                 location=None,
-                 pos=None,
-                 annotation='',
-                 mutable=True,
-                 add_gas_estimate=0,
-                 valency=None):
+                 value: Union[str, int],
+                 args: List['LLLnode'] = None,
+                 typ: 'BaseType' = None,
+                 location: str = None,
+                 pos: Optional[Tuple[int, int]] = None,
+                 annotation: Optional[str] = None,
+                 mutable: bool = True,
+                 add_gas_estimate: int = 0,
+                 valency: Optional[int] = None):
         if args is None:
             args = []
 
@@ -88,8 +100,8 @@ class LLLnode:
             self.gas = 5
         elif isinstance(self.value, str):
             # Opcodes and pseudo-opcodes (e.g. clamp)
-            if self.value.upper() in COMB_OPCODES:
-                _, ins, outs, gas = COMB_OPCODES[self.value.upper()]
+            if self.value.upper() in get_comb_opcodes():
+                _, ins, outs, gas = get_comb_opcodes()[self.value.upper()]
                 self.valency = outs
                 if len(self.args) != ins:
                     raise CompilerPanic(
@@ -159,7 +171,7 @@ class LLLnode:
                 is_invalid_repeat_count = any((
                     len(self.args[2].args),
                     not isinstance(self.args[2].value, int),
-                    self.args[2].value <= 0,
+                    isinstance(self.args[2].value, int) and self.args[2].value <= 0,
                 ))
 
                 if is_invalid_repeat_count:
@@ -183,10 +195,21 @@ class LLLnode:
                         f"be zerovalent: {self.args[3]}"
                     ))
                 self.valency = 0
+                rounds: int
                 if self.args[1].value in ('calldataload', 'mload') or self.args[1].value == 'sload':
-                    rounds = self.args[2].value
+                    if isinstance(self.args[2].value, int):
+                        rounds = self.args[2].value
+                    else:
+                        raise CompilerPanic(
+                            f'Unsupported rounds argument type. {self.args[2]}'
+                        )
                 else:
-                    rounds = abs(self.args[2].value - self.args[1].value)
+                    if isinstance(self.args[2].value, int) and isinstance(self.args[1].value, int):
+                        rounds = abs(self.args[2].value - self.args[1].value)
+                    else:
+                        raise CompilerPanic(
+                            f'Unsupported second argument types. {self.args}'
+                        )
                 self.gas = rounds * (self.args[3].gas + 50) + 30
             # Seq statements: seq <statement> <statement> ...
             elif self.value == 'seq':
@@ -257,11 +280,11 @@ class LLLnode:
     def _colorise_keywords(val):
         if val.lower() in VALID_LLL_MACROS:  # highlight macro
             return OKLIGHTMAGENTA + val + ENDC
-        elif val.upper() in COMB_OPCODES.keys():
+        elif val.upper() in get_comb_opcodes().keys():
             return OKMAGENTA + val + ENDC
         return val
 
-    def repr(self):
+    def repr(self) -> str:
 
         if not len(self.args):
 
@@ -311,14 +334,14 @@ class LLLnode:
 
     @classmethod
     def from_list(cls,
-                  obj,
-                  typ=None,
-                  location=None,
-                  pos=None,
-                  annotation=None,
-                  mutable=True,
-                  add_gas_estimate=0,
-                  valency=None):
+                  obj: Any,
+                  typ: 'BaseType' = None,
+                  location: str = None,
+                  pos: Tuple[int, int] = None,
+                  annotation: Optional[str] = None,
+                  mutable: bool = True,
+                  add_gas_estimate: int = 0,
+                  valency: Optional[int] = None) -> 'LLLnode':
         if isinstance(typ, str):
             typ = BaseType(typ)
 
@@ -337,10 +360,10 @@ class LLLnode:
                 obj,
                 [],
                 typ,
-                location,
-                pos,
-                annotation,
-                mutable,
+                location=location,
+                pos=pos,
+                annotation=annotation,
+                mutable=mutable,
                 add_gas_estimate=add_gas_estimate,
             )
         else:
@@ -348,10 +371,10 @@ class LLLnode:
                 obj[0],
                 [cls.from_list(o, pos=pos) for o in obj[1:]],
                 typ,
-                location,
-                pos,
-                annotation,
-                mutable,
+                location=location,
+                pos=pos,
+                annotation=annotation,
+                mutable=mutable,
                 add_gas_estimate=add_gas_estimate,
                 valency=valency,
             )

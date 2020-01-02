@@ -14,13 +14,15 @@ import asttokens
 
 from vyper import (
     compile_lll,
+    opcodes,
     optimizer,
 )
 from vyper.ast_utils import (
     ast_to_dict,
 )
 from vyper.opcodes import (
-    OPCODES,
+    DEFAULT_EVM_VERSION,
+    evm_wrapper,
 )
 from vyper.parser import (
     parser,
@@ -203,7 +205,7 @@ def get_opcodes(code, contract_name, bytecodes_runtime=False, interface_codes=No
         interface_codes=interface_codes
     ).hex().upper()
     bytecode = deque(bytecode[i:i + 2] for i in range(0, len(bytecode), 2))
-    opcode_map = dict((v[0], k) for k, v in OPCODES.items())
+    opcode_map = dict((v[0], k) for k, v in opcodes.get_opcodes().items())
     opcode_str = ""
 
     while bytecode:
@@ -293,6 +295,7 @@ OUTPUT_FORMATS = {
 }
 
 
+@evm_wrapper
 def compile_codes(contract_sources: ContractCodes,
                   output_formats: Union[OutputDict, OutputFormats, None] = None,
                   exc_handler: Union[Callable, None] = None,
@@ -340,11 +343,16 @@ def compile_codes(contract_sources: ContractCodes,
 UNKNOWN_CONTRACT_NAME = '<unknown>'
 
 
-def compile_code(code, output_formats=None, interface_codes=None):
+def compile_code(code,
+                 output_formats=None,
+                 interface_codes=None,
+                 evm_version=DEFAULT_EVM_VERSION):
+
     contract_sources = {UNKNOWN_CONTRACT_NAME: code}
 
     return compile_codes(
         contract_sources,
         output_formats,
         interface_codes=interface_codes,
+        evm_version=evm_version
     )[UNKNOWN_CONTRACT_NAME]

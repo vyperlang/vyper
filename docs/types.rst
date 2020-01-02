@@ -483,6 +483,8 @@ Here ``_KeyType`` can be any base or bytes type. Mappings, contract or structs a
 
 .. index:: !initial
 
+.. _types-initial:
+
 Initial Values
 **************
 

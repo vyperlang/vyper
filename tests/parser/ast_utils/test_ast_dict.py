@@ -83,6 +83,11 @@ def test_dict_to_ast():
 @public
 def test() -> int128:
     a: uint256 = 100
+    b: int128 = -22
+    c: decimal = 3.31337
+    d: bytes[11] = b"oh hai mark"
+    e: address = 0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+    f: bool = False
     return 123
     """
 

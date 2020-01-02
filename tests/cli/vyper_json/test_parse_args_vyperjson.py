@@ -47,7 +47,9 @@ INPUT_JSON = {
     'interfaces': {
         'contracts/bar.json': {'abi': BAR_ABI}
     },
-    'outputSelection': {'*': ["*"]}
+    'settings': {
+        'outputSelection': {'*': ["*"]}
+    }
 }
 
 

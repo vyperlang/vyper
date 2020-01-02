@@ -78,6 +78,14 @@ contracts.
 
     * ``value``: Value to hash. Can be ``str_literal``, ``bytes``, or ``bytes32``.
 
+.. py:function:: uint256_addmod(a: uint256, b: uint256, c: uint256) -> uint256
+
+    Returns the modulo of ``(a + b) % c``. Reverts if ``c == 0``.
+
+.. py:function:: uint256_mulmod(a: uint256, b: uint256, c: uint256) -> uint256
+
+    Returns the modulo from ``(a * b) % c``. Reverts if ``c == 0``.
+
 .. py:function:: sqrt(d: decimal) -> decimal
 
     Returns the square root of the provided decimal number, using the Babylonian square root algorithm.
@@ -93,7 +101,13 @@ contracts.
 
 .. py:function:: ecrecover(hash: bytes32, v: uint256, r: uint256, s: uint256) -> address
 
-    Takes a signed hash and vrs and returns the public key of the signer.
+    Recovers the address associated with the public key from the given elliptic curve signature.
+
+    * ``r``: first 32 bytes of signature
+    * ``s``: second 32 bytes of signature
+    * ``v``: final 1 byte of signature
+
+    Returns the associated address, or ``0`` on error.
 
 .. py:function:: ecadd(a: uint256[2], b: uint256[2]) -> uint256[2]
 

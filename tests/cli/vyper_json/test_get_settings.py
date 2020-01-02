@@ -8,6 +8,9 @@ from vyper.cli.vyper_json import (
 from vyper.exceptions import (
     JSONError,
 )
+from vyper.opcodes import (
+    DEFAULT_EVM_VERSION,
+)
 
 
 def test_unknown_evm():
@@ -23,4 +26,9 @@ def test_early_evm(evm_version):
 
 @pytest.mark.parametrize('evm_version', ['byzantium', 'constantinople', 'petersburg'])
 def test_valid_evm(evm_version):
-    get_input_dict_settings({'settings': {'evmVersion': evm_version}})
+    settings = get_input_dict_settings({'settings': {'evmVersion': evm_version}})
+    assert settings == {'evm_version': evm_version}
+
+
+def test_default_evm():
+    get_input_dict_settings({}) == {'evm_version': DEFAULT_EVM_VERSION}

@@ -15,7 +15,8 @@ test_deps = [
     'eth-tester[py-evm]>=0.3.0b1,<0.4',
     'web3>=5.2.0,<5.3.0',
     'tox>=3.7,<4',
-    'hypothesis>=4.41.3,<5'
+    'lark-parser>=0.7.8,<1',
+    'hypothesis[lark]>=4.53.2,<5',
 ]
 lint_deps = [
     'flake8>=3.7,<4',
@@ -59,7 +60,7 @@ setup(
     python_requires='>=3.6',
     py_modules=['vyper'],
     install_requires=[
-        'asttokens==1.1.13',
+        'asttokens==2.0.3',
         'pycryptodome>=3.5.1,<4',
     ],
     setup_requires=[

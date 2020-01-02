@@ -22,6 +22,12 @@ from vyper import (
     compiler,
 )
 
+from .grammar.conftest import (
+    get_lark_grammar,
+)
+
+LARK_GRAMMAR = get_lark_grammar()
+
 
 class VyperMethod:
     ALLOWED_MODIFIERS = {'call', 'estimateGas', 'transact', 'buildTransaction'}
@@ -121,7 +127,9 @@ def _get_contract(w3, source_code, *args, **kwargs):
         source_code,
         ['abi', 'bytecode'],
         interface_codes=kwargs.pop('interface_codes', None),
+        evm_version=kwargs.pop('evm_version', None),
     )
+    LARK_GRAMMAR.parse(source_code + "\n")  # Test grammar.
     abi = out['abi']
     bytecode = out['bytecode']
     value = kwargs.pop('value_in_eth', 0) * 10 ** 18  # Handle deploying with an eth value.
