@@ -262,7 +262,7 @@ def foo(a: uint256 = -1): pass
 # value out of range for int128
 @public
 def foo(a: int128 = 170141183460469231731687303715884105728): pass
-    """, TypeMismatchException),
+    """, InvalidLiteralException),
     ("""
 # value out of range for uint256 array
 @public

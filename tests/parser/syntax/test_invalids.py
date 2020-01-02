@@ -57,7 +57,7 @@ must_fail("""
 def foo():
     x: int128 = 5
     x = 0x1234567890123456789012345678901234567890
-""", TypeMismatchException)
+""", InvalidLiteralException)
 
 must_fail("""
 @public
@@ -114,6 +114,13 @@ b: map(int128, int128)
 def foo():
     x: int128 = self.b[5]
 """)
+
+must_fail("""
+b: map(uint256, uint256)
+@public
+def foo():
+    x: int128 = self.b[-5]
+""", InvalidLiteralException)
 
 must_fail("""
 b: map(int128, int128)
