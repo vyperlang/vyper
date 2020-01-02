@@ -21,6 +21,7 @@ Name                 Type             Value
 ``block.number``     ``uint256``      Current block number
 ``block.prevhash``   ``bytes32``      Equivalent to ``blockhash(block.number - 1)``
 ``block.timestamp``  ``uint256``      Current block epoch timestamp
+``chain.id``         ``uint256``      Chain ID
 ``msg.gas``          ``uint256``      Remaining gas
 ``msg.sender``       ``address``      Sender of the message (current call)
 ``msg.value``        ``uint256(wei)`` Number of wei sent with the message

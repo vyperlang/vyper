@@ -25,6 +25,10 @@ import contracts.bar as Bar
 @public
 def foo(a: address) -> bool:
     return Bar(a).bar(1)
+
+@public
+def baz() -> uint256(wei):
+    return self.balance
 """
 
 BAR_CODE = """
@@ -125,3 +129,12 @@ def test_outputs():
     result, _ = compile_from_input_dict(INPUT_JSON)
     assert sorted(result.keys()) == ['contracts/bar.vy', 'contracts/foo.vy']
     assert sorted(result['contracts/bar.vy'].keys()) == sorted(TRANSLATE_MAP.values())
+
+
+def test_evm_version():
+    # should compile differently because of SELFBALANCE
+    input_json = deepcopy(INPUT_JSON)
+    input_json['settings'] = {'evmVersion': "byzantium"}
+    compiled = compile_from_input_dict(input_json)
+    input_json['settings'] = {'evmVersion': "istanbul"}
+    assert compiled != compile_from_input_dict(input_json)

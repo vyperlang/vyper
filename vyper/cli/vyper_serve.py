@@ -15,6 +15,9 @@ import vyper
 from vyper.exceptions import (
     ParserException,
 )
+from vyper.opcodes import (
+    DEFAULT_EVM_VERSION,
+)
 from vyper.parser import (
     lll_node,
 )
@@ -104,6 +107,7 @@ class VyperRequestHandler(BaseHTTPRequestHandler):
             out_dict = vyper.compile_codes(
                 {'': code},
                 vyper.compiler.OUTPUT_FORMATS.keys(),
+                evm_version=data.get('evm_version', DEFAULT_EVM_VERSION)
             )['']
             out_dict['ir'] = str(out_dict['ir'])
         except ParserException as e:

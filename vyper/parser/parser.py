@@ -55,12 +55,18 @@ LIMIT_MEMORY_SET: List[Any] = [
     ['mstore', pos, limit_size]
     for pos, limit_size in LOADED_LIMITS.items()
 ]
-FUNC_INIT_LLL = LLLnode.from_list(
-    STORE_CALLDATA + LIMIT_MEMORY_SET, typ=None
-)
-INIT_FUNC_INIT_LLL = LLLnode.from_list(
-    ['seq'] + LIMIT_MEMORY_SET, typ=None
-)
+
+
+def func_init_lll():
+    return LLLnode.from_list(
+        STORE_CALLDATA + LIMIT_MEMORY_SET, typ=None
+    )
+
+
+def init_func_init_lll():
+    return LLLnode.from_list(
+        ['seq'] + LIMIT_MEMORY_SET, typ=None
+    )
 
 
 def parse_events(sigs, global_ctx):
@@ -119,8 +125,8 @@ def parse_other_functions(o,
                           global_ctx,
                           default_function,
                           runtime_only):
-    sub = ['seq', FUNC_INIT_LLL]
-    add_gas = FUNC_INIT_LLL.gas
+    sub = ['seq', func_init_lll()]
+    add_gas = func_init_lll().gas
 
     for _def in otherfuncs:
         sub.append(
@@ -189,7 +195,7 @@ def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None):
         external_contracts = parse_external_contracts(external_contracts, global_ctx)
     # If there is an init func...
     if initfunc:
-        o.append(INIT_FUNC_INIT_LLL)
+        o.append(init_func_init_lll())
         o.append(parse_function(
             initfunc[0],
             {**{'self': sigs}, **external_contracts},

@@ -109,6 +109,10 @@ class ArrayIndexException(ParserException):
     pass
 
 
+class EvmVersionException(ParserException):
+    pass
+
+
 class CompilerPanic(Exception):
 
     def __init__(self, message):

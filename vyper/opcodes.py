@@ -1,10 +1,35 @@
 from typing import (
     Dict,
-    Tuple,
-    Union,
+    Optional,
 )
 
-OPCODES: Dict[str, Tuple[Union[int, None], int, int, int]] = {
+from vyper.exceptions import (
+    CompilerPanic,
+)
+from vyper.typing import (
+    OpcodeGasCost,
+    OpcodeMap,
+    OpcodeRulesetMap,
+    OpcodeRulesetValue,
+    OpcodeValue,
+)
+
+active_evm_version: int = 0
+
+EVM_VERSIONS: Dict[str, int] = {
+    'byzantium': 0,
+    'constantinople': 1,
+    'petersburg': 1,
+    'istanbul': 2,
+}
+DEFAULT_EVM_VERSION: str = "istanbul"
+
+
+# opcode as hex value
+# number of values removed from stack
+# number of values added to stack
+# gas cost (byzantium, constantinople, istanbul)
+OPCODES: OpcodeMap = {
     'STOP': (0x00, 0, 0, 0),
     'ADD': (0x01, 2, 1, 3),
     'MUL': (0x02, 2, 1, 5),
@@ -28,9 +53,12 @@ OPCODES: Dict[str, Tuple[Union[int, None], int, int, int]] = {
     'XOR': (0x18, 2, 1, 3),
     'NOT': (0x19, 1, 1, 3),
     'BYTE': (0x1a, 2, 1, 3),
+    'SHL': (0x1b, 2, 1, (None, 3)),
+    'SHR': (0x1c, 2, 1, (None, 3)),
+    'SAR': (0x1d, 2, 1, (None, 3)),
     'SHA3': (0x20, 2, 1, 30),
     'ADDRESS': (0x30, 0, 1, 2),
-    'BALANCE': (0x31, 1, 1, 700),  # Updated Istanbul Ruleset
+    'BALANCE': (0x31, 1, 1, (400, 400, 700)),
     'ORIGIN': (0x32, 0, 1, 2),
     'CALLER': (0x33, 0, 1, 2),
     'CALLVALUE': (0x34, 0, 1, 2),
@@ -42,18 +70,22 @@ OPCODES: Dict[str, Tuple[Union[int, None], int, int, int]] = {
     'GASPRICE': (0x3a, 0, 1, 2),
     'EXTCODESIZE': (0x3b, 1, 1, 700),
     'EXTCODECOPY': (0x3c, 4, 0, 700),
+    'RETURNDATASIZE': (0x3d, 0, 1, 2),
+    'RETURNDATACOPY': (0x3e, 3, 0, 3),
+    'EXTCODEHASH': (0x3f, 1, 1, (None, 400, 700)),
     'BLOCKHASH': (0x40, 1, 1, 20),
     'COINBASE': (0x41, 0, 1, 2),
     'TIMESTAMP': (0x42, 0, 1, 2),
     'NUMBER': (0x43, 0, 1, 2),
     'DIFFICULTY': (0x44, 0, 1, 2),
     'GASLIMIT': (0x45, 0, 1, 2),
-    'CHAINID': (0x46, 0, 1, 2),  # Added Istanbul Ruleset
+    'CHAINID': (0x46, 0, 1, (None, None, 2)),
+    'SELFBALANCE': (0x47, 0, 1, (None, None, 5)),
     'POP': (0x50, 1, 0, 2),
     'MLOAD': (0x51, 1, 1, 3),
     'MSTORE': (0x52, 2, 0, 3),
     'MSTORE8': (0x53, 2, 0, 3),
-    'SLOAD': (0x54, 1, 1, 800),  # Updated Istanbul Ruleset
+    'SLOAD': (0x54, 1, 1, (200, 200, 800)),
     'SSTORE': (0x55, 2, 0, 20000),
     'JUMP': (0x56, 1, 0, 8),
     'JUMPI': (0x57, 2, 0, 10),
@@ -135,7 +167,7 @@ OPCODES: Dict[str, Tuple[Union[int, None], int, int, int]] = {
     'CALLCODE': (0xf2, 7, 1, 700),
     'RETURN': (0xf3, 2, 0, 0),
     'DELEGATECALL': (0xf4, 6, 1, 700),
-    'CALLBLACKBOX': (0xf5, 7, 1, 700),
+    'CREATE2': (0xf5, 4, 1, (None, 32000)),
     'SELFDESTRUCT': (0xff, 1, 0, 25000),
     'STATICCALL': (0xfa, 6, 1, 40),
     'REVERT': (0xfd, 2, 0, 0),
@@ -143,8 +175,7 @@ OPCODES: Dict[str, Tuple[Union[int, None], int, int, int]] = {
     'DEBUG': (0xa5, 1, 0, 0)
 }
 
-
-PSEUDO_OPCODES: Dict[str, Tuple[Union[int, None], int, int, int]] = {
+PSEUDO_OPCODES: OpcodeMap = {
     'CLAMP': (None, 3, 1, 70),
     'UCLAMPLT': (None, 2, 1, 25),
     'UCLAMPLE': (None, 2, 1, 30),
@@ -169,5 +200,68 @@ PSEUDO_OPCODES: Dict[str, Tuple[Union[int, None], int, int, int]] = {
     'GOTO': (None, 1, 0, 8)
 }
 
+COMB_OPCODES: OpcodeMap = {**OPCODES, **PSEUDO_OPCODES}
 
-COMB_OPCODES: Dict[str, Tuple[Union[int, None], int, int, int]] = {**OPCODES, **PSEUDO_OPCODES}
+
+def evm_wrapper(fn, *args, **kwargs):
+
+    def _wrapper(*args, **kwargs):
+        global active_evm_version
+        evm_version = kwargs.pop('evm_version', None) or DEFAULT_EVM_VERSION
+        active_evm_version = EVM_VERSIONS[evm_version]
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            active_evm_version = EVM_VERSIONS[DEFAULT_EVM_VERSION]
+
+    return _wrapper
+
+
+def _gas(value: OpcodeValue, idx: int) -> Optional[OpcodeRulesetValue]:
+    gas: OpcodeGasCost = value[3]
+    if isinstance(gas, int):
+        return value[:3] + (gas,)
+    if len(gas) <= idx:
+        return value[:3] + (gas[-1],)
+    if gas[idx] is None:
+        return None
+    return value[:3] + (gas[idx],)
+
+
+def _mk_version_opcodes(opcodes: OpcodeMap, idx: int) -> OpcodeRulesetMap:
+    return dict(
+        (k, _gas(v, idx)) for k, v in opcodes.items()  # type: ignore
+        if _gas(v, idx) is not None
+    )
+
+
+_evm_opcodes: Dict[int, OpcodeRulesetMap] = dict(
+    (v, _mk_version_opcodes(OPCODES, v))
+    for v in EVM_VERSIONS.values()
+)
+_evm_combined: Dict[int, OpcodeRulesetMap] = dict(
+    (v, _mk_version_opcodes(COMB_OPCODES, v))
+    for v in EVM_VERSIONS.values()
+)
+
+
+def get_opcodes() -> OpcodeRulesetMap:
+    return _evm_opcodes[active_evm_version]
+
+
+def get_comb_opcodes() -> OpcodeRulesetMap:
+    return _evm_combined[active_evm_version]
+
+
+def version_check(begin: Optional[str] = None, end: Optional[str] = None) -> bool:
+    if begin is None and end is None:
+        raise CompilerPanic("Either beginning or end fork ruleset must be set.")
+    if begin is None:
+        begin_idx = min(EVM_VERSIONS.values())
+    else:
+        begin_idx = EVM_VERSIONS[begin]
+    if end is None:
+        end_idx = max(EVM_VERSIONS.values())
+    else:
+        end_idx = EVM_VERSIONS[end]
+    return begin_idx <= active_evm_version <= end_idx
