@@ -134,6 +134,14 @@ def test_outputs():
     assert sorted(result['contracts/bar.vy'].keys()) == sorted(TRANSLATE_MAP.values())
 
 
+def test_relative_import_paths():
+    input_json = deepcopy(INPUT_JSON)
+    input_json['sources']['contracts/potato/baz/baz.vy'] = {'content': """from ... import foo"""}
+    input_json['sources']['contracts/potato/baz/potato.vy'] = {'content': """from . import baz"""}
+    input_json['sources']['contracts/potato/footato.vy'] = {'content': """from baz import baz"""}
+    compile_from_input_dict(input_json)
+
+
 def test_evm_version():
     # should compile differently because of SELFBALANCE
     input_json = deepcopy(INPUT_JSON)
