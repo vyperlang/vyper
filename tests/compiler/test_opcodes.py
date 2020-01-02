@@ -4,6 +4,9 @@ import vyper
 from vyper import (
     opcodes,
 )
+from vyper.exceptions import (
+    CompilerPanic,
+)
 
 
 @pytest.fixture(params=list(opcodes.EVM_VERSIONS))
@@ -28,7 +31,7 @@ def a() -> bool:
 
 
 def test_version_check_no_begin_or_end():
-    with pytest.raises(AssertionError):
+    with pytest.raises(CompilerPanic):
         opcodes.version_check()
 
 

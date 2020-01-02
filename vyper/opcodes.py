@@ -3,6 +3,9 @@ from typing import (
     Optional,
 )
 
+from vyper.exceptions import (
+    CompilerPanic,
+)
 from vyper.typing import (
     OpcodeGasCost,
     OpcodeMap,
@@ -251,7 +254,8 @@ def get_comb_opcodes() -> OpcodeRulesetMap:
 
 
 def version_check(begin: Optional[str] = None, end: Optional[str] = None) -> bool:
-    assert begin is not None or end is not None
+    if begin is None and end is None:
+        raise CompilerPanic("Either beginning or end fork ruleset must be set.")
     if begin is None:
         begin_idx = min(EVM_VERSIONS.values())
     else:
