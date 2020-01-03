@@ -3,6 +3,7 @@ import hashlib
 from vyper import ast
 from vyper.exceptions import (
     ConstancyViolationException,
+    EvmVersionException,
     InvalidLiteralException,
     ParserException,
     StructureException,
@@ -421,6 +422,20 @@ def sha256(expr, args, kwargs, context):
     else:
         # This should never happen, but just left here for future compiler-writers.
         raise Exception(f"Unsupported location: {sub.location}")  # pragma: no test
+
+
+@signature('address')
+def get_extcodehash(expr, args, kwargs, context):
+    if not version_check(begin="constantinople"):
+        raise EvmVersionException(
+            "get_extcodehash is unavailable prior to constantinople ruleset",
+            expr
+        )
+    return LLLnode.from_list(
+        ['extcodehash', args[0]],
+        typ=BaseType('bytes32'),
+        pos=getpos(expr)
+    )
 
 
 @signature('str_literal', 'name_literal')
@@ -1296,6 +1311,7 @@ DISPATCH_TABLE = {
     'concat': concat,
     'sha3': _sha3,
     'sha256': sha256,
+    'get_extcodehash': get_extcodehash,
     'method_id': method_id,
     'keccak256': _keccak256,
     'ecrecover': ecrecover,
