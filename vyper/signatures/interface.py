@@ -275,11 +275,10 @@ def find_signature_conflicts(sigs: Sequence[FunctionSignature]) -> Conflicts:
 
 
 def check_valid_contract_interface(global_ctx, contract_sigs):
-    public_func_sigs = [
-        sig for sig in contract_sigs.values()
-        if isinstance(sig, FunctionSignature) and not sig.private
-    ]
-    func_conflicts = find_signature_conflicts(public_func_sigs)
+    # the check for private function collisions is made to prevent future
+    # breaking changes if we switch to internal calls (@iamdefinitelyahuman)
+    func_sigs = [sig for sig in contract_sigs.values() if isinstance(sig, FunctionSignature)]
+    func_conflicts = find_signature_conflicts(func_sigs)
 
     if len(func_conflicts) > 0:
         sig_1, sig_2 = func_conflicts[0]
