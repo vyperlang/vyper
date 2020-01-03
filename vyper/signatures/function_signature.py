@@ -300,8 +300,12 @@ class FunctionSignature:
         # Get the canonical function signature
         sig = cls.get_full_sig(name, code.args.args, sigs, custom_units, custom_structs, constants)
 
-        # Take the first 4 bytes of the hash of the sig to get the method ID
-        method_id = fourbytes_to_int(keccak256(bytes(sig, 'utf-8'))[:4])
+        if private:
+            # for private functions, the method ID is the entire hash of the sig
+            method_id = int(keccak256(bytes(sig, 'utf-8')).hex(), 16)
+        else:
+            # for public functions, use only the first 4 bytes of the hash
+            method_id = fourbytes_to_int(keccak256(bytes(sig, 'utf-8'))[:4])
         return cls(
             name,
             args,
