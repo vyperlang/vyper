@@ -1,5 +1,3 @@
-import re
-
 from vyper import ast
 from vyper.ast_utils import (
     ast_to_dict,
@@ -877,13 +875,11 @@ class Stmt(object):
                 raise Exception(f"Invalid location: {sub.location}")
 
         elif isinstance(sub.typ, ListType):
-            sub_base_type = re.split(r'\(|\[', str(sub.typ.subtype))[0]
-            ret_base_type = re.split(r'\(|\[', str(self.context.return_type.subtype))[0]
             loop_memory_position = self.context.new_placeholder(typ=BaseType('uint256'))
-            if sub_base_type != ret_base_type:
+            if sub.typ != self.context.return_type:
                 raise TypeMismatchException(
-                    f"List return type {sub_base_type} does not match specified "
-                    f"return type, expecting {ret_base_type}",
+                    f"List return type {sub.typ} does not match specified "
+                    f"return type, expecting {self.context.return_type}",
                     self.stmt
                 )
             elif sub.location == "memory" and sub.value != "multi":
