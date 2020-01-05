@@ -519,9 +519,6 @@ class Stmt(object):
         return arg_expr.value
 
     def parse_for(self):
-        # from .parser import (
-        #     parse_body,
-        # )
         # Type 0 for, e.g. for i in list(): ...
         if self._is_list_iter():
             return self.parse_for_list()
@@ -582,6 +579,14 @@ class Stmt(object):
 
                 rounds = self._get_range_const_value(arg1.right)
                 start = Expr.parse_value_expr(arg0, self.context)
+
+            r = rounds if isinstance(rounds, int) else rounds.value
+            if r < 1:
+                raise StructureException(
+                    f"For loop has invalid number of iterations ({r}),"
+                    " the value must be greater than zero",
+                    self.stmt.iter
+                )
 
             varname = self.stmt.target.id
             pos = self.context.new_variable(varname, BaseType('int128'), pos=getpos(self.stmt))
