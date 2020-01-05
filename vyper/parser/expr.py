@@ -292,7 +292,7 @@ class Expr(object):
     def attribute(self):
         # x.balance: balance of address x
         if self.expr.attr == 'balance':
-            if self.expr.value.id == "self" and version_check(begin="istanbul"):
+            if getattr(self.expr.value, 'id', None) == "self" and version_check(begin="istanbul"):
                 return LLLnode.from_list(
                     ['selfbalance'],
                     typ=BaseType('uint256', {'wei': 1}),
