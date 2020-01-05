@@ -2,6 +2,8 @@ from decimal import (
     Decimal,
 )
 
+import pytest
+
 from vyper.exceptions import (
     StructureException,
     VariableDeclarationException,
@@ -375,3 +377,50 @@ def func(amounts: wei_value[3]) -> wei_value:
     c = get_contract_with_gas_estimation(code)
 
     assert c.func([100, 200, 300]) == 600
+
+
+BAD_CODE = [
+    """
+@public
+def foo():
+    for i in range(-3):
+        pass
+    """,
+    """
+@public
+def foo():
+    for i in range(0):
+        pass
+    """,
+    """
+@public
+def foo():
+    for i in range(5,3):
+        pass
+    """,
+    """
+@public
+def foo():
+    for i in range(5,3,-1):
+        pass
+    """,
+    """
+@public
+def foo():
+    a: uint256 = 2
+    for i in range(a):
+        pass
+    """,
+    """
+@public
+def foo():
+    a: int128 = 6
+    for i in range(a,a-3):
+        pass
+    """,
+]
+
+
+@pytest.mark.parametrize('code', BAD_CODE)
+def test_invalid_for_in_range(assert_compile_failed, get_contract_with_gas_estimation, code):
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), StructureException)
