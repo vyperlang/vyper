@@ -46,9 +46,8 @@ def data() -> address:
 ]
 
 
-@pytest.mark.parametrize('code', BASIC_FOR_LOOP_CODE)
-def test_basic_for_in_lists(code, get_contract):
-    code, data = code
+@pytest.mark.parametrize('code, data', BASIC_FOR_LOOP_CODE)
+def test_basic_for_in_lists(code, data, get_contract):
     c = get_contract(code)
     assert c.data() == data
 
@@ -253,9 +252,8 @@ def a() -> int128:
 ]
 
 
-@pytest.mark.parametrize('code', RANGE_CONSTANT_CODE)
-def test_range_constant(get_contract, code):
-    code, result = code
+@pytest.mark.parametrize('code, result', RANGE_CONSTANT_CODE)
+def test_range_constant(get_contract, code, result):
     c = get_contract(code)
 
     assert c.a() == result
@@ -368,6 +366,59 @@ def foo():
     for i in range(a,a-3):
         pass
     """,
+    # invalid argument length
+    """
+@public
+def foo():
+    for i in range():
+        pass
+    """,
+    """
+@public
+def foo():
+    for i in range(0,1,2):
+        pass
+    """,
+    # non-iterables
+    """
+@public
+def foo():
+    for i in b"asdf":
+        pass
+    """,
+    """
+@public
+def foo():
+    for i in 31337:
+        pass
+    """,
+    """
+@public
+def foo():
+    for i in bar():
+        pass
+    """,
+    """
+@public
+def foo():
+    for i in self.bar():
+        pass
+    """,
+    # nested lists
+    """
+@public
+def foo():
+    x: uint256[5][2] = [[0, 1, 2, 3, 4], [2, 4, 6, 8, 10]]
+    for i in x:
+        pass
+    """,
+    """
+@public
+def foo():
+    x: uint256[5][2] = [[0, 1, 2, 3, 4], [2, 4, 6, 8, 10]]
+    for i in x[1]:
+        pass
+    """
 ]
 
 
