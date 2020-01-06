@@ -30,7 +30,7 @@ Some of the bug and stability fixes:
 - Add compile-time checks for divide by zero and modulo by zero (`#1792 <https://github.com/vyperlang/vyper/pull/1792>`_)
 - Fixed some issues with negating constants (`#1791 <https://github.com/vyperlang/vyper/pull/1791>`_)
 - Allow relative imports beyond one parent level (`#1784 <https://github.com/vyperlang/vyper/pull/1784>`_)
-- Implement SHL/SHR for bitshifting, using Constaninople rules (`#1796 <https://github.com/vyperlang/vyper/pull/1796>`_)
+- Implement SHL/SHR for bitshifting, using Constantinople rules (`#1796 <https://github.com/vyperlang/vyper/pull/1796>`_)
 - ``vyper-json`` compatibility with ``solc`` settings (`#1795 <https://github.com/vyperlang/vyper/pull/1795>`_)
 - Simplify the type check when returning lists (`#1797 <https://github.com/vyperlang/vyper/pull/1797>`_)
 - Add branch coverage reporting (`#1743 <https://github.com/vyperlang/vyper/pull/1743>`_)
