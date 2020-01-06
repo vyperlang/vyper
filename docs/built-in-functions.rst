@@ -283,3 +283,7 @@ Vyper contains a set of built in functions which execute opcodes such as ``SEND`
     .. note::
 
         The EVM only provides access to the most 256 blocks. This function will return 0 if the block number is greater than or equal to the current block number or more than 256 blocks behind the current block.
+
+.. py:function:: get_extcodehash(addr: address) -> bytes32
+
+    Returns the keccak hash of the code at ``addr``, or ``EMPTY_BYTES32`` if the account does not exist or is empty.
