@@ -14,6 +14,7 @@ The following VIPs were implemented for Beta 15:
 
 - EVM Ruleset Switch (VIP `#1230 <https://github.com/vyperlang/vyper/issues/1230>`_)
 - Add support for `EIP-1344 <https://eips.ethereum.org/EIPS/eip-1344>`_, Chain ID Opcode (VIP `#1652 <https://github.com/vyperlang/vyper/issues/1652>`_)
+- Support for `EIP-1052 <https://eips.ethereum.org/EIPS/eip-1052>`_, ``EXTCODEHASH`` (VIP `#1765 <https://github.com/vyperlang/vyper/issues/1765>`_)
 
 Some of the bug and stability fixes:
 
