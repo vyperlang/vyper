@@ -292,21 +292,22 @@ class Expr(object):
     def attribute(self):
         # x.balance: balance of address x
         if self.expr.attr == 'balance':
-            if getattr(self.expr.value, 'id', None) == "self" and version_check(begin="istanbul"):
-                return LLLnode.from_list(
-                    ['selfbalance'],
-                    typ=BaseType('uint256', {'wei': 1}),
-                    location=None,
-                    pos=getpos(self.expr),
-                )
             addr = Expr.parse_value_expr(self.expr.value, self.context)
             if not is_base_type(addr.typ, 'address'):
                 raise TypeMismatchException(
                     "Type mismatch: balance keyword expects an address as input",
                     self.expr
                 )
+            if (
+                isinstance(self.expr.value, ast.Name) and
+                self.expr.value.id == "self" and
+                version_check(begin="istanbul")
+            ):
+                seq = ['selfbalance']
+            else:
+                seq = ['balance', addr]
             return LLLnode.from_list(
-                ['balance', addr],
+                seq,
                 typ=BaseType('uint256', {'wei': 1}),
                 location=None,
                 pos=getpos(self.expr),
