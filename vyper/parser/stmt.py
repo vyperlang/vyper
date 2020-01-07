@@ -502,40 +502,42 @@ class Stmt(object):
             arg_expr = Expr.parse_value_expr(arg_ast_node, self.context)
 
         is_integer_literal = (
-            isinstance(arg_expr.typ, BaseType) and arg_expr.typ.is_literal
-        ) and arg_expr.typ.typ in {'uint256', 'int128'}
-
-        if is_integer_literal:
-            return True, arg_expr
-        else:
-            if raise_exception:
-                raise StructureException("Range only accepts literal (constant) values", arg_expr)
-            return False, arg_expr
+            isinstance(arg_expr.typ, BaseType) and
+            arg_expr.typ.is_literal and
+            arg_expr.typ.typ in {'uint256', 'int128'}
+        )
+        if not is_integer_literal and raise_exception:
+            raise StructureException(
+                "Range only accepts literal (constant) values of type uint256 or int128",
+                arg_ast_node
+            )
+        return is_integer_literal, arg_expr
 
     def _get_range_const_value(self, arg_ast_node):
         _, arg_expr = self._check_valid_range_constant(arg_ast_node)
         return arg_expr.value
 
     def parse_for(self):
-        # from .parser import (
-        #     parse_body,
-        # )
         # Type 0 for, e.g. for i in list(): ...
         if self._is_list_iter():
             return self.parse_for_list()
 
-        is_invalid_for_statement = any((
-            not isinstance(self.stmt.iter, ast.Call),
-            not isinstance(self.stmt.iter.func, ast.Name),
-            not isinstance(self.stmt.target, ast.Name),
-            self.stmt.iter.func.id != "range",
-            len(self.stmt.iter.args) not in {1, 2},
-        ))
-        if is_invalid_for_statement:
-            raise StructureException((
-                "For statements must be of the form `for i in range(rounds): "
-                "..` or `for i in range(start, start + rounds): ..`"
-            ), self.stmt.iter)
+        if not isinstance(self.stmt.iter, ast.Call):
+            if isinstance(self.stmt.iter, ast.Subscript):
+                raise StructureException("Cannot iterate over a nested list", self.stmt.iter)
+            raise StructureException(
+                f"Cannot iterate over '{type(self.stmt.iter).__name__}' object",
+                self.stmt.iter
+            )
+        if getattr(self.stmt.iter.func, 'id', None) != "range":
+            raise StructureException(
+                "Non-literals cannot be used as loop range", self.stmt.iter.func
+            )
+        if len(self.stmt.iter.args) not in {1, 2}:
+            raise StructureException(
+                f"Range expects between 1 and 2 arguments, got {len(self.stmt.iter.args)}",
+                self.stmt.iter.func
+            )
 
         block_scope_id = id(self.stmt)
         with self.context.make_blockscope(block_scope_id):
@@ -580,6 +582,14 @@ class Stmt(object):
 
                 rounds = self._get_range_const_value(arg1.right)
                 start = Expr.parse_value_expr(arg0, self.context)
+
+            r = rounds if isinstance(rounds, int) else rounds.value
+            if r < 1:
+                raise StructureException(
+                    f"For loop has invalid number of iterations ({r}),"
+                    " the value must be greater than zero",
+                    self.stmt.iter
+                )
 
             varname = self.stmt.target.id
             pos = self.context.new_variable(varname, BaseType('int128'), pos=getpos(self.stmt))
