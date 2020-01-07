@@ -39,7 +39,7 @@ def test_version_check(evm_version):
     assert opcodes.version_check(begin=evm_version)
     assert opcodes.version_check(end=evm_version)
     assert opcodes.version_check(begin=evm_version, end=evm_version)
-    if evm_version in ("byzantium", "atlantis"):
+    if evm_version not in ("byzantium", "atlantis"):
         assert not opcodes.version_check(end="byzantium")
     if evm_version != "istanbul":
         assert not opcodes.version_check(begin="istanbul")
