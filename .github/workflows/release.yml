@@ -3,6 +3,7 @@ name: Release
 on:
   release:
     types: [published]
+  repository_dispatch: []
 
 jobs:
   snapcraft:
