@@ -25,7 +25,7 @@ def __init__(_exchange_codehash: bytes32):
 @public
 def register():
     # Verify code hash is the exchange's code hash
-    assert get_extcodehash(msg.sender) == self.exchange_codehash
+    assert msg.sender.codehash == self.exchange_codehash
     # Save a lookup for the exchange
     # NOTE: Use exchange's token address because it should be globally unique
     # NOTE: Should do checks that it hasn't already been set,

@@ -128,7 +128,7 @@ The following is a list of supported EVM versions, and changes in the compiler i
 - ``byzantium``
    - The oldest EVM version supported by Vyper.
 - ``constantinople``
-   - The ``EXTCODEHASH`` opcode is accessible via ``get_extcodehash``
+   - The ``EXTCODEHASH`` opcode is accessible via ``address.codehash``
    - ``shift`` makes use of ``SHL``/``SHR`` opcodes.
 - ``petersburg``
    - The compiler behaves the same way as with consantinople.

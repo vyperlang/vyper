@@ -259,11 +259,17 @@ Members
 Member           Description
 ===============  =========================================================
 ``balance``      Query the balance of an address. Returns ``wei_value``.
+``codehash``     Returns the ``bytes32`` keccak of the code at an address, or ``EMPTY_BYTES32`` if the account does not currently have code.
 ``codesize``     Query the code size of an address. Returns ``int128``.
 ``is_contract``  Query whether it is a contract address. Returns ``bool``.
 ===============  =========================================================
 
 Syntax as follows: ``_address.<member>``, where ``_address`` is of the type ``address`` and ``<member>`` is one of the above keywords.
+
+.. note::
+
+    Operations such as ``SELFDESTRUCT`` and ``CREATE2`` allow for the removal and replacement of bytecode at an address. You should never assume that values of address members will not change in the future.
+
 
 Unit Types
 ==========
