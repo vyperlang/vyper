@@ -16,11 +16,27 @@ from vyper.typing import (
 
 active_evm_version: int = 0
 
+# EVM version rules work as follows:
+# 1. Fork rules go from oldest (lowest value) to newest (highest value).
+# 2. Fork versions aren't actually tied to anything. They are not a part of our
+#    official API. *DO NOT USE THE VALUES FOR ANYTHING IMPORTANT* besides versioning.
+# 3. When support for an older version is dropped, the numbers should *not* change to
+#    reflect it (i.e. dropping support for version 0 removes version 0 entirely).
+# 4. There can be multiple aliases to the same version number (but not the reverse).
+# 5. When supporting multiple chains, if a chain gets a fix first, it increments the
+#    number first.
+# 6. Yes, this will probably have to be rethought if there's ever conflicting support
+#    between multiple chains for a specific feature. Let's hope not.
+# 7. We support at a maximum 3 hard forks (for any given chain).
 EVM_VERSIONS: Dict[str, int] = {
+    # ETH Forks
     'byzantium': 0,
     'constantinople': 1,
     'petersburg': 1,
     'istanbul': 2,
+    # ETC Forks
+    'atlantis': 0,
+    'agharta': 1,
 }
 DEFAULT_EVM_VERSION: str = "istanbul"
 
