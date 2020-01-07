@@ -332,6 +332,25 @@ class Expr(object):
                 location=None,
                 pos=getpos(self.expr),
             )
+        # x.codehash: keccak of address x
+        elif self.expr.attr == 'codehash':
+            addr = Expr.parse_value_expr(self.expr.value, self.context)
+            if not is_base_type(addr.typ, 'address'):
+                raise TypeMismatchException(
+                    "codehash keyword expects an address as input",
+                    self.expr,
+                )
+            if not version_check(begin="constantinople"):
+                raise EvmVersionException(
+                    "address.codehash is unavailable prior to constantinople ruleset",
+                    self.expr
+                )
+            return LLLnode.from_list(
+                ['extcodehash', addr],
+                typ=BaseType('bytes32'),
+                location=None,
+                pos=getpos(self.expr)
+            )
         # self.x: global attribute
         elif isinstance(self.expr.value, ast.Name) and self.expr.value.id == "self":
             if self.expr.attr not in self.context.globals:
