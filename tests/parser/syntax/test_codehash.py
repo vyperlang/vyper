@@ -26,20 +26,20 @@ def __init__():
 
 @public
 def foo(x: address) -> bytes32:
-    return get_extcodehash(x)
+    return x.codehash
 
 @public
 def foo2(x: address) -> bytes32:
     b: address = x
-    return get_extcodehash(b)
+    return b.codehash
 
 @public
 def foo3() -> bytes32:
-    return get_extcodehash(self)
+    return self.codehash
 
 @public
 def foo4() -> bytes32:
-    return get_extcodehash(self.a)
+    return self.a.codehash
     """
 
     if evm_version in ("byzantium", "atlantis"):
