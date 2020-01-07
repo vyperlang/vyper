@@ -51,6 +51,26 @@ def tgeo():
 def OwnerTransferV7b711143(a: uint256):
     pass
     """,
+    """
+# check collision between private method IDs
+@private
+@constant
+def gfah(): pass
+
+@private
+@constant
+def eexo(): pass
+    """,
+    """
+# check collision between private and public IDs
+@private
+@constant
+def gfah(): pass
+
+@public
+@constant
+def eexo(): pass
+    """
 ]
 
 
