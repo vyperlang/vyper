@@ -3,6 +3,47 @@
 Release Notes
 #############
 
+v0.1.0-beta.15
+**************
+
+Date released: 06-01-2020
+
+**NOTE**: we changed our license to Apache 2.0 (`#1772 <https://github.com/vyperlang/vyper/pull/1772>`_)
+
+The following VIPs were implemented for Beta 15:
+
+- EVM Ruleset Switch (VIP `#1230 <https://github.com/vyperlang/vyper/issues/1230>`_)
+- Add support for `EIP-1344 <https://eips.ethereum.org/EIPS/eip-1344>`_, Chain ID Opcode (VIP `#1652 <https://github.com/vyperlang/vyper/issues/1652>`_)
+- Support for `EIP-1052 <https://eips.ethereum.org/EIPS/eip-1052>`_, ``EXTCODEHASH`` (VIP `#1765 <https://github.com/vyperlang/vyper/issues/1765>`_)
+
+Some of the bug and stability fixes:
+
+- Removed all traces of Javascript from the codebase (`#1770 <https://github.com/vyperlang/vyper/pull/1770>`_)
+- Ensured sufficient gas stipend for precompiled calls (`#1771 <https://github.com/vyperlang/vyper/pull/1771>`_)
+- Allow importing an interface that contains an ``implements`` statement (`#1774 <https://github.com/vyperlang/vyper/pull/1774>`_)
+- Fixed how certain values compared when using ``min`` and ``max`` (`#1790 <https://github.com/vyperlang/vyper/pull/1790>`_)
+- Removed unnecessary overflow checks on ``addmod`` and ``mulmod`` (`#1786 <https://github.com/vyperlang/vyper/pull/1786>`_)
+- Check for state modification when using tuples (`#1785 <https://github.com/vyperlang/vyper/pull/1785>`_)
+- Fix Windows path issue when importing interfaces (`#1781 <https://github.com/vyperlang/vyper/pull/1781>`_)
+- Added Vyper grammar, currently used for fuzzing (`#1768 <https://github.com/vyperlang/vyper/pull/1768>`_)
+- Modify modulus calculations for literals to be consistent with the EVM (`#1792 <https://github.com/vyperlang/vyper/pull/1792>`_)
+- Explicitly disallow the use of exponentiation on decimal values (`#1792 <https://github.com/vyperlang/vyper/pull/1792>`_)
+- Add compile-time checks for divide by zero and modulo by zero (`#1792 <https://github.com/vyperlang/vyper/pull/1792>`_)
+- Fixed some issues with negating constants (`#1791 <https://github.com/vyperlang/vyper/pull/1791>`_)
+- Allow relative imports beyond one parent level (`#1784 <https://github.com/vyperlang/vyper/pull/1784>`_)
+- Implement SHL/SHR for bitshifting, using Constantinople rules (`#1796 <https://github.com/vyperlang/vyper/pull/1796>`_)
+- ``vyper-json`` compatibility with ``solc`` settings (`#1795 <https://github.com/vyperlang/vyper/pull/1795>`_)
+- Simplify the type check when returning lists (`#1797 <https://github.com/vyperlang/vyper/pull/1797>`_)
+- Add branch coverage reporting (`#1743 <https://github.com/vyperlang/vyper/pull/1743>`_)
+- Fix struct assignment order (`#1728 <https://github.com/vyperlang/vyper/pull/1728>`_)
+- Added more words to reserved keyword list (`#1741 <https://github.com/vyperlang/vyper/pull/1741>`_)
+- Allow scientific notation for literals (`#1721 <https://github.com/vyperlang/vyper/pull/1721>`_)
+- Avoid overflow on sqrt of Decimal upper bound (`#1679 <https://github.com/vyperlang/vyper/pull/1679>`_)
+- Refactor ABI encoder (`#1723 <https://github.com/vyperlang/vyper/pull/1723>`_)
+- Changed opcode costs per `EIP-1884 <https://eips.ethereum.org/EIPS/eip-1884>`_ (`#1764 <https://github.com/vyperlang/vyper/pull/1764>`_)
+
+Special thanks to (`@iamdefinitelyahuman <https://github.com/iamdefinitelyahuman>`_) for lots of updates this release!
+
 v0.1.0-beta.14
 **************
 
