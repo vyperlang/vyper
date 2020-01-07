@@ -42,7 +42,7 @@ def foo4() -> bytes32:
     return get_extcodehash(self.a)
     """
 
-    if evm_version == "byzantium":
+    if evm_version in ("byzantium", "atlantis"):
         with pytest.raises(EvmVersionException):
             compile_code(code, evm_version=evm_version)
         return
