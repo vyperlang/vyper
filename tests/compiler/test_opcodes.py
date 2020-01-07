@@ -39,7 +39,7 @@ def test_version_check(evm_version):
     assert opcodes.version_check(begin=evm_version)
     assert opcodes.version_check(end=evm_version)
     assert opcodes.version_check(begin=evm_version, end=evm_version)
-    if evm_version != "byzantium":
+    if evm_version != "byzantium" and evm_version != "atlantis":
         assert not opcodes.version_check(end="byzantium")
     if evm_version != "istanbul":
         assert not opcodes.version_check(begin="istanbul")
@@ -53,7 +53,7 @@ def test_get_opcodes(evm_version):
     else:
         assert "CHAINID" not in op
         assert op['SLOAD'][-1] == 200
-    if evm_version == "byzantium":
+    if evm_version == "byzantium" or evm_version == "atlantis":
         assert "CREATE2" not in op
     else:
         assert op["CREATE2"][-1] == 32000

@@ -33,7 +33,7 @@ def _shift(x: uint256, y: int128) -> uint256:
 @pytest.mark.parametrize('evm_version', list(EVM_VERSIONS))
 def test_bitwise_opcodes(evm_version):
     opcodes = compile_code(code, ['opcodes'], evm_version=evm_version)['opcodes']
-    if evm_version == "byzantium":
+    if evm_version == "byzantium" or evm_version == "atlantis":
         assert "SHL" not in opcodes
         assert "SHR" not in opcodes
     else:
