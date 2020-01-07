@@ -11,21 +11,22 @@ If you have questions or concerns, please contact us on gitter:
 
 ## Audit reports
 
-Vyper has not been audited yet. When an audit is complete, we will list all previous reports here.
-
-<!-- REMOVE WHEN COMPLETE
 Vyper is constantly changing and improving.
 This means the lastest version available may not be audited.
 We try to ensure the highest security code possible, but occasionally things slip through.
+
+### Compiler Audits
 
 At specific releases, we conduct audits with experienced security professionals to ensure that the codebase quality is high,
 and that we minimize the chance of critical bugs as much as possible.
 
 Here are the audits we have undergone in the past:
 
-| Audit Date | Auditor | Version | Report Link |
-| ---------- | ------- | ------- | ----------- |
--->
+| Audit Type | Audit Date | Auditor | Version | Report Link |
+| ---------- | ---------- | ------- | ------- | ----------- |
+| Preliminary Review | October 28, 2019 | [ConsenSys Diligence](https://diligence.consensys.net) | 0.1.0b13 | https://diligence.consensys.net/audits/2019/10/vyper/ |
+
+### Major Project Audits
 
 Please read prior audit reports for projects that use Vyper here:
 
