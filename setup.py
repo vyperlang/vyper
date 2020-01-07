@@ -46,7 +46,7 @@ except subprocess.CalledProcessError:
 setup(
     name='vyper',
     # *IMPORTANT*: Don't manually change the version here. Use the 'bumpversion' utility.
-    version='0.1.0-beta.14',
+    version='0.1.0-beta.15',
     description='Vyper: the Pythonic Programming Language for the EVM',
     long_description_markdown_filename='README.md',
     long_description_content_type='text/markdown',
