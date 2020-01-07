@@ -177,7 +177,7 @@ class ListType(NodeType):
 class MappingType(NodeType):
     def __init__(self, keytype, valuetype):
         if not isinstance(keytype, (BaseType, ByteArrayLike)):
-            raise Exception("Dictionary keys must be a base type")
+            raise InvalidTypeException("Dictionary keys must be a base type")
         self.keytype = keytype
         self.valuetype = valuetype
 
@@ -253,14 +253,14 @@ def canonicalize_type(t, is_indexed=False):
 
     if isinstance(t, ListType):
         if not isinstance(t.subtype, (ListType, BaseType)):
-            raise Exception("List of byte arrays not allowed")
+            raise InvalidTypeException(f"List of {t.subtype}s not allowed")
         return canonicalize_type(t.subtype) + f"[{t.count}]"
 
     if isinstance(t, TupleLike):
         return f"({','.join(canonicalize_type(x) for x in t.tuple_members())})"
 
     if not isinstance(t, BaseType):
-        raise Exception(f"Cannot canonicalize non-base type: {t}")
+        raise InvalidTypeException(f"Cannot canonicalize non-base type: {t}")
 
     t = t.typ
     if t in ('int128', 'uint256', 'bool', 'address', 'bytes32'):
@@ -268,7 +268,7 @@ def canonicalize_type(t, is_indexed=False):
     elif t == 'decimal':
         return 'fixed168x10'
 
-    raise Exception("Invalid or unsupported type: " + repr(t))
+    raise InvalidTypeException("Invalid or unsupported type: " + repr(t))
 
 
 # Special types
@@ -495,11 +495,11 @@ def get_size_of_type(typ):
     elif isinstance(typ, ListType):
         return get_size_of_type(typ.subtype) * typ.count
     elif isinstance(typ, MappingType):
-        raise Exception("Maps are not supported for function arguments or outputs.")
+        raise InvalidTypeException("Maps are not supported for function arguments or outputs.")
     elif isinstance(typ, TupleLike):
         return sum([get_size_of_type(v) for v in typ.tuple_members()])
     else:
-        raise Exception(f"Can not get size of type, Unexpected type: {repr(typ)}")
+        raise InvalidTypeException(f"Can not get size of type, Unexpected type: {repr(typ)}")
 
 
 # amount of space a type takes in the static section of its ABI encoding
@@ -511,11 +511,11 @@ def get_static_size_of_type(typ):
     elif isinstance(typ, ListType):
         return get_size_of_type(typ.subtype) * typ.count
     elif isinstance(typ, MappingType):
-        raise Exception("Maps are not supported for function arguments or outputs.")
+        raise InvalidTypeException("Maps are not supported for function arguments or outputs.")
     elif isinstance(typ, TupleLike):
         return sum([get_size_of_type(v) for v in typ.tuple_members()])
     else:
-        raise Exception(f"Can not get size of type, Unexpected type: {repr(typ)}")
+        raise InvalidTypeException(f"Can not get size of type, Unexpected type: {repr(typ)}")
 
 
 # could be rewritten as get_static_size_of_type == get_size_of_type?
@@ -529,7 +529,7 @@ def has_dynamic_data(typ):
     elif isinstance(typ, TupleLike):
         return any([has_dynamic_data(v) for v in typ.tuple_members()])
     else:
-        raise Exception(f"Unexpected type: {repr(typ)}")
+        raise InvalidTypeException(f"Unexpected type: {repr(typ)}")
 
 
 def get_type(input):
