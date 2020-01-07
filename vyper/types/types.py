@@ -268,7 +268,7 @@ def canonicalize_type(t, is_indexed=False):
     elif t == 'decimal':
         return 'fixed168x10'
 
-    raise InvalidTypeException("Invalid or unsupported type: " + repr(t))
+    raise InvalidTypeException(f"Invalid or unsupported type: {repr(t)}")
 
 
 # Special types
