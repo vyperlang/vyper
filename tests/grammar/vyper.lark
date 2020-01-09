@@ -31,15 +31,15 @@ import: import_name | import_from
 // Unit definitions
 unit: NAME ":" STRING
 units: "units" ":" "{" unit ( "," unit )* "}"
+LABEL: "(" NAME ( "/" NAME )? ")"
 
 // Constant definitions
-constant: NAME ":" "constant" "(" ( memory_type | BASIC_TYPE | LABELED_TYPE | CUSTOM_TYPE ) ")" "=" test
+constant: NAME ":" "constant" "(" ( memory_type | BASIC_TYPE | CUSTOM_TYPE ) ")" "=" test
 
 // NOTE: NAME as type should refer to a custom type that is already defined
 storage_definition: ( storage_type
                     | memory_type
                     | BASIC_TYPE
-                    | LABELED_TYPE
                     | CUSTOM_TYPE ) -> type
 variable: NAME ":"  storage_definition
 // NOTE: Temporary until decorators used
@@ -58,7 +58,7 @@ decorators: decorator+
 
 // Methods take a list of zero or more typed parameters,
 // and can return up to one parameter.
-parameter_type: ( memory_type | BASIC_TYPE | LABELED_TYPE | CUSTOM_TYPE )
+parameter_type: ( memory_type | BASIC_TYPE | CUSTOM_TYPE )
 // NOTE: Parameters can have a default value,
 //       which must be a constant or environment variable.
 ?parameter: NAME ":" parameter_type ["=" test]
@@ -147,16 +147,15 @@ comp_for: "for" exprlist "in" or_test [comp_iter]
 comp_if: "if" test_nocond [comp_iter]
 
 // Types represented as 32-byte basic word
-BASIC_TYPE: ( ["u"] "int" ("8"|"16"|"32"|"64"|"128"|"256")
+// NOTE: Only integers or decimals can be labeled
+BASIC_TYPE: ( ["u"] "int" ("8"|"16"|"32"|"64"|"128"|"256") LABEL?
             | "address"
             | "bytes32"
-            | "decimal"
+            | "decimal" LABEL?
             | "bool" )
 
-LABELED_TYPE: BASIC_TYPE "(" NAME ")"
-
 // Types requiring memory allocation
-array: (BASIC_TYPE | LABELED_TYPE | CUSTOM_TYPE) ("[" (DEC_NUMBER | NAME) "]")+
+array: (BASIC_TYPE | CUSTOM_TYPE) ("[" (DEC_NUMBER | NAME) "]")+
 bytes: "bytes" "[" (DEC_NUMBER | NAME) "]"
 string: "string" "[" (DEC_NUMBER | NAME) "]"
 memory_type: ( array
@@ -164,7 +163,7 @@ memory_type: ( array
              | string ) -> memory
 
 // Structs can be composed of 1+ basic types or other custom_types
-?struct_member: NAME ":" (BASIC_TYPE | LABELED_TYPE | CUSTOM_TYPE)
+?struct_member: NAME ":" (BASIC_TYPE | CUSTOM_TYPE)
 struct: "struct" NAME ":" _NEWLINE _INDENT (struct_member _NEWLINE)+ _DEDENT
 
 // Interfaces are composed of a series of method definitions, plus their mutability
@@ -176,7 +175,7 @@ interface: "contract" NAME ":" _NEWLINE _INDENT (interface_def _NEWLINE)+ _DEDEN
 // Maps take a hashable type as a key and can return a basic, memory,
 // or a custom type (or another map recursively)
 // NOTE: NAME as type should refer to a custom type that is already defined
-map: "map" "(" (BASIC_TYPE | LABELED_TYPE | bytes | string) "," ( map | memory_type | BASIC_TYPE | LABELED_TYPE | CUSTOM_TYPE ) ")"
+map: "map" "(" (BASIC_TYPE | bytes | string) "," ( map | memory_type | BASIC_TYPE | CUSTOM_TYPE ) ")"
 
 // Types requiring storage allocation
 storage_type: ( map ) -> storage
