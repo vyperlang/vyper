@@ -112,10 +112,10 @@ body: simple_stmt | _NEWLINE _INDENT stmt+ _DEDENT
 
 ?power: atom_expr ["**" factor]
 
+?argument: test ["=" test]
+
 arguments: argument ("," argument)*  // [","]
          | test comp_for
-
-?argument: test ["=" test]
 
 ?atom_expr: atom_expr "(" [arguments] ")"    -> call
           | atom_expr "[" subscriptlist "]"  -> getitem
@@ -168,8 +168,7 @@ abi_type: ( memory_type | tuple )
 struct: "struct" NAME ":" _NEWLINE _INDENT (struct_member _NEWLINE)+ _DEDENT
 
 // Interfaces are composed of a series of method definitions, plus their mutability
-mutability: ( "modifying"
-            | "constant" )
+mutability: ( "modifying" | "constant" )
 interface_def: method_type ":" mutability
 interface: "contract" NAME ":" _NEWLINE _INDENT (interface_def _NEWLINE)+ _DEDENT
 
