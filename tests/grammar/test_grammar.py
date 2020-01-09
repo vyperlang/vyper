@@ -77,7 +77,7 @@ class GrammarStrategy(LarkStrategy):
             compile(
                 source="".join(
                     draw_state.result[count:]
-                ).replace("contract", "class").replace("struct", "class"),  # HACK: for Python ast.parse
+                ).replace("contract", "class").replace("struct", "class"),  # HACK: Python ast.parse
                 filename="<string>",
                 mode="exec",
             )
