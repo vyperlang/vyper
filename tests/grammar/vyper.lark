@@ -34,16 +34,12 @@ units: "units" ":" "{" unit ( "," unit )* "}"
 LABEL: "(" NAME ( "/" NAME )? ")"
 
 // Constant definitions
-constant: NAME ":" "constant" "(" ( memory_type | BASIC_TYPE | CUSTOM_TYPE ) ")" "=" test
+constant: NAME ":" "constant" "(" memory_type ")" "=" test
 
 // NOTE: NAME as type should refer to a custom type that is already defined
-storage_definition: ( storage_type
-                    | memory_type
-                    | BASIC_TYPE
-                    | CUSTOM_TYPE ) -> type
-variable: NAME ":"  storage_definition
+variable: NAME ":"  storage_type
 // NOTE: Temporary until decorators used
-variable_with_getter: NAME ":" "public" "(" storage_definition ")"
+variable_with_getter: NAME ":" "public" "(" storage_type ")"
 
 // A decorator "wraps" a method, modifying it's context.
 // NOTE: One or more can be applied (some combos might conflict)
@@ -58,17 +54,17 @@ decorators: decorator+
 
 // Methods take a list of zero or more typed parameters,
 // and can return up to one parameter.
-parameter_type: ( memory_type | BASIC_TYPE | CUSTOM_TYPE )
 // NOTE: Parameters can have a default value,
 //       which must be a constant or environment variable.
-?parameter: NAME ":" parameter_type ["=" test]
+?parameter: NAME ":" abi_type ["=" test]
 parameters: parameter ("," parameter?)*
 
-method_type: "def" NAME "(" parameters? ")" ["->" parameter_type]
+method_type: "def" NAME "(" parameters? ")" ["->" abi_type]
 method: [decorators] method_type ":" body
 
-event_arg: NAME ":" parameter_type
-indexed_event_arg: NAME ":" "indexed" "(" parameter_type ")"
+event_arg: NAME ":" abi_type
+indexed_event_arg: NAME ":" "indexed" "(" abi_type ")"
+// Events can have zero args
 event: NAME ":" "event" "(" "{" (event_arg | indexed_event_arg)? ("," (event_arg | indexed_event_arg))* "}" ")"
 
 ?stmt: simple_stmt | compound_stmt
@@ -158,12 +154,17 @@ BASIC_TYPE: ( ["u"] "int" ("8"|"16"|"32"|"64"|"128"|"256") LABEL?
 array: (BASIC_TYPE | CUSTOM_TYPE) ("[" (DEC_NUMBER | NAME) "]")+
 bytes: "bytes" "[" (DEC_NUMBER | NAME) "]"
 string: "string" "[" (DEC_NUMBER | NAME) "]"
-memory_type: ( array
-             | bytes
-             | string ) -> memory
+memory_type: ( bytes
+             | string
+             | array // Goes after bytes and string so those get picked up first
+             | BASIC_TYPE
+             | CUSTOM_TYPE ) -> memory
+
+tuple: "(" memory_type ( "," memory_type )* ")"
+abi_type: ( memory_type | tuple )
 
 // Structs can be composed of 1+ basic types or other custom_types
-?struct_member: NAME ":" (BASIC_TYPE | CUSTOM_TYPE)
+?struct_member: NAME ":" memory_type
 struct: "struct" NAME ":" _NEWLINE _INDENT (struct_member _NEWLINE)+ _DEDENT
 
 // Interfaces are composed of a series of method definitions, plus their mutability
@@ -175,10 +176,10 @@ interface: "contract" NAME ":" _NEWLINE _INDENT (interface_def _NEWLINE)+ _DEDEN
 // Maps take a hashable type as a key and can return a basic, memory,
 // or a custom type (or another map recursively)
 // NOTE: NAME as type should refer to a custom type that is already defined
-map: "map" "(" (BASIC_TYPE | bytes | string) "," ( map | memory_type | BASIC_TYPE | CUSTOM_TYPE ) ")"
+map: "map" "(" ( BASIC_TYPE | string | bytes ) "," ( map | memory_type ) ")"
 
-// Types requiring storage allocation
-storage_type: ( map ) -> storage
+// Types that can be used in storage allocation
+storage_type: ( map | memory_type ) -> storage
 
 // not used in grammar, but may appear in "node" passed from Parser to Compiler
 encoding_decl: NAME
