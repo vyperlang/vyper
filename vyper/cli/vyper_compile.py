@@ -132,8 +132,8 @@ def _parse_args(argv):
         print(json.dumps(compiled))
         return
 
-    for key in args.input_files:
-        for data in compiled[key].values():
+    for contract_data in compiled.values():
+        for data in contract_data.values():
             if isinstance(data, (list, dict)):
                 print(json.dumps(data))
             else:
