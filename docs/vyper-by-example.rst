@@ -151,8 +151,8 @@ While this blind auction is almost functionally identical to the blind auction i
 
 .. literalinclude:: ../examples/auctions/blind_auction.vy
   :language: python
-  :lineno-start: 22
-  :lines: 22-24
+  :lineno-start: 26
+  :lines: 26-29
 
 One key difference is that, because Vyper does not allow for dynamic arrays, we
 have limited the number of bids that can be placed by one address to 128 in this
