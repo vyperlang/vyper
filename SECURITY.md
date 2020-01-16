@@ -55,11 +55,26 @@ we will add an entry to this table for posterity and reference by others.
 
 If you think you have found a security vulnerability with a project that has used Vyper,
 please report the vulnerability to the relevant project's security disclosure program prior
-to reporting to us. If one is not available, please email your vulnerability to security@ethereum.org
+to reporting to us. If one is not available, please email your vulnerability to security@vyperlang.org.
 
 **Please Do Not Log An Issue** mentioning the vulnerability.
 
 If you have contacted the relevant project, or you have found something that you do not think affects
-a particular project, please also email your vulnerability to security@ethereum.org.
-One of the staff security professionals will get back to you as soon as possible letting you know what
-will happen next. You may even quality for the [bounty program](https://bounty.ethereum.org/).
+a particular project, please also email your vulnerability to security@vyperlang.org. Our PGP key is:
+```
+-----BEGIN PGP PUBLIC KEY BLOCK-----
+Version: OpenPGP.js v4.7.2
+Comment: https://openpgpjs.org
+
+xjMEXiC9KhYJKwYBBAHaRw8BAQdAMMsB1qaofcbuG5/4Hmm1GD8M+2lKJ50B
+YI2G44/nquDNK3Z5cGVyLXNlY3VyaXR5QHBtLm1lIDx2eXBlci1zZWN1cml0
+eUBwbS5tZT7CeAQQFgoAIAUCXiC9KgYLCQcIAwIEFQgKAgQWAgEAAhkBAhsD
+Ah4BAAoJENARd3wFTk2lbdIBALELumbNOvueWQJSN8g+AYmb2i2XGDkuhWB0
+ZK8maVfpAPwINHjx8vmNZ2T/aML2dpmaL7h2g13OTDjt1nYeTMVCD844BF4g
+vSoSCisGAQQBl1UBBQEBB0A7Lb7v2tyRBAasuwwzF94OzrbqVybJ5cgxsO3F
+N+XKBAMBCAfCYQQYFggACQUCXiC9KgIbDAAKCRDQEXd8BU5NpRLzAQC+gaZ6
+lg4OrPFHOK9zYqbQ0zpx+tadKaEoo51jzsjCLgEAmp01XCX7/0Ln1TtUFzMy
+fRy18qk7KR6zOg2RRch5gQQ=
+=O37G
+-----END PGP PUBLIC KEY BLOCK-----
+```
