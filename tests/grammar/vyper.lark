@@ -30,7 +30,7 @@ import: import_name | import_from
 
 // Unit definitions
 unit: NAME ":" STRING
-units: "units" ":" "{" unit ( "," unit )* "}"
+units: "units" ":" "{" ( unit "," )* unit? "}"
 LABEL: "(" NAME ( "/" NAME )? ")"
 
 // Constant definitions
