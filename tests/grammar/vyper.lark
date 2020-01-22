@@ -164,7 +164,7 @@ tuple: "(" memory_type ( "," memory_type )* ")"
 abi_type: ( memory_type | tuple )
 
 // Structs can be composed of 1+ basic types or other custom_types
-?struct_member: NAME ":" memory_type
+?struct_member: NAME ":" storage_type
 struct: "struct" NAME ":" _NEWLINE _INDENT (struct_member _NEWLINE)+ _DEDENT
 
 // Interfaces are composed of a series of method definitions, plus their mutability
