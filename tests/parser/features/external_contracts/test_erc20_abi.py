@@ -23,7 +23,7 @@ def erc20(get_contract):
 @pytest.fixture
 def erc20_caller(erc20, get_contract):
     erc20_caller_code = """
-contract ERC20Contract():
+contract ERC20Contract:
     def name() -> string[64]: constant
     def symbol() -> string[32]: constant
     def decimals() -> uint256: constant
