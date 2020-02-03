@@ -1,4 +1,6 @@
-from decimal import Decimal
+from decimal import (
+    Decimal,
+)
 
 import pytest
 
@@ -453,13 +455,13 @@ def test_json_interface_calls(get_contract, type_str, value):
     abi = compile_code(code, ['abi'])['abi']
     c1 = get_contract(code)
 
-    code = """
+    code = f"""
 import jsonabi as jsonabi
 
 @public
 @constant
-def test_call(a: address, b: {0}) -> {0}:
+def test_call(a: address, b: {type_str}) -> {type_str}:
     return jsonabi(a).test_json(b)
-    """.format(type_str)
+    """
     c2 = get_contract(code, interface_codes={'jsonabi': {'type': 'json', 'code': abi}})
     assert c2.test_call(c1.address, value) == value

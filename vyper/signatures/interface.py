@@ -30,13 +30,13 @@ from vyper.signatures.event_signature import (
 from vyper.signatures.function_signature import (
     FunctionSignature,
 )
-from vyper.typing import (
-    InterfaceImports,
-    SourceCode,
-)
 from vyper.types.types import (
     ByteArrayLike,
     TupleLike,
+)
+from vyper.typing import (
+    InterfaceImports,
+    SourceCode,
 )
 
 
@@ -60,20 +60,16 @@ def render_return(sig):
     return ""
 
 
-def abi_type_to_ast(atype):
+def abi_type_to_ast(atype, idx):
     if atype in ('int128', 'uint256', 'bool', 'address', 'bytes32'):
         return ast.Name(id=atype)
     elif atype == 'fixed168x10':
         return ast.Name(id='decimal')
-    elif atype == 'bytes':
+    elif atype in ('bytes', 'string'):
+        # idx is the maximum length for inputs, minimum length for outputs
         return ast.Subscript(
-            value=ast.Name(id='bytes'),
-            slice=ast.Index(value=ast.Num(n=256))
-        )
-    elif atype == 'string':
-        return ast.Subscript(
-            value=ast.Name(id='string'),
-            slice=ast.Index(value=ast.Num(n=256))
+            value=ast.Name(id=atype),
+            slice=ast.Index(value=ast.Num(n=idx))
         )
     else:
         raise ParserException(f'Type {atype} not supported by vyper.')
@@ -89,18 +85,18 @@ def mk_full_signature_from_json(abi):
         for a in func['inputs']:
             arg = ast.arg(
                 arg=a['name'],
-                annotation=abi_type_to_ast(a['type']),
+                annotation=abi_type_to_ast(a['type'], 1048576),
                 lineno=0,
                 col_offset=0
             )
             args.append(arg)
 
         if len(func['outputs']) == 1:
-            returns = abi_type_to_ast(func['outputs'][0]['type'])
+            returns = abi_type_to_ast(func['outputs'][0]['type'], 1)
         elif len(func['outputs']) > 1:
             returns = ast.Tuple(
                 elts=[
-                    abi_type_to_ast(a['type'])
+                    abi_type_to_ast(a['type'], 1)
                     for a in func['outputs']
                 ]
             )
