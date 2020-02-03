@@ -59,8 +59,8 @@ def render_return(sig):
 def abi_type_to_ast(atype):
     if atype in ('int128', 'uint256', 'bool', 'address', 'bytes32'):
         return ast.Name(id=atype)
-    elif atype == 'decimal':
-        return ast.Name(id='int128')
+    elif atype == 'fixed168x10':
+        return ast.Name(id='decimal')
     elif atype == 'bytes':
         return ast.Subscript(
             value=ast.Name(id='bytes'),
