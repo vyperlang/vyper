@@ -34,6 +34,10 @@ from vyper.typing import (
     InterfaceImports,
     SourceCode,
 )
+from vyper.types.types import (
+    ByteArrayLike,
+    TupleLike,
+)
 
 
 # Populate built-in interfaces.
@@ -64,12 +68,12 @@ def abi_type_to_ast(atype):
     elif atype == 'bytes':
         return ast.Subscript(
             value=ast.Name(id='bytes'),
-            slice=ast.Index(256)
+            slice=ast.Index(value=ast.Num(n=256))
         )
     elif atype == 'string':
         return ast.Subscript(
             value=ast.Name(id='string'),
-            slice=ast.Index(256)
+            slice=ast.Index(value=ast.Num(n=256))
         )
     else:
         raise ParserException(f'Type {atype} not supported by vyper.')
@@ -294,16 +298,14 @@ def check_valid_contract_interface(global_ctx, contract_sigs):
 
         for sig, func_sig in contract_sigs.items():
             if isinstance(func_sig, FunctionSignature):
-                # Remove units, as inteface signatures should not enforce units.
+                if sig not in funcs_left or func_sig.private:
+                    continue
+                # Remove units, as interface signatures should not enforce units.
                 clean_sig_output_type = func_sig.output_type
                 if func_sig.output_type:
                     clean_sig_output_type = copy.deepcopy(func_sig.output_type)
                     clean_sig_output_type.unit = {}
-                if (
-                    sig in funcs_left and  # noqa: W504
-                    not func_sig.private and  # noqa: W504
-                    funcs_left[sig].output_type == clean_sig_output_type
-                ):
+                if _compare_outputs(funcs_left[sig].output_type, clean_sig_output_type):
                     del funcs_left[sig]
             if isinstance(func_sig, EventSignature) and func_sig.sig in funcs_left:
                 del funcs_left[func_sig.sig]
@@ -329,3 +331,19 @@ def check_valid_contract_interface(global_ctx, contract_sigs):
                 err_join = "\n\t".join(missing_events)
                 error_message += f'Missing interface events:\n\t{err_join}'
             raise StructureException(error_message)
+
+
+def _compare_outputs(a, b):
+    if isinstance(a, TupleLike):
+        # for tuples and structs, compare the length and individual members
+        if type(a) != type(b):
+            return False
+        if len(a.tuple_members()) != len(b.tuple_members()):
+            return False
+        compare = zip(a.tuple_members(), b.tuple_members())
+        return next((False for i in compare if not _compare_outputs(*i)), True)
+    if isinstance(a, ByteArrayLike):
+        # for string and bytes, only the type matters (not the length)
+        return type(a) == type(b)
+    # for all other types, check strict equality
+    return a == b
