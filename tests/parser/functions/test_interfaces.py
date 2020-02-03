@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import pytest
 
 from vyper.compiler import (
@@ -277,60 +279,6 @@ def test():
     assert erc20.balanceOf(sender) == 1000
 
 
-def test_json_interface(get_contract):
-    code = """
-import folding as Folding
-
-implements: Folding
-
-@public
-def test(a: uint256) -> uint256:
-    return 1 + a
-
-
-@public
-def test2(a: uint256):
-    pass
-    """
-
-    interface_codes = {
-        'Folding': {
-            'type': 'json',
-            'code': [
-                {
-                    "name": "test",
-                    "outputs": [{
-                        "type": "uint256",
-                        "name": "out"
-                    }],
-                    "inputs": [{
-                        "type": "uint256",
-                        "name": "s"
-                    }],
-                    "constant": False,
-                    "payable": False,
-                    "type": "function",
-                },
-                {
-                    "name": "test2",
-                    "outputs": [],
-                    "inputs": [{
-                        "type": "uint256",
-                        "name": "s"
-                    }],
-                    "constant": False,
-                    "payable": False,
-                    "type": "function",
-                }
-            ]
-        }
-    }
-
-    c = get_contract(code, interface_codes=interface_codes)
-
-    assert c.test(2) == 3
-
-
 def test_units_interface(w3, get_contract):
     code = """
 import balanceof as BalanceOf
@@ -468,3 +416,50 @@ def bar(a: address) -> uint256:
     """
     c = get_contract(code)
     assert_tx_failed(lambda: c.bar(c.address))
+
+
+type_str_params = [
+    ('int128', -33),
+    ('uint256', 42),
+    ('bool', True),
+    ('address', "0x1234567890123456789012345678901234567890"),
+    ('bytes32', b"bytes32bytes32bytes32bytes32poop"),
+    ('decimal', Decimal("3.1337")),
+    ('bytes[4]', b"newp"),
+    ('string[6]', "potato"),
+]
+
+interface_test_code = """
+@public
+@constant
+def test_json(a: {0}) -> {0}:
+    return a
+    """
+
+
+@pytest.mark.parametrize("type_str", [i[0] for i in type_str_params])
+def test_json_interface_implements(type_str):
+    code = interface_test_code.format(type_str)
+
+    abi = compile_code(code, ['abi'])['abi']
+    code = f"import jsonabi as jsonabi\nimplements: jsonabi\n{code}"
+    compile_code(code, interface_codes={'jsonabi': {'type': 'json', 'code': abi}})
+
+
+@pytest.mark.parametrize("type_str,value", type_str_params)
+def test_json_interface_calls(get_contract, type_str, value):
+    code = interface_test_code.format(type_str)
+
+    abi = compile_code(code, ['abi'])['abi']
+    c1 = get_contract(code)
+
+    code = """
+import jsonabi as jsonabi
+
+@public
+@constant
+def test_call(a: address, b: {0}) -> {0}:
+    return jsonabi(a).test_json(b)
+    """.format(type_str)
+    c2 = get_contract(code, interface_codes={'jsonabi': {'type': 'json', 'code': abi}})
+    assert c2.test_call(c1.address, value) == value
