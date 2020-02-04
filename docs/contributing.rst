@@ -54,9 +54,8 @@ Style Guide
 
 Vyper's codebase follows the
 `Snake Charmer's Style Guide <https://github.com/ethereum/snake-charmers-tactical-manual/blob/master/style-guide.md>`_.
-Some of the things not covered by style guide that we maintain in our codebase is the use of
-`f-strings <https://github.com/vyperlang/vyper/issues/1567>`_ across the repository (when helpful for clarity),
-and adherence to the `architectural design <https://vyper.readthedocs.io/en/latest/architecture.html>`_ of the codebase.
+Some of the things not covered by style guide that we maintain in our codebase are the use of
+`f-strings <https://github.com/vyperlang/vyper/issues/1567>`_ across the repository (when helpful for clarity), and adherence to the architectural design of the codebase.
 
 Workflow for Pull Requests
 ==========================

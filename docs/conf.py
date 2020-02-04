@@ -39,7 +39,8 @@ from recommonmark.parser import CommonMarkParser
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'sphinx.ext.autodoc'
+    'sphinx.ext.autodoc',
+    'sphinx.ext.intersphinx',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -56,7 +57,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'Vyper'
-copyright = '2017-2019 CC-BY-4.0 Vyper Team'
+copyright = '2017-2020 CC-BY-4.0 Vyper Team'
 author = 'Vyper Team (originally created by Vitalik Buterin)'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -182,3 +183,8 @@ source_parsers = {
 }
 
 source_suffix = ['.rst', '.md']
+
+intersphinx_mapping = {
+    'brownie': ('https://eth-brownie.readthedocs.io/en/stable', None),
+    'pytest': ('https://docs.pytest.org/en/latest/', None),
+}
