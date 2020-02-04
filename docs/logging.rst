@@ -40,7 +40,7 @@ Clients listening to the events will declare and handle the events they are inte
     // watch for changes in the callback
     var event = myToken.Transfer(function(error, result) {
         if (!error) {
-            var args = result.args;
+            var args = result.returnValues;
             console.log('value transferred = ', args._amount);
         }
     });
@@ -79,4 +79,4 @@ The order and types of arguments sent needs to match up with the order of declar
 Listening for Events
 ====================
 
-In the example listener above, the ``result`` arg actually passes a `large amount of information <https://github.com/ethereum/wiki/wiki/JavaScript-API#contract-events>`_. Here we're most interested in ``result.args``. This is an object with properties that match the properties declared in the event. Note that this object does not contain the indexed properties, which can only be searched in the original ``myToken.Transfer`` that created the callback.
+In the example listener above, the ``result`` arg actually passes a `large amount of information <https://web3js.readthedocs.io/en/v1.2.6/web3-eth-contract.html#contract-events-return>`_. Here we're most interested in ``result.returnValues``. This is an object with properties that match the properties declared in the event. Note that this object does not contain the indexed properties, which can only be searched in the original ``myToken.Transfer`` that created the callback.

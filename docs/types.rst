@@ -296,7 +296,7 @@ Wei
 ===================  ===========  ===========  ====================================================================================
 Keyword              Unit         Base type    Description
 ===================  ===========  ===========  ====================================================================================
-``wei_value``        1 wei        ``uint256``    This is an amount of `Ether <http://ethdocs.org/en/latest/ether.html#denominations>`_ in wei.
+``wei_value``        1 wei        ``uint256``    This is an amount of `Ether <https://ethereum-homestead.readthedocs.io/en/latest/ether.html#denominations>`_ in wei.
 ===================  ===========  ===========  ====================================================================================
 
 Custom Unit Types
