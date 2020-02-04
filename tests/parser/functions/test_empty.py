@@ -3,7 +3,7 @@ from vyper.exceptions import (
 )
 
 
-def test_clear_basic_type(get_contract_with_gas_estimation):
+def test_empty_basic_type(get_contract_with_gas_estimation):
     contracts = [  # noqa: E122
     """
 foobar: int128
@@ -13,8 +13,8 @@ def foo():
     self.foobar = 1
     bar: int128 = 1
 
-    clear(self.foobar)
-    clear(bar)
+    empty(self.foobar)
+    empty(bar)
 
     assert self.foobar == 0
     assert bar == 0
@@ -27,8 +27,8 @@ def foo():
     self.foobar = 1
     bar: uint256 = 1
 
-    clear(self.foobar)
-    clear(bar)
+    empty(self.foobar)
+    empty(bar)
 
     assert self.foobar == 0
     assert bar == 0
@@ -41,8 +41,8 @@ def foo():
     self.foobar = True
     bar: bool = True
 
-    clear(self.foobar)
-    clear(bar)
+    empty(self.foobar)
+    empty(bar)
 
     assert self.foobar == False
     assert bar == False
@@ -55,8 +55,8 @@ def foo():
     self.foobar = 1.0
     bar: decimal = 1.0
 
-    clear(self.foobar)
-    clear(bar)
+    empty(self.foobar)
+    empty(bar)
 
     assert self.foobar == 0.0
     assert bar == 0.0
@@ -69,8 +69,8 @@ def foo():
     self.foobar = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
     bar: bytes32 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
 
-    clear(self.foobar)
-    clear(bar)
+    empty(self.foobar)
+    empty(bar)
 
     assert self.foobar == 0x0000000000000000000000000000000000000000000000000000000000000000
     assert bar == 0x0000000000000000000000000000000000000000000000000000000000000000
@@ -83,8 +83,8 @@ def foo():
     self.foobar = msg.sender
     bar: address = msg.sender
 
-    clear(self.foobar)
-    clear(bar)
+    empty(self.foobar)
+    empty(bar)
 
     assert self.foobar == ZERO_ADDRESS
     assert bar == ZERO_ADDRESS
@@ -96,7 +96,7 @@ def foo():
         c.foo()
 
 
-def test_clear_basic_type_lists(get_contract_with_gas_estimation):
+def test_empty_basic_type_lists(get_contract_with_gas_estimation):
     contracts = [  # noqa: E122
     """
 foobar: int128[3]
@@ -106,8 +106,8 @@ def foo():
     self.foobar = [1, 2, 3]
     bar: int128[3] = [1, 2, 3]
 
-    clear(self.foobar)
-    clear(bar)
+    empty(self.foobar)
+    empty(bar)
 
     assert self.foobar[0] == 0
     assert self.foobar[1] == 0
@@ -124,8 +124,8 @@ def foo():
     self.foobar = [1, 2, 3]
     bar: uint256[3] = [1, 2, 3]
 
-    clear(self.foobar)
-    clear(bar)
+    empty(self.foobar)
+    empty(bar)
 
     assert self.foobar[0] == 0
     assert self.foobar[1] == 0
@@ -142,8 +142,8 @@ def foo():
     self.foobar = [True, True, True]
     bar: bool[3] = [True, True, True]
 
-    clear(self.foobar)
-    clear(bar)
+    empty(self.foobar)
+    empty(bar)
 
     assert self.foobar[0] == False
     assert self.foobar[1] == False
@@ -160,8 +160,8 @@ def foo():
     self.foobar = [1.0, 2.0, 3.0]
     bar: decimal[3] = [1.0, 2.0, 3.0]
 
-    clear(self.foobar)
-    clear(bar)
+    empty(self.foobar)
+    empty(bar)
 
     assert self.foobar[0] == 0.0
     assert self.foobar[1] == 0.0
@@ -186,8 +186,8 @@ def foo():
         0x00000000000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
     ]
 
-    clear(self.foobar)
-    clear(bar)
+    empty(self.foobar)
+    empty(bar)
 
     assert self.foobar[0] == 0x0000000000000000000000000000000000000000000000000000000000000000
     assert self.foobar[1] == 0x0000000000000000000000000000000000000000000000000000000000000000
@@ -204,8 +204,8 @@ def foo():
     self.foobar = [msg.sender, msg.sender, msg.sender]
     bar: address[3] = [msg.sender, msg.sender, msg.sender]
 
-    clear(self.foobar)
-    clear(bar)
+    empty(self.foobar)
+    empty(bar)
 
     assert self.foobar[0] == ZERO_ADDRESS
     assert self.foobar[1] == ZERO_ADDRESS
@@ -221,32 +221,32 @@ def foo():
         c.foo()
 
 
-def test_clear_literals(assert_compile_failed, get_contract_with_gas_estimation):
+def test_empty_literals(assert_compile_failed, get_contract_with_gas_estimation):
     contracts = [  # noqa: E122
     """
 @public
 def foo():
-    clear(1)
+    empty(1)
     """,
     """
 @public
 def foo():
-    clear(True)
+    empty(True)
     """,
     """
 @public
 def foo():
-    clear(1.0)
+    empty(1.0)
     """,
     """
 @public
 def foo():
-    clear(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
+    empty(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
     """,
     """
 @public
 def foo():
-    clear(0xF5D4020dCA6a62bB1efFcC9212AAF3c9819E30D7)
+    empty(0xF5D4020dCA6a62bB1efFcC9212AAF3c9819E30D7)
     """
     ]
 
@@ -257,7 +257,7 @@ def foo():
         )
 
 
-def test_clear_bytes(get_contract_with_gas_estimation):
+def test_empty_bytes(get_contract_with_gas_estimation):
     code = """
 foobar: bytes[5]
 
@@ -266,11 +266,11 @@ def foo() -> (bytes[5], bytes[5], bytes[5]):
     self.foobar = 'Hello'
     bar: bytes[5] = 'World'
 
-    clear(self.foobar)
-    clear(bar)
+    empty(self.foobar)
+    empty(bar)
 
     baz: bytes[5] = 'world'
-    baz = clear(bytes[5])
+    baz = empty(bytes[5])
 
     return (self.foobar, bar, baz)
     """
@@ -280,7 +280,7 @@ def foo() -> (bytes[5], bytes[5], bytes[5]):
     assert a == b == c == b''
 
 
-def test_clear_struct(get_contract_with_gas_estimation):
+def test_empty_struct(get_contract_with_gas_estimation):
     code = """
 struct FOOBAR:
     a: int128
@@ -311,8 +311,8 @@ def foo():
         f: msg.sender
     })
 
-    clear(self.foobar)
-    clear(bar)
+    empty(self.foobar)
+    empty(bar)
 
     assert self.foobar.a == 0
     assert self.foobar.b == 0
@@ -333,7 +333,7 @@ def foo():
     c.foo()
 
 
-def test_map_clear(get_contract_with_gas_estimation):
+def test_map_empty(get_contract_with_gas_estimation):
     code = """
 big_storage: map(bytes32, bytes32)
 
@@ -347,7 +347,7 @@ def get(key: bytes32) -> bytes32:
 
 @public
 def delete(key: bytes32):
-    clear(self.big_storage[key])
+    empty(self.big_storage[key])
     """
 
     c = get_contract_with_gas_estimation(code)
@@ -359,7 +359,7 @@ def delete(key: bytes32):
     assert c.get(b"test") == b'\x00' * 32
 
 
-def test_map_clear_nested(get_contract_with_gas_estimation):
+def test_map_empty_nested(get_contract_with_gas_estimation):
     code = """
 big_storage: map(bytes32, map(bytes32, bytes32))
 
@@ -373,7 +373,7 @@ def get(key1: bytes32, key2: bytes32) -> bytes32:
 
 @public
 def delete(key1: bytes32, key2: bytes32):
-    clear(self.big_storage[key1][key2])
+    empty(self.big_storage[key1][key2])
     """
 
     c = get_contract_with_gas_estimation(code)
@@ -385,7 +385,7 @@ def delete(key1: bytes32, key2: bytes32):
     assert c.get(b"test1", b"test2") == b'\x00' * 32
 
 
-def test_map_clear_struct(get_contract_with_gas_estimation):
+def test_map_empty_struct(get_contract_with_gas_estimation):
     code = """
 struct X:
     a: int128
@@ -406,7 +406,7 @@ def get() -> (int128, int128):
 
 @public
 def delete():
-    clear(self.structmap[123])
+    empty(self.structmap[123])
     """
 
     c = get_contract_with_gas_estimation(code)
@@ -418,17 +418,17 @@ def delete():
     assert c.get() == [0, 0]
 
 
-def test_clear_typecheck(get_contract, assert_compile_failed):
+def test_empty_typecheck(get_contract, assert_compile_failed):
     contracts = [  # noqa: E122
     """
 @public
 def foo():
-    xs: uint256[10] = clear(uint256[11])
+    xs: uint256[10] = empty(uint256[11])
     """,
     """
 @public
 def bar():
-    ys: bytes[33] = clear(bytes[32])
+    ys: bytes[33] = empty(bytes[32])
     """
     ]
 
