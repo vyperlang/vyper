@@ -56,6 +56,6 @@ def refund():
             return
 
         send(self.funders[i].sender, self.funders[i].value)
-        clear(self.funders[i])
+        empty(self.funders[i])
 
     self.refundIndex = ind + 30
