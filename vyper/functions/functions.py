@@ -6,6 +6,7 @@ from vyper.exceptions import (
     InvalidLiteralException,
     ParserException,
     StructureException,
+    SyntaxException,
     TypeMismatchException,
 )
 from vyper.opcodes import (
@@ -1279,6 +1280,10 @@ else:
 
 
 def clear(expr, context):
+    raise SyntaxException("clear() is no longer a Vyper function - use empty() instead")
+
+
+def empty(expr, context):
     if len(expr.args) != 1:
         raise ParserException('function expects two parameters.', expr)
     output_type = context.parse_type(expr.args[0], expr.args[0])
@@ -1317,6 +1322,7 @@ DISPATCH_TABLE = {
     'min': _min,
     'max': _max,
     'clear': clear,
+    'empty': empty,
 }
 
 STMT_DISPATCH_TABLE = {

@@ -334,7 +334,7 @@ class Stmt(object):
             )
         return o
 
-    def _clear(self):
+    def _empty(self):
         # Get target variable
         target = self.get_target(self.stmt.args[0])
 
@@ -356,8 +356,8 @@ class Stmt(object):
 
         if isinstance(self.stmt.func, ast.Name):
             funcname = self.stmt.func.id
-            if funcname == 'clear':
-                return self._clear()
+            if funcname == 'empty':
+                return self._empty()
             if funcname in STMT_DISPATCH_TABLE:
                 return STMT_DISPATCH_TABLE[funcname](self.stmt, self.context)
             elif funcname in DISPATCH_TABLE:
@@ -935,7 +935,7 @@ class Stmt(object):
 
     def parse_delete(self):
         raise StructureException(
-            "Deleting is not supported, use built-in `clear()` function.",
+            "Deleting is not supported, use built-in empty() function.",
             self.stmt
         )
 

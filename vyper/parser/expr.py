@@ -258,8 +258,8 @@ class Expr(object):
         elif self.expr.value is None:
             # block None
             raise InvalidLiteralException(
-                    'None is not allowed in vyper'
-                    '(use a default value or built-in `clear()`')
+                "None is not allowed in vyper, use a default value or built-in empty()"
+            )
         else:
             raise Exception(f"Unknown name constant: {self.expr.value.value}")
 

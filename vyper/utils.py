@@ -182,7 +182,7 @@ RESERVED_KEYWORDS = {
     # None sentinal value
     'none',
     # more special operations
-    'clear',
+    'clear', 'empty',
     # denominations
     'ether', 'wei', 'finney', 'szabo', 'shannon', 'lovelace', 'ada', 'babbage',
     'gwei', 'kwei', 'mwei', 'twei', 'pwei',
