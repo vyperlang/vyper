@@ -106,6 +106,7 @@ def mk_method_identifiers(code, interface_codes=None):
             code,
             sigs=global_ctx._contracts,
             custom_units=global_ctx._custom_units,
+            custom_structs=global_ctx._structs,
             constants=global_ctx._constants,
         )
         if not sig.private:
