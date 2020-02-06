@@ -25,6 +25,7 @@ from vyper.parser.parser_utils import (
 from vyper.types import (
     ByteArrayLike,
     StructType,
+    TupleLike,
     TupleType,
     canonicalize_type,
     get_size_of_type,
@@ -317,44 +318,31 @@ class FunctionSignature:
         )
 
     @iterable_cast(dict)
-    def _generate_base_type(self, arg_type, name=None, custom_units_descriptions=None):
+    def _generate_base_type(self, arg_type, name="", custom_units_descriptions=None):
         yield "type", canonicalize_type(arg_type)
         u = unit_from_type(arg_type)
         if u:
             yield "unit", print_unit(u, custom_units_descriptions)
-        name = "out" if not name else name
         yield "name", name
 
-    def _generate_param_abi(self, out_arg, name=None, custom_units_descriptions=None):
-        if isinstance(out_arg, StructType):
+    def _generate_param_abi(self, out_arg, name="", custom_units_descriptions=None):
+        if isinstance(out_arg, TupleLike):
             return {
                 'type': 'tuple',
+                'name': name,
                 'components': [
                     self._generate_param_abi(
                         member_type,
-                        name=name,
+                        name=n if type(out_arg) is StructType else "",
                         custom_units_descriptions=custom_units_descriptions
-                    )
-                    for name, member_type in out_arg.tuple_items()
+                    ) for n, member_type in out_arg.tuple_items()
                 ]
             }
-        elif isinstance(out_arg, TupleType):
-            return {
-                'type': 'tuple',
-                'components': [
-                    self._generate_param_abi(
-                        member_type,
-                        name=f"out{idx + 1}",
-                        custom_units_descriptions=custom_units_descriptions
-                    ) for idx, member_type in out_arg.tuple_items()
-                ]
-            }
-        else:
-            return self._generate_base_type(
-                arg_type=out_arg,
-                name=name,
-                custom_units_descriptions=custom_units_descriptions
-            )
+        return self._generate_base_type(
+            arg_type=out_arg,
+            name=name,
+            custom_units_descriptions=custom_units_descriptions
+        )
 
     def _generate_outputs_abi(self, custom_units_descriptions):
         if not self.output_type:
