@@ -83,12 +83,16 @@ def foo(s: MyStruct) -> MyStruct:
     func_abi = abi[0]
 
     assert func_abi["name"] == "foo"
-    assert func_abi["outputs"][0] == {
+    expected = {
         'type': 'tuple',
+        'name': '',
         'components': [
            {'type': 'address', 'name': 'a'},
            {'type': 'uint256', 'name': 'b'}
         ]
     }
 
-    assert func_abi["inputs"][0] == func_abi["outputs"][0]
+    assert func_abi["outputs"][0] == expected
+
+    expected['name'] = "s"
+    assert func_abi["inputs"][0] == expected

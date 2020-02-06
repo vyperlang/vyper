@@ -22,7 +22,7 @@ def bar(a: uint256(m), b: uint256(m), c: uint256(m)) -> uint256(m**3):
     c = get_contract_with_gas_estimation(code)
 
     assert c._classic_contract.abi[0]["outputs"] == [
-        {"type": "uint256", "name": "out", "unit": "Newton-Meter per Second squared"}
+        {"type": "uint256", "name": "", "unit": "Newton-Meter per Second squared"}
     ]
     assert c._classic_contract.abi[0]["inputs"] == [
         {"type": "uint256", "name": "f", "unit": "Newton"},
@@ -30,7 +30,7 @@ def bar(a: uint256(m), b: uint256(m), c: uint256(m)) -> uint256(m**3):
         {"type": "uint256", "name": "t", "unit": "Second"},
     ]
     assert c._classic_contract.abi[1]["outputs"] == [
-        {"type": "uint256", "name": "out", "unit": "Meter**3"}
+        {"type": "uint256", "name": "", "unit": "Meter**3"}
     ]
     assert c._classic_contract.abi[1]["inputs"] == [
         {"type": "uint256", "name": "a", "unit": "Meter"},
@@ -74,8 +74,8 @@ def foo(t: uint256(s), d: uint256(m)) -> (uint256(m), uint256(s)):
     c = get_contract_with_gas_estimation(code)
 
     assert c._classic_contract.abi[0]["outputs"] == [
-        {"type": "uint256", "name": "out", "unit": "Meter"},
-        {"type": "uint256", "name": "out", "unit": "Second"},
+        {"type": "uint256", "name": "", "unit": "Meter"},
+        {"type": "uint256", "name": "", "unit": "Second"},
     ]
 
     assert c._classic_contract.abi[0]["inputs"] == [
@@ -93,7 +93,7 @@ def foo(a: uint256, b: uint256, c: uint256) -> uint256:
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c._classic_contract.abi[0]["outputs"] == [{"type": "uint256", "name": "out"}]
+    assert c._classic_contract.abi[0]["outputs"] == [{"type": "uint256", "name": ""}]
     assert c._classic_contract.abi[0]["inputs"] == [
         {"type": "uint256", "name": "a"},
         {"type": "uint256", "name": "b"},

@@ -75,9 +75,9 @@ def out_literals() -> (int128, address, bytes[6]):
 
     c = get_contract_with_gas_estimation(code)
     assert c._classic_contract.abi[0]['outputs'] == [
-        {'type': 'int128', 'name': 'out'},
-        {'type': 'address', 'name': 'out'},
-        {'type': 'bytes', 'name': 'out'},
+        {'type': 'int128', 'name': ''},
+        {'type': 'address', 'name': ''},
+        {'type': 'bytes', 'name': ''},
     ]
 
 
