@@ -60,21 +60,26 @@ def render_return(sig):
     return ""
 
 
-def abi_type_to_ast(atype, idx):
+def abi_type_to_ast(atype, expected_size):
     if atype in ('int128', 'uint256', 'bool', 'address', 'bytes32'):
         return ast.Name(id=atype)
     elif atype == 'fixed168x10':
         return ast.Name(id='decimal')
     elif atype in ('bytes', 'string'):
-        # idx is the maximum length for inputs, minimum length for outputs
+        # expected_size is the maximum length for inputs, minimum length for outputs
         return ast.Subscript(
             value=ast.Name(id=atype),
-            slice=ast.Index(value=ast.Num(n=idx))
+            slice=ast.Index(value=ast.Num(n=expected_size))
         )
     else:
         raise ParserException(f'Type {atype} not supported by vyper.')
 
 
+# Vyper defines a maximum length for bytes and string types, but Solidity does not.
+# To maximize interoperability, we internally considers these types to have a
+# a length of 1Mb (1024 * 1024 * 1 byte) for inputs, and 1 for outputs.
+# Ths approach solves the issue because Vyper allows for an implicit casting
+# from a lower length into a higher one.  (@iamdefinitelyahuman)
 def mk_full_signature_from_json(abi):
     funcs = [func for func in abi if func['type'] == 'function']
     sigs = []
@@ -294,7 +299,11 @@ def check_valid_contract_interface(global_ctx, contract_sigs):
 
         for sig, func_sig in contract_sigs.items():
             if isinstance(func_sig, FunctionSignature):
-                if sig not in funcs_left or func_sig.private:
+                if func_sig.private:
+                    # private functions are not defined within interfaces
+                    continue
+                if sig not in funcs_left:
+                    # this function is not present within the interface
                     continue
                 # Remove units, as interface signatures should not enforce units.
                 clean_sig_output_type = func_sig.output_type
