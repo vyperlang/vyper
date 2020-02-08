@@ -3,6 +3,7 @@ from vyper.parser.lll_node import (
 )
 from vyper.parser.parser_utils import (
     getpos,
+    make_setter,
     zero_pad,
 )
 from vyper.types import (
@@ -44,7 +45,7 @@ def make_return_stmt(stmt, context, begin_pos, _size, loop_memory_position=None)
         if isinstance(begin_pos, int) and isinstance(_size, int):
             # static values, unroll the mloads instead.
             mloads = [
-                ['mload', pos] for pos in range(begin_pos, _size, 32)
+                ['mload', pos] for pos in range(begin_pos, begin_pos + _size, 32)
             ]
             return ['seq_unchecked'] + mloads + nonreentrant_post + \
                 [['jump', ['mload', context.callback_ptr]]]
@@ -77,6 +78,8 @@ def make_return_stmt(stmt, context, begin_pos, _size, loop_memory_position=None)
 
 
 # Generate code for returning a tuple or struct.
+# actually this is generic code that should work for all types, just
+# need to replace branches in stmt.py with this.
 def gen_tuple_return(stmt, context, sub):
     # for certain arguments (to return), we can skip some copies and
     # return the return buffer directly
@@ -84,19 +87,36 @@ def gen_tuple_return(stmt, context, sub):
         # self-call to public.
         mem_pos = sub
         mem_size = get_size_of_type(sub.typ) * 32
-        return LLLnode.from_list(['return', mem_pos, mem_size], typ=sub.typ)
+        return LLLnode.from_list(['return', mem_pos, mem_size],
+                typ=sub.typ,
+                annotation=f'{context.sig.name} return')
 
-    # for private calls, if the data is static (in the ABI sense)
-    # we can return the buffer directly
+    # if the argument is a call to a private function and the data is
+    # static (in the ABI sense), we can return the buffer directly
     is_private_call = sub.annotation and 'Internal Call' in sub.annotation
     if is_private_call and not abi_type_of(sub.typ).is_dynamic():
         mem_pos = sub.args[-1].value \
                 if sub.value == 'seq_unchecked' \
                 else sub.args[0].args[-1]
         mem_size = get_size_of_type(sub.typ) * 32
-        return LLLnode.from_list(['seq'] + [sub] + [zero_padder] + [
+        return LLLnode.from_list(['seq'] + [sub] + [
             make_return_stmt(stmt, context, mem_pos, mem_size)
         ], typ=sub.typ, pos=getpos(stmt), valency=0)
+
+    # if we are in a private call, just return the data unencoded
+    if context.is_private:
+        mem_pos = context.new_placeholder(context.return_type)
+        mem_size = get_size_of_type(context.return_type) * 32
+        dst = LLLnode(mem_pos, location='memory', typ=context.return_type)
+        os = ['seq',
+              make_setter(dst, sub, 'memory', pos=getpos(stmt)),
+              LLLnode.from_list('pass', annotation='HEY'),
+              make_return_stmt(stmt, context, mem_pos, mem_size)]
+        return LLLnode.from_list(os,
+                pos=getpos(stmt),
+                annotation=f'fill {context.sig.name} return buffer (unpacked)',
+                typ=None,
+                valency=0)
 
     abi_typ = abi_type_of(context.return_type)
     # according to the ABI, return types are ALWAYS tuples even if
@@ -112,10 +132,11 @@ def gen_tuple_return(stmt, context, sub):
     abi_typ = ensure_tuple(abi_typ)
     abi_bytes_needed = abi_typ.static_size() + abi_typ.dynamic_size_bound()
     dst, _ = context.memory_allocator.increase_memory(abi_bytes_needed)
+    func_name = context.sig.name
     return_buffer = LLLnode(
             dst,
             location='memory',
-            annotation='return_buffer',
+            annotation=f'{func_name} return buffer',
             typ=context.return_type)
 
     check_assign(return_buffer, sub, pos=getpos(stmt))
@@ -125,4 +146,5 @@ def gen_tuple_return(stmt, context, sub):
     os = ['seq',
           ['mstore', MemoryPositions.FREE_VAR_SPACE, encode_out],
           make_return_stmt(stmt, context, return_buffer, load_return_len)]
-    return LLLnode.from_list(os, typ=None, pos=getpos(stmt), valency=0)
+    return LLLnode.from_list(os, typ=None, pos=getpos(stmt), valency=0,
+            annotation=f'{context.sig.name} abi-encode and return')
