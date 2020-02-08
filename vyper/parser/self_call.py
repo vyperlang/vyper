@@ -213,65 +213,10 @@ def call_self_private(stmt_expr, context, sig):
     if sig.output_type:
         output_placeholder, returner, output_size = call_make_placeholder(stmt_expr, context, sig)
         if output_size > 0:
-            dynamic_offsets = []
-            if isinstance(sig.output_type, (BaseType, ListType)):
-                pop_return_values = [
-                    ['mstore', ['add', output_placeholder, pos], 'pass']
-                    for pos in range(0, output_size, 32)
-                ]
-            elif isinstance(sig.output_type, ByteArrayLike):
-                dynamic_offsets = [(0, sig.output_type)]
-                pop_return_values = [
-                    ['pop', 'pass'],
-                ]
-            elif isinstance(sig.output_type, TupleLike):
-                static_offset = 0
-                pop_return_values = []
-                for out_type in sig.output_type.members:
-                    if isinstance(out_type, ByteArrayLike):
-                        pop_return_values.append(
-                            ['mstore', ['add', output_placeholder, static_offset], 'pass']
-                        )
-                        dynamic_offsets.append(
-                            (['mload', ['add', output_placeholder, static_offset]], out_type)
-                        )
-                    else:
-                        pop_return_values.append(
-                            ['mstore', ['add', output_placeholder, static_offset], 'pass']
-                        )
-                    static_offset += 32
-
-            # append dynamic unpacker.
-            dyn_idx = 0
-            for in_memory_offset, _out_type in dynamic_offsets:
-                ident = f"{stmt_expr.lineno}_{stmt_expr.col_offset}_arg_{dyn_idx}"
-                dyn_idx += 1
-                start_label = 'dyn_unpack_start_' + ident
-                end_label = 'dyn_unpack_end_' + ident
-                i_placeholder = context.new_placeholder(typ=BaseType('uint256'))
-                begin_pos = ['add', output_placeholder, in_memory_offset]
-                # loop until length.
-                o = LLLnode.from_list(
-                    ['seq_unchecked',
-                        ['mstore', begin_pos, 'pass'],  # get len
-                        ['mstore', i_placeholder, 0],
-                        ['label', start_label],
-                        [  # break
-                            'if',
-                            ['ge', ['mload', i_placeholder], ['ceil32', ['mload', begin_pos]]],
-                            ['goto', end_label]
-                        ],
-                        [  # pop into correct memory slot.
-                            'mstore',
-                            ['add', ['add', begin_pos, 32], ['mload', i_placeholder]],
-                            'pass',
-                        ],
-                        # increment i
-                        ['mstore', i_placeholder, ['add', 32, ['mload', i_placeholder]]],
-                        ['goto', start_label],
-                        ['label', end_label]],
-                    typ=None, annotation='dynamic unpacker', pos=getpos(stmt_expr))
-                pop_return_values.append(o)
+            pop_return_values = [
+                ['mstore', ['add', output_placeholder, pos], 'pass']
+                for pos in range(0, output_size, 32)
+            ]
 
     call_body = list(itertools.chain(
         ['seq_unchecked'],

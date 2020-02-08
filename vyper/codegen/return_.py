@@ -78,31 +78,22 @@ def make_return_stmt(stmt, context, begin_pos, _size, loop_memory_position=None)
 
 # Generate code for returning a tuple or struct.
 def gen_tuple_return(stmt, context, sub):
-    # Is from a call expression.
+    # for certain arguments (to return), we can skip some copies and
+    # return the return buffer directly
     if sub.args and len(sub.args[0].args) > 0 and sub.args[0].args[0].value == 'call':
         # self-call to public.
         mem_pos = sub
         mem_size = get_size_of_type(sub.typ) * 32
         return LLLnode.from_list(['return', mem_pos, mem_size], typ=sub.typ)
 
-    elif (sub.annotation and 'Internal Call' in sub.annotation):
-        mem_pos = sub.args[-1].value if sub.value == 'seq_unchecked' else sub.args[0].args[-1]
+    # for private calls, if the data is static (in the ABI sense)
+    # we can return the buffer directly
+    is_private_call = sub.annotation and 'Internal Call' in sub.annotation
+    if is_private_call and not abi_type_of(sub.typ).is_dynamic():
+        mem_pos = sub.args[-1].value \
+                if sub.value == 'seq_unchecked' \
+                else sub.args[0].args[-1]
         mem_size = get_size_of_type(sub.typ) * 32
-        # Add zero padder if bytes are present in output.
-        zero_padder = ['pass']
-        byte_arrays = [
-            (i, x)
-            for i, x
-            in enumerate(sub.typ.tuple_members())
-            if isinstance(x, ByteArrayLike)
-        ]
-        if byte_arrays:
-            i, x = byte_arrays[-1]
-            zero_padder = zero_pad(bytez_placeholder=[
-                'add',
-                mem_pos,
-                ['mload', mem_pos + i * 32]
-            ])
         return LLLnode.from_list(['seq'] + [sub] + [zero_padder] + [
             make_return_stmt(stmt, context, mem_pos, mem_size)
         ], typ=sub.typ, pos=getpos(stmt), valency=0)
