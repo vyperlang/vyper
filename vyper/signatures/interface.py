@@ -30,6 +30,10 @@ from vyper.signatures.event_signature import (
 from vyper.signatures.function_signature import (
     FunctionSignature,
 )
+from vyper.types.types import (
+    ByteArrayLike,
+    TupleLike,
+)
 from vyper.typing import (
     InterfaceImports,
     SourceCode,
@@ -56,25 +60,26 @@ def render_return(sig):
     return ""
 
 
-def abi_type_to_ast(atype):
+def abi_type_to_ast(atype, expected_size):
     if atype in ('int128', 'uint256', 'bool', 'address', 'bytes32'):
         return ast.Name(id=atype)
-    elif atype == 'decimal':
-        return ast.Name(id='int128')
-    elif atype == 'bytes':
+    elif atype == 'fixed168x10':
+        return ast.Name(id='decimal')
+    elif atype in ('bytes', 'string'):
+        # expected_size is the maximum length for inputs, minimum length for outputs
         return ast.Subscript(
-            value=ast.Name(id='bytes'),
-            slice=ast.Index(256)
-        )
-    elif atype == 'string':
-        return ast.Subscript(
-            value=ast.Name(id='string'),
-            slice=ast.Index(256)
+            value=ast.Name(id=atype),
+            slice=ast.Index(value=ast.Num(n=expected_size))
         )
     else:
         raise ParserException(f'Type {atype} not supported by vyper.')
 
 
+# Vyper defines a maximum length for bytes and string types, but Solidity does not.
+# To maximize interoperability, we internally considers these types to have a
+# a length of 1Mb (1024 * 1024 * 1 byte) for inputs, and 1 for outputs.
+# Ths approach solves the issue because Vyper allows for an implicit casting
+# from a lower length into a higher one.  (@iamdefinitelyahuman)
 def mk_full_signature_from_json(abi):
     funcs = [func for func in abi if func['type'] == 'function']
     sigs = []
@@ -85,18 +90,18 @@ def mk_full_signature_from_json(abi):
         for a in func['inputs']:
             arg = ast.arg(
                 arg=a['name'],
-                annotation=abi_type_to_ast(a['type']),
+                annotation=abi_type_to_ast(a['type'], 1048576),
                 lineno=0,
                 col_offset=0
             )
             args.append(arg)
 
         if len(func['outputs']) == 1:
-            returns = abi_type_to_ast(func['outputs'][0]['type'])
+            returns = abi_type_to_ast(func['outputs'][0]['type'], 1)
         elif len(func['outputs']) > 1:
             returns = ast.Tuple(
                 elts=[
-                    abi_type_to_ast(a['type'])
+                    abi_type_to_ast(a['type'], 1)
                     for a in func['outputs']
                 ]
             )
@@ -294,16 +299,18 @@ def check_valid_contract_interface(global_ctx, contract_sigs):
 
         for sig, func_sig in contract_sigs.items():
             if isinstance(func_sig, FunctionSignature):
-                # Remove units, as inteface signatures should not enforce units.
+                if func_sig.private:
+                    # private functions are not defined within interfaces
+                    continue
+                if sig not in funcs_left:
+                    # this function is not present within the interface
+                    continue
+                # Remove units, as interface signatures should not enforce units.
                 clean_sig_output_type = func_sig.output_type
                 if func_sig.output_type:
                     clean_sig_output_type = copy.deepcopy(func_sig.output_type)
                     clean_sig_output_type.unit = {}
-                if (
-                    sig in funcs_left and  # noqa: W504
-                    not func_sig.private and  # noqa: W504
-                    funcs_left[sig].output_type == clean_sig_output_type
-                ):
+                if _compare_outputs(funcs_left[sig].output_type, clean_sig_output_type):
                     del funcs_left[sig]
             if isinstance(func_sig, EventSignature) and func_sig.sig in funcs_left:
                 del funcs_left[func_sig.sig]
@@ -329,3 +336,19 @@ def check_valid_contract_interface(global_ctx, contract_sigs):
                 err_join = "\n\t".join(missing_events)
                 error_message += f'Missing interface events:\n\t{err_join}'
             raise StructureException(error_message)
+
+
+def _compare_outputs(a, b):
+    if isinstance(a, TupleLike):
+        # for tuples and structs, compare the length and individual members
+        if type(a) != type(b):
+            return False
+        if len(a.tuple_members()) != len(b.tuple_members()):
+            return False
+        compare = zip(a.tuple_members(), b.tuple_members())
+        return next((False for i in compare if not _compare_outputs(*i)), True)
+    if isinstance(a, ByteArrayLike):
+        # for string and bytes, only the type matters (not the length)
+        return type(a) == type(b)
+    # for all other types, check strict equality
+    return a == b
