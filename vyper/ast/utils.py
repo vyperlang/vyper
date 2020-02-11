@@ -5,7 +5,7 @@ from typing import (
 
 import asttokens
 
-import vyper.ast as vyper_ast
+import vyper.ast.nodes as vyper_ast
 from vyper.exceptions import (
     CompilerPanic,
     ParserException,
@@ -15,7 +15,7 @@ from vyper.exceptions import (
 from vyper.parser.parser_utils import (
     annotate_ast,
 )
-from vyper.parser.pre_parser import (
+from vyper.ast.pre_parser import (
     pre_parse,
 )
 from vyper.utils import (
