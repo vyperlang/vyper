@@ -3,9 +3,8 @@ from typing import (
     List,
 )
 
-from vyper import ast
-from vyper.ast_utils import (
-    parse_to_ast,
+from vyper import (
+    ast as vy_ast,
 )
 from vyper.exceptions import (
     EventDeclarationException,
@@ -39,7 +38,8 @@ from vyper.utils import (
     LOADED_LIMITS,
 )
 
-if not hasattr(ast, 'AnnAssign'):
+# TODO remove this check
+if not hasattr(vy_ast, 'AnnAssign'):
     raise Exception("Requires python 3.6 or higher for annotation support")
 
 # Header code
@@ -90,8 +90,8 @@ def parse_external_contracts(external_contracts, global_ctx):
             constant = False
             # test for valid call type keyword.
             if len(_def.body) == 1 and \
-               isinstance(_def.body[0], ast.Expr) and \
-               isinstance(_def.body[0].value, ast.Name) and \
+               isinstance(_def.body[0], vy_ast.Expr) and \
+               isinstance(_def.body[0].value, vy_ast.Name) and \
                _def.body[0].value.id in ('modifying', 'constant'):
                 constant = True if _def.body[0].value.id == 'constant' else False
             else:
@@ -216,5 +216,5 @@ def parse_tree_to_lll(code, origcode, runtime_only=False, interface_codes=None):
 
 
 def parse_to_lll(kode, runtime_only=False, interface_codes=None):
-    code = parse_to_ast(kode)
+    code = vy_ast.parse_to_ast(kode)
     return parse_tree_to_lll(code, kode, runtime_only=runtime_only, interface_codes=interface_codes)

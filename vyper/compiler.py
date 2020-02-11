@@ -17,8 +17,9 @@ from vyper import (
     opcodes,
     optimizer,
 )
-from vyper.ast_utils import (
+from vyper.ast import (
     ast_to_dict,
+    parse_to_ast,
 )
 from vyper.opcodes import (
     DEFAULT_EVM_VERSION,
@@ -44,7 +45,7 @@ from vyper.typing import (
 
 
 def __compile(code, interface_codes=None, *args, **kwargs):
-    ast = parser.parse_to_ast(code)
+    ast = parse_to_ast(code)
     lll = parser.parse_tree_to_lll(
         ast,
         code,
@@ -88,7 +89,7 @@ def gas_estimate(origcode, *args, **kwargs):
 
 
 def mk_full_signature(code, *args, **kwargs):
-    abi = sig_utils.mk_full_signature(parser.parse_to_ast(code), *args, **kwargs)
+    abi = sig_utils.mk_full_signature(parse_to_ast(code), *args, **kwargs)
     # Add gas estimates for each function to ABI
     gas_estimates = gas_estimate(code, *args, **kwargs)
     for func in abi:
@@ -274,7 +275,7 @@ def _mk_opcodes_runtime(code, contract_name, interface_codes, source_id):
 def _mk_ast_dict(code, contract_name, interface_codes, source_id):
     o = {
         'contract_name': contract_name,
-        'ast': ast_to_dict(parser.parse_to_ast(code, source_id))
+        'ast': ast_to_dict(parse_to_ast(code, source_id))
     }
     return o
 

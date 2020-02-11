@@ -1,5 +1,8 @@
 import copy
 
+from vyper.ast import (
+    parse_to_ast,
+)
 from vyper.parser.global_context import (
     GlobalContext,
 )
@@ -94,7 +97,6 @@ def mk_full_signature(code, sig_formatter=None, interface_codes=None):
 
 
 def mk_method_identifiers(code, interface_codes=None):
-    from vyper.parser.parser import parse_to_ast
     o = {}
     global_ctx = GlobalContext.get_global_context(
         parse_to_ast(code),

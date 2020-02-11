@@ -10,7 +10,9 @@ from typing import (
     Union,
 )
 
-from vyper import ast
+from vyper import (
+    ast as vy_ast,
+)
 from vyper.exceptions import (
     ArrayIndexException,
     ConstancyViolationException,
@@ -267,11 +269,11 @@ def set_offsets(node, pos):
     # TODO replace this with a visitor pattern
     for field in node.get_slots():
         item = getattr(node, field, None)
-        if isinstance(item, ast.VyperNode):
+        if isinstance(item, vy_ast.VyperNode):
             set_offsets(item, pos)
         elif isinstance(item, list):
             for i in item:
-                if isinstance(i, ast.VyperNode):
+                if isinstance(i, vy_ast.VyperNode):
                     set_offsets(i, pos)
     node.lineno, node.col_offset, node.end_lineno, node.end_col_offset = pos
 

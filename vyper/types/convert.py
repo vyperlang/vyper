@@ -1,7 +1,9 @@
 import math
 import warnings
 
-from vyper import ast
+from vyper import (
+    ast as vy_ast,
+)
 from vyper.exceptions import (
     InvalidLiteralException,
     ParserException,
@@ -417,16 +419,19 @@ def to_bytes(expr, args, kwargs, context):
 def convert(expr, context):
     if len(expr.args) != 2:
         raise ParserException('The convert function expects two parameters.', expr)
-    if isinstance(expr.args[1], ast.Str):
+    if isinstance(expr.args[1], vy_ast.Str):
         warnings.warn(
             "String parameter has been removed (see VIP1026). "
             "Use a vyper type instead.",
             DeprecationWarning
         )
 
-    if isinstance(expr.args[1], ast.Name):
+    if isinstance(expr.args[1], vy_ast.Name):
         output_type = expr.args[1].id
-    elif isinstance(expr.args[1], (ast.Subscript)) and isinstance(expr.args[1].value, (ast.Name)):
+    elif (
+        isinstance(expr.args[1], (vy_ast.Subscript)) and
+        isinstance(expr.args[1].value, (vy_ast.Name))
+    ):
         output_type = expr.args[1].value.id
     else:
         raise ParserException("Invalid conversion type, use valid Vyper type.", expr)

@@ -1,6 +1,8 @@
 import copy
 
-from vyper import ast
+from vyper import (
+    ast as vy_ast,
+)
 from vyper.exceptions import (
     StructureException,
     TypeMismatchException,
@@ -90,7 +92,7 @@ class Constants(object):
             raise StructureException('Constants must express a value!', item)
 
         is_correctly_formatted_struct = (
-            len(args) == 1 and isinstance(args[0], (ast.Subscript, ast.Name, ast.Call))
+            len(args) == 1 and isinstance(args[0], (vy_ast.Subscript, vy_ast.Name, vy_ast.Call))
         ) and item.target
 
         if is_correctly_formatted_struct:
@@ -105,7 +107,7 @@ class Constants(object):
             raise StructureException('Incorrectly formatted struct', item)
 
     def ast_is_constant(self, ast_node):
-        return isinstance(ast_node, ast.Name) and ast_node.id in self._constants
+        return isinstance(ast_node, vy_ast.Name) and ast_node.id in self._constants
 
     def is_constant_of_base_type(self, ast_node, base_types):
         base_types = (base_types) if not isinstance(base_types, tuple) else base_types
@@ -125,7 +127,7 @@ class Constants(object):
         # check if value is compatible with
         const = self._constants[const_name]
 
-        if isinstance(const, ast.AnnAssign):  # Handle ByteArrays.
+        if isinstance(const, vy_ast.AnnAssign):  # Handle ByteArrays.
             if context:
                 expr = Expr(const.value, context).lll_node
                 return expr

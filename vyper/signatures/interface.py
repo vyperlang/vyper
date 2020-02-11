@@ -9,15 +9,14 @@ from typing import (
     Tuple,
 )
 
-from vyper import ast
+from vyper import (
+    ast as vy_ast,
+)
 from vyper.exceptions import (
     ParserException,
     StructureException,
 )
 import vyper.interfaces
-from vyper.parser import (
-    parser,
-)
 from vyper.parser.constants import (
     Constants,
 )
@@ -62,14 +61,14 @@ def render_return(sig):
 
 def abi_type_to_ast(atype, expected_size):
     if atype in ('int128', 'uint256', 'bool', 'address', 'bytes32'):
-        return ast.Name(id=atype)
+        return vy_ast.Name(id=atype)
     elif atype == 'fixed168x10':
-        return ast.Name(id='decimal')
+        return vy_ast.Name(id='decimal')
     elif atype in ('bytes', 'string'):
         # expected_size is the maximum length for inputs, minimum length for outputs
-        return ast.Subscript(
-            value=ast.Name(id=atype),
-            slice=ast.Index(value=ast.Num(n=expected_size))
+        return vy_ast.Subscript(
+            value=vy_ast.Name(id=atype),
+            slice=vy_ast.Index(value=vy_ast.Num(n=expected_size))
         )
     else:
         raise ParserException(f'Type {atype} not supported by vyper.')
@@ -88,7 +87,7 @@ def mk_full_signature_from_json(abi):
         args = []
         returns = None
         for a in func['inputs']:
-            arg = ast.arg(
+            arg = vy_ast.arg(
                 arg=a['name'],
                 annotation=abi_type_to_ast(a['type'], 1048576),
                 lineno=0,
@@ -99,23 +98,23 @@ def mk_full_signature_from_json(abi):
         if len(func['outputs']) == 1:
             returns = abi_type_to_ast(func['outputs'][0]['type'], 1)
         elif len(func['outputs']) > 1:
-            returns = ast.Tuple(
+            returns = vy_ast.Tuple(
                 elts=[
                     abi_type_to_ast(a['type'], 1)
                     for a in func['outputs']
                 ]
             )
 
-        decorator_list = [ast.Name(id='public')]
+        decorator_list = [vy_ast.Name(id='public')]
         if func['constant']:
-            decorator_list.append(ast.Name(id='constant'))
+            decorator_list.append(vy_ast.Name(id='constant'))
         if func['payable']:
-            decorator_list.append(ast.Name(id='payable'))
+            decorator_list.append(vy_ast.Name(id='payable'))
 
         sig = FunctionSignature.from_definition(
-            code=ast.FunctionDef(
+            code=vy_ast.FunctionDef(
                 name=func['name'],
-                args=ast.arguments(args=args),
+                args=vy_ast.arguments(args=args),
                 decorator_list=decorator_list,
                 returns=returns,
             ),
@@ -130,9 +129,9 @@ def mk_full_signature_from_json(abi):
 def extract_sigs(sig_code):
     if sig_code['type'] == 'vyper':
         interface_ast = [
-            i for i in parser.parse_to_ast(sig_code['code']) if
-            isinstance(i, ast.FunctionDef) or
-            (isinstance(i, ast.AnnAssign) and i.target.id != "implements")
+            i for i in vy_ast.parse_to_ast(sig_code['code']) if
+            isinstance(i, vy_ast.FunctionDef) or
+            (isinstance(i, vy_ast.AnnAssign) and i.target.id != "implements")
         ]
         return sig_utils.mk_full_signature(interface_ast, sig_formatter=lambda x, y: x)
     elif sig_code['type'] == 'json':
@@ -146,7 +145,7 @@ def extract_sigs(sig_code):
 
 def extract_interface_str(code, contract_name, interface_codes=None):
     sigs = sig_utils.mk_full_signature(
-        parser.parse_to_ast(code),
+        vy_ast.parse_to_ast(code),
         sig_formatter=lambda x, y: (x, y),
         interface_codes=interface_codes,
     )
@@ -182,7 +181,7 @@ def extract_interface_str(code, contract_name, interface_codes=None):
 
 def extract_external_interface(code, contract_name, interface_codes=None):
     sigs = sig_utils.mk_full_signature(
-        parser.parse_to_ast(code),
+        vy_ast.parse_to_ast(code),
         sig_formatter=lambda x, y: (x, y),
         interface_codes=interface_codes,
     )
@@ -203,11 +202,11 @@ def extract_external_interface(code, contract_name, interface_codes=None):
 
 
 def extract_file_interface_imports(code: SourceCode) -> InterfaceImports:
-    ast_tree = parser.parse_to_ast(code)
+    ast_tree = vy_ast.parse_to_ast(code)
 
     imports_dict: InterfaceImports = {}
     for item in ast_tree:
-        if isinstance(item, ast.Import):
+        if isinstance(item, vy_ast.Import):
             for a_name in item.names:  # type: ignore
                 if not a_name.asname:
                     raise StructureException(
@@ -220,7 +219,7 @@ def extract_file_interface_imports(code: SourceCode) -> InterfaceImports:
                         item,
                     )
                 imports_dict[a_name.asname] = a_name.name.replace('.', '/')
-        elif isinstance(item, ast.ImportFrom):
+        elif isinstance(item, vy_ast.ImportFrom):
             for a_name in item.names:  # type: ignore
                 if a_name.asname:
                     raise StructureException("From imports cannot use aliases", item)
