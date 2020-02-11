@@ -1,10 +1,10 @@
 import ast as python_ast
 
+from vyper.ast.pre_parser import (
+    pre_parse,
+)
 from vyper.parser.parser_utils import (
     annotate_ast,
-)
-from vyper.parser.pre_parser import (
-    pre_parse,
 )
 
 
