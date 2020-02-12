@@ -23,6 +23,7 @@ BASE_NODE_ATTRIBUTES = (
     'src',
     'ast_type',
 )
+DICT_AST_SKIPLIST = ('source_code', )
 
 
 def get_node(node):
@@ -45,7 +46,14 @@ def _to_node(value):
     return value
 
 
+def _to_dict(value):
+    if isinstance(value, VyperNode):
+        return value.to_dict()
+    return value
+
+
 class VyperNode:
+
     __slots__ = BASE_NODE_ATTRIBUTES
     _only_empty_fields: typing.Tuple = ()
     _translated_fields: typing.Dict = {}
@@ -94,6 +102,16 @@ class VyperNode:
         )
 
         return f'{class_repr}:\n{source_annotation}'
+
+    def to_dict(self):
+        ast_dict = {}
+        for key in [i for i in self.get_slots() if i not in DICT_AST_SKIPLIST]:
+            value = getattr(self, key, None)
+            if isinstance(value, list):
+                ast_dict[key] = [_to_dict(i) for i in value]
+            else:
+                ast_dict[key] = _to_dict(value)
+        return ast_dict
 
 
 class Module(VyperNode):

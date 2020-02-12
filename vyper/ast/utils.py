@@ -1,7 +1,4 @@
 import ast as python_ast
-from typing import (
-    Generator,
-)
 
 from vyper.ast import (
     nodes as vy_ast,
@@ -17,11 +14,6 @@ from vyper.exceptions import (
     ParserException,
     PythonSyntaxException,
 )
-from vyper.utils import (
-    iterable_cast,
-)
-
-DICT_AST_SKIPLIST = ('source_code', )
 
 
 def parse_to_ast(source_code: str, source_id: int = 0) -> list:
@@ -39,27 +31,11 @@ def parse_to_ast(source_code: str, source_id: int = 0) -> list:
     return vy_ast.get_node(py_ast).body  # type: ignore
 
 
-@iterable_cast(list)
-def _ast_to_list(node: list) -> Generator:
-    for x in node:
-        yield ast_to_dict(x)
-
-
-@iterable_cast(dict)
-def _ast_to_dict(node: vy_ast.VyperNode) -> Generator:
-    for f in node.get_slots():
-        if f not in DICT_AST_SKIPLIST:
-            yield (f, ast_to_dict(getattr(node, f, None)))
-    yield ('ast_type', node.__class__.__name__)
-
-
 def ast_to_dict(node: vy_ast.VyperNode) -> dict:
     if isinstance(node, vy_ast.VyperNode):
-        return _ast_to_dict(node)
+        return node.to_dict()
     elif isinstance(node, list):
-        return _ast_to_list(node)
-    elif node is None or isinstance(node, (str, int, bytes, float)):
-        return node
+        return [i.to_dict() for i in node]
     else:
         raise CompilerPanic(f'Unknown vyper AST node provided: "{type(node)}".')
 
@@ -79,7 +55,7 @@ def to_python_ast(vyper_ast_node: vy_ast.VyperNode) -> python_ast.AST:
             for n in vyper_ast_node
         ]
     elif isinstance(vyper_ast_node, vy_ast.VyperNode):
-        class_name = vyper_ast_node.__class__.__name__
+        class_name = vyper_ast_node.ast_type  # type: ignore
         if hasattr(python_ast, class_name):
             py_klass = getattr(python_ast, class_name)
             return py_klass(**{
