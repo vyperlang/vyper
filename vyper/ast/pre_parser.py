@@ -79,9 +79,17 @@ def pre_parse(code: str) -> Tuple[ClassTypes, str]:
     Also returns a mapping of detected contract and struct names to their
     respective vyper class types ("contract" or "struct").
 
-    :param code: The vyper source code to be re-formatted.
-    :return: A tuple including the class type mapping and the reformatted python
-        source string.
+    Parameters
+    ----------
+    code : str
+        The vyper source code to be re-formatted.
+
+    Returns
+    -------
+    dict
+        Mapping of class types for the given source.
+    str
+        Reformatted python source string.
     """
     result = []
     previous_keyword = None

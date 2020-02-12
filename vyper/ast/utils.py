@@ -1,4 +1,9 @@
 import ast as python_ast
+from typing import (
+    Dict,
+    List,
+    Union,
+)
 
 from vyper.ast import (
     nodes as vy_ast,
@@ -17,6 +22,21 @@ from vyper.exceptions import (
 
 
 def parse_to_ast(source_code: str, source_id: int = 0) -> list:
+    """
+    Parses a vyper source string and generates vyper AST nodes.
+
+    Parameters
+    ----------
+    source_code : str
+        The vyper source code to parse.
+    source_id : int, optional
+        Source id to use in the .src member of each node.
+
+    Returns
+    -------
+    list
+        Generated vyper AST nodes.
+    """
     if '\x00' in source_code:
         raise ParserException('No null bytes (\\x00) allowed in the source code.')
     class_types, reformatted_code = pre_parse(source_code)
@@ -31,16 +51,23 @@ def parse_to_ast(source_code: str, source_id: int = 0) -> list:
     return vy_ast.get_node(py_ast).body  # type: ignore
 
 
-def ast_to_dict(node: vy_ast.VyperNode) -> dict:
-    if isinstance(node, vy_ast.VyperNode):
-        return node.to_dict()
-    elif isinstance(node, list):
-        return [i.to_dict() for i in node]
+def ast_to_dict(ast_struct: Union[vy_ast.VyperNode, List]) -> Union[Dict, List]:
+    """
+    Converts a vyper AST node, or list of nodes, into a dictionary suitable for
+    output to the user.
+    """
+    if isinstance(ast_struct, vy_ast.VyperNode):
+        return ast_struct.to_dict()
+    elif isinstance(ast_struct, list):
+        return [i.to_dict() for i in ast_struct]
     else:
-        raise CompilerPanic(f'Unknown vyper AST node provided: "{type(node)}".')
+        raise CompilerPanic(f'Unknown vyper AST node provided: "{type(ast_struct)}".')
 
 
-def dict_to_ast(ast_struct: dict) -> vy_ast.VyperNode:
+def dict_to_ast(ast_struct: Union[Dict, List]) -> Union[vy_ast.VyperNode, List]:
+    """
+    Converts an AST dict, or list of dicts, into vyper AST node objects.
+    """
     if isinstance(ast_struct, dict):
         return vy_ast.get_node(ast_struct)
     if isinstance(ast_struct, list):
@@ -49,6 +76,9 @@ def dict_to_ast(ast_struct: dict) -> vy_ast.VyperNode:
 
 
 def to_python_ast(vyper_ast_node: vy_ast.VyperNode) -> python_ast.AST:
+    """
+    Converts a vyper AST node object into to a python AST node.
+    """
     if isinstance(vyper_ast_node, list):
         return [
             to_python_ast(n)

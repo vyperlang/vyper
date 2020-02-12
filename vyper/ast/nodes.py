@@ -14,30 +14,47 @@ from vyper.utils import (
 )
 
 BASE_NODE_ATTRIBUTES = (
-    'node_id',
-    'source_code',
+    'ast_type',
     'col_offset',
-    'lineno',
     'end_col_offset',
     'end_lineno',
+    'lineno',
+    'node_id',
+    'source_code',
     'src',
-    'ast_type',
 )
 DICT_AST_SKIPLIST = ('source_code', )
 
 
-def get_node(node):
-    if not isinstance(node, dict):
-        node = node.__dict__
+def get_node(ast_struct: typing.Union[typing.Dict, python_ast.AST]) -> "VyperNode":
+    """
+    Converts an AST structure to a Vyper AST node.
 
-    vy_class = getattr(sys.modules[__name__], node['ast_type'], None)
+    This is a recursive call, all child nodes of the input value are also
+    converted to Vyper nodes.
+
+    Attributes
+    ----------
+    ast_struct: (dict, AST)
+        Annotated python AST node or Vyper AST dict to generate the node from.
+
+    Returns
+    -------
+    VyperNode
+        The generated AST object.
+    """
+    if not isinstance(ast_struct, dict):
+        ast_struct = ast_struct.__dict__
+
+    vy_class = getattr(sys.modules[__name__], ast_struct['ast_type'], None)
 
     if vy_class is None:
         raise SyntaxException(
-            f"Invalid syntax (unsupported '{node['ast_type']}'' Python AST node).", node
+            f"Invalid syntax (unsupported '{ast_struct['ast_type']}'' Python AST node).",
+            ast_struct
         )
 
-    return vy_class(**node)
+    return vy_class(**ast_struct)
 
 
 def _to_node(value):
@@ -53,13 +70,39 @@ def _to_dict(value):
 
 
 class VyperNode:
+    """
+    Base class for all vyper AST nodes.
 
+    Vyper nodes are generated from, and closely resemble, their Python counterparts.
+
+    Attributes
+    ----------
+    __slots__ : Tuple
+        Allowed field names for the node.
+    _only_empty_fields : Tuple
+        Field names that, if present, must be set to None or a SyntaxException is
+        raised. This attribute is used to exclude syntax that is valid in Python
+        but not in vyper.
+    _translated_fields:
+        Field names that should be reassigned if encountered. Used to normalize
+        fields across different Python versions.
+    """
     __slots__ = BASE_NODE_ATTRIBUTES
     _only_empty_fields: typing.Tuple = ()
     _translated_fields: typing.Dict = {}
 
     def __init__(self, **kwargs):
+        """
+        AST node initializer method.
 
+        Node objects are not typically instantiated directly, you should instead
+        create them using the get_node() method.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Dictionary of fields to be included within the node.
+        """
         for field_name, value in kwargs.items():
             if field_name in self._translated_fields:
                 field_name = self._translated_fields[field_name]
@@ -76,10 +119,6 @@ class VyperNode:
                     f'Unsupported non-empty value (valid in Python, but invalid in Vyper) \n'
                     f' field_name: {field_name}, class: {type(self)} value: {value}'
                 )
-
-    @classmethod
-    def get_slots(cls):
-        return set(x for i in cls.__mro__ for x in getattr(i, '__slots__', []))
 
     def __eq__(self, other):
         if not isinstance(other, type(self)):
@@ -103,7 +142,17 @@ class VyperNode:
 
         return f'{class_repr}:\n{source_annotation}'
 
-    def to_dict(self):
+    @classmethod
+    def get_slots(cls) -> typing.Set:
+        """
+        Returns a set of field names for this node.
+        """
+        return set(x for i in cls.__mro__ for x in getattr(i, '__slots__', []))
+
+    def to_dict(self) -> typing.Dict:
+        """
+        Returns the node as a dict. All child nodes are also converted.
+        """
         ast_dict = {}
         for key in [i for i in self.get_slots() if i not in DICT_AST_SKIPLIST]:
             value = getattr(self, key, None)

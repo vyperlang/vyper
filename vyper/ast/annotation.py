@@ -1,7 +1,6 @@
 import ast as python_ast
 from typing import (
     Optional,
-    Union,
 )
 
 import asttokens
@@ -94,11 +93,11 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
 
 def annotate_python_ast(
-    parsed_ast: Union[python_ast.AST, python_ast.Module],
+    parsed_ast: python_ast.AST,
     source_code: str,
     class_types: Optional[ClassTypes] = None,
     source_id: int = 0,
-) -> None:
+) -> python_ast.AST:
     """
     Performs annotation and optimization on a parsed python AST by doing the
     following:
@@ -109,11 +108,21 @@ def annotate_python_ast(
     * Substituting negative values for unary subtractions
     * Annotating all AST nodes with complete source offsets
 
-    :param parsed_ast: The AST to be annotated and optimized.
-    :param source_code: The originating source code of the AST.
-    :param class_types: A mapping of class names to original class types.
-    :return: The annotated and optmized AST.
+    Parameters
+    ----------
+    parsed_ast : AST
+        The AST to be annotated and optimized.
+    source_code : str
+        The originating source code of the AST.
+    class_types : dict, optional
+        A mapping of class names to their original class types.
+
+    Returns
+    -------
+        The annotated and optimized AST.
     """
 
     asttokens.ASTTokens(source_code, tree=parsed_ast)
     AnnotatingVisitor(source_code, class_types, source_id).visit(parsed_ast)
+
+    return parsed_ast
