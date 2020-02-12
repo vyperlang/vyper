@@ -81,7 +81,7 @@ VariableDeclarationException
 FunctionDeclarationException
 ****************************
 
-:: code-block:: python3
+.. code-block:: python3
 
     struct Bid:
       blindedBid: bytes32
