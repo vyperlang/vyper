@@ -1,6 +1,8 @@
+import ast as python_ast
 from itertools import (
     chain,
 )
+import sys
 import typing
 
 from vyper.exceptions import (
@@ -26,9 +28,28 @@ BASE_NODE_ATTRIBUTES = (
 )
 
 
+def get_node(node):
+    if not isinstance(node, dict):
+        node = node.__dict__
+
+    vy_class = getattr(sys.modules[__name__], node['ast_type'], None)
+
+    if vy_class is None:
+        raise SyntaxException(
+            f"Invalid syntax (unsupported '{node['ast_type']}'' Python AST node).", node
+        )
+
+    return vy_class(**node)
+
+
+def _to_node(value):
+    if isinstance(value, (dict, python_ast.AST)):
+        return get_node(value)
+    return value
+
+
 class VyperNode:
     __slots__ = BASE_NODE_ATTRIBUTES
-    ignored_fields: typing.Tuple = ('ctx', )
     only_empty_fields: typing.Tuple = ()
 
     @classmethod
@@ -42,8 +63,13 @@ class VyperNode:
 
         for field_name, value in kwargs.items():
             if field_name in self.get_slots():
+                if isinstance(value, list):
+                    value = [_to_node(i) for i in value]
+                else:
+                    value = _to_node(value)
                 setattr(self, field_name, value)
-            elif value:
+
+            elif value and field_name in self.only_empty_fields:
                 raise SyntaxException(
                     f'Unsupported non-empty value (valid in Python, but invalid in Vyper) \n'
                     f' field_name: {field_name}, class: {type(self)} value: {value}'
