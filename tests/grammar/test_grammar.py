@@ -15,8 +15,8 @@ import pytest
 from conftest import (
     get_lark_grammar,
 )
-from vyper.parser import (
-    parser,
+from vyper.ast import (
+    parse_to_ast,
 )
 
 
@@ -32,10 +32,10 @@ def test_basic_grammar(lark_grammar):
     """
 
     assert lark_grammar.parse(textwrap.dedent(code) + "\n")
-    assert parser.parse_to_ast(textwrap.dedent(code))
+    assert parse_to_ast(textwrap.dedent(code))
 
     assert lark_grammar.parse(textwrap.dedent(code_func) + "\n")
-    assert parser.parse_to_ast(textwrap.dedent(code_func))
+    assert parse_to_ast(textwrap.dedent(code_func))
 
 
 def test_basic_grammar_empty(lark_grammar):
@@ -124,5 +124,5 @@ def from_grammar(start: str = "file_input") -> st.SearchStrategy[str]:
 )
 def test_grammar_bruteforce(code):
     if utf8_encodable(code):
-        tree = parser.parse_to_ast(code + "\n")
+        tree = parse_to_ast(code + "\n")
         assert isinstance(tree, list)

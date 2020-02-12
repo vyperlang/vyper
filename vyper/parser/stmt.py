@@ -1,6 +1,5 @@
-from vyper import ast
-from vyper.ast_utils import (
-    ast_to_dict,
+from vyper import (
+    ast as vy_ast,
 )
 from vyper.codegen.return_ import (
     gen_tuple_return,
@@ -67,22 +66,22 @@ class Stmt(object):
         self.stmt = stmt
         self.context = context
         self.stmt_table = {
-            ast.Expr: self.expr,
-            ast.Pass: self.parse_pass,
-            ast.AnnAssign: self.ann_assign,
-            ast.Assign: self.assign,
-            ast.If: self.parse_if,
-            ast.Call: self.call,
-            ast.Assert: self.parse_assert,
-            ast.For: self.parse_for,
-            ast.AugAssign: self.aug_assign,
-            ast.Break: self.parse_break,
-            ast.Continue: self.parse_continue,
-            ast.Return: self.parse_return,
-            ast.Delete: self.parse_delete,
-            ast.Str: self.parse_docblock,  # docblock
-            ast.Name: self.parse_name,
-            ast.Raise: self.parse_raise,
+            vy_ast.Expr: self.expr,
+            vy_ast.Pass: self.parse_pass,
+            vy_ast.AnnAssign: self.ann_assign,
+            vy_ast.Assign: self.assign,
+            vy_ast.If: self.parse_if,
+            vy_ast.Call: self.call,
+            vy_ast.Assert: self.parse_assert,
+            vy_ast.For: self.parse_for,
+            vy_ast.AugAssign: self.aug_assign,
+            vy_ast.Break: self.parse_break,
+            vy_ast.Continue: self.parse_continue,
+            vy_ast.Return: self.parse_return,
+            vy_ast.Delete: self.parse_delete,
+            vy_ast.Str: self.parse_docblock,  # docblock
+            vy_ast.Name: self.parse_name,
+            vy_ast.Raise: self.parse_raise,
         }
         stmt_type = self.stmt.__class__
         if stmt_type in self.stmt_table:
@@ -108,12 +107,15 @@ class Stmt(object):
         return self._assert_reason(0, self.stmt.exc)
 
     def _check_valid_assign(self, sub):
-        if isinstance(self.stmt.annotation, ast.Call):  # unit style: num(wei)
+        if isinstance(self.stmt.annotation, vy_ast.Call):  # unit style: num(wei)
             if self.stmt.annotation.func.id != sub.typ.typ and not sub.typ.is_literal:
                 raise TypeMismatchException(
                     f'Invalid type, expected: {self.stmt.annotation.func.id}', self.stmt
                 )
-        elif isinstance(self.stmt.annotation, ast.Name) and self.stmt.annotation.id == 'bytes32':
+        elif (
+            isinstance(self.stmt.annotation, vy_ast.Name) and
+            self.stmt.annotation.id == 'bytes32'
+        ):
             if isinstance(sub.typ, ByteArrayLike):
                 if sub.typ.maxlen != 32:
                     raise TypeMismatchException(
@@ -126,7 +128,7 @@ class Stmt(object):
                 return
             else:
                 raise TypeMismatchException('Invalid type, expected: bytes32', self.stmt)
-        elif isinstance(self.stmt.annotation, ast.Subscript):
+        elif isinstance(self.stmt.annotation, vy_ast.Subscript):
             if not isinstance(sub.typ, (ListType, ByteArrayLike)):  # check list assign.
                 raise TypeMismatchException(
                     f'Invalid type, expected: {self.stmt.annotation.value.id}', self.stmt
@@ -165,23 +167,23 @@ class Stmt(object):
 
     def _check_rhs_var_assn_recur(self, val):
         names = ()
-        if isinstance(val, ast.BinOp):
+        if isinstance(val, vy_ast.BinOp):
             right_node = val.right
             left_node = val.left
             names = names + self._check_rhs_var_assn_recur(right_node)
             names = names + self._check_rhs_var_assn_recur(left_node)
-        elif isinstance(val, ast.UnaryOp):
+        elif isinstance(val, vy_ast.UnaryOp):
             operand_node = val.operand
             names = names + self._check_rhs_var_assn_recur(operand_node)
-        elif isinstance(val, ast.BoolOp):
+        elif isinstance(val, vy_ast.BoolOp):
             for bool_val in val.values:
                 names = names + self._check_rhs_var_assn_recur(bool_val)
-        elif isinstance(val, ast.Compare):
+        elif isinstance(val, vy_ast.Compare):
             compare_left = val.left
             names = names + self._check_rhs_var_assn_recur(compare_left)
             for compr in val.comparators:
                 names = names + self._check_rhs_var_assn_recur(compr)
-        elif isinstance(val, ast.Name):
+        elif isinstance(val, vy_ast.Name):
             name = val.id
             names = names + (name, )
         return names
@@ -195,7 +197,7 @@ class Stmt(object):
                 custom_structs=self.context.structs,
                 constants=self.context.constants,
             )
-            if isinstance(self.stmt.target, ast.Attribute):
+            if isinstance(self.stmt.target, vy_ast.Attribute):
                 raise TypeMismatchException(
                     f'May not set type for field {self.stmt.target.attr}',
                     self.stmt,
@@ -277,7 +279,7 @@ class Stmt(object):
                 )
 
             is_valid_rlp_list_assign = (
-                isinstance(self.stmt.value, ast.Call)
+                isinstance(self.stmt.value, vy_ast.Call)
             ) and getattr(self.stmt.value.func, 'id', '') == 'RLPList'
 
             # Determine if it's an RLPList assignment.
@@ -293,7 +295,7 @@ class Stmt(object):
                 o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
             else:
                 # Error check when assigning to declared variable
-                if isinstance(self.stmt.targets[0], ast.Name):
+                if isinstance(self.stmt.targets[0], vy_ast.Name):
                     # Do not allow assignment to undefined variables without annotation
                     if self.stmt.targets[0].id not in self.context.vars:
                         raise VariableDeclarationException("Variable type not defined", self.stmt)
@@ -302,8 +304,8 @@ class Stmt(object):
                     self._check_implicit_conversion(self.stmt.targets[0].id, sub)
 
                 is_valid_tuple_assign = (
-                    isinstance(self.stmt.targets[0], ast.Tuple)
-                ) and isinstance(self.stmt.value, ast.Tuple)
+                    isinstance(self.stmt.targets[0], vy_ast.Tuple)
+                ) and isinstance(self.stmt.value, vy_ast.Tuple)
 
                 # Do no allow tuple-to-tuple assignment
                 if is_valid_tuple_assign:
@@ -357,7 +359,7 @@ class Stmt(object):
 
     def _clear(self):
         # Create zero node
-        none = ast.NameConstant(value=None)
+        none = vy_ast.NameConstant(value=None)
         none.lineno = self.stmt.lineno
         none.col_offset = self.stmt.col_offset
         none.end_lineno = self.stmt.end_lineno
@@ -375,14 +377,14 @@ class Stmt(object):
 
     def call(self):
         is_self_function = (
-            isinstance(self.stmt.func, ast.Attribute)
-        ) and isinstance(self.stmt.func.value, ast.Name) and self.stmt.func.value.id == "self"
+            isinstance(self.stmt.func, vy_ast.Attribute)
+        ) and isinstance(self.stmt.func.value, vy_ast.Name) and self.stmt.func.value.id == "self"
 
         is_log_call = (
-            isinstance(self.stmt.func, ast.Attribute)
-        ) and isinstance(self.stmt.func.value, ast.Name) and self.stmt.func.value.id == 'log'
+            isinstance(self.stmt.func, vy_ast.Attribute)
+        ) and isinstance(self.stmt.func.value, vy_ast.Name) and self.stmt.func.value.id == 'log'
 
-        if isinstance(self.stmt.func, ast.Name):
+        if isinstance(self.stmt.func, vy_ast.Name):
             if self.stmt.func.id in STMT_DISPATCH_TABLE:
                 if self.stmt.func.id == 'clear':
                     return self._clear()
@@ -451,10 +453,10 @@ class Stmt(object):
         return LLLnode.from_list(['assert_unreachable', test_expr], typ=None, pos=getpos(msg))
 
     def _assert_reason(self, test_expr, msg):
-        if isinstance(msg, ast.Name) and msg.id == 'UNREACHABLE':
+        if isinstance(msg, vy_ast.Name) and msg.id == 'UNREACHABLE':
             return self._assert_unreachable(test_expr, msg)
 
-        if not isinstance(msg, ast.Str):
+        if not isinstance(msg, vy_ast.Str):
             raise StructureException(
                 'Reason parameter of assert needs to be a literal string '
                 '(or UNREACHABLE constant).',
@@ -522,8 +524,8 @@ class Stmt(object):
         if self._is_list_iter():
             return self.parse_for_list()
 
-        if not isinstance(self.stmt.iter, ast.Call):
-            if isinstance(self.stmt.iter, ast.Subscript):
+        if not isinstance(self.stmt.iter, vy_ast.Call):
+            if isinstance(self.stmt.iter, vy_ast.Subscript):
                 raise StructureException("Cannot iterate over a nested list", self.stmt.iter)
             raise StructureException(
                 f"Cannot iterate over '{type(self.stmt.iter).__name__}' object",
@@ -561,7 +563,7 @@ class Stmt(object):
             # Type 3 for, e.g. for i in range(x, x + 10): ...
             else:
                 arg1 = self.stmt.iter.args[1]
-                if not isinstance(arg1, ast.BinOp) or not isinstance(arg1.op, ast.Add):
+                if not isinstance(arg1, vy_ast.BinOp) or not isinstance(arg1.op, vy_ast.Add):
                     raise StructureException(
                         (
                             "Two-arg for statements must be of the form `for i "
@@ -575,7 +577,7 @@ class Stmt(object):
                         (
                             "Two-arg for statements of the form `for i in "
                             "range(x, x + y): ...` must have x identical in both "
-                            f"places: {ast_to_dict(arg0)} {ast_to_dict(arg1.left)}"
+                            f"places: {vy_ast.ast_to_dict(arg0)} {vy_ast.ast_to_dict(arg1.left)}"
                         ),
                         self.stmt.iter,
                     )
@@ -612,14 +614,14 @@ class Stmt(object):
         # Check for literal or memory list.
         iter_var_type = (
             self.context.vars.get(self.stmt.iter.id).typ
-            if isinstance(self.stmt.iter, ast.Name)
+            if isinstance(self.stmt.iter, vy_ast.Name)
             else None
         )
-        if isinstance(self.stmt.iter, ast.List) or isinstance(iter_var_type, ListType):
+        if isinstance(self.stmt.iter, vy_ast.List) or isinstance(iter_var_type, ListType):
             return True
 
         # Check for storage list.
-        if isinstance(self.stmt.iter, ast.Attribute):
+        if isinstance(self.stmt.iter, vy_ast.Attribute):
             iter_var_type = self.context.globals.get(self.stmt.iter.attr)
             if iter_var_type and isinstance(iter_var_type.typ, ListType):
                 return True
@@ -633,7 +635,7 @@ class Stmt(object):
             raise StructureException('For loops allowed only on basetype lists.', self.stmt.iter)
         iter_var_type = (
             self.context.vars.get(self.stmt.iter.id).typ
-            if isinstance(self.stmt.iter, ast.Name)
+            if isinstance(self.stmt.iter, vy_ast.Name)
             else None
         )
         subtype = iter_list_node.typ.subtype.typ
@@ -678,7 +680,7 @@ class Stmt(object):
                 )
 
         # List gets defined in the for statement.
-        elif isinstance(self.stmt.iter, ast.List):
+        elif isinstance(self.stmt.iter, vy_ast.List):
             # Allocate list to memory.
             count = iter_list_node.typ.count
             tmp_list = LLLnode.from_list(
@@ -699,7 +701,7 @@ class Stmt(object):
             )
 
         # List contained in storage.
-        elif isinstance(self.stmt.iter, ast.Attribute):
+        elif isinstance(self.stmt.iter, vy_ast.Attribute):
             count = iter_list_node.typ.count
             list_name = iter_list_node.annotation
 
@@ -730,7 +732,9 @@ class Stmt(object):
     def aug_assign(self):
         target = self.get_target(self.stmt.target)
         sub = Expr.parse_value_expr(self.stmt.value, self.context)
-        if not isinstance(self.stmt.op, (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Mod)):
+        if not isinstance(
+            self.stmt.op, (vy_ast.Add, vy_ast.Sub, vy_ast.Mult, vy_ast.Div, vy_ast.Mod)
+        ):
             raise StructureException("Unsupported operator for augassign", self.stmt)
         if not isinstance(target.typ, BaseType):
             raise TypeMismatchException(
@@ -738,7 +742,7 @@ class Stmt(object):
             )
         if target.location == 'storage':
             o = Expr.parse_value_expr(
-                ast.BinOp(
+                vy_ast.BinOp(
                     left=LLLnode.from_list(['sload', '_stloc'], typ=target.typ, pos=target.pos),
                     right=sub,
                     op=self.stmt.op,
@@ -758,7 +762,7 @@ class Stmt(object):
             ], typ=None, pos=getpos(self.stmt))
         elif target.location == 'memory':
             o = Expr.parse_value_expr(
-                ast.BinOp(
+                vy_ast.BinOp(
                     left=LLLnode.from_list(['mload', '_mloc'], typ=target.typ, pos=target.pos),
                     right=sub,
                     op=self.stmt.op,
@@ -969,14 +973,14 @@ class Stmt(object):
 
     def get_target(self, target):
         # Check if we are doing assignment of an iteration loop.
-        if isinstance(target, ast.Subscript) and self.context.in_for_loop:
+        if isinstance(target, vy_ast.Subscript) and self.context.in_for_loop:
             raise_exception = False
-            if isinstance(target.value, ast.Attribute):
+            if isinstance(target.value, vy_ast.Attribute):
                 list_name = f"{target.value.value.id}.{target.value.attr}"
                 if list_name in self.context.in_for_loop:
                     raise_exception = True
 
-            if isinstance(target.value, ast.Name) and \
+            if isinstance(target.value, vy_ast.Name) and \
                target.value.id in self.context.in_for_loop:
                 list_name = target.value.id
                 raise_exception = True
@@ -987,12 +991,12 @@ class Stmt(object):
                     self.stmt,
                 )
 
-        if isinstance(target, ast.Name) and target.id in self.context.forvars:
+        if isinstance(target, vy_ast.Name) and target.id in self.context.forvars:
             raise StructureException(
                 f"Altering iterator '{target.id}' which is in use!",
                 self.stmt,
             )
-        if isinstance(target, ast.Tuple):
+        if isinstance(target, vy_ast.Tuple):
             target = Expr(target, self.context).lll_node
             for node in target.args:
                 constancy_checks(node, self.context, self.stmt)

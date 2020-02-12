@@ -6,11 +6,12 @@ from decimal import (
 from typing import (
     Any,
     List,
-    Optional,
     Union,
 )
 
-from vyper import ast
+from vyper import (
+    ast as vy_ast,
+)
 from vyper.exceptions import (
     ArrayIndexException,
     ConstancyViolationException,
@@ -40,9 +41,6 @@ from vyper.types import (
 )
 from vyper.types.types import (
     ContractType,
-)
-from vyper.typing import (
-    ClassTypes,
 )
 from vyper.utils import (
     DECIMAL_DIVISOR,
@@ -267,11 +265,11 @@ def set_offsets(node, pos):
     # TODO replace this with a visitor pattern
     for field in node.get_slots():
         item = getattr(node, field, None)
-        if isinstance(item, ast.VyperNode):
+        if isinstance(item, vy_ast.VyperNode):
             set_offsets(item, pos)
         elif isinstance(item, list):
             for i in item:
-                if isinstance(i, ast.VyperNode):
+                if isinstance(i, vy_ast.VyperNode):
                     set_offsets(i, pos)
     node.lineno, node.col_offset, node.end_lineno, node.end_col_offset = pos
 
@@ -796,48 +794,6 @@ def is_return_from_function(node: Union[python_ast.AST, List[Any]]) -> bool:
         return False
 
 
-class AnnotatingVisitor(python_ast.NodeTransformer):
-    _source_code: str
-    _class_types: ClassTypes
-
-    def __init__(self, source_code: str, class_types: Optional[ClassTypes] = None):
-        self._source_code: str = source_code
-        self.counter: int = 0
-        if class_types is not None:
-            self._class_types = class_types
-        else:
-            self._class_types = {}
-
-    def generic_visit(self, node):
-        # Decorate every node in the AST with the original source code. This is
-        # necessary to facilitate error pretty-printing.
-        node.source_code = self._source_code
-        node.node_id = self.counter
-        self.counter += 1
-
-        return super().generic_visit(node)
-
-    def visit_ClassDef(self, node):
-        self.generic_visit(node)
-
-        # Decorate class definitions with their respective class types
-        node.class_type = self._class_types.get(node.name)
-
-        return node
-
-
-class RewriteUnarySubVisitor(python_ast.NodeTransformer):
-    def visit_UnaryOp(self, node):
-        self.generic_visit(node)
-        if isinstance(node.op, python_ast.USub) and isinstance(node.operand, python_ast.Num):
-            node.operand.n = 0 - node.operand.n
-            # NOTE: This is done so that decimal literal now sees the negative sign as part of it
-            node.operand.col_offset = node.col_offset
-            return node.operand
-        else:
-            return node
-
-
 class EnsureSingleExitChecker(python_ast.NodeVisitor):
 
     def visit_FunctionDef(self, node: python_ast.FunctionDef) -> None:
@@ -899,29 +855,6 @@ class UnmatchedReturnChecker(python_ast.NodeVisitor):
             else:
                 return False
         return False
-
-
-def annotate_ast(
-    parsed_ast: Union[python_ast.AST, python_ast.Module],
-    source_code: str,
-    class_types: Optional[ClassTypes] = None,
-) -> None:
-    """
-    Performs annotation and optimization on a parsed python AST by doing the
-    following:
-
-    * Annotating all AST nodes with the originating source code of the AST
-    * Annotating class definition nodes with their original class type
-      ("contract" or "struct")
-    * Substituting negative values for unary subtractions
-
-    :param parsed_ast: The AST to be annotated and optimized.
-    :param source_code: The originating source code of the AST.
-    :param class_types: A mapping of class names to original class types.
-    :return: The annotated and optmized AST.
-    """
-    AnnotatingVisitor(source_code, class_types).visit(parsed_ast)
-    RewriteUnarySubVisitor().visit(parsed_ast)
 
 
 # zero pad a bytearray according to the ABI spec. The last word

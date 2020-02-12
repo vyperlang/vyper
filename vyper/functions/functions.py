@@ -1,6 +1,8 @@
 import hashlib
 
-from vyper import ast
+from vyper import (
+    ast as vy_ast,
+)
 from vyper.exceptions import (
     ConstancyViolationException,
     InvalidLiteralException,
@@ -765,7 +767,7 @@ def blockhash(expr, args, kwargs, contact):
 @signature('bytes', '*')
 def _RLPlist(expr, args, kwargs, context):
     # Second argument must be a list of types
-    if not isinstance(args[1], ast.List):
+    if not isinstance(args[1], vy_ast.List):
         raise TypeMismatchException("Expecting list of types for second argument", args[1])
     if len(args[1].elts) == 0:
         raise TypeMismatchException("RLP list must have at least one item", expr)
@@ -774,7 +776,7 @@ def _RLPlist(expr, args, kwargs, context):
     # Get the output format
     _format = []
     for arg in args[1].elts:
-        if isinstance(arg, ast.Name) and arg.id == "bytes":
+        if isinstance(arg, vy_ast.Name) and arg.id == "bytes":
             subtyp = ByteArrayType(args[0].typ.maxlen)
         else:
             subtyp = context.parse_type(arg, 'memory')
@@ -967,7 +969,7 @@ def _RLPlist(expr, args, kwargs, context):
 
 @signature('*', ('bytes32', 'bytes'))
 def raw_log(expr, args, kwargs, context):
-    if not isinstance(args[0], ast.List) or len(args[0].elts) > 4:
+    if not isinstance(args[0], vy_ast.List) or len(args[0].elts) > 4:
         raise StructureException("Expecting a list of 0-4 topics as first argument", args[0])
     topics = []
     for elt in args[0].elts:

@@ -1,4 +1,6 @@
-from vyper import ast
+from vyper import (
+    ast as vy_ast,
+)
 from vyper.exceptions import (
     EventDeclarationException,
     InvalidTypeException,
@@ -52,28 +54,28 @@ class EventSignature:
             values = code.annotation.args[0].values
             for i in range(len(keys)):
                 typ = values[i]
-                if not isinstance(keys[i], ast.Name):
+                if not isinstance(keys[i], vy_ast.Name):
                     raise EventDeclarationException(
                         'Invalid key type, expected a valid name.',
                         keys[i],
                     )
-                if not isinstance(typ, (ast.Name, ast.Call, ast.Subscript)):
+                if not isinstance(typ, (vy_ast.Name, vy_ast.Call, vy_ast.Subscript)):
                     raise EventDeclarationException('Invalid event argument type.', typ)
-                if isinstance(typ, ast.Call) and not isinstance(typ.func, ast.Name):
+                if isinstance(typ, vy_ast.Call) and not isinstance(typ.func, vy_ast.Name):
                     raise EventDeclarationException('Invalid event argument type', typ)
                 arg = keys[i].id
                 arg_item = keys[i]
                 is_indexed = False
 
                 # Check to see if argument is a topic
-                if isinstance(typ, ast.Call) and typ.func.id == 'indexed':
+                if isinstance(typ, vy_ast.Call) and typ.func.id == 'indexed':
                     typ = values[i].args[0]
                     indexed_list.append(True)
                     topics_count += 1
                     is_indexed = True
                 else:
                     indexed_list.append(False)
-                if isinstance(typ, ast.Subscript) and getattr(typ.value, 'id', None) == 'bytes' and typ.slice.value.n > 32 and is_indexed:  # noqa: E501
+                if isinstance(typ, vy_ast.Subscript) and getattr(typ.value, 'id', None) == 'bytes' and typ.slice.value.n > 32 and is_indexed:  # noqa: E501
                     raise EventDeclarationException("Indexed arguments are limited to 32 bytes")
                 if topics_count > 4:
                     raise EventDeclarationException(

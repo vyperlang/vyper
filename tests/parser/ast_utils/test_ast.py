@@ -1,4 +1,4 @@
-from vyper.ast_utils import (
+from vyper.ast.utils import (
     parse_to_ast,
 )
 

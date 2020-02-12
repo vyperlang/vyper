@@ -3,11 +3,8 @@ from collections import (
 )
 
 from vyper import (
-    ast,
+    ast as vy_ast,
     parser,
-)
-from vyper.ast_utils import (
-    to_python_ast,
 )
 from vyper.exceptions import (
     FunctionDeclarationException,
@@ -229,21 +226,21 @@ class FunctionSignature:
 
         # Update function properties from decorators
         for dec in code.decorator_list:
-            if isinstance(dec, ast.Name) and dec.id == "constant":
+            if isinstance(dec, vy_ast.Name) and dec.id == "constant":
                 const = True
-            elif isinstance(dec, ast.Name) and dec.id == "payable":
+            elif isinstance(dec, vy_ast.Name) and dec.id == "payable":
                 payable = True
-            elif isinstance(dec, ast.Name) and dec.id == "private":
+            elif isinstance(dec, vy_ast.Name) and dec.id == "private":
                 private = True
-            elif isinstance(dec, ast.Name) and dec.id == "public":
+            elif isinstance(dec, vy_ast.Name) and dec.id == "public":
                 public = True
-            elif isinstance(dec, ast.Call) and dec.func.id == "nonreentrant":
+            elif isinstance(dec, vy_ast.Call) and dec.func.id == "nonreentrant":
                 if nonreentrant_key:
                     raise StructureException(
                         "Only one @nonreentrant decorator allowed per function",
                         dec
                     )
-                if dec.args and len(dec.args) == 1 and isinstance(dec.args[0], ast.Str) and dec.args[0].s:  # noqa: E501
+                if dec.args and len(dec.args) == 1 and isinstance(dec.args[0], vy_ast.Str) and dec.args[0].s:  # noqa: E501
                     nonreentrant_key = dec.args[0].s
                 else:
                     raise StructureException(
@@ -281,7 +278,10 @@ class FunctionSignature:
         # and NOT def foo() -> type: ..., then it's null
         if not code.returns:
             output_type = None
-        elif isinstance(code.returns, (ast.Name, ast.Compare, ast.Subscript, ast.Call, ast.Tuple)):
+        elif isinstance(
+            code.returns,
+            (vy_ast.Name, vy_ast.Compare, vy_ast.Subscript, vy_ast.Call, vy_ast.Tuple)
+        ):
             output_type = parse_type(
                 code.returns,
                 None,
@@ -454,21 +454,21 @@ class FunctionSignature:
 
     def validate_return_statement_balance(self):
         # Run balanced return statement check.
-        UnmatchedReturnChecker().visit(to_python_ast(self.func_ast_code))
-        EnsureSingleExitChecker().visit(to_python_ast(self.func_ast_code))
+        UnmatchedReturnChecker().visit(vy_ast.to_python_ast(self.func_ast_code))
+        EnsureSingleExitChecker().visit(vy_ast.to_python_ast(self.func_ast_code))
 
 
 def validate_default_values(node):
-    if isinstance(node, ast.Name) and node.id in parser.expr.BUILTIN_CONSTANTS:
+    if isinstance(node, vy_ast.Name) and node.id in parser.expr.BUILTIN_CONSTANTS:
         return
-    if isinstance(node, ast.Attribute) and node.value.id in parser.expr.ENVIRONMENT_VARIABLES:
+    if isinstance(node, vy_ast.Attribute) and node.value.id in parser.expr.ENVIRONMENT_VARIABLES:
         return
-    allowed_types = (ast.Num, ast.Str, ast.Bytes, ast.List, ast.NameConstant)
+    allowed_types = (vy_ast.Num, vy_ast.Str, vy_ast.Bytes, vy_ast.List, vy_ast.NameConstant)
     if not isinstance(node, allowed_types):
         raise FunctionDeclarationException(
             "Default value must be a literal, built-in constant, or environment variable.",
             node
         )
-    if isinstance(node, ast.List):
+    if isinstance(node, vy_ast.List):
         for n in node.elts:
             validate_default_values(n)

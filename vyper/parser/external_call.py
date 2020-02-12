@@ -1,4 +1,6 @@
-from vyper import ast
+from vyper import (
+    ast as vy_ast,
+)
 from vyper.exceptions import (
     ConstancyViolationException,
     FunctionDeclarationException,
@@ -140,7 +142,10 @@ def make_external_call(stmt_expr, context):
     from vyper.parser.expr import Expr
     value, gas = get_external_contract_keywords(stmt_expr, context)
 
-    if isinstance(stmt_expr.func, ast.Attribute) and isinstance(stmt_expr.func.value, ast.Call):
+    if (
+        isinstance(stmt_expr.func, vy_ast.Attribute) and
+        isinstance(stmt_expr.func.value, vy_ast.Call)
+    ):
         contract_name = stmt_expr.func.value.func.id
         contract_address = Expr.parse_value_expr(stmt_expr.func.value.args[0], context)
 
@@ -154,7 +159,7 @@ def make_external_call(stmt_expr, context):
             gas=gas,
         )
 
-    elif isinstance(stmt_expr.func.value, ast.Attribute) and stmt_expr.func.value.attr in context.sigs:  # noqa: E501
+    elif isinstance(stmt_expr.func.value, vy_ast.Attribute) and stmt_expr.func.value.attr in context.sigs:  # noqa: E501
         contract_name = stmt_expr.func.value.attr
         var = context.globals[stmt_expr.func.value.attr]
         contract_address = unwrap_location(LLLnode.from_list(
@@ -175,7 +180,7 @@ def make_external_call(stmt_expr, context):
             gas=gas,
         )
 
-    elif isinstance(stmt_expr.func.value, ast.Attribute) and stmt_expr.func.value.attr in context.globals:  # noqa: E501
+    elif isinstance(stmt_expr.func.value, vy_ast.Attribute) and stmt_expr.func.value.attr in context.globals:  # noqa: E501
         contract_name = context.globals[stmt_expr.func.value.attr].typ.unit
         var = context.globals[stmt_expr.func.value.attr]
         contract_address = unwrap_location(LLLnode.from_list(

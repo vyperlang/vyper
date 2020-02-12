@@ -1,6 +1,8 @@
 import warnings
 
-from vyper import ast
+from vyper import (
+    ast as vy_ast,
+)
 from vyper.exceptions import (
     EvmVersionException,
     InvalidLiteralException,
@@ -94,21 +96,21 @@ class Expr(object):
         self.context = context
         self.expr_table = {
             LLLnode: self.get_expr,
-            ast.Num: self.number,
-            ast.Str: self.string,
-            ast.NameConstant: self.constants,
-            ast.Name: self.variables,
-            ast.Attribute: self.attribute,
-            ast.Subscript: self.subscript,
-            ast.BinOp: self.arithmetic,
-            ast.Compare: self.compare,
-            ast.BoolOp: self.boolean_operations,
-            ast.UnaryOp: self.unary_operations,
-            ast.Call: self.call,
-            ast.List: self.list_literals,
-            ast.Tuple: self.tuple_literals,
-            ast.Dict: self.dict_fail,
-            ast.Bytes: self.bytes,
+            vy_ast.Num: self.number,
+            vy_ast.Str: self.string,
+            vy_ast.NameConstant: self.constants,
+            vy_ast.Name: self.variables,
+            vy_ast.Attribute: self.attribute,
+            vy_ast.Subscript: self.subscript,
+            vy_ast.BinOp: self.arithmetic,
+            vy_ast.Compare: self.compare,
+            vy_ast.BoolOp: self.boolean_operations,
+            vy_ast.UnaryOp: self.unary_operations,
+            vy_ast.Call: self.call,
+            vy_ast.List: self.list_literals,
+            vy_ast.Tuple: self.tuple_literals,
+            vy_ast.Dict: self.dict_fail,
+            vy_ast.Bytes: self.bytes,
         }
         expr_type = self.expr.__class__
         if expr_type in self.expr_table:
@@ -299,7 +301,7 @@ class Expr(object):
                     self.expr
                 )
             if (
-                isinstance(self.expr.value, ast.Name) and
+                isinstance(self.expr.value, vy_ast.Name) and
                 self.expr.value.id == "self" and
                 version_check(begin="istanbul")
             ):
@@ -352,7 +354,7 @@ class Expr(object):
                 pos=getpos(self.expr)
             )
         # self.x: global attribute
-        elif isinstance(self.expr.value, ast.Name) and self.expr.value.id == "self":
+        elif isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id == "self":
             if self.expr.attr not in self.context.globals:
                 raise VariableDeclarationException(
                     "Persistent variable undeclared: " + self.expr.attr,
@@ -367,7 +369,10 @@ class Expr(object):
                 annotation='self.' + self.expr.attr,
             )
         # Reserved keywords
-        elif isinstance(self.expr.value, ast.Name) and self.expr.value.id in ENVIRONMENT_VARIABLES:
+        elif (
+            isinstance(self.expr.value, vy_ast.Name) and
+            self.expr.value.id in ENVIRONMENT_VARIABLES
+        ):
             key = self.expr.value.id + "." + self.expr.attr
             if key == "msg.sender":
                 if self.context.is_private:
@@ -445,14 +450,14 @@ class Expr(object):
     def subscript(self):
         sub = Expr.parse_variable_location(self.expr.value, self.context)
         if isinstance(sub.typ, (MappingType, ListType)):
-            if not isinstance(self.expr.slice, ast.Index):
+            if not isinstance(self.expr.slice, vy_ast.Index):
                 raise StructureException(
                     "Array access must access a single element, not a slice",
                     self.expr,
                 )
             index = Expr.parse_value_expr(self.expr.slice.value, self.context)
         elif isinstance(sub.typ, TupleType):
-            if not isinstance(self.expr.slice.value, ast.Num) or self.expr.slice.value.n < 0 or self.expr.slice.value.n >= len(sub.typ.members):  # noqa: E501
+            if not isinstance(self.expr.slice.value, vy_ast.Num) or self.expr.slice.value.n < 0 or self.expr.slice.value.n >= len(sub.typ.members):  # noqa: E501
                 raise TypeMismatchException("Tuple index invalid", self.expr.slice.value)
             index = self.expr.slice.value.n
         else:
@@ -478,23 +483,23 @@ class Expr(object):
            isinstance(right.value, int) and isinstance(left.value, int) and \
            arithmetic_pair.issubset({'uint256', 'int128'}):
 
-            if isinstance(self.expr.op, ast.Add):
+            if isinstance(self.expr.op, vy_ast.Add):
                 val = left.value + right.value
-            elif isinstance(self.expr.op, ast.Sub):
+            elif isinstance(self.expr.op, vy_ast.Sub):
                 val = left.value - right.value
-            elif isinstance(self.expr.op, ast.Mult):
+            elif isinstance(self.expr.op, vy_ast.Mult):
                 val = left.value * right.value
-            elif isinstance(self.expr.op, ast.Pow):
+            elif isinstance(self.expr.op, vy_ast.Pow):
                 val = left.value ** right.value
-            elif isinstance(self.expr.op, (ast.Div, ast.Mod)):
+            elif isinstance(self.expr.op, (vy_ast.Div, vy_ast.Mod)):
                 if right.value == 0:
                     raise ZeroDivisionException(
                         "integer division or modulo by zero",
                         self.expr,
                     )
-                if isinstance(self.expr.op, ast.Div):
+                if isinstance(self.expr.op, vy_ast.Div):
                     val = left.value // right.value
-                elif isinstance(self.expr.op, ast.Mod):
+                elif isinstance(self.expr.op, vy_ast.Mod):
                     # modified modulo logic to remain consistent with EVM behaviour
                     val = abs(left.value) % abs(right.value)
                     if left.value < 0:
@@ -505,7 +510,7 @@ class Expr(object):
                     self.expr,
                 )
 
-            num = ast.Num(n=val)
+            num = vy_ast.Num(n=val)
             num.source_code = self.expr.source_code
             num.lineno = self.expr.lineno
             num.col_offset = self.expr.col_offset
@@ -534,7 +539,7 @@ class Expr(object):
                     pos=pos,
                 )
 
-        if left.typ.typ == "decimal" and isinstance(self.expr.op, ast.Pow):
+        if left.typ.typ == "decimal" and isinstance(self.expr.op, vy_ast.Pow):
             raise TypeMismatchException(
                 "Cannot perform exponentiation on decimal values.",
                 self.expr,
@@ -548,13 +553,17 @@ class Expr(object):
             )
 
         ltyp, rtyp = left.typ.typ, right.typ.typ
-        if isinstance(self.expr.op, (ast.Add, ast.Sub)):
+        if isinstance(self.expr.op, (vy_ast.Add, vy_ast.Sub)):
             if left.typ.unit != right.typ.unit and left.typ.unit != {} and right.typ.unit != {}:
                 raise TypeMismatchException(
                     f"Unit mismatch: {left.typ.unit} {right.typ.unit}",
                     self.expr,
                 )
-            if left.typ.positional and right.typ.positional and isinstance(self.expr.op, ast.Add):
+            if (
+                left.typ.positional and
+                right.typ.positional and
+                isinstance(self.expr.op, vy_ast.Add)
+            ):
                 raise TypeMismatchException(
                     "Cannot add two positional units!",
                     self.expr,
@@ -566,15 +575,15 @@ class Expr(object):
 
             new_typ = BaseType(ltyp, new_unit, new_positional)
 
-            op = 'add' if isinstance(self.expr.op, ast.Add) else 'sub'
+            op = 'add' if isinstance(self.expr.op, vy_ast.Add) else 'sub'
 
-            if ltyp == 'uint256' and isinstance(self.expr.op, ast.Add):
+            if ltyp == 'uint256' and isinstance(self.expr.op, vy_ast.Add):
                 # safeadd
                 arith = ['seq',
                          ['assert', ['ge', ['add', 'l', 'r'], 'l']],
                          ['add', 'l', 'r']]
 
-            elif ltyp == 'uint256' and isinstance(self.expr.op, ast.Sub):
+            elif ltyp == 'uint256' and isinstance(self.expr.op, vy_ast.Sub):
                 # safesub
                 arith = ['seq',
                          ['assert', ['ge', 'l', 'r']],
@@ -586,7 +595,7 @@ class Expr(object):
             else:
                 raise Exception(f"Unsupported Operation '{op}({ltyp}, {rtyp})'")
 
-        elif isinstance(self.expr.op, ast.Mult):
+        elif isinstance(self.expr.op, vy_ast.Mult):
             if left.typ.positional or right.typ.positional:
                 raise TypeMismatchException("Cannot multiply positional values!", self.expr)
             new_unit = combine_units(left.typ.unit, right.typ.unit)
@@ -617,7 +626,7 @@ class Expr(object):
             else:
                 raise Exception(f"Unsupported Operation 'mul({ltyp}, {rtyp})'")
 
-        elif isinstance(self.expr.op, ast.Div):
+        elif isinstance(self.expr.op, vy_ast.Div):
             if right.typ.is_literal and right.value == 0:
                 raise ZeroDivisionException("Cannot divide by 0.", self.expr)
             if left.typ.positional or right.typ.positional:
@@ -639,7 +648,7 @@ class Expr(object):
             else:
                 raise Exception(f"Unsupported Operation 'div({ltyp}, {rtyp})'")
 
-        elif isinstance(self.expr.op, ast.Mod):
+        elif isinstance(self.expr.op, vy_ast.Mod):
             if right.typ.is_literal and right.value == 0:
                 raise ZeroDivisionException("Cannot calculate modulus of 0.", self.expr)
             if left.typ.positional or right.typ.positional:
@@ -661,7 +670,7 @@ class Expr(object):
 
             else:
                 raise Exception(f"Unsupported Operation 'mod({ltyp}, {rtyp})'")
-        elif isinstance(self.expr.op, ast.Pow):
+        elif isinstance(self.expr.op, vy_ast.Pow):
             if left.typ.positional or right.typ.positional:
                 raise TypeMismatchException(
                     "Cannot use positional values as exponential arguments!",
@@ -672,13 +681,13 @@ class Expr(object):
                     "Cannot use unit values as exponents",
                     self.expr,
                 )
-            if ltyp != 'int128' and ltyp != 'uint256' and isinstance(self.expr.right, ast.Name):
+            if ltyp != 'int128' and ltyp != 'uint256' and isinstance(self.expr.right, vy_ast.Name):
                 raise TypeMismatchException(
                     "Cannot use dynamic values as exponents, for unit base types",
                     self.expr,
                 )
             new_unit = left.typ.unit
-            if left.typ.unit and not isinstance(self.expr.right, ast.Name):
+            if left.typ.unit and not isinstance(self.expr.right, vy_ast.Name):
                 new_unit = {left.typ.unit.copy().popitem()[0]: self.expr.right.n}
             new_typ = BaseType(ltyp, new_unit)
 
@@ -826,7 +835,7 @@ class Expr(object):
             # TODO: Can this if branch be removed ^
             pass
 
-        elif isinstance(self.expr.ops[0], ast.In) and isinstance(right.typ, ListType):
+        elif isinstance(self.expr.ops[0], vy_ast.In) and isinstance(right.typ, ListType):
             if left.typ != right.typ.subtype:
                 raise TypeMismatchException(
                     "Can't use IN comparison with different types!",
@@ -842,17 +851,17 @@ class Expr(object):
                 "Cannot have a comparison with more than two elements",
                 self.expr,
             )
-        if isinstance(self.expr.ops[0], ast.Gt):
+        if isinstance(self.expr.ops[0], vy_ast.Gt):
             op = 'sgt'
-        elif isinstance(self.expr.ops[0], ast.GtE):
+        elif isinstance(self.expr.ops[0], vy_ast.GtE):
             op = 'sge'
-        elif isinstance(self.expr.ops[0], ast.LtE):
+        elif isinstance(self.expr.ops[0], vy_ast.LtE):
             op = 'sle'
-        elif isinstance(self.expr.ops[0], ast.Lt):
+        elif isinstance(self.expr.ops[0], vy_ast.Lt):
             op = 'slt'
-        elif isinstance(self.expr.ops[0], ast.Eq):
+        elif isinstance(self.expr.ops[0], vy_ast.Eq):
             op = 'eq'
-        elif isinstance(self.expr.ops[0], ast.NotEq):
+        elif isinstance(self.expr.ops[0], vy_ast.NotEq):
             op = 'ne'
         else:
             raise Exception("Unsupported comparison operator")
@@ -935,7 +944,7 @@ class Expr(object):
         # Iterate through values
         for value in self.expr.values:
             # Check for calls at assignment
-            if self.context.in_assignment and isinstance(value, ast.Call):
+            if self.context.in_assignment and isinstance(value, vy_ast.Call):
                 raise StructureException(
                     "Boolean operations with calls may not be performed on assignment",
                     self.expr,
@@ -952,9 +961,9 @@ class Expr(object):
             # TODO: Handle special case of literals and simplify at compile time
 
         # Check for valid ops
-        if isinstance(self.expr.op, ast.And):
+        if isinstance(self.expr.op, vy_ast.And):
             op = 'and'
-        elif isinstance(self.expr.op, ast.Or):
+        elif isinstance(self.expr.op, vy_ast.Or):
             op = 'or'
         else:
             raise Exception("Unsupported bool op: " + self.expr.op)
@@ -983,7 +992,7 @@ class Expr(object):
     # Unary operations (only "not" supported)
     def unary_operations(self):
         operand = Expr.parse_value_expr(self.expr.operand, self.context)
-        if isinstance(self.expr.op, ast.Not):
+        if isinstance(self.expr.op, vy_ast.Not):
             if isinstance(operand.typ, BaseType) and operand.typ.typ == 'bool':
                 return LLLnode.from_list(["iszero", operand], typ='bool', pos=getpos(self.expr))
             else:
@@ -991,7 +1000,7 @@ class Expr(object):
                     f"Only bool is supported for not operation, {operand.typ} supplied.",
                     self.expr,
                 )
-        elif isinstance(self.expr.op, ast.USub):
+        elif isinstance(self.expr.op, vy_ast.USub):
             if not is_numeric_type(operand.typ):
                 raise TypeMismatchException(
                     f"Unsupported type for negation: {operand.typ}",
@@ -1030,7 +1039,7 @@ class Expr(object):
             DISPATCH_TABLE,
         )
 
-        if isinstance(self.expr.func, ast.Name):
+        if isinstance(self.expr.func, vy_ast.Name):
             function_name = self.expr.func.id
 
             if function_name in DISPATCH_TABLE:
@@ -1046,7 +1055,7 @@ class Expr(object):
                     )
 
                 arg = args[0]
-                if not isinstance(arg, ast.Dict):
+                if not isinstance(arg, vy_ast.Dict):
                     raise TypeMismatchException(
                         "Struct can only be constructed with a dict",
                         self.expr,
@@ -1069,7 +1078,7 @@ class Expr(object):
                 if function_name in [x.split('(')[0] for x, _ in self.context.sigs['self'].items()]:
                     err_msg += f". Did you mean self.{function_name}?"
                 raise StructureException(err_msg, self.expr)
-        elif isinstance(self.expr.func, ast.Attribute) and isinstance(self.expr.func.value, ast.Name) and self.expr.func.value.id == "self":  # noqa: E501
+        elif isinstance(self.expr.func, vy_ast.Attribute) and isinstance(self.expr.func.value, vy_ast.Name) and self.expr.func.value.id == "self":  # noqa: E501
             return self_call.make_call(self.expr, self.context)
         else:
             return external_call.make_external_call(self.expr, self.context)
@@ -1119,7 +1128,7 @@ class Expr(object):
         member_subs = {}
         member_typs = {}
         for key, value in zip(expr.keys, expr.values):
-            if not isinstance(key, ast.Name):
+            if not isinstance(key, vy_ast.Name):
                 raise TypeMismatchException(
                     f"Invalid member variable for struct: {getattr(key, 'id', '')}",
                     key,

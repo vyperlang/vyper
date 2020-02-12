@@ -1,7 +1,7 @@
 from vyper import (
     compiler,
 )
-from vyper.ast_utils import (
+from vyper.ast.utils import (
     ast_to_dict,
     dict_to_ast,
     parse_to_ast,

@@ -8,7 +8,9 @@ from typing import (
 )
 import warnings
 
-from vyper import ast
+from vyper import (
+    ast as vy_ast,
+)
 from vyper.exceptions import (
     InvalidTypeException,
 )
@@ -281,24 +283,24 @@ SPECIAL_TYPES = {
 
 # Parse an expression representing a unit
 def parse_unit(item, custom_units):
-    if isinstance(item, ast.Name):
+    if isinstance(item, vy_ast.Name):
         if (item.id not in VALID_UNITS) and (custom_units is not None) and (item.id not in custom_units):  # noqa: E501
             raise InvalidTypeException("Invalid base unit", item)
         return {item.id: 1}
-    elif isinstance(item, ast.Num) and item.n == 1:
+    elif isinstance(item, vy_ast.Num) and item.n == 1:
         return {}
-    elif not isinstance(item, ast.BinOp):
+    elif not isinstance(item, vy_ast.BinOp):
         raise InvalidTypeException("Invalid unit expression", item)
-    elif isinstance(item.op, ast.Mult):
+    elif isinstance(item.op, vy_ast.Mult):
         left, right = parse_unit(item.left, custom_units), parse_unit(item.right, custom_units)
         return combine_units(left, right)
-    elif isinstance(item.op, ast.Div):
+    elif isinstance(item.op, vy_ast.Div):
         left, right = parse_unit(item.left, custom_units), parse_unit(item.right, custom_units)
         return combine_units(left, right, div=True)
-    elif isinstance(item.op, ast.Pow):
-        if not isinstance(item.left, ast.Name):
+    elif isinstance(item.op, vy_ast.Pow):
+        if not isinstance(item.left, vy_ast.Name):
             raise InvalidTypeException("Can only raise a base type to an exponent", item)
-        if not isinstance(item.right, ast.Num) or not isinstance(item.right.n, int) or item.right.n <= 0:  # noqa: E501
+        if not isinstance(item.right, vy_ast.Num) or not isinstance(item.right.n, int) or item.right.n <= 0:  # noqa: E501
             raise InvalidTypeException("Exponent must be positive integer", item)
         return {item.left.id: item.right.n}
     else:
@@ -309,7 +311,7 @@ def make_struct_type(name, location, members, custom_units, custom_structs, cons
     o = OrderedDict()
 
     for key, value in members:
-        if not isinstance(key, ast.Name):
+        if not isinstance(key, vy_ast.Name):
             raise InvalidTypeException(
                 f"Invalid member variable for struct {key.id}, expected a name.",
                 key,
@@ -336,7 +338,7 @@ def make_struct_type(name, location, members, custom_units, custom_structs, cons
 # the type is to be located in memory or storage
 def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None, constants=None):
     # Base and custom types, e.g. num
-    if isinstance(item, ast.Name):
+    if isinstance(item, vy_ast.Name):
         if item.id in BASE_TYPES:
             return BaseType(item.id)
         elif item.id in SPECIAL_TYPES:
@@ -353,7 +355,7 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
         else:
             raise InvalidTypeException("Invalid base type: " + item.id, item)
     # Units, e.g. num (1/sec) or contracts
-    elif isinstance(item, ast.Call) and isinstance(item.func, ast.Name):
+    elif isinstance(item, vy_ast.Call) and isinstance(item.func, vy_ast.Name):
         # Mapping type.
         if item.func.id == 'map':
             if location == 'memory':
@@ -399,7 +401,7 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
                 custom_structs,
                 constants,
             )
-        if not isinstance(item.func, ast.Name):
+        if not isinstance(item.func, vy_ast.Name):
             raise InvalidTypeException("Malformed unit type:", item)
         base_type = item.func.id
         if base_type not in ('int128', 'uint256', 'decimal', 'address'):
@@ -407,7 +409,7 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
                 for variable declarations and indexed for logging topics ", item)
         if len(item.args) == 0:
             raise InvalidTypeException("Malformed unit type", item)
-        if isinstance(item.args[-1], ast.Name) and item.args[-1].id == "positional":
+        if isinstance(item.args[-1], vy_ast.Name) and item.args[-1].id == "positional":
             positional = True
             argz = item.args[:-1]
         else:
@@ -418,15 +420,15 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
         unit = parse_unit(argz[0], custom_units=custom_units)
         return BaseType(base_type, unit, positional)
     # Subscripts
-    elif isinstance(item, ast.Subscript):
-        if isinstance(item.slice, ast.Slice):
+    elif isinstance(item, vy_ast.Subscript):
+        if isinstance(item.slice, vy_ast.Slice):
             raise InvalidTypeException(
                 "Array / ByteArray access must access a single element, not a slice",
                 item,
             )
         # Fixed size lists or bytearrays, e.g. num[100]
         is_constant_val = constants.ast_is_constant(item.slice.value)
-        if isinstance(item.slice.value, ast.Num) or is_constant_val:
+        if isinstance(item.slice.value, vy_ast.Num) or is_constant_val:
             n_val = (
                 constants.get_constant(item.slice.value.id, context=None).value
                 if is_constant_val
@@ -461,14 +463,14 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
             raise InvalidTypeException('Unknown list type.', item)
 
     # Dicts, used to represent mappings, e.g. {uint: uint}. Key must be a base type
-    elif isinstance(item, ast.Dict):
+    elif isinstance(item, vy_ast.Dict):
         warnings.warn(
             "Anonymous structs have been removed in"
             " favor of named structs, see VIP300",
             DeprecationWarning
         )
         raise InvalidTypeException("Invalid type", item)
-    elif isinstance(item, ast.Tuple):
+    elif isinstance(item, vy_ast.Tuple):
         members = [
             parse_type(
                 x,

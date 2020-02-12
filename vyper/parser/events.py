@@ -1,4 +1,6 @@
-from vyper import ast
+from vyper import (
+    ast as vy_ast,
+)
 from vyper.exceptions import (
     InvalidLiteralException,
     TypeMismatchException,
@@ -45,7 +47,7 @@ def pack_logging_topics(event_id, args, expected_topics, context, pos):
                 raise TypeMismatchException(
                     f"Topic input bytes are too big: {arg_type} {expected_type}", code_pos
                 )
-            if isinstance(arg, ast.Str):
+            if isinstance(arg, vy_ast.Str):
                 bytez, bytez_length = string_to_bytes(arg.s)
                 if len(bytez) > 32:
                     raise InvalidLiteralException(
@@ -136,7 +138,7 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder,
         #       the sub value makes the difference in each type of list clearer.
 
         # List from storage
-        if isinstance(arg, ast.Attribute) and arg.value.id == 'self':
+        if isinstance(arg, vy_ast.Attribute) and arg.value.id == 'self':
             stor_list = context.globals[arg.attr]
             check_list_type_match(stor_list.typ.subtype)
             size = stor_list.typ.count
@@ -159,7 +161,7 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder,
                 mem_offset += get_size_of_type(typ) * 32
 
         # List from variable.
-        elif isinstance(arg, ast.Name):
+        elif isinstance(arg, vy_ast.Name):
             size = context.vars[arg.id].size
             pos = context.vars[arg.id].pos
             check_list_type_match(context.vars[arg.id].typ.subtype)
@@ -210,12 +212,12 @@ def pack_logging_data(expected_data, args, context, pos):
     prealloacted = {}
     for idx, (arg, _expected_arg) in enumerate(zip(args, expected_data)):
 
-        if isinstance(arg, (ast.Str, ast.Call)):
+        if isinstance(arg, (vy_ast.Str, vy_ast.Call)):
             expr = Expr(arg, context)
             source_lll = expr.lll_node
             typ = source_lll.typ
 
-            if isinstance(arg, ast.Str):
+            if isinstance(arg, vy_ast.Str):
                 if len(arg.s) > typ.maxlen:
                     raise TypeMismatchException(
                         f"Data input bytes are to big: {len(arg.s)} {typ}", pos

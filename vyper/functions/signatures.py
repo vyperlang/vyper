@@ -1,8 +1,7 @@
 import functools
 
-from vyper import ast
-from vyper.ast_utils import (
-    parse_to_ast,
+from vyper import (
+    ast as vy_ast,
 )
 from vyper.exceptions import (
     InvalidLiteralException,
@@ -43,10 +42,10 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
         if expected_arg == 'num_literal':
             if context.constants.is_constant_of_base_type(arg, ('uint256', 'int128')):
                 return context.constants.get_constant(arg.id, None).value
-            if isinstance(arg, ast.Num) and get_original_if_0_prefixed(arg, context) is None:
+            if isinstance(arg, vy_ast.Num) and get_original_if_0_prefixed(arg, context) is None:
                 return arg.n
         elif expected_arg == 'str_literal':
-            if isinstance(arg, ast.Str) and get_original_if_0_prefixed(arg, context) is None:
+            if isinstance(arg, vy_ast.Str) and get_original_if_0_prefixed(arg, context) is None:
                 bytez = b''
                 for c in arg.s:
                     if ord(c) >= 256:
@@ -57,12 +56,12 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
                     bytez += bytes([ord(c)])
                 return bytez
         elif expected_arg == 'bytes_literal':
-            if isinstance(arg, ast.Bytes):
+            if isinstance(arg, vy_ast.Bytes):
                 return arg.s
         elif expected_arg == 'name_literal':
-            if isinstance(arg, ast.Name):
+            if isinstance(arg, vy_ast.Name):
                 return arg.id
-            elif isinstance(arg, ast.Subscript) and arg.value.id == 'bytes':
+            elif isinstance(arg, vy_ast.Subscript) and arg.value.id == 'bytes':
                 return f'bytes[{arg.slice.value.n}]'
         elif expected_arg == '*':
             return arg
@@ -77,7 +76,7 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
         else:
             # Does not work for unit-endowed types inside compound types, e.g. timestamp[2]
             parsed_expected_type = context.parse_type(
-                parse_to_ast(expected_arg)[0].value,
+                vy_ast.parse_to_ast(expected_arg)[0].value,
                 'memory',
             )
             if isinstance(parsed_expected_type, BaseType):
