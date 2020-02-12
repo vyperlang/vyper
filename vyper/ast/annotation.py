@@ -4,6 +4,7 @@ from typing import (
     Union,
 )
 
+import asttokens
 from vyper.typing import (
     ClassTypes,
 )
@@ -51,10 +52,33 @@ class RewriteUnarySubVisitor(python_ast.NodeTransformer):
             return node
 
 
+class AddSourceOffsetVisitor(python_ast.NodeTransformer):
+
+    def __init__(self, source_id):
+        self._source_id = source_id
+
+    def generic_visit(self, node):
+        start = node.first_token.start if hasattr(node, 'first_token') else (None, None)
+        end = node.last_token.end if hasattr(node, 'last_token') else (None, None)
+
+        node.lineno = start[0]
+        node.col_offset = start[1]
+        node.end_lineno = end[0]
+        node.end_col_offset = end[1]
+
+        if hasattr(node, 'last_token'):
+            start_pos = node.first_token.startpos
+            end_pos = node.last_token.endpos
+            node.src = f"{start_pos}:{end_pos-start_pos}:{self._source_id}"
+
+        return super().generic_visit(node)
+
+
 def annotate_python_ast(
     parsed_ast: Union[python_ast.AST, python_ast.Module],
     source_code: str,
     class_types: Optional[ClassTypes] = None,
+    source_id: int = 0,
 ) -> None:
     """
     Performs annotation and optimization on a parsed python AST by doing the
@@ -64,6 +88,7 @@ def annotate_python_ast(
     * Annotating class definition nodes with their original class type
       ("contract" or "struct")
     * Substituting negative values for unary subtractions
+    * Annotating all AST nodes with complete source offsets
 
     :param parsed_ast: The AST to be annotated and optimized.
     :param source_code: The originating source code of the AST.
@@ -72,3 +97,6 @@ def annotate_python_ast(
     """
     AnnotatingVisitor(source_code, class_types).visit(parsed_ast)
     RewriteUnarySubVisitor().visit(parsed_ast)
+
+    asttokens.ASTTokens(source_code, tree=parsed_ast)
+    AddSourceOffsetVisitor(source_id).visit(parsed_ast)
