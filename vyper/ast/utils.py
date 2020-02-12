@@ -8,6 +8,9 @@ import asttokens
 from vyper.ast import (
     nodes as vy_ast,
 )
+from vyper.ast.annotation import (
+    annotate_python_ast,
+)
 from vyper.ast.pre_parser import (
     pre_parse,
 )
@@ -16,9 +19,6 @@ from vyper.exceptions import (
     ParserException,
     PythonSyntaxException,
     SyntaxException,
-)
-from vyper.parser.parser_utils import (
-    annotate_ast,
 )
 from vyper.utils import (
     iterable_cast,
@@ -117,7 +117,7 @@ def parse_to_ast(source_code: str, source_id: int = 0) -> list:
     except SyntaxError as e:
         # TODO: Ensure 1-to-1 match of source_code:reformatted_code SyntaxErrors
         raise PythonSyntaxException(e, source_code) from e
-    annotate_ast(py_ast, source_code, class_types)
+    annotate_python_ast(py_ast, source_code, class_types)
     asttokens.ASTTokens(source_code, tree=py_ast)
     # Convert to Vyper AST.
     vy_ast = parse_python_ast(
