@@ -213,7 +213,7 @@ SyntaxException
     ---------------------------^
          5   deposit: wei_value
 
-The terminal output of a sytnax error will generally show exactly where it happened.  In this case there is a semi
+The terminal output of a syntax error will generally show exactly where it happened.  In this case there is a semi
 colon missing after ''blindedBid'' in the declaration of the struct.
 
 .. exceptions-ArrayIndexException::
