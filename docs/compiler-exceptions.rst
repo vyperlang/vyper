@@ -1,6 +1,4 @@
-.. index:: compiling, compiler, InvalidTypeException, common, exceptions, StructureException, ConstancyViolationException,
-NonPayableViolationException, InvalidLiteralException, TypeMismatchException, EventDeclarationException, VersionException
-SyntaxException, ArrayIndexException, ZeroDivisionException, EvmVersionException, CompilerPanic, VariableDeclarationException
+.. index:: compiling, compiler, InvalidTypeException, common, exceptions, StructureException, ConstancyViolationException, NonPayableViolationException, InvalidLiteralException, TypeMismatchException, EventDeclarationException, VersionException, SyntaxException, ArrayIndexException, ZeroDivisionException, EvmVersionException, CompilerPanic, VariableDeclarationException
 
 Compiler Exceptions
 *******************
@@ -13,73 +11,36 @@ Common Compiler Exceptions
 These are examples of the more common compiling exception errors that you could see when
 compiling a ``vyper`` file for deployment on the Ethereum Virtual Machine.
 
-.. _exceptions-InvalidExceptionType::
 
-InvalidTypeException
-********************
+.. py:exception:: ArrayIndexException
 
-.. code-block:: python3
+This exception will occur when an invalid index number of an array is referenced.  The terminal will point out the line 
+which contains the error.
 
-    bids: map(address, Bid[128])
-    bidCounts: map(adddress, int128)
+.. py:exception:: ConstancyViolationException
 
-The variable type ''address'' is misspelled.  Any word that is not a reserved word, and declares a variable type will 
-return this error.
+This exception occurs when a variable or function that is returning a constant has another instance that is trying
+to change the value.
 
-.. code-block:: bash
+.. py:exceptions:: EventDeclarationException
 
-    $ vyper blind_auction.vy 
-    Error compiling: blind.auction.vy 
-    /usr/lib/python3/dist-packages/apport/report.py:13: DeprecationWarning: the imp module is deprecated in favour of importlib; see the module's documentation for alternative uses
-    import fnmatch, glob, traceback, errno, sys, atexit, locale, imp
-    vyper.exceptions.InvalidTypeException: line 28:15 Invalid base type: adddress
-         27 bids: map(address, Bid[128])
-    ---> 28 bidCounts: map(adddress, int128)
------------------------^
-         29
+This exception will occur when the identifier used to declare an event is in conflict with a reserved word
+or previously declared structure with the same name.  The terminal output will state the line which contains the error.
 
-The terminal returns a compiling error warning.  Reading the entire warning is critical to understanding exactly what
-is causing the error.  The message displays the line numbers that contain the error.  In this example ''map(_KeyType, _ValueType)''
-cannot compile because the type ''address'' is misspelled.
-
-.. _exceptions-variableDeclaration::
-
-VariableDeclarationException
-****************************
+.. py:exception:: EMVVersionException
 
 .. code-block:: python3
 
-    # Final auction state
-    highestBid: public(wei_value)
-    highestBidder: public(address)
-    .
-    .
-    @private
-    def placeBid(bidder: address, value: wei_value) -> bool:
-    # If bid is less than highest bid, bid fails
-    **if (value <= self.highstBid):**
-        return False
+    {
+        "settings": {
+            "evmVersion": "[VERSION]"
+        }
+    }
 
-''VariableDeclarationException'' is a compiling error in which a variable is being used that has not been declared.
+Default version is ''istanbul''.  Other version choices include ''byzantium'', ''constantinople'', and ''petersburg''.  This
+exception will occur when the compiler version is not compatible with the EVM version declared in the code.
 
-.. code-block:: bash
-
-    $ vyper blind_auction.vy
-    Error compiling: blind_auction.vy
-    /usr/lib/python3/dist-packages/apport/report.py:13: DeprecationWarning: the imp module is deprecated in favour of importlib; see the module's documentation for alternative uses
-    import fnmatch, glob, traceback, errno, sys, atexit, locale, imp
-    vyper.exceptions.VariableDeclarationException: line 79:17 Persistent variable undeclared: highstBid
-         78     # If bid is less than highest bid, bid fails
-    **---> 79     if (value <= self.highstBid):**
-    ------------------------^
-         80         return False
-
-''self.highestBid'' is using a misspelled modified version of the public variable ''highestBidder''.
-
-.. _exceptions-functionDeclaration::
-
-FunctionDeclarationException
-****************************
+.. py:exception:: FunctionDeclarationException
 
 .. code-block:: python3
 
@@ -91,7 +52,7 @@ FunctionDeclarationException
     .
     @public
     @payable
-    **def pendingReturns(_blindedBid: bytes32):**
+    def pendingReturns(_blindedBid: bytes32):
     # Check if bidding period is still open
     assert block.timestamp < self.biddingEnd
 
@@ -108,7 +69,7 @@ FunctionDeclarationException
     .
     .
     .
-    **pendingReturns: map(address, wei_value)**
+    pendingReturns: map(address, wei_value)
 
 ''FunctionDeclarationException'' happens when a function name is used for two different functions or when a reserved word 
 is used to name a function.
@@ -117,24 +78,86 @@ is used to name a function.
 
     $ vyper blind_auction.vy
     Error compiling: blind_auction.vy
-    /usr/lib/python3/dist-packages/apport/report.py:13: DeprecationWarning: the imp module is deprecated in favour of importlib; see the module's documentation for alternative uses
+    /usr/lib/python3/dist-packages/apport/report.py:13: DeprecationWarning: the imp module is deprecated in favour of             importlib; see the module's documentation for alternative uses
     import fnmatch, glob, traceback, errno, sys, atexit, locale, imp
     vyper.exceptions.FunctionDeclarationException: Function name shadowing a variable name: pendingReturns
 
 The warning generated in the terminal does not specify any line numbers.  ''pendingReturns'' is named as the identifier
 used incorrectly to declare the function throwing the error.  
 
-.. exceptions-StructureException::
+.. py:exception:: InvalidLiteralException
 
-StructureException
-******************
+.. code-block:: python3
+
+    @public
+    def foo():
+        bar: address = 0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+        
+Raised when attempting to use a literal value where the type is correct, but the value is still invalid in some way. For example, an address that is not check-summed.
+
+.. py:exception:: InvalidTypeException
+
+.. code-block:: python3
+
+    bids: map(address, Bid[128])
+    bidCounts: map(adddress, int128)
+
+The variable type ''address'' is misspelled.  Any word that is not a reserved word, and declares a variable type will 
+return this error.
+
+.. code-block:: bash
+
+    $ vyper blind_auction.vy 
+    Error compiling: blind.auction.vy 
+    /usr/lib/python3/dist-packages/apport/report.py:13: DeprecationWarning: the imp module is deprecated in favour of             importlib; see the module's documentation for alternative uses
+    import fnmatch, glob, traceback, errno, sys, atexit, locale, imp
+    vyper.exceptions.InvalidTypeException: line 28:15 Invalid base type: adddress
+         27 bids: map(address, Bid[128])
+    ---> 28 bidCounts: map(adddress, int128)
+-----------------------^
+         29
+
+The terminal returns a compiling error warning.  Reading the entire warning is critical to understanding exactly what
+is causing the error.  The message displays the line numbers that contain the error.  In this example ''map(_KeyType, _ValueType)'' cannot compile because the type ''address'' is misspelled.
+
+.. py:exception:: JSONError
+
+Vyper has the ability to pass information back and forth using JSON.  If you are using JSON and receiving a JSON error then you can find out more details about the error at `Oracle JSON Errors <https://docs.python.org/3/tutorial/errors.html>`.
+
+.. py:exception:: NonPayableViolationException
+
+.. code-block:: python3
+
+    @private
+    def _foo():
+       bar: uint256 = msg.value
+       
+Raised when attempting to access msg.value from within a private function.
+
+.. py:exception:: ParserException
+
+See ''PythonSyntaxException''
+
+.. py:exception:: PythonSyntaxException
+
+.. code-block:: python3
+
+    >>> while True print('Hello world')
+       File "<stdin>", line 1
+       while True print('Hello world')
+                   ^
+     SyntaxError: invalid syntax
+     
+This exception is raised due to a python based syntax exception.  It is also known as a parser exception.  In this case there is a colon missing after the word print.  See `Python Errors and Exceptions <https://docs.python.org/3/tutorial/errors.html>` for more details.
+
+.. py:exception:: StructureException
 
 .. code-block:: python3
 
     # Transfer funds to beneficiary
     send(self.beneficiary, self.highestBid)
 
-    ,,,
+    '''
 
 The inclusion of punctuation that is syntactically incorrect and not a part of the normal vyper flow will throw a 
 ''StructureException''.
@@ -148,53 +171,7 @@ The inclusion of punctuation that is syntactically incorrect and not a part of t
          182  
 The terminal displays the line number and points directly to the problem.
 
-.. exceptions-ConstancyViolationException::
-
-ConstancyViolationException
-***************************
-
-This exception occurs when a variable or function that is returning a constant has another instance that is trying
-to change the value.
-
-
-.. exceptions-TypeMismatchException::
-
-TypeMismatchException
-*********************
-
-.. code-block:: python3
-
-    chain.id='hello':
-
-''chain.id'' is of the uint256 type but this assignment is a string, therefore a type mismatch.  The terminal output
-will point out the line of code containing the error.
-
-.. exceptions-EventDeclarationException::
-
-EventDeclarationException
-*************************
-
-This exception will occur when the identifier used to declare an event is in conflict with a reserved word
-or previously declared structure with the same name.  The terminal output will state the line which contains the error.
-
-
-.. exceptions-VersionException::
-
-VersionException
-****************
-
-.. code-block:: python3
-
-    @version 0.1.0b13
-
-This exception will happen when a version pragma is being compiled with a future compiler.  Version pragma
-declaration should be the first line of the file.
-
-
-.. exceptions-SyntaxException::
-
-SyntaxException
-***************
+.. py:exception:: SyntaxException
 
 .. code-block:: python3
 
@@ -202,7 +179,7 @@ SyntaxException
         blindedBid bytes32
         deposit: wei_value
 
-    A syntax error is thrown in the declaration of this ''struct'' variable.
+A syntax error is thrown in the declaration of this ''struct'' variable.
 
 .. code-block:: bash
 
@@ -216,60 +193,73 @@ SyntaxException
 The terminal output of a syntax error will generally show exactly where it happened.  In this case there is a semi
 colon missing after ''blindedBid'' in the declaration of the struct.
 
-.. exceptions-ArrayIndexException::
+.. py:exception:: TypeMismatchException
 
-ArrayIndexException
-*******************
+.. code-block:: python3
 
-This exception will occur when an invalid index number of an array is referenced.  The terminal will point out the line 
-which contains the error.
+    chain.id='hello':
+
+''chain.id'' is of the uint256 type but this assignment is a string, therefore a type mismatch.  The terminal output
+will point out the line of code containing the error.
 
 
-.. exceptions-ZeroDivisionException::
+.. py:exception:: VariableDeclarationException
 
-ZeroDivisionException
-*********************
+.. code-block:: python3
+
+    # Final auction state
+    highestBid: public(wei_value)
+    highestBidder: public(address)
+    .
+    .
+    @private
+    def placeBid(bidder: address, value: wei_value) -> bool:
+    # If bid is less than highest bid, bid fails
+    if (value <= self.highstBid):
+        return False
+
+''VariableDeclarationException'' is a compiling error in which a variable is being used that has not been declared.
+
+.. code-block:: bash
+
+    $ vyper blind_auction.vy
+    Error compiling: blind_auction.vy
+    /usr/lib/python3/dist-packages/apport/report.py:13: DeprecationWarning: the imp module is deprecated in favour of             importlib; see the module's documentation for alternative uses import fnmatch, glob, traceback, errno, sys, atexit,           locale, imp
+    vyper.exceptions.VariableDeclarationException: line 79:17 Persistent variable undeclared: highstBid
+         78     # If bid is less than highest bid, bid fails
+    ---> 79     if (value <= self.highstBid):
+    ------------------------^
+         80         return False
+
+''self.highestBid'' is using a misspelled modified version of the public variable ''highestBidder''.
+
+.. py:exception:: VersionException
+
+.. code-block:: python3
+
+    @version 0.1.0b13
+
+This exception will happen when a version pragma is being compiled with a future compiler.  Version pragma
+declaration should be the first line of the file.
+
+
+.. py:exceptions:: ZeroDivisionException
 
 This exception will occur when a divide by zero or ''modulo'' zero situation arises.  The terminal will point out the line 
 which contains the error.
 
-
-.. exceptions-EMVVersionException::
-
-EvmVersionException
-*******************
-
-.. code-block:: python3
-
-    {
-        "settings": {
-            "evmVersion": "[VERSION]"
-        }
-    }
-
-Default version is ''istanbul''.  Other version choices include ''byzantium'', ''constantinople'', and ''petersburg''.  This
-exception will occur when the compiler version is not compatible with the EVM version declared in the code.
-
-
-.. exceptions-CompilerPanicException::
-
 CompilerPanic
-*************
+=============
+
+.. py:exception:: CompilerPanicException
 
 .. code-block:: python3
 
     $ vyper v.vy 
     Error compiling: v.vy
-    vyper.exceptions.CompilerPanic: Number of times repeated must be a constant nonzero positive integer: 0 Please create an issue.
+    vyper.exceptions.CompilerPanic: Number of times repeated must be a constant nonzero positive integer: 0 Please create an     issue.
+
 A compiler panic error indicates that there is a problem internally to the compiler and an issue should be reported right 
-away on the Vyper Github page.  Follow this link and open a new issue if you are experiencing this error 
-'<https://github.com/vyperlang/vyper/issues>'_
+away on the Vyper Github page.  Open an issue if you are experiencing this error. `Open Issue <https://github.com/vyperlang/vyper/issues>`
 
-.. exceptions-contributing::
 
-Contributing
-************
-
-Documentation is one of the places where the community can benefit the most from past mistakes and failure.  
-If an error is encountered that is rare or is not included within these exception, taking a moment to document
-it here will help many others down the road.  You can find more information about 'Contributing'_ here
