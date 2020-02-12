@@ -5,6 +5,10 @@ from typing import (
 )
 
 import asttokens
+
+from vyper.exceptions import (
+    SyntaxException,
+)
 from vyper.typing import (
     ClassTypes,
 )
@@ -27,6 +31,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         # necessary to facilitate error pretty-printing.
         node.source_code = self._source_code
         node.node_id = self.counter
+        node.ast_type = node.__class__.__name__
         self.counter += 1
 
         return super().generic_visit(node)
@@ -36,6 +41,23 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         # Decorate class definitions with their respective class types
         node.class_type = self._class_types.get(node.name)
+
+        return node
+
+    def visit_Constant(self, node):
+        self.generic_visit(node)
+
+        # for python3.8, identify the which Constant based on the value type
+        if node.value is None or isinstance(node.value, bool):
+            node.ast_type = "NameConstant"
+        elif isinstance(node.value, (int, float)):
+            node.ast_type = "Num"
+        elif isinstance(node.value, str):
+            node.ast_type = "Str"
+        elif isinstance(node.value, bytes):
+            node.ast_type = "Bytes"
+        else:
+            raise SyntaxException(f"Invalid syntax (unsupported Python Constant AST node).", node)
 
         return node
 

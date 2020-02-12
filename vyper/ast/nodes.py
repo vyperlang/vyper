@@ -21,7 +21,8 @@ BASE_NODE_ATTRIBUTES = (
     'lineno',
     'end_col_offset',
     'end_lineno',
-    'src'
+    'src',
+    'ast_type',
 )
 
 

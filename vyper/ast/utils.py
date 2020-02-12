@@ -48,8 +48,9 @@ def _build_vyper_ast_init_kwargs(
     yield ('end_lineno', node.end_lineno)
     yield ('end_col_offset', node.end_col_offset)
     if hasattr(node, 'src'):
-        yield ('src', node.src)
+        yield ('src', node.src)  # type: ignore
 
+    yield ('ast_type', node.ast_type)  # type: ignore
     if isinstance(node, python_ast.ClassDef):
         yield ('class_type', node.class_type)  # type: ignore
 
@@ -71,17 +72,7 @@ def parse_python_ast(source_code: str,
     if not isinstance(node, python_ast.AST):
         return node
 
-    class_name = node.__class__.__name__
-    if isinstance(node, python_ast.Constant):
-        if node.value is None or isinstance(node.value, bool):
-            class_name = "NameConstant"
-        elif isinstance(node.value, (int, float)):
-            class_name = "Num"
-        elif isinstance(node.value, str):
-            class_name = "Str"
-        elif isinstance(node.value, bytes):
-            class_name = "Bytes"
-
+    class_name = node.ast_type  # type: ignore
     if not hasattr(vy_ast, class_name):
         raise SyntaxException(f'Invalid syntax (unsupported "{class_name}" Python AST node).', node)
 
