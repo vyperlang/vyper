@@ -206,7 +206,7 @@ def extract_file_interface_imports(code: SourceCode) -> InterfaceImports:
 
     imports_dict: InterfaceImports = {}
     for item in ast_tree:
-        if isinstance(item, vy_ast.Import):
+        if isinstance(item, vy_ast.Import):  # type: ignore
             for a_name in item.names:  # type: ignore
                 if not a_name.asname:
                     raise StructureException(
@@ -219,7 +219,7 @@ def extract_file_interface_imports(code: SourceCode) -> InterfaceImports:
                         item,
                     )
                 imports_dict[a_name.asname] = a_name.name.replace('.', '/')
-        elif isinstance(item, vy_ast.ImportFrom):
+        elif isinstance(item, vy_ast.ImportFrom):  # type: ignore
             for a_name in item.names:  # type: ignore
                 if a_name.asname:
                     raise StructureException("From imports cannot use aliases", item)
