@@ -136,7 +136,17 @@ Raised when attempting to access msg.value from within a private function.
 
 .. py:exception:: ParserException
 
-See ''PythonSyntaxException''
+.. code-block:: python3
+
+    @private
+    def foo(a: address = msg.sender):
+        pass
+    vyper.exceptions.ParserException: line 3:21 msg.sender not allowed in private functions.
+         2 @private
+    ---> 3 def foo(a: address = msg.sender): pass
+    ----------------------------^
+
+See ''PythonSyntaxException''.  This error is not commonly used and typically refers to an error of one of the other types.
 
 .. py:exception:: PythonSyntaxException
 
