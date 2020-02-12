@@ -51,7 +51,7 @@ VariableDeclarationException
 
     # Final auction state
     highestBid: public(wei_value)
-    **highestBidder: public(address)**
+    highestBidder: public(address)
     .
     .
     @private
