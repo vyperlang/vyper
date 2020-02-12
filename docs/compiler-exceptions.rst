@@ -11,7 +11,7 @@ Common Compiler Exceptions
 ==========================
 
 These are examples of the more common compiling exception errors that you could see when
-compiling a ''vyper'' file for deployment on the Ethereum Virtual Machine.
+compiling a ``vyper`` file for deployment on the Ethereum Virtual Machine.
 
 .. _exceptions-InvalidExceptionType::
 
