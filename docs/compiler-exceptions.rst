@@ -38,7 +38,7 @@ return this error.
 -----------------------^
          29
 
-The terminal returns a compiling error warning.  Reading the entire warning is critical to understanding exacly what
+The terminal returns a compiling error warning.  Reading the entire warning is critical to understanding exactly what
 is causing the error.  The message displays the line numbers that contain the error.  In this example ''map(_KeyType, _ValueType)''
 cannot compile because the type ''address'' is mispelled.
 
