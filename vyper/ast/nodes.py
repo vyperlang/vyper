@@ -1,7 +1,4 @@
 import ast as python_ast
-from itertools import (
-    chain,
-)
 import sys
 import typing
 
@@ -50,18 +47,15 @@ def _to_node(value):
 
 class VyperNode:
     __slots__ = BASE_NODE_ATTRIBUTES
-    only_empty_fields: typing.Tuple = ()
-
-    @classmethod
-    def get_slots(cls):
-        return set(chain.from_iterable(
-            getattr(klass, '__slots__', [])
-            for klass in cls.__class__.mro(cls)
-        ))
+    _only_empty_fields: typing.Tuple = ()
+    _translated_fields: typing.Dict = {}
 
     def __init__(self, **kwargs):
 
         for field_name, value in kwargs.items():
+            if field_name in self._translated_fields:
+                field_name = self._translated_fields[field_name]
+
             if field_name in self.get_slots():
                 if isinstance(value, list):
                     value = [_to_node(i) for i in value]
@@ -69,11 +63,15 @@ class VyperNode:
                     value = _to_node(value)
                 setattr(self, field_name, value)
 
-            elif value and field_name in self.only_empty_fields:
+            elif value and field_name in self._only_empty_fields:
                 raise SyntaxException(
                     f'Unsupported non-empty value (valid in Python, but invalid in Vyper) \n'
                     f' field_name: {field_name}, class: {type(self)} value: {value}'
                 )
+
+    @classmethod
+    def get_slots(cls):
+        return set(x for i in cls.__mro__ for x in getattr(i, '__slots__', []))
 
     def __eq__(self, other):
         if not isinstance(other, type(self)):
@@ -128,7 +126,7 @@ class FunctionDef(VyperNode):
 
 class arguments(VyperNode):
     __slots__ = ('args', 'defaults', 'default')
-    only_empty_fields = ('vararg', 'kwonlyargs', 'kwarg', 'kw_defaults')
+    _only_empty_fields = ('vararg', 'kwonlyargs', 'kwarg', 'kw_defaults')
 
 
 class Import(VyperNode):
@@ -145,6 +143,7 @@ class keyword(VyperNode):
 
 class Str(VyperNode):
     __slots__ = ('s', )
+    _translated_fields = {'value': 's'}
 
 
 class Compare(VyperNode):
@@ -153,6 +152,7 @@ class Compare(VyperNode):
 
 class Num(VyperNode):
     __slots__ = ('n', )
+    _translated_fields = {'value': 'n'}
 
 
 class NameConstant(VyperNode):
@@ -189,6 +189,7 @@ class Dict(VyperNode):
 
 class Bytes(VyperNode):
     __slots__ = ('s', )
+    _translated_fields = {'value': 's'}
 
 
 class Add(VyperNode):
@@ -289,7 +290,7 @@ class Assert(VyperNode):
 
 class For(VyperNode):
     __slots__ = ('iter', 'target', 'body')
-    only_empty_fields = ('orelse', )
+    _only_empty_fields = ('orelse', )
 
 
 class AugAssign(VyperNode):
@@ -325,7 +326,7 @@ class Raise(VyperNode):
 
 
 class Slice(VyperNode):
-    only_empty_fields = ('lower', )
+    _only_empty_fields = ('lower', )
 
 
 class alias(VyperNode):

@@ -66,7 +66,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
     def visit_Constant(self, node):
         self.generic_visit(node)
 
-        # for python3.8, identify the which Constant based on the value type
+        # special case to deal with Constant type in Python >=3.8
         if node.value is None or isinstance(node.value, bool):
             node.ast_type = "NameConstant"
         elif isinstance(node.value, (int, float)):
