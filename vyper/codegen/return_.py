@@ -9,6 +9,7 @@ from vyper.parser.parser_utils import (
 from vyper.types import (
     BaseType,
     ByteArrayLike,
+    ensure_vyper_tuple,
     get_size_of_type,
 )
 from vyper.types.check import (
@@ -81,11 +82,15 @@ def make_return_stmt(stmt, context, begin_pos, _size, loop_memory_position=None)
 # actually this is generic code that should work for all types, just
 # need to replace branches in stmt.py with this.
 def gen_tuple_return(stmt, context, sub):
+    typecheck_dummy = LLLnode(0, location='memory', typ=context.return_type)
+    check_assign(typecheck_dummy, sub, pos=getpos(stmt))
+
     # for certain arguments (to return), we can skip some copies and
     # return the return buffer directly
     if sub.args and len(sub.args[0].args) > 0 and sub.args[0].args[0].value == 'call':
         # self-call to public.
         mem_pos = sub
+        # TODO more accurate: abi size bound.
         mem_size = get_size_of_type(sub.typ) * 32
         return LLLnode.from_list(['return', mem_pos, mem_size],
                 typ=sub.typ,
@@ -117,7 +122,7 @@ def gen_tuple_return(stmt, context, sub):
                 typ=None,
                 valency=0)
 
-    abi_typ = abi_type_of(context.return_type)
+    # public return.
     # according to the ABI, return types are ALWAYS tuples even if
     # only one element is being returned.
     # https://solidity.readthedocs.io/en/latest/abi-spec.html#function-selector-and-argument-encoding
@@ -128,7 +133,10 @@ def gen_tuple_return(stmt, context, sub):
     # "
     # therefore, wrap it in a tuple if it's not already a tuple.
     # (big difference between returning `(bytes,)` and `bytes`.
-    abi_typ = ensure_tuple(abi_typ)
+    ret_ty = ensure_vyper_tuple(context.return_type)
+    abi_typ = abi_type_of(ret_ty)
+    sub = LLLnode.from_list(sub, typ=ensure_vyper_tuple(sub.typ))
+
     abi_bytes_needed = abi_typ.static_size() + abi_typ.dynamic_size_bound()
     dst, _ = context.memory_allocator.increase_memory(abi_bytes_needed)
     func_name = context.sig.name
@@ -136,9 +144,7 @@ def gen_tuple_return(stmt, context, sub):
             dst,
             location='memory',
             annotation=f'{func_name} return buffer',
-            typ=context.return_type)
-
-    check_assign(return_buffer, sub, pos=getpos(stmt))
+            typ=ret_ty)
 
     encode_out = abi_encode(return_buffer, sub, pos=getpos(stmt), returns=True)
     load_return_len = ['mload', MemoryPositions.FREE_VAR_SPACE]

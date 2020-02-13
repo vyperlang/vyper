@@ -339,6 +339,8 @@ def o_list(lll_node, pos=None):
 # performance note: takes O(n^2) compilation time
 # where n is depth of data type, could be optimized but unlikely
 # that users will provide deeply nested data.
+# (returns param: whether or not to push a stack item with the runtime
+#   length of the encoded data)
 def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
     parent_abi_t = abi_type_of(lll_node.typ)
     size_bound = parent_abi_t.static_size() + parent_abi_t.dynamic_size_bound()
@@ -351,6 +353,12 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
     dst_begin = 'dst'      # pointer to beginning of buffer
     dst_loc = 'dst_loc'    # pointer to write location in static section
     os = o_list(lll_node, pos=pos)
+
+    #print(f'TYP {lll_node.typ}')
+    #print(f'STATIC SIZE {parent_abi_t.static_size()}')
+    #print(f'DYN SIZE {parent_abi_t.dynamic_size_bound()}')
+    #print(f'IS DYNAMIC {parent_abi_t.is_dynamic()}')
+    #print(f'IS TUPLE {parent_abi_t.is_tuple()}')
 
     for i, o in enumerate(os):
         abi_t = abi_type_of(o.typ)
@@ -412,7 +420,7 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
     lll_ret = ['with', dst_begin, dst,
                ['with', dst_loc, dst_begin, lll_ret]]
 
-    return LLLnode.from_list(lll_ret, annotation=f'ABI encode {dst.typ}')
+    return LLLnode.from_list(lll_ret, annotation=f'ABI encode {lll_node.typ}')
 
 
 # lll_node is the destination LLL item, src is the input buffer.

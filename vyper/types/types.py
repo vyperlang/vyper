@@ -410,3 +410,11 @@ def is_base_type(typ, btypes):
     if not isinstance(btypes, tuple):
         btypes = (btypes, )
     return isinstance(typ, BaseType) and typ.typ in btypes
+
+
+# turn non-[list/tuple/struct] vyper types into tuple
+# this is important for abi stuff
+def ensure_vyper_tuple(typ):
+    if isinstance(typ, TupleLike) or isinstance(typ, ListType):
+        return typ
+    return TupleType([typ])
