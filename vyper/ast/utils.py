@@ -23,7 +23,7 @@ from vyper.exceptions import (
 
 def parse_to_ast(source_code: str, source_id: int = 0) -> list:
     """
-    Parses a vyper source string and generates vyper AST nodes.
+    Parses a vyper source string and generates basic vyper AST nodes.
 
     Parameters
     ----------
@@ -35,7 +35,7 @@ def parse_to_ast(source_code: str, source_id: int = 0) -> list:
     Returns
     -------
     list
-        Generated vyper AST nodes.
+        Untyped, unoptimized vyper AST nodes.
     """
     if '\x00' in source_code:
         raise ParserException('No null bytes (\\x00) allowed in the source code.')

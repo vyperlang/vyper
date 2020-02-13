@@ -82,9 +82,9 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
     def visit_UnaryOp(self, node):
         self.generic_visit(node)
         # NOTE: This is done so that decimal literal now sees the negative sign as part of it
-        if isinstance(node.op, python_ast.USub) and isinstance(
-            node.operand, python_ast.Num
-        ):
+        is_sub = isinstance(node.op, python_ast.USub)
+        is_num = isinstance(node.operand, python_ast.Num)
+        if is_sub and is_num:
             node.operand.n = 0 - node.operand.n
             node.operand.col_offset = node.col_offset
             return node.operand

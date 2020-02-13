@@ -28,15 +28,15 @@ DICT_AST_SKIPLIST = ('source_code', )
 
 def get_node(ast_struct: typing.Union[typing.Dict, python_ast.AST]) -> "VyperNode":
     """
-    Converts an AST structure to a Vyper AST node.
+    Converts an AST structure to a vyper AST node.
 
     This is a recursive call, all child nodes of the input value are also
-    converted to Vyper nodes.
+    converted to vyper nodes.
 
     Attributes
     ----------
     ast_struct: (dict, AST)
-        Annotated python AST node or Vyper AST dict to generate the node from.
+        Annotated python AST node or vyper AST dict to generate the node from.
 
     Returns
     -------
@@ -73,7 +73,7 @@ class VyperNode:
     """
     Base class for all vyper AST nodes.
 
-    Vyper nodes are generated from, and closely resemble, their Python counterparts.
+    Vyper nodes are generated from, and closely resemble, their python counterparts.
 
     Attributes
     ----------
@@ -81,11 +81,11 @@ class VyperNode:
         Allowed field names for the node.
     _only_empty_fields : Tuple
         Field names that, if present, must be set to None or a SyntaxException is
-        raised. This attribute is used to exclude syntax that is valid in Python
+        raised. This attribute is used to exclude syntax that is valid in python
         but not in vyper.
     _translated_fields:
         Field names that should be reassigned if encountered. Used to normalize
-        fields across different Python versions.
+        fields across different python versions.
     """
     __slots__ = BASE_NODE_ATTRIBUTES
     _only_empty_fields: typing.Tuple = ()
@@ -103,6 +103,7 @@ class VyperNode:
         **kwargs : dict
             Dictionary of fields to be included within the node.
         """
+
         for field_name, value in kwargs.items():
             if field_name in self._translated_fields:
                 field_name = self._translated_fields[field_name]
