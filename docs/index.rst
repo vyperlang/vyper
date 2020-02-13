@@ -51,6 +51,7 @@ Glossary
     constants-and-vars.rst
     logging.rst
     compiling-a-contract.rst
+    compiler-exceptions.rst
     deploying-contracts.rst
     testing-contracts.rst
     frequently-asked-questions.rst
