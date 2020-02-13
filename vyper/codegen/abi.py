@@ -342,7 +342,8 @@ def o_list(lll_node, pos=None):
 def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
     parent_abi_t = abi_type_of(lll_node.typ)
     size_bound = parent_abi_t.static_size() + parent_abi_t.dynamic_size_bound()
-    if bufsz is not None and bufsz < 32 * size_bound:
+
+    if bufsz is not None and bufsz < size_bound:
         raise CompilerPanic('buffer provided to abi_encode not large enough')
 
     lll_ret = ['seq']
