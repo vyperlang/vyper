@@ -291,6 +291,7 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
                 raise TypeMismatch(
                     f"Expecting a static index; cannot access element {key}", pos
                 )
+            subtype = typ.members[key]
             attrs = list(range(len(typ.members)))
             index = key
             annotation = None
