@@ -14,6 +14,8 @@ from vyper.utils import (
 )
 
 BASE_NODE_ATTRIBUTES = (
+    '_children',
+    '_parent',
     'ast_type',
     'col_offset',
     'end_col_offset',
@@ -26,7 +28,10 @@ BASE_NODE_ATTRIBUTES = (
 DICT_AST_SKIPLIST = ('source_code', )
 
 
-def get_node(ast_struct: typing.Union[typing.Dict, python_ast.AST]) -> "VyperNode":
+def get_node(
+    ast_struct: typing.Union[typing.Dict, python_ast.AST],
+    parent: typing.Optional["VyperNode"] = None
+) -> "VyperNode":
     """
     Converts an AST structure to a vyper AST node.
 
@@ -37,6 +42,8 @@ def get_node(ast_struct: typing.Union[typing.Dict, python_ast.AST]) -> "VyperNod
     ----------
     ast_struct: (dict, AST)
         Annotated python AST node or vyper AST dict to generate the node from.
+    parent: VyperNode, optional
+        Parent node of the node being created.
 
     Returns
     -------
@@ -54,12 +61,12 @@ def get_node(ast_struct: typing.Union[typing.Dict, python_ast.AST]) -> "VyperNod
             ast_struct
         )
 
-    return vy_class(**ast_struct)
+    return vy_class(parent=parent, **ast_struct)
 
 
-def _to_node(value):
+def _to_node(value, parent):
     if isinstance(value, (dict, python_ast.AST)):
-        return get_node(value)
+        return get_node(value, parent)
     return value
 
 
@@ -91,7 +98,7 @@ class VyperNode:
     _only_empty_fields: typing.Tuple = ()
     _translated_fields: typing.Dict = {}
 
-    def __init__(self, **kwargs):
+    def __init__(self, parent: typing.Optional["VyperNode"] = None, **kwargs):
         """
         AST node initializer method.
 
@@ -100,9 +107,13 @@ class VyperNode:
 
         Parameters
         ----------
+        parent: VyperNode, optional
+            Node which contains this node.
         **kwargs : dict
             Dictionary of fields to be included within the node.
         """
+        self._parent = parent
+        self._children = set()
 
         for field_name, value in kwargs.items():
             if field_name in self._translated_fields:
@@ -110,9 +121,9 @@ class VyperNode:
 
             if field_name in self.get_slots():
                 if isinstance(value, list):
-                    value = [_to_node(i) for i in value]
+                    value = [_to_node(i, self) for i in value]
                 else:
-                    value = _to_node(value)
+                    value = _to_node(value, self)
                 setattr(self, field_name, value)
 
             elif value and field_name in self._only_empty_fields:
@@ -120,6 +131,14 @@ class VyperNode:
                     f'Unsupported non-empty value (valid in Python, but invalid in Vyper) \n'
                     f' field_name: {field_name}, class: {type(self)} value: {value}'
                 )
+
+        # add to children of parent last to ensure an accurate hash is generated
+        if parent is not None:
+            parent._children.add(self)
+
+    def __hash__(self):
+        values = [getattr(self, i, None) for i in BASE_NODE_ATTRIBUTES if not i.startswith('_')]
+        return hash(tuple(values))
 
     def __eq__(self, other):
         if not isinstance(other, type(self)):
@@ -148,7 +167,8 @@ class VyperNode:
         """
         Returns a set of field names for this node.
         """
-        return set(x for i in cls.__mro__ for x in getattr(i, '__slots__', []))
+        slot_fields = [x for i in cls.__mro__ for x in getattr(i, '__slots__', [])]
+        return set(i for i in slot_fields if not i.startswith('_'))
 
     def to_dict(self) -> typing.Dict:
         """
