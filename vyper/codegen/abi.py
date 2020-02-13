@@ -348,6 +348,8 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
     if bufsz is not None and bufsz < size_bound:
         raise CompilerPanic('buffer provided to abi_encode not large enough')
 
+    # TODO reject dst where location is not memory
+
     lll_ret = ['seq']
     dyn_ofst = 'dyn_ofst'  # current offset in the dynamic section
     dst_begin = 'dst'      # pointer to beginning of buffer
