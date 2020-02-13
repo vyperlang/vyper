@@ -141,7 +141,7 @@ compiling a ``vyper`` file for deployment on the Ethereum Virtual Machine.
     This function is invalid because ``msg.sender`` cannot be accessed inside of a private function.
 
     .. code-block:: bash
-    
+
         vyper.exceptions.ParserException: line 3:21 msg.sender not allowed in private functions.
              2 @private
         ---> 3 def foo(a: address = msg.sender): pass
@@ -194,7 +194,7 @@ compiling a ``vyper`` file for deployment on the Ethereum Virtual Machine.
 
     .. code-block:: bash
 
-    $   vyper blind_auction.vy
+            $ vyper blind_auction.vy
             vyper.exceptions.PythonSyntaxException: line 4:20 SyntaxError: invalid syntax
                  3 struct Bid:
             ---> 4   blindedBid bytes32
