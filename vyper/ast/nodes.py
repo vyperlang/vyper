@@ -167,6 +167,18 @@ class VyperNode:
 class Module(VyperNode):
     __slots__ = ('body', )
 
+    def __getitem__(self, key):
+        return self.body[key]
+
+    def __iter__(self):
+        return iter(self.body)
+
+    def __len__(self):
+        return len(self.body)
+
+    def __contains__(self, obj):
+        return obj in self.body
+
 
 class Name(VyperNode):
     __slots__ = ('id', )

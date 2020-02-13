@@ -20,5 +20,5 @@ def generate_inline_function(code, variables, memory_allocator):
         memory_allocator=memory_allocator,
         origcode=code
     )
-    generated_lll = parse_body(ast_code, new_context)
+    generated_lll = parse_body(ast_code.body, new_context)
     return new_context, generated_lll

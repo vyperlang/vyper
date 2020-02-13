@@ -21,7 +21,7 @@ from vyper.exceptions import (
 )
 
 
-def parse_to_ast(source_code: str, source_id: int = 0) -> list:
+def parse_to_ast(source_code: str, source_id: int = 0) -> vy_ast.Module:
     """
     Parses a vyper source string and generates basic vyper AST nodes.
 
@@ -48,7 +48,7 @@ def parse_to_ast(source_code: str, source_id: int = 0) -> list:
     annotate_python_ast(py_ast, source_code, class_types, source_id)
 
     # Convert to Vyper AST.
-    return vy_ast.get_node(py_ast).body  # type: ignore
+    return vy_ast.get_node(py_ast)  # type: ignore
 
 
 def ast_to_dict(ast_struct: Union[vy_ast.VyperNode, List]) -> Union[Dict, List]:
@@ -102,8 +102,4 @@ def to_python_ast(vyper_ast_node: vy_ast.VyperNode) -> python_ast.AST:
 
 def ast_to_string(vyper_ast_node: vy_ast.VyperNode) -> str:
     py_ast_node = to_python_ast(vyper_ast_node)
-    return python_ast.dump(
-        python_ast.Module(
-            body=py_ast_node
-        )
-    )
+    return python_ast.dump(py_ast_node)
