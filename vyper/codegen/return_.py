@@ -22,7 +22,6 @@ from vyper.utils import (
 from .abi import (
     abi_encode,
     abi_type_of,
-    ensure_tuple,
 )
 
 
@@ -122,21 +121,8 @@ def gen_tuple_return(stmt, context, sub):
                 typ=None,
                 valency=0)
 
-    # public return.
-    # according to the ABI, return types are ALWAYS tuples even if
-    # only one element is being returned.
-    # https://solidity.readthedocs.io/en/latest/abi-spec.html#function-selector-and-argument-encoding
-    # "and the return values v_1, ..., v_k of f are encoded as
-    #
-    #    enc((v_1, ..., v_k))
-    #    i.e. the values are combined into a tuple and encoded.
-    # "
-    # therefore, wrap it in a tuple if it's not already a tuple.
-    # (big difference between returning `(bytes,)` and `bytes`.
-    ret_ty = ensure_vyper_tuple(context.return_type)
+    ret_ty = context.return_type
     abi_typ = abi_type_of(ret_ty)
-    sub = LLLnode.from_list(sub, typ=ensure_vyper_tuple(sub.typ))
-
     abi_bytes_needed = abi_typ.static_size() + abi_typ.dynamic_size_bound()
     dst, _ = context.memory_allocator.increase_memory(abi_bytes_needed)
     func_name = context.sig.name
@@ -146,7 +132,9 @@ def gen_tuple_return(stmt, context, sub):
             annotation=f'{func_name} return buffer',
             typ=ret_ty)
 
-    encode_out = abi_encode(return_buffer, sub, pos=getpos(stmt), returns=True)
+    encode_out = abi_encode(return_buffer, sub, pos=getpos(stmt),
+            returns=True,
+            ensure_tuple=True)
     load_return_len = ['mload', MemoryPositions.FREE_VAR_SPACE]
     os = ['seq',
           ['mstore', MemoryPositions.FREE_VAR_SPACE, encode_out],

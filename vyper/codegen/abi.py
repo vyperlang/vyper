@@ -287,7 +287,7 @@ def abi_type_of(lll_typ):
 
 # there are a lot of places in the calling convention where a tuple
 # must be passed, so here's a convenience function for that.
-def ensure_tuple(abi_typ):
+def ensure_abi_tuple(abi_typ):
     if not abi_typ.is_tuple():
         return ABI_Tuple([abi_typ])
     return abi_typ
@@ -339,10 +339,28 @@ def o_list(lll_node, pos=None):
 # performance note: takes O(n^2) compilation time
 # where n is depth of data type, could be optimized but unlikely
 # that users will provide deeply nested data.
-# (returns param: whether or not to push a stack item with the runtime
-#   length of the encoded data)
-def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
+# params
+#   `returns`: whether or not to exit the routine pushing a stack item
+#     with the runtime length of the encoded data)
+#   `ensure_tuple`: whether or not to make sure the data is wrapped in a
+#     tuple
+def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False, ensure_tuple=False):
     parent_abi_t = abi_type_of(lll_node.typ)
+
+    if ensure_tuple:
+    # this is a special branch for public calling convention.
+    # according to the ABI, return types are ALWAYS tuples even if
+    # only one element is being returned.
+    # https://solidity.readthedocs.io/en/latest/abi-spec.html#function-selector-and-argument-encoding
+    # "and the return values v_1, ..., v_k of f are encoded as
+    #
+    #    enc((v_1, ..., v_k))
+    #    i.e. the values are combined into a tuple and encoded.
+    # "
+    # therefore, wrap it in a tuple if it's not already a tuple.
+    # (big difference between returning `(bytes,)` and `bytes`.
+        parent_abi_t = ensure_abi_tuple(parent_abi_t)
+
     size_bound = parent_abi_t.static_size() + parent_abi_t.dynamic_size_bound()
 
     if bufsz is not None and bufsz < size_bound:
