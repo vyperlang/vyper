@@ -15,6 +15,7 @@ from vyper.utils import (
 
 BASE_NODE_ATTRIBUTES = (
     '_children',
+    '_enclosing_scope',
     '_parent',
     'ast_type',
     'col_offset',
@@ -99,7 +100,11 @@ class VyperNode:
     _only_empty_fields: typing.Tuple = ()
     _translated_fields: typing.Dict = {}
 
+<<<<<<< HEAD
     def __init__(self, parent: typing.Optional["VyperNode"] = None, **kwargs: dict):
+=======
+    def __init__(self, parent: typing.Optional["VyperNode"] = None, **kwargs: typing.Dict):
+>>>>>>> cbe2b30b... add enclosing_scope member to nodes
         """
         AST node initializer method.
 
@@ -184,6 +189,22 @@ class VyperNode:
                 ast_dict[key] = _to_dict(value)
         return ast_dict
 
+    @property
+    def enclosing_scope(self) -> str:
+        """
+        The name of the enclosing scope for this node.
+
+        If this node is contained within a function, the returned value is
+        the name of that function. Otherwise, the returned value is "global".
+        """
+        node = self._parent
+        while True:
+            if node is None:
+                return "global"
+            if hasattr(node, '_enclosing_scope'):
+                return node._enclosing_scope  # type: ignore
+            node = node._parent
+
 
 class Module(VyperNode):
     __slots__ = ('body', )
@@ -223,6 +244,10 @@ class Tuple(VyperNode):
 
 class FunctionDef(VyperNode):
     __slots__ = ('args', 'body', 'returns', 'name', 'decorator_list', 'pos')
+
+    def __init__(self, **kwargs):
+        self._enclosing_scope = kwargs['name']
+        super().__init__(**kwargs)
 
 
 class arguments(VyperNode):
