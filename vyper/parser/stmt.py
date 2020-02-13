@@ -806,10 +806,8 @@ class Stmt(object):
                     self.stmt.value,
                 )
 
-            if sub.location in ('storage', 'memory'):
-                return gen_tuple_return(self.stmt, self.context, sub)
-            else:
-                raise Exception(f"Invalid location: {sub.location}")
+            #if sub.location in ('storage', 'memory'):
+            return gen_tuple_return(self.stmt, self.context, sub)
 
         elif isinstance(sub.typ, ListType):
             loop_memory_position = self.context.new_placeholder(typ=BaseType('uint256'))

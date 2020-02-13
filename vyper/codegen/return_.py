@@ -44,9 +44,9 @@ def make_return_stmt(stmt, context, begin_pos, _size, loop_memory_position=None)
         # in reverse order so it can be popped of in order.
         if isinstance(begin_pos, int) and isinstance(_size, int):
             # static values, unroll the mloads instead.
-            mloads = [
-                ['mload', pos] for pos in range(begin_pos, begin_pos + _size, 32)
-            ]
+            mloads = [ ['mload', pos]
+                    for pos in range(begin_pos, begin_pos + _size, 32) ]
+            mloads = list(reversed(mloads))
             return ['seq_unchecked'] + mloads + nonreentrant_post + \
                 [['jump', ['mload', context.callback_ptr]]]
         else:
@@ -110,7 +110,6 @@ def gen_tuple_return(stmt, context, sub):
         dst = LLLnode(mem_pos, location='memory', typ=context.return_type)
         os = ['seq',
               make_setter(dst, sub, 'memory', pos=getpos(stmt)),
-              LLLnode.from_list('pass', annotation='HEY'),
               make_return_stmt(stmt, context, mem_pos, mem_size)]
         return LLLnode.from_list(os,
                 pos=getpos(stmt),
