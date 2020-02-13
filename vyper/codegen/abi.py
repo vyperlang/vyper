@@ -412,7 +412,7 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
     lll_ret = ['with', dst_begin, dst,
                ['with', dst_loc, dst_begin, lll_ret]]
 
-    return LLLnode.from_list(lll_ret)
+    return LLLnode.from_list(lll_ret, annotation=f'ABI encode {dst.typ}')
 
 
 # lll_node is the destination LLL item, src is the input buffer.
