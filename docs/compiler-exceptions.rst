@@ -69,16 +69,16 @@ compiling a ``vyper`` file for deployment on the Ethereum Virtual Machine.
     ``FunctionDeclarationException`` happens when a function name is used for two different functions or when a reserved word 
     is used to name a function.
 
-.. code-block:: bash
+    .. code-block:: bash
 
-    $ vyper blind_auction.vy
-    Error compiling: blind_auction.vy
-    /usr/lib/python3/dist-packages/apport/report.py:13: DeprecationWarning: the imp module is deprecated in favour of             importlib; see the module's documentation for alternative uses
-    import fnmatch, glob, traceback, errno, sys, atexit, locale, imp
-    vyper.exceptions.FunctionDeclarationException: Function name shadowing a variable name: pendingReturns
+        $ vyper blind_auction.vy
+        Error compiling: blind_auction.vy
+        /usr/lib/python3/dist-packages/apport/report.py:13: DeprecationWarning: the imp module is deprecated in favour of             importlib; see the module's documentation for alternative uses
+        import fnmatch, glob, traceback, errno, sys, atexit, locale, imp
+        vyper.exceptions.FunctionDeclarationException: Function name shadowing a variable name: pendingReturns
 
-The warning generated in the terminal does not specify any line numbers.  ``pendingReturns`` is named as the identifier
-used incorrectly to declare the function throwing the error.  
+    The warning generated in the terminal does not specify any line numbers.  ``pendingReturns`` is named as the identifier
+    used incorrectly to declare the function throwing the error.  
 
 .. py:exception:: InvalidLiteralException
 
@@ -189,30 +189,30 @@ used incorrectly to declare the function throwing the error.
 
     .. code-block:: bash
 
-    $ vyper blind_auction.vy
-        vyper.exceptions.PythonSyntaxException: line 4:20 SyntaxError: invalid syntax
-             3 struct Bid:
-        ---> 4   blindedBid bytes32
-        ---------------------------^
-             5   deposit: wei_value
+    $   vyper blind_auction.vy
+            vyper.exceptions.PythonSyntaxException: line 4:20 SyntaxError: invalid syntax
+                 3 struct Bid:
+            ---> 4   blindedBid bytes32
+            ---------------------------^
+                 5   deposit: wei_value
 
     The terminal output of a syntax error will generally show exactly where it happened.  In this case there is a semi
     colon missing after ``blindedBid`` in the declaration of the struct.
 
 .. py:exception:: TypeMismatchException
 
-.. code-block:: python3
+    .. code-block:: python3
 
-    @public
-    def foo():
-    a: uint256 = 42
-    b: bytes32 = a
-    vyper.exceptions.TypeMismatchException: line 4:4 Invalid type, expected: bytes32
-         3     a: uint256 = 1
-    ---> 4     b: bytes32 = a
-    -----------^
+        @public
+        def foo():
+        a: uint256 = 42
+        b: bytes32 = a
+        vyper.exceptions.TypeMismatchException: line 4:4 Invalid type, expected: bytes32
+             3     a: uint256 = 1
+        ---> 4     b: bytes32 = a
+        -----------^
 
-This exception occurs when a variable is assigned a value that is inconsistent with the type.  ``bytes32`` is the declaration of an array but only contains the single value of a character.
+    This exception occurs when a variable is assigned a value that is inconsistent with the type.  ``b`` has been set as type ``bytes32`` but the assignment is to ``a`` which is ``uint256``.
 
 
 .. py:exception:: VariableDeclarationException
@@ -268,7 +268,8 @@ CompilerPanic
 
         $ vyper v.vy 
         Error compiling: v.vy
-        vyper.exceptions.CompilerPanic: Number of times repeated must be a constant nonzero positive integer: 0 Please create an     issue.
+        vyper.exceptions.CompilerPanic: Number of times repeated
+        must be a constant nonzero positive integer: 0 Please create an issue.
 
     A compiler panic error indicates that there is a problem internally to the compiler and an issue should be reported right 
     away on the Vyper Github page.  Open an issue if you are experiencing this error. Please `Open an Issue <https://github.com/vyperlang/vyper/issues>`_
