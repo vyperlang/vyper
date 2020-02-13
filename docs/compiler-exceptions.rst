@@ -137,6 +137,11 @@ compiling a ``vyper`` file for deployment on the Ethereum Virtual Machine.
         @private
         def foo(a: address = msg.sender):
             pass
+
+    This function is invalid because ``msg.sender`` cannot be accessed inside of a private function.
+
+    .. code-block:: bash
+    
         vyper.exceptions.ParserException: line 3:21 msg.sender not allowed in private functions.
              2 @private
         ---> 3 def foo(a: address = msg.sender): pass
@@ -207,12 +212,17 @@ compiling a ``vyper`` file for deployment on the Ethereum Virtual Machine.
         def foo():
         a: uint256 = 42
         b: bytes32 = a
+
+    This exception occurs when a variable is assigned a value that is inconsistent with the type. 
+
+    .. code-block:: bash
+
         vyper.exceptions.TypeMismatchException: line 4:4 Invalid type, expected: bytes32
              3     a: uint256 = 1
         ---> 4     b: bytes32 = a
         -----------^
 
-    This exception occurs when a variable is assigned a value that is inconsistent with the type.  ``b`` has been set as type ``bytes32`` but the assignment is to ``a`` which is ``uint256``.
+    ``b`` has been set as type ``bytes32`` but the assignment is to ``a`` which is ``uint256``.
 
 
 .. py:exception:: VariableDeclarationException
