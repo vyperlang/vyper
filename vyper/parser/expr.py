@@ -511,7 +511,8 @@ class Expr(object):
                 )
 
             num = vy_ast.Num(n=val)
-            num.source_code = self.expr.source_code
+            num.full_source_code = self.expr.full_source_code
+            num.node_source_code = self.expr.node_source_code
             num.lineno = self.expr.lineno
             num.col_offset = self.expr.col_offset
             num.end_lineno = self.expr.end_lineno

@@ -33,7 +33,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
     def generic_visit(self, node):
         # Decorate every node with the original source code to allow pretty-printing errors
-        node.source_code = self._source_code
+        node.full_source_code = self._source_code
         node.node_id = self.counter
         node.ast_type = node.__class__.__name__
         self.counter += 1
@@ -51,6 +51,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             start_pos = node.first_token.startpos
             end_pos = node.last_token.endpos
             node.src = f"{start_pos}:{end_pos-start_pos}:{self._source_id}"
+            node.node_source_code = self._source_code[start_pos:end_pos]
 
         return super().generic_visit(node)
 

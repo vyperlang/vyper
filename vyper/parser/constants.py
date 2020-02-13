@@ -43,7 +43,7 @@ class Constants(object):
             Context(
                 vars=None,
                 global_ctx=global_ctx,
-                origcode=const.source_code,
+                origcode=const.full_source_code,
                 memory_allocator=MemoryAllocator()
             ),
         )

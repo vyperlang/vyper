@@ -20,12 +20,13 @@ BASE_NODE_ATTRIBUTES = (
     'col_offset',
     'end_col_offset',
     'end_lineno',
+    'full_source_code',
     'lineno',
     'node_id',
-    'source_code',
+    'node_source_code',
     'src',
 )
-DICT_AST_SKIPLIST = ('source_code', )
+DICT_AST_SKIPLIST = ('full_source_code', 'node_source_code')
 
 
 def get_node(
@@ -153,7 +154,7 @@ class VyperNode:
         class_repr = f'{cls.__module__}.{cls.__qualname__}'
 
         source_annotation = annotate_source_code(
-            self.source_code,
+            self.full_source_code,
             self.lineno,
             self.col_offset,
             context_lines=VYPER_ERROR_CONTEXT_LINES,
