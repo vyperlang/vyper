@@ -118,11 +118,7 @@ class VyperNode:
     _only_empty_fields: typing.Tuple = ()
     _translated_fields: typing.Dict = {}
 
-<<<<<<< HEAD
     def __init__(self, parent: typing.Optional["VyperNode"] = None, **kwargs: dict):
-=======
-    def __init__(self, parent: typing.Optional["VyperNode"] = None, **kwargs: typing.Dict):
->>>>>>> cbe2b30b... add enclosing_scope member to nodes
         """
         AST node initializer method.
 
@@ -305,6 +301,22 @@ class Module(VyperNode):
         return obj in self.body
 
 
+class Definition(VyperNode):
+    __slots__ = ()
+
+    def __init__(self, **kwargs):
+        self._enclosing_scope = kwargs['name']
+        super().__init__(**kwargs)
+
+
+class FunctionDef(Definition):
+    __slots__ = ('args', 'body', 'returns', 'name', 'decorator_list', 'pos')
+
+
+class ClassDef(Definition):
+    __slots__ = ('class_type', 'name', 'body')
+
+
 class Name(VyperNode):
     __slots__ = ('id', )
 
@@ -323,14 +335,6 @@ class arg(VyperNode):
 
 class Tuple(VyperNode):
     __slots__ = ('elts', )
-
-
-class FunctionDef(VyperNode):
-    __slots__ = ('args', 'body', 'returns', 'name', 'decorator_list', 'pos')
-
-    def __init__(self, **kwargs):
-        self._enclosing_scope = kwargs['name']
-        super().__init__(**kwargs)
 
 
 class arguments(VyperNode):
@@ -552,10 +556,6 @@ class Delete(VyperNode):
 
 class stmt(VyperNode):
     __slots__ = ()
-
-
-class ClassDef(VyperNode):
-    __slots__ = ('class_type', 'name', 'body')
 
 
 class Raise(VyperNode):
