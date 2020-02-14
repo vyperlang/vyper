@@ -99,7 +99,7 @@ class VyperNode:
     _only_empty_fields: typing.Tuple = ()
     _translated_fields: typing.Dict = {}
 
-    def __init__(self, parent: typing.Optional["VyperNode"] = None, **kwargs):
+    def __init__(self, parent: typing.Optional["VyperNode"] = None, **kwargs: dict):
         """
         AST node initializer method.
 
@@ -114,7 +114,7 @@ class VyperNode:
             Dictionary of fields to be included within the node.
         """
         self._parent = parent
-        self._children = set()
+        self._children: set = set()
 
         for field_name, value in kwargs.items():
             if field_name in self._translated_fields:
