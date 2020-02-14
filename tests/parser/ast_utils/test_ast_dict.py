@@ -45,7 +45,7 @@ def test_basic_ast():
 a: int128
     """
     dict_out = compiler.compile_code(code, ['ast_dict'])
-    assert dict_out['ast_dict']['ast'][0] == {
+    assert dict_out['ast_dict']['ast']['body'][0] == {
       'annotation': {
         'ast_type': 'Name',
         'col_offset': 3,

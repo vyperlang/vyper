@@ -1,6 +1,5 @@
-from itertools import (
-    chain,
-)
+import ast as python_ast
+import sys
 import typing
 
 from vyper.exceptions import (
@@ -15,34 +14,108 @@ from vyper.utils import (
 )
 
 BASE_NODE_ATTRIBUTES = (
-    'node_id',
-    'source_code',
+    'ast_type',
     'col_offset',
-    'lineno',
     'end_col_offset',
     'end_lineno',
-    'src'
+    'lineno',
+    'node_id',
+    'source_code',
+    'src',
 )
+DICT_AST_SKIPLIST = ('source_code', )
+
+
+def get_node(ast_struct: typing.Union[typing.Dict, python_ast.AST]) -> "VyperNode":
+    """
+    Converts an AST structure to a vyper AST node.
+
+    This is a recursive call, all child nodes of the input value are also
+    converted to vyper nodes.
+
+    Attributes
+    ----------
+    ast_struct: (dict, AST)
+        Annotated python AST node or vyper AST dict to generate the node from.
+
+    Returns
+    -------
+    VyperNode
+        The generated AST object.
+    """
+    if not isinstance(ast_struct, dict):
+        ast_struct = ast_struct.__dict__
+
+    vy_class = getattr(sys.modules[__name__], ast_struct['ast_type'], None)
+
+    if vy_class is None:
+        raise SyntaxException(
+            f"Invalid syntax (unsupported '{ast_struct['ast_type']}'' Python AST node).",
+            ast_struct
+        )
+
+    return vy_class(**ast_struct)
+
+
+def _to_node(value):
+    if isinstance(value, (dict, python_ast.AST)):
+        return get_node(value)
+    return value
+
+
+def _to_dict(value):
+    if isinstance(value, VyperNode):
+        return value.to_dict()
+    return value
 
 
 class VyperNode:
-    __slots__ = BASE_NODE_ATTRIBUTES
-    ignored_fields: typing.Tuple = ('ctx', )
-    only_empty_fields: typing.Tuple = ()
+    """
+    Base class for all vyper AST nodes.
 
-    @classmethod
-    def get_slots(cls):
-        return set(chain.from_iterable(
-            getattr(klass, '__slots__', [])
-            for klass in cls.__class__.mro(cls)
-        ))
+    Vyper nodes are generated from, and closely resemble, their python counterparts.
+
+    Attributes
+    ----------
+    __slots__ : Tuple
+        Allowed field names for the node.
+    _only_empty_fields : Tuple
+        Field names that, if present, must be set to None or a SyntaxException is
+        raised. This attribute is used to exclude syntax that is valid in python
+        but not in vyper.
+    _translated_fields:
+        Field names that should be reassigned if encountered. Used to normalize
+        fields across different python versions.
+    """
+    __slots__ = BASE_NODE_ATTRIBUTES
+    _only_empty_fields: typing.Tuple = ()
+    _translated_fields: typing.Dict = {}
 
     def __init__(self, **kwargs):
+        """
+        AST node initializer method.
+
+        Node objects are not typically instantiated directly, you should instead
+        create them using the get_node() method.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Dictionary of fields to be included within the node.
+        """
 
         for field_name, value in kwargs.items():
+            if field_name in self._translated_fields:
+                field_name = self._translated_fields[field_name]
+
             if field_name in self.get_slots():
+                if isinstance(value, list):
+                    value = [_to_node(i) for i in value]
+                else:
+                    value = _to_node(value)
                 setattr(self, field_name, value)
-            elif value:
+
+            elif value and field_name in self._only_empty_fields:
                 raise SyntaxException(
                     f'Unsupported non-empty value (valid in Python, but invalid in Vyper) \n'
                     f' field_name: {field_name}, class: {type(self)} value: {value}'
@@ -70,9 +143,41 @@ class VyperNode:
 
         return f'{class_repr}:\n{source_annotation}'
 
+    @classmethod
+    def get_slots(cls) -> typing.Set:
+        """
+        Returns a set of field names for this node.
+        """
+        return set(x for i in cls.__mro__ for x in getattr(i, '__slots__', []))
+
+    def to_dict(self) -> typing.Dict:
+        """
+        Returns the node as a dict. All child nodes are also converted.
+        """
+        ast_dict = {}
+        for key in [i for i in self.get_slots() if i not in DICT_AST_SKIPLIST]:
+            value = getattr(self, key, None)
+            if isinstance(value, list):
+                ast_dict[key] = [_to_dict(i) for i in value]
+            else:
+                ast_dict[key] = _to_dict(value)
+        return ast_dict
+
 
 class Module(VyperNode):
     __slots__ = ('body', )
+
+    def __getitem__(self, key):
+        return self.body[key]
+
+    def __iter__(self):
+        return iter(self.body)
+
+    def __len__(self):
+        return len(self.body)
+
+    def __contains__(self, obj):
+        return obj in self.body
 
 
 class Name(VyperNode):
@@ -101,7 +206,7 @@ class FunctionDef(VyperNode):
 
 class arguments(VyperNode):
     __slots__ = ('args', 'defaults', 'default')
-    only_empty_fields = ('vararg', 'kwonlyargs', 'kwarg', 'kw_defaults')
+    _only_empty_fields = ('vararg', 'kwonlyargs', 'kwarg', 'kw_defaults')
 
 
 class Import(VyperNode):
@@ -118,6 +223,7 @@ class keyword(VyperNode):
 
 class Str(VyperNode):
     __slots__ = ('s', )
+    _translated_fields = {'value': 's'}
 
 
 class Compare(VyperNode):
@@ -126,6 +232,7 @@ class Compare(VyperNode):
 
 class Num(VyperNode):
     __slots__ = ('n', )
+    _translated_fields = {'value': 'n'}
 
 
 class NameConstant(VyperNode):
@@ -162,6 +269,7 @@ class Dict(VyperNode):
 
 class Bytes(VyperNode):
     __slots__ = ('s', )
+    _translated_fields = {'value': 's'}
 
 
 class Add(VyperNode):
@@ -262,7 +370,7 @@ class Assert(VyperNode):
 
 class For(VyperNode):
     __slots__ = ('iter', 'target', 'body')
-    only_empty_fields = ('orelse', )
+    _only_empty_fields = ('orelse', )
 
 
 class AugAssign(VyperNode):
@@ -298,7 +406,7 @@ class Raise(VyperNode):
 
 
 class Slice(VyperNode):
-    only_empty_fields = ('lower', )
+    _only_empty_fields = ('lower', )
 
 
 class alias(VyperNode):

@@ -16,6 +16,7 @@ from conftest import (
     get_lark_grammar,
 )
 from vyper.ast import (
+    Module,
     parse_to_ast,
 )
 
@@ -125,4 +126,4 @@ def from_grammar(start: str = "file_input") -> st.SearchStrategy[str]:
 def test_grammar_bruteforce(code):
     if utf8_encodable(code):
         tree = parse_to_ast(code + "\n")
-        assert isinstance(tree, list)
+        assert isinstance(tree, Module)
