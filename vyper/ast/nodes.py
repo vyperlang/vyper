@@ -79,6 +79,27 @@ def _to_dict(value):
     return value
 
 
+def _node_filter(node, filters):
+    # recursive equality check for VyperNode.get_children filters
+    for key, value in filters.items():
+        if isinstance(value, set):
+            if node.get(key) not in value:
+                return False
+        elif node.get(key) != value:
+            return False
+    return True
+
+
+def _sort_nodes(node_iterable):
+    def sortkey(key):
+        return float('inf') if key is None else key
+
+    return sorted(
+        node_iterable,
+        key=lambda k: (sortkey(k.lineno), sortkey(k.col_offset), k.node_id),
+    )
+
+
 class VyperNode:
     """
     Base class for all vyper AST nodes.
@@ -188,6 +209,84 @@ class VyperNode:
             else:
                 ast_dict[key] = _to_dict(value)
         return ast_dict
+
+    def get_children(self, filters: typing.Optional[dict] = None) -> list:
+        """
+        Returns direct childen of this node that match the given filter.
+
+        Parameters
+        ----------
+        filters : dict, optional
+            Dictionary of attribute names and expected values. Only nodes that
+            contain the given attributes and match the given values are returned.
+            * You can use dots within the name in order to check members of members.
+              e.g. {'annotation.func.id': "constant"}
+            * Expected values may be given as a set, in order to match a node must
+              contain the given attribute and match any one value within the set.
+              e.g. {'ast_type': {'BinOp', 'UnaryOp'}} will match both BinOp and
+                   UnaryOp nodes.
+
+        Returns
+        -------
+        list
+            Child nodes matching the filter conditions, sorted by source offset.
+        """
+        children = _sort_nodes(self._children)
+        if filters is None:
+            return children
+        return [i for i in children if _node_filter(i, filters)]
+
+    def get_all_children(self, filters: typing.Optional[dict] = None, include_self: typing.Optional[bool] = False) -> list:
+        """
+        Returns direct and indirect childen of this node that match the given filter.
+
+        Parameters
+        ----------
+        filters : dict, optional
+            Dictionary of attribute names and expected values. Only nodes that
+            contain the given attributes and match the given values are returned.
+            * You can use dots within the name in order to check members of members.
+              e.g. {'annotation.func.id': "constant"}
+            * Expected values may be given as a set, in order to match a node must
+              contain the given attribute and match any one value within the set.
+              e.g. {'ast_type': {'BinOp', 'UnaryOp'}} will match both BinOp and
+                   UnaryOp nodes.
+        include_self : bool, optional
+            If True, this node is also included in the search results if it matches
+            the given filter.
+
+        Returns
+        -------
+        list
+            Child nodes matching the filter conditions, sorted by source offset.
+        """
+
+        children = self.get_children(filters)
+        for node in self.get_children():
+            children.extend(node.get_all_children(filters))
+        if include_self and _node_filter(self, filters):
+            children.append(self)
+        return _sort_nodes(children)
+
+    def get(self, field_str: str) -> typing.Optional["VyperNode"]:
+        """
+        Recursive getter function for node attributes.
+
+        Parameters
+        ----------
+        field_str : str
+            Attribute string of the location of the node to return.
+
+        Returns
+        -------
+        VyperNode : optional
+            Value at the location of the given field string, if one
+            exists. Returns None if the field string is invalid.
+        """
+        obj = self
+        for key in field_str.split("."):
+            obj = getattr(obj, key, None)
+        return obj
 
 
 class Module(VyperNode):
