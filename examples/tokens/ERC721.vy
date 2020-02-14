@@ -106,7 +106,7 @@ def supportsInterface(_interfaceID: bytes32) -> bool:
 def balanceOf(_owner: address) -> uint256:
     """
     @dev Returns the number of NFTs owned by `_owner`.
-         Throws if `_tokenId` is not a valid NFT. NFTs assigned to the zero address are considered invalid.
+         Throws if `_owner` is the zero address. NFTs assigned to the zero address are considered invalid.
     @param _owner Address for whom to query the balance.
     """
     assert _owner != ZERO_ADDRESS
