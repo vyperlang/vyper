@@ -78,6 +78,17 @@ def _to_dict(value):
     return value
 
 
+def _node_filter(node, filters):
+    # recursive equality check for VyperNode.get_children filters
+    for key, value in filters.items():
+        obj = node
+        for k in key.split("."):
+            obj = getattr(obj, k, None)
+        if obj != value:
+            return False
+    return True
+
+
 class VyperNode:
     """
     Base class for all vyper AST nodes.
@@ -204,6 +215,28 @@ class VyperNode:
             if hasattr(node, '_enclosing_scope'):
                 return node._enclosing_scope  # type: ignore
             node = node._parent
+
+    def get_children(self, filters: typing.Optional[dict] = None) -> list:
+        """
+        Returns childen of this node that match the given filter.
+
+        Parameters
+        ----------
+        filters : dict, optional
+            Dictionary of attribute names and expected values. Only nodes that
+            contain the given attributes and match the given values are returned.
+            You can use dots within the name in order to check members of members,
+            e.g. {'annotation.func.id': "constant"}
+
+        Returns
+        -------
+        list
+            Child nodes matching the filter conditions, sorted by source offset.
+        """
+        children = sorted(self._children, key=lambda k: (k.col_offset or 0, k.lineno or 0))
+        if filters is None:
+            return children
+        return [i for i in children if _node_filter(i, filters)]
 
 
 class Module(VyperNode):
