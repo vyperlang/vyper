@@ -64,13 +64,13 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         return node
 
     def visit_Constant(self, node):
-        self.generic_visit(node)
+        # special case to handle Constant type in Python >=3.8
+        if not isinstance(node.value, bool) and isinstance(node.value, (int, float)):
+            return self.visit_Num(node)
 
-        # special case to deal with Constant type in Python >=3.8
+        self.generic_visit(node)
         if node.value is None or isinstance(node.value, bool):
             node.ast_type = "NameConstant"
-        elif isinstance(node.value, (int, float)):
-            node.ast_type = "Num"
         elif isinstance(node.value, str):
             node.ast_type = "Str"
         elif isinstance(node.value, bytes):
@@ -78,6 +78,20 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         else:
             raise SyntaxException(f"Invalid syntax (unsupported Python Constant AST node).", node)
 
+        return node
+
+    def visit_Num(self, node):
+        # modify vyper AST type according to the format of the literal value
+        self.generic_visit(node)
+        value = node.node_source_code
+
+        # deduce non base-10 types based on prefix
+        literal_prefixes = {'0x': "Hex", '0b': "Binary", '0o': "Octal"}
+        if value.lower()[:2] in literal_prefixes:
+            node.ast_type = literal_prefixes[value.lower()[:2]]
+            return node
+
+        node.ast_type = "Decimal" if isinstance(node.n, float) else "Int"
         return node
 
     def visit_UnaryOp(self, node):

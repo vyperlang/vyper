@@ -251,9 +251,24 @@ class Compare(VyperNode):
     __slots__ = ('comparators', 'ops', 'left', 'right')
 
 
-class Num(VyperNode):
+class Int(VyperNode):
     __slots__ = ('n', )
-    _translated_fields = {'value': 'n'}
+
+
+class Decimal(VyperNode):
+    __slots__ = ('n', )
+
+
+class Hex(VyperNode):
+    __slots__ = ('value', )
+
+
+class Binary(VyperNode):
+    __slots__ = ('value', )
+
+
+class Octal(VyperNode):
+    __slots__ = ('value', )
 
 
 class NameConstant(VyperNode):
