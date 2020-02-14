@@ -29,7 +29,6 @@ from vyper.parser.lll_node import (
 from vyper.parser.parser_utils import (
     add_variable_offset,
     get_number_as_fraction,
-    get_original_if_0_prefixed,
     getpos,
     make_setter,
     unwrap_location,
@@ -96,7 +95,10 @@ class Expr(object):
         self.context = context
         self.expr_table = {
             LLLnode: self.get_expr,
-            vy_ast.Num: self.number,
+            vy_ast.Int: self.integer,
+            vy_ast.Decimal: self.decimal,
+            vy_ast.Binary: self.binary,
+            vy_ast.Hex: self.hexstring,
             vy_ast.Str: self.string,
             vy_ast.NameConstant: self.constants,
             vy_ast.Name: self.variables,
@@ -121,74 +123,74 @@ class Expr(object):
     def get_expr(self):
         return self.expr
 
-    def number(self):
-        orignum = get_original_if_0_prefixed(self.expr, self.context)
-
-        if orignum is None and isinstance(self.expr.n, int):
-            # Literal (mostly likely) becomes int128
-            if SizeLimits.in_bounds('int128', self.expr.n) or self.expr.n < 0:
-                return LLLnode.from_list(
-                    self.expr.n,
-                    typ=BaseType('int128', unit={}, is_literal=True),
-                    pos=getpos(self.expr),
-                )
-            # Literal is large enough (mostly likely) becomes uint256.
-            else:
-                return LLLnode.from_list(
-                    self.expr.n,
-                    typ=BaseType('uint256', unit={}, is_literal=True),
-                    pos=getpos(self.expr),
-                )
-
-        elif isinstance(self.expr.n, float):
-            numstring, num, den = get_number_as_fraction(self.expr, self.context)
-            # if not SizeLimits.in_bounds('decimal', num // den):
-            # if not SizeLimits.MINDECIMAL * den <= num <= SizeLimits.MAXDECIMAL * den:
-            if not (SizeLimits.MINNUM * den < num < SizeLimits.MAXNUM * den):
-                raise InvalidLiteralException("Number out of range: " + numstring, self.expr)
-            if DECIMAL_DIVISOR % den:
-                raise InvalidLiteralException(
-                    "Type 'decimal' has maximum 10 decimal places",
-                    self.expr
-                )
+    def integer(self):
+        # Literal (mostly likely) becomes int128
+        if SizeLimits.in_bounds('int128', self.expr.n) or self.expr.n < 0:
             return LLLnode.from_list(
-                num * DECIMAL_DIVISOR // den,
-                typ=BaseType('decimal', unit=None, is_literal=True),
+                self.expr.n,
+                typ=BaseType('int128', unit={}, is_literal=True),
+                pos=getpos(self.expr),
+            )
+        # Literal is large enough (mostly likely) becomes uint256.
+        else:
+            return LLLnode.from_list(
+                self.expr.n,
+                typ=BaseType('uint256', unit={}, is_literal=True),
                 pos=getpos(self.expr),
             )
 
-        # Binary literal.
-        elif orignum[:2] == '0b':
-            str_val = orignum[2:]
-            total_bits = len(orignum[2:])
-            total_bits = (
-                total_bits
-                if total_bits % 8 == 0
-                else total_bits + 8 - (total_bits % 8)  # ceil8 to get byte length.
+    def decimal(self):
+        numstring, num, den = get_number_as_fraction(self.expr, self.context)
+        # if not SizeLimits.in_bounds('decimal', num // den):
+        # if not SizeLimits.MINDECIMAL * den <= num <= SizeLimits.MAXDECIMAL * den:
+        if not (SizeLimits.MINNUM * den < num < SizeLimits.MAXNUM * den):
+            raise InvalidLiteralException("Number out of range: " + numstring, self.expr)
+        if DECIMAL_DIVISOR % den:
+            raise InvalidLiteralException(
+                "Type 'decimal' has maximum 10 decimal places",
+                self.expr
             )
-            if len(orignum[2:]) != total_bits:  # Support only full formed bit definitions.
-                raise InvalidLiteralException(
-                    f"Bit notation requires a multiple of 8 bits / 1 byte. "
-                    f"{total_bits - len(orignum[2:])} bit(s) are missing.",
-                    self.expr,
-                )
-            byte_len = int(total_bits / 8)
-            placeholder = self.context.new_placeholder(ByteArrayType(byte_len))
-            seq = []
-            seq.append(['mstore', placeholder, byte_len])
-            for i in range(0, total_bits, 256):
-                section = str_val[i:i + 256]
-                int_val = int(section, 2) << (256 - len(section))  # bytes are right padded.
-                seq.append(
-                    ['mstore', ['add', placeholder, i + 32], int_val])
-            return LLLnode.from_list(
-                ['seq'] + seq + [placeholder],
-                typ=ByteArrayType(byte_len),
-                location='memory',
-                pos=getpos(self.expr),
-                annotation=f'Create ByteArray (Binary literal): {str_val}',
+        return LLLnode.from_list(
+            num * DECIMAL_DIVISOR // den,
+            typ=BaseType('decimal', unit=None, is_literal=True),
+            pos=getpos(self.expr),
+        )
+
+    def binary(self):
+        orignum = self.expr.node_source_code
+        str_val = orignum[2:]
+        total_bits = len(orignum[2:])
+        total_bits = (
+            total_bits
+            if total_bits % 8 == 0
+            else total_bits + 8 - (total_bits % 8)  # ceil8 to get byte length.
+        )
+        if len(orignum[2:]) != total_bits:  # Support only full formed bit definitions.
+            raise InvalidLiteralException(
+                f"Bit notation requires a multiple of 8 bits / 1 byte. "
+                f"{total_bits - len(orignum[2:])} bit(s) are missing.",
+                self.expr,
             )
-        elif len(orignum) == 42:
+        byte_len = int(total_bits / 8)
+        placeholder = self.context.new_placeholder(ByteArrayType(byte_len))
+        seq = []
+        seq.append(['mstore', placeholder, byte_len])
+        for i in range(0, total_bits, 256):
+            section = str_val[i:i + 256]
+            int_val = int(section, 2) << (256 - len(section))  # bytes are right padded.
+            seq.append(
+                ['mstore', ['add', placeholder, i + 32], int_val])
+        return LLLnode.from_list(
+            ['seq'] + seq + [placeholder],
+            typ=ByteArrayType(byte_len),
+            location='memory',
+            pos=getpos(self.expr),
+            annotation=f'Create ByteArray (Binary literal): {str_val}',
+        )
+
+    def hexstring(self):
+        orignum = self.expr.node_source_code
+        if len(orignum) == 42:
             if checksum_encode(orignum) != orignum:
                 raise InvalidLiteralException(
                     "Address checksum mismatch. If you are sure this is the "
@@ -457,7 +459,7 @@ class Expr(object):
                 )
             index = Expr.parse_value_expr(self.expr.slice.value, self.context)
         elif isinstance(sub.typ, TupleType):
-            if not isinstance(self.expr.slice.value, vy_ast.Num) or self.expr.slice.value.n < 0 or self.expr.slice.value.n >= len(sub.typ.members):  # noqa: E501
+            if not isinstance(self.expr.slice.value, vy_ast.Int) or self.expr.slice.value.n < 0 or self.expr.slice.value.n >= len(sub.typ.members):  # noqa: E501
                 raise TypeMismatchException("Tuple index invalid", self.expr.slice.value)
             index = self.expr.slice.value.n
         else:
@@ -510,7 +512,7 @@ class Expr(object):
                     self.expr,
                 )
 
-            num = vy_ast.Num(n=val)
+            num = vy_ast.Int(n=val)
             num.full_source_code = self.expr.full_source_code
             num.node_source_code = self.expr.node_source_code
             num.lineno = self.expr.lineno
