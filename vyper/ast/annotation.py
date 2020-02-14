@@ -33,7 +33,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
     def generic_visit(self, node):
         # Decorate every node with the original source code to allow pretty-printing errors
-        node.source_code = self._source_code
+        node.full_source_code = self._source_code
         node.node_id = self.counter
         node.ast_type = node.__class__.__name__
         self.counter += 1
@@ -51,6 +51,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             start_pos = node.first_token.startpos
             end_pos = node.last_token.endpos
             node.src = f"{start_pos}:{end_pos-start_pos}:{self._source_id}"
+            node.node_source_code = self._source_code[start_pos:end_pos]
 
         return super().generic_visit(node)
 
@@ -63,13 +64,13 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         return node
 
     def visit_Constant(self, node):
-        self.generic_visit(node)
+        # special case to handle Constant type in Python >=3.8
+        if not isinstance(node.value, bool) and isinstance(node.value, (int, float)):
+            return self.visit_Num(node)
 
-        # special case to deal with Constant type in Python >=3.8
+        self.generic_visit(node)
         if node.value is None or isinstance(node.value, bool):
             node.ast_type = "NameConstant"
-        elif isinstance(node.value, (int, float)):
-            node.ast_type = "Num"
         elif isinstance(node.value, str):
             node.ast_type = "Str"
         elif isinstance(node.value, bytes):
@@ -77,6 +78,20 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         else:
             raise SyntaxException(f"Invalid syntax (unsupported Python Constant AST node).", node)
 
+        return node
+
+    def visit_Num(self, node):
+        # modify vyper AST type according to the format of the literal value
+        self.generic_visit(node)
+        value = node.node_source_code
+
+        # deduce non base-10 types based on prefix
+        literal_prefixes = {'0x': "Hex", '0b': "Binary", '0o': "Octal"}
+        if value.lower()[:2] in literal_prefixes:
+            node.ast_type = literal_prefixes[value.lower()[:2]]
+            return node
+
+        node.ast_type = "Decimal" if isinstance(node.n, float) else "Int"
         return node
 
     def visit_UnaryOp(self, node):

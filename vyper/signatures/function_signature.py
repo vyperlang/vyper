@@ -463,8 +463,7 @@ def validate_default_values(node):
         return
     if isinstance(node, vy_ast.Attribute) and node.value.id in parser.expr.ENVIRONMENT_VARIABLES:
         return
-    allowed_types = (vy_ast.Num, vy_ast.Str, vy_ast.Bytes, vy_ast.List, vy_ast.NameConstant)
-    if not isinstance(node, allowed_types):
+    if not isinstance(node, (vy_ast.Constant, vy_ast.List)):
         raise FunctionDeclarationException(
             "Default value must be a literal, built-in constant, or environment variable.",
             node

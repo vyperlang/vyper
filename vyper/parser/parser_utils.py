@@ -79,26 +79,6 @@ def get_number_as_fraction(expr, context):
     return context_slice, top, bottom
 
 
-# Is a number of decimal form (e.g. 65281) or 0x form (e.g. 0xff01) or 0b binary form (e.g. 0b0001)
-def get_original_if_0_prefixed(expr, context):
-    context_slice = context.origcode.splitlines()[expr.lineno - 1][expr.col_offset:]
-    type_prefix = context_slice[:2]
-
-    if type_prefix not in ('0x', '0b'):
-        return None
-
-    if type_prefix == '0x':
-        t = 0
-        while t + 2 < len(context_slice) and context_slice[t + 2] in '0123456789abcdefABCDEF':
-            t += 1
-        return context_slice[:t + 2]
-    elif type_prefix == '0b':
-        t = 0
-        while t + 2 < len(context_slice) and context_slice[t + 2] in '01':
-            t += 1
-        return context_slice[:t + 2]
-
-
 # Copies byte array
 def make_byte_array_copier(destination, source, pos=None):
     if not isinstance(source.typ, (ByteArrayLike, NullType)):

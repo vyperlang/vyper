@@ -46,7 +46,7 @@ def test_it_annotates_ast_with_source_code():
 
     class AssertSourceCodePresent(AssertionVisitor):
         def assert_about_node(self, node):
-            assert node.source_code is reformatted_code
+            assert node.full_source_code is reformatted_code
 
     AssertSourceCodePresent().visit(contract_ast)
 

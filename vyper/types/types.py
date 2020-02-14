@@ -287,7 +287,7 @@ def parse_unit(item, custom_units):
         if (item.id not in VALID_UNITS) and (custom_units is not None) and (item.id not in custom_units):  # noqa: E501
             raise InvalidTypeException("Invalid base unit", item)
         return {item.id: 1}
-    elif isinstance(item, vy_ast.Num) and item.n == 1:
+    elif isinstance(item, vy_ast.Int) and item.n == 1:
         return {}
     elif not isinstance(item, vy_ast.BinOp):
         raise InvalidTypeException("Invalid unit expression", item)
@@ -300,7 +300,7 @@ def parse_unit(item, custom_units):
     elif isinstance(item.op, vy_ast.Pow):
         if not isinstance(item.left, vy_ast.Name):
             raise InvalidTypeException("Can only raise a base type to an exponent", item)
-        if not isinstance(item.right, vy_ast.Num) or not isinstance(item.right.n, int) or item.right.n <= 0:  # noqa: E501
+        if not isinstance(item.right, vy_ast.Int) or not isinstance(item.right.n, int) or item.right.n <= 0:  # noqa: E501
             raise InvalidTypeException("Exponent must be positive integer", item)
         return {item.left.id: item.right.n}
     else:
@@ -428,7 +428,7 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
             )
         # Fixed size lists or bytearrays, e.g. num[100]
         is_constant_val = constants.ast_is_constant(item.slice.value)
-        if isinstance(item.slice.value, vy_ast.Num) or is_constant_val:
+        if isinstance(item.slice.value, vy_ast.Int) or is_constant_val:
             n_val = (
                 constants.get_constant(item.slice.value.id, context=None).value
                 if is_constant_val

@@ -11,9 +11,6 @@ from vyper.exceptions import (
 from vyper.parser.expr import (
     Expr,
 )
-from vyper.parser.parser_utils import (
-    get_original_if_0_prefixed,
-)
 from vyper.types import (
     BaseType,
     ByteArrayType,
@@ -42,10 +39,10 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
         if expected_arg == 'num_literal':
             if context.constants.is_constant_of_base_type(arg, ('uint256', 'int128')):
                 return context.constants.get_constant(arg.id, None).value
-            if isinstance(arg, vy_ast.Num) and get_original_if_0_prefixed(arg, context) is None:
+            if isinstance(arg, (vy_ast.Int, vy_ast.Decimal)):
                 return arg.n
         elif expected_arg == 'str_literal':
-            if isinstance(arg, vy_ast.Str) and get_original_if_0_prefixed(arg, context) is None:
+            if isinstance(arg, vy_ast.Str):
                 bytez = b''
                 for c in arg.s:
                     if ord(c) >= 256:
