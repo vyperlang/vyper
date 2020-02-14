@@ -242,37 +242,53 @@ class keyword(VyperNode):
     __slots__ = ('arg', 'value')
 
 
-class Str(VyperNode):
-    __slots__ = ('s', )
-    _translated_fields = {'value': 's'}
-
-
 class Compare(VyperNode):
     __slots__ = ('comparators', 'ops', 'left', 'right')
 
 
-class Int(VyperNode):
+class Constant(VyperNode):
+    # inherited class for all simple constant node types
+    __slots__ = ()
+
+
+class NameConstant(Constant):
+    __slots__ = ('value', )
+
+
+class Bytes(Constant):
+    __slots__ = ('s', )
+    _translated_fields = {'value': 's'}
+
+
+class Str(Constant):
+    __slots__ = ('s', )
+    _translated_fields = {'value': 's'}
+
+
+class Num(Constant):
+    # inherited class for all numeric constant node types
     __slots__ = ('n', )
+    _translated_fields = {'value': 'n'}
 
 
-class Decimal(VyperNode):
-    __slots__ = ('n', )
+class Int(Num):
+    __slots__ = ()
 
 
-class Hex(VyperNode):
-    __slots__ = ('value', )
+class Decimal(Num):
+    __slots__ = ()
 
 
-class Binary(VyperNode):
-    __slots__ = ('value', )
+class Hex(Num):
+    __slots__ = ()
 
 
-class Octal(VyperNode):
-    __slots__ = ('value', )
+class Binary(Num):
+    __slots__ = ()
 
 
-class NameConstant(VyperNode):
-    __slots__ = ('value', )
+class Octal(Num):
+    __slots__ = ()
 
 
 class Attribute(VyperNode):
@@ -280,6 +296,7 @@ class Attribute(VyperNode):
 
 
 class Op(VyperNode):
+    # inherited class for all operation node types
     __slots__ = ('op', 'left', 'right')
 
 
@@ -301,11 +318,6 @@ class List(VyperNode):
 
 class Dict(VyperNode):
     __slots__ = ('keys', 'values')
-
-
-class Bytes(VyperNode):
-    __slots__ = ('s', )
-    _translated_fields = {'value': 's'}
 
 
 class Add(VyperNode):
