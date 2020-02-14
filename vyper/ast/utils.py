@@ -85,7 +85,11 @@ def to_python_ast(vyper_ast_node: vy_ast.VyperNode) -> python_ast.AST:
             for n in vyper_ast_node
         ]
     elif isinstance(vyper_ast_node, vy_ast.VyperNode):
-        class_name = vyper_ast_node.ast_type  # type: ignore
+
+        class_name = vyper_ast_node.ast_type
+        if hasattr(vyper_ast_node, "_python_ast_type"):
+            class_name = vyper_ast_node._python_ast_type
+
         if hasattr(python_ast, class_name):
             py_klass = getattr(python_ast, class_name)
             return py_klass(**{

@@ -269,6 +269,7 @@ class Num(Constant):
     # inherited class for all numeric constant node types
     __slots__ = ('n', )
     _translated_fields = {'value': 'n'}
+    _python_ast_type = "Num"
 
 
 class Int(Num):
