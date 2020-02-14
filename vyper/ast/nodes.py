@@ -81,12 +81,19 @@ def _to_dict(value):
 def _node_filter(node, filters):
     # recursive equality check for VyperNode.get_children filters
     for key, value in filters.items():
-        obj = node
-        for k in key.split("."):
-            obj = getattr(obj, k, None)
-        if obj != value:
+        if node.get_child(key) != value:
             return False
     return True
+
+
+def _sort_nodes(node_iterable):
+    def sortkey(k):
+        return float('inf') if k is not None else k
+
+    return sorted(
+        node_iterable,
+        key=lambda k: (sortkey(k.lineno), sortkey(k.col_offset), k.node_id),
+    )
 
 
 class VyperNode:
@@ -218,7 +225,7 @@ class VyperNode:
 
     def get_children(self, filters: typing.Optional[dict] = None) -> list:
         """
-        Returns childen of this node that match the given filter.
+        Returns direct childen of this node that match the given filter.
 
         Parameters
         ----------
@@ -233,10 +240,53 @@ class VyperNode:
         list
             Child nodes matching the filter conditions, sorted by source offset.
         """
-        children = sorted(self._children, key=lambda k: (k.col_offset or 0, k.lineno or 0))
+        children = _sort_nodes(self._children)
         if filters is None:
             return children
         return [i for i in children if _node_filter(i, filters)]
+
+    def get_all_children(self, filters: typing.Optional[dict] = None) -> list:
+        """
+        Returns direct and indirect childen of this node that match the given filter.
+
+        Parameters
+        ----------
+        filters : dict, optional
+            Dictionary of attribute names and expected values. Only nodes that
+            contain the given attributes and match the given values are returned.
+            You can use dots within the name in order to check members of members,
+            e.g. {'annotation.func.id': "constant"}
+
+        Returns
+        -------
+        list
+            Child nodes matching the filter conditions, sorted by source offset.
+        """
+
+        children = self.get_children(filters)
+        for node in self.get_children():
+            children.extend(node.get_children(filters))
+        return _sort_nodes(children)
+
+    def get_child(self, field_str: str) -> typing.Optional["VyperNode"]:
+        """
+        Returns a child node.
+
+        Parameters
+        ----------
+        field_str : str
+            Attribute string of the location of the node to return.
+
+        Returns
+        -------
+        VyperNode : optional
+            Child node at the location of the given field string, if one
+            exists. Returns None if the field string is invalid.
+        """
+        obj = self
+        for key in field_str.split("."):
+            obj = getattr(obj, key, None)
+        return obj
 
 
 class Module(VyperNode):
