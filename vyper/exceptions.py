@@ -17,8 +17,8 @@ class ParserException(Exception):
             self.lineno, self.col_offset = item[:2]
         elif item and hasattr(item, 'lineno'):
             self.set_err_pos(item.lineno, item.col_offset)
-            if hasattr(item, 'source_code'):
-                self.source_code = item.source_code
+            if hasattr(item, 'full_source_code'):
+                self.source_code = item.full_source_code
 
     def set_err_pos(self, lineno, col_offset):
         if not self.lineno:
