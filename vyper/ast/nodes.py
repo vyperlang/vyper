@@ -81,7 +81,7 @@ def _to_dict(value):
 def _node_filter(node, filters):
     # recursive equality check for VyperNode.get_children filters
     for key, value in filters.items():
-        if node.get_child(key) != value:
+        if node.get(key) != value:
             return False
     return True
 
@@ -264,9 +264,9 @@ class VyperNode:
             children.extend(node.get_children(filters))
         return _sort_nodes(children)
 
-    def get_child(self, field_str: str) -> typing.Optional["VyperNode"]:
+    def get(self, field_str: str) -> typing.Optional["VyperNode"]:
         """
-        Returns a child node.
+        Recursive getter function for node attributes.
 
         Parameters
         ----------
@@ -276,7 +276,7 @@ class VyperNode:
         Returns
         -------
         VyperNode : optional
-            Child node at the location of the given field string, if one
+            Value at the location of the given field string, if one
             exists. Returns None if the field string is invalid.
         """
         obj = self
