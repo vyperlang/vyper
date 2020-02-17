@@ -241,7 +241,7 @@ class VyperNode:
             return children
         return [i for i in children if _node_filter(i, filters)]
 
-    def get_all_children(self, filters: typing.Optional[dict] = None) -> list:
+    def get_all_children(self, filters: typing.Optional[dict] = None, include_self: typing.Optional[bool] = False) -> list:
         """
         Returns direct and indirect childen of this node that match the given filter.
 
@@ -252,6 +252,9 @@ class VyperNode:
             contain the given attributes and match the given values are returned.
             You can use dots within the name in order to check members of members,
             e.g. {'annotation.func.id': "constant"}
+        include_self : bool, optional
+            If True, this node is also included in the search results if it matches
+            the given filter.
 
         Returns
         -------
@@ -261,7 +264,9 @@ class VyperNode:
 
         children = self.get_children(filters)
         for node in self.get_children():
-            children.extend(node.get_children(filters))
+            children.extend(node.get_all_children(filters))
+        if include_self and _node_filter(self, filters):
+            children.append(self)
         return _sort_nodes(children)
 
     def get(self, field_str: str) -> typing.Optional["VyperNode"]:
