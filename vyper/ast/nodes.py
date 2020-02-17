@@ -1,6 +1,9 @@
 import ast as python_ast
 import sys
-import typing
+from typing import (
+    Optional,
+    Union,
+)
 
 from vyper.exceptions import (
     SyntaxException,
@@ -31,8 +34,8 @@ DICT_AST_SKIPLIST = ('full_source_code', 'node_source_code')
 
 
 def get_node(
-    ast_struct: typing.Union[typing.Dict, python_ast.AST],
-    parent: typing.Optional["VyperNode"] = None
+    ast_struct: Union[dict, python_ast.AST],
+    parent: Optional["VyperNode"] = None
 ) -> "VyperNode":
     """
     Converts an AST structure to a vyper AST node.
@@ -115,10 +118,10 @@ class VyperNode:
         fields across different python versions.
     """
     __slots__ = BASE_NODE_ATTRIBUTES
-    _only_empty_fields: typing.Tuple = ()
-    _translated_fields: typing.Dict = {}
+    _only_empty_fields: tuple = ()
+    _translated_fields: dict = {}
 
-    def __init__(self, parent: typing.Optional["VyperNode"] = None, **kwargs: dict):
+    def __init__(self, parent: Optional["VyperNode"] = None, **kwargs: dict):
         """
         AST node initializer method.
 
@@ -183,14 +186,14 @@ class VyperNode:
         return f'{class_repr}:\n{source_annotation}'
 
     @classmethod
-    def get_slots(cls) -> typing.Set:
+    def get_slots(cls) -> set:
         """
         Returns a set of field names for this node.
         """
         slot_fields = [x for i in cls.__mro__ for x in getattr(i, '__slots__', [])]
         return set(i for i in slot_fields if not i.startswith('_'))
 
-    def to_dict(self) -> typing.Dict:
+    def to_dict(self) -> dict:
         """
         Returns the node as a dict. All child nodes are also converted.
         """
@@ -219,7 +222,7 @@ class VyperNode:
                 return node._enclosing_scope  # type: ignore
             node = node._parent
 
-    def get_children(self, filters: typing.Optional[dict] = None) -> list:
+    def get_children(self, filters: Optional[dict] = None) -> list:
         """
         Returns direct childen of this node that match the given filter.
 
@@ -241,7 +244,9 @@ class VyperNode:
             return children
         return [i for i in children if _node_filter(i, filters)]
 
-    def get_all_children(self, filters: typing.Optional[dict] = None, include_self: typing.Optional[bool] = False) -> list:
+    def get_all_children(
+        self, filters: Optional[dict] = None, include_self: Optional[bool] = False
+    ) -> list:
         """
         Returns direct and indirect childen of this node that match the given filter.
 
@@ -269,7 +274,7 @@ class VyperNode:
             children.append(self)
         return _sort_nodes(children)
 
-    def get(self, field_str: str) -> typing.Optional["VyperNode"]:
+    def get(self, field_str: str) -> Optional["VyperNode"]:
         """
         Recursive getter function for node attributes.
 
@@ -376,10 +381,18 @@ class Bytes(Constant):
     __slots__ = ('s', )
     _translated_fields = {'value': 's'}
 
+    @property
+    def value(self):
+        return self.n
+
 
 class Str(Constant):
     __slots__ = ('s', )
     _translated_fields = {'value': 's'}
+
+    @property
+    def value(self):
+        return self.n
 
 
 class Num(Constant):
@@ -387,6 +400,10 @@ class Num(Constant):
     __slots__ = ('n', )
     _translated_fields = {'value': 'n'}
     _python_ast_type = "Num"
+
+    @property
+    def value(self):
+        return self.n
 
 
 class Int(Num):
