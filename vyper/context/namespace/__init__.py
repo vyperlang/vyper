@@ -2,7 +2,7 @@
 
 from vyper.context.namespace.builtins import (
     add_builtin_units,
-    get_type_classes,
+    get_meta_types,
 )
 from vyper.context.namespace.globals import (
     add_assignments,
@@ -40,10 +40,13 @@ class Namespace(dict):
                 obj.introspect()
 
 
+# TODO - builtin > global > local
+# environment > module > method
+
 def get_builtin_namespace():
 
     namespace = Namespace()
-    namespace = get_type_classes(namespace)
+    namespace = get_meta_types(namespace)
     namespace = add_builtin_units(namespace)
     # TODO built-in functions
     # TODO reserved keywords

@@ -58,14 +58,14 @@ def add_custom_types(vy_module, namespace):
 
 def _add_imports(vy_module, namespace):
     for node in vy_module.get_children({'ast_type': "Import"}):
-        namespace[node.names[0].asname] = namespace['contract'].get_type_class(node)
+        namespace[node.names[0].asname] = namespace['contract'].get_meta_type(node)
     for node in vy_module.get_children({'ast_type': "ImportFrom"}):
-        namespace[node.names[0].name] = namespace['contract'].get_type_class(node)
+        namespace[node.names[0].name] = namespace['contract'].get_meta_type(node)
 
 
 def _add_classes(vy_module, namespace):
     for node in vy_module.get_children({'ast_type': "ClassDef"}):
-        namespace[node.name] = namespace[node.class_type].get_type_class(node)
+        namespace[node.name] = namespace[node.class_type].get_meta_type(node)
 
 
 def add_assignments(vy_module, namespace):

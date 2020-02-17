@@ -383,7 +383,7 @@ class Bytes(Constant):
 
     @property
     def value(self):
-        return self.n
+        return self.s
 
 
 class Str(Constant):
@@ -392,7 +392,7 @@ class Str(Constant):
 
     @property
     def value(self):
-        return self.n
+        return self.s
 
 
 class Num(Constant):

@@ -97,10 +97,7 @@ class BuiltinMetaType(_BaseMetaType):
             and the node argument includes a subscript, the return type will
             be ArrayType. Otherwise it will be base_type.
         """
-        if (
-            getattr(self.base_type, '_as_array', False) and
-            node.get_all_children({'ast_type': "Subscript"}, True)
-        ):
+        if getattr(self.base_type, '_as_array', False) and isinstance(node, vy_ast.Subscript):
             return ArrayType(self.namespace, node)
         return self.base_type(self.namespace, node)
 
@@ -150,7 +147,7 @@ class StructMetaType(_BaseMetaType):
                     f"Struct member '{member_name}'' has already been declared", node.target
                 )
             type_name = get_leftmost_id(node.annotation)
-            self.members[member_name] = self.namespace[type_name].get_type(node)
+            self.members[member_name] = self.namespace[type_name].get_type(node.annotation)
 
     def get_type(self, node):
         return StructType(self.namespace, node, self)
