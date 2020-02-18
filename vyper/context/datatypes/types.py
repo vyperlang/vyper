@@ -1,16 +1,25 @@
 from collections import (
     OrderedDict,
 )
+from decimal import (
+    Decimal,
+)
 from vyper import (
     ast as vy_ast,
 )
 from vyper.context.utils import (
     check_call_args,
     get_leftmost_id,
+    check_numeric_bounds,
 )
 from vyper.exceptions import (
+    CompilerPanic,
     InvalidLiteralException,
+    InvalidTypeException,
     StructureException,
+)
+from vyper.utils import (
+    checksum_encode,
 )
 
 
@@ -112,6 +121,12 @@ class ValueType(_BaseType):
             except AttributeError:
                 raise StructureException(f"Cannot apply unit to type '{self}'", self._node)
 
+    def validate_for_type(self, node):
+        if not isinstance(node, vy_ast.Constant):
+            raise CompilerPanic(f"Attempted to validate a '{node.ast_type}' node.")
+        if not isinstance(node, self._valid_node):
+            raise InvalidTypeException(f"Invalid literal type for '{self._id}'", node)
+
 
 class NumericType(ValueType):
 
@@ -174,43 +189,96 @@ class BoolType(ValueType):
     __slots__ = ()
     _id = "bool"
     _as_array = True
+    _valid_node = vy_ast.NameConstant
+
+    def validate_for_type(self, node):
+        super().validate_for_type(node)
+        if node.value is None:
+            raise InvalidLiteralException("Invalid literal for type 'bool'", node)
 
 
 class AddressType(ValueType):
     __slots__ = ()
     _id = "address"
     _as_array = True
+    _valid_node = vy_ast.Hex
+
+    def validate_for_type(self, node):
+        super().validate_for_type(node)
+        addr = node.node_source_code
+        if len(addr) != 42:
+            raise InvalidLiteralException("Invalid literal for type 'address'", node)
+        if checksum_encode(addr) != addr:
+            raise InvalidLiteralException(
+                "Address checksum mismatch. If you are sure this is the right "
+                f"address, the correct checksummed form is: {checksum_encode(addr)}",
+                node
+            )
 
 
 class Bytes32Type(ValueType):
     __slots__ = ()
     _id = "bytes32"
     _as_array = True
+    _valid_node = vy_ast.Hex
+
+    def validate_for_type(self, node):
+        super().validate_for_type(node)
+        value = node.node_source_code
+        if len(value) != 66:
+            raise InvalidLiteralException("Invalid literal for type bytes32", node)
 
 
 class IntegerType(NumericType):
     __slots__ = ()
     _id = "int128"
+    _valid_node = vy_ast.Int
+
+    def validate_for_type(self, node):
+        super().validate_for_type(node)
+        check_numeric_bounds("int128", node)
 
 
 class UnsignedIntegerType(NumericType):
     __slots__ = ()
     _id = "uint256"
+    _valid_node = vy_ast.Int
+
+    def validate_for_type(self, node):
+        super().validate_for_type(node)
+        check_numeric_bounds("uint256", node)
 
 
 class DecimalType(NumericType):
     __slots__ = ()
     _id = "decimal"
+    _valid_node = vy_ast.Decimal
+
+    def validate_for_type(self, node):
+        super().validate_for_type(node)
+        value = Decimal(node.value)
+        if value.quantize(Decimal('1.0000000000')) != value:
+            raise InvalidLiteralException("Vyper supports a maximum of ten decimal points", node)
+        check_numeric_bounds("int128", node)
 
 
 class StringType(ArrayValueType):
     __slots__ = ()
     _id = "string"
+    _valid_node = vy_ast.Str
+
+    def validate_for_type(self, node):
+        super().validate_for_type(node)
+        # TODO
 
 
 class BytesType(ArrayValueType):
     __slots__ = ()
     _id = "bytes"
+
+    def validate_for_type(self, node):
+        super().validate_for_type(node)
+        # TODO
 
 
 class MappingType(CompoundType):
@@ -240,6 +308,10 @@ class MappingType(CompoundType):
     def __repr__(self):
         return f"map({self.key_type}, {self.value_type})"
 
+    def validate_for_type(self, node):
+        # TODO - direct assignment is always a no, but with a subscript is ++
+        pass
+
 
 class EventType(CompoundType):
     """
@@ -268,6 +340,10 @@ class EventType(CompoundType):
             self.members[key]['type'] = self.namespace[value.id].get_type(value)
             self.members[key]['type'].introspect()
 
+    def validate_for_type(self):
+        # TODO
+        pass
+
 
 class ArrayType(_BaseSubscriptType, CompoundType):
     """
@@ -294,6 +370,15 @@ class ArrayType(_BaseSubscriptType, CompoundType):
         super().introspect()
         self.base_type = self.namespace[self._node.value.id].get_type(self._node.value)
 
+    def validate_for_type(self, node):
+        if not isinstance(node, vy_ast.List):
+            raise InvalidTypeException(f"Invalid literal type for array", node)
+        if len(node.elts) != self.length:
+            raise InvalidLiteralException("Invalid length for literal array", node)
+        for n in node.elts:
+            # TODO item inside the list is not a literal?
+            self.base_type.validate_for_type(n)
+
 
 # User-defined Types
 # ------------------
@@ -307,10 +392,28 @@ class StructType(UserDefinedType):
         # TODO
         pass
 
+    def validate_for_type(self, node):
+        # TODO
+        pass
+
 
 class InterfaceType(UserDefinedType):
+    __slots__ = ('address',)
     _as_array = True
 
     def introspect(self):
+        check_call_args(self._node, 1)
+        address = self._node.args[0]
+        if isinstance(address, vy_ast.Hex):
+            self.address = address.value
+        elif isinstance(address, vy_ast.Name):
+            self.address = self.namespace[address.id]
+            if not isinstance(self.address, AddressType):
+                raise
+        else:
+            raise
+        # TODO validate address
+
+    def validate_for_type(self, node):
         # TODO
         pass

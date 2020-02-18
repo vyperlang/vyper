@@ -6,6 +6,12 @@ from vyper.context.utils import (
 )
 
 
+# created from AnnAssign
+#   * target is a single node and can be a Name, a Attribute or a Subscript.
+#   * annotation is the annotation, such as a Str or Name node.
+#   * value is a single optional node
+#   * simple is a boolean integer set to True for a Name node in target that do not
+#     appear in between parenthesis and are hence pure names and not expressions
 class Variable:
 
     # TODO docs
@@ -28,12 +34,22 @@ class Variable:
         name = get_leftmost_id(node)
         self.type = self.namespace[name].get_type(node)
         self.type.introspect()
-
+        if self.is_constant:
+            self.validate()
         # TODO if constant, deduce the value immediately
 
     def validate(self):
-        # TODO this is checking that the assigned value == what's expected
-        pass
+        # TODO: checking that the assigned value == what's expected
+        # name - check that reference is valid, compare types
+        # subscript - check that reference is valid, compare base type
+        # call - ...do the call...
+        # folding.. ?
+        # types that cannot be assigned to (event, map)
+
+        node = self.node.value
+        if isinstance(node, (vy_ast.Constant, vy_ast.List)):
+            # verify that a literal value is valid for the type
+            self.type.validate_for_type(node)
 
     def __repr__(self):
         return f"<Variable '{self.name}: {str(self.type)}'>"

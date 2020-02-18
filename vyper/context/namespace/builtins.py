@@ -17,7 +17,6 @@ def _type_filter(value):
     return type(value) is type and isinstance(getattr(value, '_id', None), str)
 
 
-# TODO rename
 def get_meta_types(namespace):
     for obj in filter(_type_filter, vy_types.__dict__.values()):
         key = obj._id

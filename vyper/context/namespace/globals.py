@@ -52,6 +52,7 @@ def add_custom_types(vy_module, namespace):
     _add_imports(vy_module, namespace)
     _add_classes(vy_module, namespace)
     # TODO add functions
+    # implements ?
 
     return namespace
 
