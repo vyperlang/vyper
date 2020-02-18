@@ -26,14 +26,13 @@ class Variable:
 
         self.value = None
 
-    def introspect(self):
+    def _introspect(self):
         node = self.node.annotation
         if isinstance(node, vy_ast.Call) and node.func.id in ('constant', 'public'):
             setattr(self, f'is_{node.func.id}', True)
             node = node.args[0]
         name = get_leftmost_id(node)
         self.type = self.namespace[name].get_type(node)
-        self.type.introspect()
         if self.is_constant:
             self.validate()
         # TODO if constant, deduce the value immediately

@@ -55,8 +55,11 @@ class _BaseMetaType:
             be ArrayType. Otherwise it will be base_type.
         """
         if getattr(self.base_type, '_as_array', False) and isinstance(node, vy_ast.Subscript):
-            return ArrayType(self.namespace, node)
-        return self.base_type(self.namespace, node)
+            obj = ArrayType(self.namespace, node)
+        else:
+            obj = self.base_type(self.namespace, node)
+        obj._introspect()
+        return obj
 
 
 class _BaseMetaTypeCreator:
@@ -131,7 +134,7 @@ class StructMetaType(_BaseMetaType):
         self._node = node
         self._id = node.name
 
-    def introspect(self):
+    def _introspect(self):
         self.members = OrderedDict()
         for node in self._node.body:
             if not isinstance(node, vy_ast.AnnAssign):
@@ -179,6 +182,6 @@ class InterfaceMetaType(_BaseMetaType):
         self._node = node
         self._id = node.name
 
-    def introspect(self):
+    def _introspect(self):
         # TODO
         pass

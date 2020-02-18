@@ -75,13 +75,12 @@ class _BaseSubscriptType(_BaseType):
     def __eq__(self, other):
         return super().__eq__(other) and self.length == other.length
 
-    def introspect(self):
+    def _introspect(self):
         if len(self._node.get_all_children({'ast_type': "Subscript"}, include_self=True)) > 1:
             raise StructureException("Multidimensional arrays are not supported", self._node)
         if isinstance(self._node.get('slice.value'), vy_ast.Name):
             slice_name = self._node.slice.value.id
             self.length = self.namespace[slice_name]
-            self.length.introspect()
             typ = self.length.type
             if not isinstance(typ, (IntegerType, UnsignedIntegerType)):
                 raise StructureException(f"Invalid type for Slice: '{typ}'", self._node.slice)
@@ -117,7 +116,7 @@ class ValueType(_BaseType):
     def __str__(self):
         return self._id
 
-    def introspect(self):
+    def _introspect(self):
         names = [i.id for i in self._node.get_all_children({'ast_type': 'Name'}, True)][1:]
         if len(names) > 1:
             raise StructureException("Invalid type assignment", self._node)
@@ -141,9 +140,9 @@ class NumericType(ValueType):
     __slots__ = ('unit',)
     _as_array = True
 
-    def introspect(self):
+    def _introspect(self):
         self.unit = None
-        super().introspect()
+        super()._introspect()
 
     def __str__(self):
         if getattr(self, 'unit', None):
@@ -161,10 +160,10 @@ class ArrayValueType(_BaseSubscriptType, ValueType):
     """
     __slots__ = ('length',)
 
-    def introspect(self):
+    def _introspect(self):
         if not isinstance(self._node, vy_ast.Subscript):
             raise StructureException(f"{self._id} types must have a maximum length.", self._node)
-        super().introspect()
+        super()._introspect()
 
 
 class CompoundType(_BaseType):
@@ -314,15 +313,12 @@ class MappingType(CompoundType):
             self.value_type == other.value_type
         )
 
-    def introspect(self):
+    def _introspect(self):
         check_call_args(self._node, 2)
         self.key_type = self.namespace[self._node.args[0].id].get_type(self._node.args[0])
 
         key = get_leftmost_id(self._node.args[1])
         self.value_type = self.namespace[key].get_type(self._node.args[1])
-
-        self.key_type.introspect()
-        self.value_type.introspect()
 
     def __repr__(self):
         return f"map({self.key_type}, {self.value_type})"
@@ -348,7 +344,7 @@ class EventType(CompoundType):
     def __eq__(self, other):
         return super().__eq__(other) and self.members == other.members
 
-    def introspect(self):
+    def _introspect(self):
         node = self._node.args[0]
         self.members = OrderedDict()
         for key, value in zip(node.keys, node.values):
@@ -360,7 +356,6 @@ class EventType(CompoundType):
                 self.members[key]['indexed'] = True
                 value = value.args[0]
             self.members[key]['type'] = self.namespace[value.id].get_type(value)
-            self.members[key]['type'].introspect()
 
     def validate_for_type(self):
         # TODO
@@ -391,8 +386,8 @@ class ArrayType(_BaseSubscriptType, CompoundType):
     def _id(self):
         return self.base_type._id
 
-    def introspect(self):
-        super().introspect()
+    def _introspect(self):
+        super()._introspect()
         self.base_type = self.namespace[self._node.value.id].get_type(self._node.value)
 
     def validate_for_type(self, node):
@@ -413,7 +408,7 @@ class ArrayType(_BaseSubscriptType, CompoundType):
 class StructType(UserDefinedType):
     _as_array = True
 
-    def introspect(self):
+    def _introspect(self):
         # TODO
         pass
 
@@ -426,7 +421,7 @@ class InterfaceType(UserDefinedType):
     __slots__ = ('address',)
     _as_array = True
 
-    def introspect(self):
+    def _introspect(self):
         check_call_args(self._node, 1)
         address = self._node.args[0]
         if isinstance(address, vy_ast.Hex):

@@ -18,13 +18,24 @@ class Namespace(dict):
 
     """Dictionary subclass that represents the namespace of contract."""
 
-    def __init__(self, reserved_keys=[]):
-        self._reserved_keys = set(reserved_keys)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._to_introspect = set()
 
     def __setitem__(self, attr, value):
         if attr in self:
             raise StructureException(f"'{attr}' has already been declared", value)
+        if hasattr(value, '_introspect'):
+            self._to_introspect.add(attr)
         super().__setitem__(attr, value)
+
+    def __getitem__(self, key):
+        # requesting an item triggers introspection
+        item = super().__getitem__(key)
+        if key in self._to_introspect:
+            self._to_introspect.remove(key)
+            item._introspect()
+        return item
 
     def update(self, other):
         for key, value in other.items():
@@ -34,10 +45,19 @@ class Namespace(dict):
 
         """Triggers introspection on all items within the container."""
 
-        # TODO - what if we already introspected?
-        for obj in self.values():
-            if hasattr(obj, 'introspect'):
-                obj.introspect()
+        for key in self._to_introspect.copy():
+            obj = super().__getitem__(key)
+            obj._introspect()
+            self._to_introspect.remove(key)
+
+    def items(self):
+        raise NotImplementedError
+
+    def keys(self):
+        raise NotImplementedError
+
+    def values(self):
+        raise NotImplementedError
 
 
 # TODO - builtin > global > local
@@ -61,6 +81,6 @@ def add_global_namespace(vy_module, namespace):
     namespace = add_assignments(vy_module, namespace)
     # TODO validate constants
     # TODO check for nodes in global namespace that weren't processed (improper structure)
-    namespace.introspect()
+    #namespace.introspect()
 
     return namespace
