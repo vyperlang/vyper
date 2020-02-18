@@ -44,15 +44,47 @@ class _BaseType:
         self.namespace = namespace
         self._node = node
 
+
+class _BaseSubscriptType(_BaseType):
+    """
+    Private inherited class common to all types that use subscript to denote length.
+
+    Attributes
+    ----------
+    length : int | Variable
+        The length of the data within the type.
+    """
+
+    __slots__ = ('length',)
+
+    def __str__(self):
+        return f"{self._id}[{self.length}]"
+
     def introspect(self):
-        names = [i.id for i in self._node.get_all_children({'ast_type': 'Name'}, True)][1:]
-        if len(names) > 1:
-            raise StructureException("Invalid type assignment", self._node)
-        if names:
-            try:
-                self.unit = self.namespace[names[0]]
-            except AttributeError:
-                raise StructureException(f"Cannot apply unit to type '{self}'", self._node)
+        if len(self._node.get_all_children({'ast_type': "Subscript"}, include_self=True)) > 1:
+            raise StructureException("Multidimensional arrays are not supported", self._node)
+        if isinstance(self._node.get('slice.value'), vy_ast.Name):
+            slice_name = self._node.slice.value.id
+            self.length = self.namespace[slice_name]
+            self.length.introspect()
+            typ = self.length.type
+            if not isinstance(typ, (IntegerType, UnsignedIntegerType)):
+                raise StructureException(f"Invalid type for Slice: '{typ}'", self._node.slice)
+            if typ.unit:
+                raise StructureException(
+                    f"Slice value must be unitless, not '{typ.unit}'", self._node.slice
+                )
+
+            if not self.length.is_constant:
+                raise StructureException("Slice must be an integer or constant", self._node.slice)
+
+        elif isinstance(self._node.get('slice.value'), vy_ast.Int):
+            self.length = self._node.slice.value.n
+            if self.length <= 0:
+                raise InvalidLiteralException("Slice must be greater than 0", self._node.slice)
+
+        else:
+            raise StructureException("Slice must be an integer or constant", self._node.slice)
 
 
 # Type Categories
@@ -70,6 +102,16 @@ class ValueType(_BaseType):
     def __str__(self):
         return self._id
 
+    def introspect(self):
+        names = [i.id for i in self._node.get_all_children({'ast_type': 'Name'}, True)][1:]
+        if len(names) > 1:
+            raise StructureException("Invalid type assignment", self._node)
+        if names:
+            try:
+                self.unit = self.namespace[names[0]]
+            except AttributeError:
+                raise StructureException(f"Cannot apply unit to type '{self}'", self._node)
+
 
 class NumericType(ValueType):
 
@@ -83,12 +125,12 @@ class NumericType(ValueType):
         super().introspect()
 
     def __str__(self):
-        if hasattr(self, 'unit'):
+        if getattr(self, 'unit', None):
             return f"{self._id}({self.unit})"
         return super().__str__()
 
 
-class ArrayValueType(ValueType):
+class ArrayValueType(_BaseSubscriptType, ValueType):
     """
     Base class for single-value types which occupy multiple memory slots
     and where a maximum length must be given via a subscript (string, bytes).
@@ -96,8 +138,9 @@ class ArrayValueType(ValueType):
     __slots__ = ('length',)
 
     def introspect(self):
-        # TODO
-        pass
+        if not isinstance(self._node, vy_ast.Subscript):
+            raise StructureException(f"{self._id} types must have a maximum length.", self._node)
+        super().introspect()
 
 
 class CompoundType(_BaseType):
@@ -226,7 +269,7 @@ class EventType(CompoundType):
             self.members[key]['type'].introspect()
 
 
-class ArrayType(CompoundType):
+class ArrayType(_BaseSubscriptType, CompoundType):
     """
     Represents a fixed-length array with a single common type for all items.
 
@@ -241,42 +284,15 @@ class ArrayType(CompoundType):
     length : int | Variable
         The number of items in the array.
     """
-    __slots__ = ('base_type', 'length')
+    __slots__ = ('base_type',)
 
     @property
     def _id(self):
         return self.base_type._id
 
-    def __str__(self):
-        return f"{self._id}[{self.length}]"
-
     def introspect(self):
-        # if array index is a Name, we have to check constants
-        node = self._node
-        self.base_type = self.namespace[node.value.id].get_type(node.value)
-
-        if isinstance(node.get('slice.value'), vy_ast.Name):
-            slice_name = node.slice.value.id
-            self.length = self.namespace[slice_name]
-            self.length.introspect()
-            typ = self.length.type
-            if not isinstance(typ, (IntegerType, UnsignedIntegerType)):
-                raise StructureException(f"Invalid type for Slice: '{typ}'", node.slice)
-            if typ.unit:
-                raise StructureException(
-                    f"Slice value must be unitless, not '{typ.unit}'", node.slice
-                )
-
-            if not self.length.is_constant:
-                raise StructureException("Slice must be an integer or constant", node.slice)
-
-        elif isinstance(node.get('slice.value'), vy_ast.Int):
-            self.length = node.slice.value.n
-            if self.length <= 0:
-                raise InvalidLiteralException("Slice must be greater than 0", node.slice)
-
-        else:
-            raise StructureException("Slice must be an integer or constant", node.slice)
+        super().introspect()
+        self.base_type = self.namespace[self._node.value.id].get_type(self._node.value)
 
 
 # User-defined Types
