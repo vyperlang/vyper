@@ -53,6 +53,9 @@ class _BaseType:
         self.namespace = namespace
         self._node = node
 
+    def __eq__(self, other):
+        return type(self) == type(other)
+
 
 class _BaseSubscriptType(_BaseType):
     """
@@ -68,6 +71,9 @@ class _BaseSubscriptType(_BaseType):
 
     def __str__(self):
         return f"{self._id}[{self.length}]"
+
+    def __eq__(self, other):
+        return super().__eq__(other) and self.length == other.length
 
     def introspect(self):
         if len(self._node.get_all_children({'ast_type': "Subscript"}, include_self=True)) > 1:
@@ -144,6 +150,9 @@ class NumericType(ValueType):
             return f"{self._id}({self.unit})"
         return super().__str__()
 
+    def __eq__(self, other):
+        return super().__eq__(other) and self.unit == other.unit
+
 
 class ArrayValueType(_BaseSubscriptType, ValueType):
     """
@@ -175,6 +184,9 @@ class UserDefinedType(_BaseType):
         super().__init__(namespace, node)
         key = get_leftmost_id(node)
         self.type_class = namespace[key]
+
+    def __eq__(self, other):
+        return super().__eq__(other) and self.type_class == other.type_class
 
     @property
     def _id(self):
@@ -295,6 +307,13 @@ class MappingType(CompoundType):
     __slots__ = ('key_type', 'value_type')
     _id = "map"
 
+    def __eq__(self, other):
+        return (
+            super().__eq__(other) and
+            self.key_type == other.key_type and
+            self.value_type == other.value_type
+        )
+
     def introspect(self):
         check_call_args(self._node, 2)
         self.key_type = self.namespace[self._node.args[0].id].get_type(self._node.args[0])
@@ -325,6 +344,9 @@ class EventType(CompoundType):
     """
     __slots__ = ('members',)
     _id = "event"
+
+    def __eq__(self, other):
+        return super().__eq__(other) and self.members == other.members
 
     def introspect(self):
         node = self._node.args[0]
@@ -361,6 +383,9 @@ class ArrayType(_BaseSubscriptType, CompoundType):
         The number of items in the array.
     """
     __slots__ = ('base_type',)
+
+    def __eq__(self, other):
+        return super().__eq__(other) and self.base_type == other.base_type
 
     @property
     def _id(self):
