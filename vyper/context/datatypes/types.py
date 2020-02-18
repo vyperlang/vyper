@@ -391,13 +391,12 @@ class ArrayType(_BaseSubscriptType, CompoundType):
         self.base_type = self.namespace[self._node.value.id].get_type(self._node.value)
 
     def validate_for_type(self, node):
+        # TODO! IMPORTANT! this does not validate the individual array items
+        # which is fine, but it really needs documenting somewhere
         if not isinstance(node, vy_ast.List):
             raise InvalidTypeException(f"Invalid literal type for array", node)
         if len(node.elts) != self.length:
             raise InvalidLiteralException("Invalid length for literal array", node)
-        for n in node.elts:
-            # TODO item inside the list is not a literal?
-            self.base_type.validate_for_type(n)
 
 
 # User-defined Types
