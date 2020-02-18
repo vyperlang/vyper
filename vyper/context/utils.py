@@ -21,7 +21,7 @@ def check_call_args(node: vy_ast.VyperNode, argcount: int, kwargs: Optional[Set]
         raise
     if len(node.args) != argcount:
         raise StructureException(
-            f"Invalid arguent count: expected {argcount}, got {len(node.args)}", node
+            f"Invalid argument count: expected {argcount}, got {len(node.args)}", node
         )
     if kwargs is None and node.keywords:
         raise StructureException("Keyword arguments are not accepted here", node.keywords[0])

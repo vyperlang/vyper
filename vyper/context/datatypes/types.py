@@ -1,7 +1,11 @@
+from collections import (
+    OrderedDict,
+)
 from vyper import (
     ast as vy_ast,
 )
 from vyper.context.utils import (
+    check_call_args,
     get_leftmost_id,
 )
 from vyper.exceptions import (
@@ -109,9 +113,10 @@ class UserDefinedType(_BaseType):
 
     __slots__ = ()
 
-    def __init__(self, namespace, node, type_class):
+    def __init__(self, namespace, node):
         super().__init__(namespace, node)
-        self.type_class = type_class
+        key = get_leftmost_id(node)
+        self.type_class = namespace[key]
 
     @property
     def _id(self):
@@ -180,6 +185,7 @@ class MappingType(CompoundType):
     _id = "map"
 
     def introspect(self):
+        check_call_args(self._node, 2)
         self.key_type = self.namespace[self._node.args[0].id].get_type(self._node.args[0])
 
         key = get_leftmost_id(self._node.args[1])
@@ -198,14 +204,26 @@ class EventType(CompoundType):
 
     Attributes
     ----------
-    TODO
+    members : OrderedDict
+        A dictionary of {field: {'type': TypeObject, 'indexed': bool}} representing each
+        member in the event.
     """
-    __slots__ = ()
+    __slots__ = ('members',)
     _id = "event"
 
     def introspect(self):
-        # TODO
-        pass
+        node = self._node.args[0]
+        self.members = OrderedDict()
+        for key, value in zip(node.keys, node.values):
+            self.members[key] = {'indexed': False}
+            if isinstance(value, vy_ast.Call):
+                if value.func.id != "indexed":
+                    raise StructureException(f"Invalid keyword '{value.func.id}'", value.func)
+                check_call_args(value, 1)
+                self.members[key]['indexed'] = True
+                value = value.args[0]
+            self.members[key]['type'] = self.namespace[value.id].get_type(value)
+            self.members[key]['type'].introspect()
 
 
 class ArrayType(CompoundType):
@@ -234,12 +252,13 @@ class ArrayType(CompoundType):
 
     def introspect(self):
         # if array index is a Name, we have to check constants
-        node = self._node.get_all_children({'ast_type': "Subscript"}, include_self=True)[0]
+        node = self._node
         self.base_type = self.namespace[node.value.id].get_type(node.value)
 
         if isinstance(node.get('slice.value'), vy_ast.Name):
             slice_name = node.slice.value.id
             self.length = self.namespace[slice_name]
+            self.length.introspect()
             typ = self.length.type
             if not isinstance(typ, (IntegerType, UnsignedIntegerType)):
                 raise StructureException(f"Invalid type for Slice: '{typ}'", node.slice)
@@ -247,7 +266,7 @@ class ArrayType(CompoundType):
                 raise StructureException(
                     f"Slice value must be unitless, not '{typ.unit}'", node.slice
                 )
-            self.length.introspect()
+
             if not self.length.is_constant:
                 raise StructureException("Slice must be an integer or constant", node.slice)
 

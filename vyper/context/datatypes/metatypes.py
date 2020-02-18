@@ -31,10 +31,32 @@ class _BaseMetaType:
     namespace : Namespace
         The namespace object that this object exists within.
     """
-    __slots__ = ('namespace',)
+    __slots__ = ('namespace', 'base_type')
 
-    def __init__(self, namespace):
+    def __init__(self, namespace, base_type):
         self.namespace = namespace
+        self.base_type = base_type
+
+    def get_type(self, node):
+        """
+        Returns a type class for the given node.
+
+        Arguments
+        ---------
+        node : VyperNode
+            AST node from AnnAssign.annotation, outlining the type
+            to be created.
+
+        Returns
+        -------
+        _BaseType
+            If the base_type member of this object has an _as_array member
+            and the node argument includes a subscript, the return type will
+            be ArrayType. Otherwise it will be base_type.
+        """
+        if getattr(self.base_type, '_as_array', False) and isinstance(node, vy_ast.Subscript):
+            return ArrayType(self.namespace, node)
+        return self.base_type(self.namespace, node)
 
 
 class _BaseMetaTypeCreator:
@@ -76,31 +98,6 @@ class BuiltinMetaType(_BaseMetaType):
     """
     __slots__ = ('base_type',)
 
-    def __init__(self, namespace, base_type):
-        self.namespace = namespace
-        self.base_type = base_type
-
-    def get_type(self, node):
-        """
-        Returns a type class for the given node.
-
-        Arguments
-        ---------
-        node : VyperNode
-            AST node from AnnAssign.annotation, outlining the type
-            to be created.
-
-        Returns
-        -------
-        _BaseType
-            If the base_type member of this object has an _as_array member
-            and the node argument includes a subscript, the return type will
-            be ArrayType. Otherwise it will be base_type.
-        """
-        if getattr(self.base_type, '_as_array', False) and isinstance(node, vy_ast.Subscript):
-            return ArrayType(self.namespace, node)
-        return self.base_type(self.namespace, node)
-
 
 class StructMetaTypeCreator(_BaseMetaTypeCreator):
 
@@ -130,7 +127,7 @@ class StructMetaType(_BaseMetaType):
     __slots__ = ('_id', '_node', 'members')
 
     def __init__(self, namespace, node):
-        super().__init__(namespace)
+        super().__init__(namespace, StructType)
         self._node = node
         self._id = node.name
 
@@ -148,9 +145,6 @@ class StructMetaType(_BaseMetaType):
                 )
             type_name = get_leftmost_id(node.annotation)
             self.members[member_name] = self.namespace[type_name].get_type(node.annotation)
-
-    def get_type(self, node):
-        return StructType(self.namespace, node, self)
 
     def __repr__(self):
         return f"<Struct Type '{self._id}'>"
@@ -180,9 +174,11 @@ class InterfaceMetaType(_BaseMetaType):
     """
     __slots__ = ('_id', '_node')
 
+    def __init__(self, namespace, node):
+        super().__init__(namespace, InterfaceType)
+        self._node = node
+        self._id = node.name
+
     def introspect(self):
         # TODO
         pass
-
-    def get_type(self, node):
-        return InterfaceType(self.namespace, node, self)
