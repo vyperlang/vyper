@@ -7,6 +7,9 @@ from vyper.context.datatypes.units import (
 from vyper.context.datatypes.variables import (
     Variable,
 )
+from vyper.context.datatypes.functions import (
+    Function,
+)
 from vyper.exceptions import (
     VariableDeclarationException,
 )
@@ -69,12 +72,20 @@ def _add_classes(module_nodes, namespace):
         module_nodes.remove(node)
 
 
+def add_functions(module_nodes, namespace):
+    for node in [i for i in module_nodes if isinstance(i, vy_ast.FunctionDef)]:
+        # TODO check for node.simple
+        namespace[node.name] = Function(namespace, node)
+        module_nodes.remove(node)
+
+    return module_nodes, namespace
+
+
 def add_assignments(module_nodes, namespace):
     for node in [i for i in module_nodes if isinstance(i, vy_ast.AnnAssign)]:
         if node.target.id in ("implements", "units"):
             continue
-        var = Variable(namespace, node)
-        namespace[var.name] = var
+        namespace[node.target.id] = Variable(namespace, node.target.id, node.annotation, node.value)
         module_nodes.remove(node)
 
     return module_nodes, namespace

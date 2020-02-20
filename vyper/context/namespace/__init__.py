@@ -7,6 +7,7 @@ from vyper.context.namespace.module import (
     add_assignments,
     add_custom_types,
     add_custom_units,
+    add_functions,
 )
 from vyper.exceptions import (
     StructureException,
@@ -44,10 +45,9 @@ class Namespace(dict):
 
         """Triggers introspection on all items within the container."""
 
-        for key in self._to_introspect.copy():
-            obj = super().__getitem__(key)
-            obj._introspect()
-            self._to_introspect.remove(key)
+        while self._to_introspect:
+            key = next(iter(self._to_introspect))
+            self.__getitem__(key)
 
     def items(self):
         raise NotImplementedError
@@ -76,10 +76,12 @@ def add_module_namespace(vy_module, namespace):
 
     module_nodes, namespace = add_custom_units(module_nodes, namespace)
     module_nodes, namespace = add_custom_types(module_nodes, namespace)
+    module_nodes, namespace = add_functions(module_nodes, namespace)
     module_nodes, namespace = add_assignments(module_nodes, namespace)
 
     if module_nodes:
         # TODO expand this to explain why each type is invalid
+        print([type(i) for i in module_nodes])
         raise StructureException("Invalid syntax for module-level namespace", module_nodes[0])
 
     namespace.introspect()

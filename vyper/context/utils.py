@@ -28,7 +28,7 @@ def check_call_args(node: vy_ast.VyperNode, argcount: int, kwargs: Optional[Set]
             raise
 
 
-def get_leftmost_id(node: vy_ast.AnnAssign) -> str:
+def get_leftmost_id(node: vy_ast.VyperNode) -> str:
     return next(i.id for i in node.get_all_children({'ast_type': 'Name'}, True))
 
 
