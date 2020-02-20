@@ -42,16 +42,16 @@ class _BaseType:
 
     Object attributes
     -----------------
-    _node : VyperNode
+    node : VyperNode
         The vyper AST node associated with the specific type definition.
     namespace : Namespace
         The namespace object that this type exists within.
     """
-    __slots__ = ('namespace', '_node')
+    __slots__ = ('namespace', 'node')
 
     def __init__(self, namespace, node):
         self.namespace = namespace
-        self._node = node
+        self.node = node
 
     def __eq__(self, other):
         return type(self) == type(other)
@@ -76,29 +76,44 @@ class _BaseSubscriptType(_BaseType):
         return super().__eq__(other) and self.length == other.length
 
     def _introspect(self):
-        if len(self._node.get_all_children({'ast_type': "Subscript"}, include_self=True)) > 1:
-            raise StructureException("Multidimensional arrays are not supported", self._node)
-        if isinstance(self._node.get('slice.value'), vy_ast.Name):
-            slice_name = self._node.slice.value.id
-            self.length = self.namespace[slice_name]
-            typ = self.length.type
+        if len(self.node.get_all_children({'ast_type': "Subscript"}, include_self=True)) > 1:
+            raise StructureException("Multidimensional arrays are not supported", self.node)
+        self.length = self._get_index_value(self.node.get('slice'))
+
+        if self.length <= 0:
+            raise InvalidLiteralException("Slice must be greater than 0", self.node.slice)
+
+    def validate_slice(self, node: vy_ast.Index):
+        # validates that a slice referencing this node is valid
+        length = self._get_index_value(node)
+        if length >= self.length:
+            raise StructureException("Array index out of range", node)
+        if length < 0:
+            raise StructureException("Array index cannot use negative integers", node)
+        return length
+
+    def _get_index_value(self, node):
+        if not isinstance(node, vy_ast.Index):
+            raise
+
+        if isinstance(node.value, vy_ast.Int):
+            return node.value.value
+
+        if isinstance(node.value, vy_ast.Name):
+            slice_name = node.value.id
+            length = self.namespace[slice_name]
+
+            if not length.is_constant:
+                raise StructureException("Slice must be an integer or constant", node)
+
+            typ = length.type
             if not isinstance(typ, (IntegerType, UnsignedIntegerType)):
-                raise StructureException(f"Invalid type for Slice: '{typ}'", self._node.slice)
+                raise StructureException(f"Invalid type for Slice: '{typ}'", node)
             if typ.unit:
-                raise StructureException(
-                    f"Slice value must be unitless, not '{typ.unit}'", self._node.slice
-                )
+                raise StructureException(f"Slice value must be unitless, not '{typ.unit}'", node)
+            return length.value
 
-            if not self.length.is_constant:
-                raise StructureException("Slice must be an integer or constant", self._node.slice)
-
-        elif isinstance(self._node.get('slice.value'), vy_ast.Int):
-            self.length = self._node.slice.value.n
-            if self.length <= 0:
-                raise InvalidLiteralException("Slice must be greater than 0", self._node.slice)
-
-        else:
-            raise StructureException("Slice must be an integer or constant", self._node.slice)
+        raise StructureException("Slice must be an integer or constant", node)
 
 
 # Type Categories
@@ -117,16 +132,16 @@ class ValueType(_BaseType):
         return self._id
 
     def _introspect(self):
-        names = [i.id for i in self._node.get_all_children({'ast_type': 'Name'}, True)][1:]
+        names = [i.id for i in self.node.get_all_children({'ast_type': 'Name'}, True)][1:]
         if len(names) > 1:
-            raise StructureException("Invalid type assignment", self._node)
+            raise StructureException("Invalid type assignment", self.node)
         if names:
             try:
                 self.unit = self.namespace[names[0]]
             except AttributeError:
-                raise StructureException(f"Cannot apply unit to type '{self}'", self._node)
+                raise StructureException(f"Cannot apply unit to type '{self}'", self.node)
 
-    def validate_for_type(self, node):
+    def validate_literal(self, node):
         if not isinstance(node, vy_ast.Constant):
             raise CompilerPanic(f"Attempted to validate a '{node.ast_type}' node.")
         if not isinstance(node, self._valid_node):
@@ -161,8 +176,8 @@ class ArrayValueType(_BaseSubscriptType, ValueType):
     __slots__ = ('length',)
 
     def _introspect(self):
-        if not isinstance(self._node, vy_ast.Subscript):
-            raise StructureException(f"{self._id} types must have a maximum length.", self._node)
+        if not isinstance(self.node, vy_ast.Subscript):
+            raise StructureException(f"{self._id} types must have a maximum length.", self.node)
         super()._introspect()
 
 
@@ -202,8 +217,8 @@ class BoolType(ValueType):
     _as_array = True
     _valid_node = vy_ast.NameConstant
 
-    def validate_for_type(self, node):
-        super().validate_for_type(node)
+    def validate_literal(self, node):
+        super().validate_literal(node)
         if node.value is None:
             raise InvalidLiteralException("Invalid literal for type 'bool'", node)
 
@@ -214,8 +229,8 @@ class AddressType(ValueType):
     _as_array = True
     _valid_node = vy_ast.Hex
 
-    def validate_for_type(self, node):
-        super().validate_for_type(node)
+    def validate_literal(self, node):
+        super().validate_literal(node)
         addr = node.node_source_code
         if len(addr) != 42:
             raise InvalidLiteralException("Invalid literal for type 'address'", node)
@@ -233,8 +248,8 @@ class Bytes32Type(ValueType):
     _as_array = True
     _valid_node = vy_ast.Hex
 
-    def validate_for_type(self, node):
-        super().validate_for_type(node)
+    def validate_literal(self, node):
+        super().validate_literal(node)
         value = node.node_source_code
         if len(value) != 66:
             raise InvalidLiteralException("Invalid literal for type bytes32", node)
@@ -245,8 +260,8 @@ class IntegerType(NumericType):
     _id = "int128"
     _valid_node = vy_ast.Int
 
-    def validate_for_type(self, node):
-        super().validate_for_type(node)
+    def validate_literal(self, node):
+        super().validate_literal(node)
         check_numeric_bounds("int128", node)
 
 
@@ -255,8 +270,8 @@ class UnsignedIntegerType(NumericType):
     _id = "uint256"
     _valid_node = vy_ast.Int
 
-    def validate_for_type(self, node):
-        super().validate_for_type(node)
+    def validate_literal(self, node):
+        super().validate_literal(node)
         check_numeric_bounds("uint256", node)
 
 
@@ -265,9 +280,9 @@ class DecimalType(NumericType):
     _id = "decimal"
     _valid_node = vy_ast.Decimal
 
-    def validate_for_type(self, node):
-        super().validate_for_type(node)
-        value = Decimal(node.value)
+    def validate_literal(self, node):
+        super().validate_literal(node)
+        value = Decimal(node.node_source_code)
         if value.quantize(Decimal('1.0000000000')) != value:
             raise InvalidLiteralException("Vyper supports a maximum of ten decimal points", node)
         check_numeric_bounds("int128", node)
@@ -278,8 +293,8 @@ class StringType(ArrayValueType):
     _id = "string"
     _valid_node = vy_ast.Str
 
-    def validate_for_type(self, node):
-        super().validate_for_type(node)
+    def validate_literal(self, node):
+        super().validate_literal(node)
         # TODO
 
 
@@ -287,8 +302,8 @@ class BytesType(ArrayValueType):
     __slots__ = ()
     _id = "bytes"
 
-    def validate_for_type(self, node):
-        super().validate_for_type(node)
+    def validate_literal(self, node):
+        super().validate_literal(node)
         # TODO
 
 
@@ -305,6 +320,7 @@ class MappingType(CompoundType):
     """
     __slots__ = ('key_type', 'value_type')
     _id = "map"
+    _no_value = True
 
     def __eq__(self, other):
         return (
@@ -314,16 +330,16 @@ class MappingType(CompoundType):
         )
 
     def _introspect(self):
-        check_call_args(self._node, 2)
-        self.key_type = self.namespace[self._node.args[0].id].get_type(self._node.args[0])
+        check_call_args(self.node, 2)
+        self.key_type = self.namespace[self.node.args[0].id].get_type(self.node.args[0])
 
-        key = get_leftmost_id(self._node.args[1])
-        self.value_type = self.namespace[key].get_type(self._node.args[1])
+        key = get_leftmost_id(self.node.args[1])
+        self.value_type = self.namespace[key].get_type(self.node.args[1])
 
     def __repr__(self):
         return f"map({self.key_type}, {self.value_type})"
 
-    def validate_for_type(self, node):
+    def validate_literal(self, node):
         # TODO - direct assignment is always a no, but with a subscript is ++
         pass
 
@@ -340,12 +356,13 @@ class EventType(CompoundType):
     """
     __slots__ = ('members',)
     _id = "event"
+    _no_value = True
 
     def __eq__(self, other):
         return super().__eq__(other) and self.members == other.members
 
     def _introspect(self):
-        node = self._node.args[0]
+        node = self.node.args[0]
         self.members = OrderedDict()
         for key, value in zip(node.keys, node.values):
             self.members[key] = {'indexed': False}
@@ -357,7 +374,7 @@ class EventType(CompoundType):
                 value = value.args[0]
             self.members[key]['type'] = self.namespace[value.id].get_type(value)
 
-    def validate_for_type(self):
+    def validate_literal(self, node):
         # TODO
         pass
 
@@ -388,15 +405,18 @@ class ArrayType(_BaseSubscriptType, CompoundType):
 
     def _introspect(self):
         super()._introspect()
-        self.base_type = self.namespace[self._node.value.id].get_type(self._node.value)
+        self.base_type = self.namespace[self.node.value.id].get_type(self.node.value)
 
-    def validate_for_type(self, node):
+    def validate_literal(self, node):
         # TODO! IMPORTANT! this does not validate the individual array items
         # which is fine, but it really needs documenting somewhere
         if not isinstance(node, vy_ast.List):
             raise InvalidTypeException(f"Invalid literal type for array", node)
         if len(node.elts) != self.length:
-            raise InvalidLiteralException("Invalid length for literal array", node)
+            raise InvalidLiteralException(
+                f"Invalid length for literal array, expected {len(node.elts)} got {self.length}",
+                node
+            )
 
 
 # User-defined Types
@@ -411,7 +431,7 @@ class StructType(UserDefinedType):
         # TODO
         pass
 
-    def validate_for_type(self, node):
+    def validate_literal(self, node):
         # TODO
         pass
 
@@ -421,8 +441,8 @@ class InterfaceType(UserDefinedType):
     _as_array = True
 
     def _introspect(self):
-        check_call_args(self._node, 1)
-        address = self._node.args[0]
+        check_call_args(self.node, 1)
+        address = self.node.args[0]
         if isinstance(address, vy_ast.Hex):
             self.address = address.value
         elif isinstance(address, vy_ast.Name):
@@ -433,6 +453,6 @@ class InterfaceType(UserDefinedType):
             raise
         # TODO validate address
 
-    def validate_for_type(self, node):
+    def validate_literal(self, node):
         # TODO
         pass
