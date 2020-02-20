@@ -3,7 +3,7 @@ from vyper.context.namespace.builtins import (
     add_builtin_units,
     get_meta_types,
 )
-from vyper.context.namespace.globals import (
+from vyper.context.namespace.module import (
     add_assignments,
     add_custom_types,
     add_custom_units,
@@ -59,9 +59,6 @@ class Namespace(dict):
         raise NotImplementedError
 
 
-# TODO - builtin > global > local
-# environment > module > method
-
 def get_builtin_namespace():
 
     namespace = Namespace()
@@ -73,17 +70,17 @@ def get_builtin_namespace():
     return namespace
 
 
-def add_global_namespace(vy_module, namespace):
+def add_module_namespace(vy_module, namespace):
 
-    global_nodes = vy_module.body.copy()
+    module_nodes = vy_module.body.copy()
 
-    global_nodes, namespace = add_custom_units(global_nodes, namespace)
-    global_nodes, namespace = add_custom_types(global_nodes, namespace)
-    global_nodes, namespace = add_assignments(global_nodes, namespace)
+    module_nodes, namespace = add_custom_units(module_nodes, namespace)
+    module_nodes, namespace = add_custom_types(module_nodes, namespace)
+    module_nodes, namespace = add_assignments(module_nodes, namespace)
 
-    if global_nodes:
+    if module_nodes:
         # TODO expand this to explain why each type is invalid
-        raise StructureException("Invalid syntax for global namespace", global_nodes[0])
+        raise StructureException("Invalid syntax for module-level namespace", module_nodes[0])
 
     namespace.introspect()
     return namespace

@@ -212,12 +212,12 @@ class VyperNode:
         The name of the enclosing scope for this node.
 
         If this node is contained within a function, the returned value is
-        the name of that function. Otherwise, the returned value is "global".
+        the name of that function. Otherwise, the returned value is "module".
         """
         node = self._parent
         while True:
             if node is None:
-                return "global"
+                return "module"
             if hasattr(node, '_enclosing_scope'):
                 return node._enclosing_scope  # type: ignore
             node = node._parent
