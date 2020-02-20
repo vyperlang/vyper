@@ -121,22 +121,22 @@ class StructMetaType(_BaseMetaType):
     ----------
     _id : str
         Name of the custom type.
-    _node : ClassDef
+    node : ClassDef
         Vyper AST node that defines this meta-type.
     members : OrderedDict
         A dictionary of {name: TypeObject} for each member of this meta-type.
     """
 
-    __slots__ = ('_id', '_node', 'members')
+    __slots__ = ('_id', 'node', 'members')
 
     def __init__(self, namespace, node):
         super().__init__(namespace, StructType)
-        self._node = node
+        self.node = node
         self._id = node.name
 
     def _introspect(self):
         self.members = OrderedDict()
-        for node in self._node.body:
+        for node in self.node.body:
             if not isinstance(node, vy_ast.AnnAssign):
                 raise StructureException("Structs can only contain variables", node)
             if node.value is not None:
@@ -172,14 +172,14 @@ class InterfaceMetaType(_BaseMetaType):
     ----------
     _id : str
         Name of the custom type.
-    _node : ClassDef
+    node : ClassDef
         Vyper AST node that defines this meta-type.
     """
-    __slots__ = ('_id', '_node')
+    __slots__ = ('_id', 'node')
 
     def __init__(self, namespace, node):
         super().__init__(namespace, InterfaceType)
-        self._node = node
+        self.node = node
         self._id = node.name
 
     def _introspect(self):

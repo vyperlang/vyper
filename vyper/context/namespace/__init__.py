@@ -1,5 +1,4 @@
 
-
 from vyper.context.namespace.builtins import (
     add_builtin_units,
     get_meta_types,
@@ -76,11 +75,15 @@ def get_builtin_namespace():
 
 def add_global_namespace(vy_module, namespace):
 
-    namespace = add_custom_units(vy_module, namespace)
-    namespace = add_custom_types(vy_module, namespace)
-    namespace = add_assignments(vy_module, namespace)
-    # TODO validate constants
-    # TODO check for nodes in global namespace that weren't processed (improper structure)
-    #namespace.introspect()
+    global_nodes = vy_module.body.copy()
 
+    global_nodes, namespace = add_custom_units(global_nodes, namespace)
+    global_nodes, namespace = add_custom_types(global_nodes, namespace)
+    global_nodes, namespace = add_assignments(global_nodes, namespace)
+
+    if global_nodes:
+        # TODO expand this to explain why each type is invalid
+        raise StructureException("Invalid syntax for global namespace", global_nodes[0])
+
+    namespace.introspect()
     return namespace

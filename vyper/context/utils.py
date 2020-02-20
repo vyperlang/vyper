@@ -12,11 +12,6 @@ from vyper.exceptions import (
 )
 
 
-def check_global_scope(node: vy_ast.VyperNode, description: str) -> None:
-    if node.enclosing_scope != "global":
-        raise StructureException(f"Cannot declare {description} outside of global namespace", node)
-
-
 def check_call_args(node: vy_ast.VyperNode, argcount: int, kwargs: Optional[Set] = None) -> None:
     if not isinstance(node, vy_ast.Call):
         raise StructureException("Expected Call", node)
