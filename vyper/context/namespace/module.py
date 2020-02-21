@@ -42,7 +42,7 @@ def add_custom_units(module_nodes, namespace):
             raise VariableDeclarationException(
                 "Custom unit name must be a valid string", key
             )
-        namespace[key.id] = Unit(name=key.id, description=value.s)
+        namespace[key.id] = Unit(name=key.id, description=value.s, enclosing_scope="module")
 
     return module_nodes, namespace
 

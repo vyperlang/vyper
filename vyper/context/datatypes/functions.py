@@ -23,12 +23,16 @@ class Function:
         "return_types",
         "arguments",
     )
-    _id = "def"
+    # _id = "def"
 
-    def __init__(self, namespace, node):
+    def __init__(self, namespace, node: vy_ast.FunctionDef):
         self.namespace = namespace
         self.node = node
         self.name = node.name
+
+    @property
+    def enclosing_scope(self):
+        return self.node.enclosing_scope
 
     def _introspect(self):
         self._introspect_decorators(self.node.decorator_list)

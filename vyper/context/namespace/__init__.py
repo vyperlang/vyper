@@ -1,4 +1,3 @@
-
 from vyper.context.namespace.builtins import (
     add_builtin_units,
     get_meta_types,
@@ -21,13 +20,22 @@ class Namespace(dict):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._to_introspect = set()
+        self._scope_dependencies = {'builtin': None, 'module': "builtin"}
 
-    def __setitem__(self, attr, value):
+    def __setitem__(self, attr, obj):
         if attr in self:
-            raise StructureException(f"'{attr}' has already been declared", value)
-        if hasattr(value, '_introspect'):
+            raise StructureException(f"'{attr}' has already been declared", obj)
+        super().__setitem__(attr, obj)
+
+        # if this object can be introspected, add it to the introspection list
+        if hasattr(obj, '_introspect'):
             self._to_introspect.add(attr)
-        super().__setitem__(attr, value)
+
+        # if this is a new scope, add it to the scope dependencies
+        scope = obj.enclosing_scope
+        if scope not in self._scope_dependencies:
+            parent_scope = super().__getitem__(scope).enclosing_scope
+            self._scope_dependencies[scope] = parent_scope
 
     def __getitem__(self, key):
         # requesting an item triggers introspection
@@ -57,6 +65,25 @@ class Namespace(dict):
 
     def values(self):
         raise NotImplementedError
+
+    def copy(self, scope: str) -> "Namespace":
+
+        """Performs a shallow copy of the object based on the given scope."""
+        # TODO documentation
+
+        scopes = set([scope])
+        while self._scope_dependencies[scope] is not None:
+            scope = self._scope_dependencies[scope]
+            scopes.add(scope)
+
+        n = Namespace()
+        for key, obj in [(k, v) for k, v in super().items() if v.enclosing_scope in scopes]:
+            # all objects in a copied namespace must be introspected
+            if key in self._to_introspect:
+                self.__getitem__(key)
+            n[key] = obj
+        n._to_introspect.clear()
+        return n
 
 
 def get_builtin_namespace():

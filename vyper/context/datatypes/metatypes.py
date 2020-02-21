@@ -10,6 +10,9 @@ from vyper.context.datatypes.types import (
     InterfaceType,
     StructType,
 )
+from vyper.context.datatypes.functions import (
+    Function,
+)
 from vyper.context.utils import (
     get_leftmost_id,
 )
@@ -32,6 +35,7 @@ class _BaseMetaType:
         The namespace object that this object exists within.
     """
     __slots__ = ('namespace', 'base_type')
+    enclosing_scope = "builtin"
 
     def __init__(self, namespace, base_type):
         self.namespace = namespace
@@ -83,6 +87,7 @@ class _BaseMetaTypeCreator:
         The namespace object that this object exists within.
     """
     __slots__ = ('namespace',)
+    enclosing_scope = "builtin"
 
     def __init__(self, namespace):
         self.namespace = namespace
@@ -134,6 +139,10 @@ class StructMetaType(_BaseMetaType):
         self.node = node
         self._id = node.name
 
+    @property
+    def enclosing_scope(self):
+        return self.node.enclosing_scope
+
     def _introspect(self):
         self.members = OrderedDict()
         for node in self.node.body:
@@ -175,13 +184,22 @@ class InterfaceMetaType(_BaseMetaType):
     node : ClassDef
         Vyper AST node that defines this meta-type.
     """
-    __slots__ = ('_id', 'node')
+    __slots__ = ('_id', 'node', 'functions')
 
     def __init__(self, namespace, node):
         super().__init__(namespace, InterfaceType)
         self.node = node
         self._id = node.name
+        self.functions = {}
+
+    @property
+    def enclosing_scope(self):
+        return self.node.enclosing_scope
 
     def _introspect(self):
-        # TODO
+        for node in self.node.body:
+            if not isinstance(node, vy_ast.FunctionDef):
+                raise StructureException("Interfaces can only contain function definitions", node)
+            func = Function(self.namespace, node)
+
         pass

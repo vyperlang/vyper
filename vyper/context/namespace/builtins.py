@@ -8,8 +8,8 @@ from vyper.context.datatypes.units import (
 )
 
 BUILTIN_UNITS = [
-    Unit(name="sec", description="number of seconds"),
-    Unit(name="wei", description="amount of Ether in wei"),
+    Unit(name="sec", description="number of seconds", enclosing_scope="builtin"),
+    Unit(name="wei", description="amount of Ether in wei", enclosing_scope="builtin"),
 ]
 
 

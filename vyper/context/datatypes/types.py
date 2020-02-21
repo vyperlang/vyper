@@ -47,7 +47,7 @@ class _BaseType:
     namespace : Namespace
         The namespace object that this type exists within.
     """
-    __slots__ = ('namespace', 'node')
+    __slots__ = ('namespace', 'node',)
 
     def __init__(self, namespace, node):
         self.namespace = namespace
@@ -55,6 +55,10 @@ class _BaseType:
 
     def __eq__(self, other):
         return type(self) == type(other)
+
+    @property
+    def enclosing_scope(self):
+        return self.node.enclosing_scope
 
 
 class _BaseSubscriptType(_BaseType):

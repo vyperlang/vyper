@@ -26,6 +26,10 @@ class Variable:
         self.is_constant = False
         self.is_public = False
 
+    @property
+    def enclosing_scope(self):
+        return self.annotation.enclosing_scope
+
     def _introspect(self):
 
         node = self.annotation
