@@ -3,10 +3,11 @@ from vyper.context.namespace.builtins import (
     get_meta_types,
 )
 from vyper.context.namespace.module import (
-    add_assignments,
+    add_variables,
     add_custom_types,
     add_custom_units,
     add_functions,
+    add_implemented_interfaces,
 )
 from vyper.exceptions import (
     StructureException,
@@ -66,6 +67,12 @@ class Namespace(dict):
     def values(self):
         raise NotImplementedError
 
+    def get(self, key, default=None):
+        try:
+            return self.__getitem__(key)
+        except KeyError:
+            return default
+
     def copy(self, scope: str) -> "Namespace":
 
         """Performs a shallow copy of the object based on the given scope."""
@@ -104,7 +111,8 @@ def add_module_namespace(vy_module, namespace):
     module_nodes, namespace = add_custom_units(module_nodes, namespace)
     module_nodes, namespace = add_custom_types(module_nodes, namespace)
     module_nodes, namespace = add_functions(module_nodes, namespace)
-    module_nodes, namespace = add_assignments(module_nodes, namespace)
+    module_nodes, namespace = add_variables(module_nodes, namespace)
+    module_nodes, namespace = add_implemented_interfaces(module_nodes, namespace)
 
     if module_nodes:
         # TODO expand this to explain why each type is invalid

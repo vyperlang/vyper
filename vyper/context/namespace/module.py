@@ -12,6 +12,7 @@ from vyper.context.datatypes.functions import (
 )
 from vyper.exceptions import (
     VariableDeclarationException,
+    StructureException,
 )
 
 
@@ -81,11 +82,30 @@ def add_functions(module_nodes, namespace):
     return module_nodes, namespace
 
 
-def add_assignments(module_nodes, namespace):
+def add_variables(module_nodes, namespace):
     for node in [i for i in module_nodes if isinstance(i, vy_ast.AnnAssign)]:
-        if node.target.id in ("implements", "units"):
+        if node.target.id == "implements":
             continue
         namespace[node.target.id] = Variable(namespace, node.target.id, node.annotation, node.value)
         module_nodes.remove(node)
+
+    return module_nodes, namespace
+
+
+def add_implemented_interfaces(module_nodes, namespace):
+    implement_nodes = [
+        i for i in module_nodes if isinstance(i, vy_ast.AnnAssign)
+        and i.get('target.id') == "implements"
+    ]
+    interface_names = set()
+    for node in implement_nodes:
+        name = node.annotation.id
+        if name in interface_names:
+            raise StructureException("Interface has already been implemented", node)
+        module_nodes.remove(node)
+        interface_names.add(name)
+
+    for name in interface_names:
+        namespace[name].validate_implements(namespace)
 
     return module_nodes, namespace

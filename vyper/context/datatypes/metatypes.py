@@ -212,3 +212,10 @@ class InterfaceMetaType(_BaseMetaType):
                 raise StructureException("Namespace collision", node)
             self.functions[func.name] = func
 
+    def validate_implements(self, namespace):
+        unimplemented = [i.name for i in self.functions.values() if namespace.get(i.name) != i]
+        if unimplemented:
+            raise StructureException(
+                f"Contract does not implement all interface functions: {', '.join(unimplemented)}",
+                self.node
+            )
