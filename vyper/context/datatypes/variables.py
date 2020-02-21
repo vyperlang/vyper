@@ -37,7 +37,7 @@ class Variable:
             setattr(self, f"is_{node.func.id}", True)
             node = node.args[0]
         name = get_leftmost_id(node)
-        self.type = self.namespace[name].get_type(node)
+        self.type = self.namespace[name].get_type(node, self.namespace)
 
         if self.value is None:
             # TODO this is commented out because of callargs... need a solution

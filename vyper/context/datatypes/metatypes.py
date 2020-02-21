@@ -41,7 +41,7 @@ class _BaseMetaType:
         self.namespace = namespace
         self.base_type = base_type
 
-    def get_type(self, node):
+    def get_type(self, node, namespace=None):
         """
         Returns a type class for the given node.
 
@@ -51,6 +51,7 @@ class _BaseMetaType:
             AST node from AnnAssign.annotation, outlining the type
             to be created.
 
+
         Returns
         -------
         _BaseType
@@ -58,10 +59,12 @@ class _BaseMetaType:
             and the node argument includes a subscript, the return type will
             be ArrayType. Otherwise it will be base_type.
         """
+        if namespace is None:
+            namespace = self.namespace
         if getattr(self.base_type, '_as_array', False) and isinstance(node, vy_ast.Subscript):
-            obj = ArrayType(self.namespace, node)
+            obj = ArrayType(namespace, node)
         else:
-            obj = self.base_type(self.namespace, node)
+            obj = self.base_type(namespace, node)
         obj._introspect()
         return obj
 
@@ -201,7 +204,8 @@ class InterfaceMetaType(_BaseMetaType):
         for node in self.node.body:
             if not isinstance(node, vy_ast.FunctionDef):
                 raise StructureException("Interfaces can only contain function definitions", node)
-            func = Function(self.namespace, node)
+            func = Function(namespace, node, "public")
+            func._introspect()
             if func.name in namespace or func.name in self.functions:
                 raise StructureException("Namespace collision", node)
             self.functions[func.name] = func

@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from typing import Optional
 from vyper import ast as vy_ast
 from vyper.context.datatypes.variables import (
     Variable,
@@ -25,14 +26,32 @@ class Function:
     )
     # _id = "def"
 
-    def __init__(self, namespace, node: vy_ast.FunctionDef):
+    def __init__(self, namespace, node: vy_ast.FunctionDef, visibility: Optional[str] = None):
         self.namespace = namespace
         self.node = node
         self.name = node.name
+        if visibility is not None:
+            self.visibility = visibility
 
     @property
     def enclosing_scope(self):
         return self.node.enclosing_scope
+
+    def __eq__(self, other):
+        if not (
+            isinstance(other, Function) and
+            self.name == other.name and
+            self.visibility == other.visibility and
+            self.return_types == other.return_types and
+            list(self.arguments) == list(other.arguments)
+        ):
+            return False
+        for key in self.arguments:
+            if self.arguments[key].type != other.arguments[key].type:
+                return False
+            if self.arguments[key].value != other.arguments[key].value:
+                return False
+        return True
 
     def _introspect(self):
         self._introspect_decorators(self.node.decorator_list)
@@ -41,12 +60,12 @@ class Function:
 
     def _introspect_decorators(self, decorator_list):
         decorators = [i.id for i in decorator_list]
-        if all(i in decorators for i in ("public", "private")):
-            raise StructureException(
-                "Visibility must be public or private, not both", self.node
-            )
         for value in decorators:
             if value in ("public", "private"):
+                if hasattr(self, "visibility"):
+                    raise StructureException(
+                        "Visibility must be public or private, not both", self.node
+                    )
                 self.visibility = value
             else:
                 setattr(self, f"is_{value}", True)
