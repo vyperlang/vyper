@@ -181,6 +181,14 @@ class ArrayValueType(_BaseSubscriptType, ValueType):
             raise StructureException(f"{self._id} types must have a maximum length.", self.node)
         super()._introspect()
 
+    def validate_literal(self, node):
+        super().validate_literal(node)
+        if len(node.value) > self.length:
+            raise InvalidLiteralException(
+                f"Literal value exceeds the maximum length for {self._id}[{self.length}]",
+                node
+            )
+
 
 class CompoundType(_BaseType):
 
@@ -294,18 +302,28 @@ class StringType(ArrayValueType):
     _id = "string"
     _valid_node = vy_ast.Str
 
-    def validate_literal(self, node):
-        super().validate_literal(node)
-        # TODO
-
 
 class BytesType(ArrayValueType):
     __slots__ = ()
     _id = "bytes"
+    _valid_node = (vy_ast.Bytes, vy_ast.Binary)
 
     def validate_literal(self, node):
-        super().validate_literal(node)
-        # TODO
+        if not isinstance(node, vy_ast.Binary):
+            return super().validate_literal(node)
+
+        value = node.node_source_code
+        mod = (len(value)-2) % 8
+        if mod:
+            raise InvalidLiteralException(
+                f"Bit notation requires a multiple of 8 bits / 1 byte. "
+                f"{8-mod} bit(s) are missing.",
+                node,
+            )
+        if (len(value)-2) / 8 > self.length:
+            raise InvalidLiteralException(
+                f"Literal value exceeds the maximum length for {self._id}[{self.length}]", node
+            )
 
 
 class MappingType(CompoundType):
