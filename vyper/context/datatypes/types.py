@@ -1,6 +1,3 @@
-from collections import (
-    OrderedDict,
-)
 from decimal import (
     Decimal,
 )
@@ -345,41 +342,6 @@ class MappingType(CompoundType):
 
     def validate_literal(self, node):
         # TODO - direct assignment is always a no, but with a subscript is ++
-        pass
-
-
-class EventType(CompoundType):
-    """
-    Represents an event: `EventName({attr: value, .. })`
-
-    Attributes
-    ----------
-    members : OrderedDict
-        A dictionary of {field: {'type': TypeObject, 'indexed': bool}} representing each
-        member in the event.
-    """
-    __slots__ = ('members',)
-    _id = "event"
-    _no_value = True
-
-    def __eq__(self, other):
-        return super().__eq__(other) and self.members == other.members
-
-    def _introspect(self):
-        node = self.node.args[0]
-        self.members = OrderedDict()
-        for key, value in zip(node.keys, node.values):
-            self.members[key] = {'indexed': False}
-            if isinstance(value, vy_ast.Call):
-                if value.func.id != "indexed":
-                    raise StructureException(f"Invalid keyword '{value.func.id}'", value.func)
-                check_call_args(value, 1)
-                self.members[key]['indexed'] = True
-                value = value.args[0]
-            self.members[key]['type'] = self.namespace[value.id].get_type(self.namespace, value)
-
-    def validate_literal(self, node):
-        # TODO
         pass
 
 

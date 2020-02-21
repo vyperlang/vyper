@@ -6,6 +6,7 @@ from vyper.context.namespace.module import (
     add_variables,
     add_custom_types,
     add_custom_units,
+    add_events,
     add_functions,
     add_implemented_interfaces,
 )
@@ -111,6 +112,7 @@ def add_module_namespace(vy_module, namespace):
     module_nodes, namespace = add_custom_units(module_nodes, namespace)
     module_nodes, namespace = add_custom_types(module_nodes, namespace)
     module_nodes, namespace = add_functions(module_nodes, namespace)
+    module_nodes, namespace = add_events(module_nodes, namespace)
     module_nodes, namespace = add_variables(module_nodes, namespace)
     module_nodes, namespace = add_implemented_interfaces(module_nodes, namespace)
 

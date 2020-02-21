@@ -10,6 +10,9 @@ from vyper.context.datatypes.variables import (
 from vyper.context.datatypes.functions import (
     Function,
 )
+from vyper.context.datatypes.events import (
+    Event,
+)
 from vyper.exceptions import (
     VariableDeclarationException,
     StructureException,
@@ -77,6 +80,14 @@ def add_functions(module_nodes, namespace):
     for node in [i for i in module_nodes if isinstance(i, vy_ast.FunctionDef)]:
         # TODO check for node.simple
         namespace[node.name] = Function(namespace, node)
+        module_nodes.remove(node)
+
+    return module_nodes, namespace
+
+
+def add_events(module_nodes, namespace):
+    for node in [i for i in module_nodes if i.get('annotation.func.id') == "event"]:
+        namespace[node.target.id] = Event(namespace, node.target.id, node.annotation, node.value)
         module_nodes.remove(node)
 
     return module_nodes, namespace
