@@ -34,15 +34,18 @@ class Namespace(dict):
             )
         super().__setitem__(attr, obj)
 
-        # if this object can be introspected, add it to the introspection list
-        if hasattr(obj, '_introspect'):
-            self._to_introspect.add(attr)
-
         # if this is a new scope, add it to the scope dependencies
         scope = obj.enclosing_scope
         if scope not in self._scope_dependencies:
             parent_scope = super().__getitem__(scope).enclosing_scope
             self._scope_dependencies[scope] = parent_scope
+
+        if hasattr(obj, '_introspect'):
+            # builtins and module level are not introspected immediately
+            if scope in ('module', 'builtin'):
+                self._to_introspect.add(attr)
+            else:
+                obj._introspect()
 
     def __getitem__(self, key):
         # requesting an item triggers introspection
@@ -114,17 +117,22 @@ def add_module_namespace(vy_module, namespace, interface_codes):
 
     module_nodes = vy_module.body.copy()
 
+    # add custom types and units
     module_nodes, namespace = add_custom_units(module_nodes, namespace)
     module_nodes, namespace = add_custom_types(module_nodes, namespace, interface_codes)
+
+    # add assignments
     module_nodes, namespace = add_functions(module_nodes, namespace)
     module_nodes, namespace = add_events(module_nodes, namespace)
     module_nodes, namespace = add_variables(module_nodes, namespace)
+
+    # introspection
     module_nodes, namespace = add_implemented_interfaces(module_nodes, namespace)
+    namespace.introspect()
 
     if module_nodes:
         # TODO expand this to explain why each type is invalid
         print([type(i) for i in module_nodes])
         raise StructureException("Invalid syntax for module-level namespace", module_nodes[0])
 
-    namespace.introspect()
     return namespace
