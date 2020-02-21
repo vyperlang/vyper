@@ -197,9 +197,12 @@ class InterfaceMetaType(_BaseMetaType):
         return self.node.enclosing_scope
 
     def _introspect(self):
+        namespace = self.namespace.copy('builtin')
         for node in self.node.body:
             if not isinstance(node, vy_ast.FunctionDef):
                 raise StructureException("Interfaces can only contain function definitions", node)
             func = Function(self.namespace, node)
+            if func.name in namespace or func.name in self.functions:
+                raise StructureException("Namespace collision", node)
+            self.functions[func.name] = func
 
-        pass
