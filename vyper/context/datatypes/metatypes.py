@@ -41,7 +41,7 @@ class _BaseMetaType:
         self.namespace = namespace
         self.base_type = base_type
 
-    def get_type(self, node, namespace=None):
+    def get_type(self, namespace, node):
         """
         Returns a type class for the given node.
 
@@ -159,7 +159,9 @@ class StructMetaType(_BaseMetaType):
                     f"Struct member '{member_name}'' has already been declared", node.target
                 )
             type_name = get_leftmost_id(node.annotation)
-            self.members[member_name] = self.namespace[type_name].get_type(node.annotation)
+            self.members[member_name] = self.namespace[type_name].get_type(
+                self.namespace, node.annotation
+            )
 
     def __repr__(self):
         return f"<Struct Type '{self._id}'>"

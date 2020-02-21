@@ -99,4 +99,4 @@ class Function:
             )
         for node in return_types:
             id_ = get_leftmost_id(node)
-            self.return_types += (self.namespace[id_].get_type(node),)
+            self.return_types += (self.namespace[id_].get_type(self.namespace, node),)

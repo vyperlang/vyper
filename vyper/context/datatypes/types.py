@@ -335,10 +335,10 @@ class MappingType(CompoundType):
 
     def _introspect(self):
         check_call_args(self.node, 2)
-        self.key_type = self.namespace[self.node.args[0].id].get_type(self.node.args[0])
+        self.key_type = self.namespace[self.node.args[0].id].get_type(self.namespace, self.node.args[0])
 
         key = get_leftmost_id(self.node.args[1])
-        self.value_type = self.namespace[key].get_type(self.node.args[1])
+        self.value_type = self.namespace[key].get_type(self.namespace, self.node.args[1])
 
     def __repr__(self):
         return f"map({self.key_type}, {self.value_type})"
@@ -376,7 +376,7 @@ class EventType(CompoundType):
                 check_call_args(value, 1)
                 self.members[key]['indexed'] = True
                 value = value.args[0]
-            self.members[key]['type'] = self.namespace[value.id].get_type(value)
+            self.members[key]['type'] = self.namespace[value.id].get_type(self.namespace, value)
 
     def validate_literal(self, node):
         # TODO
@@ -409,7 +409,7 @@ class ArrayType(_BaseSubscriptType, CompoundType):
 
     def _introspect(self):
         super()._introspect()
-        self.base_type = self.namespace[self.node.value.id].get_type(self.node.value)
+        self.base_type = self.namespace[self.node.value.id].get_type(self.namespace, self.node.value)
 
     def validate_literal(self, node):
         # TODO! IMPORTANT! this does not validate the individual array items
