@@ -24,7 +24,6 @@ class Function:
         "return_types",
         "arguments",
     )
-    # _id = "def"
 
     def __init__(self, namespace, node: vy_ast.FunctionDef, visibility: Optional[str] = None):
         self.namespace = namespace
@@ -49,7 +48,7 @@ class Function:
         for key in self.arguments:
             if self.arguments[key].type != other.arguments[key].type:
                 return False
-            if self.arguments[key].value != other.arguments[key].value:
+            if self.arguments[key]._value != other.arguments[key]._value:
                 return False
         return True
 

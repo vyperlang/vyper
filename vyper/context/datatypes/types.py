@@ -112,7 +112,7 @@ class _BaseSubscriptType(_BaseType):
                 raise StructureException(f"Invalid type for Slice: '{typ}'", node)
             if typ.unit:
                 raise StructureException(f"Slice value must be unitless, not '{typ.unit}'", node)
-            return length.value
+            return length.literal_value
 
         raise StructureException("Slice must be an integer or constant", node)
 
@@ -332,7 +332,8 @@ class MappingType(CompoundType):
 
     def _introspect(self):
         check_call_args(self.node, 2)
-        self.key_type = self.namespace[self.node.args[0].id].get_type(self.namespace, self.node.args[0])
+        meta_type = self.namespace[self.node.args[0].id]
+        self.key_type = meta_type.get_type(self.namespace, self.node.args[0])
 
         key = get_leftmost_id(self.node.args[1])
         self.value_type = self.namespace[key].get_type(self.namespace, self.node.args[1])
@@ -371,7 +372,8 @@ class ArrayType(_BaseSubscriptType, CompoundType):
 
     def _introspect(self):
         super()._introspect()
-        self.base_type = self.namespace[self.node.value.id].get_type(self.namespace, self.node.value)
+        meta_type = self.namespace[self.node.value.id]
+        self.base_type = meta_type.get_type(self.namespace, self.node.value)
 
     def validate_literal(self, node):
         # TODO! IMPORTANT! this does not validate the individual array items

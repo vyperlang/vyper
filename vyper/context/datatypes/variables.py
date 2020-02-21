@@ -16,30 +16,30 @@ class Variable:
 
     # TODO docs, slots
 
-    def __init__(self, namespace, name, annotation, value):
+    def __init__(self, namespace, name: str, annotation, value):
         self.namespace = namespace
 
         self.name = name
-        self.annotation = annotation
-        self.value = value
+        self._annotation = annotation
+        self._value = value
 
         self.is_constant = False
         self.is_public = False
 
     @property
     def enclosing_scope(self):
-        return self.annotation.enclosing_scope
+        return self._annotation.enclosing_scope
 
     def _introspect(self):
 
-        node = self.annotation
+        node = self._annotation
         if isinstance(node, vy_ast.Call) and node.func.id in ("constant", "public"):
             setattr(self, f"is_{node.func.id}", True)
             node = node.args[0]
         name = get_leftmost_id(node)
         self.type = self.namespace[name].get_type(self.namespace, node)
 
-        if self.value is None:
+        if self._value is None:
             # TODO this is commented out because of callargs... need a solution
             # if node.enclosing_scope != "module":
             #     raise
@@ -52,36 +52,33 @@ class Variable:
             if hasattr(self.type, "_no_value"):
                 # types that cannot be assigned to
                 raise
-            self.value = validate(self.namespace, self.value, self.type)
+            self.literal_value = get_literal_value(self.namespace, self._value, self.type)
 
     def get_item(self, key):
-        # TODO
-        # return a reference object instead of the direct value?
-        if not hasattr(self, "value"):
+        if not hasattr(self, "literal_value"):
             self._introspect()
-        if isinstance(self.value, Variable):
-            return self.value.get_item(key)
-        return self.value[key]
+        return self.literal_value[key]
 
     def __repr__(self):
-        if self.value is None:
+        if self._value is None:
             return f"<Variable '{self.name}: {str(self.type)}'>"
-        return f"<Variable '{self.name}: {str(self.type)} = {self.value}'>"
+        return f"<Variable '{self.name}: {str(self.type)} = {self.literal_value}'>"
 
 
-def validate(namespace, node, validation_type):
+def get_literal_value(namespace, node, validation_type):
     # TODO:
     # call - ...do the call...
     # folding.. ?
+    # how to handle recursion, right now it raises with AttributeError: "literal_value"
     # does this all belong somewhere else?
-
-    if isinstance(node, vy_ast.List):
-        validation_type.validate_literal(node)
-        return [validate(namespace, i, validation_type.base_type) for i in node.elts]
 
     if isinstance(node, vy_ast.Constant):
         # verify that a literal value is valid for the type
         return validate_constant(node, validation_type)
+
+    if isinstance(node, vy_ast.List):
+        validation_type.validate_literal(node)
+        return [get_literal_value(namespace, i, validation_type.base_type) for i in node.elts]
 
     if isinstance(node, vy_ast.Name):
         # verify that a variable reference is of the correct type
@@ -89,6 +86,7 @@ def validate(namespace, node, validation_type):
 
     if isinstance(node, vy_ast.Subscript):
         return validate_subscript(namespace, node, validation_type)
+    raise
 
 
 def validate_constant(node: vy_ast.Constant, validation_type):
@@ -103,7 +101,7 @@ def validate_name(namespace, node, validation_type):
         raise VariableDeclarationException(f"{node.id} is not a variable", node)
     if var.type != validation_type:
         raise TypeMismatchException(f"Invalid type for assignment: {var.type}", node)
-    return var
+    return var.literal_value
 
 
 def validate_subscript(namespace, node, validation_type):
