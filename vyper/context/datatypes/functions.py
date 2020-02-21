@@ -48,7 +48,7 @@ class Function:
         for key in self.arguments:
             if self.arguments[key].type != other.arguments[key].type:
                 return False
-            if self.arguments[key]._value != other.arguments[key]._value:
+            if self.arguments[key].value != other.arguments[key].value:
                 return False
         return True
 
