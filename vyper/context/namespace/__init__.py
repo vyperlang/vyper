@@ -26,7 +26,12 @@ class Namespace(dict):
 
     def __setitem__(self, attr, obj):
         if attr in self:
-            raise StructureException(f"'{attr}' has already been declared", obj)
+            obj = super().__getitem__(attr)
+            # TODO expand this error message
+            raise StructureException(
+                f"Namespace collision: '{attr}' is a {obj.enclosing_scope} {type(obj).__name__}",
+                obj
+            )
         super().__setitem__(attr, obj)
 
         # if this object can be introspected, add it to the introspection list
@@ -49,7 +54,7 @@ class Namespace(dict):
 
     def update(self, other):
         for key, value in other.items():
-            self[key] = value
+            self.__setitem__(key, value)
 
     def introspect(self):
 
