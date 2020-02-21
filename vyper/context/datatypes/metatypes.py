@@ -203,14 +203,32 @@ class InterfaceMetaType(_BaseMetaType):
 
     def _introspect(self):
         namespace = self.namespace.copy('builtin')
+        if isinstance(self.node, vy_ast.Module):
+            functions = self._get_module_functions(namespace)
+        elif isinstance(self.node, vy_ast.ClassDef):
+            functions = self._get_class_functions(namespace)
+        else:
+            raise
+        for func in functions:
+            func._introspect()
+            if func.name in namespace or func.name in self.functions:
+                raise StructureException("Namespace collision", func.node)
+            self.functions[func.name] = func
+
+    def _get_class_functions(self, namespace):
+        functions = []
         for node in self.node.body:
             if not isinstance(node, vy_ast.FunctionDef):
                 raise StructureException("Interfaces can only contain function definitions", node)
-            func = Function(namespace, node, "public")
-            func._introspect()
-            if func.name in namespace or func.name in self.functions:
-                raise StructureException("Namespace collision", node)
-            self.functions[func.name] = func
+            functions.append(Function(namespace, node, "public"))
+        return functions
+
+    def _get_module_functions(self, namespace):
+        functions = []
+        for node in self.node.get_children({'ast_type': "FunctionDef"}):
+            if "public" in node.decorator_list:
+                functions.append(Function(namespace, node))
+        return functions
 
     def validate_implements(self, namespace):
         unimplemented = [i.name for i in self.functions.values() if namespace.get(i.name) != i]

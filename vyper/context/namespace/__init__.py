@@ -105,12 +105,12 @@ def get_builtin_namespace():
     return namespace
 
 
-def add_module_namespace(vy_module, namespace):
+def add_module_namespace(vy_module, namespace, interface_codes):
 
     module_nodes = vy_module.body.copy()
 
     module_nodes, namespace = add_custom_units(module_nodes, namespace)
-    module_nodes, namespace = add_custom_types(module_nodes, namespace)
+    module_nodes, namespace = add_custom_types(module_nodes, namespace, interface_codes)
     module_nodes, namespace = add_functions(module_nodes, namespace)
     module_nodes, namespace = add_events(module_nodes, namespace)
     module_nodes, namespace = add_variables(module_nodes, namespace)

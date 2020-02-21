@@ -296,7 +296,7 @@ class VyperNode:
 
 
 class Module(VyperNode):
-    __slots__ = ('body', )
+    __slots__ = ('body', 'name')
 
     def __getitem__(self, key):
         return self.body[key]

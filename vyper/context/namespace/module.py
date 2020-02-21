@@ -51,8 +51,8 @@ def add_custom_units(module_nodes, namespace):
     return module_nodes, namespace
 
 
-def add_custom_types(module_nodes, namespace):
-    _add_imports(module_nodes, namespace)
+def add_custom_types(module_nodes, namespace, interface_codes):
+    _add_imports(module_nodes, namespace, interface_codes)
     _add_classes(module_nodes, namespace)
     # TODO add functions
     # implements ?
@@ -60,13 +60,16 @@ def add_custom_types(module_nodes, namespace):
     return module_nodes, namespace
 
 
-def _add_imports(module_nodes, namespace):
-    for node in [i for i in module_nodes if isinstance(i, vy_ast.Import)]:
-        namespace[node.names[0].asname] = namespace['contract'].get_meta_type(namespace, node)
-        module_nodes.remove(node)
-
-    for node in [i for i in module_nodes if isinstance(i, vy_ast.ImportFrom)]:
-        namespace[node.names[0].name] = namespace['contract'].get_meta_type(namespace, node)
+def _add_imports(module_nodes, namespace, interface_codes):
+    for node in [i for i in module_nodes if isinstance(i, (vy_ast.Import, vy_ast.ImportFrom))]:
+        if isinstance(node, vy_ast.Import):
+            name = node.names[0].asname
+        else:
+            name = node.names[0].name
+        # TODO handle json imports
+        interface_ast = vy_ast.parse_to_ast(interface_codes[name]['code'])
+        interface_ast.name = name
+        namespace[name] = namespace['contract'].get_meta_type(namespace, interface_ast)
         module_nodes.remove(node)
 
 
