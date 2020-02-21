@@ -58,17 +58,17 @@ def add_custom_types(module_nodes, namespace):
 
 def _add_imports(module_nodes, namespace):
     for node in [i for i in module_nodes if isinstance(i, vy_ast.Import)]:
-        namespace[node.names[0].asname] = namespace['contract'].get_meta_type(node)
+        namespace[node.names[0].asname] = namespace['contract'].get_meta_type(namespace, node)
         module_nodes.remove(node)
 
     for node in [i for i in module_nodes if isinstance(i, vy_ast.ImportFrom)]:
-        namespace[node.names[0].name] = namespace['contract'].get_meta_type(node)
+        namespace[node.names[0].name] = namespace['contract'].get_meta_type(namespace, node)
         module_nodes.remove(node)
 
 
 def _add_classes(module_nodes, namespace):
     for node in [i for i in module_nodes if isinstance(i, vy_ast.ClassDef)]:
-        namespace[node.name] = namespace[node.class_type].get_meta_type(node)
+        namespace[node.name] = namespace[node.class_type].get_meta_type(namespace, node)
         module_nodes.remove(node)
 
 

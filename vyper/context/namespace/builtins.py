@@ -22,9 +22,9 @@ def get_meta_types(namespace):
         key = obj._id
         namespace[key] = metatypes.BuiltinMetaType(namespace, obj)
 
-    for obj in filter(_type_filter, metatypes.__dict__.values()):
-        key = obj._id
-        namespace[key] = obj(namespace)
+    for meta_type_creator in filter(_type_filter, metatypes.__dict__.values()):
+        key = meta_type_creator._id
+        namespace[key] = meta_type_creator()
 
     return namespace
 

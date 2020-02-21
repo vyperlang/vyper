@@ -92,8 +92,8 @@ class _BaseMetaTypeCreator:
     __slots__ = ('namespace',)
     enclosing_scope = "builtin"
 
-    def __init__(self, namespace):
-        self.namespace = namespace
+    # def __init__(self, namespace):
+    #     self.namespace = namespace
 
 
 class BuiltinMetaType(_BaseMetaType):
@@ -117,8 +117,8 @@ class StructMetaTypeCreator(_BaseMetaTypeCreator):
     __slots__ = ()
     _id = "struct"
 
-    def get_meta_type(self, node):
-        return StructMetaType(self.namespace, node)
+    def get_meta_type(self, namespace, node):
+        return StructMetaType(namespace, node)
 
 
 class StructMetaType(_BaseMetaType):
@@ -172,8 +172,8 @@ class InterfaceMetaTypeCreator(_BaseMetaTypeCreator):
     __slots__ = ()
     _id = "contract"
 
-    def get_meta_type(self, node):
-        return InterfaceMetaType(self.namespace, node)
+    def get_meta_type(self, namespace, node):
+        return InterfaceMetaType(namespace, node)
 
 
 class InterfaceMetaType(_BaseMetaType):
