@@ -9,7 +9,7 @@ from vyper.exceptions import (
 )
 
 
-def check_methods(vy_module, namespace):
+def check_functions(vy_module, namespace):
     for node in vy_module.get_children({'ast_type': "FunctionDef"}):
         FunctionNodeVisitor(node, namespace).visit()
 
