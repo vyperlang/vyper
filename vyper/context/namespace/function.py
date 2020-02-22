@@ -13,10 +13,18 @@ from vyper.exceptions import (
 
 def check_functions(vy_module, namespace):
     for node in vy_module.get_children({'ast_type': "FunctionDef"}):
-        FunctionNodeVisitor(node, namespace)
+        TypeCheckVisitor(node, namespace)
 
 
-class FunctionNodeVisitor:
+class TypeCheckVisitor:
+
+    ignored_types = (
+        vy_ast.Break,
+        vy_ast.Constant,
+        vy_ast.Continue,
+        vy_ast.Pass,
+        vy_ast.Return,
+    )
 
     def __init__(self, fn_node, namespace):
         self.fn_node = fn_node
@@ -27,6 +35,8 @@ class FunctionNodeVisitor:
             self.visit(node)
 
     def visit(self, node):
+        if isinstance(node, self.ignored_types):
+            return
         visitor_fn = getattr(self, f'visit_{node.ast_type}', None)
         if visitor_fn is None:
             raise StructureException(
@@ -72,12 +82,6 @@ class FunctionNodeVisitor:
 
     def visit_Expr(self, node):
         self.visit(node.value)
-
-    def visit_Pass(self, node):
-        return
-
-    def visit_Break(self, node):
-        return
 
     def visit_UnaryOp(self, node):
         # TODO what about when node.operand is BinOp ?
