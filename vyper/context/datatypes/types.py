@@ -54,6 +54,7 @@ class _BaseType:
         self.node = node
 
     def __eq__(self, other):
+        # TODO change to a method to reduce duplicated exception raises
         return type(self) == type(other)
 
     @property

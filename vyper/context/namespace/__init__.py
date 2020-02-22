@@ -49,7 +49,10 @@ class Namespace(dict):
 
     def __getitem__(self, key):
         # requesting an item triggers introspection
-        item = super().__getitem__(key)
+        try:
+            item = super().__getitem__(key)
+        except KeyError:
+            raise StructureException(f"name '{key}' is not defined")
         if key in self._to_introspect:
             self._to_introspect.remove(key)
             item._introspect()

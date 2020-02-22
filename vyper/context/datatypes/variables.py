@@ -99,21 +99,23 @@ class Variable:
         return f"<Variable '{self.name}: {str(self.type)} = {self.value}'>"
 
 
-def get_value(namespace, node):
+def get_type(namespace, node):
     """
-    Returns a the value of a node without any validation.
+    Returns a the type value of a node without any validation.
     """
-    if isinstance(node, vy_ast.Constant):
-        return node.value
+    # if isinstance(node, vy_ast.Constant):
+    #     return node.value
     if isinstance(node, vy_ast.Name):
-        return _get_name(namespace, node)
+        return _get_name(namespace, node).type
     if isinstance(node, vy_ast.Subscript):
         var, idx = _get_subscript(namespace, node)
-        return var.type.get_item(idx)
+        return var.type[idx]
     if isinstance(node, vy_ast.Tuple):
-        return tuple(get_value(namespace, i) for i in node.elts)
+        return tuple(get_type(namespace, i) for i in node.elts)
     if isinstance(node, (vy_ast.List)):
-        return [get_value(namespace, i) for i in node.elts]
+        return [get_type(namespace, i) for i in node.elts]
+    if isinstance(node, (vy_ast.Attribute)):
+        return _get_attribute(namespace, node)
     raise
 
 
@@ -143,6 +145,8 @@ def get_lhs_target(namespace, targets):
         return var.type.base_type[idx]
     if isinstance(target, vy_ast.Tuple):
         return tuple(get_lhs_target(namespace, (i,)) for i in target.elts)
+    if isinstance(target, vy_ast.Attribute):
+        return _get_attribute(namespace, target).type
 
 
 def get_rhs_value(namespace, node, validation_type):
@@ -194,6 +198,9 @@ def get_rhs_value(namespace, node, validation_type):
         # verify that a variable reference is of the correct type
         return _get_name(namespace, node, validation_type)
 
+    if isinstance(node, vy_ast.Attribute):
+        return _get_attribute(namespace, node, validation_type)
+
     if isinstance(node, vy_ast.Subscript):
         base_var, idx = _get_subscript(namespace, node, validation_type)
         base_type = base_var.type.base_type
@@ -207,13 +214,28 @@ def _get_name(namespace, node, validation_type=None):
     var = namespace[node.id]
     if not isinstance(var, Variable):
         raise VariableDeclarationException(f"{node.id} is not a variable", node)
+    if var.enclosing_scope == "module" and not var.is_constant:
+        raise StructureException("Cannot access storage variable directly, use self", node)
     if validation_type and var.type != validation_type:
         raise TypeMismatchException(f"Invalid type for assignment: {var.type}", node)
     return var
 
 
+def _get_attribute(namespace, node, validation_type=None):
+    if node.value.id == "self":
+        var = namespace[node.attr]
+        if var.enclosing_scope != "module" or var.is_constant:
+            raise StructureException(
+                f"'{var.name}' is not a storage variable, do not use self to access it", node
+            )
+        if validation_type and var.type != validation_type:
+            raise TypeMismatchException(f"Invalid type for assignment: {var.type}", node)
+        return var
+    raise
+
+
 def _get_subscript(namespace, node, validation_type=None):
-    base_var = _get_name(namespace, node.value)
+    base_var = get_rhs_value(namespace, node.value, validation_type)
 
     # validating the slice also validates that this is an ArrayType
     idx = base_var.type.validate_slice(node.slice)

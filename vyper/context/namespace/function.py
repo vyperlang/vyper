@@ -3,7 +3,7 @@ from vyper.context.datatypes.variables import (
     Variable,
     get_rhs_value,
     get_lhs_target,
-    get_value,
+    get_type,
 )
 from vyper.exceptions import (
     StructureException,
@@ -85,7 +85,7 @@ class TypeCheckVisitor:
 
     def visit_UnaryOp(self, node):
         # TODO what about when node.operand is BinOp ?
-        get_value(self.namespace, node.operand).type.validate_op(node)
+        get_type(self.namespace, node.operand).type.validate_op(node)
 
     def visit_BinOp(self, node):
         nodes = (node.left, node.right)
@@ -96,10 +96,26 @@ class TypeCheckVisitor:
             raise StructureException("Cannot have a comparison with more than two elements", node)
         _check_operand(self.namespace, node, (node.left, node.comparators[0]), "validate_compare")
 
+    def visit_Call(self, node):
+        # TODO
+        pass
+
+    def visit_Attribute(self, node):
+        get_type(self.namespace, node)
+
+    def visit_Name(self, node):
+        get_type(self.namespace, node)
+
+    def visit_Subscript(self, node):
+        get_type(self.namespace, node)
+
+    def visit_List(self, node):
+        get_type(self.namespace, node)
+
 
 def _check_operand(namespace, node, node_list, validation_fn_name):
     literals = [i for i in node_list if isinstance(i, vy_ast.Constant)]
-    assigned = [get_value(namespace, i) for i in node_list if i not in literals]
+    assigned = [get_type(namespace, i) for i in node_list if i not in literals]
 
     if not assigned:
         if type(node.left) != type(node.right):  # NOQA: E721
@@ -112,13 +128,16 @@ def _check_operand(namespace, node, node_list, validation_fn_name):
             raise StructureException(
                 f"Invalid literal type for operation: {node.left.ast_type}", node
             )
-        return
 
-    if not literals:
-        getattr(assigned[0].type, validation_fn_name)(node)
-        if assigned[0].type != assigned[1].type:
-            raise
-        return
+    elif not literals:
+        getattr(assigned[0], validation_fn_name)(node)
+        if assigned[0] != assigned[1]:
+            raise TypeMismatchException(
+                "Cannot perform operation between "
+                f"{assigned[0]} and {assigned[1]}",
+                node
+            )
 
-    getattr(assigned[0].type, validation_fn_name)(node)
-    assigned[0].type.validate_literal(literals[0])
+    else:
+        getattr(assigned[0], validation_fn_name)(node)
+        assigned[0].validate_literal(literals[0])
