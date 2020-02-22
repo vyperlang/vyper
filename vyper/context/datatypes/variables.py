@@ -99,6 +99,24 @@ class Variable:
         return f"<Variable '{self.name}: {str(self.type)} = {self.value}'>"
 
 
+def get_value(namespace, node):
+    """
+    Returns a the value of a node without any validation.
+    """
+    if isinstance(node, vy_ast.Constant):
+        return node.value
+    if isinstance(node, vy_ast.Name):
+        return _get_name(namespace, node)
+    if isinstance(node, vy_ast.Subscript):
+        var, idx = _get_subscript(namespace, node)
+        return var.type.get_item(idx)
+    if isinstance(node, vy_ast.Tuple):
+        return tuple(get_value(namespace, i) for i in node.elts)
+    if isinstance(node, (vy_ast.List)):
+        return [get_value(namespace, i) for i in node.elts]
+    raise
+
+
 def get_lhs_target(namespace, targets):
     """
     Validates and returns the left-hand-side type(s) of an assignment.
