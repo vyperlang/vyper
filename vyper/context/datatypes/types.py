@@ -36,6 +36,13 @@ class _BaseType:
     _as_array: bool
         If included and set as True, contracts may use this type may as the base
         of an array by invoking it with a subscript.
+    _valid_literal: VyperNode | tuple
+        A vyper ast class or tuple of ast classes that can represent valid literals
+        for the given type.
+    _invalid_op: VyperNode | tuple
+        A vyper ast class or tuple of ast classes that are invalid operand types to
+        be applied to this node. If this is NOT included, no operands can be applied
+        to the type.
 
     Object attributes
     -----------------
@@ -58,8 +65,13 @@ class _BaseType:
         return self.node.enclosing_scope
 
     def validate_op(self, node):
-        # TODO docs
-        raise StructureException(f"Unsupported operand for {self._id}", node)
+        if not hasattr(self, '_invalid_op'):
+            raise InvalidTypeException("Invalid type for operands", node)
+        if isinstance(node.op, self._invalid_op):
+            # TODO: showing ast_type is very vague, maybe add human readable descriptions to nodes?
+            raise StructureException(
+                f"Unsupported operand for {self._id}: {node.op.ast_type}", node
+            )
 
 
 class _BaseSubscriptType(_BaseType):
@@ -149,7 +161,7 @@ class ValueType(_BaseType):
     def validate_literal(self, node):
         if not isinstance(node, vy_ast.Constant):
             raise CompilerPanic(f"Attempted to validate a '{node.ast_type}' node.")
-        if not isinstance(node, self._valid_node):
+        if not isinstance(node, self._valid_literal):
             raise InvalidTypeException(f"Invalid literal type for '{self._id}'", node)
 
 
@@ -171,11 +183,6 @@ class NumericType(ValueType):
 
     def __eq__(self, other):
         return super().__eq__(other) and self.unit == other.unit
-
-    def validate_op(self, node):
-        # TODO docs - this allows arithmetic on the type
-        # the passed node is the parent, NOT the actual op, because the op has no source offset
-        return
 
 
 class ArrayValueType(_BaseSubscriptType, ValueType):
@@ -233,7 +240,7 @@ class BoolType(ValueType):
     __slots__ = ()
     _id = "bool"
     _as_array = True
-    _valid_node = vy_ast.NameConstant
+    _valid_literal = vy_ast.NameConstant
 
     def validate_literal(self, node):
         super().validate_literal(node)
@@ -245,7 +252,7 @@ class AddressType(ValueType):
     __slots__ = ()
     _id = "address"
     _as_array = True
-    _valid_node = vy_ast.Hex
+    _valid_literal = vy_ast.Hex
 
     def validate_literal(self, node):
         super().validate_literal(node)
@@ -264,7 +271,7 @@ class Bytes32Type(ValueType):
     __slots__ = ()
     _id = "bytes32"
     _as_array = True
-    _valid_node = vy_ast.Hex
+    _valid_literal = vy_ast.Hex
 
     def validate_literal(self, node):
         super().validate_literal(node)
@@ -276,7 +283,8 @@ class Bytes32Type(ValueType):
 class IntegerType(NumericType):
     __slots__ = ()
     _id = "int128"
-    _valid_node = vy_ast.Int
+    _valid_literal = vy_ast.Int
+    _invalid_op = ()
 
     def validate_literal(self, node):
         super().validate_literal(node)
@@ -286,7 +294,8 @@ class IntegerType(NumericType):
 class UnsignedIntegerType(NumericType):
     __slots__ = ()
     _id = "uint256"
-    _valid_node = vy_ast.Int
+    _valid_literal = vy_ast.Int
+    _invalid_op = vy_ast.USub
 
     def validate_literal(self, node):
         super().validate_literal(node)
@@ -296,7 +305,8 @@ class UnsignedIntegerType(NumericType):
 class DecimalType(NumericType):
     __slots__ = ()
     _id = "decimal"
-    _valid_node = vy_ast.Decimal
+    _valid_literal = vy_ast.Decimal
+    _invalid_op = vy_ast.Pow
 
     def validate_literal(self, node):
         super().validate_literal(node)
@@ -309,13 +319,13 @@ class DecimalType(NumericType):
 class StringType(ArrayValueType):
     __slots__ = ()
     _id = "string"
-    _valid_node = vy_ast.Str
+    _valid_literal = vy_ast.Str
 
 
 class BytesType(ArrayValueType):
     __slots__ = ()
     _id = "bytes"
-    _valid_node = (vy_ast.Bytes, vy_ast.Binary)
+    _valid_literal = (vy_ast.Bytes, vy_ast.Binary)
 
     def validate_literal(self, node):
         if not isinstance(node, vy_ast.Binary):
