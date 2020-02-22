@@ -397,13 +397,20 @@ class ArrayType(_BaseSubscriptType, CompoundType):
     def validate_literal(self, node):
         # TODO! IMPORTANT! this does not validate the individual array items
         # which is fine, but it really needs documenting somewhere
-        if not isinstance(node, vy_ast.List):
-            raise InvalidTypeException(f"Invalid literal type for array", node)
-        if len(node.elts) != self.length:
-            raise InvalidLiteralException(
-                f"Invalid length for literal array, expected {len(node.elts)} got {self.length}",
-                node
-            )
+        raise
+        # if not isinstance(node, vy_ast.List):
+        #     raise InvalidTypeException(f"Invalid literal type for array", node)
+        # if len(node.elts) != self.length:
+        #     raise InvalidLiteralException(
+        #         f"Invalid length for literal array, expected {len(node.elts)} got {self.length}",
+        #         node
+        #     )
+
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, key):
+        return self.base_type[key]
 
 
 # User-defined Types

@@ -3,6 +3,8 @@ from vyper.context.utils import get_leftmost_id
 from vyper.exceptions import (
     VariableDeclarationException,
     TypeMismatchException,
+    StructureException,
+    InvalidLiteralException,
 )
 
 
@@ -97,9 +99,37 @@ class Variable:
         return f"<Variable '{self.name}: {str(self.type)} = {self.value}'>"
 
 
+def get_lhs_target(namespace, targets):
+    """
+    Validates and returns the left-hand-side type(s) of an assignment.
+
+    Arguments
+    ---------
+    namespace : Namespace
+        The active namespace that this value is being assigned within.
+
+    targets : list
+        A list of vyper AST nodes, from the .targets member of an Assign node.
+
+    Returns
+    -------
+        A type object, or tuple of type objects.
+    """
+    if len(targets) > 1:
+        raise StructureException("Assignment statement must have one target", targets[1])
+    target = targets[0]
+    if isinstance(target, vy_ast.Name):
+        return _get_name(namespace, target).type
+    if isinstance(target, vy_ast.Subscript):
+        var, idx = _get_subscript(namespace, target)
+        return var.type.base_type[idx]
+    if isinstance(target, vy_ast.Tuple):
+        return tuple(get_lhs_target(namespace, (i,)) for i in target.elts)
+
+
 def get_rhs_value(namespace, node, validation_type):
     """
-    Validates and returns the right-hand-side value of an assignment.
+    Validates and returns the right-hand-side value(s) of an assignment.
 
     Arguments
     ---------
@@ -107,10 +137,11 @@ def get_rhs_value(namespace, node, validation_type):
         The active namespace that this value is being assigned within.
 
     node : Constant | List | Name | Subscript
-        A vyper AST node, from the value member of an Assign or AnnAssign node.
+        A vyper AST node, from the .value member of an Assign or AnnAssign node.
 
-    validation_type : _BaseType
-        A type object that the value is validated against before returning.
+    validation_type : _BaseType | Sequence
+        A type object, or sequence of type objects, that the value is validated
+        against before returning
 
     Returns
     -------
@@ -123,49 +154,50 @@ def get_rhs_value(namespace, node, validation_type):
     # how to handle recursion, right now it raises with AttributeError: "literal_value"
     # does this all belong somewhere else?
 
-    if isinstance(node, vy_ast.Constant):
-        # verify that a literal value is valid for the type
-        return validate_constant(node, validation_type)
-
-    if isinstance(node, vy_ast.List):
-        validation_type.validate_literal(node)
+    if isinstance(node, (vy_ast.List, vy_ast.Tuple)):
+        if not hasattr(validation_type, '__len__'):
+            raise StructureException(f"Cannot assign multiple values to {validation_type}", node)
+        if len(node.elts) != len(validation_type):
+            raise InvalidLiteralException(
+                "Invalid length for literal array, expected "
+                f"{len(node.elts)} got {len(validation_type)}",
+                node
+            )
         return [
-            get_rhs_value(namespace, node.elts[i], validation_type.base_type[i])
+            get_rhs_value(namespace, node.elts[i], validation_type[i])
             for i in range(len(node.elts))
         ]
 
+    if isinstance(node, vy_ast.Constant):
+        # verify that a literal value is valid for the type
+        validation_type.validate_literal(node)
+        return node.value
+
     if isinstance(node, vy_ast.Name):
         # verify that a variable reference is of the correct type
-        return validate_name(namespace, node, validation_type)
+        return _get_name(namespace, node, validation_type)
 
     if isinstance(node, vy_ast.Subscript):
-        return validate_subscript(namespace, node, validation_type)
+        base_var, idx = _get_subscript(namespace, node, validation_type)
+        base_type = base_var.type.base_type
+        if base_type[idx] != validation_type:
+            raise TypeMismatchException(f"Invalid type for assignment: {base_type}", node)
+        return base_var.get_item(idx)
     raise
 
 
-def validate_constant(node: vy_ast.Constant, validation_type):
-    validation_type.validate_literal(node)
-    # TODO node.value isn't always what we want!
-    return node.value
-
-
-def validate_name(namespace, node, validation_type):
+def _get_name(namespace, node, validation_type=None):
     var = namespace[node.id]
     if not isinstance(var, Variable):
         raise VariableDeclarationException(f"{node.id} is not a variable", node)
-    if var.type != validation_type:
+    if validation_type and var.type != validation_type:
         raise TypeMismatchException(f"Invalid type for assignment: {var.type}", node)
     return var
 
 
-def validate_subscript(namespace, node, validation_type):
-    base_var = namespace[node.value.id]
-    if not isinstance(base_var, Variable):
-        raise VariableDeclarationException(f"{node.id} is not a variable", node)
+def _get_subscript(namespace, node, validation_type=None):
+    base_var = _get_name(namespace, node.value)
 
     # validating the slice also validates that this is an ArrayType
     idx = base_var.type.validate_slice(node.slice)
-    base_type = base_var.type.base_type
-    if validation_type and base_var.type.base_type[idx] != validation_type:
-        raise TypeMismatchException(f"Invalid type for assignment: {base_type}", node)
-    return base_var.get_item(idx)
+    return base_var, idx
