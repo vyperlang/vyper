@@ -1,7 +1,11 @@
+from vyper import ast as vy_ast
 from vyper.context.datatypes.variables import (
     Variable,
     get_rhs_value,
     get_lhs_target,
+)
+from vyper.exceptions import (
+    StructureException,
 )
 
 
@@ -29,3 +33,20 @@ class FunctionNodeVisitor:
     def visit_Assign(self, node):
         target_types = get_lhs_target(self.namespace, node.targets)
         get_rhs_value(self.namespace, node.value, target_types)
+
+    def visit_AugAssign(self, node):
+        target_type = get_lhs_target(self.namespace, (node.target,))
+        get_rhs_value(self.namespace, node.value, target_type)
+        target_type.validate_op(node)
+
+    def visit_Raise(self, node):
+        if not node.exc:
+            raise StructureException("Raise must have a reason", node)
+        if not isinstance(node.exc, vy_ast.Str) or len(node.exc.value) > 32:
+            raise StructureException("Reason must be a string of 32 characters or less", node.exc)
+
+    # def visit_Assert(self, node):
+    #     pass
+
+    # def visit_Delete(self, node):
+    #     pass

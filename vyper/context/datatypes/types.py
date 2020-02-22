@@ -57,6 +57,10 @@ class _BaseType:
     def enclosing_scope(self):
         return self.node.enclosing_scope
 
+    def validate_op(self, node):
+        # TODO docs
+        raise StructureException(f"Unsupported operand for {self._id}", node)
+
 
 class _BaseSubscriptType(_BaseType):
     """
@@ -167,6 +171,11 @@ class NumericType(ValueType):
 
     def __eq__(self, other):
         return super().__eq__(other) and self.unit == other.unit
+
+    def validate_op(self, node):
+        # TODO docs - this allows arithmetic on the type
+        # the passed node is the parent, NOT the actual op, because the op has no source offset
+        return
 
 
 class ArrayValueType(_BaseSubscriptType, ValueType):

@@ -150,9 +150,8 @@ def get_rhs_value(namespace, node, validation_type):
 
     # TODO:
     # call - ...do the call...
-    # folding.. ?
-    # how to handle recursion, right now it raises with AttributeError: "literal_value"
-    # does this all belong somewhere else?
+    # attribute
+    # folding
 
     if isinstance(node, (vy_ast.List, vy_ast.Tuple)):
         if not hasattr(validation_type, '__len__'):
