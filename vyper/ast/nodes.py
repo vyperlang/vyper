@@ -1,4 +1,5 @@
 import ast as python_ast
+import decimal
 import sys
 from typing import (
     Optional,
@@ -401,29 +402,45 @@ class Num(Constant):
     _translated_fields = {'value': 'n'}
     _python_ast_type = "Num"
 
+
+class Int(Num):
+    __slots__ = ()
+
     @property
     def value(self):
         return self.n
 
 
-class Int(Num):
-    __slots__ = ()
-
-
 class Decimal(Num):
     __slots__ = ()
+
+    @property
+    def value(self):
+        return decimal.Decimal(self.node_source_code)
 
 
 class Hex(Num):
     __slots__ = ()
 
+    @property
+    def value(self):
+        return self.node_source_code
+
 
 class Binary(Num):
     __slots__ = ()
 
+    @property
+    def value(self):
+        return self.node_source_code
+
 
 class Octal(Num):
     __slots__ = ()
+
+    @property
+    def value(self):
+        return self.node_source_code
 
 
 class Attribute(VyperNode):
