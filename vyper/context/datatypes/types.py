@@ -39,10 +39,6 @@ class _BaseType:
     _valid_literal: VyperNode | tuple
         A vyper ast class or tuple of ast classes that can represent valid literals
         for the given type.
-    _invalid_op: VyperNode | tuple
-        A vyper ast class or tuple of ast classes that are invalid operand types to
-        be applied to this node. If this is NOT included, no operands can be applied
-        to the type.
 
     Object attributes
     -----------------
@@ -65,13 +61,11 @@ class _BaseType:
         return self.node.enclosing_scope
 
     def validate_op(self, node):
-        if not hasattr(self, '_invalid_op'):
-            raise InvalidTypeException("Invalid type for operands", node)
-        if isinstance(node.op, self._invalid_op):
-            # TODO: showing ast_type is very vague, maybe add human readable descriptions to nodes?
-            raise StructureException(
-                f"Unsupported operand for {self._id}: {node.op.ast_type}", node
-            )
+        raise InvalidTypeException(f"Invalid type for operand: {self._id}", node)
+
+    def validate_compare(self, node):
+        # TODO
+        pass
 
 
 class _BaseSubscriptType(_BaseType):
@@ -184,6 +178,13 @@ class NumericType(ValueType):
     def __eq__(self, other):
         return super().__eq__(other) and self.unit == other.unit
 
+    def validate_op(self, node):
+        if isinstance(node.op, self._invalid_op):
+            # TODO: showing ast_type is very vague, maybe add human readable descriptions to nodes?
+            raise StructureException(
+                f"Unsupported operand for {self._id}: {node.op.ast_type}", node
+            )
+
 
 class ArrayValueType(_BaseSubscriptType, ValueType):
     """
@@ -289,6 +290,9 @@ class IntegerType(NumericType):
     def validate_literal(self, node):
         super().validate_literal(node)
         check_numeric_bounds("int128", node)
+
+    def validate_op(self, node):
+        pass
 
 
 class UnsignedIntegerType(NumericType):

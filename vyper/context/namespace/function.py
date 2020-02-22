@@ -70,6 +70,9 @@ class FunctionNodeVisitor:
             raise StructureException("Function does not return any values", node)
         get_rhs_value(self.namespace, values, self.func.return_type)
 
+    def visit_Expr(self, node):
+        self.visit(node.value)
+
     def visit_Pass(self, node):
         return
 
@@ -82,26 +85,36 @@ class FunctionNodeVisitor:
 
     def visit_BinOp(self, node):
         nodes = (node.left, node.right)
-        literals = [i for i in nodes if isinstance(i, vy_ast.Constant)]
-        assigned = [get_value(self.namespace, i) for i in nodes if i not in literals]
+        _check_operand(self.namespace, node, nodes, "validate_op")
 
-        if not assigned:
-            if type(node.left) != type(node.right):  # NOQA: E721
-                raise TypeMismatchException(
-                    "Cannot perform operation between "
-                    f"{node.left.ast_type} and {node.right.ast_type}",
-                    node
-                )
-            if not isinstance(node.left, (vy_ast.Int, vy_ast.Decimal)):
-                raise StructureException(
-                    f"Invalid literal type for operation: {node.left.ast_type}", node
-                )
-            return
+    def visit_Compare(self, node):
+        if len(node.ops) != 1:
+            raise StructureException("Cannot have a comparison with more than two elements", node)
+        _check_operand(self.namespace, node, (node.left, node.comparators[0]), "validate_compare")
 
-        if not literals:
-            assigned[0].type.validate_op(node)
-            if assigned[0].type != assigned[1].type:
-                raise
 
-        assigned[0].type.validate_op(node)
-        assigned[0].type.validate_literal(literals[0])
+def _check_operand(namespace, node, node_list, validation_fn_name):
+    literals = [i for i in node_list if isinstance(i, vy_ast.Constant)]
+    assigned = [get_value(namespace, i) for i in node_list if i not in literals]
+
+    if not assigned:
+        if type(node.left) != type(node.right):  # NOQA: E721
+            raise TypeMismatchException(
+                "Cannot perform operation between "
+                f"{node.left.ast_type} and {node.right.ast_type}",
+                node
+            )
+        if not isinstance(node.left, (vy_ast.Int, vy_ast.Decimal)):
+            raise StructureException(
+                f"Invalid literal type for operation: {node.left.ast_type}", node
+            )
+        return
+
+    if not literals:
+        getattr(assigned[0].type, validation_fn_name)(node)
+        if assigned[0].type != assigned[1].type:
+            raise
+        return
+
+    getattr(assigned[0].type, validation_fn_name)(node)
+    assigned[0].type.validate_literal(literals[0])
