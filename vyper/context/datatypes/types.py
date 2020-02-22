@@ -386,12 +386,13 @@ class ArrayType(_BaseSubscriptType, CompoundType):
 
     @property
     def _id(self):
-        return self.base_type._id
+        return self.base_type[0]._id
 
     def _introspect(self):
         super()._introspect()
         meta_type = self.namespace[self.node.value.id]
-        self.base_type = meta_type.get_type(self.namespace, self.node.value)
+        base_type = meta_type.get_type(self.namespace, self.node.value)
+        self.base_type = [base_type] * self.length
 
     def validate_literal(self, node):
         # TODO! IMPORTANT! this does not validate the individual array items
