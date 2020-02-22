@@ -100,6 +100,15 @@ class TypeCheckVisitor:
         # TODO
         pass
 
+    def visit_If(self, node):
+        self.visit(node.test)
+        for n in node.body + node.orelse:
+            self.visit(n)
+
+    def visit_For(self, node):
+        # TODO
+        pass
+
     def visit_Attribute(self, node):
         get_type(self.namespace, node)
 
