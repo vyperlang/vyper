@@ -11,7 +11,7 @@ from vyper.exceptions import (
 
 def check_methods(vy_module, namespace):
     for node in vy_module.get_children({'ast_type': "FunctionDef"}):
-        FunctionNodeVisitor(node, namespace).check()
+        FunctionNodeVisitor(node, namespace).visit()
 
 
 class FunctionNodeVisitor:
@@ -22,9 +22,12 @@ class FunctionNodeVisitor:
         self.func = namespace[fn_node.name]
         self.namespace.update(self.func.arguments)
 
-    def check(self):
+    def visit(self):
         for node in self.fn_node.body:
-            getattr(self, f'visit_{node.ast_type}')(node)
+            fn = getattr(self, f'visit_{node.ast_type}', None)
+            if fn is None:
+                raise StructureException("Unsupported syntax for function-level namespace", node)
+            fn(node)
 
     def visit_AnnAssign(self, node):
         name = node.target.id
@@ -48,5 +51,16 @@ class FunctionNodeVisitor:
     # def visit_Assert(self, node):
     #     pass
 
-    # def visit_Delete(self, node):
-    #     pass
+    def visit_Delete(self, node):
+        # TODO can we just block this at the AST generation stage?
+        raise StructureException("Deleting is not supported, use built-in clear() function", node)
+
+    def visit_Return(self, node):
+        values = node.value
+        if values is None:
+            if self.func.return_type:
+                raise StructureException("Return statement is missing a value", node)
+            return
+        if values and self.func.return_type is None:
+            raise StructureException("Function does not return any values", node)
+        get_rhs_value(self.namespace, values, self.func.return_type)

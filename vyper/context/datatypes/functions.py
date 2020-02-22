@@ -11,17 +11,26 @@ from vyper.exceptions import (
 
 
 class Function:
+    """
+    TODO
 
+    Attributes
+    ----------
+    arguments : OrderedDict
+        An ordered dict of call arguments for the function.
+    return_type
+        A type object, or tuple of type objects, representing return types for
+        the function.
+    """
     # TODO @nonreentrant
     __slots__ = (
         "namespace",
         "node",
         "name",
-        "address",
         "visibility",
         "is_constant",
         "is_payable",
-        "return_types",
+        "return_type",
         "arguments",
     )
 
@@ -41,7 +50,7 @@ class Function:
             isinstance(other, Function) and
             self.name == other.name and
             self.visibility == other.visibility and
-            self.return_types == other.return_types and
+            self.return_type == other.return_type and
             list(self.arguments) == list(other.arguments)
         ):
             return False
@@ -55,7 +64,7 @@ class Function:
     def _introspect(self):
         self._introspect_decorators(self.node.decorator_list)
         self._introspect_call_args(self.node.args)
-        self._introspect_return_types(self.node.returns)
+        self._introspect_return_type(self.node.returns)
 
     def _introspect_decorators(self, decorator_list):
         decorators = [i.id for i in decorator_list]
@@ -84,18 +93,18 @@ class Function:
             var._introspect()
             self.arguments[arg.arg] = var
 
-    def _introspect_return_types(self, node):
-        self.return_types = ()
+    def _introspect_return_type(self, node):
         if node is None:
-            return
-        if isinstance(node, vy_ast.Name):
-            return_types = (node,)
+            self.return_type = None
+        elif isinstance(node, vy_ast.Name):
+            id_ = get_leftmost_id(node)
+            self.return_type = self.namespace[id_].get_type(self.namespace, node)
         elif isinstance(node, vy_ast.Tuple):
-            return_types = node.elts
+            self.return_type = ()
+            for n in node.elts:
+                id_ = get_leftmost_id(n)
+                self.return_type += (self.namespace[id_].get_type(self.namespace, n),)
         else:
             raise StructureException(
                 f"Function return value must be a type name or tuple", node
             )
-        for node in return_types:
-            id_ = get_leftmost_id(node)
-            self.return_types += (self.namespace[id_].get_type(self.namespace, node),)

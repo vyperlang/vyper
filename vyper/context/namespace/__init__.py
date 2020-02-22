@@ -133,6 +133,6 @@ def add_module_namespace(vy_module, namespace, interface_codes):
     if module_nodes:
         # TODO expand this to explain why each type is invalid
         print([type(i) for i in module_nodes])
-        raise StructureException("Invalid syntax for module-level namespace", module_nodes[0])
+        raise StructureException("Unsupported syntax for module-level namespace", module_nodes[0])
 
     return namespace
