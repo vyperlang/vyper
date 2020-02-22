@@ -34,6 +34,7 @@ class Variable:
 
         node = self._annotation_node
         if isinstance(node, vy_ast.Call) and node.func.id in ("constant", "public"):
+            # TODO raise if not module scoped
             setattr(self, f"is_{node.func.id}", True)
             node = node.args[0]
         name = get_leftmost_id(node)
@@ -53,7 +54,7 @@ class Variable:
             if hasattr(self.type, "_no_value"):
                 # types that cannot be assigned to
                 raise
-            self.value = get_value(self.namespace, self._value_node, self.type)
+            self.value = get_rhs_value(self.namespace, self._value_node, self.type)
             if self.is_constant:
                 try:
                     self.literal_value
@@ -96,7 +97,26 @@ class Variable:
         return f"<Variable '{self.name}: {str(self.type)} = {self.value}'>"
 
 
-def get_value(namespace, node, validation_type):
+def get_rhs_value(namespace, node, validation_type):
+    """
+    Validates and returns the right-hand-side value of an assignment.
+
+    Arguments
+    ---------
+    namespace : Namespace
+        The active namespace that this value is being assigned within.
+
+    node : Constant | List | Name | Subscript
+        A vyper AST node, from the value member of an Assign or AnnAssign node.
+
+    validation_type : _BaseType
+        A type object that the value is validated against before returning.
+
+    Returns
+    -------
+        A literal value, Variable object, or list composed of one or both types.
+    """
+
     # TODO:
     # call - ...do the call...
     # folding.. ?
@@ -109,7 +129,10 @@ def get_value(namespace, node, validation_type):
 
     if isinstance(node, vy_ast.List):
         validation_type.validate_literal(node)
-        return [get_value(namespace, i, validation_type.base_type) for i in node.elts]
+        return [
+            get_rhs_value(namespace, node.elts[i], validation_type.base_type[i])
+            for i in range(len(node.elts))
+        ]
 
     if isinstance(node, vy_ast.Name):
         # verify that a variable reference is of the correct type
@@ -143,7 +166,6 @@ def validate_subscript(namespace, node, validation_type):
     # validating the slice also validates that this is an ArrayType
     idx = base_var.type.validate_slice(node.slice)
     base_type = base_var.type.base_type
-    if base_type != validation_type:
+    if validation_type and base_var.type.base_type[idx] != validation_type:
         raise TypeMismatchException(f"Invalid type for assignment: {base_type}", node)
-
     return base_var.get_item(idx)
