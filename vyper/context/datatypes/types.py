@@ -62,8 +62,12 @@ class _BaseType:
     def enclosing_scope(self):
         return self.node.enclosing_scope
 
-    def validate_op(self, node):
+    def validate_numeric_op(self, node):
         raise InvalidTypeException(f"Invalid type for operand: {self}", node)
+
+    def validate_boolean_op(self, node):
+        # TODO
+        pass
 
     def validate_compare(self, node):
         # TODO
@@ -180,7 +184,7 @@ class NumericType(ValueType):
     def __eq__(self, other):
         return super().__eq__(other) and self.unit == other.unit
 
-    def validate_op(self, node):
+    def validate_numeric_op(self, node):
         if isinstance(node.op, self._invalid_op):
             # TODO: showing ast_type is very vague, maybe add human readable descriptions to nodes?
             raise StructureException(
@@ -292,9 +296,6 @@ class IntegerType(NumericType):
     def validate_literal(self, node):
         super().validate_literal(node)
         check_numeric_bounds("int128", node)
-
-    def validate_op(self, node):
-        pass
 
 
 class UnsignedIntegerType(NumericType):

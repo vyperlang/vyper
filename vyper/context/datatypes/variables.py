@@ -8,6 +8,9 @@ from vyper.exceptions import (
     TypeMismatchException,
     StructureException,
 )
+from vyper.context import (
+    operators,
+)
 
 
 # created from AnnAssign
@@ -129,6 +132,8 @@ def get_type(namespace, node):
     if isinstance(node, vy_ast.Subscript):
         var, idx = _get_subscript(namespace, node)
         return var.type[idx]
+    if isinstance(node, (vy_ast.Op, vy_ast.Compare)):
+        return operators.validate_operation(namespace, node)
     raise
 
 
@@ -171,6 +176,9 @@ def get_value(namespace, node):
     if isinstance(node, vy_ast.Subscript):
         base_var, idx = _get_subscript(namespace, node)
         return base_var.get_item(idx)
+    # TODO folding
+    # if isinstance(node, (vy_ast.BinOp, vy_ast.BoolOp, vy_ast.Compare)):
+    #     return operators.validate_operation(namespace, node)
     raise
 
 

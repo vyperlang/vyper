@@ -1,15 +1,21 @@
 from vyper import ast as vy_ast
 from vyper.context.datatypes.variables import (
     Variable,
-    get_value,
     get_type,
+)
+from vyper.context.datatypes.types import (
+    ArrayType,
+    BoolType,
 )
 from vyper.context.utils import (
     compare_types,
+    check_call_args,
 )
 from vyper.exceptions import (
     StructureException,
-    TypeMismatchException,
+)
+from vyper.context.operators import (
+    validate_operation,
 )
 
 
@@ -70,7 +76,12 @@ class TypeCheckVisitor:
             raise StructureException("Reason must be a string of 32 characters or less", node.exc)
 
     def visit_Assert(self, node):
-        self.visit(node.test)
+        if node.msg and (not isinstance(node.msg, vy_ast.Str) or len(node.msg.value) > 32):
+            raise StructureException("Reason must be a string of 32 characters or less", node.msg)
+        if isinstance(node.test, (vy_ast.BoolOp, vy_ast.Compare)):
+            validate_operation(self.namespace, node)
+        elif not isinstance(get_type(self.namespace, node.test), (BoolType, vy_ast.NameConstant)):
+            raise
 
     def visit_Delete(self, node):
         # TODO can we just block this at the AST generation stage?
@@ -92,17 +103,15 @@ class TypeCheckVisitor:
         self.visit(node.value)
 
     def visit_UnaryOp(self, node):
+        validate_operation(self.namespace, node)
         # TODO what about when node.operand is BinOp ?
-        get_type(self.namespace, node.operand).validate_op(node)
+        # get_type(self.namespace, node.operand).validate_op(node)
 
     def visit_BinOp(self, node):
-        nodes = (node.left, node.right)
-        _check_operand(self.namespace, node, nodes, "validate_op")
+        validate_operation(self.namespace, node)
 
     def visit_Compare(self, node):
-        if len(node.ops) != 1:
-            raise StructureException("Cannot have a comparison with more than two elements", node)
-        _check_operand(self.namespace, node, (node.left, node.comparators[0]), "validate_compare")
+        validate_operation(self.namespace, node)
 
     def visit_Call(self, node):
         # TODO
@@ -114,8 +123,42 @@ class TypeCheckVisitor:
             self.visit(n)
 
     def visit_For(self, node):
-        # TODO
-        pass
+
+        # iteration over a variable
+        if isinstance(node.iter, vy_ast.Name):
+            iter_var = self.namespace[node.iter.id]
+            if not isinstance(iter_var, ArrayType):
+                raise
+            target_type = iter_var.type
+
+        # iteration over a literal list
+        elif isinstance(node.iter, vy_ast.List):
+            iter_values = node.iter.elts
+            if not iter_values:
+                raise StructureException("Cannot iterate empty array", node.iter)
+            get_type(self.namespace, node.iter)
+            # TODO this might be a constant, not a type, how to handle var declaration?
+
+        # iteration via range()
+        elif isinstance(node.iter, vy_ast.Call):
+            if node.iter.func.id != "range":
+                raise StructureException(
+                    "Cannot iterate over the result of a function call", node.iter
+                )
+            check_call_args(node.iter, (1, 2))
+            raise
+            # TODO
+            # single arg as name or literal
+            # 2 args, name or literal
+            # arg, binaryop on same arg
+        else:
+            raise StructureException("Invalid type for iteration", node.iter)
+
+        # namespace[target.id] = Variable(namespace, target.id, target_type, None)
+
+        for n in node.body:
+            self.visit(n)
+        # del namespace[target.id]
 
     def visit_Attribute(self, node):
         get_type(self.namespace, node)
