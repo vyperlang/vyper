@@ -113,7 +113,12 @@ def get_type(namespace, node):
     if isinstance(node, vy_ast.Tuple):
         return tuple(get_type(namespace, i) for i in node.elts)
     if isinstance(node, (vy_ast.List)):
-        return [get_type(namespace, i) for i in node.elts]
+        if not node.elts:
+            return []
+        values = [get_type(namespace, i) for i in node.elts]
+        for i in values[1:]:
+            compare_types(values[0], i, node)
+        return values
 
     if isinstance(node, vy_ast.Constant):
         return node
@@ -149,6 +154,7 @@ def get_value(namespace, node):
     # folding
 
     if isinstance(node, vy_ast.List):
+        # TODO validate that all types are like?
         return [get_value(namespace, node.elts[i]) for i in range(len(node.elts))]
     if isinstance(node, vy_ast.Tuple):
         return tuple(get_value(namespace, node.elts[i]) for i in range(len(node.elts)))
