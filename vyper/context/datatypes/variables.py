@@ -1,10 +1,12 @@
 from vyper import ast as vy_ast
-from vyper.context.utils import get_leftmost_id
+from vyper.context.utils import (
+    compare_types,
+    get_leftmost_id,
+)
 from vyper.exceptions import (
     VariableDeclarationException,
     TypeMismatchException,
     StructureException,
-    InvalidLiteralException,
 )
 
 
@@ -56,8 +58,11 @@ class Variable:
             if hasattr(self.type, "_no_value"):
                 # types that cannot be assigned to
                 raise
-            self.value = get_rhs_value(self.namespace, self._value_node, self.type)
+            value_type = get_type(self.namespace, self._value_node)
+            compare_types(self.type, value_type, self._value_node)
+
             if self.is_constant:
+                self.value = get_value(self.namespace, self._value_node)
                 try:
                     self.literal_value
                 except AttributeError:
@@ -94,80 +99,48 @@ class Variable:
         return self.value[key]
 
     def __repr__(self):
-        if self.value is None:
+        if not hasattr(self, 'value') or self.value is None:
             return f"<Variable '{self.name}: {str(self.type)}'>"
         return f"<Variable '{self.name}: {str(self.type)} = {self.value}'>"
 
 
 def get_type(namespace, node):
     """
-    Returns a the type value of a node without any validation.
+    Returns the type value of a node without any validation.
+
+    # TODO if the node is a constant, it just returns the node, document this
     """
-    # if isinstance(node, vy_ast.Constant):
-    #     return node.value
-    if isinstance(node, vy_ast.Name):
-        return _get_name(namespace, node).type
-    if isinstance(node, vy_ast.Subscript):
-        var, idx = _get_subscript(namespace, node)
-        return var.type[idx]
     if isinstance(node, vy_ast.Tuple):
         return tuple(get_type(namespace, i) for i in node.elts)
     if isinstance(node, (vy_ast.List)):
         return [get_type(namespace, i) for i in node.elts]
+
+    if isinstance(node, vy_ast.Constant):
+        return node
+    if isinstance(node, vy_ast.Name):
+        return _get_name(namespace, node).type
     if isinstance(node, (vy_ast.Attribute)):
-        return _get_attribute(namespace, node)
+        return _get_attribute(namespace, node).type
+    if isinstance(node, vy_ast.Subscript):
+        var, idx = _get_subscript(namespace, node)
+        return var.type[idx]
     raise
 
 
-def get_lhs_target(namespace, targets):
+# TODO - should this be value just like lhs? can they be refactored into a single fn?
+def get_value(namespace, node):
     """
-    Validates and returns the left-hand-side type(s) of an assignment.
+    Returns the value of a node.
 
     Arguments
     ---------
     namespace : Namespace
         The active namespace that this value is being assigned within.
 
-    targets : list
-        A list of vyper AST nodes, from the .targets member of an Assign node.
-
     Returns
     -------
-        A type object, or tuple of type objects.
-    """
-    if len(targets) > 1:
-        raise StructureException("Assignment statement must have one target", targets[1])
-    target = targets[0]
-    if isinstance(target, vy_ast.Name):
-        return _get_name(namespace, target).type
-    if isinstance(target, vy_ast.Subscript):
-        var, idx = _get_subscript(namespace, target)
-        return var.type.base_type[idx]
-    if isinstance(target, vy_ast.Tuple):
-        return tuple(get_lhs_target(namespace, (i,)) for i in target.elts)
-    if isinstance(target, vy_ast.Attribute):
-        return _get_attribute(namespace, target).type
-
-
-def get_rhs_value(namespace, node, validation_type):
-    """
-    Validates and returns the right-hand-side value(s) of an assignment.
-
-    Arguments
-    ---------
-    namespace : Namespace
-        The active namespace that this value is being assigned within.
-
-    node : Constant | List | Name | Subscript
-        A vyper AST node, from the .value member of an Assign or AnnAssign node.
-
-    validation_type : _BaseType | Sequence
-        A type object, or sequence of type objects, that the value is validated
-        against before returning
-
-    Returns
-    -------
-        A literal value, Variable object, or list composed of one or both types.
+        A literal value, Variable object, or sequence composed of one or both types.
+    TODO finish docs
     """
 
     # TODO:
@@ -175,37 +148,22 @@ def get_rhs_value(namespace, node, validation_type):
     # attribute
     # folding
 
-    if isinstance(node, (vy_ast.List, vy_ast.Tuple)):
-        if not hasattr(validation_type, '__len__'):
-            raise StructureException(f"Cannot assign multiple values to {validation_type}", node)
-        if len(node.elts) != len(validation_type):
-            raise InvalidLiteralException(
-                "Invalid length for literal array, expected "
-                f"{len(node.elts)} got {len(validation_type)}",
-                node
-            )
-        return [
-            get_rhs_value(namespace, node.elts[i], validation_type[i])
-            for i in range(len(node.elts))
-        ]
+    if isinstance(node, vy_ast.List):
+        return [get_value(namespace, node.elts[i]) for i in range(len(node.elts))]
+    if isinstance(node, vy_ast.Tuple):
+        return tuple(get_value(namespace, node.elts[i]) for i in range(len(node.elts)))
 
     if isinstance(node, vy_ast.Constant):
-        # verify that a literal value is valid for the type
-        validation_type.validate_literal(node)
         return node.value
 
     if isinstance(node, vy_ast.Name):
-        # verify that a variable reference is of the correct type
-        return _get_name(namespace, node, validation_type)
+        return _get_name(namespace, node)
 
     if isinstance(node, vy_ast.Attribute):
-        return _get_attribute(namespace, node, validation_type)
+        return _get_attribute(namespace, node)
 
     if isinstance(node, vy_ast.Subscript):
-        base_var, idx = _get_subscript(namespace, node, validation_type)
-        base_type = base_var.type.base_type
-        if base_type[idx] != validation_type:
-            raise TypeMismatchException(f"Invalid type for assignment: {base_type}", node)
+        base_var, idx = _get_subscript(namespace, node)
         return base_var.get_item(idx)
     raise
 
@@ -235,7 +193,7 @@ def _get_attribute(namespace, node, validation_type=None):
 
 
 def _get_subscript(namespace, node, validation_type=None):
-    base_var = get_rhs_value(namespace, node.value, validation_type)
+    base_var = get_value(namespace, node.value)  # bug here
 
     # validating the slice also validates that this is an ArrayType
     idx = base_var.type.validate_slice(node.slice)

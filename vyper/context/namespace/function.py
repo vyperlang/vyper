@@ -1,9 +1,11 @@
 from vyper import ast as vy_ast
 from vyper.context.datatypes.variables import (
     Variable,
-    get_rhs_value,
-    get_lhs_target,
+    get_value,
     get_type,
+)
+from vyper.context.utils import (
+    compare_types,
 )
 from vyper.exceptions import (
     StructureException,
@@ -23,7 +25,6 @@ class TypeCheckVisitor:
         vy_ast.Constant,
         vy_ast.Continue,
         vy_ast.Pass,
-        vy_ast.Return,
     )
 
     def __init__(self, fn_node, namespace):
@@ -49,13 +50,18 @@ class TypeCheckVisitor:
         self.namespace[name] = Variable(self.namespace, name, node.annotation, node.value)
 
     def visit_Assign(self, node):
-        target_types = get_lhs_target(self.namespace, node.targets)
-        get_rhs_value(self.namespace, node.value, target_types)
+        if len(node.targets) > 1:
+            raise StructureException("Assignment statement must have one target", node.targets[1])
+        target_type = get_type(self.namespace, node.targets[0])
+        value_type = get_type(self.namespace, node.value)
+        compare_types(target_type, value_type, node)
 
     def visit_AugAssign(self, node):
-        target_type = get_lhs_target(self.namespace, (node.target,))
-        get_rhs_value(self.namespace, node.value, target_type)
+        target_type = get_type(self.namespace, node.target)
         target_type.validate_op(node)
+
+        value_type = get_type(self.namespace, node.value)
+        compare_types(target_type, value_type, node)
 
     def visit_Raise(self, node):
         if not node.exc:
@@ -78,14 +84,16 @@ class TypeCheckVisitor:
             return
         if values and self.func.return_type is None:
             raise StructureException("Function does not return any values", node)
-        get_rhs_value(self.namespace, values, self.func.return_type)
+        if isinstance(values, vy_ast.Tuple):
+            values = values.elts
+        compare_types(self.func.return_type, values, node)
 
     def visit_Expr(self, node):
         self.visit(node.value)
 
     def visit_UnaryOp(self, node):
         # TODO what about when node.operand is BinOp ?
-        get_type(self.namespace, node.operand).type.validate_op(node)
+        get_type(self.namespace, node.operand).validate_op(node)
 
     def visit_BinOp(self, node):
         nodes = (node.left, node.right)
@@ -123,30 +131,17 @@ class TypeCheckVisitor:
 
 
 def _check_operand(namespace, node, node_list, validation_fn_name):
+    node_list = [get_type(namespace, i) for i in node_list]
+
     literals = [i for i in node_list if isinstance(i, vy_ast.Constant)]
-    assigned = [get_type(namespace, i) for i in node_list if i not in literals]
+    assigned = [i for i in node_list if i not in literals]
 
     if not assigned:
-        if type(node.left) != type(node.right):  # NOQA: E721
-            raise TypeMismatchException(
-                "Cannot perform operation between "
-                f"{node.left.ast_type} and {node.right.ast_type}",
-                node
-            )
+        # TODO this is wrong for comparisons
         if not isinstance(node.left, (vy_ast.Int, vy_ast.Decimal)):
             raise StructureException(
                 f"Invalid literal type for operation: {node.left.ast_type}", node
             )
-
-    elif not literals:
-        getattr(assigned[0], validation_fn_name)(node)
-        if assigned[0] != assigned[1]:
-            raise TypeMismatchException(
-                "Cannot perform operation between "
-                f"{assigned[0]} and {assigned[1]}",
-                node
-            )
-
     else:
         getattr(assigned[0], validation_fn_name)(node)
-        assigned[0].validate_literal(literals[0])
+    compare_types(node_list[0], node_list[1], node)
