@@ -14,6 +14,7 @@ from vyper.exceptions import (
     InvalidLiteralException,
     InvalidTypeException,
     StructureException,
+    TypeMismatchException,
 )
 from vyper.utils import (
     checksum_encode,
@@ -62,7 +63,7 @@ class _BaseType:
         return self.node.enclosing_scope
 
     def validate_op(self, node):
-        raise InvalidTypeException(f"Invalid type for operand: {self._id}", node)
+        raise InvalidTypeException(f"Invalid type for operand: {self}", node)
 
     def validate_compare(self, node):
         # TODO
@@ -157,7 +158,7 @@ class ValueType(_BaseType):
         if not isinstance(node, vy_ast.Constant):
             raise CompilerPanic(f"Attempted to validate a '{node.ast_type}' node.")
         if not isinstance(node, self._valid_literal):
-            raise InvalidTypeException(f"Invalid literal type for '{self._id}'", node)
+            raise InvalidTypeException(f"Invalid literal type for '{self}'", node)
 
 
 class NumericType(ValueType):
@@ -183,7 +184,7 @@ class NumericType(ValueType):
         if isinstance(node.op, self._invalid_op):
             # TODO: showing ast_type is very vague, maybe add human readable descriptions to nodes?
             raise StructureException(
-                f"Unsupported operand for {self._id}: {node.op.ast_type}", node
+                f"Unsupported operand for {self}: {node.op.ast_type}", node
             )
 
 
@@ -196,14 +197,14 @@ class ArrayValueType(_BaseSubscriptType, ValueType):
 
     def _introspect(self):
         if not isinstance(self.node, vy_ast.Subscript):
-            raise StructureException(f"{self._id} types must have a maximum length.", self.node)
+            raise StructureException(f"{self} types must have a maximum length.", self.node)
         super()._introspect()
 
     def validate_literal(self, node):
         super().validate_literal(node)
         if len(node.value) > self.length:
             raise InvalidLiteralException(
-                f"Literal value exceeds the maximum length for {self._id}[{self.length}]",
+                f"Literal value exceeds the maximum length for {self}",
                 node
             )
 
@@ -346,7 +347,7 @@ class BytesType(ArrayValueType):
             )
         if (len(value)-2) / 8 > self.length:
             raise InvalidLiteralException(
-                f"Literal value exceeds the maximum length for {self._id}[{self.length}]", node
+                f"Literal value exceeds the maximum length for {self}", node
             )
 
 
