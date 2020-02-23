@@ -1,25 +1,42 @@
 from typing import (
     Optional,
     Set,
+    Union,
 )
 
 from vyper import (
     ast as vy_ast,
 )
 from vyper.exceptions import (
+    CompilerPanic,
     InvalidLiteralException,
     StructureException,
     TypeMismatchException,
 )
 
 
-def check_call_args(node: vy_ast.VyperNode, argcount: int, kwargs: Optional[Set] = None) -> None:
+def check_call_args(
+    node: vy_ast.VyperNode,
+    argcount: Union[int, tuple],
+    kwargs: Optional[Set] = None
+) -> None:
+
     if not isinstance(node, vy_ast.Call):
         raise StructureException("Expected Call", node)
-    if len(node.args) != argcount:
+    if not isinstance(argcount, (int, tuple)):
+        raise CompilerPanic(f"Invalid type for argcount: {type(argcount).__name__}")
+
+    if isinstance(argcount, int) and len(node.args) != argcount:
         raise StructureException(
             f"Invalid argument count: expected {argcount}, got {len(node.args)}", node
         )
+    elif isinstance(argcount, tuple) and not argcount[0] <= len(node.args) <= argcount[0]:
+        raise StructureException(
+            f"Invalid argument count: expected between "
+            f"{argcount[0]} and {argcount[1]}, got {len(node.args)}",
+            node
+        )
+
     if kwargs is None and node.keywords:
         raise StructureException("Keyword arguments are not accepted here", node.keywords[0])
     for key in node.keywords:
@@ -84,7 +101,7 @@ def compare_types(left, right, node):
     types = [i for i in (left, right) if i not in literals]
 
     if not types:
-        if type(node.left) != type(node.right):  # NOQA: E721
+        if type(left) != type(right):  # NOQA: E721
             raise TypeMismatchException(
                 "Cannot perform operation between "
                 f"{node.left.ast_type} and {node.right.ast_type}",
