@@ -3,9 +3,11 @@ from vyper.context.datatypes.variables import (
     Variable,
     get_type,
 )
-from vyper.context.datatypes.types import (
-    BoolType,
+from vyper.context.datatypes.bases import (
     IntegerType,
+)
+from vyper.context.datatypes.builtins import (
+    BoolType,
 )
 from vyper.context.utils import (
     compare_types,

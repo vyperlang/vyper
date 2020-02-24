@@ -3,8 +3,8 @@ from vyper import ast as vy_ast
 from vyper.context.utils import (
     get_leftmost_id,
 )
-from vyper.context.datatypes import (
-    types as vy_types,
+from vyper.context.datatypes.bases import (
+    IntegerType,
 )
 from vyper.exceptions import (
     StructureException,
@@ -54,7 +54,7 @@ def _get_index_value(namespace, node):
             raise StructureException("Slice must be an integer or constant", node)
 
         typ = length.type
-        if not isinstance(typ, vy_types.IntegerType):
+        if not isinstance(typ, IntegerType):
             raise StructureException(f"Invalid type for Slice: '{typ}'", node)
         if typ.unit:
             raise StructureException(f"Slice value must be unitless, not '{typ.unit}'", node)
