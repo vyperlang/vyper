@@ -5,7 +5,7 @@ from vyper.exceptions import (
 from vyper.context.utils import (
     compare_types,
 )
-from vyper.context.datatypes import variables
+from vyper.context import variables
 
 
 def validate_operation(namespace, node):

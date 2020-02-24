@@ -1,5 +1,5 @@
 from vyper import ast as vy_ast
-from vyper.context.datatypes.variables import (
+from vyper.context.variables import (
     Variable,
     get_type,
 )

@@ -1,10 +1,10 @@
 from collections import OrderedDict
 from typing import Optional
 from vyper import ast as vy_ast
-from vyper.context import (
-    datatypes,
+from vyper.context.datatypes import (
+    get_type_from_annotation,
 )
-from vyper.context.datatypes.variables import (
+from vyper.context.variables import (
     Variable,
 )
 from vyper.exceptions import (
@@ -96,11 +96,11 @@ class Function:
         if node is None:
             self.return_type = None
         elif isinstance(node, vy_ast.Name):
-            self.return_type = datatypes.get_type_from_annotation(self.namespace, node)
+            self.return_type = get_type_from_annotation(self.namespace, node)
         elif isinstance(node, vy_ast.Tuple):
             self.return_type = ()
             for n in node.elts:
-                self.return_type += (datatypes.get_type_from_annotation(self.namespace, n),)
+                self.return_type += (get_type_from_annotation(self.namespace, n),)
         else:
             raise StructureException(
                 f"Function return value must be a type name or tuple", node

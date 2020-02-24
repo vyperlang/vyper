@@ -4,13 +4,13 @@ from vyper import (
 from vyper.context.datatypes.units import (
     Unit,
 )
-from vyper.context.datatypes.variables import (
+from vyper.context.variables import (
     Variable,
 )
-from vyper.context.datatypes.functions import (
+from vyper.context.functions import (
     Function,
 )
-from vyper.context.datatypes.events import (
+from vyper.context.events import (
     Event,
 )
 from vyper.exceptions import (

@@ -11,7 +11,7 @@ from vyper.exceptions import (
     StructureException,
 )
 
-from vyper.context.datatypes.functions import (
+from vyper.context.functions import (
     Function,
 )
 from vyper.context.datatypes import (
