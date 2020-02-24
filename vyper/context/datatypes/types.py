@@ -124,7 +124,7 @@ class _BaseSubscriptType(_BaseType):
                 raise StructureException("Slice must be an integer or constant", node)
 
             typ = length.type
-            if not isinstance(typ, (IntegerType, UnsignedIntegerType)):
+            if not isinstance(typ, IntegerType):
                 raise StructureException(f"Invalid type for Slice: '{typ}'", node)
             if typ.unit:
                 raise StructureException(f"Slice value must be unitless, not '{typ.unit}'", node)
@@ -190,6 +190,14 @@ class NumericType(ValueType):
             raise StructureException(
                 f"Unsupported operand for {self}: {node.op.ast_type}", node
             )
+
+
+class IntegerType(NumericType):
+
+    """Base class for integer numeric types (int128, uint256)."""
+
+    __slots__ = ()
+    _valid_literal = vy_ast.Int
 
 
 class ArrayValueType(_BaseSubscriptType, ValueType):
@@ -287,10 +295,9 @@ class Bytes32Type(ValueType):
             raise InvalidLiteralException("Invalid literal for type bytes32", node)
 
 
-class IntegerType(NumericType):
+class Int128Type(IntegerType):
     __slots__ = ()
     _id = "int128"
-    _valid_literal = vy_ast.Int
     _invalid_op = ()
 
     def validate_literal(self, node):
@@ -298,10 +305,9 @@ class IntegerType(NumericType):
         check_numeric_bounds("int128", node)
 
 
-class UnsignedIntegerType(NumericType):
+class Uint256Type(IntegerType):
     __slots__ = ()
     _id = "uint256"
-    _valid_literal = vy_ast.Int
     _invalid_op = vy_ast.USub
 
     def validate_literal(self, node):
