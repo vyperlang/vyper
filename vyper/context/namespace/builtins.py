@@ -17,14 +17,14 @@ def _type_filter(value):
     return type(value) is type and isinstance(getattr(value, '_id', None), str)
 
 
-def get_meta_types(namespace):
+def get_types(namespace):
     for obj in filter(_type_filter, vy_types.__dict__.values()):
         key = obj._id
-        namespace[key] = metatypes.BuiltinMetaType(namespace, obj)
+        namespace[key] = obj(namespace)
 
-    for meta_type_creator in filter(_type_filter, metatypes.__dict__.values()):
-        key = meta_type_creator._id
-        namespace[key] = meta_type_creator()
+    for meta_type in filter(_type_filter, metatypes.__dict__.values()):
+        key = meta_type._id
+        namespace[key] = meta_type(namespace)
 
     return namespace
 

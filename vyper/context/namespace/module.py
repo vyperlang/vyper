@@ -69,13 +69,13 @@ def _add_imports(module_nodes, namespace, interface_codes):
         # TODO handle json imports
         interface_ast = vy_ast.parse_to_ast(interface_codes[name]['code'])
         interface_ast.name = name
-        namespace[name] = namespace['contract'].get_meta_type(namespace, interface_ast)
+        namespace[name] = namespace['contract'].get_type(namespace, interface_ast)
         module_nodes.remove(node)
 
 
 def _add_classes(module_nodes, namespace):
     for node in [i for i in module_nodes if isinstance(i, vy_ast.ClassDef)]:
-        namespace[node.name] = namespace[node.class_type].get_meta_type(namespace, node)
+        namespace[node.name] = namespace[node.class_type].get_type(namespace, node)
         module_nodes.remove(node)
 
 

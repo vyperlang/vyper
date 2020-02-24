@@ -1,6 +1,6 @@
 from vyper.context.namespace.builtins import (
     add_builtin_units,
-    get_meta_types,
+    get_types,
 )
 from vyper.context.namespace.module import (
     add_variables,
@@ -75,13 +75,13 @@ class Namespace(dict):
             scope = self._scope_dependencies[scope]
             scopes.add(scope)
 
-        return Namespace({k: v for k, v in super().items() if v.enclosing_scope in scopes})
+        return Namespace(**{k: v for k, v in super().items() if v.enclosing_scope in scopes})
 
 
 def get_builtin_namespace():
 
     namespace = Namespace()
-    namespace = get_meta_types(namespace)
+    namespace = get_types(namespace)
     namespace = add_builtin_units(namespace)
     # TODO built-in functions
     # TODO reserved keywords
