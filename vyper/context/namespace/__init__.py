@@ -21,7 +21,6 @@ class Namespace(dict):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self._to_introspect = set()
         self._scope_dependencies = {'builtin': None, 'module': "builtin"}
 
     def __setitem__(self, attr, obj):
@@ -40,35 +39,16 @@ class Namespace(dict):
             parent_scope = super().__getitem__(scope).enclosing_scope
             self._scope_dependencies[scope] = parent_scope
 
-        if hasattr(obj, '_introspect'):
-            # builtins and module level are not introspected immediately
-            if scope in ('module', 'builtin'):
-                self._to_introspect.add(attr)
-            else:
-                obj._introspect()
-
     def __getitem__(self, key):
         # requesting an item triggers introspection
         try:
-            item = super().__getitem__(key)
+            return super().__getitem__(key)
         except KeyError:
             raise StructureException(f"name '{key}' is not defined")
-        if key in self._to_introspect:
-            self._to_introspect.remove(key)
-            item._introspect()
-        return item
 
     def update(self, other):
         for key, value in other.items():
             self.__setitem__(key, value)
-
-    def introspect(self):
-
-        """Triggers introspection on all items within the container."""
-
-        while self._to_introspect:
-            key = next(iter(self._to_introspect))
-            self.__getitem__(key)
 
     def items(self):
         raise NotImplementedError
@@ -95,14 +75,7 @@ class Namespace(dict):
             scope = self._scope_dependencies[scope]
             scopes.add(scope)
 
-        n = Namespace()
-        for key, obj in [(k, v) for k, v in super().items() if v.enclosing_scope in scopes]:
-            # all objects in a copied namespace must be introspected
-            if key in self._to_introspect:
-                self.__getitem__(key)
-            n[key] = obj
-        n._to_introspect.clear()
-        return n
+        return Namespace({k: v for k, v in super().items() if v.enclosing_scope in scopes})
 
 
 def get_builtin_namespace():
@@ -131,7 +104,6 @@ def add_module_namespace(vy_module, namespace, interface_codes):
 
     # introspection
     module_nodes, namespace = add_implemented_interfaces(module_nodes, namespace)
-    namespace.introspect()
 
     if module_nodes:
         # TODO expand this to explain why each type is invalid
