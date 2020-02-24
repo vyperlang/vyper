@@ -12,6 +12,9 @@ from vyper.exceptions import (
 from vyper.context import (
     operators,
 )
+from vyper.context import (
+    datatypes,
+)
 
 
 # created from AnnAssign
@@ -34,19 +37,14 @@ class Variable:
         self.is_constant = False
         self.is_public = False
 
-    @property
-    def enclosing_scope(self):
-        return self._annotation_node.enclosing_scope
-
-    def _introspect(self):
-
+        # TODO cleanup
         node = self._annotation_node
         if isinstance(node, vy_ast.Call) and node.func.id in ("constant", "public"):
             # TODO raise if not module scoped
             setattr(self, f"is_{node.func.id}", True)
             node = node.args[0]
         name = get_leftmost_id(node)
-        self.type = self.namespace[name].get_type(self.namespace, node)
+        self.type = datatypes.get_type_from_annotation(self.namespace, node)
 
         if self._value_node is None:
             self.value = None
@@ -74,6 +72,10 @@ class Variable:
                         raise VariableDeclarationException(
                             "Unable to determine literal value for constant", self._value_node
                         )
+
+    @property
+    def enclosing_scope(self):
+        return self._annotation_node.enclosing_scope
 
     @property
     def literal_value(self):

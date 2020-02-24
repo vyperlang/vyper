@@ -4,7 +4,6 @@ from vyper.context.datatypes.variables import (
     get_type,
 )
 from vyper.context.datatypes.types import (
-    ArrayType,
     BoolType,
     IntegerType,
 )
@@ -128,7 +127,7 @@ class TypeCheckVisitor:
         # iteration over a variable
         if isinstance(node.iter, vy_ast.Name):
             iter_var = self.namespace[node.iter.id]
-            if not isinstance(iter_var, ArrayType):
+            if not isinstance(iter_var.type, list):
                 raise
             target_type = iter_var.type
 

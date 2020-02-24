@@ -1,3 +1,6 @@
+from collections import (
+    OrderedDict,
+)
 from decimal import (
     Decimal,
 )
@@ -6,7 +9,6 @@ from vyper import (
 )
 from vyper.context.utils import (
     check_call_args,
-    get_leftmost_id,
     check_numeric_bounds,
 )
 from vyper.exceptions import (
@@ -14,11 +16,14 @@ from vyper.exceptions import (
     InvalidLiteralException,
     InvalidTypeException,
     StructureException,
-    TypeMismatchException,
 )
 from vyper.utils import (
     checksum_encode,
 )
+from vyper.context.datatypes.functions import (
+    Function,
+)
+from vyper.context import datatypes
 
 
 class _BaseType:
@@ -48,19 +53,18 @@ class _BaseType:
     namespace : Namespace
         The namespace object that this type exists within.
     """
-    __slots__ = ('namespace', 'node',)
+    __slots__ = ('namespace', )
+    enclosing_scope = "builtin"
 
-    def __init__(self, namespace, node):
+    def __init__(self, namespace):
         self.namespace = namespace
-        self.node = node
 
     def __eq__(self, other):
-        # TODO change to a method to reduce duplicated exception raises
-        return type(self) == type(other)
+        return type(self) in (other, type(other))
 
-    @property
-    def enclosing_scope(self):
-        return self.node.enclosing_scope
+    # @property
+    # def enclosing_scope(self):
+    #     return self.node.enclosing_scope
 
     def validate_numeric_op(self, node):
         raise InvalidTypeException(f"Invalid type for operand: {self}", node)
@@ -74,16 +78,91 @@ class _BaseType:
         pass
 
 
-class _BaseSubscriptType(_BaseType):
+# Type Categories
+# ---------------
+#   These classes define common characteristics between similar vyper types.
+#   They are not directly instantiated, but can be imported and used with
+#   isinstance() to confirm that a specific type is of the given category.
+
+class ValueType(_BaseType):
+
+    """Base class for simple types representing a single value."""
+
+    __slots__ = ()
+
+    def __str__(self):
+        return self._id
+
+    @classmethod
+    def from_annotation(cls, namespace, node):
+        self = cls(namespace)
+        names = [i.id for i in node.get_all_children({'ast_type': 'Name'}, True)][1:]
+        if len(names) > 1:
+            raise StructureException("Invalid type assignment", node)
+        if names:
+            try:
+                self.unit = namespace[names[0]]
+            except AttributeError:
+                raise StructureException(f"Cannot apply unit to type '{cls}'", node)
+        return self
+
+    def validate_literal(self, node):
+        if not isinstance(node, vy_ast.Constant):
+            raise CompilerPanic(f"Attempted to validate a '{node.ast_type}' node.")
+        if not isinstance(node, self._valid_literal):
+            raise InvalidTypeException(f"Invalid literal type for '{self}'", node)
+
+
+class NumericType(ValueType):
+
+    """Base class for simple numeric types (capable of arithmetic)."""
+
+    __slots__ = ('unit',)
+    _as_array = True
+
+    @classmethod
+    def from_annotation(cls, namespace, node):
+        obj = super().from_annotation(namespace, node)
+        if not hasattr(obj, 'unit'):
+            obj.unit = None
+        return obj
+
+    def __str__(self):
+        if getattr(self, 'unit', None):
+            return f"{self._id}({self.unit})"
+        return super().__str__()
+
+    def __eq__(self, other):
+        if not self.unit:
+            return super().__eq__(other)
+        return type(self) is type(other) and self.unit == other.unit
+
+    def validate_numeric_op(self, node):
+        if isinstance(node.op, self._invalid_op):
+            # TODO: showing ast_type is very vague, maybe add human readable descriptions to nodes?
+            raise StructureException(
+                f"Unsupported operand for {self}: {node.op.ast_type}", node
+            )
+
+
+class IntegerType(NumericType):
+
+    """Base class for integer numeric types (int128, uint256)."""
+
+    __slots__ = ()
+    _valid_literal = vy_ast.Int
+
+
+class ArrayValueType(ValueType):
     """
-    Private inherited class common to all types that use subscript to denote length.
+    Base class for single-value types which occupy multiple memory slots
+    and where a maximum length must be given via a subscript (string, bytes).
 
     Attributes
     ----------
     length : int | Variable
         The length of the data within the type.
     """
-
     __slots__ = ('length',)
 
     def __str__(self):
@@ -92,13 +171,16 @@ class _BaseSubscriptType(_BaseType):
     def __eq__(self, other):
         return super().__eq__(other) and self.length == other.length
 
-    def _introspect(self):
-        if len(self.node.get_all_children({'ast_type': "Subscript"}, include_self=True)) > 1:
-            raise StructureException("Multidimensional arrays are not supported", self.node)
-        self.length = self._get_index_value(self.node.get('slice'))
+    @classmethod
+    def from_annotation(cls, namespace, node):
+        if len(node.get_all_children({'ast_type': "Subscript"}, include_self=True)) > 1:
+            raise StructureException("Multidimensional arrays are not supported", node)
+        self = cls(namespace)
+        self.length = self._get_index_value(node.get('slice'))
 
         if self.length <= 0:
-            raise InvalidLiteralException("Slice must be greater than 0", self.node.slice)
+            raise InvalidLiteralException("Slice must be greater than 0", node.slice)
+        return self
 
     def validate_slice(self, node: vy_ast.Index):
         # validates that a slice referencing this node is valid
@@ -132,86 +214,6 @@ class _BaseSubscriptType(_BaseType):
 
         raise StructureException("Slice must be an integer or constant", node)
 
-
-# Type Categories
-# ---------------
-#   These classes define common characteristics between similar vyper types.
-#   They are not directly instantiated, but can be imported and used with
-#   isinstance() to confirm that a specific type is of the given category.
-
-class ValueType(_BaseType):
-
-    """Base class for simple types representing a single value."""
-
-    __slots__ = ()
-
-    def __str__(self):
-        return self._id
-
-    def _introspect(self):
-        names = [i.id for i in self.node.get_all_children({'ast_type': 'Name'}, True)][1:]
-        if len(names) > 1:
-            raise StructureException("Invalid type assignment", self.node)
-        if names:
-            try:
-                self.unit = self.namespace[names[0]]
-            except AttributeError:
-                raise StructureException(f"Cannot apply unit to type '{self}'", self.node)
-
-    def validate_literal(self, node):
-        if not isinstance(node, vy_ast.Constant):
-            raise CompilerPanic(f"Attempted to validate a '{node.ast_type}' node.")
-        if not isinstance(node, self._valid_literal):
-            raise InvalidTypeException(f"Invalid literal type for '{self}'", node)
-
-
-class NumericType(ValueType):
-
-    """Base class for simple numeric types (capable of arithmetic)."""
-
-    __slots__ = ('unit',)
-    _as_array = True
-
-    def _introspect(self):
-        self.unit = None
-        super()._introspect()
-
-    def __str__(self):
-        if getattr(self, 'unit', None):
-            return f"{self._id}({self.unit})"
-        return super().__str__()
-
-    def __eq__(self, other):
-        return super().__eq__(other) and self.unit == other.unit
-
-    def validate_numeric_op(self, node):
-        if isinstance(node.op, self._invalid_op):
-            # TODO: showing ast_type is very vague, maybe add human readable descriptions to nodes?
-            raise StructureException(
-                f"Unsupported operand for {self}: {node.op.ast_type}", node
-            )
-
-
-class IntegerType(NumericType):
-
-    """Base class for integer numeric types (int128, uint256)."""
-
-    __slots__ = ()
-    _valid_literal = vy_ast.Int
-
-
-class ArrayValueType(_BaseSubscriptType, ValueType):
-    """
-    Base class for single-value types which occupy multiple memory slots
-    and where a maximum length must be given via a subscript (string, bytes).
-    """
-    __slots__ = ('length',)
-
-    def _introspect(self):
-        if not isinstance(self.node, vy_ast.Subscript):
-            raise StructureException(f"{self} types must have a maximum length.", self.node)
-        super()._introspect()
-
     def validate_literal(self, node):
         super().validate_literal(node)
         if len(node.value) > self.length:
@@ -232,19 +234,19 @@ class UserDefinedType(_BaseType):
 
     """Base class for user defined types."""
 
-    __slots__ = ()
+    __slots__ = ('node', '_id',)
 
     def __init__(self, namespace, node):
-        super().__init__(namespace, node)
-        key = get_leftmost_id(node)
-        self.type_class = namespace[key]
-
-    def __eq__(self, other):
-        return super().__eq__(other) and self.type_class == other.type_class
+        super().__init__(namespace)
+        self.node = node
 
     @property
-    def _id(self):
-        return self.type_class._id
+    def enclosing_scope(self):
+        return self.node.enclosing_scope
+
+    # TODO
+    # def __eq__(self, other):
+    #     return super().__eq__(other) and self.type_class == other.type_class
 
 
 # Builtin Types
@@ -380,13 +382,14 @@ class MappingType(CompoundType):
             self.value_type == other.value_type
         )
 
-    def _introspect(self):
-        check_call_args(self.node, 2)
-        meta_type = self.namespace[self.node.args[0].id]
-        self.key_type = meta_type.get_type(self.namespace, self.node.args[0])
+    @classmethod
+    def from_annotation(cls, namespace, node):
+        self = cls(namespace)
+        check_call_args(node, 2)
+        self.key_type = datatypes.get_type_from_annotation(namespace, node.args[0])
 
-        key = get_leftmost_id(self.node.args[1])
-        self.value_type = self.namespace[key].get_type(self.namespace, self.node.args[1])
+        self.value_type = datatypes.get_type_from_annotation(namespace, node.args[1])
+        return self
 
     def __repr__(self):
         return f"map({self.key_type}, {self.value_type})"
@@ -396,84 +399,115 @@ class MappingType(CompoundType):
         pass
 
 
-class ArrayType(_BaseSubscriptType, CompoundType):
-    """
-    Represents a fixed-length array with a single common type for all items.
-
-    This class is not directly instantiated. BuiltinMetaType returns an ArrayType
-    object when a base type that includes the `_as_array` member is referenced, and
-    that reference includes a subscript.
-
-    Attributes
-    ----------
-    base_type : BaseType
-        Type object representing the base type for the array.
-    length : int | Variable
-        The number of items in the array.
-    """
-    __slots__ = ('base_type',)
-
-    def __eq__(self, other):
-        return super().__eq__(other) and self.base_type == other.base_type
-
-    @property
-    def _id(self):
-        return self.base_type[0]._id
-
-    def _introspect(self):
-        super()._introspect()
-        meta_type = self.namespace[self.node.value.id]
-        base_type = meta_type.get_type(self.namespace, self.node.value)
-        self.base_type = [base_type] * self.length
-
-    def validate_literal(self, node):
-        # TODO! IMPORTANT! this does not validate the individual array items
-        # which is fine, but it really needs documenting somewhere
-        raise
-        # if not isinstance(node, vy_ast.List):
-        #     raise InvalidTypeException(f"Invalid literal type for array", node)
-        # if len(node.elts) != self.length:
-        #     raise InvalidLiteralException(
-        #         f"Invalid length for literal array, expected {len(node.elts)} got {self.length}",
-        #         node
-        #     )
-
-    def __len__(self):
-        return self.length
-
-    def __getitem__(self, key):
-        return self.base_type[key]
-
-
 # User-defined Types
 # ------------------
 #   These classes are used to represent custom data types that are implemented
 #   within a contract, such as structs or contract interfaces.
 
 class StructType(UserDefinedType):
-    _as_array = True
+    """
+    Meta-type object for struct types.
 
-    def _introspect(self):
-        # TODO
-        pass
+    Attributes
+    ----------
+    _id : str
+        Name of the custom type.
+    node : ClassDef
+        Vyper AST node that defines this meta-type.
+    members : OrderedDict
+        A dictionary of {name: TypeObject} for each member of this meta-type.
+    """
 
-    def validate_literal(self, node):
+    __slots__ = ('members',)
+
+    def __init__(self, namespace, node):
+        super().__init__(namespace, node)
+        self._id = node.name
+        self.members = OrderedDict()
+        for node in self.node.body:
+            if not isinstance(node, vy_ast.AnnAssign):
+                raise StructureException("Structs can only contain variables", node)
+            if node.value is not None:
+                raise StructureException("Cannot assign a value during struct declaration", node)
+            member_name = node.target.id
+            if member_name in self.members:
+                raise StructureException(
+                    f"Struct member '{member_name}'' has already been declared", node.target
+                )
+            self.members[member_name] = datatypes.get_type_from_annotation(
+                namespace, node.annotation
+            )
+
+    def from_annotation(self, namespace, node):
         # TODO
-        pass
+        return self.__init__(self.namespace, self.node)
+
+    def __repr__(self):
+        return f"<Struct Type '{self._id}'>"
 
 
 class InterfaceType(UserDefinedType):
-    __slots__ = ('address',)
+    """
+    Meta-type object for interface types.
+
+    Attributes
+    ----------
+    _id : str
+        Name of the custom type.
+    node : ClassDef
+        Vyper AST node that defines this meta-type.
+    """
+    __slots__ = ('_id', 'node', 'functions', 'address')
     _as_array = True
 
-    def _introspect(self):
-        check_call_args(self.node, 1)
-        address = self.node.args[0]
+    def __init__(self, namespace, node):
+        super().__init__(namespace, node)
+        self._id = node.name
+        self.functions = {}
+        namespace = self.namespace.copy('builtin')
+        if isinstance(self.node, vy_ast.Module):
+            functions = self._get_module_functions(namespace)
+        elif isinstance(self.node, vy_ast.ClassDef):
+            functions = self._get_class_functions(namespace)
+        else:
+            raise
+        for func in functions:
+            if func.name in namespace or func.name in self.functions:
+                raise StructureException("Namespace collision", func.node)
+            self.functions[func.name] = func
+
+    def _get_class_functions(self, namespace):
+        functions = []
+        for node in self.node.body:
+            if not isinstance(node, vy_ast.FunctionDef):
+                raise StructureException("Interfaces can only contain function definitions", node)
+            functions.append(Function(namespace, node, "public"))
+        return functions
+
+    def _get_module_functions(self, namespace):
+        functions = []
+        for node in self.node.get_children({'ast_type': "FunctionDef"}):
+            if "public" in node.decorator_list:
+                functions.append(Function(namespace, node))
+        return functions
+
+    def validate_implements(self, namespace):
+        unimplemented = [i.name for i in self.functions.values() if namespace.get(i.name) != i]
+        if unimplemented:
+            raise StructureException(
+                f"Contract does not implement all interface functions: {', '.join(unimplemented)}",
+                self.node
+            )
+
+    def from_annotation(self, namespace, node):
+        obj = super().__init__(namespace, node)
+        check_call_args(node, 1)
+        address = node.args[0]
         if isinstance(address, vy_ast.Hex):
-            self.address = address.value
+            obj.address = address.value
         elif isinstance(address, vy_ast.Name):
-            self.address = self.namespace[address.id]
-            if not isinstance(self.address, AddressType):
+            obj.address = namespace[address.id]
+            if not isinstance(obj.address, AddressType):
                 raise
         else:
             raise

@@ -1,10 +1,12 @@
 from collections import OrderedDict
 from typing import Optional
 from vyper import ast as vy_ast
+from vyper.context import (
+    datatypes,
+)
 from vyper.context.datatypes.variables import (
     Variable,
 )
-from vyper.context.utils import get_leftmost_id
 from vyper.exceptions import (
     StructureException,
 )
@@ -40,6 +42,9 @@ class Function:
         self.name = node.name
         if visibility is not None:
             self.visibility = visibility
+        self._introspect_decorators(self.node.decorator_list)
+        self._introspect_call_args(self.node.args)
+        self._introspect_return_type(self.node.returns)
 
     @property
     def enclosing_scope(self):
@@ -60,11 +65,6 @@ class Function:
             if self.arguments[key].value != other.arguments[key].value:
                 return False
         return True
-
-    def _introspect(self):
-        self._introspect_decorators(self.node.decorator_list)
-        self._introspect_call_args(self.node.args)
-        self._introspect_return_type(self.node.returns)
 
     def _introspect_decorators(self, decorator_list):
         decorators = [i.id for i in decorator_list]
@@ -90,20 +90,17 @@ class Function:
             if arg.arg in self.namespace or arg.arg in self.arguments:
                 raise StructureException("Namespace collision", arg)
             var = Variable(self.namespace, arg.arg, arg.annotation, value)
-            var._introspect()
             self.arguments[arg.arg] = var
 
     def _introspect_return_type(self, node):
         if node is None:
             self.return_type = None
         elif isinstance(node, vy_ast.Name):
-            id_ = get_leftmost_id(node)
-            self.return_type = self.namespace[id_].get_type(self.namespace, node)
+            self.return_type = datatypes.get_type_from_annotation(self.namespace, node)
         elif isinstance(node, vy_ast.Tuple):
             self.return_type = ()
             for n in node.elts:
-                id_ = get_leftmost_id(n)
-                self.return_type += (self.namespace[id_].get_type(self.namespace, n),)
+                self.return_type += (datatypes.get_type_from_annotation(self.namespace, n),)
         else:
             raise StructureException(
                 f"Function return value must be a type name or tuple", node
