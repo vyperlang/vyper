@@ -6,6 +6,7 @@ from vyper.context.datatypes.variables import (
 from vyper.context.datatypes.types import (
     ArrayType,
     BoolType,
+    IntegerType,
 )
 from vyper.context.utils import (
     compare_types,
@@ -146,19 +147,35 @@ class TypeCheckVisitor:
                     "Cannot iterate over the result of a function call", node.iter
                 )
             check_call_args(node.iter, (1, 2))
-            raise
-            # TODO
-            # single arg as name or literal
-            # 2 args, name or literal
-            # arg, binaryop on same arg
+
+            args = node.iter.args
+            if len(args) == 1:
+                if not isinstance(args[0], vy_ast.Int):
+                    raise  # arg must be literal
+                # arg must be a literal
+                pass
+
+            elif isinstance(args[0], vy_ast.Name):
+                target_type = get_type(self.namespace, args[0])
+                if not isinstance(target_type, IntegerType):
+                    raise
+                if not isinstance(args[1], vy_ast.BinOp) or not isinstance(args[1].op, vy_ast.Add):
+                    raise
+                if args[0] != args[1].left:
+                    raise
+
+            else:
+                if args[0].value < args[1].value:
+                    raise
+                target_type = None  # TODO how to handle the type when both args are literals?
         else:
             raise StructureException("Invalid type for iteration", node.iter)
 
-        # namespace[target.id] = Variable(namespace, target.id, target_type, None)
+        self.namespace[node.target.id] = Variable(self.namespace, node.target.id, target_type, None)
 
         for n in node.body:
             self.visit(n)
-        # del namespace[target.id]
+        del self.namespace[node.target.id]
 
     def visit_Attribute(self, node):
         get_type(self.namespace, node)

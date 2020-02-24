@@ -7,6 +7,7 @@ from vyper.exceptions import (
     VariableDeclarationException,
     TypeMismatchException,
     StructureException,
+    CompilerPanic,
 )
 from vyper.context import (
     operators,
@@ -134,7 +135,7 @@ def get_type(namespace, node):
         return var.type[idx]
     if isinstance(node, (vy_ast.Op, vy_ast.Compare)):
         return operators.validate_operation(namespace, node)
-    raise
+    raise CompilerPanic(f"Cannot get type from object: {type(node).__name__}")
 
 
 # TODO - should this be value just like lhs? can they be refactored into a single fn?
