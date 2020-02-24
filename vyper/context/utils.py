@@ -30,7 +30,7 @@ def check_call_args(
         raise StructureException(
             f"Invalid argument count: expected {argcount}, got {len(node.args)}", node
         )
-    elif isinstance(argcount, tuple) and not argcount[0] <= len(node.args) <= argcount[0]:
+    elif isinstance(argcount, tuple) and not argcount[0] <= len(node.args) <= argcount[1]:
         raise StructureException(
             f"Invalid argument count: expected between "
             f"{argcount[0]} and {argcount[1]}, got {len(node.args)}",

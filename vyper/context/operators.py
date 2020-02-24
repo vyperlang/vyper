@@ -53,7 +53,7 @@ def _validate_boolean_op(namespace, node):
 
 def _validate_numeric_op(namespace, node):
     node_list = [variables.get_type(namespace, i) for i in (node.left, node.right)]
-    literals, assigned = _split_literal_and_assigned(namespace, node_list)
+    literals, assigned = _split_literal_and_assigned(namespace, (node.left, node.right))
     if not assigned:
         if not isinstance(node.left, (vy_ast.Int, vy_ast.Decimal)):
             raise StructureException(
@@ -64,6 +64,7 @@ def _validate_numeric_op(namespace, node):
     compare_types(node_list[0], node_list[1], node)
     if assigned:
         return assigned[0]
+    # TODO this is bad - need to fold!
     return node.left
 
 
