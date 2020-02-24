@@ -212,6 +212,9 @@ def _get_attribute(namespace, node, validation_type=None):
 def _get_subscript(namespace, node, validation_type=None):
     base_var = get_value(namespace, node.value)  # bug here
 
-    # validating the slice also validates that this is an ArrayType
-    idx = base_var.type.validate_slice(node.slice)
+    idx = get_value(namespace, node.slice.value)
+    if idx >= len(base_var.type):
+        raise StructureException("Array index out of range", node.slice)
+    if idx < 0:
+        raise StructureException("Array index cannot use negative integers", node.slice)
     return base_var, idx

@@ -160,15 +160,6 @@ class ArrayValueType(ValueType):
             raise InvalidLiteralException("Slice must be greater than 0", node.slice)
         return self
 
-    def validate_slice(self, node: vy_ast.Index):
-        # validates that a slice referencing this node is valid
-        length = self._get_index_value(node)
-        if length >= self.length:
-            raise StructureException("Array index out of range", node)
-        if length < 0:
-            raise StructureException("Array index cannot use negative integers", node)
-        return length
-
     def _get_index_value(self, node):
         if not isinstance(node, vy_ast.Index):
             raise
