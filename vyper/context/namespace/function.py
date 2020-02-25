@@ -128,21 +128,21 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             self.visit(n)
 
     def visit_For(self, node):
+        namespace = self.namespace.copy(node.enclosing_scope)
 
         # iteration over a variable
         if isinstance(node.iter, vy_ast.Name):
             iter_var = self.namespace[node.iter.id]
             if not isinstance(iter_var.type, list):
                 raise
-            target_type = iter_var.type
+            target_type = iter_var.type[0]
 
         # iteration over a literal list
         elif isinstance(node.iter, vy_ast.List):
             iter_values = node.iter.elts
             if not iter_values:
                 raise StructureException("Cannot iterate empty array", node.iter)
-            get_type_from_node(self.namespace, node.iter)
-            # TODO this might be a constant, not a type, how to handle var declaration?
+            target_type = get_type_from_node(self.namespace, node.iter)[0]
 
         # iteration via range()
         elif isinstance(node.iter, vy_ast.Call):
@@ -153,25 +153,28 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             check_call_args(node.iter, (1, 2))
 
             args = node.iter.args
+            target_type = get_type_from_node(self.namespace, args[0])
             if len(args) == 1:
+                # range(10)
                 if not isinstance(args[0], vy_ast.Int):
-                    raise  # arg must be literal
-                # arg must be a literal
-                pass
+                    raise StructureException("Range argument must be integer", args[0])
 
             elif isinstance(args[0], vy_ast.Name):
-                target_type = get_type_from_node(self.namespace, args[0])
+                # range(x, x + 10)
                 if not isinstance(target_type, IntegerType):
                     raise
                 if not isinstance(args[1], vy_ast.BinOp) or not isinstance(args[1].op, vy_ast.Add):
                     raise
                 if args[0] != args[1].left:
                     raise
-
-            else:
-                if args[0].value < args[1].value:
+                if not isinstance(args[1].right, vy_ast.Int):
                     raise
-                target_type = None  # TODO how to handle the type when both args are literals?
+            else:
+                # range(1, 10)
+                if args[0].value >= args[1].value:
+                    raise
+                # TODO check that args[0] + args[1] doesn't overflow
+
         else:
             raise StructureException("Invalid type for iteration", node.iter)
 
@@ -180,7 +183,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         for n in node.body:
             self.visit(n)
-        del self.namespace[node.target.id]
+        self.namespace = namespace
 
     def visit_Attribute(self, node):
         get_type_from_node(self.namespace, node)

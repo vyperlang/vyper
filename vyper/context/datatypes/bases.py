@@ -204,16 +204,21 @@ class UserDefinedType(BaseType):
 
 class UnionType(set):
 
-    # TODO
+    def __str__(self):
+        if len(self) == 1:
+            return str(next(iter(self)))
+        return f"{{{', '.join([str(i) for i in self])}}}"
 
     def compare_type(self, other):
         if not isinstance(other, UnionType):
             other = [other]
 
         matches = [i for i in self if any(i.compare_type(x) for x in other)]
-        self.intersection_update(matches)
+        if not matches:
+            return False
 
-        return bool(self)
+        self.intersection_update(matches)
+        return True
 
     def _validate(self, node, attr):
         for typ in list(self):

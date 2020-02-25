@@ -15,8 +15,9 @@ class Namespace(dict):
     """Dictionary subclass that represents the namespace of contract."""
 
     def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+        super().__init__()
         self._scope_dependencies = {'builtin': None, 'module': "builtin"}
+        self.update(kwargs)
 
     def __setitem__(self, attr, obj):
         if attr in self:
