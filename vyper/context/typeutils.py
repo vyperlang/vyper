@@ -1,9 +1,6 @@
 from vyper import (
     ast as vy_ast,
 )
-from vyper.context import (
-    operators,
-)
 from vyper.context.datatypes.bases import (
     IntegerType,
     UnionType,
@@ -85,7 +82,7 @@ def get_type_from_literal(namespace, node: vy_ast.Constant):
             continue
     if not valid_types:
         raise InvalidLiteralException(
-            f"Could not determine type for literal value '{node.node_source_code}'",
+            f"Could not determine type for literal value '{node.value}'",
             node
         )
     if len(valid_types) == 1:
@@ -119,7 +116,7 @@ def get_type_from_node(namespace, node):
         var, idx = _get_subscript(namespace, node)
         return var.type[idx]
     if isinstance(node, (vy_ast.Op, vy_ast.Compare)):
-        return operators.validate_operation(namespace, node)
+        return get_type_from_operation(namespace, node)
     raise CompilerPanic(f"Cannot get type from object: {type(node).__name__}")
 
 
@@ -242,3 +239,52 @@ def compare_types(left, right, node):
         raise TypeMismatchException(
             f"Cannot perform operation between {left} and {right}", node
         )
+
+
+def get_type_from_operation(namespace, node):
+    if isinstance(node, vy_ast.UnaryOp):
+        return _get_unary_op(namespace, node)
+    if isinstance(node, vy_ast.BinOp):
+        return _get_binop(namespace, node)
+    elif isinstance(node, vy_ast.BoolOp):
+        return _get_boolean_op(namespace, node)
+    elif isinstance(node, vy_ast.Compare):
+        return _get_comparator(namespace, node)
+
+
+def _get_unary_op(namespace, node):
+    node_type = get_type_from_node(namespace, node.operand)
+    node_type.validate_numeric_op(node)
+    return node_type
+
+
+# x and y, x or y
+def _get_boolean_op(namespace, node):
+    node_types = (get_type_from_node(namespace, i) for i in node.values)
+    node_types[0].validate_boolean_op(node)
+    for typ in node_types[1:]:
+        compare_types(node_types[0], typ, node)
+    return node_types[0]
+
+
+def _get_binop(namespace, node):
+    left, right = (get_type_from_node(namespace, i) for i in (node.left, node.right))
+    compare_types(left, right, node)
+    left.validate_numeric_op(node)
+    if isinstance(left, set) and len(left) == 1:
+        return next(iter(left))
+    return left
+
+
+def _get_comparator(namespace, node):
+    if len(node.ops) != 1:
+        raise StructureException("Cannot have a comparison with more than two elements", node)
+    left, right = (get_type_from_node(namespace, i) for i in (node.left, node.comparators[0]))
+    if isinstance(node.ops[0], vy_ast.In):
+        pass
+    else:
+        left.validate_comparator(node)
+        compare_types(left, right, node)
+    if isinstance(left, set) and len(left) == 1:
+        return next(iter(left))
+    return left

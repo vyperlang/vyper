@@ -7,12 +7,10 @@ from vyper.context.datatypes.bases import (
 from vyper.context.datatypes.builtins import (
     BoolType,
 )
-from vyper.context.operators import (
-    validate_operation,
-)
 from vyper.context.typeutils import (
     compare_types,
     get_type_from_node,
+    get_type_from_operation,
 )
 from vyper.context.utils import (
     check_call_args,
@@ -85,7 +83,7 @@ class TypeCheckVisitor:
         if node.msg and (not isinstance(node.msg, vy_ast.Str) or len(node.msg.value) > 32):
             raise StructureException("Reason must be a string of 32 characters or less", node.msg)
         if isinstance(node.test, (vy_ast.BoolOp, vy_ast.Compare)):
-            validate_operation(self.namespace, node)
+            get_type_from_operation(self.namespace, node)
         elif not isinstance(
             get_type_from_node(self.namespace, node.test),
             (BoolType, vy_ast.NameConstant)
@@ -112,15 +110,15 @@ class TypeCheckVisitor:
         self.visit(node.value)
 
     def visit_UnaryOp(self, node):
-        validate_operation(self.namespace, node)
+        get_type_from_operation(self.namespace, node)
         # TODO what about when node.operand is BinOp ?
         # get_type(self.namespace, node.operand).validate_op(node)
 
     def visit_BinOp(self, node):
-        validate_operation(self.namespace, node)
+        get_type_from_operation(self.namespace, node)
 
     def visit_Compare(self, node):
-        validate_operation(self.namespace, node)
+        get_type_from_operation(self.namespace, node)
 
     def visit_Call(self, node):
         # TODO

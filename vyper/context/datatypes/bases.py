@@ -235,9 +235,20 @@ class UnionType(set):
 
         return bool(self)
 
-    def validate_numeric_op(self, node):
-        # TODO
-        return
-        if len(self) > 1:
+    def _validate(self, node, attr):
+        for typ in list(self):
+            try:
+                getattr(typ, attr)(node)
+            except Exception:
+                self.remove(typ)
+        if not self:
             raise
-        return next(iter(self)).validate_numeric_op(node)
+
+    def validate_comparator(self, node):
+        self._validate(node, 'validate_comparator')
+
+    def validate_boolean_op(self, node):
+        self._validate(node, 'validate_boolean_op')
+
+    def validate_numeric_op(self, node):
+        self._validate(node, 'validate_numeric_op')
