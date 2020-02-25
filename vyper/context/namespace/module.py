@@ -19,23 +19,68 @@ from vyper.exceptions import (
 )
 
 
-def add_custom_units(module_nodes, namespace):
+class ModuleNodeVisitor:
+
+    def __init__(self, namespace, module_node, interface_codes):
+        self.namespace = namespace
+        self.interface_codes = interface_codes
+        self.units_added = False
+        module_nodes = module_node.body.copy()
+        while module_nodes:
+            count = len(module_nodes)
+            for node in list(module_nodes):
+                try:
+                    self.visit(node)
+                    module_nodes.remove(node)
+                except Exception as e:
+                    print(e)
+                    continue
+            if count == len(module_nodes):
+                raise
+
+    def visit(self, node):
+        if isinstance(node, getattr(self, 'ignored_types', ())):
+            return
+        visitor_fn = getattr(self, f'visit_{node.ast_type}', None)
+        if visitor_fn is None:
+            raise StructureException(
+                f"Unsupported syntax for module-level namespace: {node.ast_type}", node
+            )
+        visitor_fn(node)
+
+    def visit_AnnAssign(self, node):
+        if node.get('annotation.func.id') == "event":
+            event = Event(self.namespace, node.target.id, node.annotation, node.value)
+            self.namespace[node.target.id] = event
+            return
+        name = node.get('target.id')
+        if name == "units":
+            if self.units_added:
+                raise VariableDeclarationException("Custom units can only be defined once", node)
+            _add_custom_units(self.namespace, node)
+        elif name == "implements":
+            interface_name = node.annotation.id
+            self.namespace[interface_name].validate_implements(self.namespace)
+        else:
+            var = Variable(self.namespace, node.target.id, node.annotation, node.value)
+            self.namespace[node.target.id] = var
+
+    def visit_ClassDef(self, node):
+        self.namespace[node.name] = self.namespace[node.class_type].get_type(self.namespace, node)
+
+    def visit_Import(self, node):
+        _add_import(self.namespace, node, self.interface_codes)
+
+    def visit_ImportFrom(self, node):
+        _add_import(self.namespace, node, self.interface_codes)
+
+    def visit_FunctionDef(self, node):
+        self.namespace[node.name] = Function(self.namespace, node)
+
+
+def _add_custom_units(namespace, node):
     # extracts custom unit information from AST
     # verifies correctness of custom units and that they are declared at most once
-
-    units_nodes = [
-        i for i in module_nodes if isinstance(i, vy_ast.AnnAssign) and i.get('target.id') == "units"
-    ]
-    if not units_nodes:
-        return module_nodes, namespace
-
-    if len(units_nodes) > 1:
-        raise VariableDeclarationException(
-            "Custom units can only be defined once", units_nodes[1]
-        )
-
-    node = units_nodes[0]
-    module_nodes.remove(node)
 
     for key, value in zip(node.annotation.keys, node.annotation.values):
         if not isinstance(value, vy_ast.Str):
@@ -48,78 +93,13 @@ def add_custom_units(module_nodes, namespace):
             )
         namespace[key.id] = Unit(name=key.id, description=value.s, enclosing_scope="module")
 
-    return module_nodes, namespace
 
-
-def add_custom_types(module_nodes, namespace, interface_codes):
-    _add_imports(module_nodes, namespace, interface_codes)
-    _add_classes(module_nodes, namespace)
-    # TODO add functions
-    # implements ?
-
-    return module_nodes, namespace
-
-
-def _add_imports(module_nodes, namespace, interface_codes):
-    for node in [i for i in module_nodes if isinstance(i, (vy_ast.Import, vy_ast.ImportFrom))]:
-        if isinstance(node, vy_ast.Import):
-            name = node.names[0].asname
-        else:
-            name = node.names[0].name
-        # TODO handle json imports
-        interface_ast = vy_ast.parse_to_ast(interface_codes[name]['code'])
-        interface_ast.name = name
-        namespace[name] = namespace['contract'].get_type(namespace, interface_ast)
-        module_nodes.remove(node)
-
-
-def _add_classes(module_nodes, namespace):
-    for node in [i for i in module_nodes if isinstance(i, vy_ast.ClassDef)]:
-        namespace[node.name] = namespace[node.class_type].get_type(namespace, node)
-        module_nodes.remove(node)
-
-
-def add_functions(module_nodes, namespace):
-    for node in [i for i in module_nodes if isinstance(i, vy_ast.FunctionDef)]:
-        # TODO check for node.simple
-        namespace[node.name] = Function(namespace, node)
-        module_nodes.remove(node)
-
-    return module_nodes, namespace
-
-
-def add_events(module_nodes, namespace):
-    for node in [i for i in module_nodes if i.get('annotation.func.id') == "event"]:
-        namespace[node.target.id] = Event(namespace, node.target.id, node.annotation, node.value)
-        module_nodes.remove(node)
-
-    return module_nodes, namespace
-
-
-def add_variables(module_nodes, namespace):
-    for node in [i for i in module_nodes if isinstance(i, vy_ast.AnnAssign)]:
-        if node.target.id == "implements":
-            continue
-        namespace[node.target.id] = Variable(namespace, node.target.id, node.annotation, node.value)
-        module_nodes.remove(node)
-
-    return module_nodes, namespace
-
-
-def add_implemented_interfaces(module_nodes, namespace):
-    implement_nodes = [
-        i for i in module_nodes if isinstance(i, vy_ast.AnnAssign)
-        and i.get('target.id') == "implements"
-    ]
-    interface_names = set()
-    for node in implement_nodes:
-        name = node.annotation.id
-        if name in interface_names:
-            raise StructureException("Interface has already been implemented", node)
-        module_nodes.remove(node)
-        interface_names.add(name)
-
-    for name in interface_names:
-        namespace[name].validate_implements(namespace)
-
-    return module_nodes, namespace
+def _add_import(namespace, node, interface_codes):
+    if isinstance(node, vy_ast.Import):
+        name = node.names[0].asname
+    else:
+        name = node.names[0].name
+    # TODO handle json imports
+    interface_ast = vy_ast.parse_to_ast(interface_codes[name]['code'])
+    interface_ast.name = name
+    namespace[name] = namespace['contract'].get_type(namespace, interface_ast)

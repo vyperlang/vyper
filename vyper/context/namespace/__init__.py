@@ -3,12 +3,7 @@ from vyper.context.namespace.builtins import (
     get_types,
 )
 from vyper.context.namespace.module import (
-    add_custom_types,
-    add_custom_units,
-    add_events,
-    add_functions,
-    add_implemented_interfaces,
-    add_variables,
+    ModuleNodeVisitor,
 )
 from vyper.exceptions import (
     StructureException,
@@ -74,25 +69,7 @@ def get_builtin_namespace():
     return namespace
 
 
-def add_module_namespace(vy_module, namespace, interface_codes):
+def add_module_namespace(namespace, vy_module, interface_codes):
 
-    module_nodes = vy_module.body.copy()
-
-    # add custom types and units
-    module_nodes, namespace = add_custom_units(module_nodes, namespace)
-    module_nodes, namespace = add_custom_types(module_nodes, namespace, interface_codes)
-
-    # add assignments
-    module_nodes, namespace = add_functions(module_nodes, namespace)
-    module_nodes, namespace = add_events(module_nodes, namespace)
-    module_nodes, namespace = add_variables(module_nodes, namespace)
-
-    # introspection
-    module_nodes, namespace = add_implemented_interfaces(module_nodes, namespace)
-
-    if module_nodes:
-        # TODO expand this to explain why each type is invalid
-        print([type(i) for i in module_nodes])
-        raise StructureException("Unsupported syntax for module-level namespace", module_nodes[0])
-
+    ModuleNodeVisitor(namespace, vy_module, interface_codes)
     return namespace

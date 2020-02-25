@@ -23,12 +23,12 @@ from vyper.exceptions import (
 )
 
 
-def check_functions(vy_module, namespace):
+def check_functions(namespace, vy_module):
     for node in vy_module.get_children({'ast_type': "FunctionDef"}):
-        TypeCheckVisitor(node, namespace)
+        FunctionNodeVisitor(node, namespace)
 
 
-class TypeCheckVisitor:
+class FunctionNodeVisitor:
 
     ignored_types = (
         vy_ast.Break,
@@ -68,7 +68,7 @@ class TypeCheckVisitor:
 
     def visit_AugAssign(self, node):
         target_type = get_type_from_node(self.namespace, node.target)
-        target_type.validate_op(node)
+        target_type.validate_numeric_op(node)
 
         value_type = get_type_from_node(self.namespace, node.value)
         compare_types(target_type, value_type, node)
@@ -177,6 +177,7 @@ class TypeCheckVisitor:
         else:
             raise StructureException("Invalid type for iteration", node.iter)
 
+        # TODO target_type is a type, not a node - this raises an exception
         self.namespace[node.target.id] = Variable(self.namespace, node.target.id, target_type, None)
 
         for n in node.body:
@@ -194,20 +195,3 @@ class TypeCheckVisitor:
 
     def visit_List(self, node):
         get_type_from_node(self.namespace, node)
-
-
-def _check_operand(namespace, node, node_list, validation_fn_name):
-    node_list = [get_type_from_node(namespace, i) for i in node_list]
-
-    literals = [i for i in node_list if isinstance(i, vy_ast.Constant)]
-    assigned = [i for i in node_list if i not in literals]
-
-    if not assigned:
-        # TODO this is wrong for comparisons
-        if not isinstance(node.left, (vy_ast.Int, vy_ast.Decimal)):
-            raise StructureException(
-                f"Invalid literal type for operation: {node.left.ast_type}", node
-            )
-    else:
-        getattr(assigned[0], validation_fn_name)(node)
-    compare_types(node_list[0], node_list[1], node)
