@@ -43,12 +43,12 @@ class BaseType:
     def __init__(self, namespace):
         self.namespace = namespace
 
-    def __eq__(self, other):
-        return type(self) in (other, type(other))
-
     # @property
     # def enclosing_scope(self):
     #     return self.node.enclosing_scope
+
+    def compare_type(self, other):
+        return type(self) in (other, type(other))
 
     def validate_numeric_op(self, node):
         raise InvalidTypeException(f"Invalid type for operand: {self}", node)
@@ -84,11 +84,13 @@ class ValueType(BaseType):
                 raise StructureException(f"Cannot apply unit to type '{cls}'", node)
         return self
 
-    def validate_literal(self, node):
+    @classmethod
+    def from_literal(cls, namespace, node):
         if not isinstance(node, vy_ast.Constant):
             raise CompilerPanic(f"Attempted to validate a '{node.ast_type}' node.")
-        if not isinstance(node, self._valid_literal):
-            raise InvalidTypeException(f"Invalid literal type for '{self}'", node)
+        if not isinstance(node, cls._valid_literal):
+            raise InvalidTypeException(f"Invalid literal type for '{cls}'", node)
+        return cls(namespace)
 
 
 class NumericType(ValueType):
@@ -98,11 +100,15 @@ class NumericType(ValueType):
     __slots__ = ('unit',)
     _as_array = True
 
+    def __init__(self, namespace):
+        super().__init__(namespace)
+        self.unit = None
+
     @classmethod
     def from_annotation(cls, namespace, node):
         obj = super().from_annotation(namespace, node)
-        if not hasattr(obj, 'unit'):
-            obj.unit = None
+        # if not hasattr(obj, 'unit'):
+        #     obj.unit = None
         return obj
 
     def __str__(self):
@@ -110,9 +116,9 @@ class NumericType(ValueType):
             return f"{self._id}({self.unit})"
         return super().__str__()
 
-    def __eq__(self, other):
+    def compare_type(self, other):
         if not self.unit:
-            return super().__eq__(other)
+            return super().compare_type(other)
         return type(self) is type(other) and self.unit == other.unit
 
     def validate_numeric_op(self, node):
@@ -146,8 +152,8 @@ class ArrayValueType(ValueType):
     def __str__(self):
         return f"{self._id}[{self.length}]"
 
-    def __eq__(self, other):
-        return super().__eq__(other) and self.length == other.length
+    def compare_type(self, other):
+        return super().compare_type(other) and self.length >= other.length
 
     @classmethod
     def from_annotation(cls, namespace, node):
@@ -183,13 +189,11 @@ class ArrayValueType(ValueType):
 
         raise StructureException("Slice must be an integer or constant", node)
 
-    def validate_literal(self, node):
-        super().validate_literal(node)
-        if len(node.value) > self.length:
-            raise InvalidLiteralException(
-                f"Literal value exceeds the maximum length for {self}",
-                node
-            )
+    @classmethod
+    def from_literal(cls, namespace, node):
+        self = super().from_literal(namespace, node)
+        self.length = len(node.value) or 1
+        return self
 
 
 class CompoundType(BaseType):
@@ -216,3 +220,24 @@ class UserDefinedType(BaseType):
     # TODO
     # def __eq__(self, other):
     #     return super().__eq__(other) and self.type_class == other.type_class
+
+
+class UnionType(set):
+
+    # TODO
+
+    def compare_type(self, other):
+        if not isinstance(other, UnionType):
+            other = [other]
+
+        matches = [i for i in self if any(i.compare_type(x) for x in other)]
+        self.intersection_update(matches)
+
+        return bool(self)
+
+    def validate_numeric_op(self, node):
+        # TODO
+        return
+        if len(self) > 1:
+            raise
+        return next(iter(self)).validate_numeric_op(node)

@@ -1,7 +1,14 @@
-from collections import OrderedDict
-from typing import Optional
-from vyper import ast as vy_ast
-from vyper.context.datatypes import (
+from collections import (
+    OrderedDict,
+)
+from typing import (
+    Optional,
+)
+
+from vyper import (
+    ast as vy_ast,
+)
+from vyper.context.typeutils import (
     get_type_from_annotation,
 )
 from vyper.context.variables import (

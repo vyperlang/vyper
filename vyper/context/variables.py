@@ -1,19 +1,14 @@
-from vyper import ast as vy_ast
+from vyper import (
+    ast as vy_ast,
+)
+from vyper.context import (
+    typeutils,
+)
 from vyper.context.utils import (
-    compare_types,
     get_leftmost_id,
 )
 from vyper.exceptions import (
     VariableDeclarationException,
-    TypeMismatchException,
-    StructureException,
-    CompilerPanic,
-)
-from vyper.context import (
-    operators,
-)
-from vyper.context import (
-    datatypes,
 )
 
 
@@ -44,7 +39,7 @@ class Variable:
             setattr(self, f"is_{node.func.id}", True)
             node = node.args[0]
         name = get_leftmost_id(node)
-        self.type = datatypes.get_type_from_annotation(self.namespace, node)
+        self.type = typeutils.get_type_from_annotation(self.namespace, node)
 
         if self._value_node is None:
             self.value = None
@@ -60,11 +55,11 @@ class Variable:
             if hasattr(self.type, "_no_value"):
                 # types that cannot be assigned to
                 raise
-            value_type = get_type(self.namespace, self._value_node)
-            compare_types(self.type, value_type, self._value_node)
+            value_type = typeutils.get_type_from_node(self.namespace, self._value_node)
+            typeutils.compare_types(self.type, value_type, self._value_node)
 
             if self.is_constant:
-                self.value = get_value(self.namespace, self._value_node)
+                self.value = typeutils.get_value_from_node(self.namespace, self._value_node)
                 try:
                     self.literal_value
                 except AttributeError:
@@ -108,113 +103,3 @@ class Variable:
         if not hasattr(self, 'value') or self.value is None:
             return f"<Variable '{self.name}: {str(self.type)}'>"
         return f"<Variable '{self.name}: {str(self.type)} = {self.value}'>"
-
-
-def get_type(namespace, node):
-    """
-    Returns the type value of a node without any validation.
-
-    # TODO if the node is a constant, it just returns the node, document this
-    """
-    if isinstance(node, vy_ast.Tuple):
-        return tuple(get_type(namespace, i) for i in node.elts)
-    if isinstance(node, (vy_ast.List)):
-        if not node.elts:
-            return []
-        values = [get_type(namespace, i) for i in node.elts]
-        for i in values[1:]:
-            compare_types(values[0], i, node)
-        return values
-
-    if isinstance(node, vy_ast.Constant):
-        return node
-    if isinstance(node, vy_ast.Name):
-        return _get_name(namespace, node).type
-    if isinstance(node, (vy_ast.Attribute)):
-        return _get_attribute(namespace, node).type
-    if isinstance(node, vy_ast.Subscript):
-        var, idx = _get_subscript(namespace, node)
-        return var.type[idx]
-    if isinstance(node, (vy_ast.Op, vy_ast.Compare)):
-        return operators.validate_operation(namespace, node)
-    raise CompilerPanic(f"Cannot get type from object: {type(node).__name__}")
-
-
-# TODO - should this be value just like lhs? can they be refactored into a single fn?
-def get_value(namespace, node):
-    """
-    Returns the value of a node.
-
-    Arguments
-    ---------
-    namespace : Namespace
-        The active namespace that this value is being assigned within.
-
-    Returns
-    -------
-        A literal value, Variable object, or sequence composed of one or both types.
-    TODO finish docs
-    """
-
-    # TODO:
-    # call - ...do the call...
-    # attribute
-    # folding
-
-    if isinstance(node, vy_ast.List):
-        # TODO validate that all types are like?
-        return [get_value(namespace, node.elts[i]) for i in range(len(node.elts))]
-    if isinstance(node, vy_ast.Tuple):
-        return tuple(get_value(namespace, node.elts[i]) for i in range(len(node.elts)))
-
-    if isinstance(node, vy_ast.Constant):
-        return node.value
-
-    if isinstance(node, vy_ast.Name):
-        return _get_name(namespace, node)
-
-    if isinstance(node, vy_ast.Attribute):
-        return _get_attribute(namespace, node)
-
-    if isinstance(node, vy_ast.Subscript):
-        base_var, idx = _get_subscript(namespace, node)
-        return base_var.get_item(idx)
-    # TODO folding
-    # if isinstance(node, (vy_ast.BinOp, vy_ast.BoolOp, vy_ast.Compare)):
-    #     return operators.validate_operation(namespace, node)
-    raise
-
-
-def _get_name(namespace, node, validation_type=None):
-    var = namespace[node.id]
-    if not isinstance(var, Variable):
-        raise VariableDeclarationException(f"{node.id} is not a variable", node)
-    if var.enclosing_scope == "module" and not var.is_constant:
-        raise StructureException("Cannot access storage variable directly, use self", node)
-    if validation_type and var.type != validation_type:
-        raise TypeMismatchException(f"Invalid type for assignment: {var.type}", node)
-    return var
-
-
-def _get_attribute(namespace, node, validation_type=None):
-    if node.value.id == "self":
-        var = namespace[node.attr]
-        if var.enclosing_scope != "module" or var.is_constant:
-            raise StructureException(
-                f"'{var.name}' is not a storage variable, do not use self to access it", node
-            )
-        if validation_type and var.type != validation_type:
-            raise TypeMismatchException(f"Invalid type for assignment: {var.type}", node)
-        return var
-    raise
-
-
-def _get_subscript(namespace, node, validation_type=None):
-    base_var = get_value(namespace, node.value)  # bug here
-
-    idx = get_value(namespace, node.slice.value)
-    if idx >= len(base_var.type):
-        raise StructureException("Array index out of range", node.slice)
-    if idx < 0:
-        raise StructureException("Array index cannot use negative integers", node.slice)
-    return base_var, idx

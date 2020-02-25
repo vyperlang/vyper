@@ -2,8 +2,19 @@
 from decimal import (
     Decimal,
 )
+
 from vyper import (
     ast as vy_ast,
+)
+from vyper.context.datatypes.bases import (
+    ArrayValueType,
+    CompoundType,
+    IntegerType,
+    NumericType,
+    ValueType,
+)
+from vyper.context.typeutils import (
+    get_type_from_annotation,
 )
 from vyper.context.utils import (
     check_call_args,
@@ -15,16 +26,6 @@ from vyper.exceptions import (
 from vyper.utils import (
     checksum_encode,
 )
-from vyper.context.datatypes import (
-    get_type_from_annotation,
-)
-from vyper.context.datatypes.bases import (
-    ValueType,
-    IntegerType,
-    NumericType,
-    ArrayValueType,
-    CompoundType,
-)
 
 
 class BoolType(ValueType):
@@ -33,10 +34,11 @@ class BoolType(ValueType):
     _as_array = True
     _valid_literal = vy_ast.NameConstant
 
-    def validate_literal(self, node):
-        super().validate_literal(node)
+    @classmethod
+    def from_literal(cls, namespace, node):
         if node.value is None:
             raise InvalidLiteralException("Invalid literal for type 'bool'", node)
+        return super().from_literal(namespace, node)
 
 
 class AddressType(ValueType):
@@ -45,9 +47,10 @@ class AddressType(ValueType):
     _as_array = True
     _valid_literal = vy_ast.Hex
 
-    def validate_literal(self, node):
-        super().validate_literal(node)
-        addr = node.node_source_code
+    @classmethod
+    def from_literal(cls, namespace, node):
+        self = super().from_literal(namespace, node)
+        addr = node.value
         if len(addr) != 42:
             raise InvalidLiteralException("Invalid literal for type 'address'", node)
         if checksum_encode(addr) != addr:
@@ -56,6 +59,7 @@ class AddressType(ValueType):
                 f"address, the correct checksummed form is: {checksum_encode(addr)}",
                 node
             )
+        return self
 
 
 class Bytes32Type(ValueType):
@@ -64,11 +68,12 @@ class Bytes32Type(ValueType):
     _as_array = True
     _valid_literal = vy_ast.Hex
 
-    def validate_literal(self, node):
-        super().validate_literal(node)
-        value = node.node_source_code
-        if len(value) != 66:
+    @classmethod
+    def from_literal(cls, namespace, node):
+        self = super().from_literal(namespace, node)
+        if len(node.value) != 66:
             raise InvalidLiteralException("Invalid literal for type bytes32", node)
+        return self
 
 
 class Int128Type(IntegerType):
@@ -76,9 +81,11 @@ class Int128Type(IntegerType):
     _id = "int128"
     _invalid_op = ()
 
-    def validate_literal(self, node):
-        super().validate_literal(node)
+    @classmethod
+    def from_literal(cls, namespace, node):
+        self = super().from_literal(namespace, node)
         check_numeric_bounds("int128", node)
+        return self
 
 
 class Uint256Type(IntegerType):
@@ -86,9 +93,11 @@ class Uint256Type(IntegerType):
     _id = "uint256"
     _invalid_op = vy_ast.USub
 
-    def validate_literal(self, node):
-        super().validate_literal(node)
+    @classmethod
+    def from_literal(cls, namespace, node):
+        self = super().from_literal(namespace, node)
         check_numeric_bounds("uint256", node)
+        return self
 
 
 class DecimalType(NumericType):
@@ -97,12 +106,14 @@ class DecimalType(NumericType):
     _valid_literal = vy_ast.Decimal
     _invalid_op = vy_ast.Pow
 
-    def validate_literal(self, node):
-        super().validate_literal(node)
-        value = Decimal(node.node_source_code)
+    @classmethod
+    def from_literal(cls, namespace, node):
+        self = super().from_literal(namespace, node)
+        value = Decimal(node.value)
         if value.quantize(Decimal('1.0000000000')) != value:
             raise InvalidLiteralException("Vyper supports a maximum of ten decimal points", node)
         check_numeric_bounds("int128", node)
+        return self
 
 
 class StringType(ArrayValueType):
@@ -116,11 +127,12 @@ class BytesType(ArrayValueType):
     _id = "bytes"
     _valid_literal = (vy_ast.Bytes, vy_ast.Binary)
 
-    def validate_literal(self, node):
+    @classmethod
+    def from_literal(cls, namespace, node):
         if not isinstance(node, vy_ast.Binary):
-            return super().validate_literal(node)
+            return super().from_literal(namespace, node)
 
-        value = node.node_source_code
+        value = node.value
         mod = (len(value)-2) % 8
         if mod:
             raise InvalidLiteralException(
@@ -128,10 +140,9 @@ class BytesType(ArrayValueType):
                 f"{8-mod} bit(s) are missing.",
                 node,
             )
-        if (len(value)-2) / 8 > self.length:
-            raise InvalidLiteralException(
-                f"Literal value exceeds the maximum length for {self}", node
-            )
+        self = cls(namespace)
+        self.length = (len(value)-2) // 8
+        return self
 
 
 class MappingType(CompoundType):
@@ -149,9 +160,9 @@ class MappingType(CompoundType):
     _id = "map"
     _no_value = True
 
-    def __eq__(self, other):
+    def compare_type(self, other):
         return (
-            super().__eq__(other) and
+            super().compare_type(other) and
             self.key_type == other.key_type and
             self.value_type == other.value_type
         )
@@ -167,7 +178,3 @@ class MappingType(CompoundType):
 
     def __repr__(self):
         return f"map({self.key_type}, {self.value_type})"
-
-    def validate_literal(self, node):
-        # TODO - direct assignment is always a no, but with a subscript is ++
-        pass

@@ -1,11 +1,13 @@
-from vyper import ast as vy_ast
+from vyper import (
+    ast as vy_ast,
+)
+from vyper.context import (
+    typeutils,
+    variables,
+)
 from vyper.exceptions import (
     StructureException,
 )
-from vyper.context.utils import (
-    compare_types,
-)
-from vyper.context import variables
 
 
 def validate_operation(namespace, node):
@@ -46,7 +48,7 @@ def _validate_boolean_op(namespace, node):
     if assigned:
         assigned[0].validate_boolean_op(node)
         for i in assigned[1:]:
-            compare_types(assigned[0], i, node)
+            typeutils.compare_types(assigned[0], i, node)
         return assigned[0]
     return literals[0]
 
@@ -61,7 +63,7 @@ def _validate_numeric_op(namespace, node):
             )
     else:
         assigned[0].validate_numeric_op(node)
-    compare_types(node_list[0], node_list[1], node)
+    typeutils.compare_types(node_list[0], node_list[1], node)
     if assigned:
         return assigned[0]
     # TODO this is bad - need to fold!
@@ -76,5 +78,5 @@ def _validate_comparator(namespace, node):
         pass
     else:
         left.validate_comparator(node)
-        compare_types(left, right, node)
+        typeutils.compare_types(left, right, node)
     return left

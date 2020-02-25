@@ -1,6 +1,7 @@
 from collections import (
     OrderedDict,
 )
+
 from vyper import (
     ast as vy_ast,
 )

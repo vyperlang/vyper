@@ -4,18 +4,18 @@ from vyper import (
 from vyper.context.datatypes.units import (
     Unit,
 )
-from vyper.context.variables import (
-    Variable,
+from vyper.context.events import (
+    Event,
 )
 from vyper.context.functions import (
     Function,
 )
-from vyper.context.events import (
-    Event,
+from vyper.context.variables import (
+    Variable,
 )
 from vyper.exceptions import (
-    VariableDeclarationException,
     StructureException,
+    VariableDeclarationException,
 )
 
 

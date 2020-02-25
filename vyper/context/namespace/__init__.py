@@ -3,12 +3,12 @@ from vyper.context.namespace.builtins import (
     get_types,
 )
 from vyper.context.namespace.module import (
-    add_variables,
     add_custom_types,
     add_custom_units,
     add_events,
     add_functions,
     add_implemented_interfaces,
+    add_variables,
 )
 from vyper.exceptions import (
     StructureException,
@@ -49,21 +49,6 @@ class Namespace(dict):
     def update(self, other):
         for key, value in other.items():
             self.__setitem__(key, value)
-
-    def items(self):
-        raise NotImplementedError
-
-    def keys(self):
-        raise NotImplementedError
-
-    def values(self):
-        raise NotImplementedError
-
-    def get(self, key, default=None):
-        try:
-            return self.__getitem__(key)
-        except KeyError:
-            return default
 
     def copy(self, scope: str) -> "Namespace":
 

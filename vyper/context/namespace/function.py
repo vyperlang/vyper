@@ -1,7 +1,5 @@
-from vyper import ast as vy_ast
-from vyper.context.variables import (
-    Variable,
-    get_type,
+from vyper import (
+    ast as vy_ast,
 )
 from vyper.context.datatypes.bases import (
     IntegerType,
@@ -9,15 +7,21 @@ from vyper.context.datatypes.bases import (
 from vyper.context.datatypes.builtins import (
     BoolType,
 )
-from vyper.context.utils import (
+from vyper.context.operators import (
+    validate_operation,
+)
+from vyper.context.typeutils import (
     compare_types,
+    get_type_from_node,
+)
+from vyper.context.utils import (
     check_call_args,
+)
+from vyper.context.variables import (
+    Variable,
 )
 from vyper.exceptions import (
     StructureException,
-)
-from vyper.context.operators import (
-    validate_operation,
 )
 
 
@@ -60,15 +64,15 @@ class TypeCheckVisitor:
     def visit_Assign(self, node):
         if len(node.targets) > 1:
             raise StructureException("Assignment statement must have one target", node.targets[1])
-        target_type = get_type(self.namespace, node.targets[0])
-        value_type = get_type(self.namespace, node.value)
+        target_type = get_type_from_node(self.namespace, node.targets[0])
+        value_type = get_type_from_node(self.namespace, node.value)
         compare_types(target_type, value_type, node)
 
     def visit_AugAssign(self, node):
-        target_type = get_type(self.namespace, node.target)
+        target_type = get_type_from_node(self.namespace, node.target)
         target_type.validate_op(node)
 
-        value_type = get_type(self.namespace, node.value)
+        value_type = get_type_from_node(self.namespace, node.value)
         compare_types(target_type, value_type, node)
 
     def visit_Raise(self, node):
@@ -82,7 +86,10 @@ class TypeCheckVisitor:
             raise StructureException("Reason must be a string of 32 characters or less", node.msg)
         if isinstance(node.test, (vy_ast.BoolOp, vy_ast.Compare)):
             validate_operation(self.namespace, node)
-        elif not isinstance(get_type(self.namespace, node.test), (BoolType, vy_ast.NameConstant)):
+        elif not isinstance(
+            get_type_from_node(self.namespace, node.test),
+            (BoolType, vy_ast.NameConstant)
+        ):
             raise
 
     def visit_Delete(self, node):
@@ -138,7 +145,7 @@ class TypeCheckVisitor:
             iter_values = node.iter.elts
             if not iter_values:
                 raise StructureException("Cannot iterate empty array", node.iter)
-            get_type(self.namespace, node.iter)
+            get_type_from_node(self.namespace, node.iter)
             # TODO this might be a constant, not a type, how to handle var declaration?
 
         # iteration via range()
@@ -157,7 +164,7 @@ class TypeCheckVisitor:
                 pass
 
             elif isinstance(args[0], vy_ast.Name):
-                target_type = get_type(self.namespace, args[0])
+                target_type = get_type_from_node(self.namespace, args[0])
                 if not isinstance(target_type, IntegerType):
                     raise
                 if not isinstance(args[1], vy_ast.BinOp) or not isinstance(args[1].op, vy_ast.Add):
@@ -179,20 +186,20 @@ class TypeCheckVisitor:
         del self.namespace[node.target.id]
 
     def visit_Attribute(self, node):
-        get_type(self.namespace, node)
+        get_type_from_node(self.namespace, node)
 
     def visit_Name(self, node):
-        get_type(self.namespace, node)
+        get_type_from_node(self.namespace, node)
 
     def visit_Subscript(self, node):
-        get_type(self.namespace, node)
+        get_type_from_node(self.namespace, node)
 
     def visit_List(self, node):
-        get_type(self.namespace, node)
+        get_type_from_node(self.namespace, node)
 
 
 def _check_operand(namespace, node, node_list, validation_fn_name):
-    node_list = [get_type(namespace, i) for i in node_list]
+    node_list = [get_type_from_node(namespace, i) for i in node_list]
 
     literals = [i for i in node_list if isinstance(i, vy_ast.Constant)]
     assigned = [i for i in node_list if i not in literals]

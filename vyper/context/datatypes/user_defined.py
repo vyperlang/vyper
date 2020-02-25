@@ -1,27 +1,27 @@
 from collections import (
     OrderedDict,
 )
+
 from vyper import (
     ast as vy_ast,
-)
-from vyper.context.utils import (
-    check_call_args,
-)
-from vyper.exceptions import (
-    StructureException,
-)
-
-from vyper.context.functions import (
-    Function,
-)
-from vyper.context.datatypes import (
-    get_type_from_annotation,
 )
 from vyper.context.datatypes.bases import (
     UserDefinedType,
 )
 from vyper.context.datatypes.builtins import (
     AddressType,
+)
+from vyper.context.functions import (
+    Function,
+)
+from vyper.context.typeutils import (
+    get_type_from_annotation,
+)
+from vyper.context.utils import (
+    check_call_args,
+)
+from vyper.exceptions import (
+    StructureException,
 )
 
 
