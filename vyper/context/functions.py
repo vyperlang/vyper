@@ -12,7 +12,7 @@ from vyper.context.typecheck import (
     get_type_from_annotation,
 )
 from vyper.context.variables import (
-    Variable,
+    get_variable_from_nodes,
 )
 from vyper.exceptions import (
     StructureException,
@@ -96,7 +96,7 @@ class Function:
         for arg, value in zip(arguments, defaults):
             if arg.arg in self.namespace or arg.arg in self.arguments:
                 raise StructureException("Namespace collision", arg)
-            var = Variable(self.namespace, arg.arg, arg.annotation, value)
+            var = get_variable_from_nodes(self.namespace, arg.arg, arg.annotation, value)
             self.arguments[arg.arg] = var
 
     def _introspect_return_type(self, node):

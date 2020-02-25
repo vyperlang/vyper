@@ -133,7 +133,7 @@ def get_value_from_node(namespace, node):
 
     if isinstance(node, vy_ast.Subscript):
         base_var, idx = _get_subscript(namespace, node)
-        return base_var.get_item(idx)
+        return base_var.value[idx]
     # TODO folding
     # if isinstance(node, (vy_ast.BinOp, vy_ast.BoolOp, vy_ast.Compare)):
     #     return operators.validate_operation(namespace, node)

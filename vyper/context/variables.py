@@ -4,75 +4,70 @@ from vyper import (
 from vyper.context import (
     typecheck,
 )
-from vyper.context.utils import (
-    get_leftmost_id,
-)
 from vyper.exceptions import (
     VariableDeclarationException,
 )
 
 
-# created from AnnAssign
-#   * target is a single node and can be a Name, a Attribute or a Subscript.
-#   * annotation is the annotation, such as a Str or Name node.
-#   * value is a single optional node
-#   * simple is a boolean integer set to True for a Name node in target that do not
-#     appear in between parenthesis and are hence pure names and not expressions
+# only validation NOT performed is check for initial value relative to scope
+# value only exists on constants, so have to check the node!
+def get_variable_from_nodes(namespace, name, annotation, value):
+    kwargs = {}
+
+    node = annotation
+    while isinstance(node, vy_ast.Call) and node.func.id in ("constant", "public"):
+        if annotation.enclosing_scope != "module":
+            raise VariableDeclarationException(
+                f"Only module-scoped variables can be {node.func.id}", node
+            )
+        kwargs[f"is_{node.func.id}"] = True
+        node = node.args[0]
+
+    if 'is_constant' in kwargs and 'is_public' in kwargs:
+        raise VariableDeclarationException("Variable cannot be constant and public", annotation)
+
+    var_type = typecheck.get_type_from_annotation(namespace, node)
+
+    if value:
+        value_type = typecheck.get_type_from_node(namespace, value)
+        typecheck.compare_types(var_type, value_type, value)
+        if 'is_constant' in kwargs:
+            kwargs['value'] = typecheck.get_value_from_node(namespace, value)
+
+    var = Variable(namespace, name, annotation.enclosing_scope, var_type, **kwargs)
+
+    if kwargs.get('is_constant'):
+        literal = var.literal_value()
+        if literal is None or (isinstance(literal, list) and None in literal):
+            raise VariableDeclarationException(
+                "Cannot determine literal value for constant", annotation
+            )
+
+    return var
+
+
 class Variable:
 
     # TODO docs, slots
 
-    def __init__(self, namespace, name: str, annotation, value):
+    def __init__(
+        self,
+        namespace,
+        name: str,
+        enclosing_scope: str,
+        var_type,
+        value=None,
+        is_constant: bool = False,
+        is_public: bool = False,
+    ):
         self.namespace = namespace
-
         self.name = name
-        self._annotation_node = annotation
-        self._value_node = value
+        self.enclosing_scope = enclosing_scope
+        self.type = var_type
+        self.is_constant = is_constant
+        self.is_public = is_public
+        self.value = value
 
-        self.is_constant = False
-        self.is_public = False
-
-        # TODO cleanup
-        node = self._annotation_node
-        if isinstance(node, vy_ast.Call) and node.func.id in ("constant", "public"):
-            # TODO raise if not module scoped
-            setattr(self, f"is_{node.func.id}", True)
-            node = node.args[0]
-        name = get_leftmost_id(node)
-        self.type = typecheck.get_type_from_annotation(self.namespace, node)
-
-        if self._value_node is None:
-            self.value = None
-            # TODO this is commented out because of callargs... need a solution
-            # if node.enclosing_scope != "module":
-            #     raise
-            if self.is_constant:
-                raise
-            # TODO default values
-        else:
-            if self.enclosing_scope == "module" and not self.is_constant:
-                raise
-            if hasattr(self.type, "_no_value"):
-                # types that cannot be assigned to
-                raise
-            value_type = typecheck.get_type_from_node(self.namespace, self._value_node)
-            typecheck.compare_types(self.type, value_type, self._value_node)
-
-            if self.is_constant:
-                self.value = typecheck.get_value_from_node(self.namespace, self._value_node)
-                try:
-                    self.literal_value
-                except AttributeError:
-                    if self.is_constant:
-                        raise VariableDeclarationException(
-                            "Unable to determine literal value for constant", self._value_node
-                        )
-
-    @property
-    def enclosing_scope(self):
-        return self._annotation_node.enclosing_scope
-
-    @property
     def literal_value(self):
         """
         Returns the literal assignment value for this variable.
@@ -93,11 +88,6 @@ class Variable:
                     values.append(item)
             return values
         return value
-
-    def get_item(self, key):
-        if not hasattr(self, "value"):
-            self._introspect()
-        return self.value[key]
 
     def __repr__(self):
         if not hasattr(self, 'value') or self.value is None:

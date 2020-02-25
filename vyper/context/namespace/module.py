@@ -14,7 +14,7 @@ from vyper.context.utils import (
     VyperNodeVisitorBase,
 )
 from vyper.context.variables import (
-    Variable,
+    get_variable_from_nodes,
 )
 from vyper.exceptions import (
     VariableDeclarationException,
@@ -36,7 +36,10 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
                 try:
                     self.visit(node)
                     module_nodes.remove(node)
-                except Exception:
+                except Exception as e:
+                    # TODO remove when you're done
+                    print(node)
+                    print(e)
                     continue
             if count == len(module_nodes):
                 # TODO be expressive here
@@ -56,8 +59,12 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             interface_name = node.annotation.id
             self.namespace[interface_name].validate_implements(self.namespace)
         else:
-            var = Variable(self.namespace, node.target.id, node.annotation, node.value)
-            self.namespace[node.target.id] = var
+            var = get_variable_from_nodes(self.namespace, name, node.annotation, node.value)
+            if not var.is_constant and node.value:
+                raise VariableDeclarationException(
+                    "Storage variables cannot have an initial value", node.value
+                )
+            self.namespace[name] = var
 
     def visit_ClassDef(self, node):
         self.namespace[node.name] = self.namespace[node.class_type].get_type(self.namespace, node)

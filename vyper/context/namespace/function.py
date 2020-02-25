@@ -18,9 +18,11 @@ from vyper.context.utils import (
 )
 from vyper.context.variables import (
     Variable,
+    get_variable_from_nodes,
 )
 from vyper.exceptions import (
     StructureException,
+    VariableDeclarationException,
 )
 
 
@@ -48,8 +50,12 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             self.visit(node)
 
     def visit_AnnAssign(self, node):
-        name = node.target.id
-        self.namespace[name] = Variable(self.namespace, name, node.annotation, node.value)
+        if not node.value:
+            raise VariableDeclarationException(
+                "Memory variables must be declared with an initial value", node
+            )
+        var = get_variable_from_nodes(self.namespace, node.target.id, node.annotation, node.value)
+        self.namespace[node.target.id] = var
 
     def visit_Assign(self, node):
         if len(node.targets) > 1:
@@ -169,8 +175,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         else:
             raise StructureException("Invalid type for iteration", node.iter)
 
-        # TODO target_type is a type, not a node - this raises an exception
-        self.namespace[node.target.id] = Variable(self.namespace, node.target.id, target_type, None)
+        var = Variable(self.namespace, node.target.id, node.enclosing_scope, target_type)
+        self.namespace[node.target.id] = var
 
         for n in node.body:
             self.visit(n)

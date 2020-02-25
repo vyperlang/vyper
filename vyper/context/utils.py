@@ -86,6 +86,6 @@ def get_index_value(namespace, node):
             raise StructureException(f"Invalid type for Slice: '{typ}'", node)
         if typ.unit:
             raise StructureException(f"Slice value must be unitless, not '{typ.unit}'", node)
-        return length.literal_value
+        return length.literal_value()
 
     raise StructureException("Slice must be an integer or constant", node)
