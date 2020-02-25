@@ -120,8 +120,6 @@ class NumericType(ValueType):
         return super().__str__()
 
     def compare_type(self, other):
-        if not self.unit:
-            return super().compare_type(other)
         return type(self) is type(other) and self.unit == other.unit
 
     def validate_numeric_op(self, node):

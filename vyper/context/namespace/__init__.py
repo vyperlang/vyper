@@ -1,6 +1,7 @@
 from vyper.context.namespace.builtins import (
     add_builtin_units,
     get_types,
+    add_builtin_constants,
 )
 from vyper.context.namespace.module import (
     ModuleNodeVisitor,
@@ -64,6 +65,7 @@ def get_builtin_namespace():
     namespace = Namespace()
     namespace = get_types(namespace)
     namespace = add_builtin_units(namespace)
+    add_builtin_constants(namespace)
     # TODO built-in functions
     # TODO reserved keywords
 
