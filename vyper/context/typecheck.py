@@ -2,10 +2,10 @@ from vyper import (
     ast as vy_ast,
 )
 from vyper.context.datatypes.bases import (
-    IntegerType,
     UnionType,
 )
 from vyper.context.utils import (
+    get_index_value,
     get_leftmost_id,
 )
 from vyper.exceptions import (
@@ -38,34 +38,10 @@ def get_type_from_annotation(namespace, node):
     type_obj = namespace[type_name]
 
     if getattr(type_obj, '_as_array', False) and isinstance(node, vy_ast.Subscript):
-        length = _get_index_value(namespace, node.slice)
+        length = get_index_value(namespace, node.slice)
         return [type_obj.from_annotation(namespace, node.value)] * length
     else:
         return type_obj.from_annotation(namespace, node)
-
-
-def _get_index_value(namespace, node):
-    if not isinstance(node, vy_ast.Index):
-        raise
-
-    if isinstance(node.value, vy_ast.Int):
-        return node.value.value
-
-    if isinstance(node.value, vy_ast.Name):
-        slice_name = node.value.id
-        length = namespace[slice_name]
-
-        if not length.is_constant:
-            raise StructureException("Slice must be an integer or constant", node)
-
-        typ = length.type
-        if not isinstance(typ, IntegerType):
-            raise StructureException(f"Invalid type for Slice: '{typ}'", node)
-        if typ.unit:
-            raise StructureException(f"Slice value must be unitless, not '{typ.unit}'", node)
-        return length.literal_value
-
-    raise StructureException("Slice must be an integer or constant", node)
 
 
 def get_type_from_literal(namespace, node: vy_ast.Constant):
@@ -288,3 +264,20 @@ def _get_comparator(namespace, node):
     if isinstance(left, set) and len(left) == 1:
         return next(iter(left))
     return left
+
+
+def check_numeric_bounds(type_str: str, node: vy_ast.Num) -> bool:
+    """Returns the lower and upper bound for an integer type."""
+    size = int(type_str.strip("uint") or 256)
+    if size < 8 or size > 256 or size % 8:
+        raise ValueError(f"Invalid type: {type_str}")
+    if type_str.startswith("u"):
+        lower, upper = 0, 2 ** size - 1
+    else:
+        lower, upper = -(2 ** (size - 1)), 2 ** (size - 1) - 1
+
+    value = node.value
+    if value < lower:
+        raise InvalidLiteralException(f"Value is below lower bound for given type ({lower})", node)
+    if value > upper:
+        raise InvalidLiteralException(f"Value exceeds upper bound for given type ({upper})", node)

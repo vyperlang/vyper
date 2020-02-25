@@ -14,7 +14,7 @@ from vyper.context.datatypes.builtins import (
 from vyper.context.functions import (
     Function,
 )
-from vyper.context.typeutils import (
+from vyper.context.typecheck import (
     get_type_from_annotation,
 )
 from vyper.context.utils import (

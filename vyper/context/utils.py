@@ -7,11 +7,29 @@ from typing import (
 from vyper import (
     ast as vy_ast,
 )
+from vyper.context.datatypes import (
+    bases,
+)
 from vyper.exceptions import (
     CompilerPanic,
-    InvalidLiteralException,
     StructureException,
 )
+
+
+class VyperNodeVisitorBase:
+
+    ignored_types = ()
+    scope_name = ""
+
+    def visit(self, node):
+        if isinstance(node, self.ignored_types):
+            return
+        visitor_fn = getattr(self, f'visit_{node.ast_type}', None)
+        if visitor_fn is None:
+            raise StructureException(
+                f"Unsupported syntax for {self.scope_name} namespace: {node.ast_type}", node
+            )
+        visitor_fn(node)
 
 
 def check_call_args(
@@ -49,18 +67,25 @@ def get_leftmost_id(node: vy_ast.VyperNode) -> str:
     return next(i.id for i in node.get_all_children({'ast_type': 'Name'}, True))
 
 
-def check_numeric_bounds(type_str: str, node: vy_ast.Num) -> bool:
-    """Returns the lower and upper bound for an integer type."""
-    size = int(type_str.strip("uint") or 256)
-    if size < 8 or size > 256 or size % 8:
-        raise ValueError(f"Invalid type: {type_str}")
-    if type_str.startswith("u"):
-        lower, upper = 0, 2 ** size - 1
-    else:
-        lower, upper = -(2 ** (size - 1)), 2 ** (size - 1) - 1
+def get_index_value(namespace, node):
+    if not isinstance(node, vy_ast.Index):
+        raise
 
-    value = node.value
-    if value < lower:
-        raise InvalidLiteralException(f"Value is below lower bound for given type ({lower})", node)
-    if value > upper:
-        raise InvalidLiteralException(f"Value exceeds upper bound for given type ({upper})", node)
+    if isinstance(node.value, vy_ast.Int):
+        return node.value.value
+
+    if isinstance(node.value, vy_ast.Name):
+        slice_name = node.value.id
+        length = namespace[slice_name]
+
+        if not length.is_constant:
+            raise StructureException("Slice must be an integer or constant", node)
+
+        typ = length.type
+        if not isinstance(typ, bases.IntegerType):
+            raise StructureException(f"Invalid type for Slice: '{typ}'", node)
+        if typ.unit:
+            raise StructureException(f"Slice value must be unitless, not '{typ.unit}'", node)
+        return length.literal_value
+
+    raise StructureException("Slice must be an integer or constant", node)

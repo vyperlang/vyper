@@ -10,16 +10,20 @@ from vyper.context.events import (
 from vyper.context.functions import (
     Function,
 )
+from vyper.context.utils import (
+    VyperNodeVisitorBase,
+)
 from vyper.context.variables import (
     Variable,
 )
 from vyper.exceptions import (
-    StructureException,
     VariableDeclarationException,
 )
 
 
-class ModuleNodeVisitor:
+class ModuleNodeVisitor(VyperNodeVisitorBase):
+
+    scope_name = "module"
 
     def __init__(self, namespace, module_node, interface_codes):
         self.namespace = namespace
@@ -32,21 +36,11 @@ class ModuleNodeVisitor:
                 try:
                     self.visit(node)
                     module_nodes.remove(node)
-                except Exception as e:
-                    print(e)
+                except Exception:
                     continue
             if count == len(module_nodes):
+                # TODO be expressive here
                 raise
-
-    def visit(self, node):
-        if isinstance(node, getattr(self, 'ignored_types', ())):
-            return
-        visitor_fn = getattr(self, f'visit_{node.ast_type}', None)
-        if visitor_fn is None:
-            raise StructureException(
-                f"Unsupported syntax for module-level namespace: {node.ast_type}", node
-            )
-        visitor_fn(node)
 
     def visit_AnnAssign(self, node):
         if node.get('annotation.func.id') == "event":

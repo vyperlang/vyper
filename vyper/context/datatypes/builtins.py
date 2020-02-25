@@ -13,12 +13,12 @@ from vyper.context.datatypes.bases import (
     NumericType,
     ValueType,
 )
-from vyper.context.typeutils import (
+from vyper.context.typecheck import (
+    check_numeric_bounds,
     get_type_from_annotation,
 )
 from vyper.context.utils import (
     check_call_args,
-    check_numeric_bounds,
 )
 from vyper.exceptions import (
     InvalidLiteralException,

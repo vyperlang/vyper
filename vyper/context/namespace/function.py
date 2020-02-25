@@ -7,12 +7,13 @@ from vyper.context.datatypes.bases import (
 from vyper.context.datatypes.builtins import (
     BoolType,
 )
-from vyper.context.typeutils import (
+from vyper.context.typecheck import (
     compare_types,
     get_type_from_node,
     get_type_from_operation,
 )
 from vyper.context.utils import (
+    VyperNodeVisitorBase,
     check_call_args,
 )
 from vyper.context.variables import (
@@ -28,7 +29,7 @@ def check_functions(namespace, vy_module):
         FunctionNodeVisitor(node, namespace)
 
 
-class FunctionNodeVisitor:
+class FunctionNodeVisitor(VyperNodeVisitorBase):
 
     ignored_types = (
         vy_ast.Break,
@@ -36,6 +37,7 @@ class FunctionNodeVisitor:
         vy_ast.Continue,
         vy_ast.Pass,
     )
+    scope_name = "function"
 
     def __init__(self, fn_node, namespace):
         self.fn_node = fn_node
@@ -44,16 +46,6 @@ class FunctionNodeVisitor:
         self.namespace.update(self.func.arguments)
         for node in fn_node.body:
             self.visit(node)
-
-    def visit(self, node):
-        if isinstance(node, self.ignored_types):
-            return
-        visitor_fn = getattr(self, f'visit_{node.ast_type}', None)
-        if visitor_fn is None:
-            raise StructureException(
-                f"Unsupported syntax for function-level namespace: {node.ast_type}", node
-            )
-        visitor_fn(node)
 
     def visit_AnnAssign(self, node):
         name = node.target.id

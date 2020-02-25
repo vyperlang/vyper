@@ -2,6 +2,9 @@
 from vyper import (
     ast as vy_ast,
 )
+from vyper.context.utils import (
+    get_index_value,
+)
 from vyper.exceptions import (
     CompilerPanic,
     InvalidLiteralException,
@@ -160,34 +163,11 @@ class ArrayValueType(ValueType):
         if len(node.get_all_children({'ast_type': "Subscript"}, include_self=True)) > 1:
             raise StructureException("Multidimensional arrays are not supported", node)
         self = cls(namespace)
-        self.length = self._get_index_value(node.get('slice'))
+        self.length = get_index_value(self.namespace, node.get('slice'))
 
         if self.length <= 0:
             raise InvalidLiteralException("Slice must be greater than 0", node.slice)
         return self
-
-    def _get_index_value(self, node):
-        if not isinstance(node, vy_ast.Index):
-            raise
-
-        if isinstance(node.value, vy_ast.Int):
-            return node.value.value
-
-        if isinstance(node.value, vy_ast.Name):
-            slice_name = node.value.id
-            length = self.namespace[slice_name]
-
-            if not length.is_constant:
-                raise StructureException("Slice must be an integer or constant", node)
-
-            typ = length.type
-            if not isinstance(typ, IntegerType):
-                raise StructureException(f"Invalid type for Slice: '{typ}'", node)
-            if typ.unit:
-                raise StructureException(f"Slice value must be unitless, not '{typ.unit}'", node)
-            return length.literal_value
-
-        raise StructureException("Slice must be an integer or constant", node)
 
     @classmethod
     def from_literal(cls, namespace, node):

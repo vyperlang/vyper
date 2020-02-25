@@ -8,7 +8,7 @@ from typing import (
 from vyper import (
     ast as vy_ast,
 )
-from vyper.context.typeutils import (
+from vyper.context.typecheck import (
     get_type_from_annotation,
 )
 from vyper.context.variables import (

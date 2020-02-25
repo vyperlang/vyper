@@ -2,7 +2,7 @@ from vyper import (
     ast as vy_ast,
 )
 from vyper.context import (
-    typeutils,
+    typecheck,
 )
 from vyper.context.utils import (
     get_leftmost_id,
@@ -39,7 +39,7 @@ class Variable:
             setattr(self, f"is_{node.func.id}", True)
             node = node.args[0]
         name = get_leftmost_id(node)
-        self.type = typeutils.get_type_from_annotation(self.namespace, node)
+        self.type = typecheck.get_type_from_annotation(self.namespace, node)
 
         if self._value_node is None:
             self.value = None
@@ -55,11 +55,11 @@ class Variable:
             if hasattr(self.type, "_no_value"):
                 # types that cannot be assigned to
                 raise
-            value_type = typeutils.get_type_from_node(self.namespace, self._value_node)
-            typeutils.compare_types(self.type, value_type, self._value_node)
+            value_type = typecheck.get_type_from_node(self.namespace, self._value_node)
+            typecheck.compare_types(self.type, value_type, self._value_node)
 
             if self.is_constant:
-                self.value = typeutils.get_value_from_node(self.namespace, self._value_node)
+                self.value = typecheck.get_value_from_node(self.namespace, self._value_node)
                 try:
                     self.literal_value
                 except AttributeError:
