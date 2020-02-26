@@ -89,7 +89,10 @@ def get_type_from_node(namespace, node):
         return _get_name(namespace, node).type
 
     if isinstance(node, (vy_ast.Attribute)):
-        return _get_attribute(namespace, node).type
+        name = node.value.id
+        if name == "self":
+            return _get_attribute(namespace, node).type
+        return namespace[name].type.get_member_type(node)
 
     if isinstance(node, vy_ast.Call):
         base_type = namespace[node.func.id]
@@ -98,7 +101,7 @@ def get_type_from_node(namespace, node):
 
     if isinstance(node, vy_ast.Subscript):
         base_type = get_type_from_node(namespace, node.value)
-        if hasattr(base_type, 'get_subscript_type'):
+        if not isinstance(base_type, list):
             return base_type.get_subscript_type(node.slice.value)
 
         var, idx = _get_subscript(namespace, node)

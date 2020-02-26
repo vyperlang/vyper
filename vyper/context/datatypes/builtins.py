@@ -15,9 +15,9 @@ from vyper.context.datatypes.bases import (
 )
 from vyper.context.typecheck import (
     check_numeric_bounds,
+    compare_types,
     get_type_from_annotation,
     get_type_from_node,
-    compare_types,
 )
 from vyper.context.utils import (
     check_call_args,
@@ -181,7 +181,7 @@ class MappingType(CompoundType):
     def __repr__(self):
         return f"map({self.key_type}, {self.value_type})"
 
-    def get_subscript_type(self, key_node):
-        idx_type = get_type_from_node(self.namespace, key_node)
-        compare_types(self.key_type, idx_type, key_node)
+    def get_subscript_type(self, index_node):
+        idx_type = get_type_from_node(self.namespace, index_node)
+        compare_types(self.key_type, idx_type, index_node)
         return self.value_type

@@ -1,7 +1,7 @@
 from vyper.context.namespace.builtins import (
+    add_builtin_constants,
     add_builtin_units,
     get_types,
-    add_builtin_constants,
 )
 from vyper.context.namespace.module import (
     ModuleNodeVisitor,

@@ -32,6 +32,7 @@ validate_call
 
 get_type
 get_subscript_type
+get_member_type
 """
 
 
@@ -85,6 +86,12 @@ class BaseType:
     def validate_comparator(self, node):
         # TODO
         pass
+
+    def get_member_type(self, node: vy_ast.Attribute):
+        raise StructureException(f"Type '{self}' does not support members", node)
+
+    def get_subscript_type(self, node):
+        raise StructureException(f"Type '{self}' does not support subscripts", node)
 
 
 class ValueType(BaseType):

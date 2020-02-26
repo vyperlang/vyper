@@ -16,8 +16,8 @@ from vyper.context.functions import (
 )
 from vyper.context.typecheck import (
     compare_types,
-    get_type_from_node,
     get_type_from_annotation,
+    get_type_from_node,
 )
 from vyper.context.utils import (
     check_call_args,
@@ -120,6 +120,11 @@ class StructType(UserDefinedType):
                 raise StructureException("Unknown struct member", value)
             value_type = get_type_from_node(self.namespace, value)
             compare_types(self.members[key.id], value_type, key)
+
+    def get_member_type(self, node: vy_ast.Attribute):
+        if node.attr not in self.members:
+            raise StructureException(f"Struct {self._id} has no member '{node.attr}'", node)
+        return self.members[node.attr]
 
     def __repr__(self):
         return f"<Struct Type '{self._id}'>"

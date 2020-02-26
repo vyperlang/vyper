@@ -1,6 +1,7 @@
 from decimal import (
     Decimal,
 )
+
 from vyper.context.datatypes import (
     builtins,
     user_defined,
