@@ -15,6 +15,8 @@ from vyper.context.functions import (
     Function,
 )
 from vyper.context.typecheck import (
+    compare_types,
+    get_type_from_node,
     get_type_from_annotation,
 )
 from vyper.context.utils import (
@@ -107,8 +109,17 @@ class StructType(UserDefinedType):
             self.members[member_name] = get_type_from_annotation(namespace, node.annotation)
 
     def from_annotation(self, namespace, node):
-        # TODO
-        return self.__init__(self.namespace, self.node)
+        return type(self)(namespace, self.node)
+
+    def validate_call(self, node: vy_ast.Call):
+        check_call_args(node, 1)
+        if not isinstance(node.args[0], vy_ast.Dict):
+            raise StructureException("Struct values must be declared via dictionary", node.args[0])
+        for key, value in zip(node.args[0].keys, node.args[0].values):
+            if key is None or key.get('id') not in self.members:
+                raise StructureException("Unknown struct member", value)
+            value_type = get_type_from_node(self.namespace, value)
+            compare_types(self.members[key.id], value_type, key)
 
     def __repr__(self):
         return f"<Struct Type '{self._id}'>"

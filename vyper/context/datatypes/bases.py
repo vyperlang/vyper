@@ -13,6 +13,28 @@ from vyper.exceptions import (
 )
 
 
+"""
+# TODO document all this
+
+from_annotation
+from_literal
+
+enclosing_scope
+
+compare_type(other):
+    Check this type against another type, raise or return None
+
+validate_numeric_op
+validate_boolean_op
+validate_comparator
+validate_implements
+validate_call
+
+get_type
+get_subscript_type
+"""
+
+
 class BaseType:
     """
     Private inherited class common to all classes representing vyper types.
@@ -60,7 +82,7 @@ class BaseType:
         # TODO
         pass
 
-    def validate_compare(self, node):
+    def validate_comparator(self, node):
         # TODO
         pass
 

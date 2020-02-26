@@ -84,10 +84,18 @@ def get_type_from_node(namespace, node):
 
     if isinstance(node, vy_ast.Constant):
         return get_type_from_literal(namespace, node)
+
     if isinstance(node, vy_ast.Name):
         return _get_name(namespace, node).type
+
     if isinstance(node, (vy_ast.Attribute)):
         return _get_attribute(namespace, node).type
+
+    if isinstance(node, vy_ast.Call):
+        base_type = namespace[node.func.id]
+        base_type.validate_call(node)
+        return base_type
+
     if isinstance(node, vy_ast.Subscript):
         base_type = get_type_from_node(namespace, node.value)
         if hasattr(base_type, 'get_subscript_type'):
@@ -95,11 +103,14 @@ def get_type_from_node(namespace, node):
 
         var, idx = _get_subscript(namespace, node)
         return var.type[idx]
+
     if isinstance(node, (vy_ast.Op, vy_ast.Compare)):
         return get_type_from_operation(namespace, node)
+
     raise CompilerPanic(f"Cannot get type from object: {type(node).__name__}")
 
 
+# TODO this is ugly and only used for constants, refactor it somehow
 def get_value_from_node(namespace, node):
     """
     Returns the value of a node.
