@@ -2,6 +2,9 @@
 from vyper import (
     ast as vy_ast,
 )
+from vyper.context.datatypes.units import (
+    Unit,
+)
 from vyper.context.utils import (
     get_index_value,
 )
@@ -73,6 +76,9 @@ class BaseType:
     # def enclosing_scope(self):
     #     return self.node.enclosing_scope
 
+    def set_unit(self, unit_str):
+        raise StructureException(f"Type {self} does not support units")
+
     def compare_type(self, other):
         return type(self) in (other, type(other))
 
@@ -111,9 +117,9 @@ class ValueType(BaseType):
             raise StructureException("Invalid type assignment", node)
         if names:
             try:
-                self.unit = namespace[names[0]]
-            except AttributeError:
-                raise StructureException(f"Cannot apply unit to type '{cls}'", node)
+                self.set_unit(names[0])
+            except Exception as e:
+                raise StructureException(str(e), node)
         return self
 
     @classmethod
@@ -133,15 +139,13 @@ class NumericType(ValueType):
     _as_array = True
 
     def __init__(self, namespace):
-        super().__init__(namespace)
         self.unit = None
+        super().__init__(namespace)
 
-    @classmethod
-    def from_annotation(cls, namespace, node):
-        obj = super().from_annotation(namespace, node)
-        # if not hasattr(obj, 'unit'):
-        #     obj.unit = None
-        return obj
+    def set_unit(self, unit_str):
+        self.unit = self.namespace[unit_str]
+        if not isinstance(self.unit, Unit):
+            raise StructureException(f"{unit_str} is not a valid unit type")
 
     def __str__(self):
         if getattr(self, 'unit', None):

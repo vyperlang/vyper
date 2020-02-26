@@ -51,6 +51,8 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             self.namespace[node.target.id] = event
             return
         name = node.get('target.id')
+        if name is None:
+            raise VariableDeclarationException("Invalid module-level assignment", node)
         if name == "units":
             if self.units_added:
                 raise VariableDeclarationException("Custom units can only be defined once", node)

@@ -59,5 +59,5 @@ def add_builtin_constants(namespace):
     for name, (value, typ, unit) in BUILTIN_CONSTANTS.items():
         typ = type(namespace[typ])(namespace)
         if unit:
-            typ.unit = namespace[unit]
+            typ.set_unit(unit)
         namespace[name] = Variable(namespace, name, "builtin", typ, value, True)

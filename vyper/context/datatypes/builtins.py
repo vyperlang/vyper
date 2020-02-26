@@ -48,6 +48,13 @@ class AddressType(ValueType):
     _id = "address"
     _as_array = True
     _valid_literal = vy_ast.Hex
+    _members = {
+        'balance': ("uint256", "wei"),
+        'codehash': ("bytes32",),
+        'codesize': ("int128",),
+        'is_contract': ("bool",),
+    }
+    _readonly_members = True
 
     @classmethod
     def from_literal(cls, namespace, node):
@@ -62,6 +69,14 @@ class AddressType(ValueType):
                 node
             )
         return self
+
+    # TODO can this be standardized across all types?
+    def get_member_type(self, node: vy_ast.Attribute):
+        name = node.attr
+        typ = type(self.namespace[self._members[name][0]])(self.namespace)
+        if len(self._members[name]) > 1:
+            typ.set_unit(self._members[name][1])
+        return typ
 
 
 class Bytes32Type(ValueType):

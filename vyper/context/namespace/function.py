@@ -60,6 +60,12 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
     def visit_Assign(self, node):
         if len(node.targets) > 1:
             raise StructureException("Assignment statement must have one target", node.targets[1])
+
+        if isinstance(node.targets[0], vy_ast.Attribute):
+            base_type = get_type_from_node(self.namespace, node.targets[0].value)
+            if hasattr(base_type, '_readonly_members'):
+                raise StructureException(f"{base_type} members cannot be assigned to", node)
+
         target_type = get_type_from_node(self.namespace, node.targets[0])
         value_type = get_type_from_node(self.namespace, node.value)
         compare_types(target_type, value_type, node)
