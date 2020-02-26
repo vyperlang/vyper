@@ -89,6 +89,10 @@ def get_type_from_node(namespace, node):
     if isinstance(node, (vy_ast.Attribute)):
         return _get_attribute(namespace, node).type
     if isinstance(node, vy_ast.Subscript):
+        base_type = get_type_from_node(namespace, node.value)
+        if hasattr(base_type, 'get_subscript_type'):
+            return base_type.get_subscript_type(node.slice.value)
+
         var, idx = _get_subscript(namespace, node)
         return var.type[idx]
     if isinstance(node, (vy_ast.Op, vy_ast.Compare)):
@@ -192,6 +196,9 @@ def compare_types(left, right, node):
         The node where the comparison is taking place (for source highlights if
         an exception is raised).
     """
+
+    if hasattr(left, '_no_value'):
+        raise StructureException(f"{left} is not an assignable type", node)
 
     if any(isinstance(i, (list, tuple)) for i in (left, right)):
         if not all(isinstance(i, (list, tuple)) for i in (left, right)):
