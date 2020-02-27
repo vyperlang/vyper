@@ -43,6 +43,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.namespace = self.func.namespace
         for node in fn_node.body:
             self.visit(node)
+        if self.func.return_type and not fn_node.get_children({'ast_type': "Return"}):
+            raise StructureException(f"{self.func.name} is missing a return statement", fn_node)
 
     def visit_AnnAssign(self, node):
         if not node.value:
