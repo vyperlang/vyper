@@ -48,6 +48,7 @@ ENVIRONMENT_VARS = {
         "value": ("uint256", "wei"),
     },
     "tx": {"origin": "address"},
+    "log": {},
 }
 
 

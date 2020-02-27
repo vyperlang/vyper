@@ -130,8 +130,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         get_type_from_operation(self.namespace, node)
 
     def visit_Call(self, node):
-        # TODO
-        pass
+        value = get_value_from_node(self.namespace, node.func)
+        value.validate_call(node)
 
     def visit_If(self, node):
         self.visit(node.test)

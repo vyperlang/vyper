@@ -47,7 +47,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
     def visit_AnnAssign(self, node):
         if node.get('annotation.func.id') == "event":
             event = Event(self.namespace, node.target.id, node.annotation, node.value)
-            self.namespace[node.target.id] = event
+            self.namespace["log"].add_member(node.target.id, event)
             return
 
         name = node.get('target.id')

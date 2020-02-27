@@ -82,7 +82,9 @@ class Variable:
                 ) for i in range(len(var_type))]
 
     def add_member(self, attr, var):
-        self.type.add_member_types(**{attr: var.type})
+        # allows for adding non-variable objects (events, functions)
+        if hasattr(var, 'type'):
+            self.type.add_member_types(**{attr: var.type})
         self.members[attr] = var
 
     def get_member(self, node: vy_ast.Attribute):
