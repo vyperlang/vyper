@@ -36,10 +36,9 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
                 try:
                     self.visit(node)
                     module_nodes.remove(node)
-                except Exception as e:
+                except Exception:
                     # TODO remove when you're done
-                    print(node)
-                    print(e)
+                    raise
                     continue
             if count == len(module_nodes):
                 # TODO be expressive here
@@ -50,23 +49,33 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             event = Event(self.namespace, node.target.id, node.annotation, node.value)
             self.namespace[node.target.id] = event
             return
+
         name = node.get('target.id')
         if name is None:
             raise VariableDeclarationException("Invalid module-level assignment", node)
+
         if name == "units":
             if self.units_added:
                 raise VariableDeclarationException("Custom units can only be defined once", node)
             _add_custom_units(self.namespace, node)
+
         elif name == "implements":
             interface_name = node.annotation.id
             self.namespace[interface_name].validate_implements(self.namespace)
+
         else:
             var = get_variable_from_nodes(self.namespace, name, node.annotation, node.value)
             if not var.is_constant and node.value:
                 raise VariableDeclarationException(
                     "Storage variables cannot have an initial value", node.value
                 )
-            self.namespace[name] = var
+
+            if var.is_constant:
+                # constants are added to the main namespace
+                self.namespace[name] = var
+            else:
+                # storage vars are added as members of self
+                self.namespace["self"].add_member(name, var)
 
     def visit_ClassDef(self, node):
         self.namespace[node.name] = self.namespace[node.class_type].get_type(self.namespace, node)

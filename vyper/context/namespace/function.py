@@ -11,6 +11,7 @@ from vyper.context.typecheck import (
     compare_types,
     get_type_from_node,
     get_type_from_operation,
+    get_value_from_node,
 )
 from vyper.context.utils import (
     VyperNodeVisitorBase,
@@ -54,22 +55,25 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise VariableDeclarationException(
                 "Memory variables must be declared with an initial value", node
             )
-        var = get_variable_from_nodes(self.namespace, node.target.id, node.annotation, node.value)
-        self.namespace[node.target.id] = var
+        name = node.target.id
+        if name in self.namespace["self"].members:
+            raise VariableDeclarationException(
+                "Variable declaration shadows an existing storage variable", node
+            )
+        var = get_variable_from_nodes(self.namespace, name, node.annotation, node.value)
+        self.namespace[name] = var
 
     def visit_Assign(self, node):
         if len(node.targets) > 1:
             raise StructureException("Assignment statement must have one target", node.targets[1])
 
-        if isinstance(node.targets[0], vy_ast.Attribute):
-            base_type = get_type_from_node(self.namespace, node.targets[0].value)
-            if hasattr(base_type, '_readonly_members'):
-                raise StructureException(f"{base_type} members cannot be assigned to", node)
-
         # TODO prevent assignment to constants
-        target_type = get_type_from_node(self.namespace, node.targets[0])
+        target_var = get_value_from_node(self.namespace, node.targets[0])
+        if not isinstance(target_var, Variable) or target_var.is_constant:
+            raise StructureException(f"Cannot modify value of a constant", node)
+
         value_type = get_type_from_node(self.namespace, node.value)
-        compare_types(target_type, value_type, node)
+        compare_types(target_var.type, value_type, node)
 
     def visit_AugAssign(self, node):
         target_type = get_type_from_node(self.namespace, node.target)

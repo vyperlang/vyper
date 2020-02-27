@@ -95,7 +95,7 @@ class StructType(MemberType):
     def __init__(self, namespace, _id, members):
         super().__init__(namespace)
         self._id = _id
-        self.add_members(**members)
+        self.add_member_types(**members)
 
     def from_annotation(self, namespace, node):
         return type(self)(namespace, self._id, self.members)
@@ -108,7 +108,7 @@ class StructType(MemberType):
             if key is None or key.get('id') not in self.members:
                 raise StructureException("Unknown struct member", value)
             value_type = get_type_from_node(self.namespace, value)
-            compare_types(self.members[key.id].type, value_type, key)
+            compare_types(self.members[key.id], value_type, key)
 
     def __repr__(self):
         return f"<Struct Type '{self._id}'>"
@@ -142,7 +142,7 @@ class InterfaceType(MemberType):
         for func in functions:
             if func.name in namespace or func.name in self.members:
                 raise StructureException("Namespace collision", func.node)
-        self.add_members(**{i.name: i for i in functions})
+        self.add_member_types(**{i.name: i for i in functions})
 
     def _get_class_functions(self, namespace, base_node):
         functions = []

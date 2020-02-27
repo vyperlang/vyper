@@ -11,9 +11,6 @@ from vyper.context.datatypes.units import (
 from vyper.context.utils import (
     get_index_value,
 )
-from vyper.context.variables import (
-    Variable,
-)
 from vyper.exceptions import (
     CompilerPanic,
     InvalidLiteralException,
@@ -40,7 +37,7 @@ validate_implements
 validate_call
 
 get_type
-get_subscript_type
+get_index_type
 get_member_type
 """
 
@@ -98,8 +95,8 @@ class BaseType:
     def get_member_type(self, node: vy_ast.Attribute):
         raise StructureException(f"Type '{self}' does not support members", node)
 
-    def get_subscript_type(self, node):
-        raise StructureException(f"Type '{self}' does not support subscripts", node)
+    def get_index_type(self, node):
+        raise StructureException(f"Type '{self}' does not support indexing", node)
 
 
 class ValueType(BaseType):
@@ -228,24 +225,16 @@ class MemberType(BaseType):
         super().__init__(namespace)
         self.members = OrderedDict()
 
-    def add_members(self, **members):
+    def add_member_types(self, **members):
         for name, member in members.items():
             if name in self.members:
                 raise StructureException(f"Member {name} already exists in {self}")
-            if isinstance(member, BaseType):
-                member = Variable(
-                    self.namespace,
-                    name,
-                    member.enclosing_scope,
-                    member,
-                    is_constant=hasattr(self, '_readonly_members')
-                )
             self.members[name] = member
 
     def get_member_type(self, node: vy_ast.Attribute):
         if node.attr not in self.members:
             raise StructureException(f"Struct {self._id} has no member '{node.attr}'", node)
-        return self.members[node.attr].type
+        return self.members[node.attr]
 
     # TODO
     # def __eq__(self, other):
@@ -262,7 +251,7 @@ class EnvironmentVariableType(MemberType):
     def __init__(self, namespace, _id, members):
         super().__init__(namespace)
         self._id = _id
-        self.add_members(**members)
+        self.add_member_types(**members)
 
 
 class UnionType(set):

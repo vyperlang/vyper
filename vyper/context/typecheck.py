@@ -9,7 +9,6 @@ from vyper.context.utils import (
     get_leftmost_id,
 )
 from vyper.exceptions import (
-    CompilerPanic,
     InvalidLiteralException,
     StructureException,
     TypeMismatchException,
@@ -85,32 +84,15 @@ def get_type_from_node(namespace, node):
     if isinstance(node, vy_ast.Constant):
         return get_type_from_literal(namespace, node)
 
-    if isinstance(node, vy_ast.Name):
-        return _get_name(namespace, node).type
-
-    if isinstance(node, (vy_ast.Attribute)):
-        name = node.value.id
-        if name == "self":
-            return _get_attribute(namespace, node).type
-        return namespace[name].type.get_member_type(node)
-
     if isinstance(node, vy_ast.Call):
         base_type = namespace[node.func.id]
         base_type.validate_call(node)
         return base_type
 
-    if isinstance(node, vy_ast.Subscript):
-        base_type = get_type_from_node(namespace, node.value)
-        if not isinstance(base_type, list):
-            return base_type.get_subscript_type(node.slice.value)
-
-        var, idx = _get_subscript(namespace, node)
-        return var.type[idx]
-
     if isinstance(node, (vy_ast.Op, vy_ast.Compare)):
         return get_type_from_operation(namespace, node)
 
-    raise CompilerPanic(f"Cannot get type from object: {type(node).__name__}")
+    return get_value_from_node(namespace, node).type
 
 
 # TODO this is ugly and only used for constants, refactor it somehow
@@ -144,53 +126,25 @@ def get_value_from_node(namespace, node):
         return node.value
 
     if isinstance(node, vy_ast.Name):
-        return _get_name(namespace, node)
+        name = node.id
+        if name not in namespace and name in namespace['self'].members:
+            raise StructureException(
+                f"'{name}' is a storage variable, access it as self.{name}", node
+            )
+        return namespace[node.id]
 
     if isinstance(node, vy_ast.Attribute):
-        return _get_attribute(namespace, node)
+        var = get_value_from_node(namespace, node.value)
+        return var.get_member(node)
 
     if isinstance(node, vy_ast.Subscript):
-        base_var, idx = _get_subscript(namespace, node)
-        return base_var.value[idx]
+        base_type = get_value_from_node(namespace, node.value)
+        return base_type.get_index(node)
+
     # TODO folding
     # if isinstance(node, (vy_ast.BinOp, vy_ast.BoolOp, vy_ast.Compare)):
     #     return operators.validate_operation(namespace, node)
     raise
-
-
-def _get_name(namespace, node, validation_type=None):
-    var = namespace[node.id]
-    # if not isinstance(var, Variable):
-    #     raise VariableDeclarationException(f"{node.id} is not a variable", node)
-    if var.enclosing_scope == "module" and not var.is_constant:
-        raise StructureException("Cannot access storage variable directly, use self", node)
-    if validation_type and var.type != validation_type:
-        raise TypeMismatchException(f"Invalid type for assignment: {var.type}", node)
-    return var
-
-
-def _get_attribute(namespace, node, validation_type=None):
-    if node.value.id == "self":
-        var = namespace[node.attr]
-        if var.enclosing_scope != "module" or var.is_constant:
-            raise StructureException(
-                f"'{var.name}' is not a storage variable, do not use self to access it", node
-            )
-        if validation_type and var.type != validation_type:
-            raise TypeMismatchException(f"Invalid type for assignment: {var.type}", node)
-        return var
-    raise
-
-
-def _get_subscript(namespace, node, validation_type=None):
-    base_var = get_value_from_node(namespace, node.value)
-
-    idx = get_value_from_node(namespace, node.slice.value)
-    if idx >= len(base_var.type):
-        raise StructureException("Array index out of range", node.slice)
-    if idx < 0:
-        raise StructureException("Array index cannot use negative integers", node.slice)
-    return base_var, idx
 
 
 def compare_types(left, right, node):

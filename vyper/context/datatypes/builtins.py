@@ -75,7 +75,7 @@ class AddressType(MemberType, ValueType):
                 'codesize': type(namespace['int128'])(namespace),
                 'is_contract': type(namespace['bool'])(namespace)
             }
-            self.add_members(**members)
+            self.add_member_types(**members)
 
         return super().get_member_type(node)
 
@@ -197,7 +197,7 @@ class MappingType(CompoundType):
     def __repr__(self):
         return f"map({self.key_type}, {self.value_type})"
 
-    def get_subscript_type(self, index_node):
+    def get_index_type(self, index_node):
         idx_type = get_type_from_node(self.namespace, index_node)
         compare_types(self.key_type, idx_type, index_node)
         return self.value_type

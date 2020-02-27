@@ -89,3 +89,7 @@ def add_environment_variables(namespace):
 
         typ = bases.EnvironmentVariableType(namespace, name, members)
         namespace[name] = Variable(namespace, name, "builtin", typ, None, True)
+
+    namespace['self'] = Variable(
+        namespace, 'self', "module", type(namespace["address"])(namespace), None, True
+    )

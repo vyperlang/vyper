@@ -5,6 +5,7 @@ from vyper.context import (
     typecheck,
 )
 from vyper.exceptions import (
+    StructureException,
     VariableDeclarationException,
 )
 
@@ -67,6 +68,54 @@ class Variable:
         self.is_constant = is_constant
         self.is_public = is_public
         self.value = value
+        self.members = {}
+        if value is None and isinstance(var_type, list):
+            self.value = [
+                Variable(
+                    namespace,
+                    f"{name}[{i}]",
+                    enclosing_scope,
+                    var_type[i],
+                    None,
+                    is_constant,
+                    is_public
+                ) for i in range(len(var_type))]
+
+    def add_member(self, attr, var):
+        self.type.add_member_types(**{attr: var.type})
+        self.members[attr] = var
+
+    def get_member(self, node: vy_ast.Attribute):
+        if node.attr not in self.members:
+            member_type = self.type.get_member_type(node)
+            member = Variable(
+                self.namespace,
+                node.attr,
+                self.enclosing_scope,
+                member_type,
+                is_constant=hasattr(self.type, '_readonly_members')
+            )
+            self.members[node.attr] = member
+        return self.members[node.attr]
+
+    def get_index(self, node: vy_ast.Subscript):
+        if isinstance(self.type, list):
+            idx = typecheck.get_value_from_node(self.namespace, node.slice.value)
+            if idx >= len(self.type):
+                raise StructureException("Array index out of range", node.slice)
+            if idx < 0:
+                raise StructureException("Array index cannot use negative integers", node.slice)
+            return self.value[idx]
+        typ = self.type.get_index_type(node.slice.value)
+        return Variable(
+            self.namespace,
+            self.name,
+            self.enclosing_scope,
+            typ,
+            None,
+            self.is_constant,
+            self.is_public
+        )
 
     def literal_value(self):
         """
