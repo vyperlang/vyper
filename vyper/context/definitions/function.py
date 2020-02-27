@@ -126,7 +126,7 @@ class Function:
         return True
 
     def validate_call(self, node: vy_ast.Call):
-        if self.visibility == "public":
+        if node.get('func.value.id') == "self" and self.visibility == "public":
             raise StructureException("Can only call from public function to private function", node)
         # TODO keywords?
         check_call_args(node, self.arg_count)

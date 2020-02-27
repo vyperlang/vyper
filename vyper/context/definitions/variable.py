@@ -123,6 +123,9 @@ class Variable:
             self.is_public
         )
 
+    def validate_call(self, node):
+        return self.type.validate_call(node)
+
     def literal_value(self):
         """
         Returns the literal assignment value for this variable.
