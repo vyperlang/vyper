@@ -12,7 +12,12 @@ from vyper.context.definitions.variable import (
     get_variable_from_nodes,
 )
 from vyper.context.typecheck import (
+    compare_types,
     get_type_from_annotation,
+    get_type_from_node,
+)
+from vyper.context.utils import (
+    check_call_args,
 )
 from vyper.exceptions import (
     StructureException,
@@ -41,6 +46,7 @@ class Function:
         "is_payable",
         "return_type",
         "arguments",
+        "arg_count",
     )
 
     def __init__(self, namespace, node: vy_ast.FunctionDef, visibility: Optional[str] = None):
@@ -50,9 +56,54 @@ class Function:
         self.name = node.name
         if visibility is not None:
             self.visibility = visibility
-        self._introspect_decorators(self.node.decorator_list)
-        self._introspect_call_args(self.node.args)
-        self._introspect_return_type(self.node.returns)
+        self._inspect_decorators(self.node.decorator_list)
+        self._inspect_call_args(self.node.args)
+        self._inspect_return_type(self.node.returns)
+
+    def _inspect_decorators(self, decorator_list):
+        decorators = [i.id for i in decorator_list]
+        for value in decorators:
+            if value in ("public", "private"):
+                if hasattr(self, "visibility"):
+                    raise StructureException(
+                        "Visibility must be public or private, not both", self.node
+                    )
+                self.visibility = value
+            else:
+                setattr(self, f"is_{value}", True)
+        if not hasattr(self, "visibility"):
+            raise StructureException(
+                "Function visibility must be public or private", self.node
+            )
+
+    def _inspect_call_args(self, node: vy_ast.arguments):
+        self.arg_count = len(node.args)
+        if node.defaults:
+            self.arg_count = (self.arg_count-len(node.defaults), self.arg_count)
+
+        self.arguments = OrderedDict()
+        arguments = node.args.copy()
+        defaults = [None] * (len(arguments) - len(node.defaults)) + node.defaults
+        for arg, value in zip(arguments, defaults):
+            if arg.arg in self.namespace or arg.arg in self.arguments:
+                raise StructureException("Namespace collision", arg)
+            var = get_variable_from_nodes(self.namespace, arg.arg, arg.annotation, value)
+            self.arguments[arg.arg] = var
+        self.namespace.update(self.arguments)
+
+    def _inspect_return_type(self, node):
+        if node is None:
+            self.return_type = None
+        elif isinstance(node, vy_ast.Name):
+            self.return_type = get_type_from_annotation(self.namespace, node)
+        elif isinstance(node, vy_ast.Tuple):
+            self.return_type = ()
+            for n in node.elts:
+                self.return_type += (get_type_from_annotation(self.namespace, n),)
+        else:
+            raise StructureException(
+                f"Function return value must be a type name or tuple", node
+            )
 
     @property
     def enclosing_scope(self):
@@ -74,43 +125,12 @@ class Function:
                 return False
         return True
 
-    def _introspect_decorators(self, decorator_list):
-        decorators = [i.id for i in decorator_list]
-        for value in decorators:
-            if value in ("public", "private"):
-                if hasattr(self, "visibility"):
-                    raise StructureException(
-                        "Visibility must be public or private, not both", self.node
-                    )
-                self.visibility = value
-            else:
-                setattr(self, f"is_{value}", True)
-        if not hasattr(self, "visibility"):
-            raise StructureException(
-                "Function visibility must be public or private", self.node
-            )
-
-    def _introspect_call_args(self, node: vy_ast.arguments):
-        self.arguments = OrderedDict()
-        arguments = node.args.copy()
-        defaults = [None] * (len(arguments) - len(node.defaults)) + node.defaults
-        for arg, value in zip(arguments, defaults):
-            if arg.arg in self.namespace or arg.arg in self.arguments:
-                raise StructureException("Namespace collision", arg)
-            var = get_variable_from_nodes(self.namespace, arg.arg, arg.annotation, value)
-            self.arguments[arg.arg] = var
-        self.namespace.update(self.arguments)
-
-    def _introspect_return_type(self, node):
-        if node is None:
-            self.return_type = None
-        elif isinstance(node, vy_ast.Name):
-            self.return_type = get_type_from_annotation(self.namespace, node)
-        elif isinstance(node, vy_ast.Tuple):
-            self.return_type = ()
-            for n in node.elts:
-                self.return_type += (get_type_from_annotation(self.namespace, n),)
-        else:
-            raise StructureException(
-                f"Function return value must be a type name or tuple", node
-            )
+    def validate_call(self, node: vy_ast.Call):
+        if self.visibility == "public":
+            raise StructureException("Can only call from public function to private function", node)
+        # TODO keywords?
+        check_call_args(node, self.arg_count)
+        for arg, key in zip(node.args, self.arguments):
+            typ = get_type_from_node(self.namespace, arg)
+            compare_types(self.arguments[key].type, typ, arg)
+        return self.return_type

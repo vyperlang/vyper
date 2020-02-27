@@ -85,9 +85,8 @@ def get_type_from_node(namespace, node):
         return get_type_from_literal(namespace, node)
 
     if isinstance(node, vy_ast.Call):
-        base_type = namespace[node.func.id]
-        base_type.validate_call(node)
-        return base_type
+        var = get_value_from_node(namespace, node.func)
+        return var.validate_call(node)
 
     if isinstance(node, (vy_ast.Op, vy_ast.Compare)):
         return get_type_from_operation(namespace, node)

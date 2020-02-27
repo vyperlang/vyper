@@ -98,6 +98,9 @@ class BaseType:
     def get_index_type(self, node):
         raise StructureException(f"Type '{self}' does not support indexing", node)
 
+    def validate_call(self, node):
+        raise StructureException(f"Type '{self}' is not callable", node)
+
 
 class ValueType(BaseType):
 

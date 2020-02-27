@@ -109,6 +109,7 @@ class StructType(MemberType):
                 raise StructureException("Unknown struct member", value)
             value_type = get_type_from_node(self.namespace, value)
             compare_types(self.members[key.id], value_type, key)
+        return self
 
     def __repr__(self):
         return f"<Struct Type '{self._id}'>"
