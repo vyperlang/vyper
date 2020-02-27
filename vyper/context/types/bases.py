@@ -239,6 +239,9 @@ class MemberType(BaseType):
             raise StructureException(f"Struct {self._id} has no member '{node.attr}'", node)
         return self.members[node.attr]
 
+    def __str__(self):
+        return f"{self._id}"
+
     # TODO
     # def __eq__(self, other):
     #     return super().__eq__(other) and self.type_class == other.type_class
