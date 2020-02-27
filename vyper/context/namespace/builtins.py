@@ -2,6 +2,9 @@ from decimal import (
     Decimal,
 )
 
+from vyper.context.definitions import (
+    Variable,
+)
 from vyper.context.types import (
     bases,
     builtins,
@@ -9,9 +12,6 @@ from vyper.context.types import (
 )
 from vyper.context.types.units import (
     Unit,
-)
-from vyper.context.variables import (
-    Variable,
 )
 
 BUILTIN_TYPE_MODULES = [

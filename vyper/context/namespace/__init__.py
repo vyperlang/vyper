@@ -4,6 +4,9 @@ from vyper.context.namespace.builtins import (
     add_environment_variables,
     get_types,
 )
+from vyper.context.namespace.local import (
+    FunctionNodeVisitor,
+)
 from vyper.context.namespace.module import (
     ModuleNodeVisitor,
 )
@@ -84,3 +87,8 @@ def add_module_namespace(namespace, vy_module, interface_codes):
 
     ModuleNodeVisitor(namespace, vy_module, interface_codes)
     return namespace
+
+
+def validate_functions(namespace, vy_module):
+    for node in vy_module.get_children({'ast_type': "FunctionDef"}):
+        FunctionNodeVisitor(node, namespace)

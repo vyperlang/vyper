@@ -5,7 +5,7 @@ from collections import (
 from vyper import (
     ast as vy_ast,
 )
-from vyper.context.functions import (
+from vyper.context.definitions import (
     Function,
 )
 from vyper.context.typecheck import (

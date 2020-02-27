@@ -1,6 +1,10 @@
 from vyper import (
     ast as vy_ast,
 )
+from vyper.context.definitions.variable import (
+    Variable,
+    get_variable_from_nodes,
+)
 from vyper.context.typecheck import (
     compare_types,
     get_type_from_node,
@@ -17,19 +21,10 @@ from vyper.context.utils import (
     VyperNodeVisitorBase,
     check_call_args,
 )
-from vyper.context.variables import (
-    Variable,
-    get_variable_from_nodes,
-)
 from vyper.exceptions import (
     StructureException,
     VariableDeclarationException,
 )
-
-
-def check_functions(namespace, vy_module):
-    for node in vy_module.get_children({'ast_type': "FunctionDef"}):
-        FunctionNodeVisitor(node, namespace)
 
 
 class FunctionNodeVisitor(VyperNodeVisitorBase):

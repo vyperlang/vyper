@@ -1,20 +1,16 @@
 from vyper import (
     ast as vy_ast,
 )
-from vyper.context.events import (
+from vyper.context.definitions import (
     Event,
-)
-from vyper.context.functions import (
     Function,
+    get_variable_from_nodes,
 )
 from vyper.context.types.units import (
     Unit,
 )
 from vyper.context.utils import (
     VyperNodeVisitorBase,
-)
-from vyper.context.variables import (
-    get_variable_from_nodes,
 )
 from vyper.exceptions import (
     VariableDeclarationException,
