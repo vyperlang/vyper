@@ -87,7 +87,8 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         _add_import(self.namespace, node, self.interface_codes)
 
     def visit_FunctionDef(self, node):
-        self.namespace[node.name] = Function(self.namespace, node)
+        func = Function(self.namespace, node)
+        self.namespace["self"].add_member(func.name, func)
 
 
 def _add_custom_units(namespace, node):

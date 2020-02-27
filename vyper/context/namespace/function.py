@@ -44,9 +44,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
     def __init__(self, fn_node, namespace):
         self.fn_node = fn_node
-        self.namespace = namespace.copy('module')
-        self.func = namespace[fn_node.name]
-        self.namespace.update(self.func.arguments)
+        self.func = namespace["self"].get_member(fn_node)
+        self.namespace = self.func.namespace
         for node in fn_node.body:
             self.visit(node)
 

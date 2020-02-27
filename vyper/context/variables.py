@@ -88,17 +88,21 @@ class Variable:
         self.members[attr] = var
 
     def get_member(self, node: vy_ast.Attribute):
-        if node.attr not in self.members:
+        if isinstance(node, vy_ast.FunctionDef):
+            name = node.name
+        else:
+            name = node.attr
+        if name not in self.members:
             member_type = self.type.get_member_type(node)
             member = Variable(
                 self.namespace,
-                node.attr,
+                name,
                 self.enclosing_scope,
                 member_type,
                 is_constant=hasattr(self.type, '_readonly_members')
             )
             self.members[node.attr] = member
-        return self.members[node.attr]
+        return self.members[name]
 
     def get_index(self, node: vy_ast.Subscript):
         if isinstance(self.type, list):

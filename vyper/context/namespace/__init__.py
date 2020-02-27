@@ -16,11 +16,9 @@ class Namespace(dict):
 
     """Dictionary subclass that represents the namespace of contract."""
 
-    def __init__(self, kwargs=None):
+    def __init__(self):
         super().__init__()
         self._scope_dependencies = {'builtin': None, 'module': "builtin"}
-        if kwargs:
-            self.update(kwargs)
 
     def __setitem__(self, attr, obj):
         if attr in self:
@@ -45,6 +43,9 @@ class Namespace(dict):
         except KeyError:
             raise StructureException(f"name '{key}' is not defined")
 
+    def add_scope(self, name, parent):
+        self._scope_dependencies[name] = parent
+
     def update(self, other):
         for key, value in other.items():
             self.__setitem__(key, value)
@@ -54,12 +55,16 @@ class Namespace(dict):
         """Performs a shallow copy of the object based on the given scope."""
         # TODO documentation
 
+        namespace_copy = Namespace()
+
         scopes = set([scope])
         while self._scope_dependencies[scope] is not None:
+            namespace_copy.add_scope(scope, self._scope_dependencies[scope])
             scope = self._scope_dependencies[scope]
             scopes.add(scope)
 
-        return Namespace({k: v for k, v in super().items() if v.enclosing_scope in scopes})
+        namespace_copy.update({k: v for k, v in super().items() if v.enclosing_scope in scopes})
+        return namespace_copy
 
 
 def get_builtin_namespace():

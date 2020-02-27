@@ -44,7 +44,8 @@ class Function:
     )
 
     def __init__(self, namespace, node: vy_ast.FunctionDef, visibility: Optional[str] = None):
-        self.namespace = namespace
+        self.namespace = namespace.copy('module')
+        self.namespace.add_scope(node.name, 'module')
         self.node = node
         self.name = node.name
         if visibility is not None:
@@ -98,6 +99,7 @@ class Function:
                 raise StructureException("Namespace collision", arg)
             var = get_variable_from_nodes(self.namespace, arg.arg, arg.annotation, value)
             self.arguments[arg.arg] = var
+        self.namespace.update(self.arguments)
 
     def _introspect_return_type(self, node):
         if node is None:
