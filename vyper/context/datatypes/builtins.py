@@ -67,15 +67,17 @@ class AddressType(MemberType, ValueType):
 
     # TODO move this to init, avoid initializing types in namespace
     def get_member_type(self, node: vy_ast.Attribute):
-        if not hasattr(self, 'members'):
+        if not self.members:
             namespace = self.namespace
-            self.members = {
+            members = {
                 'balance': type(namespace['uint256'])(namespace, "wei"),
                 'codehash': type(namespace['bytes32'])(namespace),
                 'codesize': type(namespace['int128'])(namespace),
                 'is_contract': type(namespace['bool'])(namespace)
             }
-            return super().get_member_type(node)
+            self.add_members(**members)
+
+        return super().get_member_type(node)
 
 
 class Bytes32Type(ValueType):

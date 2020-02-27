@@ -1,3 +1,6 @@
+from collections import (
+    OrderedDict,
+)
 
 from vyper import (
     ast as vy_ast,
@@ -7,6 +10,9 @@ from vyper.context.datatypes.units import (
 )
 from vyper.context.utils import (
     get_index_value,
+)
+from vyper.context.variables import (
+    Variable,
 )
 from vyper.exceptions import (
     CompilerPanic,
@@ -218,10 +224,28 @@ class MemberType(BaseType):
 
     __slots__ = ('_id', 'members',)
 
+    def __init__(self, namespace):
+        super().__init__(namespace)
+        self.members = OrderedDict()
+
+    def add_members(self, **members):
+        for name, member in members.items():
+            if name in self.members:
+                raise StructureException(f"Member {name} already exists in {self}")
+            if isinstance(member, BaseType):
+                member = Variable(
+                    self.namespace,
+                    name,
+                    member.enclosing_scope,
+                    member,
+                    is_constant=hasattr(self, '_readonly_members')
+                )
+            self.members[name] = member
+
     def get_member_type(self, node: vy_ast.Attribute):
         if node.attr not in self.members:
             raise StructureException(f"Struct {self._id} has no member '{node.attr}'", node)
-        return self.members[node.attr]
+        return self.members[node.attr].type
 
     # TODO
     # def __eq__(self, other):
@@ -238,7 +262,7 @@ class EnvironmentVariableType(MemberType):
     def __init__(self, namespace, _id, members):
         super().__init__(namespace)
         self._id = _id
-        self.members = members
+        self.add_members(**members)
 
 
 class UnionType(set):

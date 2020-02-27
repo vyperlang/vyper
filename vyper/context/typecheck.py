@@ -1,8 +1,8 @@
 from vyper import (
     ast as vy_ast,
 )
-from vyper.context.datatypes.bases import (
-    UnionType,
+from vyper.context.datatypes import (
+    bases,
 )
 from vyper.context.utils import (
     get_index_value,
@@ -49,7 +49,7 @@ def get_type_from_literal(namespace, node: vy_ast.Constant):
         i for i in namespace.values() if
         hasattr(i, '_id') and hasattr(i, '_valid_literal')
     ]
-    valid_types = UnionType()
+    valid_types = bases.UnionType()
     for typ in base_types:
         try:
             valid_types.add(typ.from_literal(namespace, node))

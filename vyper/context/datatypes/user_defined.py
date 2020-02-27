@@ -89,25 +89,13 @@ class InterfaceMetaType(_BaseMetaType):
 
 
 class StructType(MemberType):
-    """
-    Meta-type object for struct types.
 
-    Attributes
-    ----------
-    _id : str
-        Name of the custom type.
-    node : ClassDef
-        Vyper AST node that defines this meta-type.
-    members : OrderedDict
-        A dictionary of {name: TypeObject} for each member of this meta-type.
-    """
-
-    __slots__ = ('members',)
+    __slots__ = ()
 
     def __init__(self, namespace, _id, members):
         super().__init__(namespace)
         self._id = _id
-        self.members = members
+        self.add_members(**members)
 
     def from_annotation(self, namespace, node):
         return type(self)(namespace, self._id, self.members)
@@ -120,7 +108,7 @@ class StructType(MemberType):
             if key is None or key.get('id') not in self.members:
                 raise StructureException("Unknown struct member", value)
             value_type = get_type_from_node(self.namespace, value)
-            compare_types(self.members[key.id], value_type, key)
+            compare_types(self.members[key.id].type, value_type, key)
 
     def __repr__(self):
         return f"<Struct Type '{self._id}'>"
@@ -144,7 +132,6 @@ class InterfaceType(MemberType):
         super().__init__(namespace)
         self._id = node.name
         self.node = node
-        self.members = {}
         namespace = self.namespace.copy('builtin')
         if isinstance(node, vy_ast.Module):
             functions = self._get_module_functions(namespace, node)
@@ -155,7 +142,7 @@ class InterfaceType(MemberType):
         for func in functions:
             if func.name in namespace or func.name in self.members:
                 raise StructureException("Namespace collision", func.node)
-            self.members[func.name] = func
+        self.add_members(**{i.name: i for i in functions})
 
     def _get_class_functions(self, namespace, base_node):
         functions = []
