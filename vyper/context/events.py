@@ -1,12 +1,20 @@
-from collections import OrderedDict
+from collections import (
+    OrderedDict,
+)
 
-from vyper import ast as vy_ast
+from vyper import (
+    ast as vy_ast,
+)
 from vyper.context.typecheck import (
     compare_types,
     get_type_from_node,
 )
-from vyper.context.utils import check_call_args
-from vyper.exceptions import StructureException
+from vyper.context.utils import (
+    check_call_args,
+)
+from vyper.exceptions import (
+    StructureException,
+)
 
 
 class Event:

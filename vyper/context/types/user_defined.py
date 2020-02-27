@@ -5,12 +5,6 @@ from collections import (
 from vyper import (
     ast as vy_ast,
 )
-from vyper.context.datatypes.bases import (
-    MemberType,
-)
-from vyper.context.datatypes.builtins import (
-    AddressType,
-)
 from vyper.context.functions import (
     Function,
 )
@@ -18,6 +12,12 @@ from vyper.context.typecheck import (
     compare_types,
     get_type_from_annotation,
     get_type_from_node,
+)
+from vyper.context.types.bases import (
+    MemberType,
+)
+from vyper.context.types.builtins import (
+    AddressType,
 )
 from vyper.context.utils import (
     check_call_args,

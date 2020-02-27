@@ -1,14 +1,14 @@
 from vyper import (
     ast as vy_ast,
 )
-from vyper.context.datatypes.units import (
-    Unit,
-)
 from vyper.context.events import (
     Event,
 )
 from vyper.context.functions import (
     Function,
+)
+from vyper.context.types.units import (
+    Unit,
 )
 from vyper.context.utils import (
     VyperNodeVisitorBase,

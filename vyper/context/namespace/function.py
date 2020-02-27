@@ -1,17 +1,17 @@
 from vyper import (
     ast as vy_ast,
 )
-from vyper.context.datatypes.bases import (
-    IntegerType,
-)
-from vyper.context.datatypes.builtins import (
-    BoolType,
-)
 from vyper.context.typecheck import (
     compare_types,
     get_type_from_node,
     get_type_from_operation,
     get_value_from_node,
+)
+from vyper.context.types.bases import (
+    IntegerType,
+)
+from vyper.context.types.builtins import (
+    BoolType,
 )
 from vyper.context.utils import (
     VyperNodeVisitorBase,

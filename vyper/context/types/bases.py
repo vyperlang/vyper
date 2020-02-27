@@ -5,7 +5,7 @@ from collections import (
 from vyper import (
     ast as vy_ast,
 )
-from vyper.context.datatypes.units import (
+from vyper.context.types.units import (
     Unit,
 )
 from vyper.context.utils import (

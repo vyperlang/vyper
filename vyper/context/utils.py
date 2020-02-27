@@ -7,7 +7,7 @@ from typing import (
 from vyper import (
     ast as vy_ast,
 )
-from vyper.context.datatypes import (
+from vyper.context.types import (
     bases,
 )
 from vyper.exceptions import (

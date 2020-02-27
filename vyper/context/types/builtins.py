@@ -6,19 +6,19 @@ from decimal import (
 from vyper import (
     ast as vy_ast,
 )
-from vyper.context.datatypes.bases import (
+from vyper.context.typecheck import (
+    check_numeric_bounds,
+    compare_types,
+    get_type_from_annotation,
+    get_type_from_node,
+)
+from vyper.context.types.bases import (
     ArrayValueType,
     CompoundType,
     IntegerType,
     MemberType,
     NumericType,
     ValueType,
-)
-from vyper.context.typecheck import (
-    check_numeric_bounds,
-    compare_types,
-    get_type_from_annotation,
-    get_type_from_node,
 )
 from vyper.context.utils import (
     check_call_args,

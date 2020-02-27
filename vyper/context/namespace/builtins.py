@@ -2,12 +2,12 @@ from decimal import (
     Decimal,
 )
 
-from vyper.context.datatypes import (
+from vyper.context.types import (
     bases,
     builtins,
     user_defined,
 )
-from vyper.context.datatypes.units import (
+from vyper.context.types.units import (
     Unit,
 )
 from vyper.context.variables import (
