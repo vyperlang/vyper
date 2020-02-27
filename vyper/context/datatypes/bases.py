@@ -72,10 +72,6 @@ class BaseType:
     def __init__(self, namespace):
         self.namespace = namespace
 
-    # @property
-    # def enclosing_scope(self):
-    #     return self.node.enclosing_scope
-
     def set_unit(self, unit_str):
         raise StructureException(f"Type {self} does not support units")
 
@@ -138,9 +134,11 @@ class NumericType(ValueType):
     __slots__ = ('unit',)
     _as_array = True
 
-    def __init__(self, namespace):
+    def __init__(self, namespace, unit=None):
         self.unit = None
         super().__init__(namespace)
+        if unit:
+            self.set_unit(unit)
 
     def set_unit(self, unit_str):
         self.unit = self.namespace[unit_str]
@@ -214,23 +212,33 @@ class CompoundType(BaseType):
     __slots__ = ()
 
 
-class UserDefinedType(BaseType):
+class MemberType(BaseType):
 
-    """Base class for user defined types."""
+    """Base class for types that have accessible members."""
 
-    __slots__ = ('node', '_id',)
+    __slots__ = ('_id', 'members',)
 
-    def __init__(self, namespace, node):
-        super().__init__(namespace)
-        self.node = node
-
-    @property
-    def enclosing_scope(self):
-        return self.node.enclosing_scope
+    def get_member_type(self, node: vy_ast.Attribute):
+        if node.attr not in self.members:
+            raise StructureException(f"Struct {self._id} has no member '{node.attr}'", node)
+        return self.members[node.attr]
 
     # TODO
     # def __eq__(self, other):
     #     return super().__eq__(other) and self.type_class == other.type_class
+
+
+class EnvironmentVariableType(MemberType):
+
+    _readonly_members = True
+
+    def __str__(self):
+        return "environment variable"
+
+    def __init__(self, namespace, _id, members):
+        super().__init__(namespace)
+        self._id = _id
+        self.members = members
 
 
 class UnionType(set):

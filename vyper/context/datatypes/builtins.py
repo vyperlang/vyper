@@ -10,6 +10,7 @@ from vyper.context.datatypes.bases import (
     ArrayValueType,
     CompoundType,
     IntegerType,
+    MemberType,
     NumericType,
     ValueType,
 )
@@ -43,17 +44,11 @@ class BoolType(ValueType):
         return super().from_literal(namespace, node)
 
 
-class AddressType(ValueType):
+class AddressType(MemberType, ValueType):
     __slots__ = ()
     _id = "address"
     _as_array = True
     _valid_literal = vy_ast.Hex
-    _members = {
-        'balance': ("uint256", "wei"),
-        'codehash': ("bytes32",),
-        'codesize': ("int128",),
-        'is_contract': ("bool",),
-    }
     _readonly_members = True
 
     @classmethod
@@ -70,13 +65,17 @@ class AddressType(ValueType):
             )
         return self
 
-    # TODO can this be standardized across all types?
+    # TODO move this to init, avoid initializing types in namespace
     def get_member_type(self, node: vy_ast.Attribute):
-        name = node.attr
-        typ = type(self.namespace[self._members[name][0]])(self.namespace)
-        if len(self._members[name]) > 1:
-            typ.set_unit(self._members[name][1])
-        return typ
+        if not hasattr(self, 'members'):
+            namespace = self.namespace
+            self.members = {
+                'balance': type(namespace['uint256'])(namespace, "wei"),
+                'codehash': type(namespace['bytes32'])(namespace),
+                'codesize': type(namespace['int128'])(namespace),
+                'is_contract': type(namespace['bool'])(namespace)
+            }
+            return super().get_member_type(node)
 
 
 class Bytes32Type(ValueType):

@@ -66,6 +66,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             if hasattr(base_type, '_readonly_members'):
                 raise StructureException(f"{base_type} members cannot be assigned to", node)
 
+        # TODO prevent assignment to constants
         target_type = get_type_from_node(self.namespace, node.targets[0])
         value_type = get_type_from_node(self.namespace, node.value)
         compare_types(target_type, value_type, node)
