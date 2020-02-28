@@ -8,9 +8,6 @@ from vyper import (
 from vyper.context.definitions.bases import (
     FunctionDefinition,
 )
-from vyper.context.definitions.variable import (
-    get_variable_from_nodes,
-)
 from vyper.context.utils import (
     check_call_args,
 )
@@ -38,8 +35,7 @@ def get_event_from_node(namespace, node: vy_ast.AnnAssign):
             value = value.args[0]
         else:
             indexed.append(False)
-        var = get_variable_from_nodes(namespace, key, value, None)
-        arguments[key] = var
+        arguments[key] = type(namespace[value.id])(namespace)
     return Event(namespace, name, arguments, indexed)
 
 

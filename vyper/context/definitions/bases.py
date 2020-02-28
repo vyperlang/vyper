@@ -29,7 +29,7 @@ class FunctionDefinition(BaseDefinition):
         namespace,
         name: str,
         enclosing_scope: str,
-        arguments,
+        arguments,  # OrderedDict that can hold variables or types
         arg_count,
         return_type,
     ):
@@ -41,6 +41,10 @@ class FunctionDefinition(BaseDefinition):
     def validate_call(self, node: vy_ast.Call):
         check_call_args(node, self.arg_count)
         for arg, key in zip(node.args, self.arguments):
-            typ = get_type_from_node(self.namespace, arg)
-            compare_types(self.arguments[key].type, typ, arg)
+            given_type = get_type_from_node(self.namespace, arg)
+            if hasattr(self.arguments[key], 'type'):
+                expected_type = self.arguments[key].type
+            else:
+                expected_type = self.arguments[key]
+            compare_types(expected_type, given_type, arg)
         return self.return_type
