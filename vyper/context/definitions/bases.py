@@ -46,5 +46,6 @@ class FunctionDefinition(BaseDefinition):
                 expected_type = self.arguments[key].type
             else:
                 expected_type = self.arguments[key]
+            # TODO better exception, give the name of the argument
             compare_types(expected_type, given_type, arg)
         return self.return_type

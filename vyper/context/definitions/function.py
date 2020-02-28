@@ -123,3 +123,16 @@ class ContractFunction(FunctionDefinition):
             raise StructureException("Can only call from public function to private function", node)
         # TODO keywords?
         return super().validate_call(node)
+
+
+class BuiltinFunction(FunctionDefinition):
+
+    def __init__(
+        self,
+        namespace,
+        name: str,
+        arguments,
+        arg_count,
+        return_type,
+    ):
+        super().__init__(namespace, name, "builtin", arguments, arg_count, return_type)
