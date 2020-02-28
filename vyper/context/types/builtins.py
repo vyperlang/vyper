@@ -159,7 +159,7 @@ class BytesType(ArrayValueType):
                 node,
             )
         self = cls(namespace)
-        self.length = (len(value)-2) // 8
+        self.min_length = (len(value)-2) // 8
         return self
 
 

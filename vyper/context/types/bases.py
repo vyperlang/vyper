@@ -182,32 +182,55 @@ class ArrayValueType(ValueType):
 
     Attributes
     ----------
-    length : int | Variable
+    length : int
         The length of the data within the type.
+    min_length: int
+        The minimum length of the data within the type. Used when the type
+        is applied to a literal definition.
     """
-    __slots__ = ('length',)
+    __slots__ = ('length', 'min_length')
 
     def __str__(self):
         return f"{self._id}[{self.length}]"
 
+    def __init__(self, namespace, length=0):
+        super().__init__(namespace)
+        self.length = length
+        self.min_length = length
+
     def compare_type(self, other):
-        return super().compare_type(other) and self.length >= other.length
+        if not super().compare_type(other):
+            return False
+
+        # when comparing two literals, both now have an equal min-length
+        if not self.length and not other.length:
+            min_length = max(self.min_length, other.min_length)
+            self.min_length = min_length
+            other.min_length = min_length
+            return True
+
+        # comparing a decined length to a literal causes the literal to have a fixed length
+        if self.length:
+            if not other.length:
+                other.length = max(self.length, other.min_length)
+            return self.length >= other.length
+
+        return other.compare_type(self)
 
     @classmethod
     def from_annotation(cls, namespace, node):
         if len(node.get_all_children({'ast_type': "Subscript"}, include_self=True)) > 1:
             raise StructureException("Multidimensional arrays are not supported", node)
-        self = cls(namespace)
-        self.length = get_index_value(self.namespace, node.get('slice'))
-
-        if self.length <= 0:
+        length = get_index_value(namespace, node.get('slice'))
+        if length <= 0:
             raise InvalidLiteralException("Slice must be greater than 0", node.slice)
-        return self
+
+        return cls(namespace, length)
 
     @classmethod
     def from_literal(cls, namespace, node):
         self = super().from_literal(namespace, node)
-        self.length = len(node.value) or 1
+        self.min_length = len(node.value) or 1
         return self
 
 
