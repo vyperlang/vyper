@@ -6,7 +6,7 @@ from vyper import (
     ast as vy_ast,
 )
 from vyper.context.definitions import (
-    Function,
+    get_function_from_node,
 )
 from vyper.context.typecheck import (
     compare_types,
@@ -123,14 +123,14 @@ class InterfaceMetaType(_BaseMetaType):
         for node in base_node.body:
             if not isinstance(node, vy_ast.FunctionDef):
                 raise StructureException("Interfaces can only contain function definitions", node)
-            functions[node.name] = Function(namespace, node, "public")
+            functions[node.name] = get_function_from_node(namespace, node, "public")
         return functions
 
     def _get_module_functions(self, namespace, base_node):
         functions = OrderedDict()
         for node in base_node.get_children({'ast_type': "FunctionDef"}):
             if "public" in node.decorator_list:
-                functions[node.name] = Function(namespace, node)
+                functions[node.name] = get_function_from_node(namespace, node)
         return functions
 
 

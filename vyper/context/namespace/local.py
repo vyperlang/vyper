@@ -109,7 +109,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException("Function does not return any values", node)
         if isinstance(values, vy_ast.Tuple):
             values = values.elts
-        compare_types(self.func.return_type, values, node)
+        compare_types(self.func.return_type, get_type_from_node(self.namespace, values), node)
 
     def visit_Expr(self, node):
         self.visit(node.value)

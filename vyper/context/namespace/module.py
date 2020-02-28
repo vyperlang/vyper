@@ -3,7 +3,7 @@ from vyper import (
 )
 from vyper.context.definitions import (
     Event,
-    Function,
+    get_function_from_node,
     get_variable_from_nodes,
 )
 from vyper.context.types.units import (
@@ -83,7 +83,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         _add_import(self.namespace, node, self.interface_codes)
 
     def visit_FunctionDef(self, node):
-        func = Function(self.namespace, node)
+        func = get_function_from_node(self.namespace, node)
         self.namespace["self"].add_member(func.name, func)
 
 
