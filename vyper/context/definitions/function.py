@@ -8,6 +8,9 @@ from typing import (
 from vyper import (
     ast as vy_ast,
 )
+from vyper.context.definitions.bases import (
+    FunctionDefinition,
+)
 from vyper.context.definitions.variable import (
     get_variable_from_nodes,
 )
@@ -74,42 +77,7 @@ def get_function_from_node(namespace, node: vy_ast.FunctionDef, visibility: Opti
     )
 
 
-class FunctionDefinitionBase:
-
-    __slots__ = (
-        "namespace",
-        "name",
-        "enclosing_scope",
-        "return_type",
-        "arguments",
-        "arg_count",
-    )
-
-    def __init__(
-        self,
-        namespace,
-        name: str,
-        enclosing_scope: str,
-        arguments,
-        arg_count,
-        return_type,
-    ):
-        self.namespace = namespace
-        self.name = name
-        self.enclosing_scope = enclosing_scope
-        self.arguments = arguments
-        self.arg_count = arg_count
-        self.return_type = return_type
-
-    def validate_call(self, node: vy_ast.Call):
-        check_call_args(node, self.arg_count)
-        for arg, key in zip(node.args, self.arguments):
-            typ = get_type_from_node(self.namespace, arg)
-            compare_types(self.arguments[key].type, typ, arg)
-        return self.return_type
-
-
-class ContractFunction(FunctionDefinitionBase):
+class ContractFunction(FunctionDefinition):
     """
     TODO
 

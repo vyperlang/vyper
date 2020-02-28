@@ -4,6 +4,9 @@ from vyper import (
 from vyper.context import (
     typecheck,
 )
+from vyper.context.definitions.bases import (
+    BaseDefinition,
+)
 from vyper.exceptions import (
     StructureException,
     VariableDeclarationException,
@@ -47,9 +50,11 @@ def get_variable_from_nodes(namespace, name, annotation, value):
     return var
 
 
-class Variable:
+class Variable(BaseDefinition):
 
-    # TODO docs, slots
+    # TODO docs
+
+    __slots__ = ('value', 'type', 'is_constant', 'is_public', 'members')
 
     def __init__(
         self,
@@ -61,9 +66,7 @@ class Variable:
         is_constant: bool = False,
         is_public: bool = False,
     ):
-        self.namespace = namespace
-        self.name = name
-        self.enclosing_scope = enclosing_scope
+        super().__init__(namespace, name, enclosing_scope)
         self.type = var_type
         self.is_constant = is_constant
         self.is_public = is_public
