@@ -8,6 +8,9 @@ from vyper import (
 from vyper.context.definitions.bases import (
     FunctionDefinition,
 )
+from vyper.context.typecheck import (
+    get_type_from_annotation,
+)
 from vyper.context.utils import (
     check_call_args,
 )
@@ -35,7 +38,7 @@ def get_event_from_node(namespace, node: vy_ast.AnnAssign):
             value = value.args[0]
         else:
             indexed.append(False)
-        arguments[key] = type(namespace[value.id])(namespace)
+        arguments[key] = get_type_from_annotation(namespace, value)
     return Event(namespace, name, arguments, indexed)
 
 
