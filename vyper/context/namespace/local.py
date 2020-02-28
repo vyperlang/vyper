@@ -43,7 +43,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.namespace = self.func.namespace
         for node in fn_node.body:
             self.visit(node)
-        if self.func.return_type and not fn_node.get_children({'ast_type': "Return"}):
+        if self.func.return_var and not fn_node.get_children({'ast_type': "Return"}):
             raise StructureException(f"{self.func.name} is missing a return statement", fn_node)
 
     def visit_AnnAssign(self, node):
@@ -102,14 +102,12 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
     def visit_Return(self, node):
         values = node.value
         if values is None:
-            if self.func.return_type:
+            if self.func.return_var:
                 raise StructureException("Return statement is missing a value", node)
             return
-        if values and self.func.return_type is None:
+        if values and self.func.return_var is None:
             raise StructureException("Function does not return any values", node)
-        if isinstance(values, vy_ast.Tuple):
-            values = values.elts
-        compare_types(self.func.return_type, get_type_from_node(self.namespace, values), node)
+        compare_types(self.func.return_var.type, get_type_from_node(self.namespace, values), node)
 
     def visit_Expr(self, node):
         self.visit(node.value)

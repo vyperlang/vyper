@@ -22,7 +22,7 @@ class BaseDefinition:
 
 class FunctionDefinition(BaseDefinition):
 
-    __slots__ = ("return_type", "arguments", "arg_count")
+    __slots__ = ("return_var", "arguments", "arg_count")
 
     def __init__(
         self,
@@ -31,12 +31,12 @@ class FunctionDefinition(BaseDefinition):
         enclosing_scope: str,
         arguments,  # OrderedDict that can hold variables or types
         arg_count,
-        return_type,
+        return_var,
     ):
         super().__init__(namespace, name, enclosing_scope)
         self.arguments = arguments
         self.arg_count = arg_count
-        self.return_type = return_type
+        self.return_var = return_var
 
     def validate_call(self, node: vy_ast.Call):
         check_call_args(node, self.arg_count)
@@ -48,4 +48,4 @@ class FunctionDefinition(BaseDefinition):
                 expected_type = self.arguments[key]
             # TODO better exception, give the name of the argument
             compare_types(expected_type, given_type, arg)
-        return self.return_type
+        return self.return_var

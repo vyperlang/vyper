@@ -176,4 +176,5 @@ def add_builtin_functions(namespace):
         for n, types in args['input']:
             arguments[n] = _get_type(namespace, types)
         return_type = _get_type(namespace, args['return']) if args['return'] else None
-        namespace[name] = BuiltinFunction(namespace, name, arguments, len(arguments), return_type)
+        return_var = Variable(namespace, "", "builtin", return_type)
+        namespace[name] = BuiltinFunction(namespace, name, arguments, len(arguments), return_var)

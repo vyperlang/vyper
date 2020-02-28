@@ -7,6 +7,7 @@ from vyper import (
 )
 from vyper.context.definitions import (
     get_function_from_node,
+    Variable
 )
 from vyper.context.typecheck import (
     compare_types,
@@ -95,7 +96,7 @@ class StructType(MemberType):
                 raise StructureException("Unknown struct member", value)
             value_type = get_type_from_node(self.namespace, value)
             compare_types(self.members[key.id], value_type, key)
-        return self
+        return Variable(self.namespace, self._id, self.enclosing_scope, self)
 
 
 class InterfaceMetaType(_BaseMetaType):
@@ -168,4 +169,4 @@ class InterfaceType(MemberType):
         check_call_args(node, 1)
         value = get_type_from_node(self.namespace, node.args[0])
         compare_types(value, self.namespace['address'], node.args[0])
-        return self
+        return Variable(self.namespace, self._id, self.enclosing_scope, self)

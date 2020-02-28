@@ -84,10 +84,6 @@ def get_type_from_node(namespace, node):
     if isinstance(node, vy_ast.Constant):
         return get_type_from_literal(namespace, node)
 
-    if isinstance(node, vy_ast.Call):
-        var = get_value_from_node(namespace, node.func)
-        return var.validate_call(node)
-
     if isinstance(node, (vy_ast.Op, vy_ast.Compare)):
         return get_type_from_operation(namespace, node)
 
@@ -139,6 +135,10 @@ def get_value_from_node(namespace, node):
     if isinstance(node, vy_ast.Subscript):
         base_type = get_value_from_node(namespace, node.value)
         return base_type.get_index(node)
+
+    if isinstance(node, vy_ast.Call):
+        var = get_value_from_node(namespace, node.func)
+        return var.validate_call(node)
 
     # TODO folding
     # if isinstance(node, (vy_ast.BinOp, vy_ast.BoolOp, vy_ast.Compare)):

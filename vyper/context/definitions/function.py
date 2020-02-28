@@ -13,6 +13,7 @@ from vyper.context.definitions.bases import (
 )
 from vyper.context.definitions.variable import (
     get_variable_from_nodes,
+    Variable,
 )
 from vyper.context.typecheck import (
     get_type_from_annotation,
@@ -55,20 +56,22 @@ def get_function_from_node(namespace, node: vy_ast.FunctionDef, visibility: Opti
 
     # return types
     if node.returns is None:
-        return_type = None
+        return_var = None
     elif isinstance(node.returns, vy_ast.Name):
         return_type = get_type_from_annotation(namespace, node.returns)
+        return_var = Variable(namespace, "", node.name, return_type)
     elif isinstance(node.returns, vy_ast.Tuple):
         return_type = ()
         for n in node.returns.elts:
             return_type += (get_type_from_annotation(namespace, n),)
+        return_var = Variable(namespace, "", node.name, return_type)
     else:
         raise StructureException(
             f"Function return value must be a type name or tuple", node.returns
         )
 
     return ContractFunction(
-        namespace, node.name, arguments, arg_count, return_type, visibility, **kwargs
+        namespace, node.name, arguments, arg_count, return_var, visibility, **kwargs
     )
 
 
@@ -93,11 +96,11 @@ class ContractFunction(FunctionDefinition):
         name: str,
         arguments,
         arg_count,
-        return_type,
+        return_var,
         visibility,
         **kwargs,
     ):
-        super().__init__(namespace, name, "module", arguments, arg_count, return_type)
+        super().__init__(namespace, name, "module", arguments, arg_count, return_var)
         self.visibility = visibility
         for key, value in kwargs.items():
             setattr(self, f'is_{key}', value)
@@ -107,7 +110,7 @@ class ContractFunction(FunctionDefinition):
             isinstance(other, ContractFunction) and
             self.name == other.name and
             self.visibility == other.visibility and
-            self.return_type == other.return_type and
+            self.return_var.type == other.return_var.type and
             list(self.arguments) == list(other.arguments)
         ):
             return False
@@ -133,6 +136,6 @@ class BuiltinFunction(FunctionDefinition):
         name: str,
         arguments,
         arg_count,
-        return_type,
+        return_var,
     ):
-        super().__init__(namespace, name, "builtin", arguments, arg_count, return_type)
+        super().__init__(namespace, name, "builtin", arguments, arg_count, return_var)
