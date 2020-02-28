@@ -87,7 +87,10 @@ def get_type_from_node(namespace, node):
     if isinstance(node, (vy_ast.Op, vy_ast.Compare)):
         return get_type_from_operation(namespace, node)
 
-    return get_value_from_node(namespace, node).type
+    var = get_value_from_node(namespace, node)
+    if var is None:
+        raise StructureException(f"{node.ast_type} did not return a value", node)
+    return var.type
 
 
 # TODO this is ugly and only used for constants, refactor it somehow

@@ -6,8 +6,8 @@ from vyper import (
     ast as vy_ast,
 )
 from vyper.context.definitions import (
+    Variable,
     get_function_from_node,
-    Variable
 )
 from vyper.context.typecheck import (
     compare_types,
@@ -154,12 +154,15 @@ class InterfaceType(MemberType):
         self._id = _id
         self.add_member_types(**members)
 
-    def validate_implements(self, namespace):
-        unimplemented = [i.name for i in self.members.values() if namespace.get(i.name) != i]
+    def validate_implements(self, namespace, node):
+
+        unimplemented = [
+            i.name for i in self.members.values() if namespace['self'].members[i.name] != i
+        ]
         if unimplemented:
             raise StructureException(
                 f"Contract does not implement all interface functions: {', '.join(unimplemented)}",
-                self.node
+                node
             )
 
     def from_annotation(self, namespace, node):

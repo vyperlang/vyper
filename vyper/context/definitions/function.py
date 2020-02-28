@@ -12,10 +12,11 @@ from vyper.context.definitions.bases import (
     FunctionDefinition,
 )
 from vyper.context.definitions.variable import (
-    get_variable_from_nodes,
     Variable,
+    get_variable_from_nodes,
 )
 from vyper.context.typecheck import (
+    compare_types,
     get_type_from_annotation,
 )
 from vyper.exceptions import (
@@ -106,18 +107,23 @@ class ContractFunction(FunctionDefinition):
             setattr(self, f'is_{key}', value)
 
     def __eq__(self, other):
-        if not (
+        if not (  # NOQA: E721
             isinstance(other, ContractFunction) and
             self.name == other.name and
             self.visibility == other.visibility and
-            self.return_var.type == other.return_var.type and
+            type(self.return_var) is type(other.return_var) and
             list(self.arguments) == list(other.arguments)
         ):
             return False
-        for key in self.arguments:
-            if self.arguments[key].type != other.arguments[key].type:
+        if self.return_var:
+            try:
+                compare_types(self.return_var.type, other.return_var.type, None)
+            except Exception:
                 return False
-            if self.arguments[key].value != other.arguments[key].value:
+        for key in self.arguments:
+            try:
+                compare_types(self.arguments[key].type, other.arguments[key].type, None)
+            except Exception:
                 return False
         return True
 

@@ -32,9 +32,9 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
                 try:
                     self.visit(node)
                     module_nodes.remove(node)
-                except Exception:
+                except Exception as e:
                     # TODO remove when you're done
-                    raise
+                    print(e)
                     continue
             if count == len(module_nodes):
                 # TODO be expressive here
@@ -57,7 +57,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
         elif name == "implements":
             interface_name = node.annotation.id
-            self.namespace[interface_name].validate_implements(self.namespace)
+            self.namespace[interface_name].validate_implements(self.namespace, node)
 
         else:
             var = get_variable_from_nodes(self.namespace, name, node.annotation, node.value)
