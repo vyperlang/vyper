@@ -143,7 +143,7 @@ def get_value_from_node(namespace, node):
     # TODO folding
     # if isinstance(node, (vy_ast.BinOp, vy_ast.BoolOp, vy_ast.Compare)):
     #     return operators.validate_operation(namespace, node)
-    raise
+    raise StructureException(f"Unsupported node type for get_value: {node.ast_type}", node)
 
 
 def compare_types(left, right, node):
@@ -169,9 +169,13 @@ def compare_types(left, right, node):
 
     if any(isinstance(i, (list, tuple)) for i in (left, right)):
         if not all(isinstance(i, (list, tuple)) for i in (left, right)):
-            raise
+            raise TypeMismatchException(
+                f"Cannot perform operation between single type and compound type", node
+            )
         if len(left) != len(right):
-            raise
+            raise StructureException(
+                f"Imbalanced operation: {len(left)} left side values, {len(right)} right side", node
+            )
         for lhs, rhs in zip(left, right):
             compare_types(lhs, rhs, node)
         return
