@@ -15,12 +15,7 @@ from vyper.context.definitions.variable import (
     get_variable_from_nodes,
 )
 from vyper.context.typecheck import (
-    compare_types,
     get_type_from_annotation,
-    get_type_from_node,
-)
-from vyper.context.utils import (
-    check_call_args,
 )
 from vyper.exceptions import (
     StructureException,
@@ -73,7 +68,7 @@ def get_function_from_node(namespace, node: vy_ast.FunctionDef, visibility: Opti
         )
 
     return ContractFunction(
-        namespace, node.name, "module", arguments, arg_count, return_type, visibility, **kwargs
+        namespace, node.name, arguments, arg_count, return_type, visibility, **kwargs
     )
 
 
@@ -96,14 +91,13 @@ class ContractFunction(FunctionDefinition):
         self,
         namespace,
         name: str,
-        enclosing_scope: str,
         arguments,
         arg_count,
         return_type,
         visibility,
         **kwargs,
     ):
-        super().__init__(namespace, name, enclosing_scope, arguments, arg_count, return_type)
+        super().__init__(namespace, name, "module", arguments, arg_count, return_type)
         self.visibility = visibility
         for key, value in kwargs.items():
             setattr(self, f'is_{key}', value)
@@ -129,8 +123,3 @@ class ContractFunction(FunctionDefinition):
             raise StructureException("Can only call from public function to private function", node)
         # TODO keywords?
         return super().validate_call(node)
-        check_call_args(node, self.arg_count)
-        for arg, key in zip(node.args, self.arguments):
-            typ = get_type_from_node(self.namespace, arg)
-            compare_types(self.arguments[key].type, typ, arg)
-        return self.return_type

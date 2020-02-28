@@ -2,7 +2,7 @@ from vyper import (
     ast as vy_ast,
 )
 from vyper.context.definitions import (
-    Event,
+    get_event_from_node,
     get_function_from_node,
     get_variable_from_nodes,
 )
@@ -42,7 +42,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
     def visit_AnnAssign(self, node):
         if node.get('annotation.func.id') == "event":
-            event = Event(self.namespace, node.target.id, node.annotation, node.value)
+            event = get_event_from_node(self.namespace, node)
             self.namespace["log"].add_member(node.target.id, event)
             return
 

@@ -52,7 +52,7 @@ def get_variable_from_nodes(namespace, name, annotation, value):
 
 class Variable(BaseDefinition):
 
-    # TODO docs
+    # TODO docs, split into several types for members/mappings/etc
 
     __slots__ = ('value', 'type', 'is_constant', 'is_public', 'members')
 
