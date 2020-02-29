@@ -25,9 +25,6 @@ from vyper.exceptions import (
 
 
 def get_function_from_node(namespace, node: vy_ast.FunctionDef, visibility: Optional[str] = None):
-    namespace = namespace.copy('module')
-    namespace.add_scope(node.name, 'module')
-
     # decorators
     kwargs = {}
     decorators = [i.id for i in node.decorator_list]
@@ -53,7 +50,6 @@ def get_function_from_node(namespace, node: vy_ast.FunctionDef, visibility: Opti
             raise StructureException("Namespace collision", arg)
         var = get_variable_from_nodes(namespace, arg.arg, arg.annotation, value)
         arguments[arg.arg] = var
-    namespace.update(arguments)
 
     # return types
     if node.returns is None:

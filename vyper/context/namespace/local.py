@@ -42,11 +42,14 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
     def __init__(self, fn_node, namespace):
         self.fn_node = fn_node
         self.func = namespace["self"].get_member(fn_node)
-        self.namespace = self.func.namespace
+        self.namespace = namespace
+        namespace.enter_scope()
+        namespace.update(self.func.arguments)
         for node in fn_node.body:
             self.visit(node)
         if self.func.return_var and not fn_node.get_children({'ast_type': "Return"}):
             raise StructureException(f"{self.func.name} is missing a return statement", fn_node)
+        namespace.exit_scope()
 
     def visit_AnnAssign(self, node):
         if not node.value:
@@ -135,7 +138,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             self.visit(n)
 
     def visit_For(self, node):
-        namespace = self.namespace.copy(node.enclosing_scope)
+        self.namespace.enter_scope()
 
         # iteration over a variable
         if isinstance(node.iter, vy_ast.Name):
@@ -190,7 +193,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         for n in node.body:
             self.visit(n)
-        self.namespace = namespace
+        self.namespace.exit_scope()
 
     def visit_Attribute(self, node):
         get_type_from_node(self.namespace, node)
