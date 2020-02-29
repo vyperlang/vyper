@@ -53,7 +53,7 @@ class Event(FunctionDefinition):
         arguments,
         indexed,
     ):
-        super().__init__(namespace, name, "module", arguments, len(arguments), None)
+        super().__init__(namespace, name, arguments, len(arguments), None)
         self.indexed = indexed
 
     def __eq__(self, other):

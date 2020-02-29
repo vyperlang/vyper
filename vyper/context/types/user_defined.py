@@ -46,7 +46,6 @@ class _BaseMetaType:
         The namespace object that this object exists within.
     """
     __slots__ = ('namespace',)
-    enclosing_scope = "builtin"
 
     def __init__(self, namespace):
         self.namespace = namespace
@@ -96,7 +95,7 @@ class StructType(MemberType):
                 raise StructureException("Unknown struct member", value)
             value_type = get_type_from_node(self.namespace, value)
             compare_types(self.members[key.id], value_type, key)
-        return Variable(self.namespace, self._id, self.enclosing_scope, self)
+        return Variable(self.namespace, self._id, self)
 
 
 class InterfaceMetaType(_BaseMetaType):
@@ -172,4 +171,4 @@ class InterfaceType(MemberType):
         check_call_args(node, 1)
         value = get_type_from_node(self.namespace, node.args[0])
         compare_types(value, self.namespace['address'], node.args[0])
-        return Variable(self.namespace, self._id, self.enclosing_scope, self)
+        return Variable(self.namespace, self._id, self)

@@ -188,7 +188,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         else:
             raise StructureException("Invalid type for iteration", node.iter)
 
-        var = Variable(self.namespace, node.target.id, node.enclosing_scope, target_type)
+        var = Variable(self.namespace, node.target.id, target_type)
         self.namespace[node.target.id] = var
 
         for n in node.body:

@@ -40,7 +40,7 @@ from vyper.exceptions import (
 class BuiltinFunctionDefinition(BaseDefinition):
 
     def __init__(self, namespace):
-        super().__init__(namespace, self._id, "builtin")
+        super().__init__(namespace, self._id)
 
 
 class SimpleBuiltinDefinition(FunctionDefinition, BuiltinFunctionDefinition):
@@ -50,9 +50,9 @@ class SimpleBuiltinDefinition(FunctionDefinition, BuiltinFunctionDefinition):
         for name, types in self._inputs:
             arguments[name] = get_builtin_type(namespace, types)
         return_type = get_builtin_type(namespace, self._return_type) if self._return_type else None
-        return_var = Variable(namespace, "", "builtin", return_type)
+        return_var = Variable(namespace, "", return_type)
         FunctionDefinition.__init__(
-            self, namespace, self._id, "builtin", arguments, len(arguments), return_var
+            self, namespace, self._id, arguments, len(arguments), return_var
         )
 
 
@@ -209,4 +209,4 @@ class AsUnitlessNumber(BuiltinFunctionDefinition):
             raise StructureException(f"Type '{value.type}' has no unit", node.args[0])
         typ = type(value.type)(self.namespace)
         del typ.unit
-        return Variable(self.namespace, value.name, value.enclosing_scope, typ)
+        return Variable(self.namespace, value.name, typ)

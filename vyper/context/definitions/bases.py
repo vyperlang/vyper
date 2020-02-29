@@ -12,12 +12,11 @@ from vyper.context.utils import (
 
 class BaseDefinition:
 
-    __slots__ = ("namespace", "name", "enclosing_scope")
+    __slots__ = ("namespace", "name")
 
-    def __init__(self, namespace, name, enclosing_scope):
+    def __init__(self, namespace, name):
         self.namespace = namespace
         self.name = name
-        self.enclosing_scope = enclosing_scope
 
 
 class FunctionDefinition(BaseDefinition):
@@ -28,12 +27,11 @@ class FunctionDefinition(BaseDefinition):
         self,
         namespace,
         name: str,
-        enclosing_scope: str,
         arguments,  # OrderedDict that can hold variables or types
         arg_count,
         return_var,
     ):
-        BaseDefinition.__init__(self, namespace, name, enclosing_scope)
+        BaseDefinition.__init__(self, namespace, name)
         self.arguments = arguments
         self.arg_count = arg_count
         self.return_var = return_var

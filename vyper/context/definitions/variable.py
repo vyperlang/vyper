@@ -43,7 +43,7 @@ def get_variable_from_nodes(namespace, name, annotation, value):
         if 'is_constant' in kwargs:
             kwargs['value'] = get_value_from_node(namespace, value)
 
-    var = Variable(namespace, name, annotation.enclosing_scope, var_type, **kwargs)
+    var = Variable(namespace, name, var_type, **kwargs)
 
     if kwargs.get('is_constant'):
         literal = var.literal_value()
@@ -65,13 +65,12 @@ class Variable(BaseDefinition):
         self,
         namespace,
         name: str,
-        enclosing_scope: str,
         var_type,
         value=None,
         is_constant: bool = False,
         is_public: bool = False,
     ):
-        super().__init__(namespace, name, enclosing_scope)
+        super().__init__(namespace, name)
         self.type = var_type
         self.is_constant = is_constant
         self.is_public = is_public
@@ -79,15 +78,9 @@ class Variable(BaseDefinition):
         self.members = {}
         if value is None and isinstance(var_type, list):
             self.value = [
-                Variable(
-                    namespace,
-                    f"{name}[{i}]",
-                    enclosing_scope,
-                    var_type[i],
-                    None,
-                    is_constant,
-                    is_public
-                ) for i in range(len(var_type))]
+                Variable(namespace, f"{name}[{i}]", var_type[i], None, is_constant, is_public)
+                for i in range(len(var_type))
+            ]
 
     def add_member(self, attr, var):
         # allows for adding non-variable objects (events, functions)
@@ -102,13 +95,8 @@ class Variable(BaseDefinition):
             name = node.attr
         if name not in self.members:
             member_type = self.type.get_member_type(node)
-            member = Variable(
-                self.namespace,
-                name,
-                self.enclosing_scope,
-                member_type,
-                is_constant=hasattr(self.type, '_readonly_members')
-            )
+            is_constant = hasattr(self.type, '_readonly_members')
+            member = Variable(self.namespace, name, member_type, is_constant=is_constant)
             self.members[node.attr] = member
         return self.members[name]
 
@@ -121,15 +109,7 @@ class Variable(BaseDefinition):
                 raise StructureException("Array index cannot use negative integers", node.slice)
             return self.value[idx]
         typ = self.type.get_index_type(node.slice.value)
-        return Variable(
-            self.namespace,
-            self.name,
-            self.enclosing_scope,
-            typ,
-            None,
-            self.is_constant,
-            self.is_public
-        )
+        return Variable(self.namespace, self.name, typ, None, self.is_constant, self.is_public)
 
     def validate_call(self, node):
         return self.type.validate_call(node)

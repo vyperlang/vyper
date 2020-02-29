@@ -31,7 +31,7 @@ class Namespace(dict):
             obj = super().__getitem__(attr)
             # TODO expand this error message
             raise StructureException(
-                f"Namespace collision: '{attr}' is a {obj.enclosing_scope} {type(obj).__name__}",
+                f"Namespace collision: '{attr}' already declared as a {type(obj).__name__}",
                 obj
             )
         super().__setitem__(attr, obj)

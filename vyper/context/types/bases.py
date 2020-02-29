@@ -25,8 +25,6 @@ from vyper.exceptions import (
 from_annotation
 from_literal
 
-enclosing_scope
-
 compare_type(other):
     Check this type against another type, raise or return None
 
@@ -70,7 +68,6 @@ class BaseType:
         The namespace object that this type exists within.
     """
     __slots__ = ('namespace', 'is_literal')
-    enclosing_scope = "builtin"
 
     def __init__(self, namespace):
         self.namespace = namespace

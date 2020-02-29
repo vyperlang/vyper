@@ -21,8 +21,8 @@ BUILTIN_TYPE_MODULES = [
     user_defined,
 ]
 BUILTIN_UNITS = [
-    Unit(name="sec", description="number of seconds", enclosing_scope="builtin"),
-    Unit(name="wei", description="amount of Ether in wei", enclosing_scope="builtin"),
+    Unit(name="sec", description="number of seconds"),
+    Unit(name="wei", description="amount of Ether in wei"),
 ]
 BUILTIN_CONSTANTS = {
     "EMPTY_BYTES32": ("0x0000000000000000000000000000000000000000000000000000000000000000", "bytes32"),  # NOQA: E501
@@ -77,7 +77,7 @@ def add_builtin_units(namespace):
 def add_builtin_constants(namespace):
     for name, (value, typ) in BUILTIN_CONSTANTS.items():
         typ = get_builtin_type(namespace, typ)
-        namespace[name] = Variable(namespace, name, "builtin", typ, value, True)
+        namespace[name] = Variable(namespace, name, typ, value, True)
 
 
 def add_environment_variables(namespace):
@@ -86,10 +86,10 @@ def add_environment_variables(namespace):
         for k, v in values.items():
             members[k] = get_builtin_type(namespace, v)
         typ = bases.EnvironmentVariableType(namespace, name, members)
-        namespace[name] = Variable(namespace, name, "builtin", typ, None, True)
+        namespace[name] = Variable(namespace, name, typ, None, True)
 
     namespace['self'] = Variable(
-        namespace, "self", "module", type(namespace["address"])(namespace), None, True
+        namespace, "self", type(namespace["address"])(namespace), None, True
     )
 
 

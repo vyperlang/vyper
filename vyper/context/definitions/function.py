@@ -56,12 +56,12 @@ def get_function_from_node(namespace, node: vy_ast.FunctionDef, visibility: Opti
         return_var = None
     elif isinstance(node.returns, vy_ast.Name):
         return_type = get_type_from_annotation(namespace, node.returns)
-        return_var = Variable(namespace, "", node.name, return_type)
+        return_var = Variable(namespace, "", return_type)
     elif isinstance(node.returns, vy_ast.Tuple):
         return_type = ()
         for n in node.returns.elts:
             return_type += (get_type_from_annotation(namespace, n),)
-        return_var = Variable(namespace, "", node.name, return_type)
+        return_var = Variable(namespace, "", return_type)
     else:
         raise StructureException(
             f"Function return value must be a type name or tuple", node.returns
@@ -97,7 +97,7 @@ class ContractFunction(FunctionDefinition):
         visibility,
         **kwargs,
     ):
-        super().__init__(namespace, name, "module", arguments, arg_count, return_var)
+        super().__init__(namespace, name, arguments, arg_count, return_var)
         self.visibility = visibility
         for key, value in kwargs.items():
             setattr(self, f'is_{key}', value)
