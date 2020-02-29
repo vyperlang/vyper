@@ -9,6 +9,9 @@ from vyper.context.definitions.bases import (
     BaseDefinition,
     FunctionDefinition,
 )
+from vyper.context.definitions.utils import (
+    get_value_from_node,
+)
 from vyper.context.definitions.variable import (
     Variable,
 )
@@ -16,15 +19,19 @@ from vyper.context.types import (  # compare_types,
     get_builtin_type,
     get_type_from_node,
 )
+from vyper.context.types.bases import (
+    ValueType,
+)
 from vyper.context.utils import (
     check_call_args,
 )
 from vyper.exceptions import (
     InvalidLiteralException,
+    StructureException,
 )
 
 # convert
-# as_unitless_number, slice, concat, keccack256
+# slice, concat, keccack256
 # sha256, method_id, extract32, RLPList, raw_call, raw_log
 
 # assert, raise
@@ -182,8 +189,24 @@ class AsWeiValue(SimpleBuiltinDefinition):
         denom = next((v for k, v in self.wei_denoms.items() if node.args[1].value in k), False)
         if not denom:
             raise InvalidLiteralException(
-                f"Invalid denomination: {denom}, valid denominations are: "
-                f"{','.join(x[0] for x in self.wei_denoms)}",
+                f"Invalid denomination '{node.args[1].value}', valid denominations are: "
+                f"{', '.join(x[0] for x in self.wei_denoms)}",
                 node.args[1]
             )
         return super().validate_call(node)
+
+
+class AsUnitlessNumber(BuiltinFunctionDefinition):
+
+    _id = "as_unitless_number"
+
+    def validate_call(self, node: vy_ast.Call):
+        check_call_args(node, 1)
+        value = get_value_from_node(self.namespace, node.args[0])
+        if not isinstance(getattr(value, 'type'), ValueType):
+            raise StructureException("Not a value type", node.args[0])
+        if not hasattr(value.type, 'unit'):
+            raise StructureException(f"Type '{value.type}' has no unit", node.args[0])
+        typ = type(value.type)(self.namespace)
+        del typ.unit
+        return Variable(self.namespace, value.name, value.enclosing_scope, typ)
