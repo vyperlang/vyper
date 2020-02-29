@@ -87,6 +87,10 @@ class Bytes32Type(BytesType):
     _as_array = True
     _valid_literal = vy_ast.Hex
 
+    # included for compatibility with bytes array methods
+    length = 32
+    min_length = 32
+
     @classmethod
     def from_literal(cls, namespace, node):
         self = super().from_literal(namespace, node)

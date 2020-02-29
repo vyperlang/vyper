@@ -33,8 +33,7 @@ from vyper.exceptions import (
 )
 
 # convert
-# concat, keccack256
-# sha256, method_id, extract32, RLPList, raw_call, raw_log
+# keccack256, sha256, method_id, extract32, RLPList, raw_call, raw_log
 
 # assert, raise
 
@@ -156,16 +155,6 @@ class Blockhash(SimpleBuiltinDefinition):
     _return_type = "bytes32"
 
 
-class Clear(BuiltinFunctionDefinition):
-
-    _id = "clear"
-
-    def validate_call(self, node: vy_ast.Call):
-        check_call_args(node, 1)
-        get_type_from_node(self.namespace, node.args[0])
-        return None
-
-
 class AsWeiValue(SimpleBuiltinDefinition):
 
     _id = "as_wei_value"
@@ -198,6 +187,16 @@ class AsWeiValue(SimpleBuiltinDefinition):
         return super().validate_call(node)
 
 
+class Clear(BuiltinFunctionDefinition):
+
+    _id = "clear"
+
+    def validate_call(self, node: vy_ast.Call):
+        check_call_args(node, 1)
+        get_type_from_node(self.namespace, node.args[0])
+        return None
+
+
 class AsUnitlessNumber(BuiltinFunctionDefinition):
 
     _id = "as_unitless_number"
@@ -211,7 +210,7 @@ class AsUnitlessNumber(BuiltinFunctionDefinition):
             raise StructureException(f"Type '{value.type}' has no unit", node.args[0])
         typ = type(value.type)(self.namespace)
         del typ.unit
-        return Variable(self.namespace, value.name, typ)
+        return Variable(self.namespace, "unitless_return", typ)
 
 
 class Slice(BuiltinFunctionDefinition):
@@ -230,9 +229,28 @@ class Slice(BuiltinFunctionDefinition):
             raise StructureException(
                 "Length must be a literal integer greater than zero", node.args[2]
             )
+
+        return_length = length - start
         if isinstance(input_type, BytesType):
-            return_type = get_builtin_type(self.namespace, "bytes")
+            return_type = get_builtin_type(self.namespace, ("bytes", return_length))
         else:
-            return_type = get_builtin_type(self.namespace, "string")
-        return_type.min_length = length - start
-        return Variable(self.namespace, "slice", return_type)
+            return_type = get_builtin_type(self.namespace, ("string", return_length))
+        return Variable(self.namespace, "slice_return", return_type)
+
+
+class Concat(BuiltinFunctionDefinition):
+
+    _id = "concat"
+
+    def validate_call(self, node: vy_ast.Call):
+        check_call_args(node, (2, float('inf')))
+        type_list = [get_type_from_node(self.namespace, i) for i in node.args]
+
+        idx = next((i for i in type_list if not isinstance(i, BytesType)), None)
+        if idx is not None:
+            node = node.args[type_list.index(idx)]
+            raise StructureException("Concat values must be bytes", node)
+
+        length = sum(i.min_length for i in type_list)
+        return_type = get_builtin_type(self.namespace, ("bytes", length))
+        return Variable(self.namespace, "concat_return", return_type)
