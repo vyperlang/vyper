@@ -186,6 +186,10 @@ class IntegerType(NumericType):
     _valid_literal = vy_ast.Int
 
 
+class BytesType(ValueType):
+    __slots__ = ()
+
+
 class ArrayValueType(ValueType):
     """
     Base class for single-value types which occupy multiple memory slots

@@ -8,6 +8,7 @@ from vyper import (
 )
 from vyper.context.types.bases import (
     ArrayValueType,
+    BytesType,
     CompoundType,
     IntegerType,
     MemberType,
@@ -80,7 +81,7 @@ class AddressType(MemberType, ValueType):
         return super().get_member_type(node)
 
 
-class Bytes32Type(ValueType):
+class Bytes32Type(BytesType):
     __slots__ = ()
     _id = "bytes32"
     _as_array = True
@@ -140,7 +141,7 @@ class StringType(ArrayValueType):
     _valid_literal = vy_ast.Str
 
 
-class BytesType(ArrayValueType):
+class BytesArrayType(BytesType, ArrayValueType):
     __slots__ = ()
     _id = "bytes"
     _valid_literal = (vy_ast.Bytes, vy_ast.Binary)
