@@ -1,3 +1,9 @@
+from typing import (
+    List,
+    Tuple,
+    Union,
+)
+
 from vyper import (
     ast as vy_ast,
 )
@@ -65,6 +71,23 @@ def compare_types(left, right, node):
         raise TypeMismatchException(
             f"Cannot perform operation between {left} and {right}", node
         )
+
+
+def get_builtin_type(namespace, type_definition: Union[str, Tuple, List]):
+    """
+    Given a type definition, returns a type or list of types.
+
+    type_definition : str | tuple | list
+        str - The name of a single type to be returned.
+        tuple - The first value is the type name, the remaining values are passed
+                as arguments when initializing the type class.
+        list - Each item should be a string or tuple defining a single type.
+    """
+    if isinstance(type_definition, list):
+        return [get_builtin_type(namespace, i) for i in type_definition]
+    if isinstance(type_definition, tuple):
+        return type(namespace[type_definition[0]])(namespace, *type_definition[1:])
+    return type(namespace[type_definition])(namespace)
 
 
 def get_type_from_annotation(namespace, node):

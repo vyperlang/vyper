@@ -1,17 +1,15 @@
-from collections import (
-    OrderedDict,
-)
 from decimal import (
     Decimal,
 )
 
 from vyper.context.definitions import (
-    BuiltinFunction,
     Variable,
+    builtin_functions,
 )
 from vyper.context.types import (
     bases,
     builtins,
+    get_builtin_type,
     user_defined,
 )
 from vyper.context.types.units import (
@@ -55,14 +53,6 @@ ENVIRONMENT_VARS = {
 }
 
 
-def _get_type(namespace, types):
-    if isinstance(types, list):
-        return [_get_type(namespace, i) for i in types]
-    if isinstance(types, tuple):
-        return type(namespace[types[0]])(namespace, types[1])
-    return type(namespace[types])(namespace)
-
-
 def _type_filter(value):
     return type(value) is type and isinstance(getattr(value, "_id", None), str)
 
@@ -86,7 +76,7 @@ def add_builtin_units(namespace):
 
 def add_builtin_constants(namespace):
     for name, (value, typ) in BUILTIN_CONSTANTS.items():
-        typ = _get_type(namespace, typ)
+        typ = get_builtin_type(namespace, typ)
         namespace[name] = Variable(namespace, name, "builtin", typ, value, True)
 
 
@@ -94,7 +84,7 @@ def add_environment_variables(namespace):
     for name, values in ENVIRONMENT_VARS.items():
         members = {}
         for k, v in values.items():
-            members[k] = _get_type(namespace, v)
+            members[k] = get_builtin_type(namespace, v)
         typ = bases.EnvironmentVariableType(namespace, name, members)
         namespace[name] = Variable(namespace, name, "builtin", typ, None, True)
 
@@ -103,78 +93,7 @@ def add_environment_variables(namespace):
     )
 
 
-# convert
-# clear, as_wei_value, as_unitless_number, slice, concat, keccack256
-# sha256, method_id, extract32, RLPList, raw_call, raw_log
-
-# assert, raise
-
-BUILTIN_FUNCTIONS = {
-    "floor": {
-        "input": [("value", "decimal")],
-        "return": "int128"
-    },
-    "ceil": {
-        "input": [("value", "decimal")],
-        "return": "int128"
-    },
-    "len": {
-        "input": [("b", "bytes")],
-        "return": "int128"
-    },
-    "uint256_addmod": {
-        "input": [("a", "uint256"), ("b", "uint256"), ("c", "uint256")],
-        "return": "uint256",
-    },
-    "uint256_mulmod": {
-        "input": [("a", "uint256"), ("b", "uint256"), ("c", "uint256")],
-        "return": "uint256",
-    },
-    "sqrt": {
-        "input": [("d", "decimal")],
-        "return": "decimal",
-    },
-    "ecrecover": {
-        "input": [("hash", "bytes32"), ("v", "uint256"), ("r", "uint256"), ("s", "uint256")],
-        "return": "address",
-    },
-    "ecadd": {
-        "input": [("a", ["uint256", "uint256"]), ("b", ["uint256", "uint256"])],
-        "return": ["uint256", "uint256"]
-    },
-    "ecmul": {
-        "input": [("point", ["uint256", "uint256"]), ("scalar", "uint256")],
-        "return": ["uint256", "uint256"]
-    },
-    "send": {
-        "input": [("to", "address"), ("value", ("uint256", "wei"))],
-        "return": None,
-    },
-    "selfdestruct": {
-        "input": [("to", "address")],
-        "return": None,
-    },
-    "assert_modifiable": {
-        "input": [("cond", "bool")],
-        "return": None,
-    },
-    "create_forwarder_to": {
-        "input": [("target", "address"), ("value", ("uint256", "wei"))],
-        "return": "address",
-    },
-    "blockhash": {
-        "input": [("block_num", "uint256")],
-        "return": "bytes32",
-    }
-
-}
-
-
 def add_builtin_functions(namespace):
-    for name, args in BUILTIN_FUNCTIONS.items():
-        arguments = OrderedDict()
-        for n, types in args['input']:
-            arguments[n] = _get_type(namespace, types)
-        return_type = _get_type(namespace, args['return']) if args['return'] else None
-        return_var = Variable(namespace, "", "builtin", return_type)
-        namespace[name] = BuiltinFunction(namespace, name, arguments, len(arguments), return_var)
+
+    for obj in filter(_type_filter, builtin_functions.__dict__.values()):
+        namespace[obj._id] = obj(namespace)
