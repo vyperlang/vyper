@@ -19,9 +19,12 @@ from vyper.context.types import (  # compare_types,
 from vyper.context.utils import (
     check_call_args,
 )
+from vyper.exceptions import (
+    InvalidLiteralException,
+)
 
 # convert
-# clear, as_wei_value, as_unitless_number, slice, concat, keccack256
+# as_unitless_number, slice, concat, keccack256
 # sha256, method_id, extract32, RLPList, raw_call, raw_log
 
 # assert, raise
@@ -152,3 +155,35 @@ class Clear(BuiltinFunctionDefinition):
         check_call_args(node, 1)
         get_type_from_node(self.namespace, node.args[0])
         return None
+
+
+class AsWeiValue(SimpleBuiltinDefinition):
+
+    _id = "as_wei_value"
+    _inputs = [("value", "uint256"), ("unit", "string")]
+    _return_type = ("uint256", "wei")
+
+    wei_denoms = {
+        ("wei", ): 1,
+        ("femtoether", "kwei", "babbage"): 10**3,
+        ("picoether", "mwei", "lovelace"): 10**6,
+        ("nanoether", "gwei", "shannon"): 10**9,
+        ("microether", "szabo", ): 10**12,
+        ("milliether", "finney", ): 10**15,
+        ("ether", ): 10**18,
+        ("kether", "grand"): 10**21,
+    }
+
+    def validate_call(self, node: vy_ast.Call):
+        check_call_args(node, 2)
+        if not isinstance(node.args[1], vy_ast.Str):
+            # TODO standard way to indicate a value must be a literal?
+            raise
+        denom = next((v for k, v in self.wei_denoms.items() if node.args[1].value in k), False)
+        if not denom:
+            raise InvalidLiteralException(
+                f"Invalid denomination: {denom}, valid denominations are: "
+                f"{','.join(x[0] for x in self.wei_denoms)}",
+                node.args[1]
+            )
+        return super().validate_call(node)
