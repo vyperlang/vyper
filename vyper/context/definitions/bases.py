@@ -33,7 +33,7 @@ class FunctionDefinition(BaseDefinition):
         arg_count,
         return_var,
     ):
-        super().__init__(namespace, name, enclosing_scope)
+        BaseDefinition.__init__(self, namespace, name, enclosing_scope)
         self.arguments = arguments
         self.arg_count = arg_count
         self.return_var = return_var

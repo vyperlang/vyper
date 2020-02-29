@@ -2,14 +2,22 @@ from collections import (
     OrderedDict,
 )
 
+from vyper import (
+    ast as vy_ast,
+)
 from vyper.context.definitions.bases import (
+    BaseDefinition,
     FunctionDefinition,
 )
 from vyper.context.definitions.variable import (
     Variable,
 )
-from vyper.context.types import (
+from vyper.context.types import (  # compare_types,
     get_builtin_type,
+    get_type_from_node,
+)
+from vyper.context.utils import (
+    check_call_args,
 )
 
 # convert
@@ -19,20 +27,13 @@ from vyper.context.types import (
 # assert, raise
 
 
-class BuiltinFunction(FunctionDefinition):
+class BuiltinFunctionDefinition(BaseDefinition):
 
-    def __init__(
-        self,
-        namespace,
-        name: str,
-        arguments,
-        arg_count,
-        return_var,
-    ):
-        super().__init__(namespace, name, "builtin", arguments, arg_count, return_var)
+    def __init__(self, namespace):
+        super().__init__(namespace, self._id, "builtin")
 
 
-class SimpleBuiltin(BuiltinFunction):
+class SimpleBuiltinDefinition(FunctionDefinition, BuiltinFunctionDefinition):
 
     def __init__(self, namespace):
         arguments = OrderedDict()
@@ -40,102 +41,114 @@ class SimpleBuiltin(BuiltinFunction):
             arguments[name] = get_builtin_type(namespace, types)
         return_type = get_builtin_type(namespace, self._return_type) if self._return_type else None
         return_var = Variable(namespace, "", "builtin", return_type)
-        super().__init__(namespace, self._id, arguments, len(arguments), return_var)
+        FunctionDefinition.__init__(
+            self, namespace, self._id, "builtin", arguments, len(arguments), return_var
+        )
 
 
-class Floor(SimpleBuiltin):
+class Floor(SimpleBuiltinDefinition):
 
     _id = "floor"
     _inputs = [("value", "decimal")]
     _return_type = "int128"
 
 
-class Ceil(SimpleBuiltin):
+class Ceil(SimpleBuiltinDefinition):
 
     _id = "ceil"
     _inputs = [("value", "decimal")]
     _return_type = "int128"
 
 
-class Len(SimpleBuiltin):
+class Len(SimpleBuiltinDefinition):
 
     _id = "len"
     _inputs = [("b", "bytes")]
     _return_type = "int128"
 
 
-class AddMod(SimpleBuiltin):
+class AddMod(SimpleBuiltinDefinition):
 
     _id = "uint256_addmod"
     _inputs = [("a", "uint256"), ("b", "uint256"), ("c", "uint256")]
     _return_type = "uint256"
 
 
-class MulMod(SimpleBuiltin):
+class MulMod(SimpleBuiltinDefinition):
 
     _id = "uint256_mulmod"
     _inputs = [("a", "uint256"), ("b", "uint256"), ("c", "uint256")]
     _return_type = "uint256"
 
 
-class Sqrt(SimpleBuiltin):
+class Sqrt(SimpleBuiltinDefinition):
 
     _id = "sqrt"
     _inputs = [("d", "decimal")]
     _return_type = "decimal"
 
 
-class ECRecover(SimpleBuiltin):
+class ECRecover(SimpleBuiltinDefinition):
 
     _id = "ecrecover"
     _inputs = [("hash", "bytes32"), ("v", "uint256"), ("r", "uint256"), ("s", "uint256")]
     _return_type = "address"
 
 
-class ECAdd(SimpleBuiltin):
+class ECAdd(SimpleBuiltinDefinition):
 
     _id = "ecadd"
     _inputs = [("a", ["uint256", "uint256"]), ("b", ["uint256", "uint256"])]
     _return_type = ["uint256", "uint256"]
 
 
-class ECMul(SimpleBuiltin):
+class ECMul(SimpleBuiltinDefinition):
 
     _id = "ecmul"
     _inputs = [("point", ["uint256", "uint256"]), ("scalar", "uint256")]
     _return_type = ["uint256", "uint256"]
 
 
-class Send(SimpleBuiltin):
+class Send(SimpleBuiltinDefinition):
 
     _id = "send"
     _inputs = [("to", "address"), ("value", ("uint256", "wei"))]
     _return_type = None
 
 
-class SelfDestruct(SimpleBuiltin):
+class SelfDestruct(SimpleBuiltinDefinition):
 
     _id = "selfdestruct"
     _inputs = [("to", "address")]
     _return_type = None
 
 
-class AssertModifiable(SimpleBuiltin):
+class AssertModifiable(SimpleBuiltinDefinition):
 
     _id = "assert_modifiable"
     _inputs = [("cond", "bool")]
     _return_type = None
 
 
-class CreateForwarder(SimpleBuiltin):
+class CreateForwarder(SimpleBuiltinDefinition):
 
     _id = "create_forwarder_to"
     _inputs = [("target", "address"), ("value", ("uint256", "wei"))]
     _return_type = "address"
 
 
-class Blockhash(SimpleBuiltin):
+class Blockhash(SimpleBuiltinDefinition):
 
     _id = "blockhash"
     _inputs = [("block_num", "uint256")]
     _return_type = "bytes32"
+
+
+class Clear(BuiltinFunctionDefinition):
+
+    _id = "clear"
+
+    def validate_call(self, node: vy_ast.Call):
+        check_call_args(node, 1)
+        get_type_from_node(self.namespace, node.args[0])
+        return None
