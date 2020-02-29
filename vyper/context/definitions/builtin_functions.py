@@ -20,6 +20,8 @@ from vyper.context.types import (  # compare_types,
     get_type_from_node,
 )
 from vyper.context.types.bases import (
+    ArrayValueType,
+    BytesType,
     ValueType,
 )
 from vyper.context.utils import (
@@ -31,7 +33,7 @@ from vyper.exceptions import (
 )
 
 # convert
-# slice, concat, keccack256
+# concat, keccack256
 # sha256, method_id, extract32, RLPList, raw_call, raw_log
 
 # assert, raise
@@ -210,3 +212,27 @@ class AsUnitlessNumber(BuiltinFunctionDefinition):
         typ = type(value.type)(self.namespace)
         del typ.unit
         return Variable(self.namespace, value.name, typ)
+
+
+class Slice(BuiltinFunctionDefinition):
+
+    _id = "slice"
+
+    def validate_call(self, node: vy_ast.Call):
+        check_call_args(node, 3)
+        input_type = get_type_from_node(self.namespace, node.args[0])
+        if not isinstance(input_type, (ArrayValueType, BytesType)):
+            raise StructureException("Value to slice must be string or bytes", node.args[0])
+        start, length = (get_value_from_node(self.namespace, i) for i in node.args[1:])
+        if not isinstance(start, int) or start < 0:
+            raise StructureException("Start must be a positive literal integer ", node.args[1])
+        if not isinstance(length, int) or length < 1:
+            raise StructureException(
+                "Length must be a literal integer greater than zero", node.args[2]
+            )
+        if isinstance(input_type, BytesType):
+            return_type = get_builtin_type(self.namespace, "bytes")
+        else:
+            return_type = get_builtin_type(self.namespace, "string")
+        return_type.min_length = length - start
+        return Variable(self.namespace, "slice", return_type)
