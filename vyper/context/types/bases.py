@@ -69,7 +69,7 @@ class BaseType:
     namespace : Namespace
         The namespace object that this type exists within.
     """
-    __slots__ = ('namespace', )
+    __slots__ = ('namespace', 'is_literal')
     enclosing_scope = "builtin"
 
     def __init__(self, namespace):
@@ -157,7 +157,11 @@ class NumericType(ValueType):
         return super().__str__()
 
     def compare_type(self, other):
-        return type(self) is type(other) and self.unit == other.unit
+        if type(self) is not type(other):
+            return False
+        if not hasattr(self, 'unit') or not hasattr(other, 'unit'):
+            return True
+        return self.unit == other.unit
 
     def validate_numeric_op(self, node):
         if isinstance(node.op, self._invalid_op):
@@ -165,6 +169,13 @@ class NumericType(ValueType):
             raise StructureException(
                 f"Unsupported operand for {self}: {node.op.ast_type}", node
             )
+
+    @classmethod
+    def from_literal(cls, namespace, node):
+        # TODO do this in a less hacky way
+        self = super().from_literal(namespace, node)
+        del self.unit
+        return self
 
 
 class IntegerType(NumericType):
