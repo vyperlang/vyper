@@ -17,6 +17,7 @@ from vyper.context.definitions.variable import (
 )
 from vyper.context.types import (  # compare_types,
     get_builtin_type,
+    get_type_from_annotation,
     get_type_from_node,
 )
 from vyper.context.types.bases import (
@@ -33,7 +34,7 @@ from vyper.exceptions import (
 )
 
 # convert
-# keccack256, sha256, method_id, extract32, RLPList, raw_call, raw_log
+# keccack256, sha256, extract32, raw_call, raw_log
 
 # assert, raise
 
@@ -254,3 +255,17 @@ class Concat(BuiltinFunctionDefinition):
         length = sum(i.min_length for i in type_list)
         return_type = get_builtin_type(self.namespace, ("bytes", length))
         return Variable(self.namespace, "concat_return", return_type)
+
+
+class MethodID(BuiltinFunctionDefinition):
+
+    _id = "method_id"
+
+    def validate_call(self, node: vy_ast.Call):
+        check_call_args(node, 2)
+        if not isinstance(node.args[0], vy_ast.Str):
+            raise StructureException("method id must be given as a literal string", node.args[0])
+        return_type = get_type_from_annotation(self.namespace, node.args[1])
+        if not isinstance(return_type, BytesType) or return_type.length not in (4, 32):
+            raise StructureException("return type must be bytes32 or bytes[4]", node.args[1])
+        return Variable(self.namespace, "method_id_return", return_type)
