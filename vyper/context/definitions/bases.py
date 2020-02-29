@@ -1,7 +1,7 @@
 from vyper import (
     ast as vy_ast,
 )
-from vyper.context.typecheck import (
+from vyper.context.types import (
     compare_types,
     get_type_from_node,
 )

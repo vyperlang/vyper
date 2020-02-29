@@ -8,7 +8,7 @@ from vyper import (
 from vyper.context.definitions.bases import (
     FunctionDefinition,
 )
-from vyper.context.typecheck import (
+from vyper.context.types import (
     get_type_from_annotation,
 )
 from vyper.context.utils import (

@@ -15,7 +15,7 @@ from vyper.context.definitions.variable import (
     Variable,
     get_variable_from_nodes,
 )
-from vyper.context.typecheck import (
+from vyper.context.types import (
     compare_types,
     get_type_from_annotation,
 )

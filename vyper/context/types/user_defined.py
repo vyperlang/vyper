@@ -9,13 +9,13 @@ from vyper.context.definitions import (
     Variable,
     get_function_from_node,
 )
-from vyper.context.typecheck import (
+from vyper.context.types.bases import (
+    MemberType,
+)
+from vyper.context.types.utils import (
     compare_types,
     get_type_from_annotation,
     get_type_from_node,
-)
-from vyper.context.types.bases import (
-    MemberType,
 )
 from vyper.context.utils import (
     check_call_args,

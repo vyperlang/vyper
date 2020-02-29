@@ -1,11 +1,16 @@
 from vyper import (
     ast as vy_ast,
 )
-from vyper.context import (
-    typecheck,
-)
 from vyper.context.definitions.bases import (
     BaseDefinition,
+)
+from vyper.context.definitions.utils import (
+    get_value_from_node,
+)
+from vyper.context.types import (
+    compare_types,
+    get_type_from_annotation,
+    get_type_from_node,
 )
 from vyper.exceptions import (
     StructureException,
@@ -30,13 +35,13 @@ def get_variable_from_nodes(namespace, name, annotation, value):
     if 'is_constant' in kwargs and 'is_public' in kwargs:
         raise VariableDeclarationException("Variable cannot be constant and public", annotation)
 
-    var_type = typecheck.get_type_from_annotation(namespace, node)
+    var_type = get_type_from_annotation(namespace, node)
 
     if value:
-        value_type = typecheck.get_type_from_node(namespace, value)
-        typecheck.compare_types(var_type, value_type, value)
+        value_type = get_type_from_node(namespace, value)
+        compare_types(var_type, value_type, value)
         if 'is_constant' in kwargs:
-            kwargs['value'] = typecheck.get_value_from_node(namespace, value)
+            kwargs['value'] = get_value_from_node(namespace, value)
 
     var = Variable(namespace, name, annotation.enclosing_scope, var_type, **kwargs)
 
@@ -109,7 +114,7 @@ class Variable(BaseDefinition):
 
     def get_index(self, node: vy_ast.Subscript):
         if isinstance(self.type, list):
-            idx = typecheck.get_value_from_node(self.namespace, node.slice.value)
+            idx = get_value_from_node(self.namespace, node.slice.value)
             if idx >= len(self.type):
                 raise StructureException("Array index out of range", node.slice)
             if idx < 0:
