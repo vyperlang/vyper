@@ -34,7 +34,7 @@ from vyper.exceptions import (
 )
 
 # convert
-# keccack256, sha256, raw_call
+# raw_call
 # bitwise_and, bitwise_or, bitwise_xor, bitwise_not, shift, min, max
 
 # assert, raise
@@ -154,6 +154,20 @@ class Blockhash(SimpleBuiltinDefinition):
 
     _id = "blockhash"
     _inputs = [("block_num", "uint256")]
+    _return_type = "bytes32"
+
+
+class Keccak256(SimpleBuiltinDefinition):
+
+    _id = "keccak256"
+    _inputs = [("value", {"string", "bytes", "bytes32"})]
+    _return_type = "bytes32"
+
+
+class Sha256(SimpleBuiltinDefinition):
+
+    _id = "sha256"
+    _inputs = [("value", {"string", "bytes", "bytes32"})]
     _return_type = "bytes32"
 
 
