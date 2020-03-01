@@ -1,6 +1,5 @@
 from typing import (
     Optional,
-    Set,
     Union,
 )
 
@@ -33,24 +32,42 @@ class VyperNodeVisitorBase:
 
 
 def check_call_args(
-    node: vy_ast.VyperNode,
-    argcount: Union[int, tuple],
-    kwargs: Optional[Set] = None
+    node: vy_ast.Call,
+    arg_count: Union[int, tuple],
+    kwargs: Optional[list] = None
 ) -> None:
+    """
+    Validates call arguments.
 
+    Parameters
+    ----------
+    node : Call
+        Vyper ast Call node to be validated.
+    arg_count : int | tuple
+        The required number of positional arguments. When given as a tuple the
+        value is interpreted as the minimum and maximum number of arguments.
+    kwargs : list, optional
+        A list of valid keyword arguments. When arg_count is a tuple and the
+        number of positional arguments exceeds the minimum, the excess values are
+        considered to fill the first values on this list.
+
+    Returns
+    -------
+        None if the arguments are valid. Raises if not.
+    """
     if not isinstance(node, vy_ast.Call):
         raise StructureException("Expected Call", node)
-    if not isinstance(argcount, (int, tuple)):
-        raise CompilerPanic(f"Invalid type for argcount: {type(argcount).__name__}")
+    if not isinstance(arg_count, (int, tuple)):
+        raise CompilerPanic(f"Invalid type for arg_count: {type(arg_count).__name__}")
 
-    if isinstance(argcount, int) and len(node.args) != argcount:
+    if isinstance(arg_count, int) and len(node.args) != arg_count:
         raise StructureException(
-            f"Invalid argument count: expected {argcount}, got {len(node.args)}", node
+            f"Invalid argument count: expected {arg_count}, got {len(node.args)}", node
         )
-    elif isinstance(argcount, tuple) and not argcount[0] <= len(node.args) <= argcount[1]:
+    elif isinstance(arg_count, tuple) and not arg_count[0] <= len(node.args) <= arg_count[1]:
         raise StructureException(
             f"Invalid argument count: expected between "
-            f"{argcount[0]} and {argcount[1]}, got {len(node.args)}",
+            f"{arg_count[0]} and {arg_count[1]}, got {len(node.args)}",
             node
         )
 
@@ -60,7 +77,9 @@ def check_call_args(
         if key.arg is None:
             raise StructureException("Use of **kwargs is not supported", key.value)
         if key.arg not in kwargs:
-            raise
+            raise StructureException("Invalid keyword argument", key)
+        if isinstance(arg_count, tuple) and kwargs.index(key.arg) < len(node.args)-arg_count[0]:
+            raise StructureException(f"'{key.arg}' was already given as a positional argument", key)
 
 
 def get_leftmost_id(node: vy_ast.VyperNode) -> str:

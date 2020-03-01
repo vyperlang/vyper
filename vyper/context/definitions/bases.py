@@ -21,7 +21,7 @@ class BaseDefinition:
 
 class FunctionDefinition(BaseDefinition):
 
-    __slots__ = ("return_var", "arguments", "arg_count")
+    __slots__ = ("return_var", "arguments", "arg_count", "kwarg_keys")
 
     def __init__(
         self,
@@ -35,15 +35,23 @@ class FunctionDefinition(BaseDefinition):
         self.arguments = arguments
         self.arg_count = arg_count
         self.return_var = return_var
+        self.kwarg_keys = None
+        if isinstance(arg_count, tuple):
+            self.kwarg_keys = list(self.arguments)[self.arg_count[0]:]
 
     def validate_call(self, node: vy_ast.Call):
-        check_call_args(node, self.arg_count)
+        check_call_args(node, self.arg_count, self.kwarg_keys)
         for arg, key in zip(node.args, self.arguments):
-            given_type = get_type_from_node(self.namespace, arg)
-            if hasattr(self.arguments[key], 'type'):
-                expected_type = self.arguments[key].type
-            else:
-                expected_type = self.arguments[key]
-            # TODO better exception, give the name of the argument
-            compare_types(expected_type, given_type, arg)
+            self._compare_argument(key, arg)
+        for kwarg in node.keywords:
+            self._compare_argument(kwarg.arg, kwarg.value)
         return self.return_var
+
+    def _compare_argument(self, key, arg_node):
+        given_type = get_type_from_node(self.namespace, arg_node)
+        if hasattr(self.arguments[key], 'type'):
+            expected_type = self.arguments[key].type
+        else:
+            expected_type = self.arguments[key]
+        # TODO better exception, give the name of the argument
+        compare_types(given_type, expected_type, arg_node)
