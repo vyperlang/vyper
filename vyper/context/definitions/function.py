@@ -14,6 +14,7 @@ from vyper.context.definitions.bases import (
 from vyper.context.definitions.variable import (
     Variable,
     get_variable_from_nodes,
+    get_value_from_node,
 )
 from vyper.context.types import (
     compare_types,
@@ -48,6 +49,11 @@ def get_function_from_node(namespace, node: vy_ast.FunctionDef, visibility: Opti
     for arg, value in zip(node.args.args, defaults):
         if arg.arg in namespace or arg.arg in arguments:
             raise StructureException("Namespace collision", arg)
+        if value is not None and not isinstance(value, vy_ast.Constant):
+            literal = get_value_from_node(namespace, value).literal_value()
+            if literal is None or (isinstance(literal, list) and None in literal):
+                raise StructureException("Default value must be literal or constant", value)
+
         var = get_variable_from_nodes(namespace, arg.arg, arg.annotation, value)
         arguments[arg.arg] = var
 

@@ -118,22 +118,15 @@ class Variable(BaseDefinition):
         """
         Returns the literal assignment value for this variable.
 
-        TODO
-         - what if it fails? should raise something other than AttributeError
-         - there should be a way to gracefully fall back to value if unavailable
+        If the initial value was not set, this method will return None. If
+        the variable type is an array, the returned value will be an array.
         """
         value = self.value
-        if isinstance(value, Variable):
-            return value.literal_value
-        if isinstance(value, list):
-            values = []
-            for item in value:
-                if isinstance(item, Variable):
-                    values.append(item.literal_value)
-                else:
-                    values.append(item)
-            return values
-        return value
+        while isinstance(value, Variable):
+            value = value.literal_value()
+        if not isinstance(value, list):
+            return value
+        return [i.literal_value() if isinstance(i, Variable) else i for i in value]
 
     def __repr__(self):
         if not hasattr(self, 'value') or self.value is None:
