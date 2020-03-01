@@ -136,6 +136,7 @@ class NumericType(ValueType):
 
     __slots__ = ('unit',)
     _as_array = True
+    is_numeric = True
 
     def __init__(self, namespace, unit=None):
         self.unit = None
@@ -301,6 +302,10 @@ class UnionType(set):
         if len(self) == 1:
             return str(next(iter(self)))
         return f"{{{', '.join([str(i) for i in self])}}}"
+
+    @property
+    def is_numeric(self):
+        return all(hasattr(i, 'is_numeric') for i in self)
 
     def compare_type(self, other):
         if not isinstance(other, UnionType):

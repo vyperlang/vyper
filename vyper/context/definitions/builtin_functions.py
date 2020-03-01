@@ -35,7 +35,6 @@ from vyper.exceptions import (
 
 # convert
 # raw_call
-# bitwise_and, bitwise_or, bitwise_xor, bitwise_not, shift, min, max
 
 # assert, raise
 
@@ -53,7 +52,7 @@ class SimpleBuiltinDefinition(FunctionDefinition, BuiltinFunctionDefinition):
         for name, types in self._inputs:
             arguments[name] = get_builtin_type(namespace, types)
         return_type = get_builtin_type(namespace, self._return_type) if self._return_type else None
-        return_var = Variable(namespace, "", return_type)
+        return_var = Variable(namespace, f"{self._id}_return", return_type)
         FunctionDefinition.__init__(
             self, namespace, self._id, arguments, len(arguments), return_var
         )
@@ -228,6 +227,67 @@ class Slice(SimpleBuiltinDefinition):
             return_type = get_builtin_type(self.namespace, ("string", return_length))
 
         return Variable(self.namespace, "slice_return", return_type)
+
+
+class BitwiseAnd(SimpleBuiltinDefinition):
+
+    _id = "bitwise_and"
+    _inputs = [("x", "uint256"), ("y", "uint256")]
+    _return_type = "uint256"
+
+
+class BitwiseNot(SimpleBuiltinDefinition):
+
+    _id = "bitwise_not"
+    _inputs = [("x", "uint256"), ("y", "uint256")]
+    _return_type = "uint256"
+
+
+class BitwiseOr(SimpleBuiltinDefinition):
+
+    _id = "bitwise_or"
+    _inputs = [("x", "uint256"), ("y", "uint256")]
+    _return_type = "uint256"
+
+
+class BitwiseXor(SimpleBuiltinDefinition):
+
+    _id = "bitwise_xor"
+    _inputs = [("x", "uint256"), ("y", "uint256")]
+    _return_type = "uint256"
+
+
+class Shift(SimpleBuiltinDefinition):
+
+    _id = "shift"
+    _inputs = [("x", "uint256"), ("_shift", "int128")]
+    _return_type = "uint256"
+
+
+class Min(BuiltinFunctionDefinition):
+
+    _id = "min"
+
+    def validate_call(self, node: vy_ast.Call):
+        check_call_args(node, 2)
+        left, right = (get_type_from_node(self.namespace, i) for i in node.args)
+        if not hasattr(left, 'is_numeric'):
+            raise StructureException("Can only calculate min on numeric types", node)
+        compare_types(left, right, node)
+        return Variable(self.namespace, "min_return", left)
+
+
+class Max(BuiltinFunctionDefinition):
+
+    _id = "max"
+
+    def validate_call(self, node: vy_ast.Call):
+        check_call_args(node, 2)
+        left, right = (get_type_from_node(self.namespace, i) for i in node.args)
+        if not hasattr(left, 'is_numeric'):
+            raise StructureException("Can only calculate min on numeric types", node)
+        compare_types(left, right, node)
+        return Variable(self.namespace, "min_return", left)
 
 
 class Clear(BuiltinFunctionDefinition):
