@@ -43,7 +43,7 @@ ENVIRONMENT_VARS = {
         "timestamp": "uint256",
     },
     "chain": {"id": "uint256"},
-    "msg": {
+    "msg": {  # TODO block msg.sender and msg.value in private methods
         "gas": "uint256",
         "sender": "address",
         "value": ("uint256", "wei"),

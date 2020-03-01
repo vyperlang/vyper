@@ -77,9 +77,9 @@ def check_call_args(
         if key.arg is None:
             raise StructureException("Use of **kwargs is not supported", key.value)
         if key.arg not in kwargs:
-            raise StructureException("Invalid keyword argument", key)
+            raise StructureException("Invalid keyword argument '{key.arg}'", key)
         if isinstance(arg_count, tuple) and kwargs.index(key.arg) < len(node.args)-arg_count[0]:
-            raise StructureException(f"'{key.arg}' was already given as a positional argument", key)
+            raise StructureException(f"'{key.arg}' was given as a positional argument", key)
 
 
 def get_leftmost_id(node: vy_ast.VyperNode) -> str:
@@ -88,7 +88,7 @@ def get_leftmost_id(node: vy_ast.VyperNode) -> str:
 
 def get_index_value(namespace, node):
     if not isinstance(node, vy_ast.Index):
-        raise
+        raise StructureException("Type is missing an index value", node)
 
     if isinstance(node.value, vy_ast.Int):
         return node.value.value

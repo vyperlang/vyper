@@ -234,7 +234,7 @@ class ArrayValueType(ValueType):
     def from_annotation(cls, namespace, node):
         if len(node.get_all_children({'ast_type': "Subscript"}, include_self=True)) > 1:
             raise StructureException("Multidimensional arrays are not supported", node)
-        length = get_index_value(namespace, node.get('slice'))
+        length = get_index_value(namespace, node.get('slice') or node)
         if length <= 0:
             raise InvalidLiteralException("Slice must be greater than 0", node.slice)
 

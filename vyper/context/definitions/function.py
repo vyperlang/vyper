@@ -13,8 +13,8 @@ from vyper.context.definitions.bases import (
 )
 from vyper.context.definitions.variable import (
     Variable,
-    get_variable_from_nodes,
     get_value_from_node,
+    get_variable_from_nodes,
 )
 from vyper.context.types import (
     compare_types,

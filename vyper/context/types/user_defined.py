@@ -118,6 +118,7 @@ class InterfaceMetaType(_BaseMetaType):
 
         return InterfaceType(namespace, node.name, members)
 
+    # TODO value and gas kwargs
     def _get_class_functions(self, namespace, base_node):
         functions = OrderedDict()
         for node in base_node.body:
