@@ -34,8 +34,6 @@ from vyper.exceptions import (
 )
 
 # convert
-# raw_call
-
 # assert, raise
 
 
@@ -53,9 +51,8 @@ class SimpleBuiltinDefinition(FunctionDefinition, BuiltinFunctionDefinition):
             arguments[name] = get_builtin_type(namespace, types)
         return_type = get_builtin_type(namespace, self._return_type) if self._return_type else None
         return_var = Variable(namespace, f"{self._id}_return", return_type)
-        FunctionDefinition.__init__(
-            self, namespace, self._id, arguments, len(arguments), return_var
-        )
+        arg_count = getattr(self, '_arg_count', len(arguments))
+        FunctionDefinition.__init__(self, namespace, self._id, arguments, arg_count, return_var)
 
 
 class Floor(SimpleBuiltinDefinition):
@@ -146,6 +143,7 @@ class CreateForwarder(SimpleBuiltinDefinition):
 
     _id = "create_forwarder_to"
     _inputs = [("target", "address"), ("value", ("uint256", "wei"))]
+    _arg_count = (1, 2)
     _return_type = "address"
 
 
@@ -168,6 +166,41 @@ class Sha256(SimpleBuiltinDefinition):
     _id = "sha256"
     _inputs = [("value", {"string", "bytes", "bytes32"})]
     _return_type = "bytes32"
+
+
+class BitwiseAnd(SimpleBuiltinDefinition):
+
+    _id = "bitwise_and"
+    _inputs = [("x", "uint256"), ("y", "uint256")]
+    _return_type = "uint256"
+
+
+class BitwiseNot(SimpleBuiltinDefinition):
+
+    _id = "bitwise_not"
+    _inputs = [("x", "uint256"), ("y", "uint256")]
+    _return_type = "uint256"
+
+
+class BitwiseOr(SimpleBuiltinDefinition):
+
+    _id = "bitwise_or"
+    _inputs = [("x", "uint256"), ("y", "uint256")]
+    _return_type = "uint256"
+
+
+class BitwiseXor(SimpleBuiltinDefinition):
+
+    _id = "bitwise_xor"
+    _inputs = [("x", "uint256"), ("y", "uint256")]
+    _return_type = "uint256"
+
+
+class Shift(SimpleBuiltinDefinition):
+
+    _id = "shift"
+    _inputs = [("x", "uint256"), ("_shift", "int128")]
+    _return_type = "uint256"
 
 
 class AsWeiValue(SimpleBuiltinDefinition):
@@ -229,39 +262,27 @@ class Slice(SimpleBuiltinDefinition):
         return Variable(self.namespace, "slice_return", return_type)
 
 
-class BitwiseAnd(SimpleBuiltinDefinition):
+class RawCall(SimpleBuiltinDefinition):
 
-    _id = "bitwise_and"
-    _inputs = [("x", "uint256"), ("y", "uint256")]
-    _return_type = "uint256"
+    _id = "raw_call"
+    _inputs = [
+        ("to", "address"),
+        ("data", "bytes"),
+        ("outsize", {"int128", "uint256"}),
+        ("gas", "uint256"),
+        ("value", ("uint256", "wei")),
+        ("is_delegate_call", "bool")
+    ]
+    _arg_count = (4, 6)
+    _return_type = "bytes"
 
-
-class BitwiseNot(SimpleBuiltinDefinition):
-
-    _id = "bitwise_not"
-    _inputs = [("x", "uint256"), ("y", "uint256")]
-    _return_type = "uint256"
-
-
-class BitwiseOr(SimpleBuiltinDefinition):
-
-    _id = "bitwise_or"
-    _inputs = [("x", "uint256"), ("y", "uint256")]
-    _return_type = "uint256"
-
-
-class BitwiseXor(SimpleBuiltinDefinition):
-
-    _id = "bitwise_xor"
-    _inputs = [("x", "uint256"), ("y", "uint256")]
-    _return_type = "uint256"
-
-
-class Shift(SimpleBuiltinDefinition):
-
-    _id = "shift"
-    _inputs = [("x", "uint256"), ("_shift", "int128")]
-    _return_type = "uint256"
+    def validate_call(self, node: vy_ast.Call):
+        var = super().validate_call(node)
+        min_length = get_value_from_node(self.namespace, node.args[2])
+        if isinstance(min_length, Variable):
+            min_length = min_length.literal_value()
+        var.type.min_length = min_length
+        return var
 
 
 class Min(BuiltinFunctionDefinition):
