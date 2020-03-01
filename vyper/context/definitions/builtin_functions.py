@@ -34,7 +34,7 @@ from vyper.exceptions import (
 )
 
 # convert
-# keccack256, sha256, raw_call, raw_log
+# keccack256, sha256, raw_call
 # bitwise_and, bitwise_or, bitwise_xor, bitwise_not, shift, min, max
 
 # assert, raise
@@ -295,3 +295,24 @@ class Extract32(BuiltinFunctionDefinition):
             return_type = get_builtin_type(self.namespace, "bytes32")
 
         return Variable(self.namespace, "extract32_return", return_type)
+
+
+class RawLog(BuiltinFunctionDefinition):
+
+    _id = "raw_log"
+
+    def validate_call(self, node: vy_ast.Call):
+        check_call_args(node, 2)
+        if not isinstance(node.args[0], vy_ast.List) or len(node.args[0].elts) > 4:
+            raise StructureException(
+                "Expecting a list of 0-4 topics as first argument", node.args[0].elts[4]
+            )
+        if node.args[0].elts:
+            log_type = get_type_from_node(self.namespace, node.args[0])
+            compare_types(log_type[0], self.namespace['bytes32'], node.args[0])
+        compare_types(
+            get_type_from_node(self.namespace, node.args[1]),
+            self.namespace['bytes'],
+            node.args[1]
+        )
+        return None
