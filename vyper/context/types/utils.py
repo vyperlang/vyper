@@ -85,6 +85,8 @@ def get_builtin_type(namespace, type_definition: Union[str, Tuple, List]):
     """
     if isinstance(type_definition, list):
         return [get_builtin_type(namespace, i) for i in type_definition]
+    if isinstance(type_definition, set):
+        return bases.UnionType(get_builtin_type(namespace, i) for i in type_definition)
     if isinstance(type_definition, tuple):
         return type(namespace[type_definition[0]])(namespace, *type_definition[1:])
     return type(namespace[type_definition])(namespace)

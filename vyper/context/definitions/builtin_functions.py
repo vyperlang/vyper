@@ -15,13 +15,13 @@ from vyper.context.definitions.utils import (
 from vyper.context.definitions.variable import (
     Variable,
 )
-from vyper.context.types import (  # compare_types,
+from vyper.context.types import (
+    compare_types,
     get_builtin_type,
     get_type_from_annotation,
     get_type_from_node,
 )
 from vyper.context.types.bases import (
-    ArrayValueType,
     BytesType,
     ValueType,
 )
@@ -34,7 +34,8 @@ from vyper.exceptions import (
 )
 
 # convert
-# keccack256, sha256, extract32, raw_call, raw_log
+# keccack256, sha256, raw_call, raw_log
+# bitwise_and, bitwise_or, bitwise_xor, bitwise_not, shift, min, max
 
 # assert, raise
 
@@ -188,6 +189,33 @@ class AsWeiValue(SimpleBuiltinDefinition):
         return super().validate_call(node)
 
 
+class Slice(SimpleBuiltinDefinition):
+
+    _id = "slice"
+    _inputs = [("b", {'bytes', 'bytes32', 'string'}), ('start', 'int128'), ('length', 'int128')]
+    _return_type = None
+
+    def validate_call(self, node: vy_ast.Call):
+        super().validate_call(node)
+
+        start, length = (get_value_from_node(self.namespace, i) for i in node.args[1:])
+        if not isinstance(start, int) or start < 0:
+            raise StructureException("Start must be a positive literal integer ", node.args[1])
+        if not isinstance(length, int) or length < 1:
+            raise StructureException(
+                "Length must be a literal integer greater than zero", node.args[2]
+            )
+
+        input_type = get_type_from_node(self.namespace, node.args[0])
+        return_length = length - start
+        if isinstance(input_type, BytesType):
+            return_type = get_builtin_type(self.namespace, ("bytes", return_length))
+        else:
+            return_type = get_builtin_type(self.namespace, ("string", return_length))
+
+        return Variable(self.namespace, "slice_return", return_type)
+
+
 class Clear(BuiltinFunctionDefinition):
 
     _id = "clear"
@@ -212,31 +240,6 @@ class AsUnitlessNumber(BuiltinFunctionDefinition):
         typ = type(value.type)(self.namespace)
         del typ.unit
         return Variable(self.namespace, "unitless_return", typ)
-
-
-class Slice(BuiltinFunctionDefinition):
-
-    _id = "slice"
-
-    def validate_call(self, node: vy_ast.Call):
-        check_call_args(node, 3)
-        input_type = get_type_from_node(self.namespace, node.args[0])
-        if not isinstance(input_type, (ArrayValueType, BytesType)):
-            raise StructureException("Value to slice must be string or bytes", node.args[0])
-        start, length = (get_value_from_node(self.namespace, i) for i in node.args[1:])
-        if not isinstance(start, int) or start < 0:
-            raise StructureException("Start must be a positive literal integer ", node.args[1])
-        if not isinstance(length, int) or length < 1:
-            raise StructureException(
-                "Length must be a literal integer greater than zero", node.args[2]
-            )
-
-        return_length = length - start
-        if isinstance(input_type, BytesType):
-            return_type = get_builtin_type(self.namespace, ("bytes", return_length))
-        else:
-            return_type = get_builtin_type(self.namespace, ("string", return_length))
-        return Variable(self.namespace, "slice_return", return_type)
 
 
 class Concat(BuiltinFunctionDefinition):
@@ -269,3 +272,26 @@ class MethodID(BuiltinFunctionDefinition):
         if not isinstance(return_type, BytesType) or return_type.length not in (4, 32):
             raise StructureException("return type must be bytes32 or bytes[4]", node.args[1])
         return Variable(self.namespace, "method_id_return", return_type)
+
+
+class Extract32(BuiltinFunctionDefinition):
+
+    _id = "extract32"
+
+    def validate_call(self, node: vy_ast.Call):
+        check_call_args(node, (2, 3))
+        target, length = (get_type_from_node(self.namespace, i) for i in node.args[:2])
+
+        compare_types(target, self.namespace['bytes'], node.args[0])
+        compare_types(length, self.namespace['int128'], node.args[1])
+
+        # TODO union type, default types, any type?
+        if len(node.args) == 3:
+            return_type = get_type_from_annotation(self.namespace, node.args[2])
+            if return_type._id not in ("bytes32", "int128", "address"):
+                raise StructureException()
+
+        else:
+            return_type = get_builtin_type(self.namespace, "bytes32")
+
+        return Variable(self.namespace, "extract32_return", return_type)
