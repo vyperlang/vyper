@@ -6,6 +6,9 @@ from typing import (
 from vyper import (
     ast as vy_ast,
 )
+from vyper.context import (
+    namespace,
+)
 from vyper.context.types import (
     bases,
 )
@@ -86,7 +89,7 @@ def get_leftmost_id(node: vy_ast.VyperNode) -> str:
     return next(i.id for i in node.get_all_children({'ast_type': 'Name'}, True))
 
 
-def get_index_value(namespace, node):
+def get_index_value(node):
     if not isinstance(node, vy_ast.Index):
         raise StructureException("Type is missing an index value", node)
 

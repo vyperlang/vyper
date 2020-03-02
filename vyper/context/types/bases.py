@@ -5,6 +5,9 @@ from collections import (
 from vyper import (
     ast as vy_ast,
 )
+from vyper.context import (
+    namespace,
+)
 from vyper.context.types.units import (
     Unit,
 )
@@ -62,15 +65,12 @@ class BaseType:
 
     Object attributes
     -----------------
-    node : VyperNode
-        The vyper AST node associated with the specific type definition.
-    namespace : Namespace
-        The namespace object that this type exists within.
+    TODO
     """
-    __slots__ = ('namespace', 'is_literal')
+    __slots__ = ('is_literal',)
 
-    def __init__(self, namespace):
-        self.namespace = namespace
+    def __init__(self):
+        pass
 
     def set_unit(self, unit_str):
         raise StructureException(f"Type {self} does not support units")
@@ -109,8 +109,8 @@ class ValueType(BaseType):
         return self._id
 
     @classmethod
-    def from_annotation(cls, namespace, node):
-        self = cls(namespace)
+    def from_annotation(cls, node):
+        self = cls()
         names = [i.id for i in node.get_all_children({'ast_type': 'Name'}, True)][1:]
         if len(names) > 1:
             raise StructureException("Invalid type assignment", node)
@@ -122,12 +122,12 @@ class ValueType(BaseType):
         return self
 
     @classmethod
-    def from_literal(cls, namespace, node):
+    def from_literal(cls, node):
         if not isinstance(node, vy_ast.Constant):
             raise CompilerPanic(f"Attempted to validate a '{node.ast_type}' node.")
         if not isinstance(node, cls._valid_literal):
             raise InvalidTypeException(f"Invalid literal type for '{cls}'", node)
-        return cls(namespace)
+        return cls()
 
 
 class NumericType(ValueType):
@@ -138,14 +138,14 @@ class NumericType(ValueType):
     _as_array = True
     is_numeric = True
 
-    def __init__(self, namespace, unit=None):
+    def __init__(self, unit=None):
         self.unit = None
-        super().__init__(namespace)
+        super().__init__()
         if unit:
             self.set_unit(unit)
 
     def set_unit(self, unit_str):
-        self.unit = self.namespace[unit_str]
+        self.unit = namespace[unit_str]
         if not isinstance(self.unit, Unit):
             raise StructureException(f"{unit_str} is not a valid unit type")
 
@@ -169,9 +169,9 @@ class NumericType(ValueType):
             )
 
     @classmethod
-    def from_literal(cls, namespace, node):
+    def from_literal(cls, node):
         # TODO do this in a less hacky way
-        self = super().from_literal(namespace, node)
+        self = super().from_literal(node)
         del self.unit
         return self
 
@@ -206,8 +206,8 @@ class ArrayValueType(ValueType):
     def __str__(self):
         return f"{self._id}[{self.length}]"
 
-    def __init__(self, namespace, length=0):
-        super().__init__(namespace)
+    def __init__(self, length: int = 0):
+        super().__init__()
         self.length = length
         self.min_length = length
 
@@ -231,18 +231,18 @@ class ArrayValueType(ValueType):
         return other.compare_type(self)
 
     @classmethod
-    def from_annotation(cls, namespace, node):
+    def from_annotation(cls, node):
         if len(node.get_all_children({'ast_type': "Subscript"}, include_self=True)) > 1:
             raise StructureException("Multidimensional arrays are not supported", node)
-        length = get_index_value(namespace, node.get('slice') or node)
+        length = get_index_value(node.get('slice') or node)
         if length <= 0:
             raise InvalidLiteralException("Slice must be greater than 0", node.slice)
 
-        return cls(namespace, length)
+        return cls(length)
 
     @classmethod
-    def from_literal(cls, namespace, node):
-        self = super().from_literal(namespace, node)
+    def from_literal(cls, node):
+        self = super().from_literal(node)
         self.min_length = len(node.value) or 1
         return self
 
@@ -260,8 +260,8 @@ class MemberType(BaseType):
 
     __slots__ = ('_id', 'members',)
 
-    def __init__(self, namespace):
-        super().__init__(namespace)
+    def __init__(self):
+        super().__init__()
         self.members = OrderedDict()
 
     def add_member_types(self, **members):
@@ -290,8 +290,8 @@ class EnvironmentVariableType(MemberType):
     def __str__(self):
         return "environment variable"
 
-    def __init__(self, namespace, _id, members):
-        super().__init__(namespace)
+    def __init__(self, _id, members):
+        super().__init__()
         self._id = _id
         self.add_member_types(**members)
 

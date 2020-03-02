@@ -5,6 +5,9 @@ from collections import (
 from vyper import (
     ast as vy_ast,
 )
+from vyper.context import (
+    namespace,
+)
 from vyper.context.definitions import (
     Variable,
     get_function_from_node,
@@ -39,16 +42,11 @@ class _BaseMetaType:
     ----------------
     _id : str
         The name that this object is assigned within the namespace.
-
-    Object Attributes
-    -----------------
-    namespace : Namespace
-        The namespace object that this object exists within.
     """
-    __slots__ = ('namespace',)
+    __slots__ = ()
 
-    def __init__(self, namespace):
-        self.namespace = namespace
+    def __init__(self):
+        pass
 
 
 class StructMetaType(_BaseMetaType):
@@ -58,7 +56,7 @@ class StructMetaType(_BaseMetaType):
     __slots__ = ()
     _id = "struct"
 
-    def get_type(self, namespace, base_node):
+    def get_type(self, base_node):
         members = OrderedDict()
         for node in base_node.body:
             if not isinstance(node, vy_ast.AnnAssign):
@@ -70,21 +68,21 @@ class StructMetaType(_BaseMetaType):
                 raise StructureException(
                     f"Struct member '{member_name}'' has already been declared", node.target
                 )
-            members[member_name] = get_type_from_annotation(namespace, node.annotation)
-        return StructType(namespace, base_node.name, members)
+            members[member_name] = get_type_from_annotation(node.annotation)
+        return StructType(base_node.name, members)
 
 
 class StructType(MemberType):
 
     __slots__ = ()
 
-    def __init__(self, namespace, _id, members):
-        super().__init__(namespace)
+    def __init__(self, _id, members):
+        super().__init__()
         self._id = _id
         self.add_member_types(**members)
 
-    def from_annotation(self, namespace, node):
-        return type(self)(namespace, self._id, self.members)
+    def from_annotation(self, node):
+        return type(self)(self._id, self.members)
 
     def validate_call(self, node: vy_ast.Call):
         check_call_args(node, 1)
@@ -93,9 +91,9 @@ class StructType(MemberType):
         for key, value in zip(node.args[0].keys, node.args[0].values):
             if key is None or key.get('id') not in self.members:
                 raise StructureException("Unknown struct member", value)
-            value_type = get_type_from_node(self.namespace, value)
+            value_type = get_type_from_node(value)
             compare_types(self.members[key.id], value_type, key)
-        return Variable(self.namespace, self._id, self)
+        return Variable(self._id, self)
 
 
 class InterfaceMetaType(_BaseMetaType):
@@ -105,33 +103,33 @@ class InterfaceMetaType(_BaseMetaType):
     __slots__ = ()
     _id = "contract"
 
-    def get_type(self, namespace, node):
+    def get_type(self, node):
         if isinstance(node, vy_ast.Module):
-            members = self._get_module_functions(namespace, node)
+            members = self._get_module_functions(node)
         elif isinstance(node, vy_ast.ClassDef):
-            members = self._get_class_functions(namespace, node)
+            members = self._get_class_functions(node)
         else:
             raise
         for func in members.values():
             if func.name in namespace:
                 raise StructureException("Namespace collision", func.node)
 
-        return InterfaceType(namespace, node.name, members)
+        return InterfaceType(node.name, members)
 
     # TODO value and gas kwargs
-    def _get_class_functions(self, namespace, base_node):
+    def _get_class_functions(self, base_node):
         functions = OrderedDict()
         for node in base_node.body:
             if not isinstance(node, vy_ast.FunctionDef):
                 raise StructureException("Interfaces can only contain function definitions", node)
-            functions[node.name] = get_function_from_node(namespace, node, "public")
+            functions[node.name] = get_function_from_node(node, "public")
         return functions
 
-    def _get_module_functions(self, namespace, base_node):
+    def _get_module_functions(self, base_node):
         functions = OrderedDict()
         for node in base_node.get_children({'ast_type': "FunctionDef"}):
             if "public" in node.decorator_list:
-                functions[node.name] = get_function_from_node(namespace, node)
+                functions[node.name] = get_function_from_node(node)
         return functions
 
 
@@ -149,12 +147,12 @@ class InterfaceType(MemberType):
     __slots__ = ('address',)
     _as_array = True
 
-    def __init__(self, namespace, _id, members):
-        super().__init__(namespace)
+    def __init__(self, _id, members):
+        super().__init__()
         self._id = _id
         self.add_member_types(**members)
 
-    def validate_implements(self, namespace, node):
+    def validate_implements(self, node):
 
         unimplemented = [
             i.name for i in self.members.values() if namespace['self'].members[i.name] != i
@@ -165,11 +163,11 @@ class InterfaceType(MemberType):
                 node
             )
 
-    def from_annotation(self, namespace, node):
-        return type(self)(namespace, self._id, self.members)
+    def from_annotation(self, node):
+        return type(self)(self._id, self.members)
 
     def validate_call(self, node):
         check_call_args(node, 1)
-        value = get_type_from_node(self.namespace, node.args[0])
-        compare_types(value, self.namespace['address'], node.args[0])
-        return Variable(self.namespace, self._id, self)
+        value = get_type_from_node(node.args[0])
+        compare_types(value, namespace['address'], node.args[0])
+        return Variable(self._id, self)

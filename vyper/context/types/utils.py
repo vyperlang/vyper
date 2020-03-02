@@ -7,6 +7,9 @@ from typing import (
 from vyper import (
     ast as vy_ast,
 )
+from vyper.context import (
+    namespace,
+)
 from vyper.context.definitions.utils import (
     get_value_from_node,
 )
@@ -73,7 +76,7 @@ def compare_types(left, right, node):
         )
 
 
-def get_builtin_type(namespace, type_definition: Union[str, Tuple, List]):
+def get_builtin_type(type_definition: Union[str, Tuple, List]):
     """
     Given a type definition, returns a type or list of types.
 
@@ -84,15 +87,15 @@ def get_builtin_type(namespace, type_definition: Union[str, Tuple, List]):
         list - Each item should be a string or tuple defining a single type.
     """
     if isinstance(type_definition, list):
-        return [get_builtin_type(namespace, i) for i in type_definition]
+        return [get_builtin_type(i) for i in type_definition]
     if isinstance(type_definition, set):
-        return bases.UnionType(get_builtin_type(namespace, i) for i in type_definition)
+        return bases.UnionType(get_builtin_type(i) for i in type_definition)
     if isinstance(type_definition, tuple):
-        return type(namespace[type_definition[0]])(namespace, *type_definition[1:])
-    return type(namespace[type_definition])(namespace)
+        return type(namespace[type_definition[0]])(*type_definition[1:])
+    return type(namespace[type_definition])()
 
 
-def get_type_from_annotation(namespace, node):
+def get_type_from_annotation(node):
     """
     Returns a type class for the given node.
 
@@ -114,39 +117,39 @@ def get_type_from_annotation(namespace, node):
     type_obj = namespace[type_name]
 
     if getattr(type_obj, '_as_array', False) and isinstance(node, vy_ast.Subscript):
-        length = get_index_value(namespace, node.slice)
-        return [type_obj.from_annotation(namespace, node.value)] * length
+        length = get_index_value(node.slice)
+        return [type_obj.from_annotation(node.value)] * length
     else:
-        return type_obj.from_annotation(namespace, node)
+        return type_obj.from_annotation(node)
 
 
-def get_type_from_node(namespace, node):
+def get_type_from_node(node):
     """
     Returns the type value of a node.
     """
     if isinstance(node, vy_ast.Tuple):
-        return tuple(get_type_from_node(namespace, i) for i in node.elts)
+        return tuple(get_type_from_node(i) for i in node.elts)
     if isinstance(node, (vy_ast.List)):
         if not node.elts:
             return []
-        values = [get_type_from_node(namespace, i) for i in node.elts]
+        values = [get_type_from_node(i) for i in node.elts]
         for i in values[1:]:
             compare_types(values[0], i, node)
         return values
 
     if isinstance(node, vy_ast.Constant):
-        return _get_type_from_literal(namespace, node)
+        return _get_type_from_literal(node)
 
     if isinstance(node, (vy_ast.Op, vy_ast.Compare)):
-        return get_type_from_operation(namespace, node)
+        return get_type_from_operation(node)
 
-    var = get_value_from_node(namespace, node)
+    var = get_value_from_node(node)
     if var is None:
         raise StructureException(f"{node.ast_type} did not return a value", node)
     return var.type
 
 
-def _get_type_from_literal(namespace, node: vy_ast.Constant):
+def _get_type_from_literal(node: vy_ast.Constant):
     base_types = [
         i for i in namespace.values() if
         hasattr(i, '_id') and hasattr(i, '_valid_literal')
@@ -154,7 +157,7 @@ def _get_type_from_literal(namespace, node: vy_ast.Constant):
     valid_types = bases.UnionType()
     for typ in base_types:
         try:
-            valid_types.add(typ.from_literal(namespace, node))
+            valid_types.add(typ.from_literal(node))
         # TODO catch specific exception, raise others (useful for e.g. address checksum fail)
         except Exception:
             continue
@@ -168,34 +171,34 @@ def _get_type_from_literal(namespace, node: vy_ast.Constant):
     return valid_types
 
 
-def get_type_from_operation(namespace, node):
+def get_type_from_operation(node):
     if isinstance(node, vy_ast.UnaryOp):
-        return _get_unary_op(namespace, node)
+        return _get_unary_op(node)
     if isinstance(node, vy_ast.BinOp):
-        return _get_binop(namespace, node)
+        return _get_binop(node)
     elif isinstance(node, vy_ast.BoolOp):
-        return _get_boolean_op(namespace, node)
+        return _get_boolean_op(node)
     elif isinstance(node, vy_ast.Compare):
-        return _get_comparator(namespace, node)
+        return _get_comparator(node)
 
 
-def _get_unary_op(namespace, node):
-    node_type = get_type_from_node(namespace, node.operand)
+def _get_unary_op(node):
+    node_type = get_type_from_node(node.operand)
     node_type.validate_numeric_op(node)
     return node_type
 
 
 # x and y, x or y
-def _get_boolean_op(namespace, node):
-    node_types = (get_type_from_node(namespace, i) for i in node.values)
+def _get_boolean_op(node):
+    node_types = (get_type_from_node(i) for i in node.values)
     node_types[0].validate_boolean_op(node)
     for typ in node_types[1:]:
         compare_types(node_types[0], typ, node)
     return node_types[0]
 
 
-def _get_binop(namespace, node):
-    left, right = (get_type_from_node(namespace, i) for i in (node.left, node.right))
+def _get_binop(node):
+    left, right = (get_type_from_node(i) for i in (node.left, node.right))
     compare_types(left, right, node)
     left.validate_numeric_op(node)
     if isinstance(left, set) and len(left) == 1:
@@ -203,10 +206,10 @@ def _get_binop(namespace, node):
     return left
 
 
-def _get_comparator(namespace, node):
+def _get_comparator(node):
     if len(node.ops) != 1:
         raise StructureException("Cannot have a comparison with more than two elements", node)
-    left, right = (get_type_from_node(namespace, i) for i in (node.left, node.comparators[0]))
+    left, right = (get_type_from_node(i) for i in (node.left, node.comparators[0]))
     if isinstance(node.ops[0], vy_ast.In):
         pass
     else:
