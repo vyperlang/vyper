@@ -20,6 +20,18 @@ from vyper.exceptions import (
 
 
 def get_event_from_node(node: vy_ast.AnnAssign):
+    """
+    Generates an event definition object from an ast node.
+
+    Arguments
+    ---------
+    node : AnnAssign
+        Vyper ast node to generate the event from.
+
+    Returns
+    -------
+    Event object.
+    """
     if node.value:
         raise StructureException("Cannot assign a value to an event", node.value)
 
@@ -43,6 +55,18 @@ def get_event_from_node(node: vy_ast.AnnAssign):
 
 
 class Event(FunctionDefinition):
+    """
+    Event definition object.
+
+    Event are special functions that exiss as members of the builtin `log`
+    object.
+
+    Object attributes
+    -----------------
+    indexed : list
+        A list of booleans indicating if each argument within the event is
+        indexed.
+    """
 
     __slots__ = ("indexed",)
 

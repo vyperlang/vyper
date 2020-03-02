@@ -3,6 +3,8 @@ from collections import (
 )
 from typing import (
     Optional,
+    Tuple,
+    Union,
 )
 
 from vyper import (
@@ -34,6 +36,21 @@ from vyper.exceptions import (
 
 
 def get_function_from_node(node: vy_ast.FunctionDef, visibility: Optional[str] = None):
+    """
+    Generates a function definition object from an ast node.
+
+    Arguments
+    ---------
+    node : FunctionDef
+        Vyper ast node to generate the function definition from.
+    visibility : str, optional
+        Visibility to apply to the function. If the visibility is specified via
+        a decorator, this argument does not need to be provided.
+
+    Returns
+    -------
+    ContractFunction object.
+    """
     # decorators
     kwargs = {}
     decorators = [i.id for i in node.decorator_list]
@@ -90,15 +107,20 @@ def get_function_from_node(node: vy_ast.FunctionDef, visibility: Optional[str] =
 
 class ContractFunction(FunctionDefinition):
     """
-    TODO
+    A contract function definition.
+
+    Function objects differ from variables in that they have no `type` member.
+    Instead, functions implement the `validate_call` method, check the call
+    arguments against `arguments`, and return `return_var`.
 
     Attributes
     ----------
-    arguments : OrderedDict
-        An ordered dict of call arguments for the function.
-    return_type
-        A type object, or tuple of type objects, representing return types for
-        the function.
+    visibility : str
+        String indicating the visibility of the function (public or private).
+    is_payable : bool
+        Boolean indicating if the function is payable.
+    is_constant : bool
+        Boolean indicating if the function is constant.
     """
     # TODO @nonreentrant
     __slots__ = ("visibility", "is_constant", "is_payable")
@@ -106,10 +128,10 @@ class ContractFunction(FunctionDefinition):
     def __init__(
         self,
         name: str,
-        arguments,
-        arg_count,
+        arguments: OrderedDict,
+        arg_count: Union[Tuple[int, int], int],
         return_var,
-        visibility,
+        visibility: str,
         **kwargs,
     ):
         super().__init__(name, arguments, arg_count, return_var)
@@ -118,6 +140,7 @@ class ContractFunction(FunctionDefinition):
             setattr(self, f'is_{key}', value)
 
     def __eq__(self, other):
+        # TODO use a comparison method instead of __eq__
         if not (  # NOQA: E721
             isinstance(other, ContractFunction) and
             self.name == other.name and

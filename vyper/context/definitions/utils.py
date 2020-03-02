@@ -9,21 +9,19 @@ from vyper.exceptions import (
 )
 
 
-def get_value_from_node(node):
+def get_value_from_node(node: vy_ast.VyperNode):
     """
-    Returns the value of a node.
+    Returns a definition object for the given node.
 
     Arguments
     ---------
-    namespace : Namespace
-        The namespace that this value exists within.
+    node : VyperNode
+        AST node representing an already-defined object.
 
     Returns
     -------
-        A literal value, definition object, or sequence composed of one or both types.
-    TODO finish docs
+    A literal value, definition object, or sequence composed of one or both types.
     """
-
     if isinstance(node, vy_ast.List):
         # TODO validate that all types are like?
         return [get_value_from_node(node.elts[i]) for i in range(len(node.elts))]
@@ -54,7 +52,5 @@ def get_value_from_node(node):
         return var.validate_call(node)
 
     # TODO folding
-    # if isinstance(node, (vy_ast.BinOp, vy_ast.BoolOp, vy_ast.Compare)):
-    #     return operators.validate_operation(node)
 
     raise StructureException(f"Unsupported node type for get_value: {node.ast_type}", node)

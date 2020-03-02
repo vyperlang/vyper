@@ -36,8 +36,14 @@ from vyper.exceptions import (
     StructureException,
 )
 
+# Eventually this logic will move to vyper/functions and be refactored into
+# several modules. Until work begins integrating vyper/context into the rest
+# of the vyper package, it is difficult to envision the final implementation
+# for these classes. So they temporarily live here.  @iamdefinitelyahuman
+
+# TODO
 # convert
-# assert, raise
+# assert, raise ?
 
 
 class BuiltinFunctionDefinition(BaseDefinition):
@@ -47,7 +53,27 @@ class BuiltinFunctionDefinition(BaseDefinition):
 
 
 class SimpleBuiltinDefinition(FunctionDefinition, BuiltinFunctionDefinition):
+    """
+    Base class for builtin functions where the inputs and return types are fixed.
 
+    Builtins must define a `validate_call` method that accepts an ast Call node and
+    optionally returns a Variable object.
+
+    Class attributes
+    ----------------
+    _id : str
+        Name of the builtin function.
+    _inputs : list
+        A list of two item tuples as (name, type), corresponding to each positional
+        argument for the function.
+    _arg_count : tuple, optional
+        A two item tuple of the minimum and maximum number of allowable positional
+        arguments when calling this method. Used to make some arguments optional.
+        If not included, every argument specified in _inputs is required.
+    _return_type : str | list
+        A string or list of strings defining the return type for the function. May
+        also be None if the function does not return a value.
+    """
     def __init__(self):
         arguments = OrderedDict()
         for name, types in self._inputs:

@@ -1,3 +1,7 @@
+from typing import (
+    Optional,
+)
+
 from vyper import (
     ast as vy_ast,
 )
@@ -18,9 +22,27 @@ from vyper.exceptions import (
 )
 
 
-# only validation NOT performed is check for initial value relative to scope
-# value only exists on constants, so have to check the node!
-def get_variable_from_nodes(name, annotation, value):
+def get_variable_from_nodes(
+    name: str, annotation: vy_ast.VyperNode, value: Optional[vy_ast.VyperNode]
+):
+    """
+    Generates a variable definition object from ast nodes.
+
+    Arguments
+    ---------
+    name : str
+        Name of the variable.
+    annotation : VyperNode
+        Vyper ast node representing the type of the variable.
+    value : VyperNode | None
+        Vyper ast node representing the initial value of the variable. Can be
+        None if the variable has no initial value assigned.
+
+    Returns
+    -------
+    Variable object.
+    """
+
     kwargs = {}
 
     node = annotation
@@ -55,9 +77,35 @@ def get_variable_from_nodes(name, annotation, value):
     return var
 
 
-class Variable(BaseDefinition):
+# TODO
+# split Variable into several classes depending on the underlying type.. ?
+# a MemberVariable could make sense
 
-    # TODO docs, split into several types for members/mappings/etc
+class Variable(BaseDefinition):
+    """
+    A variable definition.
+
+    Variable objects represent the assignment of a type (or types) to a name.
+    They hold additional information about the assignment, such as whether it is
+    a constant or public. They also provide methods for interaction with the
+    underlying type.
+
+    Class attributes
+    ----------------
+    type : _BaseType | list
+        The type object represented by this variable. If the variable is an array,
+        this will be a list of types.
+    value
+        The initial value assigned to this variable. Can be a literal value, another
+        variable, a list of one or both, or None.
+    members : dict
+        A dictionary of definitions for members of this variable. Only used if
+        the underlying type is a MemberType.
+    is_constant : bool
+        Boolean indicating if the variable is a constant.
+    is_public : bool
+        Boolean indicating if the variable is public.
+    """
 
     __slots__ = ('value', 'type', 'is_constant', 'is_public', 'members')
 
@@ -75,6 +123,8 @@ class Variable(BaseDefinition):
         self.is_public = is_public
         self.value = value
         self.members = {}
+
+        # if the variable is an array, generate Variables for each item within it
         if value is None and isinstance(var_type, list):
             self.value = [
                 Variable(f"{name}[{i}]", var_type[i], None, is_constant, is_public)
