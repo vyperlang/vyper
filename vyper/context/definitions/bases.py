@@ -35,7 +35,7 @@ class FunctionDefinition(BaseDefinition):
         self.arguments = arguments
         self.arg_count = arg_count
         self.return_var = return_var
-        self.kwarg_keys = None
+        self.kwarg_keys = []
         if isinstance(arg_count, tuple):
             self.kwarg_keys = list(self.arguments)[self.arg_count[0]:]
 

@@ -18,7 +18,12 @@ from vyper.context.definitions.variable import (
 )
 from vyper.context.types import (
     compare_types,
+    get_builtin_type,
     get_type_from_annotation,
+    get_type_from_node,
+)
+from vyper.context.utils import (
+    check_call_args,
 )
 from vyper.exceptions import (
     StructureException,
@@ -47,6 +52,10 @@ def get_function_from_node(namespace, node: vy_ast.FunctionDef, visibility: Opti
     arguments = OrderedDict()
     defaults = [None] * (len(node.args.args) - len(node.args.defaults)) + node.args.defaults
     for arg, value in zip(node.args.args, defaults):
+        if arg.arg in ("gas", "value"):
+            raise StructureException(
+                f"Cannot use '{arg.arg}' as a variable name in a function input", arg
+            )
         if arg.arg in namespace or arg.arg in arguments:
             raise StructureException("Namespace collision", arg)
         if value is not None and not isinstance(value, vy_ast.Constant):
@@ -132,5 +141,22 @@ class ContractFunction(FunctionDefinition):
     def validate_call(self, node: vy_ast.Call):
         if node.get('func.value.id') == "self" and self.visibility == "public":
             raise StructureException("Can only call from public function to private function", node)
-        # TODO keywords?
-        return super().validate_call(node)
+
+        # for external calls, add gas and value as optional kwargs
+        kwarg_keys = self.kwarg_keys.copy()
+        if node.get('func.value.id') != "self":
+            kwarg_keys += ['gas', 'value']
+        check_call_args(node, self.arg_count, kwarg_keys)
+
+        for arg, key in zip(node.args, self.arguments):
+            self._compare_argument(key, arg)
+
+        for kwarg in node.keywords:
+            if kwarg.arg in ("gas", "value"):
+                given_type = get_type_from_node(self.namespace, kwarg.value)
+                expected_type = get_builtin_type(self.namespace, {"uint256", ("uint256", "wei")})
+                compare_types(given_type, expected_type, kwarg)
+            else:
+                self._compare_argument(kwarg.arg, kwarg.value)
+
+        return self.return_var

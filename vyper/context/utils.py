@@ -71,7 +71,7 @@ def check_call_args(
             node
         )
 
-    if kwargs is None and node.keywords:
+    if not kwargs and node.keywords:
         raise StructureException("Keyword arguments are not accepted here", node.keywords[0])
     for key in node.keywords:
         if key.arg is None:
