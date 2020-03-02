@@ -32,6 +32,23 @@ from vyper.exceptions import (
 )
 
 
+def validate_functions(vy_module):
+    err_msg = []
+    for node in vy_module.get_children({'ast_type': "FunctionDef"}):
+        namespace.enter_scope()
+        try:
+            FunctionNodeVisitor(node)
+        except Exception as e:
+            err_msg.append(f"{type(e).__name__}: {e}")
+        finally:
+            namespace.exit_scope()
+    if err_msg:
+        raise StructureException(
+            "Compilation failed with the following errors:\n\n" +
+            "\n\n".join(err_msg)
+        )
+
+
 class FunctionNodeVisitor(VyperNodeVisitorBase):
 
     ignored_types = (
@@ -45,13 +62,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
     def __init__(self, fn_node):
         self.fn_node = fn_node
         self.func = namespace["self"].get_member(fn_node)
-        namespace.enter_scope()
         namespace.update(self.func.arguments)
         for node in fn_node.body:
             self.visit(node)
         if self.func.return_var and not fn_node.get_children({'ast_type': "Return"}):
             raise StructureException(f"{self.func.name} is missing a return statement", fn_node)
-        namespace.exit_scope()
 
     def visit_AnnAssign(self, node):
         if not node.value:
@@ -100,7 +115,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             get_type_from_node(node.test),
             (BoolType, vy_ast.NameConstant)
         ):
-            raise
+            raise StructureException("Assertion test value must be a boolean", node.test)
 
     def visit_Delete(self, node):
         # TODO can we just block this at the AST generation stage?
@@ -146,7 +161,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if isinstance(node.iter, vy_ast.Name):
             iter_var = namespace[node.iter.id]
             if not isinstance(iter_var.type, list):
-                raise
+                raise StructureException("Value is not iterable", node.iter)
             target_type = iter_var.type[0]
 
         # iteration over a literal list
@@ -174,17 +189,21 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             elif isinstance(args[0], vy_ast.Name):
                 # range(x, x + 10)
                 if not isinstance(target_type, IntegerType):
-                    raise
+                    raise StructureException("Value is not an integer", args[0])
                 if not isinstance(args[1], vy_ast.BinOp) or not isinstance(args[1].op, vy_ast.Add):
-                    raise
+                    raise StructureException(
+                        "Second element must be the first element plus a literal value", args[0]
+                    )
                 if args[0] != args[1].left:
-                    raise
+                    raise StructureException(
+                        "First and second variable must be the same", args[1].left
+                    )
                 if not isinstance(args[1].right, vy_ast.Int):
-                    raise
+                    raise StructureException("Literal must be an integer", args[1].right)
             else:
                 # range(1, 10)
                 if args[0].value >= args[1].value:
-                    raise
+                    raise StructureException("Second value must be > first value", args[1])
                 # TODO check that args[0] + args[1] doesn't overflow
 
         else:

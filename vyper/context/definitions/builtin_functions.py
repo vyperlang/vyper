@@ -227,7 +227,9 @@ class AsWeiValue(SimpleBuiltinDefinition):
         check_call_args(node, 2)
         if not isinstance(node.args[1], vy_ast.Str):
             # TODO standard way to indicate a value must be a literal?
-            raise
+            raise StructureException(
+                "Wei denomination must be given as a literal string", node.args[1]
+            )
         denom = next((v for k, v in self.wei_denoms.items() if node.args[1].value in k), False)
         if not denom:
             raise InvalidLiteralException(

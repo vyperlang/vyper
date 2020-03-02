@@ -16,8 +16,13 @@ from vyper.context.utils import (
     VyperNodeVisitorBase,
 )
 from vyper.exceptions import (
+    StructureException,
     VariableDeclarationException,
 )
+
+
+def add_module_namespace(vy_module, interface_codes):
+    ModuleNodeVisitor(vy_module, interface_codes)
 
 
 class ModuleNodeVisitor(VyperNodeVisitorBase):
@@ -30,17 +35,18 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         module_nodes = module_node.body.copy()
         while module_nodes:
             count = len(module_nodes)
+            err_msg = []
             for node in list(module_nodes):
                 try:
                     self.visit(node)
                     module_nodes.remove(node)
                 except Exception as e:
-                    # TODO remove when you're done
-                    print(e)
-                    continue
+                    err_msg.append(f"{type(e).__name__}: {e}")
             if count == len(module_nodes):
-                # TODO be expressive here
-                raise
+                raise StructureException(
+                    "Compilation failed with the following errors:\n\n" +
+                    "\n\n".join(err_msg)
+                )
 
     def visit_AnnAssign(self, node):
         if node.get('annotation.func.id') == "event":

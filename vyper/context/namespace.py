@@ -25,6 +25,11 @@ class Namespace(dict):
             self._scopes[-1].add(attr)
         super().__setitem__(attr, obj)
 
+    def __getitem__(self, key):
+        if key not in self:
+            raise StructureException(f"Undeclared value: {key}")
+        return super().__getitem__(key)
+
     def enter_scope(self):
         self._scopes.append(set())
 
