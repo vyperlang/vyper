@@ -8,6 +8,9 @@ from typing import (
 from vyper import (
     ast as vy_ast,
 )
+from vyper.context import (
+    namespace,
+)
 from vyper.context.definitions.bases import (
     FunctionDefinition,
 )
@@ -30,7 +33,7 @@ from vyper.exceptions import (
 )
 
 
-def get_function_from_node(namespace, node: vy_ast.FunctionDef, visibility: Optional[str] = None):
+def get_function_from_node(node: vy_ast.FunctionDef, visibility: Optional[str] = None):
     # decorators
     kwargs = {}
     decorators = [i.id for i in node.decorator_list]
@@ -59,32 +62,30 @@ def get_function_from_node(namespace, node: vy_ast.FunctionDef, visibility: Opti
         if arg.arg in namespace or arg.arg in arguments:
             raise StructureException("Namespace collision", arg)
         if value is not None and not isinstance(value, vy_ast.Constant):
-            literal = get_value_from_node(namespace, value).literal_value()
+            literal = get_value_from_node(value).literal_value()
             if literal is None or (isinstance(literal, list) and None in literal):
                 raise StructureException("Default value must be literal or constant", value)
 
-        var = get_variable_from_nodes(namespace, arg.arg, arg.annotation, value)
+        var = get_variable_from_nodes(arg.arg, arg.annotation, value)
         arguments[arg.arg] = var
 
     # return types
     if node.returns is None:
         return_var = None
     elif isinstance(node.returns, vy_ast.Name):
-        return_type = get_type_from_annotation(namespace, node.returns)
-        return_var = Variable(namespace, "", return_type)
+        return_type = get_type_from_annotation(node.returns)
+        return_var = Variable("", return_type)
     elif isinstance(node.returns, vy_ast.Tuple):
         return_type = ()
         for n in node.returns.elts:
-            return_type += (get_type_from_annotation(namespace, n),)
-        return_var = Variable(namespace, "", return_type)
+            return_type += (get_type_from_annotation(n),)
+        return_var = Variable("", return_type)
     else:
         raise StructureException(
             f"Function return value must be a type name or tuple", node.returns
         )
 
-    return ContractFunction(
-        namespace, node.name, arguments, arg_count, return_var, visibility, **kwargs
-    )
+    return ContractFunction(node.name, arguments, arg_count, return_var, visibility, **kwargs)
 
 
 class ContractFunction(FunctionDefinition):
@@ -104,7 +105,6 @@ class ContractFunction(FunctionDefinition):
 
     def __init__(
         self,
-        namespace,
         name: str,
         arguments,
         arg_count,
@@ -112,7 +112,7 @@ class ContractFunction(FunctionDefinition):
         visibility,
         **kwargs,
     ):
-        super().__init__(namespace, name, arguments, arg_count, return_var)
+        super().__init__(name, arguments, arg_count, return_var)
         self.visibility = visibility
         for key, value in kwargs.items():
             setattr(self, f'is_{key}', value)
@@ -153,8 +153,8 @@ class ContractFunction(FunctionDefinition):
 
         for kwarg in node.keywords:
             if kwarg.arg in ("gas", "value"):
-                given_type = get_type_from_node(self.namespace, kwarg.value)
-                expected_type = get_builtin_type(self.namespace, {"uint256", ("uint256", "wei")})
+                given_type = get_type_from_node(kwarg.value)
+                expected_type = get_builtin_type({"uint256", ("uint256", "wei")})
                 compare_types(given_type, expected_type, kwarg)
             else:
                 self._compare_argument(kwarg.arg, kwarg.value)

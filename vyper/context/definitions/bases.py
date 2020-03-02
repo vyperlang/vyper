@@ -12,10 +12,9 @@ from vyper.context.utils import (
 
 class BaseDefinition:
 
-    __slots__ = ("namespace", "name")
+    __slots__ = ("name")
 
-    def __init__(self, namespace, name):
-        self.namespace = namespace
+    def __init__(self, name):
         self.name = name
 
 
@@ -25,13 +24,12 @@ class FunctionDefinition(BaseDefinition):
 
     def __init__(
         self,
-        namespace,
         name: str,
         arguments,  # OrderedDict that can hold variables or types
         arg_count,
         return_var,
     ):
-        BaseDefinition.__init__(self, namespace, name)
+        BaseDefinition.__init__(self, name)
         self.arguments = arguments
         self.arg_count = arg_count
         self.return_var = return_var
@@ -48,7 +46,7 @@ class FunctionDefinition(BaseDefinition):
         return self.return_var
 
     def _compare_argument(self, key, arg_node):
-        given_type = get_type_from_node(self.namespace, arg_node)
+        given_type = get_type_from_node(arg_node)
         if hasattr(self.arguments[key], 'type'):
             expected_type = self.arguments[key].type
         else:

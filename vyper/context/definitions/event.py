@@ -19,7 +19,7 @@ from vyper.exceptions import (
 )
 
 
-def get_event_from_node(namespace, node: vy_ast.AnnAssign):
+def get_event_from_node(node: vy_ast.AnnAssign):
     if node.value:
         raise StructureException("Cannot assign a value to an event", node.value)
 
@@ -38,22 +38,16 @@ def get_event_from_node(namespace, node: vy_ast.AnnAssign):
             value = value.args[0]
         else:
             indexed.append(False)
-        arguments[key] = get_type_from_annotation(namespace, value)
-    return Event(namespace, name, arguments, indexed)
+        arguments[key] = get_type_from_annotation(value)
+    return Event(name, arguments, indexed)
 
 
 class Event(FunctionDefinition):
 
     __slots__ = ("indexed",)
 
-    def __init__(
-        self,
-        namespace,
-        name: str,
-        arguments,
-        indexed,
-    ):
-        super().__init__(namespace, name, arguments, len(arguments), None)
+    def __init__(self, name: str, arguments, indexed):
+        super().__init__(name, arguments, len(arguments), None)
         self.indexed = indexed
 
     def __eq__(self, other):

@@ -5,6 +5,9 @@ from collections import (
 from vyper import (
     ast as vy_ast,
 )
+from vyper.context import (
+    namespace,
+)
 from vyper.context.definitions.bases import (
     BaseDefinition,
     FunctionDefinition,
@@ -39,20 +42,20 @@ from vyper.exceptions import (
 
 class BuiltinFunctionDefinition(BaseDefinition):
 
-    def __init__(self, namespace):
-        super().__init__(namespace, self._id)
+    def __init__(self):
+        super().__init__(self._id)
 
 
 class SimpleBuiltinDefinition(FunctionDefinition, BuiltinFunctionDefinition):
 
-    def __init__(self, namespace):
+    def __init__(self):
         arguments = OrderedDict()
         for name, types in self._inputs:
-            arguments[name] = get_builtin_type(namespace, types)
-        return_type = get_builtin_type(namespace, self._return_type) if self._return_type else None
-        return_var = Variable(namespace, f"{self._id}_return", return_type)
+            arguments[name] = get_builtin_type(types)
+        return_type = get_builtin_type(self._return_type) if self._return_type else None
+        return_var = Variable(f"{self._id}_return", return_type)
         arg_count = getattr(self, '_arg_count', len(arguments))
-        FunctionDefinition.__init__(self, namespace, self._id, arguments, arg_count, return_var)
+        FunctionDefinition.__init__(self, self._id, arguments, arg_count, return_var)
 
 
 class Floor(SimpleBuiltinDefinition):
@@ -244,7 +247,7 @@ class Slice(SimpleBuiltinDefinition):
     def validate_call(self, node: vy_ast.Call):
         super().validate_call(node)
 
-        start, length = (get_value_from_node(self.namespace, i) for i in node.args[1:])
+        start, length = (get_value_from_node(i) for i in node.args[1:])
         if not isinstance(start, int) or start < 0:
             raise StructureException("Start must be a positive literal integer ", node.args[1])
         if not isinstance(length, int) or length < 1:
@@ -252,14 +255,14 @@ class Slice(SimpleBuiltinDefinition):
                 "Length must be a literal integer greater than zero", node.args[2]
             )
 
-        input_type = get_type_from_node(self.namespace, node.args[0])
+        input_type = get_type_from_node(node.args[0])
         return_length = length - start
         if isinstance(input_type, BytesType):
-            return_type = get_builtin_type(self.namespace, ("bytes", return_length))
+            return_type = get_builtin_type(("bytes", return_length))
         else:
-            return_type = get_builtin_type(self.namespace, ("string", return_length))
+            return_type = get_builtin_type(("string", return_length))
 
-        return Variable(self.namespace, "slice_return", return_type)
+        return Variable("slice_return", return_type)
 
 
 class RawCall(SimpleBuiltinDefinition):
@@ -278,7 +281,7 @@ class RawCall(SimpleBuiltinDefinition):
 
     def validate_call(self, node: vy_ast.Call):
         var = super().validate_call(node)
-        min_length = get_value_from_node(self.namespace, node.args[2])
+        min_length = get_value_from_node(node.args[2])
         if isinstance(min_length, Variable):
             min_length = min_length.literal_value()
         var.type.min_length = min_length
@@ -291,11 +294,11 @@ class Min(BuiltinFunctionDefinition):
 
     def validate_call(self, node: vy_ast.Call):
         check_call_args(node, 2)
-        left, right = (get_type_from_node(self.namespace, i) for i in node.args)
+        left, right = (get_type_from_node(i) for i in node.args)
         if not hasattr(left, 'is_numeric'):
             raise StructureException("Can only calculate min on numeric types", node)
         compare_types(left, right, node)
-        return Variable(self.namespace, "min_return", left)
+        return Variable("min_return", left)
 
 
 class Max(BuiltinFunctionDefinition):
@@ -304,11 +307,11 @@ class Max(BuiltinFunctionDefinition):
 
     def validate_call(self, node: vy_ast.Call):
         check_call_args(node, 2)
-        left, right = (get_type_from_node(self.namespace, i) for i in node.args)
+        left, right = (get_type_from_node(i) for i in node.args)
         if not hasattr(left, 'is_numeric'):
             raise StructureException("Can only calculate min on numeric types", node)
         compare_types(left, right, node)
-        return Variable(self.namespace, "min_return", left)
+        return Variable("min_return", left)
 
 
 class Clear(BuiltinFunctionDefinition):
@@ -317,7 +320,7 @@ class Clear(BuiltinFunctionDefinition):
 
     def validate_call(self, node: vy_ast.Call):
         check_call_args(node, 1)
-        get_type_from_node(self.namespace, node.args[0])
+        get_type_from_node(node.args[0])
         return None
 
 
@@ -327,14 +330,14 @@ class AsUnitlessNumber(BuiltinFunctionDefinition):
 
     def validate_call(self, node: vy_ast.Call):
         check_call_args(node, 1)
-        value = get_value_from_node(self.namespace, node.args[0])
+        value = get_value_from_node(node.args[0])
         if not isinstance(getattr(value, 'type'), ValueType):
             raise StructureException("Not a value type", node.args[0])
         if not hasattr(value.type, 'unit'):
             raise StructureException(f"Type '{value.type}' has no unit", node.args[0])
-        typ = type(value.type)(self.namespace)
+        typ = type(value.type)()
         del typ.unit
-        return Variable(self.namespace, "unitless_return", typ)
+        return Variable("unitless_return", typ)
 
 
 class Concat(BuiltinFunctionDefinition):
@@ -343,7 +346,7 @@ class Concat(BuiltinFunctionDefinition):
 
     def validate_call(self, node: vy_ast.Call):
         check_call_args(node, (2, float('inf')))
-        type_list = [get_type_from_node(self.namespace, i) for i in node.args]
+        type_list = [get_type_from_node(i) for i in node.args]
 
         idx = next((i for i in type_list if not isinstance(i, BytesType)), None)
         if idx is not None:
@@ -351,8 +354,8 @@ class Concat(BuiltinFunctionDefinition):
             raise StructureException("Concat values must be bytes", node)
 
         length = sum(i.min_length for i in type_list)
-        return_type = get_builtin_type(self.namespace, ("bytes", length))
-        return Variable(self.namespace, "concat_return", return_type)
+        return_type = get_builtin_type(("bytes", length))
+        return Variable("concat_return", return_type)
 
 
 class MethodID(BuiltinFunctionDefinition):
@@ -363,10 +366,10 @@ class MethodID(BuiltinFunctionDefinition):
         check_call_args(node, 2)
         if not isinstance(node.args[0], vy_ast.Str):
             raise StructureException("method id must be given as a literal string", node.args[0])
-        return_type = get_type_from_annotation(self.namespace, node.args[1])
+        return_type = get_type_from_annotation(node.args[1])
         if not isinstance(return_type, BytesType) or return_type.length not in (4, 32):
             raise StructureException("return type must be bytes32 or bytes[4]", node.args[1])
-        return Variable(self.namespace, "method_id_return", return_type)
+        return Variable("method_id_return", return_type)
 
 
 class Extract32(BuiltinFunctionDefinition):
@@ -375,21 +378,21 @@ class Extract32(BuiltinFunctionDefinition):
 
     def validate_call(self, node: vy_ast.Call):
         check_call_args(node, (2, 3))
-        target, length = (get_type_from_node(self.namespace, i) for i in node.args[:2])
+        target, length = (get_type_from_node(i) for i in node.args[:2])
 
-        compare_types(target, self.namespace['bytes'], node.args[0])
-        compare_types(length, self.namespace['int128'], node.args[1])
+        compare_types(target, namespace['bytes'], node.args[0])
+        compare_types(length, namespace['int128'], node.args[1])
 
         # TODO union type, default types, any type?
         if len(node.args) == 3:
-            return_type = get_type_from_annotation(self.namespace, node.args[2])
+            return_type = get_type_from_annotation(node.args[2])
             if return_type._id not in ("bytes32", "int128", "address"):
                 raise StructureException()
 
         else:
-            return_type = get_builtin_type(self.namespace, "bytes32")
+            return_type = get_builtin_type("bytes32")
 
-        return Variable(self.namespace, "extract32_return", return_type)
+        return Variable("extract32_return", return_type)
 
 
 class RawLog(BuiltinFunctionDefinition):
@@ -403,11 +406,7 @@ class RawLog(BuiltinFunctionDefinition):
                 "Expecting a list of 0-4 topics as first argument", node.args[0].elts[4]
             )
         if node.args[0].elts:
-            log_type = get_type_from_node(self.namespace, node.args[0])
-            compare_types(log_type[0], self.namespace['bytes32'], node.args[0])
-        compare_types(
-            get_type_from_node(self.namespace, node.args[1]),
-            self.namespace['bytes'],
-            node.args[1]
-        )
+            log_type = get_type_from_node(node.args[0])
+            compare_types(log_type[0], namespace['bytes32'], node.args[0])
+        compare_types(get_type_from_node(node.args[1]), namespace['bytes'], node.args[1])
         return None

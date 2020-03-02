@@ -20,7 +20,7 @@ from vyper.exceptions import (
 
 # only validation NOT performed is check for initial value relative to scope
 # value only exists on constants, so have to check the node!
-def get_variable_from_nodes(namespace, name, annotation, value):
+def get_variable_from_nodes(name, annotation, value):
     kwargs = {}
 
     node = annotation
@@ -35,15 +35,15 @@ def get_variable_from_nodes(namespace, name, annotation, value):
     if 'is_constant' in kwargs and 'is_public' in kwargs:
         raise VariableDeclarationException("Variable cannot be constant and public", annotation)
 
-    var_type = get_type_from_annotation(namespace, node)
+    var_type = get_type_from_annotation(node)
 
     if value:
-        value_type = get_type_from_node(namespace, value)
+        value_type = get_type_from_node(value)
         compare_types(var_type, value_type, value)
         if 'is_constant' in kwargs:
-            kwargs['value'] = get_value_from_node(namespace, value)
+            kwargs['value'] = get_value_from_node(value)
 
-    var = Variable(namespace, name, var_type, **kwargs)
+    var = Variable(name, var_type, **kwargs)
 
     if kwargs.get('is_constant'):
         literal = var.literal_value()
@@ -63,14 +63,13 @@ class Variable(BaseDefinition):
 
     def __init__(
         self,
-        namespace,
         name: str,
         var_type,
         value=None,
         is_constant: bool = False,
         is_public: bool = False,
     ):
-        super().__init__(namespace, name)
+        super().__init__(name)
         self.type = var_type
         self.is_constant = is_constant
         self.is_public = is_public
@@ -78,7 +77,7 @@ class Variable(BaseDefinition):
         self.members = {}
         if value is None and isinstance(var_type, list):
             self.value = [
-                Variable(namespace, f"{name}[{i}]", var_type[i], None, is_constant, is_public)
+                Variable(f"{name}[{i}]", var_type[i], None, is_constant, is_public)
                 for i in range(len(var_type))
             ]
 
@@ -96,20 +95,20 @@ class Variable(BaseDefinition):
         if name not in self.members:
             member_type = self.type.get_member_type(node)
             is_constant = hasattr(self.type, '_readonly_members')
-            member = Variable(self.namespace, name, member_type, is_constant=is_constant)
+            member = Variable(name, member_type, is_constant=is_constant)
             self.members[node.attr] = member
         return self.members[name]
 
     def get_index(self, node: vy_ast.Subscript):
         if isinstance(self.type, list):
-            idx = get_value_from_node(self.namespace, node.slice.value)
+            idx = get_value_from_node(node.slice.value)
             if idx >= len(self.type):
                 raise StructureException("Array index out of range", node.slice)
             if idx < 0:
                 raise StructureException("Array index cannot use negative integers", node.slice)
             return self.value[idx]
         typ = self.type.get_index_type(node.slice.value)
-        return Variable(self.namespace, self.name, typ, None, self.is_constant, self.is_public)
+        return Variable(self.name, typ, None, self.is_constant, self.is_public)
 
     def validate_call(self, node):
         return self.type.validate_call(node)

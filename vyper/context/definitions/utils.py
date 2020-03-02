@@ -1,12 +1,15 @@
 from vyper import (
     ast as vy_ast,
 )
+from vyper.context import (
+    namespace,
+)
 from vyper.exceptions import (
     StructureException,
 )
 
 
-def get_value_from_node(namespace, node):
+def get_value_from_node(node):
     """
     Returns the value of a node.
 
@@ -23,9 +26,9 @@ def get_value_from_node(namespace, node):
 
     if isinstance(node, vy_ast.List):
         # TODO validate that all types are like?
-        return [get_value_from_node(namespace, node.elts[i]) for i in range(len(node.elts))]
+        return [get_value_from_node(node.elts[i]) for i in range(len(node.elts))]
     if isinstance(node, vy_ast.Tuple):
-        return tuple(get_value_from_node(namespace, node.elts[i]) for i in range(len(node.elts)))
+        return tuple(get_value_from_node(node.elts[i]) for i in range(len(node.elts)))
 
     if isinstance(node, vy_ast.Constant):
         return node.value
@@ -39,19 +42,19 @@ def get_value_from_node(namespace, node):
         return namespace[node.id]
 
     if isinstance(node, vy_ast.Attribute):
-        var = get_value_from_node(namespace, node.value)
+        var = get_value_from_node(node.value)
         return var.get_member(node)
 
     if isinstance(node, vy_ast.Subscript):
-        base_type = get_value_from_node(namespace, node.value)
+        base_type = get_value_from_node(node.value)
         return base_type.get_index(node)
 
     if isinstance(node, vy_ast.Call):
-        var = get_value_from_node(namespace, node.func)
+        var = get_value_from_node(node.func)
         return var.validate_call(node)
 
     # TODO folding
     # if isinstance(node, (vy_ast.BinOp, vy_ast.BoolOp, vy_ast.Compare)):
-    #     return operators.validate_operation(namespace, node)
+    #     return operators.validate_operation(node)
 
     raise StructureException(f"Unsupported node type for get_value: {node.ast_type}", node)
