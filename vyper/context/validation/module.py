@@ -21,7 +21,10 @@ from vyper.exceptions import (
 )
 
 
-def add_module_namespace(vy_module, interface_codes):
+def add_module_namespace(vy_module: vy_ast.Module, interface_codes):
+
+    """Analyzes a Vyper ast and adds all module-level objects to the namespace."""
+
     ModuleNodeVisitor(vy_module, interface_codes)
 
 

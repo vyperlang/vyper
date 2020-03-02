@@ -57,6 +57,9 @@ ENVIRONMENT_VARS = {
 
 
 def generate_builtin_namespace():
+
+    """Adds builtin types and definitions to the namespace."""
+
     get_types()
     add_builtin_units()
     add_builtin_constants()

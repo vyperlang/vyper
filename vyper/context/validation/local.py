@@ -30,6 +30,9 @@ from vyper.exceptions import (
 
 
 def validate_functions(vy_module):
+
+    """Analyzes a vyper ast and validates the function-level namespaces."""
+
     err_msg = []
     for node in vy_module.get_children({'ast_type': "FunctionDef"}):
         namespace.enter_scope()
