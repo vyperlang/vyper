@@ -42,7 +42,7 @@ class BoolType(ValueType):
     _valid_literal = vy_ast.NameConstant
 
     @classmethod
-    def from_literal(cls, node):
+    def from_literal(cls, node: vy_ast.Constant):
         if node.value is None:
             raise InvalidLiteralException("Invalid literal for type 'bool'", node)
         return super().from_literal(node)
@@ -56,7 +56,7 @@ class AddressType(MemberType, ValueType):
     _readonly_members = True
 
     @classmethod
-    def from_literal(cls, node):
+    def from_literal(cls, node: vy_ast.Constant):
         self = super().from_literal(node)
         addr = node.value
         if len(addr) != 42:
@@ -94,7 +94,7 @@ class Bytes32Type(BytesType):
     min_length = 32
 
     @classmethod
-    def from_literal(cls, node):
+    def from_literal(cls, node: vy_ast.Constant):
         self = super().from_literal(node)
         if len(node.value) != 66:
             raise InvalidLiteralException("Invalid literal for type bytes32", node)
@@ -107,7 +107,7 @@ class Int128Type(IntegerType):
     _invalid_op = ()
 
     @classmethod
-    def from_literal(cls, node):
+    def from_literal(cls, node: vy_ast.Constant):
         self = super().from_literal(node)
         check_numeric_bounds("int128", node)
         return self
@@ -119,7 +119,7 @@ class Uint256Type(IntegerType):
     _invalid_op = vy_ast.USub
 
     @classmethod
-    def from_literal(cls, node):
+    def from_literal(cls, node: vy_ast.Constant):
         self = super().from_literal(node)
         check_numeric_bounds("uint256", node)
         return self
@@ -132,7 +132,7 @@ class DecimalType(NumericType):
     _invalid_op = vy_ast.Pow
 
     @classmethod
-    def from_literal(cls, node):
+    def from_literal(cls, node: vy_ast.Constant):
         self = super().from_literal(node)
         value = Decimal(node.value)
         if value.quantize(Decimal('1.0000000000')) != value:
@@ -153,7 +153,7 @@ class BytesArrayType(BytesType, ArrayValueType):
     _valid_literal = (vy_ast.Bytes, vy_ast.Binary)
 
     @classmethod
-    def from_literal(cls, node):
+    def from_literal(cls, node: vy_ast.Constant):
         if not isinstance(node, vy_ast.Binary):
             return super().from_literal(node)
 
@@ -193,7 +193,7 @@ class MappingType(CompoundType):
         )
 
     @classmethod
-    def from_annotation(cls, node):
+    def from_annotation(cls, node: vy_ast.VyperNode):
         self = cls()
         check_call_args(node, 2)
         self.key_type = get_type_from_annotation(node.args[0])
@@ -204,7 +204,7 @@ class MappingType(CompoundType):
     def __repr__(self):
         return f"map({self.key_type}, {self.value_type})"
 
-    def get_index_type(self, index_node):
-        idx_type = get_type_from_node(index_node)
-        compare_types(self.key_type, idx_type, index_node)
+    def get_index_type(self, node: vy_ast.VyperNode):
+        idx_type = get_type_from_node(node)
+        compare_types(self.key_type, idx_type, node)
         return self.value_type

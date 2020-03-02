@@ -43,8 +43,11 @@ def compare_types(left, right, node):
     node
         The node where the comparison is taking place (for source highlights if
         an exception is raised).
-    """
 
+    Returns
+    -------
+    None. If the comparison fails an exception is raised.
+    """
     if hasattr(left, '_no_value'):
         raise StructureException(f"{left} is not an assignable type", node)
 
@@ -80,6 +83,8 @@ def get_builtin_type(type_definition: Union[str, Tuple, List]):
     """
     Given a type definition, returns a type or list of types.
 
+    Arguments
+    ---------
     type_definition : str | tuple | list
         str - The name of a single type to be returned.
         tuple - The first value is the type name, the remaining values are passed
@@ -95,23 +100,20 @@ def get_builtin_type(type_definition: Union[str, Tuple, List]):
     return type(namespace[type_definition])()
 
 
-def get_type_from_annotation(node):
+def get_type_from_annotation(node: vy_ast.VyperNode):
     """
-    Returns a type class for the given node.
+    Returns a type object for the given annotation node.
 
     Arguments
     ---------
     node : VyperNode
-        AST node from AnnAssign.annotation, outlining the type
-        to be created.
-
+        Vyper ast node from the .annotation member of an AnnAssign node.
 
     Returns
     -------
-    _BaseType
-        If the base_type member of this object has an _as_array member
-        and the node argument includes a subscript, the return type will
-        be ArrayType. Otherwise it will be base_type.
+    _BaseType | list
+        If the node defines an array, the return type will be a list
+        of _BaseType objects.
     """
     type_name = get_leftmost_id(node)
     type_obj = namespace[type_name]
@@ -123,9 +125,20 @@ def get_type_from_annotation(node):
         return type_obj.from_annotation(node)
 
 
-def get_type_from_node(node):
+def get_type_from_node(node: vy_ast.VyperNode):
     """
-    Returns the type value of a node.
+    Returns a type object for the given value node.
+
+    Arguments
+    ---------
+    node : VyperNode
+        AST node representing a literal or already-defined object.
+
+    Returns
+    -------
+    _BaseType | list
+        If the node represents an array, the return type will be a list
+        of _BaseType objects.
     """
     if isinstance(node, vy_ast.Tuple):
         return tuple(get_type_from_node(i) for i in node.elts)
@@ -171,7 +184,20 @@ def _get_type_from_literal(node: vy_ast.Constant):
     return valid_types
 
 
-def get_type_from_operation(node):
+def get_type_from_operation(node: vy_ast.VyperNode):
+    """
+    Validates an operation or comparison and returns a type object.
+
+    Arguments
+    ---------
+    node : UnaryOp, BinOp, BoolOp, Compare
+        Vyper ast node.
+
+    Returns
+    -------
+    _BaseType
+        Vyper type object representing the outcome of the operation.
+    """
     if isinstance(node, vy_ast.UnaryOp):
         return _get_unary_op(node)
     if isinstance(node, vy_ast.BinOp):
@@ -211,6 +237,7 @@ def _get_comparator(node):
         raise StructureException("Cannot have a comparison with more than two elements", node)
     left, right = (get_type_from_node(i) for i in (node.left, node.comparators[0]))
     if isinstance(node.ops[0], vy_ast.In):
+        # TODO special logic here
         pass
     else:
         left.validate_comparator(node)
@@ -221,7 +248,20 @@ def _get_comparator(node):
 
 
 def check_numeric_bounds(type_str: str, node: vy_ast.Num) -> bool:
-    """Returns the lower and upper bound for an integer type."""
+    """
+    Validates that a Num node's value is within the bounds of a given type.
+
+    Arguments
+    ---------
+    type_str : str
+        String representation of the type, e.g. "int128"
+    node : Num
+        Vyper ast node to validate
+
+    Returns
+    -------
+    None. Raises an exception if the check fails.
+    """
     size = int(type_str.strip("uint") or 256)
     if size < 8 or size > 256 or size % 8:
         raise ValueError(f"Invalid type: {type_str}")

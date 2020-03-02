@@ -42,8 +42,8 @@ def check_call_args(
     """
     Validates call arguments.
 
-    Parameters
-    ----------
+    Arguments
+    ---------
     node : Call
         Vyper ast Call node to be validated.
     arg_count : int | tuple

@@ -1,6 +1,9 @@
 from collections import (
     OrderedDict,
 )
+from typing import (
+    Union,
+)
 
 from vyper import (
     ast as vy_ast,
@@ -22,33 +25,16 @@ from vyper.exceptions import (
 )
 
 
-"""
-# TODO document all this
-
-from_annotation
-from_literal
-
-compare_type(other):
-    Check this type against another type, raise or return None
-
-validate_numeric_op
-validate_boolean_op
-validate_comparator
-validate_implements
-validate_call
-
-get_type
-get_index_type
-get_member_type
-"""
-
-
-class BaseType:
+class _BaseType:
     """
     Private inherited class common to all classes representing vyper types.
 
-    This class is never directly invoked, however all type classes share the
-    following attributes:
+    This class is never directly invoked. It is inherited by all type classes.
+    It includes every possible method that a type can use to define it's
+    functionality and so provides a useful blueprint when creating new types.
+
+    Usually if you are creating a new type you will want to subclass from
+    ValueType, CompoundType or MemberType.
 
     Class attributes
     ----------------
@@ -59,56 +45,222 @@ class BaseType:
     _as_array: bool
         If included and set as True, contracts may use this type may as the base
         of an array by invoking it with a subscript.
-    _valid_literal: VyperNode | tuple
-        A vyper ast class or tuple of ast classes that can represent valid literals
-        for the given type.
-
-    Object attributes
-    -----------------
-    TODO
+    _no_value: bool
+        If included and True, this type cannot be directly assigned to. Used for mappings.
     """
-    __slots__ = ('is_literal',)
+    __slots__ = ()
 
     def __init__(self):
         pass
 
-    def _compare_type(self, other: "BaseType"):
+    def _compare_type(self, other: "_BaseType"):
         """
         Compares this type object against another type object.
 
-        This method is never intended to be called directly. Type comparisons
+        Failed comparisons should always return False, not raise an exception.
+
+        This method is not intended to be called directly. Type comparisons
         should be handled by vyper.context.utils.compare_types
+
+        Arguments
+        ---------
+        other : BaseType
+            A type object to be compared against this one.
+
+        Returns
+        -------
+        bool indicating if the types are equivalent.
         """
         return type(self) in (other, type(other))
 
-    def set_unit(self, unit_str):
+    def from_annotation(self, node: vy_ast.VyperNode):
+        """
+        Generates an instance of this type from AnnAssign.annotation
+
+        Arguments
+        ---------
+        node : VyperNode
+            Vyper ast node from the .annotation member of an AnnAssign node.
+
+        Returns
+        -------
+        A new instance of the same type that the method was called on.
+        """
+        raise CompilerPanic(f"Type {self} cannot be generated from annotation")
+
+    def from_literal(self, node: vy_ast.Constant):
+        """
+        Generates a new instance of this type from a constant.
+
+        Arguments
+        ---------
+        node : Constant
+            A vyper ast node of type Constant.
+
+        Returns
+        -------
+        A new instance of the same type that the method was called on.
+        """
+        raise CompilerPanic(f"Type {self} cannot be generated from a literal")
+
+    def set_unit(self, unit_str: str):
+        """
+        Applies a unit to this type object. Raises if the type does not support units.
+
+        Arguments
+        ---------
+        unit_str : str
+            The name of the unit to be applied.
+
+        Returns
+        -------
+        None. A failed validation should raise an exception.
+        """
         raise StructureException(f"Type {self} does not support units")
 
-    def validate_numeric_op(self, node):
+    def validate_numeric_op(self, node: Union[vy_ast.UnaryOp, vy_ast.BinOp]):
+        """
+        Validates a numeric operation for this type.
+
+        Arguments
+        ---------
+        node : UnaryOp | BinOp
+            Vyper ast node of the numeric operation to be validated.
+
+        Returns
+        -------
+        None. A failed validation should raise an exception.
+        """
         raise InvalidTypeException(f"Invalid type for operand: {self}", node)
 
-    def validate_boolean_op(self, node):
-        # TODO
-        pass
+    def validate_boolean_op(self, node: vy_ast.BoolOp):
+        """
+        Validates a boolean operation for this type.
 
-    def validate_comparator(self, node):
-        # TODO
-        pass
+        Arguments
+        ---------
+        node : BoolOp
+            Vyper ast node of the boolean operation to be validated.
 
-    def get_member_type(self, node: vy_ast.Attribute):
-        raise StructureException(f"Type '{self}' does not support members", node)
+        Returns
+        -------
+        None. A failed validation should raise an exception.
+        """
+        raise InvalidTypeException(f"Invalid type for operand: {self}", node)
 
-    def get_index_type(self, node):
-        raise StructureException(f"Type '{self}' does not support indexing", node)
+    def validate_comparator(self, node: vy_ast.Compare):
+        """
+        Validates a comparator for this type.
 
-    def validate_call(self, node):
+        Arguments
+        ---------
+        node : Compare
+            Vyper ast node of the comparator to be validated.
+
+        Returns
+        -------
+        None. A failed validation should raise an exception.
+        """
+        raise InvalidTypeException(f"Invalid type for comparator: {self}", node)
+
+    def validate_implements(self, node: vy_ast.AnnAssign):
+        """
+        Validates an implements statement.
+
+        This method is unique to user-defined interfaces. It should not be
+        included in other types.
+
+        Arguments
+        ---------
+        node : AnnAssign
+            Vyper ast node of the implements statement being validated.
+
+        Returns
+        -------
+        None. A failed validation should raise an exception.
+        """
+        raise CompilerPanic(f"Type {self} cannot validate an implements statement", node)
+
+    def validate_call(self, node: vy_ast.Call):
+        """
+        Validates a call to this type and returns the result.
+
+        This method should raise if the type is not callable or the call arguments
+        are not valid.
+
+        Arguments
+        ---------
+        node : Call
+            Vyper ast node of call action to validate.
+
+        Returns
+        -------
+        Definition, optional
+            A definition object generated as a result of the call.
+        """
         raise StructureException(f"Type '{self}' is not callable", node)
 
+    def get_index_type(self, node: vy_ast.VyperNode):
+        """
+        Validates an index reference and returns the given type at the index.
 
-class ValueType(BaseType):
+        Arguments
+        ---------
+        node : VyperNode
+            Vyper ast node from the .slice member of a Subscript node.
 
-    """Base class for simple types representing a single value."""
+        Returns
+        -------
+        A type object for the value found at the given index. Raises an
+        exception if the index is invalid for this type.
+        """
+        raise StructureException(f"Type '{self}' does not support indexing", node)
 
+    def get_member_type(self, node: vy_ast.Attribute):
+        """
+        Validates a attribute reference and returns the given type for the member.
+
+        Arguments
+        ---------
+        node: Attribute
+            Vyper ast Attribute node representing the member being accessed.
+
+        Returns
+        -------
+        A type object for the value of the given member. Raises an exception
+        if the member does not exist for the given type.
+        """
+        raise StructureException(f"Type '{self}' does not support members", node)
+
+    def add_member_types(self, **members: dict):
+        """
+        Adds new members to the type.
+
+        Types which include this method should subclass MemberType.
+
+        Arguments
+        ---------
+        **members : dict
+            Dictionary of members to add in the form name: type
+
+        Returns
+        -------
+        None
+        """
+        raise CompilerPanic(f"Type '{self}' does not support members")
+
+
+class ValueType(_BaseType):
+    """
+    Base class for simple types representing a single value.
+
+    Class attributes
+    ----------------
+    _valid_literal: VyperNode | tuple
+        A vyper ast class or tuple of ast classes that can represent valid literals
+        for the given type. Including this attribute will allow literal values to be
+        cast as this type.
+    """
     __slots__ = ()
 
     def __str__(self):
@@ -136,9 +288,52 @@ class ValueType(BaseType):
         return cls()
 
 
-class NumericType(ValueType):
+class CompoundType(_BaseType):
 
-    """Base class for simple numeric types (capable of arithmetic)."""
+    """Base class for types which represent multiple values."""
+
+    __slots__ = ()
+
+
+class MemberType(_BaseType):
+    """
+    Base class for types that have accessible members.
+
+    Class attributes
+    ----------------
+    _readonly_members : bool
+        If True, members of this type are considered read-only and cannot be assigned
+        new values.
+
+    Object attributes
+    -----------------
+    members : OrderedDict
+        An dictionary of members for the given type in the format {name: type object}
+    """
+    __slots__ = ('_id', 'members',)
+
+    def __init__(self):
+        super().__init__()
+        self.members = OrderedDict()
+
+    def add_member_types(self, **members: dict):
+        for name, member in members.items():
+            if name in self.members:
+                raise StructureException(f"Member {name} already exists in {self}")
+            self.members[name] = member
+
+    def get_member_type(self, node: vy_ast.Attribute):
+        if node.attr not in self.members:
+            raise StructureException(f"Struct {self._id} has no member '{node.attr}'", node)
+        return self.members[node.attr]
+
+    def __str__(self):
+        return f"{self._id}"
+
+
+class NumericType(ValueType):
+    """
+    Base class for simple numeric types (capable of arithmetic)."""
 
     __slots__ = ('unit',)
     _as_array = True
@@ -188,9 +383,13 @@ class IntegerType(NumericType):
 
     __slots__ = ()
     _valid_literal = vy_ast.Int
+    is_integer = True
 
 
 class BytesType(ValueType):
+
+    """Base class for bytes types (bytes32, bytes[])."""
+
     __slots__ = ()
 
 
@@ -228,7 +427,7 @@ class ArrayValueType(ValueType):
             other.min_length = min_length
             return True
 
-        # comparing a decined length to a literal causes the literal to have a fixed length
+        # comparing a defined length to a literal causes the literal to have a fixed length
         if self.length:
             if not other.length:
                 other.length = max(self.length, other.min_length)
@@ -253,43 +452,9 @@ class ArrayValueType(ValueType):
         return self
 
 
-class CompoundType(BaseType):
-
-    """Base class for types which represent multiple values."""
-
-    __slots__ = ()
-
-
-class MemberType(BaseType):
-
-    """Base class for types that have accessible members."""
-
-    __slots__ = ('_id', 'members',)
-
-    def __init__(self):
-        super().__init__()
-        self.members = OrderedDict()
-
-    def add_member_types(self, **members):
-        for name, member in members.items():
-            if name in self.members:
-                raise StructureException(f"Member {name} already exists in {self}")
-            self.members[name] = member
-
-    def get_member_type(self, node: vy_ast.Attribute):
-        if node.attr not in self.members:
-            raise StructureException(f"Struct {self._id} has no member '{node.attr}'", node)
-        return self.members[node.attr]
-
-    def __str__(self):
-        return f"{self._id}"
-
-    # TODO
-    # def __eq__(self, other):
-    #     return super().__eq__(other) and self.type_class == other.type_class
-
-
 class EnvironmentVariableType(MemberType):
+
+    """Base class for environment variable member types (msg, block, etc)"""
 
     _readonly_members = True
 
@@ -304,6 +469,15 @@ class EnvironmentVariableType(MemberType):
 
 class UnionType(set):
 
+    """
+    Set subclass for literal values where the final type has not yet been determined.
+
+    When this object is compared to another type, invalid types for the comparison
+    are removed. For eaxmple, the literal value 1 will initially be a UnionType of
+    {int128, uint256}. If the type is then compared to -1 it is now considered to
+    be int128 and subsequent comparisons to uint256 will return False.
+    """
+
     def __str__(self):
         if len(self) == 1:
             return str(next(iter(self)))
@@ -312,6 +486,10 @@ class UnionType(set):
     @property
     def is_numeric(self):
         return all(hasattr(i, 'is_numeric') for i in self)
+
+    @property
+    def is_integer(self):
+        return all(hasattr(i, 'is_integer') for i in self)
 
     def _compare_type(self, other):
         if not isinstance(other, UnionType):
@@ -330,8 +508,8 @@ class UnionType(set):
                 getattr(typ, attr)(node)
             except Exception:
                 self.remove(typ)
-        if not self:
-            raise
+                if not self:
+                    raise
 
     def validate_comparator(self, node):
         self._validate(node, 'validate_comparator')

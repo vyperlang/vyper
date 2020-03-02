@@ -16,9 +16,6 @@ from vyper.context.types import (
     get_type_from_node,
     get_type_from_operation,
 )
-from vyper.context.types.bases import (
-    IntegerType,
-)
 from vyper.context.types.builtins import (
     BoolType,
 )
@@ -185,7 +182,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
             elif isinstance(args[0], vy_ast.Name):
                 # range(x, x + 10)
-                if not isinstance(target_type, IntegerType):
+                if not hasattr(target_type, 'is_integer'):
                     raise StructureException("Value is not an integer", args[0])
                 if not isinstance(args[1], vy_ast.BinOp) or not isinstance(args[1].op, vy_ast.Add):
                     raise StructureException(

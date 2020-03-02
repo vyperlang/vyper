@@ -1,6 +1,9 @@
 from collections import (
     OrderedDict,
 )
+from typing import (
+    Union,
+)
 
 from vyper import (
     ast as vy_ast,
@@ -56,7 +59,7 @@ class StructMetaType(_BaseMetaType):
     __slots__ = ()
     _id = "struct"
 
-    def get_type(self, base_node):
+    def get_type(self, base_node: vy_ast.ClassDef):
         members = OrderedDict()
         for node in base_node.body:
             if not isinstance(node, vy_ast.AnnAssign):
@@ -81,7 +84,7 @@ class StructType(MemberType):
         self._id = _id
         self.add_member_types(**members)
 
-    def from_annotation(self, node):
+    def from_annotation(self, node: vy_ast.VyperNode):
         return type(self)(self._id, self.members)
 
     def validate_call(self, node: vy_ast.Call):
@@ -103,20 +106,20 @@ class InterfaceMetaType(_BaseMetaType):
     __slots__ = ()
     _id = "contract"
 
-    def get_type(self, node):
+    def get_type(self, node: Union[vy_ast.ClassDef, vy_ast.Module]):
         if isinstance(node, vy_ast.Module):
             members = self._get_module_functions(node)
         elif isinstance(node, vy_ast.ClassDef):
             members = self._get_class_functions(node)
         else:
-            raise
+            raise StructureException("Invalid node type for interface definition", node)
         for func in members.values():
             if func.name in namespace:
                 raise StructureException("Namespace collision", func.node)
 
         return InterfaceType(node.name, members)
 
-    def _get_class_functions(self, base_node):
+    def _get_class_functions(self, base_node: vy_ast.ClassDef):
         functions = OrderedDict()
         for node in base_node.body:
             if not isinstance(node, vy_ast.FunctionDef):
@@ -124,7 +127,7 @@ class InterfaceMetaType(_BaseMetaType):
             functions[node.name] = get_function_from_node(node, "public")
         return functions
 
-    def _get_module_functions(self, base_node):
+    def _get_module_functions(self, base_node: vy_ast.Module):
         functions = OrderedDict()
         for node in base_node.get_children({'ast_type': "FunctionDef"}):
             if "public" in node.decorator_list:
@@ -151,7 +154,7 @@ class InterfaceType(MemberType):
         self._id = _id
         self.add_member_types(**members)
 
-    def validate_implements(self, node):
+    def validate_implements(self, node: vy_ast.AnnAssign):
 
         unimplemented = [
             i.name for i in self.members.values() if namespace['self'].members[i.name] != i
@@ -162,10 +165,10 @@ class InterfaceType(MemberType):
                 node
             )
 
-    def from_annotation(self, node):
+    def from_annotation(self, node: vy_ast.VyperNode):
         return type(self)(self._id, self.members)
 
-    def validate_call(self, node):
+    def validate_call(self, node: vy_ast.Call):
         check_call_args(node, 1)
         value = get_type_from_node(node.args[0])
         compare_types(value, namespace['address'], node.args[0])
