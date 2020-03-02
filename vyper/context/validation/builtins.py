@@ -2,6 +2,9 @@ from decimal import (
     Decimal,
 )
 
+from vyper.context import (
+    namespace,
+)
 from vyper.context.definitions import (
     Variable,
     builtin_functions,
@@ -53,47 +56,51 @@ ENVIRONMENT_VARS = {
 }
 
 
+def generate_builtin_namespace():
+    get_types()
+    add_builtin_units()
+    add_builtin_constants()
+    add_environment_variables()
+    add_builtin_functions()
+    # TODO reserved keywords
+
+
 def _type_filter(value):
     return type(value) is type and isinstance(getattr(value, "_id", None), str)
 
 
-def get_types(namespace):
+def get_types():
 
     type_classes = set()
     for module in BUILTIN_TYPE_MODULES:
         type_classes.update(filter(_type_filter, module.__dict__.values()))
 
     for obj in type_classes:
-        namespace[obj._id] = obj(namespace)
-
-    return namespace
+        namespace[obj._id] = obj()
 
 
-def add_builtin_units(namespace):
+def add_builtin_units():
     namespace.update({unit.name: unit for unit in BUILTIN_UNITS})
-    return namespace
 
 
-def add_builtin_constants(namespace):
+def add_builtin_constants():
     for name, (value, typ) in BUILTIN_CONSTANTS.items():
-        typ = get_builtin_type(namespace, typ)
-        namespace[name] = Variable(namespace, name, typ, value, True)
+        typ = get_builtin_type(typ)
+        namespace[name] = Variable(name, typ, value, True)
 
 
-def add_environment_variables(namespace):
+def add_environment_variables():
     for name, values in ENVIRONMENT_VARS.items():
         members = {}
         for k, v in values.items():
-            members[k] = get_builtin_type(namespace, v)
-        typ = bases.EnvironmentVariableType(namespace, name, members)
-        namespace[name] = Variable(namespace, name, typ, None, True)
+            members[k] = get_builtin_type(v)
+        typ = bases.EnvironmentVariableType(name, members)
+        namespace[name] = Variable(name, typ, None, True)
 
-    namespace['self'] = Variable(
-        namespace, "self", type(namespace["address"])(namespace), None, True
-    )
+    namespace['self'] = Variable("self", get_builtin_type("address"), None, True)
 
 
-def add_builtin_functions(namespace):
+def add_builtin_functions():
 
     for obj in filter(_type_filter, builtin_functions.__dict__.values()):
-        namespace[obj._id] = obj(namespace)
+        namespace[obj._id] = obj()

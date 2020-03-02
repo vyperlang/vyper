@@ -1,6 +1,9 @@
 from vyper import (
     ast as vy_ast,
 )
+from vyper.context import (
+    namespace,
+)
 from vyper.context.definitions import (
     get_event_from_node,
     get_function_from_node,
@@ -21,8 +24,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
     scope_name = "module"
 
-    def __init__(self, namespace, module_node, interface_codes):
-        self.namespace = namespace
+    def __init__(self, module_node, interface_codes):
         self.interface_codes = interface_codes
         self.units_added = False
         module_nodes = module_node.body.copy()
@@ -42,8 +44,8 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
     def visit_AnnAssign(self, node):
         if node.get('annotation.func.id') == "event":
-            event = get_event_from_node(self.namespace, node)
-            self.namespace["log"].add_member(node.target.id, event)
+            event = get_event_from_node(node)
+            namespace["log"].add_member(node.target.id, event)
             return
 
         name = node.get('target.id')
@@ -53,14 +55,14 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         if name == "units":
             if self.units_added:
                 raise VariableDeclarationException("Custom units can only be defined once", node)
-            _add_custom_units(self.namespace, node)
+            _add_custom_units(node)
 
         elif name == "implements":
             interface_name = node.annotation.id
-            self.namespace[interface_name].validate_implements(self.namespace, node)
+            namespace[interface_name].validate_implements(node)
 
         else:
-            var = get_variable_from_nodes(self.namespace, name, node.annotation, node.value)
+            var = get_variable_from_nodes(name, node.annotation, node.value)
             if not var.is_constant and node.value:
                 raise VariableDeclarationException(
                     "Storage variables cannot have an initial value", node.value
@@ -68,26 +70,26 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
             if var.is_constant:
                 # constants are added to the main namespace
-                self.namespace[name] = var
+                namespace[name] = var
             else:
                 # storage vars are added as members of self
-                self.namespace["self"].add_member(name, var)
+                namespace["self"].add_member(name, var)
 
     def visit_ClassDef(self, node):
-        self.namespace[node.name] = self.namespace[node.class_type].get_type(self.namespace, node)
+        namespace[node.name] = namespace[node.class_type].get_type(node)
 
     def visit_Import(self, node):
-        _add_import(self.namespace, node, self.interface_codes)
+        _add_import(node, self.interface_codes)
 
     def visit_ImportFrom(self, node):
-        _add_import(self.namespace, node, self.interface_codes)
+        _add_import(node, self.interface_codes)
 
     def visit_FunctionDef(self, node):
-        func = get_function_from_node(self.namespace, node)
-        self.namespace["self"].add_member(func.name, func)
+        func = get_function_from_node(node)
+        namespace["self"].add_member(func.name, func)
 
 
-def _add_custom_units(namespace, node):
+def _add_custom_units(node):
     # extracts custom unit information from AST
     # verifies correctness of custom units and that they are declared at most once
 
@@ -103,7 +105,7 @@ def _add_custom_units(namespace, node):
         namespace[key.id] = Unit(name=key.id, description=value.s)
 
 
-def _add_import(namespace, node, interface_codes):
+def _add_import(node, interface_codes):
     if isinstance(node, vy_ast.Import):
         name = node.names[0].asname
     else:
@@ -111,4 +113,4 @@ def _add_import(namespace, node, interface_codes):
     # TODO handle json imports
     interface_ast = vy_ast.parse_to_ast(interface_codes[name]['code'])
     interface_ast.name = name
-    namespace[name] = namespace['contract'].get_type(namespace, interface_ast)
+    namespace[name] = namespace['contract'].get_type(interface_ast)

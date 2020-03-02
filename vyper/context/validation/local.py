@@ -1,6 +1,9 @@
 from vyper import (
     ast as vy_ast,
 )
+from vyper.context import (
+    namespace,
+)
 from vyper.context.definitions import (
     get_value_from_node,
 )
@@ -39,10 +42,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
     )
     scope_name = "function"
 
-    def __init__(self, fn_node, namespace):
+    def __init__(self, fn_node):
         self.fn_node = fn_node
         self.func = namespace["self"].get_member(fn_node)
-        self.namespace = namespace
         namespace.enter_scope()
         namespace.update(self.func.arguments)
         for node in fn_node.body:
@@ -57,30 +59,30 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 "Memory variables must be declared with an initial value", node
             )
         name = node.target.id
-        if name in self.namespace["self"].members:
+        if name in namespace["self"].members:
             raise VariableDeclarationException(
                 "Variable declaration shadows an existing storage variable", node
             )
-        var = get_variable_from_nodes(self.namespace, name, node.annotation, node.value)
-        self.namespace[name] = var
+        var = get_variable_from_nodes(name, node.annotation, node.value)
+        namespace[name] = var
 
     def visit_Assign(self, node):
         if len(node.targets) > 1:
             raise StructureException("Assignment statement must have one target", node.targets[1])
 
         # TODO prevent assignment to constants
-        target_var = get_value_from_node(self.namespace, node.targets[0])
+        target_var = get_value_from_node(node.targets[0])
         if not isinstance(target_var, Variable) or target_var.is_constant:
             raise StructureException(f"Cannot modify value of a constant", node)
 
-        value_type = get_type_from_node(self.namespace, node.value)
+        value_type = get_type_from_node(node.value)
         compare_types(target_var.type, value_type, node)
 
     def visit_AugAssign(self, node):
-        target_type = get_type_from_node(self.namespace, node.target)
+        target_type = get_type_from_node(node.target)
         target_type.validate_numeric_op(node)
 
-        value_type = get_type_from_node(self.namespace, node.value)
+        value_type = get_type_from_node(node.value)
         compare_types(target_type, value_type, node)
 
     def visit_Raise(self, node):
@@ -93,9 +95,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if node.msg and (not isinstance(node.msg, vy_ast.Str) or len(node.msg.value) > 32):
             raise StructureException("Reason must be a string of 32 characters or less", node.msg)
         if isinstance(node.test, (vy_ast.BoolOp, vy_ast.Compare)):
-            get_type_from_operation(self.namespace, node)
+            get_type_from_operation(node)
         elif not isinstance(
-            get_type_from_node(self.namespace, node.test),
+            get_type_from_node(node.test),
             (BoolType, vy_ast.NameConstant)
         ):
             raise
@@ -112,24 +114,24 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             return
         if values and self.func.return_var is None:
             raise StructureException("Function does not return any values", node)
-        compare_types(self.func.return_var.type, get_type_from_node(self.namespace, values), node)
+        compare_types(self.func.return_var.type, get_type_from_node(values), node)
 
     def visit_Expr(self, node):
         self.visit(node.value)
 
     def visit_UnaryOp(self, node):
-        get_type_from_operation(self.namespace, node)
+        get_type_from_operation(node)
         # TODO what about when node.operand is BinOp ?
         # get_type(self.namespace, node.operand).validate_op(node)
 
     def visit_BinOp(self, node):
-        get_type_from_operation(self.namespace, node)
+        get_type_from_operation(node)
 
     def visit_Compare(self, node):
-        get_type_from_operation(self.namespace, node)
+        get_type_from_operation(node)
 
     def visit_Call(self, node):
-        value = get_value_from_node(self.namespace, node.func)
+        value = get_value_from_node(node.func)
         value.validate_call(node)
 
     def visit_If(self, node):
@@ -138,11 +140,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             self.visit(n)
 
     def visit_For(self, node):
-        self.namespace.enter_scope()
+        namespace.enter_scope()
 
         # iteration over a variable
         if isinstance(node.iter, vy_ast.Name):
-            iter_var = self.namespace[node.iter.id]
+            iter_var = namespace[node.iter.id]
             if not isinstance(iter_var.type, list):
                 raise
             target_type = iter_var.type[0]
@@ -152,7 +154,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             iter_values = node.iter.elts
             if not iter_values:
                 raise StructureException("Cannot iterate empty array", node.iter)
-            target_type = get_type_from_node(self.namespace, node.iter)[0]
+            target_type = get_type_from_node(node.iter)[0]
 
         # iteration via range()
         elif isinstance(node.iter, vy_ast.Call):
@@ -163,7 +165,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             check_call_args(node.iter, (1, 2))
 
             args = node.iter.args
-            target_type = get_type_from_node(self.namespace, args[0])
+            target_type = get_type_from_node(args[0])
             if len(args) == 1:
                 # range(10)
                 if not isinstance(args[0], vy_ast.Int):
@@ -188,21 +190,21 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         else:
             raise StructureException("Invalid type for iteration", node.iter)
 
-        var = Variable(self.namespace, node.target.id, target_type)
-        self.namespace[node.target.id] = var
+        var = Variable(node.target.id, target_type)
+        namespace[node.target.id] = var
 
         for n in node.body:
             self.visit(n)
-        self.namespace.exit_scope()
+        namespace.exit_scope()
 
     def visit_Attribute(self, node):
-        get_type_from_node(self.namespace, node)
+        get_type_from_node(node)
 
     def visit_Name(self, node):
-        get_type_from_node(self.namespace, node)
+        get_type_from_node(node)
 
     def visit_Subscript(self, node):
-        get_type_from_node(self.namespace, node)
+        get_type_from_node(node)
 
     def visit_List(self, node):
-        get_type_from_node(self.namespace, node)
+        get_type_from_node(node)
