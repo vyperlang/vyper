@@ -85,7 +85,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if len(node.targets) > 1:
             raise StructureException("Assignment statement must have one target", node.targets[1])
 
-        # TODO prevent assignment to constants
         target_var = get_value_from_node(node.targets[0])
         if not isinstance(target_var, Variable) or target_var.is_constant:
             raise StructureException(f"Cannot modify value of a constant", node)
@@ -136,8 +135,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
     def visit_UnaryOp(self, node):
         get_type_from_operation(node)
-        # TODO what about when node.operand is BinOp ?
-        # get_type(self.namespace, node.operand).validate_op(node)
 
     def visit_BinOp(self, node):
         get_type_from_operation(node)
