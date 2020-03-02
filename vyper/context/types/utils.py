@@ -18,7 +18,6 @@ from vyper.context.types import (
 )
 from vyper.context.utils import (
     get_index_value,
-    get_leftmost_id,
 )
 from vyper.exceptions import (
     InvalidLiteralException,
@@ -115,7 +114,7 @@ def get_type_from_annotation(node: vy_ast.VyperNode):
         If the node defines an array, the return type will be a list
         of _BaseType objects.
     """
-    type_name = get_leftmost_id(node)
+    type_name = next(i.id for i in node.get_all_children({'ast_type': 'Name'}, True))
     type_obj = namespace[type_name]
 
     if getattr(type_obj, '_as_array', False) and isinstance(node, vy_ast.Subscript):

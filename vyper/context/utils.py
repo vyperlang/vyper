@@ -85,11 +85,20 @@ def check_call_args(
             raise StructureException(f"'{key.arg}' was given as a positional argument", key)
 
 
-def get_leftmost_id(node: vy_ast.VyperNode) -> str:
-    return next(i.id for i in node.get_all_children({'ast_type': 'Name'}, True))
-
-
 def get_index_value(node):
+    """
+    Returns the literal value for a Subscript index.
+
+    Arguments
+    ---------
+    node : Index
+        Vyper ast node from the `slice` member of a Subscript node. Must be an
+        Index object (Vyper does not support Slice or ExtSlice).
+
+    Returns
+    -------
+    Literal integer value.
+    """
     if not isinstance(node, vy_ast.Index):
         raise StructureException("Type is missing an index value", node)
 
