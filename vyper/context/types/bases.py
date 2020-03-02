@@ -72,11 +72,17 @@ class BaseType:
     def __init__(self):
         pass
 
+    def _compare_type(self, other: "BaseType"):
+        """
+        Compares this type object against another type object.
+
+        This method is never intended to be called directly. Type comparisons
+        should be handled by vyper.context.utils.compare_types
+        """
+        return type(self) in (other, type(other))
+
     def set_unit(self, unit_str):
         raise StructureException(f"Type {self} does not support units")
-
-    def compare_type(self, other):
-        return type(self) in (other, type(other))
 
     def validate_numeric_op(self, node):
         raise InvalidTypeException(f"Invalid type for operand: {self}", node)
@@ -154,7 +160,7 @@ class NumericType(ValueType):
             return f"{self._id}({self.unit})"
         return super().__str__()
 
-    def compare_type(self, other):
+    def _compare_type(self, other):
         if type(self) is not type(other):
             return False
         if not hasattr(self, 'unit') or not hasattr(other, 'unit'):
@@ -211,8 +217,8 @@ class ArrayValueType(ValueType):
         self.length = length
         self.min_length = length
 
-    def compare_type(self, other):
-        if not super().compare_type(other):
+    def _compare_type(self, other):
+        if not super()._compare_type(other):
             return False
 
         # when comparing two literals, both now have an equal min-length
@@ -228,7 +234,7 @@ class ArrayValueType(ValueType):
                 other.length = max(self.length, other.min_length)
             return self.length >= other.length
 
-        return other.compare_type(self)
+        return other._compare_type(self)
 
     @classmethod
     def from_annotation(cls, node):
@@ -307,11 +313,11 @@ class UnionType(set):
     def is_numeric(self):
         return all(hasattr(i, 'is_numeric') for i in self)
 
-    def compare_type(self, other):
+    def _compare_type(self, other):
         if not isinstance(other, UnionType):
             other = [other]
 
-        matches = [i for i in self if any(i.compare_type(x) for x in other)]
+        matches = [i for i in self if any(i._compare_type(x) for x in other)]
         if not matches:
             return False
 

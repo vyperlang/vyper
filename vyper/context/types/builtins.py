@@ -185,9 +185,9 @@ class MappingType(CompoundType):
     _id = "map"
     _no_value = True
 
-    def compare_type(self, other):
+    def _compare_type(self, other):
         return (
-            super().compare_type(other) and
+            super()._compare_type(other) and
             self.key_type == other.key_type and
             self.value_type == other.value_type
         )

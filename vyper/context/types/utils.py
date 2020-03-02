@@ -62,13 +62,13 @@ def compare_types(left, right, node):
         return
 
     if not isinstance(left, set) and not isinstance(right, set):
-        if not left.compare_type(right):
+        if not left._compare_type(right):
             raise TypeMismatchException(
                 f"Cannot perform operation between {left} and {right}", node
             )
 
-    left_check = isinstance(left, set) and not left.compare_type(right)
-    right_check = isinstance(right, set) and not right.compare_type(left)
+    left_check = isinstance(left, set) and not left._compare_type(right)
+    right_check = isinstance(right, set) and not right._compare_type(left)
 
     if left_check or right_check:
         raise TypeMismatchException(
