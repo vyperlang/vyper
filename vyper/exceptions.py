@@ -51,73 +51,77 @@ class ParserException(Exception):
 
 class PythonSyntaxException(ParserException):
     """
-    Conversion from error using ast.parse()
+    Invalid syntax.
+
+    This error is converted from errors raised during ast.parse
     """
     def __init__(self, syntax_error: SyntaxError, source_code: str):
         item = types.SimpleNamespace()  # TODO: Create an actual object for this
         item.lineno = syntax_error.lineno
         item.col_offset = syntax_error.offset
-        item.source_code = source_code
+        item.full_source_code = source_code
         super().__init__(message=f'SyntaxError: {syntax_error.msg}', item=item)
 
 
-class VariableDeclarationException(ParserException):
-    pass
+class SyntaxException(ParserException):
+    """Valid Python syntax, but invalid Vyper syntax."""
 
 
 class StructureException(ParserException):
-    pass
-
-
-class ConstancyViolationException(ParserException):
-    pass
-
-
-class NonPayableViolationException(ParserException):
-    pass
+    """TODO"""
 
 
 class InvalidLiteralException(ParserException):
-    pass
+    """Invalid literal value."""
 
 
 class InvalidTypeException(ParserException):
-    pass
+    """Invalid type declaration."""
 
 
-class TypeMismatchException(ParserException):
-    pass
+class VariableDeclarationException(ParserException):
+    """Invalid variable declaration."""
 
 
 class FunctionDeclarationException(ParserException):
-    pass
+    """Invalid function declaration."""
 
 
 class EventDeclarationException(ParserException):
-    pass
+    """Invalid event declaration."""
+
+
+class TypeMismatchException(ParserException):
+    """TODO"""
+
+
+class ConstancyViolationException(ParserException):
+    """State-changing action inside a constant function."""
+
+
+class NonPayableViolationException(ParserException):
+    """Used msg.value in a nonpayable function."""
 
 
 class VersionException(ParserException):
-    pass
-
-
-class SyntaxException(ParserException):
-    pass
+    """Version string is malform or incompatible with this version of Vyper."""
 
 
 class ArrayIndexException(ParserException):
-    pass
+    """Array index out of range."""
 
 
 class ZeroDivisionException(ParserException):
-    pass
+    """Second argument to a division or modulo operation was zero."""
 
 
 class EvmVersionException(ParserException):
-    pass
+    """Cannot perform an action based on the active EVM ruleset."""
 
 
 class CompilerPanic(Exception):
+
+    """Unexpected error during compilation."""
 
     def __init__(self, message):
         self.message = message
@@ -127,6 +131,8 @@ class CompilerPanic(Exception):
 
 
 class JSONError(Exception):
+
+    """Invalid compiler input JSON."""
 
     def __init__(self, msg, lineno=None, col_offset=None):
         super().__init__(msg)
