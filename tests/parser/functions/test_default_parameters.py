@@ -7,7 +7,7 @@ from vyper.exceptions import (
     FunctionDeclarationException,
     InvalidLiteralException,
     NonPayableViolationException,
-    ParserException,
+    StructureException,
     TypeMismatchException,
 )
 
@@ -311,7 +311,7 @@ def foo(a: uint256 = msg.value): pass
 # msg.sender in a private function
 @private
 def foo(a: address = msg.sender): pass
-    """, ParserException),
+    """, StructureException),
 ]
 
 
