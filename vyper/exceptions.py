@@ -62,15 +62,15 @@ class SyntaxException(ParserException):
 
 
 class StructureException(ParserException):
-    """TODO"""
+    """Invalid structure for parsable syntax."""
+
+
+class VersionException(ParserException):
+    """Version string is malformed or incompatible with this compiler version."""
 
 
 class InvalidLiteralException(ParserException):
     """Invalid literal value."""
-
-
-class InvalidTypeException(ParserException):
-    """Invalid type declaration."""
 
 
 class VariableDeclarationException(ParserException):
@@ -85,8 +85,20 @@ class EventDeclarationException(ParserException):
     """Invalid event declaration."""
 
 
+class UndeclaredDefinition(ParserException):
+    """Reference to a definition that has not been declared."""
+
+
+class NamespaceCollsion(ParserException):
+    """Assignment to a name that is already in use."""
+
+
+class InvalidTypeException(ParserException):
+    """Type is invalid for an action."""
+
+
 class TypeMismatchException(ParserException):
-    """TODO"""
+    """Attempt to perform an action with multiple, incompatible types."""
 
 
 class ConstancyViolationException(ParserException):
@@ -94,11 +106,7 @@ class ConstancyViolationException(ParserException):
 
 
 class NonPayableViolationException(ParserException):
-    """Used msg.value in a nonpayable function."""
-
-
-class VersionException(ParserException):
-    """Version string is malform or incompatible with this version of Vyper."""
+    """msg.value in a nonpayable function."""
 
 
 class ArrayIndexException(ParserException):
@@ -109,8 +117,12 @@ class ZeroDivisionException(ParserException):
     """Second argument to a division or modulo operation was zero."""
 
 
+class OverflowException(ParserException):
+    """Numeric value out of range for the given type."""
+
+
 class EvmVersionException(ParserException):
-    """Cannot perform an action based on the active EVM ruleset."""
+    """Invalid action for the active EVM ruleset."""
 
 
 class CompilerPanic(Exception):
