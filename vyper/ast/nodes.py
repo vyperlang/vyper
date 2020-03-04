@@ -59,7 +59,9 @@ def get_node(
     if vy_class is None:
         raise SyntaxException(
             f"Invalid syntax (unsupported '{ast_struct['ast_type']}' Python AST node).",
-            ast_struct
+            ast_struct['full_source_code'],
+            ast_struct['lineno'],
+            ast_struct['col_offset'],
         )
 
     return vy_class(parent=parent, **ast_struct)
@@ -128,12 +130,12 @@ class VyperNode:
                 setattr(self, field_name, value)
 
             elif value and field_name in self._only_empty_fields:
-                if isinstance(value, list):
-                    value = value[0]
                 raise SyntaxException(
                     f"Syntax is valid Python but not valid for Vyper\n"
                     f"class: {type(self).__name__}, field_name: {field_name}",
-                    value
+                    kwargs['full_source_code'],
+                    kwargs['lineno'],
+                    kwargs['col_offset'],
                 )
 
         # add to children of parent last to ensure an accurate hash is generated

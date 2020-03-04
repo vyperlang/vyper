@@ -49,22 +49,16 @@ class ParserException(Exception):
         return self.message
 
 
-class PythonSyntaxException(ParserException):
-    """
-    Invalid syntax.
-
-    This error is converted from errors raised during ast.parse
-    """
-    def __init__(self, syntax_error: SyntaxError, source_code: str):
-        item = types.SimpleNamespace()  # TODO: Create an actual object for this
-        item.lineno = syntax_error.lineno
-        item.col_offset = syntax_error.offset
-        item.full_source_code = source_code
-        super().__init__(message=f'SyntaxError: {syntax_error.msg}', item=item)
-
-
 class SyntaxException(ParserException):
-    """Valid Python syntax, but invalid Vyper syntax."""
+
+    """Invalid syntax."""
+
+    def __init__(self, message, source_code, lineno, col_offset):
+        item = types.SimpleNamespace()  # TODO: Create an actual object for this
+        item.lineno = lineno
+        item.col_offset = col_offset
+        item.full_source_code = source_code
+        super().__init__(message, item)
 
 
 class StructureException(ParserException):
