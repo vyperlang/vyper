@@ -98,7 +98,7 @@ class InvalidTypeException(ParserException):
 
 
 class TypeMismatchException(ParserException):
-    """Attempt to perform an action with multiple, incompatible types."""
+    """Attempt to perform an action between multiple objects of incompatible types."""
 
 
 class ConstancyViolationException(ParserException):
