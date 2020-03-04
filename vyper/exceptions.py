@@ -6,8 +6,13 @@ from vyper.settings import (
 )
 
 
-# Attempts to display the line and column of violating code.
-class ParserException(Exception):
+class VyperException(Exception):
+    """
+    Base Vyper exception class.
+
+    This exception is not raised directly. Other exceptions inherit it in
+    order to display source annotations in the error string.
+    """
     def __init__(self, message='Error Message not found.', item=None):
         self.message = message
         self.lineno = None
@@ -49,7 +54,7 @@ class ParserException(Exception):
         return self.message
 
 
-class SyntaxException(ParserException):
+class SyntaxException(VyperException):
 
     """Invalid syntax."""
 
@@ -61,67 +66,67 @@ class SyntaxException(ParserException):
         super().__init__(message, item)
 
 
-class StructureException(ParserException):
+class StructureException(VyperException):
     """Invalid structure for parsable syntax."""
 
 
-class VersionException(ParserException):
+class VersionException(VyperException):
     """Version string is malformed or incompatible with this compiler version."""
 
 
-class InvalidLiteralException(ParserException):
+class InvalidLiteralException(VyperException):
     """Invalid literal value."""
 
 
-class VariableDeclarationException(ParserException):
+class VariableDeclarationException(VyperException):
     """Invalid variable declaration."""
 
 
-class FunctionDeclarationException(ParserException):
+class FunctionDeclarationException(VyperException):
     """Invalid function declaration."""
 
 
-class EventDeclarationException(ParserException):
+class EventDeclarationException(VyperException):
     """Invalid event declaration."""
 
 
-class UndeclaredDefinition(ParserException):
+class UndeclaredDefinition(VyperException):
     """Reference to a definition that has not been declared."""
 
 
-class NamespaceCollsion(ParserException):
+class NamespaceCollsion(VyperException):
     """Assignment to a name that is already in use."""
 
 
-class InvalidTypeException(ParserException):
+class InvalidTypeException(VyperException):
     """Type is invalid for an action."""
 
 
-class TypeMismatchException(ParserException):
+class TypeMismatchException(VyperException):
     """Attempt to perform an action between multiple objects of incompatible types."""
 
 
-class ConstancyViolationException(ParserException):
+class ConstancyViolationException(VyperException):
     """State-changing action inside a constant function."""
 
 
-class NonPayableViolationException(ParserException):
+class NonPayableViolationException(VyperException):
     """msg.value in a nonpayable function."""
 
 
-class ArrayIndexException(ParserException):
+class ArrayIndexException(VyperException):
     """Array index out of range."""
 
 
-class ZeroDivisionException(ParserException):
+class ZeroDivisionException(VyperException):
     """Second argument to a division or modulo operation was zero."""
 
 
-class OverflowException(ParserException):
+class OverflowException(VyperException):
     """Numeric value out of range for the given type."""
 
 
-class EvmVersionException(ParserException):
+class EvmVersionException(VyperException):
     """Invalid action for the active EVM ruleset."""
 
 
@@ -144,3 +149,7 @@ class JSONError(Exception):
         super().__init__(msg)
         self.lineno = lineno
         self.col_offset = col_offset
+
+
+class ParserException(Exception):
+    """Contract source cannot be parsed."""

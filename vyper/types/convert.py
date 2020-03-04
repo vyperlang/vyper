@@ -6,7 +6,7 @@ from vyper import (
 )
 from vyper.exceptions import (
     InvalidLiteralException,
-    ParserException,
+    StructureException,
     TypeMismatchException,
 )
 from vyper.functions.signatures import (
@@ -418,7 +418,7 @@ def to_bytes(expr, args, kwargs, context):
 
 def convert(expr, context):
     if len(expr.args) != 2:
-        raise ParserException('The convert function expects two parameters.', expr)
+        raise StructureException('The convert function expects two parameters.', expr)
     if isinstance(expr.args[1], vy_ast.Str):
         warnings.warn(
             "String parameter has been removed (see VIP1026). "
@@ -434,12 +434,12 @@ def convert(expr, context):
     ):
         output_type = expr.args[1].value.id
     else:
-        raise ParserException("Invalid conversion type, use valid Vyper type.", expr)
+        raise StructureException("Invalid conversion type, use valid Vyper type.", expr)
 
     if output_type in CONVERSION_TABLE:
         return CONVERSION_TABLE[output_type](expr, context)
     else:
-        raise ParserException(f"Conversion to {output_type} is invalid.", expr)
+        raise StructureException(f"Conversion to {output_type} is invalid.", expr)
 
 
 CONVERSION_TABLE = {
