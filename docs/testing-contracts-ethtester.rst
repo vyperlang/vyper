@@ -1,7 +1,7 @@
-.. _testing-eth-tester:
+.. _testing-contracts-ethtester:
 
 Testing with Ethereum Tester
-****************************
+############################
 
 `Ethereum Tester <https://github.com/ethereum/eth-tester>`_ is a tool suite for testing Ethereum based applications.
 
