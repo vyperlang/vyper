@@ -56,4 +56,5 @@ Glossary
     testing-contracts.rst
     frequently-asked-questions.rst
     contributing.rst
+    style-guide.rst
     release-notes.rst

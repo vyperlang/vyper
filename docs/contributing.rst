@@ -1,3 +1,5 @@
+.. _contributing:
+
 Contributing
 ############
 
@@ -51,11 +53,7 @@ Find or report bugs at our `issues page <https://github.com/vyperlang/vyper/issu
 Style Guide
 ===========
 
-
-Vyper's codebase follows the
-`Snake Charmer's Style Guide <https://github.com/ethereum/snake-charmers-tactical-manual/blob/master/style-guide.md>`_.
-Some of the things not covered by style guide that we maintain in our codebase are the use of
-`f-strings <https://github.com/vyperlang/vyper/issues/1567>`_ across the repository (when helpful for clarity), and adherence to the architectural design of the codebase.
+Our :ref:`style guide<style-guide>` outlines best practices for the Vyper repository. Please ask us on `Gitter <https://gitter.im/vyperlang/community>`_ if you have questions about anything that is not outlined in the style guide.
 
 Workflow for Pull Requests
 ==========================
@@ -68,11 +66,12 @@ If you need to pull in any changes from ``master`` after making your fork (for
 example, to resolve potential merge conflicts), please avoid using ``git merge``
 and instead, ``git rebase`` your branch.
 
-**Implement Features**
+Implementing New Features
+-------------------------
 
 If you are writing a new feature, please ensure you write appropriate Pytest test cases and place them under ``tests/``.
 
-If you are making a larger change, please consult first with the Gitter channel.
+If you are making a larger change, please consult first with the `Gitter <https://gitter.im/vyperlang/community>`_ channel.
 
 Although we do CI testing, please make sure that the tests pass for supported Python version and ensure that it builds locally before submitting a pull request.
 

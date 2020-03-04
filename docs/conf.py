@@ -189,4 +189,5 @@ source_suffix = ['.rst', '.md']
 intersphinx_mapping = {
     'brownie': ('https://eth-brownie.readthedocs.io/en/stable', None),
     'pytest': ('https://docs.pytest.org/en/latest/', None),
+    'python': ('https://docs.python.org/3.8/', None),
 }
