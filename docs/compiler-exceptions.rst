@@ -14,7 +14,7 @@ compiling a ``vyper`` file for deployment on the Ethereum Virtual Machine.
 
 .. py:exception:: ArrayIndexException
 
-    This exception will occur when an invalid index number of an array is referenced.  The terminal will point out the line 
+    This exception will occur when an invalid index number of an array is referenced.  The terminal will point out the line
     which contains the error.
 
 .. py:exception:: ConstancyViolationException
@@ -63,10 +63,10 @@ compiling a ``vyper`` file for deployment on the Ethereum Virtual Machine.
             deposit: msg.value
         })
             self.bidCounts[msg.sender] += 1
-    
+
         pendingReturns: map(address, wei_value)
 
-    ``FunctionDeclarationException`` happens when a function name is used for two different functions or when a reserved word 
+    ``FunctionDeclarationException`` happens when a function name is used for two different functions or when a reserved word
     is used to name a function.
 
     .. code-block:: bash
@@ -78,7 +78,7 @@ compiling a ``vyper`` file for deployment on the Ethereum Virtual Machine.
         vyper.exceptions.FunctionDeclarationException: Function name shadowing a variable name: pendingReturns
 
     The warning generated in the terminal does not specify any line numbers.  ``pendingReturns`` is named as the identifier
-    used incorrectly to declare the function throwing the error.  
+    used incorrectly to declare the function throwing the error.
 
 .. py:exception:: InvalidLiteralException
 
@@ -87,7 +87,7 @@ compiling a ``vyper`` file for deployment on the Ethereum Virtual Machine.
         @public
         def foo():
             bar: address = 0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef
-        
+
     Raised when attempting to use a literal value where the type is correct, but the value is still invalid in some way. For example, an address that is not check-summed.
 
 .. py:exception:: InvalidTypeException
@@ -97,13 +97,13 @@ compiling a ``vyper`` file for deployment on the Ethereum Virtual Machine.
         bids: map(address, Bid[128])
         bidCounts: map(adddress, int128)
 
-    The variable type ``address`` is misspelled.  Any word that is not a reserved word, and declares a variable type will 
+    The variable type ``address`` is misspelled.  Any word that is not a reserved word, and declares a variable type will
     return this error.
 
     .. code-block:: bash
 
-        $ vyper blind_auction.vy 
-        Error compiling: blind.auction.vy /usr/lib/python3/dist-packages/apport/report.py:13: 
+        $ vyper blind_auction.vy
+        Error compiling: blind.auction.vy /usr/lib/python3/dist-packages/apport/report.py:13:
         DeprecationWarning: the imp module is deprecated in favour of
         importlib; see the module's documentation for alternative uses
         import fnmatch, glob, traceback, errno, sys, atexit, locale, imp
@@ -127,7 +127,7 @@ compiling a ``vyper`` file for deployment on the Ethereum Virtual Machine.
         @private
         def _foo():
             bar: uint256 = msg.value
-       
+
     Raised when attempting to access ``msg.value`` from within a private function.
 
 .. py:exception:: ParserException
@@ -147,20 +147,6 @@ compiling a ``vyper`` file for deployment on the Ethereum Virtual Machine.
         ---> 3 def foo(a: address = msg.sender): pass
         ----------------------------^
 
-    See ``PythonSyntaxException``.  This error is not commonly used and typically refers to an error of one of the other types.
-
-.. py:exception:: PythonSyntaxException
-
-    .. code-block:: python3
-
-        >>> while True print('Hello world')
-            File "<stdin>", line 1
-            while True print('Hello world')
-                   ^
-            SyntaxError: invalid syntax
-     
-    This exception is raised due to a python based syntax exception.  It is also known as a parser exception.  In this case there is a colon missing after the word print.  See `Python Errors and Exceptions <https://docs.python.org/3/tutorial/errors.html>`_ for more details.
-
 .. py:exception:: StructureException
 
     .. code-block:: python3
@@ -170,7 +156,7 @@ compiling a ``vyper`` file for deployment on the Ethereum Virtual Machine.
 
         '''
 
-    The inclusion of punctuation that is syntactically incorrect and not a part of the normal vyper flow will throw a 
+    The inclusion of punctuation that is syntactically incorrect and not a part of the normal vyper flow will throw a
     ``StructureException``.
 
     .. code-block:: bash
@@ -179,27 +165,21 @@ compiling a ``vyper`` file for deployment on the Ethereum Virtual Machine.
              180
         ---> 181 '''
         ---------^
-             182  
+             182
     The terminal displays the line number and points directly to the problem.
 
 .. py:exception:: SyntaxException
 
-    .. code-block:: python3
-
-        struct Bid:
-            blindedBid bytes32
-            deposit: wei_value
-
-    A syntax error is thrown in the declaration of this ``struct`` variable.
+    Raised due to invalid syntax within a contract.
 
     .. code-block:: bash
 
-            $ vyper blind_auction.vy
-            vyper.exceptions.PythonSyntaxException: line 4:20 SyntaxError: invalid syntax
-                 3 struct Bid:
-            ---> 4   blindedBid bytes32
-            ---------------------------^
-                 5   deposit: wei_value
+        $ vyper blind_auction.vy
+        vyper.exceptions.SyntaxException: line 4:20 SyntaxError: invalid syntax
+                3 struct Bid:
+        ---> 4   blindedBid bytes32
+        ---------------------------^
+                5   deposit: wei_value
 
     The terminal output of a syntax error will generally show exactly where it happened.  In this case there is a semi
     colon missing after ``blindedBid`` in the declaration of the struct.
@@ -213,7 +193,7 @@ compiling a ``vyper`` file for deployment on the Ethereum Virtual Machine.
         a: uint256 = 42
         b: bytes32 = a
 
-    This exception occurs when a variable is assigned a value that is inconsistent with the type. 
+    This exception occurs when a variable is assigned a value that is inconsistent with the type.
 
     .. code-block:: bash
 
@@ -232,7 +212,7 @@ compiling a ``vyper`` file for deployment on the Ethereum Virtual Machine.
         # Final auction state
         highestBid: public(wei_value)
         highestBidder: public(address)
-    
+
         @private
         def placeBid(bidder: address, value: wei_value) -> bool:
         # If bid is less than highest bid, bid fails
@@ -266,7 +246,7 @@ compiling a ``vyper`` file for deployment on the Ethereum Virtual Machine.
 
 .. py:exceptions:: ZeroDivisionException
 
-    This exception will occur when a divide by zero or ``modulo`` zero situation arises.  The terminal will point out the line 
+    This exception will occur when a divide by zero or ``modulo`` zero situation arises.  The terminal will point out the line
     which contains the error.
 
 CompilerPanic
@@ -276,12 +256,12 @@ CompilerPanic
 
     .. code-block:: python3
 
-        $ vyper v.vy 
+        $ vyper v.vy
         Error compiling: v.vy
         vyper.exceptions.CompilerPanic: Number of times repeated
         must be a constant nonzero positive integer: 0 Please create an issue.
 
-    A compiler panic error indicates that there is a problem internally to the compiler and an issue should be reported right 
+    A compiler panic error indicates that there is a problem internally to the compiler and an issue should be reported right
     away on the Vyper Github page.  Open an issue if you are experiencing this error. Please `Open an Issue <https://github.com/vyperlang/vyper/issues>`_
 
 
