@@ -149,15 +149,18 @@ def get_type_from_node(node: vy_ast.VyperNode):
             compare_types(values[0], i, node)
         return values
 
-    if isinstance(node, vy_ast.Constant):
-        return _get_type_from_literal(node)
+    try:
+        if isinstance(node, vy_ast.Constant):
+            return _get_type_from_literal(node)
 
-    if isinstance(node, (vy_ast.Op, vy_ast.Compare)):
-        return get_type_from_operation(node)
+        if isinstance(node, (vy_ast.Op, vy_ast.Compare)):
+            return get_type_from_operation(node)
 
-    if isinstance(node, vy_ast.Call):
-        var = get_value_from_node(node.func)
-        return var.get_call_return_type(node)
+        if isinstance(node, vy_ast.Call):
+            var = get_value_from_node(node.func)
+            return var.get_call_return_type(node)
+    except AttributeError:
+        raise StructureException(f"Invalid action for type: {node.ast_type}", node)
 
     var = get_value_from_node(node)
     if var is None:
