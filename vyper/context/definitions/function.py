@@ -107,7 +107,7 @@ class ContractFunction(FunctionDefinition):
     A contract function definition.
 
     Function objects differ from variables in that they have no `type` member.
-    Instead, functions implement the `validate_call` method, check the call
+    Instead, functions implement the `get_call_return_type` method, check the call
     arguments against `arguments`, and return `return_type`.
 
     Attributes
@@ -158,7 +158,7 @@ class ContractFunction(FunctionDefinition):
                 return False
         return True
 
-    def validate_call(self, node: vy_ast.Call):
+    def get_call_return_type(self, node: vy_ast.Call):
         if node.get('func.value.id') == "self" and self.visibility == "public":
             raise StructureException("Can only call from public function to private function", node)
 

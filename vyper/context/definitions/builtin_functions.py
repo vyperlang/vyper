@@ -56,7 +56,7 @@ class SimpleBuiltinDefinition(FunctionDefinition, BuiltinFunctionDefinition):
     """
     Base class for builtin functions where the inputs and return types are fixed.
 
-    Builtins must define a `validate_call` method that accepts an ast Call node and
+    Builtins must define a `get_call_return_type` method that accepts an ast Call node and
     optionally returns a Variable object.
 
     Class attributes
@@ -248,7 +248,7 @@ class AsWeiValue(SimpleBuiltinDefinition):
         ("kether", "grand"): 10**21,
     }
 
-    def validate_call(self, node: vy_ast.Call):
+    def get_call_return_type(self, node: vy_ast.Call):
         check_call_args(node, 2)
         if not isinstance(node.args[1], vy_ast.Str):
             # TODO standard way to indicate a value must be a literal?
@@ -262,7 +262,7 @@ class AsWeiValue(SimpleBuiltinDefinition):
                 f"{', '.join(x[0] for x in self.wei_denoms)}",
                 node.args[1]
             )
-        return super().validate_call(node)
+        return super().get_call_return_type(node)
 
 
 class Slice(SimpleBuiltinDefinition):
@@ -271,8 +271,8 @@ class Slice(SimpleBuiltinDefinition):
     _inputs = [("b", {'bytes', 'bytes32', 'string'}), ('start', 'int128'), ('length', 'int128')]
     _return_type = None
 
-    def validate_call(self, node: vy_ast.Call):
-        super().validate_call(node)
+    def get_call_return_type(self, node: vy_ast.Call):
+        super().get_call_return_type(node)
 
         start, length = (get_value_from_node(i) for i in node.args[1:])
         if not isinstance(start, int) or start < 0:
@@ -304,8 +304,8 @@ class RawCall(SimpleBuiltinDefinition):
     _arg_count = (4, 6)
     _return_type = "bytes"
 
-    def validate_call(self, node: vy_ast.Call):
-        return_type = super().validate_call(node)
+    def get_call_return_type(self, node: vy_ast.Call):
+        return_type = super().get_call_return_type(node)
         min_length = get_value_from_node(node.args[2])
         if isinstance(min_length, Variable):
             min_length = min_length.literal_value()
@@ -317,7 +317,7 @@ class Min(BuiltinFunctionDefinition):
 
     _id = "min"
 
-    def validate_call(self, node: vy_ast.Call):
+    def get_call_return_type(self, node: vy_ast.Call):
         check_call_args(node, 2)
         left, right = (get_type_from_node(i) for i in node.args)
         if not hasattr(left, 'is_numeric'):
@@ -330,7 +330,7 @@ class Max(BuiltinFunctionDefinition):
 
     _id = "max"
 
-    def validate_call(self, node: vy_ast.Call):
+    def get_call_return_type(self, node: vy_ast.Call):
         check_call_args(node, 2)
         left, right = (get_type_from_node(i) for i in node.args)
         if not hasattr(left, 'is_numeric'):
@@ -343,7 +343,7 @@ class Clear(BuiltinFunctionDefinition):
 
     _id = "clear"
 
-    def validate_call(self, node: vy_ast.Call):
+    def get_call_return_type(self, node: vy_ast.Call):
         check_call_args(node, 1)
         get_type_from_node(node.args[0])
         return None
@@ -353,7 +353,7 @@ class AsUnitlessNumber(BuiltinFunctionDefinition):
 
     _id = "as_unitless_number"
 
-    def validate_call(self, node: vy_ast.Call):
+    def get_call_return_type(self, node: vy_ast.Call):
         check_call_args(node, 1)
         value = get_value_from_node(node.args[0])
         if not isinstance(getattr(value, 'type'), ValueType):
@@ -369,7 +369,7 @@ class Concat(BuiltinFunctionDefinition):
 
     _id = "concat"
 
-    def validate_call(self, node: vy_ast.Call):
+    def get_call_return_type(self, node: vy_ast.Call):
         check_call_args(node, (2, float('inf')))
         type_list = [get_type_from_node(i) for i in node.args]
 
@@ -387,7 +387,7 @@ class MethodID(BuiltinFunctionDefinition):
 
     _id = "method_id"
 
-    def validate_call(self, node: vy_ast.Call):
+    def get_call_return_type(self, node: vy_ast.Call):
         check_call_args(node, 2)
         if not isinstance(node.args[0], vy_ast.Str):
             raise StructureException("method id must be given as a literal string", node.args[0])
@@ -401,7 +401,7 @@ class Extract32(BuiltinFunctionDefinition):
 
     _id = "extract32"
 
-    def validate_call(self, node: vy_ast.Call):
+    def get_call_return_type(self, node: vy_ast.Call):
         check_call_args(node, (2, 3))
         target, length = (get_type_from_node(i) for i in node.args[:2])
 
@@ -424,7 +424,7 @@ class RawLog(BuiltinFunctionDefinition):
 
     _id = "raw_log"
 
-    def validate_call(self, node: vy_ast.Call):
+    def get_call_return_type(self, node: vy_ast.Call):
         check_call_args(node, 2)
         if not isinstance(node.args[0], vy_ast.List) or len(node.args[0].elts) > 4:
             raise StructureException(

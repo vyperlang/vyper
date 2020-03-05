@@ -160,8 +160,8 @@ class Variable(BaseDefinition):
         typ = self.type.get_index_type(node.slice.value)
         return Variable(self.name, typ, None, self.is_constant, self.is_public)
 
-    def validate_call(self, node):
-        return self.type.validate_call(node)
+    def get_call_return_type(self, node):
+        return self.type.get_call_return_type(node)
 
     def literal_value(self):
         """

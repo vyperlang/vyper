@@ -69,7 +69,7 @@ class FunctionDefinition(BaseDefinition):
         if isinstance(arg_count, tuple):
             self.kwarg_keys = list(self.arguments)[self.arg_count[0]:]
 
-    def validate_call(self, node: vy_ast.Call):
+    def get_call_return_type(self, node: vy_ast.Call):
         """
         Validates a call to this function and returns the result.
 
@@ -82,8 +82,8 @@ class FunctionDefinition(BaseDefinition):
 
         Returns
         -------
-        Variable, optional
-            A definition object generated as a result of the call.
+        BaseType | tuple, optional
+            Type object(s) generated as a result of the call.
         """
         check_call_args(node, self.arg_count, self.kwarg_keys)
         for arg, key in zip(node.args, self.arguments):

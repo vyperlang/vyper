@@ -50,7 +50,8 @@ def get_value_from_node(node: vy_ast.VyperNode):
 
     if isinstance(node, vy_ast.Call):
         var = get_value_from_node(node.func)
-        return definitions.Variable("", var.validate_call(node))
+        return_type = var.get_call_return_type(node)
+        return definitions.Variable("", return_type)
 
     # TODO folding
 

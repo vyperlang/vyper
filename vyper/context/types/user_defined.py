@@ -12,7 +12,6 @@ from vyper.context import (
     namespace,
 )
 from vyper.context.definitions import (
-    Variable,
     get_function_from_node,
 )
 from vyper.context.types.bases import (
@@ -87,7 +86,7 @@ class StructType(MemberType):
     def from_annotation(self, node: vy_ast.VyperNode):
         return type(self)(self._id, self.members)
 
-    def validate_call(self, node: vy_ast.Call):
+    def get_call_return_type(self, node: vy_ast.Call):
         check_call_args(node, 1)
         if not isinstance(node.args[0], vy_ast.Dict):
             raise StructureException("Struct values must be declared via dictionary", node.args[0])
@@ -166,7 +165,7 @@ class InterfaceType(MemberType):
     def from_annotation(self, node: vy_ast.VyperNode):
         return type(self)(self._id, self.members)
 
-    def validate_call(self, node: vy_ast.Call):
+    def get_call_return_type(self, node: vy_ast.Call):
         check_call_args(node, 1)
         value = get_type_from_node(node.args[0])
         compare_types(value, namespace['address'], node.args[0])

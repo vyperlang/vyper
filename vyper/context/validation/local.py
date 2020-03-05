@@ -144,7 +144,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
     def visit_Call(self, node):
         value = get_value_from_node(node.func)
-        value.validate_call(node)
+        value.get_call_return_type(node)
 
     def visit_If(self, node):
         self.visit(node.test)

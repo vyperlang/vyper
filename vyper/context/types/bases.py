@@ -181,7 +181,7 @@ class _BaseType:
         """
         raise CompilerPanic(f"Type {self} cannot validate an implements statement", node)
 
-    def validate_call(self, node: vy_ast.Call):
+    def get_call_return_type(self, node: vy_ast.Call):
         """
         Validates a call to this type and returns the result.
 
@@ -195,8 +195,8 @@ class _BaseType:
 
         Returns
         -------
-        Definition, optional
-            A definition object generated as a result of the call.
+        BaseType | tuple, optional
+            Type object(s) generated as a result of the call.
         """
         raise StructureException(f"Type '{self}' is not callable", node)
 

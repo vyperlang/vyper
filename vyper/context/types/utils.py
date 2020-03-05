@@ -157,7 +157,7 @@ def get_type_from_node(node: vy_ast.VyperNode):
 
     if isinstance(node, vy_ast.Call):
         var = get_value_from_node(node.func)
-        return var.validate_call(node)
+        return var.get_call_return_type(node)
 
     var = get_value_from_node(node)
     if var is None:
