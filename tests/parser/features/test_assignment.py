@@ -1,7 +1,7 @@
 from vyper.exceptions import (
     ConstancyViolationException,
     InvalidLiteralException,
-    ParserException,
+    SyntaxException,
     TypeMismatchException,
 )
 
@@ -129,7 +129,7 @@ def foo2() -> uint256:
     x = 3 ^ 3  # invalid operator
     return x
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ParserException)
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), SyntaxException)
 
 
 # See #838. Confirm that nested keys and structs work properly.

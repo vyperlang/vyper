@@ -4,9 +4,9 @@ from vyper import (
     ast as vy_ast,
 )
 from vyper.exceptions import (
+    CompilerPanic,
     ConstancyViolationException,
     InvalidLiteralException,
-    ParserException,
     StructureException,
     TypeMismatchException,
 )
@@ -1281,7 +1281,7 @@ else:
 
 
 def _clear():
-    raise ParserException(
+    raise CompilerPanic(
         "This function should never be called! `clear()` is currently handled "
         "differently than other functions as it self modifies its input argument "
         "statement. Please see `_clear()` in `stmt.py`"

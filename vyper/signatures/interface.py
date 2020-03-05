@@ -13,7 +13,6 @@ from vyper import (
     ast as vy_ast,
 )
 from vyper.exceptions import (
-    ParserException,
     StructureException,
 )
 import vyper.interfaces
@@ -71,7 +70,7 @@ def abi_type_to_ast(atype, expected_size):
             slice=vy_ast.Index(value=vy_ast.Int(n=expected_size))
         )
     else:
-        raise ParserException(f'Type {atype} not supported by vyper.')
+        raise StructureException(f'Type {atype} not supported by vyper.')
 
 
 # Vyper defines a maximum length for bytes and string types, but Solidity does not.

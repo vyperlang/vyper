@@ -7,7 +7,6 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
-    ParserException,
     StructureException,
 )
 
@@ -25,7 +24,7 @@ def foo() -> uint256:
     return convert(2, uint256)
 
     """,
-    ("""
+    """
 @private
 def test(a : uint256):
     pass
@@ -34,19 +33,15 @@ def test(a : uint256):
 @public
 def burn(_value: uint256):
     self.test(msg.sender._value)
-    """, ParserException)
+    """,
 ]
 
 
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_functions_call_fail(bad_code):
 
-    if isinstance(bad_code, tuple):
-        with raises(bad_code[1]):
-            compiler.compile_code(bad_code[0])
-    else:
-        with raises(StructureException):
-            compiler.compile_code(bad_code)
+    with raises(StructureException):
+        compiler.compile_code(bad_code)
 
 
 valid_list = [

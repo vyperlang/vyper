@@ -6,8 +6,13 @@ from vyper.settings import (
 )
 
 
-# Attempts to display the line and column of violating code.
-class ParserException(Exception):
+class VyperException(Exception):
+    """
+    Base Vyper exception class.
+
+    This exception is not raised directly. Other exceptions inherit it in
+    order to display source annotations in the error string.
+    """
     def __init__(self, message='Error Message not found.', item=None):
         self.message = message
         self.lineno = None
@@ -49,75 +54,85 @@ class ParserException(Exception):
         return self.message
 
 
-class PythonSyntaxException(ParserException):
-    """
-    Conversion from error using ast.parse()
-    """
-    def __init__(self, syntax_error: SyntaxError, source_code: str):
+class SyntaxException(VyperException):
+
+    """Invalid syntax."""
+
+    def __init__(self, message, source_code, lineno, col_offset):
         item = types.SimpleNamespace()  # TODO: Create an actual object for this
-        item.lineno = syntax_error.lineno
-        item.col_offset = syntax_error.offset
-        item.source_code = source_code
-        super().__init__(message=f'SyntaxError: {syntax_error.msg}', item=item)
+        item.lineno = lineno
+        item.col_offset = col_offset
+        item.full_source_code = source_code
+        super().__init__(message, item)
 
 
-class VariableDeclarationException(ParserException):
-    pass
+class StructureException(VyperException):
+    """Invalid structure for parsable syntax."""
 
 
-class StructureException(ParserException):
-    pass
+class VersionException(VyperException):
+    """Version string is malformed or incompatible with this compiler version."""
 
 
-class ConstancyViolationException(ParserException):
-    pass
+class InvalidLiteralException(VyperException):
+    """Invalid literal value."""
 
 
-class NonPayableViolationException(ParserException):
-    pass
+class VariableDeclarationException(VyperException):
+    """Invalid variable declaration."""
 
 
-class InvalidLiteralException(ParserException):
-    pass
+class FunctionDeclarationException(VyperException):
+    """Invalid function declaration."""
 
 
-class InvalidTypeException(ParserException):
-    pass
+class EventDeclarationException(VyperException):
+    """Invalid event declaration."""
 
 
-class TypeMismatchException(ParserException):
-    pass
+class UndeclaredDefinition(VyperException):
+    """Reference to a definition that has not been declared."""
 
 
-class FunctionDeclarationException(ParserException):
-    pass
+class NamespaceCollsion(VyperException):
+    """Assignment to a name that is already in use."""
 
 
-class EventDeclarationException(ParserException):
-    pass
+class InvalidTypeException(VyperException):
+    """Type is invalid for an action."""
 
 
-class VersionException(ParserException):
-    pass
+class TypeMismatchException(VyperException):
+    """Attempt to perform an action between multiple objects of incompatible types."""
 
 
-class SyntaxException(ParserException):
-    pass
+class ConstancyViolationException(VyperException):
+    """State-changing action inside a constant function."""
 
 
-class ArrayIndexException(ParserException):
-    pass
+class NonPayableViolationException(VyperException):
+    """msg.value in a nonpayable function."""
 
 
-class ZeroDivisionException(ParserException):
-    pass
+class ArrayIndexException(VyperException):
+    """Array index out of range."""
 
 
-class EvmVersionException(ParserException):
-    pass
+class ZeroDivisionException(VyperException):
+    """Second argument to a division or modulo operation was zero."""
+
+
+class OverflowException(VyperException):
+    """Numeric value out of range for the given type."""
+
+
+class EvmVersionException(VyperException):
+    """Invalid action for the active EVM ruleset."""
 
 
 class CompilerPanic(Exception):
+
+    """Unexpected error during compilation."""
 
     def __init__(self, message):
         self.message = message
@@ -128,7 +143,13 @@ class CompilerPanic(Exception):
 
 class JSONError(Exception):
 
+    """Invalid compiler input JSON."""
+
     def __init__(self, msg, lineno=None, col_offset=None):
         super().__init__(msg)
         self.lineno = lineno
         self.col_offset = col_offset
+
+
+class ParserException(Exception):
+    """Contract source cannot be parsed."""

@@ -7,7 +7,6 @@ from vyper.exceptions import (
     EvmVersionException,
     InvalidLiteralException,
     NonPayableViolationException,
-    ParserException,
     StructureException,
     TypeMismatchException,
     VariableDeclarationException,
@@ -378,7 +377,9 @@ class Expr(object):
             key = self.expr.value.id + "." + self.expr.attr
             if key == "msg.sender":
                 if self.context.is_private:
-                    raise ParserException("msg.sender not allowed in private functions.", self.expr)
+                    raise StructureException(
+                        "msg.sender not allowed in private functions.", self.expr
+                    )
                 return LLLnode.from_list(['caller'], typ='address', pos=getpos(self.expr))
             elif key == "msg.value":
                 if not self.context.is_payable:
@@ -428,7 +429,7 @@ class Expr(object):
                     )
                 return LLLnode.from_list(['chainid'], typ='uint256', pos=getpos(self.expr))
             else:
-                raise ParserException("Unsupported keyword: " + key, self.expr)
+                raise StructureException("Unsupported keyword: " + key, self.expr)
         # Other variables
         else:
             sub = Expr.parse_variable_location(self.expr.value, self.context)
@@ -507,7 +508,7 @@ class Expr(object):
                     if left.value < 0:
                         val = -val
             else:
-                raise ParserException(
+                raise StructureException(
                     f'Unsupported literal operator: {type(self.expr.op)}',
                     self.expr,
                 )
@@ -709,7 +710,7 @@ class Expr(object):
             else:
                 raise TypeMismatchException('Only whole number exponents are supported', self.expr)
         else:
-            raise ParserException(f"Unsupported binary operator: {self.expr.op}", self.expr)
+            raise StructureException(f"Unsupported binary operator: {self.expr.op}", self.expr)
 
         p = ['seq']
 
@@ -889,7 +890,7 @@ class Expr(object):
                     )
 
                 else:
-                    raise ParserException(
+                    raise StructureException(
                         "Can only compare strings/bytes of length shorter",
                         " than 32 bytes other than equality comparisons",
                         self.expr,
@@ -1173,5 +1174,5 @@ class Expr(object):
     def parse_variable_location(cls, expr, context):
         o = cls(expr, context).lll_node
         if not o.location:
-            raise ParserException("Looking for a variable location, instead got a value", expr)
+            raise StructureException("Looking for a variable location, instead got a value", expr)
         return o
