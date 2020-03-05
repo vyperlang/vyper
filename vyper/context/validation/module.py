@@ -16,6 +16,7 @@ from vyper.context.utils import (
     VyperNodeVisitorBase,
 )
 from vyper.exceptions import (
+    ParserException,
     StructureException,
     VariableDeclarationException,
 )
@@ -43,7 +44,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
                 try:
                     self.visit(node)
                     module_nodes.remove(node)
-                except Exception as e:
+                except ParserException as e:
                     err_msg.append(f"{type(e).__name__}: {e}")
             if count == len(module_nodes):
                 raise StructureException(

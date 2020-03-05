@@ -152,9 +152,10 @@ class InterfaceType(MemberType):
         self.add_member_types(**members)
 
     def validate_implements(self, node: vy_ast.AnnAssign):
-
         unimplemented = [
-            i.name for i in self.members.values() if namespace['self'].members[i.name] != i
+            i.name for i in self.members.values() if
+            i.name not in namespace['self'].members or
+            namespace['self'].members[i.name] != i
         ]
         if unimplemented:
             raise StructureException(

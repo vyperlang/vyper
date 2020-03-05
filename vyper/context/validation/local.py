@@ -24,6 +24,7 @@ from vyper.context.utils import (
     check_call_args,
 )
 from vyper.exceptions import (
+    ParserException,
     StructureException,
     VariableDeclarationException,
 )
@@ -38,7 +39,7 @@ def validate_functions(vy_module):
         namespace.enter_scope()
         try:
             FunctionNodeVisitor(node)
-        except Exception as e:
+        except ParserException as e:
             err_msg.append(f"{type(e).__name__}: {e}")
         finally:
             namespace.exit_scope()
