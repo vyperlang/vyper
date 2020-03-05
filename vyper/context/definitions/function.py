@@ -134,7 +134,7 @@ class ContractFunction(FunctionDefinition):
         super().__init__(name, arguments, arg_count, return_type)
         self.visibility = visibility
         for key, value in kwargs.items():
-            setattr(self, f'is_{key}', value)
+            setattr(self, key, value)
 
     def __eq__(self, other):
         # TODO use a comparison method instead of __eq__
