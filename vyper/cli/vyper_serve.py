@@ -13,7 +13,7 @@ import sys
 
 import vyper
 from vyper.exceptions import (
-    ParserException,
+    VyperException,
 )
 from vyper.opcodes import (
     DEFAULT_EVM_VERSION,
@@ -110,7 +110,7 @@ class VyperRequestHandler(BaseHTTPRequestHandler):
                 evm_version=data.get('evm_version', DEFAULT_EVM_VERSION)
             )['']
             out_dict['ir'] = str(out_dict['ir'])
-        except ParserException as e:
+        except VyperException as e:
             return {
                 'status': 'failed',
                 'message': str(e),

@@ -17,7 +17,7 @@ from vyper.ast.pre_parser import (
 from vyper.exceptions import (
     CompilerPanic,
     ParserException,
-    PythonSyntaxException,
+    SyntaxException,
 )
 
 
@@ -44,7 +44,7 @@ def parse_to_ast(source_code: str, source_id: int = 0) -> vy_ast.Module:
         py_ast = python_ast.parse(reformatted_code)
     except SyntaxError as e:
         # TODO: Ensure 1-to-1 match of source_code:reformatted_code SyntaxErrors
-        raise PythonSyntaxException(e, source_code) from e
+        raise SyntaxException(str(e), source_code, e.lineno, e.offset) from e
     annotate_python_ast(py_ast, source_code, class_types, source_id)
 
     # Convert to Vyper AST.

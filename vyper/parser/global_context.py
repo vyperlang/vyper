@@ -5,7 +5,6 @@ from vyper.exceptions import (
     EventDeclarationException,
     FunctionDeclarationException,
     InvalidTypeException,
-    ParserException,
     StructureException,
     VariableDeclarationException,
 )
@@ -368,7 +367,7 @@ class GlobalContext:
         item_attributes = {"public": False}
 
         if len(self._globals) > NONRENTRANT_STORAGE_OFFSET:
-            raise ParserException(
+            raise StructureException(
                 f"Too many globals defined, only {NONRENTRANT_STORAGE_OFFSET} globals are allowed",
                 item,
             )
