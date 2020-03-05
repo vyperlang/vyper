@@ -17,7 +17,6 @@ from vyper.context.definitions.bases import (
     FunctionDefinition,
 )
 from vyper.context.definitions.variable import (
-    Variable,
     get_value_from_node,
     get_variable_from_nodes,
 )
@@ -88,21 +87,19 @@ def get_function_from_node(node: vy_ast.FunctionDef, visibility: Optional[str] =
 
     # return types
     if node.returns is None:
-        return_var = None
+        return_type = None
     elif isinstance(node.returns, vy_ast.Name):
         return_type = get_type_from_annotation(node.returns)
-        return_var = Variable("", return_type)
     elif isinstance(node.returns, vy_ast.Tuple):
         return_type = ()
         for n in node.returns.elts:
             return_type += (get_type_from_annotation(n),)
-        return_var = Variable("", return_type)
     else:
         raise StructureException(
             f"Function return value must be a type name or tuple", node.returns
         )
 
-    return ContractFunction(node.name, arguments, arg_count, return_var, visibility, **kwargs)
+    return ContractFunction(node.name, arguments, arg_count, return_type, visibility, **kwargs)
 
 
 class ContractFunction(FunctionDefinition):
@@ -111,7 +108,7 @@ class ContractFunction(FunctionDefinition):
 
     Function objects differ from variables in that they have no `type` member.
     Instead, functions implement the `validate_call` method, check the call
-    arguments against `arguments`, and return `return_var`.
+    arguments against `arguments`, and return `return_type`.
 
     Attributes
     ----------
@@ -130,11 +127,11 @@ class ContractFunction(FunctionDefinition):
         name: str,
         arguments: OrderedDict,
         arg_count: Union[Tuple[int, int], int],
-        return_var,
+        return_type,
         visibility: str,
         **kwargs,
     ):
-        super().__init__(name, arguments, arg_count, return_var)
+        super().__init__(name, arguments, arg_count, return_type)
         self.visibility = visibility
         for key, value in kwargs.items():
             setattr(self, f'is_{key}', value)
@@ -145,13 +142,13 @@ class ContractFunction(FunctionDefinition):
             isinstance(other, ContractFunction) and
             self.name == other.name and
             self.visibility == other.visibility and
-            type(self.return_var) is type(other.return_var) and
+            type(self.return_type) is type(other.return_type) and
             list(self.arguments) == list(other.arguments)
         ):
             return False
-        if self.return_var:
+        if self.return_type:
             try:
-                compare_types(self.return_var.type, other.return_var.type, None)
+                compare_types(self.return_type, other.return_type, None)
             except Exception:
                 return False
         for key in self.arguments:
@@ -182,4 +179,4 @@ class ContractFunction(FunctionDefinition):
             else:
                 self._compare_argument(kwarg.arg, kwarg.value)
 
-        return self.return_var
+        return self.return_type

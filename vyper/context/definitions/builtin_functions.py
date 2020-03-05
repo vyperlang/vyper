@@ -79,9 +79,8 @@ class SimpleBuiltinDefinition(FunctionDefinition, BuiltinFunctionDefinition):
         for name, types in self._inputs:
             arguments[name] = get_builtin_type(types)
         return_type = get_builtin_type(self._return_type) if self._return_type else None
-        return_var = Variable(f"{self._id}_return", return_type)
         arg_count = getattr(self, '_arg_count', len(arguments))
-        FunctionDefinition.__init__(self, self._id, arguments, arg_count, return_var)
+        FunctionDefinition.__init__(self, self._id, arguments, arg_count, return_type)
 
 
 class Floor(SimpleBuiltinDefinition):
@@ -286,11 +285,9 @@ class Slice(SimpleBuiltinDefinition):
         input_type = get_type_from_node(node.args[0])
         return_length = length - start
         if isinstance(input_type, BytesType):
-            return_type = get_builtin_type(("bytes", return_length))
+            return get_builtin_type(("bytes", return_length))
         else:
-            return_type = get_builtin_type(("string", return_length))
-
-        return Variable("slice_return", return_type)
+            return get_builtin_type(("string", return_length))
 
 
 class RawCall(SimpleBuiltinDefinition):
@@ -308,12 +305,12 @@ class RawCall(SimpleBuiltinDefinition):
     _return_type = "bytes"
 
     def validate_call(self, node: vy_ast.Call):
-        var = super().validate_call(node)
+        return_type = super().validate_call(node)
         min_length = get_value_from_node(node.args[2])
         if isinstance(min_length, Variable):
             min_length = min_length.literal_value()
-        var.type.min_length = min_length
-        return var
+        return_type.min_length = min_length
+        return return_type
 
 
 class Min(BuiltinFunctionDefinition):
@@ -326,7 +323,7 @@ class Min(BuiltinFunctionDefinition):
         if not hasattr(left, 'is_numeric'):
             raise StructureException("Can only calculate min on numeric types", node)
         compare_types(left, right, node)
-        return Variable("min_return", left)
+        return left
 
 
 class Max(BuiltinFunctionDefinition):
@@ -339,7 +336,7 @@ class Max(BuiltinFunctionDefinition):
         if not hasattr(left, 'is_numeric'):
             raise StructureException("Can only calculate min on numeric types", node)
         compare_types(left, right, node)
-        return Variable("min_return", left)
+        return left
 
 
 class Clear(BuiltinFunctionDefinition):
@@ -363,9 +360,9 @@ class AsUnitlessNumber(BuiltinFunctionDefinition):
             raise StructureException("Not a value type", node.args[0])
         if not hasattr(value.type, 'unit'):
             raise StructureException(f"Type '{value.type}' has no unit", node.args[0])
-        typ = type(value.type)()
-        del typ.unit
-        return Variable("unitless_return", typ)
+        return_type = type(value.type)()
+        del return_type.unit
+        return return_type
 
 
 class Concat(BuiltinFunctionDefinition):
@@ -383,7 +380,7 @@ class Concat(BuiltinFunctionDefinition):
 
         length = sum(i.min_length for i in type_list)
         return_type = get_builtin_type(("bytes", length))
-        return Variable("concat_return", return_type)
+        return return_type
 
 
 class MethodID(BuiltinFunctionDefinition):
@@ -397,7 +394,7 @@ class MethodID(BuiltinFunctionDefinition):
         return_type = get_type_from_annotation(node.args[1])
         if not isinstance(return_type, BytesType) or return_type.length not in (4, 32):
             raise StructureException("return type must be bytes32 or bytes[4]", node.args[1])
-        return Variable("method_id_return", return_type)
+        return return_type
 
 
 class Extract32(BuiltinFunctionDefinition):
@@ -420,7 +417,7 @@ class Extract32(BuiltinFunctionDefinition):
         else:
             return_type = get_builtin_type("bytes32")
 
-        return Variable("extract32_return", return_type)
+        return return_type
 
 
 class RawLog(BuiltinFunctionDefinition):

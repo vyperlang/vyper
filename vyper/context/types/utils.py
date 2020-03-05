@@ -155,6 +155,10 @@ def get_type_from_node(node: vy_ast.VyperNode):
     if isinstance(node, (vy_ast.Op, vy_ast.Compare)):
         return get_type_from_operation(node)
 
+    if isinstance(node, vy_ast.Call):
+        var = get_value_from_node(node.func)
+        return var.validate_call(node)
+
     var = get_value_from_node(node)
     if var is None:
         raise StructureException(f"{node.ast_type} did not return a value", node)

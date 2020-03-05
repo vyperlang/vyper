@@ -96,7 +96,7 @@ class StructType(MemberType):
                 raise StructureException("Unknown struct member", value)
             value_type = get_type_from_node(value)
             compare_types(self.members[key.id], value_type, key)
-        return Variable(self._id, self)
+        return self
 
 
 class InterfaceMetaType(_BaseMetaType):
@@ -143,8 +143,6 @@ class InterfaceType(MemberType):
     ----------
     _id : str
         Name of the custom type.
-    node : ClassDef
-        Vyper AST node that defines this meta-type.
     """
     __slots__ = ('address',)
     _as_array = True
@@ -172,4 +170,4 @@ class InterfaceType(MemberType):
         check_call_args(node, 1)
         value = get_type_from_node(node.args[0])
         compare_types(value, namespace['address'], node.args[0])
-        return Variable(self._id, self)
+        return self

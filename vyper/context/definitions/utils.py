@@ -2,6 +2,7 @@ from vyper import (
     ast as vy_ast,
 )
 from vyper.context import (
+    definitions,
     namespace,
 )
 from vyper.exceptions import (
@@ -49,7 +50,7 @@ def get_value_from_node(node: vy_ast.VyperNode):
 
     if isinstance(node, vy_ast.Call):
         var = get_value_from_node(node.func)
-        return var.validate_call(node)
+        return definitions.Variable("", var.validate_call(node))
 
     # TODO folding
 
