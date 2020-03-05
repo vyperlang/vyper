@@ -22,7 +22,6 @@ from vyper.parser.keccak256_helper import (
 from vyper.parser.parser_utils import (
     LLLnode,
     add_variable_offset,
-    byte_array_to_num,
     get_length,
     get_number_as_fraction,
     getpos,
@@ -39,9 +38,7 @@ from vyper.types import (
     ByteArrayType,
     ListType,
     StringType,
-    TupleType,
     are_units_compatible,
-    get_size_of_type,
     is_base_type,
 )
 from vyper.types.convert import (
@@ -49,7 +46,6 @@ from vyper.types.convert import (
 )
 from vyper.utils import (
     DECIMAL_DIVISOR,
-    RLP_DECODER_ADDRESS,
     MemoryPositions,
     SizeLimits,
     bytes_to_int,
