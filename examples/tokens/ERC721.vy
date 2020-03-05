@@ -23,11 +23,10 @@ contract ERC721Receiver:
 # @param _from Sender of NFT (if address is zero address it indicates token creation).
 # @param _to Receiver of NFT (if address is zero address it indicates token destruction).
 # @param _tokenId The NFT that got transfered.
-Transfer: event({
-        _from: indexed(address),
-        _to: indexed(address),
+event Transfer:
+        _from: indexed(address)
+        _to: indexed(address)
         _tokenId: indexed(uint256)
-    })
 
 # @dev This emits when the approved address for an NFT is changed or reaffirmed. The zero
 #      address indicates there is no approved address. When a Transfer event emits, this also
@@ -35,11 +34,10 @@ Transfer: event({
 # @param _owner Owner of NFT.
 # @param _approved Address that we are approving.
 # @param _tokenId NFT which we are approving.
-Approval: event({
-        _owner: indexed(address),
-        _approved: indexed(address),
+event Approval:
+        _owner: indexed(address)
+        _approved: indexed(address)
         _tokenId: indexed(uint256)
-    })
 
 # @dev This emits when an operator is enabled or disabled for an owner. The operator can manage
 #      all NFTs of the owner.
@@ -47,12 +45,10 @@ Approval: event({
 # @param _operator Address to which we are setting operator rights.
 # @param _approved Status of operator rights(true if operator rights are given and false if
 # revoked).
-ApprovalForAll: event({
-        _owner: indexed(address),
-        _operator: indexed(address),
+event ApprovalForAll:
+        _owner: indexed(address)
+        _operator: indexed(address)
         _approved: bool
-    })
-
 
 # @dev Mapping from NFT ID to the address that owns it.
 idToOwner: map(uint256, address)

@@ -44,7 +44,8 @@ def foo():
 x: int128(wei >> 3)
     """,
     """
-Transfer: event({_&rom: indexed(address)})
+event Transfer:
+    _&rom: indexed(address)
     """,
     """
 @public

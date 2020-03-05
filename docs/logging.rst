@@ -12,8 +12,15 @@ This example is taken from the `sample ERC20 contract <https://github.com/vyperl
 ::
 
     # Events of the token.
-    Transfer: event({_from: indexed(address), _to: indexed(address), _value: uint256})
-    Approval: event({_owner: indexed(address), _spender: indexed(address), _value: uint256})
+    event Transfer:
+        _from: indexed(address)
+        _to: indexed(address)
+        _value: uint256
+
+    event Approval:
+        _owner: indexed(address)
+        _spender: indexed(address)
+        _value: uint256
 
     # Transfer some tokens from message sender to another address
     def transfer(_to : address, _value : uint256) -> bool:
@@ -54,7 +61,10 @@ Let's look at an event declaration in more detail.
 
 ::
 
-    Transfer: event({_from: indexed(address), _to: indexed(address), _value: uint256})
+    event Transfer:
+        _from: indexed(address)
+        _to: indexed(address)
+        _value: uint256
 
 Event declarations look like state variable declarations but use the special keyword event. event takes its arguments that consists of all the arguments to be passed as part of the event. Typical events will contain two kinds of arguments:
 

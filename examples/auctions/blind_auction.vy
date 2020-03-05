@@ -9,7 +9,9 @@ struct Bid:
 MAX_BIDS: constant(int128) = 128
 
 # Event for logging that auction has ended
-AuctionEnded: event({_highestBidder: address, _highestBid: wei_value})
+event AuctionEnded:
+    _highestBidder: address
+    _highestBid: wei_value
 
 # Auction parameters
 beneficiary: public(address)

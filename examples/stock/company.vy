@@ -3,10 +3,22 @@ units: {
 }
 
 # Financial events the contract logs
-Transfer: event({_from: indexed(address), _to: indexed(address), _value: uint256(currency_value)})
-Buy: event({_buyer: indexed(address), _buy_order: uint256(currency_value)})
-Sell: event({_seller: indexed(address), _sell_order: uint256(currency_value)})
-Pay: event({_vendor: indexed(address), _amount: wei_value})
+event Transfer:
+    _from: indexed(address)
+    _to: indexed(address)
+    _value: uint256(currency_value)
+
+event Buy:
+    _buyer: indexed(address)
+    _buy_order: uint256(currency_value)
+
+event Sell:
+    _seller: indexed(address)
+    _sell_order: uint256(currency_value)
+    
+event Pay:
+    _vendor: indexed(address)
+    _amount: wei_value
 
 # Initiate the variables for the company and it's own shares.
 company: public(address)

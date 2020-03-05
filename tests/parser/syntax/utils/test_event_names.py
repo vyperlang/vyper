@@ -13,7 +13,8 @@ from vyper.exceptions import (
 
 fail_list = [  # noqa: E122
     """
-Âssign: event({variable: int128})
+event Âssign:
+    variable: int128
 
 @public
 def foo(i: int128) -> int128:
@@ -22,7 +23,8 @@ def foo(i: int128) -> int128:
     return temp_var
     """,
     """
-int128: event({variable: int128})
+event int128:
+    variable: int128
 
 @public
 def foo(i: int128) -> int128:
@@ -31,7 +33,8 @@ def foo(i: int128) -> int128:
     return temp_var
     """,
     """
-decimal: event({variable: int128})
+event decimal
+    variable: int128
 
 @public
 def foo(i: int128) -> int128:
@@ -40,7 +43,8 @@ def foo(i: int128) -> int128:
     return temp_var
     """,
     """
-wei: event({variable: int128})
+event wei:
+    variable: int128
 
 @public
 def foo(i: int128) -> int128:
@@ -49,7 +53,8 @@ def foo(i: int128) -> int128:
     return temp_var
     """,
 """
-false: event({variable: int128})
+event false:
+    variable: int128
 
 @public
 def foo(i: int128) -> int128:
@@ -58,10 +63,14 @@ def foo(i: int128) -> int128:
     return temp_var
     """,
     ("""
-Transfer: eve.t({_from: indexed(address)})
+eve.t Transfer:
+    _from: indexed(address)
     """, InvalidTypeException),
     """
-Transfer: event({_from: i.dexed(address), _to: indexed(address),lue: uint256})
+event Transfer:
+    _from: i.dexed(address)
+    _to: indexed(address)
+    lue: uint256
     """
 ]
 
@@ -78,7 +87,8 @@ def test_varname_validity_fail(bad_code):
 
 valid_list = [
     """
-Assigned: event({variable: int128})
+event Assigned:
+    variable: int128
 
 @public
 def foo(i: int128) -> int128:
@@ -87,7 +97,8 @@ def foo(i: int128) -> int128:
     return variable
     """,
     """
-_Assign: event({variable: int128})
+event _Assign:
+    variable: int128
 
 @public
 def foo(i: int128) -> int128:
@@ -96,7 +107,8 @@ def foo(i: int128) -> int128:
     return variable
     """,
     """
-Assigned1: event({variable: int128})
+event Assigned1:
+    variable: int128
 
 @public
 def foo(i: int128) -> int128:
