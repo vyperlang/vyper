@@ -308,7 +308,8 @@ class MemberType(_BaseType):
     Object attributes
     -----------------
     members : OrderedDict
-        An dictionary of members for the given type in the format {name: type object}
+        An dictionary of members for the given type in the format {name: type object}.
+        A member can be a type object or a definition.
     """
     __slots__ = ('_id', 'members',)
 

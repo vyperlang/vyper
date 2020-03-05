@@ -145,8 +145,10 @@ class Variable(BaseDefinition):
         if name not in self.members:
             member_type = self.type.get_member_type(node)
             is_constant = hasattr(self.type, '_readonly_members')
-            member = Variable(name, member_type, is_constant=is_constant)
-            self.members[node.attr] = member
+            if not isinstance(member_type, BaseDefinition):
+                self.members[name] = Variable(name, member_type, is_constant=is_constant)
+            else:
+                self.members[name] = member_type
         return self.members[name]
 
     def get_index(self, node: vy_ast.Subscript):
@@ -159,9 +161,6 @@ class Variable(BaseDefinition):
             return self.value[idx]
         typ = self.type.get_index_type(node.slice.value)
         return Variable(self.name, typ, None, self.is_constant, self.is_public)
-
-    def get_call_return_type(self, node):
-        return self.type.get_call_return_type(node)
 
     def literal_value(self):
         """
