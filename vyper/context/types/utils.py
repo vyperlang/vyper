@@ -242,12 +242,21 @@ def _get_comparator(node):
     if len(node.ops) != 1:
         raise StructureException("Cannot have a comparison with more than two elements", node)
     left, right = (get_type_from_node(i) for i in (node.left, node.comparators[0]))
+
     if isinstance(node.ops[0], vy_ast.In):
-        # TODO special logic here
-        pass
+        if not isinstance(left, bases.ValueType) or not isinstance(right, list):
+            raise StructureException(
+                "Can only use 'in' comparator between single type and list", node
+            )
+        compare_types(left, right[0], node)
     else:
-        left.validate_comparator(node)
+        if isinstance(left, (list, tuple)):
+            if not isinstance(node.ops[0], vy_ast.Eq, vy_ast.NotEq):
+                raise StructureException("Can only compare equality between sequences", node)
+        else:
+            left.validate_comparator(node)
         compare_types(left, right, node)
+
     if isinstance(left, set) and len(left) == 1:
         return next(iter(left))
     return left

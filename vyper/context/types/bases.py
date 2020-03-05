@@ -146,6 +146,7 @@ class _BaseType:
         -------
         None. A failed validation should raise an exception.
         """
+        # TODO this isn't implemented anywhere
         raise InvalidTypeException(f"Invalid type for operand: {self}", node)
 
     def validate_comparator(self, node: vy_ast.Compare):
@@ -161,7 +162,8 @@ class _BaseType:
         -------
         None. A failed validation should raise an exception.
         """
-        raise InvalidTypeException(f"Invalid type for comparator: {self}", node)
+        if not isinstance(node.ops[0], (vy_ast.Eq, vy_ast.NotEq)):
+            raise InvalidTypeException(f"Invalid type for comparator: {self}", node)
 
     def validate_implements(self, node: vy_ast.AnnAssign):
         """
@@ -369,6 +371,9 @@ class NumericType(ValueType):
             raise StructureException(
                 f"Unsupported operand for {self}: {node.op.ast_type}", node
             )
+
+    def validate_comparator(self, node: vy_ast.Compare):
+        return
 
     @classmethod
     def from_literal(cls, node):
