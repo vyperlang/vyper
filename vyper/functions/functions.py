@@ -1103,7 +1103,6 @@ DISPATCH_TABLE = {
     'extract32': extract32,
     'as_wei_value': as_wei_value,
     'raw_call': raw_call,
-    'RLPList': _RLPlist,
     'blockhash': blockhash,
     'bitwise_and': bitwise_and,
     'bitwise_or': bitwise_or,
