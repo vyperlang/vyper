@@ -147,7 +147,6 @@ class _BaseType:
         -------
         None. A failed validation should raise an exception.
         """
-        # TODO this isn't implemented anywhere
         raise InvalidTypeException(f"Invalid type for operand: {self}", node)
 
     def validate_comparator(self, node: vy_ast.Compare):

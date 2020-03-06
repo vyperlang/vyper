@@ -47,6 +47,9 @@ class BoolType(ValueType):
             raise InvalidLiteralException("Invalid literal for type 'bool'", node)
         return super().from_literal(node)
 
+    def validate_boolean_op(self, node: vy_ast.BoolOp):
+        return
+
 
 class AddressType(MemberType, ValueType):
     __slots__ = ()
