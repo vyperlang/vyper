@@ -15,6 +15,7 @@ from vyper.context.types.units import (
     Unit,
 )
 from vyper.context.utils import (
+    check_call_args,
     get_index_value,
 )
 from vyper.exceptions import (
@@ -270,16 +271,9 @@ class ValueType(_BaseType):
 
     @classmethod
     def from_annotation(cls, node):
-        self = cls()
-        names = [i.id for i in node.get_all_children({'ast_type': 'Name'}, True)][1:]
-        if len(names) > 1:
+        if not isinstance(node, vy_ast.Name):
             raise StructureException("Invalid type assignment", node)
-        if names:
-            try:
-                self.set_unit(names[0])
-            except Exception as e:
-                raise StructureException(str(e), node)
-        return self
+        return cls()
 
     @classmethod
     def from_literal(cls, node):
@@ -347,6 +341,18 @@ class NumericType(ValueType):
         super().__init__()
         if unit:
             self.set_unit(unit)
+
+    @classmethod
+    def from_annotation(cls, node):
+        if isinstance(node, vy_ast.Name):
+            return super().from_annotation(node)
+        check_call_args(node, 1)
+        self = super().from_annotation(node.func)
+        try:
+            self.set_unit(node.args[0].id)
+        except Exception as e:
+            raise StructureException(str(e), node)
+        return self
 
     def set_unit(self, unit_str):
         self.unit = namespace[unit_str]
