@@ -227,7 +227,18 @@ class Tuple(VyperNode):
 
 
 class FunctionDef(VyperNode):
-    __slots__ = ('args', 'body', 'returns', 'name', 'decorator_list', 'pos')
+    __slots__ = ('args', 'body', 'returns', 'name', 'decorator_list', 'pos', 'doc_string')
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if (
+            kwargs.get('body') and
+            isinstance(self.body[0], Expr) and
+            isinstance(self.body[0].value, Str)
+        ):
+            # if the first body item is a docstring, move it into it's own field
+            self.doc_string = self.body[0].value.s
+            del self.body[0]
 
 
 class arguments(VyperNode):

@@ -79,7 +79,6 @@ class Stmt(object):
             vy_ast.Continue: self.parse_continue,
             vy_ast.Return: self.parse_return,
             vy_ast.Delete: self.parse_delete,
-            vy_ast.Str: self.parse_docblock,  # docblock
             vy_ast.Name: self.parse_name,
             vy_ast.Raise: self.parse_raise,
         }
@@ -87,7 +86,7 @@ class Stmt(object):
         if stmt_type in self.stmt_table:
             self.lll_node = self.stmt_table[stmt_type]()
         else:
-            raise StructureException(f"Unsupported statement type: {type(stmt)}", stmt)
+            raise StructureException(f"Unsupported statement type: {type(stmt).__name__}", stmt)
 
     def expr(self):
         return Stmt(self.stmt.value, self.context).lll_node
@@ -1005,11 +1004,6 @@ class Stmt(object):
         target = Expr.parse_variable_location(target, self.context)
         constancy_checks(target, self.context, self.stmt)
         return target
-
-    def parse_docblock(self):
-        if '"""' not in self.context.origcode.splitlines()[self.stmt.lineno - 1]:
-            raise InvalidLiteralException('Only valid """ docblocks allowed', self.stmt)
-        return LLLnode.from_list('pass', typ=None, pos=getpos(self.stmt))
 
 
 # Parse a statement (usually one line of code but not always)
