@@ -271,8 +271,9 @@ def sum(a: int128, b: int128) -> int128:
 must_fail('''
 @public
 def a():
-    "Test"
-''', InvalidLiteralException)
+    "Behold me mortal, for I am a DOCSTRING!"
+    "Alas, I am but a mere string."
+''', StructureException)
 
 must_fail('''
 struct StructX:
