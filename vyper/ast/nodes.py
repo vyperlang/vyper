@@ -118,15 +118,18 @@ class VyperNode:
 
     Vyper nodes are generated from, and closely resemble, their python counterparts.
 
-    Attributes
-    ----------
+    Object Attributes
+    -----------------
     __slots__ : Tuple
         Allowed field names for the node.
-    _only_empty_fields : Tuple
+    _description : str, optional
+        A human-readable description of the node. Used to give more verbose error
+        messages.
+    _only_empty_fields : Tuple, optional
         Field names that, if present, must be set to None or a SyntaxException is
         raised. This attribute is used to exclude syntax that is valid in python
         but not in vyper.
-    _translated_fields:
+    _translated_fields : Dict, optional
         Field names that should be reassigned if encountered. Used to normalize
         fields across different python versions.
     """
@@ -200,6 +203,10 @@ class VyperNode:
         )
 
         return f'{class_repr}:\n{source_annotation}'
+
+    @property
+    def description(self):
+        return getattr(self, '_description', type(self).__name__)
 
     @classmethod
     def get_slots(cls) -> set:
@@ -489,26 +496,32 @@ class Dict(VyperNode):
 
 class Add(VyperNode):
     __slots__ = ()
+    _description = "addition"
 
 
 class Sub(VyperNode):
     __slots__ = ()
+    _description = "subtraction"
 
 
 class Mult(VyperNode):
     __slots__ = ()
+    _description = "multiplication"
 
 
 class Div(VyperNode):
     __slots__ = ()
+    _description = "division"
 
 
 class Mod(VyperNode):
     __slots__ = ()
+    _description = "modulus"
 
 
 class Pow(VyperNode):
     __slots__ = ()
+    _description = "exponentiation"
 
 
 class In(VyperNode):
@@ -517,26 +530,32 @@ class In(VyperNode):
 
 class Gt(VyperNode):
     __slots__ = ()
+    _description = "greater than"
 
 
 class GtE(VyperNode):
     __slots__ = ()
+    _description = "greater-or-equal"
 
 
 class LtE(VyperNode):
     __slots__ = ()
+    _description = "less-or-equal"
 
 
 class Lt(VyperNode):
     __slots__ = ()
+    _description = "less than"
 
 
 class Eq(VyperNode):
     __slots__ = ()
+    _description = "equality"
 
 
 class NotEq(VyperNode):
     __slots__ = ()
+    _description = "non-equality"
 
 
 class And(VyperNode):
@@ -553,10 +572,12 @@ class Not(VyperNode):
 
 class USub(VyperNode):
     __slots__ = ()
+    _description = "in-place subtraction"
 
 
 class UAdd(VyperNode):
     __slots__ = ()
+    _description = "in-place addition"
 
 
 class Expr(VyperNode):

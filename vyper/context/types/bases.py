@@ -137,7 +137,7 @@ class _BaseType:
         -------
         None. A failed validation should raise an exception.
         """
-        raise InvalidOperation(f"Invalid type for operand: {self}", node)
+        raise InvalidOperation(f"Cannot perform {node.description} on {self}", node)
 
     def validate_boolean_op(self, node: vy_ast.BoolOp):
         """
@@ -168,7 +168,7 @@ class _BaseType:
         None. A failed validation should raise an exception.
         """
         if not isinstance(node.ops[0], (vy_ast.Eq, vy_ast.NotEq)):
-            raise InvalidOperation(f"Invalid type for comparator: {self}", node)
+            raise InvalidOperation(f"Cannot perform {node.description} comparison on {self}", node)
 
     def validate_implements(self, node: vy_ast.AnnAssign):
         """
@@ -388,11 +388,10 @@ class NumericType(ValueType):
             return True
         return self.unit == other.unit
 
-    def validate_numeric_op(self, node):
+    def validate_numeric_op(self, node: Union[vy_ast.UnaryOp, vy_ast.BinOp]):
         if isinstance(node.op, self._invalid_op):
-            # TODO: showing ast_type is very vague, maybe add human readable descriptions to nodes?
             raise InvalidOperation(
-                f"Unsupported operand for {self}: {node.op.ast_type}", node
+               f"Cannot perform {node.op.description} on {self}", node
             )
 
     def validate_comparator(self, node: vy_ast.Compare):
