@@ -77,6 +77,7 @@ class StructMetaType(_BaseMetaType):
 class StructType(MemberType):
 
     __slots__ = ()
+    _as_array = True
 
     def __init__(self, _id, members):
         super().__init__()
