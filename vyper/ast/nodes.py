@@ -30,6 +30,7 @@ BASE_NODE_ATTRIBUTES = (
     'node_source_code',
     'src',
 )
+
 DICT_AST_SKIPLIST = ('full_source_code', 'node_source_code')
 
 
@@ -59,16 +60,19 @@ def get_node(
         ast_struct = ast_struct.__dict__
 
     vy_class = getattr(sys.modules[__name__], ast_struct['ast_type'], None)
+    if vy_class:
+        return vy_class(parent=parent, **ast_struct)
 
-    if vy_class is None:
+    err_args = (ast_struct['full_source_code'], ast_struct['lineno'], ast_struct['col_offset'])
+    if ast_struct['ast_type'] == "Delete":
+        raise SyntaxException("Deleting is not supported, use built-in clear() function", *err_args)
+    elif ast_struct['ast_type'] in ("ExtSlice", "Slice"):
+        raise SyntaxException("Vyper does not support slicing", *err_args)
+    else:
         raise SyntaxException(
-            f"Invalid syntax (unsupported '{ast_struct['ast_type']}' Python AST node).",
-            ast_struct['full_source_code'],
-            ast_struct['lineno'],
-            ast_struct['col_offset'],
+            f"Invalid syntax (unsupported '{ast_struct['ast_type']}' Python AST node)",
+            *err_args,
         )
-
-    return vy_class(parent=parent, **ast_struct)
 
 
 def _to_node(value, parent):
@@ -608,10 +612,6 @@ class Return(VyperNode):
     __slots__ = ('value', )
 
 
-class Delete(VyperNode):
-    __slots__ = ('targets', )
-
-
 class stmt(VyperNode):
     __slots__ = ()
 
@@ -623,10 +623,6 @@ class ClassDef(VyperNode):
 class Raise(VyperNode):
     __slots__ = ('exc', )
     _only_empty_fields = ('cause', )
-
-
-class Slice(VyperNode):
-    _only_empty_fields = ('lower', )
 
 
 class alias(VyperNode):
