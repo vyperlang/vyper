@@ -18,13 +18,21 @@ of the error within the code:
     -------------------------^
          80         return False
 
+.. py:exception:: ArgumentException
+
+    Raises when calling a function with invalid arguments, for example an incorrect number of positional arguments or an invalid keyword argument.
+
+.. py:exception:: CallViolation
+
+    Raises on an illegal function call, such as attempting to call between two public functions.
+
 .. py:exception:: ArrayIndexException
 
     Raises when an array index is out of bounds.
 
 .. py:exception:: ConstancyViolationException
 
-    Raises when attempting to modify state from inside a function marked as constant.
+    Raises when attempting to perform a modifying action within a constant context. For example, writing to storage in a ``@constant`` function or modifying a constant variable.
 
 .. py:exception:: EventDeclarationException
 
@@ -38,6 +46,14 @@ of the error within the code:
 
     Raises when a function declaration is invalid.
 
+.. py:exception:: InterfaceViolation
+
+    Raises when an interface is not fully implemented.
+
+.. py:exception:: InvalidAttribute
+
+    Raises on a reference to an attribute that does not exist.
+
 .. py:exception:: InvalidLiteralException
 
     Raises when attempting to use a literal value where the type is correct, but the value is still invalid in some way. For example, an address that is not check-summed.
@@ -47,6 +63,32 @@ of the error within the code:
         @public
         def foo():
             bar: address = 0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+
+.. py:exception:: InvalidOperation
+
+    Raises when using an invalid operator for a given type.
+
+    .. code-block:: python
+
+        @public
+        def foo():
+            a: string[10] = "hello" * 2
+
+    This example raises ``InvalidOperation`` because multiplication is not possible on string types.
+
+.. py:exception:: InvalidReference
+
+    Raises on an invalid reference to an existing definition.
+
+    .. code-block:: python
+
+        baz: int128
+
+        @public
+        def foo():
+            bar: int128 = baz
+
+    This example raises ``InvalidReference`` because ``baz`` is a storage variable. The reference to it should be written as ``self.baz``.
 
 .. py:exception:: InvalidTypeException
 

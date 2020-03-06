@@ -94,8 +94,20 @@ class UndeclaredDefinition(VyperException):
     """Reference to a definition that has not been declared."""
 
 
-class NamespaceCollsion(VyperException):
+class NamespaceCollision(VyperException):
     """Assignment to a name that is already in use."""
+
+
+class InvalidAttribute(VyperException):
+    """Reference to an attribute that does not exist."""
+
+
+class InvalidReference(VyperException):
+    """Invalid reference to an existing definition."""
+
+
+class InvalidOperation(VyperException):
+    """Invalid operator for a given type."""
 
 
 class InvalidTypeException(VyperException):
@@ -106,12 +118,24 @@ class TypeMismatchException(VyperException):
     """Attempt to perform an action between multiple objects of incompatible types."""
 
 
+class ArgumentException(VyperException):
+    """Call to a function with invalid arguments."""
+
+
+class CallViolation(VyperException):
+    """Illegal function call."""
+
+
 class ConstancyViolationException(VyperException):
-    """State-changing action inside a constant function."""
+    """State-changing action in a constant context."""
 
 
 class NonPayableViolationException(VyperException):
     """msg.value in a nonpayable function."""
+
+
+class InterfaceViolation(VyperException):
+    """Interface is not fully implemented."""
 
 
 class ArrayIndexException(VyperException):
