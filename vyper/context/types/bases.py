@@ -19,10 +19,15 @@ from vyper.context.utils import (
     get_index_value,
 )
 from vyper.exceptions import (
+    ArrayIndexException,
     CompilerPanic,
+    InvalidAttribute,
     InvalidLiteralException,
+    InvalidOperation,
     InvalidTypeException,
+    NamespaceCollision,
     StructureException,
+    VyperException,
 )
 
 
@@ -87,7 +92,7 @@ class _BaseType:
         -------
         A new instance of the same type that the method was called on.
         """
-        raise CompilerPanic(f"Type {self} cannot be generated from annotation")
+        raise StructureException(f"Type {self} cannot be generated from annotation", node)
 
     def from_literal(self, node: vy_ast.Constant):
         """
@@ -102,7 +107,7 @@ class _BaseType:
         -------
         A new instance of the same type that the method was called on.
         """
-        raise CompilerPanic(f"Type {self} cannot be generated from a literal")
+        raise StructureException(f"Type {self} cannot be generated from a literal", node)
 
     def set_unit(self, unit_str: str):
         """
@@ -132,7 +137,7 @@ class _BaseType:
         -------
         None. A failed validation should raise an exception.
         """
-        raise InvalidTypeException(f"Invalid type for operand: {self}", node)
+        raise InvalidOperation(f"Invalid type for operand: {self}", node)
 
     def validate_boolean_op(self, node: vy_ast.BoolOp):
         """
@@ -147,7 +152,7 @@ class _BaseType:
         -------
         None. A failed validation should raise an exception.
         """
-        raise InvalidTypeException(f"Invalid type for operand: {self}", node)
+        raise InvalidOperation(f"Invalid type for operand: {self}", node)
 
     def validate_comparator(self, node: vy_ast.Compare):
         """
@@ -163,7 +168,7 @@ class _BaseType:
         None. A failed validation should raise an exception.
         """
         if not isinstance(node.ops[0], (vy_ast.Eq, vy_ast.NotEq)):
-            raise InvalidTypeException(f"Invalid type for comparator: {self}", node)
+            raise InvalidOperation(f"Invalid type for comparator: {self}", node)
 
     def validate_implements(self, node: vy_ast.AnnAssign):
         """
@@ -181,7 +186,7 @@ class _BaseType:
         -------
         None. A failed validation should raise an exception.
         """
-        raise CompilerPanic(f"Type {self} cannot validate an implements statement", node)
+        raise CompilerPanic(f"Type {self} cannot validate an implements statement")
 
     def get_call_return_type(self, node: vy_ast.Call):
         """
@@ -292,7 +297,7 @@ class ValueType(_BaseType):
         if not isinstance(node, vy_ast.Constant):
             raise CompilerPanic(f"Attempted to validate a '{node.ast_type}' node.")
         if not isinstance(node, cls._valid_literal):
-            raise InvalidTypeException(f"Invalid literal type for '{cls}'", node)
+            raise InvalidLiteralException(f"Invalid literal type for '{cls}'", node)
         return cls()
 
 
@@ -328,12 +333,12 @@ class MemberType(_BaseType):
     def add_member_types(self, **members: dict):
         for name, member in members.items():
             if name in self.members:
-                raise StructureException(f"Member {name} already exists in {self}")
+                raise NamespaceCollision(f"Member {name} already exists in {self}")
             self.members[name] = member
 
     def get_member_type(self, node: vy_ast.Attribute):
         if node.attr not in self.members:
-            raise StructureException(f"Struct {self._id} has no member '{node.attr}'", node)
+            raise InvalidAttribute(f"Struct {self._id} has no member '{node.attr}'", node)
         return self.members[node.attr]
 
     def __str__(self):
@@ -362,14 +367,14 @@ class NumericType(ValueType):
         self = super().from_annotation(node.func)
         try:
             self.set_unit(node.args[0].id)
-        except Exception as e:
-            raise StructureException(str(e), node)
+        except VyperException as e:
+            raise type(e)(str(e), node)
         return self
 
     def set_unit(self, unit_str):
         self.unit = namespace[unit_str]
         if not isinstance(self.unit, Unit):
-            raise StructureException(f"{unit_str} is not a valid unit type")
+            raise InvalidTypeException(f"{unit_str} is not a valid unit type")
 
     def __str__(self):
         if getattr(self, 'unit', None):
@@ -386,7 +391,7 @@ class NumericType(ValueType):
     def validate_numeric_op(self, node):
         if isinstance(node.op, self._invalid_op):
             # TODO: showing ast_type is very vague, maybe add human readable descriptions to nodes?
-            raise StructureException(
+            raise InvalidOperation(
                 f"Unsupported operand for {self}: {node.op.ast_type}", node
             )
 
@@ -466,7 +471,7 @@ class ArrayValueType(ValueType):
             raise StructureException("Multidimensional arrays are not supported", node)
         length = get_index_value(node.get('slice') or node)
         if length <= 0:
-            raise InvalidLiteralException("Slice must be greater than 0", node.slice)
+            raise ArrayIndexException("Slice must be greater than 0", node.slice)
 
         return cls(length)
 
@@ -535,12 +540,16 @@ class UnionType(set):
 
     def _validate(self, node, attr):
         for typ in list(self):
-            try:
-                getattr(typ, attr)(node)
-            except Exception:
-                self.remove(typ)
-                if not self:
-                    raise
+            fn = getattr(typ, attr, None)
+            if fn:
+                try:
+                    fn(node)
+                    continue
+                except VyperException:
+                    pass
+            self.remove(typ)
+        if not self:
+            raise InvalidOperation("Invalid operation for type", node)
 
     def validate_comparator(self, node):
         self._validate(node, 'validate_comparator')

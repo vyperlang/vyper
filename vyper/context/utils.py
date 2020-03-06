@@ -13,7 +13,9 @@ from vyper.context.types import (
     bases,
 )
 from vyper.exceptions import (
+    ArgumentException,
     CompilerPanic,
+    InvalidTypeException,
     StructureException,
 )
 
@@ -64,25 +66,25 @@ def check_call_args(
         raise CompilerPanic(f"Invalid type for arg_count: {type(arg_count).__name__}")
 
     if isinstance(arg_count, int) and len(node.args) != arg_count:
-        raise StructureException(
+        raise ArgumentException(
             f"Invalid argument count: expected {arg_count}, got {len(node.args)}", node
         )
     elif isinstance(arg_count, tuple) and not arg_count[0] <= len(node.args) <= arg_count[1]:
-        raise StructureException(
+        raise ArgumentException(
             f"Invalid argument count: expected between "
             f"{arg_count[0]} and {arg_count[1]}, got {len(node.args)}",
             node
         )
 
     if not kwargs and node.keywords:
-        raise StructureException("Keyword arguments are not accepted here", node.keywords[0])
+        raise ArgumentException("Keyword arguments are not accepted here", node.keywords[0])
     for key in node.keywords:
         if key.arg is None:
             raise StructureException("Use of **kwargs is not supported", key.value)
         if key.arg not in kwargs:
-            raise StructureException("Invalid keyword argument '{key.arg}'", key)
+            raise ArgumentException("Invalid keyword argument '{key.arg}'", key)
         if isinstance(arg_count, tuple) and kwargs.index(key.arg) < len(node.args)-arg_count[0]:
-            raise StructureException(f"'{key.arg}' was given as a positional argument", key)
+            raise ArgumentException(f"'{key.arg}' was given as a positional argument", key)
 
 
 def get_index_value(node):
@@ -110,13 +112,13 @@ def get_index_value(node):
         length = namespace[slice_name]
 
         if not length.is_constant:
-            raise StructureException("Slice must be an integer or constant", node)
+            raise InvalidTypeException("Slice must be an integer or constant", node)
 
         typ = length.type
         if not isinstance(typ, bases.IntegerType):
-            raise StructureException(f"Invalid type for Slice: '{typ}'", node)
+            raise InvalidTypeException(f"Invalid type for Slice: '{typ}'", node)
         if typ.unit:
-            raise StructureException(f"Slice value must be unitless, not '{typ.unit}'", node)
+            raise InvalidTypeException(f"Slice value cannot have a unit", node)
         return length.literal_value()
 
-    raise StructureException("Slice must be an integer or constant", node)
+    raise InvalidTypeException("Slice must be an integer or constant", node)

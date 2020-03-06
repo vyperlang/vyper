@@ -31,7 +31,11 @@ from vyper.context.utils import (
     check_call_args,
 )
 from vyper.exceptions import (
-    StructureException,
+    ArgumentException,
+    CallViolation,
+    FunctionDeclarationException,
+    InvalidTypeException,
+    NamespaceCollision,
 )
 
 
@@ -83,12 +87,14 @@ def get_function_from_node(node: vy_ast.FunctionDef, visibility: Optional[str] =
     for value in decorators:
         if value in ("public", "private"):
             if visibility:
-                raise StructureException("Visibility must be public or private, not both", node)
+                raise FunctionDeclarationException(
+                    "Visibility must be public or private, not both", node
+                )
             visibility = value
         else:
             kwargs[f"is_{value}"] = True
     if not visibility:
-        raise StructureException("Function visibility must be public or private", node)
+        raise FunctionDeclarationException("Visibility must be public or private", node)
 
     # call arguments
     arg_count = len(node.args.args)
@@ -99,15 +105,15 @@ def get_function_from_node(node: vy_ast.FunctionDef, visibility: Optional[str] =
     defaults = [None] * (len(node.args.args) - len(node.args.defaults)) + node.args.defaults
     for arg, value in zip(node.args.args, defaults):
         if arg.arg in ("gas", "value"):
-            raise StructureException(
+            raise ArgumentException(
                 f"Cannot use '{arg.arg}' as a variable name in a function input", arg
             )
         if arg.arg in namespace or arg.arg in arguments:
-            raise StructureException("Namespace collision", arg)
+            raise NamespaceCollision(arg.arg, arg)
         if value is not None and not isinstance(value, vy_ast.Constant):
             literal = get_value_from_node(value).literal_value()
             if literal is None or (isinstance(literal, list) and None in literal):
-                raise StructureException("Default value must be literal or constant", value)
+                raise ArgumentException("Default value must be literal or constant", value)
 
         var = get_variable_from_nodes(arg.arg, arg.annotation, value)
         arguments[arg.arg] = var
@@ -122,7 +128,7 @@ def get_function_from_node(node: vy_ast.FunctionDef, visibility: Optional[str] =
         for n in node.returns.elts:
             return_type += (get_type_from_annotation(n),)
     else:
-        raise StructureException(
+        raise InvalidTypeException(
             f"Function return value must be a type name or tuple", node.returns
         )
 
@@ -187,7 +193,7 @@ class ContractFunction(FunctionDefinition):
 
     def get_call_return_type(self, node: vy_ast.Call):
         if node.get('func.value.id') == "self" and self.visibility == "public":
-            raise StructureException("Can only call from public function to private function", node)
+            raise CallViolation("Can only call from public function to private function", node)
 
         # for external calls, add gas and value as optional kwargs
         kwarg_keys = self.kwarg_keys.copy()

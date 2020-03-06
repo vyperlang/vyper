@@ -27,7 +27,11 @@ from vyper.context.utils import (
     check_call_args,
 )
 from vyper.exceptions import (
+    InterfaceViolation,
+    InvalidAttribute,
+    NamespaceCollision,
     StructureException,
+    VariableDeclarationException,
 )
 
 
@@ -68,7 +72,7 @@ class StructMetaType(_BaseMetaType):
                 raise StructureException("Cannot assign a value during struct declaration", node)
             member_name = node.target.id
             if member_name in members:
-                raise StructureException(
+                raise NamespaceCollision(
                     f"Struct member '{member_name}'' has already been declared", node.target
                 )
             members[member_name] = get_type_from_annotation(node.annotation)
@@ -91,10 +95,12 @@ class StructType(MemberType):
     def get_call_return_type(self, node: vy_ast.Call):
         check_call_args(node, 1)
         if not isinstance(node.args[0], vy_ast.Dict):
-            raise StructureException("Struct values must be declared via dictionary", node.args[0])
+            raise VariableDeclarationException(
+                "Struct values must be declared via dictionary", node.args[0]
+            )
         for key, value in zip(node.args[0].keys, node.args[0].values):
             if key is None or key.get('id') not in self.members:
-                raise StructureException("Unknown struct member", value)
+                raise InvalidAttribute("Unknown struct member", value)
             value_type = get_type_from_node(value)
             compare_types(self.members[key.id], value_type, key)
         return self
@@ -112,7 +118,10 @@ class InterfaceMetaType(_BaseMetaType):
         for item in [i for i in abi if i.get('type') == "function"]:
             func = get_function_from_abi(item)
             if func.name in members:
-                raise
+                # TODO overloaded functions
+                raise NamespaceCollision(
+                    f"ABI '{name}' contains multiple functions named '{func.name}'"
+                )
             members[func.name] = func
         return InterfaceType(name, members)
 
@@ -122,10 +131,10 @@ class InterfaceMetaType(_BaseMetaType):
         elif isinstance(node, vy_ast.ClassDef):
             members = self._get_class_functions(node)
         else:
-            raise StructureException("Invalid node type for interface definition", node)
+            raise StructureException("Invalid syntax for interface definition", node)
         for func in members.values():
             if func.name in namespace:
-                raise StructureException("Namespace collision", func.node)
+                raise NamespaceCollision(func.name, func.node)
 
         return InterfaceType(node.name, members)
 
@@ -169,7 +178,7 @@ class InterfaceType(MemberType):
             namespace['self'].members[i.name] != i
         ]
         if unimplemented:
-            raise StructureException(
+            raise InterfaceViolation(
                 f"Contract does not implement all interface functions: {', '.join(unimplemented)}",
                 node
             )

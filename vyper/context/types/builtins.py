@@ -164,9 +164,7 @@ class BytesArrayType(BytesType, ArrayValueType):
         mod = (len(value)-2) % 8
         if mod:
             raise InvalidLiteralException(
-                f"Bit notation requires a multiple of 8 bits / 1 byte. "
-                f"{8-mod} bit(s) are missing.",
-                node,
+                f"Bit notation requires a multiple of 8 bits. {8-mod} bit(s) are missing.", node
             )
         self = cls()
         self.min_length = (len(value)-2) // 8

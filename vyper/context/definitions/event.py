@@ -15,6 +15,8 @@ from vyper.context.utils import (
     check_call_args,
 )
 from vyper.exceptions import (
+    ArgumentException,
+    EventDeclarationException,
     StructureException,
 )
 
@@ -33,7 +35,7 @@ def get_event_from_node(node: vy_ast.AnnAssign):
     Event object.
     """
     if node.value:
-        raise StructureException("Cannot assign a value to an event", node.value)
+        raise EventDeclarationException("Cannot assign a value to an event", node.value)
 
     name = node.target.id
     arguments = OrderedDict()
@@ -44,7 +46,7 @@ def get_event_from_node(node: vy_ast.AnnAssign):
     for key, value in zip(node.annotation.args[0].keys, node.annotation.args[0].values):
         if isinstance(value, vy_ast.Call):
             if value.func.id != "indexed":
-                raise StructureException(f"Invalid keyword '{value.func.id}'", value.func)
+                raise ArgumentException(f"Invalid keyword '{value.func.id}'", value.func)
             check_call_args(value, 1)
             indexed.append(True)
             value = value.args[0]

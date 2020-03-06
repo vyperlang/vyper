@@ -29,7 +29,7 @@ from vyper.context.utils import (
 )
 from vyper.exceptions import (
     InvalidLiteralException,
-    StructureException,
+    InvalidTypeException,
     TypeMismatchException,
 )
 
@@ -37,10 +37,6 @@ from vyper.exceptions import (
 # several modules. Until work begins integrating vyper/context into the rest
 # of the vyper package, it is difficult to envision the final implementation
 # for these classes. So they temporarily live here.  @iamdefinitelyahuman
-
-# TODO
-# convert
-# assert, raise ?
 
 
 class BuiltinFunctionDefinition(BaseDefinition):
@@ -249,7 +245,7 @@ class AsWeiValue(SimpleBuiltinDefinition):
         check_call_args(node, 2)
         if not isinstance(node.args[1], vy_ast.Str):
             # TODO standard way to indicate a value must be a literal?
-            raise StructureException(
+            raise InvalidTypeException(
                 "Wei denomination must be given as a literal string", node.args[1]
             )
         denom = next((v for k, v in self.wei_denoms.items() if node.args[1].value in k), False)
@@ -273,9 +269,9 @@ class Slice(SimpleBuiltinDefinition):
 
         start, length = (get_value_from_node(i) for i in node.args[1:])
         if not isinstance(start, int) or start < 0:
-            raise StructureException("Start must be a positive literal integer ", node.args[1])
+            raise InvalidLiteralException("Start must be a positive literal integer ", node.args[1])
         if not isinstance(length, int) or length < 1:
-            raise StructureException(
+            raise InvalidLiteralException(
                 "Length must be a literal integer greater than zero", node.args[2]
             )
 
@@ -318,7 +314,7 @@ class Min(BuiltinFunctionDefinition):
         check_call_args(node, 2)
         left, right = (get_type_from_node(i) for i in node.args)
         if not hasattr(left, 'is_numeric'):
-            raise StructureException("Can only calculate min on numeric types", node)
+            raise InvalidTypeException("Can only calculate min on numeric types", node)
         compare_types(left, right, node)
         return left
 
@@ -331,7 +327,7 @@ class Max(BuiltinFunctionDefinition):
         check_call_args(node, 2)
         left, right = (get_type_from_node(i) for i in node.args)
         if not hasattr(left, 'is_numeric'):
-            raise StructureException("Can only calculate min on numeric types", node)
+            raise InvalidTypeException("Can only calculate max on numeric types", node)
         compare_types(left, right, node)
         return left
 
@@ -354,9 +350,9 @@ class AsUnitlessNumber(BuiltinFunctionDefinition):
         check_call_args(node, 1)
         value = get_value_from_node(node.args[0])
         if not getattr(getattr(value, 'type', None), 'is_value_type', None):
-            raise StructureException("Not a value type", node.args[0])
+            raise InvalidTypeException("Not a value type", node.args[0])
         if not hasattr(value.type, 'unit'):
-            raise StructureException(f"Type '{value.type}' has no unit", node.args[0])
+            raise InvalidTypeException(f"Type '{value.type}' has no unit", node.args[0])
         return_type = type(value.type)()
         del return_type.unit
         return return_type
@@ -373,7 +369,7 @@ class Concat(BuiltinFunctionDefinition):
         idx = next((i for i in type_list if not getattr(i, 'is_bytes', None)), None)
         if idx is not None:
             node = node.args[type_list.index(idx)]
-            raise StructureException("Concat values must be bytes", node)
+            raise InvalidTypeException("Concat values must be bytes", node)
 
         length = sum(i.min_length for i in type_list)
         return_type = get_builtin_type(("bytes", length))
@@ -387,10 +383,10 @@ class MethodID(BuiltinFunctionDefinition):
     def get_call_return_type(self, node: vy_ast.Call):
         check_call_args(node, 2)
         if not isinstance(node.args[0], vy_ast.Str):
-            raise StructureException("method id must be given as a literal string", node.args[0])
+            raise InvalidTypeException("method id must be given as a literal string", node.args[0])
         return_type = get_type_from_annotation(node.args[1])
         if not getattr(return_type, 'is_bytes', None) or return_type.length not in (4, 32):
-            raise StructureException("return type must be bytes32 or bytes[4]", node.args[1])
+            raise InvalidTypeException("return type must be bytes32 or bytes[4]", node.args[1])
         return return_type
 
 
@@ -409,7 +405,7 @@ class Extract32(BuiltinFunctionDefinition):
         if len(node.args) == 3:
             return_type = get_type_from_annotation(node.args[2])
             if return_type._id not in ("bytes32", "int128", "address"):
-                raise StructureException()
+                raise InvalidTypeException("Invalid return type", node.args[2])
 
         else:
             return_type = get_builtin_type("bytes32")
@@ -424,7 +420,7 @@ class RawLog(BuiltinFunctionDefinition):
     def get_call_return_type(self, node: vy_ast.Call):
         check_call_args(node, 2)
         if not isinstance(node.args[0], vy_ast.List) or len(node.args[0].elts) > 4:
-            raise StructureException(
+            raise InvalidTypeException(
                 "Expecting a list of 0-4 topics as first argument", node.args[0].elts[4]
             )
         if node.args[0].elts:
@@ -445,19 +441,21 @@ class Convert(BuiltinFunctionDefinition):
         check_call_args(node, 2)
         initial_type = get_type_from_node(node.args[0])
         if not getattr(initial_type, 'is_value_type', None):
-            raise StructureException(f"Cannot convert type '{initial_type}'", node.args[0])
+            raise InvalidTypeException(f"Cannot convert type '{initial_type}'", node.args[0])
         target_type = get_builtin_type(node.args[1].id)
         try:
             compare_types(initial_type, target_type, node)
         except TypeMismatchException:
             pass
         else:
-            raise StructureException(f"Value and target type are both '{target_type}'", node)
+            raise InvalidTypeException(f"Value and target type are both '{target_type}'", node)
 
         try:
             validation_fn = getattr(self, f"validate_to_{target_type._id}")
         except AttributeError:
-            raise StructureException(f"Unsupported destination type '{target_type}'", node.args[1])
+            raise InvalidTypeException(
+                f"Unsupported destination type '{target_type}'", node.args[1]
+            )
 
         validation_fn(initial_type)
         return target_type

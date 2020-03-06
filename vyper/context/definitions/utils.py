@@ -6,6 +6,7 @@ from vyper.context import (
     namespace,
 )
 from vyper.exceptions import (
+    InvalidReference,
     StructureException,
 )
 
@@ -35,7 +36,7 @@ def get_value_from_node(node: vy_ast.VyperNode):
     if isinstance(node, vy_ast.Name):
         name = node.id
         if name not in namespace and name in namespace['self'].members:
-            raise StructureException(
+            raise InvalidReference(
                 f"'{name}' is a storage variable, access it as self.{name}", node
             )
         return namespace[node.id]

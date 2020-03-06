@@ -1,7 +1,8 @@
 import sys
 
 from vyper.exceptions import (
-    StructureException,
+    NamespaceCollision,
+    UndeclaredDefinition,
 )
 
 
@@ -16,18 +17,14 @@ class Namespace(dict):
     def __setitem__(self, attr, obj):
         if attr in self:
             obj = super().__getitem__(attr)
-            # TODO expand this error message
-            raise StructureException(
-                f"Namespace collision: '{attr}' already declared as a {type(obj).__name__}",
-                obj
-            )
+            raise NamespaceCollision(f"'{attr}' already declared as a {type(obj).__name__}")
         if self._scopes:
             self._scopes[-1].add(attr)
         super().__setitem__(attr, obj)
 
     def __getitem__(self, key):
         if key not in self:
-            raise StructureException(f"Undeclared value: {key}")
+            raise UndeclaredDefinition(f"Undeclared value: {key}")
         return super().__getitem__(key)
 
     def enter_scope(self):

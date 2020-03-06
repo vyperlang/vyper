@@ -23,6 +23,9 @@ from vyper.context.utils import (
 )
 from vyper.exceptions import (
     InvalidLiteralException,
+    InvalidOperation,
+    InvalidTypeException,
+    OverflowException,
     StructureException,
     TypeMismatchException,
 )
@@ -58,7 +61,7 @@ def compare_types(left, right, node):
                 f"Cannot perform operation between single type and compound type", node
             )
         if len(left) != len(right):
-            raise StructureException(
+            raise TypeMismatchException(
                 f"Imbalanced operation: {len(left)} left side values, {len(right)} right side", node
             )
         for lhs, rhs in zip(left, right):
@@ -253,19 +256,19 @@ def _get_binop(node):
 
 def _get_comparator(node):
     if len(node.ops) != 1:
-        raise StructureException("Cannot have a comparison with more than two elements", node)
+        raise StructureException("Cannot perform comparison between more than two elements", node)
     left, right = (get_type_from_node(i) for i in (node.left, node.comparators[0]))
 
     if isinstance(node.ops[0], vy_ast.In):
         if not getattr(left, 'is_value_type', None) or not isinstance(right, list):
-            raise StructureException(
+            raise InvalidOperation(
                 "Can only use 'in' comparator between single type and list", node
             )
         compare_types(left, right[0], node)
     else:
         if isinstance(left, (list, tuple)):
             if not isinstance(node.ops[0], vy_ast.Eq, vy_ast.NotEq):
-                raise StructureException("Can only compare equality between sequences", node)
+                raise InvalidOperation("Can only compare equality between sequences", node)
         else:
             left.validate_comparator(node)
         compare_types(left, right, node)
@@ -292,7 +295,7 @@ def check_numeric_bounds(type_str: str, node: vy_ast.Num) -> bool:
     """
     size = int(type_str.strip("uint") or 256)
     if size < 8 or size > 256 or size % 8:
-        raise ValueError(f"Invalid type: {type_str}")
+        raise InvalidTypeException(f"Invalid type: {type_str}")
     if type_str.startswith("u"):
         lower, upper = 0, 2 ** size - 1
     else:
@@ -300,6 +303,6 @@ def check_numeric_bounds(type_str: str, node: vy_ast.Num) -> bool:
 
     value = node.value
     if value < lower:
-        raise InvalidLiteralException(f"Value is below lower bound for given type ({lower})", node)
+        raise OverflowException(f"Value is below lower bound for given type ({lower})", node)
     if value > upper:
-        raise InvalidLiteralException(f"Value exceeds upper bound for given type ({upper})", node)
+        raise OverflowException(f"Value exceeds upper bound for given type ({upper})", node)

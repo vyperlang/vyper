@@ -16,7 +16,10 @@ from vyper.context.utils import (
     VyperNodeVisitorBase,
 )
 from vyper.exceptions import (
+    CompilerPanic,
+    InvalidTypeException,
     StructureException,
+    UndeclaredDefinition,
     VariableDeclarationException,
     VyperException,
 )
@@ -64,7 +67,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
         if name == "units":
             if self.units_added:
-                raise VariableDeclarationException("Custom units can only be defined once", node)
+                raise StructureException("Custom units can only be defined once", node)
             _add_custom_units(node)
 
         elif name == "implements":
@@ -105,13 +108,9 @@ def _add_custom_units(node):
 
     for key, value in zip(node.annotation.keys, node.annotation.values):
         if not isinstance(value, vy_ast.Str):
-            raise VariableDeclarationException(
-                "Custom unit description must be a valid string", value
-            )
+            raise InvalidTypeException("Custom unit description must be a valid string", value)
         if not isinstance(key, vy_ast.Name):
-            raise VariableDeclarationException(
-                "Custom unit name must be a valid string", key
-            )
+            raise InvalidTypeException("Custom unit name must be a valid string", key)
         namespace[key.id] = Unit(name=key.id, description=value.s)
 
 
@@ -122,7 +121,7 @@ def _add_import(node, interface_codes):
         name = node.names[0].name
 
     if name not in interface_codes:
-        raise StructureException(f"Unknown interface: {name}", node)
+        raise UndeclaredDefinition(f"Unknown interface: {name}", node)
     if interface_codes[name]['type'] == "vyper":
         interface_ast = vy_ast.parse_to_ast(interface_codes[name]['code'])
         interface_ast.name = name
@@ -131,6 +130,4 @@ def _add_import(node, interface_codes):
         obj = namespace['contract'].get_type_from_abi(name, interface_codes[name]['code'])
         namespace[name] = obj
     else:
-        raise StructureException(
-            f"Unknown interface format: {interface_codes[name]['type']}", node
-        )
+        raise CompilerPanic(f"Unknown interface format: {interface_codes[name]['type']}")
