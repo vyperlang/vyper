@@ -17,6 +17,7 @@ from vyper.context.definitions.bases import (
     FunctionDefinition,
 )
 from vyper.context.definitions.variable import (
+    Variable,
     get_value_from_node,
     get_variable_from_nodes,
 )
@@ -32,6 +33,32 @@ from vyper.context.utils import (
 from vyper.exceptions import (
     StructureException,
 )
+
+
+def get_function_from_abi(abi: dict):
+    """
+    Generates a function definition object from an ABI interface.
+
+    Arguments
+    ---------
+    abi : dict
+        An object from a JSON ABI interface, representing a function.
+
+    Returns
+    -------
+    ContractFunction object.
+    """
+
+    kwargs = {f"is_{i}": True for i in ('constant', 'payable') if abi[i]}
+    arguments = OrderedDict()
+    for item in abi['inputs']:
+        arguments[item['name']] = Variable(item['name'], get_builtin_type(item))
+    return_type = None
+    if len(abi['outputs']) == 1:
+        return_type = get_builtin_type(abi['outputs'][0])
+    elif len(abi['outputs']) > 1:
+        return_type = tuple(get_builtin_type(abi['outputs']))
+    return ContractFunction(abi['name'], arguments, len(arguments), return_type, "public", **kwargs)
 
 
 def get_function_from_node(node: vy_ast.FunctionDef, visibility: Optional[str] = None):

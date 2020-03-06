@@ -120,7 +120,17 @@ def _add_import(node, interface_codes):
         name = node.names[0].asname
     else:
         name = node.names[0].name
-    # TODO handle json imports
-    interface_ast = vy_ast.parse_to_ast(interface_codes[name]['code'])
-    interface_ast.name = name
-    namespace[name] = namespace['contract'].get_type(interface_ast)
+
+    if name not in interface_codes:
+        raise StructureException(f"Unknown interface: {name}", node)
+    if interface_codes[name]['type'] == "vyper":
+        interface_ast = vy_ast.parse_to_ast(interface_codes[name]['code'])
+        interface_ast.name = name
+        namespace[name] = namespace['contract'].get_type(interface_ast)
+    elif interface_codes[name]['type'] == "json":
+        obj = namespace['contract'].get_type_from_abi(name, interface_codes[name]['code'])
+        namespace[name] = obj
+    else:
+        raise StructureException(
+            f"Unknown interface format: {interface_codes[name]['type']}", node
+        )

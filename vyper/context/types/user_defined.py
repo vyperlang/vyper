@@ -12,6 +12,7 @@ from vyper.context import (
     namespace,
 )
 from vyper.context.definitions import (
+    get_function_from_abi,
     get_function_from_node,
 )
 from vyper.context.types.bases import (
@@ -105,6 +106,15 @@ class InterfaceMetaType(_BaseMetaType):
 
     __slots__ = ()
     _id = "contract"
+
+    def get_type_from_abi(self, name, abi: dict):
+        members = OrderedDict()
+        for item in [i for i in abi if i.get('type') == "function"]:
+            func = get_function_from_abi(item)
+            if func.name in members:
+                raise
+            members[func.name] = func
+        return InterfaceType(name, members)
 
     def get_type(self, node: Union[vy_ast.ClassDef, vy_ast.Module]):
         if isinstance(node, vy_ast.Module):
