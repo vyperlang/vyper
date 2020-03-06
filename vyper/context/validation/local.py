@@ -117,10 +117,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         ):
             raise StructureException("Assertion test value must be a boolean", node.test)
 
-    def visit_Delete(self, node):
-        # TODO can we just block this at the AST generation stage?
-        raise StructureException("Deleting is not supported, use built-in clear() function", node)
-
     def visit_Return(self, node):
         values = node.value
         if values is None:
