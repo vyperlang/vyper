@@ -24,16 +24,13 @@ from vyper.context.types import (
     get_type_from_annotation,
     get_type_from_node,
 )
-from vyper.context.types.bases import (
-    BytesType,
-    ValueType,
-)
 from vyper.context.utils import (
     check_call_args,
 )
 from vyper.exceptions import (
     InvalidLiteralException,
     StructureException,
+    TypeMismatchException,
 )
 
 # Eventually this logic will move to vyper/functions and be refactored into
@@ -284,7 +281,7 @@ class Slice(SimpleBuiltinDefinition):
 
         input_type = get_type_from_node(node.args[0])
         return_length = length - start
-        if isinstance(input_type, BytesType):
+        if getattr(input_type, 'is_bytes', None):
             return get_builtin_type(("bytes", return_length))
         else:
             return get_builtin_type(("string", return_length))
@@ -356,7 +353,7 @@ class AsUnitlessNumber(BuiltinFunctionDefinition):
     def get_call_return_type(self, node: vy_ast.Call):
         check_call_args(node, 1)
         value = get_value_from_node(node.args[0])
-        if not isinstance(getattr(value, 'type'), ValueType):
+        if not getattr(getattr(value, 'type', None), 'is_value_type', None):
             raise StructureException("Not a value type", node.args[0])
         if not hasattr(value.type, 'unit'):
             raise StructureException(f"Type '{value.type}' has no unit", node.args[0])
@@ -373,7 +370,7 @@ class Concat(BuiltinFunctionDefinition):
         check_call_args(node, (2, float('inf')))
         type_list = [get_type_from_node(i) for i in node.args]
 
-        idx = next((i for i in type_list if not isinstance(i, BytesType)), None)
+        idx = next((i for i in type_list if not getattr(i, 'is_bytes', None)), None)
         if idx is not None:
             node = node.args[type_list.index(idx)]
             raise StructureException("Concat values must be bytes", node)
@@ -392,7 +389,7 @@ class MethodID(BuiltinFunctionDefinition):
         if not isinstance(node.args[0], vy_ast.Str):
             raise StructureException("method id must be given as a literal string", node.args[0])
         return_type = get_type_from_annotation(node.args[1])
-        if not isinstance(return_type, BytesType) or return_type.length not in (4, 32):
+        if not getattr(return_type, 'is_bytes', None) or return_type.length not in (4, 32):
             raise StructureException("return type must be bytes32 or bytes[4]", node.args[1])
         return return_type
 

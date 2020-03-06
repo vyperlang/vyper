@@ -257,6 +257,18 @@ class ValueType(_BaseType):
     """
     Base class for simple types representing a single value.
 
+    Object attributes
+    -----------------
+    is_value_type : bool
+        Identifies a type object as a ValueType. `getattr(obj, 'is_value_type', None)`
+        is preferrable to `isinstance(obj, ValueType)` because it also works for
+        UnionType objects.
+    is_bytes
+    is_integer
+    is_numeric : bool
+        Identifies a type object as BytesType, IntegerType or NumericType. Has the
+        same use case as `is_value_type`.
+
     Class attributes
     ----------------
     _valid_literal: VyperNode | tuple
@@ -265,6 +277,7 @@ class ValueType(_BaseType):
         cast as this type.
     """
     __slots__ = ()
+    is_value_type = True
 
     def __str__(self):
         return self._id
@@ -329,8 +342,8 @@ class MemberType(_BaseType):
 
 
 class NumericType(ValueType):
-    """
-    Base class for simple numeric types (capable of arithmetic)."""
+
+    """Base class for simple numeric types (capable of arithmetic)."""
 
     __slots__ = ('unit',)
     _as_array = True
@@ -403,6 +416,7 @@ class BytesType(ValueType):
     """Base class for bytes types (bytes32, bytes[])."""
 
     __slots__ = ()
+    is_bytes = True
 
 
 class ArrayValueType(ValueType):
@@ -480,7 +494,6 @@ class EnvironmentVariableType(MemberType):
 
 
 class UnionType(set):
-
     """
     Set subclass for literal values where the final type has not yet been determined.
 
@@ -489,19 +502,26 @@ class UnionType(set):
     {int128, uint256}. If the type is then compared to -1 it is now considered to
     be int128 and subsequent comparisons to uint256 will return False.
     """
-
     def __str__(self):
         if len(self) == 1:
             return str(next(iter(self)))
         return f"{{{', '.join([str(i) for i in self])}}}"
 
     @property
-    def is_numeric(self):
-        return all(hasattr(i, 'is_numeric') for i in self)
+    def is_bytes(self):
+        return all(hasattr(i, 'is_bytes') for i in self)
 
     @property
     def is_integer(self):
         return all(hasattr(i, 'is_integer') for i in self)
+
+    @property
+    def is_numeric(self):
+        return all(hasattr(i, 'is_numeric') for i in self)
+
+    @property
+    def is_value_type(self):
+        return all(hasattr(i, 'is_value_type') for i in self)
 
     def _compare_type(self, other):
         if not isinstance(other, UnionType):

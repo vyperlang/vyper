@@ -244,7 +244,7 @@ def _get_comparator(node):
     left, right = (get_type_from_node(i) for i in (node.left, node.comparators[0]))
 
     if isinstance(node.ops[0], vy_ast.In):
-        if not isinstance(left, bases.ValueType) or not isinstance(right, list):
+        if not getattr(left, 'is_value_type', None) or not isinstance(right, list):
             raise StructureException(
                 "Can only use 'in' comparator between single type and list", node
             )
