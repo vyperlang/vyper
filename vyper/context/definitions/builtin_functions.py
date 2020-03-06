@@ -432,3 +432,47 @@ class RawLog(BuiltinFunctionDefinition):
             compare_types(log_type[0], namespace['bytes32'], node.args[0])
         compare_types(get_type_from_node(node.args[1]), namespace['bytes'], node.args[1])
         return None
+
+
+class Convert(BuiltinFunctionDefinition):
+
+    # TODO this is just a wireframe, expand it with complete functionality
+    # https://github.com/vyperlang/vyper/issues/1093
+
+    _id = "convert"
+
+    def get_call_return_type(self, node: vy_ast.Call):
+        check_call_args(node, 2)
+        initial_type = get_type_from_node(node.args[0])
+        if not getattr(initial_type, 'is_value_type', None):
+            raise StructureException(f"Cannot convert type '{initial_type}'", node.args[0])
+        target_type = get_builtin_type(node.args[1].id)
+        try:
+            compare_types(initial_type, target_type, node)
+        except TypeMismatchException:
+            pass
+        else:
+            raise StructureException(f"Value and target type are both '{target_type}'", node)
+
+        try:
+            validation_fn = getattr(self, f"validate_to_{target_type._id}")
+        except AttributeError:
+            raise StructureException(f"Unsupported destination type '{target_type}'", node.args[1])
+
+        validation_fn(initial_type)
+        return target_type
+
+    def validate_to_bool(self, initial_type):
+        pass
+
+    def validate_to_decimal(self, initial_type):
+        pass
+
+    def validate_to_int128(self, initial_type):
+        pass
+
+    def validate_to_uint256(self, initial_type):
+        pass
+
+    def validate_to_bytes32(self, initial_type):
+        pass
