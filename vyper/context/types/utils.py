@@ -273,9 +273,7 @@ def _get_comparator(node):
             left.validate_comparator(node)
         compare_types(left, right, node)
 
-    if isinstance(left, set) and len(left) == 1:
-        return next(iter(left))
-    return left
+    return namespace['bool']
 
 
 def check_numeric_bounds(type_str: str, node: vy_ast.Num) -> bool:

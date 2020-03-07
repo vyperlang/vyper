@@ -53,6 +53,8 @@ def validate_functions(vy_module):
     err_list.raise_if_not_empty()
 
 
+# TODO constancy checks could be handled here. if the function being evaluated
+# is_constant, check that the target of all Call nodes is also constant
 class FunctionNodeVisitor(VyperNodeVisitorBase):
 
     ignored_types = (
@@ -70,6 +72,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         for node in fn_node.body:
             self.visit(node)
         if self.func.return_type and not fn_node.get_children({'ast_type': "Return"}):
+            # TODO what if the last node is an If, where both branches end in Return?
             raise FunctionDeclarationException(
                 f"{self.func.name} is missing a return statement", fn_node
             )
@@ -112,8 +115,15 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise InvalidType("Reason must be a string of 32 characters or less", node.exc)
 
     def visit_Assert(self, node):
-        if node.msg and (not isinstance(node.msg, vy_ast.Str) or len(node.msg.value) > 32):
-            raise InvalidType("Reason must be a string of 32 characters or less", node.msg)
+        if node.msg:
+            if not (
+                (isinstance(node.msg, vy_ast.Name) and node.msg.id == "UNREACHABLE") or
+                (isinstance(node.msg, vy_ast.Str) and len(node.msg.value) <= 32)
+            ):
+                raise InvalidType(
+                    "Reason must UNREACHABLE or a string literal of 32 characters or less",
+                    node.msg
+                )
         if isinstance(node.test, (vy_ast.BoolOp, vy_ast.Compare)):
             get_type_from_operation(node)
         elif not isinstance(
@@ -151,6 +161,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             self.visit(n)
 
     def visit_For(self, node):
+        # TODO constancy
+        # For needs a detailed spec, some of the limitations here seem inconsistent
+
         namespace.enter_scope()
 
         # iteration over a variable
@@ -182,7 +195,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 if not isinstance(args[0], vy_ast.Int):
                     raise InvalidType("Range argument must be integer", args[0])
 
-            elif isinstance(args[0], vy_ast.Name):
+            elif isinstance(args[0], (vy_ast.Name, vy_ast.Call)):
                 # range(x, x + 10)
                 if not hasattr(target_type, 'is_integer'):
                     raise InvalidType("Value is not an integer", args[0])
