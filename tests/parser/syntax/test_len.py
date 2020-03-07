@@ -7,7 +7,7 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
-    TypeMismatchException,
+    TypeMismatch,
 )
 
 fail_list = [
@@ -31,7 +31,7 @@ def test_block_fail(bad_code):
         with raises(bad_code[1]):
             compiler.compile_code(bad_code[0])
     else:
-        with raises(TypeMismatchException):
+        with raises(TypeMismatch):
             compiler.compile_code(bad_code)
 
 

@@ -1,5 +1,5 @@
 from vyper.exceptions import (
-    TypeMismatchException,
+    TypeMismatch,
 )
 
 
@@ -281,4 +281,4 @@ def assign():
     xs: bytes[32] = b'abcdef'
     y: bytes32 = xs
     """
-    assert_compile_failed(lambda: get_contract(code), TypeMismatchException)
+    assert_compile_failed(lambda: get_contract(code), TypeMismatch)

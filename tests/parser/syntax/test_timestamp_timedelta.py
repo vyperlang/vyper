@@ -7,7 +7,7 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
-    TypeMismatchException,
+    TypeMismatch,
 )
 
 fail_list = [
@@ -67,7 +67,7 @@ def foo(x: timestamp, y: int128 (wei/sec)) -> wei_value:
 
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_timestamp_fail(bad_code):
-    with raises(TypeMismatchException):
+    with raises(TypeMismatch):
         compiler.compile_code(bad_code)
 
 

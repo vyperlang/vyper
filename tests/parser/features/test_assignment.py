@@ -1,8 +1,8 @@
 from vyper.exceptions import (
-    ConstancyViolationException,
-    InvalidLiteralException,
+    ConstancyViolation,
+    InvalidLiteral,
     SyntaxException,
-    TypeMismatchException,
+    TypeMismatch,
 )
 
 
@@ -49,7 +49,7 @@ def foo(x: int128):
     x = 5
 """
     assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code), ConstancyViolationException
+        lambda: get_contract_with_gas_estimation(code), ConstancyViolation
     )
 
 
@@ -60,7 +60,7 @@ def foo(x: int128):
     x += 5
 """
     assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code), ConstancyViolationException
+        lambda: get_contract_with_gas_estimation(code), ConstancyViolation
     )
 
 
@@ -103,7 +103,7 @@ def foo2() -> uint256:
     x += 1
     return x
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidLiteralException)
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidLiteral)
 
 
 def test_invalid_uin256_assignment_calculate_literals(get_contract_with_gas_estimation):
@@ -258,5 +258,5 @@ def foo():
     for contract in contracts:
         assert_compile_failed(
             lambda: get_contract_with_gas_estimation(contract),
-            TypeMismatchException
+            TypeMismatch
         )

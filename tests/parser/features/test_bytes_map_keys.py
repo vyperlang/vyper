@@ -1,7 +1,7 @@
 import pytest
 
 from vyper.exceptions import (
-    TypeMismatchException,
+    TypeMismatch,
 )
 
 
@@ -74,7 +74,7 @@ def set(k: bytes[35], v: int128):
     self.mapped_bytes[k] = v
     """
 
-    with pytest.raises(TypeMismatchException):
+    with pytest.raises(TypeMismatch):
         get_contract(code)
 
 

@@ -1,5 +1,5 @@
 from vyper.exceptions import (
-    TypeMismatchException,
+    TypeMismatch,
 )
 
 
@@ -13,7 +13,7 @@ def foo():
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(code),
-        TypeMismatchException
+        TypeMismatch
     )
 
     code = """
@@ -24,7 +24,7 @@ def foo():
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(code),
-        TypeMismatchException
+        TypeMismatch
     )
 
 
@@ -179,7 +179,7 @@ def foo(bar: bytes[33]) -> bool:
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(code),
-        TypeMismatchException
+        TypeMismatch
     )
 
     code = """
@@ -191,7 +191,7 @@ def foo() -> bool:
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(code),
-        TypeMismatchException
+        TypeMismatch
     )
 
 

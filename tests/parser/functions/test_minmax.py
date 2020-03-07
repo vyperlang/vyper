@@ -110,7 +110,7 @@ def test_minmax_var_uint256_var_int128(get_contract_with_gas_estimation, assert_
     Tests to verify that max throws an error if a variable uint256 and a
     variable int128 are passed.
     """
-    from vyper.exceptions import TypeMismatchException
+    from vyper.exceptions import TypeMismatch
     code_1 = """
 @public
 def foo() -> uint256:
@@ -120,7 +120,7 @@ def foo() -> uint256:
 """
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(code_1),
-        TypeMismatchException
+        TypeMismatch
     )
 
     code_2 = """
@@ -132,7 +132,7 @@ def foo() -> uint256:
 """
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(code_2),
-        TypeMismatchException
+        TypeMismatch
     )
 
     code_3 = """
@@ -144,7 +144,7 @@ def foo() -> uint256:
 """
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(code_3),
-        TypeMismatchException
+        TypeMismatch
     )
 
     code_4 = """
@@ -156,14 +156,14 @@ def foo() -> uint256:
 """
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(code_4),
-        TypeMismatchException
+        TypeMismatch
     )
 
 
 def test_minmax_var_uint256_negative_int128(get_contract_with_gas_estimation,
                                             assert_tx_failed,
                                             assert_compile_failed):
-    from vyper.exceptions import TypeMismatchException
+    from vyper.exceptions import TypeMismatch
     code_1 = """
 @public
 def foo() -> uint256:
@@ -172,7 +172,7 @@ def foo() -> uint256:
 """
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(code_1),
-        TypeMismatchException
+        TypeMismatch
     )
 
     code_2 = """
@@ -183,7 +183,7 @@ def foo() -> uint256:
 """
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(code_2),
-        TypeMismatchException
+        TypeMismatch
     )
 
 

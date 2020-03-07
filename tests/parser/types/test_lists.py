@@ -1,6 +1,6 @@
 from vyper.exceptions import (
     ArrayIndexException,
-    TypeMismatchException,
+    TypeMismatch,
 )
 
 
@@ -266,5 +266,5 @@ def parse_list_fail():
     """
     assert_compile_failed(
             lambda: get_contract_with_gas_estimation(code),
-            TypeMismatchException
+            TypeMismatch
             )

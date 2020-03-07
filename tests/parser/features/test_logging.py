@@ -4,7 +4,7 @@ from decimal import (
 
 from vyper.exceptions import (
     EventDeclarationException,
-    TypeMismatchException,
+    TypeMismatch,
 )
 from vyper.utils import (
     keccak256,
@@ -516,7 +516,7 @@ def foo_():
     log.MyLog(b'yo')
 """
 
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatchException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatch)
 
 
 def test_fails_when_topic_is_the_wrong_size(assert_tx_failed, get_contract_with_gas_estimation):
@@ -528,7 +528,7 @@ def foo():
     log.MyLog(b'bars')
 """
 
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatchException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatch)
 
 
 def test_fails_when_input_topic_is_the_wrong_size(assert_tx_failed,
@@ -541,7 +541,7 @@ def foo(arg1: bytes[4]):
     log.MyLog(arg1)
 """
 
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatchException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatch)
 
 
 def test_fails_when_data_is_the_wrong_size(assert_tx_failed, get_contract_with_gas_estimation):
@@ -553,7 +553,7 @@ def foo():
     log.MyLog(b'bars')
 """
 
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatchException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatch)
 
 
 def test_fails_when_input_data_is_the_wrong_size(assert_tx_failed,
@@ -566,7 +566,7 @@ def foo(arg1: bytes[4]):
     log.MyLog(arg1)
 """
 
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatchException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatch)
 
 
 def test_fails_when_topic_is_over_32_bytes(assert_tx_failed, get_contract_with_gas_estimation):
@@ -634,7 +634,7 @@ def foo():
     log.MyLog(self)
     """
 
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatchException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatch)
 
 
 def test_logging_fails_with_data_type_mismatch(assert_tx_failed, get_contract_with_gas_estimation):
@@ -646,7 +646,7 @@ def foo():
     log.MyLog(self)
     """
 
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatchException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatch)
 
 
 def test_logging_fails_after_a_global_declaration(assert_tx_failed,
@@ -941,7 +941,7 @@ Bar: event({_value: indexed(bytes[32])})
 def foo(inp: bytes[33]):
     log.Bar(inp)
 """
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatchException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatch)
 
 
 def test_2nd_var_list_packing(get_logs, get_contract_with_gas_estimation):

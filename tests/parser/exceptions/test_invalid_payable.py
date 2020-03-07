@@ -7,7 +7,7 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
-    NonPayableViolationException,
+    NonPayableViolation,
 )
 
 fail_list = [
@@ -21,7 +21,7 @@ def foo():
 
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_variable_decleration_exception(bad_code):
-    with raises(NonPayableViolationException):
+    with raises(NonPayableViolation):
         compiler.compile_code(bad_code)
 
 

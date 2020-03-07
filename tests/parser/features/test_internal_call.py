@@ -9,7 +9,7 @@ from vyper.compiler import (
 )
 from vyper.exceptions import (
     StructureException,
-    TypeMismatchException,
+    TypeMismatch,
 )
 
 
@@ -505,5 +505,5 @@ def bar():
 def test_selfcall_kwarg_raises(failing_contract_code, decorator, assert_compile_failed):
     assert_compile_failed(
         lambda: compile_code(failing_contract_code.format(decorator)),
-        TypeMismatchException
+        TypeMismatch
     )

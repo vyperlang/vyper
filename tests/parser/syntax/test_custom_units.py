@@ -7,7 +7,7 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
-    InvalidTypeException,
+    InvalidType,
     VariableDeclarationException,
 )
 
@@ -56,7 +56,7 @@ units: {
 @public
 def test():
     a: int128(km)
-    """, InvalidTypeException),
+    """, InvalidType),
     """
 units: {
     cm: "centimeter",
@@ -70,7 +70,7 @@ units: {
     cm: "centimeter",
 }
 a: int128(km)
-    """, InvalidTypeException),
+    """, InvalidType),
     """
 units: {
     cm: "centimeter",

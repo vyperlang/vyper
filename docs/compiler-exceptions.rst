@@ -30,7 +30,7 @@ of the error within the code:
 
     Raises when an array index is out of bounds.
 
-.. py:exception:: ConstancyViolationException
+.. py:exception:: ConstancyViolation
 
     Raises when attempting to perform a modifying action within a constant context. For example, writing to storage in a ``@constant`` function or modifying a constant variable.
 
@@ -54,7 +54,7 @@ of the error within the code:
 
     Raises on a reference to an attribute that does not exist.
 
-.. py:exception:: InvalidLiteralException
+.. py:exception:: InvalidLiteral
 
     Raises when attempting to use a literal value where the type is correct, but the value is still invalid in some way. For example, an address that is not check-summed.
 
@@ -90,7 +90,7 @@ of the error within the code:
 
     This example raises ``InvalidReference`` because ``baz`` is a storage variable. The reference to it should be written as ``self.baz``.
 
-.. py:exception:: InvalidTypeException
+.. py:exception:: InvalidType
 
     Raises when attempting to assign to an invalid type, or perform an action on a variable of the wrong type.
 
@@ -120,7 +120,7 @@ of the error within the code:
 
     Raises when attempting to assign a variable to a name that is already in use.
 
-.. py:exception:: NonPayableViolationException
+.. py:exception:: NonPayableViolation
 
     Raises when attempting to access ``msg.value`` from within a private function.
 
@@ -159,7 +159,7 @@ of the error within the code:
         ---------------------------^
                 5   deposit: wei_value
 
-.. py:exception:: TypeMismatchException
+.. py:exception:: TypeMismatch
 
     Raises when attempting to perform an action between multiple objects of incompatible types.
 

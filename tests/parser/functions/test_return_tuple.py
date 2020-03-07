@@ -1,5 +1,5 @@
 from vyper.exceptions import (
-    TypeMismatchException,
+    TypeMismatch,
 )
 
 
@@ -154,4 +154,4 @@ def getTimeAndBalance() -> (bool, address):
     return block.timestamp, self.balance
     """
 
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatchException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatch)

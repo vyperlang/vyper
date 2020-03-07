@@ -8,7 +8,7 @@ from vyper import (
 )
 from vyper.exceptions import (
     EvmVersionException,
-    TypeMismatchException,
+    TypeMismatch,
 )
 from vyper.opcodes import (
     EVM_VERSIONS,
@@ -83,7 +83,7 @@ def test_chain_fail(bad_code):
         with raises(bad_code[1]):
             compiler.compile_code(bad_code[0], evm_version="istanbul")
     else:
-        with raises(TypeMismatchException):
+        with raises(TypeMismatch):
             compiler.compile_code(bad_code, evm_version="istanbul")
 
 

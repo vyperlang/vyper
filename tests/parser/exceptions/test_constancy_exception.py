@@ -7,7 +7,7 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
-    ConstancyViolationException,
+    ConstancyViolation,
 )
 
 fail_list = [
@@ -146,5 +146,5 @@ def bar():
 
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_constancy_violation_exception(bad_code):
-    with raises(ConstancyViolationException):
+    with raises(ConstancyViolation):
         compiler.compile_code(bad_code)

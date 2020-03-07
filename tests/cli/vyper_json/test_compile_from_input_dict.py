@@ -16,7 +16,7 @@ from vyper.cli.vyper_json import (
 from vyper.exceptions import (
     JSONError,
     SyntaxException,
-    TypeMismatchException,
+    TypeMismatch,
 )
 
 FOO_CODE = """
@@ -104,7 +104,7 @@ def test_exc_handler_to_dict_syntax():
 def test_exc_handler_raises_compiler():
     input_json = deepcopy(INPUT_JSON)
     input_json['sources']['badcode.vy'] = {'content': BAD_COMPILER_CODE}
-    with pytest.raises(TypeMismatchException):
+    with pytest.raises(TypeMismatch):
         compile_from_input_dict(input_json, exc_handler_raises)
 
 
@@ -117,7 +117,7 @@ def test_exc_handler_to_dict_compiler():
     assert len(result['errors']) == 1
     error = result['errors'][0]
     assert error['component'] == "compiler"
-    assert error['type'] == "TypeMismatchException"
+    assert error['type'] == "TypeMismatch"
 
 
 def test_source_ids_increment():

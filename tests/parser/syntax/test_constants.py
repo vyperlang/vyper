@@ -8,9 +8,9 @@ from vyper import (
 )
 from vyper.exceptions import (
     FunctionDeclarationException,
-    InvalidLiteralException,
+    InvalidLiteral,
     StructureException,
-    TypeMismatchException,
+    TypeMismatch,
     VariableDeclarationException,
 )
 
@@ -26,11 +26,11 @@ VAL: constant(uint256, int128) = 12
     # invalid type
     ("""
 VAL: constant(uint256) = "test"
-    """, TypeMismatchException),
+    """, TypeMismatch),
     # invalid range
     ("""
 VAL: constant(uint256) = -1
-    """, TypeMismatchException),
+    """, TypeMismatch),
     # reserverd keyword
     ("""
 wei: constant(uint256) = 1
@@ -43,7 +43,7 @@ VAL: constant(uint256) = 11
     # bytearray too long.
     ("""
 VAL: constant(bytes[4]) = b"testtest"
-    """, TypeMismatchException),
+    """, TypeMismatch),
     # global with same name
     ("""
 VAL: constant(bytes[4]) = b"t"
@@ -60,7 +60,7 @@ def test(VAL: uint256):
     ("""
 C1: constant(uint256) = block.number
 C2: constant(uint256) = convert(C1, uint256)
-    """, InvalidLiteralException),
+    """, InvalidLiteral),
     # cannot assign function result to a constant
     """
 @public
