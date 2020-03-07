@@ -421,11 +421,6 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
         return BaseType(base_type, unit, positional)
     # Subscripts
     elif isinstance(item, vy_ast.Subscript):
-        if isinstance(item.slice, vy_ast.Slice):
-            raise InvalidType(
-                "Array / ByteArray access must access a single element, not a slice",
-                item,
-            )
         # Fixed size lists or bytearrays, e.g. num[100]
         is_constant_val = constants.ast_is_constant(item.slice.value)
         if isinstance(item.slice.value, vy_ast.Int) or is_constant_val:
