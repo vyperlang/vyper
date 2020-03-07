@@ -24,6 +24,9 @@ from vyper.context.types import (
     get_type_from_annotation,
     get_type_from_node,
 )
+from vyper.context.types.bases import (
+    UnionType,
+)
 from vyper.context.utils import (
     validate_call_args,
 )
@@ -70,7 +73,10 @@ class SimpleBuiltinDefinition(FunctionDefinition, BuiltinFunctionDefinition):
     def __init__(self):
         arguments = OrderedDict()
         for name, types in self._inputs:
-            arguments[name] = get_builtin_type(types)
+            type_ = get_builtin_type(types)
+            if isinstance(type_, UnionType):
+                type_.lock()
+            arguments[name] = type_
         return_type = get_builtin_type(self._return_type) if self._return_type else None
         arg_count = getattr(self, '_arg_count', len(arguments))
         FunctionDefinition.__init__(self, self._id, arguments, arg_count, return_type)

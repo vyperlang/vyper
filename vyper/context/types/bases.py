@@ -505,6 +505,10 @@ class UnionType(set):
     {int128, uint256}. If the type is then compared to -1 it is now considered to
     be int128 and subsequent comparisons to uint256 will return False.
     """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._locked = False
+
     def __str__(self):
         if len(self) == 1:
             return str(next(iter(self)))
@@ -534,7 +538,8 @@ class UnionType(set):
         if not matches:
             return False
 
-        self.intersection_update(matches)
+        if not self._locked:
+            self.intersection_update(matches)
         return True
 
     def _validate(self, node, attr):
@@ -558,3 +563,12 @@ class UnionType(set):
 
     def validate_numeric_op(self, node):
         self._validate(node, 'validate_numeric_op')
+
+    def lock(self):
+        """
+        Locks the type.
+
+        A locked UnionType maintains it's potential types after comparison. This
+        is useful for builtin function arguments.
+        """
+        self._locked = True
