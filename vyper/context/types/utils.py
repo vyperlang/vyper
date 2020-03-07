@@ -104,6 +104,9 @@ def get_builtin_type(type_definition: Union[List, Set, Dict, Tuple, str]):
         return bases.UnionType(get_builtin_type(i) for i in type_definition)
 
     if isinstance(type_definition, dict):
+        if type_definition['type'] == "fixed168x10":
+            type_definition = type_definition.copy()
+            type_definition['type'] = "decimal"
         if type_definition.get('unit'):
             type_definition = (type_definition['type'], type_definition['unit'])
         else:

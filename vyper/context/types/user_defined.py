@@ -149,7 +149,7 @@ class InterfaceMetaType(_BaseMetaType):
     def _get_module_functions(self, base_node: vy_ast.Module):
         functions = OrderedDict()
         for node in base_node.get_children({'ast_type': "FunctionDef"}):
-            if "public" in node.decorator_list:
+            if "public" in [i.id for i in node.decorator_list]:
                 functions[node.name] = get_function_from_node(node)
         return functions
 

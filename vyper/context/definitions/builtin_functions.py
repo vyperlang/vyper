@@ -205,7 +205,7 @@ class BitwiseAnd(SimpleBuiltinDefinition):
 class BitwiseNot(SimpleBuiltinDefinition):
 
     _id = "bitwise_not"
-    _inputs = [("x", "uint256"), ("y", "uint256")]
+    _inputs = [("x", "uint256")]
     _return_type = "uint256"
 
 
@@ -372,13 +372,18 @@ class Concat(BuiltinFunctionDefinition):
         validate_call_args(node, (2, float('inf')))
         type_list = [get_type_from_node(i) for i in node.args]
 
-        idx = next((i for i in type_list if not getattr(i, 'is_bytes', None)), None)
-        if idx is not None:
-            node = node.args[type_list.index(idx)]
-            raise InvalidType("Concat values must be bytes", node)
+        if next((i for i in type_list if not getattr(i, 'is_bytes', None)), None):
+            # TODO can we check for string as easily as we just checked for bytes?
+            return_type = get_builtin_type("string")
+            for type_ in type_list:
+                try:
+                    compare_types(return_type, type_, node)
+                except TypeMismatch:
+                    raise InvalidType("Concat values must be bytes or string", node)
+        else:
+            return_type = get_builtin_type("bytes")
 
-        length = sum(i.min_length for i in type_list)
-        return_type = get_builtin_type(("bytes", length))
+        return_type.length = sum(i.min_length for i in type_list)
         return return_type
 
 
@@ -401,17 +406,16 @@ class Extract32(BuiltinFunctionDefinition):
     _id = "extract32"
 
     def get_call_return_type(self, node: vy_ast.Call):
-        validate_call_args(node, (2, 3))
+        validate_call_args(node, 2, ["type"])
         target, length = (get_type_from_node(i) for i in node.args[:2])
 
         compare_types(target, namespace['bytes'], node.args[0])
         compare_types(length, namespace['int128'], node.args[1])
 
-        # TODO union type, default types, any type?
-        if len(node.args) == 3:
-            return_type = get_type_from_annotation(node.args[2])
-            if return_type._id not in ("bytes32", "int128", "address"):
-                raise InvalidType("Invalid return type", node.args[2])
+        if node.keywords:
+            return_type = get_type_from_annotation(node.keywords[0].value)
+            expected = get_builtin_type({"address", "bytes32", "int128", "uint256"})
+            compare_types(return_type, expected, node.keywords[0])
 
         else:
             return_type = get_builtin_type("bytes32")
@@ -454,7 +458,9 @@ class Convert(BuiltinFunctionDefinition):
         except TypeMismatch:
             pass
         else:
-            raise InvalidType(f"Value and target type are both '{target_type}'", node)
+            # TODO remove this if once the requirement to convert literal integers is fixed
+            if target_type._id != "uint256":
+                raise InvalidType(f"Value and target type are both '{target_type}'", node)
 
         try:
             validation_fn = getattr(self, f"validate_to_{target_type._id}")

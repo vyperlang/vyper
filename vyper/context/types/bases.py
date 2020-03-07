@@ -338,7 +338,7 @@ class MemberType(_BaseType):
 
     def get_member_type(self, node: vy_ast.Attribute):
         if node.attr not in self.members:
-            raise InvalidAttribute(f"Struct {self._id} has no member '{node.attr}'", node)
+            raise InvalidAttribute(f"{self} has no member '{node.attr}'", node)
         return self.members[node.attr]
 
     def __str__(self):
@@ -362,7 +362,11 @@ class NumericType(ValueType):
     @classmethod
     def from_annotation(cls, node):
         if isinstance(node, vy_ast.Name):
-            return super().from_annotation(node)
+            self = super().from_annotation(node)
+            # if this is a type alias, set the appropriate unit
+            if node.id != self._id:
+                self.set_unit(namespace[node.id].unit.name)
+            return self
         validate_call_args(node, 1)
         self = super().from_annotation(node.func)
         try:
@@ -477,7 +481,7 @@ class ArrayValueType(ValueType):
     @classmethod
     def from_literal(cls, node):
         self = super().from_literal(node)
-        self.min_length = len(node.value) or 1
+        self.min_length = len(node.value)
         return self
 
 
