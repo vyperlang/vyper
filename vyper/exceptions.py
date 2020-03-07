@@ -6,6 +6,23 @@ from vyper.settings import (
 )
 
 
+class ExceptionList(list):
+    """
+    List subclass for storing exceptions.
+
+    To deliver multiple compilation errors to the user at once, append each
+    raised Exception to this list and call raise_if_not_empty once the task
+    is completed.
+    """
+    def raise_if_not_empty(self):
+        if len(self) == 1:
+            raise self[0]
+        if len(self) > 1:
+            err_msg = ["Compilation failed with the following errors:"]
+            err_msg += [f"{type(i).__name__}: {i}" for i in self]
+            raise StructureException("\n\n".join(err_msg))
+
+
 class VyperException(Exception):
     """
     Base Vyper exception class.

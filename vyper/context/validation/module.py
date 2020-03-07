@@ -17,6 +17,7 @@ from vyper.context.utils import (
 )
 from vyper.exceptions import (
     CompilerPanic,
+    ExceptionList,
     InvalidTypeException,
     StructureException,
     UndeclaredDefinition,
@@ -39,21 +40,22 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
     def __init__(self, module_node, interface_codes):
         self.interface_codes = interface_codes
         self.units_added = False
+
         module_nodes = module_node.body.copy()
         while module_nodes:
             count = len(module_nodes)
-            err_msg = []
+            err_list = ExceptionList()
             for node in list(module_nodes):
                 try:
                     self.visit(node)
                     module_nodes.remove(node)
                 except VyperException as e:
-                    err_msg.append(f"{type(e).__name__}: {e}")
+                    err_list.append(e)
+
+            # Only raise if no nodes were successfully processed. This allows module
+            # level logic to parse regardless of the ordering of code elements.
             if count == len(module_nodes):
-                raise StructureException(
-                    "Compilation failed with the following errors:\n\n" +
-                    "\n\n".join(err_msg)
-                )
+                err_list.raise_if_not_empty()
 
     def visit_AnnAssign(self, node):
         if node.get('annotation.func.id') == "event":

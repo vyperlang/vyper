@@ -25,6 +25,7 @@ from vyper.context.utils import (
 )
 from vyper.exceptions import (
     ConstancyViolationException,
+    ExceptionList,
     FunctionDeclarationException,
     InvalidLiteralException,
     InvalidTypeException,
@@ -39,20 +40,17 @@ def validate_functions(vy_module):
 
     """Analyzes a vyper ast and validates the function-level namespaces."""
 
-    err_msg = []
+    err_list = ExceptionList()
     for node in vy_module.get_children({'ast_type': "FunctionDef"}):
         namespace.enter_scope()
         try:
             FunctionNodeVisitor(node)
         except VyperException as e:
-            err_msg.append(f"{type(e).__name__}: {e}")
+            err_list.append(e)
         finally:
             namespace.exit_scope()
-    if err_msg:
-        raise StructureException(
-            "Compilation failed with the following errors:\n\n" +
-            "\n\n".join(err_msg)
-        )
+
+    err_list.raise_if_not_empty()
 
 
 class FunctionNodeVisitor(VyperNodeVisitorBase):
