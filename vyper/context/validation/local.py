@@ -53,6 +53,21 @@ def validate_functions(vy_module):
     err_list.raise_if_not_empty()
 
 
+def check_for_return(node_list: list) -> bool:
+
+    """Checks that all paths within statement body contain a Return node."""
+
+    if next((i for i in node_list if isinstance(i, vy_ast.Return)), None):
+        return True
+    if_nodes = [i for i in node_list if isinstance(i, vy_ast.If)]
+    if not if_nodes:
+        return False
+    return (
+        all(check_for_return(i) for i in (x.body for x in if_nodes)) and
+        all(check_for_return(i) for i in (x.orelse for x in if_nodes))
+    )
+
+
 # TODO constancy checks could be handled here. if the function being evaluated
 # is_constant, check that the target of all Call nodes is also constant
 class FunctionNodeVisitor(VyperNodeVisitorBase):
@@ -71,8 +86,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         namespace.update(self.func.arguments)
         for node in fn_node.body:
             self.visit(node)
-        if self.func.return_type and not fn_node.get_children({'ast_type': "Return"}):
-            # TODO what if the last node is an If, where both branches end in Return?
+        if self.func.return_type and not check_for_return(fn_node.body):
             raise FunctionDeclarationException(
                 f"{self.func.name} is missing a return statement", fn_node
             )
