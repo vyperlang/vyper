@@ -1,3 +1,6 @@
+import importlib
+import pkgutil
+
 from vyper import (
     ast as vy_ast,
 )
@@ -24,6 +27,7 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
+import vyper.interfaces
 
 
 def add_module_namespace(vy_module: vy_ast.Module, interface_codes):
@@ -118,10 +122,14 @@ def _add_custom_units(node):
 
 def _add_import(node, interface_codes):
     if isinstance(node, vy_ast.Import):
+        module = node.names[0].name
         name = node.names[0].asname
     else:
+        module = node.module
         name = node.names[0].name
 
+    if module == "vyper.interfaces":
+        interface_codes = _get_builtin_interfaces()
     if name not in interface_codes:
         raise UndeclaredDefinition(f"Unknown interface: {name}", node)
     if interface_codes[name]['type'] == "vyper":
@@ -133,3 +141,13 @@ def _add_import(node, interface_codes):
         namespace[name] = obj
     else:
         raise CompilerPanic(f"Unknown interface format: {interface_codes[name]['type']}")
+
+
+def _get_builtin_interfaces():
+    interface_names = [i.name for i in pkgutil.iter_modules(vyper.interfaces.__path__)]
+    return {
+        name: {
+            'type': 'vyper',
+            'code': importlib.import_module(f'vyper.interfaces.{name}').interface_code,
+        } for name in interface_names
+    }
