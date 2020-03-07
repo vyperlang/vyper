@@ -22,9 +22,9 @@ from vyper.exceptions import (
     ArrayIndexException,
     CompilerPanic,
     InvalidAttribute,
-    InvalidLiteralException,
+    InvalidLiteral,
     InvalidOperation,
-    InvalidTypeException,
+    InvalidType,
     NamespaceCollision,
     StructureException,
     VyperException,
@@ -297,7 +297,7 @@ class ValueType(_BaseType):
         if not isinstance(node, vy_ast.Constant):
             raise CompilerPanic(f"Attempted to validate a '{node.ast_type}' node.")
         if not isinstance(node, cls._valid_literal):
-            raise InvalidLiteralException(f"Invalid literal type for '{cls}'", node)
+            raise InvalidLiteral(f"Invalid literal type for '{cls}'", node)
         return cls()
 
 
@@ -374,7 +374,7 @@ class NumericType(ValueType):
     def set_unit(self, unit_str):
         self.unit = namespace[unit_str]
         if not isinstance(self.unit, Unit):
-            raise InvalidTypeException(f"{unit_str} is not a valid unit type")
+            raise InvalidType(f"{unit_str} is not a valid unit type")
 
     def __str__(self):
         if getattr(self, 'unit', None):

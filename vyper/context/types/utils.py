@@ -22,12 +22,12 @@ from vyper.context.utils import (
     get_index_value,
 )
 from vyper.exceptions import (
-    InvalidLiteralException,
+    InvalidLiteral,
     InvalidOperation,
-    InvalidTypeException,
+    InvalidType,
     OverflowException,
     StructureException,
-    TypeMismatchException,
+    TypeMismatch,
 )
 
 
@@ -57,11 +57,11 @@ def compare_types(left, right, node):
 
     if any(isinstance(i, (list, tuple)) for i in (left, right)):
         if not all(isinstance(i, (list, tuple)) for i in (left, right)):
-            raise TypeMismatchException(
+            raise TypeMismatch(
                 f"Cannot perform operation between single type and compound type", node
             )
         if len(left) != len(right):
-            raise TypeMismatchException(
+            raise TypeMismatch(
                 f"Imbalanced operation: {len(left)} left side values, {len(right)} right side", node
             )
         for lhs, rhs in zip(left, right):
@@ -70,7 +70,7 @@ def compare_types(left, right, node):
 
     if not isinstance(left, set) and not isinstance(right, set):
         if not left._compare_type(right):
-            raise TypeMismatchException(
+            raise TypeMismatch(
                 f"Cannot perform operation between {left} and {right}", node
             )
 
@@ -78,7 +78,7 @@ def compare_types(left, right, node):
     right_check = isinstance(right, set) and not right._compare_type(left)
 
     if left_check or right_check:
-        raise TypeMismatchException(
+        raise TypeMismatch(
             f"Cannot perform operation between {left} and {right}", node
         )
 
@@ -197,7 +197,7 @@ def _get_type_from_literal(node: vy_ast.Constant):
         except Exception:
             continue
     if not valid_types:
-        raise InvalidLiteralException(
+        raise InvalidLiteral(
             f"Could not determine type for literal value '{node.value}'",
             node
         )
@@ -295,7 +295,7 @@ def check_numeric_bounds(type_str: str, node: vy_ast.Num) -> bool:
     """
     size = int(type_str.strip("uint") or 256)
     if size < 8 or size > 256 or size % 8:
-        raise InvalidTypeException(f"Invalid type: {type_str}")
+        raise InvalidType(f"Invalid type: {type_str}")
     if type_str.startswith("u"):
         lower, upper = 0, 2 ** size - 1
     else:

@@ -4,7 +4,7 @@ from vyper import (
 from vyper.exceptions import (
     EventDeclarationException,
     FunctionDeclarationException,
-    InvalidTypeException,
+    InvalidType,
     StructureException,
     VariableDeclarationException,
 )
@@ -261,7 +261,7 @@ class GlobalContext:
                 member_type = item.annotation
                 # Check well-formedness of member names
                 if not isinstance(member_name, vy_ast.Name):
-                    raise InvalidTypeException(
+                    raise InvalidType(
                         f"Invalid member name for struct {name}, needs to be a valid name. ",
                         item
                     )
@@ -497,7 +497,7 @@ class GlobalContext:
                 True
             )
         else:
-            raise InvalidTypeException('Invalid global type specified', item)
+            raise InvalidType('Invalid global type specified', item)
 
     def parse_type(self, ast_node, location):
         return parse_type(

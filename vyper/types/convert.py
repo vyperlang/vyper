@@ -5,9 +5,9 @@ from vyper import (
     ast as vy_ast,
 )
 from vyper.exceptions import (
-    InvalidLiteralException,
+    InvalidLiteral,
     StructureException,
-    TypeMismatchException,
+    TypeMismatch,
 )
 from vyper.functions.signatures import (
     signature,
@@ -37,7 +37,7 @@ def to_bool(expr, args, kwargs, context):
 
     if input_type == 'bytes':
         if in_arg.typ.maxlen > 32:
-            raise TypeMismatchException(
+            raise TypeMismatch(
                 f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to bool",
                 expr,
             )
@@ -67,7 +67,7 @@ def to_int128(expr, args, kwargs, context):
     if input_type == 'num_literal':
         if isinstance(in_arg, int):
             if not SizeLimits.in_bounds('int128', in_arg):
-                raise InvalidLiteralException(f"Number out of range: {in_arg}")
+                raise InvalidLiteral(f"Number out of range: {in_arg}")
             return LLLnode.from_list(
                 in_arg,
                 typ=BaseType('int128', _unit),
@@ -75,19 +75,19 @@ def to_int128(expr, args, kwargs, context):
             )
         elif isinstance(in_arg, float):
             if not SizeLimits.in_bounds('int128', math.trunc(in_arg)):
-                raise InvalidLiteralException(f"Number out of range: {math.trunc(in_arg)}")
+                raise InvalidLiteral(f"Number out of range: {math.trunc(in_arg)}")
             return LLLnode.from_list(
                 math.trunc(in_arg),
                 typ=BaseType('int128', _unit),
                 pos=getpos(expr)
             )
         else:
-            raise InvalidLiteralException(f"Unknown numeric literal type: {in_arg}")
+            raise InvalidLiteral(f"Unknown numeric literal type: {in_arg}")
 
     elif input_type == 'bytes32':
         if in_arg.typ.is_literal:
             if not SizeLimits.in_bounds('int128', in_arg.value):
-                raise InvalidLiteralException(f"Number out of range: {in_arg.value}", expr)
+                raise InvalidLiteral(f"Number out of range: {in_arg.value}", expr)
             else:
                 return LLLnode.from_list(
                     in_arg,
@@ -123,7 +123,7 @@ def to_int128(expr, args, kwargs, context):
 
     elif input_type in ('string', 'bytes'):
         if in_arg.typ.maxlen > 32:
-            raise TypeMismatchException(
+            raise TypeMismatch(
                 f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to int128",
                 expr,
             )
@@ -132,7 +132,7 @@ def to_int128(expr, args, kwargs, context):
     elif input_type == 'uint256':
         if in_arg.typ.is_literal:
             if not SizeLimits.in_bounds('int128', in_arg.value):
-                raise InvalidLiteralException(f"Number out of range: {in_arg.value}", expr)
+                raise InvalidLiteral(f"Number out of range: {in_arg.value}", expr)
             else:
                 return LLLnode.from_list(
                     in_arg,
@@ -167,7 +167,7 @@ def to_int128(expr, args, kwargs, context):
         )
 
     else:
-        raise InvalidLiteralException(f"Invalid input for int128: {in_arg}", expr)
+        raise InvalidLiteral(f"Invalid input for int128: {in_arg}", expr)
 
 
 @signature(('num_literal', 'int128', 'bytes32', 'bytes', 'address', 'bool', 'decimal'), '*')
@@ -179,7 +179,7 @@ def to_uint256(expr, args, kwargs, context):
     if input_type == 'num_literal':
         if isinstance(in_arg, int):
             if not SizeLimits.in_bounds('uint256', in_arg):
-                raise InvalidLiteralException(f"Number out of range: {in_arg}")
+                raise InvalidLiteral(f"Number out of range: {in_arg}")
             return LLLnode.from_list(
                 in_arg,
                 typ=BaseType('uint256', _unit),
@@ -187,14 +187,14 @@ def to_uint256(expr, args, kwargs, context):
             )
         elif isinstance(in_arg, float):
             if not SizeLimits.in_bounds('uint256', math.trunc(in_arg)):
-                raise InvalidLiteralException(f"Number out of range: {math.trunc(in_arg)}")
+                raise InvalidLiteral(f"Number out of range: {math.trunc(in_arg)}")
             return LLLnode.from_list(
                 math.trunc(in_arg),
                 typ=BaseType('uint256', _unit),
                 pos=getpos(expr)
             )
         else:
-            raise InvalidLiteralException(f"Unknown numeric literal type: {in_arg}")
+            raise InvalidLiteral(f"Unknown numeric literal type: {in_arg}")
 
     elif isinstance(in_arg, LLLnode) and input_type == 'int128':
         return LLLnode.from_list(
@@ -227,14 +227,14 @@ def to_uint256(expr, args, kwargs, context):
 
     elif isinstance(in_arg, LLLnode) and input_type == 'bytes':
         if in_arg.typ.maxlen > 32:
-            raise InvalidLiteralException(
+            raise InvalidLiteral(
                 f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to uint256",
                 expr,
             )
         return byte_array_to_num(in_arg, expr, 'uint256')
 
     else:
-        raise InvalidLiteralException(f"Invalid input for uint256: {in_arg}", expr)
+        raise InvalidLiteral(f"Invalid input for uint256: {in_arg}", expr)
 
 
 @signature(('bool', 'int128', 'uint256', 'bytes32', 'bytes', 'address'), '*')
@@ -244,7 +244,7 @@ def to_decimal(expr, args, kwargs, context):
 
     if input_type == 'bytes':
         if in_arg.typ.maxlen > 32:
-            raise TypeMismatchException(
+            raise TypeMismatch(
                 f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to decimal",
                 expr,
             )
@@ -262,7 +262,7 @@ def to_decimal(expr, args, kwargs, context):
         if input_type == 'uint256':
             if in_arg.typ.is_literal:
                 if not SizeLimits.in_bounds('int128', (in_arg.value * DECIMAL_DIVISOR)):
-                    raise InvalidLiteralException(
+                    raise InvalidLiteral(
                         f"Number out of range: {in_arg.value}",
                         expr,
                     )
@@ -305,7 +305,7 @@ def to_decimal(expr, args, kwargs, context):
         elif input_type == 'bytes32':
             if in_arg.typ.is_literal:
                 if not SizeLimits.in_bounds('int128', (in_arg.value * DECIMAL_DIVISOR)):
-                    raise InvalidLiteralException(
+                    raise InvalidLiteral(
                         f"Number out of range: {in_arg.value}",
                         expr,
                     )
@@ -335,7 +335,7 @@ def to_decimal(expr, args, kwargs, context):
             )
 
         else:
-            raise InvalidLiteralException(f"Invalid input for decimal: {in_arg}", expr)
+            raise InvalidLiteral(f"Invalid input for decimal: {in_arg}", expr)
 
 
 @signature(('int128', 'uint256', 'address', 'bytes', 'bool', 'decimal'), '*')
@@ -345,7 +345,7 @@ def to_bytes32(expr, args, kwargs, context):
 
     if input_type == 'bytes':
         if _len > 32:
-            raise TypeMismatchException(
+            raise TypeMismatch(
                 f"Unable to convert bytes[{_len}] to bytes32, max length is too "
                 "large."
             )
@@ -388,11 +388,11 @@ def _to_bytelike(expr, args, kwargs, context, bytetype):
     elif bytetype == 'bytes':
         ReturnType = ByteArrayType
     else:
-        raise TypeMismatchException(f'Invalid {bytetype} supplied')
+        raise TypeMismatch(f'Invalid {bytetype} supplied')
 
     in_arg = args[0]
     if in_arg.typ.maxlen > args[1].slice.value.n:
-        raise TypeMismatchException(
+        raise TypeMismatch(
             f'Cannot convert as input {bytetype} are larger than max length',
             expr,
         )

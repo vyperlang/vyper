@@ -15,7 +15,7 @@ from vyper.context.types import (
 from vyper.exceptions import (
     ArgumentException,
     CompilerPanic,
-    InvalidTypeException,
+    InvalidType,
     StructureException,
 )
 
@@ -112,13 +112,13 @@ def get_index_value(node):
         length = namespace[slice_name]
 
         if not length.is_constant:
-            raise InvalidTypeException("Slice must be an integer or constant", node)
+            raise InvalidType("Slice must be an integer or constant", node)
 
         typ = length.type
         if not isinstance(typ, bases.IntegerType):
-            raise InvalidTypeException(f"Invalid type for Slice: '{typ}'", node)
+            raise InvalidType(f"Invalid type for Slice: '{typ}'", node)
         if typ.unit:
-            raise InvalidTypeException(f"Slice value cannot have a unit", node)
+            raise InvalidType(f"Slice value cannot have a unit", node)
         return length.literal_value()
 
-    raise InvalidTypeException("Slice must be an integer or constant", node)
+    raise InvalidType("Slice must be an integer or constant", node)

@@ -18,7 +18,7 @@ from vyper.context.utils import (
 from vyper.exceptions import (
     CompilerPanic,
     ExceptionList,
-    InvalidTypeException,
+    InvalidType,
     StructureException,
     UndeclaredDefinition,
     VariableDeclarationException,
@@ -110,9 +110,9 @@ def _add_custom_units(node):
 
     for key, value in zip(node.annotation.keys, node.annotation.values):
         if not isinstance(value, vy_ast.Str):
-            raise InvalidTypeException("Custom unit description must be a valid string", value)
+            raise InvalidType("Custom unit description must be a valid string", value)
         if not isinstance(key, vy_ast.Name):
-            raise InvalidTypeException("Custom unit name must be a valid string", key)
+            raise InvalidType("Custom unit name must be a valid string", key)
         namespace[key.id] = Unit(name=key.id, description=value.s)
 
 

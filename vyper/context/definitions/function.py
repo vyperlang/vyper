@@ -34,7 +34,7 @@ from vyper.exceptions import (
     ArgumentException,
     CallViolation,
     FunctionDeclarationException,
-    InvalidTypeException,
+    InvalidType,
     NamespaceCollision,
 )
 
@@ -128,7 +128,7 @@ def get_function_from_node(node: vy_ast.FunctionDef, visibility: Optional[str] =
         for n in node.returns.elts:
             return_type += (get_type_from_annotation(n),)
     else:
-        raise InvalidTypeException(
+        raise InvalidType(
             f"Function return value must be a type name or tuple", node.returns
         )
 

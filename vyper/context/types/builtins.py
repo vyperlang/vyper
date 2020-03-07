@@ -28,7 +28,7 @@ from vyper.context.utils import (
     validate_call_args,
 )
 from vyper.exceptions import (
-    InvalidLiteralException,
+    InvalidLiteral,
 )
 from vyper.utils import (
     checksum_encode,
@@ -44,7 +44,7 @@ class BoolType(ValueType):
     @classmethod
     def from_literal(cls, node: vy_ast.Constant):
         if node.value is None:
-            raise InvalidLiteralException("Invalid literal for type 'bool'", node)
+            raise InvalidLiteral("Invalid literal for type 'bool'", node)
         return super().from_literal(node)
 
     def validate_boolean_op(self, node: vy_ast.BoolOp):
@@ -63,9 +63,9 @@ class AddressType(MemberType, ValueType):
         self = super().from_literal(node)
         addr = node.value
         if len(addr) != 42:
-            raise InvalidLiteralException("Invalid literal for type 'address'", node)
+            raise InvalidLiteral("Invalid literal for type 'address'", node)
         if checksum_encode(addr) != addr:
-            raise InvalidLiteralException(
+            raise InvalidLiteral(
                 "Address checksum mismatch. If you are sure this is the right "
                 f"address, the correct checksummed form is: {checksum_encode(addr)}",
                 node
@@ -100,7 +100,7 @@ class Bytes32Type(BytesType):
     def from_literal(cls, node: vy_ast.Constant):
         self = super().from_literal(node)
         if len(node.value) != 66:
-            raise InvalidLiteralException("Invalid literal for type bytes32", node)
+            raise InvalidLiteral("Invalid literal for type bytes32", node)
         return self
 
 
@@ -139,7 +139,7 @@ class DecimalType(NumericType):
         self = super().from_literal(node)
         value = Decimal(node.value)
         if value.quantize(Decimal('1.0000000000')) != value:
-            raise InvalidLiteralException("Vyper supports a maximum of ten decimal points", node)
+            raise InvalidLiteral("Vyper supports a maximum of ten decimal points", node)
         check_numeric_bounds("int128", node)
         return self
 
@@ -163,7 +163,7 @@ class BytesArrayType(BytesType, ArrayValueType):
         value = node.value
         mod = (len(value)-2) % 8
         if mod:
-            raise InvalidLiteralException(
+            raise InvalidLiteral(
                 f"Bit notation requires a multiple of 8 bits. {8-mod} bit(s) are missing.", node
             )
         self = cls()

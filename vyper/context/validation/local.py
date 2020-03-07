@@ -24,11 +24,11 @@ from vyper.context.utils import (
     validate_call_args,
 )
 from vyper.exceptions import (
-    ConstancyViolationException,
+    ConstancyViolation,
     ExceptionList,
     FunctionDeclarationException,
-    InvalidLiteralException,
-    InvalidTypeException,
+    InvalidLiteral,
+    InvalidType,
     NamespaceCollision,
     StructureException,
     VariableDeclarationException,
@@ -93,7 +93,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         target_var = get_value_from_node(node.targets[0])
         if not isinstance(target_var, Variable) or target_var.is_constant:
-            raise ConstancyViolationException(f"Cannot modify value of a constant", node)
+            raise ConstancyViolation(f"Cannot modify value of a constant", node)
 
         value_type = get_type_from_node(node.value)
         compare_types(target_var.type, value_type, node)
@@ -109,18 +109,18 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if not node.exc:
             raise StructureException("Raise must have a reason", node)
         if not isinstance(node.exc, vy_ast.Str) or len(node.exc.value) > 32:
-            raise InvalidTypeException("Reason must be a string of 32 characters or less", node.exc)
+            raise InvalidType("Reason must be a string of 32 characters or less", node.exc)
 
     def visit_Assert(self, node):
         if node.msg and (not isinstance(node.msg, vy_ast.Str) or len(node.msg.value) > 32):
-            raise InvalidTypeException("Reason must be a string of 32 characters or less", node.msg)
+            raise InvalidType("Reason must be a string of 32 characters or less", node.msg)
         if isinstance(node.test, (vy_ast.BoolOp, vy_ast.Compare)):
             get_type_from_operation(node)
         elif not isinstance(
             get_type_from_node(node.test),
             (BoolType, vy_ast.NameConstant)
         ):
-            raise InvalidTypeException("Assertion test value must be a boolean", node.test)
+            raise InvalidType("Assertion test value must be a boolean", node.test)
 
     def visit_Return(self, node):
         values = node.value
@@ -157,7 +157,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if isinstance(node.iter, vy_ast.Name):
             iter_var = namespace[node.iter.id]
             if not isinstance(iter_var.type, list):
-                raise InvalidTypeException("Value is not iterable", node.iter)
+                raise InvalidType("Value is not iterable", node.iter)
             target_type = iter_var.type[0]
 
         # iteration over a literal list
@@ -170,7 +170,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         # iteration via range()
         elif isinstance(node.iter, vy_ast.Call):
             if node.iter.func.id != "range":
-                raise ConstancyViolationException(
+                raise ConstancyViolation(
                     "Cannot iterate over the result of a function call", node.iter
                 )
             validate_call_args(node.iter, (1, 2))
@@ -180,12 +180,12 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             if len(args) == 1:
                 # range(10)
                 if not isinstance(args[0], vy_ast.Int):
-                    raise InvalidTypeException("Range argument must be integer", args[0])
+                    raise InvalidType("Range argument must be integer", args[0])
 
             elif isinstance(args[0], vy_ast.Name):
                 # range(x, x + 10)
                 if not hasattr(target_type, 'is_integer'):
-                    raise InvalidTypeException("Value is not an integer", args[0])
+                    raise InvalidType("Value is not an integer", args[0])
                 if not isinstance(args[1], vy_ast.BinOp) or not isinstance(args[1].op, vy_ast.Add):
                     raise StructureException(
                         "Second element must be the first element plus a literal value", args[0]
@@ -195,11 +195,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                         "First and second variable must be the same", args[1].left
                     )
                 if not isinstance(args[1].right, vy_ast.Int):
-                    raise InvalidLiteralException("Literal must be an integer", args[1].right)
+                    raise InvalidLiteral("Literal must be an integer", args[1].right)
             else:
                 # range(1, 10)
                 if args[0].value >= args[1].value:
-                    raise InvalidLiteralException("Second value must be > first value", args[1])
+                    raise InvalidLiteral("Second value must be > first value", args[1])
                 # TODO check that args[0] + args[1] doesn't overflow
 
         else:
