@@ -21,6 +21,9 @@ from vyper.ast import (
     ast_to_dict,
     parse_to_ast,
 )
+from vyper.context import (
+    validate_semantics,
+)
 from vyper.opcodes import (
     DEFAULT_EVM_VERSION,
     evm_wrapper,
@@ -46,6 +49,7 @@ from vyper.typing import (
 
 def __compile(code, interface_codes=None, *args, **kwargs):
     ast = parse_to_ast(code)
+    validate_semantics(ast, interface_codes)
     lll = parser.parse_tree_to_lll(
         ast,
         code,
