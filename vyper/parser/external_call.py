@@ -2,10 +2,10 @@ from vyper import (
     ast as vy_ast,
 )
 from vyper.exceptions import (
-    ConstancyViolationException,
+    ConstancyViolation,
     FunctionDeclarationException,
     StructureException,
-    TypeMismatchException,
+    TypeMismatch,
     VariableDeclarationException,
 )
 from vyper.parser.lll_node import (
@@ -77,7 +77,7 @@ def external_contract_call(node,
         ['assert', ['ne', 'address', contract_address]],
     ]
     if context.is_constant() and not sig.const:
-        raise ConstancyViolationException(
+        raise ConstancyViolation(
             f"May not call non-constant function '{method_name}' within {context.pp_constancy()}."
             " For asserting the result of modifiable contract calls, try assert_modifiable.",
             node
@@ -118,7 +118,7 @@ def get_external_contract_call_output(sig, context):
     elif isinstance(sig.output_type, ListType):
         returner = [0, output_placeholder]
     else:
-        raise TypeMismatchException(f"Invalid output type: {sig.output_type}")
+        raise TypeMismatch(f"Invalid output type: {sig.output_type}")
     return output_placeholder, output_size, returner
 
 
@@ -127,7 +127,7 @@ def get_external_contract_keywords(stmt_expr, context):
     value, gas = None, None
     for kw in stmt_expr.keywords:
         if kw.arg not in ('value', 'gas'):
-            raise TypeMismatchException(
+            raise TypeMismatch(
                 'Invalid keyword argument, only "gas" and "value" supported.',
                 stmt_expr,
             )

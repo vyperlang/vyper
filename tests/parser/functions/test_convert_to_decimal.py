@@ -3,8 +3,8 @@ from decimal import (
 )
 
 from vyper.exceptions import (
-    InvalidLiteralException,
-    TypeMismatchException,
+    InvalidLiteral,
+    TypeMismatch,
 )
 
 
@@ -78,7 +78,7 @@ def foo() -> decimal:
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(code),
-        InvalidLiteralException
+        InvalidLiteral
     )
 
 
@@ -117,7 +117,7 @@ def foo() -> decimal:
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(code),
-        InvalidLiteralException
+        InvalidLiteral
     )
 
 
@@ -155,7 +155,7 @@ def foo(bar: bytes[33]) -> decimal:
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(code),
-        TypeMismatchException
+        TypeMismatch
     )
 
     code = """
@@ -167,7 +167,7 @@ def foobar() -> decimal:
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(code),
-        TypeMismatchException
+        TypeMismatch
     )
 
 

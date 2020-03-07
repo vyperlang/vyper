@@ -7,8 +7,8 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
-    InvalidLiteralException,
-    TypeMismatchException,
+    InvalidLiteral,
+    TypeMismatch,
 )
 
 fail_list = [
@@ -72,7 +72,7 @@ def foo() -> bytes[10]:
 def test() -> bytes[1]:
     a: bytes[1] = 0b0000001  # needs mutliple of 8 bits.
     return a
-    """, InvalidLiteralException)
+    """, InvalidLiteral)
 ]
 
 
@@ -82,7 +82,7 @@ def test_bytes_fail(bad_code):
         with raises(bad_code[1]):
             compiler.compile_code(bad_code[0])
     else:
-        with raises(TypeMismatchException):
+        with raises(TypeMismatch):
             compiler.compile_code(bad_code)
 
 

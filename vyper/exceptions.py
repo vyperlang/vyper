@@ -74,10 +74,6 @@ class VersionException(VyperException):
     """Version string is malformed or incompatible with this compiler version."""
 
 
-class InvalidLiteralException(VyperException):
-    """Invalid literal value."""
-
-
 class VariableDeclarationException(VyperException):
     """Invalid variable declaration."""
 
@@ -94,24 +90,52 @@ class UndeclaredDefinition(VyperException):
     """Reference to a definition that has not been declared."""
 
 
-class NamespaceCollsion(VyperException):
+class NamespaceCollision(VyperException):
     """Assignment to a name that is already in use."""
 
 
-class InvalidTypeException(VyperException):
+class InvalidLiteral(VyperException):
+    """Invalid literal value."""
+
+
+class InvalidAttribute(VyperException):
+    """Reference to an attribute that does not exist."""
+
+
+class InvalidReference(VyperException):
+    """Invalid reference to an existing definition."""
+
+
+class InvalidOperation(VyperException):
+    """Invalid operator for a given type."""
+
+
+class InvalidType(VyperException):
     """Type is invalid for an action."""
 
 
-class TypeMismatchException(VyperException):
+class TypeMismatch(VyperException):
     """Attempt to perform an action between multiple objects of incompatible types."""
 
 
-class ConstancyViolationException(VyperException):
-    """State-changing action inside a constant function."""
+class ArgumentException(VyperException):
+    """Call to a function with invalid arguments."""
 
 
-class NonPayableViolationException(VyperException):
+class CallViolation(VyperException):
+    """Illegal function call."""
+
+
+class ConstancyViolation(VyperException):
+    """State-changing action in a constant context."""
+
+
+class NonPayableViolation(VyperException):
     """msg.value in a nonpayable function."""
+
+
+class InterfaceViolation(VyperException):
+    """Interface is not fully implemented."""
 
 
 class ArrayIndexException(VyperException):

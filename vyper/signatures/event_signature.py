@@ -3,7 +3,7 @@ from vyper import (
 )
 from vyper.exceptions import (
     EventDeclarationException,
-    InvalidTypeException,
+    InvalidType,
     VariableDeclarationException,
 )
 from vyper.signatures.function_signature import (
@@ -85,7 +85,7 @@ class EventSignature:
                 if not isinstance(arg, str):
                     raise VariableDeclarationException("Argument name invalid", arg)
                 if not typ:
-                    raise InvalidTypeException("Argument must have type", arg)
+                    raise InvalidType("Argument must have type", arg)
                 check_valid_varname(
                     arg,
                     global_ctx._custom_units,

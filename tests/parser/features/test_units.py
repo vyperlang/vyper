@@ -1,5 +1,5 @@
 from vyper.exceptions import (
-    InvalidLiteralException,
+    InvalidLiteral,
 )
 
 
@@ -113,4 +113,4 @@ def foo() -> uint256(wei):
     return c
     """
 
-    assert_compile_failed(lambda: get_contract(code), InvalidLiteralException)
+    assert_compile_failed(lambda: get_contract(code), InvalidLiteral)

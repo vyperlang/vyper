@@ -5,10 +5,10 @@ from vyper.compiler import (
 )
 from vyper.exceptions import (
     FunctionDeclarationException,
-    InvalidLiteralException,
-    NonPayableViolationException,
+    InvalidLiteral,
+    NonPayableViolation,
     StructureException,
-    TypeMismatchException,
+    TypeMismatch,
 )
 
 
@@ -257,32 +257,32 @@ def foo(xx: int128, y: int128 = xx): pass
 # value out of range for uint256
 @public
 def foo(a: uint256 = -1): pass
-    """, InvalidLiteralException),
+    """, InvalidLiteral),
     ("""
 # value out of range for int128
 @public
 def foo(a: int128 = 170141183460469231731687303715884105728): pass
-    """, InvalidLiteralException),
+    """, InvalidLiteral),
     ("""
 # value out of range for uint256 array
 @public
 def foo(a: uint256[2] = [13, -42]): pass
-     """, InvalidLiteralException),
+     """, InvalidLiteral),
     ("""
 # value out of range for int128 array
 @public
 def foo(a: int128[2] = [12, 170141183460469231731687303715884105728]): pass
-    """, TypeMismatchException),
+    """, TypeMismatch),
     ("""
 # array type mismatch
 @public
 def foo(a: uint256[2] = [12, True]): pass
-    """, TypeMismatchException),
+    """, TypeMismatch),
     ("""
 # wrong length
 @public
 def foo(a: uint256[2] = [1, 2, 3]): pass
-    """, TypeMismatchException),
+    """, TypeMismatch),
     ("""
 # default params must be literals
 x: uint256
@@ -306,7 +306,7 @@ def foo(a: uint256 = 2**8): pass
 # msg.value in a nonpayable
 @public
 def foo(a: uint256 = msg.value): pass
-""", NonPayableViolationException),
+""", NonPayableViolation),
     ("""
 # msg.sender in a private function
 @private

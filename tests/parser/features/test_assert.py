@@ -4,7 +4,7 @@ from eth_tester.exceptions import (
 import pytest
 
 from vyper.exceptions import (
-    ConstancyViolationException,
+    ConstancyViolation,
     StructureException,
 )
 
@@ -108,7 +108,7 @@ def ret1() -> int128:
 def test():
     assert self.ret1() == 1
     """
-    assert_compile_failed(lambda: get_contract(code), ConstancyViolationException)
+    assert_compile_failed(lambda: get_contract(code), ConstancyViolation)
 
     code = """
 @private
@@ -118,14 +118,14 @@ def ret1() -> int128:
 def test():
     assert self.ret1() == 1
     """
-    assert_compile_failed(lambda: get_contract(code), ConstancyViolationException)
+    assert_compile_failed(lambda: get_contract(code), ConstancyViolation)
 
     code = """
 @public
 def test():
     assert raw_call(msg.sender, b'', outsize=1, gas=10, value=1000*1000) == 1
     """
-    assert_compile_failed(lambda: get_contract(code), ConstancyViolationException)
+    assert_compile_failed(lambda: get_contract(code), ConstancyViolation)
 
     code = """
 @private
@@ -135,14 +135,14 @@ def valid_address(sender: address) -> bool:
 def test():
     assert self.valid_address(msg.sender)
     """
-    assert_compile_failed(lambda: get_contract(code), ConstancyViolationException)
+    assert_compile_failed(lambda: get_contract(code), ConstancyViolation)
 
     code = """
 @public
 def test():
     assert create_forwarder_to(self) == 1
     """
-    assert_compile_failed(lambda: get_contract(code), ConstancyViolationException)
+    assert_compile_failed(lambda: get_contract(code), ConstancyViolation)
 
     foreign_code = """
 state: uint256

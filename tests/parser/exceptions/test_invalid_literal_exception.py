@@ -7,7 +7,7 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
-    InvalidLiteralException,
+    InvalidLiteral,
 )
 
 fail_list = [
@@ -126,5 +126,5 @@ def overflow2() -> uint256:
 
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_invalid_literal_exception(bad_code):
-    with raises(InvalidLiteralException):
+    with raises(InvalidLiteral):
         compiler.compile_code(bad_code)

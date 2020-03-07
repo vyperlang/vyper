@@ -7,7 +7,7 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
-    InvalidTypeException,
+    InvalidType,
 )
 
 fail_list = [
@@ -77,5 +77,5 @@ struct B:
 
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_invalid_type_exception(bad_code):
-    with raises(InvalidTypeException):
+    with raises(InvalidType):
         compiler.compile_code(bad_code)

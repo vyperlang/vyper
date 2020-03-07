@@ -1,5 +1,5 @@
 from vyper.exceptions import (
-    InvalidTypeException,
+    InvalidType,
     StructureException,
 )
 
@@ -210,7 +210,7 @@ def foo(contract_address: contract(Boo)) -> int128:
     return self.bar_contract.bar()
     """
 
-    assert_compile_failed(lambda: get_contract(contract_1), InvalidTypeException)
+    assert_compile_failed(lambda: get_contract(contract_1), InvalidType)
 
 
 def test_invalid_external_contract_call_declaration_2(assert_compile_failed, get_contract):
@@ -226,7 +226,7 @@ def foo(contract_address: address) -> int128:
     return self.bar_contract.bar()
     """
 
-    assert_compile_failed(lambda: get_contract(contract_1), InvalidTypeException)
+    assert_compile_failed(lambda: get_contract(contract_1), InvalidType)
 
 
 def test_invalid_if_external_contract_doesnt_exist(get_contract, assert_compile_failed):
@@ -234,7 +234,7 @@ def test_invalid_if_external_contract_doesnt_exist(get_contract, assert_compile_
 modifiable_bar_contract: Bar
 """
 
-    assert_compile_failed(lambda: get_contract(code), InvalidTypeException)
+    assert_compile_failed(lambda: get_contract(code), InvalidType)
 
 
 def test_invalid_if_not_in_valid_global_keywords(get_contract, assert_compile_failed):

@@ -4,9 +4,9 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
-    InvalidTypeException,
+    InvalidType,
     StructureException,
-    TypeMismatchException,
+    TypeMismatch,
     VariableDeclarationException,
 )
 
@@ -17,7 +17,7 @@ a: public(ERC20)
 @public
 def test():
     b: uint256 = self.a
-    """, TypeMismatchException),
+    """, TypeMismatch),
     ("""
 from vyper.interfaces import ERC20
 aba: public(ERC20)
@@ -36,7 +36,7 @@ from vyper.interfaces import ERC20
 @public
 def test():
     a: address(ERC20) = ZERO_ADDRESS
-    """, InvalidTypeException),
+    """, InvalidType),
     ("""
 a: address
 
@@ -49,7 +49,7 @@ from vyper.interfaces import ERC20
 @public
 def test(a: address):
     my_address: address = ERC20()
-    """, TypeMismatchException)
+    """, TypeMismatch)
 ]
 
 
