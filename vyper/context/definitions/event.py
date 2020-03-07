@@ -12,7 +12,7 @@ from vyper.context.types import (
     get_type_from_annotation,
 )
 from vyper.context.utils import (
-    check_call_args,
+    validate_call_args,
 )
 from vyper.exceptions import (
     ArgumentException,
@@ -40,14 +40,14 @@ def get_event_from_node(node: vy_ast.AnnAssign):
     name = node.target.id
     arguments = OrderedDict()
     indexed = []
-    check_call_args(node.annotation, 1)
+    validate_call_args(node.annotation, 1)
     if not isinstance(node.annotation.args[0], vy_ast.Dict):
         raise StructureException("Invalid event declaration syntax", node.annotation.args[0])
     for key, value in zip(node.annotation.args[0].keys, node.annotation.args[0].values):
         if isinstance(value, vy_ast.Call):
             if value.func.id != "indexed":
                 raise ArgumentException(f"Invalid keyword '{value.func.id}'", value.func)
-            check_call_args(value, 1)
+            validate_call_args(value, 1)
             indexed.append(True)
             value = value.args[0]
         else:

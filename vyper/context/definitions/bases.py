@@ -14,7 +14,7 @@ from vyper.context.types import (
     get_type_from_node,
 )
 from vyper.context.utils import (
-    check_call_args,
+    validate_call_args,
 )
 
 
@@ -85,7 +85,7 @@ class FunctionDefinition(BaseDefinition):
         BaseType | tuple, optional
             Type object(s) generated as a result of the call.
         """
-        check_call_args(node, self.arg_count, self.kwarg_keys)
+        validate_call_args(node, self.arg_count, self.kwarg_keys)
         for arg, key in zip(node.args, self.arguments):
             self._compare_argument(key, arg)
         for kwarg in node.keywords:

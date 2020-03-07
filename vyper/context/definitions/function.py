@@ -28,7 +28,7 @@ from vyper.context.types import (
     get_type_from_node,
 )
 from vyper.context.utils import (
-    check_call_args,
+    validate_call_args,
 )
 from vyper.exceptions import (
     ArgumentException,
@@ -199,7 +199,7 @@ class ContractFunction(FunctionDefinition):
         kwarg_keys = self.kwarg_keys.copy()
         if node.get('func.value.id') != "self":
             kwarg_keys += ['gas', 'value']
-        check_call_args(node, self.arg_count, kwarg_keys)
+        validate_call_args(node, self.arg_count, kwarg_keys)
 
         for arg, key in zip(node.args, self.arguments):
             self._compare_argument(key, arg)

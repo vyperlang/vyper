@@ -36,7 +36,7 @@ class VyperNodeVisitorBase:
         visitor_fn(node)
 
 
-def check_call_args(
+def validate_call_args(
     node: vy_ast.Call,
     arg_count: Union[int, tuple],
     kwargs: Optional[list] = None

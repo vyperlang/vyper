@@ -24,7 +24,7 @@ from vyper.context.types.utils import (
     get_type_from_node,
 )
 from vyper.context.utils import (
-    check_call_args,
+    validate_call_args,
 )
 from vyper.exceptions import (
     InterfaceViolation,
@@ -93,7 +93,7 @@ class StructType(MemberType):
         return type(self)(self._id, self.members)
 
     def get_call_return_type(self, node: vy_ast.Call):
-        check_call_args(node, 1)
+        validate_call_args(node, 1)
         if not isinstance(node.args[0], vy_ast.Dict):
             raise VariableDeclarationException(
                 "Struct values must be declared via dictionary", node.args[0]
@@ -187,7 +187,7 @@ class InterfaceType(MemberType):
         return type(self)(self._id, self.members)
 
     def get_call_return_type(self, node: vy_ast.Call):
-        check_call_args(node, 1)
+        validate_call_args(node, 1)
         value = get_type_from_node(node.args[0])
         compare_types(value, namespace['address'], node.args[0])
         return self

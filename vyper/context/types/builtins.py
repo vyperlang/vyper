@@ -25,7 +25,7 @@ from vyper.context.types.utils import (
     get_type_from_node,
 )
 from vyper.context.utils import (
-    check_call_args,
+    validate_call_args,
 )
 from vyper.exceptions import (
     InvalidLiteralException,
@@ -196,7 +196,7 @@ class MappingType(CompoundType):
     @classmethod
     def from_annotation(cls, node: vy_ast.VyperNode):
         self = cls()
-        check_call_args(node, 2)
+        validate_call_args(node, 2)
         self.key_type = get_type_from_annotation(node.args[0])
 
         self.value_type = get_type_from_annotation(node.args[1])

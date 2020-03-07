@@ -25,7 +25,7 @@ from vyper.context.types import (
     get_type_from_node,
 )
 from vyper.context.utils import (
-    check_call_args,
+    validate_call_args,
 )
 from vyper.exceptions import (
     InvalidLiteralException,
@@ -242,7 +242,7 @@ class AsWeiValue(SimpleBuiltinDefinition):
     }
 
     def get_call_return_type(self, node: vy_ast.Call):
-        check_call_args(node, 2)
+        validate_call_args(node, 2)
         if not isinstance(node.args[1], vy_ast.Str):
             # TODO standard way to indicate a value must be a literal?
             raise InvalidTypeException(
@@ -311,7 +311,7 @@ class Min(BuiltinFunctionDefinition):
     _id = "min"
 
     def get_call_return_type(self, node: vy_ast.Call):
-        check_call_args(node, 2)
+        validate_call_args(node, 2)
         left, right = (get_type_from_node(i) for i in node.args)
         if not hasattr(left, 'is_numeric'):
             raise InvalidTypeException("Can only calculate min on numeric types", node)
@@ -324,7 +324,7 @@ class Max(BuiltinFunctionDefinition):
     _id = "max"
 
     def get_call_return_type(self, node: vy_ast.Call):
-        check_call_args(node, 2)
+        validate_call_args(node, 2)
         left, right = (get_type_from_node(i) for i in node.args)
         if not hasattr(left, 'is_numeric'):
             raise InvalidTypeException("Can only calculate max on numeric types", node)
@@ -337,7 +337,7 @@ class Clear(BuiltinFunctionDefinition):
     _id = "clear"
 
     def get_call_return_type(self, node: vy_ast.Call):
-        check_call_args(node, 1)
+        validate_call_args(node, 1)
         get_type_from_node(node.args[0])
         return None
 
@@ -347,7 +347,7 @@ class AsUnitlessNumber(BuiltinFunctionDefinition):
     _id = "as_unitless_number"
 
     def get_call_return_type(self, node: vy_ast.Call):
-        check_call_args(node, 1)
+        validate_call_args(node, 1)
         value = get_value_from_node(node.args[0])
         if not getattr(getattr(value, 'type', None), 'is_value_type', None):
             raise InvalidTypeException("Not a value type", node.args[0])
@@ -363,7 +363,7 @@ class Concat(BuiltinFunctionDefinition):
     _id = "concat"
 
     def get_call_return_type(self, node: vy_ast.Call):
-        check_call_args(node, (2, float('inf')))
+        validate_call_args(node, (2, float('inf')))
         type_list = [get_type_from_node(i) for i in node.args]
 
         idx = next((i for i in type_list if not getattr(i, 'is_bytes', None)), None)
@@ -381,7 +381,7 @@ class MethodID(BuiltinFunctionDefinition):
     _id = "method_id"
 
     def get_call_return_type(self, node: vy_ast.Call):
-        check_call_args(node, 2)
+        validate_call_args(node, 2)
         if not isinstance(node.args[0], vy_ast.Str):
             raise InvalidTypeException("method id must be given as a literal string", node.args[0])
         return_type = get_type_from_annotation(node.args[1])
@@ -395,7 +395,7 @@ class Extract32(BuiltinFunctionDefinition):
     _id = "extract32"
 
     def get_call_return_type(self, node: vy_ast.Call):
-        check_call_args(node, (2, 3))
+        validate_call_args(node, (2, 3))
         target, length = (get_type_from_node(i) for i in node.args[:2])
 
         compare_types(target, namespace['bytes'], node.args[0])
@@ -418,7 +418,7 @@ class RawLog(BuiltinFunctionDefinition):
     _id = "raw_log"
 
     def get_call_return_type(self, node: vy_ast.Call):
-        check_call_args(node, 2)
+        validate_call_args(node, 2)
         if not isinstance(node.args[0], vy_ast.List) or len(node.args[0].elts) > 4:
             raise InvalidTypeException(
                 "Expecting a list of 0-4 topics as first argument", node.args[0].elts[4]
@@ -438,7 +438,7 @@ class Convert(BuiltinFunctionDefinition):
     _id = "convert"
 
     def get_call_return_type(self, node: vy_ast.Call):
-        check_call_args(node, 2)
+        validate_call_args(node, 2)
         initial_type = get_type_from_node(node.args[0])
         if not getattr(initial_type, 'is_value_type', None):
             raise InvalidTypeException(f"Cannot convert type '{initial_type}'", node.args[0])

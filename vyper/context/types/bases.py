@@ -15,8 +15,8 @@ from vyper.context.types.units import (
     Unit,
 )
 from vyper.context.utils import (
-    check_call_args,
     get_index_value,
+    validate_call_args,
 )
 from vyper.exceptions import (
     ArrayIndexException,
@@ -363,7 +363,7 @@ class NumericType(ValueType):
     def from_annotation(cls, node):
         if isinstance(node, vy_ast.Name):
             return super().from_annotation(node)
-        check_call_args(node, 1)
+        validate_call_args(node, 1)
         self = super().from_annotation(node.func)
         try:
             self.set_unit(node.args[0].id)

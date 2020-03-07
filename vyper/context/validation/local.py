@@ -21,7 +21,7 @@ from vyper.context.types.builtins import (
 )
 from vyper.context.utils import (
     VyperNodeVisitorBase,
-    check_call_args,
+    validate_call_args,
 )
 from vyper.exceptions import (
     ConstancyViolationException,
@@ -132,9 +132,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise FunctionDeclarationException("Function does not return any values", node)
         compare_types(self.func.return_type, get_type_from_node(values), node)
 
-    def visit_Expr(self, node):
-        self.visit(node.value)
-
     def visit_UnaryOp(self, node):
         get_type_from_operation(node)
 
@@ -176,7 +173,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 raise ConstancyViolationException(
                     "Cannot iterate over the result of a function call", node.iter
                 )
-            check_call_args(node.iter, (1, 2))
+            validate_call_args(node.iter, (1, 2))
 
             args = node.iter.args
             target_type = get_type_from_node(args[0])
@@ -214,6 +211,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         for n in node.body:
             self.visit(n)
         namespace.exit_scope()
+
+    def visit_Expr(self, node):
+        # TODO some types of Expr should raise
+        self.visit(node.value)
 
     def visit_Attribute(self, node):
         get_type_from_node(node)
