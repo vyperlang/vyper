@@ -171,9 +171,9 @@ Bitwise Operators
 Operator              Description
 ===================== =============
 ``bitwise_and(x, y)`` AND
-``bitwise_not(x, y)`` NOT
 ``bitwise_or(x, y)``  OR
 ``bitwise_xor(x, y)`` XOR
+``bitwise_not(x)``    NOT
 ``shift(x, _shift)``  Bitwise Shift
 ===================== =============
 
