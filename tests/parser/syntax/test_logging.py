@@ -7,8 +7,8 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
-    InvalidLiteralException,
-    TypeMismatchException,
+    InvalidLiteral,
+    TypeMismatch,
 )
 
 fail_list = [
@@ -41,7 +41,7 @@ Test: event({ n: uint256 })
 @public
 def test():
     log.Test(-7)
-   """, InvalidLiteralException),
+   """, InvalidLiteral),
 ]
 
 
@@ -52,5 +52,5 @@ def test_logging_fail(bad_code):
         with raises(bad_code[1]):
             compiler.compile_code(bad_code[0])
     else:
-        with raises(TypeMismatchException):
+        with raises(TypeMismatch):
             compiler.compile_code(bad_code)

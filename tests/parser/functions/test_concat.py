@@ -1,5 +1,5 @@
 from vyper.exceptions import (
-    TypeMismatchException,
+    TypeMismatch,
 )
 
 
@@ -128,5 +128,5 @@ def large_output(a: string[33], b: string[33]) -> string[64]:
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(code),
-        TypeMismatchException
+        TypeMismatch
     )

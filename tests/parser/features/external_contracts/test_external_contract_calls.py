@@ -1,10 +1,10 @@
 import pytest
 
 from vyper.exceptions import (
-    ConstancyViolationException,
-    InvalidTypeException,
+    ConstancyViolation,
+    InvalidType,
     StructureException,
-    TypeMismatchException,
+    TypeMismatch,
     VariableDeclarationException,
 )
 
@@ -136,7 +136,7 @@ def set_lucky_stmt(arg1: address, arg2: int128) -> int128:
     """
     assert_compile_failed(
             lambda: get_contract_with_gas_estimation(c),
-            ConstancyViolationException)
+            ConstancyViolation)
 
     print('Successfully blocked an external contract call from a constant function')
 
@@ -340,7 +340,7 @@ contract Foo:
 def bar(arg1: address, arg2: int128) -> int128:
     return Foo(arg1).foo(arg2)
 """
-    assert_tx_failed(lambda: get_contract(contract), exception=InvalidTypeException)
+    assert_tx_failed(lambda: get_contract(contract), exception=InvalidType)
 
 
 def test_external_contracts_must_be_declared_first_1(assert_tx_failed, get_contract):
@@ -524,7 +524,7 @@ def foo(contract_address: contract(Boo)) -> int128:
     return self.bar_contract.bar()
     """
 
-    assert_compile_failed(lambda: get_contract(contract_1), InvalidTypeException)
+    assert_compile_failed(lambda: get_contract(contract_1), InvalidType)
 
 
 def test_invalid_external_contract_call_declaration_2(assert_compile_failed, get_contract):
@@ -540,7 +540,7 @@ def foo(contract_address: address) -> int128:
     return self.bar_contract.bar()
     """
 
-    assert_compile_failed(lambda: get_contract(contract_1), InvalidTypeException)
+    assert_compile_failed(lambda: get_contract(contract_1), InvalidType)
 
 
 def test_external_with_payble_value(w3, get_contract_with_gas_estimation):
@@ -647,7 +647,7 @@ def get_lucky(amount_to_send: int128) -> int128:
     """
 
     assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(contract_1), TypeMismatchException
+        lambda: get_contract_with_gas_estimation(contract_1), TypeMismatch
     )
 
 
@@ -662,7 +662,7 @@ bar_contract: Barr
     """
 
     assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(contract_1), InvalidTypeException
+        lambda: get_contract_with_gas_estimation(contract_1), InvalidType
     )
 
 

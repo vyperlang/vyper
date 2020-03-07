@@ -7,9 +7,9 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
-    InvalidLiteralException,
+    InvalidLiteral,
     StructureException,
-    TypeMismatchException,
+    TypeMismatch,
     VariableDeclarationException,
 )
 
@@ -33,7 +33,7 @@ def test():
 @public
 def test():
     a: int128 = 33.33
-    """, TypeMismatchException),
+    """, TypeMismatch),
     ("""
 struct S:
     a: int128
@@ -60,7 +60,7 @@ def test():
 def data() -> int128:
     s: int128[5] = [1, 2, 3, 4, 5, 6]
     return 235357
-    """, TypeMismatchException),
+    """, TypeMismatch),
     ("""
 struct S:
     a: int128
@@ -69,7 +69,7 @@ struct S:
 def foo() -> int128:
     s: S = S({a: 1.2, b: 1})
     return s.a
-    """, TypeMismatchException),
+    """, TypeMismatch),
     ("""
 struct S:
     a: int128
@@ -78,25 +78,25 @@ struct S:
 def foo() -> int128:
     s: S = S({b: 1.2, c: 1, d: 33, e: 55})
     return s.a
-    """, TypeMismatchException),
+    """, TypeMismatch),
     ("""
 @public
 def foo() -> bool:
     a: uint256 = -1
     return True
-""", InvalidLiteralException),
+""", InvalidLiteral),
     ("""
 @public
 def foo() -> bool:
     a: uint256[2] = [13, -42]
     return True
-""", InvalidLiteralException),
+""", InvalidLiteral),
     ("""
 @public
 def foo() -> bool:
     a: int128 = 170141183460469231731687303715884105728
     return True
-""", TypeMismatchException),
+""", TypeMismatch),
 ]
 
 

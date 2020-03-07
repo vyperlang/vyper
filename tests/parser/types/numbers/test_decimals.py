@@ -4,7 +4,7 @@ from decimal import (
 )
 
 from vyper.exceptions import (
-    TypeMismatchException,
+    TypeMismatch,
 )
 
 getcontext().prec = 78  # MAX_UINT256 < 1e78
@@ -174,4 +174,4 @@ def foo() -> decimal:
     return 2.2 ** 2.0
     """
 
-    assert_compile_failed(lambda: get_contract(code), TypeMismatchException)
+    assert_compile_failed(lambda: get_contract(code), TypeMismatch)

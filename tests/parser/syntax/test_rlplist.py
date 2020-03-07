@@ -8,7 +8,7 @@ from vyper import (
 )
 from vyper.exceptions import (
     StructureException,
-    TypeMismatchException,
+    TypeMismatch,
 )
 
 fail_list = [
@@ -83,7 +83,7 @@ def test_rlplist_fail(bad_code):
         with raises(bad_code[1]):
             compiler.compile_code(bad_code[0])
     else:
-        with raises(TypeMismatchException):
+        with raises(TypeMismatch):
             compiler.compile_code(bad_code)
 
 

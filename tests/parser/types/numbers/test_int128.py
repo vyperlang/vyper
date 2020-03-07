@@ -3,8 +3,8 @@ from decimal import (
 )
 
 from vyper.exceptions import (
-    InvalidLiteralException,
-    TypeMismatchException,
+    InvalidLiteral,
+    TypeMismatch,
 )
 
 
@@ -143,7 +143,7 @@ def foo():
     b: int128(wei) = 0
     c = a ** b
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatchException)
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatch)
 
 
 def test_overflow_out_of_range(get_contract, assert_compile_failed):
@@ -153,7 +153,7 @@ def num_sub() -> int128:
     return 1-2**256
     """
 
-    assert_compile_failed(lambda: get_contract(code), InvalidLiteralException)
+    assert_compile_failed(lambda: get_contract(code), InvalidLiteral)
 
 
 def test_overflow_add(get_contract, assert_tx_failed):

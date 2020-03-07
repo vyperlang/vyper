@@ -1,5 +1,5 @@
 from vyper.exceptions import (
-    InvalidLiteralException,
+    InvalidLiteral,
 )
 
 
@@ -79,7 +79,7 @@ def foo(bar: bytes[33]) -> uint256:
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(test_fail),
-        InvalidLiteralException
+        InvalidLiteral
     )
 
     test_fail = """
@@ -91,7 +91,7 @@ def foobar() -> uint256:
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(test_fail),
-        InvalidLiteralException
+        InvalidLiteral
     )
 
 
@@ -240,7 +240,7 @@ def foo() -> uint256:
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(code),
-        InvalidLiteralException
+        InvalidLiteral
     )
 
     code = """
@@ -251,7 +251,7 @@ def foo() -> uint256:
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(code),
-        InvalidLiteralException
+        InvalidLiteral
     )
 
     code = """

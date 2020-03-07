@@ -7,9 +7,9 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
-    InvalidLiteralException,
+    InvalidLiteral,
     StructureException,
-    TypeMismatchException,
+    TypeMismatch,
 )
 
 # These functions register test cases
@@ -57,14 +57,14 @@ must_fail("""
 def foo():
     x: int128 = 5
     x = 0x1234567890123456789012345678901234567890
-""", InvalidLiteralException)
+""", InvalidLiteral)
 
 must_fail("""
 @public
 def foo():
     x: int128 = 5
     x = 3.5
-""", TypeMismatchException)
+""", TypeMismatch)
 
 must_succeed("""
 @public
@@ -85,7 +85,7 @@ b: int128
 @public
 def foo():
     self.b = 7.5
-""", TypeMismatchException)
+""", TypeMismatch)
 
 must_succeed("""
 b: decimal
@@ -106,7 +106,7 @@ b: int128[5]
 @public
 def foo():
     self.b = 7
-""", TypeMismatchException)
+""", TypeMismatch)
 
 must_succeed("""
 b: map(int128, int128)
@@ -120,14 +120,14 @@ b: map(uint256, uint256)
 @public
 def foo():
     x: int128 = self.b[-5]
-""", InvalidLiteralException)
+""", InvalidLiteral)
 
 must_fail("""
 b: map(int128, int128)
 @public
 def foo():
     x: int128 = self.b[5.7]
-""", TypeMismatchException)
+""", TypeMismatch)
 
 must_succeed("""
 b: map(decimal, int128)
@@ -141,7 +141,7 @@ b: map(int128, int128)
 @public
 def foo():
     self.b[3] = 5.6
-""", TypeMismatchException)
+""", TypeMismatch)
 
 must_succeed("""
 b: map(int128, int128)
@@ -183,7 +183,7 @@ bar: int128[3]
 @public
 def foo():
     self.bar = 5
-""", TypeMismatchException)
+""", TypeMismatch)
 
 must_succeed("""
 bar: int128[3]
@@ -196,7 +196,7 @@ must_fail("""
 @public
 def foo() -> address:
     return as_unitless_number([1, 2, 3])
-""", TypeMismatchException)
+""", TypeMismatch)
 
 must_succeed("""
 units: {
@@ -211,7 +211,7 @@ must_fail("""
 @public
 def baa() -> decimal:
     return 2.0**2
-""", TypeMismatchException)
+""", TypeMismatch)
 
 must_succeed("""
 @public
@@ -239,19 +239,19 @@ must_fail("""
 @public
 def foo():
     x = -self
-""", TypeMismatchException)
+""", TypeMismatch)
 
 must_fail("""
 @public
 def foo() -> int128:
     return
-""", TypeMismatchException)
+""", TypeMismatch)
 
 must_fail("""
 @public
 def foo():
     return 3
-""", TypeMismatchException)
+""", TypeMismatch)
 
 must_fail("""
 @public
@@ -282,7 +282,7 @@ struct StructX:
 @public
 def a():
     x: int128 = StructX({y: 1})
-''', TypeMismatchException)
+''', TypeMismatch)
 
 
 @pytest.mark.parametrize('bad_code,exception_type', fail_list)

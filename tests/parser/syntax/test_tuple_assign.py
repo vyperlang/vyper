@@ -7,8 +7,8 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
-    ConstancyViolationException,
-    TypeMismatchException,
+    ConstancyViolation,
+    TypeMismatch,
     VariableDeclarationException,
 )
 
@@ -84,7 +84,7 @@ def test(a: bytes32) -> (bytes32, uint256, int128):
     a, b, c = self._test(a)
     assert d == 123
     return a, b, c
-    """, ConstancyViolationException),
+    """, ConstancyViolation),
     ("""
 x: public(uint256)
 
@@ -98,7 +98,7 @@ def return_two() -> (uint256, uint256):
 def foo():
     a: uint256 = 0
     a, self.x = self.return_two()
-     """, ConstancyViolationException),
+     """, ConstancyViolation),
 ]
 
 
@@ -108,5 +108,5 @@ def test_tuple_assign_fail(bad_code):
         with raises(bad_code[1]):
             compiler.compile_code(bad_code[0])
     else:
-        with raises(TypeMismatchException):
+        with raises(TypeMismatch):
             compiler.compile_code(bad_code)

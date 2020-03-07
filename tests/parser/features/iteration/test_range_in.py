@@ -1,5 +1,5 @@
 from vyper.exceptions import (
-    TypeMismatchException,
+    TypeMismatch,
 )
 
 
@@ -73,7 +73,7 @@ def testin() -> bool:
         return True
     return False
     """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatchException)
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatch)
 
 
 def test_ownership(w3, assert_tx_failed, get_contract_with_gas_estimation):
@@ -120,4 +120,4 @@ def testin(x: address) -> bool:
         return True
     return False
 """
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatchException)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatch)

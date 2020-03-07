@@ -1,6 +1,6 @@
 from vyper.exceptions import (
-    InvalidLiteralException,
-    TypeMismatchException,
+    InvalidLiteral,
+    TypeMismatch,
 )
 from vyper.utils import (
     SizeLimits,
@@ -117,7 +117,7 @@ def foo(bar: bytes[33]) -> int128:
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(test_fail),
-        TypeMismatchException
+        TypeMismatch
     )
 
     test_fail = """
@@ -129,7 +129,7 @@ def foobar() -> int128:
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(test_fail),
-        TypeMismatchException
+        TypeMismatch
     )
 
 
@@ -180,7 +180,7 @@ def test() -> int128:
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(code),
-        InvalidLiteralException
+        InvalidLiteral
     )
 
     code = """
@@ -191,7 +191,7 @@ def test() -> int128:
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(code),
-        InvalidLiteralException
+        InvalidLiteral
     )
 
 
@@ -272,7 +272,7 @@ def foo() -> int128:
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(code),
-        InvalidLiteralException
+        InvalidLiteral
     )
 
     code = """
@@ -283,7 +283,7 @@ def foo() -> int128:
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(code),
-        InvalidLiteralException
+        InvalidLiteral
     )
 
 
