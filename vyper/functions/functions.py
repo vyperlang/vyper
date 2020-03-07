@@ -5,10 +5,10 @@ from vyper import (
 )
 from vyper.exceptions import (
     CompilerPanic,
-    ConstancyViolationException,
-    InvalidLiteralException,
+    ConstancyViolation,
+    InvalidLiteral,
     StructureException,
-    TypeMismatchException,
+    TypeMismatch,
 )
 from vyper.opcodes import (
     version_check,
@@ -69,7 +69,7 @@ SHA256_PER_WORD_GAS = 12
 
 def enforce_units(typ, obj, expected):
     if not are_units_compatible(typ, expected):
-        raise TypeMismatchException("Invalid units", obj)
+        raise TypeMismatch("Invalid units", obj)
 
 
 def get_keyword(expr, keyword):
@@ -136,15 +136,15 @@ def _slice(expr, args, kwargs, context):
 
     sub, start, length = args[0], kwargs['start'], kwargs['len']
     if not are_units_compatible(start.typ, BaseType('int128')):
-        raise TypeMismatchException("Type for slice start index must be a unitless number", expr)
+        raise TypeMismatch("Type for slice start index must be a unitless number", expr)
     # Expression representing the length of the slice
     if not are_units_compatible(length.typ, BaseType('int128')):
-        raise TypeMismatchException("Type for slice length must be a unitless number", expr)
+        raise TypeMismatch("Type for slice length must be a unitless number", expr)
 
     if is_base_type(sub.typ, 'bytes32'):
         if (start.typ.is_literal and length.typ.is_literal) and \
            not (0 <= start.value + length.value <= 32):
-            raise InvalidLiteralException(
+            raise InvalidLiteral(
                 'Invalid start / length values needs to be between 0 and 32.',
                 expr,
             )
@@ -224,7 +224,7 @@ def concat(expr, context):
     prev_type = ''
     for _, (expr_arg, arg) in enumerate(zip(expr.args, args)):
         if not isinstance(arg.typ, ByteArrayLike) and not is_base_type(arg.typ, 'bytes32'):
-            raise TypeMismatchException("Concat expects string, bytes or bytes32 objects", expr_arg)
+            raise TypeMismatch("Concat expects string, bytes or bytes32 objects", expr_arg)
 
         current_type = (
             'bytes'
@@ -232,7 +232,7 @@ def concat(expr, context):
             else 'string'
         )
         if prev_type and current_type != prev_type:
-            raise TypeMismatchException(
+            raise TypeMismatch(
                 (
                     "Concat expects consistant use of string or byte types, "
                     "user either bytes or string."
@@ -428,7 +428,7 @@ def sha256(expr, args, kwargs, context):
 @signature('str_literal', 'name_literal')
 def method_id(expr, args, kwargs, context):
     if b' ' in args[0]:
-        raise TypeMismatchException('Invalid function signature no spaces allowed.')
+        raise TypeMismatch('Invalid function signature no spaces allowed.')
     method_id = fourbytes_to_int(keccak256(args[0])[:4])
     if args[1] == 'bytes32':
         return LLLnode(method_id, typ=BaseType('bytes32'), pos=getpos(expr))
@@ -597,7 +597,7 @@ def as_wei_value(expr, args, kwargs, context):
 
     denom_divisor = next((v for k, v in wei_denominations.items() if denom_name in k), False)
     if not denom_divisor:
-        raise InvalidLiteralException(
+        raise InvalidLiteral(
             f"Invalid denomination: {denom_name}, valid denominations are: "
             f"{','.join(x[0] for x in wei_denominations)}",
             expr.args[1]
@@ -612,14 +612,14 @@ def as_wei_value(expr, args, kwargs, context):
         numstring, num, den = get_number_as_fraction(expr_args_0, context)
         if denom_divisor % den:
             max_len = len(str(denom_divisor))-1
-            raise InvalidLiteralException(
+            raise InvalidLiteral(
                 f"Wei value of denomination '{denom_name}' has maximum {max_len} decimal places",
                 expr.args[0]
             )
         sub = num * denom_divisor // den
     elif value.typ.is_literal:
         if value.value <= 0:
-            raise InvalidLiteralException("Negative wei value not allowed", expr)
+            raise InvalidLiteral("Negative wei value not allowed", expr)
         sub = ['mul', value.value, denom_divisor]
     elif value.typ.typ == 'uint256':
         sub = ['mul', value, denom_divisor]
@@ -655,11 +655,11 @@ def raw_call(expr, args, kwargs, context):
         kwargs['delegate_call'],
     )
     if delegate_call.typ.is_literal is False:
-        raise TypeMismatchException(
+        raise TypeMismatch(
             'The delegate_call parameter has to be a static/literal boolean value.'
         )
     if context.is_constant():
-        raise ConstancyViolationException(
+        raise ConstancyViolation(
             f"Cannot make calls from {context.pp_constancy()}",
             expr,
         )
@@ -733,7 +733,7 @@ def raw_call(expr, args, kwargs, context):
 def send(expr, args, kwargs, context):
     to, value = args
     if context.is_constant():
-        raise ConstancyViolationException(
+        raise ConstancyViolation(
             f"Cannot send ether inside {context.pp_constancy()}!",
             expr,
         )
@@ -748,7 +748,7 @@ def send(expr, args, kwargs, context):
 @signature('address')
 def selfdestruct(expr, args, kwargs, context):
     if context.is_constant():
-        raise ConstancyViolationException(
+        raise ConstancyViolation(
             f"Cannot {expr.func.id} inside {context.pp_constancy()}!",
             expr.func,
         )
@@ -768,11 +768,11 @@ def blockhash(expr, args, kwargs, contact):
 def _RLPlist(expr, args, kwargs, context):
     # Second argument must be a list of types
     if not isinstance(args[1], vy_ast.List):
-        raise TypeMismatchException("Expecting list of types for second argument", args[1])
+        raise TypeMismatch("Expecting list of types for second argument", args[1])
     if len(args[1].elts) == 0:
-        raise TypeMismatchException("RLP list must have at least one item", expr)
+        raise TypeMismatch("RLP list must have at least one item", expr)
     if len(args[1].elts) > 32:
-        raise TypeMismatchException("RLP list must have at most 32 items", expr)
+        raise TypeMismatch("RLP list must have at most 32 items", expr)
     # Get the output format
     _format = []
     for arg in args[1].elts:
@@ -781,9 +781,9 @@ def _RLPlist(expr, args, kwargs, context):
         else:
             subtyp = context.parse_type(arg, 'memory')
             if not isinstance(subtyp, BaseType):
-                raise TypeMismatchException("RLP lists only accept BaseTypes and byte arrays", arg)
+                raise TypeMismatch("RLP lists only accept BaseTypes and byte arrays", arg)
             if not is_base_type(subtyp, ('int128', 'uint256', 'bytes32', 'address', 'bool')):
-                raise TypeMismatchException(f"Unsupported base type: {subtyp.typ}", arg)
+                raise TypeMismatch(f"Unsupported base type: {subtyp.typ}", arg)
         _format.append(subtyp)
     output_type = TupleType(_format)
     output_placeholder_type = ByteArrayType(
@@ -975,7 +975,7 @@ def raw_log(expr, args, kwargs, context):
     for elt in args[0].elts:
         arg = Expr.parse_value_expr(elt, context)
         if not is_base_type(arg.typ, 'bytes32'):
-            raise TypeMismatchException("Expecting a bytes32 argument as topic", elt)
+            raise TypeMismatch("Expecting a bytes32 argument as topic", elt)
         topics.append(arg)
     if args[1].typ == BaseType('bytes32'):
         placeholder = context.new_placeholder(BaseType('bytes32'))
@@ -1151,7 +1151,7 @@ def create_forwarder_to(expr, args, kwargs, context):
         enforce_units(value.typ, get_keyword(expr, 'value'),
                       BaseType('uint256', {'wei': 1}))
     if context.is_constant():
-        raise ConstancyViolationException(
+        raise ConstancyViolation(
             f"Cannot make calls from {context.pp_constancy()}",
             expr,
         )
@@ -1195,7 +1195,7 @@ def minmax(expr, args, kwargs, context, comparator):
 
     left, right = args[0], args[1]
     if not are_units_compatible(left.typ, right.typ) and not are_units_compatible(right.typ, left.typ):  # noqa: E501
-        raise TypeMismatchException("Units must be compatible", expr)
+        raise TypeMismatch("Units must be compatible", expr)
     if left.typ.typ == right.typ.typ:
         if left.typ.typ != 'uint256':
             # if comparing like types that are not uint256, use SLT or SGT
@@ -1211,7 +1211,7 @@ def minmax(expr, args, kwargs, context, comparator):
             otyp = left.typ
         otyp.is_literal = False
     else:
-        raise TypeMismatchException(
+        raise TypeMismatch(
             f"Minmax types incompatible: {left.typ.typ} {right.typ.typ}"
         )
     return LLLnode.from_list(

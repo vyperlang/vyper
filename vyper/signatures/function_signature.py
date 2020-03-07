@@ -8,7 +8,7 @@ from vyper import (
 )
 from vyper.exceptions import (
     FunctionDeclarationException,
-    InvalidTypeException,
+    InvalidType,
     StructureException,
 )
 from vyper.parser.lll_node import (
@@ -180,7 +180,7 @@ class FunctionSignature:
             # Each arg needs a type specified.
             typ = arg.annotation
             if not typ:
-                raise InvalidTypeException("Argument must have type", arg)
+                raise InvalidType("Argument must have type", arg)
             # Validate arg name.
             check_valid_varname(
                 arg.arg,
@@ -291,7 +291,7 @@ class FunctionSignature:
                 constants=constants,
             )
         else:
-            raise InvalidTypeException(
+            raise InvalidType(
                 f"Output type invalid or unsupported: {parse_type(code.returns, None)}",
                 code.returns,
             )

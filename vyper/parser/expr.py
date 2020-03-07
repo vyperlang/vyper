@@ -5,10 +5,10 @@ from vyper import (
 )
 from vyper.exceptions import (
     EvmVersionException,
-    InvalidLiteralException,
-    NonPayableViolationException,
+    InvalidLiteral,
+    NonPayableViolation,
     StructureException,
-    TypeMismatchException,
+    TypeMismatch,
     VariableDeclarationException,
     ZeroDivisionException,
 )
@@ -83,7 +83,7 @@ def get_min_val_for_type(typ: str) -> int:
     try:
         min_val, _, _ = BUILTIN_CONSTANTS[key]
     except KeyError as e:
-        raise TypeMismatchException(f"Not a signed type: {typ}") from e
+        raise TypeMismatch(f"Not a signed type: {typ}") from e
     return min_val
 
 
@@ -143,9 +143,9 @@ class Expr(object):
         # if not SizeLimits.in_bounds('decimal', num // den):
         # if not SizeLimits.MINDECIMAL * den <= num <= SizeLimits.MAXDECIMAL * den:
         if not (SizeLimits.MINNUM * den < num < SizeLimits.MAXNUM * den):
-            raise InvalidLiteralException("Number out of range: " + numstring, self.expr)
+            raise InvalidLiteral("Number out of range: " + numstring, self.expr)
         if DECIMAL_DIVISOR % den:
-            raise InvalidLiteralException(
+            raise InvalidLiteral(
                 "Type 'decimal' has maximum 10 decimal places",
                 self.expr
             )
@@ -165,7 +165,7 @@ class Expr(object):
             else total_bits + 8 - (total_bits % 8)  # ceil8 to get byte length.
         )
         if len(orignum[2:]) != total_bits:  # Support only full formed bit definitions.
-            raise InvalidLiteralException(
+            raise InvalidLiteral(
                 f"Bit notation requires a multiple of 8 bits / 1 byte. "
                 f"{total_bits - len(orignum[2:])} bit(s) are missing.",
                 self.expr,
@@ -191,7 +191,7 @@ class Expr(object):
         orignum = self.expr.node_source_code
         if len(orignum) == 42:
             if checksum_encode(orignum) != orignum:
-                raise InvalidLiteralException(
+                raise InvalidLiteral(
                     "Address checksum mismatch. If you are sure this is the "
                     f"right address, the correct checksummed form is: {checksum_encode(orignum)}",
                     self.expr
@@ -208,7 +208,7 @@ class Expr(object):
                 pos=getpos(self.expr),
             )
         else:
-            raise InvalidLiteralException(
+            raise InvalidLiteral(
                 f"Cannot read 0x value with length {len(orignum)}. Expecting 42 (address "
                 "incl 0x) or 66 (bytes32 incl 0x)",
                 self.expr
@@ -297,7 +297,7 @@ class Expr(object):
         if self.expr.attr == 'balance':
             addr = Expr.parse_value_expr(self.expr.value, self.context)
             if not is_base_type(addr.typ, 'address'):
-                raise TypeMismatchException(
+                raise TypeMismatch(
                     "Type mismatch: balance keyword expects an address as input",
                     self.expr
                 )
@@ -319,7 +319,7 @@ class Expr(object):
         elif self.expr.attr == 'codesize' or self.expr.attr == 'is_contract':
             addr = Expr.parse_value_expr(self.expr.value, self.context)
             if not is_base_type(addr.typ, 'address'):
-                raise TypeMismatchException(
+                raise TypeMismatch(
                     "Type mismatch: codesize keyword expects an address as input",
                     self.expr,
                 )
@@ -339,7 +339,7 @@ class Expr(object):
         elif self.expr.attr == 'codehash':
             addr = Expr.parse_value_expr(self.expr.value, self.context)
             if not is_base_type(addr.typ, 'address'):
-                raise TypeMismatchException(
+                raise TypeMismatch(
                     "codehash keyword expects an address as input",
                     self.expr,
                 )
@@ -383,7 +383,7 @@ class Expr(object):
                 return LLLnode.from_list(['caller'], typ='address', pos=getpos(self.expr))
             elif key == "msg.value":
                 if not self.context.is_payable:
-                    raise NonPayableViolationException(
+                    raise NonPayableViolation(
                         "Cannot use msg.value in a non-payable function", self.expr,
                     )
                 return LLLnode.from_list(
@@ -437,13 +437,13 @@ class Expr(object):
             if isinstance(sub.typ, ContractType):
                 return sub
             if not isinstance(sub.typ, StructType):
-                raise TypeMismatchException(
+                raise TypeMismatch(
                     "Type mismatch: member variable access not expected",
                     self.expr.value,
                 )
             attrs = list(sub.typ.members.keys())
             if self.expr.attr not in attrs:
-                raise TypeMismatchException(
+                raise TypeMismatch(
                     f"Member {self.expr.attr} not found. Only the following available: "
                     f"{' '.join(attrs)}",
                     self.expr,
@@ -461,10 +461,10 @@ class Expr(object):
             index = Expr.parse_value_expr(self.expr.slice.value, self.context)
         elif isinstance(sub.typ, TupleType):
             if not isinstance(self.expr.slice.value, vy_ast.Int) or self.expr.slice.value.n < 0 or self.expr.slice.value.n >= len(sub.typ.members):  # noqa: E501
-                raise TypeMismatchException("Tuple index invalid", self.expr.slice.value)
+                raise TypeMismatch("Tuple index invalid", self.expr.slice.value)
             index = self.expr.slice.value.n
         else:
-            raise TypeMismatchException("Bad subscript attempt", self.expr.value)
+            raise TypeMismatch("Bad subscript attempt", self.expr.value)
         o = add_variable_offset(sub, index, pos=getpos(self.expr))
         o.mutable = sub.mutable
         return o
@@ -474,7 +474,7 @@ class Expr(object):
         right = Expr.parse_value_expr(self.expr.right, self.context)
 
         if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
-            raise TypeMismatchException(
+            raise TypeMismatch(
                 f"Unsupported types for arithmetic op: {left.typ} {right.typ}",
                 self.expr,
             )
@@ -544,14 +544,14 @@ class Expr(object):
                 )
 
         if left.typ.typ == "decimal" and isinstance(self.expr.op, vy_ast.Pow):
-            raise TypeMismatchException(
+            raise TypeMismatch(
                 "Cannot perform exponentiation on decimal values.",
                 self.expr,
             )
 
         # Only allow explicit conversions to occur.
         if left.typ.typ != right.typ.typ:
-            raise TypeMismatchException(
+            raise TypeMismatch(
                 f"Cannot implicitly convert {left.typ.typ} to {right.typ.typ}.",
                 self.expr,
             )
@@ -559,7 +559,7 @@ class Expr(object):
         ltyp, rtyp = left.typ.typ, right.typ.typ
         if isinstance(self.expr.op, (vy_ast.Add, vy_ast.Sub)):
             if left.typ.unit != right.typ.unit and left.typ.unit != {} and right.typ.unit != {}:
-                raise TypeMismatchException(
+                raise TypeMismatch(
                     f"Unit mismatch: {left.typ.unit} {right.typ.unit}",
                     self.expr,
                 )
@@ -568,7 +568,7 @@ class Expr(object):
                 right.typ.positional and
                 isinstance(self.expr.op, vy_ast.Add)
             ):
-                raise TypeMismatchException(
+                raise TypeMismatch(
                     "Cannot add two positional units!",
                     self.expr,
                 )
@@ -601,7 +601,7 @@ class Expr(object):
 
         elif isinstance(self.expr.op, vy_ast.Mult):
             if left.typ.positional or right.typ.positional:
-                raise TypeMismatchException("Cannot multiply positional values!", self.expr)
+                raise TypeMismatch("Cannot multiply positional values!", self.expr)
             new_unit = combine_units(left.typ.unit, right.typ.unit)
             new_typ = BaseType(ltyp, new_unit)
 
@@ -634,7 +634,7 @@ class Expr(object):
             if right.typ.is_literal and right.value == 0:
                 raise ZeroDivisionException("Cannot divide by 0.", self.expr)
             if left.typ.positional or right.typ.positional:
-                raise TypeMismatchException("Cannot divide positional values!", self.expr)
+                raise TypeMismatch("Cannot divide positional values!", self.expr)
             new_unit = combine_units(left.typ.unit, right.typ.unit, div=True)
             new_typ = BaseType(ltyp, new_unit)
             if ltyp == rtyp == 'uint256':
@@ -656,13 +656,13 @@ class Expr(object):
             if right.typ.is_literal and right.value == 0:
                 raise ZeroDivisionException("Cannot calculate modulus of 0.", self.expr)
             if left.typ.positional or right.typ.positional:
-                raise TypeMismatchException(
+                raise TypeMismatch(
                     "Cannot use positional values as modulus arguments!",
                     self.expr,
                 )
 
             if not are_units_compatible(left.typ, right.typ) and not (left.typ.unit or right.typ.unit):  # noqa: E501
-                raise TypeMismatchException("Modulus arguments must have same unit", self.expr)
+                raise TypeMismatch("Modulus arguments must have same unit", self.expr)
             new_unit = left.typ.unit or right.typ.unit
             new_typ = BaseType(ltyp, new_unit)
 
@@ -676,17 +676,17 @@ class Expr(object):
                 raise Exception(f"Unsupported Operation 'mod({ltyp}, {rtyp})'")
         elif isinstance(self.expr.op, vy_ast.Pow):
             if left.typ.positional or right.typ.positional:
-                raise TypeMismatchException(
+                raise TypeMismatch(
                     "Cannot use positional values as exponential arguments!",
                     self.expr,
                 )
             if right.typ.unit:
-                raise TypeMismatchException(
+                raise TypeMismatch(
                     "Cannot use unit values as exponents",
                     self.expr,
                 )
             if ltyp != 'int128' and ltyp != 'uint256' and isinstance(self.expr.right, vy_ast.Name):
-                raise TypeMismatchException(
+                raise TypeMismatch(
                     "Cannot use dynamic values as exponents, for unit base types",
                     self.expr,
                 )
@@ -708,7 +708,7 @@ class Expr(object):
                 arith = ['exp', 'l', 'r']
 
             else:
-                raise TypeMismatchException('Only whole number exponents are supported', self.expr)
+                raise TypeMismatch('Only whole number exponents are supported', self.expr)
         else:
             raise StructureException(f"Unsupported binary operator: {self.expr.op}", self.expr)
 
@@ -741,7 +741,7 @@ class Expr(object):
         right = Expr(self.expr.comparators[0], self.context).lll_node
 
         if left.typ != right.typ.subtype:
-            raise TypeMismatchException(
+            raise TypeMismatch(
                 f"{left.typ} cannot be in a list of {right.typ.subtype}",
                 self.expr,
             )
@@ -830,7 +830,7 @@ class Expr(object):
         right = Expr.parse_value_expr(self.expr.comparators[0], self.context)
 
         if isinstance(right.typ, NullType):
-            raise InvalidLiteralException(
+            raise InvalidLiteral(
                 'Comparison to None is not allowed, compare against a default value.',
                 self.expr,
             )
@@ -841,14 +841,14 @@ class Expr(object):
 
         elif isinstance(self.expr.ops[0], vy_ast.In) and isinstance(right.typ, ListType):
             if left.typ != right.typ.subtype:
-                raise TypeMismatchException(
+                raise TypeMismatch(
                     "Can't use IN comparison with different types!",
                     self.expr,
                 )
             return self.build_in_comparator()
         else:
             if not are_units_compatible(left.typ, right.typ) and not are_units_compatible(right.typ, left.typ):  # noqa: E501
-                raise TypeMismatchException("Can't compare values with different units!", self.expr)
+                raise TypeMismatch("Can't compare values with different units!", self.expr)
 
         if len(self.expr.ops) != 1:
             raise StructureException(
@@ -912,7 +912,7 @@ class Expr(object):
         # Compare other types.
         if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
             if op not in ('eq', 'ne'):
-                raise TypeMismatchException("Invalid type for comparison op", self.expr)
+                raise TypeMismatch("Invalid type for comparison op", self.expr)
         left_type, right_type = left.typ.typ, right.typ.typ
 
         # Special Case: comparison of a literal integer. If in valid range allow it to be compared.
@@ -931,7 +931,7 @@ class Expr(object):
         elif {left_type, right_type} == {'uint256', 'uint256'}:
             op = self._signed_to_unsigned_comparision_op(op)
         elif (left_type in ('decimal', 'int128') or right_type in ('decimal', 'int128')) and left_type != right_type:  # noqa: E501
-            raise TypeMismatchException(
+            raise TypeMismatch(
                 f'Implicit conversion from {left_type} to {right_type} disallowed, please convert.',
                 self.expr,
             )
@@ -939,7 +939,7 @@ class Expr(object):
         if left_type == right_type:
             return LLLnode.from_list([op, left, right], typ='bool', pos=getpos(self.expr))
         else:
-            raise TypeMismatchException(
+            raise TypeMismatch(
                 f"Unsupported types for comparison: {left_type} {right_type}",
                 self.expr,
             )
@@ -957,7 +957,7 @@ class Expr(object):
             # Check for boolean operations with non-boolean inputs
             _expr = Expr.parse_value_expr(value, self.context)
             if not is_base_type(_expr.typ, 'bool'):
-                raise TypeMismatchException(
+                raise TypeMismatch(
                     "Boolean operations can only be between booleans!",
                     self.expr,
                 )
@@ -1000,13 +1000,13 @@ class Expr(object):
             if isinstance(operand.typ, BaseType) and operand.typ.typ == 'bool':
                 return LLLnode.from_list(["iszero", operand], typ='bool', pos=getpos(self.expr))
             else:
-                raise TypeMismatchException(
+                raise TypeMismatch(
                     f"Only bool is supported for not operation, {operand.typ} supplied.",
                     self.expr,
                 )
         elif isinstance(self.expr.op, vy_ast.USub):
             if not is_numeric_type(operand.typ):
-                raise TypeMismatchException(
+                raise TypeMismatch(
                     f"Unsupported type for negation: {operand.typ}",
                     self.expr,
                 )
@@ -1060,7 +1060,7 @@ class Expr(object):
 
                 arg = args[0]
                 if not isinstance(arg, vy_ast.Dict):
-                    raise TypeMismatchException(
+                    raise TypeMismatch(
                         "Struct can only be constructed with a dict",
                         self.expr,
                     )
@@ -1073,7 +1073,7 @@ class Expr(object):
                     arg_lll.typ = ContractType(function_name)  # Cast to Correct contract type.
                     return arg_lll
                 else:
-                    raise TypeMismatchException(
+                    raise TypeMismatch(
                         "ContractType definition expects one address argument.",
                         self.expr,
                     )
@@ -1108,7 +1108,7 @@ class Expr(object):
 
             current_type = get_out_type(current_lll_node)
             if len(o) > 0 and previous_type != current_type:
-                raise TypeMismatchException("Lists may only contain one type", self.expr)
+                raise TypeMismatch("Lists may only contain one type", self.expr)
             else:
                 o.append(current_lll_node)
                 previous_type = current_type
@@ -1125,7 +1125,7 @@ class Expr(object):
             " favor of named structs, see VIP300",
             DeprecationWarning
         )
-        raise InvalidLiteralException("Invalid literal.", self.expr)
+        raise InvalidLiteral("Invalid literal.", self.expr)
 
     @staticmethod
     def struct_literals(expr, name, context):
@@ -1133,7 +1133,7 @@ class Expr(object):
         member_typs = {}
         for key, value in zip(expr.keys, expr.values):
             if not isinstance(key, vy_ast.Name):
-                raise TypeMismatchException(
+                raise TypeMismatch(
                     f"Invalid member variable for struct: {getattr(key, 'id', '')}",
                     key,
                 )
@@ -1145,7 +1145,7 @@ class Expr(object):
                 "Invalid member variable for struct",
             )
             if key.id in member_subs:
-                raise TypeMismatchException("Member variable duplicated: " + key.id, key)
+                raise TypeMismatch("Member variable duplicated: " + key.id, key)
             sub = Expr(value, context).lll_node
             member_subs[key.id] = sub
             member_typs[key.id] = sub.typ

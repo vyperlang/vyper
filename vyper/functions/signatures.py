@@ -4,9 +4,9 @@ from vyper import (
     ast as vy_ast,
 )
 from vyper.exceptions import (
-    InvalidLiteralException,
+    InvalidLiteral,
     StructureException,
-    TypeMismatchException,
+    TypeMismatch,
 )
 from vyper.parser.expr import (
     Expr,
@@ -46,7 +46,7 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
                 bytez = b''
                 for c in arg.s:
                     if ord(c) >= 256:
-                        raise InvalidLiteralException(
+                        raise InvalidLiteral(
                             f"Cannot insert special character {c} into byte array",
                             arg,
                         )
@@ -98,12 +98,12 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
                 if vsub.typ == parsed_expected_type:
                     return Expr(arg, context).lll_node
     if len(expected_arg_typelist) == 1:
-        raise TypeMismatchException(
+        raise TypeMismatch(
             f"Expecting {expected_arg} for argument {index} of {function_name}",
             arg
         )
     else:
-        raise TypeMismatchException(
+        raise TypeMismatch(
             f"Expecting one of {expected_arg_typelist} for argument {index} of {function_name}",
             arg
         )

@@ -12,7 +12,7 @@ from vyper import (
     ast as vy_ast,
 )
 from vyper.exceptions import (
-    InvalidTypeException,
+    InvalidType,
 )
 from vyper.utils import (
     BASE_TYPES,
@@ -179,7 +179,7 @@ class ListType(NodeType):
 class MappingType(NodeType):
     def __init__(self, keytype, valuetype):
         if not isinstance(keytype, (BaseType, ByteArrayLike)):
-            raise InvalidTypeException("Dictionary keys must be a base type")
+            raise InvalidType("Dictionary keys must be a base type")
         self.keytype = keytype
         self.valuetype = valuetype
 
@@ -255,14 +255,14 @@ def canonicalize_type(t, is_indexed=False):
 
     if isinstance(t, ListType):
         if not isinstance(t.subtype, (ListType, BaseType)):
-            raise InvalidTypeException(f"List of {t.subtype}s not allowed")
+            raise InvalidType(f"List of {t.subtype}s not allowed")
         return canonicalize_type(t.subtype) + f"[{t.count}]"
 
     if isinstance(t, TupleLike):
         return f"({','.join(canonicalize_type(x) for x in t.tuple_members())})"
 
     if not isinstance(t, BaseType):
-        raise InvalidTypeException(f"Cannot canonicalize non-base type: {t}")
+        raise InvalidType(f"Cannot canonicalize non-base type: {t}")
 
     t = t.typ
     if t in ('int128', 'uint256', 'bool', 'address', 'bytes32'):
@@ -270,7 +270,7 @@ def canonicalize_type(t, is_indexed=False):
     elif t == 'decimal':
         return 'fixed168x10'
 
-    raise InvalidTypeException(f"Invalid or unsupported type: {repr(t)}")
+    raise InvalidType(f"Invalid or unsupported type: {repr(t)}")
 
 
 # Special types
@@ -285,12 +285,12 @@ SPECIAL_TYPES = {
 def parse_unit(item, custom_units):
     if isinstance(item, vy_ast.Name):
         if (item.id not in VALID_UNITS) and (custom_units is not None) and (item.id not in custom_units):  # noqa: E501
-            raise InvalidTypeException("Invalid base unit", item)
+            raise InvalidType("Invalid base unit", item)
         return {item.id: 1}
     elif isinstance(item, vy_ast.Int) and item.n == 1:
         return {}
     elif not isinstance(item, vy_ast.BinOp):
-        raise InvalidTypeException("Invalid unit expression", item)
+        raise InvalidType("Invalid unit expression", item)
     elif isinstance(item.op, vy_ast.Mult):
         left, right = parse_unit(item.left, custom_units), parse_unit(item.right, custom_units)
         return combine_units(left, right)
@@ -299,12 +299,12 @@ def parse_unit(item, custom_units):
         return combine_units(left, right, div=True)
     elif isinstance(item.op, vy_ast.Pow):
         if not isinstance(item.left, vy_ast.Name):
-            raise InvalidTypeException("Can only raise a base type to an exponent", item)
+            raise InvalidType("Can only raise a base type to an exponent", item)
         if not isinstance(item.right, vy_ast.Int) or not isinstance(item.right.n, int) or item.right.n <= 0:  # noqa: E501
-            raise InvalidTypeException("Exponent must be positive integer", item)
+            raise InvalidType("Exponent must be positive integer", item)
         return {item.left.id: item.right.n}
     else:
-        raise InvalidTypeException("Invalid unit expression", item)
+        raise InvalidType("Invalid unit expression", item)
 
 
 def make_struct_type(name, location, members, custom_units, custom_structs, constants):
@@ -312,7 +312,7 @@ def make_struct_type(name, location, members, custom_units, custom_structs, cons
 
     for key, value in members:
         if not isinstance(key, vy_ast.Name):
-            raise InvalidTypeException(
+            raise InvalidType(
                 f"Invalid member variable for struct {key.id}, expected a name.",
                 key,
             )
@@ -353,18 +353,18 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
                 constants,
             )
         else:
-            raise InvalidTypeException("Invalid base type: " + item.id, item)
+            raise InvalidType("Invalid base type: " + item.id, item)
     # Units, e.g. num (1/sec) or contracts
     elif isinstance(item, vy_ast.Call) and isinstance(item.func, vy_ast.Name):
         # Mapping type.
         if item.func.id == 'map':
             if location == 'memory':
-                raise InvalidTypeException(
+                raise InvalidType(
                     "No mappings allowed for in-memory types, only fixed-size arrays",
                     item,
                 )
             if len(item.args) != 2:
-                raise InvalidTypeException(
+                raise InvalidType(
                     "Mapping requires 2 valid positional arguments.",
                     item,
                 )
@@ -376,7 +376,7 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
                 constants=constants,
             )
             if not isinstance(keytype, (BaseType, ByteArrayLike)):
-                raise InvalidTypeException("Mapping keys must be base or bytes/string types", item)
+                raise InvalidType("Mapping keys must be base or bytes/string types", item)
             return MappingType(
                 keytype,
                 parse_type(
@@ -402,13 +402,13 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
                 constants,
             )
         if not isinstance(item.func, vy_ast.Name):
-            raise InvalidTypeException("Malformed unit type:", item)
+            raise InvalidType("Malformed unit type:", item)
         base_type = item.func.id
         if base_type not in ('int128', 'uint256', 'decimal', 'address'):
-            raise InvalidTypeException("You must use int128, uint256, decimal, address, contract, \
+            raise InvalidType("You must use int128, uint256, decimal, address, contract, \
                 for variable declarations and indexed for logging topics ", item)
         if len(item.args) == 0:
-            raise InvalidTypeException("Malformed unit type", item)
+            raise InvalidType("Malformed unit type", item)
         if isinstance(item.args[-1], vy_ast.Name) and item.args[-1].id == "positional":
             positional = True
             argz = item.args[:-1]
@@ -416,13 +416,13 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
             positional = False
             argz = item.args
         if len(argz) != 1:
-            raise InvalidTypeException("Malformed unit type", item)
+            raise InvalidType("Malformed unit type", item)
         unit = parse_unit(argz[0], custom_units=custom_units)
         return BaseType(base_type, unit, positional)
     # Subscripts
     elif isinstance(item, vy_ast.Subscript):
         if isinstance(item.slice, vy_ast.Slice):
-            raise InvalidTypeException(
+            raise InvalidType(
                 "Array / ByteArray access must access a single element, not a slice",
                 item,
             )
@@ -435,7 +435,7 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
                 else item.slice.value.n
             )
             if not isinstance(n_val, int) or n_val <= 0:
-                raise InvalidTypeException(
+                raise InvalidType(
                     "Arrays / ByteArrays must have a positive integral number of elements",
                     item.slice.value,
                 )
@@ -460,7 +460,7 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
                 "Use map(type1, type2) instead.",
                 DeprecationWarning
             )
-            raise InvalidTypeException('Unknown list type.', item)
+            raise InvalidType('Unknown list type.', item)
 
     # Dicts, used to represent mappings, e.g. {uint: uint}. Key must be a base type
     elif isinstance(item, vy_ast.Dict):
@@ -469,7 +469,7 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
             " favor of named structs, see VIP300",
             DeprecationWarning
         )
-        raise InvalidTypeException("Invalid type", item)
+        raise InvalidType("Invalid type", item)
     elif isinstance(item, vy_ast.Tuple):
         members = [
             parse_type(
@@ -482,7 +482,7 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
         ]
         return TupleType(members)
     else:
-        raise InvalidTypeException("Invalid type", item)
+        raise InvalidType("Invalid type", item)
 
 
 # Gets the maximum number of memory or storage keys needed to ABI-encode
@@ -497,11 +497,11 @@ def get_size_of_type(typ):
     elif isinstance(typ, ListType):
         return get_size_of_type(typ.subtype) * typ.count
     elif isinstance(typ, MappingType):
-        raise InvalidTypeException("Maps are not supported for function arguments or outputs.")
+        raise InvalidType("Maps are not supported for function arguments or outputs.")
     elif isinstance(typ, TupleLike):
         return sum([get_size_of_type(v) for v in typ.tuple_members()])
     else:
-        raise InvalidTypeException(f"Can not get size of type, Unexpected type: {repr(typ)}")
+        raise InvalidType(f"Can not get size of type, Unexpected type: {repr(typ)}")
 
 
 # amount of space a type takes in the static section of its ABI encoding
@@ -513,11 +513,11 @@ def get_static_size_of_type(typ):
     elif isinstance(typ, ListType):
         return get_size_of_type(typ.subtype) * typ.count
     elif isinstance(typ, MappingType):
-        raise InvalidTypeException("Maps are not supported for function arguments or outputs.")
+        raise InvalidType("Maps are not supported for function arguments or outputs.")
     elif isinstance(typ, TupleLike):
         return sum([get_size_of_type(v) for v in typ.tuple_members()])
     else:
-        raise InvalidTypeException(f"Can not get size of type, Unexpected type: {repr(typ)}")
+        raise InvalidType(f"Can not get size of type, Unexpected type: {repr(typ)}")
 
 
 # could be rewritten as get_static_size_of_type == get_size_of_type?
@@ -531,7 +531,7 @@ def has_dynamic_data(typ):
     elif isinstance(typ, TupleLike):
         return any([has_dynamic_data(v) for v in typ.tuple_members()])
     else:
-        raise InvalidTypeException(f"Unexpected type: {repr(typ)}")
+        raise InvalidType(f"Unexpected type: {repr(typ)}")
 
 
 def get_type(input):

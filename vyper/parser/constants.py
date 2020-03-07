@@ -5,7 +5,7 @@ from vyper import (
 )
 from vyper.exceptions import (
     StructureException,
-    TypeMismatchException,
+    TypeMismatch,
     VariableDeclarationException,
 )
 from vyper.parser.context import (
@@ -74,7 +74,7 @@ class Constants(object):
                 fail = False
 
         if fail:
-            raise TypeMismatchException(
+            raise TypeMismatch(
                 f"Invalid value for constant type, expected {annotation_type} got "
                 f"{expr.typ} instead",
                 const.value,

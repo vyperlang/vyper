@@ -8,7 +8,7 @@ from typing import (
 )
 
 from vyper.exceptions import (
-    InvalidLiteralException,
+    InvalidLiteral,
     VariableDeclarationException,
 )
 from vyper.opcodes import (
@@ -33,7 +33,7 @@ def string_to_bytes(str):
     bytez = b''
     for c in str:
         if ord(c) >= 256:
-            raise InvalidLiteralException(f"Cannot insert special character {c} into byte array")
+            raise InvalidLiteral(f"Cannot insert special character {c} into byte array")
         bytez += bytes([ord(c)])
     bytez_length = len(bytez)
     return bytez, bytez_length

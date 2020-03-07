@@ -7,11 +7,11 @@ from vyper.codegen.return_ import (
 )
 from vyper.exceptions import (
     CompilerPanic,
-    ConstancyViolationException,
+    ConstancyViolation,
     EventDeclarationException,
-    InvalidLiteralException,
+    InvalidLiteral,
     StructureException,
-    TypeMismatchException,
+    TypeMismatch,
     VariableDeclarationException,
 )
 from vyper.functions import (
@@ -108,7 +108,7 @@ class Stmt(object):
     def _check_valid_assign(self, sub):
         if isinstance(self.stmt.annotation, vy_ast.Call):  # unit style: num(wei)
             if self.stmt.annotation.func.id != sub.typ.typ and not sub.typ.is_literal:
-                raise TypeMismatchException(
+                raise TypeMismatch(
                     f'Invalid type, expected: {self.stmt.annotation.func.id}', self.stmt
                 )
         elif (
@@ -117,36 +117,36 @@ class Stmt(object):
         ):
             if isinstance(sub.typ, ByteArrayLike):
                 if sub.typ.maxlen != 32:
-                    raise TypeMismatchException(
+                    raise TypeMismatch(
                         'Invalid type, expected: bytes32. String is incorrect length.', self.stmt
                     )
                 return
             elif isinstance(sub.typ, BaseType):
                 if sub.typ.typ != 'bytes32':
-                    raise TypeMismatchException('Invalid type, expected: bytes32', self.stmt)
+                    raise TypeMismatch('Invalid type, expected: bytes32', self.stmt)
                 return
             else:
-                raise TypeMismatchException('Invalid type, expected: bytes32', self.stmt)
+                raise TypeMismatch('Invalid type, expected: bytes32', self.stmt)
         elif isinstance(self.stmt.annotation, vy_ast.Subscript):
             if not isinstance(sub.typ, (ListType, ByteArrayLike)):  # check list assign.
-                raise TypeMismatchException(
+                raise TypeMismatch(
                     f'Invalid type, expected: {self.stmt.annotation.value.id}', self.stmt
                 )
         elif isinstance(sub.typ, StructType):
             # This needs to get more sophisticated in the presence of
             # foreign structs.
             if not sub.typ.name == self.stmt.annotation.id:
-                raise TypeMismatchException(
+                raise TypeMismatch(
                     f"Invalid type, expected {self.stmt.annotation.id}", self.stmt
                 )
         # Check that the integer literal, can be assigned to uint256 if necessary.
         elif (self.stmt.annotation.id, sub.typ.typ) == ('uint256', 'int128') and sub.typ.is_literal:
             if not SizeLimits.in_bounds('uint256', sub.value):
-                raise InvalidLiteralException(
+                raise InvalidLiteral(
                     'Invalid uint256 assignment, value not in uint256 range.', self.stmt
                 )
         elif self.stmt.annotation.id != sub.typ.typ and not sub.typ.unit:
-            raise TypeMismatchException(
+            raise TypeMismatch(
                 f'Invalid type {sub.typ.typ}, expected: {self.stmt.annotation.id}',
                 self.stmt,
             )
@@ -197,7 +197,7 @@ class Stmt(object):
                 constants=self.context.constants,
             )
             if isinstance(self.stmt.target, vy_ast.Attribute):
-                raise TypeMismatchException(
+                raise TypeMismatch(
                     f'May not set type for field {self.stmt.target.attr}',
                     self.stmt,
                 )
@@ -212,7 +212,7 @@ class Stmt(object):
 
             # Disallow assignment to None
             if isinstance(sub.typ, NullType):
-                raise InvalidLiteralException(
+                raise InvalidLiteral(
                     (
                         'Assignment to None is not allowed, use a default '
                         'value or built-in `clear()`.'
@@ -254,7 +254,7 @@ class Stmt(object):
         assign_typ = sub.typ
         if isinstance(target_typ, BaseType) and isinstance(assign_typ, BaseType):
             if not assign_typ.is_literal and assign_typ.typ != target_typ.typ:
-                raise TypeMismatchException(
+                raise TypeMismatch(
                     f'Invalid type {assign_typ.typ}, expected: {target_typ.typ}',
                     self.stmt
                 )
@@ -269,7 +269,7 @@ class Stmt(object):
 
             # Disallow assignment to None
             if isinstance(sub.typ, NullType):
-                raise InvalidLiteralException(
+                raise InvalidLiteral(
                     (
                         'Assignment to None is not allowed, use a default value '
                         'or built-in `clear()`.'
@@ -316,7 +316,7 @@ class Stmt(object):
                 # Checks to see if assignment is valid
                 target = self.get_target(self.stmt.targets[0])
                 if isinstance(target.typ, ContractType) and not isinstance(sub.typ, ContractType):
-                    raise TypeMismatchException(
+                    raise TypeMismatch(
                         'Contract assignment expects casted address: '
                         f'{target.typ.unit}(<address_var>)',
                         self.stmt
@@ -347,7 +347,7 @@ class Stmt(object):
             test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
 
             if not self.is_bool_expr(test_expr):
-                raise TypeMismatchException('Only boolean expressions allowed', self.stmt.test)
+                raise TypeMismatch('Only boolean expressions allowed', self.stmt.test)
             body = ['if', test_expr,
                     parse_body(self.stmt.body, self.context)] + add_on
             o = LLLnode.from_list(
@@ -491,7 +491,7 @@ class Stmt(object):
             test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
 
         if not self.is_bool_expr(test_expr):
-            raise TypeMismatchException('Only boolean expressions allowed', self.stmt.test)
+            raise TypeMismatch('Only boolean expressions allowed', self.stmt.test)
         if self.stmt.msg:
             return self._assert_reason(test_expr, self.stmt.msg)
         else:
@@ -736,7 +736,7 @@ class Stmt(object):
         ):
             raise StructureException("Unsupported operator for augassign", self.stmt)
         if not isinstance(target.typ, BaseType):
-            raise TypeMismatchException(
+            raise TypeMismatch(
                 "Can only use aug-assign operators with simple types!", self.stmt.target
             )
         if target.location == 'storage':
@@ -789,7 +789,7 @@ class Stmt(object):
     def parse_return(self):
         if self.context.return_type is None:
             if self.stmt.value:
-                raise TypeMismatchException("Not expecting to return a value", self.stmt)
+                raise TypeMismatch("Not expecting to return a value", self.stmt)
             return LLLnode.from_list(
                 make_return_stmt(self.stmt, self.context, 0, 0),
                 typ=None,
@@ -797,7 +797,7 @@ class Stmt(object):
                 valency=0,
             )
         if not self.stmt.value:
-            raise TypeMismatchException("Expecting to return a value", self.stmt)
+            raise TypeMismatch("Expecting to return a value", self.stmt)
 
         sub = Expr(self.stmt.value, self.context).lll_node
 
@@ -806,19 +806,19 @@ class Stmt(object):
             sub = unwrap_location(sub)
 
             if not isinstance(self.context.return_type, BaseType):
-                raise TypeMismatchException(
+                raise TypeMismatch(
                     f"Return type units mismatch {sub.typ} {self.context.return_type}",
                     self.stmt.value
                 )
             elif self.context.return_type != sub.typ and not sub.typ.is_literal:
-                raise TypeMismatchException(
+                raise TypeMismatch(
                     f"Trying to return base type {sub.typ}, output expecting "
                     f"{self.context.return_type}",
                     self.stmt.value,
                 )
             elif sub.typ.is_literal and (self.context.return_type.typ == sub.typ or 'int' in self.context.return_type.typ and 'int' in sub.typ.typ):  # noqa: E501
                 if not SizeLimits.in_bounds(self.context.return_type.typ, sub.value):
-                    raise InvalidLiteralException(
+                    raise InvalidLiteral(
                         "Number out of range: " + str(sub.value),
                         self.stmt
                     )
@@ -841,20 +841,20 @@ class Stmt(object):
                     valency=0,
                 )
             else:
-                raise TypeMismatchException(
+                raise TypeMismatch(
                     f"Unsupported type conversion: {sub.typ} to {self.context.return_type}",
                     self.stmt.value,
                 )
         # Returning a byte array
         elif isinstance(sub.typ, ByteArrayLike):
             if not sub.typ.eq_base(self.context.return_type):
-                raise TypeMismatchException(
+                raise TypeMismatch(
                     f"Trying to return base type {sub.typ}, output expecting "
                     f"{self.context.return_type}",
                     self.stmt.value,
                 )
             if sub.typ.maxlen > self.context.return_type.maxlen:
-                raise TypeMismatchException(
+                raise TypeMismatch(
                     f"Cannot cast from greater max-length {sub.typ.maxlen} to shorter "
                     f"max-length {self.context.return_type.maxlen}",
                     self.stmt.value,
@@ -890,7 +890,7 @@ class Stmt(object):
         elif isinstance(sub.typ, ListType):
             loop_memory_position = self.context.new_placeholder(typ=BaseType('uint256'))
             if sub.typ != self.context.return_type:
-                raise TypeMismatchException(
+                raise TypeMismatch(
                     f"List return type {sub.typ} does not match specified "
                     f"return type, expecting {self.context.return_type}",
                     self.stmt
@@ -931,7 +931,7 @@ class Stmt(object):
         elif isinstance(sub.typ, StructType):
             retty = self.context.return_type
             if not isinstance(retty, StructType) or retty.name != sub.typ.name:
-                raise TypeMismatchException(
+                raise TypeMismatch(
                     f"Trying to return {sub.typ}, output expecting {self.context.return_type}",
                     self.stmt.value,
                 )
@@ -940,7 +940,7 @@ class Stmt(object):
         # Returning a tuple.
         elif isinstance(sub.typ, TupleType):
             if not isinstance(self.context.return_type, TupleType):
-                raise TypeMismatchException(
+                raise TypeMismatch(
                     f"Trying to return tuple type {sub.typ}, output expecting "
                     f"{self.context.return_type}",
                     self.stmt.value,
@@ -962,7 +962,7 @@ class Stmt(object):
             return gen_tuple_return(self.stmt, self.context, sub)
 
         else:
-            raise TypeMismatchException(f"Can't return type {sub.typ}", self.stmt)
+            raise TypeMismatch(f"Can't return type {sub.typ}", self.stmt)
 
     def parse_delete(self):
         raise StructureException(
@@ -1026,12 +1026,12 @@ def parse_body(code, context):
 
 def constancy_checks(node, context, stmt):
     if node.location == 'storage' and context.is_constant():
-        raise ConstancyViolationException(
+        raise ConstancyViolation(
             f"Cannot modify storage inside {context.pp_constancy()}: {node.annotation}",
             stmt,
         )
     if not node.mutable:
-        raise ConstancyViolationException(
+        raise ConstancyViolation(
             f"Cannot modify function argument: {node.annotation}",
             stmt,
         )

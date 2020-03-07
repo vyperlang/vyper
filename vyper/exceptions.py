@@ -74,10 +74,6 @@ class VersionException(VyperException):
     """Version string is malformed or incompatible with this compiler version."""
 
 
-class InvalidLiteralException(VyperException):
-    """Invalid literal value."""
-
-
 class VariableDeclarationException(VyperException):
     """Invalid variable declaration."""
 
@@ -98,6 +94,10 @@ class NamespaceCollision(VyperException):
     """Assignment to a name that is already in use."""
 
 
+class InvalidLiteral(VyperException):
+    """Invalid literal value."""
+
+
 class InvalidAttribute(VyperException):
     """Reference to an attribute that does not exist."""
 
@@ -110,11 +110,11 @@ class InvalidOperation(VyperException):
     """Invalid operator for a given type."""
 
 
-class InvalidTypeException(VyperException):
+class InvalidType(VyperException):
     """Type is invalid for an action."""
 
 
-class TypeMismatchException(VyperException):
+class TypeMismatch(VyperException):
     """Attempt to perform an action between multiple objects of incompatible types."""
 
 
@@ -126,11 +126,11 @@ class CallViolation(VyperException):
     """Illegal function call."""
 
 
-class ConstancyViolationException(VyperException):
+class ConstancyViolation(VyperException):
     """State-changing action in a constant context."""
 
 
-class NonPayableViolationException(VyperException):
+class NonPayableViolation(VyperException):
     """msg.value in a nonpayable function."""
 
 
