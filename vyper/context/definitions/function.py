@@ -121,7 +121,7 @@ def get_function_from_node(node: vy_ast.FunctionDef, visibility: Optional[str] =
     # return types
     if node.returns is None:
         return_type = None
-    elif isinstance(node.returns, vy_ast.Name):
+    elif isinstance(node.returns, (vy_ast.Name, vy_ast.Call)):
         return_type = get_type_from_annotation(node.returns)
     elif isinstance(node.returns, vy_ast.Tuple):
         return_type = ()
