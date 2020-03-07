@@ -31,7 +31,7 @@ from vyper.exceptions import (
 )
 
 
-def compare_types(left, right, node):
+def compare_types(left, right, node, compare_units=True):
     """
     Compares types.
 
@@ -44,9 +44,11 @@ def compare_types(left, right, node):
         The left side of the comparison.
     right : _BaseType | Constant | Sequence
         The right side of the comparison.
-    node
+    node : VyperNode
         The node where the comparison is taking place (for source highlights if
         an exception is raised).
+    compare_units : bool, optional
+        If False, units are ignored when comparing types.
 
     Returns
     -------
@@ -65,8 +67,14 @@ def compare_types(left, right, node):
                 f"Imbalanced operation: {len(left)} left side values, {len(right)} right side", node
             )
         for lhs, rhs in zip(left, right):
-            compare_types(lhs, rhs, node)
+            compare_types(lhs, rhs, node, compare_units)
         return
+
+    if not compare_units:
+        if hasattr(left, "unit"):
+            left = left.get_unitless()
+        if hasattr(right, "unit"):
+            right = right.get_unitless()
 
     if not isinstance(left, set) and not isinstance(right, set):
         if not left._compare_type(right):

@@ -181,12 +181,12 @@ class ContractFunction(FunctionDefinition):
             return False
         if self.return_type:
             try:
-                compare_types(self.return_type, other.return_type, None)
+                compare_types(self.return_type, other.return_type, None, False)
             except Exception:
                 return False
         for key in self.arguments:
             try:
-                compare_types(self.arguments[key].type, other.arguments[key].type, None)
+                compare_types(self.arguments[key].type, other.arguments[key].type, None, False)
             except Exception:
                 return False
         return True

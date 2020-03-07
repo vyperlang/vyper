@@ -375,6 +375,12 @@ class NumericType(ValueType):
             raise type(e)(str(e), node)
         return self
 
+    @classmethod
+    def get_unitless(cls):
+        self = cls()
+        del self.unit
+        return self
+
     def set_unit(self, unit_str):
         self.unit = namespace[unit_str]
         if not isinstance(self.unit, Unit):
