@@ -1,10 +1,9 @@
+from lark.exceptions import (
+    UnexpectedToken,
+)
 import pytest
 from pytest import (
     raises,
-)
-
-from lark.exceptions import (
-    UnexpectedToken,
 )
 
 valid_decorator_codes = [

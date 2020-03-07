@@ -8,8 +8,8 @@ from vyper.compiler import (
     compile_code,
 )
 from vyper.exceptions import (
+    ArgumentException,
     StructureException,
-    TypeMismatch,
 )
 
 
@@ -72,7 +72,7 @@ def _len(x: bytes[100]) -> int128:
 
 @public
 def returnten() -> int128:
-    return self._len("badminton!")
+    return self._len(b"badminton!")
     """
 
     c = get_contract_with_gas_estimation(selfcall_code_3)
@@ -505,5 +505,5 @@ def bar():
 def test_selfcall_kwarg_raises(failing_contract_code, decorator, assert_compile_failed):
     assert_compile_failed(
         lambda: compile_code(failing_contract_code.format(decorator)),
-        TypeMismatch
+        ArgumentException,
     )

@@ -882,7 +882,7 @@ def foo(a: int128):
 
 @public
 def setbytez():
-    self.x = 'hello'
+    self.x = b'hello'
     """
 
     c = get_contract_with_gas_estimation(code)

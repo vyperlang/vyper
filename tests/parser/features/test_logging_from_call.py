@@ -5,21 +5,21 @@ TestLog: event({testData1: bytes32,testData2: bytes[60], testData3: bytes[8]})
 
 @private
 @constant
-def to_bytes(value: uint256) -> bytes[8]:
-    return slice(concat(b"", convert(value, bytes32)), start=24, len=8)
+def to_bytes(_value: uint256) -> bytes[8]:
+    return slice(concat(b"", convert(_value, bytes32)), start=24, len=8)
 
 @private
 @constant
-def to_bytes32(value: uint256) -> bytes32:
-    return convert(value, bytes32)
+def to_bytes32(_value: uint256) -> bytes32:
+    return convert(_value, bytes32)
 
 @public
-def test_func(value: uint256):
-    data2: bytes[60] = concat(self.to_bytes32(value),self.to_bytes(value),b"testing")
-    log.TestLog(self.to_bytes32(value), data2, self.to_bytes(value))
+def test_func(_value: uint256):
+    data2: bytes[60] = concat(self.to_bytes32(_value),self.to_bytes(_value),b"testing")
+    log.TestLog(self.to_bytes32(_value), data2, self.to_bytes(_value))
 
-    loggedValue: bytes32 = self.to_bytes32(value)
-    loggedValue2: bytes[8] = self.to_bytes(value)
+    loggedValue: bytes32 = self.to_bytes32(_value)
+    loggedValue2: bytes[8] = self.to_bytes(_value)
     log.TestLog(loggedValue, data2, loggedValue2)
     """
 
@@ -46,21 +46,21 @@ TestLog: event({testData1: bytes32,testData2: bytes[133], testData3: bytes[8] })
 
 @private
 @constant
-def to_bytes(value: uint256) -> bytes[8]:
-    return slice(concat(b"", convert(value, bytes32)), start=24, len=8)
+def to_bytes(_value: uint256) -> bytes[8]:
+    return slice(concat(b"", convert(_value, bytes32)), start=24, len=8)
 
 @private
 @constant
-def to_bytes32(value: uint256) -> bytes32:
-    return convert(value, bytes32)
+def to_bytes32(_value: uint256) -> bytes32:
+    return convert(_value, bytes32)
 
 @public
-def test_func(value: uint256,input: bytes[133]):
+def test_func(_value: uint256,input: bytes[133]):
 
     data2: bytes[200] = "hello world"
 
-    # log.TestLog(self.to_bytes32(value),input,self.to_bytes(value))
-    log.TestLog(self.to_bytes32(value),input,"bababa")
+    # log.TestLog(self.to_bytes32(_value),input,self.to_bytes(_value))
+    log.TestLog(self.to_bytes32(_value),input,"bababa")
     """
 
     c = get_contract(code)
@@ -84,17 +84,17 @@ TestLog: event({testData1: bytes32, testData2: bytes[133]})
 
 @private
 @constant
-def to_bytes32(value: uint256) -> bytes32:
-    return convert(value, bytes32)
+def to_bytes32(_value: uint256) -> bytes32:
+    return convert(_value, bytes32)
 
 @public
-def test_func(value: uint256,input: bytes[133]):
+def test_func(_value: uint256,input: bytes[133]):
 
     data2: bytes[200] = b"hello world"
 
     # log will be malformed
-    # log.TestLog(self.to_bytes32(value),input,self.to_bytes(value))
-    log.TestLog(self.to_bytes32(value), input)
+    # log.TestLog(self.to_bytes32(_value),input,self.to_bytes(_value))
+    log.TestLog(self.to_bytes32(_value), input)
     """
 
     c = get_contract(code)
@@ -114,26 +114,26 @@ TestLog: event({testData1: bytes32,testData2: bytes[2064], testData3: bytes[8] }
 
 @private
 @constant
-def to_bytes(value: uint256) -> bytes[8]:
-    return slice(concat(b"", convert(value, bytes32)), start=24, len=8)
+def to_bytes(_value: uint256) -> bytes[8]:
+    return slice(concat(b"", convert(_value, bytes32)), start=24, len=8)
 
 @private
 @ constant
-def to_bytes32(value: uint256) -> bytes32:
-    return convert(value, bytes32)
+def to_bytes32(_value: uint256) -> bytes32:
+    return convert(_value, bytes32)
 
 @public
-def test_func(value: uint256,input: bytes[2048]):
+def test_func(_value: uint256,input: bytes[2048]):
 
-    data2: bytes[2064] = concat(self.to_bytes(value),self.to_bytes(value),input)
+    data2: bytes[2064] = concat(self.to_bytes(_value),self.to_bytes(_value),input)
 
     # log will be malformed
-    log.TestLog(self.to_bytes32(value), data2, self.to_bytes(value))
+    log.TestLog(self.to_bytes32(_value), data2, self.to_bytes(_value))
 
-    loggedValue: bytes[8] = self.to_bytes(value)
+    loggedValue: bytes[8] = self.to_bytes(_value)
 
     # log will be normal
-    log.TestLog(self.to_bytes32(value),data2,loggedValue)
+    log.TestLog(self.to_bytes32(_value),data2,loggedValue)
     """
 
     c = get_contract(code)

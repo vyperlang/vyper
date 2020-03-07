@@ -1,9 +1,8 @@
-import pytest
-
 from lark import Lark
 from lark.indenter import (
     Indenter,
 )
+import pytest
 
 
 class PythonIndenter(Indenter):

@@ -4,6 +4,7 @@ from vyper.compiler import (
     compile_code,
 )
 from vyper.exceptions import (
+    ArgumentException,
     FunctionDeclarationException,
     InvalidLiteral,
     NonPayableViolation,
@@ -34,7 +35,7 @@ def safeTransferFrom(_data: bytes[100] = b"test", _b: int128 = 1):
 def test_basic_default_param_passthrough(get_contract):
     code = """
 @public
-def fooBar(_data: bytes[100] = "test", _b: int128 = 1) -> int128:
+def fooBar(_data: bytes[100] = b"test", _b: int128 = 1) -> int128:
     return 12321
     """
 
@@ -80,7 +81,7 @@ def fooBar(a:int128, b: uint256 = 999, c: address = 0x00000000000000000000000000
 def test_default_param_bytes(get_contract):
     code = """
 @public
-def fooBar(a: bytes[100], b: int128, c: bytes[100] = "testing", d: uint256 = 999) -> (bytes[100], int128, bytes[100], uint256):  # noqa: E501
+def fooBar(a: bytes[100], b: int128, c: bytes[100] = b"testing", d: uint256 = 999) -> (bytes[100], int128, bytes[100], uint256):  # noqa: E501
     return a, b, c, d
     """
     c = get_contract(code)
@@ -98,7 +99,7 @@ def fooBar(a: bytes[100], b: int128, c: bytes[100] = "testing", d: uint256 = 999
 def test_default_param_array(get_contract):
     code = """
 @public
-def fooBar(a: bytes[100], b: uint256[2], c: bytes[6] = "hello", d: int128[3] = [6, 7, 8]) -> (bytes[100], uint256, bytes[6], int128):  # noqa: E501
+def fooBar(a: bytes[100], b: uint256[2], c: bytes[6] = b"hello", d: int128[3] = [6, 7, 8]) -> (bytes[100], uint256, bytes[6], int128):  # noqa: E501
     return a, b[1], c, d[2]
     """
     c = get_contract(code)
@@ -137,7 +138,7 @@ def bar(a: int128, b: int128 = -1) -> (int128, int128):  # noqa: E501
 def test_default_param_private(get_contract):
     code = """
 @private
-def fooBar(a: bytes[100], b: uint256, c: bytes[20] = "crazy") -> (bytes[100], uint256, bytes[20]):
+def fooBar(a: bytes[100], b: uint256, c: bytes[20] = b"crazy") -> (bytes[100], uint256, bytes[20]):
     return a, b, c
 
 @public
@@ -222,7 +223,7 @@ def foo(a: int128 = -31, b: int128[2] = [64, -46]): pass
     """,
     """
 @public
-def foo(a: bytes[6] = "potato"): pass
+def foo(a: bytes[6] = b"potato"): pass
     """,
     """
 @public
@@ -289,7 +290,7 @@ x: uint256
 
 @public
 def foo(a: uint256 = self.x): pass
-     """, FunctionDeclarationException),
+     """, ArgumentException),
     ("""
 # default params must be literals inside array
 x: uint256

@@ -259,8 +259,8 @@ foobar: bytes[5]
 
 @public
 def foo() -> (bytes[5], bytes[5]):
-    self.foobar = 'Hello'
-    bar: bytes[5] = 'World'
+    self.foobar = b'Hello'
+    bar: bytes[5] = b'World'
 
     clear(self.foobar)
     clear(bar)
@@ -332,8 +332,8 @@ def test_map_clear(get_contract_with_gas_estimation):
 big_storage: map(bytes32, bytes32)
 
 @public
-def set(key: bytes32, value: bytes32):
-    self.big_storage[key] = value
+def set(key: bytes32, _value: bytes32):
+    self.big_storage[key] = _value
 
 @public
 def get(key: bytes32) -> bytes32:
@@ -358,8 +358,8 @@ def test_map_clear_nested(get_contract_with_gas_estimation):
 big_storage: map(bytes32, map(bytes32, bytes32))
 
 @public
-def set(key1: bytes32, key2: bytes32, value: bytes32):
-    self.big_storage[key1][key2] = value
+def set(key1: bytes32, key2: bytes32, _value: bytes32):
+    self.big_storage[key1][key2] = _value
 
 @public
 def get(key1: bytes32, key2: bytes32) -> bytes32:
