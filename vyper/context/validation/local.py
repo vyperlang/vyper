@@ -95,11 +95,16 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException("Assignment statement must have one target", node.targets[1])
 
         target_var = get_value_from_node(node.targets[0])
-        if not isinstance(target_var, Variable) or target_var.is_constant:
+
+        if isinstance(target_var, tuple):
+            if next((i for i in target_var if not isinstance(i, Variable) or i.is_constant), False):
+                raise ConstancyViolation(f"Cannot modify value of a constant", node)
+
+        elif not isinstance(target_var, Variable) or target_var.is_constant:
             raise ConstancyViolation(f"Cannot modify value of a constant", node)
 
         value_type = get_type_from_node(node.value)
-        compare_types(target_var.type, value_type, node)
+        compare_types(get_type_from_node(node.targets[0]), value_type, node)
 
     def visit_AugAssign(self, node):
         target_type = get_type_from_node(node.target)

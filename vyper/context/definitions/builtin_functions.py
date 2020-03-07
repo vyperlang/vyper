@@ -93,7 +93,7 @@ class Ceil(SimpleBuiltinDefinition):
 class Len(SimpleBuiltinDefinition):
 
     _id = "len"
-    _inputs = [("b", "bytes")]
+    _inputs = [("b", {"bytes", "string"})]
     _return_type = "int128"
 
 

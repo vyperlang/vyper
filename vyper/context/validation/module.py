@@ -38,7 +38,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
     scope_name = "module"
 
     def __init__(self, module_node, interface_codes):
-        self.interface_codes = interface_codes
+        self.interface_codes = interface_codes or {}
         self.units_added = False
 
         module_nodes = module_node.body.copy()

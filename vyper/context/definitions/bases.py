@@ -99,4 +99,4 @@ class FunctionDefinition(BaseDefinition):
         else:
             expected_type = self.arguments[key]
         # TODO better exception, give the name of the argument
-        compare_types(given_type, expected_type, arg_node)
+        compare_types(expected_type, given_type, arg_node)

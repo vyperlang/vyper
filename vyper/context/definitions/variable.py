@@ -154,6 +154,9 @@ class Variable(BaseDefinition):
     def get_index(self, node: vy_ast.Subscript):
         if isinstance(self.type, list):
             idx = get_value_from_node(node.slice.value)
+            if isinstance(idx, Variable):
+                # if we cannot determine literal value, set as 0 to return a single type
+                idx = idx.literal_value() or 0
             if idx >= len(self.type):
                 raise ArrayIndexException("Array index out of range", node.slice)
             if idx < 0:

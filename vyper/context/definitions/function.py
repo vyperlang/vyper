@@ -208,7 +208,7 @@ class ContractFunction(FunctionDefinition):
             if kwarg.arg in ("gas", "value"):
                 given_type = get_type_from_node(kwarg.value)
                 expected_type = get_builtin_type({"uint256", ("uint256", "wei")})
-                compare_types(given_type, expected_type, kwarg)
+                compare_types(expected_type, given_type, kwarg)
             else:
                 self._compare_argument(kwarg.arg, kwarg.value)
 
