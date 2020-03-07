@@ -27,6 +27,11 @@ BUILTIN_UNITS = [
     Unit(name="sec", description="number of seconds"),
     Unit(name="wei", description="amount of Ether in wei"),
 ]
+TYPE_ALIASES = {
+    "timedelta": ("uint256", "sec"),
+    "timestamp": ("uint256", "sec"),
+    "wei_value": ("uint256", "wei"),
+}
 BUILTIN_CONSTANTS = {
     "EMPTY_BYTES32": ("0x0000000000000000000000000000000000000000000000000000000000000000", "bytes32"),  # NOQA: E501
     "ZERO_ADDRESS": ("0x0000000000000000000000000000000000000000", "address"),
@@ -62,6 +67,7 @@ def generate_builtin_namespace():
 
     get_types()
     add_builtin_units()
+    add_type_aliases()
     add_builtin_constants()
     add_environment_variables()
     add_builtin_functions()
@@ -84,6 +90,11 @@ def get_types():
 
 def add_builtin_units():
     namespace.update({unit.name: unit for unit in BUILTIN_UNITS})
+
+
+def add_type_aliases():
+    for name, typ in TYPE_ALIASES.items():
+        namespace[name] = get_builtin_type(typ)
 
 
 def add_builtin_constants():
