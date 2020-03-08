@@ -110,9 +110,8 @@ def get_function_from_node(node: vy_ast.FunctionDef, visibility: Optional[str] =
             )
         if arg.arg in namespace or arg.arg in arguments:
             raise NamespaceCollision(arg.arg, arg)
-        if value is not None and not isinstance(value, vy_ast.Constant):
-            literal = get_value_from_node(value).literal_value()
-            if literal is None or (isinstance(literal, list) and None in literal):
+        if value is not None and not isinstance(value, (vy_ast.Constant, vy_ast.List)):
+            if not get_value_from_node(value).is_constant:
                 raise ArgumentException("Default value must be literal or constant", value)
 
         var = get_variable_from_nodes(arg.arg, arg.annotation, value)

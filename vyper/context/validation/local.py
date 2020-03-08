@@ -5,10 +5,8 @@ from vyper.context import (
     namespace,
 )
 from vyper.context.definitions import (
-    get_value_from_node,
-)
-from vyper.context.definitions.variable import (
     Variable,
+    get_value_from_node,
     get_variable_from_nodes,
 )
 from vyper.context.types import (
