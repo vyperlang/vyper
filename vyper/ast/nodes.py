@@ -103,8 +103,8 @@ def _node_filter(node, filters):
 
 
 def _sort_nodes(node_iterable):
-    def sortkey(k):
-        return float('inf') if k is not None else k
+    def sortkey(key):
+        return float('inf') if key is None else key
 
     return sorted(
         node_iterable,
