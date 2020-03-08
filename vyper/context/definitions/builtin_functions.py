@@ -359,9 +359,7 @@ class AsUnitlessNumber(BuiltinFunctionDefinition):
             raise InvalidType("Not a value type", node.args[0])
         if not hasattr(value.type, 'unit'):
             raise InvalidType(f"Type '{value.type}' has no unit", node.args[0])
-        return_type = type(value.type)()
-        del return_type.unit
-        return return_type
+        return value.type.get_unitless()
 
 
 class Concat(BuiltinFunctionDefinition):
@@ -453,6 +451,8 @@ class Convert(BuiltinFunctionDefinition):
         if not getattr(initial_type, 'is_value_type', None):
             raise InvalidType(f"Cannot convert type '{initial_type}'", node.args[0])
         target_type = get_builtin_type(node.args[1].id)
+        if hasattr(target_type, 'unit'):
+            target_type = target_type.get_unitless()
         try:
             compare_types(initial_type, target_type, node)
         except TypeMismatch:
