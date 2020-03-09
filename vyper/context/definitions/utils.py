@@ -87,11 +87,19 @@ def _get_type_from_literal(node: vy_ast.Constant):
     return valid_types
 
 
-def get_literal_from_node(node):
+def get_variable_or_raise(node):
+    return _get_or_raise(node, definitions.Variable)
+
+
+def get_literal_or_raise(node):
+    return _get_or_raise(node, definitions.Literal)
+
+
+def _get_or_raise(node, type_):
     definition = get_definition_from_node(node)
 
     for i in (definition if isinstance(definition, (list, tuple)) else (definition,)):
-        if isinstance(i, definitions.Variable):
+        if not isinstance(i, type_):
             raise
 
     return definition
