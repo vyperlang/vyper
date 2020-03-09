@@ -13,7 +13,7 @@ from vyper.context import (
     namespace,
 )
 from vyper.context.definitions.utils import (
-    get_value_from_node,
+    get_definition_from_node,
 )
 from vyper.context.types import (
     bases,
@@ -184,12 +184,12 @@ def get_type_from_node(node: vy_ast.VyperNode):
             return get_type_from_operation(node)
 
         if isinstance(node, vy_ast.Call):
-            var = get_value_from_node(node.func)
+            var = get_definition_from_node(node.func)
             return var.get_call_return_type(node)
     except AttributeError:
         raise StructureException(f"Invalid action for type: {node.ast_type}", node)
 
-    var = get_value_from_node(node)
+    var = get_definition_from_node(node)
     if var is None:
         raise StructureException(f"{node.ast_type} did not return a value", node)
     return var.type

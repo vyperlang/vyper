@@ -9,10 +9,11 @@ from vyper.context.definitions.bases import (
     BaseDefinition,
 )
 from vyper.context.definitions.utils import (
-    get_value_from_node,
+    get_definition_from_node,
 )
 from vyper.context.types import (
     compare_types,
+    get_builtin_type,
     get_type_from_annotation,
     get_type_from_node,
 )
@@ -43,45 +44,89 @@ def get_variable_from_nodes(
     Variable object.
     """
 
-    kwargs = {}
+    is_public = False
+    if isinstance(annotation, vy_ast.Call):
+        if annotation.func.id == "constant":
+            return _from_constant(name, annotation.args[0], value)
+        elif annotation.func.id == "public":
+            is_public = True
+            annotation = annotation.args[0]
+        else:
+            raise
 
-    node = annotation
-    while isinstance(node, vy_ast.Call) and node.func.id in ("constant", "public"):
-        if annotation.enclosing_scope != "module":
-            raise VariableDeclarationException(
-                f"Only module-scoped variables can be {node.func.id}", node
-            )
-        kwargs[f"is_{node.func.id}"] = True
-        node = node.args[0]
-
-    if 'is_constant' in kwargs and 'is_public' in kwargs:
-        raise VariableDeclarationException("Variable cannot be constant and public", annotation)
-
-    var_type = get_type_from_annotation(node)
+    var_type = get_type_from_annotation(annotation)
 
     if value:
         value_type = get_type_from_node(value)
         compare_types(var_type, value_type, value)
-        if 'is_constant' in kwargs:
-            kwargs['value'] = get_value_from_node(value)
 
-    var = Variable(name, var_type, **kwargs)
+    return Variable(name, var_type, is_public)
 
-    if kwargs.get('is_constant'):
-        literal = var.literal_value()
-        if literal is None or (isinstance(literal, list) and None in literal):
-            raise VariableDeclarationException(
-                "Cannot determine literal value for constant", annotation
-            )
 
-    return var
+def _from_constant(name, annotation, value):
+    var_type = get_type_from_annotation(annotation)
+
+    # TODO should be actual value
+    value = get_definition_from_node(value)
+    if not isinstance(value, Literal):
+        print(type(value))
+        raise
+
+    compare_types(var_type, value.type, value)
+
+    return Literal(var_type, value.value)
 
 
 # TODO
 # split Variable into several classes depending on the underlying type.. ?
 # a MemberVariable could make sense
 
-class Variable(BaseDefinition):
+
+class ValueDefinition(BaseDefinition):
+
+    __slots__ = ('type',)
+
+    def __init__(self, name, var_type):
+        super().__init__(name)
+        self.type = var_type
+
+    def validate_index(self, node):
+        value = get_definition_from_node(node)
+        compare_types(value.type, get_builtin_type({'int128', 'uint256'}), node)
+        if isinstance(value, Literal):
+            if value.value >= len(self.type):
+                raise ArrayIndexException("Array index out of range", node)
+            if value.value < 0:
+                raise ArrayIndexException("Array index cannot use negative integers", node)
+        return value
+
+
+class Literal(ValueDefinition):
+
+    __slots__ = ('value',)
+
+    def __init__(self, var_type, value, name=None):
+        super().__init__(name or f"{var_type} literal", var_type)
+        self.value = value
+
+    def get_index(self, node: vy_ast.Subscript):
+        if not isinstance(self.type, list):
+            raise
+        # TODO actual value
+        value = self.validate_index(node.slice.value)
+
+        if isinstance(value, Variable):
+            type_ = self.type[0]
+            return Variable(self.name, type_)
+        elif isinstance(value, Literal):
+            self.validate_index(value)
+            type_ = self.type[value]
+            return Literal(type_, self.value[value.value])
+        else:
+            raise  # compilerpanic!
+
+
+class Variable(ValueDefinition):
     """
     A variable definition.
 
@@ -107,29 +152,17 @@ class Variable(BaseDefinition):
         Boolean indicating if the variable is public.
     """
 
-    __slots__ = ('value', 'type', 'is_constant', 'is_public', 'members')
+    __slots__ = ('is_public', 'members')
 
     def __init__(
         self,
         name: str,
         var_type,
-        value=None,
-        is_constant: bool = False,
         is_public: bool = False,
     ):
-        super().__init__(name)
-        self.type = var_type
-        self.is_constant = is_constant
+        super().__init__(name, var_type)
         self.is_public = is_public
-        self.value = value
         self.members = {}
-
-        # if the variable is an array, generate Variables for each item within it
-        if value is None and isinstance(var_type, list):
-            self.value = [
-                Variable(f"{name}[{i}]", var_type[i], None, is_constant, is_public)
-                for i in range(len(var_type))
-            ]
 
     def add_member(self, attr, var):
         # allows for adding non-variable objects (events, functions)
@@ -152,32 +185,33 @@ class Variable(BaseDefinition):
         return self.members[name]
 
     def get_index(self, node: vy_ast.Subscript):
-        if isinstance(self.type, list):
-            idx = get_value_from_node(node.slice.value)
-            if isinstance(idx, Variable):
-                # if we cannot determine literal value, set as 0 to return a single type
-                idx = idx.literal_value() or 0
-            if idx >= len(self.type):
-                raise ArrayIndexException("Array index out of range", node.slice)
-            if idx < 0:
-                raise ArrayIndexException("Array index cannot use negative integers", node.slice)
-            return self.value[idx]
-        typ = self.type.get_index_type(node.slice.value)
-        return Variable(self.name, typ, None, self.is_constant, self.is_public)
+        if not isinstance(self.type, list):
+            type_ = self.type.get_index_type(node.slice.value)
+            return Variable(self.name, type_, self.is_public)
 
-    def literal_value(self):
-        """
-        Returns the literal assignment value for this variable.
+        value = self.validate_index(node.slice.value)
+        if isinstance(value, Variable):
+            type_ = self.type[0]
+        elif isinstance(value, Literal):
+            type_ = self.type[value.value]
+        else:
+            print(value, type(value))
+            raise  # compilerpanic!
+        return Variable(self.name, type_, self.is_public)
 
-        If the initial value was not set, this method will return None. If
-        the variable type is an array, the returned value will be an array.
-        """
-        value = self.value
-        while isinstance(value, Variable):
-            value = value.literal_value()
-        if not isinstance(value, list):
-            return value
-        return [i.literal_value() if isinstance(i, Variable) else i for i in value]
+    # def literal_value(self):
+    #     """
+    #     Returns the literal assignment value for this variable.
+
+    #     If the initial value was not set, this method will return None. If
+    #     the variable type is an array, the returned value will be an array.
+    #     """
+    #     value = self.value
+    #     while isinstance(value, Variable):
+    #         value = value.literal_value()
+    #     if not isinstance(value, list):
+    #         return value
+    #     return [i.literal_value() if isinstance(i, Variable) else i for i in value]
 
     def __repr__(self):
         if not hasattr(self, 'value') or self.value is None:
