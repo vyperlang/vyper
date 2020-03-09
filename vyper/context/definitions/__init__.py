@@ -6,9 +6,13 @@ from vyper.context.definitions.function import (  # NOQA: F401
     get_function_from_node,
 )
 from vyper.context.definitions.utils import (  # NOQA: F401
-    get_value_from_node,
+    get_definition_from_node,
+    get_index_value,
+    get_literal_or_raise,
+    get_variable_or_raise,
 )
 from vyper.context.definitions.variable import (  # NOQA: F401
+    Literal,
     Variable,
     get_variable_from_nodes,
 )

@@ -13,10 +13,8 @@ from vyper.context.definitions.bases import (
     FunctionDefinition,
 )
 from vyper.context.definitions.utils import (
-    get_value_from_node,
-)
-from vyper.context.definitions.variable import (
-    Variable,
+    get_definition_from_node,
+    get_literal_or_raise,
 )
 from vyper.context.types import (
     compare_types,
@@ -273,10 +271,10 @@ class Slice(SimpleBuiltinDefinition):
     def get_call_return_type(self, node: vy_ast.Call):
         super().get_call_return_type(node)
 
-        start, length = (get_value_from_node(i) for i in node.args[1:])
-        if not isinstance(start, int) or start < 0:
+        start, length = (get_literal_or_raise(i).value for i in node.args[1:])
+        if start < 0:
             raise InvalidLiteral("Start must be a positive literal integer ", node.args[1])
-        if not isinstance(length, int) or length < 1:
+        if length < 1:
             raise InvalidLiteral(
                 "Length must be a literal integer greater than zero", node.args[2]
             )
@@ -305,9 +303,8 @@ class RawCall(SimpleBuiltinDefinition):
 
     def get_call_return_type(self, node: vy_ast.Call):
         return_type = super().get_call_return_type(node)
-        min_length = get_value_from_node(node.args[2])
-        if isinstance(min_length, Variable):
-            min_length = min_length.literal_value()
+        min_length = get_literal_or_raise(node.args[2]).value
+
         return_type.min_length = min_length
         return return_type
 
@@ -354,7 +351,7 @@ class AsUnitlessNumber(BuiltinFunctionDefinition):
 
     def get_call_return_type(self, node: vy_ast.Call):
         validate_call_args(node, 1)
-        value = get_value_from_node(node.args[0])
+        value = get_definition_from_node(node.args[0])
         if not getattr(getattr(value, 'type', None), 'is_value_type', None):
             raise InvalidType("Not a value type", node.args[0])
         if not hasattr(value.type, 'unit'):

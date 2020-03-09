@@ -9,13 +9,13 @@ from vyper import (
     ast as vy_ast,
 )
 from vyper.context import (
+    definitions,
     namespace,
 )
 from vyper.context.types.units import (
     Unit,
 )
 from vyper.context.utils import (
-    get_index_value,
     validate_call_args,
 )
 from vyper.exceptions import (
@@ -478,7 +478,7 @@ class ArrayValueType(ValueType):
     def from_annotation(cls, node):
         if len(node.get_all_children({'ast_type': "Subscript"}, include_self=True)) > 1:
             raise StructureException("Multidimensional arrays are not supported", node)
-        length = get_index_value(node.get('slice') or node)
+        length = definitions.get_index_value(node.get('slice') or node)
         if length <= 0:
             raise ArrayIndexException("Slice must be greater than 0", node.slice)
 

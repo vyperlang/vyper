@@ -6,6 +6,7 @@ from vyper.context import (
     namespace,
 )
 from vyper.context.definitions import (
+    Literal,
     Variable,
     builtin_functions,
 )
@@ -100,7 +101,7 @@ def add_type_aliases():
 def add_builtin_constants():
     for name, (value, typ) in BUILTIN_CONSTANTS.items():
         typ = get_builtin_type(typ)
-        namespace[name] = Variable(name, typ, value, True)
+        namespace[name] = Literal(typ, value, name)
 
 
 def add_environment_variables():
@@ -109,9 +110,9 @@ def add_environment_variables():
         for k, v in values.items():
             members[k] = get_builtin_type(v)
         typ = bases.EnvironmentVariableType(name, members)
-        namespace[name] = Variable(name, typ, None, True)
+        namespace[name] = Variable(name, typ)
 
-    namespace['self'] = Variable("self", get_builtin_type("address"), None, True)
+    namespace['self'] = Variable("self", get_builtin_type("address"))
 
 
 def add_builtin_functions():

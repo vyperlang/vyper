@@ -10,6 +10,7 @@ from vyper.context.definitions.bases import (
 )
 from vyper.context.definitions.utils import (
     get_definition_from_node,
+    get_literal_or_raise,
 )
 from vyper.context.types import (
     compare_types,
@@ -19,7 +20,6 @@ from vyper.context.types import (
 )
 from vyper.exceptions import (
     ArrayIndexException,
-    VariableDeclarationException,
 )
 
 
@@ -66,15 +66,10 @@ def get_variable_from_nodes(
 def _from_constant(name, annotation, value):
     var_type = get_type_from_annotation(annotation)
 
-    # TODO should be actual value
-    value = get_definition_from_node(value)
-    if not isinstance(value, Literal):
-        print(type(value))
-        raise
-
+    value = get_literal_or_raise(value)
     compare_types(var_type, value.type, value)
 
-    return Literal(var_type, value.value)
+    return Literal(var_type, value.value, name)
 
 
 # TODO
@@ -90,6 +85,7 @@ class ValueDefinition(BaseDefinition):
         super().__init__(name)
         self.type = var_type
 
+    # TODO name is misleading
     def validate_index(self, node):
         value = get_definition_from_node(node)
         compare_types(value.type, get_builtin_type({'int128', 'uint256'}), node)
@@ -112,15 +108,14 @@ class Literal(ValueDefinition):
     def get_index(self, node: vy_ast.Subscript):
         if not isinstance(self.type, list):
             raise
-        # TODO actual value
+
         value = self.validate_index(node.slice.value)
 
         if isinstance(value, Variable):
             type_ = self.type[0]
             return Variable(self.name, type_)
         elif isinstance(value, Literal):
-            self.validate_index(value)
-            type_ = self.type[value]
+            type_ = self.type[value.value]
             return Literal(type_, self.value[value.value])
         else:
             raise  # compilerpanic!
@@ -146,8 +141,6 @@ class Variable(ValueDefinition):
     members : dict
         A dictionary of definitions for members of this variable. Only used if
         the underlying type is a MemberType.
-    is_constant : bool
-        Boolean indicating if the variable is a constant.
     is_public : bool
         Boolean indicating if the variable is public.
     """
@@ -170,6 +163,7 @@ class Variable(ValueDefinition):
             self.type.add_member_types(**{attr: var.type})
         self.members[attr] = var
 
+    # TODO update this based on Variable/Literal changes
     def get_member(self, node: vy_ast.Attribute):
         if isinstance(node, vy_ast.FunctionDef):
             name = node.name
@@ -198,20 +192,6 @@ class Variable(ValueDefinition):
             print(value, type(value))
             raise  # compilerpanic!
         return Variable(self.name, type_, self.is_public)
-
-    # def literal_value(self):
-    #     """
-    #     Returns the literal assignment value for this variable.
-
-    #     If the initial value was not set, this method will return None. If
-    #     the variable type is an array, the returned value will be an array.
-    #     """
-    #     value = self.value
-    #     while isinstance(value, Variable):
-    #         value = value.literal_value()
-    #     if not isinstance(value, list):
-    #         return value
-    #     return [i.literal_value() if isinstance(i, Variable) else i for i in value]
 
     def __repr__(self):
         if not hasattr(self, 'value') or self.value is None:

@@ -14,12 +14,10 @@ from vyper.context import (
 )
 from vyper.context.definitions.utils import (
     get_definition_from_node,
+    get_index_value,
 )
 from vyper.context.types import (
     bases,
-)
-from vyper.context.utils import (
-    get_index_value,
 )
 from vyper.exceptions import (
     InvalidLiteral,

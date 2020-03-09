@@ -8,6 +8,7 @@ from vyper.context import (
     namespace,
 )
 from vyper.context.definitions import (
+    Variable,
     get_event_from_node,
     get_function_from_node,
     get_variable_from_nodes,
@@ -82,17 +83,16 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
         else:
             var = get_variable_from_nodes(name, node.annotation, node.value)
-            if not var.is_constant and node.value:
-                raise VariableDeclarationException(
-                    "Storage variables cannot have an initial value", node.value
-                )
-
-            if var.is_constant:
-                # constants are added to the main namespace
-                namespace[name] = var
-            else:
+            if isinstance(var, Variable):
+                if node.value:
+                    raise VariableDeclarationException(
+                        "Storage variables cannot have an initial value", node.value
+                    )
                 # storage vars are added as members of self
                 namespace["self"].add_member(name, var)
+            else:
+                # constants are added to the main namespace
+                namespace[name] = var
 
     def visit_ClassDef(self, node):
         namespace[node.name] = namespace[node.class_type].get_type(node)
