@@ -6,16 +6,9 @@ from typing import (
 from vyper import (
     ast as vy_ast,
 )
-from vyper.context import (
-    namespace,
-)
-from vyper.context.types import (
-    bases,
-)
 from vyper.exceptions import (
     ArgumentException,
     CompilerPanic,
-    InvalidType,
     StructureException,
 )
 
@@ -85,40 +78,3 @@ def validate_call_args(
             raise ArgumentException("Invalid keyword argument '{key.arg}'", key)
         if isinstance(arg_count, tuple) and kwargs.index(key.arg) < len(node.args)-arg_count[0]:
             raise ArgumentException(f"'{key.arg}' was given as a positional argument", key)
-
-
-def get_index_value(node):
-    """
-    Returns the literal value for a Subscript index.
-
-    Arguments
-    ---------
-    node : Index
-        Vyper ast node from the `slice` member of a Subscript node. Must be an
-        Index object (Vyper does not support Slice or ExtSlice).
-
-    Returns
-    -------
-    Literal integer value.
-    """
-    if not isinstance(node, vy_ast.Index):
-        raise StructureException("Type is missing an index value", node)
-
-    if isinstance(node.value, vy_ast.Int):
-        return node.value.value
-
-    if isinstance(node.value, vy_ast.Name):
-        slice_name = node.value.id
-        length = namespace[slice_name]
-
-        if not length.is_constant:
-            raise InvalidType("Slice must be an integer or constant", node)
-
-        typ = length.type
-        if not isinstance(typ, bases.IntegerType):
-            raise InvalidType(f"Invalid type for Slice: '{typ}'", node)
-        if typ.unit:
-            raise InvalidType(f"Slice value cannot have a unit", node)
-        return length.literal_value()
-
-    raise InvalidType("Slice must be an integer or constant", node)

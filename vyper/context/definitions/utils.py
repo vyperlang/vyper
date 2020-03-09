@@ -11,6 +11,7 @@ from vyper.context.types import (
 from vyper.exceptions import (
     InvalidLiteral,
     InvalidReference,
+    InvalidType,
     StructureException,
 )
 
@@ -92,7 +93,10 @@ def get_variable_or_raise(node):
 
 
 def get_literal_or_raise(node):
-    return _get_or_raise(node, definitions.Literal)
+    value = _get_or_raise(node, definitions.Literal)
+    if isinstance(value, definitions.Literal):
+        return value
+    return definitions.Literal([i.type for i in value], [i.value for i in value])
 
 
 def _get_or_raise(node, type_):
@@ -103,3 +107,29 @@ def _get_or_raise(node, type_):
             raise
 
     return definition
+
+
+def get_index_value(node):
+    """
+    Returns the literal value for a Subscript index.
+
+    Arguments
+    ---------
+    node : Index
+        Vyper ast node from the `slice` member of a Subscript node. Must be an
+        Index object (Vyper does not support Slice or ExtSlice).
+
+    Returns
+    -------
+    Literal integer value.
+    """
+    try:
+        var = get_literal_or_raise(node.value)
+    except:
+        raise InvalidType("Slice must be an integer or constant", node)
+
+    if not getattr(var.type, 'is_integer', False):
+        raise InvalidType(f"Invalid type for Slice: '{var.type}'", node)
+    if getattr(var.type, 'unit', None):
+        raise InvalidType(f"Slice value cannot have a unit", node)
+    return var.value
