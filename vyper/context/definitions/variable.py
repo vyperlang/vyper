@@ -111,7 +111,7 @@ class Literal(ValueDefinition):
 
         if isinstance(value, Variable):
             type_ = self.type[0]
-            return Variable(self.name, type_)
+            return EnvironmentVariable(self.name, type_)
         elif isinstance(value, Literal):
             type_ = self.type[value.value]
             return Literal(type_, self.value[value.value])
@@ -119,7 +119,7 @@ class Literal(ValueDefinition):
             raise  # compilerpanic!
 
 
-class Variable(ValueDefinition):
+class VariableBase(ValueDefinition):
     """
     A variable definition.
 
@@ -163,15 +163,16 @@ class Variable(ValueDefinition):
 
     # TODO update this based on Variable/Literal changes
     def get_member(self, node: vy_ast.Attribute):
+        if isinstance(self.type, list):
+            raise # cannot access member of array type
         if isinstance(node, vy_ast.FunctionDef):
             name = node.name
         else:
             name = node.attr
         if name not in self.members:
             member_type = self.type.get_member_type(node)
-            # is_constant = hasattr(self.type, '_readonly_members')
             if not isinstance(member_type, BaseDefinition):
-                self.members[name] = Variable(name, member_type)
+                self.members[name] = self._get_item_definition(name, member_type)
             else:
                 self.members[name] = member_type
         return self.members[name]
@@ -179,37 +180,49 @@ class Variable(ValueDefinition):
     def get_index(self, node: vy_ast.Subscript):
         if not isinstance(self.type, list):
             type_ = self.type.get_index_type(node.slice.value)
-            return Variable(self.name, type_, self.is_public)
+            return self._get_item_definition(self.name, type_)
 
         value = self.validate_index(node.slice.value)
-        if isinstance(value, Variable):
+        if isinstance(value, VariableBase):
             type_ = self.type[0]
         elif isinstance(value, Literal):
             type_ = self.type[value.value]
         else:
             print(value, type(value))
             raise  # compilerpanic!
-        return Variable(self.name, type_, self.is_public)
+        return self._get_item_definition(self.name, type_)
 
     def __repr__(self):
         if not hasattr(self, 'value') or self.value is None:
             return f"<Variable '{self.name}: {str(self.type)}'>"
         return f"<Variable '{self.name}: {str(self.type)} = {self.value}'>"
 
-    def get_signature(self):
-        return (), self.type
+    def _get_item_definition(self, name, type_):
+        if hasattr(self.type, "_readonly_members"):
+            return EnvironmentVariable(name, type_)
+        return Variable(name, type_)
+
+
+class Variable(VariableBase):
 
     def _compare_signature(self, other):
-        if not (self.is_public and self.name == other.name and not other.arguments):
+        if not (self.is_public and self.name == other.name):
             return False
+        arguments, return_type = self.get_signature()
         try:
-            compare_types(self.type, other.return_type, None, False)
+            compare_types(arguments, other.arguments, None, False)
+            compare_types(return_type, other.return_type, None, False)
         except Exception:
             return False
         return True
 
+    def get_signature(self):
+        if hasattr(self.type, 'get_signature'):
+            return self.type.get_signature()
+        return (), self.type
 
-class EnvironmentVariable(Variable):
+
+class EnvironmentVariable(VariableBase):
 
     def _compare_signature(self, other):
         # environment variables cannot be public

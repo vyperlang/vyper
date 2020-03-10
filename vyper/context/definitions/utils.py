@@ -9,6 +9,7 @@ from vyper.context.types import (
     bases,
 )
 from vyper.exceptions import (
+    ConstancyViolation,
     InvalidLiteral,
     InvalidReference,
     InvalidType,
@@ -88,25 +89,16 @@ def _get_type_from_literal(node: vy_ast.Constant):
     return valid_types
 
 
-def get_variable_or_raise(node):
-    return _get_or_raise(node, definitions.Variable)
-
-
 def get_literal_or_raise(node):
-    value = _get_or_raise(node, definitions.Literal)
+    value = get_definition_from_node(node)
+
+    for i in (value if isinstance(value, (list, tuple)) else (value,)):
+        if type(i) is not definitions.Literal:
+            raise ConstancyViolation("Value must be a literal", node) from None
+
     if isinstance(value, definitions.Literal):
         return value
     return definitions.Literal([i.type for i in value], [i.value for i in value])
-
-
-def _get_or_raise(node, type_):
-    definition = get_definition_from_node(node)
-
-    for i in (definition if isinstance(definition, (list, tuple)) else (definition,)):
-        if not isinstance(i, type_):
-            raise
-
-    return definition
 
 
 def get_index_value(node):

@@ -217,3 +217,10 @@ class MappingType(CompoundType):
         idx_type = get_type_from_node(node)
         compare_types(self.key_type, idx_type, node)
         return self.value_type
+
+    def get_signature(self):
+        arguments = (self.key_type,)
+        if hasattr(self.value_type, 'get_signature'):
+            new_args, return_type = self.value_type.get_signature()
+            return arguments + new_args, return_type
+        return arguments, self.value_type

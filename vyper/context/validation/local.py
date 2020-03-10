@@ -9,7 +9,6 @@ from vyper.context.definitions import (
     get_definition_from_node,
     get_literal_or_raise,
     get_variable_from_nodes,
-    get_variable_or_raise,
 )
 from vyper.context.types import (
     compare_types,
@@ -108,17 +107,24 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if len(node.targets) > 1:
             raise StructureException("Assignment statement must have one target", node.targets[1])
 
-        target_var = get_variable_or_raise(node.targets[0])
+        target_var = get_definition_from_node(node.targets[0])
+        if not isinstance(target_var, Variable):
+            raise ConstancyViolation(
+                f"Cannot assign to {type(target_var).__name__}", node.targets[0]
+            )
 
         value_type = get_type_from_node(node.value)
         compare_types(target_var.type, value_type, node)
 
     def visit_AugAssign(self, node):
-        target_type = get_type_from_node(node.target)
-        target_type.validate_numeric_op(node)
+
+        target_var = get_definition_from_node(node.target)
+        if not isinstance(target_var, Variable):
+            raise ConstancyViolation(f"Cannot modify {type(target_var).__name__}", node.target)
+        target_var.type.validate_numeric_op(node)
 
         value_type = get_type_from_node(node.value)
-        compare_types(target_type, value_type, node)
+        compare_types(target_var.type, value_type, node)
 
     def visit_Raise(self, node):
         if not node.exc:
