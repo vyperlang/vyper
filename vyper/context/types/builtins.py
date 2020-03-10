@@ -2,6 +2,9 @@
 from decimal import (
     Decimal,
 )
+from typing import (
+    Union,
+)
 
 from vyper import (
     ast as vy_ast,
@@ -50,6 +53,11 @@ class BoolType(ValueType):
     def validate_boolean_op(self, node: vy_ast.BoolOp):
         return
 
+    def validate_numeric_op(self, node: Union[vy_ast.UnaryOp, vy_ast.BinOp]):
+        if isinstance(node.op, vy_ast.Not):
+            return
+        super().validate_numeric_op(node)
+
 
 class AddressType(MemberType, ValueType):
     __slots__ = ()
@@ -74,7 +82,7 @@ class AddressType(MemberType, ValueType):
 
     # TODO move this to init, avoid initializing types in namespace
     def get_member_type(self, node: vy_ast.Attribute):
-        if not self.members:
+        if 'balance' not in self.members:
             members = {
                 'balance': type(namespace['uint256'])("wei"),
                 'codehash': type(namespace['bytes32'])(),

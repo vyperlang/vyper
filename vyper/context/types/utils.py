@@ -247,7 +247,7 @@ def _get_unary_op(node):
 
 # x and y, x or y
 def _get_boolean_op(node):
-    node_types = (get_type_from_node(i) for i in node.values)
+    node_types = [get_type_from_node(i) for i in node.values]
     node_types[0].validate_boolean_op(node)
     for typ in node_types[1:]:
         compare_types(node_types[0], typ, node)
