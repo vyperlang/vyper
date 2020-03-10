@@ -74,9 +74,9 @@ def bid(_blindedBid: bytes32):
 
 # Returns a boolean value, `True` if bid placed successfully, `False` otherwise.
 @private
-def placeBid(bidder: address, value: wei_value) -> bool:
+def placeBid(bidder: address, _value: wei_value) -> bool:
     # If bid is less than highest bid, bid fails
-    if (value <= self.highestBid):
+    if (_value <= self.highestBid):
         return False
 
     # Refund the previously highest bidder
@@ -84,7 +84,7 @@ def placeBid(bidder: address, value: wei_value) -> bool:
         self.pendingReturns[self.highestBidder] += self.highestBid
 
     # Place bid successfully and update auction state
-    self.highestBid = value
+    self.highestBid = _value
     self.highestBidder = bidder
 
     return True

@@ -25,9 +25,9 @@ def testEcrecover(h: bytes32, v:uint256, r:uint256, s:uint256) -> address:
 # `@payable` allows functions to receive ether
 @public
 @payable
-def approve(_seq: int128, to: address, value: wei_value, data: bytes[4096], sigdata: uint256[3][5]) -> bytes[4096]:
+def approve(_seq: int128, to: address, _value: wei_value, data: bytes[4096], sigdata: uint256[3][5]) -> bytes[4096]:
     # Throws if the value sent to the contract is less than the sum of the value to be sent
-    assert msg.value >= value
+    assert msg.value >= _value
     # Every time the number of approvals starts at 0 (multiple signatures can be added through the sigdata argument)
     approvals: int128 = 0
     # Starts by combining:
@@ -36,7 +36,7 @@ def approve(_seq: int128, to: address, value: wei_value, data: bytes[4096], sigd
     # 3) The value in wei that will be sent with this transaction.
     # 4) The data to be sent with this transaction (usually data is used to deploy contracts or to call functions on contracts, but you can put whatever you want in it).
     # Takes the keccak256 hash of the combination
-    h: bytes32 = keccak256(concat(convert(_seq, bytes32), convert(to, bytes32), convert(value, bytes32), data))
+    h: bytes32 = keccak256(concat(convert(_seq, bytes32), convert(to, bytes32), convert(_value, bytes32), data))
     # Then we combine the Ethereum Signed message with our previous hash
     # Owners will have to sign the below message
     h2: bytes32 = keccak256(concat(b"\x19Ethereum Signed Message:\n32", h))
@@ -56,7 +56,7 @@ def approve(_seq: int128, to: address, value: wei_value, data: bytes[4096], sigd
     # Increase the number of approved transactions by 1
     self.seq += 1
     # Use raw_call to send the transaction
-    return raw_call(to, data, outsize=4096, gas=3000000, value=value)
+    return raw_call(to, data, outsize=4096, gas=3000000, value=_value)
 
 
 @public
