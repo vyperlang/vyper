@@ -135,6 +135,12 @@ def get_function_from_node(node: vy_ast.FunctionDef, visibility: Optional[str] =
     return ContractFunction(node.name, arguments, arg_count, return_type, visibility, **kwargs)
 
 
+def get_function_from_public_assignment(node):
+    var = get_variable_from_nodes(node.target.id, node.annotation, None)
+    arguments, return_type = var.get_signature()
+    return ContractFunction(var.name, arguments, len(arguments), return_type, "public")
+
+
 class ContractFunction(FunctionDefinition):
     """
     A contract function definition.
@@ -169,10 +175,8 @@ class ContractFunction(FunctionDefinition):
         for key, value in kwargs.items():
             setattr(self, key, value)
 
-    def __eq__(self, other):
-        # TODO use a comparison method instead of __eq__
+    def _compare_signature(self, other):
         if not (  # NOQA: E721
-            isinstance(other, ContractFunction) and
             self.name == other.name and
             self.visibility == other.visibility and
             type(self.return_type) is type(other.return_type) and

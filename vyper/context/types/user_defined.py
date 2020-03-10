@@ -14,6 +14,7 @@ from vyper.context import (
 from vyper.context.definitions import (
     get_function_from_abi,
     get_function_from_node,
+    get_function_from_public_assignment,
 )
 from vyper.context.types.bases import (
     MemberType,
@@ -151,6 +152,10 @@ class InterfaceMetaType(_BaseMetaType):
         for node in base_node.get_children({'ast_type': "FunctionDef"}):
             if "public" in [i.id for i in node.decorator_list]:
                 functions[node.name] = get_function_from_node(node)
+        for node in base_node.get_children(
+            {'ast_type': "AnnAssign", 'annotation.func.id': "public"}
+        ):
+            functions[node.target.id] = get_function_from_public_assignment(node)
         return functions
 
 
@@ -175,7 +180,8 @@ class InterfaceType(MemberType):
         unimplemented = [
             i.name for i in self.members.values() if
             i.name not in namespace['self'].members or
-            namespace['self'].members[i.name] != i
+            not hasattr(namespace['self'].members[i.name], '_compare_signature') or
+            not namespace['self'].members[i.name]._compare_signature(i)
         ]
         if unimplemented:
             raise InterfaceViolation(

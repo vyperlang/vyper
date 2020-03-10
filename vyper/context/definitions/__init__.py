@@ -4,6 +4,7 @@ from vyper.context.definitions.event import (  # NOQA: F401
 from vyper.context.definitions.function import (  # NOQA: F401
     get_function_from_abi,
     get_function_from_node,
+    get_function_from_public_assignment,
 )
 from vyper.context.definitions.utils import (  # NOQA: F401
     get_definition_from_node,

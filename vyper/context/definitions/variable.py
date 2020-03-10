@@ -51,8 +51,6 @@ def get_variable_from_nodes(
         elif annotation.func.id == "public":
             is_public = True
             annotation = annotation.args[0]
-        else:
-            raise
 
     var_type = get_type_from_annotation(annotation)
 
@@ -171,9 +169,9 @@ class Variable(ValueDefinition):
             name = node.attr
         if name not in self.members:
             member_type = self.type.get_member_type(node)
-            is_constant = hasattr(self.type, '_readonly_members')
+            # is_constant = hasattr(self.type, '_readonly_members')
             if not isinstance(member_type, BaseDefinition):
-                self.members[name] = Variable(name, member_type, is_constant=is_constant)
+                self.members[name] = Variable(name, member_type)
             else:
                 self.members[name] = member_type
         return self.members[name]
@@ -197,3 +195,15 @@ class Variable(ValueDefinition):
         if not hasattr(self, 'value') or self.value is None:
             return f"<Variable '{self.name}: {str(self.type)}'>"
         return f"<Variable '{self.name}: {str(self.type)} = {self.value}'>"
+
+    def get_signature(self):
+        return (), self.type
+
+    def _compare_signature(self, other):
+        if not (self.is_public and self.name == other.name and not other.arguments):
+            return False
+        try:
+            compare_types(self.type, other.return_type, None, False)
+        except Exception:
+            return False
+        return True
