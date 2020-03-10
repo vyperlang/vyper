@@ -117,7 +117,7 @@ def get_index_value(node):
     """
     try:
         var = get_literal_or_raise(node.value)
-    except:
+    except ConstancyViolation:
         raise InvalidType("Slice must be an integer or constant", node)
 
     if not getattr(var.type, 'is_integer', False):

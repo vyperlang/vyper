@@ -20,6 +20,7 @@ from vyper.context.types import (
 )
 from vyper.exceptions import (
     ArrayIndexException,
+    InvalidType,
 )
 
 
@@ -164,7 +165,7 @@ class VariableBase(ValueDefinition):
     # TODO update this based on Variable/Literal changes
     def get_member(self, node: vy_ast.Attribute):
         if isinstance(self.type, list):
-            raise # cannot access member of array type
+            raise InvalidType("Array types do not have members", node)
         if isinstance(node, vy_ast.FunctionDef):
             name = node.name
         else:
