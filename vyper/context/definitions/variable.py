@@ -207,3 +207,10 @@ class Variable(ValueDefinition):
         except Exception:
             return False
         return True
+
+
+class EnvironmentVariable(Variable):
+
+    def _compare_signature(self, other):
+        # environment variables cannot be public
+        return False

@@ -13,6 +13,7 @@ from vyper.context.definitions.utils import (  # NOQA: F401
     get_variable_or_raise,
 )
 from vyper.context.definitions.variable import (  # NOQA: F401
+    EnvironmentVariable,
     Literal,
     Variable,
     get_variable_from_nodes,

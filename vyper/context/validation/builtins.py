@@ -6,8 +6,8 @@ from vyper.context import (
     namespace,
 )
 from vyper.context.definitions import (
+    EnvironmentVariable,
     Literal,
-    Variable,
     builtin_functions,
 )
 from vyper.context.types import (
@@ -49,7 +49,7 @@ ENVIRONMENT_VARS = {
         "difficulty": "uint256",
         "number": "uint256",
         "prevhash": "bytes32",
-        "timestamp": "uint256",
+        "timestamp": ("uint256", "sec"),
     },
     "chain": {"id": "uint256"},
     "msg": {  # TODO block msg.sender and msg.value in private methods
@@ -110,9 +110,9 @@ def add_environment_variables():
         for k, v in values.items():
             members[k] = get_builtin_type(v)
         typ = bases.EnvironmentVariableType(name, members)
-        namespace[name] = Variable(name, typ)
+        namespace[name] = EnvironmentVariable(name, typ)
 
-    namespace['self'] = Variable("self", get_builtin_type("address"))
+    namespace['self'] = EnvironmentVariable("self", get_builtin_type("address"))
 
 
 def add_builtin_functions():
