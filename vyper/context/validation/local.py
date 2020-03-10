@@ -7,6 +7,7 @@ from vyper.context import (
 from vyper.context.definitions import (
     Variable,
     get_definition_from_node,
+    get_literal_or_raise,
     get_variable_from_nodes,
     get_variable_or_raise,
 )
@@ -129,12 +130,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if node.msg:
             if not (
                 (isinstance(node.msg, vy_ast.Name) and node.msg.id == "UNREACHABLE") or
-                (isinstance(node.msg, vy_ast.Str) and len(node.msg.value) <= 32)
+                isinstance(node.msg, vy_ast.Str)
             ):
-                raise InvalidType(
-                    "Reason must UNREACHABLE or a string literal of 32 characters or less",
-                    node.msg
-                )
+                raise InvalidType("Reason must UNREACHABLE or a string literal", node.msg)
+
         if isinstance(node.test, (vy_ast.BoolOp, vy_ast.Compare)):
             get_type_from_operation(node)
         elif not isinstance(
@@ -167,7 +166,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         value.get_call_return_type(node)
 
     def visit_If(self, node):
-        self.visit(node.test)
+        test = get_type_from_node(node.test)
+        if not isinstance(test, BoolType):
+            raise StructureException("If test condition must be a boolean", node.test)
         for n in node.body + node.orelse:
             self.visit(n)
 
@@ -203,8 +204,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             target_type = get_type_from_node(args[0])
             if len(args) == 1:
                 # range(10)
-                if not isinstance(args[0], vy_ast.Int):
-                    raise InvalidType("Range argument must be integer", args[0])
+                get_literal_or_raise(args[0])
 
             elif isinstance(args[0], (vy_ast.Name, vy_ast.Call)):
                 # range(x, x + 10)
