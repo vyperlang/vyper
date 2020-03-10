@@ -44,9 +44,11 @@ def get_event_from_node(node: vy_ast.AnnAssign):
     if not isinstance(node.annotation.args[0], vy_ast.Dict):
         raise StructureException("Invalid event declaration syntax", node.annotation.args[0])
     for key, value in zip(node.annotation.args[0].keys, node.annotation.args[0].values):
-        if isinstance(value, vy_ast.Call):
-            if value.func.id != "indexed":
-                raise ArgumentException(f"Invalid keyword '{value.func.id}'", value.func)
+        if isinstance(value, vy_ast.Call) and value.func.id == "indexed":
+
+        # if isinstance(value, vy_ast.Call):
+            # if value.func.id != "indexed":
+            #     raise ArgumentException(f"Invalid keyword '{value.func.id}'", value.func)
             validate_call_args(value, 1)
             indexed.append(True)
             value = value.args[0]
