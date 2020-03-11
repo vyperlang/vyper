@@ -5,6 +5,7 @@ from vyper.context import (
     namespace,
 )
 from vyper.context.definitions import (
+    Literal,
     Variable,
     get_definition_from_node,
     get_literal_or_raise,
@@ -179,27 +180,12 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             self.visit(n)
 
     def visit_For(self, node):
-        # TODO constancy
-        # For needs a detailed spec, some of the limitations here seem inconsistent
+        # TODO For needs a detailed spec, some of the limitations here seem inconsistent
 
         namespace.enter_scope()
 
-        # iteration over a variable
-        if isinstance(node.iter, vy_ast.Name):
-            iter_var = namespace[node.iter.id]
-            if not isinstance(iter_var.type, list):
-                raise InvalidType("Value is not iterable", node.iter)
-            target_type = iter_var.type[0]
-
-        # iteration over a literal list
-        elif isinstance(node.iter, vy_ast.List):
-            iter_values = node.iter.elts
-            if not iter_values:
-                raise StructureException("Cannot iterate empty array", node.iter)
-            target_type = get_type_from_node(node.iter)[0]
-
         # iteration via range()
-        elif isinstance(node.iter, vy_ast.Call):
+        if isinstance(node.iter, vy_ast.Call):
             if node.iter.func.id != "range":
                 raise ConstancyViolation(
                     "Cannot iterate over the result of a function call", node.iter
@@ -212,28 +198,40 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 # range(10)
                 get_literal_or_raise(args[0])
 
-            elif isinstance(args[0], (vy_ast.Name, vy_ast.Call)):
-                # range(x, x + 10)
-                if not hasattr(target_type, 'is_integer'):
-                    raise InvalidType("Value is not an integer", args[0])
-                if not isinstance(args[1], vy_ast.BinOp) or not isinstance(args[1].op, vy_ast.Add):
-                    raise StructureException(
-                        "Second element must be the first element plus a literal value", args[0]
-                    )
-                if args[0] != args[1].left:
-                    raise StructureException(
-                        "First and second variable must be the same", args[1].left
-                    )
-                if not isinstance(args[1].right, vy_ast.Int):
-                    raise InvalidLiteral("Literal must be an integer", args[1].right)
             else:
-                # range(1, 10)
-                if args[0].value >= args[1].value:
-                    raise InvalidLiteral("Second value must be > first value", args[1])
-                # TODO check that args[0] + args[1] doesn't overflow
+                first_var = get_definition_from_node(args[0])
+                if not hasattr(first_var.type, 'is_integer'):
+                    raise InvalidType("Value is not an integer", args[0])
+                if isinstance(first_var, Variable):
+
+                    if (
+                        not isinstance(args[1], vy_ast.BinOp) or
+                        not isinstance(args[1].op, vy_ast.Add)
+                    ):
+                        raise StructureException(
+                            "Second element must be the first element plus a literal value", args[0]
+                        )
+                    if args[0] != args[1].left:
+                        raise StructureException(
+                            "First and second variable must be the same", args[1].left
+                        )
+                    if not isinstance(args[1].right, vy_ast.Int):
+                        raise InvalidLiteral("Literal must be an integer", args[1].right)
+                else:
+                    second_var = get_definition_from_node(args[1])
+                    if not isinstance(second_var, Literal):
+                        raise
+                    if not hasattr(second_var.type, 'is_integer'):
+                        raise InvalidType("Value is not an integer", args[1])
+                    if first_var.value >= second_var.value:
+                        raise InvalidLiteral("Second value must be > first value", args[1])
 
         else:
-            raise StructureException("Invalid syntax for iteration", node.iter)
+            # iteration over a variable or literal list
+            iter_var = get_definition_from_node(node.iter)
+            if not isinstance(iter_var.type, list):
+                raise InvalidType("Value is not iterable", node.iter)
+            target_type = iter_var.type[0]
 
         var = Variable(node.target.id, target_type)
         namespace[node.target.id] = var
