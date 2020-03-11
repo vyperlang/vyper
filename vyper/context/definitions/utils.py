@@ -34,8 +34,13 @@ def get_definition_from_node(node: vy_ast.VyperNode):
     """
     # TODO return a single item instead of a sequence
     if isinstance(node, (vy_ast.List, vy_ast.Tuple)):
-        # TODO validate that all types are like?
+        if not node.elts:
+            raise InvalidLiteral(f"Cannot have empty {node.ast_type}", node)
+
         value = [get_definition_from_node(node.elts[i]) for i in range(len(node.elts))]
+        if isinstance(node, vy_ast.List):
+            for i in value[1:]:
+                utils.compare_types(value[0].type, i.type, node)
         if next((i for i in value if isinstance(i, definitions.Variable)), None):
             return definitions.Variable("", [i.type for i in value])
         if next((i for i in value if isinstance(i, definitions.EnvironmentVariable)), None):
