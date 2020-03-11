@@ -30,11 +30,19 @@ def get_definition_from_node(node: vy_ast.VyperNode):
     -------
     A literal value, definition object, or sequence composed of one or both types.
     """
-    if isinstance(node, vy_ast.List):
+    # TODO return a single item instead of a sequence
+    if isinstance(node, (vy_ast.List, vy_ast.Tuple)):
         # TODO validate that all types are like?
-        return [get_definition_from_node(node.elts[i]) for i in range(len(node.elts))]
-    if isinstance(node, vy_ast.Tuple):
-        return tuple(get_definition_from_node(node.elts[i]) for i in range(len(node.elts)))
+        value = [get_definition_from_node(node.elts[i]) for i in range(len(node.elts))]
+        if next((i for i in value if isinstance(i, definitions.Variable)), None):
+            return definitions.Variable("", [i.type for i in value])
+        if next((i for i in value if isinstance(i, definitions.EnvironmentVariable)), None):
+            return definitions.EnvironmentVariable("", [i.type for i in value])
+        invalid = next((i for i in value if not isinstance(i, definitions.Literal)), None)
+        if invalid:
+            node = node.elts[value.index(invalid)]
+            raise StructureException(f"Invalid type for sequence: {type(invalid).__name__}", node)
+        return definitions.Literal([i.type for i in value], [i.value for i in value])
 
     if isinstance(node, vy_ast.Constant):
         type_ = _get_type_from_literal(node)
@@ -64,7 +72,7 @@ def get_definition_from_node(node: vy_ast.VyperNode):
 
     # TODO folding
 
-    raise StructureException(f"Unsupported node type for get_value: {node.ast_type}", node)
+    raise StructureException(f"Cannot get definition from {node.ast_type}", node)
 
 
 def _get_type_from_literal(node: vy_ast.Constant):

@@ -17,7 +17,7 @@ from vyper.context.definitions.bases import (
     FunctionDefinition,
 )
 from vyper.context.definitions.utils import (
-    get_literal_or_raise,
+    get_definition_from_node,
 )
 from vyper.context.definitions.variable import (
     Variable,
@@ -113,7 +113,8 @@ def get_function_from_node(node: vy_ast.FunctionDef, visibility: Optional[str] =
         if arg.arg in namespace or arg.arg in arguments:
             raise NamespaceCollision(arg.arg, arg)
         if value is not None:
-            get_literal_or_raise(value)
+            if isinstance(get_definition_from_node(value), Variable):
+                raise ArgumentException("Must be a literal or constant", value)
 
         var = get_variable_from_nodes(arg.arg, arg.annotation, value)
         arguments[arg.arg] = var

@@ -16,11 +16,12 @@ from vyper.context.types import (
     compare_types,
     get_builtin_type,
     get_type_from_annotation,
-    get_type_from_node,
 )
 from vyper.exceptions import (
     ArrayIndexException,
+    InvalidLiteral,
     InvalidType,
+    TypeMismatch,
 )
 
 
@@ -56,8 +57,13 @@ def get_variable_from_nodes(
     var_type = get_type_from_annotation(annotation)
 
     if value:
-        value_type = get_type_from_node(value)
-        compare_types(var_type, value_type, value)
+        value_var = get_definition_from_node(value)
+        try:
+            compare_types(var_type, value_var.type, value)
+        except TypeMismatch as e:
+            if isinstance(value_var, Literal):
+                raise InvalidLiteral(f"Invalid literal value for {var_type}", value) from e
+            raise e
 
     return Variable(name, var_type, is_public)
 
@@ -84,8 +90,7 @@ class ValueDefinition(BaseDefinition):
         super().__init__(name)
         self.type = var_type
 
-    # TODO name is misleading
-    def validate_index(self, node):
+    def _get_index_value(self, node):
         value = get_definition_from_node(node)
         compare_types(value.type, get_builtin_type({'int128', 'uint256'}), node)
         if isinstance(value, Literal):
@@ -108,8 +113,7 @@ class Literal(ValueDefinition):
         if not isinstance(self.type, list):
             raise
 
-        value = self.validate_index(node.slice.value)
-
+        value = self._get_index_value(node.slice.value)
         if isinstance(value, Variable):
             type_ = self.type[0]
             return EnvironmentVariable(self.name, type_)
@@ -162,7 +166,6 @@ class VariableBase(ValueDefinition):
             self.type.add_member_types(**{attr: var.type})
         self.members[attr] = var
 
-    # TODO update this based on Variable/Literal changes
     def get_member(self, node: vy_ast.Attribute):
         if isinstance(self.type, list):
             raise InvalidType("Array types do not have members", node)
@@ -183,7 +186,7 @@ class VariableBase(ValueDefinition):
             type_ = self.type.get_index_type(node.slice.value)
             return self._get_item_definition(self.name, type_)
 
-        value = self.validate_index(node.slice.value)
+        value = self._get_index_value(node.slice.value)
         if isinstance(value, VariableBase):
             type_ = self.type[0]
         elif isinstance(value, Literal):
@@ -191,6 +194,7 @@ class VariableBase(ValueDefinition):
         else:
             print(value, type(value))
             raise  # compilerpanic!
+
         return self._get_item_definition(self.name, type_)
 
     def __repr__(self):
