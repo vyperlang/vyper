@@ -181,19 +181,21 @@ class ContractFunction(FunctionDefinition):
             self.name == other.name and
             self.visibility == other.visibility and
             type(self.return_type) is type(other.return_type) and
-            list(self.arguments) == list(other.arguments)
+            len(self.arguments) == len(other.arguments)
         ):
             return False
-        if self.return_type:
-            try:
+
+        try:
+            if self.arguments:
+                other_args = other.arguments
+                if isinstance(other_args, dict):
+                    other_args = [i.type for i in other_args.values()]
+                compare_types([i.type for i in self.arguments.values()], other_args, None, False)
+            if self.return_type:
                 compare_types(self.return_type, other.return_type, None, False)
-            except Exception:
-                return False
-        for key in self.arguments:
-            try:
-                compare_types(self.arguments[key].type, other.arguments[key].type, None, False)
-            except Exception:
-                return False
+        except Exception:
+            return False
+
         return True
 
     def get_call_return_type(self, node: vy_ast.Call):

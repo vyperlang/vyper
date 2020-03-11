@@ -211,12 +211,24 @@ class VariableBase(ValueDefinition):
 class Variable(VariableBase):
 
     def _compare_signature(self, other):
-        if not (self.is_public and self.name == other.name):
-            return False
         arguments, return_type = self.get_signature()
+
+        if not (  # NOQA: E721
+            self.is_public and
+            self.name == other.name and
+            len(arguments) == len(other.arguments) and
+            type(return_type) is type(other.return_type)
+        ):
+            return False
+
         try:
-            compare_types(arguments, other.arguments, None, False)
-            compare_types(return_type, other.return_type, None, False)
+            if arguments:
+                other_args = other.arguments
+                if isinstance(other_args, dict):
+                    other_args = [i.type for i in other_args.values()]
+                compare_types(arguments, other_args, None, False)
+            if return_type:
+                compare_types(return_type, other.return_type, None, False)
         except Exception:
             return False
         return True
