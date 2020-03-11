@@ -144,7 +144,7 @@ def get_type_from_annotation(node: vy_ast.VyperNode):
 
     if getattr(type_obj, '_as_array', False) and isinstance(node, vy_ast.Subscript):
         length = get_index_value(node.slice)
-        return [type_obj.from_annotation(node.value)] * length
+        return [get_type_from_annotation(node.value)] * length
     else:
         return type_obj.from_annotation(node)
 
