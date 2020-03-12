@@ -622,6 +622,7 @@ class ClassDef(VyperNode):
 
 class Raise(VyperNode):
     __slots__ = ('exc', )
+    _only_empty_fields = ('cause', )
 
 
 class Slice(VyperNode):
