@@ -326,6 +326,9 @@ def annotate_source_code(
 
     :return: A string containing the annotated source code location.
     """
+    if lineno is None:
+        return ""
+
     source_lines = source_code.splitlines(keepends=True)
     if lineno < 1 or lineno > len(source_lines):
         raise ValueError('Line number is out of range')
