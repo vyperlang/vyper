@@ -9,7 +9,7 @@ from vyper.exceptions import (
     InvalidLiteral,
     NonPayableViolation,
     StructureException,
-    TypeMismatch,
+    UndeclaredDefinition,
 )
 
 
@@ -253,7 +253,7 @@ x: int128
 
 @public
 def foo(xx: int128, y: int128 = xx): pass
-    """, FunctionDeclarationException),
+    """, UndeclaredDefinition),
     ("""
 # value out of range for uint256
 @public
@@ -273,17 +273,17 @@ def foo(a: uint256[2] = [13, -42]): pass
 # value out of range for int128 array
 @public
 def foo(a: int128[2] = [12, 170141183460469231731687303715884105728]): pass
-    """, TypeMismatch),
+    """, InvalidLiteral),
     ("""
 # array type mismatch
 @public
 def foo(a: uint256[2] = [12, True]): pass
-    """, TypeMismatch),
+    """, InvalidLiteral),
     ("""
 # wrong length
 @public
 def foo(a: uint256[2] = [1, 2, 3]): pass
-    """, TypeMismatch),
+    """, InvalidLiteral),
     ("""
 # default params must be literals
 x: uint256
@@ -297,7 +297,7 @@ x: uint256
 
 @public
 def foo(a: uint256[2] = [2, self.x]): pass
-     """, FunctionDeclarationException),
+     """, ArgumentException),
     ("""
 # default params still must be literals
 @public
@@ -306,7 +306,7 @@ def foo(a: uint256 = 2**8): pass
     ("""
 # msg.value in a nonpayable
 @public
-def foo(a: uint256 = msg.value): pass
+def foo(a: uint256(wei) = msg.value): pass
 """, NonPayableViolation),
     ("""
 # msg.sender in a private function

@@ -57,10 +57,10 @@ def to_bytes32(_value: uint256) -> bytes32:
 @public
 def test_func(_value: uint256,input: bytes[133]):
 
-    data2: bytes[200] = "hello world"
+    data2: bytes[200] = b"hello world"
 
     # log.TestLog(self.to_bytes32(_value),input,self.to_bytes(_value))
-    log.TestLog(self.to_bytes32(_value),input,"bababa")
+    log.TestLog(self.to_bytes32(_value),input,b"bababa")
     """
 
     c = get_contract(code)

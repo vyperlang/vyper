@@ -9,7 +9,7 @@ from vyper.compiler import (
 )
 from vyper.exceptions import (
     ArgumentException,
-    StructureException,
+    CallViolation,
 )
 
 
@@ -165,7 +165,7 @@ def _hardtest(x: bytes[100], y: int128, z: int128, a: bytes[100], b: int128, c: 
 @public
 def return_mongoose_revolution_32_excls() -> bytes[201]:
     self._set_excls(b"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-    return self._hardtest("megamongoose123", 4, 8, concat(b"russian revolution", self.excls), 8, 42)
+    return self._hardtest(b"megamongoose123", 4, 8, concat(b"russian revolution", self.excls), 8, 42)
     """
 
     c = get_contract_with_gas_estimation(selfcall_code_6)
@@ -390,7 +390,43 @@ def bar() -> (bytes[11], decimal, int128):
     assert c.bar() == [b"hello world", Decimal('66.77'), 44]
 
 
-FAILING_CONTRACTS_STRUCTURE_EXCEPTION = [
+FAILING_CONTRACTS_CALL_VIOLATION = [
+    """
+# should not compile - public to public
+@public
+def bar() -> int128:
+    return 1
+
+@public
+def foo() -> int128:
+    return self.bar()
+    """,
+    """
+# should not compile - private to public
+@public
+def bar() -> int128:
+    return 1
+
+@private
+def _baz() -> int128:
+    return self.bar()
+
+@public
+def foo() -> int128:
+    return self._baz()
+    """
+]
+
+
+@pytest.mark.parametrize('failing_contract_code', FAILING_CONTRACTS_CALL_VIOLATION)
+def test_selfcall_call_violation(failing_contract_code, assert_compile_failed):
+    assert_compile_failed(
+        lambda: compile_code(failing_contract_code),
+        CallViolation
+    )
+
+
+FAILING_CONTRACTS_ARGUMENT_EXCEPTION = [
     """
 # expected no args, args given
 @private
@@ -421,38 +457,14 @@ def bar(a: int128) -> int128:
 def foo() -> int128:
     return self.bar(1, 2)
     """,
-    """
-# should not compile - public to public
-@public
-def bar() -> int128:
-    return 1
-
-@public
-def foo() -> int128:
-    return self.bar()
-    """,
-    """
-# should not compile - private to public
-@public
-def bar() -> int128:
-    return 1
-
-@private
-def _baz() -> int128:
-    return self.bar()
-
-@public
-def foo() -> int128:
-    return self._baz()
-    """
 ]
 
 
-@pytest.mark.parametrize('failing_contract_code', FAILING_CONTRACTS_STRUCTURE_EXCEPTION)
+@pytest.mark.parametrize('failing_contract_code', FAILING_CONTRACTS_ARGUMENT_EXCEPTION)
 def test_selfcall_wrong_arg_count(failing_contract_code, assert_compile_failed):
     assert_compile_failed(
         lambda: compile_code(failing_contract_code),
-        StructureException
+        ArgumentException
     )
 
 
@@ -505,5 +517,5 @@ def bar():
 def test_selfcall_kwarg_raises(failing_contract_code, decorator, assert_compile_failed):
     assert_compile_failed(
         lambda: compile_code(failing_contract_code.format(decorator)),
-        ArgumentException,
+        ArgumentException if decorator == "private" else CallViolation,
     )
