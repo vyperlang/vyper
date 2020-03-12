@@ -8,6 +8,7 @@ from vyper import (
 )
 from vyper.exceptions import (
     StructureException,
+    SyntaxException,
 )
 
 fail_list = [
@@ -148,18 +149,6 @@ def foo() -> int128:
     return self.q
     """,
     """
-b: map(int128, bytes32)
-@public
-def foo():
-    del self.b[0], self.b[1]
-    """,
-    """
-@public
-def foo():
-    b: int128
-    del b
-    """,
-    """
 contract F:
     def foo(): constant
 struct S:
@@ -198,4 +187,26 @@ def double_nonreentrant():
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_invalid_type_exception(bad_code):
     with raises(StructureException):
+        compiler.compile_code(bad_code)
+
+
+del_fail_list = [
+    """
+b: map(int128, bytes32)
+@public
+def foo():
+    del self.b[0], self.b[1]
+    """,
+    """
+@public
+def foo():
+    b: int128
+    del b
+    """,
+]
+
+
+@pytest.mark.parametrize('bad_code', del_fail_list)
+def test_syntax_exception(bad_code):
+    with raises(SyntaxException):
         compiler.compile_code(bad_code)

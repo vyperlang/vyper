@@ -78,7 +78,6 @@ class Stmt(object):
             vy_ast.Break: self.parse_break,
             vy_ast.Continue: self.parse_continue,
             vy_ast.Return: self.parse_return,
-            vy_ast.Delete: self.parse_delete,
             vy_ast.Name: self.parse_name,
             vy_ast.Raise: self.parse_raise,
         }
@@ -963,12 +962,6 @@ class Stmt(object):
 
         else:
             raise TypeMismatch(f"Can't return type {sub.typ}", self.stmt)
-
-    def parse_delete(self):
-        raise StructureException(
-            "Deleting is not supported, use built-in `clear()` function.",
-            self.stmt
-        )
 
     def get_target(self, target):
         # Check if we are doing assignment of an iteration loop.

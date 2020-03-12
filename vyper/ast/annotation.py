@@ -107,6 +107,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         if is_sub and is_num:
             node.operand.n = 0 - node.operand.n
             node.operand.col_offset = node.col_offset
+            node.operand.node_source_code = node.node_source_code
             return node.operand
         else:
             return node

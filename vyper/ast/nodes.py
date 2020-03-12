@@ -1,6 +1,10 @@
 import ast as python_ast
+import decimal
 import sys
-import typing
+from typing import (
+    Optional,
+    Union,
+)
 
 from vyper.exceptions import (
     SyntaxException,
@@ -26,12 +30,13 @@ BASE_NODE_ATTRIBUTES = (
     'node_source_code',
     'src',
 )
+
 DICT_AST_SKIPLIST = ('full_source_code', 'node_source_code')
 
 
 def get_node(
-    ast_struct: typing.Union[typing.Dict, python_ast.AST],
-    parent: typing.Optional["VyperNode"] = None
+    ast_struct: Union[dict, python_ast.AST],
+    parent: Optional["VyperNode"] = None
 ) -> "VyperNode":
     """
     Converts an AST structure to a vyper AST node.
@@ -55,16 +60,19 @@ def get_node(
         ast_struct = ast_struct.__dict__
 
     vy_class = getattr(sys.modules[__name__], ast_struct['ast_type'], None)
+    if vy_class:
+        return vy_class(parent=parent, **ast_struct)
 
-    if vy_class is None:
+    err_args = (ast_struct['full_source_code'], ast_struct['lineno'], ast_struct['col_offset'])
+    if ast_struct['ast_type'] == "Delete":
+        raise SyntaxException("Deleting is not supported, use built-in clear() function", *err_args)
+    elif ast_struct['ast_type'] in ("ExtSlice", "Slice"):
+        raise SyntaxException("Vyper does not support slicing", *err_args)
+    else:
         raise SyntaxException(
-            f"Invalid syntax (unsupported '{ast_struct['ast_type']}' Python AST node).",
-            ast_struct['full_source_code'],
-            ast_struct['lineno'],
-            ast_struct['col_offset'],
+            f"Invalid syntax (unsupported '{ast_struct['ast_type']}' Python AST node)",
+            *err_args,
         )
-
-    return vy_class(parent=parent, **ast_struct)
 
 
 def _to_node(value, parent):
@@ -79,29 +87,53 @@ def _to_dict(value):
     return value
 
 
+def _node_filter(node, filters):
+    # recursive equality check for VyperNode.get_children filters
+    for key, value in filters.items():
+        if isinstance(value, set):
+            if node.get(key) not in value:
+                return False
+        elif node.get(key) != value:
+            return False
+    return True
+
+
+def _sort_nodes(node_iterable):
+    def sortkey(key):
+        return float('inf') if key is None else key
+
+    return sorted(
+        node_iterable,
+        key=lambda k: (sortkey(k.lineno), sortkey(k.col_offset), k.node_id),
+    )
+
+
 class VyperNode:
     """
     Base class for all vyper AST nodes.
 
     Vyper nodes are generated from, and closely resemble, their python counterparts.
 
-    Attributes
-    ----------
+    Object Attributes
+    -----------------
     __slots__ : Tuple
         Allowed field names for the node.
-    _only_empty_fields : Tuple
+    _description : str, optional
+        A human-readable description of the node. Used to give more verbose error
+        messages.
+    _only_empty_fields : Tuple, optional
         Field names that, if present, must be set to None or a SyntaxException is
         raised. This attribute is used to exclude syntax that is valid in python
         but not in vyper.
-    _translated_fields:
+    _translated_fields : Dict, optional
         Field names that should be reassigned if encountered. Used to normalize
         fields across different python versions.
     """
     __slots__ = BASE_NODE_ATTRIBUTES
-    _only_empty_fields: typing.Tuple = ()
-    _translated_fields: typing.Dict = {}
+    _only_empty_fields: tuple = ()
+    _translated_fields: dict = {}
 
-    def __init__(self, parent: typing.Optional["VyperNode"] = None, **kwargs: dict):
+    def __init__(self, parent: Optional["VyperNode"] = None, **kwargs: dict):
         """
         AST node initializer method.
 
@@ -168,15 +200,19 @@ class VyperNode:
 
         return f'{class_repr}:\n{source_annotation}'
 
+    @property
+    def description(self):
+        return getattr(self, '_description', type(self).__name__)
+
     @classmethod
-    def get_slots(cls) -> typing.Set:
+    def get_slots(cls) -> set:
         """
         Returns a set of field names for this node.
         """
         slot_fields = [x for i in cls.__mro__ for x in getattr(i, '__slots__', [])]
         return set(i for i in slot_fields if not i.startswith('_'))
 
-    def to_dict(self) -> typing.Dict:
+    def to_dict(self) -> dict:
         """
         Returns the node as a dict. All child nodes are also converted.
         """
@@ -188,6 +224,86 @@ class VyperNode:
             else:
                 ast_dict[key] = _to_dict(value)
         return ast_dict
+
+    def get_children(self, filters: Optional[dict] = None) -> list:
+        """
+        Returns direct childen of this node that match the given filter.
+
+        Parameters
+        ----------
+        filters : dict, optional
+            Dictionary of attribute names and expected values. Only nodes that
+            contain the given attributes and match the given values are returned.
+            * You can use dots within the name in order to check members of members.
+              e.g. {'annotation.func.id': "constant"}
+            * Expected values may be given as a set, in order to match a node must
+              contain the given attribute and match any one value within the set.
+              e.g. {'ast_type': {'BinOp', 'UnaryOp'}} will match both BinOp and
+                   UnaryOp nodes.
+
+        Returns
+        -------
+        list
+            Child nodes matching the filter conditions, sorted by source offset.
+        """
+        children = _sort_nodes(self._children)
+        if filters is None:
+            return children
+        return [i for i in children if _node_filter(i, filters)]
+
+    def get_all_children(
+        self, filters: Optional[dict] = None, include_self: Optional[bool] = False
+    ) -> list:
+        """
+        Returns direct and indirect childen of this node that match the given filter.
+
+        Parameters
+        ----------
+        filters : dict, optional
+            Dictionary of attribute names and expected values. Only nodes that
+            contain the given attributes and match the given values are returned.
+            * You can use dots within the name in order to check members of members.
+              e.g. {'annotation.func.id': "constant"}
+            * Expected values may be given as a set, in order to match a node must
+              contain the given attribute and match any one value within the set.
+              e.g. {'ast_type': {'BinOp', 'UnaryOp'}} will match both BinOp and
+                   UnaryOp nodes.
+        include_self : bool, optional
+            If True, this node is also included in the search results if it matches
+            the given filter.
+
+        Returns
+        -------
+        list
+            Child nodes matching the filter conditions, sorted by source offset.
+        """
+
+        children = self.get_children(filters)
+        for node in self.get_children():
+            children.extend(node.get_all_children(filters))
+        if include_self and _node_filter(self, filters):
+            children.append(self)
+        return _sort_nodes(children)
+
+    def get(self, field_str: str) -> Optional["VyperNode"]:
+        """
+        Recursive getter function for node attributes.
+
+        Parameters
+        ----------
+        field_str : str
+            Attribute string of the location of the node to return.
+
+        Returns
+        -------
+        VyperNode : optional
+            Value at the location of the given field string, if one
+            exists. Returns None if the field string is invalid.
+        """
+        obj = self
+        for key in field_str.split("."):
+            obj = getattr(obj, key, None)
+        return obj
 
 
 class Module(VyperNode):
@@ -275,10 +391,18 @@ class Bytes(Constant):
     __slots__ = ('s', )
     _translated_fields = {'value': 's'}
 
+    @property
+    def value(self):
+        return self.s
+
 
 class Str(Constant):
     __slots__ = ('s', )
     _translated_fields = {'value': 's'}
+
+    @property
+    def value(self):
+        return self.s
 
 
 class Num(Constant):
@@ -291,21 +415,41 @@ class Num(Constant):
 class Int(Num):
     __slots__ = ()
 
+    @property
+    def value(self):
+        return self.n
+
 
 class Decimal(Num):
     __slots__ = ()
+
+    @property
+    def value(self):
+        return decimal.Decimal(self.node_source_code)
 
 
 class Hex(Num):
     __slots__ = ()
 
+    @property
+    def value(self):
+        return self.node_source_code
+
 
 class Binary(Num):
     __slots__ = ()
 
+    @property
+    def value(self):
+        return self.node_source_code
+
 
 class Octal(Num):
     __slots__ = ()
+
+    @property
+    def value(self):
+        return self.node_source_code
 
 
 class Attribute(VyperNode):
@@ -339,26 +483,32 @@ class Dict(VyperNode):
 
 class Add(VyperNode):
     __slots__ = ()
+    _description = "addition"
 
 
 class Sub(VyperNode):
     __slots__ = ()
+    _description = "subtraction"
 
 
 class Mult(VyperNode):
     __slots__ = ()
+    _description = "multiplication"
 
 
 class Div(VyperNode):
     __slots__ = ()
+    _description = "division"
 
 
 class Mod(VyperNode):
     __slots__ = ()
+    _description = "modulus"
 
 
 class Pow(VyperNode):
     __slots__ = ()
+    _description = "exponentiation"
 
 
 class In(VyperNode):
@@ -367,26 +517,32 @@ class In(VyperNode):
 
 class Gt(VyperNode):
     __slots__ = ()
+    _description = "greater than"
 
 
 class GtE(VyperNode):
     __slots__ = ()
+    _description = "greater-or-equal"
 
 
 class LtE(VyperNode):
     __slots__ = ()
+    _description = "less-or-equal"
 
 
 class Lt(VyperNode):
     __slots__ = ()
+    _description = "less than"
 
 
 class Eq(VyperNode):
     __slots__ = ()
+    _description = "equality"
 
 
 class NotEq(VyperNode):
     __slots__ = ()
+    _description = "non-equality"
 
 
 class And(VyperNode):
@@ -403,10 +559,12 @@ class Not(VyperNode):
 
 class USub(VyperNode):
     __slots__ = ()
+    _description = "in-place subtraction"
 
 
 class UAdd(VyperNode):
     __slots__ = ()
+    _description = "in-place addition"
 
 
 class Expr(VyperNode):
@@ -454,10 +612,6 @@ class Return(VyperNode):
     __slots__ = ('value', )
 
 
-class Delete(VyperNode):
-    __slots__ = ('targets', )
-
-
 class stmt(VyperNode):
     __slots__ = ()
 
@@ -468,10 +622,7 @@ class ClassDef(VyperNode):
 
 class Raise(VyperNode):
     __slots__ = ('exc', )
-
-
-class Slice(VyperNode):
-    _only_empty_fields = ('lower', )
+    _only_empty_fields = ('cause', )
 
 
 class alias(VyperNode):
