@@ -322,26 +322,6 @@ class Module(VyperNode):
         return obj in self.body
 
 
-class Name(VyperNode):
-    __slots__ = ('id', )
-
-
-class Subscript(VyperNode):
-    __slots__ = ('slice', 'value')
-
-
-class Index(VyperNode):
-    __slots__ = ('value', )
-
-
-class arg(VyperNode):
-    __slots__ = ('arg', 'annotation')
-
-
-class Tuple(VyperNode):
-    __slots__ = ('elts', )
-
-
 class FunctionDef(VyperNode):
     __slots__ = ('args', 'body', 'returns', 'name', 'decorator_list', 'pos', 'doc_string')
 
@@ -362,47 +342,21 @@ class arguments(VyperNode):
     _only_empty_fields = ('vararg', 'kwonlyargs', 'kwarg', 'kw_defaults')
 
 
-class Import(VyperNode):
-    __slots__ = ('names', )
+class arg(VyperNode):
+    __slots__ = ('arg', 'annotation')
 
 
-class Call(VyperNode):
-    __slots__ = ('func', 'args', 'keywords', 'keyword')
+class Return(VyperNode):
+    __slots__ = ('value', )
 
 
-class keyword(VyperNode):
-    __slots__ = ('arg', 'value')
-
-
-class Compare(VyperNode):
-    __slots__ = ('comparators', 'ops', 'left', 'right')
+class ClassDef(VyperNode):
+    __slots__ = ('class_type', 'name', 'body')
 
 
 class Constant(VyperNode):
     # inherited class for all simple constant node types
     __slots__ = ()
-
-
-class NameConstant(Constant):
-    __slots__ = ('value', )
-
-
-class Bytes(Constant):
-    __slots__ = ('s', )
-    _translated_fields = {'value': 's'}
-
-    @property
-    def value(self):
-        return self.s
-
-
-class Str(Constant):
-    __slots__ = ('s', )
-    _translated_fields = {'value': 's'}
-
-    @property
-    def value(self):
-        return self.s
 
 
 class Num(Constant):
@@ -452,33 +406,68 @@ class Octal(Num):
         return self.node_source_code
 
 
-class Attribute(VyperNode):
-    __slots__ = ('attr', 'value',)
+class Str(Constant):
+    __slots__ = ('s', )
+    _translated_fields = {'value': 's'}
+
+    @property
+    def value(self):
+        return self.s
 
 
-class Op(VyperNode):
-    # inherited class for all operation node types
-    __slots__ = ('op', 'left', 'right')
+class Bytes(Constant):
+    __slots__ = ('s', )
+    _translated_fields = {'value': 's'}
 
-
-class BoolOp(Op):
-    __slots__ = ('values', )
-
-
-class BinOp(Op):
-    __slots__ = ()
-
-
-class UnaryOp(Op):
-    __slots__ = ('operand', )
+    @property
+    def value(self):
+        return self.s
 
 
 class List(VyperNode):
     __slots__ = ('elts', )
 
 
+class Tuple(VyperNode):
+    __slots__ = ('elts', )
+
+
 class Dict(VyperNode):
     __slots__ = ('keys', 'values')
+
+
+class NameConstant(Constant):
+    __slots__ = ('value', )
+
+
+class Name(VyperNode):
+    __slots__ = ('id', )
+
+
+class Expr(VyperNode):
+    __slots__ = ('value', )
+
+
+class UnaryOp(VyperNode):
+    __slots__ = ('op', 'operand', )
+
+
+class UAdd(VyperNode):
+    __slots__ = ()
+    _description = "in-place addition"
+
+
+class USub(VyperNode):
+    __slots__ = ()
+    _description = "in-place subtraction"
+
+
+class Not(VyperNode):
+    __slots__ = ()
+
+
+class BinOp(VyperNode):
+    __slots__ = ('left', 'op', 'right', )
 
 
 class Add(VyperNode):
@@ -511,28 +500,20 @@ class Pow(VyperNode):
     _description = "exponentiation"
 
 
-class In(VyperNode):
+class BoolOp(VyperNode):
+    __slots__ = ('op', 'values', )
+
+
+class And(VyperNode):
     __slots__ = ()
 
 
-class Gt(VyperNode):
+class Or(VyperNode):
     __slots__ = ()
-    _description = "greater than"
 
 
-class GtE(VyperNode):
-    __slots__ = ()
-    _description = "greater-or-equal"
-
-
-class LtE(VyperNode):
-    __slots__ = ()
-    _description = "less-or-equal"
-
-
-class Lt(VyperNode):
-    __slots__ = ()
-    _description = "less than"
+class Compare(VyperNode):
+    __slots__ = ('comparators', 'ops', 'left', 'right')
 
 
 class Eq(VyperNode):
@@ -545,59 +526,94 @@ class NotEq(VyperNode):
     _description = "non-equality"
 
 
-class And(VyperNode):
+class Lt(VyperNode):
+    __slots__ = ()
+    _description = "less than"
+
+
+class LtE(VyperNode):
+    __slots__ = ()
+    _description = "less-or-equal"
+
+
+class Gt(VyperNode):
+    __slots__ = ()
+    _description = "greater than"
+
+
+class GtE(VyperNode):
+    __slots__ = ()
+    _description = "greater-or-equal"
+
+
+class In(VyperNode):
     __slots__ = ()
 
 
-class Or(VyperNode):
-    __slots__ = ()
+class Call(VyperNode):
+    __slots__ = ('func', 'args', 'keywords', 'keyword')
 
 
-class Not(VyperNode):
-    __slots__ = ()
+class keyword(VyperNode):
+    __slots__ = ('arg', 'value')
 
 
-class USub(VyperNode):
-    __slots__ = ()
-    _description = "in-place subtraction"
+class Attribute(VyperNode):
+    __slots__ = ('attr', 'value',)
 
 
-class UAdd(VyperNode):
-    __slots__ = ()
-    _description = "in-place addition"
+class Subscript(VyperNode):
+    __slots__ = ('slice', 'value')
 
 
-class Expr(VyperNode):
+class Index(VyperNode):
     __slots__ = ('value', )
-
-
-class Pass(VyperNode):
-    __slots__ = ()
-
-
-class AnnAssign(VyperNode):
-    __slots__ = ('target', 'annotation', 'value', 'simple')
 
 
 class Assign(VyperNode):
     __slots__ = ('targets', 'value')
 
 
-class If(VyperNode):
-    __slots__ = ('test', 'body', 'orelse')
+class AnnAssign(VyperNode):
+    __slots__ = ('target', 'annotation', 'value', 'simple')
+
+
+class AugAssign(VyperNode):
+    __slots__ = ('op', 'target', 'value')
+
+
+class Raise(VyperNode):
+    __slots__ = ('exc', )
+    _only_empty_fields = ('cause', )
 
 
 class Assert(VyperNode):
     __slots__ = ('test', 'msg')
 
 
+class Pass(VyperNode):
+    __slots__ = ()
+
+
+class Import(VyperNode):
+    __slots__ = ('names', )
+
+
+class ImportFrom(VyperNode):
+    __slots__ = ('level', 'module', 'names')
+
+
+class alias(VyperNode):
+    __slots__ = ('name', 'asname')
+
+
+class If(VyperNode):
+    __slots__ = ('test', 'body', 'orelse')
+
+
 class For(VyperNode):
     __slots__ = ('iter', 'target', 'body')
     _only_empty_fields = ('orelse', )
-
-
-class AugAssign(VyperNode):
-    __slots__ = ('op', 'target', 'value')
 
 
 class Break(VyperNode):
@@ -606,28 +622,3 @@ class Break(VyperNode):
 
 class Continue(VyperNode):
     __slots__ = ()
-
-
-class Return(VyperNode):
-    __slots__ = ('value', )
-
-
-class stmt(VyperNode):
-    __slots__ = ()
-
-
-class ClassDef(VyperNode):
-    __slots__ = ('class_type', 'name', 'body')
-
-
-class Raise(VyperNode):
-    __slots__ = ('exc', )
-    _only_empty_fields = ('cause', )
-
-
-class alias(VyperNode):
-    __slots__ = ('name', 'asname')
-
-
-class ImportFrom(VyperNode):
-    __slots__ = ('level', 'module', 'names')
