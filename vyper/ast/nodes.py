@@ -17,16 +17,18 @@ from vyper.utils import (
     annotate_source_code,
 )
 
-BASE_NODE_ATTRIBUTES = (
+NODE_BASE_ATTRIBUTES = (
     '_children',
     '_parent',
     'ast_type',
+    'node_id',
+)
+NODE_SRC_ATTRIBUTES = (
     'col_offset',
     'end_col_offset',
     'end_lineno',
     'full_source_code',
     'lineno',
-    'node_id',
     'node_source_code',
     'src',
 )
@@ -129,7 +131,7 @@ class VyperNode:
         Field names that should be reassigned if encountered. Used to normalize
         fields across different python versions.
     """
-    __slots__ = BASE_NODE_ATTRIBUTES
+    __slots__ = NODE_BASE_ATTRIBUTES + NODE_SRC_ATTRIBUTES
     _only_empty_fields: tuple = ()
     _translated_fields: dict = {}
 
@@ -150,7 +152,17 @@ class VyperNode:
         self._parent = parent
         self._children: set = set()
 
+        for field_name in NODE_SRC_ATTRIBUTES:
+            # when a source offset is not available, use the parent's source offset
+            value = kwargs.get(field_name)
+            if kwargs.get(field_name) is None:
+                value = getattr(parent, field_name, None)
+            setattr(self, field_name, value)
+
         for field_name, value in kwargs.items():
+            if field_name in NODE_SRC_ATTRIBUTES:
+                continue
+
             if field_name in self._translated_fields:
                 field_name = self._translated_fields[field_name]
 
@@ -175,13 +187,13 @@ class VyperNode:
             parent._children.add(self)
 
     def __hash__(self):
-        values = [getattr(self, i, None) for i in BASE_NODE_ATTRIBUTES if not i.startswith('_')]
+        values = [getattr(self, i, None) for i in VyperNode.__slots__ if not i.startswith('_')]
         return hash(tuple(values))
 
     def __eq__(self, other):
         if not isinstance(other, type(self)):
             return False
-        for field_name in (i for i in self.get_slots() if i not in BASE_NODE_ATTRIBUTES):
+        for field_name in (i for i in self.get_slots() if i not in VyperNode.__slots__):
             if getattr(self, field_name, None) != getattr(other, field_name, None):
                 return False
         return True
