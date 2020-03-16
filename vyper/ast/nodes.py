@@ -62,19 +62,20 @@ def get_node(
         ast_struct = ast_struct.__dict__
 
     vy_class = getattr(sys.modules[__name__], ast_struct['ast_type'], None)
-    if vy_class:
-        return vy_class(parent=parent, **ast_struct)
+    if not vy_class:
+        if ast_struct['ast_type'] == "Delete":
+            _raise_syntax_exc(
+                "Deleting is not supported, use built-in clear() function", ast_struct
+            )
+        elif ast_struct['ast_type'] in ("ExtSlice", "Slice"):
+            _raise_syntax_exc("Vyper does not support slicing", ast_struct)
+        else:
+            _raise_syntax_exc(
+                f"Invalid syntax (unsupported '{ast_struct['ast_type']}' Python AST node)",
+                ast_struct,
+            )
 
-    err_args = (ast_struct['full_source_code'], ast_struct['lineno'], ast_struct['col_offset'])
-    if ast_struct['ast_type'] == "Delete":
-        raise SyntaxException("Deleting is not supported, use built-in clear() function", *err_args)
-    elif ast_struct['ast_type'] in ("ExtSlice", "Slice"):
-        raise SyntaxException("Vyper does not support slicing", *err_args)
-    else:
-        raise SyntaxException(
-            f"Invalid syntax (unsupported '{ast_struct['ast_type']}' Python AST node)",
-            *err_args,
-        )
+    return vy_class(parent=parent, **ast_struct)
 
 
 def _to_node(value, parent):
@@ -109,6 +110,15 @@ def _sort_nodes(node_iterable):
     return sorted(
         node_iterable,
         key=lambda k: (sortkey(k.lineno), sortkey(k.col_offset), k.node_id),
+    )
+
+
+def _raise_syntax_exc(error_msg: str, ast_struct: dict) -> None:
+    raise SyntaxException(
+        error_msg,
+        ast_struct.get('full_source_code'),
+        ast_struct.get('lineno'),
+        ast_struct.get('col_offset')
     )
 
 
@@ -176,12 +186,10 @@ class VyperNode:
                 setattr(self, field_name, value)
 
             elif value and field_name in self._only_empty_fields:
-                raise SyntaxException(
+                _raise_syntax_exc(
                     f"Syntax is valid Python but not valid for Vyper\n"
                     f"class: {type(self).__name__}, field_name: {field_name}",
-                    kwargs['full_source_code'],
-                    kwargs['lineno'],
-                    kwargs['col_offset'],
+                    kwargs,
                 )
 
         # add to children of parent last to ensure an accurate hash is generated
@@ -558,8 +566,7 @@ class Compare(VyperNode):
 
     def __init__(self, *args, **kwargs):
         if len(kwargs['ops']) > 1 or len(kwargs['comparators']) > 1:
-            err_args = (kwargs['full_source_code'], kwargs['lineno'], kwargs['col_offset'])
-            raise SyntaxException("Cannot have a comparison with more than two elements", err_args)
+            _raise_syntax_exc("Cannot have a comparison with more than two elements", kwargs)
 
         kwargs['op'] = kwargs.pop('ops')[0]
         kwargs['right'] = kwargs.pop('comparators')[0]
@@ -625,8 +632,7 @@ class Assign(VyperNode):
 
     def __init__(self, *args, **kwargs):
         if len(kwargs['targets']) > 1:
-            err_args = (kwargs['full_source_code'], kwargs['lineno'], kwargs['col_offset'])
-            raise SyntaxException("Assignment statement must have one target", *err_args)
+            _raise_syntax_exc("Assignment statement must have one target", kwargs)
 
         kwargs['target'] = kwargs.pop('targets')[0]
         super().__init__(*args, **kwargs)
