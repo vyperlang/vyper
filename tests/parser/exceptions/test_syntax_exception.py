@@ -54,7 +54,12 @@ def test() -> uint256:
     else:
       return 1
     return 1
+    """,
     """
+@public
+def foo():
+    x = y = 3
+    """,
 ]
 
 

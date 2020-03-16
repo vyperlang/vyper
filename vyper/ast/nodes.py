@@ -612,7 +612,14 @@ class Index(VyperNode):
 
 
 class Assign(VyperNode):
-    __slots__ = ('targets', 'value')
+    __slots__ = ('target', 'value')
+
+    def __init__(self, *args, **kwargs):
+        if len(kwargs['targets']) > 1:
+            err_args = (kwargs['full_source_code'], kwargs['lineno'], kwargs['col_offset'])
+            raise SyntaxException("Assignment statement must have one target", *err_args)
+        kwargs['target'] = kwargs.pop('targets')[0]
+        super().__init__(*args, **kwargs)
 
 
 class AnnAssign(VyperNode):

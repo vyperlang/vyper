@@ -260,8 +260,6 @@ class Stmt(object):
 
     def assign(self):
         # Assignment (e.g. x[4] = y)
-        if len(self.stmt.targets) != 1:
-            raise StructureException("Assignment statement must have one target", self.stmt)
 
         with self.context.assignment_scope():
             sub = Expr(self.stmt.value, self.context).lll_node
@@ -282,27 +280,27 @@ class Stmt(object):
 
             # Determine if it's an RLPList assignment.
             if is_valid_rlp_list_assign:
-                pos = self.context.new_variable(self.stmt.targets[0].id, sub.typ)
+                pos = self.context.new_variable(self.stmt.target.id, sub.typ)
                 variable_loc = LLLnode.from_list(
                     pos,
                     typ=sub.typ,
                     location='memory',
                     pos=getpos(self.stmt),
-                    annotation=self.stmt.targets[0].id,
+                    annotation=self.stmt.target.id,
                 )
                 o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
             else:
                 # Error check when assigning to declared variable
-                if isinstance(self.stmt.targets[0], vy_ast.Name):
+                if isinstance(self.stmt.target, vy_ast.Name):
                     # Do not allow assignment to undefined variables without annotation
-                    if self.stmt.targets[0].id not in self.context.vars:
+                    if self.stmt.target.id not in self.context.vars:
                         raise VariableDeclarationException("Variable type not defined", self.stmt)
 
                     # Check against implicit conversion
-                    self._check_implicit_conversion(self.stmt.targets[0].id, sub)
+                    self._check_implicit_conversion(self.stmt.target.id, sub)
 
                 is_valid_tuple_assign = (
-                    isinstance(self.stmt.targets[0], vy_ast.Tuple)
+                    isinstance(self.stmt.target, vy_ast.Tuple)
                 ) and isinstance(self.stmt.value, vy_ast.Tuple)
 
                 # Do no allow tuple-to-tuple assignment
@@ -313,7 +311,7 @@ class Stmt(object):
                     )
 
                 # Checks to see if assignment is valid
-                target = self.get_target(self.stmt.targets[0])
+                target = self.get_target(self.stmt.target)
                 if isinstance(target.typ, ContractType) and not isinstance(sub.typ, ContractType):
                     raise TypeMismatch(
                         'Contract assignment expects casted address: '
