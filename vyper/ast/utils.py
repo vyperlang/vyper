@@ -73,37 +73,3 @@ def dict_to_ast(ast_struct: Union[Dict, List]) -> Union[vy_ast.VyperNode, List]:
     if isinstance(ast_struct, list):
         return [vy_ast.get_node(i) for i in ast_struct]
     raise CompilerPanic(f'Unknown ast_struct provided: "{type(ast_struct)}".')
-
-
-def to_python_ast(vyper_ast_node: vy_ast.VyperNode) -> python_ast.AST:
-    """
-    Converts a vyper AST node object into to a python AST node.
-    """
-    if isinstance(vyper_ast_node, list):
-        return [
-            to_python_ast(n)
-            for n in vyper_ast_node
-        ]
-    elif isinstance(vyper_ast_node, vy_ast.VyperNode):
-
-        class_name = vyper_ast_node.ast_type  # type: ignore
-        if hasattr(vyper_ast_node, "_python_ast_type"):
-            class_name = vyper_ast_node._python_ast_type  # type: ignore
-
-        if hasattr(python_ast, class_name):
-            py_klass = getattr(python_ast, class_name)
-            return py_klass(**{
-                k: to_python_ast(
-                    getattr(vyper_ast_node, k, None)
-                )
-                for k in vyper_ast_node.get_slots()
-            })
-        else:
-            raise CompilerPanic(f'Unknown vyper AST class "{class_name}" provided.')
-    else:
-        return vyper_ast_node
-
-
-def ast_to_string(vyper_ast_node: vy_ast.VyperNode) -> str:
-    py_ast_node = to_python_ast(vyper_ast_node)
-    return python_ast.dump(py_ast_node)
