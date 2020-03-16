@@ -91,6 +91,8 @@ def _to_dict(value):
 
 def _node_filter(node, filters):
     # recursive equality check for VyperNode.get_children filters
+    if not filters:
+        return True
     for key, value in filters.items():
         if isinstance(value, set):
             if node.get(key) not in value:
@@ -237,12 +239,21 @@ class VyperNode:
                 ast_dict[key] = _to_dict(value)
         return ast_dict
 
-    def get_children(self, filters: Optional[dict] = None) -> list:
+    def get_children(
+        self,
+        node_type: Union["VyperNode", tuple, None] = None,
+        filters: Optional[dict] = None,
+        reverse: bool = False
+    ) -> list:
         """
         Returns direct childen of this node that match the given filter.
 
         Parameters
         ----------
+        node_type : VyperNode | tuple, optional
+            A node type or tuple of types. If given, only child nodes where the
+            type matches this value are returned. This is functionally identical
+            to calling `isinstance(node, node_type)`
         filters : dict, optional
             Dictionary of attribute names and expected values. Only nodes that
             contain the given attributes and match the given values are returned.
@@ -252,6 +263,8 @@ class VyperNode:
               contain the given attribute and match any one value within the set.
               e.g. {'ast_type': {'BinOp', 'UnaryOp'}} will match both BinOp and
                    UnaryOp nodes.
+        reverse : bool, optional
+            If True, order of results is reversed prior to return.
 
         Returns
         -------
@@ -259,18 +272,30 @@ class VyperNode:
             Child nodes matching the filter conditions, sorted by source offset.
         """
         children = _sort_nodes(self._children)
+        if node_type is not None:
+            children = [i for i in children if isinstance(i, node_type)]  # type: ignore
+        if reverse:
+            children.reverse()
         if filters is None:
             return children
         return [i for i in children if _node_filter(i, filters)]
 
     def get_all_children(
-        self, filters: Optional[dict] = None, include_self: Optional[bool] = False
+        self,
+        node_type: Union["VyperNode", tuple, None] = None,
+        filters: Optional[dict] = None,
+        include_self: bool = False,
+        reverse: bool = False,
     ) -> list:
         """
         Returns direct and indirect childen of this node that match the given filter.
 
         Parameters
         ----------
+        node_type : VyperNode | tuple, optional
+            A node type or tuple of types. If given, only child nodes where the
+            type matches this value are returned. This is functionally identical
+            to calling `isinstance(node, node_type)`
         filters : dict, optional
             Dictionary of attribute names and expected values. Only nodes that
             contain the given attributes and match the given values are returned.
@@ -283,19 +308,23 @@ class VyperNode:
         include_self : bool, optional
             If True, this node is also included in the search results if it matches
             the given filter.
+        reverse : bool, optional
+            If True, order of results is reversed prior to return.
 
         Returns
         -------
         list
             Child nodes matching the filter conditions, sorted by source offset.
         """
-
-        children = self.get_children(filters)
+        children = self.get_children(node_type, filters)
         for node in self.get_children():
-            children.extend(node.get_all_children(filters))
+            children.extend(node.get_all_children(node_type, filters))
         if include_self and _node_filter(self, filters):
             children.append(self)
-        return _sort_nodes(children)
+        result = _sort_nodes(children)
+        if reverse:
+            result.reverse()
+        return result
 
     def get(self, field_str: str) -> Optional["VyperNode"]:
         """
