@@ -4,7 +4,6 @@ from . import nodes
 from .utils import (  # noqa: F401
     ast_to_dict,
     parse_to_ast,
-    to_python_ast,
 )
 
 # adds vyper.ast.nodes classes into the local namespace

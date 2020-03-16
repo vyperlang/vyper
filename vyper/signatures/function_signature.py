@@ -15,8 +15,8 @@ from vyper.parser.lll_node import (
     LLLnode,
 )
 from vyper.parser.parser_utils import (
-    EnsureSingleExitChecker,
-    UnmatchedReturnChecker,
+    check_single_exit,
+    check_unmatched_return,
     getpos,
 )
 from vyper.types import (
@@ -454,8 +454,8 @@ class FunctionSignature:
 
     def validate_return_statement_balance(self):
         # Run balanced return statement check.
-        UnmatchedReturnChecker().visit(vy_ast.to_python_ast(self.func_ast_code))
-        EnsureSingleExitChecker().visit(vy_ast.to_python_ast(self.func_ast_code))
+        check_unmatched_return(self.func_ast_code)
+        check_single_exit(self.func_ast_code)
 
 
 def validate_default_values(node):
