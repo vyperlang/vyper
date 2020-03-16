@@ -165,7 +165,7 @@ class Stmt(object):
 
     def _check_rhs_var_assn_recur(self, val):
         names = ()
-        if isinstance(val, vy_ast.BinOp):
+        if isinstance(val, (vy_ast.BinOp, vy_ast.Compare)):
             right_node = val.right
             left_node = val.left
             names = names + self._check_rhs_var_assn_recur(right_node)
@@ -176,11 +176,6 @@ class Stmt(object):
         elif isinstance(val, vy_ast.BoolOp):
             for bool_val in val.values:
                 names = names + self._check_rhs_var_assn_recur(bool_val)
-        elif isinstance(val, vy_ast.Compare):
-            compare_left = val.left
-            names = names + self._check_rhs_var_assn_recur(compare_left)
-            for compr in val.comparators:
-                names = names + self._check_rhs_var_assn_recur(compr)
         elif isinstance(val, vy_ast.Name):
             name = val.id
             names = names + (name, )

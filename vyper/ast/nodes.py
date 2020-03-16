@@ -554,7 +554,16 @@ class Or(VyperNode):
 
 
 class Compare(VyperNode):
-    __slots__ = ('comparators', 'ops', 'left', 'right')
+    __slots__ = ('op', 'left', 'right')
+
+    def __init__(self, *args, **kwargs):
+        if len(kwargs['ops']) > 1 or len(kwargs['comparators']) > 1:
+            err_args = (kwargs['full_source_code'], kwargs['lineno'], kwargs['col_offset'])
+            raise SyntaxException("Cannot have a comparison with more than two elements", err_args)
+
+        kwargs['op'] = kwargs.pop('ops')[0]
+        kwargs['right'] = kwargs.pop('comparators')[0]
+        super().__init__(*args, **kwargs)
 
 
 class Eq(VyperNode):
@@ -618,6 +627,7 @@ class Assign(VyperNode):
         if len(kwargs['targets']) > 1:
             err_args = (kwargs['full_source_code'], kwargs['lineno'], kwargs['col_offset'])
             raise SyntaxException("Assignment statement must have one target", *err_args)
+
         kwargs['target'] = kwargs.pop('targets')[0]
         super().__init__(*args, **kwargs)
 
