@@ -10,8 +10,10 @@ Take a deep breath, follow the instructions, and please
 any errors.
 
 .. note::
-   The easiest way to try out the language, experiment with examples, and compile code to ``bytecode``
-   or ``LLL`` is to use the online compiler at https://vyper.online/.
+
+    The easiest way to try out the language, experiment with examples, and
+    compile code to ``bytecode`` or ``LLL`` is to use the
+    `Remix online compiler <https://remix.ethereum.org>`_.
 
 Prerequisites
 *************

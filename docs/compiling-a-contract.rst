@@ -76,15 +76,6 @@ See :ref:`searching_for_imports` for more information on Vyper's import system.
 Online Compilers
 ================
 
-Vyper Online Compiler
----------------------
-
-`Vyper Online Compiler <https://vyper.online/>`_ is an online compiler which lets you experiment with the language without having to install Vyper. It allows you to compile to ``bytecode`` as well as ``LLL``.
-
-.. note::
-
-    While the vyper version of the online compiler is updated on a regular basis it might be a bit behind the latest version found in the master branch of the repository.
-
 Remix IDE
 ---------
 
