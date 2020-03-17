@@ -131,10 +131,10 @@ def _convert(expr, context):
     return convert(expr, context)
 
 
-@signature(('bytes32', 'bytes', 'string'), start='int128', len='int128')
+@signature(('bytes32', 'bytes', 'string'), 'int128', 'int128')
 def _slice(expr, args, kwargs, context):
 
-    sub, start, length = args[0], kwargs['start'], kwargs['len']
+    sub, start, length = args
     if not are_units_compatible(start.typ, BaseType('int128')):
         raise TypeMismatch("Type for slice start index must be a unitless number", expr)
     # Expression representing the length of the slice

@@ -46,7 +46,7 @@ def foo() -> decimal(wei / sec):
     """
 @public
 def foo():
-    x: bytes[10] = slice("cow", start=0, len=chain.id)
+    x: bytes[10] = slice("cow", 0, chain.id)
     """,
     """
 @public
@@ -71,7 +71,7 @@ def add_record():
     """
 @public
 def foo(inp: bytes[10]) -> bytes[3]:
-    return slice(inp, start=chain.id, len=3)
+    return slice(inp, chain.id, 3)
     """,
 ]
 

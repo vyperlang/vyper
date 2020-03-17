@@ -6,7 +6,7 @@ TestLog: event({testData1: bytes32,testData2: bytes[60], testData3: bytes[8]})
 @private
 @constant
 def to_bytes(value: uint256) -> bytes[8]:
-    return slice(concat(b"", convert(value, bytes32)), start=24, len=8)
+    return slice(concat(b"", convert(value, bytes32)), 24, 8)
 
 @private
 @constant
@@ -47,7 +47,7 @@ TestLog: event({testData1: bytes32,testData2: bytes[133], testData3: bytes[8] })
 @private
 @constant
 def to_bytes(value: uint256) -> bytes[8]:
-    return slice(concat(b"", convert(value, bytes32)), start=24, len=8)
+    return slice(concat(b"", convert(value, bytes32)), 24, 8)
 
 @private
 @constant
@@ -115,7 +115,7 @@ TestLog: event({testData1: bytes32,testData2: bytes[2064], testData3: bytes[8] }
 @private
 @constant
 def to_bytes(value: uint256) -> bytes[8]:
-    return slice(concat(b"", convert(value, bytes32)), start=24, len=8)
+    return slice(concat(b"", convert(value, bytes32)), 24, 8)
 
 @private
 @ constant

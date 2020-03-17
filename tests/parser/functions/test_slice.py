@@ -6,14 +6,14 @@ def test_test_slice(get_contract_with_gas_estimation):
 @public
 def foo(inp1: bytes[10]) -> bytes[3]:
     x: int128 = 5
-    s: bytes[3] = slice(inp1, start=3, len=3)
+    s: bytes[3] = slice(inp1, 3, 3)
     y: int128 = 7
     return s
 
 @public
 def bar(inp1: bytes[10]) -> int128:
     x: int128 = 5
-    s: bytes[3] = slice(inp1, start=3, len=3)
+    s: bytes[3] = slice(inp1, 3, 3)
     y: int128 = 7
     return x * y
     """
@@ -33,7 +33,7 @@ def test_test_slice2(get_contract_with_gas_estimation):
 def slice_tower_test(inp1: bytes[50]) -> bytes[50]:
     inp: bytes[50] = inp1
     for i in range(1, 11):
-        inp = slice(inp, start=1, len=30 - i * 2)
+        inp = slice(inp, 1, 30 - i * 2)
     return inp
     """
     c = get_contract_with_gas_estimation(test_slice2)
@@ -51,14 +51,14 @@ y: int128
 @public
 def foo(inp1: bytes[50]) -> bytes[50]:
     self.x = 5
-    self.s = slice(inp1, start=3, len=3)
+    self.s = slice(inp1, 3, 3)
     self.y = 7
     return self.s
 
 @public
 def bar(inp1: bytes[50]) -> int128:
     self.x = 5
-    self.s = slice(inp1, start=3, len=3)
+    self.s = slice(inp1,3, 3)
     self.y = 7
     return self.x * self.y
     """
@@ -76,7 +76,7 @@ def test_test_slice4(get_contract_with_gas_estimation, assert_tx_failed):
     test_slice4 = """
 @public
 def foo(inp: bytes[10], start: int128, _len: int128) -> bytes[10]:
-    return slice(inp, start=start, len=_len)
+    return slice(inp, start, _len)
     """
 
     c = get_contract_with_gas_estimation(test_slice4)
@@ -100,7 +100,7 @@ def test_slice_at_end(get_contract):
 @public
 def ret10_slice() -> bytes[10]:
     b: bytes[32] = concat(convert(65, bytes32), b'')
-    c: bytes[10] = slice(b, start=31, len=1)
+    c: bytes[10] = slice(b, 31, 1)
     return c
     """
 

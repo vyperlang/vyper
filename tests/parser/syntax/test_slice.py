@@ -14,17 +14,17 @@ fail_list = [
     """
 @public
 def foo(inp: bytes[10]) -> bytes[2]:
-    return slice(inp, start=2, len=3)
+    return slice(inp, 2, 3)
     """,
     """
 @public
 def foo(inp: int128) -> bytes[3]:
-    return slice(inp, start=2, len=3)
+    return slice(inp, 2, 3)
     """,
     """
 @public
 def foo(inp: bytes[10]) -> bytes[3]:
-    return slice(inp, start=4.0, len=3)
+    return slice(inp, 4.0, 3)
     """
 ]
 
@@ -40,17 +40,17 @@ valid_list = [
     """
 @public
 def foo(inp: bytes[10]) -> bytes[3]:
-    return slice(inp, start=2, len=3)
+    return slice(inp, 2, 3)
     """,
     """
 @public
 def foo(inp: bytes[10]) -> bytes[4]:
-    return slice(inp, start=2, len=3)
+    return slice(inp, 2, 3)
     """,
     """
 @public
 def foo() -> bytes[10]:
-    return slice(b"badmintonzzz", start=1, len=10)
+    return slice(b"badmintonzzz", 1, 10)
     """
 ]
 

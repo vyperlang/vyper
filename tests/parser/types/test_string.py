@@ -61,7 +61,7 @@ def test_string_slice(get_contract_with_gas_estimation, assert_tx_failed):
     test_slice4 = """
 @public
 def foo(inp: string[10], start: int128, _len: int128) -> string[10]:
-    return slice(inp, start=start, len=_len)
+    return slice(inp, start, _len)
     """
 
     c = get_contract_with_gas_estimation(test_slice4)

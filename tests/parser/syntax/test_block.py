@@ -40,7 +40,7 @@ def foo() -> decimal(wei / sec):
     """
 @public
 def foo():
-    x: bytes[10] = slice("cow", start=0, len=block.timestamp)
+    x: bytes[10] = slice("cow", 0, block.timestamp)
     """,
     """
 @public
@@ -81,7 +81,7 @@ def add_record():
     """
 @public
 def foo(inp: bytes[10]) -> bytes[3]:
-    return slice(inp, start=block.timestamp, len=3)
+    return slice(inp, block.timestamp, 3)
     """,
     """
 @public
