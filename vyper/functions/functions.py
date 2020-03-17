@@ -641,8 +641,8 @@ false_value = LLLnode.from_list(0, typ=BaseType('bool', is_literal=True))
 @signature(
     'address',
     'bytes',
-    outsize='num_literal',
-    gas='uint256',
+    outsize=Optional('num_literal', 0),
+    gas=Optional('uint256', 'gas'),
     value=Optional('uint256', zero_value),
     delegate_call=Optional('bool', false_value),
 )
@@ -679,54 +679,30 @@ def raw_call(expr, args, kwargs, context):
         location='memory',
     )
 
+    # build LLL for call or delegatecall
+    common_call_lll = [
+        ['add', placeholder_node, 32],
+        ['mload', placeholder_node],
+        # if there is no return value, the return offset can be 0
+        ['add', output_node, 32] if outsize else 0,
+        outsize
+    ]
+
     if delegate_call.value == 1:
-        z = LLLnode.from_list(
-            [
-                'seq',
-                copier,
-                [
-                    'assert',
-                    [
-                        'delegatecall',
-                        gas,
-                        to,
-                        ['add', placeholder_node, 32],
-                        ['mload', placeholder_node],
-                        ['add', output_node, 32],
-                        outsize,
-                    ],
-                ],
-                ['mstore', output_node, outsize],
-                output_node,
-            ],
-            typ=ByteArrayType(outsize),
-            location='memory',
-            pos=getpos(expr),
-        )
+        call_lll = ['delegatecall', gas, to] + common_call_lll
     else:
-        z = LLLnode.from_list(
-            [
-                'seq',
-                copier,
-                [
-                    'assert',
-                    [
-                        'call',
-                        gas,
-                        to,
-                        value,
-                        ['add', placeholder_node, 32],
-                        ['mload', placeholder_node],
-                        ['add', output_node, 32],
-                        outsize,
-                    ],
-                ],
-                ['mstore', output_node, outsize],
-                output_node,
-            ],
-            typ=ByteArrayType(outsize), location='memory', pos=getpos(expr)
-        )
-    return z
+        call_lll = ['call', gas, to, value] + common_call_lll
+
+    # build sequence LLL
+    if outsize:
+        # only copy the return value to memory if outsize > 0
+        seq = ['seq', copier, ['assert', call_lll], ['mstore', output_node, outsize], output_node]
+        typ = ByteArrayType(outsize)
+    else:
+        seq = ['seq', copier, ['assert', call_lll]]
+        typ = None
+
+    return LLLnode.from_list(seq, typ=typ, location="memory", pos=getpos(expr))
 
 
 @signature('address', 'uint256')

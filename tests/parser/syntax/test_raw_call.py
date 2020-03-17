@@ -26,7 +26,13 @@ def foo():
 @public
 def foo():
     raw_log([], 0x1234567890123456789012345678901234567890)
+    """,
     """
+@public
+def foo():
+    # fails because raw_call without outsize does not return a value
+    x: bytes[9] = raw_call(0x1234567890123456789012345678901234567890, b"cow")
+    """,
 ]
 
 
@@ -73,7 +79,12 @@ def foo():
         gas=595757,
         value=9
     )
+    """,
     """
+@public
+def foo():
+    raw_call(0x1234567890123456789012345678901234567890, b"cow")
+    """,
 ]
 
 

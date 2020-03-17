@@ -179,18 +179,20 @@ Vyper contains a set of built in functions which execute opcodes such as ``SEND`
 
         The amount to send is always specified in ``wei``.
 
-.. py:function:: raw_call(to: address, data: bytes, outsize: int, gas: uint256, value: uint256(wei) = 0, is_delegate_call: bool = False) -> bytes[outsize]
+.. py:function:: raw_call(to: address, data: bytes, outsize: int = 0, gas: uint256 = gasLeft, value: uint256(wei) = 0, is_delegate_call: bool = False) -> bytes[outsize]
 
     Calls to the specified Ethereum address.
 
     * ``to``: Destination address to call to
     * ``data``: Data to send to the destination address
-    * ``outsize``: Maximum length of the bytes array returned from the call
-    * ``gas``: Amount of gas to atttach to the call
+    * ``outsize``: Maximum length of the bytes array returned from the call. If the returned call data exceeds this length, only this number of bytes is returned.
+    * ``gas``: The amount of gas to attach to the call. If not set, all remainaing gas is forwarded.
     * ``value``: The wei value to send to the address (Optional, default ``0``)
     * ``is_delegate_call``: If ``True``, the call will be sent as ``DELEGATECALL`` (Optional, default ``False``)
 
     Returns the data returned by the call as a ``bytes`` list, with ``outsize`` as the max length.
+
+    Returns ``None`` if ``outsize`` is omitted or set to ``0``.
 
 .. py:function:: selfdestruct(to: address) -> None
 
