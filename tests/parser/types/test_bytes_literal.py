@@ -45,7 +45,7 @@ moo: bytes[100]
 @public
 def foo(s: int128, L: int128) -> bytes[100]:
         x: int128 = 27
-        r: bytes[100] = slice(b"{0}", start=s, len=L)
+        r: bytes[100] = slice(b"{0}", s, L)
         y: int128 = 37
         if x * y == 999:
             return r
@@ -55,7 +55,7 @@ def foo(s: int128, L: int128) -> bytes[100]:
 def bar(s: int128, L: int128) -> bytes[100]:
         self.moo = b"{0}"
         x: int128 = 27
-        r: bytes[100] = slice(self.moo, start=s, len=L)
+        r: bytes[100] = slice(self.moo, s, L)
         y: int128  = 37
         if x * y == 999:
             return r
@@ -64,7 +64,7 @@ def bar(s: int128, L: int128) -> bytes[100]:
 @public
 def baz(s: int128, L: int128) -> bytes[100]:
         x: int128 = 27
-        self.moo = slice(b"{0}", start=s, len=L)
+        self.moo = slice(b"{0}", s, L)
         y: int128 = 37
         if x * y == 999:
             return self.moo

@@ -94,11 +94,11 @@ def _catty(x: bytes[5], y: bytes[5]) -> bytes[10]:
 
 @private
 def _slicey1(x: bytes[10], y: int128) -> bytes[10]:
-    return slice(x, start=0, len=y)
+    return slice(x, 0, y)
 
 @private
 def _slicey2(y: int128, x: bytes[10]) -> bytes[10]:
-    return slice(x, start=0, len=y)
+    return slice(x, 0,y)
 
 @public
 def returnten() -> int128:
@@ -160,7 +160,7 @@ def _underscore() -> bytes[1]:
 
 @private
 def _hardtest(x: bytes[100], y: int128, z: int128, a: bytes[100], b: int128, c: int128) -> bytes[201]:  # noqa: E501
-    return concat(slice(x, start=y, len=z), self._underscore(), slice(a, start=b, len=c))
+    return concat(slice(x, y, z), self._underscore(), slice(a, b, c))
 
 @public
 def return_mongoose_revolution_32_excls() -> bytes[201]:
