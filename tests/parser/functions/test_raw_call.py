@@ -146,3 +146,37 @@ def set(i: int128, owner: address):
     tx_hash = outer_contract.set(1, a1, transact={})
     assert w3.eth.getTransactionReceipt(tx_hash)['status'] == 1
     assert outer_contract.owners(1) == a1
+
+
+def test_gas(get_contract, assert_tx_failed):
+    inner_code = """
+bar: bytes32
+
+@public
+def foo(_bar: bytes32):
+    self.bar = _bar
+    """
+
+    inner_contract = get_contract(inner_code)
+
+    outer_code = """
+@public
+def foo_call(_addr: address):
+    cdata: bytes[40] = concat(
+        method_id("foo(bytes32)", bytes[4]),
+        0x0000000000000000000000000000000000000000000000000000000000000001
+    )
+    raw_call(_addr, cdata, outsize=0{})
+    """
+
+    # with no gas value given, enough will be forwarded to complete the call
+    outer_contract = get_contract(outer_code.format(""))
+    outer_contract.foo_call(inner_contract.address)
+
+    # manually specifying a sufficient amount should succeed
+    outer_contract = get_contract(outer_code.format(", gas=21000"))
+    outer_contract.foo_call(inner_contract.address)
+
+    # manually specifying an insufficient amount should fail
+    outer_contract = get_contract(outer_code.format(", gas=15000"))
+    assert_tx_failed(lambda: outer_contract.foo_call(inner_contract.address))
