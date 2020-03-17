@@ -134,11 +134,6 @@ def foo():
     x = concat(b"")
     """,
     """
-@public
-def foo():
-    x = y = 3
-    """,
-    """
 def foo() -> int128:
     q:int128 = 111
     return q

@@ -738,7 +738,7 @@ class Expr(object):
 
     def build_in_comparator(self):
         left = Expr(self.expr.left, self.context).lll_node
-        right = Expr(self.expr.comparators[0], self.context).lll_node
+        right = Expr(self.expr.right, self.context).lll_node
 
         if left.typ != right.typ.subtype:
             raise TypeMismatch(
@@ -827,7 +827,7 @@ class Expr(object):
 
     def compare(self):
         left = Expr.parse_value_expr(self.expr.left, self.context)
-        right = Expr.parse_value_expr(self.expr.comparators[0], self.context)
+        right = Expr.parse_value_expr(self.expr.right, self.context)
 
         if isinstance(right.typ, NullType):
             raise InvalidLiteral(
@@ -839,7 +839,7 @@ class Expr(object):
             # TODO: Can this if branch be removed ^
             pass
 
-        elif isinstance(self.expr.ops[0], vy_ast.In) and isinstance(right.typ, ListType):
+        elif isinstance(self.expr.op, vy_ast.In) and isinstance(right.typ, ListType):
             if left.typ != right.typ.subtype:
                 raise TypeMismatch(
                     "Can't use IN comparison with different types!",
@@ -850,22 +850,17 @@ class Expr(object):
             if not are_units_compatible(left.typ, right.typ) and not are_units_compatible(right.typ, left.typ):  # noqa: E501
                 raise TypeMismatch("Can't compare values with different units!", self.expr)
 
-        if len(self.expr.ops) != 1:
-            raise StructureException(
-                "Cannot have a comparison with more than two elements",
-                self.expr,
-            )
-        if isinstance(self.expr.ops[0], vy_ast.Gt):
+        if isinstance(self.expr.op, vy_ast.Gt):
             op = 'sgt'
-        elif isinstance(self.expr.ops[0], vy_ast.GtE):
+        elif isinstance(self.expr.op, vy_ast.GtE):
             op = 'sge'
-        elif isinstance(self.expr.ops[0], vy_ast.LtE):
+        elif isinstance(self.expr.op, vy_ast.LtE):
             op = 'sle'
-        elif isinstance(self.expr.ops[0], vy_ast.Lt):
+        elif isinstance(self.expr.op, vy_ast.Lt):
             op = 'slt'
-        elif isinstance(self.expr.ops[0], vy_ast.Eq):
+        elif isinstance(self.expr.op, vy_ast.Eq):
             op = 'eq'
-        elif isinstance(self.expr.ops[0], vy_ast.NotEq):
+        elif isinstance(self.expr.op, vy_ast.NotEq):
             op = 'ne'
         else:
             raise Exception("Unsupported comparison operator")
@@ -873,7 +868,7 @@ class Expr(object):
         # Compare (limited to 32) byte arrays.
         if isinstance(left.typ, ByteArrayLike) and isinstance(right.typ, ByteArrayLike):
             left = Expr(self.expr.left, self.context).lll_node
-            right = Expr(self.expr.comparators[0], self.context).lll_node
+            right = Expr(self.expr.right, self.context).lll_node
 
             length_mismatch = (left.typ.maxlen != right.typ.maxlen)
             left_over_32 = left.typ.maxlen > 32
