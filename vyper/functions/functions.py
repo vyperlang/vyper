@@ -1,3 +1,6 @@
+from decimal import (
+    Decimal,
+)
 import hashlib
 
 from vyper import (
@@ -604,7 +607,7 @@ def as_wei_value(expr, args, kwargs, context):
         )
 
     # Compute the amount of wei and return that value
-    if isinstance(value, (int, float)):
+    if isinstance(value, (int, Decimal)):
         expr_args_0 = expr.args[0]
         # On constant reference fetch value node of constant assignment.
         if context.constants.ast_is_constant(expr.args[0]):

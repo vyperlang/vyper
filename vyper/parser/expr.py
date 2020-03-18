@@ -197,13 +197,13 @@ class Expr(object):
                     self.expr
                 )
             return LLLnode.from_list(
-                self.expr.n,
+                int(self.expr.value, 16),
                 typ=BaseType('address', is_literal=True),
                 pos=getpos(self.expr),
             )
         elif len(orignum) == 66:
             return LLLnode.from_list(
-                self.expr.n,
+                int(self.expr.value, 16),
                 typ=BaseType('bytes32', is_literal=True),
                 pos=getpos(self.expr),
             )
@@ -216,7 +216,7 @@ class Expr(object):
 
     # String literals
     def string(self):
-        bytez, bytez_length = string_to_bytes(self.expr.s)
+        bytez, bytez_length = string_to_bytes(self.expr.value)
         typ = StringType(bytez_length, is_literal=True)
         return self._make_bytelike(typ, bytez, bytez_length)
 
@@ -513,7 +513,7 @@ class Expr(object):
                     self.expr,
                 )
 
-            num = vy_ast.Int(n=val)
+            num = vy_ast.Int(value=val)
             num.full_source_code = self.expr.full_source_code
             num.node_source_code = self.expr.node_source_code
             num.lineno = self.expr.lineno

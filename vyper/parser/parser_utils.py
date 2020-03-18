@@ -49,9 +49,7 @@ getcontext().prec = 78  # MAX_UINT256 < 1e78
 
 # Get a decimal number as a fraction with denominator multiple of 10
 def get_number_as_fraction(expr, context):
-    context_line = context.origcode.splitlines()[expr.lineno - 1]
-    context_slice = context_line[expr.col_offset:expr.end_col_offset]
-    literal = Decimal(context_slice)
+    literal = Decimal(expr.value)
     sign, digits, exponent = literal.as_tuple()
 
     if exponent < -10:
@@ -70,7 +68,7 @@ def get_number_as_fraction(expr, context):
     # TODO: Would be best to raise >10 decimal place exception here
     #       (unless Decimal is used more widely)
 
-    return context_slice, top, bottom
+    return expr.node_source_code, top, bottom
 
 
 # Copies byte array

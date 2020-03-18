@@ -1,4 +1,7 @@
 import ast as python_ast
+from decimal import (
+    Decimal,
+)
 from typing import (
     Optional,
 )
@@ -6,6 +9,7 @@ from typing import (
 import asttokens
 
 from vyper.exceptions import (
+    CompilerPanic,
     SyntaxException,
 )
 from vyper.typing import (
@@ -94,16 +98,26 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         literal_prefixes = {'0x': "Hex", '0b': "Binary", '0o': "Octal"}
         if value.lower()[:2] in literal_prefixes:
             node.ast_type = literal_prefixes[value.lower()[:2]]
-            return node
+            node.n = value
+        elif isinstance(node.n, float):
+            node.ast_type = "Decimal"
+            node.n = Decimal(value)
+        elif isinstance(node.n, int):
+            node.ast_type = "Int"
+        else:
+            raise CompilerPanic(f"Unexpected type for Constant value: {type(node.n).__name__}")
 
-        node.ast_type = "Decimal" if isinstance(node.n, float) else "Int"
         return node
 
     def visit_UnaryOp(self, node):
         self.generic_visit(node)
         # NOTE: This is done so that decimal literal now sees the negative sign as part of it
         is_sub = isinstance(node.op, python_ast.USub)
-        is_num = isinstance(node.operand, python_ast.Num)
+        is_num = (
+            hasattr(node.operand, 'n') and
+            not isinstance(node.operand.n, bool) and
+            isinstance(node.operand.n, (int, Decimal))
+        )
         if is_sub and is_num:
             node.operand.n = 0 - node.operand.n
             node.operand.col_offset = node.col_offset
