@@ -1,3 +1,4 @@
+import copy
 import types
 
 from vyper.settings import (
@@ -14,23 +15,46 @@ class VyperException(Exception):
     order to display source annotations in the error string.
     """
     def __init__(self, message='Error Message not found.', item=None):
+        """
+        Exception initializer.
+
+        Arguments
+        ---------
+        message : str
+            Error message to display with the exception.
+        item : VyperNode | tuple, optional
+            Vyper ast node or tuple of (lineno, col_offset) indicating where
+            the exception occured.
+        """
         self.message = message
         self.lineno = None
         self.col_offset = None
 
-        if isinstance(item, tuple):  # is a position.
+        if isinstance(item, tuple):
             self.lineno, self.col_offset = item[:2]
-        elif item and hasattr(item, 'lineno'):
-            self.set_err_pos(item.lineno, item.col_offset)
-            if hasattr(item, 'full_source_code'):
-                self.source_code = item.full_source_code
+        elif hasattr(item, 'lineno'):
+            self.lineno = item.lineno
+            self.col_offset = item.col_offset
+            self.source_code = item.full_source_code
 
-    def set_err_pos(self, lineno, col_offset):
-        if not self.lineno:
-            self.lineno = lineno
+    def with_annotation(self, node):
+        """
+        Creates a copy of this exception with a modified source annotation.
 
-            if not self.col_offset:
-                self.col_offset = col_offset
+        Arguments
+        ---------
+        node : VyperNode
+            AST node to obtain the source offset from.
+
+        Returns
+        -------
+        A copy of the exception with the new offset applied.
+        """
+        exc = copy.copy(self)
+        exc.lineno = node.lineno
+        exc.col_offset = node.col_offset
+        exc.source_code = node.full_source_code
+        return exc
 
     def __str__(self):
         lineno, col_offset = self.lineno, self.col_offset
