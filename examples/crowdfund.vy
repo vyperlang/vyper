@@ -2,20 +2,20 @@
 
 struct Funder :
   sender: address
-  value: wei_value
+  value: uint256
 
 funders: map(int128, Funder)
 nextFunderIndex: int128
 beneficiary: address
-deadline: public(timestamp)
-goal: public(wei_value)
+deadline: public(uint256)
+goal: public(uint256)
 refundIndex: int128
-timelimit: public(timedelta)
+timelimit: public(uint256)
 
 
 # Setup global variables
 @public
-def __init__(_beneficiary: address, _goal: wei_value, _timelimit: timedelta):
+def __init__(_beneficiary: address, _goal: uint256, _timelimit: uint256):
     self.beneficiary = _beneficiary
     self.deadline = block.timestamp + _timelimit
     self.timelimit = _timelimit

@@ -13,7 +13,7 @@
 # 4. Buyer confirms receiving the item. Buyer's deposit (value) is returned.
 #    Seller's deposit (2*value) + items value is returned. Balance is 0.
 
-value: public(wei_value) #Value of the item
+value: public(uint256) #Value of the item
 seller: public(address)
 buyer: public(address)
 unlocked: public(bool)
