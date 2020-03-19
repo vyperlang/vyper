@@ -1,5 +1,4 @@
 import ast as python_ast
-import decimal
 import sys
 from typing import (
     Optional,
@@ -405,72 +404,58 @@ class ClassDef(VyperNode):
 
 class Constant(VyperNode):
     # inherited class for all simple constant node types
-    __slots__ = ()
+    __slots__ = ('value', )
 
 
 class Num(Constant):
     # inherited class for all numeric constant node types
-    __slots__ = ('n', )
-    _translated_fields = {'value': 'n'}
+    __slots__ = ()
     _python_ast_type = "Num"
+    _translated_fields = {'n': 'value'}
+
+    @property
+    def n(self):
+        # TODO phase out use of Num.n and remove this
+        return self.value
 
 
 class Int(Num):
     __slots__ = ()
 
-    @property
-    def value(self):
-        return self.n
-
 
 class Decimal(Num):
     __slots__ = ()
-
-    @property
-    def value(self):
-        return decimal.Decimal(self.node_source_code)
 
 
 class Hex(Num):
     __slots__ = ()
 
-    @property
-    def value(self):
-        return self.node_source_code
-
 
 class Binary(Num):
     __slots__ = ()
-
-    @property
-    def value(self):
-        return self.node_source_code
 
 
 class Octal(Num):
     __slots__ = ()
 
-    @property
-    def value(self):
-        return self.node_source_code
-
 
 class Str(Constant):
-    __slots__ = ('s', )
-    _translated_fields = {'value': 's'}
+    __slots__ = ()
+    _translated_fields = {'s': 'value'}
 
     @property
-    def value(self):
-        return self.s
+    def s(self):
+        # TODO phase out use of Str.s and remove this
+        return self.value
 
 
 class Bytes(Constant):
-    __slots__ = ('s', )
-    _translated_fields = {'value': 's'}
+    __slots__ = ()
+    _translated_fields = {'s': 'value'}
 
     @property
-    def value(self):
-        return self.s
+    def s(self):
+        return self.value
 
 
 class List(VyperNode):

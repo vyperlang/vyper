@@ -1,3 +1,6 @@
+from decimal import (
+    Decimal,
+)
 import math
 import warnings
 
@@ -73,7 +76,7 @@ def to_int128(expr, args, kwargs, context):
                 typ=BaseType('int128', _unit),
                 pos=getpos(expr)
             )
-        elif isinstance(in_arg, float):
+        elif isinstance(in_arg, Decimal):
             if not SizeLimits.in_bounds('int128', math.trunc(in_arg)):
                 raise InvalidLiteral(f"Number out of range: {math.trunc(in_arg)}")
             return LLLnode.from_list(
@@ -185,7 +188,7 @@ def to_uint256(expr, args, kwargs, context):
                 typ=BaseType('uint256', _unit),
                 pos=getpos(expr)
             )
-        elif isinstance(in_arg, float):
+        elif isinstance(in_arg, Decimal):
             if not SizeLimits.in_bounds('uint256', math.trunc(in_arg)):
                 raise InvalidLiteral(f"Number out of range: {math.trunc(in_arg)}")
             return LLLnode.from_list(
