@@ -55,7 +55,7 @@ def to_bool(expr, args, kwargs, context):
     else:
         return LLLnode.from_list(
             ['iszero', ['iszero', in_arg]],
-            typ=BaseType('bool', in_arg.typ.unit),
+            typ=BaseType('bool'),
             pos=getpos(expr)
         )
 
@@ -65,7 +65,6 @@ def to_bool(expr, args, kwargs, context):
 def to_int128(expr, args, kwargs, context):
     in_arg = args[0]
     input_type, _ = get_type(in_arg)
-    _unit = in_arg.typ.unit if input_type in ('uint256', 'decimal') else None
 
     if input_type == 'num_literal':
         if isinstance(in_arg, int):
@@ -73,7 +72,7 @@ def to_int128(expr, args, kwargs, context):
                 raise InvalidLiteral(f"Number out of range: {in_arg}")
             return LLLnode.from_list(
                 in_arg,
-                typ=BaseType('int128', _unit),
+                typ=BaseType('int128'),
                 pos=getpos(expr)
             )
         elif isinstance(in_arg, Decimal):
@@ -81,7 +80,7 @@ def to_int128(expr, args, kwargs, context):
                 raise InvalidLiteral(f"Number out of range: {math.trunc(in_arg)}")
             return LLLnode.from_list(
                 math.trunc(in_arg),
-                typ=BaseType('int128', _unit),
+                typ=BaseType('int128'),
                 pos=getpos(expr)
             )
         else:
@@ -94,7 +93,7 @@ def to_int128(expr, args, kwargs, context):
             else:
                 return LLLnode.from_list(
                     in_arg,
-                    typ=BaseType('int128', _unit),
+                    typ=BaseType('int128'),
                     pos=getpos(expr)
                 )
         else:
@@ -105,7 +104,7 @@ def to_int128(expr, args, kwargs, context):
                     in_arg,
                     ['mload', MemoryPositions.MAXNUM],
                 ],
-                typ=BaseType('int128', _unit),
+                typ=BaseType('int128'),
                 pos=getpos(expr)
             )
 
@@ -120,7 +119,7 @@ def to_int128(expr, args, kwargs, context):
                     (SizeLimits.ADDRSIZE - 1)
                 ],
             ],
-            typ=BaseType('int128', _unit),
+            typ=BaseType('int128'),
             pos=getpos(expr)
         )
 
@@ -139,14 +138,14 @@ def to_int128(expr, args, kwargs, context):
             else:
                 return LLLnode.from_list(
                     in_arg,
-                    typ=BaseType('int128', _unit),
+                    typ=BaseType('int128'),
                     pos=getpos(expr)
                 )
 
         else:
             return LLLnode.from_list(
                 ['uclample', in_arg, ['mload', MemoryPositions.MAXNUM]],
-                typ=BaseType('int128', _unit),
+                typ=BaseType('int128'),
                 pos=getpos(expr)
             )
 
@@ -158,14 +157,14 @@ def to_int128(expr, args, kwargs, context):
                 ['sdiv', in_arg, DECIMAL_DIVISOR],
                 ['mload', MemoryPositions.MAXNUM],
             ],
-            typ=BaseType('int128', _unit),
+            typ=BaseType('int128'),
             pos=getpos(expr)
         )
 
     elif input_type == 'bool':
         return LLLnode.from_list(
             in_arg,
-            typ=BaseType('int128', _unit),
+            typ=BaseType('int128'),
             pos=getpos(expr)
         )
 
@@ -177,7 +176,6 @@ def to_int128(expr, args, kwargs, context):
 def to_uint256(expr, args, kwargs, context):
     in_arg = args[0]
     input_type, _ = get_type(in_arg)
-    _unit = in_arg.typ.unit if input_type in ('int128', 'decimal') else None
 
     if input_type == 'num_literal':
         if isinstance(in_arg, int):
@@ -185,7 +183,7 @@ def to_uint256(expr, args, kwargs, context):
                 raise InvalidLiteral(f"Number out of range: {in_arg}")
             return LLLnode.from_list(
                 in_arg,
-                typ=BaseType('uint256', _unit),
+                typ=BaseType('uint256',),
                 pos=getpos(expr)
             )
         elif isinstance(in_arg, Decimal):
@@ -193,7 +191,7 @@ def to_uint256(expr, args, kwargs, context):
                 raise InvalidLiteral(f"Number out of range: {math.trunc(in_arg)}")
             return LLLnode.from_list(
                 math.trunc(in_arg),
-                typ=BaseType('uint256', _unit),
+                typ=BaseType('uint256'),
                 pos=getpos(expr)
             )
         else:
@@ -202,14 +200,14 @@ def to_uint256(expr, args, kwargs, context):
     elif isinstance(in_arg, LLLnode) and input_type == 'int128':
         return LLLnode.from_list(
             ['clampge', in_arg, 0],
-            typ=BaseType('uint256', _unit),
+            typ=BaseType('uint256'),
             pos=getpos(expr)
         )
 
     elif isinstance(in_arg, LLLnode) and input_type == 'decimal':
         return LLLnode.from_list(
             ['div', ['clampge', in_arg, 0], DECIMAL_DIVISOR],
-            typ=BaseType('uint256', _unit),
+            typ=BaseType('uint256'),
             pos=getpos(expr)
         )
 
@@ -259,9 +257,6 @@ def to_decimal(expr, args, kwargs, context):
         )
 
     else:
-        _unit = in_arg.typ.unit
-        _positional = in_arg.typ.positional
-
         if input_type == 'uint256':
             if in_arg.typ.is_literal:
                 if not SizeLimits.in_bounds('int128', (in_arg.value * DECIMAL_DIVISOR)):
@@ -272,7 +267,7 @@ def to_decimal(expr, args, kwargs, context):
                 else:
                     return LLLnode.from_list(
                         ['mul', in_arg, DECIMAL_DIVISOR],
-                        typ=BaseType('decimal', _unit, _positional),
+                        typ=BaseType('decimal'),
                         pos=getpos(expr)
                     )
             else:
@@ -282,7 +277,7 @@ def to_decimal(expr, args, kwargs, context):
                         ['mul', in_arg, DECIMAL_DIVISOR],
                         ['mload', MemoryPositions.MAXDECIMAL]
                     ],
-                    typ=BaseType('decimal', _unit, _positional),
+                    typ=BaseType('decimal'),
                     pos=getpos(expr)
                 )
 
@@ -301,7 +296,7 @@ def to_decimal(expr, args, kwargs, context):
                     ],
                     DECIMAL_DIVISOR
                 ],
-                typ=BaseType('decimal', _unit, _positional),
+                typ=BaseType('decimal'),
                 pos=getpos(expr)
             )
 
@@ -315,7 +310,7 @@ def to_decimal(expr, args, kwargs, context):
                 else:
                     return LLLnode.from_list(
                         ['mul', in_arg, DECIMAL_DIVISOR],
-                        typ=BaseType('decimal', _unit, _positional),
+                        typ=BaseType('decimal'),
                         pos=getpos(expr)
                     )
             else:
@@ -326,14 +321,14 @@ def to_decimal(expr, args, kwargs, context):
                         ['mul', in_arg, DECIMAL_DIVISOR],
                         ['mload', MemoryPositions.MAXDECIMAL],
                     ],
-                    typ=BaseType('decimal', _unit, _positional),
+                    typ=BaseType('decimal'),
                     pos=getpos(expr)
                 )
 
         elif input_type in ('int128', 'bool'):
             return LLLnode.from_list(
                 ['mul', in_arg, DECIMAL_DIVISOR],
-                typ=BaseType('decimal', _unit, _positional),
+                typ=BaseType('decimal'),
                 pos=getpos(expr)
             )
 

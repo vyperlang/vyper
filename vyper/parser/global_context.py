@@ -45,8 +45,6 @@ class GlobalContext:
         self._globals = dict()
         self._defs = list()
         self._getters = list()
-        self._custom_units = set()
-        self._custom_units_descriptions = dict()
         self._constants = Constants()
         self._interfaces = dict()
         self._interface = dict()
@@ -267,7 +265,6 @@ class GlobalContext:
                     )
                 check_valid_varname(
                     member_name.id,
-                    self._custom_units,
                     self._structs,
                     self._constants,
                     item,
@@ -282,7 +279,6 @@ class GlobalContext:
                 parse_type(
                     member_type,
                     'storage',
-                    custom_units=self._custom_units,
                     custom_structs=self._structs,
                     constants=self._constants,
                 )
@@ -333,7 +329,7 @@ class GlobalContext:
 
     def is_valid_varname(self, name, item):
         """ Valid variable name, checked against global context. """
-        check_valid_varname(name, self._custom_units, self._structs, self._constants, item)
+        check_valid_varname(name, self._structs, self._constants, item)
         if name in self._globals:
             raise VariableDeclarationException(
                 f'Invalid name "{name}", previously defined as global.', item
@@ -400,37 +396,6 @@ class GlobalContext:
                 "Can only assign type to variable in top-level statement", item
             )
 
-        # Is this a custom unit definition.
-        elif item.target.id == 'units':
-            if not self._custom_units:
-                if not isinstance(item.annotation, vy_ast.Dict):
-                    raise VariableDeclarationException(
-                        "Define custom units using units: { }.", item.target
-                    )
-                for key, value in zip(item.annotation.keys, item.annotation.values):
-                    if not isinstance(value, vy_ast.Str):
-                        raise VariableDeclarationException(
-                            "Custom unit description must be a valid string", value
-                        )
-                    if not isinstance(key, vy_ast.Name):
-                        raise VariableDeclarationException(
-                            "Custom unit name must be a valid string", key
-                        )
-                    check_valid_varname(
-                        key.id,
-                        self._custom_units,
-                        self._structs,
-                        self._constants,
-                        key,
-                        "Custom unit invalid."
-                    )
-                    self._custom_units.add(key.id)
-                    self._custom_units_descriptions[key.id] = value.s
-            else:
-                raise VariableDeclarationException(
-                    "Custom units can only be defined once", item.target
-                )
-
         # Check if variable name is valid.
         # Don't move this check higher, as unit parsing has to happen first.
         elif not self.is_valid_varname(item.target.id, item):
@@ -468,7 +433,6 @@ class GlobalContext:
                 typ = parse_type(
                     item.annotation.args[0],
                     'storage',
-                    custom_units=self._custom_units,
                     custom_structs=self._structs,
                     constants=self._constants,
                 )
@@ -490,7 +454,6 @@ class GlobalContext:
                 parse_type(
                     item.annotation,
                     'storage',
-                    custom_units=self._custom_units,
                     custom_structs=self._structs,
                     constants=self._constants
                 ),
@@ -504,7 +467,6 @@ class GlobalContext:
             ast_node,
             location,
             sigs=self._contracts,
-            custom_units=self._custom_units,
             custom_structs=self._structs,
             constants=self._constants
         )

@@ -23,7 +23,6 @@ def generate_default_arg_sigs(code, contracts, global_ctx):
             FunctionSignature.from_definition(
                 code,
                 sigs=contracts,
-                custom_units=global_ctx._custom_units,
                 custom_structs=global_ctx._structs,
                 constants=global_ctx._constants
             )
@@ -51,7 +50,6 @@ def generate_default_arg_sigs(code, contracts, global_ctx):
         sig = FunctionSignature.from_definition(
             new_code,
             sigs=contracts,
-            custom_units=global_ctx._custom_units,
             custom_structs=global_ctx._structs,
             constants=global_ctx._constants
         )
@@ -61,8 +59,8 @@ def generate_default_arg_sigs(code, contracts, global_ctx):
     return sig_fun_defs
 
 
-def _default_sig_formatter(sig, custom_units_descriptions):
-    return sig.to_abi_dict(custom_units_descriptions)
+def _default_sig_formatter(sig):
+    return sig.to_abi_dict()
 
 
 # Get ABI signature
@@ -78,21 +76,20 @@ def mk_full_signature(code, sig_formatter=None, interface_codes=None):
     # Produce event signatues.
     for code in global_ctx._events:
         sig = EventSignature.from_declaration(code, global_ctx)
-        o.append(sig_formatter(sig, global_ctx._custom_units_descriptions))
+        o.append(sig_formatter(sig))
 
     # Produce function signatures.
     for code in global_ctx._defs:
         sig = FunctionSignature.from_definition(
             code,
             sigs=global_ctx._contracts,
-            custom_units=global_ctx._custom_units,
             custom_structs=global_ctx._structs,
             constants=global_ctx._constants
         )
         if not sig.private:
             default_sigs = generate_default_arg_sigs(code, global_ctx._contracts, global_ctx)
             for s in default_sigs:
-                o.append(sig_formatter(s, global_ctx._custom_units_descriptions))
+                o.append(sig_formatter(s))
     return o
 
 
@@ -114,7 +111,6 @@ def mk_single_method_identifier(code, global_ctx):
     sig = FunctionSignature.from_definition(
         code,
         sigs=global_ctx._contracts,
-        custom_units=global_ctx._custom_units,
         custom_structs=global_ctx._structs,
         constants=global_ctx._constants,
     )

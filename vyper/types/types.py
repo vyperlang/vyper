@@ -12,80 +12,14 @@ from vyper import (
     ast as vy_ast,
 )
 from vyper.exceptions import (
+    CompilerPanic,
     InvalidType,
 )
 from vyper.utils import (
     BASE_TYPES,
-    VALID_UNITS,
     ceil32,
     check_valid_varname,
 )
-
-
-def unit_from_type(typ):
-    try:
-        return typ.unit
-    except AttributeError:
-        return {}
-
-
-# Pretty-print a unit (e. g. m/s)
-# if unit_descriptions is provided humanizes it (e. g. Meter per Second)
-def print_unit(unit, unit_descriptions=None):
-    def humanize_power(power):
-        if unit_descriptions and power == 2:
-            return ' squared'
-        else:
-            return '**' + str(power)
-
-    def humanize_unit(unit_key):
-        try:
-            return unit_descriptions[unit_key]
-        except (TypeError, KeyError):
-            # unit_descriptions is None or missing unit_key
-            return unit_key
-
-    if unit_descriptions:
-        mul = '-'
-        div = ' per '
-    else:
-        mul = '*'
-        div = '/'
-
-    if unit is None:
-        return '*'
-
-    if not isinstance(unit, dict):
-        return unit
-
-    pos = ''
-    for k in sorted([x for x in unit.keys() if unit[x] > 0]):
-        if unit[k] > 1:
-            pos += mul + humanize_unit(k) + humanize_power(unit[k])
-        else:
-            pos += mul + humanize_unit(k)
-
-    neg = ''
-    for k in sorted([x for x in unit.keys() if unit[x] < 0]):
-        if unit[k] < -1:
-            neg += div + humanize_unit(k) + humanize_power(-unit[k])
-        else:
-            neg += div + humanize_unit(k)
-
-    if pos and neg:
-        return pos[1:] + neg
-    elif neg:
-        return '1' + neg
-    else:
-        return pos[1:]
-
-
-# Multiply or divide two units by each other
-def combine_units(unit1, unit2, div=False):
-    o = {k: v for k, v in (unit1 or {}).items()}
-    for k, v in (unit2 or {}).items():
-        o[k] = o.get(k, 0) + v * (-1 if div else 1)
-    return {k: v for k, v in o.items() if v}
 
 
 # Data structure for a type
@@ -111,28 +45,22 @@ class BaseType(NodeType):
                  override_signature=False,
                  is_literal=False):
         self.typ = typ
-        self.unit = {} if not unit else unit
-        self.positional = positional
+        if unit or positional:
+            raise CompilerPanic("Units are no longer supported")
         self.override_signature = override_signature
         self.is_literal = is_literal
 
     def eq(self, other):
-        return (
-            self.typ == other.typ and self.unit == other.unit
-        ) and self.positional == other.positional
+        return self.typ == other.typ
 
     def __repr__(self):
-        subs = []
-        if self.unit != {}:
-            subs.append(print_unit(self.unit))
-        if self.positional:
-            subs.append('positional')
-        return str(self.typ) + (('(' + ', '.join(subs) + ')') if subs else '')
+        return str(self.typ)
 
 
 class ContractType(BaseType):
     def __init__(self, name):
-        super().__init__('address', name)
+        super().__init__('address')
+        self.name = name
 
     def __eq__(self, other: Any) -> bool:
         return isinstance(other, BaseType) and other.typ == 'address'
@@ -273,41 +201,7 @@ def canonicalize_type(t, is_indexed=False):
     raise InvalidType(f"Invalid or unsupported type: {repr(t)}")
 
 
-# Special types
-SPECIAL_TYPES = {
-    'timestamp': BaseType('uint256', {'sec': 1}, True),
-    'timedelta': BaseType('uint256', {'sec': 1}, False),
-    'wei_value': BaseType('uint256', {'wei': 1}, False),
-}
-
-
-# Parse an expression representing a unit
-def parse_unit(item, custom_units):
-    if isinstance(item, vy_ast.Name):
-        if (item.id not in VALID_UNITS) and (custom_units is not None) and (item.id not in custom_units):  # noqa: E501
-            raise InvalidType("Invalid base unit", item)
-        return {item.id: 1}
-    elif isinstance(item, vy_ast.Int) and item.n == 1:
-        return {}
-    elif not isinstance(item, vy_ast.BinOp):
-        raise InvalidType("Invalid unit expression", item)
-    elif isinstance(item.op, vy_ast.Mult):
-        left, right = parse_unit(item.left, custom_units), parse_unit(item.right, custom_units)
-        return combine_units(left, right)
-    elif isinstance(item.op, vy_ast.Div):
-        left, right = parse_unit(item.left, custom_units), parse_unit(item.right, custom_units)
-        return combine_units(left, right, div=True)
-    elif isinstance(item.op, vy_ast.Pow):
-        if not isinstance(item.left, vy_ast.Name):
-            raise InvalidType("Can only raise a base type to an exponent", item)
-        if not isinstance(item.right, vy_ast.Int) or not isinstance(item.right.n, int) or item.right.n <= 0:  # noqa: E501
-            raise InvalidType("Exponent must be positive integer", item)
-        return {item.left.id: item.right.n}
-    else:
-        raise InvalidType("Invalid unit expression", item)
-
-
-def make_struct_type(name, location, members, custom_units, custom_structs, constants):
+def make_struct_type(name, location, members, custom_structs, constants):
     o = OrderedDict()
 
     for key, value in members:
@@ -318,7 +212,6 @@ def make_struct_type(name, location, members, custom_units, custom_structs, cons
             )
         check_valid_varname(
             key.id,
-            custom_units,
             custom_structs,
             constants,
             "Invalid member variable for struct",
@@ -326,7 +219,6 @@ def make_struct_type(name, location, members, custom_units, custom_structs, cons
         o[key.id] = parse_type(
             value,
             location,
-            custom_units=custom_units,
             custom_structs=custom_structs,
             constants=constants,
         )
@@ -336,19 +228,16 @@ def make_struct_type(name, location, members, custom_units, custom_structs, cons
 
 # Parses an expression representing a type. Annotation refers to whether
 # the type is to be located in memory or storage
-def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None, constants=None):
+def parse_type(item, location, sigs=None, custom_structs=None, constants=None):
     # Base and custom types, e.g. num
     if isinstance(item, vy_ast.Name):
         if item.id in BASE_TYPES:
             return BaseType(item.id)
-        elif item.id in SPECIAL_TYPES:
-            return SPECIAL_TYPES[item.id]
         elif (custom_structs is not None) and (item.id in custom_structs):
             return make_struct_type(
                 item.id,
                 location,
                 custom_structs[item.id],
-                custom_units,
                 custom_structs,
                 constants,
             )
@@ -371,7 +260,6 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
             keytype = parse_type(
                 item.args[0],
                 None,
-                custom_units=custom_units,
                 custom_structs=custom_structs,
                 constants=constants,
             )
@@ -382,7 +270,6 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
                 parse_type(
                     item.args[1],
                     location,
-                    custom_units=custom_units,
                     custom_structs=custom_structs,
                     constants=constants,
                 ),
@@ -397,28 +284,10 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
                 item.id,
                 location,
                 custom_structs[item.id],
-                custom_units,
                 custom_structs,
                 constants,
             )
-        if not isinstance(item.func, vy_ast.Name):
-            raise InvalidType("Malformed unit type:", item)
-        base_type = item.func.id
-        if base_type not in ('int128', 'uint256', 'decimal', 'address'):
-            raise InvalidType("You must use int128, uint256, decimal, address, contract, \
-                for variable declarations and indexed for logging topics ", item)
-        if len(item.args) == 0:
-            raise InvalidType("Malformed unit type", item)
-        if isinstance(item.args[-1], vy_ast.Name) and item.args[-1].id == "positional":
-            positional = True
-            argz = item.args[:-1]
-        else:
-            positional = False
-            argz = item.args
-        if len(argz) != 1:
-            raise InvalidType("Malformed unit type", item)
-        unit = parse_unit(argz[0], custom_units=custom_units)
-        return BaseType(base_type, unit, positional)
+        raise InvalidType("Units are no longer supported", item)
     # Subscripts
     elif isinstance(item, vy_ast.Subscript):
         # Fixed size lists or bytearrays, e.g. num[100]
@@ -444,7 +313,6 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
                 return ListType(parse_type(
                     item.value,
                     location,
-                    custom_units=custom_units,
                     custom_structs=custom_structs,
                     constants=constants,
                 ), n_val)
@@ -470,7 +338,6 @@ def parse_type(item, location, sigs=None, custom_units=None, custom_structs=None
             parse_type(
                 x,
                 location,
-                custom_units=custom_units,
                 custom_structs=custom_structs,
                 constants=constants
             ) for x in item.elts
@@ -537,13 +404,6 @@ def get_type(input):
     else:
         typ, len = input.typ.typ, 32
     return typ, len
-
-
-# Checks that the units of frm can be seamlessly converted into the units of to
-def are_units_compatible(frm, to):
-    frm_unit = frm.unit
-    to_unit = to.unit
-    return frm_unit == {} or (frm_unit == to_unit and frm.positional == to.positional)
 
 
 # Is a type representing a number?

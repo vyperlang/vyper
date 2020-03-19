@@ -105,12 +105,7 @@ class Stmt(object):
         return self._assert_reason(0, self.stmt.exc)
 
     def _check_valid_assign(self, sub):
-        if isinstance(self.stmt.annotation, vy_ast.Call):  # unit style: num(wei)
-            if self.stmt.annotation.func.id != sub.typ.typ and not sub.typ.is_literal:
-                raise TypeMismatch(
-                    f'Invalid type, expected: {self.stmt.annotation.func.id}', self.stmt
-                )
-        elif (
+        if (
             isinstance(self.stmt.annotation, vy_ast.Name) and
             self.stmt.annotation.id == 'bytes32'
         ):
@@ -144,7 +139,7 @@ class Stmt(object):
                 raise InvalidLiteral(
                     'Invalid uint256 assignment, value not in uint256 range.', self.stmt
                 )
-        elif self.stmt.annotation.id != sub.typ.typ and not sub.typ.unit:
+        elif self.stmt.annotation.id != sub.typ.typ:
             raise TypeMismatch(
                 f'Invalid type {sub.typ.typ}, expected: {self.stmt.annotation.id}',
                 self.stmt,
@@ -186,7 +181,6 @@ class Stmt(object):
             typ = parse_type(
                 self.stmt.annotation,
                 location='memory',
-                custom_units=self.context.custom_units,
                 custom_structs=self.context.structs,
                 constants=self.context.constants,
             )
@@ -310,7 +304,7 @@ class Stmt(object):
                 if isinstance(target.typ, ContractType) and not isinstance(sub.typ, ContractType):
                     raise TypeMismatch(
                         'Contract assignment expects casted address: '
-                        f'{target.typ.unit}(<address_var>)',
+                        f'{target.typ}(<address_var>)',
                         self.stmt
                     )
                 o = make_setter(target, sub, target.location, pos=getpos(self.stmt))
@@ -633,7 +627,7 @@ class Stmt(object):
         varname = self.stmt.target.id
         value_pos = self.context.new_variable(
             varname,
-            BaseType(subtype, unit=iter_list_node.typ.subtype.unit),
+            BaseType(subtype),
         )
         i_pos_raw_name = '_index_for_' + varname
         i_pos = self.context.new_internal_variable(
@@ -797,12 +791,7 @@ class Stmt(object):
         if isinstance(sub.typ, BaseType):
             sub = unwrap_location(sub)
 
-            if not isinstance(self.context.return_type, BaseType):
-                raise TypeMismatch(
-                    f"Return type units mismatch {sub.typ} {self.context.return_type}",
-                    self.stmt.value
-                )
-            elif self.context.return_type != sub.typ and not sub.typ.is_literal:
+            if self.context.return_type != sub.typ and not sub.typ.is_literal:
                 raise TypeMismatch(
                     f"Trying to return base type {sub.typ}, output expecting "
                     f"{self.context.return_type}",

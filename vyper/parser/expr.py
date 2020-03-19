@@ -43,8 +43,6 @@ from vyper.types import (
     StringType,
     StructType,
     TupleType,
-    are_units_compatible,
-    combine_units,
     is_base_type,
     is_numeric_type,
 )
@@ -60,14 +58,13 @@ from vyper.utils import (
 
 # var name: (lllnode, type)
 BUILTIN_CONSTANTS = {
-    'EMPTY_BYTES32': (0, 'bytes32', None),
-    'ZERO_ADDRESS': (0, 'address', None),
-    'MAX_INT128': (SizeLimits.MAXNUM, 'int128', None),
-    'MIN_INT128': (SizeLimits.MINNUM, 'int128', None),
-    'MAX_DECIMAL': (SizeLimits.MAXDECIMAL, 'decimal', None),
-    'MIN_DECIMAL': (SizeLimits.MINDECIMAL, 'decimal', None),
-    'MAX_UINT256': (SizeLimits.MAX_UINT256, 'uint256', None),
-    'ZERO_WEI': (0, 'uint256', {'wei': 1}),
+    'EMPTY_BYTES32': (0, 'bytes32'),
+    'ZERO_ADDRESS': (0, 'address'),
+    'MAX_INT128': (SizeLimits.MAXNUM, 'int128'),
+    'MIN_INT128': (SizeLimits.MINNUM, 'int128'),
+    'MAX_DECIMAL': (SizeLimits.MAXDECIMAL, 'decimal'),
+    'MIN_DECIMAL': (SizeLimits.MINDECIMAL, 'decimal'),
+    'MAX_UINT256': (SizeLimits.MAX_UINT256, 'uint256'),
 }
 
 ENVIRONMENT_VARIABLES = {
@@ -81,7 +78,7 @@ ENVIRONMENT_VARIABLES = {
 def get_min_val_for_type(typ: str) -> int:
     key = 'MIN_' + typ.upper()
     try:
-        min_val, _, _ = BUILTIN_CONSTANTS[key]
+        min_val, _ = BUILTIN_CONSTANTS[key]
     except KeyError as e:
         raise TypeMismatch(f"Not a signed type: {typ}") from e
     return min_val
@@ -127,14 +124,14 @@ class Expr(object):
         if SizeLimits.in_bounds('int128', self.expr.n) or self.expr.n < 0:
             return LLLnode.from_list(
                 self.expr.n,
-                typ=BaseType('int128', unit={}, is_literal=True),
+                typ=BaseType('int128', is_literal=True),
                 pos=getpos(self.expr),
             )
         # Literal is large enough (mostly likely) becomes uint256.
         else:
             return LLLnode.from_list(
                 self.expr.n,
-                typ=BaseType('uint256', unit={}, is_literal=True),
+                typ=BaseType('uint256', is_literal=True),
                 pos=getpos(self.expr),
             )
 
@@ -151,7 +148,7 @@ class Expr(object):
             )
         return LLLnode.from_list(
             num * DECIMAL_DIVISOR // den,
-            typ=BaseType('decimal', unit=None, is_literal=True),
+            typ=BaseType('decimal', is_literal=True),
             pos=getpos(self.expr),
         )
 
@@ -281,10 +278,10 @@ class Expr(object):
             )
 
         elif self.expr.id in BUILTIN_CONSTANTS:
-            obj, typ, unit = BUILTIN_CONSTANTS[self.expr.id]
+            obj, typ = BUILTIN_CONSTANTS[self.expr.id]
             return LLLnode.from_list(
                 [obj],
-                typ=BaseType(typ, unit, is_literal=True),
+                typ=BaseType(typ, is_literal=True),
                 pos=getpos(self.expr))
         elif self.context.constants.ast_is_constant(self.expr):
             return self.context.constants.get_constant(self.expr.id, self.context)
@@ -311,7 +308,7 @@ class Expr(object):
                 seq = ['balance', addr]
             return LLLnode.from_list(
                 seq,
-                typ=BaseType('uint256', {'wei': 1}),
+                typ=BaseType('uint256'),
                 location=None,
                 pos=getpos(self.expr),
             )
@@ -388,7 +385,7 @@ class Expr(object):
                     )
                 return LLLnode.from_list(
                     ['callvalue'],
-                    typ=BaseType('uint256', {'wei': 1}),
+                    typ=BaseType('uint256'),
                     pos=getpos(self.expr),
                 )
             elif key == "msg.gas":
@@ -406,7 +403,7 @@ class Expr(object):
             elif key == "block.timestamp":
                 return LLLnode.from_list(
                     ['timestamp'],
-                    typ=BaseType('uint256', {'sec': 1}, True),
+                    typ=BaseType('uint256'),
                     pos=getpos(self.expr),
                 )
             elif key == "block.coinbase":
@@ -558,27 +555,7 @@ class Expr(object):
 
         ltyp, rtyp = left.typ.typ, right.typ.typ
         if isinstance(self.expr.op, (vy_ast.Add, vy_ast.Sub)):
-            if left.typ.unit != right.typ.unit and left.typ.unit != {} and right.typ.unit != {}:
-                raise TypeMismatch(
-                    f"Unit mismatch: {left.typ.unit} {right.typ.unit}",
-                    self.expr,
-                )
-            if (
-                left.typ.positional and
-                right.typ.positional and
-                isinstance(self.expr.op, vy_ast.Add)
-            ):
-                raise TypeMismatch(
-                    "Cannot add two positional units!",
-                    self.expr,
-                )
-            new_unit = left.typ.unit or right.typ.unit
-
-            # xor, as subtracting two positionals gives a delta
-            new_positional = left.typ.positional ^ right.typ.positional
-
-            new_typ = BaseType(ltyp, new_unit, new_positional)
-
+            new_typ = BaseType(ltyp)
             op = 'add' if isinstance(self.expr.op, vy_ast.Add) else 'sub'
 
             if ltyp == 'uint256' and isinstance(self.expr.op, vy_ast.Add):
@@ -600,11 +577,7 @@ class Expr(object):
                 raise Exception(f"Unsupported Operation '{op}({ltyp}, {rtyp})'")
 
         elif isinstance(self.expr.op, vy_ast.Mult):
-            if left.typ.positional or right.typ.positional:
-                raise TypeMismatch("Cannot multiply positional values!", self.expr)
-            new_unit = combine_units(left.typ.unit, right.typ.unit)
-            new_typ = BaseType(ltyp, new_unit)
-
+            new_typ = BaseType(ltyp)
             if ltyp == rtyp == 'uint256':
                 arith = ['with', 'ans', ['mul', 'l', 'r'],
                          ['seq',
@@ -633,10 +606,8 @@ class Expr(object):
         elif isinstance(self.expr.op, vy_ast.Div):
             if right.typ.is_literal and right.value == 0:
                 raise ZeroDivisionException("Cannot divide by 0.", self.expr)
-            if left.typ.positional or right.typ.positional:
-                raise TypeMismatch("Cannot divide positional values!", self.expr)
-            new_unit = combine_units(left.typ.unit, right.typ.unit, div=True)
-            new_typ = BaseType(ltyp, new_unit)
+
+            new_typ = BaseType(ltyp)
             if ltyp == rtyp == 'uint256':
                 arith = ['div', 'l', ['clamp_nonzero', 'r']]
 
@@ -655,16 +626,8 @@ class Expr(object):
         elif isinstance(self.expr.op, vy_ast.Mod):
             if right.typ.is_literal and right.value == 0:
                 raise ZeroDivisionException("Cannot calculate modulus of 0.", self.expr)
-            if left.typ.positional or right.typ.positional:
-                raise TypeMismatch(
-                    "Cannot use positional values as modulus arguments!",
-                    self.expr,
-                )
 
-            if not are_units_compatible(left.typ, right.typ) and not (left.typ.unit or right.typ.unit):  # noqa: E501
-                raise TypeMismatch("Modulus arguments must have same unit", self.expr)
-            new_unit = left.typ.unit or right.typ.unit
-            new_typ = BaseType(ltyp, new_unit)
+            new_typ = BaseType(ltyp)
 
             if ltyp == rtyp == 'uint256':
                 arith = ['mod', 'l', ['clamp_nonzero', 'r']]
@@ -675,25 +638,12 @@ class Expr(object):
             else:
                 raise Exception(f"Unsupported Operation 'mod({ltyp}, {rtyp})'")
         elif isinstance(self.expr.op, vy_ast.Pow):
-            if left.typ.positional or right.typ.positional:
-                raise TypeMismatch(
-                    "Cannot use positional values as exponential arguments!",
-                    self.expr,
-                )
-            if right.typ.unit:
-                raise TypeMismatch(
-                    "Cannot use unit values as exponents",
-                    self.expr,
-                )
             if ltyp != 'int128' and ltyp != 'uint256' and isinstance(self.expr.right, vy_ast.Name):
                 raise TypeMismatch(
                     "Cannot use dynamic values as exponents, for unit base types",
                     self.expr,
                 )
-            new_unit = left.typ.unit
-            if left.typ.unit and not isinstance(self.expr.right, vy_ast.Name):
-                new_unit = {left.typ.unit.copy().popitem()[0]: self.expr.right.n}
-            new_typ = BaseType(ltyp, new_unit)
+            new_typ = BaseType(ltyp)
 
             if ltyp == rtyp == 'uint256':
                 arith = ['seq',
@@ -846,9 +796,6 @@ class Expr(object):
                     self.expr,
                 )
             return self.build_in_comparator()
-        else:
-            if not are_units_compatible(left.typ, right.typ) and not are_units_compatible(right.typ, left.typ):  # noqa: E501
-                raise TypeMismatch("Can't compare values with different units!", self.expr)
 
         if isinstance(self.expr.op, vy_ast.Gt):
             op = 'sgt'
@@ -1010,7 +957,7 @@ class Expr(object):
                 typ = "decimal" if operand.typ.typ == "decimal" else "int128"
                 return LLLnode.from_list(
                     0-operand.value,
-                    typ=BaseType(typ, unit=operand.typ.unit, is_literal=True),
+                    typ=BaseType(typ, is_literal=True),
                     pos=getpos(self.expr),
                 )
 
@@ -1134,7 +1081,6 @@ class Expr(object):
                 )
             check_valid_varname(
                 key.id,
-                context.custom_units,
                 context.structs,
                 context.constants,
                 "Invalid member variable for struct",

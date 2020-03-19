@@ -142,9 +142,6 @@ RLP_DECODER_ADDRESS = hex_to_int('0x5185D17c44699cecC3133114F8df70753b856709')
 # Keywords available for ast.Call type
 VALID_CALL_KEYWORDS = {'uint256', 'int128', 'decimal', 'address', 'contract', 'indexed'}
 
-# Valid base units
-VALID_UNITS = {'wei', 'sec'}
-
 # Valid attributes for variables and methods
 VALID_GLOBAL_KEYWORDS = {
     'public',
@@ -154,7 +151,7 @@ VALID_GLOBAL_KEYWORDS = {
     'private',
     'payable',
     'nonreentrant',
-} | VALID_UNITS | VALID_CALL_KEYWORDS
+} | VALID_CALL_KEYWORDS
 
 # Available base types
 BASE_TYPES = {'int128', 'decimal', 'bytes32', 'uint256', 'bool', 'address'}
@@ -214,16 +211,11 @@ VALID_LLL_MACROS = {
 
 # Is a variable or member variable name valid?
 # Same conditions apply for function names and events
-def is_varname_valid(varname, custom_units, custom_structs, constants):
+def is_varname_valid(varname, custom_structs, constants):
     from vyper.functions import BUILTIN_FUNCTIONS
 
     varname_lower = varname.lower()
     varname_upper = varname.upper()
-
-    if custom_units is None:
-        custom_units = set()
-    if varname_lower in {cu.lower() for cu in custom_units}:
-        return False, f"{varname} is a unit name."
 
     # struct names are case sensitive.
     if varname in custom_structs:
@@ -243,7 +235,6 @@ def is_varname_valid(varname, custom_units, custom_structs, constants):
 
 
 def check_valid_varname(varname,
-                        custom_units,
                         custom_structs,
                         constants,
                         pos,
@@ -252,7 +243,7 @@ def check_valid_varname(varname,
     """ Handle invalid variable names """
     exc = VariableDeclarationException if exc is None else exc
 
-    valid_varname, msg = is_varname_valid(varname, custom_units, custom_structs, constants)
+    valid_varname, msg = is_varname_valid(varname, custom_structs, constants)
     if not valid_varname:
         raise exc(error_prefix + msg, pos)
 

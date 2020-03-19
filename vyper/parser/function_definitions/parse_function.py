@@ -42,7 +42,6 @@ def parse_function(code, sigs, origcode, global_ctx, _vars=None):
     sig = FunctionSignature.from_definition(
         code,
         sigs=sigs,
-        custom_units=global_ctx._custom_units,
         custom_structs=global_ctx._structs,
         constants=global_ctx._constants
     )

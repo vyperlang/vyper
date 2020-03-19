@@ -1,4 +1,3 @@
-import copy
 import importlib
 from pathlib import (
     Path,
@@ -117,7 +116,6 @@ def mk_full_signature_from_json(abi):
                 decorator_list=decorator_list,
                 returns=returns,
             ),
-            custom_units=set(),
             custom_structs=dict(),
             constants=Constants()
         )
@@ -132,7 +130,7 @@ def extract_sigs(sig_code):
             isinstance(i, vy_ast.FunctionDef) or
             (isinstance(i, vy_ast.AnnAssign) and i.target.id != "implements")
         ]
-        return sig_utils.mk_full_signature(interface_ast, sig_formatter=lambda x, y: x)
+        return sig_utils.mk_full_signature(interface_ast, sig_formatter=lambda x: x)
     elif sig_code['type'] == 'json':
         return mk_full_signature_from_json(sig_code['code'])
     else:
@@ -145,11 +143,11 @@ def extract_sigs(sig_code):
 def extract_interface_str(code, contract_name, interface_codes=None):
     sigs = sig_utils.mk_full_signature(
         vy_ast.parse_to_ast(code),
-        sig_formatter=lambda x, y: (x, y),
+        sig_formatter=lambda x: x,
         interface_codes=interface_codes,
     )
-    events = [sig for sig, _ in sigs if isinstance(sig, EventSignature)]
-    functions = [sig for sig, _ in sigs if isinstance(sig, FunctionSignature)]
+    events = [i for i in sigs if isinstance(i, EventSignature)]
+    functions = [i for i in sigs if isinstance(i, FunctionSignature)]
     out = ""
     # Print events.
     for idx, event in enumerate(events):
@@ -181,10 +179,10 @@ def extract_interface_str(code, contract_name, interface_codes=None):
 def extract_external_interface(code, contract_name, interface_codes=None):
     sigs = sig_utils.mk_full_signature(
         vy_ast.parse_to_ast(code),
-        sig_formatter=lambda x, y: (x, y),
+        sig_formatter=lambda x: x,
         interface_codes=interface_codes,
     )
-    functions = [sig for sig, _ in sigs if isinstance(sig, FunctionSignature)]
+    functions = [i for i in sigs if isinstance(i, FunctionSignature)]
     cname = Path(contract_name).stem.capitalize()
 
     out = ""
@@ -303,11 +301,7 @@ def check_valid_contract_interface(global_ctx, contract_sigs):
                 if sig not in funcs_left:
                     # this function is not present within the interface
                     continue
-                # Remove units, as interface signatures should not enforce units.
                 clean_sig_output_type = func_sig.output_type
-                if func_sig.output_type:
-                    clean_sig_output_type = copy.deepcopy(func_sig.output_type)
-                    clean_sig_output_type.unit = {}
                 if _compare_outputs(funcs_left[sig].output_type, clean_sig_output_type):
                     del funcs_left[sig]
             if isinstance(func_sig, EventSignature) and func_sig.sig in funcs_left:

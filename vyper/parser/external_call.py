@@ -180,8 +180,13 @@ def make_external_call(stmt_expr, context):
             gas=gas,
         )
 
-    elif isinstance(stmt_expr.func.value, vy_ast.Attribute) and stmt_expr.func.value.attr in context.globals:  # noqa: E501
-        contract_name = context.globals[stmt_expr.func.value.attr].typ.unit
+    elif (
+        isinstance(stmt_expr.func.value, vy_ast.Attribute) and
+        stmt_expr.func.value.attr in context.globals
+        and hasattr(context.globals[stmt_expr.func.value.attr].typ, 'name')
+    ):
+
+        contract_name = context.globals[stmt_expr.func.value.attr].typ.name
         var = context.globals[stmt_expr.func.value.attr]
         contract_address = unwrap_location(LLLnode.from_list(
             var.pos,
