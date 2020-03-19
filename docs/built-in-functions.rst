@@ -39,16 +39,12 @@ contracts.
 
     * ``var``: Variable to clear
 
-.. py:function:: as_wei_value(value: int, unit: str) -> wei_value
+.. py:function:: as_wei_value(value: int, unit: str) -> uint256
 
     Takes an amount of ether currency specified by a number and a unit and returns the integer quantity of wei equivalent to that amount.
 
     * ``value``: Value for the ether unit
-    * ``unit``: Ether unit name (e.g. ``"wei"``, ``"ether"``, ``"gwei"``, etc.)
-
-.. py:function:: as_unitless_number(value) -> int
-
-    Converts a ``int128``, ``uint256``, or ``decimal`` value with units into one without units (used for assignment and math).
+    * ``unit``: Ether unit name (e.g. ``"wei"``, ``"ether"``, ``"gwei"``, etc.) indicating the denomination of ``value``.
 
 .. py:function:: slice(b: bytes, start: int128, length: int128) -> bytes
 
@@ -168,7 +164,7 @@ Low Level Built in Functions
 
 Vyper contains a set of built in functions which execute opcodes such as ``SEND`` or ``SELFDESTRUCT``.
 
-.. py:function:: send(to: address, value: uint256(wei)) -> None
+.. py:function:: send(to: address, value: uint256) -> None
 
     Sends ether from the contract to the specified Ethereum address.
 
@@ -179,7 +175,7 @@ Vyper contains a set of built in functions which execute opcodes such as ``SEND`
 
         The amount to send is always specified in ``wei``.
 
-.. py:function:: raw_call(to: address, data: bytes, outsize: int = 0, gas: uint256 = gasLeft, value: uint256(wei) = 0, is_delegate_call: bool = False) -> bytes[outsize]
+.. py:function:: raw_call(to: address, data: bytes, outsize: int = 0, gas: uint256 = gasLeft, value: uint256 = 0, is_delegate_call: bool = False) -> bytes[outsize]
 
     Calls to the specified Ethereum address.
 
@@ -269,7 +265,7 @@ Vyper contains a set of built in functions which execute opcodes such as ``SEND`
     This method provides low-level access to the ``LOG`` opcodes (``0xA0``..``0xA4``). The length of ``topics`` determines which opcode will be used. ``topics`` is a list of bytes32 topics that will be indexed. The remaining unindexed parameters can be placed in the ``data`` parameter.
 
 
-.. py:function:: create_forwarder_to(target: address, value: uint256(wei) = 0) -> address
+.. py:function:: create_forwarder_to(target: address, value: uint256 = 0) -> address
 
     Duplicates a contract's code and deploys it as a new instance, by means of a ``DELEGATECALL``.
 

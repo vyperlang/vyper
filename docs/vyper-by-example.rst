@@ -37,8 +37,8 @@ We begin by declaring a few variables to keep track of our contract state.
 We initialize a global variable ``beneficiary`` by calling ``public`` on the
 datatype ``address``. The ``beneficiary`` will be the receiver of money from
 the highest bidder.  We also initialize the variables ``auctionStart`` and
-``auctionEnd`` with the datatype ``timestamp`` to manage the open auction
-period and ``highestBid`` with datatype ``wei_value``, the smallest
+``auctionEnd`` with the datatype ``uint256`` to manage the open auction
+period and ``highestBid`` with datatype ``uint256``, the smallest
 denomination of ether, to manage auction state. The variable ``ended`` is a
 boolean to determine whether the auction is officially over. The variable ``pendingReturns`` is a ``map`` which
 enables the use of key-value pairs to keep proper track of the auctions withdrawal pattern.
@@ -59,7 +59,7 @@ Now, the constructor.
   :lines: 22-26
 
 The contract is initialized with two arguments: ``_beneficiary`` of type
-``address`` and ``_bidding_time`` with type ``timedelta``, the time difference
+``address`` and ``_bidding_time`` with type ``uint256``, the time difference
 between the start and end of the auction. We then store these two pieces of
 information into the contract variables ``self.beneficiary`` and
 ``self.auctionEnd``. Notice that we have access to the current time by
