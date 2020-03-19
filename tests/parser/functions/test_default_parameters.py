@@ -174,20 +174,20 @@ def foo(a: int128 = MIN_INT128, b: int128 = MAX_INT128) -> (int128, int128):
 
 def test_environment_vars_as_default(get_contract):
     code = """
-xx: uint256(wei)
+xx: uint256
 
 @public
 @payable
-def foo(a: uint256(wei) = msg.value) -> bool:
+def foo(a: uint256 = msg.value) -> bool:
     self.xx += a
     return True
 
 @public
-def bar() -> uint256(wei):
+def bar() -> uint256:
     return self.xx
 
 @public
-def get_balance() -> uint256(wei):
+def get_balance() -> uint256:
     return self.balance
     """
     c = get_contract(code)
@@ -235,7 +235,7 @@ def foo(a: address = msg.sender, b: address[3] = [msg.sender, tx.origin, block.c
     """
 @public
 @payable
-def foo(a: uint256(wei) = msg.value): pass
+def foo(a: uint256 = msg.value): pass
     """,
 ]
 

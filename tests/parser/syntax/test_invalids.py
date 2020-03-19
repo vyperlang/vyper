@@ -195,17 +195,8 @@ def foo():
 must_fail("""
 @public
 def foo() -> address:
-    return as_unitless_number([1, 2, 3])
+    return [1, 2, 3]
 """, TypeMismatch)
-
-must_succeed("""
-units: {
-    currency: "currency"
-}
-@public
-def foo(x: wei_value, y: uint256(currency), z: uint256(wei*currency/sec**2)) -> uint256(sec**2):
-    return x * y / z
-""")
 
 must_fail("""
 @public

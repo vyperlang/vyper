@@ -289,7 +289,7 @@ implements: BalanceOf
 
 @public
 @constant
-def balanceOf(owner: address) -> wei_value:
+def balanceOf(owner: address) -> uint256:
     return as_wei_value(1, "ether")
     """
     interface_code = """

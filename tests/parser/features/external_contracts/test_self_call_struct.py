@@ -7,11 +7,11 @@ def test_call_to_self_struct(w3, get_contract):
     code = """
 struct MyStruct:
     e1: decimal
-    e2: timestamp
+    e2: uint256
 
 @private
 @constant
-def get_my_struct(_e1: decimal, _e2: timestamp) -> MyStruct:
+def get_my_struct(_e1: decimal, _e2: uint256) -> MyStruct:
     return MyStruct({e1: _e1, e2: _e2})
 
 @public

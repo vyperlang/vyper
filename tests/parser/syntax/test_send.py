@@ -39,7 +39,7 @@ def foo():
     send(0x1234567890123456789012345678901234567890, self.x)
     """,
     """
-x: wei_value
+x: uint256
 
 @public
 def foo():
@@ -63,7 +63,7 @@ def test_send_fail(bad_code):
 
 valid_list = [
     """
-x: wei_value
+x: uint256
 
 @public
 def foo():
@@ -77,7 +77,7 @@ def foo():
     send(0x1234567890123456789012345678901234567890, as_wei_value(floor(self.x), "wei"))
     """,
     """
-x: wei_value
+x: uint256
 
 @public
 def foo():
@@ -91,7 +91,7 @@ def foo():
     """
 # Test custom send method
 @private
-def send(a: address, w: wei_value):
+def send(a: address, w: uint256):
     send(0xde0B295669a9FD93d5F28D9Ec85E40f4cb697BAe, 1)
 
 @public

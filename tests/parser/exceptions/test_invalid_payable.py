@@ -38,7 +38,7 @@ def foo() -> int128:
 @public
 @payable
 def foo():
-    x: wei_value = msg.value
+    x: uint256 = msg.value
     """
 ]
 

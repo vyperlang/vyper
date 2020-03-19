@@ -27,7 +27,7 @@ def foo(a: address) -> bool:
     return Bar(a).bar(1)
 
 @public
-def baz() -> uint256(wei):
+def baz() -> uint256:
     return self.balance
 """
 

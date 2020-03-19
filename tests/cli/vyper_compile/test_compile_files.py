@@ -34,7 +34,7 @@ def test_evm_versions(tmp_path):
     # should compile differently because of SELFBALANCE
     code = """
 @public
-def foo() -> uint256(wei):
+def foo() -> uint256:
     return self.balance
 """
 

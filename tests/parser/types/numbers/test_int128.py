@@ -4,7 +4,6 @@ from decimal import (
 
 from vyper.exceptions import (
     InvalidLiteral,
-    TypeMismatch,
 )
 
 
@@ -73,22 +72,6 @@ def _negative_exp_var() -> int128:
     assert c._negative_exp_var() == -4
 
 
-def test_exponents_with_units(get_contract_with_gas_estimation):
-    code = """
-@public
-def foo() -> int128(wei):
-    a: int128(wei) = 0
-    b: int128 = 0
-    c: int128(wei) = 0
-    a = 2
-    b = 2
-    c = a ** b
-    return c
-"""
-    c = get_contract_with_gas_estimation(code)
-    assert c.foo() == 4
-
-
 def test_num_bound(assert_tx_failed, get_contract_with_gas_estimation):
     num_bound_code = """
 @public
@@ -133,17 +116,6 @@ def _num_min() -> int128:
 
     assert_tx_failed(lambda: c._num_add3(NUM_MAX, 1, -1))
     assert c._num_add3(NUM_MAX, -1, 1) == NUM_MAX
-
-
-def test_invalid_unit_exponent(assert_compile_failed, get_contract_with_gas_estimation):
-    code = """
-@public
-def foo():
-    a: int128(wei) = 0
-    b: int128(wei) = 0
-    c = a ** b
-"""
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatch)
 
 
 def test_overflow_out_of_range(get_contract, assert_compile_failed):

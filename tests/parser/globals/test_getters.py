@@ -15,20 +15,19 @@ def foo() -> int128:
     c = get_contract_with_gas_estimation_for_constants(state_accessor)
     c.oo(transact={})
     assert c.foo() == 5
-    print('Passed basic state accessor test')
 
 
 def test_getter_code(get_contract_with_gas_estimation_for_constants):
     getter_code = """
 struct W:
-    a: wei_value
+    a: uint256
     b: int128[7]
     c: bytes[100]
     d: map(address, int128)
     e: int128[3][3]
-    f: timestamp
-    g: wei_value
-x: public(wei_value)
+    f: uint256
+    g: uint256
+x: public(uint256)
 y: public(int128[5])
 z: public(bytes[100])
 w: public(map(int128, W))
@@ -58,5 +57,3 @@ def __init__():
     assert c.w__e(2, 1, 2) == 17
     assert c.w__f(3) == 750
     assert c.w__g(3) == 751
-
-    print('Passed getter tests')

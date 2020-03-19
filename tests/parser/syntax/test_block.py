@@ -13,27 +13,18 @@ from vyper.exceptions import (
 fail_list = [
     """
 @public
-def foo() -> int128:
-    x: address = create_forwarder_to(
-        0x1234567890123456789012345678901234567890,
-        value=block.timestamp,
-    )
-    return 5
-    """,
-    """
-@public
 def foo() -> int128[2]:
     return [3,block.timestamp]
     """,
     """
 @public
-def foo() -> timedelta[2]:
+def foo() -> int128[2]:
     return [block.timestamp - block.timestamp, block.timestamp]
     """,
     """
 @public
-def foo() -> decimal(wei / sec):
-    x: int128(wei) = as_wei_value(5, "finney")
+def foo() -> decimal:
+    x: int128 = as_wei_value(5, "finney")
     y: int128 = block.timestamp + 50
     return x / y
     """,
@@ -49,19 +40,14 @@ def foo():
     y: int128 = min(x, block.timestamp)
     """,
     """
-@public
-def foo():
-    y = min(block.timestamp + 30 - block.timestamp, block.timestamp)
-    """,
-    """
-a: map(timestamp, int128)
+a: map(uint256, int128)
 
 @public
 def add_record():
     self.a[block.timestamp] = block.timestamp + 20
     """,
     """
-a: map(int128, timestamp)
+a: map(int128, int128)
 
 @public
 def add_record():
@@ -69,7 +55,7 @@ def add_record():
     """,
     """
 struct X:
-    x: timestamp
+    x: uint256
 struct Y:
     y: int128
 @public
@@ -82,11 +68,6 @@ def add_record():
 @public
 def foo(inp: bytes[10]) -> bytes[3]:
     return slice(inp, block.timestamp, 3)
-    """,
-    """
-@public
-def foo() -> address:
-    return as_unitless_number(block.coinbase)
     """,
     ("""
 @public
@@ -109,7 +90,7 @@ def test_block_fail(bad_code):
 
 valid_list = [
     """
-a: map(timestamp, timestamp)
+a: map(uint256, uint256)
 
 @public
 def add_record():
@@ -117,29 +98,24 @@ def add_record():
     """,
     """
 @public
-def foo() -> uint256(wei / sec):
-    x: uint256(wei) = as_wei_value(5, "finney")
-    y: uint256(sec) = block.timestamp + 50 - block.timestamp
+def foo() -> uint256:
+    x: uint256 = as_wei_value(5, "finney")
+    y: uint256 = block.timestamp + 50 - block.timestamp
     return x / y
     """,
     """
 @public
-def foo() -> timestamp[2]:
+def foo() -> uint256[2]:
     return [block.timestamp + 86400, block.timestamp]
     """,
     """
 @public
 def foo():
-    y: timestamp = min(block.timestamp + 30, block.timestamp + 50)
-    """,
-    """
-@public
-def foo() -> uint256:
-    return as_unitless_number(block.timestamp)
+    y: uint256 = min(block.timestamp + 30, block.timestamp + 50)
     """,
     """
 struct X:
-    x: timestamp
+    x: uint256
 @public
 def add_record():
     a: X = X({x: block.timestamp})

@@ -38,8 +38,8 @@ def foo() -> int128[2]:
     """,
     """
 @public
-def foo() -> decimal(wei / sec):
-    x: int128(wei) = as_wei_value(5, "finney")
+def foo() -> decimal:
+    x: int128 = as_wei_value(5, "finney")
     y: int128 = chain.id + 50
     return x / y
     """,
@@ -55,14 +55,14 @@ def foo():
     y: int128 = min(x, chain.id)
     """,
     """
-a: map(timestamp, int128)
+a: map(uint256, int128)
 
 @public
 def add_record():
     self.a[chain.id] = chain.id + 20
     """,
     """
-a: map(int128, timestamp)
+a: map(int128, uint256)
 
 @public
 def add_record():

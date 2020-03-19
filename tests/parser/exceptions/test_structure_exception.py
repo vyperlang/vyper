@@ -115,7 +115,7 @@ def foo():
     """,
     """
 @public
-def foo() -> int128(wei):
+def foo() -> int128:
     x: address = 0x1234567890123456789012345678901234567890
     return x.balance()
     """,

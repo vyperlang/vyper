@@ -219,29 +219,13 @@ def foo():
     assert logs[0].args.arg1 == 123
 
 
-def test_event_logging_with_units(w3, get_contract_with_gas_estimation, get_logs):
-    code = """
-MyLog: event({arg1: indexed(uint256(wei)), arg2: uint256(wei)})
-
-@public
-@payable
-def foo():
-    log.MyLog(msg.value, 2*msg.value)
-    """
-    c = get_contract_with_gas_estimation(code)
-    tx_hash = c.foo(transact={'value': w3.toWei(0.1, 'ether')})
-    logs = get_logs(tx_hash, c, 'MyLog')
-    assert logs[0].args.arg1 == w3.toWei(0.1, 'ether')
-    assert logs[0].args.arg2 == 2 * w3.toWei(0.1, 'ether')
-
-
 def test_event_logging_with_fixed_array_data(w3,
                                              tester,
                                              keccak,
                                              get_logs,
                                              get_contract_with_gas_estimation):
     loggy_code = """
-MyLog: event({arg1: int128[2], arg2: timestamp[3], arg3: int128[2][2]})
+MyLog: event({arg1: int128[2], arg2: uint256[3], arg3: int128[2][2]})
 
 @public
 def foo():
@@ -381,7 +365,7 @@ def test_event_logging_with_data_with_different_types(w3,
                                                       get_logs,
                                                       get_contract_with_gas_estimation):
     loggy_code = """
-MyLog: event({arg1: int128, arg2: bytes[4], arg3: bytes[3], arg4: address, arg5: address, arg6: timestamp})  # noqa: E501
+MyLog: event({arg1: int128, arg2: bytes[4], arg3: bytes[3], arg4: address, arg5: address, arg6: uint256})  # noqa: E501
 
 @public
 def foo():
@@ -403,7 +387,7 @@ def foo():
                    {'type': 'bytes', 'name': 'arg3', 'indexed': False},
                    {'type': 'address', 'name': 'arg4', 'indexed': False},
                    {'type': 'address', 'name': 'arg5', 'indexed': False},
-                   {'type': 'uint256', 'name': 'arg6', 'indexed': False, 'unit': 'sec'}],
+                   {'type': 'uint256', 'name': 'arg6', 'indexed': False}],
         'anonymous': False,
         'type': 'event'
     }

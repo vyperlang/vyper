@@ -17,12 +17,6 @@ def foo() -> int128:
     x: int128 = 45
     return x.codesize
     """,
-    """
-@public
-def foo() -> int128(wei):
-    x: address = 0x1234567890123456789012345678901234567890
-    return x.codesize
-    """
 ]
 
 

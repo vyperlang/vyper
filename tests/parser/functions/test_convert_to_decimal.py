@@ -8,29 +8,6 @@ from vyper.exceptions import (
 )
 
 
-def test_convert_to_decimal_units(get_contract, assert_tx_failed):
-    code = """
-units: {
-    meter: "Meter"
-}
-
-@public
-def test() -> decimal(meter):
-    a: decimal(meter) = convert(5001, decimal)
-    return a
-
-@public
-def test2() -> decimal(meter):
-    b: int128(meter) = 1234
-    a: decimal(meter) = convert(b, decimal)
-    return a
-    """
-
-    c = get_contract(code)
-    assert c.test() == Decimal('5001')
-    assert c.test2() == Decimal('1234')
-
-
 def test_convert_from_int128(get_contract_with_gas_estimation):
     code = """
 a: int128
