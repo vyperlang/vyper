@@ -3,7 +3,7 @@ from pytest import (
 )
 
 from vyper.exceptions import (
-    StructureException,
+    SyntaxException,
 )
 
 
@@ -14,7 +14,7 @@ def test() -> int128:
     return a + b
     """
 
-    with raises(StructureException):
+    with raises(SyntaxException):
         get_contract(code)
 
 
@@ -111,5 +111,5 @@ def foo():
     convert(
     """
 
-    with raises(StructureException):
+    with raises(SyntaxException):
         get_contract(code)

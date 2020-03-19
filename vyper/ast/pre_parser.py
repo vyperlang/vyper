@@ -15,7 +15,7 @@ from typing import (
 )
 
 from vyper.exceptions import (
-    StructureException,
+    SyntaxException,
     VersionException,
 )
 from vyper.typing import (
@@ -112,9 +112,11 @@ def pre_parse(code: str) -> Tuple[ClassTypes, str]:
                 validate_version_pragma(string[1:], start)
 
             if typ == NAME and string == "class" and start[1] == 0:
-                raise StructureException(
+                raise SyntaxException(
                     "The `class` keyword is not allowed. Perhaps you meant `contract` or `struct`?",
-                    start,
+                    code,
+                    start[0],
+                    start[1]
                 )
 
             # Make note of contract or struct name along with the type keyword
@@ -130,10 +132,9 @@ def pre_parse(code: str) -> Tuple[ClassTypes, str]:
                 previous_keyword = string
 
             if (typ, string) == (OP, ";"):
-                raise StructureException("Semi-colon statements not allowed.", start)
-
+                raise SyntaxException("Semi-colon statements not allowed", code, start[0], start[1])
             result.extend(toks)
     except TokenError as e:
-        raise StructureException(e.args[0], e.args[1]) from e
+        raise SyntaxException(e.args[0], code, e.args[1][0], e.args[1][1]) from e
 
     return class_types, untokenize(result).decode('utf-8')

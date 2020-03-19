@@ -7,7 +7,7 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
-    StructureException,
+    SyntaxException,
     TypeMismatch,
 )
 
@@ -35,7 +35,7 @@ def foo() -> bytes[500]:
 def foo() -> bytes[500]:
     x: int128 = 1
     return RLPList(convert('\xe0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', bytes[64])4])4]))
-    """, StructureException),
+    """, SyntaxException),
     """
 @public
 def foo() -> bytes[500]:
