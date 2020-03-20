@@ -58,7 +58,7 @@ of the error within the code:
 
     Raises when attempting to use a literal value where the type is correct, but the value is still invalid in some way. For example, an address that is not check-summed.
 
-    .. code-block:: python3
+    .. code-block:: python
 
         @public
         def foo():
@@ -94,7 +94,7 @@ of the error within the code:
 
     Raises when attempting to assign to an invalid type, or perform an action on a variable of the wrong type.
 
-    .. code-block:: python3
+    .. code-block:: python
 
         bids: map(address, Bid[128])
         bidCounts: map(addres, int128)
@@ -102,10 +102,8 @@ of the error within the code:
     In the above example, the variable type ``address`` is misspelled.  Any word that is not a reserved word, and declares a variable type will
     return this error.
 
-    .. code-block:: bash
+    .. code-block:: python
 
-        $ vyper blind_auction.vy
-        Error compiling: blind.auction.vy /usr/lib/python3/dist-packages/apport/report.py:13:
         vyper.exceptions.InvalidTypeException: line 28:15 Invalid base type: addres
                  27 bids: map(address, Bid[128])
             ---> 28 bidCounts: map(addres, int128)
@@ -124,7 +122,7 @@ of the error within the code:
 
     Raises when attempting to access ``msg.value`` from within a private function.
 
-    .. code-block:: python3
+    .. code-block:: python
 
         @private
         def _foo():
@@ -138,7 +136,7 @@ of the error within the code:
 
     Raises on syntax that is parsable, but invalid in some way.
 
-    .. code-block:: bash
+    .. code-block:: python
 
         vyper.exceptions.StructureException: line 181:0 Invalid top-level statement
              180
@@ -150,9 +148,8 @@ of the error within the code:
 
     Raises on invalid syntax that cannot be parsed.
 
-    .. code-block:: bash
+    .. code-block:: python
 
-        $ vyper blind_auction.vy
         vyper.exceptions.SyntaxException: line 4:20 invalid syntax
                 3 struct Bid:
         ---> 4   blindedBid bytes32
@@ -201,7 +198,7 @@ CompilerPanic
 
 .. py:exception:: CompilerPanic
 
-    .. code-block:: python3
+    ::
 
         $ vyper v.vy
         Error compiling: v.vy

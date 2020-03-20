@@ -116,14 +116,22 @@ Target Options
 
 The following is a list of supported EVM versions, and changes in the compiler introduced with each version. Backward compatibility is not guaranteed between each version.
 
-- ``byzantium``
+
+.. py:attribute:: byzantium
+
    - The oldest EVM version supported by Vyper.
-- ``constantinople``
+
+.. py:attribute:: constantinople
+
    - The ``EXTCODEHASH`` opcode is accessible via ``address.codehash``
    - ``shift`` makes use of ``SHL``/``SHR`` opcodes.
-- ``petersburg``
+
+.. py:attribute:: petersburg
+
    - The compiler behaves the same way as with consantinople.
-- ``istanbul`` **(default)**
+
+.. py:attribute:: istanbul (default)
+
    - The ``CHAINID`` opcode is accessible via ``chain.id``
    - The ``SELFBALANCE`` opcode is used for calls to ``self.balance``
    - Gas estimates changed for ``SLOAD`` and ``BALANCE``
