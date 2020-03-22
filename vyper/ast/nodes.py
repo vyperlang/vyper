@@ -1,6 +1,7 @@
 import ast as python_ast
 import sys
 from typing import (
+    Any,
     Optional,
     Union,
 )
@@ -333,7 +334,7 @@ class VyperNode:
             result.reverse()
         return result
 
-    def get(self, field_str: str) -> Optional["VyperNode"]:
+    def get(self, field_str: str) -> Any:
         """
         Recursive getter function for node attributes.
 
