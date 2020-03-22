@@ -45,16 +45,28 @@ bytecode (default) - Deployable bytecode
 bytecode_runtime   - Bytecode at runtime
 abi                - ABI in JSON format
 abi_python         - ABI in python format
-ast                - AST in JSON format
 source_map         - Vyper source map
-method_identifiers - Dictionary of method signature to method identifier.
-combined_json      - All of the above format options combined as single JSON output.
-interface          - Print Vyper interface of a contract
-external_interface - Print the External interface of a contract, used for outside contract calls.
+method_identifiers - Dictionary of method signature to method identifier
+userdoc            - Natspec user documentation
+devdoc             - Natspec developer documentation
+combined_json      - All of the above format options combined as single JSON output
+ast                - AST in JSON format
+interface          - Vyper interface of a contract
+external_interface - External interface of a contract, used for outside contract calls
 opcodes            - List of opcodes as a string
 opcodes_runtime    - List of runtime opcodes as a string
-ir                 - Print Intermediate Representation in LLL
+ir                 - Intermediate representation in LLL
 """
+
+combined_json_outputs = [
+    'bytecode',
+    'bytecode_runtime',
+    'abi',
+    'source_map',
+    'method_identifiers',
+    'userdoc',
+    'devdoc'
+]
 
 
 def _parse_cli_args():
@@ -235,7 +247,7 @@ def compile_files(input_files: Iterable[str],
     if 'combined_json' in output_formats:
         if len(output_formats) > 1:
             raise ValueError("If using combined_json it must be the only output format requested")
-        output_formats = ['bytecode', 'bytecode_runtime', 'abi', 'source_map', 'method_identifiers']
+        output_formats = combined_json_outputs
         show_version = True
 
     translate_map = {

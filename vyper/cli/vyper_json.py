@@ -39,6 +39,7 @@ from vyper.utils import (
 TRANSLATE_MAP = {
     'abi': 'abi',
     'ast': 'ast_dict',
+    'devdoc': 'devdoc',
     'evm.methodIdentifiers': 'method_identifiers',
     'evm.bytecode.object': 'bytecode',
     'evm.bytecode.opcodes': 'opcodes',
@@ -47,6 +48,7 @@ TRANSLATE_MAP = {
     'evm.deployedBytecode.sourceMap': 'source_map',
     'interface': 'interface',
     'ir': 'ir',
+    'userdoc': 'userdoc',
 }
 
 
@@ -377,12 +379,11 @@ def format_to_output_dict(compiler_data: Dict) -> Dict:
         name = Path(path).stem
         output_dict['contracts'][path] = {name: {}}
         output_contracts = output_dict['contracts'][path][name]
-        if 'abi' in data:
-            output_contracts['abi'] = data['abi']
-        if 'interface' in data:
-            output_contracts['interface'] = data['interface']
-        if 'ir' in data:
-            output_contracts['ir'] = data['ir']
+
+        for key in ('abi', 'devdoc', 'interface', 'ir', 'userdoc'):
+            if key in data:
+                output_contracts[key] = data[key]
+
         if 'method_identifiers' in data:
             output_contracts['evm'] = {'methodIdentifiers': data['method_identifiers']}
 
