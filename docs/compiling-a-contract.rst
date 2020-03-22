@@ -196,6 +196,8 @@ The following example describes the expected input format of ``vyper-json``. Com
             //    ast - Abstract syntax tree
             //    interface - Derived interface of the contract, in proper Vyper syntax
             //    ir - LLL intermediate representation of the code
+            //    userdoc - Natspec user documentation
+            //    devdoc - Natspec developer documentation
             //    evm.bytecode.object - Bytecode object
             //    evm.bytecode.opcodes - Opcodes list
             //    evm.deployedBytecode.object - Deployed bytecode object
@@ -263,8 +265,12 @@ The following example describes the output format of ``vyper-json``. Comments ar
                     // The Ethereum Contract ABI.
                     // See https://github.com/ethereum/wiki/wiki/Ethereum-Contract-ABI
                     "abi": [],
+                    // Natspec developer documentation
+                    "devdoc": {},
                     // Intermediate representation (string)
                     "ir": "",
+                    // Natspec developer documentation
+                    "userdoc": {},
                     // EVM-related outputs
                     "evm": {
                         "bytecode": {
