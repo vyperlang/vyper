@@ -19,6 +19,7 @@ from vyper import (
 )
 from vyper.ast import (
     ast_to_dict,
+    parse_natspec,
     parse_to_ast,
 )
 from vyper.opcodes import (
@@ -280,6 +281,18 @@ def _mk_ast_dict(code, contract_name, interface_codes, source_id):
     return o
 
 
+def _mk_userdoc(code, contract_name, interface_codes, source_id):
+    vyper_ast = parse_to_ast(code)
+    userdoc, devdoc = parse_natspec(vyper_ast, interface_codes)
+    return userdoc
+
+
+def _mk_devdoc(code, contract_name, interface_codes, source_id):
+    vyper_ast = parse_to_ast(code)
+    userdoc, devdoc = parse_natspec(vyper_ast, interface_codes)
+    return devdoc
+
+
 OUTPUT_FORMATS = {
     'abi': _mk_abi_output,
     'ast_dict': _mk_ast_dict,
@@ -293,6 +306,8 @@ OUTPUT_FORMATS = {
     'external_interface': _mk_external_interface_output,
     'opcodes': _mk_opcodes,
     'opcodes_runtime': _mk_opcodes_runtime,
+    'userdoc': _mk_userdoc,
+    'devdoc': _mk_devdoc,
 }
 
 
