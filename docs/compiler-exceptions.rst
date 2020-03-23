@@ -118,6 +118,19 @@ of the error within the code:
 
     Raises when attempting to assign a variable to a name that is already in use.
 
+.. py:exception:: NatSpecSyntaxException
+
+    Raises when a contract contains an invalid :ref:`NatSpec<structure-metadata>` docstring.
+
+    .. code-block:: python
+
+        vyper.exceptions.SyntaxException: line 14:5 No description given for tag '@param'
+             13     @dev the feet are sticky like rice
+        ---> 14     @param
+        -------------^
+             15     @return always True
+
+
 .. py:exception:: NonPayableViolation
 
     Raises when attempting to access ``msg.value`` from within a private function.

@@ -90,6 +90,10 @@ class SyntaxException(VyperException):
         super().__init__(message, item)
 
 
+class NatSpecSyntaxException(SyntaxException):
+    """Invalid syntax within NatSpec docstring."""
+
+
 class StructureException(VyperException):
     """Invalid structure for parsable syntax."""
 
