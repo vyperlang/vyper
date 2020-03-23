@@ -3,6 +3,36 @@
 Release Notes
 #############
 
+
+v0.1.0-beta.17
+**************
+
+Date released: 23-03-2020
+
+The following VIPs and features were implemented for Beta 17:
+
+- ``raw_call`` and ``slice`` arguemnt updates (VIP `#1879 <https://github.com/vyperlang/vyper/issues/1879>`_)
+- NatSpec support (`#1898 <https://github.com/vyperlang/vyper/pull/1898>`_)
+
+Some of the bug and stability fixes:
+
+- ABI interface fixes (`#1842 <https://github.com/vyperlang/vyper/pull/1842>`_)
+- Modifications to how ABI data types are represented (`#1846 <https://github.com/vyperlang/vyper/pull/1846>`_)
+- Generate method identifier for struct return type (`#1843 <https://github.com/vyperlang/vyper/pull/1843>`_)
+- Return tuple with fixed array fails to compile (`#1838 <https://github.com/vyperlang/vyper/pull/1838>`_)
+- Also lots of refactoring and doc updates!
+
+This release will be the last to follow our current release prorcess.
+All future releases will be governed by the versioning scheme (`#1887 <https://github.com/vyperlang/vyper/issues/1887>`_)
+
+
+v0.1.0-beta.16
+**************
+
+Date released: 09-01-2020
+
+Beta 16 was a quick patch release to fix one issue: (`#1829 <https://github.com/vyperlang/vyper/pull/1829>`_)
+
 v0.1.0-beta.15
 **************
 
