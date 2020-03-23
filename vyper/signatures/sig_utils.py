@@ -96,24 +96,31 @@ def mk_full_signature(code, sig_formatter=None, interface_codes=None):
     return o
 
 
-def mk_method_identifiers(code, interface_codes=None):
-    o = {}
+def mk_method_identifiers(source_str, interface_codes=None):
+    identifiers = {}
     global_ctx = GlobalContext.get_global_context(
-        parse_to_ast(code),
+        parse_to_ast(source_str),
         interface_codes=interface_codes,
     )
 
     for code in global_ctx._defs:
-        sig = FunctionSignature.from_definition(
-            code,
-            sigs=global_ctx._contracts,
-            custom_units=global_ctx._custom_units,
-            custom_structs=global_ctx._structs,
-            constants=global_ctx._constants,
-        )
-        if not sig.private:
-            default_sigs = generate_default_arg_sigs(code, global_ctx._contracts, global_ctx)
-            for s in default_sigs:
-                o[s.sig] = hex(s.method_id)
+        identifiers.update(mk_single_method_identifier(code, global_ctx))
 
-    return o
+    return identifiers
+
+
+def mk_single_method_identifier(code, global_ctx):
+    identifiers = {}
+    sig = FunctionSignature.from_definition(
+        code,
+        sigs=global_ctx._contracts,
+        custom_units=global_ctx._custom_units,
+        custom_structs=global_ctx._structs,
+        constants=global_ctx._constants,
+    )
+    if not sig.private:
+        default_sigs = generate_default_arg_sigs(code, global_ctx._contracts, global_ctx)
+        for s in default_sigs:
+            identifiers[s.sig] = hex(s.method_id)
+
+    return identifiers

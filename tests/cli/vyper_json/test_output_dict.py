@@ -28,8 +28,10 @@ def test_keys():
     assert output_json['sources']['foo.vy'] == {'id': 0, 'ast': data['ast_dict']['ast']}
     assert output_json['contracts']['foo.vy']['foo'] == {
         'abi': data['abi'],
+        'devdoc': data['devdoc'],
         'interface': data['interface'],
         'ir': data['ir'],
+        'userdoc': data['userdoc'],
         'evm': {
             'bytecode': {
                 'object': data['bytecode'],

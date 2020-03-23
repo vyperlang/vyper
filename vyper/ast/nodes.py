@@ -1,6 +1,7 @@
 import ast as python_ast
 import sys
 from typing import (
+    Any,
     Optional,
     Union,
 )
@@ -333,7 +334,7 @@ class VyperNode:
             result.reverse()
         return result
 
-    def get(self, field_str: str) -> Optional["VyperNode"]:
+    def get(self, field_str: str) -> Any:
         """
         Recursive getter function for node attributes.
 
@@ -354,8 +355,19 @@ class VyperNode:
         return obj
 
 
-class Module(VyperNode):
-    __slots__ = ('body', )
+class TopLevel(VyperNode):
+    __slots__ = ('body', 'doc_string')
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if (
+            kwargs.get('body') and
+            isinstance(self.body[0], Expr) and
+            isinstance(self.body[0].value, Str)
+        ):
+            # if the first body item is a docstring, move it into it's own field
+            self.doc_string = self.body[0].value
+            del self.body[0]
 
     def __getitem__(self, key):
         return self.body[key]
@@ -370,19 +382,12 @@ class Module(VyperNode):
         return obj in self.body
 
 
-class FunctionDef(VyperNode):
-    __slots__ = ('args', 'body', 'returns', 'name', 'decorator_list', 'pos', 'doc_string')
+class Module(TopLevel):
+    __slots__ = ()
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if (
-            kwargs.get('body') and
-            isinstance(self.body[0], Expr) and
-            isinstance(self.body[0].value, Str)
-        ):
-            # if the first body item is a docstring, move it into it's own field
-            self.doc_string = self.body[0].value.s
-            del self.body[0]
+
+class FunctionDef(TopLevel):
+    __slots__ = ('args', 'returns', 'name', 'decorator_list', 'pos')
 
 
 class arguments(VyperNode):
