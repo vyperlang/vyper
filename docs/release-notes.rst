@@ -7,7 +7,7 @@ Release Notes
 v0.1.0-beta.17
 **************
 
-Date released: 23-03-2020
+Date released: 24-03-2020
 
 The following VIPs and features were implemented for Beta 17:
 
