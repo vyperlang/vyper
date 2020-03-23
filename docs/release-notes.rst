@@ -23,7 +23,8 @@ Some of the bug and stability fixes:
 - Also lots of refactoring and doc updates!
 
 This release will be the last to follow our current release prorcess.
-All future releases will be governed by the versioning scheme (`#1887 <https://github.com/vyperlang/vyper/issues/1887>`_)
+All future releases will be governed by the versioning scheme (`#1887 <https://github.com/vyperlang/vyper/issues/1887>`_).
+The next release will be v0.2.0, and contain many breaking changes.
 
 
 v0.1.0-beta.16
