@@ -11,7 +11,7 @@ Date released: 24-03-2020
 
 The following VIPs and features were implemented for Beta 17:
 
-- ``raw_call`` and ``slice`` arguemnt updates (VIP `#1879 <https://github.com/vyperlang/vyper/issues/1879>`_)
+- ``raw_call`` and ``slice`` argument updates (VIP `#1879 <https://github.com/vyperlang/vyper/issues/1879>`_)
 - NatSpec support (`#1898 <https://github.com/vyperlang/vyper/pull/1898>`_)
 
 Some of the bug and stability fixes:
@@ -22,7 +22,7 @@ Some of the bug and stability fixes:
 - Return tuple with fixed array fails to compile (`#1838 <https://github.com/vyperlang/vyper/pull/1838>`_)
 - Also lots of refactoring and doc updates!
 
-This release will be the last to follow our current release prorcess.
+This release will be the last to follow our current release process.
 All future releases will be governed by the versioning scheme (`#1887 <https://github.com/vyperlang/vyper/issues/1887>`_).
 The next release will be v0.2.0, and contain many breaking changes.
 
