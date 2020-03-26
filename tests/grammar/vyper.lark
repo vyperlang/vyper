@@ -7,7 +7,6 @@
 // NOTE: Start symbol for the grammar
 module: ( COMMENT
         | import
-        | units
         | struct
         | interface
         | constant
@@ -27,11 +26,6 @@ dotted_name: NAME ("." NAME)*
 import_name: "import" dotted_as_names
 import_from: "from" (dots? dotted_name | dots) "import" ("*" | "(" import_as_names ")" | import_as_names)
 import: import_name | import_from
-
-// Unit definitions
-unit: NAME ":" STRING
-units: "units" ":" "{" ( unit "," )* unit? "}"
-LABEL: "(" NAME ( "/" NAME )? ")"
 
 // Constant definitions
 constant: NAME ":" "constant" "(" memory_type ")" "=" test
@@ -144,10 +138,10 @@ comp_if: "if" test_nocond [comp_iter]
 
 // Types represented as 32-byte basic word
 // NOTE: Only integers or decimals can be labeled
-BASIC_TYPE: ( ["u"] "int" ("8"|"16"|"32"|"64"|"128"|"256") LABEL?
+BASIC_TYPE: ( ["u"] "int" ("8"|"16"|"32"|"64"|"128"|"256")
             | "address"
             | "bytes32"
-            | "decimal" LABEL?
+            | "decimal"
             | "bool" )
 
 // Types that can be used in memory allocation
