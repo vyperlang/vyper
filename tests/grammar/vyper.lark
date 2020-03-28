@@ -111,10 +111,8 @@ arguments: argument ("," argument)*  // [","]
      | "[" [testlist_comp] "]"  -> list
      |"{" [dictmaker] "}" -> dict
      | NAME -> var
-     | number_literal | string_literal+
+     | ( number | string+ | BOOL ) -> literal
      | "(" test ")"
-     | "True"    -> const_true
-     | "False"   -> const_false
 
 ?testlist_comp: (test) [("," (test))+ [","] | ","]
 subscriptlist: subscript ("," subscript)*
@@ -144,9 +142,6 @@ interface_def: "contract" NAME ":" _NEWLINE _INDENT (method_type ":" mutability 
 // not used in grammar, but may appear in "node" passed from Parser to Compiler
 encoding_decl: NAME
 
-
-number_literal: DEC_NUMBER | HEX_NUMBER | BIN_NUMBER | OCT_NUMBER | FLOAT_NUMBER
-string_literal: STRING | LONG_STRING
 // Tokens
 
 NAME: /[a-zA-Z_]\w*/
@@ -154,14 +149,18 @@ COMMENT: /#[^\n]*/
 _NEWLINE: ( /\r?\n[\t ]*/ | COMMENT )+
 
 
-STRING : /[ubf]?r?("(?!"").*?(?<!\\)(\\\\)*?"|'(?!'').*?(?<!\\)(\\\\)*?')/i
+SHORT_STRING : /[ubf]?r?("(?!"").*?(?<!\\)(\\\\)*?"|'(?!'').*?(?<!\\)(\\\\)*?')/i
 LONG_STRING: /[ubf]?r?(""".*?(?<!\\)(\\\\)*?"""|'''.*?(?<!\\)(\\\\)*?''')/is
+string: SHORT_STRING | LONG_STRING
 
 DEC_NUMBER: /0|[1-9]\d*/i
 HEX_NUMBER.2: /0x[\da-f]*/i
 OCT_NUMBER.2: /0o[0-7]*/i
 BIN_NUMBER.2 : /0b[0-1]*/i
 FLOAT_NUMBER.2: /((\d+\.\d*|\.\d+)(e[-+]?\d+)?|\d+(e[-+]?\d+))/i
+number: DEC_NUMBER | HEX_NUMBER | BIN_NUMBER | OCT_NUMBER | FLOAT_NUMBER
+
+BOOL: "True" | "False"
 
 %ignore /[\t \f]+/  // WS
 %ignore /\\[\t \f]*\r?\n/   // LINE_CONT
