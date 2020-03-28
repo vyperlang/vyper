@@ -54,7 +54,7 @@ indexed_event_arg: NAME ":" "indexed" "(" abi_type ")"
 // Events can have zero args
 event_def: NAME ":" "event" "(" "{" (event_arg | indexed_event_arg)? ("," (event_arg | indexed_event_arg))* "}" ")"
 
-?stmt: simple_stmt | compound_stmt
+?stmt: simple_stmt | if_stmt | for_stmt
 ?simple_stmt: small_stmt (small_stmt)* _NEWLINE
 ?small_stmt: (expr_stmt | pass_stmt | flow_stmt | assert_stmt)
 ?expr_stmt: testlist_star_expr (assign | augassign (testlist)
@@ -71,7 +71,6 @@ return_stmt: "return" [testlist]
 raise_stmt: "raise" [test ["from" test]]
 assert_stmt: "assert" test ["," test]
 
-compound_stmt: if_stmt | for_stmt
 if_stmt: "if" test ":" body ("elif" test ":" body)* ["else" ":" body]
 for_stmt: "for" exprlist "in" testlist ":" body ["else" ":" body]
 
