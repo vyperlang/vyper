@@ -756,7 +756,7 @@ def is_return_from_function(node):
 
 def check_single_exit(fn_node):
     _check_return_body(fn_node, fn_node.body)
-    for node in fn_node.get_all_children(vy_ast.If):
+    for node in fn_node.get_descendants(vy_ast.If):
         _check_return_body(node, node.body)
         if node.orelse:
             _check_return_body(node, node.orelse)
