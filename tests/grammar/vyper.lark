@@ -7,13 +7,12 @@
 // NOTE: Start symbol for the grammar
 module: ( COMMENT
         | import
-        | struct
-        | interface
-        | constant
-        | variable
-        | variable_with_getter
-        | method
-        | event
+        | struct_def
+        | interface_def
+        | constant_def
+        | variable_def
+        | event_def
+        | method_def
         | _NEWLINE )*
 
 // Import statements (Supports all styles of Python imports)
@@ -28,12 +27,13 @@ import_from: "from" (dots? dotted_name | dots) "import" ("*" | "(" import_as_nam
 import: import_name | import_from
 
 // Constant definitions
-constant: NAME ":" "constant" "(" memory_type ")" "=" test
+constant_def: NAME ":" "constant" "(" memory_type ")" "=" test
 
 // NOTE: NAME as type should refer to a custom type that is already defined
 variable: NAME ":"  storage_type
 // NOTE: Temporary until decorators used
 variable_with_getter: NAME ":" "public" "(" storage_type ")"
+variable_def: variable | variable_with_getter
 
 // A decorator "wraps" a method, modifying it's context.
 // NOTE: One or more can be applied (some combos might conflict)
@@ -54,12 +54,12 @@ decorators: decorator+
 parameters: parameter ("," parameter?)*
 
 method_type: "def" NAME "(" parameters? ")" ["->" abi_type]
-method: [decorators] method_type ":" body
+method_def: [decorators] method_type ":" body
 
 event_arg: NAME ":" abi_type
 indexed_event_arg: NAME ":" "indexed" "(" abi_type ")"
 // Events can have zero args
-event: NAME ":" "event" "(" "{" (event_arg | indexed_event_arg)? ("," (event_arg | indexed_event_arg))* "}" ")"
+event_def: NAME ":" "event" "(" "{" (event_arg | indexed_event_arg)? ("," (event_arg | indexed_event_arg))* "}" ")"
 
 ?stmt: simple_stmt | compound_stmt
 ?simple_stmt: small_stmt (small_stmt)* _NEWLINE
@@ -159,12 +159,11 @@ abi_type: ( memory_type | tuple )
 
 // Structs can be composed of 1+ basic types or other custom_types
 ?struct_member: NAME ":" storage_type
-struct: "struct" NAME ":" _NEWLINE _INDENT (struct_member _NEWLINE)+ _DEDENT
+struct_def: "struct" NAME ":" _NEWLINE _INDENT (struct_member _NEWLINE)+ _DEDENT
 
 // Interfaces are composed of a series of method definitions, plus their mutability
 mutability: ( "modifying" | "constant" )
-interface_def: method_type ":" mutability
-interface: "contract" NAME ":" _NEWLINE _INDENT (interface_def _NEWLINE)+ _DEDENT
+interface_def: "contract" NAME ":" _NEWLINE _INDENT (method_type ":" mutability _NEWLINE)+ _DEDENT
 
 // Maps take a hashable type as a key and can return a basic, memory,
 // or a custom type (or another map recursively)
