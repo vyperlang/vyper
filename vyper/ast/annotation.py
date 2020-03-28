@@ -36,6 +36,9 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             self._class_types = {}
 
     def generic_visit(self, node):
+        """
+        Annotate a node with information that simplifies Vyper node generation.
+        """
         # Decorate every node with the original source code to allow pretty-printing errors
         node.full_source_code = self._source_code
         node.node_id = self.counter
@@ -60,15 +63,26 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         return super().generic_visit(node)
 
     def visit_ClassDef(self, node):
+        """
+        Annotate the Class node with it's original type from the Vyper source.
+
+        Vyper uses `struct` and `contract` in place of `class`, however these
+        values must be substituted out to create parseable Python. The Python
+        node is annotated with the original value via the `class_type` member.
+        """
         self.generic_visit(node)
 
-        # Decorate class definitions with their respective class types
         node.class_type = self._class_types.get(node.name)
-
         return node
 
     def visit_Constant(self, node):
-        # special case to handle Constant type in Python >=3.8
+        """
+        Handle `Constant` when using Python >=3.8
+
+        In Python 3.8, `NameConstant`, `Num`, `Str`, and `Bytes` are deprecated
+        in favor of `Constant`. To maintain consistency across versions, `ast_type`
+        is modified to create the <=3.7 node classes.
+        """
         if not isinstance(node.value, bool) and isinstance(node.value, (int, float)):
             return self.visit_Num(node)
 
@@ -90,6 +104,14 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         return node
 
     def visit_Num(self, node):
+        """
+        Adjust numeric node class based on the value type.
+
+        Python uses `Num` to represent floats and integers. Integers may also
+        be given in binary, octal, decimal, or hexadecimal format. This method
+        modifies `ast_type` to seperate `Num` into more granular Vyper node
+        classes.
+        """
         # modify vyper AST type according to the format of the literal value
         self.generic_visit(node)
         value = node.node_source_code
@@ -110,8 +132,18 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         return node
 
     def visit_UnaryOp(self, node):
+        """
+        Adjust operand value and discard unary operations, where possible.
+
+        This is done so that negative decimal literals are accurately represented.
+        """
         self.generic_visit(node)
-        # NOTE: This is done so that decimal literal now sees the negative sign as part of it
+
+        # TODO once grammar is updated, remove this
+        # UAdd has no effect on the value of it's operand, so it is discarded
+        if isinstance(node.op, python_ast.UAdd):
+            return node.operand
+
         is_sub = isinstance(node.op, python_ast.USub)
         is_num = (
             hasattr(node.operand, 'n') and
@@ -134,14 +166,7 @@ def annotate_python_ast(
     source_id: int = 0,
 ) -> python_ast.AST:
     """
-    Performs annotation and optimization on a parsed python AST by doing the
-    following:
-
-    * Annotating all AST nodes with the originating source code of the AST
-    * Annotating class definition nodes with their original class type
-      ("contract" or "struct")
-    * Substituting negative values for unary subtractions
-    * Annotating all AST nodes with complete source offsets
+    Annotate and optimize a Python AST in preparation conversion to a Vyper AST.
 
     Parameters
     ----------

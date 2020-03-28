@@ -23,19 +23,19 @@ from vyper.exceptions import (
 
 def parse_to_ast(source_code: str, source_id: int = 0) -> vy_ast.Module:
     """
-    Parses a vyper source string and generates basic vyper AST nodes.
+    Parses a Vyper source string and generates basic Vyper AST nodes.
 
     Parameters
     ----------
     source_code : str
-        The vyper source code to parse.
+        The Vyper source code to parse.
     source_id : int, optional
-        Source id to use in the .src member of each node.
+        Source id to use in the `src` member of each node.
 
     Returns
     -------
     list
-        Untyped, unoptimized vyper AST nodes.
+        Untyped, unoptimized Vyper AST nodes.
     """
     if '\x00' in source_code:
         raise ParserException('No null bytes (\\x00) allowed in the source code.')
@@ -53,7 +53,7 @@ def parse_to_ast(source_code: str, source_id: int = 0) -> vy_ast.Module:
 
 def ast_to_dict(ast_struct: Union[vy_ast.VyperNode, List]) -> Union[Dict, List]:
     """
-    Converts a vyper AST node, or list of nodes, into a dictionary suitable for
+    Converts a Vyper AST node, or list of nodes, into a dictionary suitable for
     output to the user.
     """
     if isinstance(ast_struct, vy_ast.VyperNode):
@@ -61,12 +61,12 @@ def ast_to_dict(ast_struct: Union[vy_ast.VyperNode, List]) -> Union[Dict, List]:
     elif isinstance(ast_struct, list):
         return [i.to_dict() for i in ast_struct]
     else:
-        raise CompilerPanic(f'Unknown vyper AST node provided: "{type(ast_struct)}".')
+        raise CompilerPanic(f'Unknown Vyper AST node provided: "{type(ast_struct)}".')
 
 
 def dict_to_ast(ast_struct: Union[Dict, List]) -> Union[vy_ast.VyperNode, List]:
     """
-    Converts an AST dict, or list of dicts, into vyper AST node objects.
+    Converts an AST dict, or list of dicts, into Vyper AST node objects.
     """
     if isinstance(ast_struct, dict):
         return vy_ast.get_node(ast_struct)
