@@ -258,7 +258,7 @@ Members
 ===============  =========================================================
 Member           Description
 ===============  =========================================================
-``balance``      Query the balance of an address. Returns ``wei_value``.
+``balance``      Query the balance of an address. Returns ``uint256``.
 ``codehash``     Returns the ``bytes32`` keccak of the code at an address, or ``EMPTY_BYTES32`` if the account does not currently have code.
 ``codesize``     Query the code size of an address. Returns ``int128``.
 ``is_contract``  Query whether it is a contract address. Returns ``bool``.
@@ -270,58 +270,6 @@ Syntax as follows: ``_address.<member>``, where ``_address`` is of the type ``ad
 
     Operations such as ``SELFDESTRUCT`` and ``CREATE2`` allow for the removal and replacement of bytecode at an address. You should never assume that values of address members will not change in the future.
 
-
-Unit Types
-==========
-
-Vyper allows the definition of types with discrete units e.g. meters, seconds, wei, ... . These types may only be based on either ``uint256``, ``int128`` or ``decimal``.
-Vyper has 3 unit types built in, which are the following:
-
-Time
-----
-
-=============  =====  ===========  ==========================
-Keyword        Unit   Base type    Description
-=============  =====  ===========  ==========================
-``timestamp``  1 sec  ``uint256``  This represents a point in time.
-``timedelta``  1 sec  ``uint256``  This is a number of seconds.
-=============  =====  ===========  ==========================
-
-.. note::
-    Two ``timedelta`` can be added together, as can a ``timedelta`` and a ``timestamp``, but not two ``timestamps``.
-
-Wei
----
-
-===================  ===========  ===========  ====================================================================================
-Keyword              Unit         Base type    Description
-===================  ===========  ===========  ====================================================================================
-``wei_value``        1 wei        ``uint256``    This is an amount of `Ether <https://ethereum-homestead.readthedocs.io/en/latest/ether.html#denominations>`_ in wei.
-===================  ===========  ===========  ====================================================================================
-
-Custom Unit Types
-=================
-
-Vyper allows you to add additional not-provided unit label to either ``uint256``, ``int128`` or ``decimal``.
-
-**Custom units example:**
-::
-
-  # specify units used in the contract.
-  units: {
-      cm: "centimeter",
-      km: "kilometer"
-  }
-
-Having defined the units they can be defined on variables as follows.
-
-**Custom units usage:**
-::
-
-    a: int128(cm)
-    b: uint256(km)
-
-.. index:: !bytes32
 
 32-bit-wide Byte Array
 ======================

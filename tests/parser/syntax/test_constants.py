@@ -93,7 +93,7 @@ def test() -> int128:
     return 1 * VAL
     """,
     """
-TREE_FIDDY: constant(uint256(wei))  = as_wei_value(350, 'ether')
+TREE_FIDDY: constant(uint256) = as_wei_value(350, 'ether')
     """
     """
 FOO: constant(int128) = 100
@@ -109,7 +109,7 @@ test_a: constant(uint256) = MAX_UINT256
     """,
     """
 TEST_C: constant(int128) = 1
-TEST_WEI: constant(uint256(wei)) = 1
+TEST_WEI: constant(uint256) = 1
 
 @private
 def test():

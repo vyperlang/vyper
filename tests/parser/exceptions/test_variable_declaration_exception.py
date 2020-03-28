@@ -22,9 +22,6 @@ CALLDATACOPY: int128
 int128: bytes[3]
     """,
     """
-sec: int128
-    """,
-    """
 @public
 def foo():
     BALANCE = 45
@@ -35,7 +32,7 @@ def foo():
     true = 3
     """,
     """
-x: wei_value
+x: uint256
 
 @public
 def foo():

@@ -24,7 +24,7 @@ Name                 Type             Value
 ``chain.id``         ``uint256``      Chain ID
 ``msg.gas``          ``uint256``      Remaining gas
 ``msg.sender``       ``address``      Sender of the message (current call)
-``msg.value``        ``uint256(wei)`` Number of wei sent with the message
+``msg.value``        ``uint256``      Number of wei sent with the message
 ``tx.origin``        ``address``      Sender of the transaction (full call chain)
 ==================== ================ =============================================
 
@@ -43,7 +43,7 @@ The self Variable
 Name                 Type             Value
 ==================== ================ ==========================
 ``self``             ``address``      Current contract's address
-``self.balance``     ``uint256(wei)`` Current contract's balance
+``self.balance``     ``uint256``      Current contract's balance
 ==================== ================ ==========================
 
 Accessing State Variables
@@ -98,15 +98,12 @@ Name              Type             Value
 ``MAX_DECIMAL``   ``decimal``      ``(2**127 - 1)``
 ``MIN_DECIMAL``   ``decimal``      ``(-2**127)``
 ``MAX_UINT256``   ``uint256``      ``2**256 - 1``
-``ZERO_WEI``      ``uint256(wei)`` ``0``
 ================= ================ ==============================================
 
 Custom Constants
 ================
 
 Custom constants can be defined at a global level in Vyper. To define a constant make use of the ``constant`` keyword.
-
-**Example:**
 
 .. code-block:: python
 
@@ -116,18 +113,3 @@ Custom constants can be defined at a global level in Vyper. To define a constant
     @public
     def __init__():
         self.total_supply = TOTAL_SUPPLY
-
-**Advanced Example:**
-
-.. code-block:: python
-
-    units: {
-        share: "Share unit"
-    }
-
-    MAX_SHARES: constant(uint256(share)) = 1000
-    SHARE_PRICE: constant(uint256(wei/share)) = 5
-
-    @public
-    def market_cap() -> uint256(wei):
-        return MAX_SHARES * SHARE_PRICE

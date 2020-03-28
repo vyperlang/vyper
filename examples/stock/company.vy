@@ -1,25 +1,20 @@
-units: {
-    currency_value: "Currency Value"
-}
-
 # Financial events the contract logs
-Transfer: event({_from: indexed(address), _to: indexed(address), _value: uint256(currency_value)})
-Buy: event({_buyer: indexed(address), _buy_order: uint256(currency_value)})
-Sell: event({_seller: indexed(address), _sell_order: uint256(currency_value)})
-Pay: event({_vendor: indexed(address), _amount: wei_value})
+Transfer: event({_from: indexed(address), _to: indexed(address), _value: uint256})
+Buy: event({_buyer: indexed(address), _buy_order: uint256})
+Sell: event({_seller: indexed(address), _sell_order: uint256})
+Pay: event({_vendor: indexed(address), _amount: uint256})
 
 # Initiate the variables for the company and it's own shares.
 company: public(address)
-totalShares: public(uint256(currency_value))
-price: public(uint256 (wei / currency_value))
+totalShares: public(uint256)
+price: public(uint256)
 
 # Store a ledger of stockholder holdings.
-holdings: map(address, uint256(currency_value))
+holdings: map(address, uint256)
 
 # Set up the company.
 @public
-def __init__(_company: address, _total_shares: uint256(currency_value),
-        initial_price: uint256(wei / currency_value) ):
+def __init__(_company: address, _total_shares: uint256, initial_price: uint256):
     assert _total_shares > 0
     assert initial_price > 0
 
@@ -33,13 +28,13 @@ def __init__(_company: address, _total_shares: uint256(currency_value),
 # Find out how much stock the company holds
 @private
 @constant
-def _stockAvailable() -> uint256(currency_value):
+def _stockAvailable() -> uint256:
     return self.holdings[self.company]
 
 # Public function to allow external access to _stockAvailable
 @public
 @constant
-def stockAvailable() -> uint256(currency_value):
+def stockAvailable() -> uint256:
     return self._stockAvailable()
 
 # Give some value to the company and get stock in return.
@@ -48,7 +43,7 @@ def stockAvailable() -> uint256(currency_value):
 def buyStock():
     # Note: full amount is given to company (no fractional shares),
     #       so be sure to send exact amount to buy shares
-    buy_order: uint256(currency_value) = msg.value / self.price # rounds down
+    buy_order: uint256 = msg.value / self.price # rounds down
 
     # Check that there are enough shares to buy.
     assert self._stockAvailable() >= buy_order
@@ -63,24 +58,24 @@ def buyStock():
 # Find out how much stock any address (that's owned by someone) has.
 @private
 @constant
-def _getHolding(_stockholder: address) -> uint256(currency_value):
+def _getHolding(_stockholder: address) -> uint256:
     return self.holdings[_stockholder]
 
 # Public function to allow external access to _getHolding
 @public
 @constant
-def getHolding(_stockholder: address) -> uint256(currency_value):
+def getHolding(_stockholder: address) -> uint256:
     return self._getHolding(_stockholder)
 
 # Return the amount the company has on hand in cash.
 @public
 @constant
-def cash() -> wei_value:
+def cash() -> uint256:
     return self.balance
 
 # Give stock back to the company and get money back as ETH.
 @public
-def sellStock(sell_order: uint256(currency_value)):
+def sellStock(sell_order: uint256):
     assert sell_order > 0 # Otherwise, this would fail at send() below,
         # due to an OOG error (there would be zero value available for gas).
     # You can only sell as much stock as you own.
@@ -100,7 +95,7 @@ def sellStock(sell_order: uint256(currency_value)):
 # Transfer stock from one stockholder to another. (Assume that the
 # receiver is given some compensation, but this is not enforced.)
 @public
-def transferStock(receiver: address, transfer_order: uint256(currency_value)):
+def transferStock(receiver: address, transfer_order: uint256):
     assert transfer_order > 0 # This is similar to sellStock above.
     # Similarly, you can only trade as much stock as you own.
     assert self._getHolding(msg.sender) >= transfer_order
@@ -114,7 +109,7 @@ def transferStock(receiver: address, transfer_order: uint256(currency_value)):
 
 # Allow the company to pay someone for services rendered.
 @public
-def payBill(vendor: address, amount: wei_value):
+def payBill(vendor: address, amount: uint256):
     # Only the company can pay people.
     assert msg.sender == self.company
     # Also, it can pay only if there's enough to pay them with.
@@ -129,13 +124,13 @@ def payBill(vendor: address, amount: wei_value):
 # Return the amount in wei that a company has raised in stock offerings.
 @private
 @constant
-def _debt() -> wei_value:
+def _debt() -> uint256:
     return (self.totalShares - self._stockAvailable()) * self.price
 
 # Public function to allow external access to _debt
 @public
 @constant
-def debt() -> wei_value:
+def debt() -> uint256:
     return self._debt()
 
 # Return the cash holdings minus the debt of the company.
@@ -143,5 +138,5 @@ def debt() -> wei_value:
 # but of course all other liabilities can be included.
 @public
 @constant
-def worth() -> wei_value:
+def worth() -> uint256:
     return self.balance - self._debt()

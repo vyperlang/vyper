@@ -5,7 +5,6 @@ from decimal import (
 import pytest
 
 from vyper.exceptions import (
-    TypeMismatch,
     ZeroDivisionException,
 )
 
@@ -34,27 +33,6 @@ def num_modulo_decimal() -> decimal:
     assert c.decimal_modulo_decimal() == Decimal('.18')
     assert c.decimal_modulo_num() == Decimal('.5')
     assert c.num_modulo_decimal() == Decimal('.5')
-
-
-def test_modulo_with_different_units(assert_compile_failed, get_contract_with_gas_estimation):
-    code = """
-units: {
-    currency_value: "a currency amount"
-}
-@public
-def foo(a: int128(currency_value), b: int128):
-    x: int128 = a % b
-"""
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatch)
-
-
-def test_modulo_with_positional_input(assert_compile_failed, get_contract_with_gas_estimation):
-    code = """
-@public
-def foo(a: int128(sec, positional), b: int128):
-    x: int128 = a % b
-"""
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatch)
 
 
 def test_modulo_with_input_of_zero(assert_tx_failed, get_contract_with_gas_estimation):

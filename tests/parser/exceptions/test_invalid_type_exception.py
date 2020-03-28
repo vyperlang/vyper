@@ -43,19 +43,10 @@ def foo(x): pass
 b: map((int128, decimal), int128)
     """,
     """
-x: wei(wei)
-    """,
-    """
 x: int128(address)
     """,
     """
-x: int128(wei and sec)
-    """,
-    """
 x: int128(2 ** 2)
-    """,
-    """
-x: int128(wei ** -1)
     """,
     """
 x: bytes <= wei

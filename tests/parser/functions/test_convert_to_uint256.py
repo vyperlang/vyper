@@ -3,23 +3,6 @@ from vyper.exceptions import (
 )
 
 
-def test_convert_to_uint256_units(get_contract, assert_tx_failed):
-    code = """
-units: {
-    meter: "Meter"
-}
-
-@public
-def test() -> int128(meter):
-    b: uint256(meter) = 1234
-    a: int128(meter) = convert(b, int128)
-    return a
-    """
-
-    c = get_contract(code)
-    assert c.test() == 1234
-
-
 def test_convert_to_uint256(get_contract_with_gas_estimation):
     code = """
 a: int128

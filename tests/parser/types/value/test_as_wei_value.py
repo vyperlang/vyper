@@ -1,23 +1,23 @@
 def test_wei_conversion(get_contract_with_gas_estimation):
     test_wei = """
 @public
-def return_2_finney() -> wei_value:
+def return_2_finney() -> uint256:
     return as_wei_value(2, "finney")
 
 @public
-def return_3_finney() -> wei_value:
+def return_3_finney() -> uint256:
     return as_wei_value(2 + 1, "finney")
 
 @public
-def return_2p5_ether() -> wei_value:
+def return_2p5_ether() -> uint256:
     return as_wei_value(2.5, "ether")
 
 @public
-def return_3p5_ether() -> wei_value:
+def return_3p5_ether() -> uint256:
     return as_wei_value(2.5 + 1.0, "ether")
 
 @public
-def return_2pow64_wei() -> wei_value:
+def return_2pow64_wei() -> uint256:
     return as_wei_value(18446744073.709551616, "gwei")
     """
 
@@ -28,5 +28,3 @@ def return_2pow64_wei() -> wei_value:
     assert c.return_2p5_ether() == 2.5 * 10**18
     assert c.return_3p5_ether() == 3.5 * 10**18
     assert c.return_2pow64_wei() == 2**64
-
-    print("Passed wei value literals test")

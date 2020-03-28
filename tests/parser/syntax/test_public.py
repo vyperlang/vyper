@@ -9,12 +9,12 @@ valid_list = [
 x: public(int128)
     """,
     """
-x: public(int128(wei / sec))
-y: public(int128(wei / sec ** 2))
-z: public(int128(1 / sec))
+x: public(int128)
+y: public(int128)
+z: public(int128)
 
 @public
-def foo() -> int128(sec ** 2):
+def foo() -> int128:
     return self.x / self.y / self.z
     """
 ]

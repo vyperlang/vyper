@@ -406,12 +406,12 @@ def test() -> int128[4]:
 def test_private_payable(w3, get_contract_with_gas_estimation):
     code = """
 @private
-def _send_it(a: address, value: uint256(wei)):
+def _send_it(a: address, value: uint256):
     send(a, value)
 
 @payable
 @public
-def test(doit: bool, a: address, value: uint256(wei)):
+def test(doit: bool, a: address, value: uint256):
     self._send_it(a, value)
 
 @public

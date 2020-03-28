@@ -2,25 +2,25 @@
 
 struct Bid:
   blindedBid: bytes32
-  deposit: wei_value
+  deposit: uint256
 
 # Note: because Vyper does not allow for dynamic arrays, we have limited the
 # number of bids that can be placed by one address to 128 in this example
 MAX_BIDS: constant(int128) = 128
 
 # Event for logging that auction has ended
-AuctionEnded: event({_highestBidder: address, _highestBid: wei_value})
+AuctionEnded: event({_highestBidder: address, _highestBid: uint256})
 
 # Auction parameters
 beneficiary: public(address)
-biddingEnd: public(timestamp)
-revealEnd: public(timestamp)
+biddingEnd: public(uint256)
+revealEnd: public(uint256)
 
 # Set to true at the end of auction, disallowing any new bids
 ended: public(bool)
 
 # Final auction state
-highestBid: public(wei_value)
+highestBid: public(uint256)
 highestBidder: public(address)
 
 # State of the bids
@@ -28,14 +28,14 @@ bids: map(address, Bid[128])
 bidCounts: map(address, int128)
 
 # Allowed withdrawals of previous bids
-pendingReturns: map(address, wei_value)
+pendingReturns: map(address, uint256)
 
 
 # Create a blinded auction with `_biddingTime` seconds bidding time and
 # `_revealTime` seconds reveal time on behalf of the beneficiary address
 # `_beneficiary`.
 @public
-def __init__(_beneficiary: address, _biddingTime: timedelta, _revealTime: timedelta):
+def __init__(_beneficiary: address, _biddingTime: uint256, _revealTime: uint256):
     self.beneficiary = _beneficiary
     self.biddingEnd = block.timestamp + _biddingTime
     self.revealEnd = self.biddingEnd + _revealTime
@@ -74,7 +74,7 @@ def bid(_blindedBid: bytes32):
 
 # Returns a boolean value, `True` if bid placed successfully, `False` otherwise.
 @private
-def placeBid(bidder: address, value: wei_value) -> bool:
+def placeBid(bidder: address, value: uint256) -> bool:
     # If bid is less than highest bid, bid fails
     if (value <= self.highestBid):
         return False
@@ -93,7 +93,7 @@ def placeBid(bidder: address, value: wei_value) -> bool:
 # Reveal your blinded bids. You will get a refund for all correctly blinded
 # invalid bids and for all bids except for the totally highest.
 @public
-def reveal(_numBids: int128, _values: wei_value[128], _fakes: bool[128], _secrets: bytes32[128]):
+def reveal(_numBids: int128, _values: uint256[128], _fakes: bool[128], _secrets: bytes32[128]):
     # Check that bidding period is over
     assert block.timestamp > self.biddingEnd
 
@@ -104,7 +104,7 @@ def reveal(_numBids: int128, _values: wei_value[128], _fakes: bool[128], _secret
     assert _numBids == self.bidCounts[msg.sender]
 
     # Calculate refund for sender
-    refund: wei_value = ZERO_WEI
+    refund: uint256 = 0
     for i in range(MAX_BIDS):
         # Note that loop may break sooner than 128 iterations if i >= _numBids
         if (i >= _numBids):
@@ -114,7 +114,7 @@ def reveal(_numBids: int128, _values: wei_value[128], _fakes: bool[128], _secret
         bidToCheck: Bid = (self.bids[msg.sender])[i]
 
         # Check against encoded packet
-        value: wei_value = _values[i]
+        value: uint256 = _values[i]
         fake: bool = _fakes[i]
         secret: bytes32 = _secrets[i]
         blindedBid: bytes32 = keccak256(concat(
@@ -148,7 +148,7 @@ def reveal(_numBids: int128, _values: wei_value[128], _fakes: bool[128], _secret
 @public
 def withdraw():
     # Check that there is an allowed pending return.
-    pendingAmount: wei_value = self.pendingReturns[msg.sender]
+    pendingAmount: uint256 = self.pendingReturns[msg.sender]
     if (pendingAmount > 0):
         # If so, set pending returns to zero to prevent recipient from calling
         # this function again as part of the receiving call before `transfer`

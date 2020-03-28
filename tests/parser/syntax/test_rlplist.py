@@ -70,7 +70,7 @@ def foo() -> bytes32:
     """
 @public
 def foo() -> bytes32:
-    x = RLPList(convert('\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', bytes[64]), [int128(wei)])
+    x = RLPList(convert('\xe1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', bytes[64]), [int128])
     return x[1]
     """
 ]

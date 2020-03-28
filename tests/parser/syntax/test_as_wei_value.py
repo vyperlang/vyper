@@ -14,12 +14,12 @@ fail_list = [
     """
 @public
 def foo():
-    x: int128(wei) = as_wei_value(5, szabo)
+    x: int128 = as_wei_value(5, szabo)
     """,
     """
 @public
-def foo() -> int128(wei):
-    x: int128(wei) = 45
+def foo() -> int128:
+    x: int128 = 45
     return x.balance
     """
 ]
@@ -35,22 +35,22 @@ valid_list = [
     """
 @public
 def foo():
-    x: uint256(wei) = as_wei_value(5, "finney") + as_wei_value(2, "babbage") + as_wei_value(8, "shannon")  # noqa: E501
+    x: uint256 = as_wei_value(5, "finney") + as_wei_value(2, "babbage") + as_wei_value(8, "shannon")  # noqa: E501
     """,
     """
 @public
 def foo():
     z: int128 = 2 + 3
-    x: uint256(wei) = as_wei_value(2 + 3, "finney")
+    x: uint256 = as_wei_value(2 + 3, "finney")
     """,
     """
 @public
 def foo():
-    x: uint256(wei) = as_wei_value(5.182, "babbage")
+    x: uint256 = as_wei_value(5.182, "babbage")
     """,
     """
 @public
-def foo() -> uint256(wei):
+def foo() -> uint256:
     x: address = 0x1234567890123456789012345678901234567890
     return x.balance
     """

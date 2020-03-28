@@ -10,8 +10,8 @@ def test_self_balance(w3, get_contract_with_gas_estimation, evm_version):
     code = """
 @public
 @constant
-def get_balance() -> uint256(wei):
-    a: uint256(wei) = self.balance
+def get_balance() -> uint256:
+    a: uint256 = self.balance
     return a
 
 @public

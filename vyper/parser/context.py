@@ -67,8 +67,6 @@ class Context:
         self.blockscopes = set()
         # In assignment. Whether expression is currently evaluating an assignment expression.
         self.in_assignment = False
-        # List of custom units that have been defined.
-        self.custom_units = global_ctx._custom_units
         # List of custom structs that have been defined.
         self.structs = global_ctx._structs
         # defined constants
@@ -135,7 +133,6 @@ class Context:
         if self.global_ctx.is_valid_varname(name, pos):
             check_valid_varname(
                 name,
-                custom_units=self.custom_units,
                 custom_structs=self.structs,
                 constants=self.constants, pos=pos,
             )

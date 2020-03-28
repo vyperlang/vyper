@@ -169,27 +169,6 @@ def test() -> bytes[100]:
     assert c.test() == test_str
 
 
-def test_constant_custom_units(get_contract):
-    code = """
-units: {
-    share: "Share unit"
-}
-
-
-MAX_SHARES: constant(uint256(share)) = 1000
-SHARE_PRICE: constant(uint256(wei/share)) = 5
-
-
-@public
-def market_cap() -> uint256(wei):
-    return MAX_SHARES * SHARE_PRICE
-    """
-
-    c = get_contract(code)
-
-    assert c.market_cap() == 5000
-
-
 def test_constant_folds(search_for_sublist):
     some_prime = 10013677
     code = f"""

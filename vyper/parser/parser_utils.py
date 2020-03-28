@@ -27,7 +27,6 @@ from vyper.types import (
     StructType,
     TupleLike,
     TupleType,
-    are_units_compatible,
     ceil32,
     get_size_of_type,
     has_dynamic_data,
@@ -386,18 +385,13 @@ def base_type_conversion(orig, frm, to, pos, in_function_call=False):
     orig = unwrap_location(orig)
     is_valid_int128_to_decimal = (
         is_base_type(frm, 'int128') and is_base_type(to, 'decimal')
-    ) and are_units_compatible(frm, to)
+    )
 
     if getattr(frm, 'is_literal', False):
         if frm.typ in ('int128', 'uint256'):
             if not SizeLimits.in_bounds(frm.typ, orig.value):
                 raise InvalidLiteral(f"Number out of range: {orig.value}", pos)
-            # Special Case: Literals in function calls should always convey unit type as well.
-            if in_function_call and not (frm.unit == to.unit and frm.positional == to.positional):
-                raise InvalidLiteral(
-                    f"Function calls require explicit unit definitions on calls, expected {to}",
-                    pos
-                )
+
         if to.typ in ('int128', 'uint256'):
             if not SizeLimits.in_bounds(to.typ, orig.value):
                 raise InvalidLiteral(f"Number out of range: {orig.value}", pos)
@@ -406,14 +400,14 @@ def base_type_conversion(orig, frm, to, pos, in_function_call=False):
         raise TypeMismatch(
             f"Base type conversion from or to non-base type: {frm} {to}", pos
         )
-    elif is_base_type(frm, to.typ) and are_units_compatible(frm, to):
+    elif is_base_type(frm, to.typ):
         return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
     elif isinstance(frm, ContractType) and to == BaseType('address'):
         return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
     elif is_valid_int128_to_decimal:
         return LLLnode.from_list(
             ['mul', orig, DECIMAL_DIVISOR],
-            typ=BaseType('decimal', to.unit, to.positional),
+            typ=BaseType('decimal'),
         )
     elif isinstance(frm, NullType):
         if to.typ not in ('int128', 'bool', 'uint256', 'address', 'bytes32', 'decimal'):

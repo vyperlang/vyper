@@ -20,7 +20,7 @@ Because of this Vyper provides the following features:
 * **Bounds and overflow checking**: On array accesses and arithmetic.
 * **Support for signed integers and decimal fixed point numbers**
 * **Decidability**: It is possible to compute a precise upper bound for the gas consumption of any Vyper function call.
-* **Strong typing**: Including support for units (e.g. timestamp, timedelta, seconds, wei, wei per second, meters per second squared).
+* **Strong typing**
 * **Small and understandable compiler code**
 * **Limited support for pure functions**: Anything marked constant is not allowed to change the state.
 

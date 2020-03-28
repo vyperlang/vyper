@@ -27,8 +27,6 @@ from vyper.types import (
     canonicalize_type,
     get_size_of_type,
     parse_type,
-    print_unit,
-    unit_from_type,
 )
 from vyper.utils import (
     FUNCTION_WHITELIST,
@@ -74,7 +72,6 @@ class FunctionSignature:
                  nonreentrant_key,
                  sig,
                  method_id,
-                 custom_units,
                  func_ast_code):
         self.name = name
         self.args = args
@@ -85,7 +82,6 @@ class FunctionSignature:
         self.sig = sig
         self.method_id = method_id
         self.gas = None
-        self.custom_units = custom_units
         self.nonreentrant_key = nonreentrant_key
         self.func_ast_code = func_ast_code
         self.calculate_arg_totals()
@@ -133,7 +129,7 @@ class FunctionSignature:
 
     # Get the canonical function signature
     @staticmethod
-    def get_full_sig(func_name, args, sigs, custom_units, custom_structs, constants):
+    def get_full_sig(func_name, args, sigs, custom_structs, constants):
 
         def get_type(arg):
             if isinstance(arg, LLLnode):
@@ -143,7 +139,6 @@ class FunctionSignature:
                     arg.annotation,
                     None,
                     sigs,
-                    custom_units=custom_units,
                     custom_structs=custom_structs,
                     constants=constants,
                 ))
@@ -154,7 +149,6 @@ class FunctionSignature:
     def from_definition(cls,
                         code,
                         sigs=None,
-                        custom_units=None,
                         custom_structs=None,
                         contract_def=False,
                         constants=None,
@@ -165,7 +159,7 @@ class FunctionSignature:
         name = code.name
         mem_pos = 0
 
-        valid_name, msg = is_varname_valid(name, custom_units, custom_structs, constants)
+        valid_name, msg = is_varname_valid(name, custom_structs, constants)
         if not valid_name and (not name.lower() in FUNCTION_WHITELIST):
             raise FunctionDeclarationException("Function name invalid. " + msg, code)
 
@@ -184,7 +178,6 @@ class FunctionSignature:
             # Validate arg name.
             check_valid_varname(
                 arg.arg,
-                custom_units,
                 custom_structs,
                 constants,
                 arg,
@@ -201,7 +194,6 @@ class FunctionSignature:
                 typ,
                 None,
                 sigs,
-                custom_units=custom_units,
                 custom_structs=custom_structs,
                 constants=constants,
             )
@@ -286,7 +278,6 @@ class FunctionSignature:
                 code.returns,
                 None,
                 sigs,
-                custom_units=custom_units,
                 custom_structs=custom_structs,
                 constants=constants,
             )
@@ -299,7 +290,7 @@ class FunctionSignature:
         if output_type is not None:
             assert isinstance(output_type, TupleType) or canonicalize_type(output_type)
         # Get the canonical function signature
-        sig = cls.get_full_sig(name, code.args.args, sigs, custom_units, custom_structs, constants)
+        sig = cls.get_full_sig(name, code.args.args, sigs, custom_structs, constants)
 
         # Take the first 4 bytes of the hash of the sig to get the method ID
         method_id = fourbytes_to_int(keccak256(bytes(sig, 'utf-8'))[:4])
@@ -313,19 +304,15 @@ class FunctionSignature:
             nonreentrant_key,
             sig,
             method_id,
-            custom_units,
             code
         )
 
     @iterable_cast(dict)
-    def _generate_base_type(self, arg_type, name="", custom_units_descriptions=None):
+    def _generate_base_type(self, arg_type, name=""):
         yield "type", canonicalize_type(arg_type)
-        u = unit_from_type(arg_type)
-        if u:
-            yield "unit", print_unit(u, custom_units_descriptions)
         yield "name", name
 
-    def _generate_param_abi(self, out_arg, name="", custom_units_descriptions=None):
+    def _generate_param_abi(self, out_arg, name=""):
         if isinstance(out_arg, TupleLike):
             return {
                 'type': 'tuple',
@@ -334,43 +321,29 @@ class FunctionSignature:
                     self._generate_param_abi(
                         member_type,
                         name=n if type(out_arg) is StructType else "",
-                        custom_units_descriptions=custom_units_descriptions
                     ) for n, member_type in out_arg.tuple_items()
                 ]
             }
-        return self._generate_base_type(
-            arg_type=out_arg,
-            name=name,
-            custom_units_descriptions=custom_units_descriptions
-        )
+        return self._generate_base_type(arg_type=out_arg, name=name)
 
-    def _generate_outputs_abi(self, custom_units_descriptions):
+    def _generate_outputs_abi(self):
         if not self.output_type:
             return []
         elif isinstance(self.output_type, TupleType):
             return [
-                self._generate_param_abi(x, custom_units_descriptions=custom_units_descriptions)
+                self._generate_param_abi(x,)
                 for x in self.output_type.members
             ]
         else:
-            return [self._generate_param_abi(
-                self.output_type,
-                custom_units_descriptions=custom_units_descriptions
-            )]
+            return [self._generate_param_abi(self.output_type)]
 
-    def _generate_inputs_abi(self, custom_units_descriptions):
+    def _generate_inputs_abi(self):
         if not self.args:
             return []
         else:
-            return [
-                self._generate_param_abi(
-                    x.typ,
-                    name=x.name,
-                    custom_units_descriptions=custom_units_descriptions
-                ) for x in self.args
-            ]
+            return [self._generate_param_abi(x.typ, name=x.name) for x in self.args]
 
-    def to_abi_dict(self, custom_units_descriptions=None):
+    def to_abi_dict(self):
         func_type = "function"
         if self.name == "__init__":
             func_type = "constructor"
@@ -379,8 +352,8 @@ class FunctionSignature:
 
         abi_dict = {
             "name": self.name,
-            "outputs": self._generate_outputs_abi(custom_units_descriptions),
-            "inputs": self._generate_inputs_abi(custom_units_descriptions),
+            "outputs": self._generate_outputs_abi(),
+            "inputs": self._generate_inputs_abi(),
             "constant": self.const,
             "payable": self.payable,
             "type": func_type
@@ -409,7 +382,6 @@ class FunctionSignature:
             stmt_or_expr.func.attr,
             expr_args,
             None,
-            context.custom_units,
             context.structs,
             context.constants,
         )

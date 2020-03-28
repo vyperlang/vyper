@@ -41,9 +41,6 @@ def foo():
     z = x[2:4]
     """,
     """
-x: int128(wei >> 3)
-    """,
-    """
 Transfer: event({_&rom: indexed(address)})
     """,
     """

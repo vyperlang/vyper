@@ -3,24 +3,24 @@
 # Auction params
 # Beneficiary receives money from the highest bidder
 beneficiary: public(address)
-auctionStart: public(timestamp)
-auctionEnd: public(timestamp)
+auctionStart: public(uint256)
+auctionEnd: public(uint256)
 
 # Current state of auction
 highestBidder: public(address)
-highestBid: public(wei_value)
+highestBid: public(uint256)
 
 # Set to true at the end, disallows any change
 ended: public(bool)
 
 # Keep track of refunded bids so we can follow the withdraw pattern
-pendingReturns: public(map(address, wei_value))
+pendingReturns: public(map(address, uint256))
 
 # Create a simple auction with `_bidding_time`
 # seconds bidding time on behalf of the
 # beneficiary address `_beneficiary`.
 @public
-def __init__(_beneficiary: address, _bidding_time: timedelta):
+def __init__(_beneficiary: address, _bidding_time: uint256):
     self.beneficiary = _beneficiary
     self.auctionStart = block.timestamp
     self.auctionEnd = self.auctionStart + _bidding_time
@@ -48,7 +48,7 @@ def bid():
 # those refunds and thus block new higher bids from coming in.
 @public
 def withdraw():
-    pending_amount: wei_value = self.pendingReturns[msg.sender]
+    pending_amount: uint256 = self.pendingReturns[msg.sender]
     self.pendingReturns[msg.sender] = 0
     send(msg.sender, pending_amount)
 

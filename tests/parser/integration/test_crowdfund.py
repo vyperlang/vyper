@@ -3,17 +3,17 @@ def test_crowdfund(w3, tester, get_contract_with_gas_estimation_for_constants):
 
 struct Funder:
     sender: address
-    value: wei_value
+    value: uint256
 funders: map(int128, Funder)
 nextFunderIndex: int128
 beneficiary: address
-deadline: public(timestamp)
-goal: public(wei_value)
+deadline: public(uint256)
+goal: public(uint256)
 refundIndex: int128
-timelimit: public(timedelta)
+timelimit: public(uint256)
 
 @public
-def __init__(_beneficiary: address, _goal: wei_value, _timelimit: timedelta):
+def __init__(_beneficiary: address, _goal: uint256, _timelimit: uint256):
     self.beneficiary = _beneficiary
     self.deadline = block.timestamp + _timelimit
     self.timelimit = _timelimit
@@ -35,7 +35,7 @@ def expired() -> bool:
 
 @public
 @constant
-def block_timestamp() -> timestamp:
+def block_timestamp() -> uint256:
     return block.timestamp
 
 @public
@@ -90,25 +90,23 @@ def refund():
     post_bals = [w3.eth.getBalance(x) for x in [a3, a4, a5, a6]]
     assert [y - x for x, y in zip(pre_bals, post_bals)] == [1, 2, 3, 4]
 
-    print('Passed composite crowdfund test')
-
 
 def test_crowdfund2(w3, tester, get_contract_with_gas_estimation_for_constants):
     crowdfund2 = """
 struct Funder:
     sender: address
-    value: wei_value
+    value: uint256
 
 funders: map(int128, Funder)
 nextFunderIndex: int128
 beneficiary: address
-deadline: public(timestamp)
-goal: wei_value
+deadline: public(uint256)
+goal: uint256
 refundIndex: int128
-timelimit: public(timedelta)
+timelimit: public(uint256)
 
 @public
-def __init__(_beneficiary: address, _goal: wei_value, _timelimit: timedelta):
+def __init__(_beneficiary: address, _goal: uint256, _timelimit: uint256):
     self.beneficiary = _beneficiary
     self.deadline = block.timestamp + _timelimit
     self.timelimit = _timelimit
@@ -129,7 +127,7 @@ def expired() -> bool:
 
 @public
 @constant
-def block_timestamp() -> timestamp:
+def block_timestamp() -> uint256:
     return block.timestamp
 
 @public
@@ -183,5 +181,3 @@ def refund():
     c.refund(transact={})
     post_bals = [w3.eth.getBalance(x) for x in [a3, a4, a5, a6]]
     assert [y - x for x, y in zip(pre_bals, post_bals)] == [1, 2, 3, 4]
-
-    print('Passed second composite crowdfund test')

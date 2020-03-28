@@ -43,7 +43,6 @@ from vyper.types import (
     ListType,
     StringType,
     TupleType,
-    are_units_compatible,
     get_size_of_type,
     is_base_type,
 )
@@ -68,11 +67,6 @@ from .signatures import (
 SHA256_ADDRESS = 2
 SHA256_BASE_GAS = 60
 SHA256_PER_WORD_GAS = 12
-
-
-def enforce_units(typ, obj, expected):
-    if not are_units_compatible(typ, expected):
-        raise TypeMismatch("Invalid units", obj)
 
 
 def get_keyword(expr, keyword):
@@ -101,7 +95,7 @@ def floor(expr, args, kwargs, context):
             ['sdiv', ['sub', args[0], DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR],
             ['sdiv', args[0], DECIMAL_DIVISOR]
         ],
-        typ=BaseType('int128', args[0].typ.unit, args[0].typ.positional),
+        typ=BaseType('int128'),
         pos=getpos(expr)
     )
 
@@ -115,18 +109,8 @@ def ceil(expr, args, kwards, context):
             ['sdiv', args[0], DECIMAL_DIVISOR],
             ['sdiv', ['add', args[0], DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR]
         ],
-        typ=BaseType('int128', args[0].typ.unit, args[0].typ.positional),
+        typ=BaseType('int128'),
         pos=getpos(expr)
-    )
-
-
-@signature(('uint256', 'int128', 'decimal'))
-def as_unitless_number(expr, args, kwargs, context):
-    return LLLnode(
-        value=args[0].value,
-        args=args[0].args,
-        typ=BaseType(args[0].typ.typ, {}),
-        pos=getpos(expr),
     )
 
 
@@ -138,12 +122,6 @@ def _convert(expr, context):
 def _slice(expr, args, kwargs, context):
 
     sub, start, length = args
-    if not are_units_compatible(start.typ, BaseType('int128')):
-        raise TypeMismatch("Type for slice start index must be a unitless number", expr)
-    # Expression representing the length of the slice
-    if not are_units_compatible(length.typ, BaseType('int128')):
-        raise TypeMismatch("Type for slice length must be a unitless number", expr)
-
     if is_base_type(sub.typ, 'bytes32'):
         if (start.typ.is_literal and length.typ.is_literal) and \
            not (0 <= start.value + length.value <= 32):
@@ -631,13 +609,13 @@ def as_wei_value(expr, args, kwargs, context):
 
     return LLLnode.from_list(
         sub,
-        typ=BaseType('uint256', {'wei': 1}),
+        typ=BaseType('uint256'),
         location=None,
         pos=getpos(expr),
     )
 
 
-zero_value = LLLnode.from_list(0, typ=BaseType('uint256', {'wei': 1}))
+zero_value = LLLnode.from_list(0, typ=BaseType('uint256'))
 false_value = LLLnode.from_list(0, typ=BaseType('bool', is_literal=True))
 
 
@@ -665,12 +643,6 @@ def raw_call(expr, args, kwargs, context):
         raise ConstancyViolation(
             f"Cannot make calls from {context.pp_constancy()}",
             expr,
-        )
-    if value != zero_value:
-        enforce_units(
-            value.typ,
-            get_keyword(expr, 'value'),
-            BaseType('uint256', {'wei': 1}),
         )
     placeholder = context.new_placeholder(data.typ)
     placeholder_node = LLLnode.from_list(placeholder, typ=data.typ, location='memory')
@@ -716,7 +688,6 @@ def send(expr, args, kwargs, context):
             f"Cannot send ether inside {context.pp_constancy()}!",
             expr,
         )
-    enforce_units(value.typ, expr.args[1], BaseType('uint256', {'wei': 1}))
     return LLLnode.from_list(
         ['assert', ['call', 0, to, value, 0, 0, 0, 0]],
         typ=None,
@@ -1126,9 +1097,6 @@ def get_create_forwarder_to_bytecode():
 def create_forwarder_to(expr, args, kwargs, context):
 
     value = kwargs['value']
-    if value != zero_value:
-        enforce_units(value.typ, get_keyword(expr, 'value'),
-                      BaseType('uint256', {'wei': 1}))
     if context.is_constant():
         raise ConstancyViolation(
             f"Cannot make calls from {context.pp_constancy()}",
@@ -1173,8 +1141,6 @@ def minmax(expr, args, kwargs, context, comparator):
         return False
 
     left, right = args[0], args[1]
-    if not are_units_compatible(left.typ, right.typ) and not are_units_compatible(right.typ, left.typ):  # noqa: E501
-        raise TypeMismatch("Units must be compatible", expr)
     if left.typ.typ == right.typ.typ:
         if left.typ.typ != 'uint256':
             # if comparing like types that are not uint256, use SLT or SGT
@@ -1270,7 +1236,6 @@ def _clear():
 DISPATCH_TABLE = {
     'floor': floor,
     'ceil': ceil,
-    'as_unitless_number': as_unitless_number,
     'convert': _convert,
     'slice': _slice,
     'len': _len,

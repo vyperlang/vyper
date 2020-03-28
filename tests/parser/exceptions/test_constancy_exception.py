@@ -33,11 +33,11 @@ def foo() -> int128:
     selfdestruct(0x1234567890123456789012345678901234567890)
     """,
     """
-x: timedelta
+x: int128
 y: int128
 @public
 @constant
-def foo() -> int128(sec):
+def foo() -> int128:
     self.y = 9
     return 5
     """,

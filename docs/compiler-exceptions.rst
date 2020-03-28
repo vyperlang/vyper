@@ -167,7 +167,7 @@ of the error within the code:
                 3 struct Bid:
         ---> 4   blindedBid bytes32
         ---------------------------^
-                5   deposit: wei_value
+                5   deposit: uint256
 
 .. py:exception:: TypeMismatch
 

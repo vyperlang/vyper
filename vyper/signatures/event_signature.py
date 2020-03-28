@@ -13,8 +13,6 @@ from vyper.types import (
     ByteArrayType,
     canonicalize_type,
     get_size_of_type,
-    print_unit,
-    unit_from_type,
 )
 from vyper.utils import (
     bytes_to_int,
@@ -41,7 +39,7 @@ class EventSignature:
         pos = 0
 
         check_valid_varname(
-            name, global_ctx._custom_units, global_ctx._structs, global_ctx._constants,
+            name, global_ctx._structs, global_ctx._constants,
             pos=code, error_prefix="Event name invalid. ", exc=EventDeclarationException
         )
 
@@ -88,7 +86,6 @@ class EventSignature:
                     raise InvalidType("Argument must have type", arg)
                 check_valid_varname(
                     arg,
-                    global_ctx._custom_units,
                     global_ctx._structs,
                     global_ctx._constants,
                     pos=arg_item,
@@ -111,19 +108,16 @@ class EventSignature:
         return cls(name, args, indexed_list, event_id, sig)
 
     @iterable_cast(dict)
-    def to_abi_event_dict(self, arg, pos, custom_units_descriptions):
+    def to_abi_event_dict(self, arg, pos):
         yield "type", canonicalize_type(arg.typ, self.indexed_list[pos]),
         yield "name", arg.name,
         yield "indexed", self.indexed_list[pos],
-        u = unit_from_type(arg.typ)
-        if u:
-            yield "unit", print_unit(u, custom_units_descriptions)
 
-    def to_abi_dict(self, custom_units_descriptions=None):
+    def to_abi_dict(self):
         abi_dict = {
             "name": self.name,
             "inputs": [
-                self.to_abi_event_dict(arg, pos, custom_units_descriptions)
+                self.to_abi_event_dict(arg, pos)
                 for pos, arg in enumerate(self.args)
             ] if self.args else [],
             "anonymous": False,
