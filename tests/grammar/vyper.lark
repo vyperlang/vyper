@@ -53,6 +53,22 @@ indexed_event_arg: NAME ":" "indexed" "(" type ")"
 // Events can have zero args
 event_def: NAME ":" "event" "(" "{" (variable | indexed_event_arg)? ("," (variable | indexed_event_arg))* "}" ")"
 
+// Types
+array: (NAME | array) "[" (DEC_NUMBER | NAME) "]"
+tuple: "(" ( NAME | array | tuple ) ( "," ( NAME | array | tuple ) )* [","] ")"
+// NOTE: Map takes a basic type and maps to another type (can be non-basic, including maps)
+map: "map" "(" ( NAME | array ) "," type ")"
+type: ( NAME | array | tuple | map )
+
+// Structs can be composed of 1+ basic types or other custom_types
+?struct_member: NAME ":" type
+struct_def: "struct" NAME ":" _NEWLINE _INDENT (struct_member _NEWLINE)+ _DEDENT
+
+// Interfaces are composed of a series of method definitions, plus their mutability
+mutability: ( "modifying" | "constant" )
+interface_def: "contract" NAME ":" _NEWLINE _INDENT (method_type ":" mutability _NEWLINE)+ _DEDENT
+
+// Statements and Expressions
 ?stmt: simple_stmt | if_stmt | for_stmt
 ?simple_stmt: small_stmt (small_stmt)* _NEWLINE
 ?small_stmt: (expr_stmt | pass_stmt | flow_stmt | assert_stmt)
@@ -125,25 +141,7 @@ comp_iter: comp_for | comp_if
 comp_for: "for" exprlist "in" or_test [comp_iter]
 comp_if: "if" test_nocond [comp_iter]
 
-array: (NAME | array) "[" (DEC_NUMBER | NAME) "]"
-tuple: "(" ( NAME | array | tuple ) ( "," ( NAME | array | tuple ) )* [","] ")"
-// NOTE: Map takes a basic type and maps to another type (can be non-basic, including maps)
-map: "map" "(" ( NAME | array ) "," type ")"
-type: ( NAME | array | tuple | map )
-
-// Structs can be composed of 1+ basic types or other custom_types
-?struct_member: NAME ":" type
-struct_def: "struct" NAME ":" _NEWLINE _INDENT (struct_member _NEWLINE)+ _DEDENT
-
-// Interfaces are composed of a series of method definitions, plus their mutability
-mutability: ( "modifying" | "constant" )
-interface_def: "contract" NAME ":" _NEWLINE _INDENT (method_type ":" mutability _NEWLINE)+ _DEDENT
-
-// not used in grammar, but may appear in "node" passed from Parser to Compiler
-encoding_decl: NAME
-
 // Tokens
-
 NAME: /[a-zA-Z_]\w*/
 COMMENT: /#[^\n]*/
 _NEWLINE: ( /\r?\n[\t ]*/ | COMMENT )+
