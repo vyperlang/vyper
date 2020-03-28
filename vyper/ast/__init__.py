@@ -1,6 +1,11 @@
 import sys
 
-from . import nodes
+from . import (  # noqa: F401
+    nodes,
+)
+from .nodes import (  # noqa: F401
+    compare_nodes,
+)
 from .utils import (  # noqa: F401
     ast_to_dict,
     parse_to_ast,
