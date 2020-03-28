@@ -144,14 +144,14 @@ BASIC_TYPE: ( ["u"] "int" ("8"|"16"|"32"|"64"|"128"|"256")
             | "bool" )
 
 // Types that can be used in memory allocation
-array: (BASIC_TYPE | CUSTOM_TYPE | array) "[" (DEC_NUMBER | NAME) "]"
+array: (BASIC_TYPE | NAME | array) "[" (DEC_NUMBER | NAME) "]"
 bytes: "bytes" "[" (DEC_NUMBER | NAME) "]"
 string: "string" "[" (DEC_NUMBER | NAME) "]"
 memory_type: ( bytes
              | string
              | array // Goes after bytes and string so those get picked up first
              | BASIC_TYPE
-             | CUSTOM_TYPE ) -> memory
+             | NAME ) -> memory
 
 tuple: "(" memory_type ( "," memory_type )* ")"
 abi_type: ( memory_type | tuple )
@@ -181,7 +181,6 @@ string_literal: STRING | LONG_STRING
 // Tokens
 
 NAME: /[a-zA-Z_]\w*/
-CUSTOM_TYPE: /[a-zA-Z_]\w*/
 COMMENT: /#[^\n]*/
 _NEWLINE: ( /\r?\n[\t ]*/ | COMMENT )+
 
