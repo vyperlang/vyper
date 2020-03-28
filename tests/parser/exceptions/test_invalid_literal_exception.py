@@ -14,21 +14,6 @@ fail_list = [
     """
 @public
 def foo():
-    x = 0x12345678901234567890123456789012345678901
-    """,
-    """
-@public
-def foo():
-    x = 0x01234567890123456789012345678901234567890
-    """,
-    """
-@public
-def foo():
-    x = 0x123456789012345678901234567890123456789
-    """,
-    """
-@public
-def foo():
     x: int128 = -170141183460469231731687303715884105729 # -2**127 - 1
     """,
     """
@@ -41,26 +26,6 @@ b: decimal
 @public
 def foo():
     self.b = 7.5178246872145875217495129745982164981654986129846
-    """,
-    """
-@public
-def foo():
-    x = "these bytes are nо gооd because the o's are from the Russian alphabet"
-    """,
-    """
-@public
-def foo():
-    x = "这个傻老外不懂中文"
-    """,
-    """
-@public
-def foo():
-    x = raw_call(0x123456789012345678901234567890123456789, "cow", outsize=4)
-    """,
-    """
-@public
-def foo():
-    x = create_forwarder_to(0x123456789012345678901234567890123456789)
     """,
     """
 @public
@@ -99,16 +64,6 @@ a:decimal
 @public
 def foo():
     self.a = 170141183460469231731687303715884105727.888
-    """,
-    """
-@public
-def foo():
-    a: bytes[100] = "ѓtest"
-    """,
-    """
-@public
-def foo():
-    a: bytes32 = keccak256("ѓtest")
     """,
     """
 @public

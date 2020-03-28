@@ -7,7 +7,7 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
-    InvalidLiteral,
+    SyntaxException,
     TypeMismatch,
 )
 
@@ -70,9 +70,9 @@ def foo() -> bytes[10]:
     ("""
 @public
 def test() -> bytes[1]:
-    a: bytes[1] = 0b0000001  # needs mutliple of 8 bits.
+    a: bytes[1] = 0b0000001  # needs multiple of 8 bits.
     return a
-    """, InvalidLiteral)
+    """, SyntaxException)
 ]
 
 
