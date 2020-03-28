@@ -36,13 +36,7 @@ variable_def: variable | variable_with_getter
 
 // A decorator "wraps" a method, modifying it's context.
 // NOTE: One or more can be applied (some combos might conflict)
-DECORATOR_NAME: ( "private"
-                | "public"
-                | "payable"
-                | "constant")
-DECORATOR_WITH_ARGS_NAME: ( "nonreentrant" )
-decorator: "@" DECORATOR_NAME _NEWLINE
-         | "@" DECORATOR_WITH_ARGS_NAME [ "(" [arguments] ")" ] _NEWLINE
+decorator: "@" NAME [ "(" [arguments] ")" ] _NEWLINE
 decorators: decorator+
 
 // Methods take a list of zero or more typed parameters,
