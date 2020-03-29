@@ -127,14 +127,15 @@ _expr: operation
 
 get_item: variable_access "[" (DEC_NUMBER | variable_access) "]"
 get_attr: variable_access "." NAME
+call: variable_access "(" [arguments] ")"
 ?variable_access: NAME -> get_var
                 | get_item
                 | get_attr
+                | call
                 | "(" variable_access ")"
 
 ?argument: _expr ["=" _expr]
 arguments: argument ("," argument)* [","]
-call: variable_access "(" [arguments] ")"
 
 tuple: "(" _expr ( ("," _expr)+ | "," ) ")"
 list: "[" _expr ("," _expr)* [","] "]"
@@ -186,7 +187,6 @@ literal: ( number | STRING | BOOL )
 
 // NOTE: Must end recursive cycle like this (with `atom` calling `operation`)
 ?atom: variable_access
-     | call
      | literal
      | "(" operation ")"
 
