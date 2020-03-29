@@ -121,8 +121,6 @@ for_stmt: "for" NAME "in" _expr ":" body
 
 // Expressions
 _expr: operation
-     | tuple
-     | list
      | dict
 
 get_item: variable_access "[" (DEC_NUMBER | variable_access) "]"
@@ -188,6 +186,8 @@ literal: ( number | STRING | BOOL )
 // NOTE: Must end recursive cycle like this (with `atom` calling `operation`)
 ?atom: variable_access
      | literal
+     | tuple
+     | list
      | "(" operation ")"
 
 
