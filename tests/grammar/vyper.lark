@@ -44,8 +44,7 @@ decorators: decorator+
 // and can return up to one parameter.
 // NOTE: Parameters can have a default value,
 //       which must be a constant or environment variable.
-default_value: ( number | STRING | BOOL | NAME )
-parameter: NAME ":" type ["=" default_value]
+parameter: NAME ":" type ["=" _expr]
 parameters: parameter ("," parameter?)*
 
 method_type: "def" NAME "(" [parameters] ")" ["->" type]
