@@ -1,11 +1,10 @@
 // Vyper grammar for Lark
-// Adapted from Lark repo. https://github.com/lark-parser/lark/blob/master/examples/python3.lark
-// Adapted from: https://docs.python.org/3/reference/grammar.html
-// Adapted by: Erez Shinan
 
 // A module is a sequence of definitions and methods (and comments).
 // NOTE: Start symbol for the grammar
-module: ( COMMENT
+// NOTE: Module can start with docstring
+module: ( DOCSTRING
+        | COMMENT
         | import
         | struct_def
         | interface_def
@@ -49,8 +48,8 @@ default_value: ( number | STRING | BOOL | NAME )
 parameter: NAME ":" type ["=" default_value]
 parameters: parameter ("," parameter?)*
 
-method_type: "def" NAME "(" parameters? ")" ["->" type]
-method_def: [decorators] method_type ":" body
+method_type: "def" NAME "(" [parameters] ")" ["->" type]
+method_def: [decorators] method_type ":" [DOCSTRING] body
 
 indexed_event_arg: NAME ":" "indexed" "(" type ")"
 // Events can have zero args
@@ -180,13 +179,16 @@ comparator: _expr "<"  _expr -> lt
 
 
 // Tokens
+// Adapted from Lark repo. https://github.com/lark-parser/lark/blob/master/examples/python3.lark
+// Adapted from: https://docs.python.org/3/reference/grammar.html
+// Adapted by: Erez Shinan
 NAME: /[a-zA-Z_]\w*/
 COMMENT: /#[^\n]*/
 _NEWLINE: ( /\r?\n[\t ]*/ | COMMENT )+
 
 
 STRING: /[ubf]?r?("(?!"").*?(?<!\\)(\\\\)*?"|'(?!'').*?(?<!\\)(\\\\)*?')/i
-LONG_STRING: /[ubf]?r?(""".*?(?<!\\)(\\\\)*?"""|'''.*?(?<!\\)(\\\\)*?''')/is
+DOCSTRING: /[ubf]?r?(""".*?(?<!\\)(\\\\)*?"""|'''.*?(?<!\\)(\\\\)*?''')/is
 
 DEC_NUMBER: /0|[1-9]\d*/i
 HEX_NUMBER.2: /0x[\da-f]*/i
