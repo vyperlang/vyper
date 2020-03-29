@@ -15,6 +15,7 @@ module: ( COMMENT
         | method_def
         | _NEWLINE )*
 
+
 // Import statements (Supports all styles of Python imports)
 !dots: "."+
 import_name: NAME ("." NAME)*
@@ -25,9 +26,10 @@ import: ( "import" (import_name | import_rename)
         | import_from "import" ( "*" | import_name | import_rename )
         | import_from "import" "(" import_list ")" )
 
+
 // Constant definitions
 // NOTE: Temporary until decorators used
-constant_def: NAME ":" "constant" "(" type ")" "=" test
+constant_def: NAME ":" "constant" "(" type ")" "=" _expr
 
 variable: NAME ":" type
 // NOTE: Temporary until decorators used
@@ -43,7 +45,8 @@ decorators: decorator+
 // and can return up to one parameter.
 // NOTE: Parameters can have a default value,
 //       which must be a constant or environment variable.
-?parameter: NAME ":" type ["=" test]
+default_value: ( number | STRING | BOOL | NAME )
+parameter: NAME ":" type ["=" default_value]
 parameters: parameter ("," parameter?)*
 
 method_type: "def" NAME "(" parameters? ")" ["->" type]
@@ -52,6 +55,7 @@ method_def: [decorators] method_type ":" body
 indexed_event_arg: NAME ":" "indexed" "(" type ")"
 // Events can have zero args
 event_def: NAME ":" "event" "(" "{" (variable | indexed_event_arg)? ("," (variable | indexed_event_arg))* "}" ")"
+
 
 // Types
 array: (NAME | array) "[" (DEC_NUMBER | NAME) "]"
@@ -65,81 +69,115 @@ type: ( NAME | array | tuple | map )
 struct_def: "struct" NAME ":" _NEWLINE _INDENT (struct_member _NEWLINE)+ _DEDENT
 
 // Interfaces are composed of a series of method definitions, plus their mutability
-mutability: ( "modifying" | "constant" )
-interface_def: "contract" NAME ":" _NEWLINE _INDENT (method_type ":" mutability _NEWLINE)+ _DEDENT
+MUTABILITY: ( "modifying" | "constant" )
+interface_def: "contract" NAME ":" _NEWLINE _INDENT (method_type ":" MUTABILITY _NEWLINE)+ _DEDENT
 
-// Statements and Expressions
-?stmt: simple_stmt | if_stmt | for_stmt
-?simple_stmt: small_stmt (small_stmt)* _NEWLINE
-?small_stmt: (expr_stmt | pass_stmt | flow_stmt | assert_stmt)
-?expr_stmt: testlist_star_expr (assign | augassign (testlist)
-         | ("=" (testlist_star_expr))*)
-assign: ":" test ["=" test]
-?testlist_star_expr: (test) ("," (test))* [","]
-!augassign: ("+=" | "-=" | "*=" | "/=" | "**=" | "%=")
-// For normal and annotated assignments, additional restrictions enforced by the interpreter
-pass_stmt: "pass"
-?flow_stmt: break_stmt | continue_stmt | return_stmt | raise_stmt
-break_stmt: "break"
-continue_stmt: "continue"
-return_stmt: "return" [testlist]
-raise_stmt: "raise" [test ["from" test]]
-assert_stmt: "assert" test ["," test]
 
-if_stmt: "if" test ":" body ("elif" test ":" body)* ["else" ":" body]
-for_stmt: "for" exprlist "in" testlist ":" body ["else" ":" body]
+// Statements
+_stmt: ( declaration
+       | assign
+       | aug_assign
+       | if_stmt
+       | for_stmt
+       | return_stmt
+       | pass_stmt
+       | break_stmt
+       | continue_stmt
+       | log_stmt
+       | raise_stmt
+       | assert_stmt ) [COMMENT]
 
-// // NB compile.c makes sure that the default except clause is last
-// except_clause: "except" [test ["as" NAME]]
-body: simple_stmt | _NEWLINE _INDENT stmt+ _DEDENT
+declaration: variable "=" _expr
+multiple_assign: (variable_access | "_") ("," (variable_access | "_"))+
+assign: (variable_access | multiple_assign) "=" _expr
+// NOTE: Keep these in sync with bin_op below
+?aug_operator: "+"   -> add
+             | "-"   -> sub
+             | "*"   -> mul
+             | "/"   -> div
+             | "%"   -> mod
+             | "**"  -> pow
+             | "<<"  -> shl
+             | ">>"  -> shr
+             | "and" -> and
+             | "or"  -> or
+             | "xor" -> xor
+aug_assign: variable_access aug_operator "=" _expr
 
-?test: or_test ["if" or_test "else" test]
-?test_nocond: or_test
-?or_test: and_test ("or" and_test)*
-?and_test: not_test ("and" not_test)*
-?not_test: "not" not_test -> not
-         | comparison
-?comparison: expr (_comp_op expr)*
-?expr: arith_expr
-?arith_expr: term (_add_op term)*
-?term: factor (_mul_op factor)*
-?factor: _factor_op factor | power
+?pass_stmt: "pass"
+?break_stmt: "break"
+?continue_stmt: "continue"
 
-!_factor_op: "+"|"-"
-!_add_op: "+"|"-"
-!_shift_op: "<<"|">>"
-!_mul_op: "*"|"/"|"%"
-!_comp_op: "<"|">"|"=="|">="|"<="|"!="|"in"|"not" "in"|"is"|"is" "not"
+// TODO: Remove "." as unnecessary
+log_stmt: "log" "." NAME "(" [arguments] ")"
+return_stmt: "return" _expr ("," _expr)*
+raise_stmt: "raise" [STRING]
+assert_stmt: "assert" _expr ["," STRING]
 
-?power: atom_expr ["**" factor]
+body: _NEWLINE _INDENT (COMMENT | _NEWLINE | _stmt)+ _DEDENT
+if_stmt: "if" _expr ":" body ("elif" _expr ":" body)* ["else" ":" body]
+// TODO: make this into a variable definition e.g. `for i: uint256 in range(0, 5): ...`
+for_stmt: "for" NAME "in" _expr ":" body
 
-?argument: test ["=" test]
 
-arguments: argument ("," argument)*  // [","]
-         | test comp_for
+// Expressions
+_expr: variable_access
+     | call
+     | tuple
+     | list
+     | dict
+     | literal
+     | bool_op
+     | bin_op
+     | unary_op
+     | comparator
+     | "(" _expr ")"
 
-?atom_expr: atom_expr "(" [arguments] ")"    -> call
-          | atom_expr "[" subscriptlist "]"  -> getitem
-          | atom_expr "." NAME               -> getattr
-          | atom
+get_item: variable_access "[" (DEC_NUMBER | variable_access) "]"
+get_attr: variable_access "." NAME
+?variable_access: NAME -> get_var
+                | get_item
+                | get_attr
+                | "(" variable_access ")"
 
-?atom: "(" [testlist_comp] ")" -> tuple
-     | "[" [testlist_comp] "]"  -> list
-     |"{" [dictmaker] "}" -> dict
-     | NAME -> var
-     | ( number | string+ | BOOL ) -> literal
-     | "(" test ")"
+?argument: _expr ["=" _expr]
+arguments: argument ("," argument)* [","]
+call: _expr "(" [arguments] ")"
 
-?testlist_comp: (test) [("," (test))+ [","] | ","]
-subscriptlist: subscript ("," subscript)*
-subscript: test
-exprlist: (expr) ("," (expr))* [","]
-testlist: test ("," test)* [","]
-dictmaker: ( ((test ":" test) ("," (test ":" test))* [","]) )
+tuple: "(" _expr ( ("," _expr)+ | "," ) ")"
+list: "[" _expr ("," _expr)* [","] "]"
+dict: "{" (NAME ":" _expr) ("," (NAME ":" _expr))* [","] "}"
 
-comp_iter: comp_for | comp_if
-comp_for: "for" exprlist "in" or_test [comp_iter]
-comp_if: "if" test_nocond [comp_iter]
+literal: ( number | STRING | BOOL )
+
+
+// Operators
+unary_op: "+"   _expr -> uadd
+        | "-"   _expr -> usub
+        | "not" _expr -> not
+
+// NOTE: Keep these in sync with aug_assign above
+bin_op: _expr "**"  _expr -> pow
+      | _expr "%"   _expr -> mod
+      | _expr "*"   _expr -> mul
+      | _expr "/"   _expr -> div
+      | _expr "+"   _expr -> add
+      | _expr "-"   _expr -> sub
+      | _expr "<<"  _expr -> shl
+      | _expr ">>"  _expr -> shr
+
+bool_op: _expr "and" _expr -> and
+       | _expr "or"  _expr -> or
+       | _expr "xor" _expr -> xor
+
+comparator: _expr "<"  _expr -> lt
+          | _expr ">"  _expr -> gt
+          | _expr "==" _expr -> eq
+          | _expr "!=" _expr -> ne
+          | _expr "<=" _expr -> le
+          | _expr ">=" _expr -> ge
+          | _expr "in" _expr -> in
+
 
 // Tokens
 NAME: /[a-zA-Z_]\w*/
@@ -147,9 +185,8 @@ COMMENT: /#[^\n]*/
 _NEWLINE: ( /\r?\n[\t ]*/ | COMMENT )+
 
 
-SHORT_STRING : /[ubf]?r?("(?!"").*?(?<!\\)(\\\\)*?"|'(?!'').*?(?<!\\)(\\\\)*?')/i
+STRING: /[ubf]?r?("(?!"").*?(?<!\\)(\\\\)*?"|'(?!'').*?(?<!\\)(\\\\)*?')/i
 LONG_STRING: /[ubf]?r?(""".*?(?<!\\)(\\\\)*?"""|'''.*?(?<!\\)(\\\\)*?''')/is
-string: SHORT_STRING | LONG_STRING
 
 DEC_NUMBER: /0|[1-9]\d*/i
 HEX_NUMBER.2: /0x[\da-f]*/i
