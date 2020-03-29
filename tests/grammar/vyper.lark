@@ -251,8 +251,8 @@ _number: DEC_NUMBER
 
 BOOL.2: "True" | "False"
 
-// TODO: Remove Docstring from here
-literal: ( _number | STRING | DOCSTRING | BOOL )
+// TODO: Remove Docstring from here, and add to body
+?literal: ( _number | STRING | DOCSTRING | BOOL )
 
 %ignore /[\t \f]+/  // WS
 %ignore /\\[\t \f]*\r?\n/   // LINE_CONT
