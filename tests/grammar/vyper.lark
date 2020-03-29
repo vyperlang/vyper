@@ -83,7 +83,8 @@ _stmt: ( declaration
        | continue_stmt
        | log_stmt
        | raise_stmt
-       | assert_stmt ) [COMMENT]
+       | assert_stmt
+       | _expr ) [COMMENT]
 
 declaration: variable "=" _expr
 multiple_assign: (variable_access | "_") ("," (variable_access | "_"))+
