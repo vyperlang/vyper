@@ -53,7 +53,7 @@ parameters: parameter ("," parameter?)*
 _METHOD_DECL: "def"
 _RETURN_TYPE: "->"
 method_type: _METHOD_DECL NAME "(" [parameters] ")" [_RETURN_TYPE type]
-method_def: [decorators] method_type ":" [DOCSTRING] body
+method_def: [decorators] method_type ":" body
 
 indexed_event_arg: NAME ":" "indexed" "(" type ")"
 // Events can have zero args
