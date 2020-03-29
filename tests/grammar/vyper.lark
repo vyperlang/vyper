@@ -120,17 +120,10 @@ for_stmt: "for" NAME "in" _expr ":" body
 
 
 // Expressions
-_expr: variable_access
-     | call
+_expr: operation
      | tuple
      | list
      | dict
-     | literal
-     | bool_op
-     | bin_op
-     | unary_op
-     | comparator
-     | "(" _expr ")"
 
 get_item: variable_access "[" (DEC_NUMBER | variable_access) "]"
 get_attr: variable_access "." NAME
@@ -141,7 +134,7 @@ get_attr: variable_access "." NAME
 
 ?argument: _expr ["=" _expr]
 arguments: argument ("," argument)* [","]
-call: _expr "(" [arguments] ")"
+call: variable_access "(" [arguments] ")"
 
 tuple: "(" _expr ( ("," _expr)+ | "," ) ")"
 list: "[" _expr ("," _expr)* [","] "]"
@@ -151,31 +144,51 @@ literal: ( number | STRING | BOOL )
 
 
 // Operators
-unary_op: "+"   _expr -> uadd
-        | "-"   _expr -> usub
-        | "not" _expr -> not
+// NOTE: The recursive cycle here helps enforce operator precedence
+//       Precedence goes up the lower down you go
+?operation: bin_op
 
+// Binary Operations
 // NOTE: Keep these in sync with aug_assign above
-bin_op: _expr "**"  _expr -> pow
-      | _expr "%"   _expr -> mod
-      | _expr "*"   _expr -> mul
-      | _expr "/"   _expr -> div
-      | _expr "+"   _expr -> add
-      | _expr "-"   _expr -> sub
-      | _expr "<<"  _expr -> shl
-      | _expr ">>"  _expr -> shr
+?bin_op: product
+      | bin_op "+"   product -> add
+      | bin_op "-"   product -> sub
+      | bin_op "<<"  product -> shl
+      | bin_op ">>"  product -> shr
+?product: power
+      | product "*"   power -> mul
+      | product "/"   power -> div
+?power: bool_op
+      | power "**"  bool_op -> pow
+      | power "%"   bool_op -> mod
 
-bool_op: _expr "and" _expr -> and
-       | _expr "or"  _expr -> or
-       | _expr "xor" _expr -> xor
+// Boolean Operations
+?bool_op: unary_op
+       | bool_op "and" unary_op -> and
+       | bool_op "or"  unary_op -> or
+       | bool_op "xor" unary_op -> xor
 
-comparator: _expr "<"  _expr -> lt
-          | _expr ">"  _expr -> gt
-          | _expr "==" _expr -> eq
-          | _expr "!=" _expr -> ne
-          | _expr "<=" _expr -> le
-          | _expr ">=" _expr -> ge
-          | _expr "in" _expr -> in
+// Unary Operations
+?unary_op: comparator
+        | "+"   unary_op -> uadd
+        | "-"   unary_op -> usub
+        | "not" unary_op -> not
+
+// Comparisions
+?comparator: atom
+          | comparator "<"  atom ->  lt
+          | comparator ">"  atom ->  gt
+          | comparator "==" atom ->  eq
+          | comparator "!=" atom ->  ne
+          | comparator "<=" atom ->  le
+          | comparator ">=" atom ->  ge
+          | comparator "in" atom ->  in
+
+// NOTE: Must end recursive cycle like this (with `atom` calling `operation`)
+?atom: variable_access
+     | call
+     | literal
+     | "(" operation ")"
 
 
 // Tokens
