@@ -57,14 +57,14 @@ event_def: NAME ":" "event" "(" "{" (variable | indexed_event_arg)? ("," (variab
 
 
 // Types
-array: (NAME | array) "[" (DEC_NUMBER | NAME) "]"
-tuple: "(" ( NAME | array | tuple ) ( "," ( NAME | array | tuple ) )* [","] ")"
+array_def: (NAME | array_def) "[" (DEC_NUMBER | NAME) "]"
+tuple_def: "(" ( NAME | array_def | tuple_def ) ( "," ( NAME | array_def | tuple_def ) )* [","] ")"
 // NOTE: Map takes a basic type and maps to another type (can be non-basic, including maps)
-map: "map" "(" ( NAME | array ) "," type ")"
-type: ( NAME | array | tuple | map )
+map_def: "map" "(" ( NAME | array_def ) "," type ")"
+type: ( NAME | array_def | tuple_def | map_def )
 
 // Structs can be composed of 1+ basic types or other custom_types
-?struct_member: NAME ":" type
+struct_member: NAME ":" type
 struct_def: "struct" NAME ":" _NEWLINE _INDENT (struct_member _NEWLINE)+ _DEDENT
 
 // Interfaces are composed of a series of method definitions, plus their mutability
@@ -195,7 +195,7 @@ HEX_NUMBER.2: /0x[\da-f]*/i
 OCT_NUMBER.2: /0o[0-7]*/i
 BIN_NUMBER.2 : /0b[0-1]*/i
 FLOAT_NUMBER.2: /((\d+\.\d*|\.\d+)(e[-+]?\d+)?|\d+(e[-+]?\d+))/i
-number: DEC_NUMBER | HEX_NUMBER | BIN_NUMBER | OCT_NUMBER | FLOAT_NUMBER
+?number: DEC_NUMBER | HEX_NUMBER | BIN_NUMBER | OCT_NUMBER | FLOAT_NUMBER
 
 BOOL: "True" | "False"
 
