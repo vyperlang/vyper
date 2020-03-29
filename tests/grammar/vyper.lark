@@ -110,8 +110,12 @@ aug_assign: variable_access aug_operator "=" _expr
 // TODO: Remove "." as unnecessary
 log_stmt: "log" "." NAME "(" [arguments] ")"
 return_stmt: "return" _expr ("," _expr)*
-raise_stmt: "raise" [STRING]
-assert_stmt: "assert" _expr ["," STRING]
+raise_stmt: "raise" -> raise
+          | "raise" STRING -> raise_with_reason
+          | "raise" "UNREACHABLE" -> raise_unreachable
+assert_stmt: "assert" _expr -> assert
+           | "assert" _expr "," STRING -> assert_with_reason
+           | "assert" _expr "," "UNREACHABLE" -> assert_unreachable
 
 body: _NEWLINE _INDENT (COMMENT | _NEWLINE | _stmt)+ _DEDENT
 if_stmt: "if" _expr ":" body ("elif" _expr ":" body)* ["else" ":" body]
