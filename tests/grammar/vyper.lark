@@ -161,7 +161,7 @@ arguments: argument ("," argument)* [","]
 
 tuple: "(" "," ")" | "(" _expr ( ("," _expr)+ [","] | "," ) ")"
 list: "[" "]" | "[" _expr ("," _expr)* [","] "]"
-dict: "{" (NAME ":" _expr) ("," (NAME ":" _expr))* [","] "}"
+dict: "{" "}" | "{" (NAME ":" _expr) ("," (NAME ":" _expr))* [","] "}"
 
 
 // Operators
