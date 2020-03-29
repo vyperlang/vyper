@@ -88,7 +88,7 @@ _stmt: ( declaration
 
 declaration: variable "=" _expr
 multiple_assign: (variable_access | "_") ("," (variable_access | "_"))+
-assign: (variable_access | multiple_assign) "=" _expr
+assign: (variable_access | multiple_assign | "(" multiple_assign ")" ) "=" _expr
 // NOTE: Keep these in sync with bin_op below
 ?aug_operator: "+"   -> add
              | "-"   -> sub
