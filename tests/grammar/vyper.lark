@@ -163,9 +163,6 @@ tuple: "(" "," ")" | "(" _expr ( ("," _expr)+ [","] | "," ) ")"
 list: "[" "]" | "[" _expr ("," _expr)* [","] "]"
 dict: "{" (NAME ":" _expr) ("," (NAME ":" _expr))* [","] "}"
 
-// TODO: Remove Docstring from here
-literal: ( number | STRING | DOCSTRING | BOOL )
-
 
 // Operators
 // NOTE: The recursive cycle here helps enforce operator precedence
@@ -245,9 +242,17 @@ HEX_NUMBER.2: /0x[\da-f]*/i
 OCT_NUMBER.2: /0o[0-7]*/i
 BIN_NUMBER.2 : /0b[0-1]*/i
 FLOAT_NUMBER.2: /((\d+\.\d*|\.\d+)(e[-+]?\d+)?|\d+(e[-+]?\d+))/i
-?number: DEC_NUMBER | HEX_NUMBER | BIN_NUMBER | OCT_NUMBER | FLOAT_NUMBER
+
+_number: DEC_NUMBER
+       | HEX_NUMBER
+       | BIN_NUMBER
+       | OCT_NUMBER
+       | FLOAT_NUMBER
 
 BOOL: "True" | "False"
+
+// TODO: Remove Docstring from here
+literal: ( _number | STRING | DOCSTRING | BOOL )
 
 %ignore /[\t \f]+/  // WS
 %ignore /\\[\t \f]*\r?\n/   // LINE_CONT
