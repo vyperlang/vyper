@@ -17,13 +17,16 @@ module: ( DOCSTRING
 
 // Import statements (Supports all styles of Python imports)
 !dots: "."+
+_AS: "as"
+_FROM: "from"
+_IMPORT: "import"
 import_name: NAME ("." NAME)*
-import_rename: NAME ("." NAME)* "as" NAME
+import_rename: NAME ("." NAME)* _AS NAME
 import_list: (import_name | import_rename) ("," (import_name | import_rename) )* [","]
-import_from: "from" (dots? import_name | dots)
-import: ( "import" (import_name | import_rename)
-        | import_from "import" ( "*" | import_name | import_rename )
-        | import_from "import" "(" import_list ")" )
+import_from: _FROM (dots? import_name | dots)
+import: ( _IMPORT (import_name | import_rename)
+        | import_from _IMPORT ( "*" | import_name | import_rename )
+        | import_from _IMPORT "(" import_list ")" )
 
 
 // Constant definitions
@@ -47,7 +50,9 @@ decorators: decorator+
 parameter: NAME ":" type ["=" _expr]
 parameters: parameter ("," parameter?)*
 
-method_type: "def" NAME "(" [parameters] ")" ["->" type]
+_METHOD_DECL: "def"
+_RETURN_TYPE: "->"
+method_type: _METHOD_DECL NAME "(" [parameters] ")" [_RETURN_TYPE type]
 method_def: [decorators] method_type ":" [DOCSTRING] body
 
 indexed_event_arg: NAME ":" "indexed" "(" type ")"
@@ -59,16 +64,22 @@ event_def: NAME ":" "event" "(" "{" (variable | indexed_event_arg)? ("," (variab
 array_def: (NAME | array_def) "[" (DEC_NUMBER | NAME) "]"
 tuple_def: "(" ( NAME | array_def | tuple_def ) ( "," ( NAME | array_def | tuple_def ) )* [","] ")"
 // NOTE: Map takes a basic type and maps to another type (can be non-basic, including maps)
-map_def: "map" "(" ( NAME | array_def ) "," type ")"
+_MAP: "map"
+map_def: _MAP "(" ( NAME | array_def ) "," type ")"
 type: ( NAME | array_def | tuple_def | map_def )
 
 // Structs can be composed of 1+ basic types or other custom_types
+_STRUCT_DECL: "struct"
 struct_member: NAME ":" type
-struct_def: "struct" NAME ":" _NEWLINE _INDENT (struct_member _NEWLINE)+ _DEDENT
+struct_def: _STRUCT_DECL NAME ":" _NEWLINE _INDENT (struct_member _NEWLINE)+ _DEDENT
 
 // Interfaces are composed of a series of method definitions, plus their mutability
-MUTABILITY: ( "modifying" | "constant" )
-interface_def: "contract" NAME ":" _NEWLINE _INDENT (method_type ":" MUTABILITY _NEWLINE)+ _DEDENT
+_CONSTANT_METHOD: "constant"
+_MUTABLE_METHOD: "modifying"
+mutability: _MUTABLE_METHOD -> mutable
+          | _CONSTANT_METHOD -> constant
+_INTERFACE_DECL: "contract"
+interface_def: _INTERFACE_DECL NAME ":" _NEWLINE _INDENT (method_type ":" mutability _NEWLINE)+ _DEDENT
 
 
 // Statements
@@ -90,32 +101,41 @@ declaration: variable "=" _expr
 multiple_assign: (variable_access | "_") ("," (variable_access | "_"))+
 assign: (variable_access | multiple_assign | "(" multiple_assign ")" ) "=" _expr
 // NOTE: Keep these in sync with bin_op below
-?aug_operator: "+"   -> add
-             | "-"   -> sub
-             | "*"   -> mul
-             | "/"   -> div
-             | "%"   -> mod
-             | "**"  -> pow
-             | "<<"  -> shl
-             | ">>"  -> shr
-             | "and" -> and
-             | "or"  -> or
-             | "xor" -> xor
+?aug_operator: "+"  -> add
+             | "-"  -> sub
+             | "*"  -> mul
+             | "/"  -> div
+             | "%"  -> mod
+             | "**" -> pow
+             | "<<" -> shl
+             | ">>" -> shr
+             | _AND -> and
+             | _OR  -> or
+             | _XOR -> xor
 aug_assign: variable_access aug_operator "=" _expr
 
-?pass_stmt: "pass"
-?break_stmt: "break"
-?continue_stmt: "continue"
+_PASS: "pass"
+_BREAK: "break"
+_CONTINUE: "continue"
+_LOG: "log"
+_RETURN: "return"
+_RAISE: "raise"
+_ASSERT: "assert"
+
+pass_stmt: _PASS
+break_stmt: _BREAK
+continue_stmt: _CONTINUE
 
 // TODO: Remove "." as unnecessary
-log_stmt: "log" "." NAME "(" [arguments] ")"
-return_stmt: "return" [_expr ("," _expr)*]
-raise_stmt: "raise" -> raise
-          | "raise" STRING -> raise_with_reason
-          | "raise" "UNREACHABLE" -> raise_unreachable
-assert_stmt: "assert" _expr -> assert
-           | "assert" _expr "," STRING -> assert_with_reason
-           | "assert" _expr "," "UNREACHABLE" -> assert_unreachable
+log_stmt: _LOG "." NAME "(" [arguments] ")"
+return_stmt: _RETURN [_expr ("," _expr)*]
+_UNREACHABLE: "UNREACHABLE"
+raise_stmt: _RAISE -> raise
+          | _RAISE STRING -> raise_with_reason
+          | _RAISE _UNREACHABLE -> raise_unreachable
+assert_stmt: _ASSERT _expr -> assert
+           | _ASSERT _expr "," STRING -> assert_with_reason
+           | _ASSERT _expr "," _UNREACHABLE -> assert_unreachable
 
 body: _NEWLINE _INDENT (COMMENT | _NEWLINE | _stmt)+ _DEDENT
 if_stmt: "if" _expr ":" body ("elif" _expr ":" body)* ["else" ":" body]
@@ -152,41 +172,53 @@ literal: ( number | STRING | DOCSTRING | BOOL )
 //       Precedence goes up the lower down you go
 ?operation: bin_op
 
+_POW: "**"
+_SHL: "<<"
+_SHR: ">>"
 // Binary Operations
 // NOTE: Keep these in sync with aug_assign above
 ?bin_op: product
-      | bin_op "+"   product -> add
-      | bin_op "-"   product -> sub
-      | bin_op "<<"  product -> shl
-      | bin_op ">>"  product -> shr
+       | bin_op "+"  product -> add
+       | bin_op "-"  product -> sub
+       | bin_op _SHL product -> shl
+       | bin_op _SHR product -> shr
 ?product: power
-      | product "*"   power -> mul
-      | product "/"   power -> div
+        | product "*"   power -> mul
+        | product "/"   power -> div
 ?power: bool_op
-      | power "**"  bool_op -> pow
+      | power _POW  bool_op -> pow
       | power "%"   bool_op -> mod
 
+_AND: "and"
+_OR: "or"
+_NOT: "not"
+_XOR: "xor"
 // Boolean Operations
 ?bool_op: unary_op
-       | bool_op "and" unary_op -> and
-       | bool_op "or"  unary_op -> or
-       | bool_op "xor" unary_op -> xor
+        | bool_op _AND unary_op -> and
+        | bool_op _OR  unary_op -> or
+        | bool_op _XOR unary_op -> xor
 
 // Unary Operations
 ?unary_op: comparator
-        | "+"   unary_op -> uadd
-        | "-"   unary_op -> usub
-        | "not" unary_op -> not
+         | "+"  unary_op -> uadd
+         | "-"  unary_op -> usub
+         | _NOT unary_op -> not
 
 // Comparisions
+_EQ: "=="
+_NE: "!="
+_LE: "<="
+_GE: ">="
+_IN: "in"
 ?comparator: atom
-          | comparator "<"  atom ->  lt
-          | comparator ">"  atom ->  gt
-          | comparator "==" atom ->  eq
-          | comparator "!=" atom ->  ne
-          | comparator "<=" atom ->  le
-          | comparator ">=" atom ->  ge
-          | comparator "in" atom ->  in
+           | comparator "<" atom ->  lt
+           | comparator ">" atom ->  gt
+           | comparator _EQ atom ->  eq
+           | comparator _NE atom ->  ne
+           | comparator _LE atom ->  le
+           | comparator _GE atom ->  ge
+           | comparator _IN atom ->  in
 
 // NOTE: Must end recursive cycle like this (with `atom` calling `operation`)
 ?atom: variable_access
