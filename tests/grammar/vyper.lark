@@ -109,7 +109,7 @@ aug_assign: variable_access aug_operator "=" _expr
 
 // TODO: Remove "." as unnecessary
 log_stmt: "log" "." NAME "(" [arguments] ")"
-return_stmt: "return" _expr ("," _expr)*
+return_stmt: "return" [_expr ("," _expr)*]
 raise_stmt: "raise" -> raise
           | "raise" STRING -> raise_with_reason
           | "raise" "UNREACHABLE" -> raise_unreachable
