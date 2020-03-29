@@ -135,8 +135,8 @@ call: variable_access "(" [arguments] ")"
 ?argument: _expr ["=" _expr]
 arguments: argument ("," argument)* [","]
 
-tuple: "(" _expr ( ("," _expr)+ | "," ) ")"
-list: "[" _expr ("," _expr)* [","] "]"
+tuple: "(" "," ")" | "(" _expr ( ("," _expr)+ [","] | "," ) ")"
+list: "[" "]" | "[" _expr ("," _expr)* [","] "]"
 dict: "{" (NAME ":" _expr) ("," (NAME ":" _expr))* [","] "}"
 
 literal: ( number | STRING | BOOL )
