@@ -123,7 +123,7 @@ for_stmt: "for" NAME "in" _expr ":" body
 _expr: operation
      | dict
 
-get_item: variable_access "[" (DEC_NUMBER | variable_access) "]"
+get_item: variable_access "[" _expr "]"
 get_attr: variable_access "." NAME
 call: variable_access "(" [arguments] ")"
 ?variable_access: NAME -> get_var
