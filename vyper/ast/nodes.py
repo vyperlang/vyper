@@ -1,4 +1,6 @@
 import ast as python_ast
+import decimal
+import operator
 import sys
 from typing import (
     Any,
@@ -8,7 +10,9 @@ from typing import (
 
 from vyper.exceptions import (
     CompilerPanic,
+    InvalidType,
     SyntaxException,
+    TypeMismatch,
 )
 from vyper.settings import (
     VYPER_ERROR_CONTEXT_LINES,
@@ -327,6 +331,16 @@ class VyperNode:
         returned instead.
         """
         return getattr(self, '_description', type(self).__name__)
+
+    def evaluate(self) -> "VyperNode":
+        """
+        Attempt to evaluate the content of a node and generate a new node from it.
+
+        If a node cannot be evaluated it should raise `InvalidType`. This base
+        method acts as a catch-all to raise on any inherited classes that do not
+        implement the method.
+        """
+        raise InvalidType(f"{type(self)} cannot be evaluated", self)
 
     def to_dict(self) -> dict:
         """
@@ -726,62 +740,157 @@ class Expr(VyperNode):
 class UnaryOp(VyperNode):
     __slots__ = ('op', 'operand', )
 
+    def evaluate(self) -> VyperNode:
+        """
+        Attempt to evaluate the unary operation.
+
+        Returns
+        -------
+        Int | Decimal
+            Node representing the result of the evaluation.
+        """
+        if isinstance(self.op, Not) and not isinstance(self.operand, NameConstant):
+            raise InvalidType("Node contains invalid field(s) for evaluation", self)
+        if isinstance(self.op, USub) and not isinstance(self.operand, (Int, Decimal)):
+            raise InvalidType("Node contains invalid field(s) for evaluation", self)
+
+        value = self.op._op(self.operand.value)
+        return type(self.operand).from_node(self, value=value)
+
 
 class USub(VyperNode):
     __slots__ = ()
     _description = "negation"
+    _op = operator.neg
 
 
 class Not(VyperNode):
     __slots__ = ()
+    _op = operator.not_
 
 
 class BinOp(VyperNode):
     __slots__ = ('left', 'op', 'right', )
 
+    def evaluate(self) -> VyperNode:
+        """
+        Attempt to evaluate the arithmetic operation.
+
+        Returns
+        -------
+        Int | Decimal
+            Node representing the result of the evaluation.
+        """
+        left, right = self.left, self.right
+        if type(left) is not type(right):
+            raise InvalidType("Node contains invalid field(s) for evaluation", self)
+        if not isinstance(left, (Int, Decimal)):
+            raise InvalidType("Node contains invalid field(s) for evaluation", self)
+
+        value = self.op._op(left.value, right.value)
+        return type(left).from_node(self, value=value)
+
 
 class Add(VyperNode):
     __slots__ = ()
     _description = "addition"
+    _op = operator.add
 
 
 class Sub(VyperNode):
     __slots__ = ()
     _description = "subtraction"
+    _op = operator.sub
 
 
 class Mult(VyperNode):
     __slots__ = ()
     _description = "multiplication"
 
+    def _op(self, left, right):
+        assert type(left) is type(right)
+        value = left * right
+        if isinstance(left, decimal.Decimal):
+            return value.quantize(decimal.Decimal("1.0000000000"), decimal.ROUND_DOWN)
+        else:
+            return value
+
 
 class Div(VyperNode):
     __slots__ = ()
     _description = "division"
+
+    def _op(self, left, right):
+        # evaluate the operation using true division or floor division
+        assert type(left) is type(right)
+        if isinstance(left, decimal.Decimal):
+            value = left / right
+            if value < 0:
+                # the EVM always truncates toward zero
+                value = -(-left / right)
+            # ensure that the result is truncated at 10 decimal places
+            return value.quantize(decimal.Decimal("1.0000000000"), decimal.ROUND_DOWN)
+        else:
+            value = left // right
+            if value < 0:
+                return -(-left // right)
+            return value
 
 
 class Mod(VyperNode):
     __slots__ = ()
     _description = "modulus"
 
+    def _op(self, left, right):
+        value = abs(left) % abs(right)
+        if left < 0:
+            value = -value
+        return value
+
 
 class Pow(VyperNode):
     __slots__ = ()
     _description = "exponentiation"
 
+    def _op(self, left, right):
+        if isinstance(left, decimal.Decimal):
+            raise TypeMismatch("Cannot perform exponentiation on decimal values.", self._parent)
+        return int(left ** right)
+
 
 class BoolOp(VyperNode):
     __slots__ = ('op', 'values', )
+
+    def evaluate(self) -> VyperNode:
+        """
+        Attempt to evaluate the boolean operation.
+
+        Returns
+        -------
+        NameConstant
+            Node representing the result of the evaluation.
+        """
+        if next((i for i in self.values if not isinstance(i, NameConstant)), None):
+            raise InvalidType("Node contains invalid field(s) for evaluation", self)
+
+        values = [i.value for i in self.values]
+        if None in values:
+            raise InvalidType("Node contains invalid field(s) for evaluation", self)
+
+        value = self.op._op(values)
+        return NameConstant.from_node(self, value=value)
 
 
 class And(VyperNode):
     __slots__ = ()
     _description = "greater-or-equal"
+    _op = all
 
 
 class Or(VyperNode):
     __slots__ = ()
     _description = "less-or-equal"
+    _op = any
 
 
 class Compare(VyperNode):
@@ -807,39 +916,77 @@ class Compare(VyperNode):
         kwargs['right'] = kwargs.pop('comparators')[0]
         super().__init__(*args, **kwargs)
 
+    def evaluate(self) -> VyperNode:
+        """
+        Attempt to evaluate the comparison.
+
+        Returns
+        -------
+        NameConstant
+            Node representing the result of the evaluation.
+        """
+        left, right = self.left, self.right
+        if not isinstance(self.left, Constant):
+            raise InvalidType("Node contains invalid field(s) for evaluation", self)
+
+        if isinstance(self.op, In):
+            if not isinstance(right, List):
+                raise InvalidType("Node contains invalid field(s) for evaluation", self)
+            if len(set([type(i) for i in right.elts])) > 1:
+                raise InvalidType("List contains multiple node types", self.right)
+            if next((i for i in right.elts if not isinstance(i, Constant)), None):
+                raise InvalidType("Node contains invalid field(s) for evaluation", self)
+            value = self.op._op(left.value, [i.value for i in right.elts])
+
+        else:
+            if not isinstance(left, (Int, Decimal)) or not isinstance(left, type(right)):
+                raise InvalidType("Node contains invalid field(s) for evaluation", self)
+            value = self.op._op(left.value, right.value)
+
+        return NameConstant.from_node(self, value=value)
+
 
 class Eq(VyperNode):
     __slots__ = ()
     _description = "equality"
+    _op = operator.eq
 
 
 class NotEq(VyperNode):
     __slots__ = ()
     _description = "non-equality"
+    _op = operator.ne
 
 
 class Lt(VyperNode):
     __slots__ = ()
     _description = "less than"
+    _op = operator.lt
 
 
 class LtE(VyperNode):
     __slots__ = ()
     _description = "less-or-equal"
+    _op = operator.le
 
 
 class Gt(VyperNode):
     __slots__ = ()
     _description = "greater than"
+    _op = operator.gt
 
 
 class GtE(VyperNode):
     __slots__ = ()
     _description = "greater-or-equal"
+    _op = operator.ge
 
 
 class In(VyperNode):
     __slots__ = ()
+
+    def _op(self, left, right):
+        return left in right
 
 
 class Call(VyperNode):
@@ -856,6 +1003,29 @@ class Attribute(VyperNode):
 
 class Subscript(VyperNode):
     __slots__ = ('slice', 'value')
+
+    def evaluate(self) -> VyperNode:
+        """
+        Attempt to evaluate the subscript.
+
+        This method reduces an indexed reference to a literal array into the value
+        within the array, e.g. `["foo", "bar"][1]` becomes `"bar"`
+
+        Returns
+        -------
+        VyperNode
+            Node representing the result of the evaluation.
+        """
+        if not isinstance(self.value, List):
+            raise InvalidType("Subscript object is not a literal list", self.value)
+        elts = self.value.elts
+        if len(set([type(i) for i in elts])) > 1:
+            raise InvalidType("List contains multiple node types", self.value)
+        idx = self.slice.get('value.value')
+        if not isinstance(idx, int) or idx < 0 or idx >= len(elts):
+            raise InvalidType("Invalid index value", self.slice)
+
+        return elts[idx]
 
 
 class Index(VyperNode):
