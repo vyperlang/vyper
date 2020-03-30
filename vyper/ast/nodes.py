@@ -500,17 +500,6 @@ class TopLevel(VyperNode):
     """
     __slots__ = ('body', 'name', 'doc_string')
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if (
-            kwargs.get('body') and
-            isinstance(self.body[0], Expr) and
-            isinstance(self.body[0].value, Str)
-        ):
-            # if the first body item is a docstring, move it into it's own field
-            self.doc_string = self.body[0].value
-            del self.body[0]
-
     def __getitem__(self, key):
         return self.body[key]
 
@@ -530,6 +519,19 @@ class Module(TopLevel):
 
 class FunctionDef(TopLevel):
     __slots__ = ('args', 'returns', 'decorator_list', 'pos')
+
+
+class DocStr(VyperNode):
+    """
+    A docstring.
+
+    Attributes
+    ----------
+    value : str
+        Value of the node, represented as an string.
+    """
+    __slots__ = ('value',)
+    _translated_fields = {'s': 'value'}
 
 
 class arguments(VyperNode):
