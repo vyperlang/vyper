@@ -62,6 +62,28 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         return super().generic_visit(node)
 
+    def _visit_docstring(self, node):
+        """
+        Move a node docstring from body to `doc_string` and annotate it as `DocStr`.
+        """
+        self.generic_visit(node)
+
+        if node.body:
+            n = node.body[0]
+            if isinstance(n, python_ast.Expr) and isinstance(n.value, python_ast.Str):
+                self.generic_visit(n.value)
+                n.value.ast_type = "DocStr"
+                del node.body[0]
+                node.doc_string = n.value
+
+        return node
+
+    def visit_Module(self, node):
+        return self._visit_docstring(node)
+
+    def visit_FunctionDef(self, node):
+        return self._visit_docstring(node)
+
     def visit_ClassDef(self, node):
         """
         Annotate the Class node with it's original type from the Vyper source.
