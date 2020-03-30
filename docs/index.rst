@@ -58,3 +58,4 @@ Glossary
     contributing.rst
     style-guide.rst
     release-notes.rst
+    versioning.rst
