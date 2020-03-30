@@ -23,7 +23,7 @@ All code **must** conform to the `PEP 8 style guide <https://www.python.org/dev/
 
     * Maximum line length of 100
 
-We handle code formatting with `black <https://github.com/psf/black>` with the line-length option set to 80. This ensures a consistent style across the project and saves time by not having to be opinionated.
+We handle code formatting with `black <https://github.com/psf/black>`_ with the line-length option set to 80. This ensures a consistent style across the project and saves time by not having to be opinionated.
 
 Naming Conventions
 ------------------
