@@ -139,7 +139,7 @@ assert_stmt: _ASSERT _expr -> assert
            | _ASSERT _expr "," STRING -> assert_with_reason
            | _ASSERT _expr "," _UNREACHABLE -> assert_unreachable
 
-body: _NEWLINE _INDENT (COMMENT | _NEWLINE | _stmt)+ _DEDENT
+body: _NEWLINE _INDENT ([COMMENT] _NEWLINE | _stmt)+ _DEDENT
 if_stmt: "if" _expr ":" body ("elif" _expr ":" body)* ["else" ":" body]
 // TODO: make this into a variable definition e.g. `for i: uint256 in range(0, 5): ...`
 for_stmt: "for" NAME "in" _expr ":" body
