@@ -1,3 +1,4 @@
+import re
 import textwrap
 
 import hypothesis
@@ -100,9 +101,19 @@ def from_grammar() -> st.SearchStrategy[str]:
     return GrammarStrategy(grammar, "module", explicit_strategies)
 
 
+# Avoid examples with *only* single or double quote docstrings
+# because they trigger a trivial compiler bug
+SINGLE_QUOTE_DOCSTRING = re.compile(r"^'''.*'''$")
+DOUBLE_QUOTE_DOCSTRING = re.compile(r'^""".*"""$')
+
+
+def has_no_docstrings(c):
+    return not (SINGLE_QUOTE_DOCSTRING.match(c) or DOUBLE_QUOTE_DOCSTRING.match(c))
+
+
 @pytest.mark.fuzzing
 @given(
-    code=from_grammar()
+    code=from_grammar().filter(lambda c: has_no_docstrings(c))
 )
 @hypothesis.settings(
     deadline=400,
