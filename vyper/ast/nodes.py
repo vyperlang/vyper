@@ -105,7 +105,7 @@ def compare_nodes(left_node: "VyperNode", right_node: "VyperNode") -> bool:
     if not isinstance(left_node, type(right_node)):
         return False
 
-    for field_name in (i for i in left_node.get_slots() if i not in VyperNode.__slots__):
+    for field_name in (i for i in left_node.get_fields() if i not in VyperNode.__slots__):
         left_value = getattr(left_node, field_name, None)
         right_value = getattr(right_node, field_name, None)
 
@@ -233,7 +233,7 @@ class VyperNode:
             if field_name in self._translated_fields:
                 field_name = self._translated_fields[field_name]
 
-            if field_name in self.get_slots():
+            if field_name in self.get_fields():
                 if isinstance(value, list):
                     value = [_to_node(i, self) for i in value]
                 else:
@@ -278,7 +278,7 @@ class VyperNode:
         return cls(**ast_struct)
 
     @classmethod
-    def get_slots(cls) -> set:
+    def get_fields(cls) -> set:
         """
         Return a set of field names for this node.
 
@@ -297,7 +297,7 @@ class VyperNode:
             return False
         if other.node_id != self.node_id:
             return False
-        for field_name in (i for i in self.get_slots() if i not in VyperNode.__slots__):
+        for field_name in (i for i in self.get_fields() if i not in VyperNode.__slots__):
             if getattr(self, field_name, None) != getattr(other, field_name, None):
                 return False
         return True
@@ -332,7 +332,7 @@ class VyperNode:
         Return the node as a dict. Child nodes and their descendants are also converted.
         """
         ast_dict = {}
-        for key in [i for i in self.get_slots() if i not in DICT_AST_SKIPLIST]:
+        for key in [i for i in self.get_fields() if i not in DICT_AST_SKIPLIST]:
             value = getattr(self, key, None)
             if isinstance(value, list):
                 ast_dict[key] = [_to_dict(i) for i in value]
@@ -340,15 +340,17 @@ class VyperNode:
                 ast_dict[key] = _to_dict(value)
         return ast_dict
 
-    def get_parent(self, node_type: Union["VyperNode", tuple, None] = None) -> "VyperNode":
+    def get_ancestor(self, node_type: Union["VyperNode", tuple, None] = None) -> "VyperNode":
         """
-        Return a parent node or ascendant for this node.
+        Return an ancestor node for this node.
+
+        An ancestor is any node which exists within the AST above the given node.
 
         Arguments
         ---------
         node_type : VyperNode | tuple, optional
             A node type or tuple of types. If given, this method checks all
-            ascendant nodes of this node starting with the parent, and returns
+            ancestor nodes of this node starting with the parent, and returns
             the first node with a type matching the given value.
 
         Returns
@@ -364,7 +366,7 @@ class VyperNode:
         if isinstance(self._parent, node_type):
             return self._parent
 
-        return self._parent.get_parent(node_type)
+        return self._parent.get_ancestor(node_type)
 
     def get_children(
         self,

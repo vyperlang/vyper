@@ -62,7 +62,7 @@ or parents that match a desired pattern.
 
 * `get_children`: Returns a list of children of the given node.
 * `get_descendants`: Returns a list of descendants of the given node.
-* `get_parent`: Returns the parent or an ascendant of the given node.
+* `get_ancestor`: Returns the parent or an ascendant of the given node.
 * `get`: Recursive getter function for node attributes.
 
 To learn more about these methods, read their docstrings in the `VyperNode` class
