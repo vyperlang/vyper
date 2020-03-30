@@ -11,7 +11,7 @@ module: ( DOCSTRING
         | constant_def
         | variable_def
         | event_def
-        | method_def
+        | function_def
         | _NEWLINE )*
 
 
@@ -46,17 +46,18 @@ variable_def: variable | variable_with_getter
 decorator: "@" NAME [ "(" [arguments] ")" ] _NEWLINE
 decorators: decorator+
 
-// Methods take a list of zero or more typed parameters,
+// Functions/Methods take a list of zero or more typed parameters,
 // and can return up to one parameter.
 // NOTE: Parameters can have a default value,
 //       which must be a constant or environment variable.
 parameter: NAME ":" type ["=" _expr]
 parameters: parameter ("," parameter?)*
 
-_METHOD_DECL: "def"
+_FUNC_DECL: "def"
 _RETURN_TYPE: "->"
-method_type: _METHOD_DECL NAME "(" [parameters] ")" [_RETURN_TYPE type]
-method_def: [decorators] method_type ":" body
+returns: _RETURN_TYPE type
+function_sig: _FUNC_DECL NAME "(" [parameters] ")" [returns]
+function_def: [decorators] function_sig ":" body
 
 indexed_event_arg: NAME ":" "indexed" "(" type ")"
 // Events can have zero args
@@ -77,12 +78,10 @@ struct_member: NAME ":" type
 struct_def: _STRUCT_DECL NAME ":" _NEWLINE _INDENT (struct_member _NEWLINE)+ _DEDENT
 
 // Interfaces are composed of a series of method definitions, plus their mutability
-_CONSTANT_METHOD: "constant"
-_MUTABLE_METHOD: "modifying"
-mutability: _MUTABLE_METHOD -> mutable
-          | _CONSTANT_METHOD -> constant
 _INTERFACE_DECL: "contract"
-interface_def: _INTERFACE_DECL NAME ":" _NEWLINE _INDENT (method_type ":" mutability _NEWLINE)+ _DEDENT
+mutability: NAME
+interface_function: function_sig ":" mutability
+interface_def: _INTERFACE_DECL NAME ":" _NEWLINE _INDENT ( interface_function _NEWLINE)+ _DEDENT
 
 
 // Statements
