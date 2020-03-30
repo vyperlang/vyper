@@ -1,139 +1,270 @@
 // Vyper grammar for Lark
+
+// A module is a sequence of definitions and methods (and comments).
+// NOTE: Start symbol for the grammar
+// NOTE: Module can start with docstring
+module: ( DOCSTRING
+        | COMMENT
+        | import
+        | struct_def
+        | interface_def
+        | constant_def
+        | variable_def
+        | event_def
+        | function_def
+        | _NEWLINE )*
+
+
+// Import statements (Supports all styles of Python imports)
+_AS: "as"
+_FROM: "from"
+_IMPORT: "import"
+DOT: "."
+WILDCARD: "*"
+_import_name: NAME
+// NOTE: Don't use DOT here, just a separator
+_import_path: (_import_name ".")* _import_name
+import_alias: _AS NAME
+?import_list: _import_name [import_alias] ("," _import_name [import_alias] )* [","]
+_import_from: _FROM (DOT* _import_path | DOT+)
+import: _IMPORT DOT* _import_path [import_alias]
+      | _import_from _IMPORT ( WILDCARD | _import_name [import_alias] )
+      | _import_from _IMPORT "(" import_list ")"
+
+
+// Constant definitions
+// NOTE: Temporary until decorators used
+constant_def: NAME ":" "constant" "(" type ")" "=" _expr
+
+variable: NAME ":" type
+// NOTE: Temporary until decorators used
+variable_with_getter: NAME ":" "public" "(" type ")"
+variable_def: variable | variable_with_getter
+
+// A decorator "wraps" a method, modifying it's context.
+// NOTE: One or more can be applied (some combos might conflict)
+decorator: "@" NAME [ "(" [arguments] ")" ] _NEWLINE
+decorators: decorator+
+
+// Functions/Methods take a list of zero or more typed parameters,
+// and can return up to one parameter.
+// NOTE: Parameters can have a default value,
+//       which must be a constant or environment variable.
+parameter: NAME ":" type ["=" _expr]
+parameters: parameter ("," parameter?)*
+
+_FUNC_DECL: "def"
+_RETURN_TYPE: "->"
+returns: _RETURN_TYPE type
+function_sig: _FUNC_DECL NAME "(" [parameters] ")" [returns]
+function_def: [decorators] function_sig ":" body
+
+indexed_event_arg: NAME ":" "indexed" "(" type ")"
+// Events can have zero args
+event_def: NAME ":" "event" "(" "{" (variable | indexed_event_arg)? ("," (variable | indexed_event_arg))* "}" ")"
+
+
+// Types
+array_def: (NAME | array_def) "[" (DEC_NUMBER | NAME) "]"
+tuple_def: "(" ( NAME | array_def | tuple_def ) ( "," ( NAME | array_def | tuple_def ) )* [","] ")"
+// NOTE: Map takes a basic type and maps to another type (can be non-basic, including maps)
+_MAP: "map"
+map_def: _MAP "(" ( NAME | array_def ) "," type ")"
+type: ( NAME | array_def | tuple_def | map_def )
+
+// Structs can be composed of 1+ basic types or other custom_types
+_STRUCT_DECL: "struct"
+struct_member: NAME ":" type
+struct_def: _STRUCT_DECL NAME ":" _NEWLINE _INDENT (struct_member _NEWLINE)+ _DEDENT
+
+// Interfaces are composed of a series of method definitions, plus their mutability
+_INTERFACE_DECL: "contract"
+mutability: NAME
+interface_function: function_sig ":" mutability
+interface_def: _INTERFACE_DECL NAME ":" _NEWLINE _INDENT ( interface_function _NEWLINE)+ _DEDENT
+
+
+// Statements
+// If and For blocks create a new block, and thus are complete when de-indented
+// Conversely, the rest of the statements require a newline to be considered complete
+// (as they do not create a new block)
+_stmt: ( if_stmt | for_stmt ) [COMMENT]
+     | (declaration
+       | assign
+       | aug_assign
+       | return_stmt
+       | pass_stmt
+       | break_stmt
+       | continue_stmt
+       | log_stmt
+       | raise_stmt
+       | assert_stmt
+       | _expr ) [COMMENT] _NEWLINE
+
+declaration: variable ["=" _expr]
+skip_assign: "_"
+multiple_assign: (variable_access | skip_assign) ("," (variable_access | skip_assign))+
+assign: (variable_access | multiple_assign | "(" multiple_assign ")" ) "=" _expr
+// NOTE: Keep these in sync with bin_op below
+?aug_operator: "+"  -> add
+             | "-"  -> sub
+             | "*"  -> mul
+             | "/"  -> div
+             | "%"  -> mod
+             | "**" -> pow
+             | "<<" -> shl
+             | ">>" -> shr
+             | _AND -> and
+             | _OR  -> or
+             | _XOR -> xor
+// NOTE: Post-process into a normal assign
+aug_assign: variable_access aug_operator "=" _expr
+
+_PASS: "pass"
+_BREAK: "break"
+_CONTINUE: "continue"
+_LOG: "log"
+_RETURN: "return"
+_RAISE: "raise"
+_ASSERT: "assert"
+
+pass_stmt: _PASS
+break_stmt: _BREAK
+continue_stmt: _CONTINUE
+
+// TODO: Remove "." as unnecessary
+log_stmt: _LOG "." NAME "(" [arguments] ")"
+return_stmt: _RETURN [_expr ("," _expr)*]
+_UNREACHABLE: "UNREACHABLE"
+raise_stmt: _RAISE -> raise
+          | _RAISE STRING -> raise_with_reason
+          | _RAISE _UNREACHABLE -> raise_unreachable
+assert_stmt: _ASSERT _expr -> assert
+           | _ASSERT _expr "," STRING -> assert_with_reason
+           | _ASSERT _expr "," _UNREACHABLE -> assert_unreachable
+
+body: _NEWLINE _INDENT ([COMMENT] _NEWLINE | _stmt)+ _DEDENT
+cond_exec: _expr ":" body
+default_exec: body
+if_stmt: "if" cond_exec ("elif" cond_exec)* ["else" ":" default_exec]
+// TODO: make this into a variable definition e.g. `for i: uint256 in range(0, 5): ...`
+loop_variable: NAME [":" NAME]
+loop_iterator: _expr
+for_stmt: "for" loop_variable "in" loop_iterator ":" body
+
+
+// Expressions
+_expr: operation
+     | dict
+
+get_item: variable_access "[" _expr "]"
+get_attr: variable_access "." NAME
+call: variable_access "(" [arguments] ")"
+?variable_access: NAME -> get_var
+                | get_item
+                | get_attr
+                | call
+                | "(" variable_access ")"
+
+arg: _expr
+kwarg: NAME "=" _expr
+?argument: (arg | kwarg)
+arguments: argument ("," argument)* [","]
+
+tuple: "(" "," ")" | "(" _expr ( ("," _expr)+ [","] | "," ) ")"
+list: "[" "]" | "[" _expr ("," _expr)* [","] "]"
+dict: "{" "}" | "{" (NAME ":" _expr) ("," (NAME ":" _expr))* [","] "}"
+
+
+// Operators
+// NOTE: The recursive cycle here helps enforce operator precedence
+//       Precedence goes up the lower down you go
+?operation: bin_op
+
+_POW: "**"
+_SHL: "<<"
+_SHR: ">>"
+// Binary Operations
+// NOTE: Keep these in sync with aug_assign above
+?bin_op: product
+       | bin_op "+"  product -> add
+       | bin_op "-"  product -> sub
+       | bin_op _SHL product -> shl
+       | bin_op _SHR product -> shr
+?product: power
+        | product "*"   power -> mul
+        | product "/"   power -> div
+?power: bool_op
+      | power _POW  bool_op -> pow
+      | power "%"   bool_op -> mod
+
+_AND: "and"
+_OR: "or"
+_NOT: "not"
+_XOR: "xor"
+// Boolean Operations
+?bool_op: unary_op
+        | bool_op _AND unary_op -> and
+        | bool_op _OR  unary_op -> or
+        | bool_op _XOR unary_op -> xor
+
+// Unary Operations
+?unary_op: comparator
+         | "+"  unary_op -> uadd
+         | "-"  unary_op -> usub
+         | _NOT unary_op -> not
+
+// Comparisions
+_EQ: "=="
+_NE: "!="
+_LE: "<="
+_GE: ">="
+_IN: "in"
+?comparator: atom
+           | comparator "<" atom ->  lt
+           | comparator ">" atom ->  gt
+           | comparator _EQ atom ->  eq
+           | comparator _NE atom ->  ne
+           | comparator _LE atom ->  le
+           | comparator _GE atom ->  ge
+           | comparator _IN atom ->  in
+
+// NOTE: Must end recursive cycle like this (with `atom` calling `operation`)
+?atom: variable_access
+     | literal
+     | tuple
+     | list
+     | "(" operation ")"
+
+
+// Tokens
 // Adapted from Lark repo. https://github.com/lark-parser/lark/blob/master/examples/python3.lark
 // Adapted from: https://docs.python.org/3/reference/grammar.html
 // Adapted by: Erez Shinan
-
-// Start symbols for the grammar:
-//       single_input is a single interactive statement;
-//       file_input is a module or sequence of commands read from an input file;
-//       eval_input is the input for the eval() functions.
-// NB: compound_stmt in single_input is followed by extra NEWLINE!
-single_input: _NEWLINE | simple_stmt | compound_stmt _NEWLINE
-file_input: (_NEWLINE | stmt)*
-eval_input: testlist _NEWLINE*
-
-decorator: "@" decorator_names _NEWLINE
-         | "@" decorator_with_args_names [ "(" [arguments] ")" ] _NEWLINE
-decorators: decorator+
-decorated: decorators (funcdef)
-
-funcdef: "def" NAME "(" parameters? ")" ["->" test] ":" suite
-
-parameters: paramvalue ("," paramvalue?)*
-
-?paramvalue: typedparam ["=" test]
-?typedparam: NAME [":" test]
-
-?stmt: simple_stmt | compound_stmt
-?simple_stmt: small_stmt (small_stmt)* _NEWLINE
-?small_stmt: (expr_stmt | pass_stmt | flow_stmt | import_stmt | assert_stmt)
-?expr_stmt: testlist_star_expr (annassign | augassign (testlist)
-         | ("=" (testlist_star_expr))*)
-annassign: ":" test ["=" test]
-?testlist_star_expr: (test) ("," (test))* [","]
-!augassign: ("+=" | "-=" | "*=" | "/=" | "**=" | "%=")
-// For normal and annotated assignments, additional restrictions enforced by the interpreter
-pass_stmt: "pass"
-?flow_stmt: break_stmt | continue_stmt | return_stmt | raise_stmt
-break_stmt: "break"
-continue_stmt: "continue"
-return_stmt: "return" [testlist]
-raise_stmt: "raise" [test ["from" test]]
-import_stmt: import_name | import_from
-import_name: "import" dotted_as_names
-import_from: "from" (dots? dotted_name | dots) "import" ("*" | "(" import_as_names ")" | import_as_names)
-!dots: "."+
-import_as_name: NAME ["as" NAME]
-dotted_as_name: dotted_name ["as" NAME]
-import_as_names: import_as_name ("," import_as_name)* [","]
-dotted_as_names: dotted_as_name ("," dotted_as_name)*
-dotted_name: NAME ("." NAME)*
-decorator_names: ("private"|"public"|"payable"|"constant"|"payable")
-decorator_with_args_names: ("nonreentrant")
-assert_stmt: "assert" test ["," test]
-
-compound_stmt: if_stmt | for_stmt | classdef | funcdef | decorated
-if_stmt: "if" test ":" suite ("elif" test ":" suite)* ["else" ":" suite]
-for_stmt: "for" exprlist "in" testlist ":" suite ["else" ":" suite]
-
-// // NB compile.c makes sure that the default except clause is last
-// except_clause: "except" [test ["as" NAME]]
-suite: simple_stmt | _NEWLINE _INDENT stmt+ _DEDENT
-
-?test: or_test ["if" or_test "else" test]
-?test_nocond: or_test
-?or_test: and_test ("or" and_test)*
-?and_test: not_test ("and" not_test)*
-?not_test: "not" not_test -> not
-         | comparison
-?comparison: expr (_comp_op expr)*
-?expr: arith_expr
-?arith_expr: term (_add_op term)*
-?term: factor (_mul_op factor)*
-?factor: _factor_op factor | power
-
-!_factor_op: "+"|"-"
-!_add_op: "+"|"-"
-!_shift_op: "<<"|">>"
-!_mul_op: "*"|"/"|"%"
-!_comp_op: "<"|">"|"=="|">="|"<="|"!="|"in"|"not" "in"|"is"|"is" "not"
-
-?power: atom_expr ["**" factor]
-
-?atom_expr: atom_expr "(" [arguments] ")"      -> funccall
-          | atom_expr "[" subscriptlist "]"  -> getitem
-          | atom_expr "." NAME               -> getattr
-          | atom
-
-?atom: "(" [testlist_comp] ")" -> tuple
-     | "[" [testlist_comp] "]"  -> list
-     |"{" [dictmaker] "}" -> dict
-     | NAME -> var
-     | number | string+
-     | "(" test ")"
-     | "True"    -> const_true
-     | "False"   -> const_false
-
-?testlist_comp: (test) [("," (test))+ [","] | ","]
-subscriptlist: subscript ("," subscript)*
-subscript: test
-exprlist: (expr) ("," (expr))* [","]
-testlist: test ("," test)* [","]
-dictmaker: ( ((test ":" test) ("," (test ":" test))* [","]) )
-
-classdef: ("contract"|"struct") NAME ["(" [arguments] ")"] ":" suite
-
-arguments: argvalue ("," argvalue)*  // [","]
-         | test comp_for
-
-?argvalue: test ["=" test]
-
-
-comp_iter: comp_for | comp_if
-comp_for: "for" exprlist "in" or_test [comp_iter]
-comp_if: "if" test_nocond [comp_iter]
-
-// not used in grammar, but may appear in "node" passed from Parser to Compiler
-encoding_decl: NAME
-
-
-number: DEC_NUMBER | HEX_NUMBER | BIN_NUMBER | OCT_NUMBER | FLOAT_NUMBER
-string: STRING | LONG_STRING
-// Tokens
-
 NAME: /[a-zA-Z_]\w*/
 COMMENT: /#[^\n]*/
 _NEWLINE: ( /\r?\n[\t ]*/ | COMMENT )+
 
 
-STRING : /[ubf]?r?("(?!"").*?(?<!\\)(\\\\)*?"|'(?!'').*?(?<!\\)(\\\\)*?')/i
-LONG_STRING: /[ubf]?r?(""".*?(?<!\\)(\\\\)*?"""|'''.*?(?<!\\)(\\\\)*?''')/is
+STRING: /b?("(?!"").*?(?<!\\)(\\\\)*?"|'(?!'').*?(?<!\\)(\\\\)*?')/i
+DOCSTRING: /(""".*?(?<!\\)(\\\\)*?"""|'''.*?(?<!\\)(\\\\)*?''')/is
 
 DEC_NUMBER: /0|[1-9]\d*/i
 HEX_NUMBER.2: /0x[\da-f]*/i
 OCT_NUMBER.2: /0o[0-7]*/i
 BIN_NUMBER.2 : /0b[0-1]*/i
 FLOAT_NUMBER.2: /((\d+\.\d*|\.\d+)(e[-+]?\d+)?|\d+(e[-+]?\d+))/i
+
+_number: DEC_NUMBER
+       | HEX_NUMBER
+       | BIN_NUMBER
+       | OCT_NUMBER
+       | FLOAT_NUMBER
+
+BOOL.2: "True" | "False"
+
+// TODO: Remove Docstring from here, and add to first part of body
+?literal: ( _number | STRING | DOCSTRING | BOOL )
 
 %ignore /[\t \f]+/  // WS
 %ignore /\\[\t \f]*\r?\n/   // LINE_CONT

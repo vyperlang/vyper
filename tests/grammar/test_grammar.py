@@ -1,3 +1,4 @@
+import re
 import textwrap
 
 import hypothesis
@@ -46,18 +47,6 @@ def test_basic_grammar_empty(lark_grammar):
     assert len(tree.children) == 0
 
 
-# With help from hyposmith
-# https://github.com/Zac-HD/hypothesmith/blob/master/src/hypothesmith/syntactic.py
-
-COMPILE_MODES = {
-    "eval_input": "eval",
-    "file_input": "exec",
-    "stmt": "single",
-    "simple_stmt": "single",
-    "compound_stmt": "single",
-}
-
-
 def utf8_encodable(terminal: str) -> bool:
     try:
         if '\x00' not in terminal and '\\ ' not in terminal and '\x0c' not in terminal:
@@ -72,6 +61,8 @@ def utf8_encodable(terminal: str) -> bool:
         return False
 
 
+# With help from hyposmith
+# https://github.com/Zac-HD/hypothesmith/blob/master/src/hypothesmith/syntactic.py
 class GrammarStrategy(LarkStrategy):
     def __init__(self, grammar, start, explicit_strategies):
         super().__init__(grammar, start, explicit_strategies)
@@ -83,40 +74,46 @@ class GrammarStrategy(LarkStrategy):
     def draw_symbol(self, data, symbol, draw_state):  # type: ignore
         count = len(draw_state.result)
         super().draw_symbol(data, symbol, draw_state)
-        if symbol.name in COMPILE_MODES:
-            try:
-                compile(
-                    source="".join(
-                        draw_state.result[count:]
-                    ).replace("contract", "class").replace("struct", "class"),
-                    filename="<string>",
-                    mode=COMPILE_MODES[symbol.name],
-                )
-            except SyntaxError:
-                # Python's grammar doesn't actually fully describe the behaviour of the
-                # CPython parser and AST-post-processor, so we just filter out errors.
-                assume(False)
+        try:
+            compile(
+                source="".join(
+                    draw_state.result[count:]
+                ).replace("contract", "class").replace("struct", "class"),  # HACK: Python ast.parse
+                filename="<string>",
+                mode="exec",
+            )
+        except SyntaxError:
+            # Python's grammar doesn't actually fully describe the behaviour of the
+            # CPython parser and AST-post-processor, so we just filter out errors.
+            assume(False)
 
 
-def from_grammar(start: str = "file_input") -> st.SearchStrategy[str]:
-    """Generate syntactically-valid Python source code based on the grammar.
-    Valid values for ``start`` are ``"single_input"``, ``"file_input"``, or
-    ``"eval_input"``; respectively a single interactive statement, a module or
-    sequence of commands read from a file, and input for the eval() function.
+def from_grammar() -> st.SearchStrategy[str]:
     """
-    assert start in {"single_input", "file_input", "eval_input"}
+    Generate syntactically-valid Python source code based on the grammar.
+    """
     grammar = get_lark_grammar()
     explicit_strategies = dict(
         _INDENT=st.just(" " * 4),
         _DEDENT=st.just(""),
         NAME=st.from_regex(r"[a-z_A-Z]+", fullmatch=True).filter(str.isidentifier),
     )
-    return GrammarStrategy(grammar, start, explicit_strategies)
+    return GrammarStrategy(grammar, "module", explicit_strategies)
+
+
+# Avoid examples with *only* single or double quote docstrings
+# because they trigger a trivial compiler bug
+SINGLE_QUOTE_DOCSTRING = re.compile(r"^'''.*'''$")
+DOUBLE_QUOTE_DOCSTRING = re.compile(r'^""".*"""$')
+
+
+def has_no_docstrings(c):
+    return not (SINGLE_QUOTE_DOCSTRING.match(c) or DOUBLE_QUOTE_DOCSTRING.match(c))
 
 
 @pytest.mark.fuzzing
 @given(
-    code=from_grammar()
+    code=from_grammar().filter(lambda c: has_no_docstrings(c))
 )
 @hypothesis.settings(
     deadline=400,
