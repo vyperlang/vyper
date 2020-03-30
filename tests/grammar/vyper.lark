@@ -16,17 +16,20 @@ module: ( DOCSTRING
 
 
 // Import statements (Supports all styles of Python imports)
-!dots: "."+
 _AS: "as"
 _FROM: "from"
 _IMPORT: "import"
-import_name: NAME ("." NAME)*
-import_rename: NAME ("." NAME)* _AS NAME
-import_list: (import_name | import_rename) ("," (import_name | import_rename) )* [","]
-import_from: _FROM (dots? import_name | dots)
-import: ( _IMPORT (import_name | import_rename)
-        | import_from _IMPORT ( "*" | import_name | import_rename )
-        | import_from _IMPORT "(" import_list ")" )
+DOT: "."
+WILDCARD: "*"
+_import_name: NAME
+// NOTE: Don't use DOT here, just a separator
+_import_path: (_import_name ".")* _import_name
+import_alias: _AS NAME
+?import_list: _import_name [import_alias] ("," _import_name [import_alias] )* [","]
+_import_from: _FROM (DOT* _import_path | DOT+)
+import: _IMPORT DOT* _import_path [import_alias]
+      | _import_from _IMPORT ( WILDCARD | _import_name [import_alias] )
+      | _import_from _IMPORT "(" import_list ")"
 
 
 // Constant definitions
