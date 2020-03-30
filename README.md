@@ -13,7 +13,7 @@
 [![Language grade: Python](https://img.shields.io/lgtm/grade/python/g/vyperlang/vyper.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/vyperlang/vyper/context:python)
 
 # Getting Started
-See [Installing Vyper](http://vyper.readthedocs.io/en/latest/installing-vyper.html) to install vyper.  
+See [Installing Vyper](http://vyper.readthedocs.io/en/latest/installing-vyper.html) to install vyper.
 See [Tools and Resources](https://github.com/vyperlang/vyper/wiki/Vyper-tools-and-resources) for an additional list of framework and tools with vyper support.
 See [Documentation](http://vyper.readthedocs.io/en/latest/index.html) for the documentation and overall design goals of the Vyper language.
 
@@ -48,5 +48,5 @@ python setup.py test
 # Contributing
 * See Issues tab, and feel free to submit your own issues
 * Add PRs if you discover a solution to an existing issue
-* For further discussions and questions talk to us on [gitter](https://gitter.im/vyperlang/vyper)
+* For further discussions and questions talk to us on [gitter](https://gitter.im/vyperlang/community)
 * For more information, see [Contributing](http://vyper.readthedocs.io/en/latest/contributing.html)

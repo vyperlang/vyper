@@ -1,9 +1,7 @@
-.. index:: testing;testing;
-
-.. _testing:
+.. _testing-contracts:
 
 Testing a Contract
-******************
+##################
 
 For testing Vyper contracts we recommend the use of `pytest <https://docs.pytest.org/en/latest/contents.html>`_ along with one of the following packages:
 

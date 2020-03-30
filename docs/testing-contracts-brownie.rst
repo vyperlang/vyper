@@ -1,7 +1,7 @@
-.. _testing-brownie:
+.. _testing-contracts-brownie:
 
 Testing with Brownie
-********************
+####################
 
 `Brownie <https://github.com/iamdefinitelyahuman/brownie>`_ is a Python-based development and testing framework for smart contracts. It includes a pytest plugin with fixtures that simplify testing your contract.
 

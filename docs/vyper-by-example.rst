@@ -544,8 +544,8 @@ function definitions.
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lineno-start: 11
-  :lines: 11-17
+  :lineno-start: 7
+  :lines: 7-13
 
 We initiate the ``company`` variable to be of type ``address`` that's public.
 The ``totalShares`` variable is of type ``currency_value``, which in this case
@@ -555,8 +555,8 @@ address to the number of shares the address owns.
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lineno-start: 20
-  :lines: 20-31
+  :lineno-start: 16
+  :lines: 16-26
 
 In the constructor, we set up the contract to check for valid inputs during
 the initialization of the contract via the two ``assert`` statements. If the
@@ -566,8 +566,8 @@ company's address is initialized to hold all shares of the company in the
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lineno-start: 34
-  :lines: 34-43
+  :lineno-start: 29
+  :lines: 29-38
 
 We will be seeing a few ``@constant`` decorators in this contract—which is
 used to decorate methods that simply read the contract state or return a simple
@@ -585,8 +585,8 @@ company's holding.
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lineno-start: 46
-  :lines: 46-61
+  :lineno-start: 41
+  :lines: 41-56
 
 The ``buyStock()`` method is a ``@payable`` method which takes an amount of
 ether sent and calculates the ``buyOrder`` (the stock value equivalence at
@@ -597,8 +597,8 @@ Now that people can buy shares, how do we check someone's holdings?
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lineno-start: 63
-  :lines: 63-73
+  :lineno-start: 58
+  :lines: 58-68
 
 The ``_getHolding()`` is another ``@constant`` method that takes an ``address``
 and returns its corresponding stock holdings by keying into ``self.holdings``.
@@ -606,16 +606,16 @@ Again, a public function ``getHolding()`` is included to allow external access.
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lineno-start: 76
-  :lines: 76-79
+  :lineno-start: 71
+  :lines: 71-74
 
 To check the ether balance of the company, we can simply call the getter method
 ``cash()``.
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lineno-start: 82
-  :lines: 82-98
+  :lineno-start: 77
+  :lines: 77-93
 
 To sell a stock, we have the ``sellStock()`` method which takes a number of
 stocks a person wishes to sell, and sends the equivalent value in ether to the
@@ -627,8 +627,8 @@ from the seller and given to the company. The ethers are then sent to the seller
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lineno-start: 102
-  :lines: 102-113
+  :lineno-start: 97
+  :lines: 97-108
 
 A stockholder can also transfer their stock to another stockholder with the
 ``transferStock()`` method. The method takes a receiver address and the number
@@ -638,8 +638,8 @@ both conditions are satisfied, the transfer is made.
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lineno-start: 116
-  :lines: 116-127
+  :lineno-start: 111
+  :lines: 111-122
 
 The company is also allowed to pay out an amount in ether to an address by
 calling the ``payBill()`` method. This method should only be callable by the
@@ -650,8 +650,8 @@ sends its ether to an address.
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lineno-start: 130
-  :lines: 130-139
+  :lineno-start: 125
+  :lines: 125-134
 
 We can also check how much the company has raised by multiplying the number of
 shares the company has sold and the price of each share. Internally, we get
@@ -659,8 +659,8 @@ this value by calling the ``_debt()`` method. Externally it is accessed via ``de
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lineno-start: 144
-  :lines: 144-147
+  :lineno-start: 139
+  :lines: 139-142
 
 Finally, in this ``worth()`` method, we can check the worth of a company by
 subtracting its debt from its ether balance.
