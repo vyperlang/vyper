@@ -557,7 +557,7 @@ class Stmt(object):
                         arg1,
                     )
 
-                if arg0 != arg1.left:
+                if not vy_ast.compare_nodes(arg0, arg1.left):
                     raise StructureException(
                         (
                             "Two-arg for statements of the form `for i in "
