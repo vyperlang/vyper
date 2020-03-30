@@ -101,8 +101,9 @@ _stmt: ( if_stmt | for_stmt ) [COMMENT]
        | assert_stmt
        | _expr ) [COMMENT] _NEWLINE
 
-declaration: variable "=" _expr
-multiple_assign: (variable_access | "_") ("," (variable_access | "_"))+
+declaration: variable ["=" _expr]
+skip_assign: "_"
+multiple_assign: (variable_access | skip_assign) ("," (variable_access | skip_assign))+
 assign: (variable_access | multiple_assign | "(" multiple_assign ")" ) "=" _expr
 // NOTE: Keep these in sync with bin_op below
 ?aug_operator: "+"  -> add
@@ -116,6 +117,7 @@ assign: (variable_access | multiple_assign | "(" multiple_assign ")" ) "=" _expr
              | _AND -> and
              | _OR  -> or
              | _XOR -> xor
+// NOTE: Post-process into a normal assign
 aug_assign: variable_access aug_operator "=" _expr
 
 _PASS: "pass"
@@ -142,9 +144,13 @@ assert_stmt: _ASSERT _expr -> assert
            | _ASSERT _expr "," _UNREACHABLE -> assert_unreachable
 
 body: _NEWLINE _INDENT ([COMMENT] _NEWLINE | _stmt)+ _DEDENT
-if_stmt: "if" _expr ":" body ("elif" _expr ":" body)* ["else" ":" body]
+cond_exec: _expr ":" body
+default_exec: body
+if_stmt: "if" cond_exec ("elif" cond_exec)* ["else" ":" default_exec]
 // TODO: make this into a variable definition e.g. `for i: uint256 in range(0, 5): ...`
-for_stmt: "for" NAME "in" _expr ":" body
+loop_variable: NAME [":" NAME]
+loop_iterator: _expr
+for_stmt: "for" loop_variable "in" loop_iterator ":" body
 
 
 // Expressions
@@ -160,7 +166,9 @@ call: variable_access "(" [arguments] ")"
                 | call
                 | "(" variable_access ")"
 
-?argument: _expr ["=" _expr]
+arg: _expr
+kwarg: NAME "=" _expr
+?argument: (arg | kwarg)
 arguments: argument ("," argument)* [","]
 
 tuple: "(" "," ")" | "(" _expr ( ("," _expr)+ [","] | "," ) ")"
@@ -255,7 +263,7 @@ _number: DEC_NUMBER
 
 BOOL.2: "True" | "False"
 
-// TODO: Remove Docstring from here, and add to body
+// TODO: Remove Docstring from here, and add to first part of body
 ?literal: ( _number | STRING | DOCSTRING | BOOL )
 
 %ignore /[\t \f]+/  // WS
