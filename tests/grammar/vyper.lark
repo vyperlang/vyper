@@ -83,11 +83,13 @@ interface_def: _INTERFACE_DECL NAME ":" _NEWLINE _INDENT (method_type ":" mutabi
 
 
 // Statements
-_stmt: ( declaration
+// If and For blocks create a new block, and thus are complete when de-indented
+// Conversely, the rest of the statements require a newline to be considered complete
+// (as they do not create a new block)
+_stmt: ( if_stmt | for_stmt ) [COMMENT]
+     | (declaration
        | assign
        | aug_assign
-       | if_stmt
-       | for_stmt
        | return_stmt
        | pass_stmt
        | break_stmt
@@ -95,7 +97,7 @@ _stmt: ( declaration
        | log_stmt
        | raise_stmt
        | assert_stmt
-       | _expr ) [COMMENT]
+       | _expr ) [COMMENT] _NEWLINE
 
 declaration: variable "=" _expr
 multiple_assign: (variable_access | "_") ("," (variable_access | "_"))+
