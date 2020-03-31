@@ -19,12 +19,11 @@ def fold(vyper_ast_node: vy_ast.Module) -> None:
     vyper_ast_node : Module
         Top-level Vyper AST node.
     """
-    while True:
+    changed_nodes = 1
+    while changed_nodes:
         changed_nodes = 0
         changed_nodes += replace_literal_ops(vyper_ast_node)
         changed_nodes += replace_subscripts(vyper_ast_node)
-        if not changed_nodes:
-            return
 
 
 def replace_literal_ops(vyper_ast_node: vy_ast.Module) -> int:
@@ -80,8 +79,8 @@ def _replace(old_node, new_node):
     if isinstance(new_node, vy_ast.Constant):
         return new_node.from_node(old_node, value=new_node.value)
     elif isinstance(new_node, vy_ast.List):
-        elts = [_replace(old_node, i) for i in new_node.elts]
-        return new_node.from_node(old_node, elts=elts)
+        list_values = [_replace(old_node, i) for i in new_node.elts]
+        return new_node.from_node(old_node, elts=list_values)
     else:
         raise
 
