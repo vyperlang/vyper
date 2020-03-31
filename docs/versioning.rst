@@ -1,12 +1,13 @@
 .. _versioning:
 
 Vyper Versioning Guideline
-**************************
+##########################
 
 Motivation
 ==========
 
 Vyper has different groups that are considered "users":
+
 - Smart Contract Developers (using Vyper to write smart contracts)
 - Package Integrators (integerating Vyper package or cli into their tools)
 - Security Professionals (aware of the status of various Vyper features and security issues)
@@ -14,7 +15,7 @@ Vyper has different groups that are considered "users":
 The sets of users need to understand what changes require their involvement or
 understanding of how the way they use Vyper will be impacted.
 This guideline will lay out how these different groups stay informed about the progress of Vyper.
-This guideline was adapted from `semantic versioning <https://semver.org/>`.
+This guideline was adapted from `semantic versioning <https://semver.org/>`_.
 
 Smart Contract Developers
 -------------------------
@@ -30,8 +31,8 @@ and ``minor`` or ``informational`` vulnerabilities found in Vyper.
 Package Integrators
 -------------------
 
-The Vyper package and CLI utilities have a fairly well-defined public API, which is contained of
-exported features in Vyper's `exported package <https://github.com/vyperlang/vyper/blob/master/vyper/__init__.py>`,
+The Vyper package and CLI utilities has a fairly well-defined public API, which is contained of
+exported features in Vyper's `exported package <https://github.com/vyperlang/vyper/blob/master/vyper/__init__.py>`_,
 top level modules under the package, and all CLI scripts.
 Major releases of Vyper have no special meaning to package integrators,
 and should be considered similar to a Minor release.
@@ -44,15 +45,15 @@ Security Professionals
 
 Security professionals broadly have similar needs to Smart Contract Developers as they work
 closely with them, but they have additional needs that should be accommodated.
-Major releases will have an audit performed prior to release (e.g. x.0.0 releases) and all
+Major releases will have an audit performed prior to release (e.g. ``x.0.0`` releases) and all
 ``moderate`` or ``severe`` vulnerabilities will be addressed that are reported in the audit report.
-``minor`` or ``informational`` vulnerabilities _should_ be addressed as well, although this may be
+``minor`` or ``informational`` vulnerabilities *should* be addressed as well, although this may be
 left up to the maintainers of Vyper to decide.
 Minor releases are required to fix a ``moderate`` or ``severe`` vulnerability,
 but a ``minor`` or ``informational`` vulnerability can be fixed in Patch releases,
 alongside documentation updates.
 The details of all reported vulnerabilities will be published
-`here <https://github.com/vyperlang/vyper/security/advisories?state=published>`
+`here <https://github.com/vyperlang/vyper/security/advisories?state=published>`_
 alongside their corresponding fix in the Release Notes.
 
 Vyper *Next*
@@ -72,7 +73,7 @@ and ``-beta.[release #]`` to describe work that is eventually intended for relea
 ``-rc.[release #]`` will only be used to denote candidate builds prior to a Major release
 (alongside a final audit report).
 An audit will be solicited for ``-rc.1`` builds,
-and subsequent releases _may_ incorporate feedback during the audit.
+and subsequent releases *may* incorporate feedback during the audit.
 
 Pull Requests
 =============
