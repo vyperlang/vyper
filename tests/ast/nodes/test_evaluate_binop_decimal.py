@@ -18,25 +18,18 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 
+st_decimals = st.decimals(
+    min_value=-2 ** 32,
+    max_value=2 ** 32,
+    allow_nan=False,
+    allow_infinity=False,
+    places=10,
+)
+
 
 @pytest.mark.fuzzing
-@settings(deadline=500)
-@given(
-    left=st.decimals(
-        min_value=-(2 ** 32),
-        max_value=2 ** 32,
-        allow_nan=False,
-        allow_infinity=False,
-        places=10,
-    ),
-    right=st.decimals(
-        min_value=-(2 ** 32),
-        max_value=2 ** 32,
-        allow_nan=False,
-        allow_infinity=False,
-        places=10,
-    ),
-)
+@settings(max_examples=50, deadline=1000)
+@given(left=st_decimals, right=st_decimals)
 @example(left=Decimal("0.9999999999"), right=Decimal("0.0000000001"))
 @example(left=Decimal("0.0000000001"), right=Decimal("0.9999999999"))
 @example(left=Decimal("0.9999999999"), right=Decimal("0.9999999999"))
@@ -74,19 +67,9 @@ def test_binop_pow():
 
 
 @pytest.mark.fuzzing
-@settings(deadline=500)
+@settings(max_examples=50, deadline=1000)
 @given(
-    values=st.lists(
-        st.decimals(
-            min_value=-(2 ** 32),
-            max_value=2 ** 32,
-            allow_nan=False,
-            allow_infinity=False,
-            places=10,
-        ),
-        min_size=2,
-        max_size=10,
-    ),
+    values=st.lists(st_decimals, min_size=2, max_size=10),
     ops=st.lists(st.sampled_from("+-*/%"), min_size=11, max_size=11),
 )
 def test_nested(get_contract, assert_tx_failed, values, ops):
@@ -109,6 +92,7 @@ def foo({input_value}) -> decimal:
         expected = vyper_ast.body[0].value.value
         is_valid = True
     except ZeroDivisionException:
+        # for division/modulus by 0, expect the contract call to revert
         is_valid = False
 
     if is_valid:

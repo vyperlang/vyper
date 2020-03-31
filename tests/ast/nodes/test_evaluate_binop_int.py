@@ -13,13 +13,12 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 
+st_int32 = st.integers(min_value=-(2 ** 32), max_value=2 ** 32)
+
 
 @pytest.mark.fuzzing
-@settings(deadline=500)
-@given(
-    left=st.integers(min_value=-(2 ** 32), max_value=2 ** 32),
-    right=st.integers(min_value=-(2 ** 32), max_value=2 ** 32),
-)
+@settings(max_examples=50, deadline=1000)
+@given(left=st_int32, right=st_int32)
 @pytest.mark.parametrize("op", "+-*/%")
 def test_binop_int128(get_contract, assert_tx_failed, op, left, right):
     source = f"""
@@ -43,12 +42,12 @@ def foo(a: int128, b: int128) -> int128:
         assert_tx_failed(lambda: contract.foo(left, right))
 
 
+st_uint64 = st.integers(min_value=0, max_value=2 ** 64)
+
+
 @pytest.mark.fuzzing
-@settings(deadline=500)
-@given(
-    left=st.integers(min_value=0, max_value=2 ** 64),
-    right=st.integers(min_value=0, max_value=2 ** 64),
-)
+@settings(max_examples=50, deadline=1000)
+@given(left=st_uint64, right=st_uint64)
 @pytest.mark.parametrize("op", "+-*/%")
 def test_binop_uint256(get_contract, assert_tx_failed, op, left, right):
     source = f"""
@@ -73,7 +72,7 @@ def foo(a: uint256, b: uint256) -> uint256:
 
 
 @pytest.mark.fuzzing
-@settings(deadline=500)
+@settings(max_examples=50, deadline=1000)
 @given(
     left=st.integers(min_value=2, max_value=245),
     right=st.integers(min_value=0, max_value=16),
@@ -96,7 +95,7 @@ def foo(a: uint256, b: uint256) -> uint256:
 
 
 @pytest.mark.fuzzing
-@settings(deadline=500)
+@settings(max_examples=50, deadline=1000)
 @given(
     values=st.lists(
         st.integers(min_value=-256, max_value=256), min_size=2, max_size=10
@@ -106,13 +105,13 @@ def foo(a: uint256, b: uint256) -> uint256:
 def test_binop_nested(get_contract, assert_tx_failed, values, ops):
 
     variables = "abcdefghij"
-
+    input_value = ",".join(f"{i}: int128" for i in variables[: len(values)])
     return_value = " ".join(f"{a} {b}" for a, b in zip(variables[: len(values)], ops))
     return_value = return_value.rsplit(maxsplit=1)[0]
 
     source = f"""
 @public
-def foo({','.join(f'{i}: int128' for i in variables[:len(values)])}) -> int128:
+def foo({input_value}) -> int128:
     return {return_value}
     """
     contract = get_contract(source)

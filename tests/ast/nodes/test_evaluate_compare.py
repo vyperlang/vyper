@@ -14,7 +14,7 @@ from vyper.exceptions import (
 
 
 @pytest.mark.fuzzing
-@settings(deadline=500)
+@settings(max_examples=50, deadline=1000)
 @given(left=st.integers(), right=st.integers())
 @pytest.mark.parametrize("op", ["==", "!=", "<", "<=", ">=", ">"])
 def test_compare_eq(get_contract, op, left, right):
