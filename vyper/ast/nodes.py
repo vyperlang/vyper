@@ -13,6 +13,7 @@ from vyper.exceptions import (
     InvalidType,
     SyntaxException,
     TypeMismatch,
+    ZeroDivisionException,
 )
 from vyper.settings import (
     VYPER_ERROR_CONTEXT_LINES,
@@ -823,6 +824,9 @@ class Div(VyperNode):
     def _op(self, left, right):
         # evaluate the operation using true division or floor division
         assert type(left) is type(right)
+        if not right:
+            raise ZeroDivisionException("Division by zero")
+
         if isinstance(left, decimal.Decimal):
             value = left / right
             if value < 0:
@@ -842,6 +846,9 @@ class Mod(VyperNode):
     _description = "modulus"
 
     def _op(self, left, right):
+        if not right:
+            raise ZeroDivisionException("Modulo by zero")
+
         value = abs(left) % abs(right)
         if left < 0:
             value = -value
@@ -926,23 +933,26 @@ class Compare(VyperNode):
             Node representing the result of the evaluation.
         """
         left, right = self.left, self.right
-        if not isinstance(self.left, Constant):
+        if not isinstance(left, Constant):
             raise InvalidType("Node contains invalid field(s) for evaluation", self)
 
         if isinstance(self.op, In):
             if not isinstance(right, List):
                 raise InvalidType("Node contains invalid field(s) for evaluation", self)
-            if len(set([type(i) for i in right.elts])) > 1:
-                raise InvalidType("List contains multiple node types", self.right)
             if next((i for i in right.elts if not isinstance(i, Constant)), None):
                 raise InvalidType("Node contains invalid field(s) for evaluation", self)
+            if len(set([type(i) for i in right.elts])) > 1:
+                raise InvalidType("List contains multiple literal types", self.right)
             value = self.op._op(left.value, [i.value for i in right.elts])
+            return NameConstant.from_node(self, value=value)
 
-        else:
-            if not isinstance(left, (Int, Decimal)) or not isinstance(left, type(right)):
-                raise InvalidType("Node contains invalid field(s) for evaluation", self)
-            value = self.op._op(left.value, right.value)
+        if not isinstance(left, type(right)):
+            raise InvalidType("Cannot compare different literal types", self)
 
+        if not isinstance(self.op, (Eq, NotEq)) and not isinstance(left, (Int, Decimal)):
+            raise TypeMismatch(f"Invalid literal types for {self.op.description} comparison", self)
+
+        value = self.op._op(left.value, right.value)
         return NameConstant.from_node(self, value=value)
 
 
