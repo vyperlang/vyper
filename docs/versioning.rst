@@ -9,13 +9,15 @@ Motivation
 Vyper has different groups that are considered "users":
 
 - Smart Contract Developers (using Vyper to write smart contracts)
-- Package Integrators (integerating Vyper package or cli into their tools)
+- Package Integrators (integerating Vyper package or CLI into their tools)
 - Security Professionals (aware of the status of various Vyper features and security issues)
 
-The sets of users need to understand what changes require their involvement or
-understanding of how the way they use Vyper will be impacted.
-This guideline will lay out how these different groups stay informed about the progress of Vyper.
-This guideline was adapted from `semantic versioning <https://semver.org/>`_.
+Each set of users must understand which changes to the compiler may require their
+involvement, and how these changes may impact their use of the compiler.
+This guide defines what scope each compiler change may have, it's potential impact based
+on the type of user, so that users can stay informed about the progress of Vyper.
+
+This guide was adapted from `semantic versioning <https://semver.org/>`_.
 
 Smart Contract Developers
 -------------------------
@@ -54,7 +56,7 @@ but a ``minor`` or ``informational`` vulnerability can be fixed in Patch release
 alongside documentation updates.
 The details of all reported vulnerabilities will be published
 `here <https://github.com/vyperlang/vyper/security/advisories?state=published>`_
-alongside their corresponding fix in the Release Notes.
+alongside their corresponding fix in the :ref:`Release Notes<release-notes>`.
 
 Vyper *Next*
 ============
