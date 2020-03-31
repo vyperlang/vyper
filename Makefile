@@ -20,7 +20,7 @@ test:
 lint:
 	tox -e lint
 
-clean: clean-build clean-pyc clean-snap clean-test
+clean: clean-build clean-pyc clean-test
 
 clean-build:
 	@echo Cleaning python build files...
@@ -65,22 +65,6 @@ docker-release:
 	docker tag vyper vyperlang/vyper:$(firstword $(subst +, ,$(shell docker run vyper --version)))
 	docker push vyperlang/vyper:$(firstword $(subst +, ,$(shell docker run vyper --version)))
 
-snap-build:
-	snapcraft
-
-vyper-snap := $(wildcard vyper*.snap)
-
-clean-snap: $(vyper-snap)
-	@echo Cleaning snapcraft build files...
-	@snapcraft clean
-ifdef vyper-snap
-	@rm -fr $<
-
-snap-release: $(vyper-snap)
-	snapcraft login
-	snapcraft push $<
-endif
-
 # Asks to bump the dev partnumber
 # TODO Use semver automatic versioning via git log
 git-tag:
@@ -100,10 +84,6 @@ pypi-release:
 release: clean
 ifndef SKIP_TAG
 	$(MAKE) git-tag
-endif
-ifndef SKIP_SNAP
-	$(MAKE) snap-build
-	$(MAKE) snap-release
 endif
 ifndef SKIP_DOCKER
 	$(MAKE) docker-build
