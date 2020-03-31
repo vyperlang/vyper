@@ -7,6 +7,7 @@ from vyper.ast import (
 )
 from vyper.exceptions import (
     InvalidType,
+    VyperException,
 )
 
 
@@ -88,7 +89,7 @@ def replace_builtin_functions(vyper_ast_node: vy_ast.Module, namespace: dict) ->
             if not hasattr(func, 'evaluate'):
                 continue
             new_node = func.evaluate(node)
-        except InvalidType:
+        except VyperException:
             continue
 
         count += 1

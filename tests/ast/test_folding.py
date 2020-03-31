@@ -12,7 +12,7 @@ def test_integration():
     test_ast = vy_ast.parse_to_ast("[1+2, 6+7][8-8]")
     expected_ast = vy_ast.parse_to_ast("3")
 
-    folding.fold(test_ast)
+    folding.fold(test_ast, {})
 
     assert vy_ast.compare_nodes(test_ast, expected_ast)
 

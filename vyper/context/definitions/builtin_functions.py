@@ -388,10 +388,10 @@ class RawCall(SimpleBuiltinDefinition):
         ("is_delegate_call", "bool")
     ]
     _arg_count = (2, 6)
-    _return_type = "bytes"
+    _return_type = None
 
     def fetch_call_return(self, node: vy_ast.Call) -> Optional[Reference]:
-        var = super().fetch_call_return(node)
+        super().fetch_call_return(node)
         if len(node.args) > 2:
             min_length = get_literal_or_raise(node.args[2]).value
         else:
@@ -400,9 +400,10 @@ class RawCall(SimpleBuiltinDefinition):
                 return None
             min_length = get_literal_or_raise(n).value
 
-        var.type.set_min_length(min_length)
+        return_type = get_builtin_type('bytes')
+        return_type.set_min_length(min_length)
 
-        return var
+        return Reference.from_type(return_type, "return value")
 
 
 class Min(BuiltinFunctionDefinition):

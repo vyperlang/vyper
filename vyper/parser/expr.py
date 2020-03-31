@@ -139,7 +139,7 @@ class Expr(object):
         numstring, num, den = get_number_as_fraction(self.expr, self.context)
         # if not SizeLimits.in_bounds('decimal', num // den):
         # if not SizeLimits.MINDECIMAL * den <= num <= SizeLimits.MAXDECIMAL * den:
-        if not (SizeLimits.MINNUM * den < num < SizeLimits.MAXNUM * den):
+        if not (SizeLimits.MINNUM * den <= num <= SizeLimits.MAXNUM * den):
             raise InvalidLiteral("Number out of range: " + numstring, self.expr)
         if DECIMAL_DIVISOR % den:
             raise InvalidLiteral(
