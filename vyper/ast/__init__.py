@@ -1,6 +1,7 @@
 import sys
 
 from . import (  # noqa: F401
+    folding,
     nodes,
 )
 from .nodes import (  # noqa: F401
