@@ -50,10 +50,6 @@ of the error within the code:
 
     Raises when an interface is not fully implemented.
 
-.. py:exception:: InvalidAttribute
-
-    Raises on a reference to an attribute that does not exist.
-
 .. py:exception:: InvalidLiteral
 
     Raises when attempting to use a literal value where the type is correct, but the value is still invalid in some way. For example, an address that is not check-summed.
@@ -185,6 +181,14 @@ of the error within the code:
 .. py:exception:: UndeclaredDefinition
 
     Raises when attempting to access an object that has not been declared.
+
+.. py:exception:: UnknownAttribute
+
+    Raises on a reference to an attribute that does not exist.
+
+.. py:exception:: UnknownType
+
+    Raises on a reference to a type that does not exist.
 
 .. py:exception:: VariableDeclarationException
 

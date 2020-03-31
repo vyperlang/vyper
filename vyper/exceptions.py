@@ -1,10 +1,30 @@
-import copy
 import types
 
 from vyper.settings import (
     VYPER_ERROR_CONTEXT_LINES,
     VYPER_ERROR_LINE_NUMBERS,
 )
+
+
+class ExceptionList(list):
+    """
+    List subclass for storing exceptions.
+
+    To deliver multiple compilation errors to the user at once, append each
+    raised Exception to this list and call raise_if_not_empty once the task
+    is completed.
+    """
+    def raise_if_not_empty(self):
+        if len(self) == 1:
+            raise self[0]
+        elif len(self) > 1:
+            if len(set(type(i) for i in self)) > 1:
+                err_type = StructureException
+            else:
+                err_type = type(self[0])
+            err_msg = ["Compilation failed with the following errors:"]
+            err_msg += [f"{type(i).__name__}: {i}" for i in self]
+            raise err_type("\n\n".join(err_msg))
 
 
 class VyperException(Exception):
@@ -50,11 +70,10 @@ class VyperException(Exception):
         -------
         A copy of the exception with the new offset applied.
         """
-        exc = copy.copy(self)
-        exc.lineno = node.lineno
-        exc.col_offset = node.col_offset
-        exc.source_code = node.full_source_code
-        return exc
+        self.lineno = node.lineno
+        self.col_offset = node.col_offset
+        self.source_code = node.full_source_code
+        return self
 
     def __str__(self):
         lineno, col_offset = self.lineno, self.col_offset
@@ -102,44 +121,48 @@ class VersionException(VyperException):
     """Version string is malformed or incompatible with this compiler version."""
 
 
-class VariableDeclarationException(VyperException):
-    """Invalid variable declaration."""
-
-
 class FunctionDeclarationException(VyperException):
     """Invalid function declaration."""
+
+
+class VariableDeclarationException(VyperException):
+    """Invalid variable declaration."""
 
 
 class EventDeclarationException(VyperException):
     """Invalid event declaration."""
 
 
+class NamespaceCollision(VyperException):
+    """Assignment to a name that is already in use."""
+
+
 class UndeclaredDefinition(VyperException):
     """Reference to a definition that has not been declared."""
 
 
-class NamespaceCollision(VyperException):
-    """Assignment to a name that is already in use."""
+class UnknownType(VyperException):
+    """Reference to a type that does not exist."""
+
+
+class UnknownAttribute(VyperException):
+    """Reference to an attribute that does not exist."""
 
 
 class InvalidLiteral(VyperException):
     """Invalid literal value."""
 
 
-class InvalidAttribute(VyperException):
-    """Reference to an attribute that does not exist."""
+class InvalidOperation(VyperException):
+    """Invalid operator for a given type."""
 
 
 class InvalidReference(VyperException):
     """Invalid reference to an existing definition."""
 
 
-class InvalidOperation(VyperException):
-    """Invalid operator for a given type."""
-
-
 class InvalidType(VyperException):
-    """Type is invalid for an action."""
+    """Given type is invalid for an action."""
 
 
 class TypeMismatch(VyperException):

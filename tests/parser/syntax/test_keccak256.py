@@ -7,8 +7,8 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
-    StructureException,
     TypeMismatch,
+    UndeclaredDefinition,
 )
 
 type_fail_list = [
@@ -42,7 +42,7 @@ def foo():
 
 @pytest.mark.parametrize('bad_code', structure_fail_list)
 def test_block_structure_fail(bad_code):
-    with raises(StructureException):
+    with raises(UndeclaredDefinition):
         compiler.compile_code(bad_code)
 
 

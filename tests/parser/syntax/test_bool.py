@@ -7,33 +7,36 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
+    InvalidLiteral,
+    InvalidOperation,
+    InvalidType,
     SyntaxException,
     TypeMismatch,
 )
 
 fail_list = [
-    """
+    ("""
 @public
 def foo():
     x: bool = True
     x = 5
-    """,
+    """, InvalidLiteral),
     ("""
 @public
 def foo():
     True = 3
     """, SyntaxException),
-    """
+    ("""
 @public
 def foo():
     x: bool = True
     x = 129
-    """,
-    """
+    """, InvalidLiteral),
+    ("""
 @public
 def foo() -> bool:
     return (1 == 2) <= (1 == 1)
-    """,
+    """, InvalidOperation),
     """
 @public
 def foo() -> bool:
@@ -50,11 +53,11 @@ def foo() -> bool:
     a: address = ZERO_ADDRESS
     return a == 1
     """,
-    """
+    ("""
 @public
 def foo(a: address) -> bool:
     return not a
-    """,
+    """, InvalidOperation),
     """
 @public
 def foo() -> bool:
@@ -73,12 +76,12 @@ def foo() -> bool:
     b: uint256 = 0
     return not b
     """,
-    """
+    ("""
 @public
 def test(a: address) -> bool:
     assert(a)
     return True
-    """
+    """, InvalidType)
 ]
 
 

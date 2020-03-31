@@ -8,6 +8,7 @@ from vyper import (
 )
 from vyper.exceptions import (
     EvmVersionException,
+    InvalidType,
     TypeMismatch,
 )
 from vyper.opcodes import (
@@ -61,13 +62,13 @@ a: map(uint256, int128)
 def add_record():
     self.a[chain.id] = chain.id + 20
     """,
-    """
+    ("""
 a: map(int128, uint256)
 
 @public
 def add_record():
     self.a[chain.id] = chain.id + 20
-    """,
+    """, InvalidType),
     """
 @public
 def foo(inp: bytes[10]) -> bytes[3]:

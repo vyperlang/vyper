@@ -8,32 +8,35 @@ from vyper import (
 )
 from vyper.exceptions import (
     InvalidLiteral,
+    OverflowException,
     StructureException,
     TypeMismatch,
+    UndeclaredDefinition,
+    UnknownAttribute,
     VariableDeclarationException,
 )
 
 fail_list = [
-    """
+    ("""
 @public
 def test():
     a = 1
-    """,
-    """
+    """, UndeclaredDefinition),
+    ("""
 @public
 def test():
     a = 33.33
-    """,
-    """
+    """, UndeclaredDefinition),
+    ("""
 @public
 def test():
     a = "test string"
-    """,
+    """, UndeclaredDefinition),
     ("""
 @public
 def test():
     a: int128 = 33.33
-    """, TypeMismatch),
+    """, InvalidLiteral),
     ("""
 struct S:
     a: int128
@@ -60,7 +63,7 @@ def test():
 def data() -> int128:
     s: int128[5] = [1, 2, 3, 4, 5, 6]
     return 235357
-    """, TypeMismatch),
+    """, InvalidLiteral),
     ("""
 struct S:
     a: int128
@@ -78,13 +81,13 @@ struct S:
 def foo() -> int128:
     s: S = S({b: 1.2, c: 1, d: 33, e: 55})
     return s.a
-    """, TypeMismatch),
+    """, UnknownAttribute),
     ("""
 @public
 def foo() -> bool:
     a: uint256 = -1
     return True
-""", InvalidLiteral),
+""", OverflowException),
     ("""
 @public
 def foo() -> bool:
@@ -96,7 +99,7 @@ def foo() -> bool:
 def foo() -> bool:
     a: int128 = 170141183460469231731687303715884105728
     return True
-""", TypeMismatch),
+""", OverflowException),
 ]
 
 

@@ -8,7 +8,8 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
-    VariableDeclarationException,
+    NamespaceCollision,
+    UndeclaredDefinition,
 )
 
 fail_list = [
@@ -16,23 +17,23 @@ fail_list = [
 @public
 def foo(choice: bool):
     if (choice):
-        a = 1
+        a: int128 = 1
     a += 1
     """,
     """
 @public
 def foo(choice: bool):
     if (choice):
-        a = 0
+        a: int128 = 0
     else:
-        a = 1
+        a: int128 = 1
     a += 1
     """,
     """
 @public
 def foo(choice: bool):
     if (choice):
-        a = 0
+        a: int128 = 0
     else:
         a += 1
     """,
@@ -41,31 +42,42 @@ def foo(choice: bool):
 def foo(choice: bool):
 
     for i in range(4):
-        a = 0
-    a += 1
+        a: int128 = 0
+    a = 1
     """,
     """
 @public
 def foo(choice: bool):
 
     for i in range(4):
-        a = 0
+        a: int128 = 0
     a += 1
-    """,
-    """
-a: int128
-
-@public
-def foo():
-    a = 5
     """,
 ]
 
 
 @pytest.mark.parametrize('bad_code', fail_list)
-def test_fail_(bad_code):
+def test_fail_undeclared(bad_code):
 
-    with raises(VariableDeclarationException):
+    with raises(UndeclaredDefinition):
+        compiler.compile_code(bad_code)
+
+
+fail_list_collision = [
+    """
+a: int128
+
+@public
+def foo():
+    a: int128 = 5
+    """
+]
+
+
+@pytest.mark.parametrize('bad_code', fail_list_collision)
+def test_fail_collision(bad_code):
+
+    with raises(NamespaceCollision):
         compiler.compile_code(bad_code)
 
 
@@ -77,6 +89,15 @@ def foo(choice: bool, choice2: bool):
         a: int128 = 11
         if choice2 and a > 1:
             a -= 1  # should be visible here.
+    """,
+    """
+@public
+def foo(choice: bool):
+    if choice:
+        a: int128 = 44
+    else:
+        a: uint256 = 42
+    a: bool = True
     """
 ]
 

@@ -7,47 +7,48 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
+    InvalidType,
     TypeMismatch,
 )
 
 fail_list = [
-    """
+    ("""
 @public
 def cat(i1: bytes[10], i2: bytes[30]) -> bytes[40]:
     return concat(i1, i2, i1, i1)
-    """,
-    """
+    """, TypeMismatch),
+    ("""
 @public
 def cat(i1: bytes[10], i2: bytes[30]) -> bytes[40]:
     return concat(i1, 5)
-    """,
-    """
+    """, InvalidType),
+    ("""
 @public
 def sandwich(inp: bytes[100], inp2: bytes32) -> bytes[163]:
     return concat(inp2, inp, inp2)
-    """,
-    """
+    """, TypeMismatch),
+    ("""
 y: bytes[10]
 
 @public
 def krazykonkat(z: bytes[10]) -> bytes[24]:
-    x: bytes[10] = "cow"
-    self.y = "horse"
-    return concat(x, " ", self.y, " ", z)
-    """,
-    """
+    x: bytes[10] = b"cow"
+    self.y = b"horse"
+    return concat(x, b" ", self.y, b" ", z)
+    """, TypeMismatch),
+    ("""
 @public
 def cat_list(y: int128) -> bytes[40]:
     x: int128[1] = [y]
     return concat("test", y)
-    """,
+    """, InvalidType),
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
-def test_block_fail(bad_code):
+@pytest.mark.parametrize('bad_code,exc', fail_list)
+def test_block_fail(bad_code, exc):
 
-    with raises(TypeMismatch):
+    with raises(exc):
         compiler.compile_code(bad_code)
 
 
@@ -77,8 +78,8 @@ y: bytes[10]
 
 @public
 def krazykonkat(z: bytes[10]) -> bytes[25]:
-    x: bytes[3] = "cow"
-    self.y = "horse"
+    x: bytes[3] = b"cow"
+    self.y = b"horse"
     return concat(x, b" ", self.y, b" ", z)
     """
 ]

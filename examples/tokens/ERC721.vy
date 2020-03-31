@@ -117,7 +117,7 @@ def balanceOf(_owner: address) -> uint256:
 @constant
 def ownerOf(_tokenId: uint256) -> address:
     """
-    @dev Returns the address of the owner of the NFT. 
+    @dev Returns the address of the owner of the NFT.
          Throws if `_tokenId` is not a valid NFT.
     @param _tokenId The identifier for an NFT.
     """
@@ -160,7 +160,7 @@ def _isApprovedOrOwner(_spender: address, _tokenId: uint256) -> bool:
     @dev Returns whether the given spender can transfer a given token ID
     @param spender address of the spender to query
     @param tokenId uint256 ID of the token to be transferred
-    @return bool whether the msg.sender is approved for the given token ID, 
+    @return bool whether the msg.sender is approved for the given token ID,
         is an operator of the owner, or is the owner of the token
     """
     owner: address = self.idToOwner[_tokenId]
@@ -214,7 +214,7 @@ def _clearApproval(_owner: address, _tokenId: uint256):
 @private
 def _transferFrom(_from: address, _to: address, _tokenId: uint256, _sender: address):
     """
-    @dev Exeute transfer of a NFT. 
+    @dev Exeute transfer of a NFT.
          Throws unless `msg.sender` is the current owner, an authorized operator, or the approved
          address for this NFT. (NOTE: `msg.sender` not allowed in private function so pass `_sender`.)
          Throws if `_to` is the zero address.
@@ -259,7 +259,7 @@ def safeTransferFrom(
         _from: address,
         _to: address,
         _tokenId: uint256,
-        _data: bytes[1024]=""
+        _data: bytes[1024]=b""
     ):
     """
     @dev Transfers the ownership of an NFT from one address to another address.
@@ -286,7 +286,7 @@ def safeTransferFrom(
 @public
 def approve(_approved: address, _tokenId: uint256):
     """
-    @dev Set or reaffirm the approved address for an NFT. The zero address indicates there is no approved address. 
+    @dev Set or reaffirm the approved address for an NFT. The zero address indicates there is no approved address.
          Throws unless `msg.sender` is the current NFT owner, or an authorized operator of the current owner.
          Throws if `_tokenId` is not a valid NFT. (NOTE: This is not written the EIP)
          Throws if `_approved` is the current owner. (NOTE: This is not written the EIP)

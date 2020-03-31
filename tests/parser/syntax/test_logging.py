@@ -7,7 +7,7 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
-    InvalidLiteral,
+    OverflowException,
     TypeMismatch,
 )
 
@@ -34,7 +34,7 @@ Test: event({ n: uint256 })
 @public
 def test():
     log.Test(-7)
-   """, InvalidLiteral),
+   """, OverflowException),
 ]
 
 

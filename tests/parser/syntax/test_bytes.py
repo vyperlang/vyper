@@ -7,18 +7,20 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
+    InvalidLiteral,
+    InvalidOperation,
     SyntaxException,
     TypeMismatch,
 )
 
 fail_list = [
-    """
+    ("""
 @public
 def baa():
     x: bytes[50] = b""
     y: bytes[50] = b""
-    z = x + y
-    """,
+    z: bytes[50] = x + y
+    """, InvalidOperation),
     """
 @public
 def baa():
@@ -55,13 +57,13 @@ def foo(x: bytes[100]) -> int128:
 def foo(x: int128) -> bytes[75]:
     return x
     """,
-    """
+    ("""
 @public
 def foo() -> bytes[10]:
     x: bytes[10] = '0x1234567890123456789012345678901234567890'
     x = 0x1234567890123456789012345678901234567890
     return x
-    """,
+    """, InvalidLiteral),
     """
 @public
 def foo() -> bytes[10]:

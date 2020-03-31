@@ -498,7 +498,7 @@ bar_contract: public(Bar)
 
 @public
 def foo(contract_address: address):
-    self.bar_contract.address = Bar(contract_address)
+    self.bar_contract = Bar(contract_address)
 
 @public
 def get_bar() -> int128:
@@ -567,7 +567,7 @@ def set_contract(contract_address: address):
 
 @payable
 @public
-def get_lucky(amount_to_send: int128) -> int128:
+def get_lucky(amount_to_send: uint256) -> int128:
     if amount_to_send != 0:
         return self.bar_contract.get_lucky(value=amount_to_send)
     else: # send it all
@@ -620,7 +620,7 @@ def set_contract(contract_address: address):
     self.bar_contract = Bar(contract_address)
 
 @public
-def get_lucky(gas_amount: int128) -> int128:
+def get_lucky(gas_amount: uint256) -> int128:
     return self.bar_contract.get_lucky(gas=gas_amount)
 """
 
@@ -739,7 +739,7 @@ def set_contract(contract_address: address):
 
 @payable
 @public
-def get_lucky(amount_to_send: int128):
+def get_lucky(amount_to_send: uint256):
     if amount_to_send != 0:
         self.bar_contract.get_lucky(value=amount_to_send)
     else: # send it all
@@ -770,7 +770,7 @@ def get_lucky(amount_to_send: int128):
     assert w3.eth.getBalance(c2.address) == 250
 
 
-def test_tuple_return_external_contract_call(get_contract_with_gas_estimation):
+def test_tuple_return_external_contract_call(get_contract):
     contract_1 = """
 @public
 def out_literals() -> (int128, address, bytes[10]):
@@ -790,8 +790,8 @@ def test(addr: address) -> (int128, address, bytes[10]):
     return a, b,c
 
     """
-    c1 = get_contract_with_gas_estimation(contract_1)
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
 
     assert c1.out_literals() == [1, "0x0000000000000000000000000000000000000123", b"random"]
     assert c2.test(c1.address) == [1, "0x0000000000000000000000000000000000000123", b"random"]

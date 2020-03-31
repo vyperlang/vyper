@@ -185,7 +185,7 @@ class Expr(object):
         )
 
     def hexstring(self):
-        orignum = self.expr.node_source_code
+        orignum = self.expr.value
         if len(orignum) == 42:
             if checksum_encode(orignum) != orignum:
                 raise InvalidLiteral(

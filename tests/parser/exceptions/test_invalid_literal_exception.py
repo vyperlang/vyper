@@ -30,17 +30,7 @@ def foo():
     """
 @public
 def foo():
-    x = as_wei_value(5.1824, "babbage")
-    """,
-    """
-@public
-def foo():
-    x = as_wei_value(0x05, "babbage")
-    """,
-    """
-@public
-def foo():
-    x = as_wei_value(5, "vader")
+    x: uint256 = as_wei_value(5, "vader")
     """,
     """
 @public
@@ -55,7 +45,7 @@ def foo():
     """
 @public
 def foo():
-    x = convert(-(-(-1)), uint256)
+    x: uint256 = convert(-(-(-1)), uint256)
     """,
     """
 # Test decimal limit.
@@ -72,9 +62,21 @@ def overflow() -> uint256:
     """,
     """
 @public
-def overflow2() -> uint256:
-    a: uint256 = 2**256
-    return a
+def foo(x: int128):
+    y: int128 = 7
+    for i in range(x, x + y):
+        pass
+    """,
+    """
+bar: int128[3]
+@public
+def foo():
+    self.bar = []
+    """,
+    """
+@public
+def foo():
+    x: bytes[4] = create_forwarder_to(0x1234567890123456789012345678901234567890, b"cow")
     """,
 ]
 

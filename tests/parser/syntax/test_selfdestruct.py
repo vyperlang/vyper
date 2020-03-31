@@ -7,7 +7,7 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
-    TypeMismatch,
+    InvalidLiteral,
 )
 
 fail_list = [
@@ -22,7 +22,7 @@ def foo():
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_block_fail(bad_code):
 
-    with raises(TypeMismatch):
+    with raises(InvalidLiteral):
         compiler.compile_code(bad_code)
 
 

@@ -7,9 +7,14 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
+    FunctionDeclarationException,
     InvalidLiteral,
+    InvalidOperation,
+    InvalidType,
     StructureException,
     TypeMismatch,
+    UndeclaredDefinition,
+    UnknownAttribute,
 )
 
 # These functions register test cases
@@ -64,7 +69,7 @@ must_fail("""
 def foo():
     x: int128 = 5
     x = 3.5
-""", TypeMismatch)
+""", InvalidLiteral)
 
 must_succeed("""
 @public
@@ -85,7 +90,7 @@ b: int128
 @public
 def foo():
     self.b = 7.5
-""", TypeMismatch)
+""", InvalidLiteral)
 
 must_succeed("""
 b: decimal
@@ -98,7 +103,7 @@ must_succeed("""
 b: decimal
 @public
 def foo():
-    self.b = 7
+    self.b = 7.0
 """)
 
 must_fail("""
@@ -106,7 +111,7 @@ b: int128[5]
 @public
 def foo():
     self.b = 7
-""", TypeMismatch)
+""", InvalidLiteral)
 
 must_succeed("""
 b: map(int128, int128)
@@ -120,20 +125,20 @@ b: map(uint256, uint256)
 @public
 def foo():
     x: int128 = self.b[-5]
-""", InvalidLiteral)
+""", InvalidType)
 
 must_fail("""
 b: map(int128, int128)
 @public
 def foo():
     x: int128 = self.b[5.7]
-""", TypeMismatch)
+""", InvalidType)
 
 must_succeed("""
 b: map(decimal, int128)
 @public
 def foo():
-    x: int128 = self.b[5]
+    x: int128 = self.b[5.0]
 """)
 
 must_fail("""
@@ -141,7 +146,7 @@ b: map(int128, int128)
 @public
 def foo():
     self.b[3] = 5.6
-""", TypeMismatch)
+""", InvalidLiteral)
 
 must_succeed("""
 b: map(int128, int128)
@@ -183,7 +188,7 @@ bar: int128[3]
 @public
 def foo():
     self.bar = 5
-""", TypeMismatch)
+""", InvalidLiteral)
 
 must_succeed("""
 bar: int128[3]
@@ -229,26 +234,26 @@ def foo():
 must_fail("""
 @public
 def foo():
-    x = -self
-""", TypeMismatch)
+    x: address = -self
+""", InvalidOperation)
 
 must_fail("""
 @public
 def foo() -> int128:
     return
-""", TypeMismatch)
+""", FunctionDeclarationException)
 
 must_fail("""
 @public
 def foo():
     return 3
-""", TypeMismatch)
+""", FunctionDeclarationException)
 
 must_fail("""
 @public
 def foo():
     suicide(msg.sender)
-    """, StructureException)
+    """, UndeclaredDefinition)
 
 must_succeed('''
 @public
@@ -273,7 +278,7 @@ struct StructX:
 @public
 def a():
     x: int128 = StructX({y: 1})
-''', TypeMismatch)
+''', UnknownAttribute)
 
 
 @pytest.mark.parametrize('bad_code,exception_type', fail_list)

@@ -7,6 +7,7 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
+    InvalidType,
     SyntaxException,
     TypeMismatch,
 )
@@ -27,12 +28,12 @@ def foo():
 def foo():
     raw_log([], 0x1234567890123456789012345678901234567890)
     """,
-    """
+    ("""
 @public
 def foo():
     # fails because raw_call without outsize does not return a value
     x: bytes[9] = raw_call(0x1234567890123456789012345678901234567890, b"cow")
-    """,
+    """, InvalidType),
 ]
 
 

@@ -9,6 +9,7 @@ from vyper.compiler import (
     compile_codes,
 )
 from vyper.exceptions import (
+    InterfaceViolation,
     StructureException,
 )
 from vyper.interfaces import (
@@ -86,7 +87,7 @@ def test() -> bool:
 
     assert_compile_failed(
         lambda: compile_code(code),
-        StructureException
+        InterfaceViolation
     )
 
 
@@ -158,7 +159,7 @@ def foo() -> uint256:
 
     assert_compile_failed(
         lambda: compile_code(not_implemented_code, interface_codes=interface_codes),
-        StructureException
+        InterfaceViolation,
     )
 
 
@@ -204,8 +205,8 @@ def test_external_call_to_interface(w3, get_contract):
 balanceOf: public(map(address, uint256))
 
 @public
-def transfer(to: address, value: uint256):
-    self.balanceOf[to] += value
+def transfer(to: address, _value: uint256):
+    self.balanceOf[to] += _value
     """
 
     code = """
@@ -245,8 +246,8 @@ def test_external_call_to_builtin_interface(w3, get_contract):
 balanceOf: public(map(address, uint256))
 
 @public
-def transfer(to: address, value: uint256):
-    self.balanceOf[to] += value
+def transfer(to: address, _value: uint256):
+    self.balanceOf[to] += _value
     """
 
     code = """

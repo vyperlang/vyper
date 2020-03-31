@@ -4,10 +4,10 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
-    InvalidType,
+    ArgumentException,
     StructureException,
     TypeMismatch,
-    VariableDeclarationException,
+    UnknownAttribute,
 )
 
 fail_list = [
@@ -24,7 +24,7 @@ aba: public(ERC20)
 @public
 def test():
     self.aba = ERC20
-    """, VariableDeclarationException),
+    """, StructureException),
     ("""
 from vyper.interfaces import ERC20
 
@@ -36,20 +36,20 @@ from vyper.interfaces import ERC20
 @public
 def test():
     a: address(ERC20) = ZERO_ADDRESS
-    """, InvalidType),
+    """, StructureException),
     ("""
 a: address
 
 @public
 def test():  # may not call normal address
     assert self.a.random()
-    """, StructureException),
+    """, UnknownAttribute),
     ("""
 from vyper.interfaces import ERC20
 @public
 def test(a: address):
     my_address: address = ERC20()
-    """, TypeMismatch)
+    """, ArgumentException)
 ]
 
 
@@ -78,9 +78,9 @@ token: ERC20
 
 @public
 def test():
-    assert self.factory.getExchange(self.token) == self
-    exchange: address = self.factory.getExchange(self.token)
-    assert exchange == self.token
+    assert self.factory.getExchange(self.token.address) == self
+    exchange: address = self.factory.getExchange(self.token.address)
+    assert exchange == self.token.address
     assert self.token.totalSupply() > 0
     """,
     """
@@ -95,7 +95,7 @@ a: public(ERC20)
 
 @public
 def test() -> address:
-    return self.a
+    return self.a.address
     """,
     """
 from vyper.interfaces import ERC20
@@ -105,7 +105,7 @@ b: address
 
 @public
 def test():
-    self.b = self.a
+    self.b = self.a.address
     """,
     """
 from vyper.interfaces import ERC20
@@ -118,7 +118,7 @@ b: aStruct
 
 @public
 def test() -> address:
-    self.b.my_address = self.a
+    self.b.my_address = self.a.address
     return self.b.my_address
     """,
     """
@@ -126,7 +126,7 @@ from vyper.interfaces import ERC20
 a: public(ERC20)
 @public
 def test():
-    b: address = self.a
+    b: address = self.a.address
     """
 ]
 

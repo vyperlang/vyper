@@ -7,6 +7,7 @@ from vyper import (
     compiler,
 )
 from vyper.exceptions import (
+    InvalidType,
     TypeMismatch,
 )
 
@@ -31,7 +32,7 @@ def foo() -> decimal:
     """
 @public
 def foo():
-    x: bytes[10] = slice("cow", 0, block.timestamp)
+    x: bytes[10] = slice(b"cow", 0, block.timestamp)
     """,
     """
 @public
@@ -46,13 +47,13 @@ a: map(uint256, int128)
 def add_record():
     self.a[block.timestamp] = block.timestamp + 20
     """,
-    """
+    ("""
 a: map(int128, int128)
 
 @public
 def add_record():
     self.a[block.timestamp] = block.timestamp + 20
-    """,
+    """, InvalidType),
     """
 struct X:
     x: uint256

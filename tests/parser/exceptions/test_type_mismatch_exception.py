@@ -16,6 +16,11 @@ fail_list = [
 def test_func() -> int128:
     return (1, 2)
     """,
+    """
+@public
+def foo():
+    x: uint256 = as_wei_value(0x05, "babbage")
+    """,
 ]
 
 

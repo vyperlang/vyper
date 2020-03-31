@@ -1,7 +1,4 @@
 import pytest
-from pytest import (
-    raises,
-)
 
 from vyper import (
     compiler,
@@ -12,48 +9,33 @@ from vyper.exceptions import (
 
 fail_list = [
     """
+x: int128
 @public
-def foo(x: int128, x: int128): pass
-    """,
-    """
-@public
-def foo(int128: int128):
-    pass
-    """,
-    """
-@public
-def foo():
-    x: int128
-@public
-def foo():
-    y: int128
-    """,
-    """
-@public
-def foo():
-    self.goo()
-
-@public
-def goo():
-    self.foo()
-    """,
-    """
-foo: int128
-
-@public
-def foo():
+@const
+def foo() -> int128:
     pass
     """,
     """
 x: int128
-
 @public
-def foo(x: int128): pass
+@monkeydoodledoo
+def foo() -> int128:
+    pass
+    """,
+    """
+def foo() -> int128:
+    q: int128 = 111
+    return q
+    """,
+    """
+q: int128
+def foo() -> int128:
+    return self.q
     """,
 ]
 
 
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_function_declaration_exception(bad_code):
-    with raises(FunctionDeclarationException):
+    with pytest.raises(FunctionDeclarationException):
         compiler.compile_code(bad_code)

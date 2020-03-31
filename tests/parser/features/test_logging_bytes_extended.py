@@ -103,9 +103,9 @@ MyLog: event({
 def foo():
     log.MyLog(
         [[24, 26], [12, 10]],
-        'hellohellohellohellohellohellohellohellohello',
+        b'hellohellohellohellohellohellohellohellohello',
         314159,
-        'helphelphelphelphelphelphelphelphelphelphelp'
+        b'helphelphelphelphelphelphelphelphelphelphelp'
     )
     """
 

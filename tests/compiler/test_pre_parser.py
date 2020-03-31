@@ -24,7 +24,7 @@ def test_valid_semicolons(get_contract):
 def test() -> int128:
     a: int128 = 1
     b: int128 = 2
-    s: bytes[300] = "this should not be a problem; because it is in a string"
+    s: string[300] = "this should not be a problem; because it is in a string"
     s = \"\"\"this should not be a problem; because it's in a string\"\"\"
     s = 'this should not be a problem;;; because it\\\'s in a string'
     s = '''this should not ; \'cause it\'s in a string'''
