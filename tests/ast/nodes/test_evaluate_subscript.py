@@ -3,13 +3,15 @@ from hypothesis import (
     settings,
     strategies as st,
 )
+import pytest
 
 from vyper import (
     ast as vy_ast,
 )
 
 
-@settings(max_examples=20, deadline=500)
+@pytest.mark.fuzzing
+@settings(deadline=500)
 @given(
     idx=st.integers(min_value=0, max_value=9),
     array=st.lists(st.integers(), min_size=10, max_size=10),

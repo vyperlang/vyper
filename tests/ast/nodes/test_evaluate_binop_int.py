@@ -4,143 +4,83 @@ from hypothesis import (
     settings,
     strategies as st,
 )
+import pytest
 
 from vyper import (
     ast as vy_ast,
 )
-
-
-@settings(max_examples=20, deadline=500)
-@given(left=st.integers(), right=st.integers())
-def test_binop_add(left, right, get_contract):
-    source = """
-@public
-def foo(a: int128, b: int128) -> int128:
-    return a + b
-    """
-    contract = get_contract(source)
-
-    vyper_ast = vy_ast.parse_to_ast(f"{left} + {right}")
-    old_node = vyper_ast.body[0].value
-    new_node = old_node.evaluate()
-
-    assert contract.foo(left, right) == new_node.value
-
-
-# strategy bounds values ensure results do not overflow
-@settings(max_examples=20, deadline=500)
-@given(left=st.integers(), right=st.integers())
-def test_binop_sub(left, right, get_contract):
-    source = """
-@public
-def foo(a: int128, b: int128) -> int128:
-    return a - b
-    """
-    contract = get_contract(source)
-
-    vyper_ast = vy_ast.parse_to_ast(f"{left} - {right}")
-    old_node = vyper_ast.body[0].value
-    new_node = old_node.evaluate()
-
-    assert contract.foo(left, right) == new_node.value
-
-
-@settings(max_examples=20, deadline=500)
-@given(
-    left=st.integers(min_value=-2**32, max_value=2**32),
-    right=st.integers(min_value=-2**32, max_value=2**32),
+from vyper.exceptions import (
+    ZeroDivisionException,
 )
-def test_binop_mul(left, right, get_contract):
-    source = """
+
+
+@pytest.mark.fuzzing
+@settings(deadline=500)
+@given(
+    left=st.integers(min_value=-(2 ** 32), max_value=2 ** 32),
+    right=st.integers(min_value=-(2 ** 32), max_value=2 ** 32),
+)
+@pytest.mark.parametrize("op", "+-*/%")
+def test_binop_int128(get_contract, assert_tx_failed, op, left, right):
+    source = f"""
 @public
 def foo(a: int128, b: int128) -> int128:
-    return a * b
+    return a {op} b
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"{left} * {right}")
+    vyper_ast = vy_ast.parse_to_ast(f"{left} {op} {right}")
     old_node = vyper_ast.body[0].value
-    new_node = old_node.evaluate()
+    try:
+        new_node = old_node.evaluate()
+        is_valid = True
+    except ZeroDivisionException:
+        is_valid = False
 
-    assert contract.foo(left, right) == new_node.value
+    if is_valid:
+        assert contract.foo(left, right) == new_node.value
+    else:
+        assert_tx_failed(lambda: contract.foo(left, right))
 
 
-@settings(max_examples=20, deadline=500)
-@given(left=st.integers(min_value=0), right=st.integers(min_value=1))
-def test_binop_div(left, right, get_contract):
-    source = """
+@pytest.mark.fuzzing
+@settings(deadline=500)
+@given(
+    left=st.integers(min_value=0, max_value=2 ** 64),
+    right=st.integers(min_value=0, max_value=2 ** 64),
+)
+@pytest.mark.parametrize("op", "+-*/%")
+def test_binop_uint256(get_contract, assert_tx_failed, op, left, right):
+    source = f"""
 @public
 def foo(a: uint256, b: uint256) -> uint256:
-    return a / b
+    return a {op} b
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"{left} / {right}")
+    vyper_ast = vy_ast.parse_to_ast(f"{left} {op} {right}")
     old_node = vyper_ast.body[0].value
-    new_node = old_node.evaluate()
+    try:
+        new_node = old_node.evaluate()
+        is_valid = new_node.value >= 0
+    except ZeroDivisionException:
+        is_valid = False
 
-    assert contract.foo(left, right) == new_node.value
-
-
-@settings(max_examples=20, deadline=500)
-@given(left=st.integers(), right=st.integers().filter(lambda x: x != 0))
-def test_binop_sdiv(left, right, get_contract):
-    source = """
-@public
-def foo(a: int128, b: int128) -> int128:
-    return a / b
-    """
-    contract = get_contract(source)
-
-    vyper_ast = vy_ast.parse_to_ast(f"{left} / {right}")
-    old_node = vyper_ast.body[0].value
-    new_node = old_node.evaluate()
-
-    assert contract.foo(left, right) == new_node.value
+    if is_valid:
+        assert contract.foo(left, right) == new_node.value
+    else:
+        assert_tx_failed(lambda: contract.foo(left, right))
 
 
-@settings(max_examples=20, deadline=500)
-@given(left=st.integers(min_value=0), right=st.integers(min_value=1))
-def test_binop_mod(left, right, get_contract):
-    source = """
-@public
-def foo(a: uint256, b: uint256) -> uint256:
-    return a % b
-    """
-    contract = get_contract(source)
-
-    vyper_ast = vy_ast.parse_to_ast(f"{left} % {right}")
-    old_node = vyper_ast.body[0].value
-    new_node = old_node.evaluate()
-
-    assert contract.foo(left, right) == new_node.value
-
-
-@settings(max_examples=20, deadline=500)
-@given(left=st.integers(), right=st.integers().filter(lambda x: x != 0))
-def test_binop_smod(left, right, get_contract):
-    source = """
-@public
-def foo(a: int128, b: int128) -> int128:
-    return a % b
-    """
-    contract = get_contract(source)
-
-    vyper_ast = vy_ast.parse_to_ast(f"{left} % {right}")
-    old_node = vyper_ast.body[0].value
-    new_node = old_node.evaluate()
-
-    assert contract.foo(left, right) == new_node.value
-
-
-@settings(max_examples=20, deadline=500)
+@pytest.mark.fuzzing
+@settings(deadline=500)
 @given(
     left=st.integers(min_value=2, max_value=245),
     right=st.integers(min_value=0, max_value=16),
 )
 @example(left=0, right=0)
 @example(left=0, right=1)
-def test_binop_pow(left, right, get_contract):
+def test_binop_int_pow(get_contract, left, right):
     source = """
 @public
 def foo(a: uint256, b: uint256) -> uint256:
@@ -153,3 +93,43 @@ def foo(a: uint256, b: uint256) -> uint256:
     new_node = old_node.evaluate()
 
     assert contract.foo(left, right) == new_node.value
+
+
+@pytest.mark.fuzzing
+@settings(deadline=500)
+@given(
+    values=st.lists(
+        st.integers(min_value=-256, max_value=256), min_size=2, max_size=10
+    ),
+    ops=st.lists(st.sampled_from("+-*/%"), min_size=11, max_size=11),
+)
+def test_binop_nested(get_contract, assert_tx_failed, values, ops):
+
+    variables = "abcdefghij"
+
+    return_value = " ".join(f"{a} {b}" for a, b in zip(variables[: len(values)], ops))
+    return_value = return_value.rsplit(maxsplit=1)[0]
+
+    source = f"""
+@public
+def foo({','.join(f'{i}: int128' for i in variables[:len(values)])}) -> int128:
+    return {return_value}
+    """
+    contract = get_contract(source)
+
+    literal_op = " ".join(f"{a} {b}" for a, b in zip(values, ops))
+    literal_op = literal_op.rsplit(maxsplit=1)[0]
+
+    vyper_ast = vy_ast.parse_to_ast(literal_op)
+
+    try:
+        vy_ast.folding.replace_literal_ops(vyper_ast)
+        expected = vyper_ast.body[0].value.value
+        is_valid = True
+    except ZeroDivisionException:
+        is_valid = False
+
+    if is_valid:
+        assert contract.foo(*values) == expected
+    else:
+        assert_tx_failed(lambda: contract.foo(*values))
