@@ -10,7 +10,7 @@ from vyper.context import (
 from vyper.context.definitions import (
     ContractFunction,
     Literal,
-    get_variable_from_nodes,
+    build_value_definition,
 )
 from vyper.context.utils import (
     VyperNodeVisitorBase,
@@ -66,7 +66,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             namespace[interface_name].validate_implements(node)
 
         else:
-            var = get_variable_from_nodes(name, node.annotation, node.value)
+            var = build_value_definition(name, node.annotation, node.value)
             if hasattr(var, '_member_of'):
                 try:
                     namespace[var._member_of].add_member(name, var)

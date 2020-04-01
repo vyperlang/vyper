@@ -41,7 +41,7 @@ from vyper.exceptions import (
 )
 
 
-def get_variable_from_nodes(
+def build_value_definition(
     name: str, annotation: vy_ast.VyperNode, value: Optional[vy_ast.VyperNode]
 ):
     """

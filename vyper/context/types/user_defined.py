@@ -15,7 +15,7 @@ from vyper.context.definitions import (
     ContractFunction,
     Reference,
     get_definition_from_node,
-    get_variable_from_nodes,
+    build_value_definition,
 )
 from vyper.context.types.bases.structure import (
     MemberType,
@@ -75,7 +75,7 @@ class StructMetaType(_BaseMetaType):
                 raise NamespaceCollision(
                     f"Struct member '{member_name}'' has already been declared", node.target
                 )
-            members[member_name] = get_variable_from_nodes(member_name, node.annotation, None)
+            members[member_name] = build_value_definition(member_name, node.annotation, None)
         return StructType(base_node.name, members)
 
 

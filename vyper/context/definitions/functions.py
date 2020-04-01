@@ -23,7 +23,7 @@ from vyper.context.definitions.utils import (
 )
 from vyper.context.definitions.values import (
     Reference,
-    get_variable_from_nodes,
+    build_value_definition,
 )
 from vyper.context.types import (
     get_builtin_type,
@@ -192,7 +192,7 @@ class ContractFunction(CallableDefinition, PublicDefinition):
                 if not isinstance(get_definition_from_node(value), ReadOnlyDefinition):
                     raise ConstancyViolation("Must be a literal or constant", value)
 
-            var = get_variable_from_nodes(arg.arg, arg.annotation, value)
+            var = build_value_definition(arg.arg, arg.annotation, value)
             arguments[arg.arg] = var
 
         # return types
@@ -213,7 +213,7 @@ class ContractFunction(CallableDefinition, PublicDefinition):
 
     @classmethod
     def from_AnnAssign(cls, node):
-        var = get_variable_from_nodes(node.target.id, node.annotation, None)
+        var = build_value_definition(node.target.id, node.annotation, None)
         arguments, return_type = var.get_signature()
         return cls(var.name, arguments, len(arguments), return_type, is_public=True)
 

@@ -9,5 +9,5 @@ from vyper.context.definitions.values import (  # NOQA: F401
     Literal,
     ReadOnlyDefinition,
     Reference,
-    get_variable_from_nodes,
+    build_value_definition,
 )

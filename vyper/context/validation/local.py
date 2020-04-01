@@ -9,7 +9,7 @@ from vyper.context.definitions import (
     Reference,
     get_definition_from_node,
     get_literal_or_raise,
-    get_variable_from_nodes,
+    build_value_definition,
 )
 from vyper.context.types.bases.data import (
     BoolBase,
@@ -105,7 +105,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise NamespaceCollision(
                 "Variable name shadows an existing storage-scoped value", node
             )
-        var = get_variable_from_nodes(name, node.annotation, node.value)
+        var = build_value_definition(name, node.annotation, node.value)
         try:
             namespace[name] = var
         except VyperException as exc:

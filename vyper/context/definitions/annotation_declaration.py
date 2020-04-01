@@ -13,7 +13,7 @@ from vyper.context.definitions.utils import (
     get_definition_from_node,
 )
 from vyper.context.definitions.values import (
-    get_variable_from_nodes,
+    build_value_definition,
 )
 from vyper.context.types import (
     get_type_from_annotation,
@@ -62,7 +62,7 @@ class MappingDefinition(PublicDefinition):
         validate_call_args(annotation, 2)
         self.key_type = get_type_from_annotation(annotation.args[0])
 
-        self.value = get_variable_from_nodes(f"{name}_value", annotation.args[1], None)
+        self.value = build_value_definition(f"{name}_value", annotation.args[1], None)
         return self
 
     def __repr__(self):
