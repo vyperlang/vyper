@@ -98,7 +98,6 @@ class Event(CallableDefinition):
         indexed.
     """
 
-    __slots__ = ("indexed",)
     _id = "event"
     _member_of = "log"
 
