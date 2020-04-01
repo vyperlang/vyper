@@ -1,7 +1,7 @@
 from vyper.context.types import (  # NOQA: F401,
     builtins,
 )
-from vyper.context.types.bases import (  # NOQA: F401`
+from vyper.context.types.bases.structure import (  # NOQA: F401
     ValueType,
 )
 from vyper.context.types.union import (  # NOQA: F401

@@ -11,7 +11,7 @@ from vyper.context.definitions import (
     get_literal_or_raise,
     get_variable_from_nodes,
 )
-from vyper.context.types.core import (
+from vyper.context.types.bases.data import (
     BoolBase,
     IntegerBase,
 )

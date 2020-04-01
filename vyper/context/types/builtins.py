@@ -9,12 +9,12 @@ from typing import (
 from vyper import (
     ast as vy_ast,
 )
-from vyper.context.types.bases import (
+from vyper.context.types.bases.structure import (
     ArrayValueType,
     MemberType,
     ValueType,
 )
-from vyper.context.types.core import (
+from vyper.context.types.bases.data import (
     AddressBase,
     BoolBase,
     BytesBase,

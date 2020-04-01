@@ -17,7 +17,7 @@ from vyper.context.definitions import (
     get_definition_from_node,
     get_variable_from_nodes,
 )
-from vyper.context.types.bases import (
+from vyper.context.types.bases.structure import (
     MemberType,
 )
 from vyper.context.utils import (

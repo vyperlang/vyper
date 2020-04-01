@@ -19,7 +19,7 @@ from vyper.context.types import (
     get_builtin_type,
     user_defined,
 )
-from vyper.context.types.bases import (
+from vyper.context.types.bases.structure import (
     EnvironmentVariableType,
 )
 

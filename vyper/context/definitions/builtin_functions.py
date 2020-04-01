@@ -30,14 +30,13 @@ from vyper.context.definitions.values import (
     Reference,
 )
 from vyper.context.types import (
+
     UnionType,
+    ValueType,
     get_builtin_type,
     get_type_from_annotation,
 )
-from vyper.context.types.bases import (
-    ValueType,
-)
-from vyper.context.types.core import (
+from vyper.context.types.bases.data import (
     BytesBase,
     NumericBase,
     StringBase,

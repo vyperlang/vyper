@@ -24,7 +24,7 @@ from vyper.context.types import (
     UnionType,
     get_type_from_annotation,
 )
-from vyper.context.types.bases import (
+from vyper.context.types.bases.structure import (
     MemberType,
     ValueType,
 )
