@@ -10,7 +10,6 @@ from vyper.context.types.union import (
 )
 from vyper.context.utils import (
     compare_types,
-    get_index_value,
 )
 from vyper.exceptions import (
     ConstancyViolation,
@@ -19,8 +18,6 @@ from vyper.exceptions import (
     InvalidType,
     StructureException,
     TypeMismatch,
-    UndeclaredDefinition,
-    UnknownType,
     VyperException,
 )
 
@@ -140,37 +137,3 @@ def get_literal_or_raise(node):
     return definitions.Literal.from_type(
         [i.type for i in value], "literal", [i.value for i in value]
     )
-
-
-def get_type_from_annotation(node: vy_ast.VyperNode):
-    """
-    Returns a type object for the given annotation node.
-
-    Arguments
-    ---------
-    node : VyperNode
-        Vyper ast node from the `.annotation` member of an `AnnAssign` node.
-
-    Returns
-    -------
-    BaseType | list
-        If the node defines an array, the return type will be a list
-        of BaseType objects.
-    """
-    try:
-        type_name = next(i.id for i in node.get_descendants(vy_ast.Name, include_self=True))
-        type_obj = namespace[type_name]
-    except (StopIteration, UndeclaredDefinition):
-        raise UnknownType(f"Not a valid type", node) from None
-
-    if getattr(type_obj, '_as_array', False) and isinstance(node, vy_ast.Subscript):
-        try:
-            length = get_index_value(node.slice)
-        except VyperException as exc:
-            raise UnknownType(str(exc)) from None
-        return [get_type_from_annotation(node.value)] * length
-
-    try:
-        return type_obj.from_annotation(node)
-    except AttributeError:
-        raise UnknownType(f"'{type_name}' is not a valid type", node) from None

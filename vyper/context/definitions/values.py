@@ -19,10 +19,10 @@ from vyper.context.definitions.bases import (
 from vyper.context.definitions.utils import (
     get_definition_from_node,
     get_literal_or_raise,
-    get_type_from_annotation,
 )
 from vyper.context.types import (
     UnionType,
+    get_type_from_annotation,
 )
 from vyper.context.types.bases import (
     MemberType,

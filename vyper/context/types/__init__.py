@@ -9,4 +9,5 @@ from vyper.context.types.union import (  # NOQA: F401
 )
 from vyper.context.types.utils import (  # NOQA: F401
     get_builtin_type,
+    get_type_from_annotation,
 )

@@ -9,15 +9,24 @@ from typing import (
 from vyper import (
     ast as vy_ast,
 )
+from vyper.context import (
+    namespace,
+)
 from vyper.context.types import (
     builtins,
 )
 from vyper.context.types.union import (
     UnionType,
 )
+from vyper.context.utils import (
+    get_index_value,
+)
 from vyper.exceptions import (
     InvalidType,
     OverflowException,
+    UndeclaredDefinition,
+    UnknownType,
+    VyperException,
 )
 
 
@@ -84,3 +93,37 @@ def get_builtin_type(type_definition: Union[List, Set, Dict, Tuple, str]):
     type_class = next(v for v in value if getattr(v, '_id', None) == name)
 
     return type_class(*args)
+
+
+def get_type_from_annotation(node: vy_ast.VyperNode):
+    """
+    Returns a type object for the given annotation node.
+
+    Arguments
+    ---------
+    node : VyperNode
+        Vyper ast node from the `.annotation` member of an `AnnAssign` node.
+
+    Returns
+    -------
+    BaseType | list
+        If the node defines an array, the return type will be a list
+        of BaseType objects.
+    """
+    try:
+        type_name = next(i.id for i in node.get_descendants(vy_ast.Name, include_self=True))
+        type_obj = namespace[type_name]
+    except (StopIteration, UndeclaredDefinition):
+        raise UnknownType(f"Not a valid type", node) from None
+
+    if getattr(type_obj, '_as_array', False) and isinstance(node, vy_ast.Subscript):
+        try:
+            length = get_index_value(node.slice)
+        except VyperException as exc:
+            raise UnknownType(str(exc)) from None
+        return [get_type_from_annotation(node.value)] * length
+
+    try:
+        return type_obj.from_annotation(node)
+    except AttributeError:
+        raise UnknownType(f"'{type_name}' is not a valid type", node) from None

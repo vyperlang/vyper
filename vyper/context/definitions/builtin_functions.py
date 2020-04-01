@@ -24,7 +24,6 @@ from vyper.context.definitions.bases import (
 from vyper.context.definitions.utils import (
     get_definition_from_node,
     get_literal_or_raise,
-    get_type_from_annotation,
 )
 from vyper.context.definitions.values import (
     Literal,
@@ -33,6 +32,7 @@ from vyper.context.definitions.values import (
 from vyper.context.types import (
     UnionType,
     get_builtin_type,
+    get_type_from_annotation,
 )
 from vyper.context.types.bases import (
     ValueType,

@@ -11,10 +11,12 @@ from vyper.context.definitions.bases import (
 )
 from vyper.context.definitions.utils import (
     get_definition_from_node,
-    get_type_from_annotation,
 )
 from vyper.context.definitions.values import (
     get_variable_from_nodes,
+)
+from vyper.context.types import (
+    get_type_from_annotation,
 )
 from vyper.context.utils import (
     compare_types,
