@@ -1,4 +1,4 @@
-from vyper.context.definitions.functions import (  # NOQA: F401
+from vyper.context.definitions.contract_functions import (  # NOQA: F401
     ContractFunction,
 )
 from vyper.context.definitions.utils import (  # NOQA: F401
