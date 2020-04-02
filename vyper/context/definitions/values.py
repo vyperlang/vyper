@@ -22,6 +22,7 @@ from vyper.context.definitions.utils import (
 )
 from vyper.context.types import (
     UnionType,
+    get_builtin_type,
     get_type_from_annotation,
 )
 from vyper.context.types.bases.structure import (
@@ -255,7 +256,12 @@ class Reference(ValueDefinition):
         return cls.from_type(type_, "")
 
     def get_signature(self):
-        # TODO arrays
+        arguments = ()
+        type_ = self.type
+        while isinstance(type_, list):
+            arguments = (get_builtin_type('uint256'),) + arguments
+            type_ = type_[0]
+
         return (), self.type
 
 

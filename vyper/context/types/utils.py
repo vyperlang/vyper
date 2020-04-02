@@ -121,6 +121,7 @@ def get_type_from_annotation(node: vy_ast.VyperNode):
             length = get_index_value(node.slice)
         except VyperException as exc:
             raise UnknownType(str(exc)) from None
+        # TODO don't handle this as a list
         return [get_type_from_annotation(node.value)] * length
 
     try:

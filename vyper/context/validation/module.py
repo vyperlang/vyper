@@ -53,6 +53,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
             # Only raise if no nodes were successfully processed. This allows module
             # level logic to parse regardless of the ordering of code elements.
+            # TODO this should only be allowed in certain cases
             if count == len(module_nodes):
                 err_list.raise_if_not_empty()
 
