@@ -5,18 +5,18 @@
 Types
 #####
 
-Vyper is a statically typed language, which means that the type of each
-variable (state and local) needs to be specified or at least known at
-compile-time. Vyper provides several elementary types which can be combined
-to form complex types.
+Vyper is a statically typed language. This means that the type of each variable (state and local) must be specified or at least known at compile-time. Vyper provides several elementary types which can be combined to form complex types.
 
-In addition, types can interact with each other in expressions containing
-operators.
+In addition, types can interact with each other in expressions containing operators.
+
+.. note::
+
+    Vyper does not currently support short circuiting. All values are evaluated during comparisons and boolean operations.
 
 .. index:: ! value
 
 Value Types
-***********
+===========
 
 The following types are also called value types because variables of these
 types will always be passed by value, i.e. they are always copied when they
@@ -25,54 +25,53 @@ are used as function arguments or in assignments.
 .. index:: ! bool, ! true, ! false
 
 Boolean
-=======
+-------
 
-**Keyword:** ``bool``
+.. py:attribute:: bool
 
-A boolean is a type to store a logical/truth value.
+    A boolean is a type to store a logical/truth value.
 
-Values
-------
+    .. code-block:: python
 
-The only possible values are the constants ``True`` and ``False``.
+        foo: bool = True
+
+    The only possible values are the constants ``True`` and ``False``.
 
 Operators
----------
+*********
 
 ====================  ===================
 Operator              Description
 ====================  ===================
-``x not y``           Logical negation
+``not x``             Logical negation
 ``x and y``           Logical conjunction
 ``x or y``            Logical disjunction
 ``x == y``            Equality
 ``x != y``            Inequality
 ====================  ===================
 
-The operators ``or`` and ``and`` do not apply short-circuiting rules, i.e. both
-``x`` and ``y`` will always be evaluated.
-
 .. index:: ! int128, ! int, ! integer
 
 Signed Integer (128 bit)
-========================
+------------------------
 
-**Keyword:** ``int128``
+.. py:attribute:: int128
 
-A signed integer (128 bit) is a type to store positive and negative integers.
+    A 128-bit signed integer is a type to store positive and negative integers.
 
-Values
-------
+    .. code-block:: python
 
-Signed integer values between -2\ :sup:`127` and (2\ :sup:`127` - 1), inclusive.
+        foo: int128 = -42
+
+    :attr:`int128` may contain any integer value between -2\ :sup:`127` and (2\ :sup:`127` - 1), inclusive. Vyper does not allow decimal, hex, binary, or octal literals to be cast as integers.
 
 Operators
----------
+*********
 
 Comparisons
 ^^^^^^^^^^^
 
-Comparisons return a boolean value.
+Comparisons return a :attr:`bool` value.
 
 ==========  ================
 Operator    Description
@@ -85,10 +84,13 @@ Operator    Description
 ``x > y``   Greater than
 ==========  ================
 
-``x`` and ``y`` must be of the type ``int128``.
-
 Arithmetic Operators
 ^^^^^^^^^^^^^^^^^^^^
+
+* Arithmetic operations cannot be performed between different numeric types.
+* The result of division is always truncated. For example, ``-5 / 3`` returns ``-1``.
+* A transaction will revert if the result of an arithmetic operation would exceed the numeric bounds for the given type.
+* A transaction will revert on an attempt to divide by zero or modulus zero.
 
 =============  ======================
 Operator       Description
@@ -104,27 +106,23 @@ Operator       Description
 ``max(x, y)``  Maximum
 =============  ======================
 
-``x`` and ``y`` must be of the type ``int128``.
-
 .. index:: ! unit, ! uint256
 
 Unsigned Integer (256 bit)
-==========================
+--------------------------
 
-**Keyword:** ``uint256``
+.. py:attribute:: uint256
 
-An unsigned integer (256 bit) is a type to store non-negative integers.
+    An unsigned integer (256 bit) is a type to store non-negative integers.
 
-Values
-------
+    .. code-block:: python
 
-Integer values between 0 and (2\ :sup:`256`-1).
+        foo: uint256 = 31337
 
-.. note::
-    Integer literals are interpreted as ``int128`` by default. In cases where ``uint256`` is more appropriate, such as assignment, the literal might be interpreted as ``uint256``. Example: ``_variable: uint256 = _literal``. In order to explicitly cast a literal to a ``uint256`` use ``convert(_literal, uint256)``.
+    :attr:`uint256` may contain any integer value between 0 and (2\ :sup:`256`-1), inclusive.  Vyper does not allow decimal, hex, binary, or octal literals to be cast as integers.
 
 Operators
----------
+*********
 
 Comparisons
 ^^^^^^^^^^^
@@ -142,10 +140,15 @@ Operator    Description
 ``x > y``   Greater than
 ==========  ================
 
-``x`` and ``y`` must be of the type ``uint256``.
+``x`` and ``y`` must be of the type :attr:`uint256`.
 
 Arithmetic Operators
 ^^^^^^^^^^^^^^^^^^^^
+
+* Arithmetic operations cannot be performed between different numeric types.
+* The result of division is always truncated. For example, ``5 / 3`` returns ``1``.
+* A transaction will revert if the result of an arithmetic operation would exceed the numeric bounds for the given type.
+* A transaction will revert on an attempt to divide by zero or modulus zero.
 
 ===========================  ======================
 Operator                     Description
@@ -162,8 +165,6 @@ Operator                     Description
 ``max(x, y)``                Maximum
 ===========================  ======================
 
-``x``, ``y`` and ``z`` must be of the type ``uint256``.
-
 Bitwise Operators
 ^^^^^^^^^^^^^^^^^
 
@@ -177,31 +178,34 @@ Operator              Description
 ``shift(x, _shift)``  Bitwise Shift
 ===================== =============
 
-``x`` and ``y`` must be of the type ``uint256``. ``_shift`` must be of the type ``int128``.
+``x`` and ``y`` must be of the type :attr:`uint256`. ``_shift`` must be of the type :attr:`int128`.
 
 .. note::
     Positive ``_shift`` equals a left shift; negative ``_shift`` equals a right shift.
     Values shifted above/below the most/least significant bit get discarded.
 
 Decimals
-========
+--------
 
-**Keyword:** ``decimal``
+.. py:attribute:: decimal
 
-A decimal is a type to store a decimal fixed point value.
+    A decimal is a type to store a decimal fixed point value.
 
-Values
-------
+    .. code-block:: python
 
-A value with a precision of 10 decimal places between -2\ :sup:`127` and (2\ :sup:`127` - 1).
+        foo: decimal = 1.28
+
+    :attr:`decimal` may contain any value between -2\ :sup:`127` and (2\ :sup:`127` - 1), inclusive, with a precision of up to 10 decimal places.
+
+    Vyper does not allow implicit casting of integer literals to decimals. ``1`` must be written as ``1.0``.
 
 Operators
----------
+*********
 
 Comparisons
 ^^^^^^^^^^^
 
-Comparisons return a boolean value.
+Comparisons return a :attr:`bool` value.
 
 ==========  ================
 Operator    Description
@@ -214,10 +218,16 @@ Operator    Description
 ``x > y``   Greater than
 ==========  ================
 
-``x`` and ``y`` must be of the type ``decimal``.
+``x`` and ``y`` must be of the type :attr:`decimal`.
 
 Arithmetic Operators
 ^^^^^^^^^^^^^^^^^^^^
+
+* Arithmetic operations cannot be performed between different numeric types.
+* The result of division is always truncated at ten decimal places. For example, ``-5.0 / 3.0`` returns ``-1.6666666666``.
+* A transaction will revert if the result of an arithmetic operation would exceed the numeric bounds for the given type.
+* A transaction will revert on an attempt to divide by zero or modulus zero.
+* Exponentiation is not possible on decimal values.
 
 =============  ==========================================
 Operator       Description
@@ -230,112 +240,172 @@ Operator       Description
 ``x % y``      Modulo
 ``min(x, y)``  Minimum
 ``max(x, y)``  Maximum
-``floor(x)``   Largest integer <= ``x``. Returns ``int128``.
-``ceil(x)``    Smallest integer >= ``x``. Returns ``int128``.
+``floor(x)``   Largest integer <= ``x``. Returns :attr:`int128`.
+``ceil(x)``    Smallest integer >= ``x``. Returns :attr:`int128`.
 =============  ==========================================
 
-``x`` and ``y`` must be of the type ``decimal``.
+``x`` and ``y`` must be of the type :attr:`decimal`.
 
 .. _address:
 
 Address
-=======
+-------
 
-**Keyword:** ``address``
+.. py:attribute:: address
 
-The address type holds an Ethereum address.
+    The address type holds an Ethereum address.
 
-Values
-------
 
-An address type can hold an Ethereum address which equates to 20 bytes or 160 bits. It returns in hexadecimal notation with a leading ``0x``.
+    .. code-block:: python
+
+        foo: address = 0x829BD824B016326A401d083B33D092293333A830
+
+    :attr:`address` must be given as a `checksummed <https://eips.ethereum.org/EIPS/eip-55>`_ 20 byte hexadecimal value.
 
 .. _members-of-addresses:
 
 Members
-^^^^^^^
+*******
 
 ===============  =========================================================
 Member           Description
 ===============  =========================================================
-``balance``      Query the balance of an address. Returns ``uint256``.
-``codehash``     Returns the ``bytes32`` keccak of the code at an address, or ``EMPTY_BYTES32`` if the account does not currently have code.
-``codesize``     Query the code size of an address. Returns ``int128``.
-``is_contract``  Query whether it is a contract address. Returns ``bool``.
+``balance``      Query the balance of an address. Returns :attr:`uint256`.
+``codehash``     Returns the :attr:`bytes32` keccak of the code at an address, or ``EMPTY_BYTES32`` if the account does not currently have code.
+``codesize``     Query the code size of an address. Returns :attr:`int128`.
+``is_contract``  Query whether it is a contract address. Returns :attr:`bool`.
 ===============  =========================================================
 
 Syntax as follows: ``_address.<member>``, where ``_address`` is of the type ``address`` and ``<member>`` is one of the above keywords.
 
 .. note::
 
-    Operations such as ``SELFDESTRUCT`` and ``CREATE2`` allow for the removal and replacement of bytecode at an address. You should never assume that values of address members will not change in the future.
+    Operations such as ``SELFDESTRUCT`` and ``CREATE2`` allow for the removal and replacement of bytecode at an address. Do not assume that values of address members will not change in the future.
 
+32 Byte Fixed-Length Array
+--------------------------
 
-32-bit-wide Byte Array
-======================
+.. py:attribute:: bytes32
 
-**Keyword:** ``bytes32``
-This is a 32-bit-wide byte array that is otherwise similar to byte arrays.
+    A 32 byte fixed-length array that is otherwise similar to byte arrays.
 
-**Example:**
-::
+    :attr:`bytes32` may be written in several ways:
 
-    # Declaration
-    hash: bytes32
-    # Assignment
-    self.hash = _hash
+    .. code-block:: python
+
+        # 32 byte hexadecimal literal
+        foo: bytes32 = 0x7468697274792074776f20636861726163746572206279746520737472696e67
+
+        # 32 character byte string
+        foo: bytes32 = b"thirty two character byte string"
+
+        # 160 bit binary literal
+        foo: bytes32 = 0b0111010001101000011010010111001001110100011110010010000001110100011101110110111100100000011000110110100001100001011100100110000101100011011101000110010101110010001000000110001001111001011101000110010100100000011100110111010001110010011010010110111001100111
 
 Operators
----------
+*********
 
 ====================================  ============================================================
 Keyword                               Description
 ====================================  ============================================================
-``keccak256(x)``                      Return the keccak256 hash as bytes32.
+``keccak256(x)``                      Return the keccak256 hash as :attr:`bytes32`.
 ``concat(x, ...)``                    Concatenate multiple inputs.
 ``slice(x, start=_start, len=_len)``  Return a slice of ``_len`` starting at ``_start``.
 ====================================  ============================================================
 
 Where ``x`` is a byte array and ``_start`` as well as ``_len`` are integer values.
 
-.. index:: !bytes
-
 Fixed-size Byte Arrays
-======================
+----------------------
 
-**Keyword:** ``bytes``
+.. py:attribute:: bytes
 
-A byte array with a fixed size.
-The syntax being ``bytes[maxLen]``, where ``maxLen`` is an integer which denotes the maximum number of bytes.
-On the ABI level the Fixed-size bytes array is annotated as ``bytes``.
+    A byte array with a fixed size. Written as ``bytes[maxLen]``, where ``maxLen`` is an integer denoting the maximum number of bytes.
 
-**Example:**
-::
+    :attr:`bytes` arrays may be written in several ways:
 
-    example_bytes: bytes[100] = b"\x01\x02\x03"
+    .. code-block:: python
+
+        # hexadecimal literal
+        foo: bytes[5] = 0x010203
+
+        # byte string
+        foo: bytes[5] = b"\x01\x02\x03"
+
+        # binary literal
+        foo: bytes[5] = 0b10000001000000011
+
+    On the ABI level the fixed-size bytes array is annotated as ``bytes``.
+
+    :attr:`bytes32` and :attr:`bytes[32]<bytes>` both have a maximum length of 32 bytes. The difference is that a :attr:`bytes32` value is always exactly 32 bytes long, whereas a :attr:`bytes[32]<bytes>` value may be anywhere from 0-32 bytes long.
+
+    .. code-block:: python
+
+        foo: bytes[32] = b"hello"  # Valid, the literal is less than 32 bytes
+        bar: bytes32 = b"hello"    # Invalid, the literal is not exactly 32 bytes long
+
+Comparisons
+***********
+
+Comparisons return a :attr:`bool` value.
+
+==========  ================
+Operator    Description
+==========  ================
+``x == y``  Equals
+``x != y``  Does not equal
+==========  ================
+
+It is possible to perform comparisons between bytes arrays with different maximum lengths. For example:
+
+.. code-block:: python
+
+    foo: bytes[5] = b"hello"
+    bar: bytes[10] = b"hello"
+    return foo == bar   # returns True
+
+This is because although ``bar`` has a maximum length of 10, the size of the data in the array is only 5 bytes.
+
+Assignments
+***********
+
+It is possible to assign values from a smaller length bytes array to a larger length one, but not in the other direction.
+
+.. code-block:: python
+
+    # Valid
+    foo: bytes[5] = b"hello"
+    bar: bytes[10] = foo
+
+    # Invalid
+    bar: bytes[10] = b"hello"
+    foo: bytes[5] = bar
 
 .. index:: !string
 
 Fixed-size Strings
-==================
+------------------
 
-**Keyword:** ``string``
-Fixed-size strings can hold strings with equal or fewer characters than the maximum length of the string.
-On the ABI level the Fixed-size bytes array is annotated as ``string``.
+.. py:attribute:: string
 
-**Example:**
-::
+    A string with a fixed size. Written as ``string[maxLen]``, where ``maxLen`` is an integer denoting the maximum number of characters.
 
-    example_str: string[100] = "Test String"
+    Fixed-size strings can hold strings with equal or fewer characters than the maximum length of the string.
+
+    On the ABI level the Fixed-size string array is annotated as ``string``.
+
+    .. code-block:: python
+
+        foo: string[100] = "Test String"
 
 Operators
----------
+*********
 
 ====================================  ============================================================
 Keyword                               Description
 ====================================  ============================================================
 ``len(x)``                            Return the length as an integer.
-``keccak256(x)``                      Return the keccak256 hash as bytes32.
+``keccak256(x)``                      Return the keccak256 hash as :attr:`bytes32`.
 ``concat(x, ...)``                    Concatenate multiple inputs.
 ``slice(x, start=_start, len=_len)``  Return a slice of ``_len`` starting at ``_start``.
 ====================================  ============================================================
@@ -346,7 +416,7 @@ The ``len``, ``keccak256``, ``concat``, ``slice`` operators can be used with ``s
 .. index:: !reference
 
 Reference Types
-***************
+===============
 
 Reference types do not fit into 32 bytes. Because of this, copying their value is not as feasible as
 with value types. Therefore only the location, i.e. the reference, of the data is passed.
@@ -354,14 +424,11 @@ with value types. Therefore only the location, i.e. the reference, of the data i
 .. index:: !arrays
 
 Fixed-size Lists
-================
+----------------
 
 Fixed-size lists hold a finite number of elements which belong to a specified type.
 
-Syntax
-------
-
-Lists can be declared with ``_name: _ValueType[_Integer]``. Multidimensional lists are also possible.
+Lists are declared with ``_name: _ValueType[_Integer]``. Multidimensional lists are also possible.
 
 **Example:**
 ::
