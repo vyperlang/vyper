@@ -52,29 +52,38 @@ of the error within the code:
 
 .. py:exception:: InvalidLiteral
 
-    Raises when attempting to use a literal value where the type is correct, but the value is still invalid in some way. For example, an address that is not check-summed.
+    Raises when a literal value cannot be assigned a valid type.
+
+    The following example raises ``InvalidLiteral`` because the given hex literal has not been checksummed:
 
     .. code-block:: python
 
-        @public
-        def foo():
-            bar: address = 0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+        bar: address = 0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+
+    The following example raises ``InvalidLiteral`` because no common type can
+    be determined for every value in the literal array:
+
+    .. code-block:: python
+
+        for i in [1, 2, "foo"]:
+            pass
 
 .. py:exception:: InvalidOperation
 
-    Raises when using an invalid operator for a given type.
+    Raises when using an invalid operator for the given type.
+
+    The following example raises ``InvalidOperation`` because Vyper does not
+    support the use of ``+`` between strings:
 
     .. code-block:: python
 
-        @public
-        def foo():
-            a: string[10] = "hello" * 2
-
-    This example raises ``InvalidOperation`` because multiplication is not possible on string types.
+        a: string[10] = "hello" + "hello"
 
 .. py:exception:: InvalidReference
 
     Raises on an invalid reference to an existing definition.
+
+    The following example raises ``InvalidReference`` because ``baz`` is a storage variable. The reference should be written as ``self.baz``:
 
     .. code-block:: python
 
@@ -84,27 +93,15 @@ of the error within the code:
         def foo():
             bar: int128 = baz
 
-    This example raises ``InvalidReference`` because ``baz`` is a storage variable. The reference to it should be written as ``self.baz``.
-
 .. py:exception:: InvalidType
 
-    Raises when attempting to assign to an invalid type, or perform an action on a variable of the wrong type.
+    Raises during variable declaration when the literal value does not match the given type.
+
+    The following example raises ``InvalidType`` because ``"forty two"`` cannot be interpreted as type ``int128``:
 
     .. code-block:: python
 
-        bids: map(address, Bid[128])
-        bidCounts: map(addres, int128)
-
-    In the above example, the variable type ``address`` is misspelled.  Any word that is not a reserved word, and declares a variable type will
-    return this error.
-
-    .. code-block:: python
-
-        vyper.exceptions.InvalidTypeException: line 28:15 Invalid base type: addres
-                 27 bids: map(address, Bid[128])
-            ---> 28 bidCounts: map(addres, int128)
-            -----------------------^
-                 29
+        foo: int128 = "forty two"
 
 .. py:exception:: JSONError
 
@@ -167,16 +164,17 @@ of the error within the code:
 
 .. py:exception:: TypeMismatch
 
-    Raises when attempting to perform an action between multiple objects of incompatible types.
+    Raises when attempting to perform an action between two or more objects with incompatible types.
 
-    .. code-block:: bash
+    In the following example, the comparison of ``x`` and ``y`` raises a ``TypeMismatch``:
 
-        vyper.exceptions.TypeMismatchException: line 4:4 Invalid type, expected: bytes32
-             3     a: uint256 = 1
-        ---> 4     b: bytes32 = a
-        -----------^
+    .. code-block:: python
 
-    ``b`` has been set as type ``bytes32`` but the assignment is to ``a`` which is ``uint256``.
+        x: int128 = 0
+        y: uint256 = 2
+
+        if x < y:
+            pass
 
 .. py:exception:: UndeclaredDefinition
 
@@ -189,6 +187,12 @@ of the error within the code:
 .. py:exception:: UnknownType
 
     Raises on a reference to a type that does not exist.
+
+    The following example raises ``UnknownType`` because ``bar`` is not a valid type:
+
+    .. code-block:: python
+
+        foo: bar
 
 .. py:exception:: VariableDeclarationException
 
