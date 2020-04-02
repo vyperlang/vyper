@@ -27,7 +27,7 @@ from vyper.exceptions import (
 )
 
 
-class _BaseType:
+class BaseType:
     """
     Private inherited class common to all classes representing vyper types.
 
@@ -53,7 +53,7 @@ class _BaseType:
     def __init__(self):
         pass
 
-    def _compare_type(self, other: "_BaseType") -> bool:
+    def _compare_type(self, other: "BaseType") -> bool:
         """
         Compares this type object against another type object.
 
@@ -77,7 +77,7 @@ class _BaseType:
     def type(self):
         raise StructureException(f"Invalid use of {self} as a reference")
 
-    def from_annotation(self, node: vy_ast.VyperNode) -> "_BaseType":
+    def from_annotation(self, node: vy_ast.VyperNode) -> "BaseType":
         """
         Generates an instance of this type from AnnAssign.annotation
 
@@ -92,7 +92,7 @@ class _BaseType:
         """
         raise StructureException(f"Type {self} cannot be generated from annotation", node)
 
-    def from_literal(self, node: vy_ast.Constant) -> "_BaseType":
+    def from_literal(self, node: vy_ast.Constant) -> "BaseType":
         """
         Generates a new instance of this type from a constant.
 
@@ -173,7 +173,7 @@ class _BaseType:
         """
         raise CompilerPanic(f"Type {self} cannot validate an implements statement")
 
-    def fetch_call_return(self, node: vy_ast.Call) -> Union[tuple, "_BaseType", None]:
+    def fetch_call_return(self, node: vy_ast.Call) -> Union[tuple, "BaseType", None]:
         """
         Validates a call to this type and returns the result.
 
@@ -192,7 +192,7 @@ class _BaseType:
         """
         raise StructureException(f"Type '{self}' is not callable", node)
 
-    def get_index_type(self, node: vy_ast.VyperNode) -> "_BaseType":
+    def get_index_type(self, node: vy_ast.VyperNode) -> "BaseType":
         """
         Validates an index reference and returns the given type at the index.
 
@@ -208,7 +208,7 @@ class _BaseType:
         """
         raise StructureException(f"Type '{self}' does not support indexing", node)
 
-    def get_type_member(self, node: vy_ast.Attribute) -> "_BaseType":
+    def get_type_member(self, node: vy_ast.Attribute) -> "BaseType":
         """
         Validates an attribute reference and returns the given type for the member.
 
@@ -245,7 +245,7 @@ class _BaseType:
         raise InvalidOperation("Cannot assign to or modify a type", node)
 
 
-class ValueType(_BaseType):
+class ValueType(BaseType):
     """
     Base class for simple types representing a single value.
 
@@ -276,14 +276,14 @@ class ValueType(_BaseType):
         return cls()
 
 
-class CompoundType(_BaseType):
+class CompoundType(BaseType):
 
     """Base class for types which represent multiple values."""
 
     __slots__ = ()
 
 
-class MemberType(_BaseType):
+class MemberType(BaseType):
     """
     Base class for types that have accessible members.
 

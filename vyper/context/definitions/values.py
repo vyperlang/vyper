@@ -172,7 +172,7 @@ class Reference(ValueDefinition):
 
     Class attributes
     ----------------
-    type : _BaseType | list
+    type : BaseType | list
         The type object represented by this variable. If the variable is an array,
         this will be a list of types.
     value

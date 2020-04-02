@@ -97,10 +97,10 @@ def compare_types(expected, given, node):
 
     Arguments
     ---------
-    expected : _BaseType | Constant | Sequence
+    expected : BaseType | Constant | Sequence
         The expected type for the comparison. For assignments, this is the type
         of the left hand side.
-    right : _BaseType | Constant | Sequence
+    right : BaseType | Constant | Sequence
         The given type for the comparison.
     node : VyperNode
         The node where the comparison is taking place (for source highlights if

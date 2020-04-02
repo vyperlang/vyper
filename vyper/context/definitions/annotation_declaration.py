@@ -38,7 +38,7 @@ class MappingDefinition(PublicDefinition):
     ----------
     key_type : ValueType
         Type object representing the mapping key.
-    value_type : _BaseType
+    value_type : BaseType
         Type object representing the mapping value.
     """
     _id = "map"
