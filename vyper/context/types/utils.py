@@ -30,9 +30,9 @@ from vyper.exceptions import (
 )
 
 
-def check_numeric_bounds(type_str: str, node: vy_ast.Num) -> bool:
+def validate_numeric_bounds(type_str: str, node: vy_ast.Num) -> bool:
     """
-    Validates that a Num node's value is within the bounds of a given type.
+    Validates that a `Num` node's value is within the bounds of a given type.
 
     Arguments
     ---------
@@ -43,7 +43,7 @@ def check_numeric_bounds(type_str: str, node: vy_ast.Num) -> bool:
 
     Returns
     -------
-    None. Raises an exception if the check fails.
+    None. Raises `OverflowException` if the check fails.
     """
     size = int(type_str.strip("uint") or 256)
     if size < 8 or size > 256 or size % 8:
@@ -62,7 +62,7 @@ def check_numeric_bounds(type_str: str, node: vy_ast.Num) -> bool:
 
 def get_builtin_type(type_definition: Union[List, Set, Dict, Tuple, str]):
     """
-    Given a type definition, returns a type object or list of type objects.
+    Return a type object, or list of type objects, from a type definition.
 
     Arguments
     ---------
@@ -97,7 +97,7 @@ def get_builtin_type(type_definition: Union[List, Set, Dict, Tuple, str]):
 
 def get_type_from_annotation(node: vy_ast.VyperNode):
     """
-    Returns a type object for the given annotation node.
+    Return a type object for the given annotation node.
 
     Arguments
     ---------

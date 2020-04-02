@@ -25,6 +25,7 @@ from vyper.context.utils import (
     validate_call_args,
 )
 from vyper.exceptions import (
+    CompilerPanic,
     InterfaceViolation,
     NamespaceCollision,
     StructureException,
@@ -33,35 +34,52 @@ from vyper.exceptions import (
 )
 
 
-class _BaseMetaType:
+class BaseMetaType:
     """
-    Private inherited class common to all classes representing vyper meta-types.
+    Inherited class common to all classes representing Vyper meta-types.
 
-    A meta-type is an object used to instantiate a user-defined type object.
-    This is used to define custom data types such structs and interfaces.
+    A meta-type handles validation and creation of user-defined type objects
+    such as structs and interfaces.
 
     Meta-types must include a `get_type` method that returns an
-    appropriate type when called with a vyper AST node.
+    appropriate Vyper type object when called with a `ClassDef` node.
 
     Class Attributes
     ----------------
     _id : str
-        The name that this object is assigned within the namespace.
+        The name that object is assigned within the namespace. Corresponds
+        to the `name` member of the `ClassDef` node used to declare the type.
     """
     __slots__ = ()
 
     def __init__(self):
         pass
 
+    def get_type(self, base_node):
+        """
+        Create a user-defined type from a `ClassDef` node.
 
-class StructMetaType(_BaseMetaType):
+        Arguments
+        ---------
+        base_node : ClassDef
+            Vyper `ClassDef` node defining the structure of the user-defined
+            type.
 
-    """Metatype creator object for struct types."""
+        Returns
+        -------
+            Vyper type object.
+        """
+        raise CompilerPanic(f"{self._id} does not implement a get_type method")
 
+
+class StructMetaType(BaseMetaType):
+    """
+    Metatype creator object for struct types.
+    """
     __slots__ = ()
     _id = "struct"
 
-    def get_type(self, base_node: vy_ast.ClassDef):
+    def get_type(self, base_node: vy_ast.ClassDef) -> "StructType":
         members = OrderedDict()
         for node in base_node.body:
             if not isinstance(node, vy_ast.AnnAssign):
@@ -80,7 +98,14 @@ class StructMetaType(_BaseMetaType):
 
 
 class StructType(MemberType):
+    """
+    Base class for user-defined struct types.
 
+    Attributes
+    ----------
+    _id : str
+        Name of the custom type.
+    """
     __slots__ = ()
     _as_array = True
 
@@ -125,7 +150,7 @@ class StructType(MemberType):
         return Reference.from_type(self, self._id, is_readonly=True)
 
 
-class InterfaceMetaType(_BaseMetaType):
+class InterfaceMetaType(BaseMetaType):
 
     """Metatype creator object for interface types."""
 
@@ -178,7 +203,7 @@ class InterfaceMetaType(_BaseMetaType):
 
 class InterfaceType(MemberType):
     """
-    Meta-type object for interface types.
+    Base class for user-defined interface types.
 
     Attributes
     ----------

@@ -494,10 +494,7 @@ class MethodID(BuiltinFunctionDefinition):
     _id = "method_id"
 
     def evaluate(self, node: vy_ast.Call) -> vy_ast.Bytes:
-        try:
-            self.fetch_call_return(node)
-        except CompilerPanic:
-            pass
+        self._validate_call(node)
 
         sig = get_literal_or_raise(node.args[0]).value
         length = get_type_from_annotation(node.args[1]).length
@@ -507,7 +504,7 @@ class MethodID(BuiltinFunctionDefinition):
 
         return vy_ast.Bytes.from_node(node, value=value)
 
-    def fetch_call_return(self, node: vy_ast.Call) -> None:
+    def _validate_call(self, node) -> None:
         validate_call_args(node, 2)
         sig = get_literal_or_raise(node.args[0]).value
         if not isinstance(node.args[0], vy_ast.Str):
@@ -518,7 +515,9 @@ class MethodID(BuiltinFunctionDefinition):
         if not is_subtype(return_type, BytesBase) or return_type.length not in (4, 32):
             raise InvalidType("return type must be bytes32 or bytes[4]", node.args[1])
 
-        # this method should always be foldable, and any invalid user input
+    def fetch_call_return(self, node: vy_ast.Call) -> None:
+        self._validate_call(node)
+        # this method should always be foldable - any invalid user input
         # should raise from one of the previous checks
         raise CompilerPanic("method_id should have been folded")
 

@@ -23,7 +23,7 @@ from vyper.context.types.bases.data import (
     StringBase,
 )
 from vyper.context.types.utils import (
-    check_numeric_bounds,
+    validate_numeric_bounds,
 )
 from vyper.exceptions import (
     InvalidLiteral,
@@ -115,7 +115,7 @@ class Int128Type(IntegerBase, ValueType):
     @classmethod
     def from_literal(cls, node: vy_ast.Constant):
         self = super().from_literal(node)
-        check_numeric_bounds("int128", node)
+        validate_numeric_bounds("int128", node)
         return self
 
 
@@ -129,7 +129,7 @@ class Uint256Type(IntegerBase, ValueType):
     @classmethod
     def from_literal(cls, node: vy_ast.Constant):
         self = super().from_literal(node)
-        check_numeric_bounds("uint256", node)
+        validate_numeric_bounds("uint256", node)
         return self
 
 
@@ -146,7 +146,7 @@ class DecimalType(FixedBase, ValueType):
         value = Decimal(node.value)
         if value.as_tuple().exponent < -10:
             raise InvalidLiteral("Vyper supports a maximum of ten decimal points", node)
-        check_numeric_bounds("int128", node)
+        validate_numeric_bounds("int128", node)
         return self
 
 

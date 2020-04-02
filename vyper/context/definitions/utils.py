@@ -24,10 +24,10 @@ from vyper.exceptions import (
 
 def get_definition_from_node(node: vy_ast.VyperNode):
     """
-    Returns a definition object for the given node.
+    Return a definition object for the given node.
 
-    If the given node is a `Constant`, or sequence containing `Constant`s, new
-    Literal objects are created. If the given node is a `Variable` or type of
+    If the given node is a `Constant`, or sequence containing only `Constant` nodes,
+    new Literal objects are created. If the given node is a `Variable` or type of
     expression, an attempt is made to evaluate it and return an existing value
     from the namespace.
 
@@ -38,7 +38,7 @@ def get_definition_from_node(node: vy_ast.VyperNode):
 
     Returns
     -------
-    A literal value, definition object, or sequence composed of one or both types.
+    BaseDefinition
     """
     if isinstance(node, (vy_ast.List, vy_ast.Tuple)):
         if not node.elts:
@@ -109,7 +109,7 @@ def _get_type_from_literal(node: vy_ast.Constant):
     for typ in base_types:
         try:
             valid_types.add(typ.from_literal(node))
-        # TODO catch specific exception, raise others (useful for e.g. address checksum fail)
+        # TODO catch specific exception, raise others (e.g. address checksum fail?)
         except VyperException:
             continue
     if not valid_types:
@@ -124,7 +124,7 @@ def _get_type_from_literal(node: vy_ast.Constant):
 
 def get_literal_or_raise(node):
     """
-    Wrapper around `get_definition_from_node`. Returns a literal value or raises.
+    Wrapper around `get_definition_from_node`. Return a Literal or raise.
     """
     value = get_definition_from_node(node)
 

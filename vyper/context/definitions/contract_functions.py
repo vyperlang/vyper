@@ -46,7 +46,7 @@ from vyper.exceptions import (
 
 class ContractFunction(CallableDefinition, PublicDefinition):
     """
-    A contract function definition.
+    Contract function definition.
 
     Function definitions differ from value definitions in that they have no `type`
     member. Instead, functions implement `fetch_call_return`, check the call
@@ -61,20 +61,19 @@ class ContractFunction(CallableDefinition, PublicDefinition):
     is_constant : bool
         Boolean indicating if the function is constant.
     nonreentrant : str
-        Re-entrancy lock name
+        Re-entrancy lock name.
     """
-
     def __init__(
         self,
         name: str,
         arguments: OrderedDict,
         arg_count: Union[Tuple[int, int], int],
         return_type,
-        is_public=False,
-        is_payable=False,
-        is_constant=False,
+        is_public: bool = False,
+        is_payable: bool = False,
+        is_constant: bool = False,
         nonreentrant: str = False,
-    ):
+    ) -> None:
         super().__init__(name, arguments, arg_count, return_type)
         self.is_public = is_public
         self.is_payable = is_payable
@@ -113,9 +112,9 @@ class ContractFunction(CallableDefinition, PublicDefinition):
         node: vy_ast.FunctionDef,
         is_public: Optional[bool] = None,
         include_defaults: Optional[bool] = True,
-    ):
+    ) -> "ContractFunction":
         """
-        Generates a ContractFunction object from an ast node.
+        Generate a ContractFunction object from a `FunctionDef` node.
 
         Arguments
         ---------
@@ -138,6 +137,7 @@ class ContractFunction(CallableDefinition, PublicDefinition):
 
         # decorators
         for decorator in node.decorator_list:
+
             if isinstance(decorator, vy_ast.Call):
                 if decorator.get('func.id') != "nonreentrant":
                     raise StructureException("Decorator is not callable", decorator)
@@ -146,6 +146,7 @@ class ContractFunction(CallableDefinition, PublicDefinition):
                         "@nonreentrant name must be given as a single string literal", decorator
                     )
                 kwargs['nonreentrant'] = decorator.args[0].value
+
             elif isinstance(decorator, vy_ast.Name):
                 value = decorator.id
                 if value in ("public", "private"):
@@ -158,8 +159,10 @@ class ContractFunction(CallableDefinition, PublicDefinition):
                     kwargs[f"is_{value}"] = True
                 else:
                     raise FunctionDeclarationException(f"Unknown decorator: {value}", decorator)
+
             else:
                 raise StructureException("Bad decorator syntax", decorator)
+
         if 'is_public' not in kwargs:
             raise FunctionDeclarationException("Visibility must be public or private", node)
 
@@ -173,6 +176,7 @@ class ContractFunction(CallableDefinition, PublicDefinition):
             defaults = [None] * (len(node.args.args) - len(node.args.defaults)) + node.args.defaults
         else:
             defaults = [None] * len(node.args.args)
+
         for arg, value in zip(node.args.args, defaults):
             if arg.arg in ("gas", "value"):
                 raise ArgumentException(
@@ -212,7 +216,21 @@ class ContractFunction(CallableDefinition, PublicDefinition):
         return cls(node.name, arguments, arg_count, return_type, **kwargs)
 
     @classmethod
-    def from_AnnAssign(cls, node):
+    def from_AnnAssign(cls, node: vy_ast.AnnAssign) -> "ContractFunction":
+        """
+        Generate a ContractFunction object from an `AnnAssign` node.
+
+        Used to create function definitions for public variables.
+
+        Arguments
+        ---------
+        node : AnnAssign
+            Vyper ast node to generate the function definition from.
+
+        Returns
+        -------
+        ContractFunction object.
+        """
         var = build_value_definition(node.target.id, node.annotation, None)
         arguments, return_type = var.get_signature()
         return cls(var.name, arguments, len(arguments), return_type, is_public=True)
@@ -220,7 +238,7 @@ class ContractFunction(CallableDefinition, PublicDefinition):
     def get_signature(self):
         return [i.type for i in self.arguments.values()], self.return_type
 
-    def fetch_call_return(self, node: vy_ast.Call):
+    def fetch_call_return(self, node: vy_ast.Call) -> Reference:
         if node.get('func.value.id') == "self" and self.is_public:
             raise CallViolation("Cannnot call public functions via 'self'", node)
 

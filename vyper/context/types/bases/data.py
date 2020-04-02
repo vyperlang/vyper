@@ -12,7 +12,7 @@ from vyper.exceptions import (
 
 class NumericBase:
 
-    """Base class for simple numeric types (capable of arithmetic)."""
+    """Base class for numeric types (capable of arithmetic)."""
 
     __slots__ = ()
     _invalid_op = None
@@ -24,6 +24,7 @@ class NumericBase:
             )
 
     def validate_comparator(self, node: vy_ast.Compare) -> None:
+        # all comparators are valid on numeric types
         return
 
 
@@ -38,6 +39,14 @@ class FixedBase(NumericBase):
     __slots__ = ()
 
 
+class AddressBase:
+    __slots__ = ()
+
+
+class BoolBase:
+    __slots__ = ()
+
+
 class BytesBase:
 
     """Base class for bytes types (bytes32, bytes[])."""
@@ -46,12 +55,4 @@ class BytesBase:
 
 
 class StringBase:
-    __slots__ = ()
-
-
-class BoolBase:
-    __slots__ = ()
-
-
-class AddressBase:
     __slots__ = ()

@@ -29,23 +29,22 @@ from vyper.exceptions import (
 
 class BaseType:
     """
-    Private inherited class common to all classes representing vyper types.
+    Inherited class common to all classes which represent a Vyper type.
 
-    This class is never directly invoked. It is inherited by all type classes.
+    `BaseType` is never directly invoked. It is inherited by all type classes.
     It includes every possible method that a type can use to define it's
-    functionality and so provides a useful blueprint when creating new types.
+    functionality and so provides a useful blueprint for creating new types.
 
-    Usually if you are creating a new type you will want to subclass from
-    ValueType, CompoundType or MemberType.
+    Typically when creating a new type you will subclass ValueType or MemberType.
 
     Class attributes
     ----------------
     _id : str
         Including this member marks a class as a core type that is directly
         useable in vyper contracts. Classes that do not include it must be
-        be initialized via a special metatype class in vyper/context/metatypes.py
+        be initialized via a metatype class in `vyper.context.types.user_defined`
     _as_array: bool
-        If included and set as True, contracts may use this type may as the base
+        If included and set as `True`, contracts may use this type may as the base
         of an array by invoking it with a subscript.
     """
     __slots__ = ()
@@ -55,12 +54,12 @@ class BaseType:
 
     def _compare_type(self, other: "BaseType") -> bool:
         """
-        Compares this type object against another type object.
+        Compare this type object against another type object.
 
-        Failed comparisons should always return False, not raise an exception.
+        Failed comparisons must return `False`, not raise an exception.
 
         This method is not intended to be called directly. Type comparisons
-        should be handled by vyper.context.utils.compare_types
+        are handled by `vyper.context.utils.compare_types`
 
         Arguments
         ---------
@@ -75,16 +74,22 @@ class BaseType:
 
     @property
     def type(self):
+        """
+        Prevent use of a type as a ValueDefinition.
+
+        This works because ValueDefinition references rely on a `type` member
+        for comparisons.
+        """
         raise StructureException(f"Invalid use of {self} as a reference")
 
     def from_annotation(self, node: vy_ast.VyperNode) -> "BaseType":
         """
-        Generates an instance of this type from AnnAssign.annotation
+        Generate an instance of this type from `AnnAssign.annotation`
 
         Arguments
         ---------
         node : VyperNode
-            Vyper ast node from the .annotation member of an AnnAssign node.
+            Vyper ast node from the `annotation` member of an `AnnAssign` node.
 
         Returns
         -------
@@ -94,12 +99,12 @@ class BaseType:
 
     def from_literal(self, node: vy_ast.Constant) -> "BaseType":
         """
-        Generates a new instance of this type from a constant.
+        Generate an instance of this type from a `Constant`.
 
         Arguments
         ---------
         node : Constant
-            A vyper ast node of type Constant.
+            A Vyper `Constant` AST node.
 
         Returns
         -------
@@ -109,7 +114,7 @@ class BaseType:
 
     def validate_numeric_op(self, node: Union[vy_ast.UnaryOp, vy_ast.BinOp]) -> None:
         """
-        Validates a numeric operation for this type.
+        Validate a numeric operation for this type.
 
         Arguments
         ---------
@@ -118,13 +123,13 @@ class BaseType:
 
         Returns
         -------
-        None. A failed validation should raise an exception.
+        None. A failed validation must raise an exception.
         """
         raise InvalidOperation(f"Cannot perform {node.op.description} on {self}", node)
 
     def validate_boolean_op(self, node: vy_ast.BoolOp) -> None:
         """
-        Validates a boolean operation for this type.
+        Validate a boolean operation for this type.
 
         Arguments
         ---------
@@ -133,13 +138,13 @@ class BaseType:
 
         Returns
         -------
-        None. A failed validation should raise an exception.
+        None. A failed validation must raise an exception.
         """
         raise InvalidOperation(f"Invalid type for operand: {self}", node)
 
     def validate_comparator(self, node: vy_ast.Compare) -> None:
         """
-        Validates a comparator for this type.
+        Validate a comparator for this type.
 
         Arguments
         ---------
@@ -148,7 +153,7 @@ class BaseType:
 
         Returns
         -------
-        None. A failed validation should raise an exception.
+        None. A failed validation must raise an exception.
         """
         if not isinstance(node.op, (vy_ast.Eq, vy_ast.NotEq)):
             raise InvalidOperation(
@@ -157,7 +162,7 @@ class BaseType:
 
     def validate_implements(self, node: vy_ast.AnnAssign) -> None:
         """
-        Validates an implements statement.
+        Validate an implements statement.
 
         This method is unique to user-defined interfaces. It should not be
         included in other types.
@@ -169,15 +174,15 @@ class BaseType:
 
         Returns
         -------
-        None. A failed validation should raise an exception.
+        None. A failed validation must raise an exception.
         """
         raise CompilerPanic(f"Type {self} cannot validate an implements statement")
 
     def fetch_call_return(self, node: vy_ast.Call) -> Union[tuple, "BaseType", None]:
         """
-        Validates a call to this type and returns the result.
+        Validate a call to this type and return the result.
 
-        This method should raise if the type is not callable or the call arguments
+        This method must raise if the type is not callable, or the call arguments
         are not valid.
 
         Arguments
@@ -192,14 +197,14 @@ class BaseType:
         """
         raise StructureException(f"Type '{self}' is not callable", node)
 
-    def get_index_type(self, node: vy_ast.VyperNode) -> "BaseType":
+    def get_index_type(self, node: vy_ast.Index) -> "BaseType":
         """
-        Validates an index reference and returns the given type at the index.
+        Validate an index reference and return the given type at the index.
 
         Arguments
         ---------
-        node : VyperNode
-            Vyper ast node from the .slice member of a Subscript node.
+        node : Index
+            Vyper ast node from the `slice` member of a Subscript node.
 
         Returns
         -------
@@ -210,7 +215,7 @@ class BaseType:
 
     def get_type_member(self, node: vy_ast.Attribute) -> "BaseType":
         """
-        Validates an attribute reference and returns the given type for the member.
+        Validate an attribute reference and return the given type for the member.
 
         Arguments
         ---------
@@ -219,8 +224,8 @@ class BaseType:
 
         Returns
         -------
-        A type object for the value of the given member. Raises an exception
-        if the member does not exist for the given type.
+        A type object for the value of the given member. Raises if the member
+        does not exist for the given type.
         """
         raise StructureException(f"Type '{self}' does not support members", node)
 
@@ -228,12 +233,12 @@ class BaseType:
         """
         Adds new members to the type.
 
-        Types which include this method should subclass MemberType.
+        Types which include this method should subclass `MemberType`.
 
         Arguments
         ---------
         **members : dict
-            Dictionary of members to add in the form name: type
+            Dictionary of members to add in the form `{"field name": type_object}`
 
         Returns
         -------
@@ -274,13 +279,6 @@ class ValueType(BaseType):
         if not isinstance(node, cls._valid_literal):
             raise InvalidLiteral(f"Invalid literal type for {cls.__name__}", node)
         return cls()
-
-
-class CompoundType(BaseType):
-
-    """Base class for types which represent multiple values."""
-
-    __slots__ = ()
 
 
 class MemberType(BaseType):
@@ -331,9 +329,6 @@ class ArrayValueType(ValueType):
     Base class for single-value types which occupy multiple memory slots
     and where a maximum length must be given via a subscript (string, bytes).
 
-    Types that are explicitely defined have a fixed length; for example, operations
-    between `bytes[4]` and `bytes[6]` raise a `TypeMismatch`.
-
     Types for literals have an inferred minimum length. For example, `b"hello"`
     has a length of 5 of more and so can be used in an operation with `bytes[5]`
     or `bytes[10]`, but not `bytes[4]`. Upon comparison to a fixed length type,
@@ -343,7 +338,7 @@ class ArrayValueType(ValueType):
     Attributes
     ----------
     _length : int
-        The length of the data within the type.
+        The maximum allowable length of the data within the type.
     _min_length: int
         The minimum length of the data within the type. Used when the type
         is applied to a literal definition.
@@ -436,7 +431,7 @@ class ArrayValueType(ValueType):
 
 class EnvironmentVariableType(MemberType):
 
-    """Base class for environment variable member types (msg, block, etc)"""
+    """Special base class for environment variable member types (msg, block, etc)"""
 
     _readonly_members = True
 

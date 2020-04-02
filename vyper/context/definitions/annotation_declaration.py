@@ -38,7 +38,7 @@ class MappingDefinition(PublicDefinition):
     ----------
     key_type : ValueType
         Type object representing the mapping key.
-    value_type : BaseType
+    value_type : BaseDefinition
         Type object representing the mapping value.
     """
     _id = "map"
@@ -77,11 +77,8 @@ class MappingDefinition(PublicDefinition):
         return self.value
 
     def get_signature(self):
-        arguments = (self.key_type,)
-        if hasattr(self.value, 'get_signature'):
-            new_args, return_type = self.value.get_signature()
-            return arguments + new_args, return_type
-        return arguments, self.value.type
+        new_args, return_type = self.value.get_signature()
+        return (self.key_type,) + new_args, return_type
 
 
 class Event(CallableDefinition):

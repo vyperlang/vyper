@@ -43,9 +43,9 @@ from vyper.exceptions import (
 
 def build_value_definition(
     name: str, annotation: vy_ast.VyperNode, value: Optional[vy_ast.VyperNode]
-):
+) -> ValueDefinition:
     """
-    Generates a variable definition object from ast nodes.
+    Generate a new `ValueDefinition` object from the given nodes.
 
     Arguments
     ---------
@@ -106,10 +106,10 @@ def _build_class(type_name, bases, var_type):
     """
     Private method used for dynamic class generation.
 
-    Literal and Reference classes are created dynamically in order to limit
-    their according to the underlying BaseType.
+    Literal and Reference classes are created dynamically, to limit
+    their functionality according to the underlying BaseType.
 
-    Accessed via `Literal.from_type` and `Reference.from_type`
+    Accessed via `Literal.from_type` and `Reference.from_type`.
 
     Arguments
     ---------
@@ -122,7 +122,7 @@ def _build_class(type_name, bases, var_type):
 
     Returns
     -------
-    Dynamic ValueDefinition class.
+    Dynamically created ValueDefinition class.
     """
     if isinstance(var_type, (list, tuple)):
         # if var_type includes multiple BaseTypes, definition must allow indexing
@@ -135,7 +135,17 @@ def _build_class(type_name, bases, var_type):
 
 
 class Literal(ReadOnlyDefinition):
+    """
+    A literal value definition.
 
+    Literal definitions represent literal values and constants, where the value is
+    known and cannot change.
+
+    Attributes
+    ----------
+    value : Any
+        The literal value represented by the definition.
+    """
     def __init__(self, name, var_type, value=None):
         super().__init__(name or f"{var_type} literal", var_type)
         self.value = value
@@ -143,7 +153,7 @@ class Literal(ReadOnlyDefinition):
     @classmethod
     def from_type(cls, var_type, name, value):
         """
-        Generates a Literal object from a BaseType.
+        Generate a Literal object from a BaseType object.
 
         Arguments
         ---------
@@ -165,26 +175,25 @@ class Reference(ValueDefinition):
     """
     A reference definition.
 
-    TODO Reference objects represent the assignment of a type (or types) to a name.
+    Reference definitions represent the assignment of a type (or types) to a name.
     They hold additional information about the assignment, such as whether it is
     a constant or public. They also provide methods for interaction with the
     underlying type.
 
-    Class attributes
+    Attributes
     ----------------
     type : BaseType | list
         The type object represented by this variable. If the variable is an array,
-        this will be a list of types.
-    value
-        The initial value assigned to this variable. Can be a literal value, another
-        variable, a list of one or both, or None.
+        this will be a list of types. References to arrays will also subclass
+        `SequenceDefinition`.
     members : dict
         A dictionary of definitions for members of this variable. Only used if
-        the underlying type is a MemberType.
+        the underlying type is a `MemberType`. References with members will also
+        subclass `MemberDefinition`.
     is_public : bool
-        Boolean indicating if the variable is public.
+        Boolean indicating if the variable is public. Public references will also
+        subclass `PublicDefinition`.
     """
-
     def __init__(self, name, var_type):
         super().__init__(name, var_type)
         if isinstance(self, PublicDefinition):
