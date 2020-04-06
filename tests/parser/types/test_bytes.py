@@ -101,13 +101,13 @@ a: bytes[60]
 @public
 def foo(inp: bytes[60]) -> bytes[60]:
     self.a = inp
-    self.a = ""
+    self.a = b""
     return self.a
 
 @public
 def bar(inp: bytes[60]) -> bytes[60]:
     b: bytes[60] = inp
-    b = ""
+    b = b""
     return b
     """
 
@@ -208,12 +208,12 @@ def test_bytes_comparison(get_contract_with_gas_estimation):
     code = """
 @public
 def get_mismatch(a: bytes[1]) -> bool:
-    b: bytes[2] = 'ab'
+    b: bytes[2] = b'ab'
     return a == b
 
 @public
 def get_large(a: bytes[100]) -> bool:
-    b: bytes[100] = 'ab'
+    b: bytes[100] = b'ab'
     return a == b
     """
 
@@ -244,9 +244,9 @@ counter: uint256
 
 @private
 @constant
-def to_little_endian_64(value: uint256) -> bytes[8]:
+def to_little_endian_64(_value: uint256) -> bytes[8]:
     y: uint256 = 0
-    x: uint256 = value
+    x: uint256 = _value
     for _ in range(8):
         y = shift(y, 8)
         y = y + bitwise_and(x, 255)

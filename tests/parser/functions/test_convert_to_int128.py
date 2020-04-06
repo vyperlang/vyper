@@ -29,7 +29,7 @@ def bytes32_to_num() -> (int128, int128):
 
 @public
 def bytes_to_num() -> (int128, int128):
-    self.c = 'a'
+    self.c = b'a'
     literal: int128 = convert('a', int128)
     storage: int128 = convert(self.c, int128)
     return literal, storage
@@ -84,7 +84,7 @@ astor: bytes[10]
 
 @public
 def bar_storage() -> int128:
-    self.astor = "a"
+    self.astor = b"a"
     return convert(self.astor, int128)
     """
 

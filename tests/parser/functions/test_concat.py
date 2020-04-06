@@ -45,8 +45,8 @@ y: bytes[10]
 
 @public
 def krazykonkat(z: bytes[10]) -> bytes[25]:
-    x: bytes[3] = "cow"
-    self.y = "horse"
+    x: bytes[3] = b"cow"
+    self.y = b"horse"
     return concat(x, b" ", self.y, b" ", z)
     """
 

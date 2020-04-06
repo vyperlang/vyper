@@ -115,7 +115,7 @@ b: bytes[10]
 
 @public
 def foo(arg1: bytes[3]):
-    a: bytes[4] = 'home'
+    a: bytes[4] = b'home'
     self.b = b'hellothere'
     log.MyLog(arg1, a,  self, self.b)
     """
@@ -866,7 +866,7 @@ def foo(a: int128):
 
 @public
 def setbytez():
-    self.x = 'hello'
+    self.x = b'hello'
     """
 
     c = get_contract_with_gas_estimation(code)

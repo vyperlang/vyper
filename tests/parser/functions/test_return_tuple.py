@@ -15,8 +15,8 @@ chunk: Chunk
 
 @public
 def __init__():
-    self.chunk.a = "hello"
-    self.chunk.b = "world"
+    self.chunk.a = b"hello"
+    self.chunk.b = b"world"
     self.chunk.c = 5678
 
 @public
