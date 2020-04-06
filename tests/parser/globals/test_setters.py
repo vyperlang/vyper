@@ -16,8 +16,8 @@ def fop() -> int128:
 
 @public
 def goo() -> int128:
-    goo: int128[3] = [1, 2, 3]
-    return(goo[0] + goo[1] * 10 + goo[2] * 100)
+    god: int128[3] = [1, 2, 3]
+    return(god[0] + god[1] * 10 + god[2] * 100)
 
 @public
 def gop() -> int128: # Following a standard naming scheme; nothing to do with the US republican party  # noqa: E501
@@ -38,9 +38,9 @@ def hop() -> int128:
 
 @public
 def joo() -> int128:
-    goo: int128[3] = [1, 2, 3]
-    clear(goo)
-    return(goo[0] + goo[1] * 10 + goo[2] * 100)
+    god: int128[3] = [1, 2, 3]
+    clear(god)
+    return(god[0] + god[1] * 10 + god[2] * 100)
 
 @public
 def jop() -> int128:
@@ -113,9 +113,9 @@ def fop() -> int128:
 
 @public
 def goo() -> int128:
-    goo: Goo[3] = [Goo({foo: 1, bar: 2}), Goo({foo: 3, bar: 4}), Goo({foo: 5, bar: 6})]
-    return goo[0].foo + goo[0].bar * 10 + goo[1].foo * 100 + \
-        goo[1].bar * 1000 + goo[2].foo * 10000 + goo[2].bar * 100000
+    god: Goo[3] = [Goo({foo: 1, bar: 2}), Goo({foo: 3, bar: 4}), Goo({foo: 5, bar: 6})]
+    return god[0].foo + god[0].bar * 10 + god[1].foo * 100 + \
+        god[1].bar * 1000 + god[2].foo * 10000 + god[2].bar * 100000
 
 @public
 def gop() -> int128:
@@ -144,8 +144,6 @@ def gop() -> int128:
     assert c.goo() == 654321
     assert c.gop() == 87198763254321
 
-    print('Passed multi-setter struct test')
-
 
 def test_struct_assignment_order(get_contract_with_gas_estimation):
     code = """
@@ -167,7 +165,6 @@ def test2() -> uint256:
     """
     c = get_contract_with_gas_estimation(code)
     assert c.test1() == c.test2() == 297
-    print('Passed struct assignment order test')
 
 
 def test_type_converter_setter_test(get_contract_with_gas_estimation):
@@ -176,7 +173,7 @@ pap: decimal[2][2]
 
 @public
 def goo() -> int128:
-    self.pap = [[1, 2], [3, 4]]
+    self.pap = [[1.0, 2.0], [3.0, 4.0]]
     return floor(
         self.pap[0][0] +
         self.pap[0][1] * 10.0 +
@@ -186,7 +183,6 @@ def goo() -> int128:
 
     c = get_contract_with_gas_estimation(type_converter_setter_test)
     assert c.goo() == 4321
-    print('Passed type-conversion struct test')
 
 
 def test_composite_setter_test(get_contract_with_gas_estimation):
@@ -229,4 +225,3 @@ def foq() -> int128:
     assert c.foo() == 4625
     assert c.fop() == 4625
     assert c.foq() == 4020
-    print('Passed composite struct test')

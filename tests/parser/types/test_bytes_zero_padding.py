@@ -7,9 +7,9 @@ def little_endian_contract(get_contract_module):
     code = """
 @private
 @constant
-def to_little_endian_64(value: uint256) -> bytes[8]:
+def to_little_endian_64(_value: uint256) -> bytes[8]:
     y: uint256 = 0
-    x: uint256 = value
+    x: uint256 = _value
     for _ in range(8):
         y = shift(y, 8)
         y = y + bitwise_and(x, 255)

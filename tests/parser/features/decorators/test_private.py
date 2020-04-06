@@ -119,7 +119,7 @@ greeting: public(bytes[100])
 
 @public
 def __init__():
-    self.greeting = "Hello "
+    self.greeting = b"Hello "
 
 @private
 def construct(greet: bytes[100]) -> bytes[200]:
@@ -142,7 +142,7 @@ greeting: public(bytes[20])
 
 @public
 def __init__():
-    self.greeting = "Hello "
+    self.greeting = b"Hello "
 
 @private
 def set_greeting(_greeting: bytes[20]):
@@ -232,12 +232,12 @@ a_message: bytes[50]
 
 @private
 def _test() -> (bytes[100]):
-    b: bytes[50] = "hello                   1           2"
+    b: bytes[50] = b"hello                   1           2"
     return b
 
 @private
 def _test_b(a: bytes[100]) -> (bytes[100]):
-    b: bytes[50] = "hello there"
+    b: bytes[50] = b"hello there"
     if len(a) > 1:
         return a
     else:
@@ -255,12 +255,12 @@ def test() -> (bytes[100]):
 
 @public
 def test2() -> (bytes[100]):
-    d: bytes[100] = 'xyzxyzxyzxyz'
+    d: bytes[100] = b'xyzxyzxyzxyz'
     return self._test()
 
 @public
 def test3(a: bytes[50]) -> (bytes[100]):
-    d: bytes[100] = 'xyzxyzxyzxyz'
+    d: bytes[100] = b'xyzxyzxyzxyz'
     return self._test_b(a)
 
 @public
@@ -269,7 +269,7 @@ def set(a: bytes[50]):
 
 @public
 def test4() -> (bytes[100]):
-    d: bytes[100] = 'xyzxyzxyzxyz'
+    d: bytes[100] = b'xyzxyzxyzxyz'
     return self.get_msg()
     """
 
@@ -286,7 +286,7 @@ def test_private_bytes_as_args(get_contract_with_gas_estimation):
     code = """
 @private
 def _test(a: bytes[40]) -> (bytes[100]):
-    b: bytes[40] = "hello "
+    b: bytes[40] = b"hello "
     return concat(b, a)
 
 @public
@@ -297,7 +297,7 @@ def test(a: bytes[10]) -> bytes[100]:
 
 @public
 def test2() -> bytes[100]:
-    c: bytes[10] = "alice"
+    c: bytes[10] = b"alice"
     return self._test(c)
     """
 
@@ -406,13 +406,13 @@ def test() -> int128[4]:
 def test_private_payable(w3, get_contract_with_gas_estimation):
     code = """
 @private
-def _send_it(a: address, value: uint256):
-    send(a, value)
+def _send_it(a: address, _value: uint256):
+    send(a, _value)
 
 @payable
 @public
-def test(doit: bool, a: address, value: uint256):
-    self._send_it(a, value)
+def test(doit: bool, a: address, _value: uint256):
+    self._send_it(a, _value)
 
 @public
 @payable
@@ -555,7 +555,7 @@ def test_private_zero_bytearray(get_contract):
 def inner(xs: bytes[256]):
     pass
 @public
-def outer(xs: bytes[256] = "") -> bool:
+def outer(xs: bytes[256] = b"") -> bool:
     self.inner(xs)
     return True
     """

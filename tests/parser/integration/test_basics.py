@@ -6,7 +6,6 @@ def foo():
     """
     c = get_contract_with_gas_estimation(null_code)
     c.foo()
-    print('Successfully executed a null function')
 
 
 def test_basic_code(get_contract_with_gas_estimation):
@@ -18,7 +17,6 @@ def foo(x: int128) -> int128:
     """
     c = get_contract_with_gas_estimation(basic_code)
     assert c.foo(9) == 18
-    print('Passed basic code test')
 
 
 def test_selfcall_code_3(get_contract_with_gas_estimation, keccak):
@@ -29,7 +27,7 @@ def _hashy2(x: bytes[100]) -> bytes32:
 
 @public
 def return_hash_of_cow_x_30() -> bytes32:
-    return self._hashy2("cowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcow")  # noqa: E501
+    return self._hashy2(b"cowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcow")  # noqa: E501
 
 @private
 def _len(x: bytes[100]) -> int128:
@@ -37,11 +35,9 @@ def _len(x: bytes[100]) -> int128:
 
 @public
 def returnten() -> int128:
-    return self._len("badminton!")
+    return self._len(b"badminton!")
     """
 
     c = get_contract_with_gas_estimation(selfcall_code_3)
     assert c.return_hash_of_cow_x_30() == keccak(b'cow' * 30)
     assert c.returnten() == 10
-
-    print("Passed single variable-size argument self-call test")
