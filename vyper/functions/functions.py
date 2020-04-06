@@ -625,7 +625,7 @@ false_value = LLLnode.from_list(0, typ=BaseType('bool', is_literal=True))
     outsize=Optional('num_literal', 0),
     gas=Optional('uint256', 'gas'),
     value=Optional('uint256', zero_value),
-    delegate_call=Optional('bool', false_value),
+    is_delegate_call=Optional('bool', false_value),
 )
 def raw_call(expr, args, kwargs, context):
     to, data = args
@@ -633,7 +633,7 @@ def raw_call(expr, args, kwargs, context):
         kwargs['gas'],
         kwargs['value'],
         kwargs['outsize'],
-        kwargs['delegate_call'],
+        kwargs['is_delegate_call'],
     )
     if delegate_call.typ.is_literal is False:
         raise TypeMismatch(

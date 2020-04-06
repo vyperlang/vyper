@@ -127,7 +127,7 @@ def set(i: int128, owner: address):
         cdata,
         gas=msg.gas,
         outsize=0,
-        delegate_call=True
+        is_delegate_call=True
     )
     """
 
