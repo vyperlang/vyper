@@ -7,10 +7,11 @@ from vyper.ast import (
 )
 from vyper.exceptions import (
     InvalidType,
+    VyperException,
 )
 
 
-def fold(vyper_ast_node: vy_ast.Module) -> None:
+def fold(vyper_ast_node: vy_ast.Module, namespace: dict) -> None:
     """
     Perform literal folding operations on a Vyper AST.
 
@@ -24,6 +25,7 @@ def fold(vyper_ast_node: vy_ast.Module) -> None:
         changed_nodes = 0
         changed_nodes += replace_literal_ops(vyper_ast_node)
         changed_nodes += replace_subscripts(vyper_ast_node)
+        changed_nodes += replace_builtin_functions(vyper_ast_node, namespace)
 
 
 def replace_literal_ops(vyper_ast_node: vy_ast.Module) -> int:
@@ -73,6 +75,27 @@ def replace_subscripts(vyper_ast_node: vy_ast.Module) -> int:
         vyper_ast_node.replace_in_tree(node, new_node)
 
     return changed_nodes
+
+
+def replace_builtin_functions(vyper_ast_node: vy_ast.Module, namespace: dict) -> int:
+    count = 0
+
+    for node in vyper_ast_node.get_descendants(vy_ast.Call, reverse=True):
+        if not isinstance(node.func, vy_ast.Name):
+            continue
+        name = node.func.id
+        try:
+            func = namespace[name]
+            if not hasattr(func, 'evaluate'):
+                continue
+            new_node = func.evaluate(node)
+        except VyperException:
+            continue
+
+        count += 1
+        vyper_ast_node.replace_in_tree(node, new_node)
+
+    return count
 
 
 def _replace(old_node, new_node):
