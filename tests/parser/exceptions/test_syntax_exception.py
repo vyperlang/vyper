@@ -60,20 +60,12 @@ def foo():
     """
 @public
 def foo():
-<<<<<<< HEAD
-    x: address = create_forwarder_to(0x123456789012345678901234567890123456789)
-=======
-    x: bytes[32] = 0x12345678901234567890123456789012345678901
->>>>>>> 4ca242ca... ultramegacommit
+    x: address = 0x12345678901234567890123456789012345678901
     """,
     """
 @public
 def foo():
-<<<<<<< HEAD
-    x: bytes[4] = raw_call(0x123456789012345678901234567890123456789, "cow", outsize=4)
-=======
-    x: bytes[32] = 0x01234567890123456789012345678901234567890
->>>>>>> 4ca242ca... ultramegacommit
+    x: address = 0x01234567890123456789012345678901234567890
     """,
     """
 @public
@@ -88,43 +80,17 @@ def foo():
     """
 @public
 def foo():
-<<<<<<< HEAD
-    x: address = 0x12345678901234567890123456789012345678901
-=======
     a: bytes[100] = b"ѓtest"
->>>>>>> 4ca242ca... ultramegacommit
     """,
     """
 @public
 def foo():
-<<<<<<< HEAD
     x: address = 0x01234567890123456789012345678901234567890
     """,
     """
 @public
 def foo():
-    x: address = 0x123456789012345678901234567890123456789
-=======
     a: bytes32 = keccak256("ѓtest")
->>>>>>> 4ca242ca... ultramegacommit
-    """,
-    """
-@public
-def foo():
-<<<<<<< HEAD
-    a: bytes[100] = "ѓtest"
-=======
-    x = raw_call(0x123456789012345678901234567890123456789, "cow", outsize=4)
->>>>>>> 4ca242ca... ultramegacommit
-    """,
-    """
-@public
-def foo():
-<<<<<<< HEAD
-    a: bytes32 = keccak256("ѓtest")
-=======
-    x = create_forwarder_to(0x123456789012345678901234567890123456789)
->>>>>>> 4ca242ca... ultramegacommit
     """,
 ]
 
