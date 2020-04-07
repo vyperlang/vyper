@@ -84,7 +84,7 @@ def make_byte_array_copier(destination, source, pos=None):
     # stricter check for zeroing a byte array.
     if isinstance(source.typ, ByteArrayLike):
         if source.value is None and source.typ.maxlen != destination.typ.maxlen:
-            raise TypeMismatchException(
+            raise TypeMismatch(
                     f"Bad type for clearing bytes: expected {destination.typ}"
                     f" but got {source.typ}")
 
@@ -406,7 +406,6 @@ def base_type_conversion(orig, frm, to, pos, in_function_call=False):
         is_base_type(frm, 'int128') and is_base_type(to, 'decimal')
     )
 
-<<<<<<< HEAD
     if getattr(frm, 'is_literal', False):
         if frm.typ in ('int128', 'uint256'):
             if not SizeLimits.in_bounds(frm.typ, orig.value):

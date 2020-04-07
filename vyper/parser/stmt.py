@@ -108,6 +108,11 @@ class Stmt(object):
             isinstance(self.stmt.annotation, vy_ast.Name) and
             self.stmt.annotation.id == 'bytes32'
         ):
+            # CMC 04/07/2020 this check could be much clearer, more like:
+            # if isinstance(ByteArrayLike) and maxlen == 32
+            #   or isinstance(BaseType) and typ.typ == 'bytes32'
+            #   then GOOD
+            #   else RAISE
             if isinstance(sub.typ, ByteArrayLike):
                 if sub.typ.maxlen != 32:
                     raise TypeMismatch(
@@ -119,9 +124,12 @@ class Stmt(object):
                     raise TypeMismatch('Invalid type, expected: bytes32', self.stmt)
                 return
             else:
+                raise TypeMismatch(
+                    f"Invalid type, expected: bytes32", self.stmt
+                )
         elif isinstance(self.stmt.annotation, vy_ast.Subscript):
             # check list assign:
-            if not isinstance(sub.typ, (ListType, ByteArrayLike))
+            if not isinstance(sub.typ, (ListType, ByteArrayLike)):
                 raise TypeMismatch(
                     f'Invalid type, expected: {self.stmt.annotation.value.id},'
                     f' got: {sub.typ}', self.stmt
@@ -341,7 +349,7 @@ class Stmt(object):
             isinstance(self.stmt.func, vy_ast.Attribute)
         ) and isinstance(self.stmt.func.value, vy_ast.Name) and self.stmt.func.value.id == 'log'
 
-        if isinstance(self.stmt.func, ast.Name):
+        if isinstance(self.stmt.func, vy_ast.Name):
             funcname = self.stmt.func.id
             if funcname in STMT_DISPATCH_TABLE:
                 return STMT_DISPATCH_TABLE[funcname](self.stmt, self.context)

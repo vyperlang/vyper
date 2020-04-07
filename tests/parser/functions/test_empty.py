@@ -1,5 +1,5 @@
 from vyper.exceptions import (
-    TypeMismatchException,
+    TypeMismatch,
 )
 
 
@@ -55,8 +55,8 @@ def foo():
     self.foobar = 1.0
     bar: decimal = 1.0
 
-    self.foobar = empty(bool)
-    bar = empty(bool)
+    self.foobar = empty(decimal)
+    bar = empty(decimal)
 
     assert self.foobar == 0.0
     assert bar == 0.0
@@ -252,7 +252,7 @@ def foo() -> address:
 @public
 def foo():
     x: uint256 = 1
-    clear(x)
+    empty(x)
     """
     ]
 
@@ -279,8 +279,8 @@ def foo() -> (bytes[5], bytes[5]):
     """
 
     c = get_contract_with_gas_estimation(code)
-    a, b, c = c.foo()
-    assert a == b == c == b''
+    a, b = c.foo()
+    assert a == b == b''
 
 
 def test_empty_struct(get_contract_with_gas_estimation):

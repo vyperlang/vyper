@@ -257,7 +257,7 @@ class Expr(object):
             )
         elif self.expr.value is None:
             # block None
-            raise InvalidLiteralException(
+            raise InvalidLiteral(
                     'None is not allowed in vyper'
                     '(use a default value or built-in `clear()`')
         else:
