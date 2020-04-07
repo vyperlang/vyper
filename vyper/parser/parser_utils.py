@@ -420,6 +420,14 @@ def base_type_conversion(orig, frm, to, pos, in_function_call=False):
             f"Base type conversion from or to non-base type: {frm} {to}", pos
         )
     elif is_base_type(frm, to.typ):
+        # handle None value inserted by `empty()`
+        if frm.value is None:
+            if to.typ not in ('int128', 'bool', 'uint256', 'address', 'bytes32', 'decimal'):
+                # This is only to future proof the use of  base_type_conversion.
+                raise TypeMismatch(  # pragma: no cover
+                    f"Cannot convert null object to type {to}", pos
+                )
+            return LLLnode.from_list(0, typ=to)
         return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
     elif isinstance(frm, ContractType) and to == BaseType('address'):
         return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
@@ -430,6 +438,8 @@ def base_type_conversion(orig, frm, to, pos, in_function_call=False):
         )
     # Integer literal conversion.
     elif (frm.typ, to.typ, frm.is_literal) == ('int128', 'uint256', True):
+        # note this branch is never tripped in conjunction with empty
+        # so we don't need to check orig.value is None.
         return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
     else:
         raise TypeMismatch(
