@@ -601,7 +601,7 @@ def make_setter(left, right, location, pos, in_function_call=False):
                     LLLnode.from_list(i, typ='int128'),
                     pos=pos,
                     array_bounds_check=False,
-                ), LLLnode.from_list(None, typ=left.typ.subtype), location, pos=pos))
+                ), LLLnode.from_list(None, typ=right.typ.subtype), location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If the right side is a variable
         else:
