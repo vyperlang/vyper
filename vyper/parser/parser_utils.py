@@ -634,13 +634,6 @@ def make_setter(left, right, location, pos, in_function_call=False):
                     pos,
                 )
             if isinstance(left.typ, StructType):
-                for k in right.args:
-                    if k.value is None:
-                        raise CompilerPanic("Unreachable", pos)
-                        raise InvalidLiteral(
-                            'Setting struct value to None is not allowed, use a default value.',
-                            pos,
-                        )
                 for k in left.typ.members:
                     if k not in right.typ.members:
                         raise TypeMismatch(
