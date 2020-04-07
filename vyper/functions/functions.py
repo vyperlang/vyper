@@ -1225,7 +1225,7 @@ else:
     )
 
 
-def clear(expr, context):
+def empty(expr, context):
     if len(expr.args) != 1:
         raise ParserException('function expects two parameters.', expr)
     output_type = context.parse_type(expr.args[0], expr.args[0])
@@ -1262,7 +1262,7 @@ DISPATCH_TABLE = {
     'create_forwarder_to': create_forwarder_to,
     'min': _min,
     'max': _max,
-    'clear': clear,
+    'empty': empty,
 }
 
 STMT_DISPATCH_TABLE = {

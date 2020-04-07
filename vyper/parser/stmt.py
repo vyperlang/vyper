@@ -343,8 +343,6 @@ class Stmt(object):
 
         if isinstance(self.stmt.func, ast.Name):
             funcname = self.stmt.func.id
-            if funcname == 'clear':
-                return self._clear()
             if funcname in STMT_DISPATCH_TABLE:
                 return STMT_DISPATCH_TABLE[funcname](self.stmt, self.context)
             elif funcname in DISPATCH_TABLE:
