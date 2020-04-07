@@ -694,7 +694,7 @@ def make_setter(left, right, location, pos, in_function_call=False):
             for key, loc in zip(keyz, locations):
                 subs.append(make_setter(
                     add_variable_offset(left_token, key, pos=pos),
-                    LLLnode.from_list(None, typ=left.typ.members[key]),
+                    LLLnode.from_list(None, typ=right.typ.members[key]),
                     loc,
                     pos=pos,
                 ))
