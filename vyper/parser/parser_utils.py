@@ -402,9 +402,12 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
 # Convert from one base type to another
 def base_type_conversion(orig, frm, to, pos, in_function_call=False):
     orig = unwrap_location(orig)
-    is_valid_int128_to_decimal = (
-        is_base_type(frm, 'int128') and is_base_type(to, 'decimal')
-    )
+
+    # do the base type check so we can use BaseType attributes
+    if not isinstance(frm, BaseType) or not isinstance(to, BaseType):
+        raise TypeMismatch(
+            f"Base type conversion from or to non-base type: {frm} {to}", pos
+        )
 
     if getattr(frm, 'is_literal', False):
         if frm.typ in ('int128', 'uint256'):
@@ -415,36 +418,29 @@ def base_type_conversion(orig, frm, to, pos, in_function_call=False):
             if not SizeLimits.in_bounds(to.typ, orig.value):
                 raise InvalidLiteral(f"Number out of range: {orig.value}", pos)
 
-    if not isinstance(frm, BaseType) or not isinstance(to, BaseType):
+    is_decimal_int128_conversion = frm.typ == 'int128' and to.typ == 'decimal'
+    is_same_type = frm.typ == to.typ
+    is_literal_conversion = frm.is_literal and (frm.typ, to.typ) == ('int128', 'uint256')
+    is_address_conversion = isinstance(frm, ContractType) and to.typ == 'address'
+    if not (is_same_type
+            or is_literal_conversion
+            or is_address_conversion
+            or is_decimal_int128_conversion):
         raise TypeMismatch(
-            f"Base type conversion from or to non-base type: {frm} {to}", pos
+            f"Typecasting from base type {frm} to {to} unavailable", pos
         )
-    elif is_base_type(frm, to.typ):
-        # handle None value inserted by `empty()`
-        if frm.value is None:
-            if to.typ not in ('int128', 'bool', 'uint256', 'address', 'bytes32', 'decimal'):
-                # This is only to future proof the use of  base_type_conversion.
-                raise TypeMismatch(  # pragma: no cover
-                    f"Cannot convert null object to type {to}", pos
-                )
-            return LLLnode.from_list(0, typ=to)
-        return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
-    elif isinstance(frm, ContractType) and to == BaseType('address'):
-        return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
-    elif is_valid_int128_to_decimal:
+
+    # handle None value inserted by `empty()`
+    if orig.value is None:
+        return LLLnode.from_list(0, typ=to)
+
+    if is_decimal_int128_conversion:
         return LLLnode.from_list(
             ['mul', orig, DECIMAL_DIVISOR],
             typ=BaseType('decimal'),
         )
-    # Integer literal conversion.
-    elif (frm.typ, to.typ, frm.is_literal) == ('int128', 'uint256', True):
-        # note this branch is never tripped in conjunction with empty
-        # so we don't need to check orig.value is None.
-        return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
-    else:
-        raise TypeMismatch(
-            f"Typecasting from base type {frm} to {to} unavailable", pos
-        )
+
+    return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
 
 
 # Unwrap location
