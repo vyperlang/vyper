@@ -116,7 +116,7 @@ def make_byte_array_copier(destination, source, pos=None):
             location=source.location,
         )
     else:
-        raise CompilerPanic("Unsupported location:" + source.location)
+        raise CompilerPanic(f"Unsupported location: {source.location}")
     if destination.location == "storage":
         destination = LLLnode.from_list(
             ['sha3_32', destination],
@@ -163,7 +163,7 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
     elif source.location == "storage":
         loader = ['sload', ['add', '_pos', ['mload', MemoryPositions.FREE_LOOP_INDEX]]]
     else:
-        raise CompilerPanic(f'Unsupported location: {source}')
+        raise CompilerPanic(f'Unsupported location: {source.location}')
     # Where to paste it?
     if destination.location == "memory":
         setter = [
@@ -174,7 +174,7 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
     elif destination.location == "storage":
         setter = ['sstore', ['add', '_opos', ['mload', MemoryPositions.FREE_LOOP_INDEX]], loader]
     else:
-        raise CompilerPanic("Unsupported location:" + destination.location)
+        raise CompilerPanic(f"Unsupported location: {destination.location}")
     # Check to see if we hit the length
     checker = [
         'if',

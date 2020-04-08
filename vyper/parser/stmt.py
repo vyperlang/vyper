@@ -124,9 +124,7 @@ class Stmt(object):
                     raise TypeMismatch('Invalid type, expected: bytes32', self.stmt)
                 return
             else:
-                raise TypeMismatch(
-                    f"Invalid type, expected: bytes32", self.stmt
-                )
+                raise TypeMismatch("Invalid type, expected: bytes32", self.stmt)
         elif isinstance(self.stmt.annotation, vy_ast.Subscript):
             # check list assign:
             if not isinstance(sub.typ, (ListType, ByteArrayLike)):
@@ -328,17 +326,6 @@ class Stmt(object):
                 typ=None, pos=getpos(self.stmt)
             )
         return o
-
-    def _clear(self):
-        # Get target variable
-        target = self.get_target(self.stmt.args[0])
-
-        pos = getpos(self.stmt)
-
-        zero = LLLnode(None, typ=target.typ, pos=pos)
-
-        # Generate LLL node to set to zero
-        return make_setter(target, zero, target.location, pos=pos)
 
     def call(self):
         is_self_function = (
