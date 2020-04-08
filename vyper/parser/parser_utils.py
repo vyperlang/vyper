@@ -8,6 +8,7 @@ from vyper import (
 )
 from vyper.exceptions import (
     ArrayIndexException,
+    CompilerPanic,
     ConstancyViolation,
     InvalidLiteral,
     StructureException,
@@ -22,7 +23,6 @@ from vyper.types import (
     ByteArrayType,
     ListType,
     MappingType,
-    NullType,
     StringType,
     StructType,
     TupleLike,
@@ -72,7 +72,7 @@ def get_number_as_fraction(expr, context):
 
 # Copies byte array
 def make_byte_array_copier(destination, source, pos=None):
-    if not isinstance(source.typ, (ByteArrayLike, NullType)):
+    if not isinstance(source.typ, ByteArrayLike):
         btype = 'byte array' if isinstance(destination.typ, ByteArrayType) else 'string'
         raise TypeMismatch(f"Can only set a {btype} to another {btype}", pos)
     if isinstance(source.typ, ByteArrayLike) and source.typ.maxlen > destination.typ.maxlen:
@@ -80,6 +80,14 @@ def make_byte_array_copier(destination, source, pos=None):
             f"Cannot cast from greater max-length {source.typ.maxlen} to shorter "
             f"max-length {destination.typ.maxlen}"
         )
+
+    # stricter check for zeroing a byte array.
+    if isinstance(source.typ, ByteArrayLike):
+        if source.value is None and source.typ.maxlen != destination.typ.maxlen:
+            raise TypeMismatch(
+                    f"Bad type for clearing bytes: expected {destination.typ}"
+                    f" but got {source.typ}")
+
     # Special case: memory to memory
     if source.location == "memory" and destination.location == "memory":
         gas_calculation = GAS_IDENTITY + GAS_IDENTITYWORD * (ceil32(source.typ.maxlen) // 32)
@@ -91,9 +99,12 @@ def make_byte_array_copier(destination, source, pos=None):
         )
         return o
 
-    pos_node = LLLnode.from_list('_pos', typ=source.typ, location=source.location)
+    if source.value is None:
+        pos_node = source
+    else:
+        pos_node = LLLnode.from_list('_pos', typ=source.typ, location=source.location)
     # Get the length
-    if isinstance(source.typ, NullType):
+    if source.value is None:
         length = 1
     elif source.location == "memory":
         length = ['add', ['mload', '_pos'], 32]
@@ -105,7 +116,7 @@ def make_byte_array_copier(destination, source, pos=None):
             location=source.location,
         )
     else:
-        raise Exception("Unsupported location:" + source.location)
+        raise CompilerPanic(f"Unsupported location: {source.location}")
     if destination.location == "storage":
         destination = LLLnode.from_list(
             ['sha3_32', destination],
@@ -113,10 +124,10 @@ def make_byte_array_copier(destination, source, pos=None):
             location=destination.location,
         )
     # Maximum theoretical length
-    max_length = 32 if isinstance(source.typ, NullType) else source.typ.maxlen + 32
+    max_length = 32 if source.value is None else source.typ.maxlen + 32
     return LLLnode.from_list([
         'with', '_pos',
-        0 if isinstance(source.typ, NullType) else source,
+        0 if source.value is None else source,
         make_byte_slice_copier(destination, pos_node, length, max_length, pos=pos)
     ], typ=None)
 
@@ -137,15 +148,22 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
                 ['call', ['gas'], 4, 0, source, '_l', destination, '_l']
             ]
         ], typ=None, annotation=f'copy byte slice dest: {str(destination)}')
+
+    # special case: rhs is zero
+    if source.value is None:
+
+        if destination.location == 'memory':
+            return mzero(destination, max_length)
+
+        else:
+            loader = 0
     # Copy over data
-    if isinstance(source.typ, NullType):
-        loader = 0
     elif source.location == "memory":
         loader = ['mload', ['add', '_pos', ['mul', 32, ['mload', MemoryPositions.FREE_LOOP_INDEX]]]]
     elif source.location == "storage":
         loader = ['sload', ['add', '_pos', ['mload', MemoryPositions.FREE_LOOP_INDEX]]]
     else:
-        raise Exception("Unsupported location:" + source.location)
+        raise CompilerPanic(f'Unsupported location: {source.location}')
     # Where to paste it?
     if destination.location == "memory":
         setter = [
@@ -156,7 +174,7 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
     elif destination.location == "storage":
         setter = ['sstore', ['add', '_opos', ['mload', MemoryPositions.FREE_LOOP_INDEX]], loader]
     else:
-        raise Exception("Unsupported location:" + destination.location)
+        raise CompilerPanic(f"Unsupported location: {destination.location}")
     # Check to see if we hit the length
     checker = [
         'if',
@@ -164,8 +182,9 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
         'break'
     ]
     # Make a loop to do the copying
+    ipos = 0 if source.value is None else source
     o = [
-        'with', '_pos', source, [
+        'with', '_pos', ipos, [
             'with', '_opos', destination, [
                 'with', '_actual_len', length, [
                     'repeat',
@@ -383,9 +402,12 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
 # Convert from one base type to another
 def base_type_conversion(orig, frm, to, pos, in_function_call=False):
     orig = unwrap_location(orig)
-    is_valid_int128_to_decimal = (
-        is_base_type(frm, 'int128') and is_base_type(to, 'decimal')
-    )
+
+    # do the base type check so we can use BaseType attributes
+    if not isinstance(frm, BaseType) or not isinstance(to, BaseType):
+        raise TypeMismatch(
+            f"Base type conversion from or to non-base type: {frm} {to}", pos
+        )
 
     if getattr(frm, 'is_literal', False):
         if frm.typ in ('int128', 'uint256'):
@@ -396,33 +418,29 @@ def base_type_conversion(orig, frm, to, pos, in_function_call=False):
             if not SizeLimits.in_bounds(to.typ, orig.value):
                 raise InvalidLiteral(f"Number out of range: {orig.value}", pos)
 
-    if not isinstance(frm, (BaseType, NullType)) or not isinstance(to, BaseType):
+    is_decimal_int128_conversion = frm.typ == 'int128' and to.typ == 'decimal'
+    is_same_type = frm.typ == to.typ
+    is_literal_conversion = frm.is_literal and (frm.typ, to.typ) == ('int128', 'uint256')
+    is_address_conversion = isinstance(frm, ContractType) and to.typ == 'address'
+    if not (is_same_type
+            or is_literal_conversion
+            or is_address_conversion
+            or is_decimal_int128_conversion):
         raise TypeMismatch(
-            f"Base type conversion from or to non-base type: {frm} {to}", pos
+            f"Typecasting from base type {frm} to {to} unavailable", pos
         )
-    elif is_base_type(frm, to.typ):
-        return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
-    elif isinstance(frm, ContractType) and to == BaseType('address'):
-        return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
-    elif is_valid_int128_to_decimal:
+
+    # handle None value inserted by `empty()`
+    if orig.value is None:
+        return LLLnode.from_list(0, typ=to)
+
+    if is_decimal_int128_conversion:
         return LLLnode.from_list(
             ['mul', orig, DECIMAL_DIVISOR],
             typ=BaseType('decimal'),
         )
-    elif isinstance(frm, NullType):
-        if to.typ not in ('int128', 'bool', 'uint256', 'address', 'bytes32', 'decimal'):
-            # This is only to future proof the use of  base_type_conversion.
-            raise TypeMismatch(  # pragma: no cover
-                f"Cannot convert null-type object to type {to}", pos
-            )
-        return LLLnode.from_list(0, typ=to)
-    # Integer literal conversion.
-    elif (frm.typ, to.typ, frm.is_literal) == ('int128', 'uint256', True):
-        return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
-    else:
-        raise TypeMismatch(
-            f"Typecasting from base type {frm} to {to} unavailable", pos
-        )
+
+    return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
 
 
 # Unwrap location
@@ -549,24 +567,20 @@ def make_setter(left, right, location, pos, in_function_call=False):
         # Cannot do something like [a, b, c] = [1, 2, 3]
         if left.value == "multi":
             raise Exception("Target of set statement must be a single item")
-        if not isinstance(right.typ, (ListType, NullType)):
+
+        if not isinstance(right.typ, ListType):
             raise TypeMismatch(
-                f"Setter type mismatch: left side is array, right side is {right.typ}", pos
+                f"Setter type mismatch: left side is {left.typ}, right side is {right.typ}", pos
             )
+        if right.typ.count != left.typ.count:
+            raise TypeMismatch("Mismatched number of elements", pos)
+
         left_token = LLLnode.from_list('_L', typ=left.typ, location=left.location)
         if left.location == "storage":
             left = LLLnode.from_list(['sha3_32', left], typ=left.typ, location="storage_prehashed")
             left_token.location = "storage_prehashed"
-        # Type checks
-        if not isinstance(right.typ, NullType):
-            if not isinstance(right.typ, ListType):
-                raise TypeMismatch("Left side is array, right side is not", pos)
-            if left.typ.count != right.typ.count:
-                raise TypeMismatch("Mismatched number of elements", pos)
         # If the right side is a literal
         if right.value == "multi":
-            if len(right.args) != left.typ.count:
-                raise TypeMismatch("Mismatched number of elements", pos)
             subs = []
             for i in range(left.typ.count):
                 subs.append(make_setter(add_variable_offset(
@@ -576,9 +590,14 @@ def make_setter(left, right, location, pos, in_function_call=False):
                     array_bounds_check=False,
                 ), right.args[i], location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
-        # If the right side is a null
-        # CC 20190619 probably not needed as of #1106
-        elif isinstance(right.typ, NullType):
+        elif right.value is None:
+            if right.typ != left.typ:
+                raise TypeMismatch(
+                    f"left side is {left.typ}, right side is {right.typ}", pos
+                )
+            if left.location == 'memory':
+                return mzero(left, 32*get_size_of_type(left.typ))
+
             subs = []
             for i in range(left.typ.count):
                 subs.append(make_setter(add_variable_offset(
@@ -586,7 +605,7 @@ def make_setter(left, right, location, pos, in_function_call=False):
                     LLLnode.from_list(i, typ='int128'),
                     pos=pos,
                     array_bounds_check=False,
-                ), LLLnode.from_list(None, typ=NullType()), location, pos=pos))
+                ), LLLnode.from_list(None, typ=right.typ.subtype), location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If the right side is a variable
         else:
@@ -612,19 +631,13 @@ def make_setter(left, right, location, pos, in_function_call=False):
     elif isinstance(left.typ, TupleLike):
         if left.value == "multi" and isinstance(left.typ, StructType):
             raise Exception("Target of set statement must be a single item")
-        if not isinstance(right.typ, NullType):
+        if right.value is not None:
             if not isinstance(right.typ, left.typ.__class__):
                 raise TypeMismatch(
                     f"Setter type mismatch: left side is {left.typ}, right side is {right.typ}",
                     pos,
                 )
             if isinstance(left.typ, StructType):
-                for k in right.args:
-                    if k.value is None:
-                        raise InvalidLiteral(
-                            'Setting struct value to None is not allowed, use a default value.',
-                            pos,
-                        )
                 for k in left.typ.members:
                     if k not in right.typ.members:
                         raise TypeMismatch(
@@ -677,12 +690,20 @@ def make_setter(left, right, location, pos, in_function_call=False):
                 ))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If the right side is a null
-        elif isinstance(right.typ, NullType):
+        elif right.value is None:
+            if left.typ != right.typ:
+                raise TypeMismatch(
+                    f"left side is {left.typ}, right side is {right.typ}", pos
+                )
+
+            if left.location == 'memory':
+                return mzero(left, 32*get_size_of_type(left.typ))
+
             subs = []
-            for typ, loc in zip(keyz, locations):
+            for key, loc in zip(keyz, locations):
                 subs.append(make_setter(
-                    add_variable_offset(left_token, typ, pos=pos),
-                    LLLnode.from_list(None, typ=NullType()),
+                    add_variable_offset(left_token, key, pos=pos),
+                    LLLnode.from_list(None, typ=right.typ.members[key]),
                     loc,
                     pos=pos,
                 ))
@@ -804,11 +825,18 @@ def _return_check(node):
     return False
 
 
+def mzero(dst, nbytes):
+    # calldatacopy from past-the-end gives zero bytes.
+    # cf. YP H.2 (ops section) with CALLDATACOPY spec.
+    return LLLnode.from_list(
+            # calldatacopy mempos calldatapos len
+            ['calldatacopy', dst, 'calldatasize', nbytes],
+            annotation="mzero")
+
+
 # zero pad a bytearray according to the ABI spec. The last word
 # of the byte array needs to be right-padded with zeroes.
 def zero_pad(bytez_placeholder):
-    # calldatacopy from past-the-end gives zero bytes.
-    # cf. YP H.2 (ops section) with CALLDATACOPY spec.
     len_ = ['mload', bytez_placeholder]
     dst = ['add', ['add', bytez_placeholder, 32], 'len']
     # the runtime length of the data rounded up to nearest 32
@@ -820,7 +848,6 @@ def zero_pad(bytez_placeholder):
     return LLLnode.from_list(
             ['with', 'len', len_,
                 ['with', 'dst', dst,
-                    # calldatacopy mempos calldatapos len
-                    ['calldatacopy', 'dst', 'calldatasize', num_zero_bytes]]],
+                    mzero('dst', num_zero_bytes)]],
             annotation="Zero pad",
             )

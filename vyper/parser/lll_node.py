@@ -19,7 +19,6 @@ from vyper.settings import (
 from vyper.types import (
     BaseType,
     NodeType,
-    NullType,
     ceil32,
 )
 from vyper.utils import (
@@ -236,9 +235,11 @@ class LLLnode:
                     self.gas = sum([arg.gas for arg in self.args]) + 30
                 if self.value == 'if_unchecked':
                     self.gas = self.args[0].gas + self.args[1].gas + 17
-        elif self.value is None and isinstance(self.typ, NullType):
+        elif self.value is None:
             self.valency = 1
-            self.gas = 5
+            # None LLLnodes always get compiled into something else, e.g.
+            # mzero or PUSH1 0, and the gas will get re-estimated then.
+            self.gas = 3
         else:
             raise CompilerPanic(f"Invalid value for LLL AST node: {self.value}")
         assert isinstance(self.args, list)

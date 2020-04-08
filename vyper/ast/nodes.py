@@ -72,7 +72,7 @@ def get_node(
     if not vy_class:
         if ast_struct['ast_type'] == "Delete":
             _raise_syntax_exc(
-                "Deleting is not supported, use built-in clear() function", ast_struct
+                "Deleting is not supported", ast_struct
             )
         elif ast_struct['ast_type'] in ("ExtSlice", "Slice"):
             _raise_syntax_exc("Vyper does not support slicing", ast_struct)

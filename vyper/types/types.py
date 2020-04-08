@@ -165,12 +165,6 @@ class TupleType(TupleLike):
         return list(enumerate(self.members))
 
 
-# Data structure for the type used by None/null
-class NullType(NodeType):
-    def eq(self, other):
-        return True
-
-
 # Convert type into common form used in ABI
 def canonicalize_type(t, is_indexed=False):
     if isinstance(t, ByteArrayLike):

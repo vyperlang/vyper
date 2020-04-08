@@ -261,7 +261,7 @@ struct Nom:
 nom: Nom
 @public
 def foo():
-    clear(self.nom)
+    self.nom = empty(Nom)
     """,
     """
 struct C:

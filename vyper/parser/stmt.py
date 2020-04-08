@@ -45,7 +45,6 @@ from vyper.types import (
     ContractType,
     ListType,
     NodeType,
-    NullType,
     StructType,
     TupleType,
     get_size_of_type,
@@ -109,6 +108,11 @@ class Stmt(object):
             isinstance(self.stmt.annotation, vy_ast.Name) and
             self.stmt.annotation.id == 'bytes32'
         ):
+            # CMC 04/07/2020 this check could be much clearer, more like:
+            # if isinstance(ByteArrayLike) and maxlen == 32
+            #   or isinstance(BaseType) and typ.typ == 'bytes32'
+            #   then GOOD
+            #   else RAISE
             if isinstance(sub.typ, ByteArrayLike):
                 if sub.typ.maxlen != 32:
                     raise TypeMismatch(
@@ -120,11 +124,13 @@ class Stmt(object):
                     raise TypeMismatch('Invalid type, expected: bytes32', self.stmt)
                 return
             else:
-                raise TypeMismatch('Invalid type, expected: bytes32', self.stmt)
+                raise TypeMismatch("Invalid type, expected: bytes32", self.stmt)
         elif isinstance(self.stmt.annotation, vy_ast.Subscript):
-            if not isinstance(sub.typ, (ListType, ByteArrayLike)):  # check list assign.
+            # check list assign:
+            if not isinstance(sub.typ, (ListType, ByteArrayLike)):
                 raise TypeMismatch(
-                    f'Invalid type, expected: {self.stmt.annotation.value.id}', self.stmt
+                    f'Invalid type, expected: {self.stmt.annotation.value.id},'
+                    f' got: {sub.typ}', self.stmt
                 )
         elif isinstance(sub.typ, StructType):
             # This needs to get more sophisticated in the presence of
@@ -198,16 +204,6 @@ class Stmt(object):
 
             sub = Expr(self.stmt.value, self.context).lll_node
 
-            # Disallow assignment to None
-            if isinstance(sub.typ, NullType):
-                raise InvalidLiteral(
-                    (
-                        'Assignment to None is not allowed, use a default '
-                        'value or built-in `clear()`.'
-                    ),
-                    self.stmt
-                )
-
             is_literal_bytes32_assign = (
                 isinstance(sub.typ, ByteArrayType)
                 and sub.typ.maxlen == 32
@@ -233,7 +229,6 @@ class Stmt(object):
                 pos=getpos(self.stmt),
             )
             o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
-            # o.pos = getpos(self.stmt) # TODO: Should this be here like in assign()?
 
             return o
 
@@ -252,16 +247,6 @@ class Stmt(object):
 
         with self.context.assignment_scope():
             sub = Expr(self.stmt.value, self.context).lll_node
-
-            # Disallow assignment to None
-            if isinstance(sub.typ, NullType):
-                raise InvalidLiteral(
-                    (
-                        'Assignment to None is not allowed, use a default value '
-                        'or built-in `clear()`.'
-                    ),
-                    self.stmt,
-                )
 
             is_valid_rlp_list_assign = (
                 isinstance(self.stmt.value, vy_ast.Call)
@@ -342,24 +327,6 @@ class Stmt(object):
             )
         return o
 
-    def _clear(self):
-        # Create zero node
-        none = vy_ast.NameConstant(value=None)
-        none.lineno = self.stmt.lineno
-        none.col_offset = self.stmt.col_offset
-        none.end_lineno = self.stmt.end_lineno
-        none.end_col_offset = self.stmt.end_col_offset
-        zero = Expr(none, self.context).lll_node
-
-        # Get target variable
-        target = self.get_target(self.stmt.args[0])
-
-        # Generate LLL node to set to zero
-        o = make_setter(target, zero, target.location, pos=getpos(self.stmt))
-        o.pos = getpos(self.stmt)
-
-        return o
-
     def call(self):
         is_self_function = (
             isinstance(self.stmt.func, vy_ast.Attribute)
@@ -370,14 +337,12 @@ class Stmt(object):
         ) and isinstance(self.stmt.func.value, vy_ast.Name) and self.stmt.func.value.id == 'log'
 
         if isinstance(self.stmt.func, vy_ast.Name):
-            if self.stmt.func.id in STMT_DISPATCH_TABLE:
-                if self.stmt.func.id == 'clear':
-                    return self._clear()
-                else:
-                    return STMT_DISPATCH_TABLE[self.stmt.func.id](self.stmt, self.context)
-            elif self.stmt.func.id in DISPATCH_TABLE:
+            funcname = self.stmt.func.id
+            if funcname in STMT_DISPATCH_TABLE:
+                return STMT_DISPATCH_TABLE[funcname](self.stmt, self.context)
+            elif funcname in DISPATCH_TABLE:
                 raise StructureException(
-                    f"Function {self.stmt.func.id} can not be called without being used.",
+                    f"Function {funcname} can not be called without being used.",
                     self.stmt,
                 )
             else:

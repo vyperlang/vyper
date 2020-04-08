@@ -33,11 +33,13 @@ contracts.
 
     For more details on available type conversions, see :ref:`type_conversions`.
 
-.. py:function:: clear(var: Any) -> None
+.. py:function:: empty(typename) -> Any
 
-    Clears a variable's contents to the default value of its type.
+    Returns a value which is the default (zeroed) value of its type.
 
-    * ``var``: Variable to clear
+    * ``typename``: Name of the type
+
+    For instance, `xs: uint256[5] = empty(uint256[5])`
 
 .. py:function:: as_wei_value(value: int, unit: str) -> uint256
 

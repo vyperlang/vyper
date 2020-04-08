@@ -7,7 +7,7 @@ from vyper import (
     ast as vy_ast,
 )
 from vyper.exceptions import (
-    CompilerPanic,
+    ArgumentException,
     ConstancyViolation,
     InvalidLiteral,
     StructureException,
@@ -1225,12 +1225,11 @@ else:
     )
 
 
-def _clear():
-    raise CompilerPanic(
-        "This function should never be called! `clear()` is currently handled "
-        "differently than other functions as it self modifies its input argument "
-        "statement. Please see `_clear()` in `stmt.py`"
-    )
+def empty(expr, context):
+    if len(expr.args) != 1:
+        raise ArgumentException('function expects two parameters.', expr)
+    output_type = context.parse_type(expr.args[0], expr.args[0])
+    return LLLnode(None, typ=output_type, pos=getpos(expr))
 
 
 DISPATCH_TABLE = {
@@ -1263,11 +1262,11 @@ DISPATCH_TABLE = {
     'create_forwarder_to': create_forwarder_to,
     'min': _min,
     'max': _max,
+    'empty': empty,
 }
 
 STMT_DISPATCH_TABLE = {
     'assert_modifiable': assert_modifiable,
-    'clear': _clear,
     'send': send,
     'selfdestruct': selfdestruct,
     'raw_call': raw_call,

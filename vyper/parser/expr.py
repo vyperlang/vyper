@@ -39,7 +39,6 @@ from vyper.types import (
     ContractType,
     ListType,
     MappingType,
-    NullType,
     StringType,
     StructType,
     TupleType,
@@ -257,7 +256,10 @@ class Expr(object):
                 pos=getpos(self.expr),
             )
         elif self.expr.value is None:
-            return LLLnode.from_list(None, typ=NullType(), pos=getpos(self.expr))
+            # block None
+            raise InvalidLiteral(
+                    'None is not allowed in vyper'
+                    '(use a default value or built-in `empty()`')
         else:
             raise Exception(f"Unknown name constant: {self.expr.value.value}")
 
@@ -779,7 +781,7 @@ class Expr(object):
         left = Expr.parse_value_expr(self.expr.left, self.context)
         right = Expr.parse_value_expr(self.expr.right, self.context)
 
-        if isinstance(right.typ, NullType):
+        if right.value is None:
             raise InvalidLiteral(
                 'Comparison to None is not allowed, compare against a default value.',
                 self.expr,
