@@ -368,11 +368,30 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False, ensure_tuple=
 
     # TODO reject dst where location is not memory
 
+    # calculate the input once in case it is very expensive
+    is_literal = ( # maybe this should be a routine
+        isinstance(lll_node.typ, BaseType) and lll_node.typ.is_literal
+        or
+        lll_node.value == 'multi'
+        )
+    should_memo_input = not is_literal
+    if should_memo_input:
+        if lll_node.annotation:
+            annotation = f'{lll_node.annotation} memo'
+        else:
+            annotation = f'{lll_node.typ} memo'
+        sub = LLLnode.from_list('src',
+                typ=lll_node.typ,
+                location=lll_node.location,
+                annotation=f'{lll_node.annotation} memo')
+    else:
+        sub = lll_node
+
     lll_ret = ['seq']
     dyn_ofst = 'dyn_ofst'  # current offset in the dynamic section
     dst_begin = 'dst'      # pointer to beginning of buffer
     dst_loc = 'dst_loc'    # pointer to write location in static section
-    os = o_list(lll_node, pos=pos)
+    os = o_list(sub, pos=pos)
 
     #print(f'TYP {lll_node.typ}')
     #print(f'STATIC SIZE {parent_abi_t.static_size()}')
@@ -438,7 +457,10 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False, ensure_tuple=
         lll_ret = ['with', 'dyn_ofst', dyn_section_start, lll_ret]
 
     lll_ret = ['with', dst_begin, dst,
-               ['with', dst_loc, dst_begin, lll_ret]]
+                ['with', dst_loc, dst_begin, lll_ret]]
+
+    if should_memo_input: # memoize the input
+        lll_ret = ['with', 'src', lll_node, lll_ret]
 
     return LLLnode.from_list(lll_ret, annotation=f'ABI encode {lll_node.typ}')
 

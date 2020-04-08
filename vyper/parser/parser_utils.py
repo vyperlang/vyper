@@ -294,19 +294,21 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
             subtype = typ.members[key]
             attrs = list(range(len(typ.members)))
             index = key
-            annotation = None
+            annotation = subtype
 
         if location == 'storage':
             return LLLnode.from_list(
                 ['add', ['sha3_32', parent], LLLnode.from_list(index, annotation=annotation)],
                 typ=subtype,
                 location='storage',
+                annotation=annotation,
             )
         elif location == 'storage_prehashed':
             return LLLnode.from_list(
                 ['add', parent, LLLnode.from_list(index, annotation=annotation)],
                 typ=subtype,
                 location='storage',
+                annotation=annotation,
             )
         elif location in ('calldata', 'memory'):
             offset = 0
@@ -317,7 +319,11 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
                                      location=location,
                                      annotation=annotation)
         else:
-            raise TypeMismatch("Not expecting a member variable access", pos)
+            print(parent.value, parent.args, parent.typ)
+            raise TypeMismatch(
+                f"bad location for {parent} in add_variable_offset {location}",
+                pos
+            )
 
     elif isinstance(typ, MappingType):
 

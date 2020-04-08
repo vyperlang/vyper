@@ -87,6 +87,7 @@ def gen_tuple_return(stmt, context, sub):
     # for certain arguments (to return), we can skip some copies and
     # return the return buffer directly
     if sub.args and len(sub.args[0].args) > 0 and sub.args[0].args[0].value == 'call':
+        #print(f'DBG SELF CALL PUB')
         # self-call to public.
         mem_pos = sub
         # TODO more accurate: abi size bound.
@@ -99,6 +100,7 @@ def gen_tuple_return(stmt, context, sub):
     # static (in the ABI sense), we can return the buffer directly
     is_private_call = sub.annotation and 'Internal Call' in sub.annotation
     if is_private_call and not abi_type_of(sub.typ).is_dynamic():
+        #print(f'DBG CALL PRIV STATIC')
         mem_pos = sub.args[-1].value \
                 if sub.value == 'seq_unchecked' \
                 else sub.args[0].args[-1]
@@ -109,6 +111,7 @@ def gen_tuple_return(stmt, context, sub):
 
     # if we are in a private call, just return the data unencoded
     if context.is_private:
+        #print(f'DBG IS PRIVATE')
         mem_pos = context.new_placeholder(context.return_type)
         mem_size = get_size_of_type(context.return_type) * 32
         dst = LLLnode(mem_pos, location='memory', typ=context.return_type)
