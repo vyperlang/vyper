@@ -84,23 +84,25 @@ def gen_tuple_return(stmt, context, sub):
     typecheck_dummy = LLLnode(0, location='memory', typ=context.return_type)
     check_assign(typecheck_dummy, sub, pos=getpos(stmt))
 
+    ctx_name = context.sig.name
+
     # for certain arguments (to return), we can skip some copies and
     # return the return buffer directly
     if sub.args and len(sub.args[0].args) > 0 and sub.args[0].args[0].value == 'call':
-        #print(f'DBG SELF CALL PUB')
+        print(f'DBG SELF CALL PUB')
         # self-call to public.
         mem_pos = sub
         # TODO more accurate: abi size bound.
         mem_size = get_size_of_type(sub.typ) * 32
         return LLLnode.from_list(['return', mem_pos, mem_size],
                 typ=sub.typ,
-                annotation=f'{context.sig.name} return')
+                annotation=f'`{ctx_name}` return')
 
     # if the argument is a call to a private function and the data is
     # static (in the ABI sense), we can return the buffer directly
     is_private_call = sub.annotation and 'Internal Call' in sub.annotation
     if is_private_call and not abi_type_of(sub.typ).is_dynamic():
-        #print(f'DBG CALL PRIV STATIC')
+        print(f'DBG CALL PRIV STATIC')
         mem_pos = sub.args[-1].value \
                 if sub.value == 'seq_unchecked' \
                 else sub.args[0].args[-1]
@@ -111,7 +113,7 @@ def gen_tuple_return(stmt, context, sub):
 
     # if we are in a private call, just return the data unencoded
     if context.is_private:
-        #print(f'DBG IS PRIVATE')
+        print(f'DBG IS PRIVATE')
         mem_pos = context.new_placeholder(context.return_type)
         mem_size = get_size_of_type(context.return_type) * 32
         dst = LLLnode(mem_pos, location='memory', typ=context.return_type)
@@ -120,7 +122,7 @@ def gen_tuple_return(stmt, context, sub):
               make_return_stmt(stmt, context, mem_pos, mem_size)]
         return LLLnode.from_list(os,
                 pos=getpos(stmt),
-                annotation=f'fill {context.sig.name} return buffer (unpacked)',
+                annotation=f'fill `{ctx_name}` return buffer (unpacked)',
                 typ=None,
                 valency=0)
 
@@ -128,11 +130,9 @@ def gen_tuple_return(stmt, context, sub):
     abi_typ = abi_type_of(ret_ty)
     abi_bytes_needed = abi_typ.static_size() + abi_typ.dynamic_size_bound()
     dst, _ = context.memory_allocator.increase_memory(abi_bytes_needed)
-    func_name = context.sig.name
-    return_buffer = LLLnode(
-            dst,
+    return_buffer = LLLnode(dst,
             location='memory',
-            annotation=f'{func_name} return buffer',
+            annotation=f'`{ctx_name}` return buffer',
             typ=ret_ty)
 
     encode_out = abi_encode(return_buffer, sub, pos=getpos(stmt),
@@ -143,4 +143,4 @@ def gen_tuple_return(stmt, context, sub):
           ['mstore', MemoryPositions.FREE_VAR_SPACE, encode_out],
           make_return_stmt(stmt, context, return_buffer, load_return_len)]
     return LLLnode.from_list(os, typ=None, pos=getpos(stmt), valency=0,
-            annotation=f'{context.sig.name} abi-encode and return')
+            annotation=f'`{ctx_name}` abi-encode and return')

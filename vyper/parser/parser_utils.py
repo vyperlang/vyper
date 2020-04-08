@@ -319,7 +319,6 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
                                      location=location,
                                      annotation=annotation)
         else:
-            print(parent.value, parent.args, parent.typ)
             raise TypeMismatch(
                 f"bad location for {parent} in add_variable_offset {location}",
                 pos
@@ -718,7 +717,8 @@ def make_setter(left, right, location, pos, in_function_call=False):
         # If tuple assign.
         elif isinstance(left.typ, TupleType) and isinstance(right.typ, TupleType):
             subs = []
-            static_offset_counter = 0
+            offset_counter = 0
+            # left is always a multi
             zipped_components = zip(left.args, right.typ.members, locations)
             for var_arg in left.args:
                 if var_arg.location == 'calldata':
@@ -726,19 +726,12 @@ def make_setter(left, right, location, pos, in_function_call=False):
                         f"Cannot modify function argument: {var_arg.annotation}", pos
                     )
             for left_arg, right_arg, loc in zipped_components:
-                if isinstance(right_arg, ByteArrayLike):
-                    RType = ByteArrayType if isinstance(right_arg, ByteArrayType) else StringType
-                    offset = LLLnode.from_list(
-                        ['add', '_R', ['mload', ['add', '_R', static_offset_counter]]],
-                        typ=RType(right_arg.maxlen), location='memory', pos=pos)
-                    static_offset_counter += 32
-                else:
-                    offset = LLLnode.from_list(
-                        ['mload', ['add', '_R', static_offset_counter]],
-                        typ=right_arg.typ,
-                        pos=pos,
-                    )
-                    static_offset_counter += get_size_of_type(right_arg) * 32
+                offset = LLLnode.from_list(
+                    ['mload', ['add', '_R', offset_counter]],
+                    typ=right_arg.typ,
+                    pos=pos,
+                )
+                offset_counter += get_size_of_type(right_arg) * 32
                 subs.append(
                     make_setter(
                         left_arg,

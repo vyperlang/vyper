@@ -349,6 +349,8 @@ def get_size_of_type(typ):
     elif isinstance(typ, ByteArrayLike):
         # 1 word for offset (in static section), 1 word for length,
         # up to maxlen words for actual data.
+        # TODO: byte arrays should only take ceil32(maxlen)//32 + 1 in memory,
+        # fix this once all the pack/unpack code is refactored.
         return ceil32(typ.maxlen) // 32 + 2
     elif isinstance(typ, ListType):
         return get_size_of_type(typ.subtype) * typ.count
