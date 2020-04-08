@@ -7,9 +7,9 @@ from vyper import (
     ast as vy_ast,
 )
 from vyper.exceptions import (
+    ArgumentException,
     ConstancyViolation,
     InvalidLiteral,
-    ParserException,
     StructureException,
     TypeMismatch,
 )
@@ -1227,7 +1227,7 @@ else:
 
 def empty(expr, context):
     if len(expr.args) != 1:
-        raise ParserException('function expects two parameters.', expr)
+        raise ArgumentException('function expects two parameters.', expr)
     output_type = context.parse_type(expr.args[0], expr.args[0])
     return LLLnode(None, typ=output_type, pos=getpos(expr))
 
