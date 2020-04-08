@@ -8,11 +8,11 @@ from vyper import (
 )
 from vyper.exceptions import (
     ArrayIndexException,
+    CompilerPanic,
     ConstancyViolation,
     InvalidLiteral,
     StructureException,
     TypeMismatch,
-    CompilerPanic,
 )
 from vyper.parser.lll_node import (
     LLLnode,

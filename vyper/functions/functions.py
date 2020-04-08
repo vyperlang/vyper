@@ -7,9 +7,9 @@ from vyper import (
     ast as vy_ast,
 )
 from vyper.exceptions import (
-    CompilerPanic,
     ConstancyViolation,
     InvalidLiteral,
+    ParserException,
     StructureException,
     TypeMismatch,
 )
