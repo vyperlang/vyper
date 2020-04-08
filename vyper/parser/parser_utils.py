@@ -591,6 +591,10 @@ def make_setter(left, right, location, pos, in_function_call=False):
                 ), right.args[i], location, pos=pos))
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         elif right.value is None:
+            if right.typ != left.typ:
+                raise TypeMismatch(
+                    f"left side is {left.typ}, right side is {right.typ}", pos
+                )
             if left.location == 'memory':
                 return mzero(left, 32*get_size_of_type(left.typ))
 
@@ -687,6 +691,11 @@ def make_setter(left, right, location, pos, in_function_call=False):
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         # If the right side is a null
         elif right.value is None:
+            if left.typ != right.typ:
+                raise TypeMismatch(
+                    f"left side is {left.typ}, right side is {right.typ}", pos
+                )
+
             if left.location == 'memory':
                 return mzero(left, 32*get_size_of_type(left.typ))
 
