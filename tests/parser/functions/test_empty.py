@@ -1,3 +1,5 @@
+import pytest
+
 from vyper.exceptions import (
     TypeMismatch,
 )
@@ -336,6 +338,101 @@ def foo():
     c.foo()
 
 
+# param empty not working yet
+@pytest.mark.xfail
+def test_param_empty(get_contract_with_gas_estimation):
+    code = """
+contract Mirror:
+    # reuse the contract for this test by compiling two copies of it
+    def test_empty(xs: int128[111], ys: bytes[1024], zs: bytes[31]) -> bool: constant
+
+# a helper function which will write all over memory with random stuff
+@private
+def write_junk_to_memory():
+    xs: int128[1024] = empty(int128[1024])
+    for i in range(1024):
+        xs[i] = -(i + 1)
+@private
+def priv(xs: int128[111], ys: bytes[1024], zs: bytes[31]) -> bool:
+    return xs[1] == 0 and ys == b'' and zs == b''
+
+@public
+def test_empty(xs: int128[111], ys: bytes[1024], zs: bytes[31]) -> bool:
+    empty_bytes1024: bytes[1024] = empty(bytes[1024])
+    empty_bytes31: bytes[31] = empty(bytes[31])
+    self.write_junk_to_memory()
+    # no list equality yet so test some sample values
+    return xs[0] == 0 and xs[110] == 0 and ys == empty_bytes1024 and zs == empty_bytes31
+
+@public
+def pub2() -> bool:
+    self.write_junk_to_memory()
+    return self.priv(empty(int128[111]), empty(bytes[1024]), empty(bytes[31]))
+
+@public
+def pub3(x: address) -> bool:
+    self.write_junk_to_memory()
+    return Mirror(x).test_empty(empty(int128[111]), empty(bytes[1024]), empty(bytes[31]))
+    """
+    c = get_contract_with_gas_estimation(code)
+    mirror = get_contract_with_gas_estimation(code)
+
+    assert c.test_empty([0]*111, b'', b'')
+    assert c.pub2()
+    assert c.pub3(mirror.address)
+
+
+# return empty not working yet
+@pytest.mark.xfail
+def test_return_empty(get_contract_with_gas_estimation):
+    code = """
+struct X:
+    foo: int128
+    bar: address
+    baz: decimal
+    qux: int128[1]
+
+# a helper function which will write all over memory with random stuff
+@private
+def write_junk_to_memory():
+    xs: int128[1024] = empty(int128[1024])
+    for i in range(1024):
+        xs[i] = -(i + 1)
+
+@public
+def a() -> uint256:
+    self.write_junk_to_memory()
+    return empty(uint256)
+
+@public
+def b() -> uint256[5]:
+    self.write_junk_to_memory()
+    return empty(uint256[5])
+
+@public
+def c() -> uint256[5][5]:
+    self.write_junk_to_memory()
+    return empty(uint256[5][5])
+
+@public
+def d() -> bytes[55]:
+    self.write_junk_to_memory()
+    return empty(bytes[55])
+
+@public
+def e() -> X:
+    self.write_junk_to_memory()
+    return empty(X)
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.a() == 0
+    assert c.b() == [0] * 5
+    assert c.c() == [[0] * 5] * 5
+    assert c.d() == b''
+    assert c.e() == (0, '0x'+'0'*40, 0x0, [0])
+
+
 def test_map_clear(get_contract_with_gas_estimation):
     code = """
 big_storage: map(bytes32, bytes32)
@@ -432,6 +529,11 @@ def foo():
 @public
 def bar():
     ys: bytes[33] = empty(bytes[32])
+    """,
+    """
+@public
+def baz():
+    zs: decimal[1][1] = empty(address[1][1])
     """
     ]
 
