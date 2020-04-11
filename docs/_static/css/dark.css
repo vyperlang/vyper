@@ -52,11 +52,12 @@ em.property {
 .py-meth,
 .rst-content a code {
     color: #aaddff !important;
+    font-weight: normal !important;
 }
 
 .rst-content code {
     color: #eee !important;
-    font-weight: bold !important;
+    font-weight: normal !important;
 }
 
 code.literal {
@@ -84,9 +85,11 @@ pre {
 }
 
 .highlight .go,
-.highlight .nb {
+.highlight .nb,
+.highlight .kn {
     /* text */
     color: #ddd;
+    font-weight: normal;
 }
 
 .highlight .o,
