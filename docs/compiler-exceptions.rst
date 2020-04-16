@@ -38,7 +38,7 @@ of the error within the code:
 
     Raises when an event declaration is invalid.
 
-.. py:exception:: EMVVersionException
+.. py:exception:: EvmVersionException
 
     Raises when a contract contains an action that cannot be performed with the active EVM ruleset.
 
@@ -104,7 +104,7 @@ of the error within the code:
 
     .. code-block:: python
 
-        vyper.exceptions.InvalidTypeException: line 28:15 Invalid base type: addres
+        vyper.exceptions.InvalidType: line 28:15 Invalid base type: addres
                  27 bids: map(address, Bid[128])
             ---> 28 bidCounts: map(addres, int128)
             -----------------------^
@@ -175,7 +175,7 @@ of the error within the code:
 
     .. code-block:: bash
 
-        vyper.exceptions.TypeMismatchException: line 4:4 Invalid type, expected: bytes32
+        vyper.exceptions.TypeMismatch: line 4:4 Invalid type, expected: bytes32
              3     a: uint256 = 1
         ---> 4     b: bytes32 = a
         -----------^
