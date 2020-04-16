@@ -236,8 +236,8 @@ The following example describes the output format of ``vyper-json``. Comments ar
                 "lineno": 5,
                 "col_offset": 11
             },
-            // Mandatory: Exception type, such as "JSONError", "KeyError", "StructureException", etc.
-            "type": "TypeMismatchException",
+            // Mandatory: Exception type, such as "JSONError", "StructureException", etc.
+            "type": "TypeMismatch",
             // Mandatory: Component where the error originated, such as "json", "compiler", "vyper", etc.
             "component": "compiler",
             // Mandatory ("error" or "warning")
