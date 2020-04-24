@@ -33,6 +33,7 @@ def fold(vyper_ast_node: vy_ast.Module) -> None:
         Top-level Vyper AST node.
     """
     replace_builtin_constants(vyper_ast_node)
+    replace_user_defined_constants(vyper_ast_node)
 
     changed_nodes = 1
     while changed_nodes:
@@ -100,7 +101,28 @@ def replace_builtin_constants(vyper_ast_node: vy_ast.Module) -> None:
         Top-level Vyper AST node.
     """
     for name, (node, value) in BUILTIN_CONSTANTS.items():
-        replace_constant(vyper_ast_node, name, node(value=value))
+        replace_constant(vyper_ast_node, name, node(value=value))  # type: ignore
+
+
+def replace_user_defined_constants(vyper_ast_node: vy_ast.Module) -> None:
+    """
+    Find user-defined constant assignments, and replace references
+    to the constants with their literal values.
+
+    Arguments
+    ---------
+    vyper_ast_node : Module
+        Top-level Vyper AST node.
+    """
+    for node in vyper_ast_node.get_children(vy_ast.AnnAssign):
+        if not isinstance(node.target, vy_ast.Name):
+            # left-hand-side of assignment is not a variable
+            continue
+        if node.get('annotation.func.id') != "constant":
+            # annotation is not wrapped in `constant(...)`
+            continue
+
+        replace_constant(vyper_ast_node, node.target.id, node.value)
 
 
 def _replace(old_node, new_node):
