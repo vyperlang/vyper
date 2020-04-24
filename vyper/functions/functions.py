@@ -756,13 +756,19 @@ def selfdestruct(expr, args, kwargs, context):
     return LLLnode.from_list(['selfdestruct', args[0]], typ=None, pos=getpos(expr))
 
 
-@signature(('uint256'))
-def blockhash(expr, args, kwargs, contact):
-    return LLLnode.from_list(
-        ['blockhash', ['uclamplt', ['clampge', args[0], ['sub', ['number'], 256]], 'number']],
-        typ=BaseType('bytes32'),
-        pos=getpos(expr),
-    )
+class BlockHash:
+
+    _id = "blockhash"
+    _inputs = [("block_num", "uint256")]
+    _return_type = "bytes32"
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, contact):
+        return LLLnode.from_list(
+            ['blockhash', ['uclamplt', ['clampge', args[0], ['sub', ['number'], 256]], 'number']],
+            typ=BaseType('bytes32'),
+            pos=getpos(expr),
+        )
 
 
 @signature('*', ('bytes32', 'bytes'))
@@ -1097,7 +1103,7 @@ DISPATCH_TABLE = {
     'extract32': extract32,
     'as_wei_value': as_wei_value,
     'raw_call': raw_call,
-    'blockhash': blockhash,
+    'blockhash': BlockHash().build_LLL,
     'bitwise_and': bitwise_and,
     'bitwise_or': bitwise_or,
     'bitwise_xor': bitwise_xor,
