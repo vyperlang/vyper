@@ -507,21 +507,27 @@ class ECAdd:
         return o
 
 
-@signature('uint256[2]', 'uint256')
-def ecmul(expr, args, kwargs, context):
-    placeholder_node = LLLnode.from_list(
-        context.new_placeholder(ByteArrayType(128)), typ=ByteArrayType(128), location='memory'
-    )
-    pos = getpos(expr)
-    o = LLLnode.from_list([
-        'seq',
-        ['mstore', placeholder_node, avo(args[0], 0, pos)],
-        ['mstore', ['add', placeholder_node, 32], avo(args[0], 1, pos)],
-        ['mstore', ['add', placeholder_node, 64], args[1]],
-        ['assert', ['staticcall', ['gas'], 7, placeholder_node, 96, placeholder_node, 64]],
-        placeholder_node,
-    ], typ=ListType(BaseType('uint256'), 2), pos=pos, location='memory')
-    return o
+class ECMul:
+
+    _id = "ecmul"
+    _inputs = [("point", "uint256[2]"), ("scalar", "uint256")]
+    _return_type = "uint256[2]"
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        placeholder_node = LLLnode.from_list(
+            context.new_placeholder(ByteArrayType(128)), typ=ByteArrayType(128), location='memory'
+        )
+        pos = getpos(expr)
+        o = LLLnode.from_list([
+            'seq',
+            ['mstore', placeholder_node, avo(args[0], 0, pos)],
+            ['mstore', ['add', placeholder_node, 32], avo(args[0], 1, pos)],
+            ['mstore', ['add', placeholder_node, 64], args[1]],
+            ['assert', ['staticcall', ['gas'], 7, placeholder_node, 96, placeholder_node, 64]],
+            placeholder_node,
+        ], typ=ListType(BaseType('uint256'), 2), pos=pos, location='memory')
+        return o
 
 
 def _memory_element_getter(index):
@@ -1087,7 +1093,7 @@ DISPATCH_TABLE = {
     'keccak256': _keccak256,
     'ecrecover': ECRecover().build_LLL,
     'ecadd': ECAdd().build_LLL,
-    'ecmul': ecmul,
+    'ecmul': ECMul().build_LLL,
     'extract32': extract32,
     'as_wei_value': as_wei_value,
     'raw_call': raw_call,
