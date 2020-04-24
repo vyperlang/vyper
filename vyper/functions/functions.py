@@ -90,18 +90,24 @@ class AssertModifiable:
         return LLLnode.from_list(['assert', args[0]], typ=None, pos=getpos(expr))
 
 
-@signature('decimal')
-def floor(expr, args, kwargs, context):
-    return LLLnode.from_list(
-        [
-            'if',
-            ['slt', args[0], 0],
-            ['sdiv', ['sub', args[0], DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR],
-            ['sdiv', args[0], DECIMAL_DIVISOR]
-        ],
-        typ=BaseType('int128'),
-        pos=getpos(expr)
-    )
+class Floor:
+
+    _id = "floor"
+    _inputs = [("value", "decimal")]
+    _return_type = "int128"
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        return LLLnode.from_list(
+            [
+                'if',
+                ['slt', args[0], 0],
+                ['sdiv', ['sub', args[0], DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR],
+                ['sdiv', args[0], DECIMAL_DIVISOR]
+            ],
+            typ=BaseType('int128'),
+            pos=getpos(expr)
+        )
 
 
 @signature('decimal')
@@ -1035,7 +1041,7 @@ def empty(expr, context):
 
 
 DISPATCH_TABLE = {
-    'floor': floor,
+    'floor': Floor().build_LLL,
     'ceil': ceil,
     'convert': _convert,
     'slice': _slice,
@@ -1067,7 +1073,7 @@ DISPATCH_TABLE = {
 }
 
 STMT_DISPATCH_TABLE = {
-    'assert_modifiable': AssertModifiable().to_LLL,
+    'assert_modifiable': AssertModifiable().build_LLL,
     'send': send,
     'selfdestruct': selfdestruct,
     'raw_call': raw_call,
