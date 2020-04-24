@@ -455,22 +455,28 @@ def method_id(expr, args, kwargs, context):
         raise StructureException('Can only produce bytes32 or bytes[4] as outputs')
 
 
-@signature('bytes32', 'uint256', 'uint256', 'uint256')
-def ecrecover(expr, args, kwargs, context):
-    placeholder_node = LLLnode.from_list(
-        context.new_placeholder(ByteArrayType(128)), typ=ByteArrayType(128), location='memory'
-    )
-    return LLLnode.from_list([
-        'seq',
-        ['mstore', placeholder_node, args[0]],
-        ['mstore', ['add', placeholder_node, 32], args[1]],
-        ['mstore', ['add', placeholder_node, 64], args[2]],
-        ['mstore', ['add', placeholder_node, 96], args[3]],
-        ['pop', [
-            'staticcall', ['gas'], 1, placeholder_node, 128, MemoryPositions.FREE_VAR_SPACE, 32
-        ]],
-        ['mload', MemoryPositions.FREE_VAR_SPACE],
-    ], typ=BaseType('address'), pos=getpos(expr))
+class ECRecover:
+
+    _id = "ecrecover"
+    _inputs = [("hash", "bytes32"), ("v", "uint256"), ("r", "uint256"), ("s", "uint256")]
+    _return_type = "address"
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        placeholder_node = LLLnode.from_list(
+            context.new_placeholder(ByteArrayType(128)), typ=ByteArrayType(128), location='memory'
+        )
+        return LLLnode.from_list([
+            'seq',
+            ['mstore', placeholder_node, args[0]],
+            ['mstore', ['add', placeholder_node, 32], args[1]],
+            ['mstore', ['add', placeholder_node, 64], args[2]],
+            ['mstore', ['add', placeholder_node, 96], args[3]],
+            ['pop', [
+                'staticcall', ['gas'], 1, placeholder_node, 128, MemoryPositions.FREE_VAR_SPACE, 32
+            ]],
+            ['mload', MemoryPositions.FREE_VAR_SPACE],
+        ], typ=BaseType('address'), pos=getpos(expr))
 
 
 def avo(arg, ind, pos):
@@ -1073,7 +1079,7 @@ DISPATCH_TABLE = {
     'sha256': sha256,
     'method_id': method_id,
     'keccak256': _keccak256,
-    'ecrecover': ecrecover,
+    'ecrecover': ECRecover().build_LLL,
     'ecadd': ecadd,
     'ecmul': ecmul,
     'extract32': extract32,
