@@ -110,18 +110,24 @@ class Floor:
         )
 
 
-@signature('decimal')
-def ceil(expr, args, kwards, context):
-    return LLLnode.from_list(
-        [
-            'if',
-            ['slt', args[0], 0],
-            ['sdiv', args[0], DECIMAL_DIVISOR],
-            ['sdiv', ['add', args[0], DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR]
-        ],
-        typ=BaseType('int128'),
-        pos=getpos(expr)
-    )
+class Ceil:
+
+    _id = "ceil"
+    _inputs = [("value", "decimal")]
+    _return_type = "int128"
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        return LLLnode.from_list(
+            [
+                'if',
+                ['slt', args[0], 0],
+                ['sdiv', args[0], DECIMAL_DIVISOR],
+                ['sdiv', ['add', args[0], DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR]
+            ],
+            typ=BaseType('int128'),
+            pos=getpos(expr)
+        )
 
 
 def _convert(expr, context):
@@ -1042,7 +1048,7 @@ def empty(expr, context):
 
 DISPATCH_TABLE = {
     'floor': Floor().build_LLL,
-    'ceil': ceil,
+    'ceil': Ceil().build_LLL,
     'convert': _convert,
     'slice': _slice,
     'len': _len,
