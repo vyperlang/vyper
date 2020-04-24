@@ -1,3 +1,6 @@
+from decimal import (
+    Decimal,
+)
 from typing import (
     Union,
 )
@@ -9,6 +12,16 @@ from vyper.exceptions import (
     InvalidType,
 )
 
+BUILTIN_CONSTANTS = {
+    "EMPTY_BYTES32": (vy_ast.Hex, "0x0000000000000000000000000000000000000000000000000000000000000000"),  # NOQA: E501
+    "ZERO_ADDRESS": (vy_ast.Hex, "0x0000000000000000000000000000000000000000"),
+    "MAX_INT128": (vy_ast.Int, 2 ** 127 - 1),
+    "MIN_INT128": (vy_ast.Int, -(2 ** 127)),
+    "MAX_DECIMAL": (vy_ast.Decimal, Decimal(2 ** 127 - 1)),
+    "MIN_DECIMAL": (vy_ast.Decimal, Decimal(-(2 ** 127))),
+    "MAX_UINT256": (vy_ast.Int, 2 ** 256 - 1),
+}
+
 
 def fold(vyper_ast_node: vy_ast.Module) -> None:
     """
@@ -19,6 +32,8 @@ def fold(vyper_ast_node: vy_ast.Module) -> None:
     vyper_ast_node : Module
         Top-level Vyper AST node.
     """
+    replace_builtin_constants(vyper_ast_node)
+
     changed_nodes = 1
     while changed_nodes:
         changed_nodes = 0
@@ -73,6 +88,19 @@ def replace_subscripts(vyper_ast_node: vy_ast.Module) -> int:
         vyper_ast_node.replace_in_tree(node, new_node)
 
     return changed_nodes
+
+
+def replace_builtin_constants(vyper_ast_node: vy_ast.Module) -> None:
+    """
+    Replace references to builtin constants with their literal values.
+
+    Arguments
+    ---------
+    vyper_ast_node : Module
+        Top-level Vyper AST node.
+    """
+    for name, (node, value) in BUILTIN_CONSTANTS.items():
+        replace_constant(vyper_ast_node, name, node(value=value))
 
 
 def _replace(old_node, new_node):
