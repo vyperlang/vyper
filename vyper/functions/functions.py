@@ -58,6 +58,7 @@ from vyper.utils import (
 from .signatures import (
     Optional,
     signature,
+    validate_inputs,
 )
 
 SHA256_ADDRESS = 2
@@ -73,13 +74,20 @@ def get_keyword(expr, keyword):
     # Leaving exception for other use cases.
     raise Exception(f"Keyword {keyword} not found")  # pragma: no cover
 
-# like `assert foo`, but doesn't check constancy.
+
 # currently no option for reason string (easy to add, just need to refactor
 # vyper.parser.stmt so we can use _assert_reason).
-@signature('bool')
-def assert_modifiable(expr, args, kwargs, context):
-    # cf. vyper.parser.stmt.parse_assert
-    return LLLnode.from_list(['assert', args[0]], typ=None, pos=getpos(expr))
+class AssertModifiable:
+    """
+    Assert a condition without performing a constancy check.
+    """
+    _id = "assert_modifiable"
+    _inputs = [("cond", "bool")]
+    _return_type = None
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        return LLLnode.from_list(['assert', args[0]], typ=None, pos=getpos(expr))
 
 
 @signature('decimal')
@@ -1059,7 +1067,7 @@ DISPATCH_TABLE = {
 }
 
 STMT_DISPATCH_TABLE = {
-    'assert_modifiable': assert_modifiable,
+    'assert_modifiable': AssertModifiable().to_LLL,
     'send': send,
     'selfdestruct': selfdestruct,
     'raw_call': raw_call,
