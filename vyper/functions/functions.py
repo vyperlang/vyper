@@ -134,78 +134,88 @@ def _convert(expr, context):
     return convert(expr, context)
 
 
-@signature(('bytes32', 'bytes', 'string'), 'int128', 'int128')
-def _slice(expr, args, kwargs, context):
+class Slice:
 
-    sub, start, length = args
-    if is_base_type(sub.typ, 'bytes32'):
-        if (start.typ.is_literal and length.typ.is_literal) and \
-           not (0 <= start.value + length.value <= 32):
-            raise InvalidLiteral(
-                'Invalid start / length values needs to be between 0 and 32.',
-                expr,
+    _id = "slice"
+    _inputs = [("b", ('bytes', 'bytes32', 'string')), ('start', 'int128'), ('length', 'int128')]
+    _return_type = None
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+
+        sub, start, length = args
+        if is_base_type(sub.typ, 'bytes32'):
+            if (
+                (start.typ.is_literal and length.typ.is_literal) and
+                not (0 <= start.value + length.value <= 32)
+            ):
+                raise InvalidLiteral(
+                    'Invalid start / length values needs to be between 0 and 32.',
+                    expr,
+                )
+            sub_typ_maxlen = 32
+        else:
+            sub_typ_maxlen = sub.typ.maxlen
+
+        # Get returntype string or bytes
+        if isinstance(args[0].typ, ByteArrayType) or is_base_type(sub.typ, 'bytes32'):
+            ReturnType = ByteArrayType
+        else:
+            ReturnType = StringType
+
+        # Node representing the position of the output in memory
+        np = context.new_placeholder(ReturnType(maxlen=sub_typ_maxlen + 32))
+        placeholder_node = LLLnode.from_list(np, typ=sub.typ, location='memory')
+        placeholder_plus_32_node = LLLnode.from_list(np + 32, typ=sub.typ, location='memory')
+        # Copies over bytearray data
+        if sub.location == 'storage':
+            adj_sub = LLLnode.from_list(
+                ['add', ['sha3_32', sub], ['add', ['div', '_start', 32], 1]],
+                typ=sub.typ,
+                location=sub.location,
             )
-        sub_typ_maxlen = 32
-    else:
-        sub_typ_maxlen = sub.typ.maxlen
+        else:
+            adj_sub = LLLnode.from_list(
+                ['add', sub, ['add', ['sub', '_start', ['mod', '_start', 32]], 32]],
+                typ=sub.typ,
+                location=sub.location,
+            )
 
-    # Get returntype string or bytes
-    if isinstance(args[0].typ, ByteArrayType) or is_base_type(sub.typ, 'bytes32'):
-        ReturnType = ByteArrayType
-    else:
-        ReturnType = StringType
+        if is_base_type(sub.typ, 'bytes32'):
+            adj_sub = LLLnode.from_list(
+                sub.args[0], typ=sub.typ, location="memory"
+            )
 
-    # Node representing the position of the output in memory
-    np = context.new_placeholder(ReturnType(maxlen=sub_typ_maxlen + 32))
-    placeholder_node = LLLnode.from_list(np, typ=sub.typ, location='memory')
-    placeholder_plus_32_node = LLLnode.from_list(np + 32, typ=sub.typ, location='memory')
-    # Copies over bytearray data
-    if sub.location == 'storage':
-        adj_sub = LLLnode.from_list(
-            ['add', ['sha3_32', sub], ['add', ['div', '_start', 32], 1]],
-            typ=sub.typ,
-            location=sub.location,
+        copier = make_byte_slice_copier(
+            placeholder_plus_32_node,
+            adj_sub,
+            ['add', '_length', 32],
+            sub_typ_maxlen,
+            pos=getpos(expr),
         )
-    else:
-        adj_sub = LLLnode.from_list(
-            ['add', sub, ['add', ['sub', '_start', ['mod', '_start', 32]], 32]],
-            typ=sub.typ,
-            location=sub.location,
-        )
+        # New maximum length in the type of the result
+        newmaxlen = length.value if not len(length.args) else sub_typ_maxlen
+        if is_base_type(sub.typ, 'bytes32'):
+            maxlen = 32
+        else:
+            maxlen = ['mload', Expr(sub, context=context).lll_node]  # Retrieve length of the bytes.
 
-    if is_base_type(sub.typ, 'bytes32'):
-        adj_sub = LLLnode.from_list(
-            sub.args[0], typ=sub.typ, location="memory"
-        )
-
-    copier = make_byte_slice_copier(
-        placeholder_plus_32_node,
-        adj_sub,
-        ['add', '_length', 32],
-        sub_typ_maxlen,
-        pos=getpos(expr),
-    )
-    # New maximum length in the type of the result
-    newmaxlen = length.value if not len(length.args) else sub_typ_maxlen
-    if is_base_type(sub.typ, 'bytes32'):
-        maxlen = 32
-    else:
-        maxlen = ['mload', Expr(sub, context=context).lll_node]  # Retrieve length of the bytes.
-
-    out = [
-        'with', '_start', start, [
-            'with', '_length', length, [
-                'with', '_opos', ['add', placeholder_node, ['mod', '_start', 32]], [
-                    'seq',
-                    ['assert', ['le', ['add', '_start', '_length'], maxlen]],
-                    copier,
-                    ['mstore', '_opos', '_length'],
-                    '_opos'
+        out = [
+            'with', '_start', start, [
+                'with', '_length', length, [
+                    'with', '_opos', ['add', placeholder_node, ['mod', '_start', 32]], [
+                        'seq',
+                        ['assert', ['le', ['add', '_start', '_length'], maxlen]],
+                        copier,
+                        ['mstore', '_opos', '_length'],
+                        '_opos'
+                    ],
                 ],
             ],
-        ],
-    ]
-    return LLLnode.from_list(out, typ=ReturnType(newmaxlen), location='memory', pos=getpos(expr))
+        ]
+        return LLLnode.from_list(
+            out, typ=ReturnType(newmaxlen), location='memory', pos=getpos(expr)
+        )
 
 
 @signature(('bytes', 'string'))
@@ -1050,7 +1060,7 @@ DISPATCH_TABLE = {
     'floor': Floor().build_LLL,
     'ceil': Ceil().build_LLL,
     'convert': _convert,
-    'slice': _slice,
+    'slice': Slice().build_LLL,
     'len': _len,
     'concat': concat,
     'sha3': _sha3,
