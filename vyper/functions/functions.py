@@ -218,9 +218,15 @@ class Slice:
         )
 
 
-@signature(('bytes', 'string'))
-def _len(expr, args, kwargs, context):
-    return get_length(args[0])
+class Len:
+
+    _id = "len"
+    _inputs = [("b", ("bytes", "string"))]
+    _return_type = "int128"
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        return get_length(args[0])
 
 
 def concat(expr, context):
@@ -1061,7 +1067,7 @@ DISPATCH_TABLE = {
     'ceil': Ceil().build_LLL,
     'convert': _convert,
     'slice': Slice().build_LLL,
-    'len': _len,
+    'len': Len().build_LLL,
     'concat': concat,
     'sha3': _sha3,
     'sha256': sha256,
