@@ -62,6 +62,7 @@ The following conventions **should** be used when naming functions or methods. C
     * ``build_``: For creation of a new object that is derived from some other data.
     * ``set_``: For adding a new value or modifying an existing one within an object.
     * ``add_``: For adding a new attribute or other value to an object. Raises an exception if the value already exists.
+    * ``replace_``: For mutating an object. Should return ``None`` on success or raise an exception if something is wrong.
     * ``compare_``: For comparing values. Returns ``True`` or ``False``, does not raise an exception.
     * ``validate_``: Returns ``None`` or raises an exception if something is wrong.
     * ``from_``: For class methods that instantiate an object based on the given input data.
