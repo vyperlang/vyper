@@ -483,22 +483,28 @@ def avo(arg, ind, pos):
     return unwrap_location(add_variable_offset(arg, LLLnode.from_list(ind, 'int128'), pos=pos))
 
 
-@signature('uint256[2]', 'uint256[2]')
-def ecadd(expr, args, kwargs, context):
-    placeholder_node = LLLnode.from_list(
-        context.new_placeholder(ByteArrayType(128)), typ=ByteArrayType(128), location='memory'
-    )
-    pos = getpos(expr)
-    o = LLLnode.from_list([
-        'seq',
-        ['mstore', placeholder_node, avo(args[0], 0, pos)],
-        ['mstore', ['add', placeholder_node, 32], avo(args[0], 1, pos)],
-        ['mstore', ['add', placeholder_node, 64], avo(args[1], 0, pos)],
-        ['mstore', ['add', placeholder_node, 96], avo(args[1], 1, pos)],
-        ['assert', ['staticcall', ['gas'], 6, placeholder_node, 128, placeholder_node, 64]],
-        placeholder_node,
-    ], typ=ListType(BaseType('uint256'), 2), pos=getpos(expr), location='memory')
-    return o
+class ECAdd:
+
+    _id = "ecadd"
+    _inputs = [("a", "uint256[2]"), ("b", "uint256[2]")]
+    _return_type = "uint256[2]"
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        placeholder_node = LLLnode.from_list(
+            context.new_placeholder(ByteArrayType(128)), typ=ByteArrayType(128), location='memory'
+        )
+        pos = getpos(expr)
+        o = LLLnode.from_list([
+            'seq',
+            ['mstore', placeholder_node, avo(args[0], 0, pos)],
+            ['mstore', ['add', placeholder_node, 32], avo(args[0], 1, pos)],
+            ['mstore', ['add', placeholder_node, 64], avo(args[1], 0, pos)],
+            ['mstore', ['add', placeholder_node, 96], avo(args[1], 1, pos)],
+            ['assert', ['staticcall', ['gas'], 6, placeholder_node, 128, placeholder_node, 64]],
+            placeholder_node,
+        ], typ=ListType(BaseType('uint256'), 2), pos=getpos(expr), location='memory')
+        return o
 
 
 @signature('uint256[2]', 'uint256')
@@ -1080,7 +1086,7 @@ DISPATCH_TABLE = {
     'method_id': method_id,
     'keccak256': _keccak256,
     'ecrecover': ECRecover().build_LLL,
-    'ecadd': ecadd,
+    'ecadd': ECAdd().build_LLL,
     'ecmul': ecmul,
     'extract32': extract32,
     'as_wei_value': as_wei_value,
