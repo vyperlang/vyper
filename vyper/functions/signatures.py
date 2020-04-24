@@ -155,3 +155,55 @@ def signature(*argz, **kwargz):
             return f(element, subs, kwsubs, context)
         return g
     return decorator
+
+
+def validate_inputs(wrapped_fn):
+    """
+    Validate input arguments on builtin functions.
+
+    Applied as a wrapper on the `build_LLL` method of
+    classes in `vyper.functions.functions`.
+    """
+    @functools.wraps(wrapped_fn)
+    def decorator_fn(self, node, context):
+        argz = [i[1] for i in self._inputs]
+        kwargz = getattr(self, "_kwargs", {})
+        function_name = node.func.id
+        if len(node.args) > len(argz):
+            raise StructureException(
+                f"Expected {len(argz)} arguments for {function_name}, got {len(node.args)}",
+                node
+            )
+        subs = []
+        for i, expected_arg in enumerate(argz):
+            if len(node.args) > i:
+                subs.append(process_arg(
+                    i + 1,
+                    node.args[i],
+                    expected_arg,
+                    function_name,
+                    context,
+                ))
+            elif isinstance(expected_arg, Optional):
+                subs.append(expected_arg.default)
+            else:
+                raise StructureException(
+                    f"Not enough arguments for function: {node.func.id}", node
+                )
+        kwsubs = {}
+        node_kw = {k.arg: k.value for k in node.keywords}
+        for k, expected_arg in kwargz.items():
+            if k not in node_kw:
+                if not isinstance(expected_arg, Optional):
+                    raise StructureException(
+                        f"Function {function_name} requires argument {k}", node
+                    )
+                kwsubs[k] = expected_arg.default
+            else:
+                kwsubs[k] = process_arg(k, node_kw[k], expected_arg, function_name, context)
+        for k, _arg in node_kw.items():
+            if k not in kwargz:
+                raise StructureException(f"Unexpected argument: {k}", node)
+        return wrapped_fn(self, node, subs, kwsubs, context)
+
+    return decorator_fn
