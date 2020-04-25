@@ -436,22 +436,27 @@ def sha256(expr, args, kwargs, context):
         raise Exception(f"Unsupported location: {sub.location}")  # pragma: no test
 
 
-@signature('str_literal', 'name_literal')
-def method_id(expr, args, kwargs, context):
-    if b' ' in args[0]:
-        raise TypeMismatch('Invalid function signature no spaces allowed.')
-    method_id = fourbytes_to_int(keccak256(args[0])[:4])
-    if args[1] == 'bytes32':
-        return LLLnode(method_id, typ=BaseType('bytes32'), pos=getpos(expr))
-    elif args[1] == 'bytes[4]':
-        placeholder = LLLnode.from_list(context.new_placeholder(ByteArrayType(4)))
-        return LLLnode.from_list(
-            ['seq',
-                ['mstore', ['add', placeholder, 4], method_id],
-                ['mstore', placeholder, 4], placeholder],
-            typ=ByteArrayType(4), location='memory', pos=getpos(expr))
-    else:
-        raise StructureException('Can only produce bytes32 or bytes[4] as outputs')
+class MethodID:
+
+    _id = "method_id"
+    _inputs = [("method", "str_literal"), ("type", "name_literal")]
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        if b' ' in args[0]:
+            raise TypeMismatch('Invalid function signature no spaces allowed.')
+        method_id = fourbytes_to_int(keccak256(args[0])[:4])
+        if args[1] == 'bytes32':
+            return LLLnode(method_id, typ=BaseType('bytes32'), pos=getpos(expr))
+        elif args[1] == 'bytes[4]':
+            placeholder = LLLnode.from_list(context.new_placeholder(ByteArrayType(4)))
+            return LLLnode.from_list(
+                ['seq',
+                    ['mstore', ['add', placeholder, 4], method_id],
+                    ['mstore', placeholder, 4], placeholder],
+                typ=ByteArrayType(4), location='memory', pos=getpos(expr))
+        else:
+            raise StructureException('Can only produce bytes32 or bytes[4] as outputs')
 
 
 class ECRecover:
@@ -1202,7 +1207,7 @@ DISPATCH_TABLE = {
     'concat': concat,
     'sha3': _sha3,
     'sha256': sha256,
-    'method_id': method_id,
+    'method_id': MethodID().build_LLL,
     'keccak256': _keccak256,
     'ecrecover': ECRecover().build_LLL,
     'ecadd': ECAdd().build_LLL,
