@@ -731,19 +731,25 @@ def raw_call(expr, args, kwargs, context):
     return LLLnode.from_list(seq, typ=typ, location="memory", pos=getpos(expr))
 
 
-@signature('address', 'uint256')
-def send(expr, args, kwargs, context):
-    to, value = args
-    if context.is_constant():
-        raise ConstancyViolation(
-            f"Cannot send ether inside {context.pp_constancy()}!",
-            expr,
+class Send:
+
+    _id = "send"
+    _inputs = [("to", "address"), ("value", "uint256")]
+    _return_type = None
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        to, value = args
+        if context.is_constant():
+            raise ConstancyViolation(
+                f"Cannot send ether inside {context.pp_constancy()}!",
+                expr,
+            )
+        return LLLnode.from_list(
+            ['assert', ['call', 0, to, value, 0, 0, 0, 0]],
+            typ=None,
+            pos=getpos(expr),
         )
-    return LLLnode.from_list(
-        ['assert', ['call', 0, to, value, 0, 0, 0, 0]],
-        typ=None,
-        pos=getpos(expr),
-    )
 
 
 @signature('address')
@@ -1177,7 +1183,7 @@ DISPATCH_TABLE = {
 
 STMT_DISPATCH_TABLE = {
     'assert_modifiable': AssertModifiable().build_LLL,
-    'send': send,
+    'send': Send().build_LLL,
     'selfdestruct': selfdestruct,
     'raw_call': raw_call,
     'raw_log': raw_log,
