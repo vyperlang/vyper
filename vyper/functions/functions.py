@@ -364,82 +364,88 @@ def _make_sha256_call(inp_start, inp_len, out_start, out_len):
     ]
 
 
-@signature(('bytes_literal', 'str_literal', 'bytes', 'string', 'bytes32'))
-def sha256(expr, args, kwargs, context):
-    sub = args[0]
-    # Literal input
-    if isinstance(sub, bytes):
-        return LLLnode.from_list(
-            bytes_to_int(hashlib.sha256(sub).digest()),
-            typ=BaseType('bytes32'),
-            pos=getpos(expr)
-        )
-    # bytes32 input
-    elif is_base_type(sub.typ, 'bytes32'):
-        return LLLnode.from_list(
-            [
-                'seq',
-                ['mstore', MemoryPositions.FREE_VAR_SPACE, sub],
-                _make_sha256_call(
-                    inp_start=MemoryPositions.FREE_VAR_SPACE,
-                    inp_len=32,
-                    out_start=MemoryPositions.FREE_VAR_SPACE,
-                    out_len=32
-                ),
-                ['mload', MemoryPositions.FREE_VAR_SPACE]  # push value onto stack
-            ],
-            typ=BaseType('bytes32'),
-            pos=getpos(expr),
-            add_gas_estimate=SHA256_BASE_GAS + 1 * SHA256_PER_WORD_GAS
-        )
-    # bytearay-like input
-    if sub.location == "storage":
-        # Copy storage to memory
-        placeholder = context.new_placeholder(sub.typ)
-        placeholder_node = LLLnode.from_list(placeholder, typ=sub.typ, location='memory')
-        copier = make_byte_array_copier(
-            placeholder_node,
-            LLLnode.from_list('_sub', typ=sub.typ, location=sub.location),
-        )
-        return LLLnode.from_list(
-            [
-                'with', '_sub', sub, [
+class Sha256:
+
+    _id = "sha256"
+    _inputs = [("value", ('bytes_literal', 'str_literal', 'bytes', 'string', 'bytes32'))]
+    _return_type = "bytes32"
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        sub = args[0]
+        # Literal input
+        if isinstance(sub, bytes):
+            return LLLnode.from_list(
+                bytes_to_int(hashlib.sha256(sub).digest()),
+                typ=BaseType('bytes32'),
+                pos=getpos(expr)
+            )
+        # bytes32 input
+        elif is_base_type(sub.typ, 'bytes32'):
+            return LLLnode.from_list(
+                [
                     'seq',
-                    copier,
+                    ['mstore', MemoryPositions.FREE_VAR_SPACE, sub],
                     _make_sha256_call(
-                        inp_start=['add', placeholder, 32],
-                        inp_len=['mload', placeholder],
+                        inp_start=MemoryPositions.FREE_VAR_SPACE,
+                        inp_len=32,
                         out_start=MemoryPositions.FREE_VAR_SPACE,
                         out_len=32
                     ),
-                    ['mload', MemoryPositions.FREE_VAR_SPACE]
+                    ['mload', MemoryPositions.FREE_VAR_SPACE]  # push value onto stack
                 ],
-            ],
-            typ=BaseType('bytes32'),
-            pos=getpos(expr),
-            add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS
-        )
-    elif sub.location == "memory":
-        return LLLnode.from_list(
-            [
-                'with', '_sub', sub, [
-                    'seq',
-                    _make_sha256_call(
-                        inp_start=['add', '_sub', 32],
-                        inp_len=['mload', '_sub'],
-                        out_start=MemoryPositions.FREE_VAR_SPACE,
-                        out_len=32
-                    ),
-                    ['mload', MemoryPositions.FREE_VAR_SPACE]
-                ]
-            ],
-            typ=BaseType('bytes32'),
-            pos=getpos(expr),
-            add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS
-        )
-    else:
-        # This should never happen, but just left here for future compiler-writers.
-        raise Exception(f"Unsupported location: {sub.location}")  # pragma: no test
+                typ=BaseType('bytes32'),
+                pos=getpos(expr),
+                add_gas_estimate=SHA256_BASE_GAS + 1 * SHA256_PER_WORD_GAS
+            )
+        # bytearay-like input
+        if sub.location == "storage":
+            # Copy storage to memory
+            placeholder = context.new_placeholder(sub.typ)
+            placeholder_node = LLLnode.from_list(placeholder, typ=sub.typ, location='memory')
+            copier = make_byte_array_copier(
+                placeholder_node,
+                LLLnode.from_list('_sub', typ=sub.typ, location=sub.location),
+            )
+            return LLLnode.from_list(
+                [
+                    'with', '_sub', sub, [
+                        'seq',
+                        copier,
+                        _make_sha256_call(
+                            inp_start=['add', placeholder, 32],
+                            inp_len=['mload', placeholder],
+                            out_start=MemoryPositions.FREE_VAR_SPACE,
+                            out_len=32
+                        ),
+                        ['mload', MemoryPositions.FREE_VAR_SPACE]
+                    ],
+                ],
+                typ=BaseType('bytes32'),
+                pos=getpos(expr),
+                add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS
+            )
+        elif sub.location == "memory":
+            return LLLnode.from_list(
+                [
+                    'with', '_sub', sub, [
+                        'seq',
+                        _make_sha256_call(
+                            inp_start=['add', '_sub', 32],
+                            inp_len=['mload', '_sub'],
+                            out_start=MemoryPositions.FREE_VAR_SPACE,
+                            out_len=32
+                        ),
+                        ['mload', MemoryPositions.FREE_VAR_SPACE]
+                    ]
+                ],
+                typ=BaseType('bytes32'),
+                pos=getpos(expr),
+                add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS
+            )
+        else:
+            # This should never happen, but just left here for future compiler-writers.
+            raise Exception(f"Unsupported location: {sub.location}")  # pragma: no test
 
 
 class MethodID:
@@ -1212,7 +1218,7 @@ DISPATCH_TABLE = {
     'len': Len().build_LLL,
     'concat': concat,
     'sha3': _sha3,
-    'sha256': sha256,
+    'sha256': Sha256().build_LLL,
     'method_id': MethodID().build_LLL,
     'keccak256': Keccak256().build_LLL,
     'ecrecover': ECRecover().build_LLL,
