@@ -1023,14 +1023,24 @@ def create_forwarder_to(expr, args, kwargs, context):
     )
 
 
-@signature(('int128', 'decimal', 'uint256'), ('int128', 'decimal', 'uint256'))
-def _min(expr, args, kwargs, context):
-    return minmax(expr, args, kwargs, context, 'gt')
+class Min:
+
+    _id = "min"
+    _inputs = [("a", ('int128', 'decimal', 'uint256')), ("b", ('int128', 'decimal', 'uint256'))]
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        return minmax(expr, args, kwargs, context, 'gt')
 
 
-@signature(('int128', 'decimal', 'uint256'), ('int128', 'decimal', 'uint256'))
-def _max(expr, args, kwargs, context):
-    return minmax(expr, args, kwargs, context, 'lt')
+class Max:
+
+    _id = "max"
+    _inputs = [("a", ('int128', 'decimal', 'uint256')), ("b", ('int128', 'decimal', 'uint256'))]
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        return minmax(expr, args, kwargs, context, 'lt')
 
 
 def minmax(expr, args, kwargs, context, comparator):
@@ -1160,8 +1170,8 @@ DISPATCH_TABLE = {
     'sqrt': sqrt,
     'shift': Shift().build_LLL,
     'create_forwarder_to': create_forwarder_to,
-    'min': _min,
-    'max': _max,
+    'min': Min().build_LLL,
+    'max': Max().build_LLL,
     'empty': empty,
 }
 
