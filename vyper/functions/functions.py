@@ -7,7 +7,6 @@ from vyper import (
     ast as vy_ast,
 )
 from vyper.exceptions import (
-    ArgumentException,
     ConstancyViolation,
     InvalidLiteral,
     StructureException,
@@ -1166,11 +1165,15 @@ else:
     )
 
 
-def empty(expr, context):
-    if len(expr.args) != 1:
-        raise ArgumentException('function expects two parameters.', expr)
-    output_type = context.parse_type(expr.args[0], expr.args[0])
-    return LLLnode(None, typ=output_type, pos=getpos(expr))
+class Empty:
+
+    _id = "empty"
+    _inputs = [("typename", "*")]
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        output_type = context.parse_type(expr.args[0], expr.args[0])
+        return LLLnode(None, typ=output_type, pos=getpos(expr))
 
 
 DISPATCH_TABLE = {
@@ -1202,7 +1205,7 @@ DISPATCH_TABLE = {
     'create_forwarder_to': CreateForwarderTo().build_LLL,
     'min': Min().build_LLL,
     'max': Max().build_LLL,
-    'empty': empty,
+    'empty': Empty().build_LLL,
 }
 
 STMT_DISPATCH_TABLE = {
