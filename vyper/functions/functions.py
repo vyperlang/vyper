@@ -12,6 +12,9 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatch,
 )
+from vyper.functions.convert import (
+    convert,
+)
 from vyper.opcodes import (
     version_check,
 )
@@ -42,9 +45,6 @@ from vyper.types import (
     StringType,
     is_base_type,
 )
-from vyper.types.convert import (
-    convert,
-)
 from vyper.utils import (
     DECIMAL_DIVISOR,
     MemoryPositions,
@@ -56,7 +56,6 @@ from vyper.utils import (
 
 from .signatures import (
     Optional,
-    signature,
     validate_inputs,
 )
 
@@ -129,8 +128,12 @@ class Ceil:
         )
 
 
-def _convert(expr, context):
-    return convert(expr, context)
+class Convert:
+
+    _id = "convert"
+
+    def build_LLL(self, expr, context):
+        return convert(expr, context)
 
 
 class Slice:
@@ -1214,7 +1217,7 @@ class Empty:
 DISPATCH_TABLE = {
     'floor': Floor().build_LLL,
     'ceil': Ceil().build_LLL,
-    'convert': _convert,
+    'convert': Convert().build_LLL,
     'slice': Slice().build_LLL,
     'len': Len().build_LLL,
     'concat': Concat().build_LLL,
