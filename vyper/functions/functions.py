@@ -1106,13 +1106,19 @@ def minmax(expr, args, kwargs, context, comparator):
     )
 
 
-@signature('decimal')
-def sqrt(expr, args, kwargs, context):
-    from vyper.functions.utils import (
-        generate_inline_function,
-    )
-    arg = args[0]
-    sqrt_code = """
+class Sqrt:
+
+    _id = "sqrt"
+    _inputs = [("d", "decimal")]
+    _return_type = "decimal"
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        from vyper.functions.utils import (
+            generate_inline_function,
+        )
+        arg = args[0]
+        sqrt_code = """
 assert x >= 0.0
 z: decimal = 0.0
 
@@ -1127,42 +1133,42 @@ else:
             break
         y = z
         z = (x / z + z) / 2.0
-    """
+        """
 
-    x_type = BaseType('decimal')
-    placeholder_copy = ['pass']
-    # Steal current position if variable is already allocated.
-    if arg.value == 'mload':
-        new_var_pos = arg.args[0]
-    # Other locations need to be copied.
-    else:
-        new_var_pos = context.new_placeholder(x_type)
-        placeholder_copy = ['mstore', new_var_pos, arg]
-    # Create input variables.
-    variables = {
-        'x': VariableRecord(
-            name='x',
-            pos=new_var_pos,
-            typ=x_type,
-            mutable=False
+        x_type = BaseType('decimal')
+        placeholder_copy = ['pass']
+        # Steal current position if variable is already allocated.
+        if arg.value == 'mload':
+            new_var_pos = arg.args[0]
+        # Other locations need to be copied.
+        else:
+            new_var_pos = context.new_placeholder(x_type)
+            placeholder_copy = ['mstore', new_var_pos, arg]
+        # Create input variables.
+        variables = {
+            'x': VariableRecord(
+                name='x',
+                pos=new_var_pos,
+                typ=x_type,
+                mutable=False
+            )
+        }
+        # Generate inline LLL.
+        new_ctx, sqrt_lll = generate_inline_function(
+            code=sqrt_code,
+            variables=variables,
+            memory_allocator=context.memory_allocator
         )
-    }
-    # Generate inline LLL.
-    new_ctx, sqrt_lll = generate_inline_function(
-        code=sqrt_code,
-        variables=variables,
-        memory_allocator=context.memory_allocator
-    )
-    return LLLnode.from_list(
-        [
-            'seq_unchecked',
-            placeholder_copy,  # load x variable
-            sqrt_lll,
-            ['mload', new_ctx.vars['z'].pos]  # unload z variable into the stack,
-        ],
-        typ=BaseType('decimal'),
-        pos=getpos(expr),
-    )
+        return LLLnode.from_list(
+            [
+                'seq_unchecked',
+                placeholder_copy,  # load x variable
+                sqrt_lll,
+                ['mload', new_ctx.vars['z'].pos]  # unload z variable into the stack,
+            ],
+            typ=BaseType('decimal'),
+            pos=getpos(expr),
+        )
 
 
 class Empty:
@@ -1200,7 +1206,7 @@ DISPATCH_TABLE = {
     'bitwise_not': BitwiseNot().build_LLL,
     'uint256_addmod': AddMod().build_LLL,
     'uint256_mulmod': MulMod().build_LLL,
-    'sqrt': sqrt,
+    'sqrt': Sqrt().build_LLL,
     'shift': Shift().build_LLL,
     'create_forwarder_to': CreateForwarderTo().build_LLL,
     'min': Min().build_LLL,
