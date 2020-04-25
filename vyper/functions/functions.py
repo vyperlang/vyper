@@ -610,10 +610,13 @@ def extract32(expr, args, kwargs, context):
         return o
 
 
-@signature(('num_literal', 'int128', 'uint256', 'decimal'), 'str_literal')
-def as_wei_value(expr, args, kwargs, context):
-    # Denominations
-    wei_denominations = {
+class AsWeiValue:
+
+    _id = "as_wei_value"
+    _inputs = [("value", ("num_literal", "int128", "uint256", "decimal")), ("unit", "str_literal")]
+    _return_type = "uint256"
+
+    wei_denoms = {
         ("wei", ): 1,
         ("femtoether", "kwei", "babbage"): 10**3,
         ("picoether", "mwei", "lovelace"): 10**6,
@@ -624,45 +627,47 @@ def as_wei_value(expr, args, kwargs, context):
         ("kether", "grand"): 10**21,
     }
 
-    value, denom_name = args[0], args[1].decode()
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        value, denom_name = args[0], args[1].decode()
 
-    denom_divisor = next((v for k, v in wei_denominations.items() if denom_name in k), False)
-    if not denom_divisor:
-        raise InvalidLiteral(
-            f"Invalid denomination: {denom_name}, valid denominations are: "
-            f"{','.join(x[0] for x in wei_denominations)}",
-            expr.args[1]
-        )
-
-    # Compute the amount of wei and return that value
-    if isinstance(value, (int, Decimal)):
-        expr_args_0 = expr.args[0]
-        # On constant reference fetch value node of constant assignment.
-        if context.constants.ast_is_constant(expr.args[0]):
-            expr_args_0 = context.constants._constants_ast[expr.args[0].id]
-        numstring, num, den = get_number_as_fraction(expr_args_0, context)
-        if denom_divisor % den:
-            max_len = len(str(denom_divisor))-1
+        denom_divisor = next((v for k, v in self.wei_denoms.items() if denom_name in k), False)
+        if not denom_divisor:
             raise InvalidLiteral(
-                f"Wei value of denomination '{denom_name}' has maximum {max_len} decimal places",
-                expr.args[0]
+                f"Invalid denomination: {denom_name}, valid denominations are: "
+                f"{','.join(x[0] for x in self.wei_denoms)}",
+                expr.args[1]
             )
-        sub = num * denom_divisor // den
-    elif value.typ.is_literal:
-        if value.value <= 0:
-            raise InvalidLiteral("Negative wei value not allowed", expr)
-        sub = ['mul', value.value, denom_divisor]
-    elif value.typ.typ == 'uint256':
-        sub = ['mul', value, denom_divisor]
-    else:
-        sub = ['div', ['mul', value, denom_divisor], DECIMAL_DIVISOR]
 
-    return LLLnode.from_list(
-        sub,
-        typ=BaseType('uint256'),
-        location=None,
-        pos=getpos(expr),
-    )
+        # Compute the amount of wei and return that value
+        if isinstance(value, (int, Decimal)):
+            expr_args_0 = expr.args[0]
+            # On constant reference fetch value node of constant assignment.
+            if context.constants.ast_is_constant(expr.args[0]):
+                expr_args_0 = context.constants._constants_ast[expr.args[0].id]
+            numstring, num, den = get_number_as_fraction(expr_args_0, context)
+            if denom_divisor % den:
+                max_len = len(str(denom_divisor))-1
+                raise InvalidLiteral(
+                    f"Wei value of denomination '{denom_name}' has max {max_len} decimal places",
+                    expr.args[0]
+                )
+            sub = num * denom_divisor // den
+        elif value.typ.is_literal:
+            if value.value <= 0:
+                raise InvalidLiteral("Negative wei value not allowed", expr)
+            sub = ['mul', value.value, denom_divisor]
+        elif value.typ.typ == 'uint256':
+            sub = ['mul', value, denom_divisor]
+        else:
+            sub = ['div', ['mul', value, denom_divisor], DECIMAL_DIVISOR]
+
+        return LLLnode.from_list(
+            sub,
+            typ=BaseType('uint256'),
+            location=None,
+            pos=getpos(expr),
+        )
 
 
 zero_value = LLLnode.from_list(0, typ=BaseType('uint256'))
@@ -1197,7 +1202,7 @@ DISPATCH_TABLE = {
     'ecadd': ECAdd().build_LLL,
     'ecmul': ECMul().build_LLL,
     'extract32': extract32,
-    'as_wei_value': as_wei_value,
+    'as_wei_value': AsWeiValue().build_LLL,
     'raw_call': RawCall().build_LLL,
     'blockhash': BlockHash().build_LLL,
     'bitwise_and': BitwiseAnd().build_LLL,
