@@ -900,42 +900,47 @@ def uint256_mulmod(expr, args, kwargs, context):
     )
 
 
-@signature('uint256', 'int128')
-def shift(expr, args, kwargs, context):
+class Shift:
 
-    if args[1].typ.is_literal:
-        shift_abs = abs(args[1].value)
-    else:
-        shift_abs = ['sub', 0, '_s']
+    _id = "shift"
+    _inputs = [("x", "uint256"), ("_shift", "int128")]
+    _return_type = "uint256"
 
-    if version_check(begin="constantinople"):
-        left_shift = ['shl', '_s', '_v']
-        right_shift = ['shr', shift_abs, '_v']
-    else:
-        # If second argument is positive, left-shift so multiply by a power of two
-        # If it is negative, divide by a power of two
-        # node that if the abs of the second argument >= 256, then in the EVM
-        # 2**(second arg) = 0, and multiplying OR dividing by 0 gives 0
-        left_shift = ['mul', '_v', ['exp', 2, '_s']]
-        right_shift = ['div', '_v', ['exp', 2, shift_abs]]
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        if args[1].typ.is_literal:
+            shift_abs = abs(args[1].value)
+        else:
+            shift_abs = ['sub', 0, '_s']
 
-    if not args[1].typ.is_literal:
-        node_list = ['if', ['slt', '_s', 0], right_shift, left_shift]
-    elif args[1].value >= 0:
-        node_list = left_shift
-    else:
-        node_list = right_shift
+        if version_check(begin="constantinople"):
+            left_shift = ['shl', '_s', '_v']
+            right_shift = ['shr', shift_abs, '_v']
+        else:
+            # If second argument is positive, left-shift so multiply by a power of two
+            # If it is negative, divide by a power of two
+            # node that if the abs of the second argument >= 256, then in the EVM
+            # 2**(second arg) = 0, and multiplying OR dividing by 0 gives 0
+            left_shift = ['mul', '_v', ['exp', 2, '_s']]
+            right_shift = ['div', '_v', ['exp', 2, shift_abs]]
 
-    return LLLnode.from_list(
-        [
-            'with', '_v', args[0], [
-                'with', '_s', args[1],
-                    node_list,
+        if not args[1].typ.is_literal:
+            node_list = ['if', ['slt', '_s', 0], right_shift, left_shift]
+        elif args[1].value >= 0:
+            node_list = left_shift
+        else:
+            node_list = right_shift
+
+        return LLLnode.from_list(
+            [
+                'with', '_v', args[0], [
+                    'with', '_s', args[1],
+                        node_list,
+                ],
             ],
-        ],
-        typ=BaseType('uint256'),
-        pos=getpos(expr),
-    )
+            typ=BaseType('uint256'),
+            pos=getpos(expr),
+        )
 
 
 def get_create_forwarder_to_bytecode():
@@ -1141,7 +1146,7 @@ DISPATCH_TABLE = {
     'uint256_addmod': uint256_addmod,
     'uint256_mulmod': uint256_mulmod,
     'sqrt': sqrt,
-    'shift': shift,
+    'shift': Shift().build_LLL,
     'create_forwarder_to': create_forwarder_to,
     'min': _min,
     'max': _max,
