@@ -543,71 +543,77 @@ def _storage_element_getter(index):
     )
 
 
-@signature('bytes', 'int128', type=Optional('name_literal', 'bytes32'))
-def extract32(expr, args, kwargs, context):
-    sub, index = args
-    ret_type = kwargs['type']
-    # Get length and specific element
-    if sub.location == "memory":
-        lengetter = LLLnode.from_list(['mload', '_sub'], typ=BaseType('int128'))
-        elementgetter = _memory_element_getter
-    elif sub.location == "storage":
-        lengetter = LLLnode.from_list(['sload', ['sha3_32', '_sub']], typ=BaseType('int128'))
-        elementgetter = _storage_element_getter
-    # TODO: unclosed if/elif clause.  Undefined behavior if `sub.location`
-    # isn't one of `memory`/`storage`
+class Extract32:
 
-    # Special case: index known to be a multiple of 32
-    if isinstance(index.value, int) and not index.value % 32:
-        o = LLLnode.from_list(
-            [
-                'with', '_sub', sub,
-                elementgetter(['div', ['clamp', 0, index, ['sub', lengetter, 32]], 32])
-            ],
-            typ=BaseType(ret_type),
-            annotation='extracting 32 bytes',
-        )
-    # General case
-    else:
-        o = LLLnode.from_list([
-            'with', '_sub', sub, [
-                'with', '_len', lengetter, [
-                    'with', '_index', ['clamp', 0, index, ['sub', '_len', 32]], [
-                        'with', '_mi32', ['mod', '_index', 32], [
-                            'with', '_di32', ['div', '_index', 32],
-                            [
-                                'if',
-                                '_mi32',
+    _id = "extract32"
+    _inputs = [("b", "bytes"), ("start", "int128")]
+    _kwargs = {"type": Optional('name_literal', 'bytes32')}
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        sub, index = args
+        ret_type = kwargs['type']
+        # Get length and specific element
+        if sub.location == "memory":
+            lengetter = LLLnode.from_list(['mload', '_sub'], typ=BaseType('int128'))
+            elementgetter = _memory_element_getter
+        elif sub.location == "storage":
+            lengetter = LLLnode.from_list(['sload', ['sha3_32', '_sub']], typ=BaseType('int128'))
+            elementgetter = _storage_element_getter
+        # TODO: unclosed if/elif clause.  Undefined behavior if `sub.location`
+        # isn't one of `memory`/`storage`
+
+        # Special case: index known to be a multiple of 32
+        if isinstance(index.value, int) and not index.value % 32:
+            o = LLLnode.from_list(
+                [
+                    'with', '_sub', sub,
+                    elementgetter(['div', ['clamp', 0, index, ['sub', lengetter, 32]], 32])
+                ],
+                typ=BaseType(ret_type),
+                annotation='extracting 32 bytes',
+            )
+        # General case
+        else:
+            o = LLLnode.from_list([
+                'with', '_sub', sub, [
+                    'with', '_len', lengetter, [
+                        'with', '_index', ['clamp', 0, index, ['sub', '_len', 32]], [
+                            'with', '_mi32', ['mod', '_index', 32], [
+                                'with', '_di32', ['div', '_index', 32],
                                 [
-                                    'add',
-                                    ['mul', elementgetter('_di32'), ['exp', 256, '_mi32']],
+                                    'if',
+                                    '_mi32',
                                     [
-                                        'div',
-                                        elementgetter(['add', '_di32', 1]),
-                                        ['exp', 256, ['sub', 32, '_mi32']],
+                                        'add',
+                                        ['mul', elementgetter('_di32'), ['exp', 256, '_mi32']],
+                                        [
+                                            'div',
+                                            elementgetter(['add', '_di32', 1]),
+                                            ['exp', 256, ['sub', 32, '_mi32']],
+                                        ],
                                     ],
+                                    elementgetter('_di32'),
                                 ],
-                                elementgetter('_di32'),
                             ],
                         ],
                     ],
                 ],
-            ],
-        ], typ=BaseType(ret_type), pos=getpos(expr), annotation='extracting 32 bytes')
-    if ret_type == 'int128':
-        return LLLnode.from_list(
-            ['clamp', ['mload', MemoryPositions.MINNUM], o, ['mload', MemoryPositions.MAXNUM]],
-            typ=BaseType('int128'),
-            pos=getpos(expr),
-        )
-    elif ret_type == 'address':
-        return LLLnode.from_list(
-            ['uclamplt', o, ['mload', MemoryPositions.ADDRSIZE]],
-            typ=BaseType(ret_type),
-            pos=getpos(expr),
-        )
-    else:
-        return o
+            ], typ=BaseType(ret_type), pos=getpos(expr), annotation='extracting 32 bytes')
+        if ret_type == 'int128':
+            return LLLnode.from_list(
+                ['clamp', ['mload', MemoryPositions.MINNUM], o, ['mload', MemoryPositions.MAXNUM]],
+                typ=BaseType('int128'),
+                pos=getpos(expr),
+            )
+        elif ret_type == 'address':
+            return LLLnode.from_list(
+                ['uclamplt', o, ['mload', MemoryPositions.ADDRSIZE]],
+                typ=BaseType(ret_type),
+                pos=getpos(expr),
+            )
+        else:
+            return o
 
 
 class AsWeiValue:
@@ -1201,7 +1207,7 @@ DISPATCH_TABLE = {
     'ecrecover': ECRecover().build_LLL,
     'ecadd': ECAdd().build_LLL,
     'ecmul': ECMul().build_LLL,
-    'extract32': extract32,
+    'extract32': Extract32().build_LLL,
     'as_wei_value': AsWeiValue().build_LLL,
     'raw_call': RawCall().build_LLL,
     'blockhash': BlockHash().build_LLL,
