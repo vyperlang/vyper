@@ -248,51 +248,35 @@ class Stmt(object):
         with self.context.assignment_scope():
             sub = Expr(self.stmt.value, self.context).lll_node
 
-            is_valid_rlp_list_assign = (
-                isinstance(self.stmt.value, vy_ast.Call)
-            ) and getattr(self.stmt.value.func, 'id', '') == 'RLPList'
+            # Error check when assigning to declared variable
+            if isinstance(self.stmt.target, vy_ast.Name):
+                # Do not allow assignment to undefined variables without annotation
+                if self.stmt.target.id not in self.context.vars:
+                    raise VariableDeclarationException("Variable type not defined", self.stmt)
 
-            # Determine if it's an RLPList assignment.
-            if is_valid_rlp_list_assign:
-                pos = self.context.new_variable(self.stmt.target.id, sub.typ)
-                variable_loc = LLLnode.from_list(
-                    pos,
-                    typ=sub.typ,
-                    location='memory',
-                    pos=getpos(self.stmt),
-                    annotation=self.stmt.target.id,
+                # Check against implicit conversion
+                self._check_implicit_conversion(self.stmt.target.id, sub)
+
+            is_valid_tuple_assign = (
+                isinstance(self.stmt.target, vy_ast.Tuple)
+            ) and isinstance(self.stmt.value, vy_ast.Tuple)
+
+            # Do no allow tuple-to-tuple assignment
+            if is_valid_tuple_assign:
+                raise VariableDeclarationException(
+                    "Tuple to tuple assignment not supported",
+                    self.stmt,
                 )
-                o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
-            else:
-                # Error check when assigning to declared variable
-                if isinstance(self.stmt.target, vy_ast.Name):
-                    # Do not allow assignment to undefined variables without annotation
-                    if self.stmt.target.id not in self.context.vars:
-                        raise VariableDeclarationException("Variable type not defined", self.stmt)
 
-                    # Check against implicit conversion
-                    self._check_implicit_conversion(self.stmt.target.id, sub)
-
-                is_valid_tuple_assign = (
-                    isinstance(self.stmt.target, vy_ast.Tuple)
-                ) and isinstance(self.stmt.value, vy_ast.Tuple)
-
-                # Do no allow tuple-to-tuple assignment
-                if is_valid_tuple_assign:
-                    raise VariableDeclarationException(
-                        "Tuple to tuple assignment not supported",
-                        self.stmt,
-                    )
-
-                # Checks to see if assignment is valid
-                target = self.get_target(self.stmt.target)
-                if isinstance(target.typ, ContractType) and not isinstance(sub.typ, ContractType):
-                    raise TypeMismatch(
-                        'Contract assignment expects casted address: '
-                        f'{target.typ}(<address_var>)',
-                        self.stmt
-                    )
-                o = make_setter(target, sub, target.location, pos=getpos(self.stmt))
+            # Checks to see if assignment is valid
+            target = self.get_target(self.stmt.target)
+            if isinstance(target.typ, ContractType) and not isinstance(sub.typ, ContractType):
+                raise TypeMismatch(
+                    'Contract assignment expects casted address: '
+                    f'{target.typ}(<address_var>)',
+                    self.stmt
+                )
+            o = make_setter(target, sub, target.location, pos=getpos(self.stmt))
 
             o.pos = getpos(self.stmt)
 
