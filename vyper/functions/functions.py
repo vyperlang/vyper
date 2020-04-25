@@ -1013,33 +1013,39 @@ def get_create_forwarder_to_bytecode():
     return assembly_to_evm(code_a)[0] + (b'\x00' * 20) + assembly_to_evm(code_b)[0]
 
 
-@signature('address', value=Optional('uint256', zero_value))
-def create_forwarder_to(expr, args, kwargs, context):
+class CreateForwarderTo:
 
-    value = kwargs['value']
-    if context.is_constant():
-        raise ConstancyViolation(
-            f"Cannot make calls from {context.pp_constancy()}",
-            expr,
+    _id = "create_forwarder_to"
+    _inputs = [("target", "address")]
+    _kwargs = {'value': Optional('uint256', zero_value)}
+    _return_type = "address"
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        value = kwargs['value']
+        if context.is_constant():
+            raise ConstancyViolation(
+                f"Cannot make calls from {context.pp_constancy()}",
+                expr,
+            )
+        placeholder = context.new_placeholder(ByteArrayType(96))
+
+        kode = get_create_forwarder_to_bytecode()
+        high = bytes_to_int(kode[:32])
+        low = bytes_to_int((kode + b'\x00' * 32)[47:79])
+
+        return LLLnode.from_list(
+            [
+                'seq',
+                ['mstore', placeholder, high],
+                ['mstore', ['add', placeholder, 27], ['mul', args[0], 2**96]],
+                ['mstore', ['add', placeholder, 47], low],
+                ['clamp_nonzero', ['create', value, placeholder, 96]],
+            ],
+            typ=BaseType('address'),
+            pos=getpos(expr),
+            add_gas_estimate=11000,
         )
-    placeholder = context.new_placeholder(ByteArrayType(96))
-
-    kode = get_create_forwarder_to_bytecode()
-    high = bytes_to_int(kode[:32])
-    low = bytes_to_int((kode + b'\x00' * 32)[47:79])
-
-    return LLLnode.from_list(
-        [
-            'seq',
-            ['mstore', placeholder, high],
-            ['mstore', ['add', placeholder, 27], ['mul', args[0], 2**96]],
-            ['mstore', ['add', placeholder, 47], low],
-            ['clamp_nonzero', ['create', value, placeholder, 96]],
-        ],
-        typ=BaseType('address'),
-        pos=getpos(expr),
-        add_gas_estimate=11000,
-    )
 
 
 class Min:
@@ -1188,7 +1194,7 @@ DISPATCH_TABLE = {
     'uint256_mulmod': MulMod().build_LLL,
     'sqrt': sqrt,
     'shift': Shift().build_LLL,
-    'create_forwarder_to': create_forwarder_to,
+    'create_forwarder_to': CreateForwarderTo().build_LLL,
     'min': Min().build_LLL,
     'max': Max().build_LLL,
     'empty': empty,
@@ -1200,7 +1206,7 @@ STMT_DISPATCH_TABLE = {
     'selfdestruct': SelfDestruct().build_LLL,
     'raw_call': RawCall().build_LLL,
     'raw_log': raw_log,
-    'create_forwarder_to': create_forwarder_to,
+    'create_forwarder_to': CreateForwarderTo().build_LLL,
 }
 
 BUILTIN_FUNCTIONS = {**STMT_DISPATCH_TABLE, **DISPATCH_TABLE}.keys()
