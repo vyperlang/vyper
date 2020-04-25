@@ -824,19 +824,54 @@ def raw_log(expr, args, kwargs, context):
     )
 
 
-@signature('uint256', 'uint256')
-def bitwise_and(expr, args, kwargs, context):
-    return LLLnode.from_list(['and', args[0], args[1]], typ=BaseType('uint256'), pos=getpos(expr))
+class BitwiseAnd:
+
+    _id = "bitwise_and"
+    _inputs = [("x", "uint256"), ("y", "uint256")]
+    _return_type = "uint256"
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        return LLLnode.from_list(
+            ['and', args[0], args[1]], typ=BaseType('uint256'), pos=getpos(expr)
+        )
 
 
-@signature('uint256', 'uint256')
-def bitwise_or(expr, args, kwargs, context):
-    return LLLnode.from_list(['or', args[0], args[1]], typ=BaseType('uint256'), pos=getpos(expr))
+class BitwiseNot:
+
+    _id = "bitwise_not"
+    _inputs = [("x", "uint256")]
+    _return_type = "uint256"
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        return LLLnode.from_list(['not', args[0]], typ=BaseType('uint256'), pos=getpos(expr))
 
 
-@signature('uint256', 'uint256')
-def bitwise_xor(expr, args, kwargs, context):
-    return LLLnode.from_list(['xor', args[0], args[1]], typ=BaseType('uint256'), pos=getpos(expr))
+class BitwiseOr:
+
+    _id = "bitwise_or"
+    _inputs = [("x", "uint256"), ("y", "uint256")]
+    _return_type = "uint256"
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        return LLLnode.from_list(
+            ['or', args[0], args[1]], typ=BaseType('uint256'), pos=getpos(expr)
+        )
+
+
+class BitwiseXor:
+
+    _id = "bitwise_xor"
+    _inputs = [("x", "uint256"), ("y", "uint256")]
+    _return_type = "uint256"
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        return LLLnode.from_list(
+            ['xor', args[0], args[1]], typ=BaseType('uint256'), pos=getpos(expr)
+        )
 
 
 @signature('uint256', 'uint256', 'uint256')
@@ -863,11 +898,6 @@ def uint256_mulmod(expr, args, kwargs, context):
         typ=BaseType('uint256'),
         pos=getpos(expr),
     )
-
-
-@signature('uint256')
-def bitwise_not(expr, args, kwargs, context):
-    return LLLnode.from_list(['not', args[0]], typ=BaseType('uint256'), pos=getpos(expr))
 
 
 @signature('uint256', 'int128')
@@ -1104,10 +1134,10 @@ DISPATCH_TABLE = {
     'as_wei_value': as_wei_value,
     'raw_call': raw_call,
     'blockhash': BlockHash().build_LLL,
-    'bitwise_and': bitwise_and,
-    'bitwise_or': bitwise_or,
-    'bitwise_xor': bitwise_xor,
-    'bitwise_not': bitwise_not,
+    'bitwise_and': BitwiseAnd().build_LLL,
+    'bitwise_or': BitwiseOr().build_LLL,
+    'bitwise_xor': BitwiseXor().build_LLL,
+    'bitwise_not': BitwiseNot().build_LLL,
     'uint256_addmod': uint256_addmod,
     'uint256_mulmod': uint256_mulmod,
     'sqrt': sqrt,
