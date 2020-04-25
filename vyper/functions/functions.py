@@ -874,30 +874,42 @@ class BitwiseXor:
         )
 
 
-@signature('uint256', 'uint256', 'uint256')
-def uint256_addmod(expr, args, kwargs, context):
-    return LLLnode.from_list(
-        [
-            'seq',
-            ['assert', args[2]],
-            ['addmod', args[0], args[1], args[2]],
-        ],
-        typ=BaseType('uint256'),
-        pos=getpos(expr),
-    )
+class AddMod:
+
+    _id = "uint256_addmod"
+    _inputs = [("a", "uint256"), ("b", "uint256"), ("c", "uint256")]
+    _return_type = "uint256"
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        return LLLnode.from_list(
+            [
+                'seq',
+                ['assert', args[2]],
+                ['addmod', args[0], args[1], args[2]],
+            ],
+            typ=BaseType('uint256'),
+            pos=getpos(expr),
+        )
 
 
-@signature('uint256', 'uint256', 'uint256')
-def uint256_mulmod(expr, args, kwargs, context):
-    return LLLnode.from_list(
-        [
-            'seq',
-            ['assert', args[2]],
-            ['mulmod', args[0], args[1], args[2]],
-        ],
-        typ=BaseType('uint256'),
-        pos=getpos(expr),
-    )
+class MulMod:
+
+    _id = "uint256_mulmod"
+    _inputs = [("a", "uint256"), ("b", "uint256"), ("c", "uint256")]
+    _return_type = "uint256"
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        return LLLnode.from_list(
+            [
+                'seq',
+                ['assert', args[2]],
+                ['mulmod', args[0], args[1], args[2]],
+            ],
+            typ=BaseType('uint256'),
+            pos=getpos(expr),
+        )
 
 
 class Shift:
@@ -1143,8 +1155,8 @@ DISPATCH_TABLE = {
     'bitwise_or': BitwiseOr().build_LLL,
     'bitwise_xor': BitwiseXor().build_LLL,
     'bitwise_not': BitwiseNot().build_LLL,
-    'uint256_addmod': uint256_addmod,
-    'uint256_mulmod': uint256_mulmod,
+    'uint256_addmod': AddMod().build_LLL,
+    'uint256_mulmod': MulMod().build_LLL,
     'sqrt': sqrt,
     'shift': Shift().build_LLL,
     'create_forwarder_to': create_forwarder_to,
