@@ -334,11 +334,6 @@ def concat(expr, context):
     )
 
 
-@signature(('bytes_literal', 'str_literal', 'bytes', 'string', 'bytes32'))
-def _sha3(expr, args, kwargs, context):
-    raise StructureException("sha3 function has been deprecated in favor of keccak256")
-
-
 class Keccak256:
 
     _id = "keccak256"
@@ -1217,7 +1212,6 @@ DISPATCH_TABLE = {
     'slice': Slice().build_LLL,
     'len': Len().build_LLL,
     'concat': concat,
-    'sha3': _sha3,
     'sha256': Sha256().build_LLL,
     'method_id': MethodID().build_LLL,
     'keccak256': Keccak256().build_LLL,
