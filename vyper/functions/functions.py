@@ -752,14 +752,20 @@ class Send:
         )
 
 
-@signature('address')
-def selfdestruct(expr, args, kwargs, context):
-    if context.is_constant():
-        raise ConstancyViolation(
-            f"Cannot {expr.func.id} inside {context.pp_constancy()}!",
-            expr.func,
-        )
-    return LLLnode.from_list(['selfdestruct', args[0]], typ=None, pos=getpos(expr))
+class SelfDestruct:
+
+    _id = "selfdestruct"
+    _inputs = [("to", "address")]
+    _return_type = None
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        if context.is_constant():
+            raise ConstancyViolation(
+                f"Cannot {expr.func.id} inside {context.pp_constancy()}!",
+                expr.func,
+            )
+        return LLLnode.from_list(['selfdestruct', args[0]], typ=None, pos=getpos(expr))
 
 
 class BlockHash:
@@ -1184,7 +1190,7 @@ DISPATCH_TABLE = {
 STMT_DISPATCH_TABLE = {
     'assert_modifiable': AssertModifiable().build_LLL,
     'send': Send().build_LLL,
-    'selfdestruct': selfdestruct,
+    'selfdestruct': SelfDestruct().build_LLL,
     'raw_call': raw_call,
     'raw_log': raw_log,
     'create_forwarder_to': create_forwarder_to,
