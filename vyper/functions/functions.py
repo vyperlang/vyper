@@ -339,9 +339,15 @@ def _sha3(expr, args, kwargs, context):
     raise StructureException("sha3 function has been deprecated in favor of keccak256")
 
 
-@signature(('bytes_literal', 'str_literal', 'bytes', 'string', 'bytes32'))
-def _keccak256(expr, args, kwargs, context):
-    return keccak256_helper(expr, args, kwargs, context)
+class Keccak256:
+
+    _id = "keccak256"
+    _inputs = [("value", ('bytes_literal', 'str_literal', 'bytes', 'string', 'bytes32'))]
+    _return_type = "bytes32"
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        return keccak256_helper(expr, args, kwargs, context)
 
 
 def _make_sha256_call(inp_start, inp_len, out_start, out_len):
@@ -1208,7 +1214,7 @@ DISPATCH_TABLE = {
     'sha3': _sha3,
     'sha256': sha256,
     'method_id': MethodID().build_LLL,
-    'keccak256': _keccak256,
+    'keccak256': Keccak256().build_LLL,
     'ecrecover': ECRecover().build_LLL,
     'ecadd': ECAdd().build_LLL,
     'ecmul': ECMul().build_LLL,
