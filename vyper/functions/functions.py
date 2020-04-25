@@ -670,65 +670,72 @@ zero_value = LLLnode.from_list(0, typ=BaseType('uint256'))
 false_value = LLLnode.from_list(0, typ=BaseType('bool', is_literal=True))
 
 
-@signature(
-    'address',
-    'bytes',
-    outsize=Optional('num_literal', 0),
-    gas=Optional('uint256', 'gas'),
-    value=Optional('uint256', zero_value),
-    is_delegate_call=Optional('bool', false_value),
-)
-def raw_call(expr, args, kwargs, context):
-    to, data = args
-    gas, value, outsize, delegate_call = (
-        kwargs['gas'],
-        kwargs['value'],
-        kwargs['outsize'],
-        kwargs['is_delegate_call'],
-    )
-    if delegate_call.typ.is_literal is False:
-        raise TypeMismatch(
-            'The delegate_call parameter has to be a static/literal boolean value.'
+class RawCall:
+
+    _id = "raw_call"
+    _inputs = [("to", "address"), ("data", "bytes")]
+    _kwargs = {
+        "outsize": Optional('num_literal', 0),
+        "gas": Optional('uint256', 'gas'),
+        "value": Optional('uint256', zero_value),
+        "is_delegate_call": Optional('bool', false_value),
+    }
+    _return_type = None
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        to, data = args
+        gas, value, outsize, delegate_call = (
+            kwargs['gas'],
+            kwargs['value'],
+            kwargs['outsize'],
+            kwargs['is_delegate_call'],
         )
-    if context.is_constant():
-        raise ConstancyViolation(
-            f"Cannot make calls from {context.pp_constancy()}",
-            expr,
+        if delegate_call.typ.is_literal is False:
+            raise TypeMismatch(
+                'The delegate_call parameter has to be a static/literal boolean value.'
+            )
+        if context.is_constant():
+            raise ConstancyViolation(
+                f"Cannot make calls from {context.pp_constancy()}",
+                expr,
+            )
+        placeholder = context.new_placeholder(data.typ)
+        placeholder_node = LLLnode.from_list(placeholder, typ=data.typ, location='memory')
+        copier = make_byte_array_copier(placeholder_node, data, pos=getpos(expr))
+        output_placeholder = context.new_placeholder(ByteArrayType(outsize))
+        output_node = LLLnode.from_list(
+            output_placeholder,
+            typ=ByteArrayType(outsize),
+            location='memory',
         )
-    placeholder = context.new_placeholder(data.typ)
-    placeholder_node = LLLnode.from_list(placeholder, typ=data.typ, location='memory')
-    copier = make_byte_array_copier(placeholder_node, data, pos=getpos(expr))
-    output_placeholder = context.new_placeholder(ByteArrayType(outsize))
-    output_node = LLLnode.from_list(
-        output_placeholder,
-        typ=ByteArrayType(outsize),
-        location='memory',
-    )
 
-    # build LLL for call or delegatecall
-    common_call_lll = [
-        ['add', placeholder_node, 32],
-        ['mload', placeholder_node],
-        # if there is no return value, the return offset can be 0
-        ['add', output_node, 32] if outsize else 0,
-        outsize
-    ]
+        # build LLL for call or delegatecall
+        common_call_lll = [
+            ['add', placeholder_node, 32],
+            ['mload', placeholder_node],
+            # if there is no return value, the return offset can be 0
+            ['add', output_node, 32] if outsize else 0,
+            outsize
+        ]
 
-    if delegate_call.value == 1:
-        call_lll = ['delegatecall', gas, to] + common_call_lll
-    else:
-        call_lll = ['call', gas, to, value] + common_call_lll
+        if delegate_call.value == 1:
+            call_lll = ['delegatecall', gas, to] + common_call_lll
+        else:
+            call_lll = ['call', gas, to, value] + common_call_lll
 
-    # build sequence LLL
-    if outsize:
-        # only copy the return value to memory if outsize > 0
-        seq = ['seq', copier, ['assert', call_lll], ['mstore', output_node, outsize], output_node]
-        typ = ByteArrayType(outsize)
-    else:
-        seq = ['seq', copier, ['assert', call_lll]]
-        typ = None
+        # build sequence LLL
+        if outsize:
+            # only copy the return value to memory if outsize > 0
+            seq = [
+                'seq', copier, ['assert', call_lll], ['mstore', output_node, outsize], output_node
+            ]
+            typ = ByteArrayType(outsize)
+        else:
+            seq = ['seq', copier, ['assert', call_lll]]
+            typ = None
 
-    return LLLnode.from_list(seq, typ=typ, location="memory", pos=getpos(expr))
+        return LLLnode.from_list(seq, typ=typ, location="memory", pos=getpos(expr))
 
 
 class Send:
@@ -1171,7 +1178,7 @@ DISPATCH_TABLE = {
     'ecmul': ECMul().build_LLL,
     'extract32': extract32,
     'as_wei_value': as_wei_value,
-    'raw_call': raw_call,
+    'raw_call': RawCall().build_LLL,
     'blockhash': BlockHash().build_LLL,
     'bitwise_and': BitwiseAnd().build_LLL,
     'bitwise_or': BitwiseOr().build_LLL,
@@ -1191,7 +1198,7 @@ STMT_DISPATCH_TABLE = {
     'assert_modifiable': AssertModifiable().build_LLL,
     'send': Send().build_LLL,
     'selfdestruct': SelfDestruct().build_LLL,
-    'raw_call': raw_call,
+    'raw_call': RawCall().build_LLL,
     'raw_log': raw_log,
     'create_forwarder_to': create_forwarder_to,
 }
