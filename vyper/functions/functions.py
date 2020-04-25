@@ -228,110 +228,116 @@ class Len:
         return get_length(args[0])
 
 
-def concat(expr, context):
-    args = [Expr(arg, context).lll_node for arg in expr.args]
-    if len(args) < 2:
-        raise StructureException("Concat expects at least two arguments", expr)
+class Concat:
 
-    prev_type = ''
-    for _, (expr_arg, arg) in enumerate(zip(expr.args, args)):
-        if not isinstance(arg.typ, ByteArrayLike) and not is_base_type(arg.typ, 'bytes32'):
-            raise TypeMismatch("Concat expects string, bytes or bytes32 objects", expr_arg)
+    _id = "concat"
 
-        current_type = (
-            'bytes'
-            if isinstance(arg.typ, ByteArrayType) or is_base_type(arg.typ, 'bytes32')
-            else 'string'
-        )
-        if prev_type and current_type != prev_type:
-            raise TypeMismatch(
-                (
-                    "Concat expects consistant use of string or byte types, "
-                    "user either bytes or string."
-                ),
-                expr_arg,
+    def build_LLL(self, expr, context):
+        args = [Expr(arg, context).lll_node for arg in expr.args]
+        if len(args) < 2:
+            raise StructureException("Concat expects at least two arguments", expr)
+
+        prev_type = ''
+        for _, (expr_arg, arg) in enumerate(zip(expr.args, args)):
+            if not isinstance(arg.typ, ByteArrayLike) and not is_base_type(arg.typ, 'bytes32'):
+                raise TypeMismatch("Concat expects string, bytes or bytes32 objects", expr_arg)
+
+            current_type = (
+                'bytes'
+                if isinstance(arg.typ, ByteArrayType) or is_base_type(arg.typ, 'bytes32')
+                else 'string'
             )
-        prev_type = current_type
-
-    if current_type == 'string':
-        ReturnType = StringType
-    else:
-        ReturnType = ByteArrayType
-
-    # Maximum length of the output
-    total_maxlen = sum([
-        arg.typ.maxlen if isinstance(arg.typ, ByteArrayLike) else 32 for arg in args
-    ])
-    # Node representing the position of the output in memory
-    placeholder = context.new_placeholder(ReturnType(total_maxlen))
-    # Object representing the output
-    seq = []
-    # For each argument we are concatenating...
-    for arg in args:
-        # Start pasting into a position the starts at zero, and keeps
-        # incrementing as we concatenate arguments
-        placeholder_node = LLLnode.from_list(
-            ['add', placeholder, '_poz'],
-            typ=ReturnType(total_maxlen),
-            location='memory',
-        )
-        placeholder_node_plus_32 = LLLnode.from_list(
-            ['add', ['add', placeholder, '_poz'], 32],
-            typ=ReturnType(total_maxlen),
-            location='memory',
-        )
-        if isinstance(arg.typ, ReturnType):
-            # Ignore empty strings
-            if arg.typ.maxlen == 0:
-                continue
-            # Get the length of the current argument
-            if arg.location == "memory":
-                length = LLLnode.from_list(['mload', '_arg'], typ=BaseType('int128'))
-                argstart = LLLnode.from_list(
-                    ['add', '_arg', 32],
-                    typ=arg.typ,
-                    location=arg.location,
-                )
-            elif arg.location == "storage":
-                length = LLLnode.from_list(['sload', ['sha3_32', '_arg']], typ=BaseType('int128'))
-                argstart = LLLnode.from_list(
-                    ['add', ['sha3_32', '_arg'], 1],
-                    typ=arg.typ,
-                    location=arg.location,
-                )
-            # Make a copier to copy over data from that argument
-            seq.append([
-                'with', '_arg', arg, [
-                    'seq',
-                    make_byte_slice_copier(
-                        placeholder_node_plus_32,
-                        argstart,
-                        length,
-                        arg.typ.maxlen, pos=getpos(expr),
+            if prev_type and current_type != prev_type:
+                raise TypeMismatch(
+                    (
+                        "Concat expects consistant use of string or byte types, "
+                        "user either bytes or string."
                     ),
-                    # Change the position to start at the correct
-                    # place to paste the next value
-                    ['set', '_poz', ['add', '_poz', length]],
-                ],
-            ])
+                    expr_arg,
+                )
+            prev_type = current_type
+
+        if current_type == 'string':
+            ReturnType = StringType
         else:
-            seq.append([
-                'seq',
-                ['mstore', ['add', placeholder_node, 32], unwrap_location(arg)],
-                ['set', '_poz', ['add', '_poz', 32]],
-            ])
-    # The position, after all arguments are processing, equals the total
-    # length. Paste this in to make the output a proper bytearray
-    seq.append(['mstore', placeholder, '_poz'])
-    # Memory location of the output
-    seq.append(placeholder)
-    return LLLnode.from_list(
-        ['with', '_poz', 0, ['seq'] + seq],
-        typ=ReturnType(total_maxlen),
-        location='memory',
-        pos=getpos(expr),
-        annotation='concat',
-    )
+            ReturnType = ByteArrayType
+
+        # Maximum length of the output
+        total_maxlen = sum([
+            arg.typ.maxlen if isinstance(arg.typ, ByteArrayLike) else 32 for arg in args
+        ])
+        # Node representing the position of the output in memory
+        placeholder = context.new_placeholder(ReturnType(total_maxlen))
+        # Object representing the output
+        seq = []
+        # For each argument we are concatenating...
+        for arg in args:
+            # Start pasting into a position the starts at zero, and keeps
+            # incrementing as we concatenate arguments
+            placeholder_node = LLLnode.from_list(
+                ['add', placeholder, '_poz'],
+                typ=ReturnType(total_maxlen),
+                location='memory',
+            )
+            placeholder_node_plus_32 = LLLnode.from_list(
+                ['add', ['add', placeholder, '_poz'], 32],
+                typ=ReturnType(total_maxlen),
+                location='memory',
+            )
+            if isinstance(arg.typ, ReturnType):
+                # Ignore empty strings
+                if arg.typ.maxlen == 0:
+                    continue
+                # Get the length of the current argument
+                if arg.location == "memory":
+                    length = LLLnode.from_list(['mload', '_arg'], typ=BaseType('int128'))
+                    argstart = LLLnode.from_list(
+                        ['add', '_arg', 32],
+                        typ=arg.typ,
+                        location=arg.location,
+                    )
+                elif arg.location == "storage":
+                    length = LLLnode.from_list(
+                        ['sload', ['sha3_32', '_arg']], typ=BaseType('int128')
+                    )
+                    argstart = LLLnode.from_list(
+                        ['add', ['sha3_32', '_arg'], 1],
+                        typ=arg.typ,
+                        location=arg.location,
+                    )
+                # Make a copier to copy over data from that argument
+                seq.append([
+                    'with', '_arg', arg, [
+                        'seq',
+                        make_byte_slice_copier(
+                            placeholder_node_plus_32,
+                            argstart,
+                            length,
+                            arg.typ.maxlen, pos=getpos(expr),
+                        ),
+                        # Change the position to start at the correct
+                        # place to paste the next value
+                        ['set', '_poz', ['add', '_poz', length]],
+                    ],
+                ])
+            else:
+                seq.append([
+                    'seq',
+                    ['mstore', ['add', placeholder_node, 32], unwrap_location(arg)],
+                    ['set', '_poz', ['add', '_poz', 32]],
+                ])
+        # The position, after all arguments are processing, equals the total
+        # length. Paste this in to make the output a proper bytearray
+        seq.append(['mstore', placeholder, '_poz'])
+        # Memory location of the output
+        seq.append(placeholder)
+        return LLLnode.from_list(
+            ['with', '_poz', 0, ['seq'] + seq],
+            typ=ReturnType(total_maxlen),
+            location='memory',
+            pos=getpos(expr),
+            annotation='concat',
+        )
 
 
 class Keccak256:
@@ -1211,7 +1217,7 @@ DISPATCH_TABLE = {
     'convert': _convert,
     'slice': Slice().build_LLL,
     'len': Len().build_LLL,
-    'concat': concat,
+    'concat': Concat().build_LLL,
     'sha256': Sha256().build_LLL,
     'method_id': MethodID().build_LLL,
     'keccak256': Keccak256().build_LLL,
