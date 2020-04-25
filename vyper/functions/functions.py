@@ -790,57 +790,62 @@ class BlockHash:
         )
 
 
-@signature('*', ('bytes32', 'bytes'))
-def raw_log(expr, args, kwargs, context):
-    if not isinstance(args[0], vy_ast.List) or len(args[0].elts) > 4:
-        raise StructureException("Expecting a list of 0-4 topics as first argument", args[0])
-    topics = []
-    for elt in args[0].elts:
-        arg = Expr.parse_value_expr(elt, context)
-        if not is_base_type(arg.typ, 'bytes32'):
-            raise TypeMismatch("Expecting a bytes32 argument as topic", elt)
-        topics.append(arg)
-    if args[1].typ == BaseType('bytes32'):
-        placeholder = context.new_placeholder(BaseType('bytes32'))
-        return LLLnode.from_list(
-            ['seq',
-                ['mstore', placeholder, unwrap_location(args[1])],
-                [
+class RawLog:
+
+    _id = "raw_log"
+    _inputs = [("topics", "*"), ("data", ('bytes32', 'bytes'))]
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        if not isinstance(args[0], vy_ast.List) or len(args[0].elts) > 4:
+            raise StructureException("Expecting a list of 0-4 topics as first argument", args[0])
+        topics = []
+        for elt in args[0].elts:
+            arg = Expr.parse_value_expr(elt, context)
+            if not is_base_type(arg.typ, 'bytes32'):
+                raise TypeMismatch("Expecting a bytes32 argument as topic", elt)
+            topics.append(arg)
+        if args[1].typ == BaseType('bytes32'):
+            placeholder = context.new_placeholder(BaseType('bytes32'))
+            return LLLnode.from_list(
+                ['seq',
+                    ['mstore', placeholder, unwrap_location(args[1])],
+                    [
+                        "log" + str(len(topics)),
+                        placeholder,
+                        32,
+                    ] + topics], typ=None, pos=getpos(expr))
+        if args[1].location == "memory":
+            return LLLnode.from_list([
+                "with", "_arr", args[1], [
                     "log" + str(len(topics)),
-                    placeholder,
-                    32,
-                ] + topics], typ=None, pos=getpos(expr))
-    if args[1].location == "memory":
-        return LLLnode.from_list([
-            "with", "_arr", args[1], [
-                "log" + str(len(topics)),
-                ["add", "_arr", 32],
-                ["mload", "_arr"],
-            ] + topics
-        ], typ=None, pos=getpos(expr))
-    placeholder = context.new_placeholder(args[1].typ)
-    placeholder_node = LLLnode.from_list(placeholder, typ=args[1].typ, location='memory')
-    copier = make_byte_array_copier(
-        placeholder_node,
-        LLLnode.from_list('_sub', typ=args[1].typ, location=args[1].location),
-        pos=getpos(expr),
-    )
-    return LLLnode.from_list(
-        [
-            "with", "_sub", args[1],
-            [
-                "seq",
-                copier,
-                [
-                    "log" + str(len(topics)),
-                    ["add", placeholder_node, 32],
-                    ["mload", placeholder_node],
+                    ["add", "_arr", 32],
+                    ["mload", "_arr"],
                 ] + topics
+            ], typ=None, pos=getpos(expr))
+        placeholder = context.new_placeholder(args[1].typ)
+        placeholder_node = LLLnode.from_list(placeholder, typ=args[1].typ, location='memory')
+        copier = make_byte_array_copier(
+            placeholder_node,
+            LLLnode.from_list('_sub', typ=args[1].typ, location=args[1].location),
+            pos=getpos(expr),
+        )
+        return LLLnode.from_list(
+            [
+                "with", "_sub", args[1],
+                [
+                    "seq",
+                    copier,
+                    [
+                        "log" + str(len(topics)),
+                        ["add", placeholder_node, 32],
+                        ["mload", placeholder_node],
+                    ] + topics
+                ],
             ],
-        ],
-        typ=None,
-        pos=getpos(expr),
-    )
+            typ=None,
+            pos=getpos(expr),
+        )
 
 
 class BitwiseAnd:
@@ -1205,7 +1210,7 @@ STMT_DISPATCH_TABLE = {
     'send': Send().build_LLL,
     'selfdestruct': SelfDestruct().build_LLL,
     'raw_call': RawCall().build_LLL,
-    'raw_log': raw_log,
+    'raw_log': RawLog().build_LLL,
     'create_forwarder_to': CreateForwarderTo().build_LLL,
 }
 
