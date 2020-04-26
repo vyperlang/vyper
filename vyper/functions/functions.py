@@ -64,15 +64,6 @@ SHA256_BASE_GAS = 60
 SHA256_PER_WORD_GAS = 12
 
 
-def get_keyword(expr, keyword):
-    for kw in expr.keywords:
-        if kw.arg == keyword:
-            return kw.value
-    # This should never happen, as kwargs['value'] will KeyError first.
-    # Leaving exception for other use cases.
-    raise Exception(f"Keyword {keyword} not found")  # pragma: no cover
-
-
 # currently no option for reason string (easy to add, just need to refactor
 # vyper.parser.stmt so we can use _assert_reason).
 class AssertModifiable:
