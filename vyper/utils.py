@@ -155,7 +155,7 @@ RESERVED_KEYWORDS = {
     # control flow
     'if', 'for', 'while', 'until', 'pass', 'def',
     # EVM operations
-    'send', 'selfdestruct', 'assert', 'raise',
+    'send', 'selfdestruct', 'assert', 'raise', 'throw',
     # special functions (no name mangling)
     'init', '_init_', '___init___', '____init____',
     'default', '_default_', '___default___', '____default____',
