@@ -11,6 +11,9 @@ from vyper.ast import (
 from vyper.exceptions import (
     InvalidType,
 )
+from vyper.functions import (
+    DISPATCH_TABLE,
+)
 
 BUILTIN_CONSTANTS = {
     "EMPTY_BYTES32": (vy_ast.Hex, "0x0000000000000000000000000000000000000000000000000000000000000000"),  # NOQA: E501
@@ -40,6 +43,7 @@ def fold(vyper_ast_node: vy_ast.Module) -> None:
         changed_nodes = 0
         changed_nodes += replace_literal_ops(vyper_ast_node)
         changed_nodes += replace_subscripts(vyper_ast_node)
+        changed_nodes += replace_builtin_functions(vyper_ast_node)
 
 
 def replace_literal_ops(vyper_ast_node: vy_ast.Module) -> int:
@@ -82,6 +86,37 @@ def replace_subscripts(vyper_ast_node: vy_ast.Module) -> int:
     for node in vyper_ast_node.get_descendants(vy_ast.Subscript, reverse=True):
         try:
             new_node = node.evaluate()
+        except InvalidType:
+            continue
+
+        changed_nodes += 1
+        vyper_ast_node.replace_in_tree(node, new_node)
+
+    return changed_nodes
+
+
+def replace_builtin_functions(vyper_ast_node: vy_ast.Module) -> int:
+    """
+    Find and evaluate builtin function calls within the Vyper AST, replacing
+    them with Constant nodes where possible.
+
+    Arguments
+    ---------
+    vyper_ast_node : Module
+        Top-level Vyper AST node.
+    """
+    changed_nodes = 0
+
+    for node in vyper_ast_node.get_descendants(vy_ast.Call, reverse=True):
+        if not isinstance(node.func, vy_ast.Name):
+            continue
+
+        name = node.func.id
+        func = DISPATCH_TABLE.get(name)
+        if func is None or not hasattr(func, 'evaluate'):
+            continue
+        try:
+            new_node = func.evaluate(node)  # type: ignore
         except InvalidType:
             continue
 
