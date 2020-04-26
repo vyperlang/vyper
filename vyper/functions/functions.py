@@ -25,7 +25,6 @@ from vyper.parser.keccak256_helper import (
 from vyper.parser.parser_utils import (
     LLLnode,
     add_variable_offset,
-    byte_array_to_num,
     get_length,
     get_number_as_fraction,
     getpos,
@@ -42,8 +41,6 @@ from vyper.types import (
     ByteArrayType,
     ListType,
     StringType,
-    TupleType,
-    get_size_of_type,
     is_base_type,
 )
 from vyper.types.convert import (
@@ -51,7 +48,6 @@ from vyper.types.convert import (
 )
 from vyper.utils import (
     DECIMAL_DIVISOR,
-    RLP_DECODER_ADDRESS,
     MemoryPositions,
     SizeLimits,
     bytes_to_int,
@@ -715,209 +711,6 @@ def blockhash(expr, args, kwargs, contact):
     )
 
 
-@signature('bytes', '*')
-def _RLPlist(expr, args, kwargs, context):
-    # Second argument must be a list of types
-    if not isinstance(args[1], vy_ast.List):
-        raise TypeMismatch("Expecting list of types for second argument", args[1])
-    if len(args[1].elts) == 0:
-        raise TypeMismatch("RLP list must have at least one item", expr)
-    if len(args[1].elts) > 32:
-        raise TypeMismatch("RLP list must have at most 32 items", expr)
-    # Get the output format
-    _format = []
-    for arg in args[1].elts:
-        if isinstance(arg, vy_ast.Name) and arg.id == "bytes":
-            subtyp = ByteArrayType(args[0].typ.maxlen)
-        else:
-            subtyp = context.parse_type(arg, 'memory')
-            if not isinstance(subtyp, BaseType):
-                raise TypeMismatch("RLP lists only accept BaseTypes and byte arrays", arg)
-            if not is_base_type(subtyp, ('int128', 'uint256', 'bytes32', 'address', 'bool')):
-                raise TypeMismatch(f"Unsupported base type: {subtyp.typ}", arg)
-        _format.append(subtyp)
-    output_type = TupleType(_format)
-    output_placeholder_type = ByteArrayType(
-        (2 * len(_format) + 1 + get_size_of_type(output_type)) * 32,
-    )
-    output_placeholder = context.new_placeholder(output_placeholder_type)
-    output_node = LLLnode.from_list(
-        output_placeholder,
-        typ=output_placeholder_type,
-        location='memory',
-    )
-    # Create a decoder for each element in the tuple
-    decoder = []
-    for i, typ in enumerate(_format):
-        # Decoder for bytes32
-        if is_base_type(typ, 'bytes32'):
-            decoder.append(LLLnode.from_list(
-                [
-                    'seq',
-                    [
-                        'assert',
-                        [
-                            'eq',
-                            [
-                                'mload',
-                                [
-                                    'add',
-                                    output_node,
-                                    ['mload', ['add', output_node, 32 * i]],
-                                ],
-                            ],
-                            32,
-                        ],
-                    ],
-                    [
-                        'mload',
-                        [
-                            'add',
-                            32,
-                            [
-                                'add',
-                                output_node,
-                                ['mload', ['add', output_node, 32 * i]],
-                            ],
-                        ],
-                    ],
-                ],
-                typ,
-                annotation='getting and checking bytes32 item',
-            ))
-        # Decoder for address
-        elif is_base_type(typ, 'address'):
-            decoder.append(LLLnode.from_list(
-                [
-                    'seq',
-                    [
-                        'assert',
-                        [
-                            'eq',
-                            [
-                                'mload',
-                                [
-                                    'add',
-                                    output_node,
-                                    ['mload', ['add', output_node, 32 * i]],
-                                ],
-                            ],
-                            20,
-                        ]
-                    ],
-                    [
-                        'mod',
-                        [
-                            'mload',
-                            [
-                                'add',
-                                20,
-                                ['add', output_node, ['mload', ['add', output_node, 32 * i]]],
-                            ],
-                        ],
-                        ['mload', MemoryPositions.ADDRSIZE],
-                    ]
-                ],
-                typ,
-                annotation='getting and checking address item',
-            ))
-        # Decoder for bytes
-        elif isinstance(typ, ByteArrayType):
-            decoder.append(LLLnode.from_list(
-                [
-                    'add',
-                    output_node,
-                    ['mload', ['add', output_node, 32 * i]],
-                ],
-                typ,
-                location='memory',
-                annotation='getting byte array',
-            ))
-        # Decoder for num and uint256
-        elif is_base_type(typ, ('int128', 'uint256')):
-            bytez = LLLnode.from_list(
-                [
-                    'add',
-                    output_node,
-                    ['mload', ['add', output_node, 32 * i]],
-                ],
-                typ,
-                location='memory',
-                annotation=f'getting and checking {typ.typ}',
-            )
-            decoder.append(byte_array_to_num(bytez, expr, typ.typ))
-        # Decoder for bools
-        elif is_base_type(typ, ('bool')):
-            # This is basically a really clever way to test for a
-            # length-prefixed one or zero. We take the 32 bytes starting one
-            # byte *after* the start of the length declaration; this includes
-            # the last 31 bytes of the length and the first byte of the value.
-            # 0 corresponds to length 0, first byte 0, and 257 corresponds to
-            # length 1, first byte \x01
-            decoder.append(LLLnode.from_list(
-                [
-                    'with', '_ans', [
-                        'mload',
-                        [
-                            'add',
-                            1,
-                            ['add', output_node, ['mload', ['add', output_node, 32 * i]]]
-                        ],
-                    ],
-                    [
-                        'seq',
-                        ['assert', ['or', ['eq', '_ans', 0], ['eq', '_ans', 257]]],
-                        ['div', '_ans', 257],
-                    ],
-                ],
-                typ,
-                annotation='getting and checking bool',
-            ))
-        else:
-            # Should never reach because of top level base level check.
-            raise Exception("Type not yet supported")  # pragma: no cover
-    # Copy the input data to memory
-    if args[0].location == "memory":
-        variable_pointer = args[0]
-    elif args[0].location == "storage":
-        placeholder = context.new_placeholder(args[0].typ)
-        placeholder_node = LLLnode.from_list(placeholder, typ=args[0].typ, location='memory')
-        copier = make_byte_array_copier(
-            placeholder_node,
-            LLLnode.from_list('_ptr', typ=args[0].typ, location=args[0].location),
-        )
-        variable_pointer = ['with', '_ptr', args[0], ['seq', copier, placeholder_node]]
-    else:
-        # Should never reach because of top level base level check.
-        raise Exception("Location not yet supported")  # pragma: no cover
-    # Decode the input data
-    initial_setter = LLLnode.from_list(
-        ['seq',
-            ['with', '_sub', variable_pointer,
-                ['pop', ['call',
-                         1500 + 400 * len(_format) + 10 * len(args),
-                         LLLnode.from_list(RLP_DECODER_ADDRESS, annotation='RLP decoder'),
-                         0,
-                         ['add', '_sub', 32],
-                         ['mload', '_sub'],
-                         output_node,
-                         64 * len(_format) + 32 + 32 * get_size_of_type(output_type)]]],
-            ['assert', ['eq', ['mload', output_node], 32 * len(_format) + 32]]],
-        typ=None)
-    # Shove the input data decoder in front of the first variable decoder
-    decoder[0] = LLLnode.from_list(
-        ['seq', initial_setter, decoder[0]],
-        typ=decoder[0].typ,
-        location=decoder[0].location,
-    )
-    return LLLnode.from_list(
-        ["multi"] + decoder,
-        typ=output_type,
-        location='memory',
-        pos=getpos(expr),
-    )
-
-
 @signature('*', ('bytes32', 'bytes'))
 def raw_log(expr, args, kwargs, context):
     if not isinstance(args[0], vy_ast.List) or len(args[0].elts) > 4:
@@ -1250,7 +1043,6 @@ DISPATCH_TABLE = {
     'extract32': extract32,
     'as_wei_value': as_wei_value,
     'raw_call': raw_call,
-    'RLPList': _RLPlist,
     'blockhash': blockhash,
     'bitwise_and': bitwise_and,
     'bitwise_or': bitwise_or,
