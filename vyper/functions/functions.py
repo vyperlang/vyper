@@ -2,15 +2,20 @@ from decimal import (
     Decimal,
 )
 import hashlib
+import math
 
 from vyper import (
     ast as vy_ast,
+)
+from vyper.ast.validation import (
+    validate_call_args,
 )
 from vyper.exceptions import (
     ConstancyViolation,
     InvalidLiteral,
     StructureException,
     TypeMismatch,
+    UnfoldableNode,
 )
 from vyper.functions.convert import (
     convert,
@@ -85,6 +90,14 @@ class Floor:
     _inputs = [("value", "decimal")]
     _return_type = "int128"
 
+    def evaluate(self, node):
+        validate_call_args(node, 1)
+        if not isinstance(node.args[0], vy_ast.Decimal):
+            raise UnfoldableNode
+
+        value = math.floor(node.args[0].value)
+        return vy_ast.Int.from_node(node, value=value)
+
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         return LLLnode.from_list(
@@ -104,6 +117,14 @@ class Ceil:
     _id = "ceil"
     _inputs = [("value", "decimal")]
     _return_type = "int128"
+
+    def evaluate(self, node):
+        validate_call_args(node, 1)
+        if not isinstance(node.args[0], vy_ast.Decimal):
+            raise UnfoldableNode
+
+        value = math.ceil(node.args[0].value)
+        return vy_ast.Int.from_node(node, value=value)
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
