@@ -323,7 +323,7 @@ class Stmt(object):
         if isinstance(self.stmt.func, vy_ast.Name):
             funcname = self.stmt.func.id
             if funcname in STMT_DISPATCH_TABLE:
-                return STMT_DISPATCH_TABLE[funcname](self.stmt, self.context)
+                return STMT_DISPATCH_TABLE[funcname].build_LLL(self.stmt, self.context)
             elif funcname in DISPATCH_TABLE:
                 raise StructureException(
                     f"Function {funcname} can not be called without being used.",
