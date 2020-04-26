@@ -189,3 +189,26 @@ def test_replace_userdefined_constant_no(source):
     folding.replace_user_defined_constants(folded_ast)
 
     assert vy_ast.compare_nodes(unmodified_ast, folded_ast)
+
+
+builtin_folding_functions = [("ceil(4.2)", "5"), ("floor(4.2)", "4")]
+
+builtin_folding_sources = [
+    "{}",
+    "foo = {}",
+    "foo = [{0}, {0}]",
+    "def foo(): {}",
+    "def foo(): return {}",
+    "def foo(bar: {}): pass",
+]
+
+
+@pytest.mark.parametrize("source", builtin_folding_sources)
+@pytest.mark.parametrize("original,result", builtin_folding_functions)
+def test_replace_builtins(source, original, result):
+    original_ast = vy_ast.parse_to_ast(source.format(original))
+    target_ast = vy_ast.parse_to_ast(source.format(result))
+
+    folding.replace_builtin_functions(original_ast)
+
+    assert vy_ast.compare_nodes(original_ast, target_ast)
