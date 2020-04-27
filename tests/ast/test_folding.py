@@ -62,17 +62,17 @@ def test_replace_subscripts_nested():
     assert vy_ast.compare_nodes(test_ast, expected_ast)
 
 
-modified_constants = [
+constants_modified = [
     "bar = FOO",
     "bar: int128[FOO]",
     "[1, 2, FOO]",
     "def bar(a: int128 = FOO): pass",
     "log.bar({bar: FOO})",
-    "FOO + 1"
+    "FOO + 1",
 ]
 
 
-@pytest.mark.parametrize('source', modified_constants)
+@pytest.mark.parametrize("source", constants_modified)
 def test_replace_constant(source):
     unmodified_ast = vy_ast.parse_to_ast(source)
     folded_ast = vy_ast.parse_to_ast(source)
@@ -82,7 +82,7 @@ def test_replace_constant(source):
     assert not vy_ast.compare_nodes(unmodified_ast, folded_ast)
 
 
-unmodified_constants = [
+constants_unmodified = [
     "FOO = 42",
     "self.FOO = 42",
     "bar = FOO()",
@@ -90,15 +90,102 @@ unmodified_constants = [
     "bar = FOO()",
     "bar = self.FOO",
     "log.bar({FOO: bar})",
-    "[1, 2, FOO()]"
+    "[1, 2, FOO()]",
 ]
 
 
-@pytest.mark.parametrize('source', unmodified_constants)
+@pytest.mark.parametrize("source", constants_unmodified)
 def test_replace_constant_no(source):
     unmodified_ast = vy_ast.parse_to_ast(source)
     folded_ast = vy_ast.parse_to_ast(source)
 
     folding.replace_constant(folded_ast, "FOO", vy_ast.Int(value=31337))
+
+    assert vy_ast.compare_nodes(unmodified_ast, folded_ast)
+
+
+builtins_modified = [
+    "MAX_INT128",
+    "foo = MAX_INT128",
+    "foo: int128[MAX_INT128] = 42",
+    "foo = [MAX_INT128]",
+    "def foo(bar: int128 = MAX_INT128): pass",
+    "def foo(): bar = MAX_INT128",
+    "def foo(): return MAX_INT128",
+]
+
+
+@pytest.mark.parametrize("source", builtins_modified)
+def test_replace_builtin_constant(source):
+    unmodified_ast = vy_ast.parse_to_ast(source)
+    folded_ast = vy_ast.parse_to_ast(source)
+
+    folding.replace_builtin_constants(folded_ast)
+
+    assert not vy_ast.compare_nodes(unmodified_ast, folded_ast)
+
+
+builtins_unmodified = [
+    "MAX_INT128 = 2",
+    "MAX_INT128()",
+    "def foo(MAX_INT128: int128 = 42): pass",
+    "def foo(): MAX_INT128 = 42",
+    "def MAX_INT128(): pass",
+]
+
+
+@pytest.mark.parametrize("source", builtins_unmodified)
+def test_replace_builtin_constant_no(source):
+    unmodified_ast = vy_ast.parse_to_ast(source)
+    folded_ast = vy_ast.parse_to_ast(source)
+
+    folding.replace_builtin_constants(folded_ast)
+
+    assert vy_ast.compare_nodes(unmodified_ast, folded_ast)
+
+
+userdefined_modified = [
+    "FOO",
+    "foo = FOO",
+    "foo: int128[FOO] = 42",
+    "foo = [FOO]",
+    "foo += FOO",
+    "def foo(bar: int128 = FOO): pass",
+    "def foo(): bar = FOO",
+    "def foo(): return FOO",
+]
+
+
+@pytest.mark.parametrize("source", userdefined_modified)
+def test_replace_userdefined_constant(source):
+    source = f"FOO: constant(int128) = 42\n{source}"
+
+    unmodified_ast = vy_ast.parse_to_ast(source)
+    folded_ast = vy_ast.parse_to_ast(source)
+
+    folding.replace_user_defined_constants(folded_ast)
+
+    assert not vy_ast.compare_nodes(unmodified_ast, folded_ast)
+
+
+userdefined_unmodified = [
+    "FOO: constant(int128) = 42",
+    "FOO = 42",
+    "FOO += 42",
+    "FOO()",
+    "def foo(FOO: int128 = 42): pass",
+    "def foo(): FOO = 42",
+    "def FOO(): pass",
+]
+
+
+@pytest.mark.parametrize("source", userdefined_unmodified)
+def test_replace_userdefined_constant_no(source):
+    source = f"FOO: constant(int128) = 42\n{source}"
+
+    unmodified_ast = vy_ast.parse_to_ast(source)
+    folded_ast = vy_ast.parse_to_ast(source)
+
+    folding.replace_user_defined_constants(folded_ast)
 
     assert vy_ast.compare_nodes(unmodified_ast, folded_ast)
