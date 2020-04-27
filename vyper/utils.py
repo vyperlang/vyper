@@ -155,12 +155,10 @@ RESERVED_KEYWORDS = {
     # control flow
     'if', 'for', 'while', 'until', 'pass', 'def',
     # EVM operations
-    'push', 'dup', 'swap', 'send', 'call',
-    'selfdestruct', 'assert', 'stop', 'throw',
-    'raise', 'init', 'default',
-    # special function (name mangling)
-    '_init_', '___init___', '____init____',
-    '_default_', '___default___', '____default____',
+    'send', 'selfdestruct', 'assert', 'raise', 'throw',
+    # special functions (no name mangling)
+    'init', '_init_', '___init___', '____init____',
+    'default', '_default_', '___default___', '____default____',
     # environment variables
     'block', 'msg', 'tx', 'chain', 'chainid',
     'blockhash', 'timestamp', 'timedelta',
