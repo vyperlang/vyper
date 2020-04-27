@@ -7,7 +7,6 @@
 
 [![PyPI](https://badge.fury.io/py/vyper.svg)](https://pypi.org/project/vyper "PyPI")
 [![Docker](https://images.microbadger.com/badges/version/vyperlang/vyper.svg)](https://hub.docker.com/r/vyperlang/vyper "DockerHub")
-[![Snapcraft](https://snapcraft.io/vyper/badge.svg)](https://snapcraft.io/vyper "Snapcraft")
 
 [![Coverage Status](https://codecov.io/gh/vyperlang/vyper/branch/master/graph/badge.svg)](https://codecov.io/gh/vyperlang/vyper "Codecov")
 [![Language grade: Python](https://img.shields.io/lgtm/grade/python/g/vyperlang/vyper.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/vyperlang/vyper/context:python)

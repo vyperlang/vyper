@@ -250,16 +250,3 @@ and try compiling a contract:
     python setup.py test
     vyper examples/crowdfund.vy
 
-Snap
-****
-
-Vyper is published in the snap store. In any of the `supported Linux distros <https://snapcraft.io/docs/installing-snapd>`_, install it with (Note that installing the above snap is the latest master):
-::
-
-    sudo snap install vyper --edge --devmode
-
-To install the latest beta version use:
-
-::
-
-    sudo snap install vyper --beta --devmode
