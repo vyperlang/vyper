@@ -991,7 +991,7 @@ class Expr(object):
             function_name = self.expr.func.id
 
             if function_name in DISPATCH_TABLE:
-                return DISPATCH_TABLE[function_name](self.expr, self.context)
+                return DISPATCH_TABLE[function_name].build_LLL(self.expr, self.context)
 
             # Struct constructors do not need `self` prefix.
             elif function_name in self.context.structs:
