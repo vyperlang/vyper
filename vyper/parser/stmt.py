@@ -132,6 +132,11 @@ class Stmt(object):
                     f'Invalid type, expected: {self.stmt.annotation.value.id},'
                     f' got: {sub.typ}', self.stmt
                 )
+        elif sub.typ is None:
+            #Check that the object to be assigned is not of NoneType
+            raise TypeMismatch(
+                f"Invalid type, expected {self.stmt.annotation.id}", self.stmt
+            )
         elif isinstance(sub.typ, StructType):
             # This needs to get more sophisticated in the presence of
             # foreign structs.
