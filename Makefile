@@ -41,6 +41,7 @@ clean-test:
 	@rm -fr coverage.xml
 	@rm -fr .coverage
 	@rm -fr .eggs/
+	@rm -fr .hypothesis/
 	@rm -fr .pytest_cache/
 
 
