@@ -133,7 +133,7 @@ class Stmt(object):
                     f' got: {sub.typ}', self.stmt
                 )
         elif sub.typ is None:
-            #Check that the object to be assigned is not of NoneType
+            # Check that the object to be assigned is not of NoneType
             raise TypeMismatch(
                 f"Invalid type, expected {self.stmt.annotation.id}", self.stmt
             )

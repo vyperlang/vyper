@@ -261,6 +261,7 @@ def foo():
             TypeMismatch
         )
 
+
 def test_invalid_nonetype_assignment(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
 @private
