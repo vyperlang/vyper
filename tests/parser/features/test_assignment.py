@@ -260,3 +260,18 @@ def foo():
             lambda: get_contract_with_gas_estimation(contract),
             TypeMismatch
         )
+
+
+def test_invalid_nonetype_assignment(assert_compile_failed, get_contract_with_gas_estimation):
+    code = """
+@private
+def bar():
+    pass
+
+@public
+def foo():
+    ret : bool = self.bar()
+"""
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(code), TypeMismatch
+    )
