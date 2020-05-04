@@ -15,6 +15,7 @@ from vyper.exceptions import (
     ArgumentException,
     ConstancyViolation,
     InvalidLiteral,
+    InvalidType,
     StructureException,
     TypeMismatch,
     UnfoldableNode,
@@ -497,9 +498,31 @@ class MethodID:
     _id = "method_id"
     _inputs = [("method", "str_literal"), ("type", "name_literal")]
 
+    # TODO tests
+    # once this is plugged in, build_LLL can be removed as this method should always be foldable
     def evaluate(self, node):
-        # TODO
-        raise UnfoldableNode
+        validate_call_args(node, 2)
+        if not isinstance(node.args[0], vy_ast.Str):
+            raise InvalidType("method id must be given as a literal string", node.args[0])
+        if " " in node.args[0].value:
+            raise InvalidLiteral('Invalid function signature no spaces allowed.')
+
+        args = node.args
+        if isinstance(node.args[1], vy_ast.Name) and node.id == "bytes32":
+            length = 32
+        elif (
+            isinstance(args[1], vy_ast.Subscript) and
+            args[1].get('value.id') == "bytes" and
+            args[1].get('slice.value.value') == 4
+        ):
+            length = 4
+        else:
+            raise InvalidType("Can only produce bytes32 or bytes[4] as outputs", node.args[1])
+
+        method_id = fourbytes_to_int(keccak256(node.args[0].value)[:4])
+        value = method_id.to_bytes(length, "big")
+
+        return vy_ast.Bytes.from_node(node, value=value)
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
