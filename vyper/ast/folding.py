@@ -9,7 +9,7 @@ from vyper.ast import (
     nodes as vy_ast,
 )
 from vyper.exceptions import (
-    InvalidType,
+    UnfoldableNode,
 )
 
 BUILTIN_CONSTANTS = {
@@ -58,7 +58,7 @@ def replace_literal_ops(vyper_ast_node: vy_ast.Module) -> int:
     for node in vyper_ast_node.get_descendants(node_types, reverse=True):
         try:
             new_node = node.evaluate()
-        except InvalidType:
+        except UnfoldableNode:
             continue
 
         changed_nodes += 1
@@ -82,7 +82,7 @@ def replace_subscripts(vyper_ast_node: vy_ast.Module) -> int:
     for node in vyper_ast_node.get_descendants(vy_ast.Subscript, reverse=True):
         try:
             new_node = node.evaluate()
-        except InvalidType:
+        except UnfoldableNode:
             continue
 
         changed_nodes += 1

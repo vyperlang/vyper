@@ -9,7 +9,7 @@ from vyper import (
     ast as vy_ast,
 )
 from vyper.exceptions import (
-    InvalidType,
+    UnfoldableNode,
 )
 
 
@@ -55,5 +55,5 @@ def foo(a: int128, b: int128[{len(right)}]) -> bool:
 def test_compare_type_mismatch(op):
     vyper_ast = vy_ast.parse_to_ast(f"1 {op} 1.0")
     old_node = vyper_ast.body[0].value
-    with pytest.raises(InvalidType):
+    with pytest.raises(UnfoldableNode):
         old_node.evaluate()

@@ -182,17 +182,6 @@ class EvmVersionException(VyperException):
     """Invalid action for the active EVM ruleset."""
 
 
-class CompilerPanic(Exception):
-
-    """Unexpected error during compilation."""
-
-    def __init__(self, message):
-        self.message = message
-
-    def __str__(self):
-        return self.message + ' Please create an issue.'
-
-
 class JSONError(Exception):
 
     """Invalid compiler input JSON."""
@@ -205,3 +194,28 @@ class JSONError(Exception):
 
 class ParserException(Exception):
     """Contract source cannot be parsed."""
+
+
+class VyperInternalException(Exception):
+    """
+    Base Vyper internal exception class.
+
+    This exception is not raised directly, it is subclassed by other internal
+    exceptions.
+
+    Internal exceptions are raised as a means of passing information between
+    compiler processes. They should never be exposed to the user.
+    """
+    def __init__(self, message):
+        self.message = message
+
+    def __str__(self):
+        return f"{self.message} Please create an issue."
+
+
+class CompilerPanic(VyperInternalException):
+    """Unexpected error during compilation."""
+
+
+class UnfoldableNode(VyperInternalException):
+    """Constant folding logic cannot be applied to an AST node."""
