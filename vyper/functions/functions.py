@@ -238,6 +238,19 @@ class Len:
     _inputs = [("b", ("bytes", "string"))]
     _return_type = "int128"
 
+    def evaluate(self, node):
+        validate_call_args(node, 1)
+        arg = node.args[0]
+        if isinstance(arg, (vy_ast.Str, vy_ast.Bytes)):
+            length = len(arg.value)
+        elif isinstance(arg, vy_ast.Hex):
+            # 2 characters represent 1 byte and we subtract 1 to ignore the leading `0x`
+            length = len(arg.value) // 2 - 1
+        else:
+            raise UnfoldableNode
+
+        return vy_ast.Int.from_node(node, value=length)
+
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         return get_length(args[0])
