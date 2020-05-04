@@ -10,9 +10,9 @@ from typing import (
 
 from vyper.exceptions import (
     CompilerPanic,
-    InvalidType,
     SyntaxException,
     TypeMismatch,
+    UnfoldableNode,
     ZeroDivisionException,
 )
 from vyper.settings import (
@@ -337,11 +337,11 @@ class VyperNode:
         """
         Attempt to evaluate the content of a node and generate a new node from it.
 
-        If a node cannot be evaluated it should raise `InvalidType`. This base
+        If a node cannot be evaluated it should raise `UnfoldableNode`. This base
         method acts as a catch-all to raise on any inherited classes that do not
         implement the method.
         """
-        raise InvalidType(f"{type(self)} cannot be evaluated", self)
+        raise UnfoldableNode(f"{type(self)} cannot be evaluated")
 
     def to_dict(self) -> dict:
         """
@@ -751,9 +751,9 @@ class UnaryOp(VyperNode):
             Node representing the result of the evaluation.
         """
         if isinstance(self.op, Not) and not isinstance(self.operand, NameConstant):
-            raise InvalidType("Node contains invalid field(s) for evaluation", self)
+            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
         if isinstance(self.op, USub) and not isinstance(self.operand, (Int, Decimal)):
-            raise InvalidType("Node contains invalid field(s) for evaluation", self)
+            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
         value = self.op._op(self.operand.value)
         return type(self.operand).from_node(self, value=value)
@@ -784,9 +784,9 @@ class BinOp(VyperNode):
         """
         left, right = self.left, self.right
         if type(left) is not type(right):
-            raise InvalidType("Node contains invalid field(s) for evaluation", self)
+            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
         if not isinstance(left, (Int, Decimal)):
-            raise InvalidType("Node contains invalid field(s) for evaluation", self)
+            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
         value = self.op._op(left.value, right.value)
         return type(left).from_node(self, value=value)
@@ -878,11 +878,11 @@ class BoolOp(VyperNode):
             Node representing the result of the evaluation.
         """
         if next((i for i in self.values if not isinstance(i, NameConstant)), None):
-            raise InvalidType("Node contains invalid field(s) for evaluation", self)
+            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
         values = [i.value for i in self.values]
         if None in values:
-            raise InvalidType("Node contains invalid field(s) for evaluation", self)
+            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
         value = self.op._op(values)
         return NameConstant.from_node(self, value=value)
@@ -934,20 +934,20 @@ class Compare(VyperNode):
         """
         left, right = self.left, self.right
         if not isinstance(left, Constant):
-            raise InvalidType("Node contains invalid field(s) for evaluation", self)
+            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
         if isinstance(self.op, In):
             if not isinstance(right, List):
-                raise InvalidType("Node contains invalid field(s) for evaluation", self)
+                raise UnfoldableNode("Node contains invalid field(s) for evaluation")
             if next((i for i in right.elts if not isinstance(i, Constant)), None):
-                raise InvalidType("Node contains invalid field(s) for evaluation", self)
+                raise UnfoldableNode("Node contains invalid field(s) for evaluation")
             if len(set([type(i) for i in right.elts])) > 1:
-                raise InvalidType("List contains multiple literal types", self.right)
+                raise UnfoldableNode("List contains multiple literal types")
             value = self.op._op(left.value, [i.value for i in right.elts])
             return NameConstant.from_node(self, value=value)
 
         if not isinstance(left, type(right)):
-            raise InvalidType("Cannot compare different literal types", self)
+            raise UnfoldableNode("Cannot compare different literal types")
 
         if not isinstance(self.op, (Eq, NotEq)) and not isinstance(left, (Int, Decimal)):
             raise TypeMismatch(f"Invalid literal types for {self.op.description} comparison", self)
@@ -1027,13 +1027,13 @@ class Subscript(VyperNode):
             Node representing the result of the evaluation.
         """
         if not isinstance(self.value, List):
-            raise InvalidType("Subscript object is not a literal list", self.value)
+            raise UnfoldableNode("Subscript object is not a literal list")
         elts = self.value.elts
         if len(set([type(i) for i in elts])) > 1:
-            raise InvalidType("List contains multiple node types", self.value)
+            raise UnfoldableNode("List contains multiple node types")
         idx = self.slice.get('value.value')
         if not isinstance(idx, int) or idx < 0 or idx >= len(elts):
-            raise InvalidType("Invalid index value", self.slice)
+            raise UnfoldableNode("Invalid index value")
 
         return elts[idx]
 
