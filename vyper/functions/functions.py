@@ -147,6 +147,10 @@ class Convert:
     def build_LLL(self, expr, context):
         return convert(expr, context)
 
+    def evaluate(self, node):
+        # TODO
+        raise UnfoldableNode
+
 
 class Slice:
 
@@ -238,6 +242,7 @@ class Len:
     _inputs = [("b", ("bytes", "string"))]
     _return_type = "int128"
 
+    # TODO unit tests
     def evaluate(self, node):
         validate_call_args(node, 1)
         arg = node.args[0]
@@ -374,6 +379,10 @@ class Keccak256:
     _inputs = [("value", ('bytes_literal', 'str_literal', 'bytes', 'string', 'bytes32'))]
     _return_type = "bytes32"
 
+    def evaluate(self, node):
+        # TODO
+        raise UnfoldableNode
+
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         return keccak256_helper(expr, args, kwargs, context)
@@ -398,6 +407,10 @@ class Sha256:
     _id = "sha256"
     _inputs = [("value", ('bytes_literal', 'str_literal', 'bytes', 'string', 'bytes32'))]
     _return_type = "bytes32"
+
+    def evaluate(self, node):
+        # TODO
+        raise UnfoldableNode
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -481,6 +494,10 @@ class MethodID:
 
     _id = "method_id"
     _inputs = [("method", "str_literal"), ("type", "name_literal")]
+
+    def evaluate(self, node):
+        # TODO
+        raise UnfoldableNode
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -678,6 +695,10 @@ class AsWeiValue:
         ("ether", ): 10**18,
         ("kether", "grand"): 10**21,
     }
+
+    def evaluate(self, node):
+        # TODO
+        raise UnfoldableNode
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -910,6 +931,10 @@ class BitwiseAnd:
     _inputs = [("x", "uint256"), ("y", "uint256")]
     _return_type = "uint256"
 
+    def evaluate(self, node):
+        # TODO
+        raise UnfoldableNode
+
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         return LLLnode.from_list(
@@ -923,6 +948,10 @@ class BitwiseNot:
     _inputs = [("x", "uint256")]
     _return_type = "uint256"
 
+    def evaluate(self, node):
+        # TODO
+        raise UnfoldableNode
+
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         return LLLnode.from_list(['not', args[0]], typ=BaseType('uint256'), pos=getpos(expr))
@@ -933,6 +962,10 @@ class BitwiseOr:
     _id = "bitwise_or"
     _inputs = [("x", "uint256"), ("y", "uint256")]
     _return_type = "uint256"
+
+    def evaluate(self, node):
+        # TODO
+        raise UnfoldableNode
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -947,6 +980,10 @@ class BitwiseXor:
     _inputs = [("x", "uint256"), ("y", "uint256")]
     _return_type = "uint256"
 
+    def evaluate(self, node):
+        # TODO
+        raise UnfoldableNode
+
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         return LLLnode.from_list(
@@ -959,6 +996,10 @@ class AddMod:
     _id = "uint256_addmod"
     _inputs = [("a", "uint256"), ("b", "uint256"), ("c", "uint256")]
     _return_type = "uint256"
+
+    def evaluate(self, node):
+        # TODO
+        raise UnfoldableNode
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -979,6 +1020,10 @@ class MulMod:
     _inputs = [("a", "uint256"), ("b", "uint256"), ("c", "uint256")]
     _return_type = "uint256"
 
+    def evaluate(self, node):
+        # TODO
+        raise UnfoldableNode
+
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         return LLLnode.from_list(
@@ -997,6 +1042,10 @@ class Shift:
     _id = "shift"
     _inputs = [("x", "uint256"), ("_shift", "int128")]
     _return_type = "uint256"
+
+    def evaluate(self, node):
+        # TODO
+        raise UnfoldableNode
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -1114,6 +1163,10 @@ class Min:
     _id = "min"
     _inputs = [("a", ('int128', 'decimal', 'uint256')), ("b", ('int128', 'decimal', 'uint256'))]
 
+    def evaluate(self, node):
+        # TODO
+        raise UnfoldableNode
+
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         return minmax(expr, args, kwargs, context, 'gt')
@@ -1123,6 +1176,10 @@ class Max:
 
     _id = "max"
     _inputs = [("a", ('int128', 'decimal', 'uint256')), ("b", ('int128', 'decimal', 'uint256'))]
+
+    def evaluate(self, node):
+        # TODO
+        raise UnfoldableNode
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -1168,6 +1225,10 @@ class Sqrt:
     _id = "sqrt"
     _inputs = [("d", "decimal")]
     _return_type = "decimal"
+
+    def evaluate(self, node):
+        # TODO
+        raise UnfoldableNode
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -1232,6 +1293,10 @@ class Empty:
 
     _id = "empty"
     _inputs = [("typename", "*")]
+
+    def evaluate(self, node):
+        # TODO
+        raise UnfoldableNode
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
