@@ -1174,66 +1174,72 @@ class CreateForwarderTo:
         )
 
 
-class Min:
+class _MinMax:
 
-    _id = "min"
     _inputs = [("a", ('int128', 'decimal', 'uint256')), ("b", ('int128', 'decimal', 'uint256'))]
 
     def evaluate(self, node):
-        # TODO
-        raise UnfoldableNode
+        validate_call_args(node, 2)
+        if not isinstance(node.args[0], type(node.args[1])):
+            raise UnfoldableNode
+        if not isinstance(node.args[0], (vy_ast.Decimal, vy_ast.Int)):
+            raise UnfoldableNode
+
+        left, right = (i.value for i in node.args)
+        if isinstance(left, Decimal) and (min(left, right) < -2**127 or max(left, right) >= 2**127):
+            raise InvalidType("Decimal value is outside of allowable range", node)
+        if isinstance(left, int) and (min(left, right) < 0 and max(left, right) >= 2**127):
+            raise TypeMismatch("Cannot perform action between dislike numeric types", node)
+
+        value = self._eval_fn(left, right)
+        return type(node.args[0]).from_node(node, value=value)
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
-        return minmax(expr, args, kwargs, context, 'gt')
+        def _can_compare_with_uint256(operand):
+            if operand.typ.typ == 'uint256':
+                return True
+            elif operand.typ.typ == 'int128' and operand.typ.is_literal and SizeLimits.in_bounds('uint256', operand.value):  # noqa: E501
+                return True
+            return False
 
-
-class Max:
-
-    _id = "max"
-    _inputs = [("a", ('int128', 'decimal', 'uint256')), ("b", ('int128', 'decimal', 'uint256'))]
-
-    def evaluate(self, node):
-        # TODO
-        raise UnfoldableNode
-
-    @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
-        return minmax(expr, args, kwargs, context, 'lt')
-
-
-def minmax(expr, args, kwargs, context, comparator):
-    def _can_compare_with_uint256(operand):
-        if operand.typ.typ == 'uint256':
-            return True
-        elif operand.typ.typ == 'int128' and operand.typ.is_literal and SizeLimits.in_bounds('uint256', operand.value):  # noqa: E501
-            return True
-        return False
-
-    left, right = args[0], args[1]
-    if left.typ.typ == right.typ.typ:
-        if left.typ.typ != 'uint256':
-            # if comparing like types that are not uint256, use SLT or SGT
-            comparator = f's{comparator}'
-        o = ['if', [comparator, '_l', '_r'], '_r', '_l']
-        otyp = left.typ
-        otyp.is_literal = False
-    elif _can_compare_with_uint256(left) and _can_compare_with_uint256(right):
-        o = ['if', [comparator, '_l', '_r'], '_r', '_l']
-        if right.typ.typ == 'uint256':
-            otyp = right.typ
-        else:
+        comparator = self._opcode
+        left, right = args[0], args[1]
+        if left.typ.typ == right.typ.typ:
+            if left.typ.typ != 'uint256':
+                # if comparing like types that are not uint256, use SLT or SGT
+                comparator = f's{comparator}'
+            o = ['if', [comparator, '_l', '_r'], '_r', '_l']
             otyp = left.typ
-        otyp.is_literal = False
-    else:
-        raise TypeMismatch(
-            f"Minmax types incompatible: {left.typ.typ} {right.typ.typ}"
+            otyp.is_literal = False
+        elif _can_compare_with_uint256(left) and _can_compare_with_uint256(right):
+            o = ['if', [comparator, '_l', '_r'], '_r', '_l']
+            if right.typ.typ == 'uint256':
+                otyp = right.typ
+            else:
+                otyp = left.typ
+            otyp.is_literal = False
+        else:
+            raise TypeMismatch(
+                f"Minmax types incompatible: {left.typ.typ} {right.typ.typ}"
+            )
+        return LLLnode.from_list(
+            ['with', '_l', left, ['with', '_r', right, o]],
+            typ=otyp,
+            pos=getpos(expr),
         )
-    return LLLnode.from_list(
-        ['with', '_l', left, ['with', '_r', right, o]],
-        typ=otyp,
-        pos=getpos(expr),
-    )
+
+
+class Min(_MinMax):
+    _id = "min"
+    _eval_fn = min
+    _opcode = "gt"
+
+
+class Max(_MinMax):
+    _id = "max"
+    _eval_fn = max
+    _opcode = "lt"
 
 
 class Sqrt:
