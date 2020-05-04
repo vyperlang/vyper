@@ -11,6 +11,7 @@ from vyper.ast.validation import (
     validate_call_args,
 )
 from vyper.exceptions import (
+    ArgumentException,
     ConstancyViolation,
     InvalidLiteral,
     StructureException,
@@ -696,9 +697,27 @@ class AsWeiValue:
         ("kether", "grand"): 10**21,
     }
 
+    # TODO test
     def evaluate(self, node):
-        # TODO
-        raise UnfoldableNode
+        validate_call_args(node, 2)
+        if not isinstance(node.args[1], vy_ast.Str):
+            raise ArgumentException(
+                "Wei denomination must be given as a literal string", node.args[1]
+            )
+        if not isinstance(node.args[0], (vy_ast.Decimal, vy_ast.Int)):
+            raise UnfoldableNode
+        value = node.args[0].value
+
+        if value < 0:
+            raise InvalidLiteral("Negative wei value not allowed", node.args[0])
+
+        if isinstance(value, int) and value >= 2**256:
+            raise InvalidLiteral("Value out of range for uint256", node.args[0])
+        if isinstance(value, Decimal) and value >= 2**127:
+            raise InvalidLiteral("Value out of range for decimal", node.args[0])
+
+        denom = next(v for k, v in self.wei_denoms.items() if node.args[1].value in k)
+        return vy_ast.Int.from_node(node, value=int(value * denom))
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
