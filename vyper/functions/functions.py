@@ -3,6 +3,7 @@ from decimal import (
 )
 import hashlib
 import math
+import operator
 
 from vyper import (
     ast as vy_ast,
@@ -1010,50 +1011,46 @@ class BitwiseXor:
         )
 
 
-class AddMod:
+class _AddMulMod:
 
+    _inputs = [("a", "uint256"), ("b", "uint256"), ("c", "uint256")]
+    _return_type = "uint256"
+
+    # TODO test
+    def evaluate(self, node):
+        validate_call_args(node, 3)
+        for arg in node.args:
+            if not isinstance(arg, vy_ast.Num):
+                raise UnfoldableNode
+            if arg.value < 0 or arg.value >= 2**256:
+                raise InvalidLiteral("Value out of range for uint256", arg)
+
+        value = self._eval_fn(node.args[0].value, node.args[1].value) % node.args[2].value
+        return vy_ast.Int.from_node(node, value=value)
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        return LLLnode.from_list(
+            [
+                'seq',
+                ['assert', args[2]],
+                [self._opcode, args[0], args[1], args[2]],
+            ],
+            typ=BaseType('uint256'),
+            pos=getpos(expr),
+        )
+
+
+class AddMod(_AddMulMod):
     _id = "uint256_addmod"
-    _inputs = [("a", "uint256"), ("b", "uint256"), ("c", "uint256")]
-    _return_type = "uint256"
-
-    def evaluate(self, node):
-        # TODO
-        raise UnfoldableNode
-
-    @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
-        return LLLnode.from_list(
-            [
-                'seq',
-                ['assert', args[2]],
-                ['addmod', args[0], args[1], args[2]],
-            ],
-            typ=BaseType('uint256'),
-            pos=getpos(expr),
-        )
+    _eval_fn = operator.add
+    _opcode = "addmod"
 
 
-class MulMod:
-
+class MulMod(_AddMulMod):
     _id = "uint256_mulmod"
-    _inputs = [("a", "uint256"), ("b", "uint256"), ("c", "uint256")]
-    _return_type = "uint256"
-
-    def evaluate(self, node):
-        # TODO
-        raise UnfoldableNode
-
-    @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
-        return LLLnode.from_list(
-            [
-                'seq',
-                ['assert', args[2]],
-                ['mulmod', args[0], args[1], args[2]],
-            ],
-            typ=BaseType('uint256'),
-            pos=getpos(expr),
-        )
+    _eval_fn = operator.mul
+    _opcode = "mulmod"
 
 
 class Shift:
