@@ -206,7 +206,7 @@ class VyperInternalException(Exception):
     Internal exceptions are raised as a means of passing information between
     compiler processes. They should never be exposed to the user.
     """
-    def __init__(self, message):
+    def __init__(self, message=""):
         self.message = message
 
     def __str__(self):
