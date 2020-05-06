@@ -383,8 +383,19 @@ class Keccak256:
     _return_type = "bytes32"
 
     def evaluate(self, node):
-        # TODO
-        raise UnfoldableNode
+        validate_call_args(node, 1)
+        if isinstance(node.args[0], vy_ast.Bytes):
+            value = node.args[0].value
+        elif isinstance(node.args[0], vy_ast.Str):
+            value = node.args[0].value.encode()
+        elif isinstance(node.args[0], vy_ast.Hex):
+            length = len(node.args[0].value) // 2 - 1
+            value = int(node.args[0].value, 16).to_bytes(length, "big")
+        else:
+            raise UnfoldableNode
+
+        hash_ = keccak256(value)
+        return vy_ast.Bytes.from_node(node, value=hash_)
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -411,9 +422,21 @@ class Sha256:
     _inputs = [("value", ('bytes_literal', 'str_literal', 'bytes', 'string', 'bytes32'))]
     _return_type = "bytes32"
 
+    # TODO once active, remove the literal input logic from build_LLL
     def evaluate(self, node):
-        # TODO
-        raise UnfoldableNode
+        validate_call_args(node, 1)
+        if isinstance(node.args[0], vy_ast.Bytes):
+            value = node.args[0].value
+        elif isinstance(node.args[0], vy_ast.Str):
+            value = node.args[0].value.encode()
+        elif isinstance(node.args[0], vy_ast.Hex):
+            length = len(node.args[0].value) // 2 - 1
+            value = int(node.args[0].value, 16).to_bytes(length, "big")
+        else:
+            raise UnfoldableNode
+
+        hash_ = hashlib.sha256(value).digest()
+        return vy_ast.Bytes.from_node(node, value=hash_)
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
