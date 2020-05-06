@@ -1063,6 +1063,65 @@ class BitwiseNot:
         return LLLnode.from_list(['not', args[0]], typ=BaseType('uint256'), pos=getpos(expr))
 
 
+class Shift:
+
+    _id = "shift"
+    _inputs = [("x", "uint256"), ("_shift", "int128")]
+    _return_type = "uint256"
+
+    def evaluate(self, node):
+        validate_call_args(node, 2)
+        if [i for i in node.args if not isinstance(i, vy_ast.Num)]:
+            raise UnfoldableNode
+        value, shift = [i.value for i in node.args]
+        if value < 0 or value >= 2**256:
+            raise InvalidLiteral("Value out of range for uint256", node.args[0])
+        if shift < -2**127 or shift >= 2**127:
+            raise InvalidLiteral("Value out of range for int128", node.args[1])
+
+        if shift < 0:
+            value = value >> -shift
+        else:
+            value = (value << shift) % (2**256)
+        return vy_ast.Int.from_node(node, value=value)
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        if args[1].typ.is_literal:
+            shift_abs = abs(args[1].value)
+        else:
+            shift_abs = ['sub', 0, '_s']
+
+        if version_check(begin="constantinople"):
+            left_shift = ['shl', '_s', '_v']
+            right_shift = ['shr', shift_abs, '_v']
+        else:
+            # If second argument is positive, left-shift so multiply by a power of two
+            # If it is negative, divide by a power of two
+            # node that if the abs of the second argument >= 256, then in the EVM
+            # 2**(second arg) = 0, and multiplying OR dividing by 0 gives 0
+            left_shift = ['mul', '_v', ['exp', 2, '_s']]
+            right_shift = ['div', '_v', ['exp', 2, shift_abs]]
+
+        if not args[1].typ.is_literal:
+            node_list = ['if', ['slt', '_s', 0], right_shift, left_shift]
+        elif args[1].value >= 0:
+            node_list = left_shift
+        else:
+            node_list = right_shift
+
+        return LLLnode.from_list(
+            [
+                'with', '_v', args[0], [
+                    'with', '_s', args[1],
+                        node_list,
+                ],
+            ],
+            typ=BaseType('uint256'),
+            pos=getpos(expr),
+        )
+
+
 class _AddMulMod:
 
     _inputs = [("a", "uint256"), ("b", "uint256"), ("c", "uint256")]
@@ -1103,53 +1162,6 @@ class MulMod(_AddMulMod):
     _id = "uint256_mulmod"
     _eval_fn = operator.mul
     _opcode = "mulmod"
-
-
-class Shift:
-
-    _id = "shift"
-    _inputs = [("x", "uint256"), ("_shift", "int128")]
-    _return_type = "uint256"
-
-    def evaluate(self, node):
-        # TODO
-        raise UnfoldableNode
-
-    @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
-        if args[1].typ.is_literal:
-            shift_abs = abs(args[1].value)
-        else:
-            shift_abs = ['sub', 0, '_s']
-
-        if version_check(begin="constantinople"):
-            left_shift = ['shl', '_s', '_v']
-            right_shift = ['shr', shift_abs, '_v']
-        else:
-            # If second argument is positive, left-shift so multiply by a power of two
-            # If it is negative, divide by a power of two
-            # node that if the abs of the second argument >= 256, then in the EVM
-            # 2**(second arg) = 0, and multiplying OR dividing by 0 gives 0
-            left_shift = ['mul', '_v', ['exp', 2, '_s']]
-            right_shift = ['div', '_v', ['exp', 2, shift_abs]]
-
-        if not args[1].typ.is_literal:
-            node_list = ['if', ['slt', '_s', 0], right_shift, left_shift]
-        elif args[1].value >= 0:
-            node_list = left_shift
-        else:
-            node_list = right_shift
-
-        return LLLnode.from_list(
-            [
-                'with', '_v', args[0], [
-                    'with', '_s', args[1],
-                        node_list,
-                ],
-            ],
-            typ=BaseType('uint256'),
-            pos=getpos(expr),
-        )
 
 
 def get_create_forwarder_to_bytecode():
