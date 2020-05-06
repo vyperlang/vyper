@@ -975,29 +975,21 @@ class BitwiseAnd:
     _return_type = "uint256"
 
     def evaluate(self, node):
-        # TODO
-        raise UnfoldableNode
+        validate_call_args(node, 2)
+        for arg in node.args:
+            if not isinstance(arg, vy_ast.Num):
+                raise UnfoldableNode
+            if arg.value < 0 or arg.value >= 2**256:
+                raise InvalidLiteral("Value out of range for uint256", arg)
+
+        value = node.args[0].value & node.args[1].value
+        return vy_ast.Int.from_node(node, value=value)
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         return LLLnode.from_list(
             ['and', args[0], args[1]], typ=BaseType('uint256'), pos=getpos(expr)
         )
-
-
-class BitwiseNot:
-
-    _id = "bitwise_not"
-    _inputs = [("x", "uint256")]
-    _return_type = "uint256"
-
-    def evaluate(self, node):
-        # TODO
-        raise UnfoldableNode
-
-    @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
-        return LLLnode.from_list(['not', args[0]], typ=BaseType('uint256'), pos=getpos(expr))
 
 
 class BitwiseOr:
@@ -1007,8 +999,15 @@ class BitwiseOr:
     _return_type = "uint256"
 
     def evaluate(self, node):
-        # TODO
-        raise UnfoldableNode
+        validate_call_args(node, 2)
+        for arg in node.args:
+            if not isinstance(arg, vy_ast.Num):
+                raise UnfoldableNode
+            if arg.value < 0 or arg.value >= 2**256:
+                raise InvalidLiteral("Value out of range for uint256", arg)
+
+        value = node.args[0].value | node.args[1].value
+        return vy_ast.Int.from_node(node, value=value)
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -1024,14 +1023,44 @@ class BitwiseXor:
     _return_type = "uint256"
 
     def evaluate(self, node):
-        # TODO
-        raise UnfoldableNode
+        validate_call_args(node, 2)
+        for arg in node.args:
+            if not isinstance(arg, vy_ast.Num):
+                raise UnfoldableNode
+            if arg.value < 0 or arg.value >= 2**256:
+                raise InvalidLiteral("Value out of range for uint256", arg)
+
+        value = node.args[0].value ^ node.args[1].value
+        return vy_ast.Int.from_node(node, value=value)
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         return LLLnode.from_list(
             ['xor', args[0], args[1]], typ=BaseType('uint256'), pos=getpos(expr)
         )
+
+
+class BitwiseNot:
+
+    _id = "bitwise_not"
+    _inputs = [("x", "uint256")]
+    _return_type = "uint256"
+
+    def evaluate(self, node):
+        validate_call_args(node, 1)
+        if not isinstance(node.args[0], vy_ast.Num):
+            raise UnfoldableNode
+
+        value = node.args[0].value
+        if value < 0 or value >= 2**256:
+            raise InvalidLiteral("Value out of range for uint256", node.args[0])
+
+        value = (2**256-1) - value
+        return vy_ast.Int.from_node(node, value=value)
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        return LLLnode.from_list(['not', args[0]], typ=BaseType('uint256'), pos=getpos(expr))
 
 
 class _AddMulMod:
