@@ -17,5 +17,8 @@ All VIPs that introduce backwards incompatibilities must include a section descr
 ## Dependencies
 If this VIP depends on any other VIPs being implemented, please mention them.
 
+## References
+Add any references that this VIP might reference (other VIPs/issues, links to blog posts, etc.)
+
 ## Copyright
 Copyright and related rights waived via [CC0](https://creativecommons.org/publicdomain/zero/1.0/)
