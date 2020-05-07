@@ -669,26 +669,6 @@ class Hex(Num):
             _raise_syntax_exc(f"Hex notation requires an even number of digits", kwargs)
 
 
-class Binary(Num):
-    """
-    A binary value, e.g. `0b01110011`
-
-    Attributes
-    ----------
-    value : str
-        Value of the node, represented as a string taken directly from the contract source.
-    """
-    __slots__ = ()
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        mod = (len(self.value)-2) % 8
-        if mod:
-            _raise_syntax_exc(
-                f"Bit notation requires a multiple of 8 bits. {8-mod} bit(s) are missing.", kwargs
-            )
-
-
 class Str(Constant):
     __slots__ = ()
     _translated_fields = {'s': 'value'}
