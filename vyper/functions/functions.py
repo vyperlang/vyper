@@ -150,10 +150,6 @@ class Convert:
     def build_LLL(self, expr, context):
         return convert(expr, context)
 
-    def evaluate(self, node):
-        # TODO
-        raise UnfoldableNode
-
 
 class Slice:
 
@@ -245,7 +241,6 @@ class Len:
     _inputs = [("b", ("bytes", "string"))]
     _return_type = "int128"
 
-    # TODO unit tests
     def evaluate(self, node):
         validate_call_args(node, 1)
         arg = node.args[0]
@@ -521,8 +516,7 @@ class MethodID:
     _id = "method_id"
     _inputs = [("method", "str_literal"), ("type", "name_literal")]
 
-    # TODO tests
-    # once this is plugged in, build_LLL can be removed as this method should always be foldable
+    # TODO once this is plugged in, build_LLL can be removed as this method is always foldable
     def evaluate(self, node):
         validate_call_args(node, 2)
         if not isinstance(node.args[0], vy_ast.Str):
@@ -744,7 +738,6 @@ class AsWeiValue:
         ("kether", "grand"): 10**21,
     }
 
-    # TODO test
     def evaluate(self, node):
         validate_call_args(node, 2)
         if not isinstance(node.args[1], vy_ast.Str):
@@ -1150,7 +1143,6 @@ class _AddMulMod:
     _inputs = [("a", "uint256"), ("b", "uint256"), ("c", "uint256")]
     _return_type = "uint256"
 
-    # TODO test
     def evaluate(self, node):
         validate_call_args(node, 3)
         for arg in node.args:
@@ -1335,10 +1327,6 @@ class Sqrt:
     _inputs = [("d", "decimal")]
     _return_type = "decimal"
 
-    def evaluate(self, node):
-        # TODO
-        raise UnfoldableNode
-
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         from vyper.functions.utils import (
@@ -1402,10 +1390,6 @@ class Empty:
 
     _id = "empty"
     _inputs = [("typename", "*")]
-
-    def evaluate(self, node):
-        # TODO
-        raise UnfoldableNode
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
