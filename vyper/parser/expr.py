@@ -92,7 +92,6 @@ class Expr(object):
             LLLnode: self.get_expr,
             vy_ast.Int: self.integer,
             vy_ast.Decimal: self.decimal,
-            vy_ast.Binary: self.binary,
             vy_ast.Hex: self.hexstring,
             vy_ast.Str: self.string,
             vy_ast.NameConstant: self.constants,
@@ -149,38 +148,6 @@ class Expr(object):
             num * DECIMAL_DIVISOR // den,
             typ=BaseType('decimal', is_literal=True),
             pos=getpos(self.expr),
-        )
-
-    def binary(self):
-        orignum = self.expr.node_source_code
-        str_val = orignum[2:]
-        total_bits = len(orignum[2:])
-        total_bits = (
-            total_bits
-            if total_bits % 8 == 0
-            else total_bits + 8 - (total_bits % 8)  # ceil8 to get byte length.
-        )
-        if len(orignum[2:]) != total_bits:  # Support only full formed bit definitions.
-            raise InvalidLiteral(
-                f"Bit notation requires a multiple of 8 bits / 1 byte. "
-                f"{total_bits - len(orignum[2:])} bit(s) are missing.",
-                self.expr,
-            )
-        byte_len = int(total_bits / 8)
-        placeholder = self.context.new_placeholder(ByteArrayType(byte_len))
-        seq = []
-        seq.append(['mstore', placeholder, byte_len])
-        for i in range(0, total_bits, 256):
-            section = str_val[i:i + 256]
-            int_val = int(section, 2) << (256 - len(section))  # bytes are right padded.
-            seq.append(
-                ['mstore', ['add', placeholder, i + 32], int_val])
-        return LLLnode.from_list(
-            ['seq'] + seq + [placeholder],
-            typ=ByteArrayType(byte_len),
-            location='memory',
-            pos=getpos(self.expr),
-            annotation=f'Create ByteArray (Binary literal): {str_val}',
         )
 
     def hexstring(self):

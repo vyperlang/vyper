@@ -139,15 +139,30 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         value = node.node_source_code
 
         # deduce non base-10 types based on prefix
-        literal_prefixes = {'0x': "Hex", '0b': "Binary", '0o': "Octal"}
+        literal_prefixes = {'0x': "Hex", '0o': "Octal"}
         if value.lower()[:2] in literal_prefixes:
             node.ast_type = literal_prefixes[value.lower()[:2]]
             node.n = value
+
+        elif value.lower()[:2] == "0b":
+            node.ast_type = "Bytes"
+            mod = (len(value)-2) % 8
+            if mod:
+                raise SyntaxException(
+                    f"Bit notation requires a multiple of 8 bits. {8-mod} bit(s) are missing.",
+                    self._source_code,
+                    node.lineno,
+                    node.col_offset,
+                )
+            node.value = int(value, 2).to_bytes(len(value) // 8, "big")
+
         elif isinstance(node.n, float):
             node.ast_type = "Decimal"
             node.n = Decimal(value)
+
         elif isinstance(node.n, int):
             node.ast_type = "Int"
+
         else:
             raise CompilerPanic(f"Unexpected type for Constant value: {type(node.n).__name__}")
 
