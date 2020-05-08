@@ -2,15 +2,23 @@ from decimal import (
     Decimal,
 )
 import hashlib
+import math
+import operator
 
 from vyper import (
     ast as vy_ast,
 )
+from vyper.ast.validation import (
+    validate_call_args,
+)
 from vyper.exceptions import (
+    ArgumentException,
     ConstancyViolation,
     InvalidLiteral,
+    InvalidType,
     StructureException,
     TypeMismatch,
+    UnfoldableNode,
 )
 from vyper.functions.convert import (
     convert,
@@ -85,6 +93,14 @@ class Floor:
     _inputs = [("value", "decimal")]
     _return_type = "int128"
 
+    def evaluate(self, node):
+        validate_call_args(node, 1)
+        if not isinstance(node.args[0], vy_ast.Decimal):
+            raise UnfoldableNode
+
+        value = math.floor(node.args[0].value)
+        return vy_ast.Int.from_node(node, value=value)
+
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         return LLLnode.from_list(
@@ -104,6 +120,14 @@ class Ceil:
     _id = "ceil"
     _inputs = [("value", "decimal")]
     _return_type = "int128"
+
+    def evaluate(self, node):
+        validate_call_args(node, 1)
+        if not isinstance(node.args[0], vy_ast.Decimal):
+            raise UnfoldableNode
+
+        value = math.ceil(node.args[0].value)
+        return vy_ast.Int.from_node(node, value=value)
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -216,6 +240,19 @@ class Len:
     _id = "len"
     _inputs = [("b", ("bytes", "string"))]
     _return_type = "int128"
+
+    def evaluate(self, node):
+        validate_call_args(node, 1)
+        arg = node.args[0]
+        if isinstance(arg, (vy_ast.Str, vy_ast.Bytes)):
+            length = len(arg.value)
+        elif isinstance(arg, vy_ast.Hex):
+            # 2 characters represent 1 byte and we subtract 1 to ignore the leading `0x`
+            length = len(arg.value) // 2 - 1
+        else:
+            raise UnfoldableNode
+
+        return vy_ast.Int.from_node(node, value=length)
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -340,6 +377,21 @@ class Keccak256:
     _inputs = [("value", ('bytes_literal', 'str_literal', 'bytes', 'string', 'bytes32'))]
     _return_type = "bytes32"
 
+    def evaluate(self, node):
+        validate_call_args(node, 1)
+        if isinstance(node.args[0], vy_ast.Bytes):
+            value = node.args[0].value
+        elif isinstance(node.args[0], vy_ast.Str):
+            value = node.args[0].value.encode()
+        elif isinstance(node.args[0], vy_ast.Hex):
+            length = len(node.args[0].value) // 2 - 1
+            value = int(node.args[0].value, 16).to_bytes(length, "big")
+        else:
+            raise UnfoldableNode
+
+        hash_ = keccak256(value)
+        return vy_ast.Bytes.from_node(node, value=hash_)
+
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         return keccak256_helper(expr, args, kwargs, context)
@@ -364,6 +416,22 @@ class Sha256:
     _id = "sha256"
     _inputs = [("value", ('bytes_literal', 'str_literal', 'bytes', 'string', 'bytes32'))]
     _return_type = "bytes32"
+
+    # TODO once active, remove the literal input logic from build_LLL
+    def evaluate(self, node):
+        validate_call_args(node, 1)
+        if isinstance(node.args[0], vy_ast.Bytes):
+            value = node.args[0].value
+        elif isinstance(node.args[0], vy_ast.Str):
+            value = node.args[0].value.encode()
+        elif isinstance(node.args[0], vy_ast.Hex):
+            length = len(node.args[0].value) // 2 - 1
+            value = int(node.args[0].value, 16).to_bytes(length, "big")
+        else:
+            raise UnfoldableNode
+
+        hash_ = hashlib.sha256(value).digest()
+        return vy_ast.Bytes.from_node(node, value=hash_)
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -447,6 +515,31 @@ class MethodID:
 
     _id = "method_id"
     _inputs = [("method", "str_literal"), ("type", "name_literal")]
+
+    # TODO once this is plugged in, build_LLL can be removed as this method is always foldable
+    def evaluate(self, node):
+        validate_call_args(node, 2)
+        if not isinstance(node.args[0], vy_ast.Str):
+            raise InvalidType("method id must be given as a literal string", node.args[0])
+        if " " in node.args[0].value:
+            raise InvalidLiteral('Invalid function signature no spaces allowed.')
+
+        args = node.args
+        if isinstance(node.args[1], vy_ast.Name) and node.id == "bytes32":
+            length = 32
+        elif (
+            isinstance(args[1], vy_ast.Subscript) and
+            args[1].get('value.id') == "bytes" and
+            args[1].get('slice.value.value') == 4
+        ):
+            length = 4
+        else:
+            raise InvalidType("Can only produce bytes32 or bytes[4] as outputs", node.args[1])
+
+        method_id = fourbytes_to_int(keccak256(node.args[0].value)[:4])
+        value = method_id.to_bytes(length, "big")
+
+        return vy_ast.Bytes.from_node(node, value=value)
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -644,6 +737,27 @@ class AsWeiValue:
         ("ether", ): 10**18,
         ("kether", "grand"): 10**21,
     }
+
+    def evaluate(self, node):
+        validate_call_args(node, 2)
+        if not isinstance(node.args[1], vy_ast.Str):
+            raise ArgumentException(
+                "Wei denomination must be given as a literal string", node.args[1]
+            )
+        if not isinstance(node.args[0], (vy_ast.Decimal, vy_ast.Int)):
+            raise UnfoldableNode
+        value = node.args[0].value
+
+        if value < 0:
+            raise InvalidLiteral("Negative wei value not allowed", node.args[0])
+
+        if isinstance(value, int) and value >= 2**256:
+            raise InvalidLiteral("Value out of range for uint256", node.args[0])
+        if isinstance(value, Decimal) and value >= 2**127:
+            raise InvalidLiteral("Value out of range for decimal", node.args[0])
+
+        denom = next(v for k, v in self.wei_denoms.items() if node.args[1].value in k)
+        return vy_ast.Int.from_node(node, value=int(value * denom))
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -876,6 +990,17 @@ class BitwiseAnd:
     _inputs = [("x", "uint256"), ("y", "uint256")]
     _return_type = "uint256"
 
+    def evaluate(self, node):
+        validate_call_args(node, 2)
+        for arg in node.args:
+            if not isinstance(arg, vy_ast.Num):
+                raise UnfoldableNode
+            if arg.value < 0 or arg.value >= 2**256:
+                raise InvalidLiteral("Value out of range for uint256", arg)
+
+        value = node.args[0].value & node.args[1].value
+        return vy_ast.Int.from_node(node, value=value)
+
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         return LLLnode.from_list(
@@ -883,22 +1008,22 @@ class BitwiseAnd:
         )
 
 
-class BitwiseNot:
-
-    _id = "bitwise_not"
-    _inputs = [("x", "uint256")]
-    _return_type = "uint256"
-
-    @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
-        return LLLnode.from_list(['not', args[0]], typ=BaseType('uint256'), pos=getpos(expr))
-
-
 class BitwiseOr:
 
     _id = "bitwise_or"
     _inputs = [("x", "uint256"), ("y", "uint256")]
     _return_type = "uint256"
+
+    def evaluate(self, node):
+        validate_call_args(node, 2)
+        for arg in node.args:
+            if not isinstance(arg, vy_ast.Num):
+                raise UnfoldableNode
+            if arg.value < 0 or arg.value >= 2**256:
+                raise InvalidLiteral("Value out of range for uint256", arg)
+
+        value = node.args[0].value | node.args[1].value
+        return vy_ast.Int.from_node(node, value=value)
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -913,6 +1038,17 @@ class BitwiseXor:
     _inputs = [("x", "uint256"), ("y", "uint256")]
     _return_type = "uint256"
 
+    def evaluate(self, node):
+        validate_call_args(node, 2)
+        for arg in node.args:
+            if not isinstance(arg, vy_ast.Num):
+                raise UnfoldableNode
+            if arg.value < 0 or arg.value >= 2**256:
+                raise InvalidLiteral("Value out of range for uint256", arg)
+
+        value = node.args[0].value ^ node.args[1].value
+        return vy_ast.Int.from_node(node, value=value)
+
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         return LLLnode.from_list(
@@ -920,42 +1056,27 @@ class BitwiseXor:
         )
 
 
-class AddMod:
+class BitwiseNot:
 
-    _id = "uint256_addmod"
-    _inputs = [("a", "uint256"), ("b", "uint256"), ("c", "uint256")]
+    _id = "bitwise_not"
+    _inputs = [("x", "uint256")]
     _return_type = "uint256"
+
+    def evaluate(self, node):
+        validate_call_args(node, 1)
+        if not isinstance(node.args[0], vy_ast.Num):
+            raise UnfoldableNode
+
+        value = node.args[0].value
+        if value < 0 or value >= 2**256:
+            raise InvalidLiteral("Value out of range for uint256", node.args[0])
+
+        value = (2**256-1) - value
+        return vy_ast.Int.from_node(node, value=value)
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
-        return LLLnode.from_list(
-            [
-                'seq',
-                ['assert', args[2]],
-                ['addmod', args[0], args[1], args[2]],
-            ],
-            typ=BaseType('uint256'),
-            pos=getpos(expr),
-        )
-
-
-class MulMod:
-
-    _id = "uint256_mulmod"
-    _inputs = [("a", "uint256"), ("b", "uint256"), ("c", "uint256")]
-    _return_type = "uint256"
-
-    @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
-        return LLLnode.from_list(
-            [
-                'seq',
-                ['assert', args[2]],
-                ['mulmod', args[0], args[1], args[2]],
-            ],
-            typ=BaseType('uint256'),
-            pos=getpos(expr),
-        )
+        return LLLnode.from_list(['not', args[0]], typ=BaseType('uint256'), pos=getpos(expr))
 
 
 class Shift:
@@ -963,6 +1084,22 @@ class Shift:
     _id = "shift"
     _inputs = [("x", "uint256"), ("_shift", "int128")]
     _return_type = "uint256"
+
+    def evaluate(self, node):
+        validate_call_args(node, 2)
+        if [i for i in node.args if not isinstance(i, vy_ast.Num)]:
+            raise UnfoldableNode
+        value, shift = [i.value for i in node.args]
+        if value < 0 or value >= 2**256:
+            raise InvalidLiteral("Value out of range for uint256", node.args[0])
+        if shift < -2**127 or shift >= 2**127:
+            raise InvalidLiteral("Value out of range for int128", node.args[1])
+
+        if shift < 0:
+            value = value >> -shift
+        else:
+            value = (value << shift) % (2**256)
+        return vy_ast.Int.from_node(node, value=value)
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -999,6 +1136,47 @@ class Shift:
             typ=BaseType('uint256'),
             pos=getpos(expr),
         )
+
+
+class _AddMulMod:
+
+    _inputs = [("a", "uint256"), ("b", "uint256"), ("c", "uint256")]
+    _return_type = "uint256"
+
+    def evaluate(self, node):
+        validate_call_args(node, 3)
+        for arg in node.args:
+            if not isinstance(arg, vy_ast.Num):
+                raise UnfoldableNode
+            if arg.value < 0 or arg.value >= 2**256:
+                raise InvalidLiteral("Value out of range for uint256", arg)
+
+        value = self._eval_fn(node.args[0].value, node.args[1].value) % node.args[2].value
+        return vy_ast.Int.from_node(node, value=value)
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        return LLLnode.from_list(
+            [
+                'seq',
+                ['assert', args[2]],
+                [self._opcode, args[0], args[1], args[2]],
+            ],
+            typ=BaseType('uint256'),
+            pos=getpos(expr),
+        )
+
+
+class AddMod(_AddMulMod):
+    _id = "uint256_addmod"
+    _eval_fn = operator.add
+    _opcode = "addmod"
+
+
+class MulMod(_AddMulMod):
+    _id = "uint256_mulmod"
+    _eval_fn = operator.mul
+    _opcode = "mulmod"
 
 
 def get_create_forwarder_to_bytecode():
@@ -1075,58 +1253,72 @@ class CreateForwarderTo:
         )
 
 
-class Min:
+class _MinMax:
 
-    _id = "min"
     _inputs = [("a", ('int128', 'decimal', 'uint256')), ("b", ('int128', 'decimal', 'uint256'))]
+
+    def evaluate(self, node):
+        validate_call_args(node, 2)
+        if not isinstance(node.args[0], type(node.args[1])):
+            raise UnfoldableNode
+        if not isinstance(node.args[0], (vy_ast.Decimal, vy_ast.Int)):
+            raise UnfoldableNode
+
+        left, right = (i.value for i in node.args)
+        if isinstance(left, Decimal) and (min(left, right) < -2**127 or max(left, right) >= 2**127):
+            raise InvalidType("Decimal value is outside of allowable range", node)
+        if isinstance(left, int) and (min(left, right) < 0 and max(left, right) >= 2**127):
+            raise TypeMismatch("Cannot perform action between dislike numeric types", node)
+
+        value = self._eval_fn(left, right)
+        return type(node.args[0]).from_node(node, value=value)
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
-        return minmax(expr, args, kwargs, context, 'gt')
+        def _can_compare_with_uint256(operand):
+            if operand.typ.typ == 'uint256':
+                return True
+            elif operand.typ.typ == 'int128' and operand.typ.is_literal and SizeLimits.in_bounds('uint256', operand.value):  # noqa: E501
+                return True
+            return False
 
-
-class Max:
-
-    _id = "max"
-    _inputs = [("a", ('int128', 'decimal', 'uint256')), ("b", ('int128', 'decimal', 'uint256'))]
-
-    @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
-        return minmax(expr, args, kwargs, context, 'lt')
-
-
-def minmax(expr, args, kwargs, context, comparator):
-    def _can_compare_with_uint256(operand):
-        if operand.typ.typ == 'uint256':
-            return True
-        elif operand.typ.typ == 'int128' and operand.typ.is_literal and SizeLimits.in_bounds('uint256', operand.value):  # noqa: E501
-            return True
-        return False
-
-    left, right = args[0], args[1]
-    if left.typ.typ == right.typ.typ:
-        if left.typ.typ != 'uint256':
-            # if comparing like types that are not uint256, use SLT or SGT
-            comparator = f's{comparator}'
-        o = ['if', [comparator, '_l', '_r'], '_r', '_l']
-        otyp = left.typ
-        otyp.is_literal = False
-    elif _can_compare_with_uint256(left) and _can_compare_with_uint256(right):
-        o = ['if', [comparator, '_l', '_r'], '_r', '_l']
-        if right.typ.typ == 'uint256':
-            otyp = right.typ
-        else:
+        comparator = self._opcode
+        left, right = args[0], args[1]
+        if left.typ.typ == right.typ.typ:
+            if left.typ.typ != 'uint256':
+                # if comparing like types that are not uint256, use SLT or SGT
+                comparator = f's{comparator}'
+            o = ['if', [comparator, '_l', '_r'], '_r', '_l']
             otyp = left.typ
-        otyp.is_literal = False
-    else:
-        raise TypeMismatch(
-            f"Minmax types incompatible: {left.typ.typ} {right.typ.typ}"
+            otyp.is_literal = False
+        elif _can_compare_with_uint256(left) and _can_compare_with_uint256(right):
+            o = ['if', [comparator, '_l', '_r'], '_r', '_l']
+            if right.typ.typ == 'uint256':
+                otyp = right.typ
+            else:
+                otyp = left.typ
+            otyp.is_literal = False
+        else:
+            raise TypeMismatch(
+                f"Minmax types incompatible: {left.typ.typ} {right.typ.typ}"
+            )
+        return LLLnode.from_list(
+            ['with', '_l', left, ['with', '_r', right, o]],
+            typ=otyp,
+            pos=getpos(expr),
         )
-    return LLLnode.from_list(
-        ['with', '_l', left, ['with', '_r', right, o]],
-        typ=otyp,
-        pos=getpos(expr),
-    )
+
+
+class Min(_MinMax):
+    _id = "min"
+    _eval_fn = min
+    _opcode = "gt"
+
+
+class Max(_MinMax):
+    _id = "max"
+    _eval_fn = max
+    _opcode = "lt"
 
 
 class Sqrt:

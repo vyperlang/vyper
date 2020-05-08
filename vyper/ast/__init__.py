@@ -3,6 +3,7 @@ import sys
 from . import (  # noqa: F401
     folding,
     nodes,
+    validation,
 )
 from .nodes import (  # noqa: F401
     compare_nodes,
