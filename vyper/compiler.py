@@ -92,10 +92,14 @@ def gas_estimate(origcode, *args, **kwargs):
     return o
 
 
-def mk_full_signature(code, *args, **kwargs):
-    abi = sig_utils.mk_full_signature(parse_to_ast(code), *args, **kwargs)
+def mk_full_signature(source_code, *args, **kwargs):
+    vyper_ast_node = parse_to_ast(source_code)
+    global_ctx = GlobalContext.get_global_context(
+        vyper_ast_node, interface_codes=kwargs.get('interface_codes')
+    )
+    abi = sig_utils.mk_full_signature(global_ctx)
     # Add gas estimates for each function to ABI
-    gas_estimates = gas_estimate(code, *args, **kwargs)
+    gas_estimates = gas_estimate(source_code, *args, **kwargs)
     for func in abi:
         try:
             func_signature = func['name']
@@ -257,15 +261,21 @@ def _mk_source_map_output(code, contract_name, interface_codes, source_id):
 
 
 def _mk_method_identifiers_output(code, contract_name, interface_codes, source_id):
-    return sig_utils.mk_method_identifiers(code, interface_codes=interface_codes)
+    vyper_ast_node = parse_to_ast(code)
+    global_ctx = GlobalContext.get_global_context(vyper_ast_node, interface_codes=interface_codes)
+    return sig_utils.mk_method_identifiers(global_ctx)
 
 
 def _mk_interface_output(code, contract_name, interface_codes, source_id):
-    return extract_interface_str(code, contract_name, interface_codes=interface_codes)
+    vyper_ast_node = parse_to_ast(code)
+    global_ctx = GlobalContext.get_global_context(vyper_ast_node, interface_codes=interface_codes)
+    return extract_interface_str(global_ctx)
 
 
 def _mk_external_interface_output(code, contract_name, interface_codes, source_id):
-    return extract_external_interface(code, contract_name, interface_codes=interface_codes)
+    vyper_ast_node = parse_to_ast(code)
+    global_ctx = GlobalContext.get_global_context(vyper_ast_node, interface_codes=interface_codes)
+    return extract_external_interface(global_ctx, contract_name)
 
 
 def _mk_opcodes(code, contract_name, interface_codes, source_id):

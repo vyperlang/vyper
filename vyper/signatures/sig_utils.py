@@ -1,11 +1,5 @@
 import copy
 
-from vyper.ast import (
-    parse_to_ast,
-)
-from vyper.parser.global_context import (
-    GlobalContext,
-)
 from vyper.signatures.event_signature import (
     EventSignature,
 )
@@ -64,14 +58,13 @@ def _default_sig_formatter(sig):
 
 
 # Get ABI signature
-def mk_full_signature(code, sig_formatter=None, interface_codes=None):
+def mk_full_signature(global_ctx, sig_formatter=None):
 
     if sig_formatter is None:
         # Use default JSON style output.
         sig_formatter = _default_sig_formatter
 
     o = []
-    global_ctx = GlobalContext.get_global_context(code, interface_codes=interface_codes)
 
     # Produce event signatues.
     for code in global_ctx._events:
@@ -93,12 +86,8 @@ def mk_full_signature(code, sig_formatter=None, interface_codes=None):
     return o
 
 
-def mk_method_identifiers(source_str, interface_codes=None):
+def mk_method_identifiers(global_ctx):
     identifiers = {}
-    global_ctx = GlobalContext.get_global_context(
-        parse_to_ast(source_str),
-        interface_codes=interface_codes,
-    )
 
     for code in global_ctx._defs:
         identifiers.update(mk_single_method_identifier(code, global_ctx))

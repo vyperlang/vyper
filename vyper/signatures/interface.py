@@ -18,6 +18,9 @@ import vyper.interfaces
 from vyper.parser.constants import (
     Constants,
 )
+from vyper.parser.global_context import (
+    GlobalContext,
+)
 from vyper.signatures import (
     sig_utils,
 )
@@ -130,7 +133,8 @@ def extract_sigs(sig_code):
             isinstance(i, vy_ast.FunctionDef) or
             (isinstance(i, vy_ast.AnnAssign) and i.target.id != "implements")
         ]
-        return sig_utils.mk_full_signature(interface_ast, sig_formatter=lambda x: x)
+        global_ctx = GlobalContext.get_global_context(interface_ast)
+        return sig_utils.mk_full_signature(global_ctx, sig_formatter=lambda x: x)
     elif sig_code['type'] == 'json':
         return mk_full_signature_from_json(sig_code['code'])
     else:
@@ -140,11 +144,10 @@ def extract_sigs(sig_code):
         )
 
 
-def extract_interface_str(code, contract_name, interface_codes=None):
+def extract_interface_str(global_ctx):
     sigs = sig_utils.mk_full_signature(
-        vy_ast.parse_to_ast(code),
-        sig_formatter=lambda x: x,
-        interface_codes=interface_codes,
+        global_ctx,
+        sig_formatter=lambda x: x
     )
     events = [i for i in sigs if isinstance(i, EventSignature)]
     functions = [i for i in sigs if isinstance(i, FunctionSignature)]
@@ -176,11 +179,11 @@ def extract_interface_str(code, contract_name, interface_codes=None):
     return out
 
 
-def extract_external_interface(code, contract_name, interface_codes=None):
+def extract_external_interface(global_ctx, contract_name):
+
     sigs = sig_utils.mk_full_signature(
-        vy_ast.parse_to_ast(code),
+        global_ctx,
         sig_formatter=lambda x: x,
-        interface_codes=interface_codes,
     )
     functions = [i for i in sigs if isinstance(i, FunctionSignature)]
     cname = Path(contract_name).stem.capitalize()
