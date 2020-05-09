@@ -2,7 +2,6 @@ import re
 from typing import (
     Optional,
     Tuple,
-    Union,
 )
 
 from asttokens import (
@@ -22,7 +21,6 @@ from vyper.signatures import (
     sig_utils,
 )
 from vyper.typing import (
-    InterfaceDict,
     InterfaceImports,
 )
 
@@ -33,7 +31,7 @@ USERDOCS_FIELDS = ("notice",)
 
 def parse_natspec(
     vyper_ast: vy_ast.Module,
-    interface_codes: Union[InterfaceDict, InterfaceImports, None] = None,
+    interface_codes: Optional[InterfaceImports] = None,
 ) -> Tuple[dict, dict]:
     """
     Parses NatSpec documentation from a contract.
