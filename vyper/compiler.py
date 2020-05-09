@@ -29,6 +29,9 @@ from vyper.opcodes import (
 from vyper.parser import (
     parser,
 )
+from vyper.parser.global_context import (
+    GlobalContext,
+)
 from vyper.signatures import (
     sig_utils,
 )
@@ -45,12 +48,12 @@ from vyper.typing import (
 )
 
 
-def __compile(code, interface_codes=None, *args, **kwargs):
-    ast = parse_to_ast(code)
+def __compile(source_code, interface_codes=None, *args, **kwargs):
+    vyper_ast_node = parse_to_ast(source_code)
+    global_ctx = GlobalContext.get_global_context(vyper_ast_node, interface_codes=interface_codes)
     lll = parser.parse_tree_to_lll(
-        ast,
-        code,
-        interface_codes=interface_codes,
+        source_code,
+        global_ctx,
         runtime_only=kwargs.get('bytecode_runtime', False)
     )
     opt_lll = optimizer.optimize(lll)

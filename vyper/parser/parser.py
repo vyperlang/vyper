@@ -163,12 +163,10 @@ def parse_other_functions(o,
 
 # Main python parse tree => LLL method
 def parse_tree_to_lll(
-    vyper_ast_node: vy_ast.Module,
     source_code: str,
+    global_ctx: GlobalContext,
     runtime_only: bool = False,
-    interface_codes: Optional[InterfaceImports] = None
 ) -> LLLnode:
-    global_ctx = GlobalContext.get_global_context(vyper_ast_node, interface_codes=interface_codes)
     _names_def = [_def.name for _def in global_ctx._defs]
     # Checks for duplicate function names
     if len(set(_names_def)) < len(_names_def):
@@ -237,6 +235,9 @@ def parse_to_lll(
     interface_codes: Optional[InterfaceImports] = None
 ) -> LLLnode:
     vyper_ast_node = vy_ast.parse_to_ast(source_code)
+    global_ctx = GlobalContext.get_global_context(vyper_ast_node, interface_codes=interface_codes)
     return parse_tree_to_lll(
-        vyper_ast_node, source_code, runtime_only=runtime_only, interface_codes=interface_codes
+        source_code,
+        global_ctx,
+        runtime_only=runtime_only,
     )
