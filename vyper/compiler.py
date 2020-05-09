@@ -295,14 +295,16 @@ def _mk_ast_dict(code, contract_name, interface_codes, source_id):
 
 
 def _mk_userdoc(code, contract_name, interface_codes, source_id):
-    vyper_ast = parse_to_ast(code)
-    userdoc, devdoc = parse_natspec(vyper_ast, interface_codes)
+    vyper_ast_node = parse_to_ast(code)
+    global_ctx = GlobalContext.get_global_context(vyper_ast_node, interface_codes=interface_codes)
+    userdoc, devdoc = parse_natspec(vyper_ast_node, global_ctx)
     return userdoc
 
 
 def _mk_devdoc(code, contract_name, interface_codes, source_id):
-    vyper_ast = parse_to_ast(code)
-    userdoc, devdoc = parse_natspec(vyper_ast, interface_codes)
+    vyper_ast_node = parse_to_ast(code)
+    global_ctx = GlobalContext.get_global_context(vyper_ast_node, interface_codes=interface_codes)
+    userdoc, devdoc = parse_natspec(vyper_ast_node, global_ctx)
     return devdoc
 
 
