@@ -37,7 +37,7 @@ def transferFrom(_from: address, _to: address, _tokenId: uint256):
     pass
 
 @public
-def safeTransferFrom(_from: address, _to: address, _tokenId: uint256, _data: bytes[1024]):
+def safeTransferFrom(_from: address, _to: address, _tokenId: uint256):
     pass
 
 @public
