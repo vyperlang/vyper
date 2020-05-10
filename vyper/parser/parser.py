@@ -2,6 +2,7 @@ from typing import (
     Any,
     List,
     Optional,
+    Tuple,
 )
 
 from vyper import (
@@ -127,8 +128,7 @@ def parse_other_functions(o,
                           external_contracts,
                           origcode,
                           global_ctx,
-                          default_function,
-                          runtime_only):
+                          default_function):
     sub = ['seq', func_init_lll()]
     add_gas = func_init_lll().gas
 
@@ -154,19 +154,12 @@ def parse_other_functions(o,
     else:
         fallback = LLLnode.from_list(['revert', 0, 0], typ=None, annotation='Default function')
     sub.append(['seq_unchecked', ['label', 'fallback'], fallback])
-    if runtime_only:
-        return sub
-    else:
-        o.append(['return', 0, ['lll', sub, 0]])
-        return o
+    o.append(['return', 0, ['lll', sub, 0]])
+    return o, sub
 
 
 # Main python parse tree => LLL method
-def parse_tree_to_lll(
-    source_code: str,
-    global_ctx: GlobalContext,
-    runtime_only: bool = False,
-) -> LLLnode:
+def parse_tree_to_lll(source_code: str, global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode]:
     _names_def = [_def.name for _def in global_ctx._defs]
     # Checks for duplicate function names
     if len(set(_names_def)) < len(_names_def):
@@ -212,21 +205,22 @@ def parse_tree_to_lll(
 
     # If there are regular functions...
     if otherfuncs or defaultfunc:
-        o = parse_other_functions(
+        o, runtime = parse_other_functions(
             o,
             otherfuncs,
             sigs,
             external_contracts,
             source_code,
             global_ctx,
-            defaultfunc,
-            runtime_only
+            defaultfunc
         )
+    else:
+        runtime = o.copy()
 
     # Check if interface of contract is correct.
     check_valid_contract_interface(global_ctx, sigs)
 
-    return LLLnode.from_list(o, typ=None)
+    return LLLnode.from_list(o, typ=None), LLLnode.from_list(runtime, typ=None)
 
 
 def parse_to_lll(
@@ -236,8 +230,9 @@ def parse_to_lll(
 ) -> LLLnode:
     vyper_ast_node = vy_ast.parse_to_ast(source_code)
     global_ctx = GlobalContext.get_global_context(vyper_ast_node, interface_codes=interface_codes)
-    return parse_tree_to_lll(
-        source_code,
-        global_ctx,
-        runtime_only=runtime_only,
-    )
+    lll_nodes, lll_runtime = parse_tree_to_lll(source_code, global_ctx)
+
+    if runtime_only:
+        return lll_runtime
+    else:
+        return lll_nodes
