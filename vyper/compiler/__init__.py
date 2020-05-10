@@ -4,6 +4,7 @@ from collections import (
 from typing import (
     Any,
     Callable,
+    Optional,
     Sequence,
     Union,
 )
@@ -57,6 +58,40 @@ def compile_codes(
     interface_codes: Union[InterfaceDict, InterfaceImports, None] = None,
     initial_id: int = 0,
 ) -> OrderedDict:
+    """
+    Generate compiler output(s) from one or more contract source codes.
+
+    Arguments
+    ---------
+    contract_sources: Dict[str, str]
+        Vyper source codes to be compiled. Formatted as `{"contract name": "source code"}`
+    output_formats: List, optional
+        List of compiler outputs to generate. Possible options are all the keys
+        in `OUTPUT_FORMATS`. If not given, the deployment bytecode is generated.
+    exc_handler: Callable, optional
+        Callable used to handle exceptions if the compilation fails. Should accept
+        two arguments - the name of the contract, and the exception that was raised
+    initial_id: int, optional
+        The lowest source ID value to be used when generating the source map.
+    evm_version: str, optional
+        The target EVM ruleset to compile for. If not given, defaults to the latest
+        implemented ruleset.
+    interface_codes: Dict, optional
+        Interfaces that may be imported by the contracts during compilation.
+
+        * May be a singular dictionary shared across all sources to be compiled,
+          i.e. `{'interface name': "definition"}`
+        * or may be organized according to contracts that are being compiled, i.e.
+          `{'contract name': {'interface name': "definition"}`
+
+        * Interface definitions are formatted as: `{'type': "json/vyper", 'code': "interface code"}`
+        * JSON interfaces are given as lists, vyper interfaces as strings
+
+    Returns
+    -------
+    Dict
+        Compiler output as `{'contract name': {'output key': "output data"}}`
+    """
 
     if output_formats is None:
         output_formats = ("bytecode",)
@@ -100,10 +135,37 @@ UNKNOWN_CONTRACT_NAME = "<unknown>"
 
 
 def compile_code(
-    code, output_formats=None, interface_codes=None, evm_version=DEFAULT_EVM_VERSION
+    contract_source: str,
+    output_formats: Optional[OutputFormats] = None,
+    interface_codes: Optional[InterfaceImports] = None,
+    evm_version: str = DEFAULT_EVM_VERSION,
 ):
+    """
+    Generate compiler output(s) from a single contract source code.
 
-    contract_sources = {UNKNOWN_CONTRACT_NAME: code}
+    Arguments
+    ---------
+    contract_source: str
+        Vyper source codes to be compiled.
+    output_formats: List, optional
+        List of compiler outputs to generate. Possible options are all the keys
+        in `OUTPUT_FORMATS`. If not given, the deployment bytecode is generated.
+    evm_version: str, optional
+        The target EVM ruleset to compile for. If not given, defaults to the latest
+        implemented ruleset.
+    interface_codes: Dict, optional
+        Interfaces that may be imported by the contracts during compilation.
+
+        * Formatted as as `{'interface name': {'type': "json/vyper", 'code': "interface code"}}`
+        * JSON interfaces are given as lists, vyper interfaces as strings
+
+    Returns
+    -------
+    Dict
+        Compiler output as `{'output key': "output data"}`
+    """
+
+    contract_sources = {UNKNOWN_CONTRACT_NAME: contract_source}
 
     return compile_codes(
         contract_sources,
