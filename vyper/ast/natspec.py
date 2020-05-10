@@ -20,9 +20,6 @@ from vyper.parser.global_context import (
 from vyper.signatures import (
     sig_utils,
 )
-from vyper.typing import (
-    InterfaceImports,
-)
 
 SINGLE_FIELDS = ("title", "author", "notice", "dev")
 PARAM_FIELDS = ("param", "return")
@@ -31,7 +28,7 @@ USERDOCS_FIELDS = ("notice",)
 
 def parse_natspec(
     vyper_ast: vy_ast.Module,
-    interface_codes: Optional[InterfaceImports] = None,
+    global_ctx: GlobalContext,
 ) -> Tuple[dict, dict]:
     """
     Parses NatSpec documentation from a contract.
@@ -53,8 +50,6 @@ def parse_natspec(
     """
     userdoc, devdoc = {}, {}
     source: str = vyper_ast.full_source_code
-
-    global_ctx = GlobalContext.get_global_context(vyper_ast, interface_codes)
 
     docstring = vyper_ast.get("doc_string.value")
     if docstring:
