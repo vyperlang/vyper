@@ -1,3 +1,7 @@
+from typing import (
+    Optional,
+)
+
 from vyper import (
     ast as vy_ast,
 )
@@ -28,6 +32,9 @@ from vyper.types import (
     StructType,
     parse_type,
 )
+from vyper.typing import (
+    InterfaceImports,
+)
 from vyper.utils import (
     VALID_GLOBAL_KEYWORDS,
     check_valid_varname,
@@ -54,7 +61,9 @@ class GlobalContext:
 
     # Parse top-level functions and variables
     @classmethod
-    def get_global_context(cls, code, interface_codes=None):
+    def get_global_context(
+        cls, vyper_ast_node: "vy_ast.Module", interface_codes: Optional[InterfaceImports] = None
+    ) -> "GlobalContext":
         from vyper.signatures.interface import (
             extract_sigs,
             get_builtin_interfaces,
@@ -62,7 +71,7 @@ class GlobalContext:
         interface_codes = {} if interface_codes is None else interface_codes
         global_ctx = cls()
 
-        for item in code:
+        for item in vyper_ast_node:
             # Contract references
             if isinstance(item, vy_ast.ClassDef):
                 if global_ctx._events or global_ctx._globals or global_ctx._defs:
@@ -77,14 +86,14 @@ class GlobalContext:
                         raise StructureException(
                             "Structs must come before external contract definitions", item
                         )
-                    global_ctx._structs[item.name] = global_ctx.make_struct(item.name, item.body)
+                    global_ctx._structs[item.name] = global_ctx.make_struct(item)
                 elif item.class_type == 'contract':
                     if item.name in global_ctx._contracts or item.name in global_ctx._interfaces:
                         raise StructureException(
                             f"Contract '{item.name}' is already defined",
                             item,
                         )
-                    global_ctx._contracts[item.name] = GlobalContext.make_contract(item.body)
+                    global_ctx._contracts[item.name] = GlobalContext.make_contract(item)
                 else:
                     raise StructureException(
                         "Unknown class_type. This is likely a compiler bug, please report", item
@@ -99,7 +108,7 @@ class GlobalContext:
 
                 # implements statement.
                 if is_implements_statement:
-                    interface_name = item.annotation.id
+                    interface_name = item.annotation.id  # type: ignore
                     if interface_name not in global_ctx._interfaces:
                         raise StructureException(
                             f'Unknown interface specified: {interface_name}', item
@@ -246,21 +255,22 @@ class GlobalContext:
 
     # Parser for a single line
     @staticmethod
-    def parse_line(code):
-        parsed_ast = vy_ast.parse_to_ast(code)[0]
+    def parse_line(source_code: str) -> list:
+        parsed_ast = vy_ast.parse_to_ast(source_code)[0]
         return parsed_ast
 
     # A struct is a list of members
-    def make_struct(self, name, body):
+    def make_struct(self, node: "vy_ast.ClassDef") -> list:
         members = []
-        for item in body:
+
+        for item in node.body:
             if isinstance(item, vy_ast.AnnAssign):
                 member_name = item.target
                 member_type = item.annotation
                 # Check well-formedness of member names
                 if not isinstance(member_name, vy_ast.Name):
                     raise InvalidType(
-                        f"Invalid member name for struct {name}, needs to be a valid name. ",
+                        f"Invalid member name for struct {node.name}, needs to be a valid name. ",
                         item
                     )
                 check_valid_varname(
@@ -289,9 +299,9 @@ class GlobalContext:
 
     # A contract is a list of functions.
     @staticmethod
-    def make_contract(code):
+    def make_contract(node: "vy_ast.ClassDef") -> list:
         _defs = []
-        for item in code:
+        for item in node.body:
             # Function definitions
             if isinstance(item, vy_ast.FunctionDef):
                 _defs.append(item)
