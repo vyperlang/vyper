@@ -1,5 +1,10 @@
-def build_gas_estimates(lll_nodes):
-    gas_estimates = {}
+from vyper.parser.lll_node import (
+    LLLnode,
+)
+
+
+def build_gas_estimates(lll_nodes: LLLnode) -> dict:
+    gas_estimates: dict = {}
 
     # Extract the stuff inside the LLL bracket
     if lll_nodes.value == "seq":
@@ -14,7 +19,7 @@ def build_gas_estimates(lll_nodes):
     return gas_estimates
 
 
-def expand_source_map(compressed_map):
+def expand_source_map(compressed_map: str) -> list:
     """
     Expand a compressed source map string.
 
@@ -28,7 +33,7 @@ def expand_source_map(compressed_map):
     List
         Expanded source map as `[[start, length, jump, source id], .. ]`
     """
-    source_map = [_expand_row(i) if i else None for i in compressed_map.split(";")[:-1]]
+    source_map: list = [_expand_row(i) if i else None for i in compressed_map.split(";")[:-1]]
 
     for i, value in enumerate(source_map[1:], 1):
         if value is None:

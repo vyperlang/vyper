@@ -1,11 +1,13 @@
 import warnings
+from typing import (
+    Optional,
+    Tuple,
+)
 
 from vyper import (
+    ast as vy_ast,
     compile_lll,
     optimizer,
-)
-from vyper.ast import (
-    parse_to_ast,
 )
 from vyper.parser import (
     parser,
@@ -13,29 +15,28 @@ from vyper.parser import (
 from vyper.parser.global_context import (
     GlobalContext,
 )
+from vyper.typing import (
+    InterfaceImports,
+)
 
 
 class CompilerData:
-    def __init__(self, contract_name, source_code, interface_sources, source_id):
+    def __init__(self, contract_name, source_code, interface_codes, source_id):
         self.contract_name = contract_name
         self.source_code = source_code
-        self.interface_sources = interface_sources
+        self.interface_codes = interface_codes
         self.source_id = source_id
 
     @property
     def vyper_ast(self):
         if not hasattr(self, "_vyper_ast"):
-            self._vyper_ast = generate_ast(
-                self.source_code, self.interface_sources, self.source_id
-            )
+            self._vyper_ast = generate_ast(self.source_code, self.source_id)
         return self._vyper_ast
 
     @property
     def global_ctx(self):
         if not hasattr(self, "_global_ctx"):
-            self._global_ctx = generate_global_context(
-                self.source_code, self.interface_sources, self.source_id, self.vyper_ast
-            )
+            self._global_ctx = generate_global_context(self.interface_codes, self.vyper_ast)
         return self._global_ctx
 
     def _gen_lll(self):
@@ -80,22 +81,26 @@ class CompilerData:
         return self._bytecode_runtime
 
 
-def generate_ast(source_code, interface_codes, source_id):
-    return parse_to_ast(source_code, source_id)
+def generate_ast(source_code: str, source_id: int) -> vy_ast.Module:
+    return vy_ast.parse_to_ast(source_code, source_id)
 
 
-def generate_global_context(source_code, interface_codes, source_id, vyper_ast):
+def generate_global_context(
+    interface_codes: Optional[InterfaceImports], vyper_ast: vy_ast.Module
+) -> GlobalContext:
     return GlobalContext.get_global_context(vyper_ast, interface_codes=interface_codes)
 
 
-def generate_lll_nodes(source_code, global_ctx):
+def generate_lll_nodes(
+    source_code: str, global_ctx: GlobalContext
+) -> Tuple[parser.LLLnode, parser.LLLnode]:
     lll_nodes, lll_runtime = parser.parse_tree_to_lll(source_code, global_ctx)
     lll_nodes = optimizer.optimize(lll_nodes)
     lll_runtime = optimizer.optimize(lll_runtime)
     return lll_nodes, lll_runtime
 
 
-def generate_assembly(lll_nodes):
+def generate_assembly(lll_nodes: parser.LLLnode) -> list:
     assembly = compile_lll.compile_to_assembly(lll_nodes)
     if _find_nested_opcode(assembly, "DEBUG"):
         warnings.warn(
@@ -113,5 +118,5 @@ def _find_nested_opcode(assembly, key):
         return any(_find_nested_opcode(x, key) for x in sublists)
 
 
-def generate_bytecode(assembly):
+def generate_bytecode(assembly: list) -> bytes:
     return compile_lll.assembly_to_evm(assembly)[0]

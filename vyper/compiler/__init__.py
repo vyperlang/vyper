@@ -139,7 +139,7 @@ def compile_code(
     output_formats: Optional[OutputFormats] = None,
     interface_codes: Optional[InterfaceImports] = None,
     evm_version: str = DEFAULT_EVM_VERSION,
-):
+) -> dict:
     """
     Generate compiler output(s) from a single contract source code.
 

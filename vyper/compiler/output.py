@@ -13,8 +13,14 @@ from vyper.ast import (
     ast_to_dict,
     parse_natspec,
 )
+from vyper.compiler.data import (
+    CompilerData,
+)
 from vyper.compiler.utils import (
     build_gas_estimates,
+)
+from vyper.parser.lll_node import (
+    LLLnode,
 )
 from vyper.signatures import (
     sig_utils,
@@ -25,7 +31,7 @@ from vyper.signatures.interface import (
 )
 
 
-def build_ast_dict(compiler_data):
+def build_ast_dict(compiler_data: CompilerData) -> dict:
     ast_dict = {
         "contract_name": compiler_data.contract_name,
         "ast": ast_to_dict(compiler_data.vyper_ast),
@@ -33,35 +39,35 @@ def build_ast_dict(compiler_data):
     return ast_dict
 
 
-def build_devdoc(compiler_data):
+def build_devdoc(compiler_data: CompilerData) -> dict:
     userdoc, devdoc = parse_natspec(compiler_data.vyper_ast, compiler_data.global_ctx)
     return devdoc
 
 
-def build_userdoc(compiler_data):
+def build_userdoc(compiler_data: CompilerData) -> dict:
     userdoc, devdoc = parse_natspec(compiler_data.vyper_ast, compiler_data.global_ctx)
     return userdoc
 
 
-def build_external_interface_output(compiler_data):
+def build_external_interface_output(compiler_data: CompilerData) -> str:
     return extract_external_interface(
         compiler_data.global_ctx, compiler_data.contract_name
     )
 
 
-def build_interface_output(compiler_data):
+def build_interface_output(compiler_data: CompilerData) -> str:
     return extract_interface_str(compiler_data.global_ctx)
 
 
-def build_ir_output(compiler_data):
+def build_ir_output(compiler_data: CompilerData) -> LLLnode:
     return compiler_data.lll_nodes
 
 
-def build_method_identifiers_output(compiler_data):
+def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
     return sig_utils.mk_method_identifiers(compiler_data.global_ctx)
 
 
-def build_abi_output(compiler_data):
+def build_abi_output(compiler_data: CompilerData) -> list:
     abi = sig_utils.mk_full_signature(compiler_data.global_ctx)
     # Add gas estimates for each function to ABI
     gas_estimates = build_gas_estimates(compiler_data.lll_nodes)
@@ -80,7 +86,7 @@ def build_abi_output(compiler_data):
     return abi
 
 
-def build_asm_output(compiler_data):
+def build_asm_output(compiler_data: CompilerData) -> str:
     return _build_asm(compiler_data.assembly)
 
 
@@ -104,7 +110,7 @@ def _build_asm(asm_list):
     return output_string
 
 
-def build_source_map_output(compiler_data):
+def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
     _, line_number_map = compile_lll.assembly_to_evm(compiler_data.assembly_runtime)
     # Sort line_number_map
     out = OrderedDict()
@@ -148,34 +154,34 @@ def _compress_source_map(code, pos_map, jump_map, source_id):
     return compressed_map
 
 
-def build_bytecode_output(compiler_data):
+def build_bytecode_output(compiler_data: CompilerData) -> str:
     return f"0x{compiler_data.bytecode.hex()}"
 
 
-def build_bytecode_runtime_output(compiler_data):
+def build_bytecode_runtime_output(compiler_data: CompilerData) -> str:
     return f"0x{compiler_data.bytecode_runtime.hex()}"
 
 
-def build_opcodes_output(compiler_data):
+def build_opcodes_output(compiler_data: CompilerData) -> str:
     return _build_opcodes(compiler_data.bytecode)
 
 
-def build_opcodes_runtime_output(compiler_data):
+def build_opcodes_runtime_output(compiler_data: CompilerData) -> str:
     return _build_opcodes(compiler_data.bytecode_runtime)
 
 
-def _build_opcodes(bytecode):
-    bytecode = bytecode.hex().upper()
-    bytecode = deque(bytecode[i:i + 2] for i in range(0, len(bytecode), 2))
+def _build_opcodes(bytecode: bytes) -> str:
+    bytecode_hex = bytecode.hex().upper()
+    bytecode_sequence = deque(bytecode_hex[i:i + 2] for i in range(0, len(bytecode), 2))
     opcode_map = dict((v[0], k) for k, v in opcodes.get_opcodes().items())
     opcode_str = ""
 
-    while bytecode:
-        op = int(bytecode.popleft(), 16)
+    while bytecode_sequence:
+        op = int(bytecode_sequence.popleft(), 16)
         opcode_str += opcode_map[op] + " "
         if "PUSH" not in opcode_map[op]:
             continue
         push_len = int(opcode_map[op][4:])
-        opcode_str += "0x" + "".join(bytecode.popleft() for i in range(push_len)) + " "
+        opcode_str += "0x" + "".join(bytecode_sequence.popleft() for i in range(push_len)) + " "
 
     return opcode_str[:-1]
