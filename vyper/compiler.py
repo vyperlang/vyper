@@ -112,7 +112,7 @@ class CompilerData:
         return self._bytecode_runtime
 
 
-# pure compiler methods
+# pure compiler-pass functions
 
 def generate_ast(source_code, interface_codes, source_id):
     return parse_to_ast(source_code, source_id)
@@ -151,58 +151,46 @@ def generate_bytecode(assembly):
     return compile_lll.assembly_to_evm(assembly)[0]
 
 
-def __compile(source_code, interface_codes=None, *args, **kwargs):
-    vyper_ast_node = parse_to_ast(source_code)
-    global_ctx = GlobalContext.get_global_context(vyper_ast_node, interface_codes=interface_codes)
-    lll = parser.parse_tree_to_lll(
-        source_code,
-        global_ctx,
-        runtime_only=kwargs.get('bytecode_runtime', False)
-    )
-    opt_lll = optimizer.optimize(lll)
-    asm = compile_lll.compile_to_assembly(opt_lll)
+# output generation functions
 
-    def find_nested_opcode(asm_list, key):
-        if key in asm_list:
-            return True
-        else:
-            sublists = [sub for sub in asm_list if isinstance(sub, list)]
-            return any(find_nested_opcode(x, key) for x in sublists)
-
-    if find_nested_opcode(asm, 'DEBUG'):
-        warnings.warn(
-            'This code contains DEBUG opcodes! The DEBUG opcode will only work in '
-            'a supported EVM! It will FAIL on all other nodes!'
-        )
-
-    c, line_number_map = compile_lll.assembly_to_evm(asm)
-    return c
+def build_ast_dict(compiler_data):
+    ast_dict = {
+        'contract_name': compiler_data.contract_name,
+        'ast': ast_to_dict(compiler_data.vyper_ast)
+    }
+    return ast_dict
 
 
-def gas_estimate(origcode, *args, **kwargs):
-    o = {}
-    code = optimizer.optimize(parser.parse_to_lll(origcode, *args, **kwargs))
-
-    # Extract the stuff inside the LLL bracket
-    if code.value == 'seq':
-        if len(code.args) > 0 and code.args[-1].value == 'return':
-            code = code.args[-1].args[1].args[0]
-
-    assert code.value == 'seq'
-    for arg in code.args:
-        if arg.func_name is not None:
-            o[arg.func_name] = arg.total_gas
-    return o
+def build_devdoc(compiler_data):
+    userdoc, devdoc = parse_natspec(compiler_data.vyper_ast, compiler_data.global_ctx)
+    return devdoc
 
 
-def mk_full_signature(source_code, *args, **kwargs):
-    vyper_ast_node = parse_to_ast(source_code)
-    global_ctx = GlobalContext.get_global_context(
-        vyper_ast_node, interface_codes=kwargs.get('interface_codes')
-    )
-    abi = sig_utils.mk_full_signature(global_ctx)
+def build_userdoc(compiler_data):
+    userdoc, devdoc = parse_natspec(compiler_data.vyper_ast, compiler_data.global_ctx)
+    return userdoc
+
+
+def build_external_interface_output(compiler_data):
+    return extract_external_interface(compiler_data.global_ctx, compiler_data.contract_name)
+
+
+def build_interface_output(compiler_data):
+    return extract_interface_str(compiler_data.global_ctx)
+
+
+def build_ir_output(compiler_data):
+    return compiler_data.lll_nodes
+
+
+def build_method_identifiers_output(compiler_data):
+    return sig_utils.mk_method_identifiers(compiler_data.global_ctx)
+
+
+def build_abi_output(compiler_data):
+    abi = sig_utils.mk_full_signature(compiler_data.global_ctx)
     # Add gas estimates for each function to ABI
-    gas_estimates = gas_estimate(source_code, *args, **kwargs)
+    gas_estimates = _build_gas_estimate(compiler_data.lll_nodes)
     for func in abi:
         try:
             func_signature = func['name']
@@ -218,12 +206,32 @@ def mk_full_signature(source_code, *args, **kwargs):
     return abi
 
 
-def get_asm(asm_list):
+def _build_gas_estimate(lll_nodes):
+    gas_estimates = {}
+
+    # Extract the stuff inside the LLL bracket
+    if lll_nodes.value == 'seq':
+        if len(lll_nodes.args) > 0 and lll_nodes.args[-1].value == 'return':
+            lll_nodes = lll_nodes.args[-1].args[1].args[0]
+
+    assert lll_nodes.value == 'seq'
+    for arg in lll_nodes.args:
+        if arg.func_name is not None:
+            gas_estimates[arg.func_name] = arg.total_gas
+
+    return gas_estimates
+
+
+def build_asm_output(compiler_data):
+    return _build_asm(compiler_data.assembly)
+
+
+def _build_asm(asm_list):
     output_string = ''
     skip_newlines = 0
     for node in asm_list:
         if isinstance(node, list):
-            output_string += get_asm(node)
+            output_string += _build_asm(node)
             continue
 
         is_push = isinstance(node, str) and node.startswith('PUSH')
@@ -238,30 +246,24 @@ def get_asm(asm_list):
     return output_string
 
 
-def get_source_map(code, contract_name, interface_codes=None, runtime_only=True, source_id=0):
-    asm_list = compile_lll.compile_to_assembly(
-        optimizer.optimize(
-            parser.parse_to_lll(
-                code,
-                runtime_only=runtime_only,
-                interface_codes=interface_codes)))
-    c, line_number_map = compile_lll.assembly_to_evm(asm_list)
+def build_source_map_output(compiler_data):
+    _, line_number_map = compile_lll.assembly_to_evm(compiler_data.assembly_runtime)
     # Sort line_number_map
     out = OrderedDict()
     for k in sorted(line_number_map.keys()):
         out[k] = line_number_map[k]
 
-    out['pc_pos_map_compressed'] = compress_source_map(
-        code,
+    out['pc_pos_map_compressed'] = _compress_source_map(
+        compiler_data.source_code,
         out['pc_pos_map'],
         out['pc_jump_map'],
-        source_id
+        compiler_data.source_id
     )
     out['pc_pos_map'] = dict((k, v) for k, v in out['pc_pos_map'].items() if v)
     return out
 
 
-def compress_source_map(code, pos_map, jump_map, source_id):
+def _compress_source_map(code, pos_map, jump_map, source_id):
     linenos = asttokens.LineNumbers(code)
     compressed_map = f"-1:-1:{source_id}:-;"
     last_pos = [-1, -1, source_id]
@@ -288,34 +290,24 @@ def compress_source_map(code, pos_map, jump_map, source_id):
     return compressed_map
 
 
-def expand_source_map(compressed_map):
-    source_map = [_expand_row(i) if i else None for i in compressed_map.split(';')[:-1]]
-
-    for i, value in enumerate(source_map[1:], 1):
-        if value is None:
-            source_map[i] = source_map[i - 1][:3] + [None]
-            continue
-        for x in range(3):
-            if source_map[i][x] is None:
-                source_map[i][x] = source_map[i - 1][x]
-
-    return source_map
+def build_bytecode_output(compiler_data):
+    return f"0x{compiler_data.bytecode.hex()}"
 
 
-def _expand_row(row):
-    result = [None] * 4
-    for i, value in enumerate(row.split(':')):
-        if value:
-            result[i] = value if i == 3 else int(value)
-    return result
+def build_bytecode_runtime_output(compiler_data):
+    return f"0x{compiler_data.bytecode_runtime.hex()}"
 
 
-def get_opcodes(code, contract_name, bytecodes_runtime=False, interface_codes=None):
-    bytecode = __compile(
-        code,
-        bytecode_runtime=bytecodes_runtime,
-        interface_codes=interface_codes
-    ).hex().upper()
+def build_opcodes_output(compiler_data):
+    return _build_opcodes(compiler_data.bytecode)
+
+
+def build_opcodes_runtime_output(compiler_data):
+    return _build_opcodes(compiler_data.bytecode_runtime)
+
+
+def _build_opcodes(bytecode):
+    bytecode = bytecode.hex().upper()
     bytecode = deque(bytecode[i:i + 2] for i in range(0, len(bytecode), 2))
     opcode_map = dict((v[0], k) for k, v in opcodes.get_opcodes().items())
     opcode_str = ""
@@ -331,101 +323,26 @@ def get_opcodes(code, contract_name, bytecodes_runtime=False, interface_codes=No
     return opcode_str[:-1]
 
 
-def _mk_abi_output(code, contract_name, interface_codes, source_id):
-    return mk_full_signature(code, interface_codes=interface_codes)
-
-
-def _mk_bytecode_output(code, contract_name, interface_codes, source_id):
-    return '0x' + __compile(code, interface_codes=interface_codes).hex()
-
-
-def _mk_bytecode_runtime_output(code, contract_name, interface_codes, source_id):
-    return '0x' + __compile(code, bytecode_runtime=True, interface_codes=interface_codes).hex()
-
-
-def _mk_ir_output(code, contract_name, interface_codes, source_id):
-    return optimizer.optimize(parser.parse_to_lll(code, interface_codes=interface_codes))
-
-
-def _mk_asm_output(code, contract_name, interface_codes, source_id):
-    return get_asm(compile_lll.compile_to_assembly(
-        optimizer.optimize(parser.parse_to_lll(code, interface_codes=interface_codes))
-    ))
-
-
-def _mk_source_map_output(code, contract_name, interface_codes, source_id):
-    return get_source_map(
-        code,
-        contract_name,
-        interface_codes=interface_codes,
-        runtime_only=True,
-        source_id=source_id
-    )
-
-
-def _mk_method_identifiers_output(code, contract_name, interface_codes, source_id):
-    vyper_ast_node = parse_to_ast(code)
-    global_ctx = GlobalContext.get_global_context(vyper_ast_node, interface_codes=interface_codes)
-    return sig_utils.mk_method_identifiers(global_ctx)
-
-
-def _mk_interface_output(code, contract_name, interface_codes, source_id):
-    vyper_ast_node = parse_to_ast(code)
-    global_ctx = GlobalContext.get_global_context(vyper_ast_node, interface_codes=interface_codes)
-    return extract_interface_str(global_ctx)
-
-
-def _mk_external_interface_output(code, contract_name, interface_codes, source_id):
-    vyper_ast_node = parse_to_ast(code)
-    global_ctx = GlobalContext.get_global_context(vyper_ast_node, interface_codes=interface_codes)
-    return extract_external_interface(global_ctx, contract_name)
-
-
-def _mk_opcodes(code, contract_name, interface_codes, source_id):
-    return get_opcodes(code, contract_name, interface_codes=interface_codes)
-
-
-def _mk_opcodes_runtime(code, contract_name, interface_codes, source_id):
-    return get_opcodes(code, contract_name, bytecodes_runtime=True, interface_codes=interface_codes)
-
-
-def _mk_ast_dict(code, contract_name, interface_codes, source_id):
-    o = {
-        'contract_name': contract_name,
-        'ast': ast_to_dict(parse_to_ast(code, source_id))
-    }
-    return o
-
-
-def _mk_userdoc(code, contract_name, interface_codes, source_id):
-    vyper_ast_node = parse_to_ast(code)
-    global_ctx = GlobalContext.get_global_context(vyper_ast_node, interface_codes=interface_codes)
-    userdoc, devdoc = parse_natspec(vyper_ast_node, global_ctx)
-    return userdoc
-
-
-def _mk_devdoc(code, contract_name, interface_codes, source_id):
-    vyper_ast_node = parse_to_ast(code)
-    global_ctx = GlobalContext.get_global_context(vyper_ast_node, interface_codes=interface_codes)
-    userdoc, devdoc = parse_natspec(vyper_ast_node, global_ctx)
-    return devdoc
-
-
 OUTPUT_FORMATS = {
-    'abi': _mk_abi_output,
-    'ast_dict': _mk_ast_dict,
-    'bytecode': _mk_bytecode_output,
-    'bytecode_runtime': _mk_bytecode_runtime_output,
-    'ir': _mk_ir_output,
-    'asm': _mk_asm_output,
-    'source_map': _mk_source_map_output,
-    'method_identifiers': _mk_method_identifiers_output,
-    'interface': _mk_interface_output,
-    'external_interface': _mk_external_interface_output,
-    'opcodes': _mk_opcodes,
-    'opcodes_runtime': _mk_opcodes_runtime,
-    'userdoc': _mk_userdoc,
-    'devdoc': _mk_devdoc,
+    # requires vyper_ast
+    'ast_dict': build_ast_dict,
+    # requires global_ctx
+    'devdoc': build_devdoc,
+    'userdoc': build_userdoc,
+    # requires lll_node
+    'external_interface': build_external_interface_output,
+    'interface': build_interface_output,
+    'ir': build_ir_output,
+    'method_identifiers': build_method_identifiers_output,
+    # requires assembly
+    'abi': build_abi_output,
+    'asm': build_asm_output,
+    'source_map': build_source_map_output,
+    # requires bytecode
+    'bytecode': build_bytecode_output,
+    'bytecode_runtime': build_bytecode_runtime_output,
+    'opcodes': build_opcodes_output,
+    'opcodes_runtime': build_opcodes_runtime_output,
 }
 
 
@@ -486,3 +403,26 @@ def compile_code(code,
         interface_codes=interface_codes,
         evm_version=evm_version
     )[UNKNOWN_CONTRACT_NAME]
+
+
+# TODO can these live somewhere else?
+def expand_source_map(compressed_map):
+    source_map = [_expand_row(i) if i else None for i in compressed_map.split(';')[:-1]]
+
+    for i, value in enumerate(source_map[1:], 1):
+        if value is None:
+            source_map[i] = source_map[i - 1][:3] + [None]
+            continue
+        for x in range(3):
+            if source_map[i][x] is None:
+                source_map[i][x] = source_map[i - 1][x]
+
+    return source_map
+
+
+def _expand_row(row):
+    result = [None] * 4
+    for i, value in enumerate(row.split(':')):
+        if value:
+            result[i] = value if i == 3 else int(value)
+    return result
