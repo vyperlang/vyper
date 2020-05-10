@@ -443,28 +443,24 @@ def compile_codes(contract_sources: ContractCodes,
 
     out: OrderedDict = OrderedDict()
     for source_id, contract_name in enumerate(sorted(contract_sources), start=initial_id):
-        code = contract_sources[contract_name]
+        # trailing newline fixes python parsing bug when source ends in a comment
+        # https://bugs.python.org/issue35107
+        source_code = f"{contract_sources[contract_name]}\n"
+        interfaces: Any = interface_codes
+        if (
+            isinstance(interfaces, dict) and
+            contract_name in interfaces and
+            isinstance(interfaces[contract_name], dict)
+        ):
+            interfaces = interfaces[contract_name]
+
+        compiler_data = CompilerData(contract_name, source_code, interfaces, source_id)
         for output_format in output_formats[contract_name]:
             if output_format not in OUTPUT_FORMATS:
                 raise ValueError(f'Unsupported format type {repr(output_format)}')
-
             try:
-                interfaces: Any = interface_codes
-                if (
-                    isinstance(interfaces, dict) and
-                    contract_name in interfaces and
-                    isinstance(interfaces[contract_name], dict)
-                ):
-                    interfaces = interfaces[contract_name]
                 out.setdefault(contract_name, {})
-                out[contract_name][output_format] = OUTPUT_FORMATS[output_format](
-                    # trailing newline fixes python parsing bug when source ends in a comment
-                    # https://bugs.python.org/issue35107
-                    code=f"{code}\n",
-                    contract_name=contract_name,
-                    interface_codes=interfaces,
-                    source_id=source_id
-                )
+                out[contract_name][output_format] = OUTPUT_FORMATS[output_format](compiler_data)
             except Exception as exc:
                 if exc_handler is not None:
                     exc_handler(contract_name, exc)
