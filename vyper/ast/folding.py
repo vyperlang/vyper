@@ -1,22 +1,15 @@
-from decimal import (
-    Decimal,
-)
-from typing import (
-    Union,
-)
+from decimal import Decimal
+from typing import Union
 
-from vyper.ast import (
-    nodes as vy_ast,
-)
-from vyper.exceptions import (
-    UnfoldableNode,
-)
-from vyper.functions import (
-    DISPATCH_TABLE,
-)
+from vyper.ast import nodes as vy_ast
+from vyper.exceptions import UnfoldableNode
+from vyper.functions import DISPATCH_TABLE
 
 BUILTIN_CONSTANTS = {
-    "EMPTY_BYTES32": (vy_ast.Hex, "0x0000000000000000000000000000000000000000000000000000000000000000"),  # NOQA: E501
+    "EMPTY_BYTES32": (
+        vy_ast.Hex,
+        "0x0000000000000000000000000000000000000000000000000000000000000000",
+    ),  # NOQA: E501
     "ZERO_ADDRESS": (vy_ast.Hex, "0x0000000000000000000000000000000000000000"),
     "MAX_INT128": (vy_ast.Int, 2 ** 127 - 1),
     "MIN_INT128": (vy_ast.Int, -(2 ** 127)),
@@ -113,7 +106,7 @@ def replace_builtin_functions(vyper_module: vy_ast.Module) -> int:
 
         name = node.func.id
         func = DISPATCH_TABLE.get(name)
-        if func is None or not hasattr(func, 'evaluate'):
+        if func is None or not hasattr(func, "evaluate"):
             continue
         try:
             new_node = func.evaluate(node)  # type: ignore
@@ -153,7 +146,7 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> None:
         if not isinstance(node.target, vy_ast.Name):
             # left-hand-side of assignment is not a variable
             continue
-        if node.get('annotation.func.id') != "constant":
+        if node.get("annotation.func.id") != "constant":
             # annotation is not wrapped in `constant(...)`
             continue
 
@@ -171,7 +164,9 @@ def _replace(old_node, new_node):
 
 
 def replace_constant(
-    vyper_module: vy_ast.Module, id_: str, replacement_node: Union[vy_ast.Constant, vy_ast.List],
+    vyper_module: vy_ast.Module,
+    id_: str,
+    replacement_node: Union[vy_ast.Constant, vy_ast.List],
 ) -> None:
     """
     Replace references to a variable name with a literal value.
@@ -186,17 +181,22 @@ def replace_constant(
         Vyper ast node representing the literal value to be substituted in.
 
     """
-    for node in vyper_module.get_descendants(vy_ast.Name, {'id': id_}, reverse=True):
+    for node in vyper_module.get_descendants(vy_ast.Name, {"id": id_}, reverse=True):
         # do not replace attributes or calls
         if isinstance(node.get_ancestor(), (vy_ast.Attribute, vy_ast.Call)):
             continue
         # do not replace dictionary keys
-        if isinstance(node.get_ancestor(), vy_ast.Dict) and node in node.get_ancestor().keys:
+        if (
+            isinstance(node.get_ancestor(), vy_ast.Dict)
+            and node in node.get_ancestor().keys
+        ):
             continue
 
         if not isinstance(node.get_ancestor(), vy_ast.Index):
             # do not replace left-hand side of assignments
-            parent = node.get_ancestor((vy_ast.Assign, vy_ast.AnnAssign, vy_ast.AugAssign))
+            parent = node.get_ancestor(
+                (vy_ast.Assign, vy_ast.AnnAssign, vy_ast.AugAssign)
+            )
             if parent and node in parent.target.get_descendants(include_self=True):
                 continue
 

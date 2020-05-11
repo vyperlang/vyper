@@ -1,11 +1,7 @@
 import copy
 
-from vyper.signatures.event_signature import (
-    EventSignature,
-)
-from vyper.signatures.function_signature import (
-    FunctionSignature,
-)
+from vyper.signatures.event_signature import EventSignature
+from vyper.signatures.function_signature import FunctionSignature
 
 
 # Generate default argument function signatures.

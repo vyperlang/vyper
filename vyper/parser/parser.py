@@ -1,13 +1,6 @@
-from typing import (
-    Any,
-    List,
-    Optional,
-    Tuple,
-)
+from typing import Any, List, Optional, Tuple
 
-from vyper import (
-    ast as vy_ast,
-)
+from vyper import ast as vy_ast
 from vyper.exceptions import (
     EventDeclarationException,
     FunctionDeclarationException,
@@ -18,30 +11,14 @@ from vyper.parser.function_definitions import (
     is_initializer,
     parse_function,
 )
-from vyper.parser.global_context import (
-    GlobalContext,
-)
-from vyper.parser.lll_node import (
-    LLLnode,
-)
-from vyper.signatures import (
-    sig_utils,
-)
-from vyper.signatures.event_signature import (
-    EventSignature,
-)
-from vyper.signatures.function_signature import (
-    FunctionSignature,
-)
-from vyper.signatures.interface import (
-    check_valid_contract_interface,
-)
-from vyper.typing import (
-    InterfaceImports,
-)
-from vyper.utils import (
-    LOADED_LIMITS,
-)
+from vyper.parser.global_context import GlobalContext
+from vyper.parser.lll_node import LLLnode
+from vyper.signatures import sig_utils
+from vyper.signatures.event_signature import EventSignature
+from vyper.signatures.function_signature import FunctionSignature
+from vyper.signatures.interface import check_valid_contract_interface
+from vyper.typing import InterfaceImports
+from vyper.utils import LOADED_LIMITS
 
 # TODO remove this check
 if not hasattr(vy_ast, 'AnnAssign'):

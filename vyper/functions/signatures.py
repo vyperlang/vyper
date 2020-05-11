@@ -1,25 +1,10 @@
 import functools
 
-from vyper import (
-    ast as vy_ast,
-)
-from vyper.exceptions import (
-    InvalidLiteral,
-    StructureException,
-    TypeMismatch,
-)
-from vyper.parser.expr import (
-    Expr,
-)
-from vyper.types import (
-    BaseType,
-    ByteArrayType,
-    StringType,
-    is_base_type,
-)
-from vyper.utils import (
-    SizeLimits,
-)
+from vyper import ast as vy_ast
+from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
+from vyper.parser.expr import Expr
+from vyper.types import BaseType, ByteArrayType, StringType, is_base_type
+from vyper.utils import SizeLimits
 
 
 class Optional(object):

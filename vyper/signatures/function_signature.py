@@ -1,19 +1,13 @@
-from collections import (
-    Counter,
-)
+from collections import Counter
 
-from vyper import (
-    ast as vy_ast,
-    parser,
-)
+from vyper import ast as vy_ast
+from vyper import parser
 from vyper.exceptions import (
     FunctionDeclarationException,
     InvalidType,
     StructureException,
 )
-from vyper.parser.lll_node import (
-    LLLnode,
-)
+from vyper.parser.lll_node import LLLnode
 from vyper.parser.parser_utils import (
     check_single_exit,
     check_unmatched_return,

@@ -1,16 +1,10 @@
-from decimal import (
-    Decimal,
-)
 import hashlib
 import math
 import operator
+from decimal import Decimal
 
-from vyper import (
-    ast as vy_ast,
-)
-from vyper.ast.validation import (
-    validate_call_args,
-)
+from vyper import ast as vy_ast
+from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     ArgumentException,
     ConstancyViolation,
@@ -20,18 +14,10 @@ from vyper.exceptions import (
     TypeMismatch,
     UnfoldableNode,
 )
-from vyper.functions.convert import (
-    convert,
-)
-from vyper.opcodes import (
-    version_check,
-)
-from vyper.parser.expr import (
-    Expr,
-)
-from vyper.parser.keccak256_helper import (
-    keccak256_helper,
-)
+from vyper.functions.convert import convert
+from vyper.opcodes import version_check
+from vyper.parser.expr import Expr
+from vyper.parser.keccak256_helper import keccak256_helper
 from vyper.parser.parser_utils import (
     LLLnode,
     add_variable_offset,
@@ -42,9 +28,7 @@ from vyper.parser.parser_utils import (
     make_byte_slice_copier,
     unwrap_location,
 )
-from vyper.signatures.function_signature import (
-    VariableRecord,
-)
+from vyper.signatures.function_signature import VariableRecord
 from vyper.types import (
     BaseType,
     ByteArrayLike,
@@ -62,10 +46,7 @@ from vyper.utils import (
     keccak256,
 )
 
-from .signatures import (
-    Optional,
-    validate_inputs,
-)
+from .signatures import Optional, validate_inputs
 
 SHA256_ADDRESS = 2
 SHA256_BASE_GAS = 60

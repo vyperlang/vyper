@@ -1,18 +1,10 @@
 import functools
 
-from vyper.exceptions import (
-    CompilerPanic,
-)
-from vyper.parser.parser import (
-    LLLnode,
-)
-from vyper.utils import (
-    MemoryPositions,
-)
+from vyper.exceptions import CompilerPanic
+from vyper.parser.parser import LLLnode
+from vyper.utils import MemoryPositions
 
-from .opcodes import (
-    get_opcodes,
-)
+from .opcodes import get_opcodes
 
 PUSH_OFFSET = 0x5f
 DUP_OFFSET = 0x7f

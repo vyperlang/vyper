@@ -1,27 +1,10 @@
-from vyper.parser.lll_node import (
-    LLLnode,
-)
-from vyper.parser.parser_utils import (
-    getpos,
-    zero_pad,
-)
-from vyper.types import (
-    BaseType,
-    ByteArrayLike,
-    get_size_of_type,
-)
-from vyper.types.check import (
-    check_assign,
-)
-from vyper.utils import (
-    MemoryPositions,
-)
+from vyper.parser.lll_node import LLLnode
+from vyper.parser.parser_utils import getpos, zero_pad
+from vyper.types import BaseType, ByteArrayLike, get_size_of_type
+from vyper.types.check import check_assign
+from vyper.utils import MemoryPositions
 
-from .abi import (
-    abi_encode,
-    abi_type_of,
-    ensure_tuple,
-)
+from .abi import abi_encode, abi_type_of, ensure_tuple
 
 
 # Generate return code for stmt

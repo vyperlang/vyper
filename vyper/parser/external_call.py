@@ -1,6 +1,4 @@
-from vyper import (
-    ast as vy_ast,
-)
+from vyper import ast as vy_ast
 from vyper.exceptions import (
     ConstancyViolation,
     FunctionDeclarationException,
@@ -8,14 +6,8 @@ from vyper.exceptions import (
     TypeMismatch,
     VariableDeclarationException,
 )
-from vyper.parser.lll_node import (
-    LLLnode,
-)
-from vyper.parser.parser_utils import (
-    getpos,
-    pack_arguments,
-    unwrap_location,
-)
+from vyper.parser.lll_node import LLLnode
+from vyper.parser.parser_utils import getpos, pack_arguments, unwrap_location
 from vyper.types import (
     BaseType,
     ByteArrayLike,

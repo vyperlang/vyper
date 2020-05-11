@@ -2,10 +2,7 @@ import sys as _sys
 
 import pkg_resources as _pkg_resources
 
-from vyper.compiler import (  # noqa
-    compile_code,
-    compile_codes,
-)
+from vyper.compiler import compile_code, compile_codes  # noqa: F401
 
 if (_sys.version_info.major, _sys.version_info.minor) < (3, 6):
     # Can't be tested, as our test harness is using python3.6.

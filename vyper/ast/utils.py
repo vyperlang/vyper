@@ -1,24 +1,10 @@
 import ast as python_ast
-from typing import (
-    Dict,
-    List,
-    Union,
-)
+from typing import Dict, List, Union
 
-from vyper.ast import (
-    nodes as vy_ast,
-)
-from vyper.ast.annotation import (
-    annotate_python_ast,
-)
-from vyper.ast.pre_parser import (
-    pre_parse,
-)
-from vyper.exceptions import (
-    CompilerPanic,
-    ParserException,
-    SyntaxException,
-)
+from vyper.ast import nodes as vy_ast
+from vyper.ast.annotation import annotate_python_ast
+from vyper.ast.pre_parser import pre_parse
+from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
 
 
 def parse_to_ast(source_code: str, source_id: int = 0) -> vy_ast.Module:
@@ -37,8 +23,8 @@ def parse_to_ast(source_code: str, source_id: int = 0) -> vy_ast.Module:
     list
         Untyped, unoptimized Vyper AST nodes.
     """
-    if '\x00' in source_code:
-        raise ParserException('No null bytes (\\x00) allowed in the source code.')
+    if "\x00" in source_code:
+        raise ParserException("No null bytes (\\x00) allowed in the source code.")
     class_types, reformatted_code = pre_parse(source_code)
     try:
         py_ast = python_ast.parse(reformatted_code)

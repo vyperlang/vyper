@@ -1,19 +1,10 @@
 import binascii
 import functools
 import re
-from typing import (
-    Dict,
-    List,
-    Union,
-)
+from typing import Dict, List, Union
 
-from vyper.exceptions import (
-    InvalidLiteral,
-    VariableDeclarationException,
-)
-from vyper.opcodes import (
-    OPCODES,
-)
+from vyper.exceptions import InvalidLiteral, VariableDeclarationException
+from vyper.opcodes import OPCODES
 
 try:
     from Crypto.Hash import keccak

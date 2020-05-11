@@ -1,16 +1,7 @@
-from vyper import (
-    ast as vy_ast,
-)
-from vyper.exceptions import (
-    InvalidLiteral,
-    TypeMismatch,
-)
-from vyper.parser.expr import (
-    Expr,
-)
-from vyper.parser.lll_node import (
-    LLLnode,
-)
+from vyper import ast as vy_ast
+from vyper.exceptions import InvalidLiteral, TypeMismatch
+from vyper.parser.expr import Expr
+from vyper.parser.lll_node import LLLnode
 from vyper.parser.parser_utils import (
     base_type_conversion,
     byte_array_to_num,
@@ -26,11 +17,7 @@ from vyper.types.types import (
     ListType,
     get_size_of_type,
 )
-from vyper.utils import (
-    bytes_to_int,
-    ceil32,
-    string_to_bytes,
-)
+from vyper.utils import bytes_to_int, ceil32, string_to_bytes
 
 
 def pack_logging_topics(event_id, args, expected_topics, context, pos):

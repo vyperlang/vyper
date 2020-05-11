@@ -1,10 +1,4 @@
-from typing import (
-    Dict,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-)
+from typing import Dict, Optional, Sequence, Tuple, Union
 
 # Parser
 ClassTypes = Dict[str, str]

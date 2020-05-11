@@ -1,36 +1,13 @@
-from decimal import (
-    Decimal,
-)
 import math
 import warnings
+from decimal import Decimal
 
-from vyper import (
-    ast as vy_ast,
-)
-from vyper.exceptions import (
-    InvalidLiteral,
-    StructureException,
-    TypeMismatch,
-)
-from vyper.functions.signatures import (
-    signature,
-)
-from vyper.parser.parser_utils import (
-    LLLnode,
-    byte_array_to_num,
-    getpos,
-)
-from vyper.types import (
-    BaseType,
-    ByteArrayType,
-    StringType,
-    get_type,
-)
-from vyper.utils import (
-    DECIMAL_DIVISOR,
-    MemoryPositions,
-    SizeLimits,
-)
+from vyper import ast as vy_ast
+from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
+from vyper.functions.signatures import signature
+from vyper.parser.parser_utils import LLLnode, byte_array_to_num, getpos
+from vyper.types import BaseType, ByteArrayType, StringType, get_type
+from vyper.utils import DECIMAL_DIVISOR, MemoryPositions, SizeLimits
 
 
 @signature(('decimal', 'int128', 'uint256', 'address', 'bytes32', 'bytes'), '*')

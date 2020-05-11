@@ -1,24 +1,9 @@
-from collections import (
-    OrderedDict,
-)
-from typing import (
-    Any,
-    Callable,
-    Optional,
-    Sequence,
-    Union,
-)
+from collections import OrderedDict
+from typing import Any, Callable, Optional, Sequence, Union
 
-from vyper.compiler import (
-    output,
-)
-from vyper.compiler.phases import (
-    CompilerData,
-)
-from vyper.opcodes import (
-    DEFAULT_EVM_VERSION,
-    evm_wrapper,
-)
+from vyper.compiler import output
+from vyper.compiler.phases import CompilerData
+from vyper.opcodes import DEFAULT_EVM_VERSION, evm_wrapper
 from vyper.typing import (
     ContractCodes,
     InterfaceDict,

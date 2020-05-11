@@ -1,43 +1,18 @@
 import importlib
-from pathlib import (
-    Path,
-)
 import pkgutil
-from typing import (
-    Sequence,
-    Tuple,
-)
+from pathlib import Path
+from typing import Sequence, Tuple
 
-from vyper import (
-    ast as vy_ast,
-)
-from vyper.exceptions import (
-    StructureException,
-)
 import vyper.interfaces
-from vyper.parser.constants import (
-    Constants,
-)
-from vyper.parser.global_context import (
-    GlobalContext,
-)
-from vyper.signatures import (
-    sig_utils,
-)
-from vyper.signatures.event_signature import (
-    EventSignature,
-)
-from vyper.signatures.function_signature import (
-    FunctionSignature,
-)
-from vyper.types.types import (
-    ByteArrayLike,
-    TupleLike,
-)
-from vyper.typing import (
-    InterfaceImports,
-    SourceCode,
-)
+from vyper import ast as vy_ast
+from vyper.exceptions import StructureException
+from vyper.parser.constants import Constants
+from vyper.parser.global_context import GlobalContext
+from vyper.signatures import sig_utils
+from vyper.signatures.event_signature import EventSignature
+from vyper.signatures.function_signature import FunctionSignature
+from vyper.types.types import ByteArrayLike, TupleLike
+from vyper.typing import InterfaceImports, SourceCode
 
 
 # Populate built-in interfaces.

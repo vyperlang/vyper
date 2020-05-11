@@ -1,25 +1,12 @@
 import re
-from typing import (
-    Optional,
-    Tuple,
-)
+from typing import Optional, Tuple
 
-from asttokens import (
-    LineNumbers,
-)
+from asttokens import LineNumbers
 
-from vyper.ast import (
-    nodes as vy_ast,
-)
-from vyper.exceptions import (
-    NatSpecSyntaxException,
-)
-from vyper.parser.global_context import (
-    GlobalContext,
-)
-from vyper.signatures import (
-    sig_utils,
-)
+from vyper.ast import nodes as vy_ast
+from vyper.exceptions import NatSpecSyntaxException
+from vyper.parser.global_context import GlobalContext
+from vyper.signatures import sig_utils
 
 SINGLE_FIELDS = ("title", "author", "notice", "dev")
 PARAM_FIELDS = ("param", "return")
@@ -27,8 +14,7 @@ USERDOCS_FIELDS = ("notice",)
 
 
 def parse_natspec(
-    vyper_module: vy_ast.Module,
-    global_ctx: GlobalContext,
+    vyper_module: vy_ast.Module, global_ctx: GlobalContext,
 ) -> Tuple[dict, dict]:
     """
     Parses NatSpec documentation from a contract.
@@ -117,11 +103,15 @@ def _parse_docstring(
             )
 
         if not value or value.startswith("@"):
-            raise NatSpecSyntaxException(f"No description given for tag '@{tag}'", *err_args)
+            raise NatSpecSyntaxException(
+                f"No description given for tag '@{tag}'", *err_args
+            )
 
         if tag not in PARAM_FIELDS:
             if tag in natspec:
-                raise NatSpecSyntaxException(f"Duplicate NatSpec field '@{tag}'", *err_args)
+                raise NatSpecSyntaxException(
+                    f"Duplicate NatSpec field '@{tag}'", *err_args
+                )
             natspec[translate_map.get(tag, tag)] = " ".join(value.split())
             continue
 
@@ -136,11 +126,15 @@ def _parse_docstring(
                     f"No description given for parameter '{value}'", *err_args
                 ) from exc
             if key not in params:
-                raise NatSpecSyntaxException(f"Method has no parameter '{key}'", *err_args)
+                raise NatSpecSyntaxException(
+                    f"Method has no parameter '{key}'", *err_args
+                )
 
         elif tag == "returns":
             if not return_length:
-                raise NatSpecSyntaxException(f"Method does not return any values", *err_args)
+                raise NatSpecSyntaxException(
+                    f"Method does not return any values", *err_args
+                )
             if len(natspec["returns"]) >= return_length:
                 raise NatSpecSyntaxException(
                     f"Number of documented return values exceeds actual number",

@@ -1,10 +1,7 @@
 import copy
 import types
 
-from vyper.settings import (
-    VYPER_ERROR_CONTEXT_LINES,
-    VYPER_ERROR_LINE_NUMBERS,
-)
+from vyper.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
 
 
 class VyperException(Exception):

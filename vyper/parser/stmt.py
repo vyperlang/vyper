@@ -1,10 +1,5 @@
-from vyper import (
-    ast as vy_ast,
-)
-from vyper.codegen.return_ import (
-    gen_tuple_return,
-    make_return_stmt,
-)
+from vyper import ast as vy_ast
+from vyper.codegen.return_ import gen_tuple_return, make_return_stmt
 from vyper.exceptions import (
     CompilerPanic,
     ConstancyViolation,
@@ -14,21 +9,10 @@ from vyper.exceptions import (
     TypeMismatch,
     VariableDeclarationException,
 )
-from vyper.functions import (
-    DISPATCH_TABLE,
-    STMT_DISPATCH_TABLE,
-)
-from vyper.parser import (
-    external_call,
-    self_call,
-)
-from vyper.parser.events import (
-    pack_logging_data,
-    pack_logging_topics,
-)
-from vyper.parser.expr import (
-    Expr,
-)
+from vyper.functions import DISPATCH_TABLE, STMT_DISPATCH_TABLE
+from vyper.parser import external_call, self_call
+from vyper.parser.events import pack_logging_data, pack_logging_topics
+from vyper.parser.expr import Expr
 from vyper.parser.parser_utils import (
     LLLnode,
     base_type_conversion,
@@ -51,12 +35,7 @@ from vyper.types import (
     is_base_type,
     parse_type,
 )
-from vyper.utils import (
-    SizeLimits,
-    bytes_to_int,
-    fourbytes_to_int,
-    keccak256,
-)
+from vyper.utils import SizeLimits, bytes_to_int, fourbytes_to_int, keccak256
 
 
 class Stmt(object):

@@ -1,18 +1,14 @@
 import functools
 import uuid
 
-from vyper.parser.lll_node import (
-    LLLnode,
-)
+from vyper.parser.lll_node import LLLnode
 from vyper.types.types import (
     ByteArrayLike,
     ListType,
     get_size_of_type,
     is_base_type,
 )
-from vyper.utils import (
-    MemoryPositions,
-)
+from vyper.utils import MemoryPositions
 
 
 def _mk_calldatacopy_copier(pos, sz, mempos):
