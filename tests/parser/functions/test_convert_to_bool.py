@@ -1,6 +1,4 @@
-from vyper.exceptions import (
-    TypeMismatch,
-)
+from vyper.exceptions import TypeMismatch
 
 
 def test_convert_from_bool(get_contract_with_gas_estimation, assert_compile_failed):

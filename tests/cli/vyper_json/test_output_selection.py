@@ -2,13 +2,8 @@
 
 import pytest
 
-from vyper.cli.vyper_json import (
-    TRANSLATE_MAP,
-    get_input_dict_output_formats,
-)
-from vyper.exceptions import (
-    JSONError,
-)
+from vyper.cli.vyper_json import TRANSLATE_MAP, get_input_dict_output_formats
+from vyper.exceptions import JSONError
 
 
 def test_no_outputs():

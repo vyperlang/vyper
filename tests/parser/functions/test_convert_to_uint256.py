@@ -1,6 +1,4 @@
-from vyper.exceptions import (
-    InvalidLiteral,
-)
+from vyper.exceptions import InvalidLiteral
 
 
 def test_convert_to_uint256(get_contract_with_gas_estimation):

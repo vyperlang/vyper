@@ -1,16 +1,9 @@
-from decimal import (
-    Decimal,
-)
+from decimal import Decimal
 
 import pytest
 
-from vyper.compiler import (
-    compile_code,
-)
-from vyper.exceptions import (
-    StructureException,
-    TypeMismatch,
-)
+from vyper.compiler import compile_code
+from vyper.exceptions import StructureException, TypeMismatch
 
 
 def test_selfcall_code(get_contract_with_gas_estimation):

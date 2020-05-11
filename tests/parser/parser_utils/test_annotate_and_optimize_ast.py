@@ -1,11 +1,7 @@
 import ast as python_ast
 
-from vyper.ast.annotation import (
-    annotate_python_ast,
-)
-from vyper.ast.pre_parser import (
-    pre_parse,
-)
+from vyper.ast.annotation import annotate_python_ast
+from vyper.ast.pre_parser import pre_parse
 
 
 class AssertionVisitor(python_ast.NodeVisitor):

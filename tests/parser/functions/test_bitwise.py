@@ -1,11 +1,7 @@
 import pytest
 
-from vyper.compiler import (
-    compile_code,
-)
-from vyper.opcodes import (
-    EVM_VERSIONS,
-)
+from vyper.compiler import compile_code
+from vyper.opcodes import EVM_VERSIONS
 
 code = """
 @public

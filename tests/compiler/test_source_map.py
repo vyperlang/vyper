@@ -1,12 +1,6 @@
-from vyper.compiler import (
-    compile_code,
-)
-from vyper.compiler.output import (
-    _compress_source_map,
-)
-from vyper.compiler.utils import (
-    expand_source_map,
-)
+from vyper.compiler import compile_code
+from vyper.compiler.output import _compress_source_map
+from vyper.compiler.utils import expand_source_map
 
 TEST_CODE = """
 @private

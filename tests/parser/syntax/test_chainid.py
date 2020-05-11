@@ -1,18 +1,9 @@
 import pytest
-from pytest import (
-    raises,
-)
+from pytest import raises
 
-from vyper import (
-    compiler,
-)
-from vyper.exceptions import (
-    EvmVersionException,
-    TypeMismatch,
-)
-from vyper.opcodes import (
-    EVM_VERSIONS,
-)
+from vyper import compiler
+from vyper.exceptions import EvmVersionException, TypeMismatch
+from vyper.opcodes import EVM_VERSIONS
 
 
 @pytest.mark.parametrize('evm_version', list(EVM_VERSIONS))

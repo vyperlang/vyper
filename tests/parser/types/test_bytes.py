@@ -1,6 +1,4 @@
-from vyper.exceptions import (
-    TypeMismatch,
-)
+from vyper.exceptions import TypeMismatch
 
 
 def test_test_bytes(get_contract_with_gas_estimation, assert_tx_failed):

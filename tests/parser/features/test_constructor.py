@@ -1,7 +1,5 @@
 import pytest
-from web3.exceptions import (
-    ValidationError,
-)
+from web3.exceptions import ValidationError
 
 
 def test_init_argument_test(get_contract_with_gas_estimation):

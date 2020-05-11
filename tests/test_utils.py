@@ -1,9 +1,6 @@
 import pytest
 
-from vyper.utils import (
-    annotate_source_code,
-    indent,
-)
+from vyper.utils import annotate_source_code, indent
 
 TEST_TEXT = """
 test

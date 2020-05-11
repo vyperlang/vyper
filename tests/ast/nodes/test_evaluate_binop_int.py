@@ -1,17 +1,9 @@
-from hypothesis import (
-    example,
-    given,
-    settings,
-    strategies as st,
-)
 import pytest
+from hypothesis import example, given, settings
+from hypothesis import strategies as st
 
-from vyper import (
-    ast as vy_ast,
-)
-from vyper.exceptions import (
-    ZeroDivisionException,
-)
+from vyper import ast as vy_ast
+from vyper.exceptions import ZeroDivisionException
 
 st_int32 = st.integers(min_value=-(2 ** 32), max_value=2 ** 32)
 

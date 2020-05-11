@@ -2,24 +2,13 @@ import re
 import textwrap
 
 import hypothesis
-from hypothesis import (
-    HealthCheck,
-    assume,
-    given,
-)
-from hypothesis.extra.lark import (
-    LarkStrategy,
-)
 import hypothesis.strategies as st
 import pytest
+from hypothesis import HealthCheck, assume, given
+from hypothesis.extra.lark import LarkStrategy
 
-from conftest import (
-    get_lark_grammar,
-)
-from vyper.ast import (
-    Module,
-    parse_to_ast,
-)
+from conftest import get_lark_grammar
+from vyper.ast import Module, parse_to_ast
 
 
 def test_basic_grammar(lark_grammar):

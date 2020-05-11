@@ -1,28 +1,14 @@
-from functools import (
-    wraps,
-)
 import logging
+from functools import wraps
 
-from eth_tester import (
-    EthereumTester,
-)
 import pytest
+from eth_tester import EthereumTester
 from web3 import Web3
-from web3.providers.eth_tester import (
-    EthereumTesterProvider,
-)
+from web3.providers.eth_tester import EthereumTesterProvider
 
-from vyper import (
-    compile_lll,
-    compiler,
-    optimizer,
-)
-from vyper.parser.parser import (
-    parse_to_lll,
-)
-from vyper.parser.parser_utils import (
-    LLLnode,
-)
+from vyper import compile_lll, compiler, optimizer
+from vyper.parser.parser import parse_to_lll
+from vyper.parser.parser_utils import LLLnode
 
 from .base_conftest import (
     VyperContract,

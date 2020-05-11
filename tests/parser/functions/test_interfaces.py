@@ -1,20 +1,10 @@
-from decimal import (
-    Decimal,
-)
+from decimal import Decimal
 
 import pytest
 
-from vyper.compiler import (
-    compile_code,
-    compile_codes,
-)
-from vyper.exceptions import (
-    StructureException,
-)
-from vyper.interfaces import (
-    ERC20,
-    ERC721,
-)
+from vyper.compiler import compile_code, compile_codes
+from vyper.exceptions import StructureException
+from vyper.interfaces import ERC20, ERC721
 from vyper.signatures.interface import (
     extract_file_interface_imports,
     extract_sigs,

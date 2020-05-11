@@ -1,11 +1,6 @@
-from decimal import (
-    Decimal,
-    getcontext,
-)
+from decimal import Decimal, getcontext
 
-from vyper.exceptions import (
-    TypeMismatch,
-)
+from vyper.exceptions import TypeMismatch
 
 getcontext().prec = 78  # MAX_UINT256 < 1e78
 

@@ -2,9 +2,7 @@
 # Modified from Philip Daian's tests:
 # https://github.com/vyperlang/vyper/blob/v0.1.0-beta.5/tests/examples/tokens/ERC20_solidity_compatible/test/erc20_tests_1.py
 import pytest
-from web3.exceptions import (
-    ValidationError,
-)
+from web3.exceptions import ValidationError
 
 ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 MAX_UINT256 = (2 ** 256) - 1  # Max uint256 value

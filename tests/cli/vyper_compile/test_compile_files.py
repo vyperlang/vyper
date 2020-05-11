@@ -1,8 +1,6 @@
 import pytest
 
-from vyper.cli.vyper_compile import (
-    compile_files,
-)
+from vyper.cli.vyper_compile import compile_files
 
 
 def test_combined_json_keys(tmp_path):

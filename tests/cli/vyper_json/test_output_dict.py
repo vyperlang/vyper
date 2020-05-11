@@ -1,13 +1,8 @@
 #!/usr/bin/env python3
 
 import vyper
-from vyper.cli.vyper_json import (
-    format_to_output_dict,
-)
-from vyper.compiler import (
-    OUTPUT_FORMATS,
-    compile_codes,
-)
+from vyper.cli.vyper_json import format_to_output_dict
+from vyper.compiler import OUTPUT_FORMATS, compile_codes
 
 FOO_CODE = """
 @public

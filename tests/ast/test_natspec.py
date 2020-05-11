@@ -1,15 +1,8 @@
 import pytest
 
-from vyper.ast import (
-    parse_natspec,
-    parse_to_ast,
-)
-from vyper.exceptions import (
-    NatSpecSyntaxException,
-)
-from vyper.parser.global_context import (
-    GlobalContext,
-)
+from vyper.ast import parse_natspec, parse_to_ast
+from vyper.exceptions import NatSpecSyntaxException
+from vyper.parser.global_context import GlobalContext
 
 test_code = """
 '''

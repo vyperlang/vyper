@@ -1,7 +1,4 @@
-from vyper.exceptions import (
-    ArrayIndexException,
-    TypeMismatch,
-)
+from vyper.exceptions import ArrayIndexException, TypeMismatch
 
 
 def test_list_tester_code(get_contract_with_gas_estimation):

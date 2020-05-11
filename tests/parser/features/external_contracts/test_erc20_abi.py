@@ -1,7 +1,5 @@
 import pytest
-from web3.exceptions import (
-    ValidationError,
-)
+from web3.exceptions import ValidationError
 
 TOKEN_NAME = "Vypercoin"
 TOKEN_SYMBOL = "FANG"

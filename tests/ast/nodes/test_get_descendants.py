@@ -1,10 +1,6 @@
-from pathlib import (
-    Path,
-)
+from pathlib import Path
 
-from vyper import (
-    ast as vy_ast,
-)
+from vyper import ast as vy_ast
 
 
 def test_all_nodes_have_lineno():

@@ -1,11 +1,7 @@
 import pytest
 
-from vyper import (
-    ast as vy_ast,
-)
-from vyper.exceptions import (
-    CompilerPanic,
-)
+from vyper import ast as vy_ast
+from vyper.exceptions import CompilerPanic
 
 
 def test_assumptions():

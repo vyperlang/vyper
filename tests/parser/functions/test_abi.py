@@ -1,14 +1,8 @@
 import pytest
 
-from vyper.compiler import (
-    compile_code,
-)
-from vyper.compiler.output import (
-    build_abi_output,
-)
-from vyper.compiler.phases import (
-    CompilerData,
-)
+from vyper.compiler import compile_code
+from vyper.compiler.output import build_abi_output
+from vyper.compiler.phases import CompilerData
 
 source_codes = [
     """

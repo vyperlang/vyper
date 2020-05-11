@@ -1,18 +1,12 @@
 #!/usr/bin/env python3
 
-from copy import (
-    deepcopy,
-)
 import json
+from copy import deepcopy
 
 import pytest
 
-from vyper.cli.vyper_json import (
-    _parse_args,
-)
-from vyper.exceptions import (
-    JSONError,
-)
+from vyper.cli.vyper_json import _parse_args
+from vyper.exceptions import JSONError
 
 FOO_CODE = """
 import contracts.bar as Bar

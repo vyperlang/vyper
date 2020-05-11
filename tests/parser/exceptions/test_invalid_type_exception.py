@@ -1,14 +1,8 @@
 import pytest
-from pytest import (
-    raises,
-)
+from pytest import raises
 
-from vyper import (
-    compiler,
-)
-from vyper.exceptions import (
-    InvalidType,
-)
+from vyper import compiler
+from vyper.exceptions import InvalidType
 
 fail_list = [
     """

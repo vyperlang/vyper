@@ -1,12 +1,7 @@
-from eth_tester.exceptions import (
-    TransactionFailed,
-)
 import pytest
+from eth_tester.exceptions import TransactionFailed
 
-from vyper.exceptions import (
-    ConstancyViolation,
-    StructureException,
-)
+from vyper.exceptions import ConstancyViolation, StructureException
 
 
 def test_assert_refund(w3, get_contract_with_gas_estimation, assert_tx_failed):

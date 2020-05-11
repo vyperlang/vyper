@@ -1,11 +1,5 @@
-from vyper import (
-    compiler,
-)
-from vyper.ast.utils import (
-    ast_to_dict,
-    dict_to_ast,
-    parse_to_ast,
-)
+from vyper import compiler
+from vyper.ast.utils import ast_to_dict, dict_to_ast, parse_to_ast
 
 
 def get_node_ids(ast_struct, ids=None):

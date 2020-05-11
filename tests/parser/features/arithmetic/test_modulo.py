@@ -1,12 +1,8 @@
-from decimal import (
-    Decimal,
-)
+from decimal import Decimal
 
 import pytest
 
-from vyper.exceptions import (
-    ZeroDivisionException,
-)
+from vyper.exceptions import ZeroDivisionException
 
 
 def test_modulo(get_contract_with_gas_estimation):

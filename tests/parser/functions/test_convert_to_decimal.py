@@ -1,11 +1,6 @@
-from decimal import (
-    Decimal,
-)
+from decimal import Decimal
 
-from vyper.exceptions import (
-    InvalidLiteral,
-    TypeMismatch,
-)
+from vyper.exceptions import InvalidLiteral, TypeMismatch
 
 
 def test_convert_from_int128(get_contract_with_gas_estimation):

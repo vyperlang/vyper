@@ -1,10 +1,5 @@
-from vyper import (
-    compile_lll,
-    optimizer,
-)
-from vyper.parser.parser_utils import (
-    LLLnode,
-)
+from vyper import compile_lll, optimizer
+from vyper.parser.parser_utils import LLLnode
 
 
 def test_sha3_32():

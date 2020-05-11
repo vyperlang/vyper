@@ -1,8 +1,6 @@
 import pytest
 
-from vyper.compiler import (
-    compile_code,
-)
+from vyper.compiler import compile_code
 from vyper.exceptions import (
     FunctionDeclarationException,
     InvalidLiteral,

@@ -1,9 +1,5 @@
-from vyper.parser import (
-    parser_utils,
-)
-from vyper.parser.parser import (
-    parse_to_lll,
-)
+from vyper.parser import parser_utils
+from vyper.parser.parser import parse_to_lll
 
 
 def test_gas_call(get_contract_with_gas_estimation):

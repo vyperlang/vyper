@@ -2,9 +2,7 @@ import os
 
 import pytest
 
-from vyper.cli.vyper_compile import (
-    _parse_args,
-)
+from vyper.cli.vyper_compile import _parse_args
 
 
 @pytest.fixture

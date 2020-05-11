@@ -1,6 +1,4 @@
-from decimal import (
-    Decimal,
-)
+from decimal import Decimal
 
 
 def test_call_to_self_struct(w3, get_contract):

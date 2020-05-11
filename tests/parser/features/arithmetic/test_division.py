@@ -1,8 +1,6 @@
 import pytest
 
-from vyper.exceptions import (
-    ZeroDivisionException,
-)
+from vyper.exceptions import ZeroDivisionException
 
 BAD_CODE = [
     """
