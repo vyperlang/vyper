@@ -1,6 +1,10 @@
 from vyper.compiler import (
     compile_code,
-    compress_source_map,
+)
+from vyper.compiler.output import (
+    _compress_source_map,
+)
+from vyper.compiler.utils import (
     expand_source_map,
 )
 
@@ -75,7 +79,7 @@ def test_compress_source_map():
 def foo() -> uint256:
     return 42
     """
-    compressed = compress_source_map(
+    compressed = _compress_source_map(
         code,
         {'0': None, '2': (2, 0, 4, 13), '3': (2, 0, 2, 7), '5': (2, 0, 2, 7)},
         {'3': 'o'},

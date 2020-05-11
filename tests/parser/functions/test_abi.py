@@ -1,25 +1,35 @@
+import pytest
+
 from vyper.compiler import (
     compile_code,
-    mk_full_signature,
+)
+from vyper.compiler.output import (
+    build_abi_output,
+)
+from vyper.compiler.phases import (
+    CompilerData,
 )
 
-
-def test_only_init_function():
-    code = """
+source_codes = [
+    """
 x: int128
 
 @public
 def __init__():
     self.x = 1
+    """,
     """
-    code_init_empty = """
 x: int128
 
 @public
 def __init__():
     pass
-    """
+    """,
+]
 
+
+@pytest.mark.parametrize('source_code', source_codes)
+def test_only_init_function(source_code):
     empty_sig = [{
         'outputs': [],
         'inputs': [],
@@ -28,8 +38,8 @@ def __init__():
         'type': 'constructor'
     }]
 
-    assert mk_full_signature(code) == empty_sig
-    assert mk_full_signature(code_init_empty) == empty_sig
+    data = CompilerData(source_code)
+    assert build_abi_output(data) == empty_sig
 
 
 def test_default_abi():
@@ -40,7 +50,8 @@ def __default__():
     pass
     """
 
-    assert mk_full_signature(default_code) == [{
+    data = CompilerData(default_code)
+    assert build_abi_output(data) == [{
         'constant': False,
         'payable': True,
         'type': 'fallback'
@@ -79,7 +90,8 @@ def foo(s: MyStruct) -> MyStruct:
     return s
     """
 
-    abi = mk_full_signature(code)
+    data = CompilerData(code)
+    abi = build_abi_output(data)
     func_abi = abi[0]
 
     assert func_abi["name"] == "foo"
