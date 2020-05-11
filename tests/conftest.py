@@ -17,6 +17,9 @@ from vyper import (
     compiler,
     optimizer,
 )
+from vyper.parser.parser import (
+    parse_to_lll,
+)
 from vyper.parser.parser_utils import (
     LLLnode,
 )
@@ -94,10 +97,11 @@ def get_contract_module():
 
 
 def get_compiler_gas_estimate(code, func):
+    lll_nodes = optimizer.optimize(parse_to_lll(code))
     if func:
-        return compiler.gas_estimate(code)[func] + 22000
+        return compiler.utils.build_gas_estimates(lll_nodes)[func] + 22000
     else:
-        return sum(compiler.gas_estimate(code).values()) + 22000
+        return sum(compiler.utils.build_gas_estimates(lll_nodes).values()) + 22000
 
 
 def check_gas_on_chain(w3, tester, code, func=None, res=None):
