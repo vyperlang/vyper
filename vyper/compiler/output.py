@@ -171,17 +171,17 @@ def build_opcodes_runtime_output(compiler_data: CompilerData) -> str:
 
 
 def _build_opcodes(bytecode: bytes) -> str:
-    bytecode_hex = bytecode.hex().upper()
-    bytecode_sequence = deque(bytecode_hex[i:i + 2] for i in range(0, len(bytecode), 2))
+    bytecode_sequence = deque(bytecode)
+
     opcode_map = dict((v[0], k) for k, v in opcodes.get_opcodes().items())
-    opcode_str = ""
+    opcode_output = []
 
     while bytecode_sequence:
-        op = int(bytecode_sequence.popleft(), 16)
-        opcode_str += opcode_map[op] + " "
-        if "PUSH" not in opcode_map[op]:
-            continue
-        push_len = int(opcode_map[op][4:])
-        opcode_str += "0x" + "".join(bytecode_sequence.popleft() for i in range(push_len)) + " "
+        op = bytecode_sequence.popleft()
+        opcode_output.append(opcode_map[op])
+        if "PUSH" in opcode_output[-1]:
+            push_len = int(opcode_map[op][4:])
+            push_values = [hex(bytecode_sequence.popleft())[2:] for i in range(push_len)]
+            opcode_output.append(f"0x{''.join(push_values).upper()}")
 
-    return opcode_str[:-1]
+    return " ".join(opcode_output)
