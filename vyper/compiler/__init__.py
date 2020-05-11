@@ -12,7 +12,7 @@ from typing import (
 from vyper.compiler import (
     output,
 )
-from vyper.compiler.data import (
+from vyper.compiler.phases import (
     CompilerData,
 )
 from vyper.opcodes import (

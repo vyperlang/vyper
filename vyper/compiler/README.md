@@ -11,8 +11,8 @@ vyper source code and generate various compiler outputs.
 
 * [`__init__.py`](__init__.py): Contains the `compile_codes` function, which is the
 primary function used for compiling Vyper source code.
-* [`data.py`](data.py): Pure functions for executing each compiler phase, as well as
-the `CompilerData` object that fetches and stores compiler output for each phase.
+* [`phases.py`](phases.py): Pure functions for executing each compiler phase, as well
+as the `CompilerData` object that fetches and stores compiler output for each phase.
 * [`output.py`](output.py): Functions that convert compiler data into the final
 formats to be outputted to the user.
 * [`utils.py`](utils.py): Various utility functions related to compilation.
@@ -39,10 +39,10 @@ Additionally, phases 3-5 may produce two output types:
 * **Deployment** bytecode, used for deploying the contract onto the blockchain
 * **Runtime** bytecode, the on-chain code created as a result of deployment
 
-[`data.py`](data.py) contains high-level pure functions for executing each compiler
-phase. These functions typically accept the result of one or more previous
-phases as input and return the newly generated data. See their docstrings for
-specific implementation details.
+[`phases.py`](phases.py) contains high-level pure functions for executing each
+compiler phase. These functions typically accept the result of one or more
+previous phases as input and return the newly generated data. See their docstrings
+for specific implementation details.
 
 ### Generating Compiler Outputs
 

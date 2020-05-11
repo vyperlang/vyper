@@ -13,7 +13,7 @@ from vyper.ast import (
     ast_to_dict,
     parse_natspec,
 )
-from vyper.compiler.data import (
+from vyper.compiler.phases import (
     CompilerData,
 )
 from vyper.compiler.utils import (
