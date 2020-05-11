@@ -30,7 +30,7 @@ class CompilerData:
 
     Attributes
     ----------
-    vyper_ast : vy_ast.Module
+    vyper_module : vy_ast.Module
         Top-level Vyper AST node
     global_ctx : GlobalContext
         Sorted, contextualized representation of the Vyper AST
@@ -76,16 +76,16 @@ class CompilerData:
         self.source_id = source_id
 
     @property
-    def vyper_ast(self) -> vy_ast.Module:
-        if not hasattr(self, "_vyper_ast"):
-            self._vyper_ast = generate_ast(self.source_code, self.source_id)
+    def vyper_module(self) -> vy_ast.Module:
+        if not hasattr(self, "_vyper_module"):
+            self._vyper_module = generate_ast(self.source_code, self.source_id)
 
-        return self._vyper_ast
+        return self._vyper_module
 
     @property
     def global_ctx(self) -> GlobalContext:
         if not hasattr(self, "_global_ctx"):
-            self._global_ctx = generate_global_context(self.vyper_ast, self.interface_codes)
+            self._global_ctx = generate_global_context(self.vyper_module, self.interface_codes)
 
         return self._global_ctx
 
@@ -154,7 +154,7 @@ def generate_ast(source_code: str, source_id: int) -> vy_ast.Module:
 
 
 def generate_global_context(
-    vyper_ast_node: vy_ast.Module, interface_codes: Optional[InterfaceImports],
+    vyper_module: vy_ast.Module, interface_codes: Optional[InterfaceImports],
 ) -> GlobalContext:
     """
     Generate a contextualized AST from the Vyper AST.
@@ -163,7 +163,7 @@ def generate_global_context(
 
     Arguments
     ---------
-    vyper_ast_node : vy_ast.Module
+    vyper_module : vy_ast.Module
         Top-level Vyper AST node
     interface_codes: Dict, optional
         Interfaces that may be imported by the contracts.
@@ -173,7 +173,7 @@ def generate_global_context(
     GlobalContext
         Sorted, contextualized representation of the Vyper AST
     """
-    return GlobalContext.get_global_context(vyper_ast_node, interface_codes=interface_codes)
+    return GlobalContext.get_global_context(vyper_module, interface_codes=interface_codes)
 
 
 def generate_lll_nodes(

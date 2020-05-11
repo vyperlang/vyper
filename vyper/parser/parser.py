@@ -228,8 +228,8 @@ def parse_to_lll(
     runtime_only: bool = False,
     interface_codes: Optional[InterfaceImports] = None
 ) -> LLLnode:
-    vyper_ast_node = vy_ast.parse_to_ast(source_code)
-    global_ctx = GlobalContext.get_global_context(vyper_ast_node, interface_codes=interface_codes)
+    vyper_module = vy_ast.parse_to_ast(source_code)
+    global_ctx = GlobalContext.get_global_context(vyper_module, interface_codes=interface_codes)
     lll_nodes, lll_runtime = parse_tree_to_lll(source_code, global_ctx)
 
     if runtime_only:

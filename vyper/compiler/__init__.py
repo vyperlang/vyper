@@ -28,7 +28,7 @@ from vyper.typing import (
 )
 
 OUTPUT_FORMATS = {
-    # requires vyper_ast
+    # requires vyper_module
     "ast_dict": output.build_ast_dict,
     # requires global_ctx
     "devdoc": output.build_devdoc,

@@ -62,7 +62,7 @@ class GlobalContext:
     # Parse top-level functions and variables
     @classmethod
     def get_global_context(
-        cls, vyper_ast_node: "vy_ast.Module", interface_codes: Optional[InterfaceImports] = None
+        cls, vyper_module: "vy_ast.Module", interface_codes: Optional[InterfaceImports] = None
     ) -> "GlobalContext":
         from vyper.signatures.interface import (
             extract_sigs,
@@ -71,7 +71,7 @@ class GlobalContext:
         interface_codes = {} if interface_codes is None else interface_codes
         global_ctx = cls()
 
-        for item in vyper_ast_node:
+        for item in vyper_module:
             # Contract references
             if isinstance(item, vy_ast.ClassDef):
                 if global_ctx._events or global_ctx._globals or global_ctx._defs:

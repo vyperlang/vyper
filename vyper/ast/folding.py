@@ -26,88 +26,88 @@ BUILTIN_CONSTANTS = {
 }
 
 
-def fold(vyper_ast_node: vy_ast.Module) -> None:
+def fold(vyper_module: vy_ast.Module) -> None:
     """
     Perform literal folding operations on a Vyper AST.
 
     Arguments
     ---------
-    vyper_ast_node : Module
+    vyper_module : Module
         Top-level Vyper AST node.
     """
-    replace_builtin_constants(vyper_ast_node)
-    replace_user_defined_constants(vyper_ast_node)
+    replace_builtin_constants(vyper_module)
+    replace_user_defined_constants(vyper_module)
 
     changed_nodes = 1
     while changed_nodes:
         changed_nodes = 0
-        changed_nodes += replace_literal_ops(vyper_ast_node)
-        changed_nodes += replace_subscripts(vyper_ast_node)
-        changed_nodes += replace_builtin_functions(vyper_ast_node)
+        changed_nodes += replace_literal_ops(vyper_module)
+        changed_nodes += replace_subscripts(vyper_module)
+        changed_nodes += replace_builtin_functions(vyper_module)
 
 
-def replace_literal_ops(vyper_ast_node: vy_ast.Module) -> int:
+def replace_literal_ops(vyper_module: vy_ast.Module) -> int:
     """
     Find and evaluate operation and comparison nodes within the Vyper AST,
     replacing them with Constant nodes where possible.
 
     Arguments
     ---------
-    vyper_ast_node : Module
+    vyper_module : Module
         Top-level Vyper AST node.
     """
     changed_nodes = 0
 
     node_types = (vy_ast.BoolOp, vy_ast.BinOp, vy_ast.UnaryOp, vy_ast.Compare)
-    for node in vyper_ast_node.get_descendants(node_types, reverse=True):
+    for node in vyper_module.get_descendants(node_types, reverse=True):
         try:
             new_node = node.evaluate()
         except UnfoldableNode:
             continue
 
         changed_nodes += 1
-        vyper_ast_node.replace_in_tree(node, new_node)
+        vyper_module.replace_in_tree(node, new_node)
 
     return changed_nodes
 
 
-def replace_subscripts(vyper_ast_node: vy_ast.Module) -> int:
+def replace_subscripts(vyper_module: vy_ast.Module) -> int:
     """
     Find and evaluate Subscript nodes within the Vyper AST, replacing them with
     Constant nodes where possible.
 
     Arguments
     ---------
-    vyper_ast_node : Module
+    vyper_module : Module
         Top-level Vyper AST node.
     """
     changed_nodes = 0
 
-    for node in vyper_ast_node.get_descendants(vy_ast.Subscript, reverse=True):
+    for node in vyper_module.get_descendants(vy_ast.Subscript, reverse=True):
         try:
             new_node = node.evaluate()
         except UnfoldableNode:
             continue
 
         changed_nodes += 1
-        vyper_ast_node.replace_in_tree(node, new_node)
+        vyper_module.replace_in_tree(node, new_node)
 
     return changed_nodes
 
 
-def replace_builtin_functions(vyper_ast_node: vy_ast.Module) -> int:
+def replace_builtin_functions(vyper_module: vy_ast.Module) -> int:
     """
     Find and evaluate builtin function calls within the Vyper AST, replacing
     them with Constant nodes where possible.
 
     Arguments
     ---------
-    vyper_ast_node : Module
+    vyper_module : Module
         Top-level Vyper AST node.
     """
     changed_nodes = 0
 
-    for node in vyper_ast_node.get_descendants(vy_ast.Call, reverse=True):
+    for node in vyper_module.get_descendants(vy_ast.Call, reverse=True):
         if not isinstance(node.func, vy_ast.Name):
             continue
 
@@ -121,35 +121,35 @@ def replace_builtin_functions(vyper_ast_node: vy_ast.Module) -> int:
             continue
 
         changed_nodes += 1
-        vyper_ast_node.replace_in_tree(node, new_node)
+        vyper_module.replace_in_tree(node, new_node)
 
     return changed_nodes
 
 
-def replace_builtin_constants(vyper_ast_node: vy_ast.Module) -> None:
+def replace_builtin_constants(vyper_module: vy_ast.Module) -> None:
     """
     Replace references to builtin constants with their literal values.
 
     Arguments
     ---------
-    vyper_ast_node : Module
+    vyper_module : Module
         Top-level Vyper AST node.
     """
     for name, (node, value) in BUILTIN_CONSTANTS.items():
-        replace_constant(vyper_ast_node, name, node(value=value))  # type: ignore
+        replace_constant(vyper_module, name, node(value=value))  # type: ignore
 
 
-def replace_user_defined_constants(vyper_ast_node: vy_ast.Module) -> None:
+def replace_user_defined_constants(vyper_module: vy_ast.Module) -> None:
     """
     Find user-defined constant assignments, and replace references
     to the constants with their literal values.
 
     Arguments
     ---------
-    vyper_ast_node : Module
+    vyper_module : Module
         Top-level Vyper AST node.
     """
-    for node in vyper_ast_node.get_children(vy_ast.AnnAssign):
+    for node in vyper_module.get_children(vy_ast.AnnAssign):
         if not isinstance(node.target, vy_ast.Name):
             # left-hand-side of assignment is not a variable
             continue
@@ -157,7 +157,7 @@ def replace_user_defined_constants(vyper_ast_node: vy_ast.Module) -> None:
             # annotation is not wrapped in `constant(...)`
             continue
 
-        replace_constant(vyper_ast_node, node.target.id, node.value)
+        replace_constant(vyper_module, node.target.id, node.value)
 
 
 def _replace(old_node, new_node):
@@ -171,14 +171,14 @@ def _replace(old_node, new_node):
 
 
 def replace_constant(
-    vyper_ast_node: vy_ast.Module, id_: str, replacement_node: Union[vy_ast.Constant, vy_ast.List],
+    vyper_module: vy_ast.Module, id_: str, replacement_node: Union[vy_ast.Constant, vy_ast.List],
 ) -> None:
     """
     Replace references to a variable name with a literal value.
 
     Arguments
     ---------
-    vyper_ast_node : Module
+    vyper_module : Module
         Module-level ast node to perform replacement in.
     id_ : str
         String representing the `.id` attribute of the node(s) to be replaced.
@@ -186,7 +186,7 @@ def replace_constant(
         Vyper ast node representing the literal value to be substituted in.
 
     """
-    for node in vyper_ast_node.get_descendants(vy_ast.Name, {'id': id_}, reverse=True):
+    for node in vyper_module.get_descendants(vy_ast.Name, {'id': id_}, reverse=True):
         # do not replace attributes or calls
         if isinstance(node.get_ancestor(), (vy_ast.Attribute, vy_ast.Call)):
             continue
@@ -201,4 +201,4 @@ def replace_constant(
                 continue
 
         new_node = _replace(node, replacement_node)
-        vyper_ast_node.replace_in_tree(node, new_node)
+        vyper_module.replace_in_tree(node, new_node)

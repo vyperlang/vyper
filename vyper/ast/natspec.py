@@ -27,7 +27,7 @@ USERDOCS_FIELDS = ("notice",)
 
 
 def parse_natspec(
-    vyper_ast: vy_ast.Module,
+    vyper_module: vy_ast.Module,
     global_ctx: GlobalContext,
 ) -> Tuple[dict, dict]:
     """
@@ -35,7 +35,7 @@ def parse_natspec(
 
     Arguments
     ---------
-    vyper_ast : Module
+    vyper_module : Module
         Module-level vyper ast node.
     interface_codes: Dict, optional
         Dict containing relevant data for any import statements related to
@@ -49,15 +49,15 @@ def parse_natspec(
         NatSpec developer documentation
     """
     userdoc, devdoc = {}, {}
-    source: str = vyper_ast.full_source_code
+    source: str = vyper_module.full_source_code
 
-    docstring = vyper_ast.get("doc_string.value")
+    docstring = vyper_module.get("doc_string.value")
     if docstring:
         devdoc.update(_parse_docstring(source, docstring, ("param", "return")))
         if "notice" in devdoc:
             userdoc["notice"] = devdoc.pop("notice")
 
-    for node in [i for i in vyper_ast.body if i.get("doc_string.value")]:
+    for node in [i for i in vyper_module.body if i.get("doc_string.value")]:
         docstring = node.doc_string.value
         sigs = sig_utils.mk_single_method_identifier(node, global_ctx)
 

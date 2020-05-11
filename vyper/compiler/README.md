@@ -63,7 +63,7 @@ compiler data.
 We use the following naming conventions throughout this module, to aid readability:
 
 * `source_code` refers to the original source code as string
-* `vyper_ast_node` refers to the top-level `Module` Vyper AST node, created from the
+* `vyper_module` refers to the top-level `Module` Vyper AST node, created from the
 source code
 * `global_ctx` refers to the `GlobalContext` object
 * `lll_nodes` refers to the top-level `LLLnode`, created from the AST
