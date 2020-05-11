@@ -49,25 +49,25 @@ class CompilerData:
     """
     def __init__(
         self,
-        contract_name: str,
         source_code: str,
-        interface_codes: Optional[InterfaceImports],
-        source_id: int
+        contract_name: str = "VyperContract",
+        interface_codes: Optional[InterfaceImports] = None,
+        source_id: int = 0,
     ) -> None:
         """
         Initialization method.
 
         Arguments
         ---------
-        contract_name : str
-            The name of the contract being compiled.
         source_code : str
             Vyper source code.
+        contract_name : str, optional
+            The name of the contract being compiled.
         interface_codes: Dict, optional
             Interfaces that may be imported by the contracts during compilation.
             * Formatted as as `{'interface name': {'type': "json/vyper", 'code': "interface code"}}`
             * JSON interfaces are given as lists, vyper interfaces as strings
-        source_id : int
+        source_id : int, optional
             ID number used to identify this contract in the source map.
         """
         self.contract_name = contract_name
