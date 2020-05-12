@@ -1,3 +1,4 @@
+import copy
 import warnings
 from typing import Optional, Tuple
 
@@ -35,7 +36,6 @@ class CompilerData:
     bytecode_runtime : bytes
         Runtime bytecode
     """
-
     def __init__(
         self,
         source_code: str,
@@ -72,10 +72,17 @@ class CompilerData:
         return self._vyper_module
 
     @property
+    def vyper_module_folded(self) -> vy_ast.Module:
+        if not hasattr(self, "_vyper_module_folded"):
+            self._vyper_module_folded = generate_folded_ast(self.vyper_module)
+
+        return self._vyper_module_folded
+
+    @property
     def global_ctx(self) -> GlobalContext:
         if not hasattr(self, "_global_ctx"):
             self._global_ctx = generate_global_context(
-                self.vyper_module, self.interface_codes
+                self.vyper_module_folded, self.interface_codes
             )
 
         return self._global_ctx
@@ -144,6 +151,13 @@ def generate_ast(source_code: str, source_id: int) -> vy_ast.Module:
     return vy_ast.parse_to_ast(source_code, source_id)
 
 
+def generate_folded_ast(vyper_module: vy_ast.Module) -> vy_ast.Module:
+    vyper_module_folded = copy.deepcopy(vyper_module)
+    vy_ast.folding.fold(vyper_module_folded)
+
+    return vyper_module_folded
+
+
 def generate_global_context(
     vyper_module: vy_ast.Module, interface_codes: Optional[InterfaceImports],
 ) -> GlobalContext:
@@ -164,9 +178,7 @@ def generate_global_context(
     GlobalContext
         Sorted, contextualized representation of the Vyper AST
     """
-    return GlobalContext.get_global_context(
-        vyper_module, interface_codes=interface_codes
-    )
+    return GlobalContext.get_global_context(vyper_module, interface_codes=interface_codes)
 
 
 def generate_lll_nodes(
