@@ -1,11 +1,7 @@
 import pytest
 
-from vyper import (
-    ast as vy_ast,
-)
-from vyper.exceptions import (
-    SyntaxException,
-)
+from vyper import ast as vy_ast
+from vyper.exceptions import SyntaxException
 
 
 def test_binary_becomes_bytes():

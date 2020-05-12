@@ -1,6 +1,4 @@
-from vyper import (
-    ast as vy_ast,
-)
+from vyper import ast as vy_ast
 
 
 def test_compare_different_node_clases():

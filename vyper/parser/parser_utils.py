@@ -1,11 +1,6 @@
-from decimal import (
-    Decimal,
-    getcontext,
-)
+from decimal import Decimal, getcontext
 
-from vyper import (
-    ast as vy_ast,
-)
+from vyper import ast as vy_ast
 from vyper.exceptions import (
     ArrayIndexException,
     CompilerPanic,
@@ -14,9 +9,7 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatch,
 )
-from vyper.parser.lll_node import (
-    LLLnode,
-)
+from vyper.parser.lll_node import LLLnode
 from vyper.types import (
     BaseType,
     ByteArrayLike,
@@ -32,9 +25,7 @@ from vyper.types import (
     has_dynamic_data,
     is_base_type,
 )
-from vyper.types.types import (
-    ContractType,
-)
+from vyper.types.types import ContractType
 from vyper.utils import (
     DECIMAL_DIVISOR,
     GAS_IDENTITY,

@@ -1,8 +1,6 @@
 import pytest
 
-from vyper import (
-    ast as vy_ast,
-)
+from vyper import ast as vy_ast
 
 
 @pytest.mark.parametrize("bool_cond", [True, False])

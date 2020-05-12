@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 
-from copy import (
-    deepcopy,
-)
+from copy import deepcopy
 
 import pytest
 
@@ -13,11 +11,7 @@ from vyper.cli.vyper_json import (
     exc_handler_raises,
     exc_handler_to_dict,
 )
-from vyper.exceptions import (
-    JSONError,
-    SyntaxException,
-    TypeMismatch,
-)
+from vyper.exceptions import JSONError, SyntaxException, TypeMismatch
 
 FOO_CODE = """
 import contracts.bar as Bar

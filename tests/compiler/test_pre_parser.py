@@ -1,10 +1,6 @@
-from pytest import (
-    raises,
-)
+from pytest import raises
 
-from vyper.exceptions import (
-    SyntaxException,
-)
+from vyper.exceptions import SyntaxException
 
 
 def test_semicolon_prohibited(get_contract):

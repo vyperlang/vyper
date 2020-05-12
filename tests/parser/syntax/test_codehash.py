@@ -1,18 +1,10 @@
 
 import pytest
 
-from vyper.compiler import (
-    compile_code,
-)
-from vyper.exceptions import (
-    EvmVersionException,
-)
-from vyper.opcodes import (
-    EVM_VERSIONS,
-)
-from vyper.utils import (
-    keccak256,
-)
+from vyper.compiler import compile_code
+from vyper.exceptions import EvmVersionException
+from vyper.opcodes import EVM_VERSIONS
+from vyper.utils import keccak256
 
 
 @pytest.mark.parametrize('evm_version', list(EVM_VERSIONS))

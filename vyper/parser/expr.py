@@ -1,8 +1,6 @@
 import warnings
 
-from vyper import (
-    ast as vy_ast,
-)
+from vyper import ast as vy_ast
 from vyper.exceptions import (
     EvmVersionException,
     InvalidLiteral,
@@ -12,19 +10,10 @@ from vyper.exceptions import (
     VariableDeclarationException,
     ZeroDivisionException,
 )
-from vyper.opcodes import (
-    version_check,
-)
-from vyper.parser import (
-    external_call,
-    self_call,
-)
-from vyper.parser.keccak256_helper import (
-    keccak256_helper,
-)
-from vyper.parser.lll_node import (
-    LLLnode,
-)
+from vyper.opcodes import version_check
+from vyper.parser import external_call, self_call
+from vyper.parser.keccak256_helper import keccak256_helper
+from vyper.parser.lll_node import LLLnode
 from vyper.parser.parser_utils import (
     add_variable_offset,
     get_number_as_fraction,

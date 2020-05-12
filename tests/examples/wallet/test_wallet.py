@@ -1,13 +1,7 @@
-from eth_account import (
-    Account,
-)
-from eth_keys import (
-    KeyAPI,
-)
-from eth_utils import (
-    is_same_address,
-)
 import pytest
+from eth_account import Account
+from eth_keys import KeyAPI
+from eth_utils import is_same_address
 
 
 @pytest.fixture

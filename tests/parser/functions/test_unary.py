@@ -1,12 +1,8 @@
-from decimal import (
-    Decimal,
-)
+from decimal import Decimal
 
 import pytest
 
-from vyper.exceptions import (
-    TypeMismatch,
-)
+from vyper.exceptions import TypeMismatch
 
 
 def test_unary_sub_uint256_fail(assert_compile_failed, get_contract):

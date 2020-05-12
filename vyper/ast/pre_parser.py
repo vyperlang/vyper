@@ -9,21 +9,12 @@ from tokenize import (
     tokenize,
     untokenize,
 )
-from typing import (
-    Sequence,
-    Tuple,
-)
+from typing import Sequence, Tuple
 
-from vyper.exceptions import (
-    SyntaxException,
-    VersionException,
-)
-from vyper.typing import (
-    ClassTypes,
-    ParserPosition,
-)
+from vyper.exceptions import SyntaxException, VersionException
+from vyper.typing import ClassTypes, ParserPosition
 
-VERSION_RE = re.compile(r'^(\d+\.)(\d+\.)(\w*)$')
+VERSION_RE = re.compile(r"^(\d+\.)(\d+\.)(\w*)$")
 
 
 def _parse_version_str(version_str: str, start: ParserPosition) -> Sequence[str]:
@@ -31,8 +22,7 @@ def _parse_version_str(version_str: str, start: ParserPosition) -> Sequence[str]
 
     if match is None:
         raise VersionException(
-            f'Could not parse given version string "{version_str}"',
-            start,
+            f'Could not parse given version string "{version_str}"', start,
         )
 
     return match.groups()
@@ -42,15 +32,15 @@ def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
     """
     Validates a version pragma directive against the current compiler version.
     """
-    from vyper import (
-        __version__,
-    )
+    from vyper import __version__
 
-    version_arr = version_str.split('@version')
+    version_arr = version_str.split("@version")
 
     file_version = version_arr[1].strip()
     file_major, file_minor, file_patch = _parse_version_str(file_version, start)
-    compiler_major, compiler_minor, compiler_patch = _parse_version_str(__version__, start)
+    compiler_major, compiler_minor, compiler_patch = _parse_version_str(
+        __version__, start
+    )
 
     if (file_major, file_minor) != (compiler_major, compiler_minor):
         raise VersionException(
@@ -61,8 +51,8 @@ def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
 
 
 VYPER_CLASS_TYPES = {
-    'contract',
-    'struct',
+    "contract",
+    "struct",
 }
 
 
@@ -96,7 +86,7 @@ def pre_parse(code: str) -> Tuple[ClassTypes, str]:
     class_types: ClassTypes = {}
 
     try:
-        code_bytes = code.encode('utf-8')
+        code_bytes = code.encode("utf-8")
         g = tokenize(io.BytesIO(code_bytes).readline)
 
         for token in g:
@@ -116,7 +106,7 @@ def pre_parse(code: str) -> Tuple[ClassTypes, str]:
                     "The `class` keyword is not allowed. Perhaps you meant `contract` or `struct`?",
                     code,
                     start[0],
-                    start[1]
+                    start[1],
                 )
 
             # Make note of contract or struct name along with the type keyword
@@ -132,9 +122,11 @@ def pre_parse(code: str) -> Tuple[ClassTypes, str]:
                 previous_keyword = string
 
             if (typ, string) == (OP, ";"):
-                raise SyntaxException("Semi-colon statements not allowed", code, start[0], start[1])
+                raise SyntaxException(
+                    "Semi-colon statements not allowed", code, start[0], start[1]
+                )
             result.extend(toks)
     except TokenError as e:
         raise SyntaxException(e.args[0], code, e.args[1][0], e.args[1][1]) from e
 
-    return class_types, untokenize(result).decode('utf-8')
+    return class_types, untokenize(result).decode("utf-8")

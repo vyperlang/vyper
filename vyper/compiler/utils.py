@@ -1,6 +1,4 @@
-from vyper.parser.lll_node import (
-    LLLnode,
-)
+from vyper.parser.lll_node import LLLnode
 
 
 def build_gas_estimates(lll_nodes: LLLnode) -> dict:
@@ -33,7 +31,9 @@ def expand_source_map(compressed_map: str) -> list:
     List
         Expanded source map as `[[start, length, jump, source id], .. ]`
     """
-    source_map: list = [_expand_row(i) if i else None for i in compressed_map.split(";")[:-1]]
+    source_map: list = [
+        _expand_row(i) if i else None for i in compressed_map.split(";")[:-1]
+    ]
 
     for i, value in enumerate(source_map[1:], 1):
         if value is None:

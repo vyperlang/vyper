@@ -1,14 +1,8 @@
 import pytest
-from pytest import (
-    raises,
-)
+from pytest import raises
 
-from vyper import (
-    compiler,
-)
-from vyper.exceptions import (
-    ConstancyViolation,
-)
+from vyper import compiler
+from vyper.exceptions import ConstancyViolation
 
 fail_list = [
     """

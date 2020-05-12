@@ -1,20 +1,8 @@
 
-from vyper.parser.lll_node import (
-    LLLnode,
-)
-from vyper.parser.parser_utils import (
-    getpos,
-    make_byte_array_copier,
-)
-from vyper.types import (
-    BaseType,
-    is_base_type,
-)
-from vyper.utils import (
-    MemoryPositions,
-    bytes_to_int,
-    keccak256,
-)
+from vyper.parser.lll_node import LLLnode
+from vyper.parser.parser_utils import getpos, make_byte_array_copier
+from vyper.types import BaseType, is_base_type
+from vyper.utils import MemoryPositions, bytes_to_int, keccak256
 
 
 def keccak256_helper(expr, args, kwargs, context):

@@ -1,7 +1,5 @@
-from eth_utils import (
-    keccak,
-)
 import pytest
+from eth_utils import keccak
 
 import vyper
 

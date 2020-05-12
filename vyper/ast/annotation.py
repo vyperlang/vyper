@@ -1,20 +1,11 @@
 import ast as python_ast
-from decimal import (
-    Decimal,
-)
-from typing import (
-    Optional,
-)
+from decimal import Decimal
+from typing import Optional
 
 import asttokens
 
-from vyper.exceptions import (
-    CompilerPanic,
-    SyntaxException,
-)
-from vyper.typing import (
-    ClassTypes,
-)
+from vyper.exceptions import CompilerPanic, SyntaxException
+from vyper.typing import ClassTypes
 
 
 class AnnotatingVisitor(python_ast.NodeTransformer):
@@ -139,14 +130,14 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         value = node.node_source_code
 
         # deduce non base-10 types based on prefix
-        literal_prefixes = {'0x': "Hex", '0o': "Octal"}
+        literal_prefixes = {"0x": "Hex", "0o": "Octal"}
         if value.lower()[:2] in literal_prefixes:
             node.ast_type = literal_prefixes[value.lower()[:2]]
             node.n = value
 
         elif value.lower()[:2] == "0b":
             node.ast_type = "Bytes"
-            mod = (len(value)-2) % 8
+            mod = (len(value) - 2) % 8
             if mod:
                 raise SyntaxException(
                     f"Bit notation requires a multiple of 8 bits. {8-mod} bit(s) are missing.",
@@ -164,7 +155,9 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             node.ast_type = "Int"
 
         else:
-            raise CompilerPanic(f"Unexpected type for Constant value: {type(node.n).__name__}")
+            raise CompilerPanic(
+                f"Unexpected type for Constant value: {type(node.n).__name__}"
+            )
 
         return node
 
@@ -183,9 +176,9 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         is_sub = isinstance(node.op, python_ast.USub)
         is_num = (
-            hasattr(node.operand, 'n') and
-            not isinstance(node.operand.n, bool) and
-            isinstance(node.operand.n, (int, Decimal))
+            hasattr(node.operand, "n")
+            and not isinstance(node.operand.n, bool)
+            and isinstance(node.operand.n, (int, Decimal))
         )
         if is_sub and is_num:
             node.operand.n = 0 - node.operand.n

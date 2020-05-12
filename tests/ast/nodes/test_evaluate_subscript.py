@@ -1,13 +1,8 @@
-from hypothesis import (
-    given,
-    settings,
-    strategies as st,
-)
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
-from vyper import (
-    ast as vy_ast,
-)
+from vyper import ast as vy_ast
 
 
 @pytest.mark.fuzzing

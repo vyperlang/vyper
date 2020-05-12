@@ -2,11 +2,7 @@
 # -*- coding: UTF-8 -*-
 import sys
 
-from vyper.cli import (
-    vyper_compile,
-    vyper_lll,
-    vyper_serve,
-)
+from vyper.cli import vyper_compile, vyper_lll, vyper_serve
 
 if __name__ == "__main__":
 

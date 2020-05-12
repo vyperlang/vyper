@@ -1,11 +1,6 @@
-from typing import (
-    Dict,
-    Optional,
-)
+from typing import Dict, Optional
 
-from vyper.exceptions import (
-    CompilerPanic,
-)
+from vyper.exceptions import CompilerPanic
 from vyper.typing import (
     OpcodeGasCost,
     OpcodeMap,

@@ -1,11 +1,7 @@
 import pytest
 
-from vyper import (
-    optimizer,
-)
-from vyper.parser.parser import (
-    LLLnode,
-)
+from vyper import optimizer
+from vyper.parser.parser import LLLnode
 
 optimize_list = [
     (['ne', 1, 0], ['ne', 1, 0]),  # noop

@@ -1,15 +1,8 @@
 import pytest
-from pytest import (
-    raises,
-)
+from pytest import raises
 
-from vyper import (
-    compiler,
-)
-from vyper.exceptions import (
-    StructureException,
-    SyntaxException,
-)
+from vyper import compiler
+from vyper.exceptions import StructureException, SyntaxException
 
 fail_list = [
     """

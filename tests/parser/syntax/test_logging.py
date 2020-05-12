@@ -1,15 +1,8 @@
 import pytest
-from pytest import (
-    raises,
-)
+from pytest import raises
 
-from vyper import (
-    compiler,
-)
-from vyper.exceptions import (
-    InvalidLiteral,
-    TypeMismatch,
-)
+from vyper import compiler
+from vyper.exceptions import InvalidLiteral, TypeMismatch
 
 fail_list = [
     """

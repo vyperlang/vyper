@@ -5,17 +5,9 @@ from vyper.exceptions import (
     SyntaxException,
     VariableDeclarationException,
 )
-from vyper.functions import (
-    BUILTIN_FUNCTIONS,
-)
-from vyper.parser.expr import (
-    BUILTIN_CONSTANTS,
-    ENVIRONMENT_VARIABLES,
-)
-from vyper.utils import (
-    FUNCTION_WHITELIST,
-    RESERVED_KEYWORDS,
-)
+from vyper.functions import BUILTIN_FUNCTIONS
+from vyper.parser.expr import BUILTIN_CONSTANTS, ENVIRONMENT_VARIABLES
+from vyper.utils import FUNCTION_WHITELIST, RESERVED_KEYWORDS
 
 ALL_RESERVED_KEYWORDS = (
                             set(BUILTIN_CONSTANTS.keys())

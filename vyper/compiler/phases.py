@@ -1,23 +1,11 @@
-from typing import (
-    Optional,
-    Tuple,
-)
 import warnings
+from typing import Optional, Tuple
 
-from vyper import (
-    ast as vy_ast,
-    compile_lll,
-    optimizer,
-)
-from vyper.parser import (
-    parser,
-)
-from vyper.parser.global_context import (
-    GlobalContext,
-)
-from vyper.typing import (
-    InterfaceImports,
-)
+from vyper import ast as vy_ast
+from vyper import compile_lll, optimizer
+from vyper.parser import parser
+from vyper.parser.global_context import GlobalContext
+from vyper.typing import InterfaceImports
 
 
 class CompilerData:
@@ -47,6 +35,7 @@ class CompilerData:
     bytecode_runtime : bytes
         Runtime bytecode
     """
+
     def __init__(
         self,
         source_code: str,
@@ -85,7 +74,9 @@ class CompilerData:
     @property
     def global_ctx(self) -> GlobalContext:
         if not hasattr(self, "_global_ctx"):
-            self._global_ctx = generate_global_context(self.vyper_module, self.interface_codes)
+            self._global_ctx = generate_global_context(
+                self.vyper_module, self.interface_codes
+            )
 
         return self._global_ctx
 
@@ -173,7 +164,9 @@ def generate_global_context(
     GlobalContext
         Sorted, contextualized representation of the Vyper AST
     """
-    return GlobalContext.get_global_context(vyper_module, interface_codes=interface_codes)
+    return GlobalContext.get_global_context(
+        vyper_module, interface_codes=interface_codes
+    )
 
 
 def generate_lll_nodes(

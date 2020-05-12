@@ -1,9 +1,6 @@
 import pytest
 
-from vyper.cli.vyper_compile import (
-    compile_files,
-    get_interface_file_path,
-)
+from vyper.cli.vyper_compile import compile_files, get_interface_file_path
 
 FOO_CODE = """
 {}

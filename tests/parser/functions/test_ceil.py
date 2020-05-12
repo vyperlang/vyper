@@ -1,6 +1,4 @@
-from decimal import (
-    Decimal,
-)
+from decimal import Decimal
 
 
 def test_ceil(get_contract_with_gas_estimation):

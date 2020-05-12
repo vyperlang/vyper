@@ -1,6 +1,4 @@
-from vyper.parser.lll_node import (
-    LLLnode,
-)
+from vyper.parser.lll_node import LLLnode
 
 
 def get_sig_statements(sig, pos):

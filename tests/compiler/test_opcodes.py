@@ -1,12 +1,8 @@
 import pytest
 
 import vyper
-from vyper import (
-    opcodes,
-)
-from vyper.exceptions import (
-    CompilerPanic,
-)
+from vyper import opcodes
+from vyper.exceptions import CompilerPanic
 
 
 @pytest.fixture(params=list(opcodes.EVM_VERSIONS))

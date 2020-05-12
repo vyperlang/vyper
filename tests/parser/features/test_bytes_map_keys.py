@@ -1,8 +1,6 @@
 import pytest
 
-from vyper.exceptions import (
-    TypeMismatch,
-)
+from vyper.exceptions import TypeMismatch
 
 
 def test_basic_bytes_keys(w3, get_contract):

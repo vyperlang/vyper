@@ -1,13 +1,7 @@
-from typing import (
-    Tuple,
-)
+from typing import Tuple
 
-from vyper.exceptions import (
-    CompilerPanic,
-)
-from vyper.utils import (
-    MemoryPositions,
-)
+from vyper.exceptions import CompilerPanic
+from vyper.utils import MemoryPositions
 
 
 class MemoryAllocator:

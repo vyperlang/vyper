@@ -1,15 +1,9 @@
-from hypothesis import (
-    assume,
-    given,
-    settings,
-    strategies as st,
-)
 import pytest
+from hypothesis import assume, given, settings
+from hypothesis import strategies as st
 
-from vyper import (
-    ast as vy_ast,
-    functions as vy_fn,
-)
+from vyper import ast as vy_ast
+from vyper import functions as vy_fn
 
 st_uint256 = st.integers(min_value=0, max_value=2 ** 256 - 1)
 

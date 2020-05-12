@@ -1,11 +1,7 @@
 import pytest
 
-from vyper import (
-    ast as vy_ast,
-)
-from vyper.ast import (
-    folding,
-)
+from vyper import ast as vy_ast
+from vyper.ast import folding
 
 
 def test_integration():

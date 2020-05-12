@@ -1,7 +1,5 @@
 import os
-from typing import (
-    Optional,
-)
+from typing import Optional
 
 VYPER_COLOR_OUTPUT = os.environ.get('VYPER_COLOR_OUTPUT', '0') == '1'
 VYPER_ERROR_CONTEXT_LINES = int(os.environ.get('VYPER_ERROR_CONTEXT_LINES', '1'))

@@ -1,9 +1,5 @@
-from vyper.exceptions import (
-    CompilerPanic,
-)
-from vyper.parser.lll_node import (
-    LLLnode,
-)
+from vyper.exceptions import CompilerPanic
+from vyper.parser.lll_node import LLLnode
 from vyper.parser.parser_utils import (
     add_variable_offset,
     make_setter,
@@ -18,9 +14,7 @@ from vyper.types import (
     StringType,
     TupleLike,
 )
-from vyper.utils import (
-    ceil32,
-)
+from vyper.utils import ceil32
 
 
 # https://solidity.readthedocs.io/en/latest/abi-spec.html#types

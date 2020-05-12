@@ -1,26 +1,15 @@
 #!/usr/bin/env python3
 
 import argparse
-from http.server import (
-    BaseHTTPRequestHandler,
-    HTTPServer,
-)
 import json
-from socketserver import (
-    ThreadingMixIn,
-)
 import sys
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from socketserver import ThreadingMixIn
 
 import vyper
-from vyper.exceptions import (
-    VyperException,
-)
-from vyper.opcodes import (
-    DEFAULT_EVM_VERSION,
-)
-from vyper.parser import (
-    lll_node,
-)
+from vyper.exceptions import VyperException
+from vyper.opcodes import DEFAULT_EVM_VERSION
+from vyper.parser import lll_node
 
 
 def _parse_cli_args():

@@ -1,7 +1,4 @@
-from vyper.exceptions import (
-    InvalidLiteral,
-    SyntaxException,
-)
+from vyper.exceptions import InvalidLiteral, SyntaxException
 
 
 def test_no_none_assign(assert_compile_failed, get_contract_with_gas_estimation):

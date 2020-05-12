@@ -1,6 +1,4 @@
-from ethereum import (
-    utils,
-)
+from ethereum import utils
 
 
 def mk_forwarder(address):

@@ -1,11 +1,7 @@
 import pytest
 
-from vyper import (
-    compiler,
-)
-from vyper.exceptions import (
-    StructureException,
-)
+from vyper import compiler
+from vyper.exceptions import StructureException
 
 FAILING_CONTRACTS = [
     """

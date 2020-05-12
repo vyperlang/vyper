@@ -1,18 +1,10 @@
 import contextlib
 import enum
 
-from vyper.exceptions import (
-    VariableDeclarationException,
-)
-from vyper.signatures.function_signature import (
-    VariableRecord,
-)
-from vyper.types import (
-    get_size_of_type,
-)
-from vyper.utils import (
-    check_valid_varname,
-)
+from vyper.exceptions import VariableDeclarationException
+from vyper.signatures.function_signature import VariableRecord
+from vyper.types import get_size_of_type
+from vyper.utils import check_valid_varname
 
 
 class Constancy(enum.Enum):

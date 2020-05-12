@@ -1,18 +1,10 @@
-from decimal import (
-    ROUND_FLOOR,
-    Decimal,
-    getcontext,
-)
+from decimal import ROUND_FLOOR, Decimal, getcontext
 
-from eth_tester.exceptions import (
-    TransactionFailed,
-)
 import hypothesis
 import pytest
+from eth_tester.exceptions import TransactionFailed
 
-from vyper.utils import (
-    SizeLimits,
-)
+from vyper.utils import SizeLimits
 
 getcontext().prec = 168
 DECIMAL_PLACES = 10

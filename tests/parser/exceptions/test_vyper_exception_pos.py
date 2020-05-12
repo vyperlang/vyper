@@ -1,10 +1,6 @@
-from pytest import (
-    raises,
-)
+from pytest import raises
 
-from vyper.exceptions import (
-    VyperException,
-)
+from vyper.exceptions import VyperException
 
 
 def test_type_exception_pos():

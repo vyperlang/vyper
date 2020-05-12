@@ -1,30 +1,16 @@
 import copy
 
-from vyper import (
-    ast as vy_ast,
-)
+from vyper import ast as vy_ast
 from vyper.exceptions import (
     StructureException,
     TypeMismatch,
     VariableDeclarationException,
 )
-from vyper.parser.context import (
-    Context,
-)
-from vyper.parser.expr import (
-    Expr,
-)
-from vyper.parser.memory_allocator import (
-    MemoryAllocator,
-)
-from vyper.types.types import (
-    BaseType,
-    ByteArrayType,
-)
-from vyper.utils import (
-    SizeLimits,
-    is_instances,
-)
+from vyper.parser.context import Context
+from vyper.parser.expr import Expr
+from vyper.parser.memory_allocator import MemoryAllocator
+from vyper.types.types import BaseType, ByteArrayType
+from vyper.utils import SizeLimits, is_instances
 
 
 class Constants(object):

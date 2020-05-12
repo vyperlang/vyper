@@ -1,7 +1,4 @@
-from vyper.utils import (
-    DECIMAL_DIVISOR,
-    SizeLimits,
-)
+from vyper.utils import DECIMAL_DIVISOR, SizeLimits
 
 
 def test_convert_to_bytes32(w3, get_contract_with_gas_estimation, bytes_helper):

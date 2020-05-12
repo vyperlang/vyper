@@ -1,10 +1,6 @@
-from decimal import (
-    Decimal,
-)
+from decimal import Decimal
 
-from vyper.exceptions import (
-    InvalidLiteral,
-)
+from vyper.exceptions import InvalidLiteral
 
 
 def test_exponents_with_nums(get_contract_with_gas_estimation):

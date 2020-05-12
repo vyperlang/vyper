@@ -1,19 +1,11 @@
-from vyper import (
-    ast as vy_ast,
-)
+from vyper import ast as vy_ast
 from vyper.exceptions import (
     EventDeclarationException,
     InvalidType,
     VariableDeclarationException,
 )
-from vyper.signatures.function_signature import (
-    VariableRecord,
-)
-from vyper.types import (
-    ByteArrayType,
-    canonicalize_type,
-    get_size_of_type,
-)
+from vyper.signatures.function_signature import VariableRecord
+from vyper.types import ByteArrayType, canonicalize_type, get_size_of_type
 from vyper.utils import (
     bytes_to_int,
     ceil32,

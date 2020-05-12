@@ -1,54 +1,23 @@
 import ast
-from typing import (
-    Any,
-    List,
-    Union,
-)
+from typing import Any, List, Union
 
-from vyper.exceptions import (
-    FunctionDeclarationException,
-)
-from vyper.parser.arg_clamps import (
-    make_arg_clamper,
-)
-from vyper.parser.context import (
-    Context,
-    VariableRecord,
-)
-from vyper.parser.expr import (
-    Expr,
-)
+from vyper.exceptions import FunctionDeclarationException
+from vyper.parser.arg_clamps import make_arg_clamper
+from vyper.parser.context import Context, VariableRecord
+from vyper.parser.expr import Expr
 from vyper.parser.function_definitions.utils import (
     get_default_names_to_set,
     get_nonreentrant_lock,
     get_sig_statements,
 )
-from vyper.parser.global_context import (
-    GlobalContext,
-)
-from vyper.parser.lll_node import (
-    LLLnode,
-)
-from vyper.parser.parser_utils import (
-    getpos,
-    make_setter,
-)
-from vyper.parser.stmt import (
-    parse_body,
-)
-from vyper.signatures import (
-    sig_utils,
-)
-from vyper.signatures.function_signature import (
-    FunctionSignature,
-)
-from vyper.types.types import (
-    ByteArrayLike,
-    get_size_of_type,
-)
-from vyper.utils import (
-    MemoryPositions,
-)
+from vyper.parser.global_context import GlobalContext
+from vyper.parser.lll_node import LLLnode
+from vyper.parser.parser_utils import getpos, make_setter
+from vyper.parser.stmt import parse_body
+from vyper.signatures import sig_utils
+from vyper.signatures.function_signature import FunctionSignature
+from vyper.types.types import ByteArrayLike, get_size_of_type
+from vyper.utils import MemoryPositions
 
 
 def get_public_arg_copier(total_size: int,

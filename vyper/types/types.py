@@ -1,25 +1,12 @@
 import abc
-from collections import (
-    OrderedDict,
-)
 import copy
-from typing import (
-    Any,
-)
 import warnings
+from collections import OrderedDict
+from typing import Any
 
-from vyper import (
-    ast as vy_ast,
-)
-from vyper.exceptions import (
-    CompilerPanic,
-    InvalidType,
-)
-from vyper.utils import (
-    BASE_TYPES,
-    ceil32,
-    check_valid_varname,
-)
+from vyper import ast as vy_ast
+from vyper.exceptions import CompilerPanic, InvalidType
+from vyper.utils import BASE_TYPES, ceil32, check_valid_varname
 
 
 # Data structure for a type

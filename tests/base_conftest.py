@@ -1,30 +1,14 @@
-from eth_tester import (
-    EthereumTester,
-    PyEVMBackend,
-)
-from eth_tester.exceptions import (
-    TransactionFailed,
-)
-from eth_utils.toolz import (
-    compose,
-)
 import pytest
+from eth_tester import EthereumTester, PyEVMBackend
+from eth_tester.exceptions import TransactionFailed
+from eth_utils.toolz import compose
 from web3 import Web3
-from web3.contract import (
-    Contract,
-    mk_collision_prop,
-)
-from web3.providers.eth_tester import (
-    EthereumTesterProvider,
-)
+from web3.contract import Contract, mk_collision_prop
+from web3.providers.eth_tester import EthereumTesterProvider
 
-from vyper import (
-    compiler,
-)
+from vyper import compiler
 
-from .grammar.conftest import (
-    get_lark_grammar,
-)
+from .grammar.conftest import get_lark_grammar
 
 LARK_GRAMMAR = get_lark_grammar()
 

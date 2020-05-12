@@ -1,10 +1,6 @@
-from typing import (
-    Optional,
-)
+from typing import Optional
 
-from vyper import (
-    ast as vy_ast,
-)
+from vyper import ast as vy_ast
 from vyper.exceptions import (
     EventDeclarationException,
     FunctionDeclarationException,
@@ -12,17 +8,9 @@ from vyper.exceptions import (
     StructureException,
     VariableDeclarationException,
 )
-from vyper.parser.constants import (
-    Constants,
-)
-from vyper.parser.parser_utils import (
-    getpos,
-    set_offsets,
-)
-from vyper.signatures.function_signature import (
-    ContractRecord,
-    VariableRecord,
-)
+from vyper.parser.constants import Constants
+from vyper.parser.parser_utils import getpos, set_offsets
+from vyper.signatures.function_signature import ContractRecord, VariableRecord
 from vyper.types import (
     BaseType,
     ByteArrayLike,
@@ -32,13 +20,8 @@ from vyper.types import (
     StructType,
     parse_type,
 )
-from vyper.typing import (
-    InterfaceImports,
-)
-from vyper.utils import (
-    VALID_GLOBAL_KEYWORDS,
-    check_valid_varname,
-)
+from vyper.typing import InterfaceImports
+from vyper.utils import VALID_GLOBAL_KEYWORDS, check_valid_varname
 
 NONRENTRANT_STORAGE_OFFSET = 0xffffff
 

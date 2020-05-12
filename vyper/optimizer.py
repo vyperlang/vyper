@@ -1,16 +1,8 @@
 import operator
-from typing import (
-    Any,
-    List,
-    Optional,
-)
+from typing import Any, List, Optional
 
-from vyper.parser.parser_utils import (
-    LLLnode,
-)
-from vyper.utils import (
-    LOADED_LIMITS,
-)
+from vyper.parser.parser_utils import LLLnode
+from vyper.utils import LOADED_LIMITS
 
 
 def get_int_at(args: List[LLLnode], pos: int, signed: bool = False) -> Optional[int]:

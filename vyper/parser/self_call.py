@@ -5,16 +5,9 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatch,
 )
-from vyper.parser.lll_node import (
-    LLLnode,
-)
-from vyper.parser.parser_utils import (
-    getpos,
-    pack_arguments,
-)
-from vyper.signatures.function_signature import (
-    FunctionSignature,
-)
+from vyper.parser.lll_node import LLLnode
+from vyper.parser.parser_utils import getpos, pack_arguments
+from vyper.signatures.function_signature import FunctionSignature
 from vyper.types import (
     BaseType,
     ByteArrayLike,

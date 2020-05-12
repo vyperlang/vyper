@@ -1,16 +1,8 @@
 import pytest
-from pytest import (
-    raises,
-)
+from pytest import raises
 
-from vyper import (
-    compiler,
-)
-from vyper.exceptions import (
-    InvalidLiteral,
-    StructureException,
-    TypeMismatch,
-)
+from vyper import compiler
+from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
 
 # These functions register test cases
 # for pytest functions at the end

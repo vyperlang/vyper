@@ -1,11 +1,6 @@
-from typing import (
-    Optional,
-    Union,
-)
+from typing import Optional, Union
 
-from vyper.ast import (
-    nodes as vy_ast,
-)
+from vyper.ast import nodes as vy_ast
 from vyper.exceptions import (
     ArgumentException,
     CompilerPanic,

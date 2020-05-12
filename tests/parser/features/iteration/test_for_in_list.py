@@ -1,13 +1,8 @@
-from decimal import (
-    Decimal,
-)
+from decimal import Decimal
 
 import pytest
 
-from vyper.exceptions import (
-    StructureException,
-    VariableDeclarationException,
-)
+from vyper.exceptions import StructureException, VariableDeclarationException
 
 BASIC_FOR_LOOP_CODE = [
     # basic for-in-list memory

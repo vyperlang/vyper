@@ -2,15 +2,9 @@
 
 import pytest
 
-from vyper.cli.vyper_json import (
-    get_input_dict_contracts,
-)
-from vyper.exceptions import (
-    JSONError,
-)
-from vyper.utils import (
-    keccak256,
-)
+from vyper.cli.vyper_json import get_input_dict_contracts
+from vyper.exceptions import JSONError
+from vyper.utils import keccak256
 
 FOO_CODE = """
 import contracts.bar as Bar

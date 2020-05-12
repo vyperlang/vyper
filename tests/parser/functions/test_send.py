@@ -1,6 +1,4 @@
-from web3.exceptions import (
-    ValidationError,
-)
+from web3.exceptions import ValidationError
 
 
 def test_send(assert_tx_failed, get_contract):

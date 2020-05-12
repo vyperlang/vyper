@@ -19,7 +19,7 @@ test_deps = [
     'hypothesis[lark]>=4.53.2,<5',
 ]
 lint_deps = [
-    'flake8>=3.7,<4',
+    'flake8>=3.7.9,<3.8.0',
     'flake8-bugbear>=19.8.0,<20',
     'flake8-use-fstring>=1.0.0,<2.0.0',
     'isort>=4.2.15,<5',

@@ -2,13 +2,8 @@
 
 import pytest
 
-from vyper.cli.vyper_json import (
-    get_input_dict_interfaces,
-    get_interface_codes,
-)
-from vyper.exceptions import (
-    JSONError,
-)
+from vyper.cli.vyper_json import get_input_dict_interfaces, get_interface_codes
+from vyper.exceptions import JSONError
 
 FOO_CODE = """
 import contracts.bar as Bar
