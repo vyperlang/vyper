@@ -737,7 +737,13 @@ class AsWeiValue:
         if isinstance(value, Decimal) and value >= 2**127:
             raise InvalidLiteral("Value out of range for decimal", node.args[0])
 
-        denom = next(v for k, v in self.wei_denoms.items() if node.args[1].value in k)
+        try:
+            denom = next(v for k, v in self.wei_denoms.items() if node.args[1].value in k)
+        except StopIteration:
+            raise ArgumentException(
+                f"Unknown denomination: {node.args[1].value}", node.args[1]
+            ) from None
+
         return vy_ast.Int.from_node(node, value=int(value * denom))
 
     @validate_inputs
