@@ -296,11 +296,6 @@ x: uint256
 def foo(a: uint256[2] = [2, self.x]): pass
      """, FunctionDeclarationException),
     ("""
-# default params still must be literals
-@public
-def foo(a: uint256 = 2**8): pass
-     """, FunctionDeclarationException),
-    ("""
 # msg.value in a nonpayable
 @public
 def foo(a: uint256 = msg.value): pass

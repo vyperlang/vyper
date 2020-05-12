@@ -76,6 +76,11 @@ def foo():
 def foo():
     struct: bool = True
     """,
+    """
+@public
+def foo():
+    x = as_wei_value(5.1824, "babbage")
+    """,
 ]
 
 
