@@ -1,3 +1,6 @@
+import pytest
+
+
 def test_private_test(get_contract_with_gas_estimation):
     private_test_code = """
 @private
@@ -207,23 +210,6 @@ def added(a: uint256, b: uint256) -> uint256:
 
     assert c.add_one(20) == 21
     assert c.added(10, 20) == 30
-
-
-def test_private_return_tuple(get_contract_with_gas_estimation):
-    code = """
-@private
-def _test(a: int128) -> (int128, int128):
-    return a + 2, 2
-
-
-@public
-def test(a: int128) -> (int128, int128):
-    return self._test(a)
-    """
-
-    c = get_contract_with_gas_estimation(code)
-
-    assert c.test(11) == [13, 2]
 
 
 def test_private_return_bytes(get_contract_with_gas_estimation):
@@ -562,3 +548,79 @@ def outer(xs: bytes[256] = b"") -> bool:
 
     c = get_contract(private_test_code)
     assert c.outer()
+
+
+tuple_return_sources = [
+    ("""
+@private
+def _test(a: int128) -> (int128, int128):
+    return a + 2, 2
+
+
+@public
+def foo(a: int128) -> (int128, int128):
+    return self._test(a)
+    """, (11,), [13, 2]),
+    ("""
+struct A:
+    many: uint256[4]
+    one: uint256
+
+@private
+def _foo(_many: uint256[4], _one: uint256) -> A:
+    return A({many: _many, one: _one})
+
+@public
+def foo() -> A:
+    return self._foo([1, 2, 3, 4], 5)
+    """, (), ([1, 2, 3, 4], 5)),
+    ("""
+struct A:
+    many: uint256[4]
+    one: uint256
+
+@private
+def _foo(_many: uint256[4], _one: uint256) -> A:
+    return A({many: _many, one: _one})
+
+@public
+def foo() -> (uint256[4], uint256):
+    out: A = self._foo([1, 2, 3, 4], 5)
+    return out.many, out.one
+    """, (), [[1, 2, 3, 4], 5]),
+    ("""
+@private
+def _foo() -> (uint256[2], uint256[2]):
+    return [1, 2], [5, 6]
+
+@public
+def foo() -> (uint256[2], uint256[2], uint256[2]):
+    return self._foo()[0], [3, 4], self._foo()[1]
+    """, (), [[1, 2], [3, 4], [5, 6]]),
+    ("""
+@private
+def _foo(a: int128, b: int128[3], c: int128[3]) -> (int128[3], int128, int128[3]):
+    return c, 4, [b[1], a, b[0]]
+
+@public
+def foo(a: int128, b: int128[3], c: int128[3]) -> (int128[3], int128, int128[3]):
+    return self._foo(a, b, c)
+    """, (6, [7, 5, 8], [1, 2, 3]), [[1, 2, 3], 4, [5, 6, 7]]),
+    ("""
+@private
+def _foo(a: int128, b: int128[3], c: int128[3]) -> (int128[3], int128, int128[3]):
+    return c, 4, [b[1], a, b[0]]
+
+@public
+def foo(a: int128, b: int128[3], c: int128[3]) -> (int128[3], int128, int128[3]):
+    return c, 4, self._foo(a, b, c)[2]
+    """, (6, [7, 5, 8], [1, 2, 3]), [[1, 2, 3], 4, [5, 6, 7]]),
+
+]
+
+
+@pytest.mark.parametrize("source_code,args,expected", tuple_return_sources)
+def test_tuple_return_types(get_contract, source_code, args, expected):
+    c = get_contract(source_code)
+
+    assert c.foo(*args) == expected
