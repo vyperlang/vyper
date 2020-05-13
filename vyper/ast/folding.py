@@ -48,6 +48,11 @@ def replace_literal_ops(vyper_module: vy_ast.Module) -> int:
     ---------
     vyper_module : Module
         Top-level Vyper AST node.
+
+    Returns
+    -------
+    int
+        Number of nodes that were replaced.
     """
     changed_nodes = 0
 
@@ -73,6 +78,11 @@ def replace_subscripts(vyper_module: vy_ast.Module) -> int:
     ---------
     vyper_module : Module
         Top-level Vyper AST node.
+
+    Returns
+    -------
+    int
+        Number of nodes that were replaced.
     """
     changed_nodes = 0
 
@@ -97,6 +107,11 @@ def replace_builtin_functions(vyper_module: vy_ast.Module) -> int:
     ---------
     vyper_module : Module
         Top-level Vyper AST node.
+
+    Returns
+    -------
+    int
+        Number of nodes that were replaced.
     """
     changed_nodes = 0
 
@@ -141,6 +156,11 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
     ---------
     vyper_module : Module
         Top-level Vyper AST node.
+
+    Returns
+    -------
+    int
+        Number of nodes that were replaced.
     """
     changed_nodes = 0
 
@@ -188,6 +208,11 @@ def replace_constant(
         Vyper ast node representing the literal value to be substituted in.
     raise_on_error: bool
         Boolean indicating if `UnfoldableNode` exception should be raised or ignored.
+
+    Returns
+    -------
+    int
+        Number of nodes that were replaced.
     """
     changed_nodes = 0
 
