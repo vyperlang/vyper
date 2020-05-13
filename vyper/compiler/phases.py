@@ -21,6 +21,8 @@ class CompilerData:
     ----------
     vyper_module : vy_ast.Module
         Top-level Vyper AST node
+    vyper_module_folded : vy_ast.Module
+        Folded Vyper AST
     global_ctx : GlobalContext
         Sorted, contextualized representation of the Vyper AST
     lll_nodes : LLLnode
@@ -36,6 +38,7 @@ class CompilerData:
     bytecode_runtime : bytes
         Runtime bytecode
     """
+
     def __init__(
         self,
         source_code: str,
@@ -134,8 +137,6 @@ def generate_ast(source_code: str, source_id: int) -> vy_ast.Module:
     """
     Generate a Vyper AST from source code.
 
-    This is the first phase of compilation.
-
     Arguments
     ---------
     source_code : str
@@ -152,6 +153,19 @@ def generate_ast(source_code: str, source_id: int) -> vy_ast.Module:
 
 
 def generate_folded_ast(vyper_module: vy_ast.Module) -> vy_ast.Module:
+    """
+    Perform constant folding operations on the Vyper AST.
+
+    Arguments
+    ---------
+    vyper_module : vy_ast.Module
+        Top-level Vyper AST node
+
+    Returns
+    -------
+    vy_ast.Module
+        Folded Vyper AST
+    """
     vyper_module_folded = copy.deepcopy(vyper_module)
     vy_ast.folding.fold(vyper_module_folded)
 
@@ -163,8 +177,6 @@ def generate_global_context(
 ) -> GlobalContext:
     """
     Generate a contextualized AST from the Vyper AST.
-
-    This is the second phase of compilation.
 
     Arguments
     ---------
@@ -178,7 +190,9 @@ def generate_global_context(
     GlobalContext
         Sorted, contextualized representation of the Vyper AST
     """
-    return GlobalContext.get_global_context(vyper_module, interface_codes=interface_codes)
+    return GlobalContext.get_global_context(
+        vyper_module, interface_codes=interface_codes
+    )
 
 
 def generate_lll_nodes(
@@ -187,8 +201,7 @@ def generate_lll_nodes(
     """
     Generate the intermediate representation (LLL) from the contextualized AST.
 
-    This is the third phase of compilation. It also includes LLL-level
-    optimizations.
+    This phase also includes LLL-level optimizations.
 
     This function returns two values, one for generating deployment bytecode and
     the other for generating runtime bytecode. The remaining compilation phases
@@ -216,8 +229,6 @@ def generate_lll_nodes(
 def generate_assembly(lll_nodes: parser.LLLnode) -> list:
     """
     Generate assembly instructions from LLL.
-
-    This is the fourth phase of compilation.
 
     Arguments
     ---------
@@ -248,9 +259,7 @@ def _find_nested_opcode(assembly, key):
 
 def generate_bytecode(assembly: list) -> bytes:
     """
-    Generate bytecode fro assembly instructions.
-
-    This is the fifth and final phase of compilation.
+    Generate bytecode from assembly instructions.
 
     Arguments
     ---------

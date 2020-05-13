@@ -21,17 +21,19 @@ formats to be outputted to the user.
 
 ### Compiler Phases
 
-The compilation process has five broad phases:
+The compilation process includes the following broad phases:
 
 1. In [`vyper.ast`](../ast), the source code is parsed and converted to an
 abstract syntax tree.
-2. The [`GlobalContext`](../parser/global_context.py) object is generated from the
+1. In [`vyper.ast.folding`](../ast/folding.py), literal Vyper AST nodes are
+evaluated and replaced with the resulting values.
+1. The [`GlobalContext`](../parser/global_context.py) object is generated from the
 Vyper AST, analyzing and organizing the nodes prior to LLL generation.
-3. In [`vyper.parser.parser`](../parser/parser.py), the contextualized nodes are
+1. In [`vyper.parser.parser`](../parser/parser.py), the contextualized nodes are
 converted into LLL nodes.
-4. In [`vyper.compile_lll`](../compile_lll.py), the LLL nodes are converted to
+1. In [`vyper.compile_lll`](../compile_lll.py), the LLL nodes are converted to
 assembly instructions.
-5. In [`vyper.compile_lll`](../compile_lll.py), the assembly is converted to EVM
+1. In [`vyper.compile_lll`](../compile_lll.py), the assembly is converted to EVM
 bytecode.
 
 Additionally, phases 3-5 may produce two output types:
