@@ -220,19 +220,22 @@ def call_self_private(stmt_expr, context, sig):
             elif isinstance(sig.output_type, TupleLike):
                 static_offset = 0
                 pop_return_values = []
-                for out_type in sig.output_type.members:
-                    if isinstance(out_type, ByteArrayLike):
+                for name, typ in sig.output_type.tuple_items():
+                    if isinstance(typ, ByteArrayLike):
                         pop_return_values.append(
                             ['mstore', ['add', output_placeholder, static_offset], 'pass']
                         )
                         dynamic_offsets.append(
-                            (['mload', ['add', output_placeholder, static_offset]], out_type)
+                            (['mload', ['add', output_placeholder, static_offset]], name)
                         )
+                        static_offset += 32
                     else:
-                        pop_return_values.append(
-                            ['mstore', ['add', output_placeholder, static_offset], 'pass']
-                        )
-                    static_offset += 32
+                        member_output_size = get_size_of_type(typ) * 32
+                        pop_return_values.extend([
+                            ['mstore', ['add', output_placeholder, pos], 'pass']
+                            for pos in range(static_offset, static_offset + member_output_size, 32)
+                        ])
+                        static_offset += member_output_size
 
             # append dynamic unpacker.
             dyn_idx = 0
