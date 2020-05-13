@@ -399,7 +399,6 @@ class Sha256:
     _inputs = [("value", ('bytes_literal', 'str_literal', 'bytes', 'string', 'bytes32'))]
     _return_type = "bytes32"
 
-    # TODO once active, remove the literal input logic from build_LLL
     def evaluate(self, node):
         validate_call_args(node, 1)
         if isinstance(node.args[0], vy_ast.Bytes):
@@ -418,15 +417,8 @@ class Sha256:
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         sub = args[0]
-        # Literal input
-        if isinstance(sub, bytes):
-            return LLLnode.from_list(
-                bytes_to_int(hashlib.sha256(sub).digest()),
-                typ=BaseType('bytes32'),
-                pos=getpos(expr)
-            )
         # bytes32 input
-        elif is_base_type(sub.typ, 'bytes32'):
+        if is_base_type(sub.typ, 'bytes32'):
             return LLLnode.from_list(
                 [
                     'seq',
@@ -498,7 +490,6 @@ class MethodID:
     _id = "method_id"
     _inputs = [("method", "str_literal"), ("type", "name_literal")]
 
-    # TODO once this is plugged in, build_LLL can be removed as this method is always foldable
     def evaluate(self, node):
         validate_call_args(node, 2)
 
