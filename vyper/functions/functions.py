@@ -371,8 +371,8 @@ class Keccak256:
         else:
             raise UnfoldableNode
 
-        hash_ = keccak256(value)
-        return vy_ast.Bytes.from_node(node, value=hash_)
+        hash_ = f"0x{keccak256(value).hex()}"
+        return vy_ast.Hex.from_node(node, value=hash_)
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -412,8 +412,8 @@ class Sha256:
         else:
             raise UnfoldableNode
 
-        hash_ = hashlib.sha256(value).digest()
-        return vy_ast.Bytes.from_node(node, value=hash_)
+        hash_ = f"0x{hashlib.sha256(value).hexdigest()}"
+        return vy_ast.Hex.from_node(node, value=hash_)
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):

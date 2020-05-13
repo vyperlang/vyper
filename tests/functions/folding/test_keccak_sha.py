@@ -25,7 +25,7 @@ def foo(a: string[100]) -> bytes32:
     old_node = vyper_ast.body[0].value
     new_node = vy_fn.DISPATCH_TABLE[fn_name].evaluate(old_node)
 
-    assert contract.foo(value) == new_node.value
+    assert f"0x{contract.foo(value).hex()}" == new_node.value
 
 
 @pytest.mark.fuzzing
@@ -44,7 +44,7 @@ def foo(a: bytes[100]) -> bytes32:
     old_node = vyper_ast.body[0].value
     new_node = vy_fn.DISPATCH_TABLE[fn_name].evaluate(old_node)
 
-    assert contract.foo(value) == new_node.value
+    assert f"0x{contract.foo(value).hex()}" == new_node.value
 
 
 @pytest.mark.fuzzing
@@ -65,4 +65,4 @@ def foo(a: bytes[100]) -> bytes32:
     old_node = vyper_ast.body[0].value
     new_node = vy_fn.DISPATCH_TABLE[fn_name].evaluate(old_node)
 
-    assert contract.foo(value) == new_node.value
+    assert f"0x{contract.foo(value).hex()}" == new_node.value
