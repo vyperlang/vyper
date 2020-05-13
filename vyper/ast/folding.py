@@ -29,11 +29,11 @@ def fold(vyper_module: vy_ast.Module) -> None:
         Top-level Vyper AST node.
     """
     replace_builtin_constants(vyper_module)
-    replace_user_defined_constants(vyper_module)
 
     changed_nodes = 1
     while changed_nodes:
         changed_nodes = 0
+        changed_nodes += replace_user_defined_constants(vyper_module)
         changed_nodes += replace_literal_ops(vyper_module)
         changed_nodes += replace_subscripts(vyper_module)
         changed_nodes += replace_builtin_functions(vyper_module)
@@ -129,10 +129,10 @@ def replace_builtin_constants(vyper_module: vy_ast.Module) -> None:
         Top-level Vyper AST node.
     """
     for name, (node, value) in BUILTIN_CONSTANTS.items():
-        replace_constant(vyper_module, name, node(value=value))  # type: ignore
+        replace_constant(vyper_module, name, node(value=value), True)  # type: ignore
 
 
-def replace_user_defined_constants(vyper_module: vy_ast.Module) -> None:
+def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
     """
     Find user-defined constant assignments, and replace references
     to the constants with their literal values.
@@ -142,6 +142,8 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> None:
     vyper_module : Module
         Top-level Vyper AST node.
     """
+    changed_nodes = 0
+
     for node in vyper_module.get_children(vy_ast.AnnAssign):
         if not isinstance(node.target, vy_ast.Name):
             # left-hand-side of assignment is not a variable
@@ -150,7 +152,11 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> None:
             # annotation is not wrapped in `constant(...)`
             continue
 
-        replace_constant(vyper_module, node.target.id, node.value)
+        changed_nodes += replace_constant(
+            vyper_module, node.target.id, node.value, False
+        )
+
+    return changed_nodes
 
 
 def _replace(old_node, new_node):
@@ -160,14 +166,15 @@ def _replace(old_node, new_node):
         list_values = [_replace(old_node, i) for i in new_node.elts]
         return new_node.from_node(old_node, elts=list_values)
     else:
-        raise
+        raise UnfoldableNode
 
 
 def replace_constant(
     vyper_module: vy_ast.Module,
     id_: str,
     replacement_node: Union[vy_ast.Constant, vy_ast.List],
-) -> None:
+    raise_on_error: bool,
+) -> int:
     """
     Replace references to a variable name with a literal value.
 
@@ -179,8 +186,11 @@ def replace_constant(
         String representing the `.id` attribute of the node(s) to be replaced.
     replacement_node : Constant | List
         Vyper ast node representing the literal value to be substituted in.
-
+    raise_on_error: bool
+        Boolean indicating if `UnfoldableNode` exception should be raised or ignored.
     """
+    changed_nodes = 0
+
     for node in vyper_module.get_descendants(vy_ast.Name, {"id": id_}, reverse=True):
         # do not replace attributes or calls
         if isinstance(node.get_ancestor(), (vy_ast.Attribute, vy_ast.Call)):
@@ -200,5 +210,13 @@ def replace_constant(
             if parent and node in parent.target.get_descendants(include_self=True):
                 continue
 
-        new_node = _replace(node, replacement_node)
+        try:
+            new_node = _replace(node, replacement_node)
+        except UnfoldableNode:
+            if raise_on_error:
+                raise
+            continue
+        changed_nodes += 1
         vyper_module.replace_in_tree(node, new_node)
+
+    return changed_nodes
