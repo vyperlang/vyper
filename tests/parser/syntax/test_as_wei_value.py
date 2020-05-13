@@ -2,26 +2,26 @@ import pytest
 from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import TypeMismatch
+from vyper.exceptions import ArgumentException, TypeMismatch
 
 fail_list = [
-    """
+    ("""
 @public
 def foo():
     x: int128 = as_wei_value(5, szabo)
-    """,
-    """
+    """, ArgumentException),
+    ("""
 @public
 def foo() -> int128:
     x: int128 = 45
     return x.balance
-    """
+    """, TypeMismatch),
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
-def test_as_wei_fail(bad_code):
-    with raises(TypeMismatch):
+@pytest.mark.parametrize('bad_code,exc', fail_list)
+def test_as_wei_fail(bad_code, exc):
+    with raises(exc):
         compiler.compile_code(bad_code)
 
 

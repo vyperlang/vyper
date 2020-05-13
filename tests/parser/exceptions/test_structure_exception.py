@@ -64,11 +64,6 @@ def foo():
     """
 @public
 def foo():
-    x: bytes32 = keccak256("moose", 3)
-    """,
-    """
-@public
-def foo():
     x: bytes[4] = raw_call(0x1234567890123456789012345678901234567890, outsize=4)
     """,
     """

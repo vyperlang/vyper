@@ -126,7 +126,7 @@ class Expr(object):
         numstring, num, den = get_number_as_fraction(self.expr, self.context)
         # if not SizeLimits.in_bounds('decimal', num // den):
         # if not SizeLimits.MINDECIMAL * den <= num <= SizeLimits.MAXDECIMAL * den:
-        if not (SizeLimits.MINNUM * den < num < SizeLimits.MAXNUM * den):
+        if not (SizeLimits.MINNUM * den <= num <= SizeLimits.MAXNUM * den):
             raise InvalidLiteral("Number out of range: " + numstring, self.expr)
         if DECIMAL_DIVISOR % den:
             raise InvalidLiteral(
@@ -140,7 +140,7 @@ class Expr(object):
         )
 
     def hexstring(self):
-        orignum = self.expr.node_source_code
+        orignum = self.expr.value
         if len(orignum) == 42:
             if checksum_encode(orignum) != orignum:
                 raise InvalidLiteral(
@@ -435,49 +435,6 @@ class Expr(object):
             )
 
         arithmetic_pair = {left.typ.typ, right.typ.typ}
-
-        # Special Case: Simplify any literal to literal arithmetic at compile time.
-        if left.typ.is_literal and right.typ.is_literal and \
-           isinstance(right.value, int) and isinstance(left.value, int) and \
-           arithmetic_pair.issubset({'uint256', 'int128'}):
-
-            if isinstance(self.expr.op, vy_ast.Add):
-                val = left.value + right.value
-            elif isinstance(self.expr.op, vy_ast.Sub):
-                val = left.value - right.value
-            elif isinstance(self.expr.op, vy_ast.Mult):
-                val = left.value * right.value
-            elif isinstance(self.expr.op, vy_ast.Pow):
-                val = left.value ** right.value
-            elif isinstance(self.expr.op, (vy_ast.Div, vy_ast.Mod)):
-                if right.value == 0:
-                    raise ZeroDivisionException(
-                        "integer division or modulo by zero",
-                        self.expr,
-                    )
-                if isinstance(self.expr.op, vy_ast.Div):
-                    val = left.value // right.value
-                elif isinstance(self.expr.op, vy_ast.Mod):
-                    # modified modulo logic to remain consistent with EVM behaviour
-                    val = abs(left.value) % abs(right.value)
-                    if left.value < 0:
-                        val = -val
-            else:
-                raise StructureException(
-                    f'Unsupported literal operator: {type(self.expr.op)}',
-                    self.expr,
-                )
-
-            num = vy_ast.Int(value=val)
-            num.full_source_code = self.expr.full_source_code
-            num.node_source_code = self.expr.node_source_code
-            num.lineno = self.expr.lineno
-            num.col_offset = self.expr.col_offset
-            num.end_lineno = self.expr.end_lineno
-            num.end_col_offset = self.expr.end_col_offset
-
-            return Expr.parse_value_expr(num, self.context)
-
         pos = getpos(self.expr)
 
         # Special case with uint256 were int literal may be casted.
@@ -909,14 +866,6 @@ class Expr(object):
                 raise TypeMismatch(
                     f"Unsupported type for negation: {operand.typ}",
                     self.expr,
-                )
-
-            if operand.typ.is_literal:
-                typ = "decimal" if operand.typ.typ == "decimal" else "int128"
-                return LLLnode.from_list(
-                    0-operand.value,
-                    typ=BaseType(typ, is_literal=True),
-                    pos=getpos(self.expr),
                 )
 
             # Clamp on minimum integer value as we cannot negate that value

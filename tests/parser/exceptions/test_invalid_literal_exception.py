@@ -13,7 +13,7 @@ def foo():
     """
 @public
 def foo():
-    x: decimal = -170141183460469231731687303715884105728.
+    x: decimal = -170141183460469231731687303715884105728.0000000001
     """,
     """
 b: decimal
@@ -24,17 +24,7 @@ def foo():
     """
 @public
 def foo():
-    x = as_wei_value(5.1824, "babbage")
-    """,
-    """
-@public
-def foo():
     x = as_wei_value(0x05, "babbage")
-    """,
-    """
-@public
-def foo():
-    x = as_wei_value(5, "vader")
     """,
     """
 @public

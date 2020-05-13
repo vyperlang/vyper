@@ -1,3 +1,4 @@
+import copy
 import warnings
 from typing import Optional, Tuple
 
@@ -20,6 +21,8 @@ class CompilerData:
     ----------
     vyper_module : vy_ast.Module
         Top-level Vyper AST node
+    vyper_module_folded : vy_ast.Module
+        Folded Vyper AST
     global_ctx : GlobalContext
         Sorted, contextualized representation of the Vyper AST
     lll_nodes : LLLnode
@@ -72,10 +75,17 @@ class CompilerData:
         return self._vyper_module
 
     @property
+    def vyper_module_folded(self) -> vy_ast.Module:
+        if not hasattr(self, "_vyper_module_folded"):
+            self._vyper_module_folded = generate_folded_ast(self.vyper_module)
+
+        return self._vyper_module_folded
+
+    @property
     def global_ctx(self) -> GlobalContext:
         if not hasattr(self, "_global_ctx"):
             self._global_ctx = generate_global_context(
-                self.vyper_module, self.interface_codes
+                self.vyper_module_folded, self.interface_codes
             )
 
         return self._global_ctx
@@ -127,8 +137,6 @@ def generate_ast(source_code: str, source_id: int) -> vy_ast.Module:
     """
     Generate a Vyper AST from source code.
 
-    This is the first phase of compilation.
-
     Arguments
     ---------
     source_code : str
@@ -144,13 +152,31 @@ def generate_ast(source_code: str, source_id: int) -> vy_ast.Module:
     return vy_ast.parse_to_ast(source_code, source_id)
 
 
+def generate_folded_ast(vyper_module: vy_ast.Module) -> vy_ast.Module:
+    """
+    Perform constant folding operations on the Vyper AST.
+
+    Arguments
+    ---------
+    vyper_module : vy_ast.Module
+        Top-level Vyper AST node
+
+    Returns
+    -------
+    vy_ast.Module
+        Folded Vyper AST
+    """
+    vyper_module_folded = copy.deepcopy(vyper_module)
+    vy_ast.folding.fold(vyper_module_folded)
+
+    return vyper_module_folded
+
+
 def generate_global_context(
     vyper_module: vy_ast.Module, interface_codes: Optional[InterfaceImports],
 ) -> GlobalContext:
     """
     Generate a contextualized AST from the Vyper AST.
-
-    This is the second phase of compilation.
 
     Arguments
     ---------
@@ -175,8 +201,7 @@ def generate_lll_nodes(
     """
     Generate the intermediate representation (LLL) from the contextualized AST.
 
-    This is the third phase of compilation. It also includes LLL-level
-    optimizations.
+    This phase also includes LLL-level optimizations.
 
     This function returns two values, one for generating deployment bytecode and
     the other for generating runtime bytecode. The remaining compilation phases
@@ -204,8 +229,6 @@ def generate_lll_nodes(
 def generate_assembly(lll_nodes: parser.LLLnode) -> list:
     """
     Generate assembly instructions from LLL.
-
-    This is the fourth phase of compilation.
 
     Arguments
     ---------
@@ -236,9 +259,7 @@ def _find_nested_opcode(assembly, key):
 
 def generate_bytecode(assembly: list) -> bytes:
     """
-    Generate bytecode fro assembly instructions.
-
-    This is the fifth and final phase of compilation.
+    Generate bytecode from assembly instructions.
 
     Arguments
     ---------

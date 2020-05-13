@@ -7,6 +7,7 @@ from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     ArgumentException,
+    CompilerPanic,
     ConstancyViolation,
     InvalidLiteral,
     InvalidType,
@@ -370,8 +371,8 @@ class Keccak256:
         else:
             raise UnfoldableNode
 
-        hash_ = keccak256(value)
-        return vy_ast.Bytes.from_node(node, value=hash_)
+        hash_ = f"0x{keccak256(value).hex()}"
+        return vy_ast.Hex.from_node(node, value=hash_)
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -398,7 +399,6 @@ class Sha256:
     _inputs = [("value", ('bytes_literal', 'str_literal', 'bytes', 'string', 'bytes32'))]
     _return_type = "bytes32"
 
-    # TODO once active, remove the literal input logic from build_LLL
     def evaluate(self, node):
         validate_call_args(node, 1)
         if isinstance(node.args[0], vy_ast.Bytes):
@@ -411,21 +411,14 @@ class Sha256:
         else:
             raise UnfoldableNode
 
-        hash_ = hashlib.sha256(value).digest()
-        return vy_ast.Bytes.from_node(node, value=hash_)
+        hash_ = f"0x{hashlib.sha256(value).hexdigest()}"
+        return vy_ast.Hex.from_node(node, value=hash_)
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         sub = args[0]
-        # Literal input
-        if isinstance(sub, bytes):
-            return LLLnode.from_list(
-                bytes_to_int(hashlib.sha256(sub).digest()),
-                typ=BaseType('bytes32'),
-                pos=getpos(expr)
-            )
         # bytes32 input
-        elif is_base_type(sub.typ, 'bytes32'):
+        if is_base_type(sub.typ, 'bytes32'):
             return LLLnode.from_list(
                 [
                     'seq',
@@ -497,16 +490,16 @@ class MethodID:
     _id = "method_id"
     _inputs = [("method", "str_literal"), ("type", "name_literal")]
 
-    # TODO once this is plugged in, build_LLL can be removed as this method is always foldable
     def evaluate(self, node):
         validate_call_args(node, 2)
-        if not isinstance(node.args[0], vy_ast.Str):
-            raise InvalidType("method id must be given as a literal string", node.args[0])
-        if " " in node.args[0].value:
-            raise InvalidLiteral('Invalid function signature no spaces allowed.')
 
         args = node.args
-        if isinstance(node.args[1], vy_ast.Name) and node.id == "bytes32":
+        if not isinstance(args[0], vy_ast.Str):
+            raise InvalidType("method id must be given as a literal string", args[0])
+        if " " in args[0].value:
+            raise InvalidLiteral('Invalid function signature no spaces allowed.')
+
+        if isinstance(args[1], vy_ast.Name) and args[1].id == "bytes32":
             length = 32
         elif (
             isinstance(args[1], vy_ast.Subscript) and
@@ -515,29 +508,20 @@ class MethodID:
         ):
             length = 4
         else:
-            raise InvalidType("Can only produce bytes32 or bytes[4] as outputs", node.args[1])
+            raise InvalidType("Can only produce bytes32 or bytes[4] as outputs", args[1])
 
-        method_id = fourbytes_to_int(keccak256(node.args[0].value)[:4])
+        method_id = fourbytes_to_int(keccak256(args[0].value.encode())[:4])
         value = method_id.to_bytes(length, "big")
 
-        return vy_ast.Bytes.from_node(node, value=value)
-
-    @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
-        if b' ' in args[0]:
-            raise TypeMismatch('Invalid function signature no spaces allowed.')
-        method_id = fourbytes_to_int(keccak256(args[0])[:4])
-        if args[1] == 'bytes32':
-            return LLLnode(method_id, typ=BaseType('bytes32'), pos=getpos(expr))
-        elif args[1] == 'bytes[4]':
-            placeholder = LLLnode.from_list(context.new_placeholder(ByteArrayType(4)))
-            return LLLnode.from_list(
-                ['seq',
-                    ['mstore', ['add', placeholder, 4], method_id],
-                    ['mstore', placeholder, 4], placeholder],
-                typ=ByteArrayType(4), location='memory', pos=getpos(expr))
+        if length == 32:
+            return vy_ast.Hex.from_node(node, value=f"0x{value.hex()}")
+        elif length == 4:
+            return vy_ast.Bytes.from_node(node, value=value)
         else:
-            raise StructureException('Can only produce bytes32 or bytes[4] as outputs')
+            raise CompilerPanic
+
+    def build_LLL(self, *args, **kwargs):
+        raise CompilerPanic("method_id should always be folded")
 
 
 class ECRecover:
@@ -737,7 +721,13 @@ class AsWeiValue:
         if isinstance(value, Decimal) and value >= 2**127:
             raise InvalidLiteral("Value out of range for decimal", node.args[0])
 
-        denom = next(v for k, v in self.wei_denoms.items() if node.args[1].value in k)
+        try:
+            denom = next(v for k, v in self.wei_denoms.items() if node.args[1].value in k)
+        except StopIteration:
+            raise ArgumentException(
+                f"Unknown denomination: {node.args[1].value}", node.args[1]
+            ) from None
+
         return vy_ast.Int.from_node(node, value=int(value * denom))
 
     @validate_inputs
