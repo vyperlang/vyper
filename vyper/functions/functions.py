@@ -7,6 +7,7 @@ from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     ArgumentException,
+    CompilerPanic,
     ConstancyViolation,
     InvalidLiteral,
     InvalidType,
@@ -500,13 +501,14 @@ class MethodID:
     # TODO once this is plugged in, build_LLL can be removed as this method is always foldable
     def evaluate(self, node):
         validate_call_args(node, 2)
-        if not isinstance(node.args[0], vy_ast.Str):
-            raise InvalidType("method id must be given as a literal string", node.args[0])
-        if " " in node.args[0].value:
-            raise InvalidLiteral('Invalid function signature no spaces allowed.')
 
         args = node.args
-        if isinstance(node.args[1], vy_ast.Name) and node.id == "bytes32":
+        if not isinstance(args[0], vy_ast.Str):
+            raise InvalidType("method id must be given as a literal string", args[0])
+        if " " in args[0].value:
+            raise InvalidLiteral('Invalid function signature no spaces allowed.')
+
+        if isinstance(args[1], vy_ast.Name) and args[1].id == "bytes32":
             length = 32
         elif (
             isinstance(args[1], vy_ast.Subscript) and
@@ -515,12 +517,17 @@ class MethodID:
         ):
             length = 4
         else:
-            raise InvalidType("Can only produce bytes32 or bytes[4] as outputs", node.args[1])
+            raise InvalidType("Can only produce bytes32 or bytes[4] as outputs", args[1])
 
-        method_id = fourbytes_to_int(keccak256(node.args[0].value)[:4])
+        method_id = fourbytes_to_int(keccak256(args[0].value.encode())[:4])
         value = method_id.to_bytes(length, "big")
 
-        return vy_ast.Bytes.from_node(node, value=value)
+        if length == 32:
+            return vy_ast.Hex.from_node(node, value=f"0x{value.hex()}")
+        elif length == 4:
+            return vy_ast.Bytes.from_node(node, value=value)
+        else:
+            raise CompilerPanic
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
