@@ -1,3 +1,7 @@
+import pytest
+
+from vyper import compiler
+from vyper.exceptions import ArgumentException, ConstancyViolation
 from vyper.functions import get_create_forwarder_to_bytecode
 
 
@@ -178,3 +182,82 @@ def foo_call(_addr: address):
     # manually specifying an insufficient amount should fail
     outer_contract = get_contract(outer_code.format(", gas=15000"))
     assert_tx_failed(lambda: outer_contract.foo_call(inner_contract.address))
+
+
+def test_static_call(get_contract):
+
+    target_source = """
+@public
+@constant
+def foo() -> int128:
+    return 42
+"""
+
+    caller_source = """
+@public
+@constant
+def foo(_addr: address) -> int128:
+    _response: bytes[32] = raw_call(
+        _addr,
+        method_id("foo()", bytes[4]),
+        outsize=32,
+        is_static_call=True,
+    )
+    return convert(_response, int128)
+    """
+
+    target = get_contract(target_source)
+    caller = get_contract(caller_source)
+
+    assert caller.foo(target.address) == 42
+
+
+def test_static_call_fails_modifying(get_contract, assert_tx_failed):
+
+    target_source = """
+baz: int128
+
+@public
+def foo() -> int128:
+    self.baz = 31337
+    return self.baz
+"""
+
+    caller_source = """
+@public
+@constant
+def foo(_addr: address) -> int128:
+    _response: bytes[32] = raw_call(
+        _addr,
+        method_id("foo()", bytes[4]),
+        outsize=32,
+        is_static_call=True,
+    )
+    return convert(_response, int128)
+    """
+
+    target = get_contract(target_source)
+    caller = get_contract(caller_source)
+
+    assert_tx_failed(lambda: caller.foo(target.address))
+
+
+uncompilable_code = [
+    ("""
+@public
+@constant
+def foo(_addr: address):
+    raw_call(_addr, method_id("foo()", bytes[4]))
+    """, ConstancyViolation),
+    ("""
+@public
+def foo(_addr: address):
+    raw_call(_addr, method_id("foo()", bytes[4]), is_delegate_call=True, is_static_call=True)
+    """, ArgumentException),
+]
+
+
+@pytest.mark.parametrize('source_code,exc', uncompilable_code)
+def test_invalid_type_exception(source_code, exc):
+    with pytest.raises(exc):
+        compiler.compile_code(source_code)

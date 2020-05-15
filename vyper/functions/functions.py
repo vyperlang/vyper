@@ -786,25 +786,33 @@ class RawCall:
         "gas": Optional('uint256', 'gas'),
         "value": Optional('uint256', zero_value),
         "is_delegate_call": Optional('bool', false_value),
+        "is_static_call": Optional('bool', false_value),
     }
     _return_type = None
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         to, data = args
-        gas, value, outsize, delegate_call = (
+        gas, value, outsize, delegate_call, static_call = (
             kwargs['gas'],
             kwargs['value'],
             kwargs['outsize'],
             kwargs['is_delegate_call'],
+            kwargs['is_static_call'],
         )
-        if delegate_call.typ.is_literal is False:
-            raise TypeMismatch(
-                'The delegate_call parameter has to be a static/literal boolean value.'
+        for key in ("is_delegate_call", "is_static_call"):
+            if kwargs[key].typ.is_literal is False:
+                raise TypeMismatch(
+                    f"The `{key}` parameter must be a static/literal boolean value", expr
+                )
+        if delegate_call.value and static_call.value:
+            raise ArgumentException(
+                "Call may use one of `is_delegate_call` or `is_static_call`, not both", expr
             )
-        if context.is_constant():
+        if not static_call.value and context.is_constant():
             raise ConstancyViolation(
-                f"Cannot make calls from {context.pp_constancy()}",
+                f"Cannot make modifying calls from {context.pp_constancy()},"
+                " use `is_static_call=True` to perform this action",
                 expr,
             )
         placeholder = context.new_placeholder(data.typ)
@@ -828,6 +836,8 @@ class RawCall:
 
         if delegate_call.value == 1:
             call_lll = ['delegatecall', gas, to] + common_call_lll
+        elif static_call.value == 1:
+            call_lll = ['staticcall', gas, to] + common_call_lll
         else:
             call_lll = ['call', gas, to, value] + common_call_lll
 
