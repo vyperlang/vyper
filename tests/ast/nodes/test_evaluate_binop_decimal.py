@@ -79,7 +79,7 @@ def foo({input_value}) -> decimal:
     try:
         vy_ast.folding.replace_literal_ops(vyper_ast)
         expected = vyper_ast.body[0].value.value
-        is_valid = True
+        is_valid = -2**127 <= expected < 2**127
     except ZeroDivisionException:
         # for division/modulus by 0, expect the contract call to revert
         is_valid = False
