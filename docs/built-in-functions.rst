@@ -160,6 +160,10 @@ Vyper contains a set of built in functions which execute opcodes such as ``SEND`
 
     Returns ``None`` if ``outsize`` is omitted or set to ``0``.
 
+    .. note::
+
+        The actual size of the returned data may be less than ``outsize``. You can use ``len`` to obtain the actual size.
+
 .. py:function:: selfdestruct(to: address) -> None
 
     Triggers the ``SELFDESTRUCT`` opcode (``0xFF``), causing the contract to be destroyed.
