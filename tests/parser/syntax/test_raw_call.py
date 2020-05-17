@@ -8,7 +8,9 @@ fail_list = [
     ("""
 @public
 def foo():
-    x: bytes[9] = raw_call(0x1234567890123456789012345678901234567890, b"cow", outsize=4, outsize=9)
+    x: bytes[9] = raw_call(
+        0x1234567890123456789012345678901234567890, b"cow", max_outsize=4, max_outsize=9
+    )
     """, SyntaxException),
     """
 @public
@@ -23,7 +25,7 @@ def foo():
     """
 @public
 def foo():
-    # fails because raw_call without outsize does not return a value
+    # fails because raw_call without max_outsize does not return a value
     x: bytes[9] = raw_call(0x1234567890123456789012345678901234567890, b"cow")
     """,
 ]
@@ -47,7 +49,7 @@ def foo():
     x: bytes[9] = raw_call(
         0x1234567890123456789012345678901234567890,
         b"cow",
-        outsize=4,
+        max_outsize=4,
         gas=595757
     )
     """,
@@ -57,7 +59,7 @@ def foo():
     x: bytes[9] = raw_call(
         0x1234567890123456789012345678901234567890,
         b"cow",
-        outsize=4,
+        max_outsize=4,
         gas=595757,
         value=as_wei_value(9, "wei")
     )
@@ -68,7 +70,7 @@ def foo():
     x: bytes[9] = raw_call(
         0x1234567890123456789012345678901234567890,
         b"cow",
-        outsize=4,
+        max_outsize=4,
         gas=595757,
         value=9
     )

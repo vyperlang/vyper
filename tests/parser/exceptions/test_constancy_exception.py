@@ -39,7 +39,9 @@ def foo() -> int128:
 @public
 @constant
 def foo() -> int128:
-    x = raw_call(0x1234567890123456789012345678901234567890, b"cow", outsize=4, gas=595757, value=9)
+    x = raw_call(
+        0x1234567890123456789012345678901234567890, b"cow", max_outsize=4, gas=595757, value=9
+    )
     return 5
     """,
     """

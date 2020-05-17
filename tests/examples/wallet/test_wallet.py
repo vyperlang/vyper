@@ -58,7 +58,9 @@ def test_approve(w3, c, tester, assert_tx_failed, sign):
     sigs = pack_and_sign(1, k1, 0, k3, 0, k5)
     assert_tx_failed(lambda: c.approve(1, to_address, value, data, sigs, transact={'value': 0, 'from': a1}))  # noqa: E501
     sigs = pack_and_sign(1, k1, 0, k3, 0, k5)
-    assert c.approve(1, to_address, value, data, sigs, call={'value': value, 'from': a1})
+
+    # this call should succeed
+    c.approve(1, to_address, value, data, sigs, call={'value': value, 'from': a1})
 
     print("Basic tests passed")
 
@@ -104,7 +106,7 @@ def test_javascript_signatures(w3, get_contract):
 
     # There's no need to pass in signatures because the owners are 0 addresses
     # causing them to default to valid signatures
-    assert x2.approve(
+    x2.approve(
         0,
         recipient,
         25,

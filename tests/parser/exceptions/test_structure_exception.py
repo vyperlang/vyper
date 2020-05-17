@@ -64,7 +64,7 @@ def foo():
     """
 @public
 def foo():
-    x: bytes[4] = raw_call(0x1234567890123456789012345678901234567890, outsize=4)
+    x: bytes[4] = raw_call(0x1234567890123456789012345678901234567890, max_outsize=4)
     """,
     """
 @public
@@ -75,13 +75,13 @@ def foo():
 @public
 def foo():
     x: bytes[4] = raw_call(
-        0x1234567890123456789012345678901234567890, b"cow", gas=111111, outsize=4, moose=9
+        0x1234567890123456789012345678901234567890, b"cow", gas=111111, max_outsize=4, moose=9
     )
     """,
     """
 @public
 def foo():
-    x: bytes[4] = create_forwarder_to(0x1234567890123456789012345678901234567890, outsize=4)
+    x: bytes[4] = create_forwarder_to(0x1234567890123456789012345678901234567890, max_outsize=4)
     """,
     """
 x: public()

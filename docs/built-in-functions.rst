@@ -144,21 +144,25 @@ Vyper contains a set of built in functions which execute opcodes such as ``SEND`
 
         The amount to send is always specified in ``wei``.
 
-.. py:function:: raw_call(to: address, data: bytes, outsize: int = 0, gas: uint256 = gasLeft, value: uint256 = 0, is_delegate_call: bool = False, is_static_call: bool = False) -> bytes[outsize]
+.. py:function:: raw_call(to: address, data: bytes, max_outsize: int = 0, gas: uint256 = gasLeft, value: uint256 = 0, is_delegate_call: bool = False, is_static_call: bool = False) -> bytes[max_outsize]
 
     Calls to the specified Ethereum address.
 
     * ``to``: Destination address to call to
     * ``data``: Data to send to the destination address
-    * ``outsize``: Maximum length of the bytes array returned from the call. If the returned call data exceeds this length, only this number of bytes is returned.
+    * ``max_outsize``: Maximum length of the bytes array returned from the call. If the returned call data exceeds this length, only this number of bytes is returned.
     * ``gas``: The amount of gas to attach to the call. If not set, all remainaing gas is forwarded.
     * ``value``: The wei value to send to the address (Optional, default ``0``)
     * ``is_delegate_call``: If ``True``, the call will be sent as ``DELEGATECALL`` (Optional, default ``False``)
     * ``is_static_call``: If ``True``, the call will be sent as ``STATICCALL`` (Optional, default ``False``)
 
-    Returns the data returned by the call as a ``bytes`` list, with ``outsize`` as the max length.
+    Returns the data returned by the call as a ``bytes`` list, with ``max_outsize`` as the max length.
 
-    Returns ``None`` if ``outsize`` is omitted or set to ``0``.
+    Returns ``None`` if ``max_outsize`` is omitted or set to ``0``.
+
+    .. note::
+
+        The actual size of the returned data may be less than ``max_outsize``. You can use ``len`` to obtain the actual size.
 
 .. py:function:: selfdestruct(to: address) -> None
 
