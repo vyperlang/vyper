@@ -5,27 +5,34 @@ from vyper.exceptions import ArgumentException, ConstancyViolation
 from vyper.functions import get_create_forwarder_to_bytecode
 
 
-def test_caller_code(get_contract_with_gas_estimation):
-    caller_code = """
+def test_outsize_exceeds_returndatasize(get_contract):
+    source_code = """
 @public
 def foo() -> bytes[7]:
-    return raw_call(0x0000000000000000000000000000000000000004, b"moose", gas=50000, outsize=5)
-
-@public
-def bar() -> bytes[7]:
-    return raw_call(0x0000000000000000000000000000000000000004, b"moose", gas=50000, outsize=3)
-
-@public
-def baz() -> bytes[7]:
-    return raw_call(0x0000000000000000000000000000000000000004, b"moose", gas=50000, outsize=7)
+    return raw_call(0x0000000000000000000000000000000000000004, b"moose", outsize=7)
     """
-
-    c = get_contract_with_gas_estimation(caller_code)
+    c = get_contract(source_code)
     assert c.foo() == b"moose"
-    assert c.bar() == b"moo"
-    assert c.baz() == b"moose\x00\x00"
 
-    print('Passed raw call test')
+
+def test_returndatasize_exceeds_outsize(get_contract):
+    source_code = """
+@public
+def foo() -> bytes[3]:
+    return raw_call(0x0000000000000000000000000000000000000004, b"moose", outsize=3)
+    """
+    c = get_contract(source_code)
+    assert c.foo() == b"moo"
+
+
+def test_returndatasize_matches_outsize(get_contract):
+    source_code = """
+@public
+def foo() -> bytes[5]:
+    return raw_call(0x0000000000000000000000000000000000000004, b"moose", outsize=5)
+    """
+    c = get_contract(source_code)
+    assert c.foo() == b"moose"
 
 
 def test_multiple_levels(w3, get_contract_with_gas_estimation):
