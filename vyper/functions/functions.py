@@ -843,9 +843,15 @@ class RawCall:
 
         # build sequence LLL
         if outsize:
-            # only copy the return value to memory if outsize > 0
+            # return minimum of outsize and returndatasize
+            size = [
+                'with', '_l', outsize, [
+                    'with', '_r', 'returndatasize', ['if', ['gt', '_l', '_r'], '_r', '_l']
+                ]
+            ]
+
             seq = [
-                'seq', copier, ['assert', call_lll], ['mstore', output_node, outsize], output_node
+                'seq', copier, ['assert', call_lll], ['mstore', output_node, size], output_node
             ]
             typ = ByteArrayType(outsize)
         else:
