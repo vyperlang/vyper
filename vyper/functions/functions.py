@@ -782,7 +782,7 @@ class RawCall:
     _id = "raw_call"
     _inputs = [("to", "address"), ("data", "bytes")]
     _kwargs = {
-        "outsize": Optional('num_literal', 0),
+        "max_outsize": Optional('num_literal', 0),
         "gas": Optional('uint256', 'gas'),
         "value": Optional('uint256', zero_value),
         "is_delegate_call": Optional('bool', false_value),
@@ -796,7 +796,7 @@ class RawCall:
         gas, value, outsize, delegate_call, static_call = (
             kwargs['gas'],
             kwargs['value'],
-            kwargs['outsize'],
+            kwargs['max_outsize'],
             kwargs['is_delegate_call'],
             kwargs['is_static_call'],
         )

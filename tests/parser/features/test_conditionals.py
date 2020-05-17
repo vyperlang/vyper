@@ -22,7 +22,7 @@ def test_single_branch_underflow_public(get_contract_with_gas_estimation):
 @public
 def doit():
     if False:
-        raw_call(msg.sender, b"", outsize=0, value=0, gas=msg.gas)
+        raw_call(msg.sender, b"", max_outsize=0, value=0, gas=msg.gas)
     """
     c = get_contract_with_gas_estimation(code)
     c.doit()

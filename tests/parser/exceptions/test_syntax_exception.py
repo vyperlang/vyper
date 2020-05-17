@@ -59,7 +59,7 @@ def foo():
     """
 @public
 def foo():
-    x: bytes[4] = raw_call(0x123456789012345678901234567890123456789, "cow", outsize=4)
+    x: bytes[4] = raw_call(0x123456789012345678901234567890123456789, "cow", max_outsize=4)
     """,
     """
 @public

@@ -5,31 +5,31 @@ from vyper.exceptions import ArgumentException, ConstancyViolation
 from vyper.functions import get_create_forwarder_to_bytecode
 
 
-def test_outsize_exceeds_returndatasize(get_contract):
+def test_max_outsize_exceeds_returndatasize(get_contract):
     source_code = """
 @public
 def foo() -> bytes[7]:
-    return raw_call(0x0000000000000000000000000000000000000004, b"moose", outsize=7)
+    return raw_call(0x0000000000000000000000000000000000000004, b"moose", max_outsize=7)
     """
     c = get_contract(source_code)
     assert c.foo() == b"moose"
 
 
-def test_returndatasize_exceeds_outsize(get_contract):
+def test_returndatasize_exceeds_max_outsize(get_contract):
     source_code = """
 @public
 def foo() -> bytes[3]:
-    return raw_call(0x0000000000000000000000000000000000000004, b"moose", outsize=3)
+    return raw_call(0x0000000000000000000000000000000000000004, b"moose", max_outsize=3)
     """
     c = get_contract(source_code)
     assert c.foo() == b"moo"
 
 
-def test_returndatasize_matches_outsize(get_contract):
+def test_returndatasize_matches_max_outsize(get_contract):
     source_code = """
 @public
 def foo() -> bytes[5]:
-    return raw_call(0x0000000000000000000000000000000000000004, b"moose", outsize=5)
+    return raw_call(0x0000000000000000000000000000000000000004, b"moose", max_outsize=5)
     """
     c = get_contract(source_code)
     assert c.foo() == b"moose"
@@ -48,7 +48,7 @@ def returnten() -> int128:
 @public
 def create_and_call_returnten(inp: address) -> int128:
     x: address = create_forwarder_to(inp)
-    o: int128 = extract32(raw_call(x, convert("\xd0\x1f\xb1\xb8", bytes[4]), outsize=32, gas=50000), 0, type=int128)  # noqa: E501
+    o: int128 = extract32(raw_call(x, convert("\xd0\x1f\xb1\xb8", bytes[4]), max_outsize=32, gas=50000), 0, type=int128)  # noqa: E501
     return o
 
 @public
@@ -90,7 +90,7 @@ def returnten() -> int128:
 @public
 def create_and_call_returnten(inp: address) -> int128:
     x: address = create_forwarder_to(inp)
-    o: int128 = extract32(raw_call(x, convert("\xd0\x1f\xb1\xb8", bytes[4]), outsize=32, gas=50000), 0, type=int128)  # noqa: E501
+    o: int128 = extract32(raw_call(x, convert("\xd0\x1f\xb1\xb8", bytes[4]), max_outsize=32, gas=50000), 0, type=int128)  # noqa: E501
     return o
 
 @public
@@ -135,7 +135,7 @@ def set(i: int128, owner: address):
         self.owner_setter_contract,
         cdata,
         gas=msg.gas,
-        outsize=0,
+        max_outsize=0,
         is_delegate_call=True
     )
     """
@@ -175,7 +175,7 @@ def foo_call(_addr: address):
         method_id("foo(bytes32)", bytes[4]),
         0x0000000000000000000000000000000000000000000000000000000000000001
     )
-    raw_call(_addr, cdata, outsize=0{})
+    raw_call(_addr, cdata, max_outsize=0{})
     """
 
     # with no gas value given, enough will be forwarded to complete the call
@@ -207,7 +207,7 @@ def foo(_addr: address) -> int128:
     _response: bytes[32] = raw_call(
         _addr,
         method_id("foo()", bytes[4]),
-        outsize=32,
+        max_outsize=32,
         is_static_call=True,
     )
     return convert(_response, int128)
@@ -237,7 +237,7 @@ def foo(_addr: address) -> int128:
     _response: bytes[32] = raw_call(
         _addr,
         method_id("foo()", bytes[4]),
-        outsize=32,
+        max_outsize=32,
         is_static_call=True,
     )
     return convert(_response, int128)
