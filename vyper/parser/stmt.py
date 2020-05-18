@@ -399,7 +399,7 @@ class Stmt(object):
                     'assert_reason',
                     test_expr,
                     int(sig_placeholder + 28),
-                    int(4 + 32 + get_size_of_type(reason_str_type) * 32),
+                    int(4 + get_size_of_type(reason_str_type) * 32),
                     ],
                 ]
         return LLLnode.from_list(assert_reason, typ=None, pos=getpos(self.stmt))
