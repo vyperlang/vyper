@@ -1,6 +1,6 @@
 import pytest
-from eth_tester.exceptions import TransactionFailed
 from eth_abi import decode_single
+from eth_tester.exceptions import TransactionFailed
 
 from vyper.exceptions import ConstancyViolation, StructureException
 
