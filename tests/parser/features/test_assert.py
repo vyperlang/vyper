@@ -1,5 +1,6 @@
 import pytest
 from eth_tester.exceptions import TransactionFailed
+from eth_abi import decode_single
 
 from vyper.exceptions import ConstancyViolation, StructureException
 
@@ -192,3 +193,20 @@ def test(x: uint256[3]) -> bool:
     assert_tx_failed(lambda: c.test([5, 1, 3]))
     assert_tx_failed(lambda: c.test([1, 5, 3]))
     assert_tx_failed(lambda: c.test([1, 3, 5]))
+
+
+def test_assest_reason_revert_length(w3, get_contract):
+    code = """
+@public
+def test() -> int128:
+    assert 1 == 2, "oops"
+    return 1
+"""
+    c = get_contract(code)
+    w3.manager.provider.ethereum_tester.backend.is_eip838_error = lambda err: False
+    with pytest.raises(TransactionFailed) as e_info:
+        c.test()
+    error_bytes = eval(e_info.value.args[0])
+    assert len(error_bytes) == 100
+    msg = decode_single('string', error_bytes[36:])
+    assert msg == 'oops'
