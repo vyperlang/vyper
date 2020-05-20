@@ -217,22 +217,25 @@ def replace_constant(
     changed_nodes = 0
 
     for node in vyper_module.get_descendants(vy_ast.Name, {"id": id_}, reverse=True):
-        # do not replace attributes or calls
-        if isinstance(node.get_ancestor(), (vy_ast.Attribute, vy_ast.Call)):
+        parent = node.get_ancestor()
+
+        if isinstance(parent, vy_ast.Attribute):
+            # do not replace attributes
             continue
-        # do not replace dictionary keys
-        if (
-            isinstance(node.get_ancestor(), vy_ast.Dict)
-            and node in node.get_ancestor().keys
-        ):
+        if isinstance(parent, vy_ast.Call) and node == parent.func:
+            # do not replace calls
             continue
 
-        if not isinstance(node.get_ancestor(), vy_ast.Index):
+        # do not replace dictionary keys
+        if isinstance(parent, vy_ast.Dict) and node in parent.keys:
+            continue
+
+        if not isinstance(parent, vy_ast.Index):
             # do not replace left-hand side of assignments
-            parent = node.get_ancestor(
+            assign = node.get_ancestor(
                 (vy_ast.Assign, vy_ast.AnnAssign, vy_ast.AugAssign)
             )
-            if parent and node in parent.target.get_descendants(include_self=True):
+            if assign and node in assign.target.get_descendants(include_self=True):
                 continue
 
         try:
@@ -241,6 +244,7 @@ def replace_constant(
             if raise_on_error:
                 raise
             continue
+
         changed_nodes += 1
         vyper_module.replace_in_tree(node, new_node)
 
