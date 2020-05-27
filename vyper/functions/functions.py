@@ -920,10 +920,10 @@ class RawLog:
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
-        if not isinstance(args[0], vy_ast.List) or len(args[0].elts) > 4:
+        if not isinstance(args[0], vy_ast.List) or len(args[0].elements) > 4:
             raise StructureException("Expecting a list of 0-4 topics as first argument", args[0])
         topics = []
-        for elt in args[0].elts:
+        for elt in args[0].elements:
             arg = Expr.parse_value_expr(elt, context)
             if not is_base_type(arg.typ, 'bytes32'):
                 raise TypeMismatch("Expecting a bytes32 argument as topic", elt)

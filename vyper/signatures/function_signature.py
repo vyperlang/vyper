@@ -435,5 +435,5 @@ def validate_default_values(node):
             node
         )
     if isinstance(node, vy_ast.List):
-        for n in node.elts:
+        for n in node.elements:
             validate_default_values(n)

@@ -743,14 +743,16 @@ class Bytes(Constant):
 
 
 class List(VyperNode):
-    __slots__ = ("elts",)
+    __slots__ = ("elements",)
+    _translated_fields = {"elts": "elements"}
 
 
 class Tuple(VyperNode):
-    __slots__ = ("elts",)
+    __slots__ = ("elements",)
+    _translated_fields = {"elts": "elements"}
 
     def validate(self):
-        if not self.elts:
+        if not self.elements:
             raise InvalidLiteral("Cannot have an empty tuple", self)
 
 
@@ -991,11 +993,11 @@ class Compare(VyperNode):
         if isinstance(self.op, In):
             if not isinstance(right, List):
                 raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-            if next((i for i in right.elts if not isinstance(i, Constant)), None):
+            if next((i for i in right.elements if not isinstance(i, Constant)), None):
                 raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-            if len(set([type(i) for i in right.elts])) > 1:
+            if len(set([type(i) for i in right.elements])) > 1:
                 raise UnfoldableNode("List contains multiple literal types")
-            value = self.op._op(left.value, [i.value for i in right.elts])
+            value = self.op._op(left.value, [i.value for i in right.elements])
             return NameConstant.from_node(self, value=value)
 
         if not isinstance(left, type(right)):
@@ -1087,14 +1089,14 @@ class Subscript(VyperNode):
         """
         if not isinstance(self.value, List):
             raise UnfoldableNode("Subscript object is not a literal list")
-        elts = self.value.elts
-        if len(set([type(i) for i in elts])) > 1:
+        elements = self.value.elements
+        if len(set([type(i) for i in elements])) > 1:
             raise UnfoldableNode("List contains multiple node types")
         idx = self.slice.get("value.value")
-        if not isinstance(idx, int) or idx < 0 or idx >= len(elts):
+        if not isinstance(idx, int) or idx < 0 or idx >= len(elements):
             raise UnfoldableNode("Invalid index value")
 
-        return elts[idx]
+        return elements[idx]
 
 
 class Index(VyperNode):

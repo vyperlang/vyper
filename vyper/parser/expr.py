@@ -938,7 +938,7 @@ class Expr(object):
 
     def list_literals(self):
 
-        if not len(self.expr.elts):
+        if not len(self.expr.elements):
             raise StructureException("List must have elements", self.expr)
 
         def get_out_type(lll_node):
@@ -950,7 +950,7 @@ class Expr(object):
         previous_type = None
         out_type = None
 
-        for elt in self.expr.elts:
+        for elt in self.expr.elements:
             current_lll_node = Expr(elt, self.context).lll_node
             if not out_type:
                 out_type = current_lll_node.typ
@@ -1004,10 +1004,10 @@ class Expr(object):
         )
 
     def tuple_literals(self):
-        if not len(self.expr.elts):
+        if not len(self.expr.elements):
             raise StructureException("Tuple must have elements", self.expr)
         o = []
-        for elt in self.expr.elts:
+        for elt in self.expr.elements:
             o.append(Expr(elt, self.context).lll_node)
         typ = TupleType([x.typ for x in o], is_literal=True)
         return LLLnode.from_list(["multi"] + o, typ=typ, pos=getpos(self.expr))

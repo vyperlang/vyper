@@ -75,7 +75,7 @@ def mk_full_signature_from_json(abi):
             returns = abi_type_to_ast(func['outputs'][0]['type'], 1)
         elif len(func['outputs']) > 1:
             returns = vy_ast.Tuple(
-                elts=[
+                elements=[
                     abi_type_to_ast(a['type'], 1)
                     for a in func['outputs']
                 ]
