@@ -6,6 +6,8 @@ from typing import Any, Optional, Union
 
 from vyper.exceptions import (
     CompilerPanic,
+    InvalidLiteral,
+    OverflowException,
     SyntaxException,
     TypeMismatch,
     UnfoldableNode,
@@ -344,6 +346,19 @@ class VyperNode:
         """
         raise UnfoldableNode(f"{type(self)} cannot be evaluated")
 
+    def validate(self) -> None:
+        """
+        Validate the content of a node.
+
+        Called by `ast.validation.validate_literal_nodes` to verify values within
+        literal nodes.
+
+        Returns `None` if the node is valid, raises `InvalidLiteral` or another
+        more expressive exception if the value cannot be valid within a Vyper
+        contract.
+        """
+        pass
+
     def to_dict(self) -> dict:
         """
         Return the node as a dict. Child nodes and their descendants are also converted.
@@ -640,6 +655,16 @@ class Num(Constant):
         # TODO phase out use of Num.n and remove this
         return self.value
 
+    def validate(self):
+        if self.value < -(2 ** 127):
+            raise OverflowException(
+                "Value is below lower bound for all numeric types", self
+            )
+        if self.value > 2 ** 256 - 1:
+            raise OverflowException(
+                "Value exceeds upper bound for all numeric types", self
+            )
+
 
 class Int(Num):
     """
@@ -666,6 +691,11 @@ class Decimal(Num):
 
     __slots__ = ()
 
+    def validate(self):
+        if self.value.as_tuple().exponent < -10:
+            raise InvalidLiteral("Vyper supports a maximum of ten decimal points", self)
+        super().validate()
+
 
 class Hex(Num):
     """
@@ -679,22 +709,22 @@ class Hex(Num):
 
     __slots__ = ()
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def validate(self):
         if len(self.value) % 2:
-            _raise_syntax_exc(f"Hex notation requires an even number of digits", kwargs)
+            raise InvalidLiteral(
+                f"Hex notation requires an even number of digits", self
+            )
 
 
 class Str(Constant):
     __slots__ = ()
     _translated_fields = {"s": "value"}
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def validate(self):
         for c in self.value:
             if ord(c) >= 256:
-                raise _raise_syntax_exc(
-                    f"'{c}' is not an allowed string literal character", kwargs
+                raise InvalidLiteral(
+                    f"'{c}' is not an allowed string literal character", self
                 )
 
     @property
@@ -718,6 +748,10 @@ class List(VyperNode):
 
 class Tuple(VyperNode):
     __slots__ = ("elts",)
+
+    def validate(self):
+        if not self.elts:
+            raise InvalidLiteral("Cannot have an empty tuple", self)
 
 
 class Dict(VyperNode):
