@@ -32,7 +32,7 @@ def test_list_replacement_similar_nodes():
     test_tree = vy_ast.parse_to_ast("foo = [1, 1, 1, 1, 1]")
     expected_tree = vy_ast.parse_to_ast("foo = [1, 1, 31337, 1, 1]")
 
-    old_node = test_tree.body[0].value.elts[2]
+    old_node = test_tree.body[0].value.elements[2]
     new_node = vy_ast.parse_to_ast("31337").body[0].value
 
     test_tree.replace_in_tree(old_node, new_node)
