@@ -70,3 +70,20 @@ def validate_call_args(
             raise ArgumentException(
                 f"'{key.arg}' was given as a positional argument", key
             )
+
+
+def validate_literal_nodes(vyper_module: vy_ast.Module) -> None:
+    """
+    Individually validate Vyper AST nodes.
+
+    Calls the `validate` method of each node to verify that literal nodes
+    do not contain invalid values.
+
+    Arguments
+    ---------
+    vyper_module : vy_ast.Module
+        Top level Vyper AST node.
+    """
+    for node in vyper_module.get_descendants():
+        if hasattr(node, "validate"):
+            node.validate()
