@@ -6,16 +6,6 @@ from vyper.exceptions import InvalidLiteral
 
 fail_list = [
     """
-@public
-def foo():
-    x: int128 = -170141183460469231731687303715884105729 # -2**127 - 1
-    """,
-    """
-@public
-def foo():
-    x: decimal = -170141183460469231731687303715884105728.0000000001
-    """,
-    """
 b: decimal
 @public
 def foo():
@@ -30,11 +20,6 @@ def foo():
 @public
 def foo():
     send(0xde0b295669a9fd93d5f28d9ec85e40f4cb697bae, 5)
-    """,
-    """
-@public
-def foo():
-    x: uint256 = convert(821649876217461872458712528745872158745214187264875632587324658732648753245328764872135671285218762145, uint256)  # noqa: E501
     """,
     """
 @public
@@ -59,6 +44,51 @@ def overflow() -> uint256:
 def overflow2() -> uint256:
     a: uint256 = 2**256
     return a
+    """,
+    """
+@public
+def foo():
+    x: address = create_forwarder_to(0x123456789012345678901234567890123456789)
+    """,
+    """
+@public
+def foo():
+    x: bytes[4] = raw_call(0x123456789012345678901234567890123456789, "cow", max_outsize=4)
+    """,
+    """
+@public
+def foo():
+    x: string[100] = "these bytes are nо gооd because the o's are from the Russian alphabet"
+    """,
+    """
+@public
+def foo():
+    x: string[100] = "这个傻老外不懂中文"
+    """,
+    """
+@public
+def foo():
+    x: address = 0x12345678901234567890123456789012345678901
+    """,
+    """
+@public
+def foo():
+    x: address = 0x01234567890123456789012345678901234567890
+    """,
+    """
+@public
+def foo():
+    x: address = 0x123456789012345678901234567890123456789
+    """,
+    """
+@public
+def foo():
+    a: bytes[100] = "ѓtest"
+    """,
+    """
+@public
+def foo():
+    a: bytes32 = keccak256("ѓtest")
     """,
 ]
 
