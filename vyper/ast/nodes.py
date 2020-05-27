@@ -14,7 +14,7 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
-from vyper.utils import annotate_source_code
+from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code
 
 NODE_BASE_ATTRIBUTES = (
     "_children",
@@ -656,11 +656,11 @@ class Num(Constant):
         return self.value
 
     def validate(self):
-        if self.value < -(2 ** 127):
+        if self.value < SizeLimits.MINNUM:
             raise OverflowException(
                 "Value is below lower bound for all numeric types", self
             )
-        if self.value > 2 ** 256 - 1:
+        if self.value > SizeLimits.MAX_UINT256:
             raise OverflowException(
                 "Value exceeds upper bound for all numeric types", self
             )
@@ -692,7 +692,7 @@ class Decimal(Num):
     __slots__ = ()
 
     def validate(self):
-        if self.value.as_tuple().exponent < -10:
+        if self.value.as_tuple().exponent < -MAX_DECIMAL_PLACES:
             raise InvalidLiteral("Vyper supports a maximum of ten decimal points", self)
         super().validate()
 
@@ -851,7 +851,10 @@ class Mult(VyperNode):
         assert type(left) is type(right)
         value = left * right
         if isinstance(left, decimal.Decimal):
-            return value.quantize(decimal.Decimal("1.0000000000"), decimal.ROUND_DOWN)
+            # ensure that the result is truncated to MAX_DECIMAL_PLACES
+            return value.quantize(
+                decimal.Decimal(f"{1:0.{MAX_DECIMAL_PLACES}f}"), decimal.ROUND_DOWN
+            )
         else:
             return value
 
@@ -871,8 +874,10 @@ class Div(VyperNode):
             if value < 0:
                 # the EVM always truncates toward zero
                 value = -(-left / right)
-            # ensure that the result is truncated at 10 decimal places
-            return value.quantize(decimal.Decimal("1.0000000000"), decimal.ROUND_DOWN)
+            # ensure that the result is truncated to MAX_DECIMAL_PLACES
+            return value.quantize(
+                decimal.Decimal(f"{1:0.{MAX_DECIMAL_PLACES}f}"), decimal.ROUND_DOWN
+            )
         else:
             value = left // right
             if value < 0:
