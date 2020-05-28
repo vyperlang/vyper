@@ -48,7 +48,7 @@ def parse_natspec(
         sigs = sig_utils.mk_single_method_identifier(node, global_ctx)
 
         if isinstance(node.returns, vy_ast.Tuple):
-            ret_len = len(node.returns.elts)
+            ret_len = len(node.returns.elements)
         elif node.returns:
             ret_len = 1
         else:

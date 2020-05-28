@@ -183,8 +183,8 @@ def _replace(old_node, new_node):
     if isinstance(new_node, vy_ast.Constant):
         return new_node.from_node(old_node, value=new_node.value)
     elif isinstance(new_node, vy_ast.List):
-        list_values = [_replace(old_node, i) for i in new_node.elts]
-        return new_node.from_node(old_node, elts=list_values)
+        list_values = [_replace(old_node, i) for i in new_node.elements]
+        return new_node.from_node(old_node, elements=list_values)
     else:
         raise UnfoldableNode
 

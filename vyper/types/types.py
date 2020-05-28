@@ -321,7 +321,7 @@ def parse_type(item, location, sigs=None, custom_structs=None, constants=None):
                 location,
                 custom_structs=custom_structs,
                 constants=constants
-            ) for x in item.elts
+            ) for x in item.elements
         ]
         return TupleType(members)
     else:

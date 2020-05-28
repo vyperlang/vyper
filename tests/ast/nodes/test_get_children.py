@@ -13,14 +13,14 @@ def test_order_reversed():
 
 def test_type_filter():
     node = vy_ast.parse_to_ast("[1, 2.0, 'three', 4, 0x05]").body[0].value
-    assert node.get_children(vy_ast.Int) == [node.elts[0], node.elts[3]]
+    assert node.get_children(vy_ast.Int) == [node.elements[0], node.elements[3]]
 
 
 def test_dict_filter():
     node = vy_ast.parse_to_ast("[foo, foo(), bar, bar()]").body[0].value
-    assert node.get_children(filters={"func.id": "foo"}) == [node.elts[1]]
+    assert node.get_children(filters={"func.id": "foo"}) == [node.elements[1]]
 
 
 def test_only_returns_children():
     node = vy_ast.parse_to_ast("[1, 2, (3, 4), 5]").body[0].value
-    assert node.get_children() == node.elts
+    assert node.get_children() == node.elements

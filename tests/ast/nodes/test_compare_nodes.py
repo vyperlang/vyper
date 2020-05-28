@@ -12,7 +12,7 @@ def test_compare_different_node_clases():
 
 def test_compare_different_nodes_same_class():
     vyper_ast = vy_ast.parse_to_ast("[1, 2]")
-    left, right = vyper_ast.body[0].value.elts
+    left, right = vyper_ast.body[0].value.elements
 
     assert left != right
     assert not vy_ast.compare_nodes(left, right)
@@ -20,7 +20,7 @@ def test_compare_different_nodes_same_class():
 
 def test_compare_different_nodes_same_value():
     vyper_ast = vy_ast.parse_to_ast("[1, 1]")
-    left, right = vyper_ast.body[0].value.elts
+    left, right = vyper_ast.body[0].value.elements
 
     assert left != right
     assert vy_ast.compare_nodes(left, right)
@@ -28,7 +28,7 @@ def test_compare_different_nodes_same_value():
 
 def test_compare_complex_nodes_same_value():
     vyper_ast = vy_ast.parse_to_ast("[{'foo':'bar', 43:[1,2,3]}, {'foo':'bar', 43:[1,2,3]}]")
-    left, right = vyper_ast.body[0].value.elts
+    left, right = vyper_ast.body[0].value.elements
 
     assert left != right
     assert vy_ast.compare_nodes(left, right)

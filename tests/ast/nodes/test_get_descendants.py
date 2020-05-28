@@ -19,10 +19,10 @@ def test_returns_all_descendants():
     descendants = vyper_ast.get_descendants()
 
     assert vyper_ast.body[0] in descendants
-    for node in vyper_ast.body[0].value.elts:
+    for node in vyper_ast.body[0].value.elements:
         assert node in descendants
 
-    for node in vyper_ast.body[0].value.elts[2].elts:
+    for node in vyper_ast.body[0].value.elements[2].elements:
         assert node in descendants
 
 
@@ -37,7 +37,7 @@ def test_type_filter():
 def test_dict_filter():
     node = vy_ast.parse_to_ast("[foo, (foo(), bar), bar()]").body[0].value
 
-    assert node.get_descendants(filters={"func.id": "foo"}) == [node.elts[1].elts[0]]
+    assert node.get_descendants(filters={"func.id": "foo"}) == [node.elements[1].elements[0]]
 
 
 def test_include_self():

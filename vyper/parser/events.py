@@ -173,7 +173,7 @@ def pack_args_by_32(holder, maxlen, arg, typ, context, placeholder,
         # List from list literal.
         else:
             mem_offset = 0
-            for arg2 in arg.elts:
+            for arg2 in arg.elements:
                 holder, maxlen = pack_args_by_32(
                     holder,
                     maxlen,
