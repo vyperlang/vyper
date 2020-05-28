@@ -73,7 +73,8 @@ GAS_IDENTITY = 15
 GAS_IDENTITYWORD = 3
 
 # A decimal value can store multiples of 1/DECIMAL_DIVISOR
-DECIMAL_DIVISOR = 10000000000
+MAX_DECIMAL_PLACES = 10
+DECIMAL_DIVISOR = 10 ** MAX_DECIMAL_PLACES
 
 
 # Number of bytes in memory used for system purposes, not for variables

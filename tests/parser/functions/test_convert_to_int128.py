@@ -1,4 +1,4 @@
-from vyper.exceptions import InvalidLiteral, TypeMismatch
+from vyper.exceptions import InvalidLiteral, OverflowException, TypeMismatch
 from vyper.utils import SizeLimits
 
 
@@ -261,7 +261,7 @@ def foo() -> int128:
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(code),
-        InvalidLiteral
+        OverflowException,
     )
 
 

@@ -56,12 +56,6 @@ def foo() -> int128:
     pass
     """,
     """
-bar: int128[3]
-@public
-def foo():
-    self.bar = []
-    """,
-    """
 @public
 def foo():
     x: bytes[4] = raw_call(0x1234567890123456789012345678901234567890, max_outsize=4)
@@ -85,11 +79,6 @@ def foo():
     """,
     """
 x: public()
-    """,
-    """
-@public
-def foo():
-    raw_log([], b"cow", "dog")
     """,
     """
 @public
@@ -160,7 +149,18 @@ s: S = S()
 @nonreentrant("C")
 def double_nonreentrant():
     pass
+    """,
     """
+bar: int128[3]
+@public
+def foo():
+    self.bar = []
+    """,
+    """
+@public
+def foo():
+    raw_log([], b"cow", "dog")
+    """,
 ]
 
 

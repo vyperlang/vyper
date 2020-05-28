@@ -51,51 +51,6 @@ def test() -> uint256:
 def foo():
     x = y = 3
     """,
-    """
-@public
-def foo():
-    x: address = create_forwarder_to(0x123456789012345678901234567890123456789)
-    """,
-    """
-@public
-def foo():
-    x: bytes[4] = raw_call(0x123456789012345678901234567890123456789, "cow", max_outsize=4)
-    """,
-    """
-@public
-def foo():
-    x: string[100] = "these bytes are nо gооd because the o's are from the Russian alphabet"
-    """,
-    """
-@public
-def foo():
-    x: string[100] = "这个傻老外不懂中文"
-    """,
-    """
-@public
-def foo():
-    x: address = 0x12345678901234567890123456789012345678901
-    """,
-    """
-@public
-def foo():
-    x: address = 0x01234567890123456789012345678901234567890
-    """,
-    """
-@public
-def foo():
-    x: address = 0x123456789012345678901234567890123456789
-    """,
-    """
-@public
-def foo():
-    a: bytes[100] = "ѓtest"
-    """,
-    """
-@public
-def foo():
-    a: bytes32 = keccak256("ѓtest")
-    """,
 ]
 
 

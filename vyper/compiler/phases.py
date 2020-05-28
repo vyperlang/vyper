@@ -76,6 +76,8 @@ class CompilerData:
 
     @property
     def vyper_module_folded(self) -> vy_ast.Module:
+        vy_ast.validation.validate_literal_nodes(self.vyper_module)
+
         if not hasattr(self, "_vyper_module_folded"):
             self._vyper_module_folded = generate_folded_ast(self.vyper_module)
 
