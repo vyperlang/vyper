@@ -28,32 +28,6 @@ sure you have the correct Python version installed, and are using that version.
 Ubuntu
 ------
 
-16.04 and older
-^^^^^^^^^^^^^^^
-
-Start by making sure your packages are up-to-date:
-::
-
-    sudo apt-get update
-    sudo apt-get -y upgrade
-
-Install Python 3.6 and some necessary packages:
-::
-
-    sudo apt-get install build-essential libssl-dev libffi-dev
-    wget https://www.python.org/ftp/python/3.6.2/Python-3.6.2.tgz
-    tar xfz Python-3.6.2.tgz
-    cd Python-3.6.2/
-    ./configure --prefix /usr/local/lib/python3.6
-    sudo make
-    sudo make install
-
-16.10 and newer
-^^^^^^^^^^^^^^^
-
-From Ubuntu 16.10 onwards, the Python 3.6 version is in the ``universe``
-repository.
-
 Run the following commands to install:
 ::
 
