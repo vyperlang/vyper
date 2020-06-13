@@ -17,9 +17,9 @@ Vyper supports version pragma which is used to reject being compiled with future
 
 .. code-block:: python
 
-    # @version 0.1.0b13
+    # @version ^0.1.0
 
-The version pragma checks that the compiler version is not a major version.
+The version pragma checks that the compiler version 0.2.x can not compile this file. The pragma checking uses `NPM <https://docs.npmjs.com/misc/semver>`_ semantic versioning syntax.
 
 .. _structure-state-variables:
 

@@ -9,23 +9,27 @@ from tokenize import (
     tokenize,
     untokenize,
 )
-from typing import Sequence, Tuple
+from typing import Tuple
+
+from semantic_version import NpmSpec, Version
 
 from vyper.exceptions import SyntaxException, VersionException
 from vyper.typing import ClassTypes, ParserPosition
 
-VERSION_RE = re.compile(r"^(\d+\.)(\d+\.)(\w*)$")
+VERSION_ALPHA_RE = re.compile(r"(?<=\d)a(?=\d)")  # 0.1.0a17
+VERSION_BETA_RE = re.compile(r"(?<=\d)b(?=\d)")  # 0.1.0b17
+VERSION_RC_RE = re.compile(r"(?<=\d)rc(?=\d)")  # 0.1.0rc17
 
 
-def _parse_version_str(version_str: str, start: ParserPosition) -> Sequence[str]:
-    match = VERSION_RE.match(version_str)
+def _convert_version_str(version_str: str) -> str:
+    """
+    Convert loose version (0.1.0b17) to strict version (0.1.0-beta.17)
+    """
+    version_str = re.sub(VERSION_ALPHA_RE, "-alpha.", version_str)  # 0.1.0-alpha.17
+    version_str = re.sub(VERSION_BETA_RE, "-beta.", version_str)  # 0.1.0-beta.17
+    version_str = re.sub(VERSION_RC_RE, "-rc.", version_str)  # 0.1.0-rc.17
 
-    if match is None:
-        raise VersionException(
-            f'Could not parse given version string "{version_str}"', start,
-        )
-
-    return match.groups()
+    return version_str
 
 
 def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
@@ -36,15 +40,22 @@ def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
 
     version_arr = version_str.split("@version")
 
-    file_version = version_arr[1].strip()
-    file_major, file_minor, file_patch = _parse_version_str(file_version, start)
-    compiler_major, compiler_minor, compiler_patch = _parse_version_str(
-        __version__, start
-    )
+    raw_file_version = version_arr[1].strip()
+    strict_file_version = _convert_version_str(raw_file_version)
+    strict_compiler_version = Version(_convert_version_str(__version__))
 
-    if (file_major, file_minor) != (compiler_major, compiler_minor):
+    try:
+        npm_spec = NpmSpec(strict_file_version)
+    except ValueError:
         raise VersionException(
-            f'File version "{file_version}" is not compatible '
+            f'Version specification "{raw_file_version}" is not a valid NPM semantic '
+            f"version specification",
+            start,
+        )
+
+    if not npm_spec.match(strict_compiler_version):
+        raise VersionException(
+            f'Version specification "{raw_file_version}" is not compatible '
             f'with compiler version "{__version__}"',
             start,
         )
