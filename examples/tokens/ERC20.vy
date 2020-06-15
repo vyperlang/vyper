@@ -75,8 +75,6 @@ def transfer(_to : address, _value : uint256) -> bool:
 def transferFrom(_from : address, _to : address, _value : uint256) -> bool:
     """
      @dev Transfer tokens from one address to another.
-          Note that while this function emits a Transfer event, this is not required as per the specification,
-          and other compliant implementations may not emit the event.
      @param _from address The address which you want to send tokens from
      @param _to address The address which you want to transfer to
      @param _value uint256 the amount of tokens to be transferred
@@ -111,7 +109,7 @@ def approve(_spender : address, _value : uint256) -> bool:
 @public
 def mint(_to: address, _value: uint256):
     """
-    @dev Mint an amount of the token and assigns it to an account. 
+    @dev Mint an amount of the token and assigns it to an account.
          This encapsulates the modification of balances such that the
          proper events are emitted.
     @param _to The account that will receive the created tokens.
