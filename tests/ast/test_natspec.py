@@ -7,6 +7,7 @@ from vyper.parser.global_context import GlobalContext
 test_code = """
 '''
 @title A simulator for Bug Bunny, the most famous Rabbit
+@license MIT
 @author Warned Bros
 @notice You can use this contract for only the most basic simulation
 @dev
@@ -40,6 +41,7 @@ expected_userdoc = {
 
 expected_devdoc = {
     "author": "Warned Bros",
+    "license": "MIT",
     "details": "Simply chewing a carrot does not count, carrots must pass the throat to be considered eaten",  # NOQA: E501
     "methods": {
         "doesEat(string,uint256)": {
@@ -257,17 +259,68 @@ def foo():
         parse_natspec(vyper_ast, global_ctx)
 
 
-def test_invalid_field():
-    code = """
+@pytest.mark.parametrize("field", ["title", "license"])
+def test_invalid_field(field):
+    code = f"""
 @public
 def foo():
-    '''@title function level docstrings cannot have titles'''
+    '''@{field} function level docstrings cannot have titles'''
     pass
     """
 
     vyper_ast = parse_to_ast(code)
     global_ctx = GlobalContext.get_global_context(vyper_ast)
-    with pytest.raises(NatSpecSyntaxException, match="'@title' is not a valid field"):
+    with pytest.raises(NatSpecSyntaxException, match=f"'@{field}' is not a valid field"):
+        parse_natspec(vyper_ast, global_ctx)
+
+
+licenses = [
+    "Apache-2.0",
+    "Apache-2.0 OR MIT",
+    "PSF-2.0 AND MIT",
+    "Apache-2.0 AND (MIT OR GPL-2.0-only)"
+]
+@pytest.mark.parametrize("license", licenses)
+def test_license(license):
+    code = f"""
+'''
+@license {license}
+'''
+@public
+def foo():
+    pass
+    """
+
+    vyper_ast = parse_to_ast(code)
+    global_ctx = GlobalContext.get_global_context(vyper_ast)
+    _, devdoc = parse_natspec(vyper_ast, global_ctx)
+
+    assert devdoc == {
+        "license": license,
+    }
+
+
+fields = [
+    "title",
+    "author",
+    "license",
+    "notice",
+    "dev"
+]
+@pytest.mark.parametrize("field", fields)
+def test_empty_fields(field):
+    code = f"""
+'''
+@{field}
+'''
+@public
+def foo():
+    pass
+    """
+
+    vyper_ast = parse_to_ast(code)
+    global_ctx = GlobalContext.get_global_context(vyper_ast)
+    with pytest.raises(NatSpecSyntaxException, match=f"No description given for tag '@{field}'"):
         parse_natspec(vyper_ast, global_ctx)
 
 

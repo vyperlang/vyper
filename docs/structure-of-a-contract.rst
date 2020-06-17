@@ -187,6 +187,7 @@ Vyper supports structured documentation for contracts and public functions using
 
     """
     @title A simulator for Bug Bunny, the most famous Rabbit
+    @license MIT
     @author Warned Bros
     @notice You can use this contract for only the most basic simulation
     @dev
@@ -210,16 +211,17 @@ Tags
 
 All tags are optional. The following table explains the purpose of each NatSpec tag and where it may be used:
 
-=========== ======================================== ==================
-Tag         Description                              Context
-=========== ======================================== ==================
-``@title``  Title that describes the contract        contract
-``@author`` Name of the author                       contract, function
-``@notice`` Explain to an end user what this does    contract, function
-``@dev``    Explain to a developer any extra details contract, function
-``@param``  Documents a single parameter             function
-``@return`` Documents one or all return variable(s)  function
-=========== ======================================== ==================
+============ ======================================== ==================
+Tag          Description                              Context
+============ ======================================== ==================
+``@title``   Title that describes the contract        contract
+``@licence`` License of the contract                  contract
+``@author``  Name of the author                       contract, function
+``@notice``  Explain to an end user what this does    contract, function
+``@dev``     Explain to a developer any extra details contract, function
+``@param``   Documents a single parameter             function
+``@return``  Documents one or all return variable(s)  function
+============ ======================================== ==================
 
 Some rules / restrictions:
 
@@ -269,6 +271,7 @@ file should also be produced and should look like this:
 
     {
       "author": "Warned Bros",
+      "license": "MIT",
       "details": "Simply chewing a carrot does not count, carrots must pass the throat to be considered eaten",
       "methods": {
         "doesEat(string,uint256)": {
