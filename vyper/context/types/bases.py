@@ -167,7 +167,7 @@ class BaseType:
         self.is_constant = is_constant
         self.is_public = is_public
 
-    def from_annotation(cls, node: vy_ast.VyperNode, **kwargs: Any) -> None:
+    def from_annotation(self, node: vy_ast.VyperNode, **kwargs: Any) -> None:
         # always raises, user should have used a pure type
         raise StructureException("Value is not a type", node)
 

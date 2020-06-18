@@ -67,6 +67,7 @@ class ContractFunctionType(BaseType):
         is_constant: bool = False,
         nonreentrant: str = False,
     ) -> None:
+        super().__init__(is_constant, is_public)
         self.name = name
         self.arguments = arguments
         self.arg_count = arg_count
@@ -74,9 +75,7 @@ class ContractFunctionType(BaseType):
         self.kwarg_keys = []
         if isinstance(arg_count, tuple):
             self.kwarg_keys = list(self.arguments)[self.arg_count[0]:]
-        self.is_public = is_public
         self.is_payable = is_payable
-        self.is_constant = is_constant
         self.nonreentrant = nonreentrant
 
     def __repr__(self):

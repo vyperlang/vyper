@@ -83,7 +83,7 @@ class Namespace(dict):
         All items that are added within the context are removed upon exit.
         """
         if not self._scopes:
-            raise CompilerPanic("")
+            raise CompilerPanic("First scope must be entered via `enter_builtin_scope`")
         self._scopes.append(set())
         return self
 
