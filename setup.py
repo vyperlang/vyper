@@ -20,11 +20,11 @@ extras_require = {
         'hypothesis[lark]>=4.53.2,<5',
     ],
     'lint': [
-        'flake8>=3.7.9,<3.8.0',
-        'flake8-bugbear>=19.8.0,<20',
-        'flake8-use-fstring>=1.0.0,<2.0.0',
-        'isort>=4.2.15,<5',
-        'mypy>=0.740,<1',
+        'flake8>=3.8,<4.0',
+        'flake8-bugbear>=20.1,<21.0',
+        'flake8-use-fstring>=1.1,<2.0',
+        'isort>=4.2,<5.0',
+        'mypy>=0.780,<1.0',
     ],
     'docs': [
         'recommonmark',
