@@ -8,7 +8,7 @@ from vyper.exceptions import NatSpecSyntaxException
 from vyper.parser.global_context import GlobalContext
 from vyper.signatures import sig_utils
 
-SINGLE_FIELDS = ("title", "author", "notice", "dev")
+SINGLE_FIELDS = ("title", "author", "license", "notice", "dev")
 PARAM_FIELDS = ("param", "return")
 USERDOCS_FIELDS = ("notice",)
 
@@ -56,7 +56,8 @@ def parse_natspec(
 
         if sigs:
             args = tuple(i.arg for i in node.args.args)
-            fn_natspec = _parse_docstring(source, docstring, ("title",), args, ret_len)
+            invalid_fields = ("title", "license",)
+            fn_natspec = _parse_docstring(source, docstring, invalid_fields, args, ret_len)
             for s in sigs:
                 if "notice" in fn_natspec:
                     userdoc.setdefault("methods", {})[s] = {
