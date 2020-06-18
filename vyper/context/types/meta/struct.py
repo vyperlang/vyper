@@ -1,0 +1,103 @@
+from collections import OrderedDict
+
+from vyper import ast as vy_ast
+from vyper.ast.validation import validate_call_args
+from vyper.context.types.indexable.mapping import MappingType
+from vyper.context.types.utils import get_type_from_annotation
+from vyper.context.types.value.bases import MemberType
+from vyper.context.validation.utils import validate_expected_type
+from vyper.exceptions import (
+    NamespaceCollision,
+    StructureException,
+    UnknownAttribute,
+    VariableDeclarationException,
+)
+
+
+class StructType(MemberType):
+    def __init__(self, _id, members, is_constant: bool = False, is_public: bool = False) -> None:
+        self._id = _id
+        super().__init__(is_constant, is_public)
+        for key, type_ in members.items():
+            self.add_member(key, type_)
+
+    def compare_type(self, other):
+        return super().compare_type(other) and self._id == other._id
+
+
+class StructPure:
+
+    _is_callable = True
+    _as_array = True
+
+    def __init__(self, _id, members):
+        self._id = _id
+        self.members = members
+
+    def __repr__(self):
+        return f"{self._id} declaration object"
+
+    def compare_type(self, other):
+        return False
+
+    def from_annotation(
+        self, node: vy_ast.VyperNode, is_constant: bool = False, is_public: bool = False
+    ) -> StructType:
+        if not isinstance(node, vy_ast.Name):
+            raise StructureException("Invalid type assignment", node)
+        return StructType(self._id, self.members, is_constant, is_public)
+
+    def fetch_call_return(self, node: vy_ast.Call):
+        validate_call_args(node, 1)
+        if not isinstance(node.args[0], vy_ast.Dict):
+            raise VariableDeclarationException(
+                "Struct values must be declared via dictionary", node.args[0]
+            )
+        if next((i for i in self.members.values() if isinstance(i, MappingType)), False):
+            raise VariableDeclarationException(
+                "Struct contains a mapping and so cannot be declared as a literal", node
+            )
+
+        members = self.members.copy()
+        for key, value in zip(node.args[0].keys, node.args[0].values):
+            if key is None or key.get("id") not in members:
+                raise UnknownAttribute("Unknown or duplicate struct member", key or value)
+            validate_expected_type(value, members.pop(key.id))
+        if members:
+            raise VariableDeclarationException(
+                f"Struct declaration does not define all fields: {', '.join(list(members))}", node,
+            )
+
+        return StructType(self._id, self.members)
+
+
+def build_pure_type_from_node(base_node: vy_ast.ClassDef) -> StructPure:
+    """
+    Generate a `StructPure` object from a Vyper ast node.
+
+    Arguments
+    ---------
+    node : ClassDef
+        Vyper ast node defining the struct
+    Returns
+    -------
+    StructPure
+        Pure struct type
+    """
+
+    members = OrderedDict()
+    for node in base_node.body:
+        if not isinstance(node, vy_ast.AnnAssign):
+            raise StructureException("Structs can only variable definitions", node)
+        if node.value is not None:
+            raise StructureException("Cannot assign a value during struct declaration", node)
+        if not isinstance(node.target, vy_ast.Name):
+            raise StructureException("Invalid syntax for struct member name", node.target)
+        member_name = node.target.id
+        if member_name in members:
+            raise NamespaceCollision(
+                f"Struct member '{member_name}' has already been declared", node.target
+            )
+        members[member_name] = get_type_from_annotation(node.annotation)
+
+    return StructPure(base_node.name, members)

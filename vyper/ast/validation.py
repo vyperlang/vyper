@@ -9,7 +9,7 @@ from vyper.exceptions import (
 
 
 def validate_call_args(
-    node: vy_ast.Call, arg_count: Union[int, tuple], kwargs: Optional[list] = None
+    node: vy_ast.Call, arg_count: Union[int, tuple], kwargs: Optional[dict] = None
 ) -> None:
     """
     Validate positional and keyword arguments of a Call node.
@@ -34,7 +34,8 @@ def validate_call_args(
         None. Raises an exception when the arguments are invalid.
     """
     if kwargs is None:
-        kwargs = []
+        kwargs = {}
+
     if not isinstance(node, vy_ast.Call):
         raise StructureException("Expected Call", node)
     if not isinstance(arg_count, (int, tuple)):
@@ -44,20 +45,19 @@ def validate_call_args(
         raise ArgumentException(
             f"Invalid argument count: expected {arg_count}, got {len(node.args)}", node
         )
-    elif (
-        isinstance(arg_count, tuple)
-        and not arg_count[0] <= len(node.args) <= arg_count[1]
-    ):
+    if isinstance(arg_count, tuple) and not arg_count[0] <= len(node.args) <= arg_count[1]:
         raise ArgumentException(
-            f"Invalid argument count: expected between "
-            f"{arg_count[0]} and {arg_count[1]}, got {len(node.args)}",
-            node,
+            f"Invalid argument count: expected {arg_count[0]} "
+            f"to {arg_count[1]}, got {len(node.args)}",
+            node
         )
 
     if not kwargs and node.keywords:
         raise ArgumentException(
             "Keyword arguments are not accepted here", node.keywords[0]
         )
+
+    kwargs_seen = set()
     for key in node.keywords:
         if key.arg is None:
             raise StructureException("Use of **kwargs is not supported", key.value)
@@ -70,6 +70,9 @@ def validate_call_args(
             raise ArgumentException(
                 f"'{key.arg}' was given as a positional argument", key
             )
+        if key.arg in kwargs_seen:
+            raise ArgumentException(f"Duplicate keyword argument '{key.arg}'", key)
+        kwargs_seen.add(key.arg)
 
 
 def validate_literal_nodes(vyper_module: vy_ast.Module) -> None:

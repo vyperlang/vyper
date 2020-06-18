@@ -633,7 +633,8 @@ class arg(VyperNode):
 
 
 class Return(VyperNode):
-    __slots__ = ("value",)
+    __slots__ = ("value", )
+    _is_terminus = True
 
 
 class ClassDef(VyperNode):
@@ -1052,6 +1053,7 @@ class GtE(VyperNode):
 
 class In(VyperNode):
     __slots__ = ()
+    _description = "membership"
 
     def _op(self, left, right):
         return left in right
@@ -1136,6 +1138,7 @@ class AugAssign(VyperNode):
 class Raise(VyperNode):
     __slots__ = ("exc",)
     _only_empty_fields = ("cause",)
+    _is_terminus = True
 
 
 class Assert(VyperNode):

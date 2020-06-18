@@ -5,6 +5,32 @@ from decimal import Decimal
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
+from vyper.context.types.indexable.sequence import ArrayType
+from vyper.context.types.utils import get_type_from_annotation
+from vyper.context.types.value.address import AddressType
+from vyper.context.types.value.array_value import (
+    ArrayValueBase,
+    BytesArrayPure,
+    BytesArrayType,
+    BytesBase,
+    StringPure,
+    StringType,
+)
+from vyper.context.types.value.bases import ValueType
+from vyper.context.types.value.boolean import BoolType
+from vyper.context.types.value.bytes_fixed import Bytes32Type
+from vyper.context.types.value.numeric import (
+    DecimalType,
+    Int128Type,
+    IntegerBase,
+    NumericBase,
+    Uint256Type,
+)
+from vyper.context.validation.utils import (
+    get_common_types,
+    get_possible_types_from_node,
+    validate_expected_type,
+)
 from vyper.exceptions import (
     ArgumentException,
     CompilerPanic,
@@ -14,6 +40,8 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatch,
     UnfoldableNode,
+    VyperException,
+    ZeroDivisionException,
 )
 from vyper.functions.convert import convert
 from vyper.opcodes import version_check
@@ -30,14 +58,9 @@ from vyper.parser.parser_utils import (
     unwrap_location,
 )
 from vyper.signatures.function_signature import VariableRecord
-from vyper.types import (
-    BaseType,
-    ByteArrayLike,
-    ByteArrayType,
-    ListType,
-    StringType,
-    is_base_type,
-)
+from vyper.types import BaseType, ByteArrayLike, ByteArrayType, ListType
+from vyper.types import StringType as OldStringType
+from vyper.types import is_base_type
 from vyper.utils import (
     DECIMAL_DIVISOR,
     MemoryPositions,
@@ -54,14 +77,25 @@ SHA256_BASE_GAS = 60
 SHA256_PER_WORD_GAS = 12
 
 
+class _SimpleBuiltinFunction:
+
+    def fetch_call_return(self, node):
+        validate_call_args(node, len(self._inputs), getattr(self, '_kwargs', []))
+        for arg, (_, expected) in zip(node.args, self._inputs):
+            validate_expected_type(arg, expected)
+
+        if self._return_type:
+            return self._return_type
+
+
 # currently no option for reason string (easy to add, just need to refactor
 # vyper.parser.stmt so we can use _assert_reason).
-class AssertModifiable:
+class AssertModifiable(_SimpleBuiltinFunction):
     """
     Assert a condition without performing a constancy check.
     """
     _id = "assert_modifiable"
-    _inputs = [("cond", "bool")]
+    _inputs = [("cond", BoolType())]
     _return_type = None
 
     @validate_inputs
@@ -69,11 +103,11 @@ class AssertModifiable:
         return LLLnode.from_list(['assert', args[0]], typ=None, pos=getpos(expr))
 
 
-class Floor:
+class Floor(_SimpleBuiltinFunction):
 
     _id = "floor"
-    _inputs = [("value", "decimal")]
-    _return_type = "int128"
+    _inputs = [("value", DecimalType())]
+    _return_type = Int128Type()
 
     def evaluate(self, node):
         validate_call_args(node, 1)
@@ -97,11 +131,11 @@ class Floor:
         )
 
 
-class Ceil:
+class Ceil(_SimpleBuiltinFunction):
 
     _id = "ceil"
-    _inputs = [("value", "decimal")]
-    _return_type = "int128"
+    _inputs = [("value", DecimalType())]
+    _return_type = Int128Type()
 
     def evaluate(self, node):
         validate_call_args(node, 1)
@@ -127,7 +161,60 @@ class Ceil:
 
 class Convert:
 
+    # TODO this is just a wireframe, expand it with complete functionality
+    # https://github.com/vyperlang/vyper/issues/1093
+
     _id = "convert"
+
+    def fetch_call_return(self, node: vy_ast.Call):
+        validate_call_args(node, 2)
+        target_type = get_type_from_annotation(node.args[1])
+
+        validate_expected_type(node.args[0], ValueType())
+        try:
+            validate_expected_type(node.args[0], target_type)
+        except VyperException:
+            pass
+        else:
+            # TODO remove this once it's possible in parser
+            if not isinstance(target_type, Uint256Type):
+                raise InvalidType(f"Value and target type are both '{target_type}'", node)
+
+        # TODO!
+        # try:
+        #     validation_fn = getattr(self, f"validate_to_{target_type._id}")
+        # except AttributeError:
+        #     raise InvalidType(
+        #         f"Unsupported destination type '{target_type}'", node.args[1]
+        #     ) from None
+
+        # validation_fn(initial_type)
+
+        return target_type
+
+    def validate_to_bool(self, initial_type):
+        pass
+
+    def validate_to_decimal(self, initial_type):
+        pass
+
+    def validate_to_int128(self, initial_type):
+        pass
+
+    def validate_to_uint256(self, initial_type):
+        pass
+
+    def validate_to_bytes32(self, initial_type):
+        pass
+
+    def validate_to_string(self, initial_type):
+        pass
+
+    def validate_to_bytes(self, initial_type):
+        pass
+
+    def validate_to_address(self, initial_type):
+        pass
 
     def build_LLL(self, expr, context):
         return convert(expr, context)
@@ -138,6 +225,33 @@ class Slice:
     _id = "slice"
     _inputs = [("b", ('bytes', 'bytes32', 'string')), ('start', 'int128'), ('length', 'int128')]
     _return_type = None
+
+    def fetch_call_return(self, node):
+        validate_call_args(node, 3)
+
+        # TODO
+        if isinstance(node.args[1], vy_ast.Int) and node.args[1].value < 0:
+            raise ArgumentException("Start must be a positive integer", node.args[1])
+        if isinstance(node.args[2], vy_ast.Int) and node.args[2].value < 1:
+            raise ArgumentException("Length cannot be less than 1", node.args[2])
+
+        validate_expected_type(node.args[0], (BytesBase(), StringPure()))
+        type_list = get_possible_types_from_node(node.args[0])
+        try:
+            validate_expected_type(node.args[0], StringPure())
+            return_type = StringType()
+        except VyperException:
+            return_type = BytesArrayType()
+
+        for arg in node.args[1:]:
+            validate_expected_type(arg, Int128Type())
+
+        if isinstance(node.args[2], vy_ast.Int):
+            return_type.set_length(node.args[2].value)
+        else:
+            return_type.set_min_length(type_list[0].length)
+
+        return return_type
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -160,7 +274,7 @@ class Slice:
         if isinstance(args[0].typ, ByteArrayType) or is_base_type(sub.typ, 'bytes32'):
             ReturnType = ByteArrayType
         else:
-            ReturnType = StringType
+            ReturnType = OldStringType
 
         # Node representing the position of the output in memory
         np = context.new_placeholder(ReturnType(maxlen=sub_typ_maxlen + 32))
@@ -217,11 +331,11 @@ class Slice:
         )
 
 
-class Len:
+class Len(_SimpleBuiltinFunction):
 
     _id = "len"
-    _inputs = [("b", ("bytes", "string"))]
-    _return_type = "int128"
+    _inputs = [("b", ArrayValueBase())]
+    _return_type = Int128Type()
 
     def evaluate(self, node):
         validate_call_args(node, 1)
@@ -236,14 +350,44 @@ class Len:
 
         return vy_ast.Int.from_node(node, value=length)
 
-    @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
-        return get_length(args[0])
+    def build_LLL(self, node, context):
+        arg = Expr(node.args[0], context).lll_node
+        return get_length(arg)
 
 
 class Concat:
 
     _id = "concat"
+
+    def fetch_call_return(self, node):
+        if len(node.args) < 2:
+            raise ArgumentException("Invalid argument count: expected at least 2", node)
+
+        if node.keywords:
+            raise ArgumentException("Keyword arguments are not accepted here", node.keywords[0])
+
+        type_ = None
+        for expected in (BytesBase(), StringPure()):
+            try:
+                validate_expected_type(node.args[0], expected)
+                type_ = expected
+            except (InvalidType, TypeMismatch):
+                pass
+        if type_ is None:
+            raise TypeMismatch("Concat values must be bytes or string", node.args[0])
+
+        length = 0
+        for arg in node.args[1:]:
+            validate_expected_type(arg, type_)
+
+        length = 0
+        for arg in node.args:
+            length += get_possible_types_from_node(arg).pop().length
+
+        # # type_.set_length(sum(i.length for i in type_list))
+        return_type = BytesArrayType() if isinstance(type_, BytesBase) else StringType()
+        return_type.set_length(length)
+        return return_type
 
     def build_LLL(self, expr, context):
         args = [Expr(arg, context).lll_node for arg in expr.args]
@@ -271,7 +415,7 @@ class Concat:
             prev_type = current_type
 
         if current_type == 'string':
-            ReturnType = StringType
+            ReturnType = OldStringType
         else:
             ReturnType = ByteArrayType
 
@@ -353,11 +497,11 @@ class Concat:
         )
 
 
-class Keccak256:
+class Keccak256(_SimpleBuiltinFunction):
 
     _id = "keccak256"
-    _inputs = [("value", ('bytes_literal', 'str_literal', 'bytes', 'string', 'bytes32'))]
-    _return_type = "bytes32"
+    _inputs = [("value", (BytesArrayPure(), StringType(), Bytes32Type()))]
+    _return_type = Bytes32Type()
 
     def evaluate(self, node):
         validate_call_args(node, 1)
@@ -393,11 +537,11 @@ def _make_sha256_call(inp_start, inp_len, out_start, out_len):
     ]
 
 
-class Sha256:
+class Sha256(_SimpleBuiltinFunction):
 
     _id = "sha256"
-    _inputs = [("value", ('bytes_literal', 'str_literal', 'bytes', 'string', 'bytes32'))]
-    _return_type = "bytes32"
+    _inputs = [("value", (BytesArrayPure(), StringType(), Bytes32Type()))]
+    _return_type = Bytes32Type()
 
     def evaluate(self, node):
         validate_call_args(node, 1)
@@ -520,15 +664,23 @@ class MethodID:
         else:
             raise CompilerPanic
 
+    def fetch_call_return(self, node):
+        raise CompilerPanic("method_id should always be folded")
+
     def build_LLL(self, *args, **kwargs):
         raise CompilerPanic("method_id should always be folded")
 
 
-class ECRecover:
+class ECRecover(_SimpleBuiltinFunction):
 
     _id = "ecrecover"
-    _inputs = [("hash", "bytes32"), ("v", "uint256"), ("r", "uint256"), ("s", "uint256")]
-    _return_type = "address"
+    _inputs = [
+        ("hash", Bytes32Type()),
+        ("v", Uint256Type()),
+        ("r", Uint256Type()),
+        ("s", Uint256Type()),
+    ]
+    _return_type = AddressType()
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -552,11 +704,11 @@ def avo(arg, ind, pos):
     return unwrap_location(add_variable_offset(arg, LLLnode.from_list(ind, 'int128'), pos=pos))
 
 
-class ECAdd:
+class ECAdd(_SimpleBuiltinFunction):
 
     _id = "ecadd"
-    _inputs = [("a", "uint256[2]"), ("b", "uint256[2]")]
-    _return_type = "uint256[2]"
+    _inputs = [("a", ArrayType(Uint256Type(), 2)), ("b", ArrayType(Uint256Type(), 2))]
+    _return_type = ArrayType(Uint256Type(), 2)
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -576,11 +728,11 @@ class ECAdd:
         return o
 
 
-class ECMul:
+class ECMul(_SimpleBuiltinFunction):
 
     _id = "ecmul"
-    _inputs = [("point", "uint256[2]"), ("scalar", "uint256")]
-    _return_type = "uint256[2]"
+    _inputs = [("point", ArrayType(Uint256Type(), 2)), ("scalar", Uint256Type())]
+    _return_type = ArrayType(Uint256Type(), 2)
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -613,11 +765,23 @@ def _storage_element_getter(index):
     )
 
 
-class Extract32:
+class Extract32(_SimpleBuiltinFunction):
 
     _id = "extract32"
-    _inputs = [("b", "bytes"), ("start", "int128")]
+    _inputs = [("b", BytesArrayPure()), ("start", Int128Type())]
     _kwargs = {"type": Optional('name_literal', 'bytes32')}
+    _return_type = None
+
+    def fetch_call_return(self, node):
+        super().fetch_call_return(node)
+        if node.keywords:
+            return_type = get_type_from_annotation(node.keywords[0].value)
+            if not isinstance(return_type, (AddressType, Bytes32Type, IntegerBase)):
+                raise
+        else:
+            return_type = Bytes32Type()
+
+        return return_type
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -689,8 +853,8 @@ class Extract32:
 class AsWeiValue:
 
     _id = "as_wei_value"
-    _inputs = [("value", ("num_literal", "int128", "uint256", "decimal")), ("unit", "str_literal")]
-    _return_type = "uint256"
+    _inputs = [("value", ("int128", "uint256", "decimal")), ("unit", "str_literal")]
+    _return_type = Uint256Type()
 
     wei_denoms = {
         ("wei", ): 1,
@@ -709,6 +873,13 @@ class AsWeiValue:
             raise ArgumentException(
                 "Wei denomination must be given as a literal string", node.args[1]
             )
+        try:
+            denom = next(v for k, v in self.wei_denoms.items() if node.args[1].value in k)
+        except StopIteration:
+            raise ArgumentException(
+                f"Unknown denomination: {node.args[1].value}", node.args[1]
+            ) from None
+
         if not isinstance(node.args[0], (vy_ast.Decimal, vy_ast.Int)):
             raise UnfoldableNode
         value = node.args[0].value
@@ -721,14 +892,11 @@ class AsWeiValue:
         if isinstance(value, Decimal) and value >= 2**127:
             raise InvalidLiteral("Value out of range for decimal", node.args[0])
 
-        try:
-            denom = next(v for k, v in self.wei_denoms.items() if node.args[1].value in k)
-        except StopIteration:
-            raise ArgumentException(
-                f"Unknown denomination: {node.args[1].value}", node.args[1]
-            ) from None
-
         return vy_ast.Int.from_node(node, value=int(value * denom))
+
+    def fetch_call_return(self, node):
+        validate_expected_type(node.args[0], NumericBase())
+        return self._return_type
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -777,10 +945,10 @@ zero_value = LLLnode.from_list(0, typ=BaseType('uint256'))
 false_value = LLLnode.from_list(0, typ=BaseType('bool', is_literal=True))
 
 
-class RawCall:
+class RawCall(_SimpleBuiltinFunction):
 
     _id = "raw_call"
-    _inputs = [("to", "address"), ("data", "bytes")]
+    _inputs = [("to", AddressType()), ("data", BytesArrayPure())]
     _kwargs = {
         "max_outsize": Optional('num_literal', 0),
         "gas": Optional('uint256', 'gas'),
@@ -789,6 +957,21 @@ class RawCall:
         "is_static_call": Optional('bool', false_value),
     }
     _return_type = None
+
+    def fetch_call_return(self, node):
+        super().fetch_call_return(node)
+        outsize = next((i.value for i in node.keywords if i.arg == "max_outsize"), None)
+        if outsize is None:
+            return None
+
+        if not isinstance(outsize, vy_ast.Int) or outsize.value < 0:
+            raise
+
+        if outsize.value:
+            return_type = BytesArrayType()
+            return_type.set_min_length(outsize.value)
+
+            return return_type
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -861,10 +1044,10 @@ class RawCall:
         return LLLnode.from_list(seq, typ=typ, location="memory", pos=getpos(expr))
 
 
-class Send:
+class Send(_SimpleBuiltinFunction):
 
     _id = "send"
-    _inputs = [("to", "address"), ("value", "uint256")]
+    _inputs = [("to", AddressType()), ("value", Uint256Type())]
     _return_type = None
 
     @validate_inputs
@@ -882,11 +1065,12 @@ class Send:
         )
 
 
-class SelfDestruct:
+class SelfDestruct(_SimpleBuiltinFunction):
 
     _id = "selfdestruct"
-    _inputs = [("to", "address")]
+    _inputs = [("to", AddressType())]
     _return_type = None
+    _is_terminus = True
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -898,11 +1082,11 @@ class SelfDestruct:
         return LLLnode.from_list(['selfdestruct', args[0]], typ=None, pos=getpos(expr))
 
 
-class BlockHash:
+class BlockHash(_SimpleBuiltinFunction):
 
     _id = "blockhash"
-    _inputs = [("block_num", "uint256")]
-    _return_type = "bytes32"
+    _inputs = [("block_num", Uint256Type())]
+    _return_type = Bytes32Type()
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, contact):
@@ -917,6 +1101,19 @@ class RawLog:
 
     _id = "raw_log"
     _inputs = [("topics", "*"), ("data", ('bytes32', 'bytes'))]
+
+    def fetch_call_return(self, node):
+        validate_call_args(node, 2)
+        if not isinstance(node.args[0], vy_ast.List) or len(node.args[0].elements) > 4:
+            raise InvalidType(
+                "Expecting a list of 0-4 topics as first argument", node.args[0]
+            )
+        if node.args[0].elements:
+            validate_expected_type(
+                node.args[0],
+                ArrayType(Bytes32Type(), len(node.args[0].elements))
+            )
+        validate_expected_type(node.args[1], BytesBase())
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -971,11 +1168,11 @@ class RawLog:
         )
 
 
-class BitwiseAnd:
+class BitwiseAnd(_SimpleBuiltinFunction):
 
     _id = "bitwise_and"
-    _inputs = [("x", "uint256"), ("y", "uint256")]
-    _return_type = "uint256"
+    _inputs = [("x", Uint256Type()), ("y", Uint256Type())]
+    _return_type = Uint256Type()
 
     def evaluate(self, node):
         validate_call_args(node, 2)
@@ -995,11 +1192,11 @@ class BitwiseAnd:
         )
 
 
-class BitwiseOr:
+class BitwiseOr(_SimpleBuiltinFunction):
 
     _id = "bitwise_or"
-    _inputs = [("x", "uint256"), ("y", "uint256")]
-    _return_type = "uint256"
+    _inputs = [("x", Uint256Type()), ("y", Uint256Type())]
+    _return_type = Uint256Type()
 
     def evaluate(self, node):
         validate_call_args(node, 2)
@@ -1019,11 +1216,11 @@ class BitwiseOr:
         )
 
 
-class BitwiseXor:
+class BitwiseXor(_SimpleBuiltinFunction):
 
     _id = "bitwise_xor"
-    _inputs = [("x", "uint256"), ("y", "uint256")]
-    _return_type = "uint256"
+    _inputs = [("x", Uint256Type()), ("y", Uint256Type())]
+    _return_type = Uint256Type()
 
     def evaluate(self, node):
         validate_call_args(node, 2)
@@ -1043,11 +1240,11 @@ class BitwiseXor:
         )
 
 
-class BitwiseNot:
+class BitwiseNot(_SimpleBuiltinFunction):
 
     _id = "bitwise_not"
-    _inputs = [("x", "uint256")]
-    _return_type = "uint256"
+    _inputs = [("x", Uint256Type())]
+    _return_type = Uint256Type()
 
     def evaluate(self, node):
         validate_call_args(node, 1)
@@ -1066,11 +1263,11 @@ class BitwiseNot:
         return LLLnode.from_list(['not', args[0]], typ=BaseType('uint256'), pos=getpos(expr))
 
 
-class Shift:
+class Shift(_SimpleBuiltinFunction):
 
     _id = "shift"
-    _inputs = [("x", "uint256"), ("_shift", "int128")]
-    _return_type = "uint256"
+    _inputs = [("x", Uint256Type()), ("_shift", Int128Type())]
+    _return_type = Uint256Type()
 
     def evaluate(self, node):
         validate_call_args(node, 2)
@@ -1125,13 +1322,15 @@ class Shift:
         )
 
 
-class _AddMulMod:
+class _AddMulMod(_SimpleBuiltinFunction):
 
-    _inputs = [("a", "uint256"), ("b", "uint256"), ("c", "uint256")]
-    _return_type = "uint256"
+    _inputs = [("a", Uint256Type()), ("b", Uint256Type()), ("c", Uint256Type())]
+    _return_type = Uint256Type()
 
     def evaluate(self, node):
         validate_call_args(node, 3)
+        if isinstance(node.args[2], vy_ast.Num) and node.args[2].value == 0:
+            raise ZeroDivisionException("Modulo by 0", node.args[2])
         for arg in node.args:
             if not isinstance(arg, vy_ast.Num):
                 raise UnfoldableNode
@@ -1205,12 +1404,12 @@ def get_create_forwarder_to_bytecode():
     return assembly_to_evm(code_a)[0] + (b'\x00' * 20) + assembly_to_evm(code_b)[0]
 
 
-class CreateForwarderTo:
+class CreateForwarderTo(_SimpleBuiltinFunction):
 
     _id = "create_forwarder_to"
-    _inputs = [("target", "address")]
+    _inputs = [("target", AddressType())]
     _kwargs = {'value': Optional('uint256', zero_value)}
-    _return_type = "address"
+    _return_type = AddressType()
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -1260,6 +1459,18 @@ class _MinMax:
         value = self._eval_fn(left, right)
         return type(node.args[0]).from_node(node, value=value)
 
+    def fetch_call_return(self, node):
+        validate_call_args(node, 2)
+
+        types_list = get_common_types(
+            *node.args,
+            filter_fn=lambda x: isinstance(x, NumericBase)
+        )
+        if not types_list:
+            raise TypeMismatch
+
+        return types_list.pop()
+
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         def _can_compare_with_uint256(operand):
@@ -1308,11 +1519,11 @@ class Max(_MinMax):
     _opcode = "lt"
 
 
-class Sqrt:
+class Sqrt(_SimpleBuiltinFunction):
 
     _id = "sqrt"
-    _inputs = [("d", "decimal")]
-    _return_type = "decimal"
+    _inputs = [("d", DecimalType())]
+    _return_type = DecimalType()
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -1378,6 +1589,11 @@ class Empty:
     _id = "empty"
     _inputs = [("typename", "*")]
 
+    def fetch_call_return(self, node):
+        validate_call_args(node, 1)
+        type_ = get_type_from_annotation(node.args[0])
+        return type_
+
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         output_type = context.parse_type(expr.args[0], expr.args[0])
@@ -1425,3 +1641,7 @@ STMT_DISPATCH_TABLE = {
 }
 
 BUILTIN_FUNCTIONS = {**STMT_DISPATCH_TABLE, **DISPATCH_TABLE}.keys()
+
+
+def get_builtin_functions():
+    return {**STMT_DISPATCH_TABLE, **DISPATCH_TABLE}
