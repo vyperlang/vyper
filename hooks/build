@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# DockerHub automated build override
+
+# $IMAGE_NAME var is injected into the build so the tag is correct.
+docker build \
+  --build-arg VCS_REF=`git rev-parse --short HEAD` \
+  --build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` \
+  -t $IMAGE_NAME .
