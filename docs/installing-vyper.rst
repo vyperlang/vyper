@@ -1,10 +1,6 @@
 Installing Vyper
 ################
 
-Don't panic if the installation fails. Vyper is still under development and
-undergoes constant changes. Installation will be much more simplified and
-optimized after a stable version release.
-
 Take a deep breath, follow the instructions, and please
 `create an issue <https://github.com/vyperlang/vyper/issues>`_ if you encounter
 any errors.
@@ -15,15 +11,60 @@ any errors.
     compile code to ``bytecode`` or ``LLL`` is to use the
     `Remix online compiler <https://remix.ethereum.org>`_.
 
-Prerequisites
+Docker
+******
+
+Dockerhub
+=========
+
+Vyper can be downloaded as docker image from dockerhub:
+::
+
+    docker pull vyperlang/vyper
+
+To run the compiler use the `docker run` command:
+::
+
+    docker run -v $(pwd):/code vyperlang/vyper /code/<contract_file.vy>
+
+Alternatively you can log into the docker image and execute vyper on the prompt.
+::
+
+    docker run -v $(pwd):/code/ -it --entrypoint /bin/bash vyperlang/vyper
+    root@d35252d1fb1b:/code# vyper <contract_file.vy>
+
+The normal paramaters are also supported, for example:
+::
+
+    docker run -v $(pwd):/code vyperlang/vyper -f abi /code/<contract_file.vy>
+    [{'name': 'test1', 'outputs': [], 'inputs': [{'type': 'uint256', 'name': 'a'}, {'type': 'bytes', 'name': 'b'}], 'constant': False, 'payable': False, 'type': 'function', 'gas': 441}, {'name': 'test2', 'outputs': [], 'inputs': [{'type': 'uint256', 'name': 'a'}], 'constant': False, 'payable': False, 'type': 'function', 'gas': 316}]
+
+PIP
+***
+
+Each tagged version of vyper is also uploaded to `pypi <https://pypi.org/project/vyper/>`_, and can be installed using ``pip``.
+::
+
+    pip install vyper
+
+To install a specific version use:
+::
+
+    pip install vyper==0.1.0b17
+    
+.. note::
+
+    The ``vyper`` package can only be installed using Python 3.6 or higher.
+
+Troubleshooting
 *************
 
 Installing Python 3.6
 =====================
 
-Vyper can only be built using Python 3.6 and higher. If you are already running
-Python 3.6, skip to the next section, else follow the instructions here to make
-sure you have the correct Python version installed, and are using that version.
+Vyper can only be built using Python 3.6 and higher. If you are not already running
+Python 3.6, follow the instructions here to make sure you have the correct Python
+version installed, and are using that version.
 
 Ubuntu
 ------
@@ -35,10 +76,16 @@ Run the following commands to install:
     sudo apt-get install python3.6
 
 .. note::
+
    If you get the error ``Python.h: No such file or directory`` you need to install the python header files for the Python C API with
    ::
 
        sudo apt-get install python3-dev
+
+.. note::
+
+    If you get the error ``fatal error: openssl/aes.h: No such file or directory`` in the output of ``make``, then run ``sudo apt-get install libssl-dev1``, then run ``make`` again.
+
 
 Using a BASH script
 ^^^^^^^^^^^^^^^^^^^
@@ -75,6 +122,30 @@ Also, ensure the following libraries are installed using ``brew``:
 ::
 
     brew install gmp leveldb
+    
+
+
+.. note::
+
+    Apple has deprecated use of OpenSSL in favor of its own TLS and crypto
+    libraries. This means that you will need to export some OpenSSL settings
+    yourself, before you can install Vyper.
+
+    Use the following commands:
+    ::
+
+        export CFLAGS="-I$(brew --prefix openssl)/include"
+        export LDFLAGS="-L$(brew --prefix openssl)/lib"
+        pip install scrypt
+
+.. note::
+
+    If you get the error ``ld: library not found for -lyaml`` in the output of `make`, make sure ``libyaml`` is installed using ``brew info libyaml``. If it is installed, add its location to the compile flags as well:
+    ::
+
+        export CFLAGS="-I$(brew --prefix openssl)/include -I$(brew --prefix libyaml)/include"
+        export LDFLAGS="-L$(brew --prefix openssl)/lib -L$(brew --prefix libyaml)/lib"
+        
 
 Windows
 --------
@@ -111,116 +182,4 @@ You can also create a virtual environment without virtualenv:
 
    python3.6 -m venv ~/vyper-env
    source ~/vyper-env/bin/activate
-
-Installation
-************
-
-Again, it is **strongly recommended to install Vyper** in a **virtual Python environment**.
-This guide assumes you are in a virtual environment containing Python 3.6.
-
-Get the latest version of Vyper by cloning the Github repository, and run the
-install and test commands:
-::
-
-    git clone https://github.com/vyperlang/vyper.git
-    cd vyper
-    make
-    make dev-deps
-    make test
-
-Additionally, you may try to compile an example contract by running:
-::
-
-    vyper examples/crowdfund.vy
-
-If everything works correctly, you are now able to compile your own smart contracts written in Vyper.
-If any unexpected errors or exceptions are encountered, please feel free to `open an issue <https://github.com/vyperlang/vyper/issues/new>`_.
-
-.. note::
-    If you get the error ``fatal error: openssl/aes.h: No such file or directory`` in the output of ``make``, then run ``sudo apt-get install libssl-dev1``, then run ``make`` again.
-
-    **For MacOS users:**
-
-    Apple has deprecated use of OpenSSL in favor of its own TLS and crypto
-    libraries. This means that you will need to export some OpenSSL settings
-    yourself, before you can install Vyper.
-
-    Use the following commands:
-    ::
-
-        export CFLAGS="-I$(brew --prefix openssl)/include"
-        export LDFLAGS="-L$(brew --prefix openssl)/lib"
-        pip install scrypt
-
-    Now you can run the install and test commands again:
-    ::
-
-        make
-        make dev-deps
-        make test
-
-    If you get the error ``ld: library not found for -lyaml`` in the output of `make`, make sure ``libyaml`` is installed using ``brew info libyaml``. If it is installed, add its location to the compile flags as well:
-    ::
-
-        export CFLAGS="-I$(brew --prefix openssl)/include -I$(brew --prefix libyaml)/include"
-        export LDFLAGS="-L$(brew --prefix openssl)/lib -L$(brew --prefix libyaml)/lib"
-
-    You can then run ``make`` and ``make test`` again.
-
-PIP
-***
-
-Each tagged version of vyper is also uploaded to `pypi <https://pypi.org/project/vyper/>`_, and can be installed using ``pip``.
-::
-
-    pip install vyper
-
-To install a specific version use:
-::
-
-    pip install vyper==0.1.0b2
-
-Docker
-******
-
-Dockerhub
-=========
-
-Vyper can be downloaded as docker image from dockerhub:
-::
-
-    docker pull vyperlang/vyper
-
-To run the compiler use the `docker run` command:
-::
-
-    docker run -v $(pwd):/code vyperlang/vyper /code/<contract_file.vy>
-
-Alternatively you can log into the docker image and execute vyper on the prompt.
-::
-
-    docker run -v $(pwd):/code/ -it --entrypoint /bin/bash vyperlang/vyper
-    root@d35252d1fb1b:/code# vyper <contract_file.vy>
-
-The normal paramaters are also supported, for example:
-::
-
-    docker run -v $(pwd):/code vyperlang/vyper -f abi /code/<contract_file.vy>
-    [{'name': 'test1', 'outputs': [], 'inputs': [{'type': 'uint256', 'name': 'a'}, {'type': 'bytes', 'name': 'b'}], 'constant': False, 'payable': False, 'type': 'function', 'gas': 441}, {'name': 'test2', 'outputs': [], 'inputs': [{'type': 'uint256', 'name': 'a'}], 'constant': False, 'payable': False, 'type': 'function', 'gas': 316}]
-
-Dockerfile
-==========
-
-A Dockerfile is provided in the master branch of the repository. In order to build a Docker Image please run:
-::
-
-    docker build https://github.com/vyperlang/vyper.git -t vyper:1
-    docker run -it --entrypoint /bin/bash vyper:1
-
-To ensure that everything works correctly after the installtion, please run the test commands
-and try compiling a contract:
-::
-
-    python setup.py test
-    vyper examples/crowdfund.vy
-
+    
