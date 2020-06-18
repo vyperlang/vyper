@@ -108,7 +108,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             node.ast_type = "Bytes"
         else:
             raise SyntaxException(
-                f"Invalid syntax (unsupported Python Constant AST node).",
+                "Invalid syntax (unsupported Python Constant AST node).",
                 self._source_code,
                 node.lineno,
                 node.col_offset,

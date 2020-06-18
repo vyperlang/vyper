@@ -238,7 +238,9 @@ def foo():
     """
     vyper_ast = parse_to_ast(code)
     global_ctx = GlobalContext.get_global_context(vyper_ast)
-    with pytest.raises(NatSpecSyntaxException, match="No description given for tag '@notice'"):
+    with pytest.raises(
+        NatSpecSyntaxException, match="No description given for tag '@notice'"
+    ):
         parse_natspec(vyper_ast, global_ctx)
 
 
@@ -270,7 +272,9 @@ def foo():
 
     vyper_ast = parse_to_ast(code)
     global_ctx = GlobalContext.get_global_context(vyper_ast)
-    with pytest.raises(NatSpecSyntaxException, match=f"'@{field}' is not a valid field"):
+    with pytest.raises(
+        NatSpecSyntaxException, match=f"'@{field}' is not a valid field"
+    ):
         parse_natspec(vyper_ast, global_ctx)
 
 
@@ -278,8 +282,10 @@ licenses = [
     "Apache-2.0",
     "Apache-2.0 OR MIT",
     "PSF-2.0 AND MIT",
-    "Apache-2.0 AND (MIT OR GPL-2.0-only)"
+    "Apache-2.0 AND (MIT OR GPL-2.0-only)",
 ]
+
+
 @pytest.mark.parametrize("license", licenses)
 def test_license(license):
     code = f"""
@@ -300,13 +306,9 @@ def foo():
     }
 
 
-fields = [
-    "title",
-    "author",
-    "license",
-    "notice",
-    "dev"
-]
+fields = ["title", "author", "license", "notice", "dev"]
+
+
 @pytest.mark.parametrize("field", fields)
 def test_empty_fields(field):
     code = f"""
@@ -320,7 +322,9 @@ def foo():
 
     vyper_ast = parse_to_ast(code)
     global_ctx = GlobalContext.get_global_context(vyper_ast)
-    with pytest.raises(NatSpecSyntaxException, match=f"No description given for tag '@{field}'"):
+    with pytest.raises(
+        NatSpecSyntaxException, match=f"No description given for tag '@{field}'"
+    ):
         parse_natspec(vyper_ast, global_ctx)
 
 
@@ -337,7 +341,9 @@ def foo():
 
     vyper_ast = parse_to_ast(code)
     global_ctx = GlobalContext.get_global_context(vyper_ast)
-    with pytest.raises(NatSpecSyntaxException, match="Duplicate NatSpec field '@notice'"):
+    with pytest.raises(
+        NatSpecSyntaxException, match="Duplicate NatSpec field '@notice'"
+    ):
         parse_natspec(vyper_ast, global_ctx)
 
 
@@ -370,7 +376,9 @@ def foo(bar: int128, baz: uint256):
 
     vyper_ast = parse_to_ast(code)
     global_ctx = GlobalContext.get_global_context(vyper_ast)
-    with pytest.raises(NatSpecSyntaxException, match="Method has no parameter 'hotdog'"):
+    with pytest.raises(
+        NatSpecSyntaxException, match="Method has no parameter 'hotdog'"
+    ):
         parse_natspec(vyper_ast, global_ctx)
 
 
@@ -403,7 +411,9 @@ def foo(a: int128):
     """
     vyper_ast = parse_to_ast(code)
     global_ctx = GlobalContext.get_global_context(vyper_ast)
-    with pytest.raises(NatSpecSyntaxException, match="No description given for parameter 'a'"):
+    with pytest.raises(
+        NatSpecSyntaxException, match="No description given for parameter 'a'"
+    ):
         parse_natspec(vyper_ast, global_ctx)
 
 
@@ -417,7 +427,9 @@ def foo():
 
     vyper_ast = parse_to_ast(code)
     global_ctx = GlobalContext.get_global_context(vyper_ast)
-    with pytest.raises(NatSpecSyntaxException, match="Method does not return any values"):
+    with pytest.raises(
+        NatSpecSyntaxException, match="Method does not return any values"
+    ):
         parse_natspec(vyper_ast, global_ctx)
 
 

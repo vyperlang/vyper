@@ -348,7 +348,7 @@ def annotate_source_code(
     else:
         num_lines = end_offset - start_offset + 1
 
-    cleanup_lines = [l.rstrip() for l in location_repr.splitlines()]
+    cleanup_lines = [line.rstrip() for line in location_repr.splitlines()]
     cleanup_lines += [''] * (num_lines - len(cleanup_lines))
 
     return '\n'.join(cleanup_lines)

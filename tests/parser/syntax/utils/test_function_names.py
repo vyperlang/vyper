@@ -11,13 +11,13 @@ def ő1qwerty(i: int128) -> int128:
     temp_var : int128 = i
     return temp_var
     """,
-"""
+    """
 @public
 def int128(i: int128) -> int128:
     temp_var : int128 = i
     return temp_var
     """,
-"""
+    """
 @public
 def decimal(i: int128) -> int128:
     temp_var : int128 = i
@@ -38,7 +38,7 @@ def false(i: int128) -> int128:
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
+@pytest.mark.parametrize("bad_code", fail_list)
 def test_varname_validity_fail(bad_code):
     with raises(FunctionDeclarationException):
         compiler.compile_code(bad_code)
@@ -66,6 +66,6 @@ def first1(i: int128) -> int128:
 ]
 
 
-@pytest.mark.parametrize('good_code', valid_list)
+@pytest.mark.parametrize("good_code", valid_list)
 def test_varname_validity_success(good_code):
     assert compiler.compile_code(good_code) is not None

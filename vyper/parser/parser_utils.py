@@ -778,7 +778,7 @@ def _check_return_body(node, node_list):
     return_count = len([n for n in node_list if is_return_from_function(n)])
     if return_count > 1:
         raise StructureException(
-            f'Too too many exit statements (return, raise or selfdestruct).',
+            'Too too many exit statements (return, raise or selfdestruct).',
             node
         )
     # Check for invalid code after returns.

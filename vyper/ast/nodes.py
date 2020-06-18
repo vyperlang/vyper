@@ -712,7 +712,7 @@ class Hex(Num):
     def validate(self):
         if len(self.value) % 2:
             raise InvalidLiteral(
-                f"Hex notation requires an even number of digits", self
+                "Hex notation requires an even number of digits", self
             )
 
 
