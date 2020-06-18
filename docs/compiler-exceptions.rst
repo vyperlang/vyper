@@ -44,7 +44,7 @@ of the error within the code:
 
 .. py:exception:: FunctionDeclarationException
 
-    Raises when a function declaration is invalid.
+    Raises when a function declaration is invalid, for example because of incorrect or mismatched return values.
 
 .. py:exception:: InterfaceViolation
 
@@ -56,13 +56,15 @@ of the error within the code:
 
 .. py:exception:: InvalidLiteral
 
-    Raises when attempting to use a literal value where the type is correct, but the value is still invalid in some way. For example, an address that is not check-summed.
+    Raises when no valid type can be found for a literal value.
 
     .. code-block:: python
 
         @public
         def foo():
-            bar: address = 0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+            bar: decimal = 3.123456789123456789
+
+    This example raises ``InvalidLiteral`` because the given literal value has too many decimal places and so cannot be assigned any valid Vyper type.
 
 .. py:exception:: InvalidOperation
 
@@ -92,23 +94,15 @@ of the error within the code:
 
 .. py:exception:: InvalidType
 
-    Raises when attempting to assign to an invalid type, or perform an action on a variable of the wrong type.
+    Raises when using an invalid literal value for the given type.
 
     .. code-block:: python
 
-        bids: map(address, Bid[128])
-        bidCounts: map(addres, int128)
+        @public
+        def foo():
+            bar: int128 = 3.5
 
-    In the above example, the variable type ``address`` is misspelled.  Any word that is not a reserved word, and declares a variable type will
-    return this error.
-
-    .. code-block:: python
-
-        vyper.exceptions.InvalidType: line 28:15 Invalid base type: addres
-                 27 bids: map(address, Bid[128])
-            ---> 28 bidCounts: map(addres, int128)
-            -----------------------^
-                 29
+    This example raises ``InvalidType`` because ``3.5`` is a valid literal value, but cannot be cast as ``int128``.
 
 .. py:exception:: JSONError
 
@@ -129,7 +123,6 @@ of the error within the code:
         ---> 14     @param
         -------------^
              15     @return always True
-
 
 .. py:exception:: NonPayableViolation
 
@@ -171,16 +164,19 @@ of the error within the code:
 
 .. py:exception:: TypeMismatch
 
-    Raises when attempting to perform an action between multiple objects of incompatible types.
+    Raises when attempting to perform an action between two or more objects with known, dislike types.
 
-    .. code-block:: bash
+    .. code-block:: python
 
-        vyper.exceptions.TypeMismatch: line 4:4 Invalid type, expected: bytes32
-             3     a: uint256 = 1
-        ---> 4     b: bytes32 = a
-        -----------^
+        @public
+        def foo(:
+            bar: int128 = 3
+            foo: decimal = 4.2
 
-    ``b`` has been set as type ``bytes32`` but the assignment is to ``a`` which is ``uint256``.
+            if foo + bar > 4:
+                pass
+
+    ``foo`` has a type of ``int128`` and ``bar`` has a type of ``decimal``, so attempting to add them together  raises a ``TypeMismatch``.
 
 .. py:exception:: UndeclaredDefinition
 
