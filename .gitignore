@@ -29,16 +29,18 @@ htmlcov/
 coverage.xml
 
 # sphinx
-docs/_build
+docs/_build/
 docs/modules.rst
+docs/vyper.rst
+docs/vyper.*.rst
 
 # IDEs
 .idea/
 .vscode/
 
-.tox
-.mypy_cache
-.hypothesis
+.tox/
+.mypy_cache/
+.hypothesis/
 
 # vyper
 vyper/vyper_git_version.txt

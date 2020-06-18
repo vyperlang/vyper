@@ -11,22 +11,46 @@ endif
 init:
 	${pip} install .
 
-dev-deps:
-	${pip} install .[test,lint]
+dev-init:
+	${pip} install .[dev]
 
 test:
-	python setup.py test
+	pytest
 
 lint:
 	tox -e lint
 
-clean: clean-build clean-pyc clean-test
+docs:
+	rm -f docs/vyper.rst
+	rm -f docs/modules.rst
+	sphinx-apidoc -o docs/ -d 2 vyper/
+	$(MAKE) -C docs clean
+	$(MAKE) -C docs html
+	# To display docs, run:
+	# open docs/_build/html/index.html (macOS)
+	# start docs/_build/html/index.html (Windows)
+	# xdg-open docs/_build/html/index.html (Linux)
+
+release: clean
+	python setup.py sdist bdist_wheel
+	twine check dist/*
+	#twine upload dist/*
+
+clean: clean-build clean-docs clean-pyc clean-test
 
 clean-build:
 	@echo Cleaning python build files...
 	@rm -fr build/
 	@rm -fr dist/
 	@rm -fr *.egg-info
+	@rm -f vyper/vyper_git_version.txt
+
+clean-docs:
+	@echo Cleaning doc build files...
+	@rm -rf docs/_build/
+	@rm -f docs/modules.rst
+	@rm -f docs/vyper.rst
+	@rm -f docs/vyper.*.rst
 
 clean-pyc:
 	@echo Cleaning python files...
@@ -43,37 +67,5 @@ clean-test:
 	@rm -fr .eggs/
 	@rm -fr .hypothesis/
 	@rm -fr .pytest_cache/
-
-
-docs:
-	rm -f docs/vyper.rst
-	rm -f docs/modules.rst
-	sphinx-apidoc -o docs/ -d 2 vyper/
-	$(MAKE) -C docs clean
-	$(MAKE) -C docs html
-	open docs/_build/html/index.html
-
-# Asks to bump the dev partnumber
-# TODO Use semver automatic versioning via git log
-git-tag:
-	@echo -n "Bump the part number? [y/N]: "
-	@read line; if [ $$line == "y" ]; then \
-		bumpversion devnum; \
-		git push upstream && git push upstream --tags; \
-	 fi
-
-pypi-build:
-	python setup.py sdist bdist_wheel
-
-pypi-release:
-	twine check dist/*
-	twine upload dist/*
-
-release: clean
-ifndef SKIP_TAG
-	$(MAKE) git-tag
-endif
-ifndef SKIP_PYPI
-	$(MAKE) pypi-build
-	$(MAKE) pypi-release
-endif
+	@rm -rf .tox/
+	@rm -fr .mypy_cache/
