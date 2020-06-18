@@ -28,8 +28,8 @@ extras_require = {
     ],
     'docs': [
         'recommonmark',
-        'sphinx',
-        'sphinx_rtd_theme',
+        'sphinx>=3.0,<4.0',
+        'sphinx_rtd_theme>=0.5,<0.6',
     ],
     'dev': [
         'ipython',
