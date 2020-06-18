@@ -34,9 +34,9 @@ class Namespace(dict):
         super().__setitem__(attr, obj)
 
     def __getitem__(self, key):
-        if key in self:
-            return super().__getitem__(key)
-        raise UndeclaredDefinition(f"'{key}' has not been declared")
+        if key not in self:
+            raise UndeclaredDefinition(f"'{key}' has not been declared")
+        return super().__getitem__(key)
 
     def __enter__(self):
         if not self._scopes:

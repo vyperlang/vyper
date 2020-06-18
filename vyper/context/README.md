@@ -11,7 +11,7 @@ Vyper abstract syntax tree (AST).
 
 * [`types/`](types): Subpackage of classes and methods used to represent types
   * [`types/indexable/`](types/indexable)
-    * [`bases.py`](types/indexable/bases.py): Inexable base types
+    * [`bases.py`](types/indexable/bases.py): Indexable base types
     * [`mapping.py`](types/indexable/mapping.py): Mapping type
     * [`sequence.py`](types/indexable/sequence.py): Array and Tuple types
   * [`types/meta/`](types/meta)
@@ -33,7 +33,7 @@ Vyper abstract syntax tree (AST).
   * [`local.py`](validation/local.py): Validates the local namespace of each function within a contract
   * [`module.py`](validation/module.py): Validates the module namespace of a contract.
   * [`utils.py`](validation/utils.py): Functions for comparing and validating types
-* [`environment.py`](environment.py):
+* [`environment.py`](environment.py): Environment variables and builtin constants
 * [`namespace.py`](namespace.py): `Namespace` object, a `dict` subclass representing the namespace of a contract
 * [`utils.py`](utils.py): Misc. functionality related to validation and comparison
 
