@@ -3,7 +3,7 @@ from typing import Optional, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
-from vyper.context import namespace
+from vyper.context.namespace import get_namespace
 from vyper.context.types.bases import BaseType
 from vyper.context.types.indexable.sequence import TupleType
 from vyper.context.types.utils import (
@@ -178,6 +178,7 @@ class ContractFunctionType(BaseType):
         else:
             defaults = [None] * len(node.args.args)
 
+        namespace = get_namespace()
         for arg, value in zip(node.args.args, defaults):
             if arg.arg in ("gas", "value"):
                 raise ArgumentException(

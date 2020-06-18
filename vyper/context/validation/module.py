@@ -3,7 +3,7 @@ import pkgutil
 
 import vyper.interfaces
 from vyper import ast as vy_ast
-from vyper.context import namespace
+from vyper.context.namespace import get_namespace
 from vyper.context.types.function import ContractFunctionType
 from vyper.context.types.utils import build_type_from_ann_assign
 from vyper.context.validation.base import VyperNodeVisitorBase
@@ -20,16 +20,18 @@ def add_module_namespace(vy_module: vy_ast.Module, interface_codes):
 
     """Analyzes a Vyper ast and adds all module-level objects to the namespace."""
 
-    ModuleNodeVisitor(vy_module, interface_codes)
+    namespace = get_namespace()
+    ModuleNodeVisitor(vy_module, interface_codes, namespace)
 
 
 class ModuleNodeVisitor(VyperNodeVisitorBase):
 
     scope_name = "module"
 
-    def __init__(self, module_node, interface_codes):
-        self.interface_codes = interface_codes or {}
+    def __init__(self, module_node, interface_codes, namespace):
         self.ast = module_node
+        self.interface_codes = interface_codes or {}
+        self.namespace = namespace
 
         module_nodes = module_node.body.copy()
         while module_nodes:
@@ -54,19 +56,19 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
         elif name == "implements":
             interface_name = node.annotation.id
-            namespace[interface_name].validate_implements(node)
+            self.namespace[interface_name].validate_implements(node)
 
         else:
             var = build_type_from_ann_assign(node.annotation, node.value)
             if hasattr(var, "_member_of"):
                 try:
-                    namespace[var._member_of].add_member(name, var)
+                    self.namespace[var._member_of].add_member(name, var)
                 except VyperException as exc:
                     raise exc.with_annotation(node) from None
             elif node.get("annotation.func.id") == "constant":
                 # constants are added to the main namespace
                 try:
-                    namespace[name] = var
+                    self.namespace[name] = var
                 except VyperException as exc:
                     raise exc.with_annotation(node) from None
 
@@ -77,32 +79,32 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
                     )
                 # storage vars are added as members of self
                 try:
-                    namespace["self"].add_member(name, var)
+                    self.namespace["self"].add_member(name, var)
                 except VyperException as exc:
                     raise exc.with_annotation(node) from None
 
     def visit_ClassDef(self, node):
-        type_ = namespace[node.class_type].build_pure_type_from_node(node)
+        type_ = self.namespace[node.class_type].build_pure_type_from_node(node)
         try:
-            namespace[node.name] = type_
+            self.namespace[node.name] = type_
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 
     def visit_Import(self, node):
-        _add_import(node, self.interface_codes)
+        _add_import(node, self.interface_codes, self.namespace)
 
     def visit_ImportFrom(self, node):
-        _add_import(node, self.interface_codes)
+        _add_import(node, self.interface_codes, self.namespace)
 
     def visit_FunctionDef(self, node):
         func = ContractFunctionType.from_FunctionDef(node)
         try:
-            namespace["self"].add_member(func.name, func)
+            self.namespace["self"].add_member(func.name, func)
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 
 
-def _add_import(node, interface_codes):
+def _add_import(node, interface_codes, namespace):
     if isinstance(node, vy_ast.Import):
         module = node.names[0].name
         name = node.names[0].asname

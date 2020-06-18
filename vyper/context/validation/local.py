@@ -1,6 +1,6 @@
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
-from vyper.context import namespace
+from vyper.context.namespace import get_namespace
 from vyper.context.types.indexable.sequence import ArrayType, TupleType
 from vyper.context.types.utils import build_type_from_ann_assign
 from vyper.context.types.value.boolean import BoolType
@@ -31,10 +31,11 @@ def validate_functions(vy_module):
     """Analyzes a vyper ast and validates the function-level namespaces."""
 
     err_list = ExceptionList()
+    namespace = get_namespace()
     for node in vy_module.get_children(vy_ast.FunctionDef):
         with namespace.enter_scope():
             try:
-                FunctionNodeVisitor(node)
+                FunctionNodeVisitor(node, namespace)
             except VyperException as e:
                 err_list.append(e)
 
@@ -75,8 +76,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
     )
     scope_name = "function"
 
-    def __init__(self, fn_node):
+    def __init__(self, fn_node, namespace):
         self.fn_node = fn_node
+        self.namespace = namespace
         self.func = namespace["self"].get_member(fn_node.name, fn_node)
         namespace.update(self.func.arguments)
         for node in fn_node.body:
@@ -93,11 +95,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 "Memory variables must be declared with an initial value", node
             )
         name = node.target.id
-        if name in namespace["self"].members:
+        if name in self.namespace["self"].members:
             raise NamespaceCollision("Variable name shadows an existing storage-scoped value", node)
         var = build_type_from_ann_assign(node.annotation, node.value)
         try:
-            namespace[name] = var
+            self.namespace[name] = var
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 
@@ -160,10 +162,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
     def visit_If(self, node):
         validate_expected_type(node.test, BoolType())
-        with namespace.enter_scope():
+        with self.namespace.enter_scope():
             for n in node.body:
                 self.visit(n)
-        with namespace.enter_scope():
+        with self.namespace.enter_scope():
             for n in node.orelse:
                 self.visit(n)
 
@@ -221,9 +223,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise InvalidType("Not an iterable type", node.iter)
 
         for type_ in type_list:
-            with namespace.enter_scope():
+            with self.namespace.enter_scope():
                 try:
-                    namespace[node.target.id] = type_
+                    self.namespace[node.target.id] = type_
                 except VyperException as exc:
                     raise exc.with_annotation(node) from None
 

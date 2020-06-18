@@ -1,5 +1,3 @@
-import sys
-
 from vyper.exceptions import (
     CompilerPanic,
     NamespaceCollision,
@@ -55,7 +53,7 @@ class Namespace(dict):
         Called as a context manager, e.g. `with namespace.enter_builtin_scope():`
         It must be the first scope that is entered prior to type checking.
         """
-        # imports are handled here to prevent namespace from being imported as a module
+        # prevent circular import issues
         from vyper.context import environment
         from vyper.context.types import get_types
         from vyper.functions.functions import get_builtin_functions
@@ -97,6 +95,8 @@ class Namespace(dict):
         self._has_builtins = False
 
 
-# simplify access to the Namespace object via python's import machinery
-# https://mail.python.org/pipermail/python-ideas/2012-May/014969.html
-sys.modules[__name__] = namespace = Namespace()  # type: ignore
+namespace = Namespace()
+
+
+def get_namespace():
+    return namespace

@@ -3,7 +3,7 @@ from typing import Union
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
-from vyper.context import namespace
+from vyper.context.namespace import get_namespace
 from vyper.context.types.function import ContractFunctionType
 from vyper.context.types.value.address import AddressType
 from vyper.context.types.value.bases import MemberType
@@ -54,6 +54,7 @@ class InterfacePure:
         return InterfaceType(self._id, self.members)
 
     def validate_implements(self, node: vy_ast.AnnAssign):
+        namespace = get_namespace()
         unimplemented = [
             name
             for name, type_ in self.members.items()
@@ -116,6 +117,8 @@ def build_pure_type_from_node(node: Union[vy_ast.ClassDef, vy_ast.Module]) -> In
         members = _get_class_functions(node)
     else:
         raise StructureException("Invalid syntax for interface definition", node)
+
+    namespace = get_namespace()
     for func in members.values():
         if func.name in namespace:
             raise NamespaceCollision(func.name, func.node)

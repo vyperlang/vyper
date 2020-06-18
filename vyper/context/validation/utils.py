@@ -2,7 +2,8 @@ import itertools
 from typing import List
 
 from vyper import ast as vy_ast
-from vyper.context import namespace, types
+from vyper.context import types
+from vyper.context.namespace import get_namespace
 from vyper.context.types.indexable.sequence import ArrayType, TupleType
 from vyper.context.types.value.boolean import BoolType
 from vyper.exceptions import (
@@ -29,6 +30,9 @@ class _ExprTypeChecker:
     `get_possible_types_from_node` are forwarded to this class, where the node
     class's method resolution order is examined to decide which method to call.
     """
+
+    def __init__(self):
+        self.namespace = get_namespace()
 
     def get_exact_type_from_node(self, node):
         fn = self._find_fn(node)
@@ -62,7 +66,7 @@ class _ExprTypeChecker:
         except UnknownAttribute:
             if node.get("value.id") != "self":
                 raise
-            if name in namespace:
+            if name in self.namespace:
                 raise InvalidReference(
                     f"'{name}' is not a storage variable, it should not be prepended with self",
                     node,
@@ -169,12 +173,12 @@ class _ExprTypeChecker:
     def types_from_Name(self, node):
         # variable name, e.g. `foo`
         name = node.id
-        if name not in namespace and name in namespace["self"].members:
+        if name not in self.namespace and name in self.namespace["self"].members:
             raise InvalidReference(
                 f"'{name}' is a storage variable, access it as self.{name}", node,
             )
         try:
-            return [namespace[node.id]]
+            return [self.namespace[node.id]]
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 

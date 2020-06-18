@@ -2,7 +2,7 @@ from typing import Dict, Optional
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
-from vyper.context import namespace
+from vyper.context.namespace import get_namespace
 from vyper.context.types.indexable.sequence import ArrayType
 from vyper.context.validation.utils import (
     get_exact_type_from_node,
@@ -37,6 +37,7 @@ def get_type_from_abi(abi_type: Dict, is_constant: bool = False, is_public: bool
     if type_string == "fixed168x10":
         type_string = "decimal"
 
+    namespace = get_namespace()
     try:
         return namespace[type_string]._type(is_constant=is_constant, is_public=is_public)
     except KeyError:
@@ -59,6 +60,7 @@ def get_type_from_annotation(
     BasePureType
         Pure type object.
     """
+    namespace = get_namespace()
     try:
         # get id of leftmost `Name` node from the annotation
         type_name = next(i.id for i in node.get_descendants(vy_ast.Name, include_self=True))
