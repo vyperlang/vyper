@@ -43,7 +43,7 @@ def external_contract_call(node,
         )
     if contract_address.value == "address":
         raise StructureException(
-            f"External calls to self are not permitted.", node
+            "External calls to self are not permitted.", node
         )
     method_name = node.func.attr
     if method_name not in context.sigs[contract_name]:

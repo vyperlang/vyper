@@ -41,7 +41,7 @@ def foo(i: int128) -> int128:
     log.wei(temp_var)
     return temp_var
     """,
-"""
+    """
 false: event({variable: int128})
 
 @public
@@ -50,16 +50,19 @@ def foo(i: int128) -> int128:
     log.false(temp_var)
     return temp_var
     """,
-    ("""
+    (
+        """
 Transfer: eve.t({_from: indexed(address)})
-    """, InvalidType),
+    """,
+        InvalidType,
+    ),
     """
 Transfer: event({_from: i.dexed(address), _to: indexed(address),lue: uint256})
-    """
+    """,
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
+@pytest.mark.parametrize("bad_code", fail_list)
 def test_varname_validity_fail(bad_code):
     if isinstance(bad_code, tuple):
         with raises(bad_code[1]):
@@ -100,6 +103,6 @@ def foo(i: int128) -> int128:
 ]
 
 
-@pytest.mark.parametrize('good_code', valid_list)
+@pytest.mark.parametrize("good_code", valid_list)
 def test_varname_validity_success(good_code):
     assert compiler.compile_code(good_code) is not None

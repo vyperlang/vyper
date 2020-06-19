@@ -12,7 +12,7 @@ from vyper import ast as vy_ast
     array=st.lists(st.integers(), min_size=10, max_size=10),
 )
 def test_subscript(get_contract, array, idx):
-    source = f"""
+    source = """
 @public
 def foo(array: int128[10], idx: uint256) -> int128:
     return array[idx]

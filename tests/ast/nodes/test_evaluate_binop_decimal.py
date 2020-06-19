@@ -8,7 +8,7 @@ from vyper import ast as vy_ast
 from vyper.exceptions import TypeMismatch, ZeroDivisionException
 
 st_decimals = st.decimals(
-    min_value=-2 ** 32,
+    min_value=-(2 ** 32),
     max_value=2 ** 32,
     allow_nan=False,
     allow_infinity=False,
@@ -48,7 +48,7 @@ def foo(a: decimal, b: decimal) -> decimal:
 
 def test_binop_pow():
     # raises because Vyper does not support decimal exponentiation
-    vyper_ast = vy_ast.parse_to_ast(f"3.1337 ** 4.2")
+    vyper_ast = vy_ast.parse_to_ast("3.1337 ** 4.2")
     old_node = vyper_ast.body[0].value
 
     with pytest.raises(TypeMismatch):
@@ -79,7 +79,7 @@ def foo({input_value}) -> decimal:
     try:
         vy_ast.folding.replace_literal_ops(vyper_ast)
         expected = vyper_ast.body[0].value.value
-        is_valid = -2**127 <= expected < 2**127
+        is_valid = -(2 ** 127) <= expected < 2 ** 127
     except ZeroDivisionException:
         # for division/modulus by 0, expect the contract call to revert
         is_valid = False

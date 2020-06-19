@@ -134,11 +134,11 @@ def _parse_docstring(
         elif tag == "returns":
             if not return_length:
                 raise NatSpecSyntaxException(
-                    f"Method does not return any values", *err_args
+                    "Method does not return any values", *err_args
                 )
             if len(natspec["returns"]) >= return_length:
                 raise NatSpecSyntaxException(
-                    f"Number of documented return values exceeds actual number",
+                    "Number of documented return values exceeds actual number",
                     *err_args,
                 )
             key = f"_{len(natspec['returns'])}"

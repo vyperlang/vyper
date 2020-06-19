@@ -3,9 +3,10 @@ import pytest
 from vyper.exceptions import TypeMismatch
 
 
-def test_empty_basic_type(get_contract_with_gas_estimation):
-    contracts = [  # noqa: E122
-    """
+@pytest.mark.parametrize(
+    "contract",
+    [
+        """
 foobar: int128
 
 @public
@@ -19,7 +20,7 @@ def foo():
     assert self.foobar == 0
     assert bar == 0
     """,
-    """
+        """
 foobar: uint256
 
 @public
@@ -33,7 +34,7 @@ def foo():
     assert self.foobar == 0
     assert bar == 0
     """,
-    """
+        """
 foobar: bool
 
 @public
@@ -47,7 +48,7 @@ def foo():
     assert self.foobar == False
     assert bar == False
     """,
-    """
+        """
 foobar: decimal
 
 @public
@@ -61,7 +62,7 @@ def foo():
     assert self.foobar == 0.0
     assert bar == 0.0
     """,
-    """
+        """
 foobar: bytes32
 
 @public
@@ -75,7 +76,7 @@ def foo():
     assert self.foobar == 0x0000000000000000000000000000000000000000000000000000000000000000
     assert bar == 0x0000000000000000000000000000000000000000000000000000000000000000
     """,
-    """
+        """
 foobar: address
 
 @public
@@ -88,17 +89,18 @@ def foo():
 
     assert self.foobar == ZERO_ADDRESS
     assert bar == ZERO_ADDRESS
-    """
-    ]
+    """,
+    ],
+)
+def test_empty_basic_type(contract, get_contract_with_gas_estimation):
+    c = get_contract_with_gas_estimation(contract)
+    c.foo()
 
-    for contract in contracts:
-        c = get_contract_with_gas_estimation(contract)
-        c.foo()
 
-
-def test_empty_basic_type_lists(get_contract_with_gas_estimation):
-    contracts = [  # noqa: E122
-    """
+@pytest.mark.parametrize(
+    "contract",
+    [
+        """
 foobar: int128[3]
 
 @public
@@ -116,7 +118,7 @@ def foo():
     assert bar[1] == 0
     assert bar[2] == 0
     """,
-    """
+        """
 foobar: uint256[3]
 
 @public
@@ -134,7 +136,7 @@ def foo():
     assert bar[1] == 0
     assert bar[2] == 0
     """,
-    """
+        """
 foobar: bool[3]
 
 @public
@@ -152,7 +154,7 @@ def foo():
     assert bar[1] == False
     assert bar[2] == False
     """,
-    """
+        """
 foobar: decimal[3]
 
 @public
@@ -170,7 +172,7 @@ def foo():
     assert bar[1] == 0.0
     assert bar[2] == 0.0
     """,
-    """
+        """
 foobar: bytes32[3]
 
 @public
@@ -196,7 +198,7 @@ def foo():
     assert bar[1] == 0x0000000000000000000000000000000000000000000000000000000000000000
     assert bar[2] == 0x0000000000000000000000000000000000000000000000000000000000000000
     """,
-    """
+        """
 foobar: address[3]
 
 @public
@@ -213,54 +215,54 @@ def foo():
     assert bar[0] == ZERO_ADDRESS
     assert bar[1] == ZERO_ADDRESS
     assert bar[2] == ZERO_ADDRESS
-    """
-    ]
+    """,
+    ],
+)
+def test_empty_basic_type_lists(contract, get_contract_with_gas_estimation):
+    c = get_contract_with_gas_estimation(contract)
+    c.foo()
 
-    for contract in contracts:
-        c = get_contract_with_gas_estimation(contract)
-        c.foo()
 
-
-def test_clear_literals(assert_compile_failed, get_contract_with_gas_estimation):
-    contracts = [  # noqa: E122
-    """
+@pytest.mark.parametrize(
+    "contract",
+    [
+        """
 @public
 def foo() -> uint256:
     return empty(1)
     """,
-    """
+        """
 @public
 def foo() -> bool:
     return empty(bool)
     """,
-    """
+        """
 @public
 def foo() -> decimal:
     return empty(1.0)
     """,
-    """
+        """
 @public
 def foo() -> bytes32:
     return empty(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
     """,
-    """
+        """
 @public
 def foo() -> address:
     return empty(0xF5D4020dCA6a62bB1efFcC9212AAF3c9819E30D7)
     """,
-    """
+        """
 @public
 def foo():
     x: uint256 = 1
     empty(x)
-    """
-    ]
-
-    for contract in contracts:
-        assert_compile_failed(
-            lambda: get_contract_with_gas_estimation(contract),
-            Exception
-        )
+    """,
+    ],
+)
+def test_clear_literals(
+    contract, assert_compile_failed, get_contract_with_gas_estimation
+):
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(contract), Exception)
 
 
 def test_empty_bytes(get_contract_with_gas_estimation):
@@ -280,7 +282,7 @@ def foo() -> (bytes[5], bytes[5]):
 
     c = get_contract_with_gas_estimation(code)
     a, b = c.foo()
-    assert a == b == b''
+    assert a == b == b""
 
 
 def test_empty_struct(get_contract_with_gas_estimation):
@@ -375,7 +377,7 @@ def pub3(x: address) -> bool:
     c = get_contract_with_gas_estimation(code)
     mirror = get_contract_with_gas_estimation(code)
 
-    assert c.test_empty([0]*111, b'', b'')
+    assert c.test_empty([0] * 111, b"", b"")
     assert c.pub2()
     assert c.pub3(mirror.address)
 
@@ -427,8 +429,8 @@ def e() -> X:
     assert c.a() == 0
     assert c.b() == [0] * 5
     assert c.c() == [[0] * 5] * 5
-    assert c.d() == b''
-    assert c.e() == (0, '0x'+'0'*40, 0x0, [0])
+    assert c.d() == b""
+    assert c.e() == (0, "0x" + "0" * 40, 0x0, [0])
 
 
 def test_map_clear(get_contract_with_gas_estimation):
@@ -450,11 +452,11 @@ def delete(key: bytes32):
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.get(b"test") == b'\x00' * 32
+    assert c.get(b"test") == b"\x00" * 32
     c.set(b"test", b"value", transact={})
     assert c.get(b"test")[:5] == b"value"
     c.delete(b"test", transact={})
-    assert c.get(b"test") == b'\x00' * 32
+    assert c.get(b"test") == b"\x00" * 32
 
 
 def test_map_clear_nested(get_contract_with_gas_estimation):
@@ -476,11 +478,11 @@ def delete(key1: bytes32, key2: bytes32):
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.get(b"test1", b"test2") == b'\x00' * 32
+    assert c.get(b"test1", b"test2") == b"\x00" * 32
     c.set(b"test1", b"test2", b"value", transact={})
     assert c.get(b"test1", b"test2")[:5] == b"value"
     c.delete(b"test1", b"test2", transact={})
-    assert c.get(b"test1", b"test2") == b'\x00' * 32
+    assert c.get(b"test1", b"test2") == b"\x00" * 32
 
 
 def test_map_clear_struct(get_contract_with_gas_estimation):
@@ -516,27 +518,25 @@ def delete():
     assert c.get() == [0, 0]
 
 
-def test_clear_typecheck(get_contract, assert_compile_failed):
-    contracts = [  # noqa: E122
-    """
+@pytest.mark.parametrize(
+    "contract",
+    [
+        """
 @public
 def foo():
     xs: uint256[10] = empty(uint256[11])
     """,
-    """
+        """
 @public
 def bar():
     ys: bytes[33] = empty(bytes[32])
     """,
-    """
+        """
 @public
 def baz():
     zs: decimal[1][1] = empty(address[1][1])
-    """
-    ]
-
-    for contract in contracts:
-        assert_compile_failed(
-            lambda: get_contract(contract),
-            TypeMismatch
-        )
+    """,
+    ],
+)
+def test_clear_typecheck(contract, get_contract, assert_compile_failed):
+    assert_compile_failed(lambda: get_contract(contract), TypeMismatch)
