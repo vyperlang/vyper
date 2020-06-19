@@ -1,10 +1,14 @@
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.context.namespace import get_namespace
-from vyper.context.types.indexable.sequence import ArrayType, TupleType
+from vyper.context.types.abstract import IntegerAbstractType
+from vyper.context.types.indexable.sequence import (
+    ArrayDefinition,
+    TupleDefinition,
+)
 from vyper.context.types.utils import build_type_from_ann_assign
-from vyper.context.types.value.boolean import BoolType
-from vyper.context.types.value.numeric import IntegerBase, Uint256Type
+from vyper.context.types.value.boolean import BoolDefinition
+from vyper.context.types.value.numeric import Uint256Definition
 from vyper.context.validation.base import VyperNodeVisitorBase
 from vyper.context.validation.utils import (
     get_common_types,
@@ -132,7 +136,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 raise InvalidType("Reason must UNREACHABLE or a string literal", node.msg)
 
         try:
-            validate_expected_type(node.test, BoolType())
+            validate_expected_type(node.test, BoolDefinition())
         except (InvalidType, TypeMismatch) as exc:
             raise type(exc)("Assertion test value must be a boolean", node.test)
 
@@ -147,7 +151,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         if isinstance(values, vy_ast.Tuple):
             values = values.elements
-            if not isinstance(self.func.return_type, TupleType):
+            if not isinstance(self.func.return_type, TupleDefinition):
                 raise FunctionDeclarationException("Function only returns a single value", node)
             if self.func.return_type.length != len(values):
                 raise FunctionDeclarationException(
@@ -161,7 +165,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             validate_expected_type(values, self.func.return_type)
 
     def visit_If(self, node):
-        validate_expected_type(node.test, BoolType())
+        validate_expected_type(node.test, BoolDefinition())
         with self.namespace.enter_scope():
             for n in node.body:
                 self.visit(n)
@@ -183,10 +187,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 # range(CONSTANT)
                 if not isinstance(args[0], vy_ast.Num):
                     raise ConstancyViolation("Value must be a literal", node)
-                validate_expected_type(args[0], Uint256Type())
+                validate_expected_type(args[0], Uint256Definition())
                 type_list = get_possible_types_from_node(args[0])
             else:
-                validate_expected_type(args[0], IntegerBase())
+                validate_expected_type(args[0], IntegerAbstractType())
                 type_list = get_common_types(*args)
                 if not isinstance(args[0], vy_ast.Constant):
                     # range(x, x + CONSTANT)
@@ -207,7 +211,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     # range(CONSTANT, CONSTANT)
                     if not isinstance(args[1], vy_ast.Int):
                         raise InvalidType("Value must be a literal integer", args[1])
-                    validate_expected_type(args[1], IntegerBase())
+                    validate_expected_type(args[1], IntegerAbstractType())
                     if args[0].value >= args[1].value:
                         raise InvalidLiteral("Second value must be > first value", args[1])
 
@@ -216,7 +220,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             type_list = [
                 i.value_type
                 for i in get_possible_types_from_node(node.iter)
-                if isinstance(i, ArrayType)
+                if isinstance(i, ArrayDefinition)
             ]
 
         if not type_list:

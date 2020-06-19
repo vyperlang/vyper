@@ -1,12 +1,16 @@
+from collections import OrderedDict
 from typing import Any, Tuple, Type, Union
 
 from vyper import ast as vy_ast
+from vyper.context.types.abstract import AbstractDataType
 from vyper.exceptions import (
     CompilerPanic,
     ConstancyViolation,
     InvalidLiteral,
     InvalidOperation,
+    NamespaceCollision,
     StructureException,
+    UnknownAttribute,
 )
 
 
@@ -16,29 +20,29 @@ class BasePureType:
 
     Pure types are objects that are invoked when casting a variable as a type.
     They must contain a `from_annotation` (and optionally `from_literal`) method
-    that returns their equivalent `BaseType` object.
+    that returns their equivalent `BaseTypeDefinition` object.
 
     Attributes
     ----------
     _id : str
         The name of the type.
-    _type : BaseType
-        The related `BaseType` class generated from this pure type.
+    _type : BaseTypeDefinition
+        The related `BaseTypeDefinition` class generated from this pure type.
     _as_array: bool, optional
         If `True`, this type can be used as the base member for an array.
     _valid_literal : Tuple
         A tuple of Vyper ast classes that may be cast as this type.
     """
 
-    _type: Type["BaseType"]
+    _type: Type["BaseTypeDefinition"]
     _valid_literal: Tuple
 
     @classmethod
     def from_annotation(
         cls, node: vy_ast.Name, is_constant: bool = False, is_public: bool = False
-    ) -> "BaseType":
+    ) -> "BaseTypeDefinition":
         """
-        Generate a `BaseType` instance of this type from `AnnAssign.annotation`
+        Generate a `BaseTypeDefinition` instance of this type from `AnnAssign.annotation`
 
         Arguments
         ---------
@@ -47,17 +51,17 @@ class BasePureType:
 
         Returns
         -------
-        BaseType
-            BaseType related to the pure type that the method was called on.
+        BaseTypeDefinition
+            BaseTypeDefinition related to the pure type that the method was called on.
         """
         if not isinstance(node, vy_ast.Name):
             raise StructureException("Invalid type assignment", node)
         return cls._type(is_constant, is_public)
 
     @classmethod
-    def from_literal(cls, node: vy_ast.Constant) -> "BaseType":
+    def from_literal(cls, node: vy_ast.Constant) -> "BaseTypeDefinition":
         """
-        Generate a `BaseType` instance of this type from a literal constant.
+        Generate a `BaseTypeDefinition` instance of this type from a literal constant.
 
         This method is called on every pure type class in order to determine
         potential types for a `Constant` AST node.
@@ -74,8 +78,8 @@ class BasePureType:
 
         Returns
         -------
-        BaseType
-            BaseType related to the pure type that the method was called on.
+        BaseTypeDefinition
+            BaseTypeDefinition related to the pure type that the method was called on.
         """
         if not isinstance(node, vy_ast.Constant):
             raise CompilerPanic(f"Attempted to validate a '{node.ast_type}' node.")
@@ -84,7 +88,9 @@ class BasePureType:
         return cls._type()
 
     @classmethod
-    def compare_type(cls, other: Union["BaseType", "BasePureType", "AbstractDataType"]) -> bool:
+    def compare_type(
+        cls, other: Union["BaseTypeDefinition", "BasePureType", AbstractDataType]
+    ) -> bool:
         """
         Compare this type object against another type object.
 
@@ -95,7 +101,7 @@ class BasePureType:
 
         Arguments
         ---------
-        other : BaseType
+        other : BaseTypeDefinition
             Another type object to be compared against this one.
 
         Returns
@@ -106,7 +112,7 @@ class BasePureType:
         return isinstance(other, cls._type)
 
     @classmethod
-    def fetch_call_return(self, node: vy_ast.Call) -> "BaseType":
+    def fetch_call_return(self, node: vy_ast.Call) -> "BaseTypeDefinition":
         """
         Validate a call to this type and return the result.
 
@@ -120,7 +126,7 @@ class BasePureType:
 
         Returns
         -------
-        BaseType, optional
+        BaseTypeDefinition, optional
             Type generated as a result of the call.
         """
         raise StructureException("Type is not callable", node)
@@ -136,12 +142,14 @@ class BasePureType:
         raise StructureException("Types do not have members", node)
 
     @classmethod
-    def validate_modification(cls, node: Union[vy_ast.Assign, vy_ast.AugAssign]) -> None:
+    def validate_modification(
+        cls, node: Union[vy_ast.Assign, vy_ast.AugAssign]
+    ) -> None:
         # always raises - do not implement in inherited classes
         raise InvalidOperation("Cannot assign to a type", node)
 
 
-class BaseType:
+class BaseTypeDefinition:
     """
     Base class for casted type classes.
 
@@ -171,7 +179,9 @@ class BaseType:
         # always raises, user should have used a pure type
         raise StructureException("Value is not a type", node)
 
-    def compare_type(self, other: Union["BaseType", BasePureType, "AbstractDataType"]) -> bool:
+    def compare_type(
+        self, other: Union["BaseTypeDefinition", BasePureType, AbstractDataType]
+    ) -> bool:
         """
         Compare this type object against another type object.
 
@@ -182,7 +192,7 @@ class BaseType:
 
         Arguments
         ---------
-        other : BaseType
+        other : BaseTypeDefinition
             Another type object to be compared against this one.
 
         Returns
@@ -258,7 +268,7 @@ class BaseType:
         """
         raise StructureException("Value is not an interface", node)
 
-    def fetch_call_return(self, node: vy_ast.Call) -> Union["BaseType", None]:
+    def fetch_call_return(self, node: vy_ast.Call) -> Union["BaseTypeDefinition", None]:
         """
         Validate a call to this value and return the result.
 
@@ -272,12 +282,12 @@ class BaseType:
 
         Returns
         -------
-        BaseType, optional
+        BaseTypeDefinition, optional
             Type generated as a result of the call.
         """
         raise StructureException("Value is not callable", node)
 
-    def get_index_type(self, node: vy_ast.Index) -> "BaseType":
+    def get_index_type(self, node: vy_ast.Index) -> "BaseTypeDefinition":
         """
         Validate an index reference and return the given type at the index.
 
@@ -288,12 +298,12 @@ class BaseType:
 
         Returns
         -------
-        BaseType
+        BaseTypeDefinition
             Type object for value at the given index.
         """
         raise StructureException(f"Type '{self}' does not support indexing", node)
 
-    def get_member(self, key: str, node: vy_ast.Attribute) -> "BaseType":
+    def get_member(self, key: str, node: vy_ast.Attribute) -> "BaseTypeDefinition":
         """
         Validate an attribute reference and return the given type for the member.
 
@@ -306,13 +316,15 @@ class BaseType:
 
         Returns
         -------
-        BaseType
+        BaseTypeDefinition
             A type object for the value of the given member. Raises if the member
             does not exist for the given type.
         """
         raise StructureException(f"Type '{self}' does not support members", node)
 
-    def validate_modification(self, node: Union[vy_ast.Assign, vy_ast.AugAssign]) -> None:
+    def validate_modification(
+        self, node: Union[vy_ast.Assign, vy_ast.AugAssign]
+    ) -> None:
         """
         Validate an attempt to modify this value.
 
@@ -329,7 +341,7 @@ class BaseType:
         if hasattr(node, "op"):
             self.validate_numeric_op(node)
 
-    def compare_signature(self, other: "BaseType") -> bool:
+    def compare_signature(self, other: "BaseTypeDefinition") -> bool:
         """
         Compare the signature of this type with another type.
 
@@ -354,18 +366,85 @@ class BaseType:
         return True
 
 
-class AbstractDataType:
+class ValueTypeDefinition(BaseTypeDefinition):
     """
-    Base class for abstract type classes.
+    Base class for types representing a single value.
 
-    Abstract type classes are uncastable, inherited types used for comparison.
-    For example, a function that accepts either `int128` or `uint256` might
-    perform this comparison using the `IntegerBase` abstract type.
+    Class attributes
+    ----------------
+    _valid_literal: VyperNode | Tuple
+        A vyper ast class or tuple of ast classes that can represent valid literals
+        for the given type. Including this attribute will allow literal values to be
+        cast as this type.
     """
 
-    def compare_type(self, other) -> bool:
-        try:
-            return super().compare_type(other)
-        except AttributeError:
-            pass
-        return isinstance(other, type(self))
+    def __repr__(self):
+        return self._id
+
+    def get_signature(self):
+        return (), self
+
+
+class MemberTypeDefinition(ValueTypeDefinition):
+    """
+    Base class for types that have accessible members.
+
+    Class attributes
+    ----------------
+    _type_members : Dict[str, BaseType]
+        Dictionary of members common to all values of this type.
+
+    Object attributes
+    -----------------
+    members : OrderedDict[str, BaseType]
+        Dictionary of members for the given type.
+    """
+
+    def __init__(self, is_constant: bool = False, is_public: bool = False) -> None:
+        super().__init__(is_constant, is_public)
+        self.members = OrderedDict()
+
+    def add_member(self, name, type_):
+        if name in self.members:
+            raise NamespaceCollision(f"Member {name} already exists in {self}")
+        if name in getattr(self, "_type_members", []):
+            raise NamespaceCollision(f"Member {name} already exists in {self}")
+        self.members[name] = type_
+
+    def get_member(self, key, node):
+        if key in self.members:
+            return self.members[key]
+        if key in getattr(self, "_type_members", []):
+            return self._type_members[key]
+        raise UnknownAttribute(f"{self} has no member '{key}'", node)
+
+    def __repr__(self):
+        return f"{self._id}"
+
+
+class IndexableTypeDefinition(BaseTypeDefinition):
+    """
+    Base class for indexable types such as arrays and mappings.
+
+    Attributes
+    ----------
+    key_type: BaseType
+        Type representing the index value for this object.
+    value_type : BaseType
+        Type representing the value(s) contained in this object.
+    _id : str
+        Name of the type.
+    """
+
+    def __init__(
+        self,
+        value_type,
+        key_type,
+        _id,
+        is_constant: bool = False,
+        is_public: bool = False,
+    ) -> None:
+        super().__init__(is_constant, is_public)
+        self.value_type = value_type
+        self.key_type = key_type
+        self._id = _id

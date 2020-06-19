@@ -1,18 +1,14 @@
 from vyper import ast as vy_ast
 from vyper.context import validation
-from vyper.context.types.bases import AbstractDataType, BasePureType
-from vyper.context.types.value.bases import ValueType
-from vyper.context.types.value.bytes_fixed import BytesBase
+from vyper.context.types.abstract import (
+    ArrayValueAbstractType,
+    BytesAbstractType,
+)
+from vyper.context.types.bases import BasePureType, ValueTypeDefinition
 from vyper.exceptions import CompilerPanic, StructureException
 
 
-class ArrayValueBase(AbstractDataType):
-    """
-    Abstract data class for single-value types occupying multiple memory slots.
-    """
-
-
-class _ArrayValueType(ValueType):
+class _ArrayValueDefinition(ValueTypeDefinition):
     """
     Private base class for single-value types which occupy multiple memory slots
     and where a maximum length must be given via a subscript (string, bytes).
@@ -94,61 +90,44 @@ class _ArrayValueType(ValueType):
         return other.compare_type(self)
 
 
-class BytesArrayType(BytesBase, ArrayValueBase, _ArrayValueType):
+class _ArrayValuePureType(BasePureType):
+
+    @classmethod
+    def from_annotation(cls, node, is_constant: bool = False, is_public: bool = False):
+        if len(node.get_descendants(vy_ast.Subscript, include_self=True)) > 1:
+            raise StructureException("Multidimensional arrays are not supported", node)
+
+        length = validation.utils.get_index_value(node.get("slice") or node)
+        return cls._type(length, is_constant, is_public)
+
+    @classmethod
+    def from_literal(cls, node):
+        obj = super().from_literal(node)
+
+        if isinstance(node, vy_ast.Hex):
+            length = len(node.value) // 2 - 1
+        else:
+            length = len(node.value)
+
+        obj.set_min_length(length)
+        return obj
+
+
+class BytesArrayDefinition(BytesAbstractType, ArrayValueAbstractType, _ArrayValueDefinition):
     _id = "bytes"
 
 
-class StringType(ArrayValueBase, _ArrayValueType):
+class StringDefinition(ArrayValueAbstractType, _ArrayValueDefinition):
     _id = "string"
 
 
-class BytesArrayPure(BasePureType):
+class BytesArrayPureType(_ArrayValuePureType):
     _id = "bytes"
-    _type = BytesArrayType
+    _type = BytesArrayDefinition
     _valid_literal = (vy_ast.Bytes, vy_ast.Hex)
 
-    @classmethod
-    def from_annotation(cls, node, is_constant: bool = False, is_public: bool = False):
-        if len(node.get_descendants(vy_ast.Subscript, include_self=True)) > 1:
-            raise StructureException("Multidimensional arrays are not supported", node)
 
-        length = validation.utils.get_index_value(node.get("slice") or node)
-        return BytesArrayType(length, is_constant, is_public)
-
-    @classmethod
-    def from_literal(cls, node):
-        obj = super().from_literal(node)
-
-        if isinstance(node, vy_ast.Hex):
-            length = len(node.value) // 2 - 1
-        else:
-            length = len(node.value)
-
-        obj.set_min_length(length)
-        return obj
-
-
-class StringPure(BasePureType):
+class StringPureType(_ArrayValuePureType):
     _id = "string"
-    _type = StringType
+    _type = StringDefinition
     _valid_literal = vy_ast.Str
-
-    @classmethod
-    def from_annotation(cls, node, is_constant: bool = False, is_public: bool = False):
-        if len(node.get_descendants(vy_ast.Subscript, include_self=True)) > 1:
-            raise StructureException("Multidimensional arrays are not supported", node)
-
-        length = validation.utils.get_index_value(node.get("slice") or node)
-        return StringType(length, is_constant, is_public)
-
-    @classmethod
-    def from_literal(cls, node):
-        obj = super().from_literal(node)
-
-        if isinstance(node, vy_ast.Hex):
-            length = len(node.value) // 2 - 1
-        else:
-            length = len(node.value)
-
-        obj.set_min_length(length)
-        return obj

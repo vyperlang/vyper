@@ -1,16 +1,14 @@
 from typing import Union
 
 from vyper import ast as vy_ast
-from vyper.context.types.bases import AbstractDataType, BasePureType
-from vyper.context.types.value.bases import ValueType
-from vyper.exceptions import InvalidOperation, InvalidType, OverflowException
-
-# abstract data types
+from vyper.context.types.abstract import FixedAbstractType, IntegerAbstractType
+from vyper.context.types.bases import BasePureType, ValueTypeDefinition
+from vyper.exceptions import InvalidOperation, OverflowException
 
 
-class NumericBase(AbstractDataType):
+class _NumericDefinition(ValueTypeDefinition):
     """
-    Abstract data class for numeric types (capable of arithmetic).
+    Private base class for numeric definitions.
 
     Attributes
     ----------
@@ -30,107 +28,55 @@ class NumericBase(AbstractDataType):
         return
 
 
-class IntegerBase(NumericBase):
-    """Abstract data class for integer numeric types (int128, uint256)."""
+class _NumericPureType(BasePureType):
+
+    _as_array = True
+
+    @classmethod
+    def from_literal(cls, node: vy_ast.Constant):
+        obj = super().from_literal(node)
+        lower, upper = cls._bounds
+        if node.value < lower:
+            raise OverflowException(f"Value is below lower bound for given type ({lower})", node)
+        if node.value > upper:
+            raise OverflowException(f"Value exceeds upper bound for given type ({upper})", node)
+        return obj
 
 
-class FixedBase(NumericBase):
-    """
-    Abstract data class for decimal numeric types.
+# definitions
 
-    Note that Vyper currently only has one decimal type - this class should
-    still be used to expect decimal values in anticipation of multiple decimal
-    types in a future release.
-    """
-
-
-# castable types
-
-
-class Int128Type(IntegerBase, ValueType):
+class Int128Definition(IntegerAbstractType, _NumericDefinition):
     _id = "int128"
 
 
-class Uint256Type(IntegerBase, ValueType):
+class Uint256Definition(IntegerAbstractType, _NumericDefinition):
     _id = "uint256"
     _invalid_op = vy_ast.USub
 
 
-class DecimalType(FixedBase, ValueType):
+class DecimalDefinition(FixedAbstractType, _NumericDefinition):
     _id = "decimal"
     _invalid_op = vy_ast.Pow
 
 
 # pure types
 
-
-class Int128Pure(BasePureType):
-
-    _as_array = True
-    _type = Int128Type
+class Int128PureType(_NumericPureType):
+    _bounds = (-2**127, 2**127-1)
     _id = "int128"
+    _type = Int128Definition
     _valid_literal = vy_ast.Int
 
-    @classmethod
-    def from_literal(cls, node: vy_ast.Constant):
-        super().from_literal(node)
-        validate_numeric_bounds("int128", node)
-        return Int128Type()
 
-
-class Uint256Pure(BasePureType):
-    _type = Uint256Type
+class Uint256PureType(_NumericPureType):
+    _bounds = (0, 2**256-1)
     _id = "uint256"
-    _as_array = True
+    _type = Uint256Definition
     _valid_literal = vy_ast.Int
 
-    @classmethod
-    def from_literal(cls, node: vy_ast.Constant):
-        obj = super().from_literal(node)
-        validate_numeric_bounds("uint256", node)
-        return obj
 
-
-class DecimalPure(BasePureType):
-    _as_array = True
-    _type = DecimalType
+class DecimalPureType(_NumericPureType):
+    _bounds = (-2**127, 2**127-1)
     _id = "decimal"
+    _type = DecimalDefinition
     _valid_literal = vy_ast.Decimal
-
-    @classmethod
-    def from_literal(cls, node: vy_ast.Constant):
-        obj = super().from_literal(node)
-        validate_numeric_bounds("int128", node)
-        return obj
-
-
-def validate_numeric_bounds(type_str: str, node: vy_ast.Num) -> None:
-    """
-    Validate that a `Num` node's value is within the bounds of a given type.
-
-    Raises `OverflowException` if the check fails.
-
-    Arguments
-    ---------
-    type_str : str
-        String representation of the type, e.g. "int128"
-    node : Num
-        Vyper ast node to validate
-
-    Returns
-    -------
-    None
-    """
-    size = int(type_str.strip("uint") or 256)
-    if not 8 <= size <= 256 or size % 8:
-        raise InvalidType(f"Invalid type: {type_str}")
-    if type_str.startswith("u"):
-        lower, upper = 0, 2 ** size - 1
-    else:
-        lower, upper = -(2 ** (size - 1)), 2 ** (size - 1) - 1
-
-    value = node.value
-    if value < lower:
-        raise OverflowException(f"Value is below lower bound for given type ({lower})", node)
-    if value > upper:
-        raise OverflowException(f"Value exceeds upper bound for given type ({upper})", node)

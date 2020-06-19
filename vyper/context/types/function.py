@@ -4,14 +4,14 @@ from typing import Optional, Tuple, Union
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.context.namespace import get_namespace
-from vyper.context.types.bases import BaseType
-from vyper.context.types.indexable.sequence import TupleType
+from vyper.context.types.bases import BaseTypeDefinition
+from vyper.context.types.indexable.sequence import TupleDefinition
 from vyper.context.types.utils import (
     build_type_from_ann_assign,
     get_type_from_abi,
     get_type_from_annotation,
 )
-from vyper.context.types.value.numeric import Uint256Type
+from vyper.context.types.value.numeric import Uint256Definition
 from vyper.context.validation.utils import validate_expected_type
 from vyper.exceptions import (
     ArgumentException,
@@ -25,7 +25,7 @@ from vyper.exceptions import (
 )
 
 
-class ContractFunctionType(BaseType):
+class ContractFunctionType(BaseTypeDefinition):
     """
     Contract function type.
 
@@ -216,7 +216,7 @@ class ContractFunctionType(BaseType):
             return_type = ()
             for n in node.returns.elements:
                 return_type += (get_type_from_annotation(n),)
-            return_type = TupleType(return_type)
+            return_type = TupleDefinition(return_type)
         else:
             raise InvalidType("Function return value must be a type name or tuple", node.returns)
 
@@ -260,7 +260,7 @@ class ContractFunctionType(BaseType):
 
         for kwarg in node.keywords:
             if kwarg.arg in ("gas", "value"):
-                validate_expected_type(kwarg.value, Uint256Type())
+                validate_expected_type(kwarg.value, Uint256Definition())
             else:
                 validate_expected_type(kwarg.arg, kwarg.value)
 

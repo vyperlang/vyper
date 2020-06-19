@@ -1,27 +1,27 @@
 from typing import Dict
 
-from vyper.context.types.meta.struct import StructType
-from vyper.context.types.value.address import AddressType
-from vyper.context.types.value.bytes_fixed import Bytes32Type
-from vyper.context.types.value.numeric import Uint256Type
+from vyper.context.types.meta.struct import StructDefinition
+from vyper.context.types.value.address import AddressDefinition
+from vyper.context.types.value.bytes_fixed import Bytes32Definition
+from vyper.context.types.value.numeric import Uint256Definition
 
 CONSTANT_ENVIRONMENT_VARS = {
     "block": {
-        "coinbase": AddressType,
-        "difficulty": Uint256Type,
-        "number": Uint256Type,
-        "prevhash": Bytes32Type,
-        "timestamp": Uint256Type,
+        "coinbase": AddressDefinition,
+        "difficulty": Uint256Definition,
+        "number": Uint256Definition,
+        "prevhash": Bytes32Definition,
+        "timestamp": Uint256Definition,
     },
-    "chain": {"id": Uint256Type},
-    "msg": {"gas": Uint256Type, "sender": AddressType, "value": Uint256Type},
-    "tx": {"origin": AddressType},
+    "chain": {"id": Uint256Definition},
+    "msg": {"gas": Uint256Definition, "sender": AddressDefinition, "value": Uint256Definition},
+    "tx": {"origin": AddressDefinition},
 }
 
 
 MUTABLE_ENVIRONMENT_VARS = {
-    "log": (StructType, "log", {}),
-    "self": (AddressType,),
+    "log": (StructDefinition, "log", {}),
+    "self": (AddressDefinition,),
 }
 
 
@@ -32,7 +32,7 @@ def get_constant_vars() -> Dict:
     result = {}
     for name, members in CONSTANT_ENVIRONMENT_VARS.items():
         members = {k: v(is_constant=True) for k, v in members.items()}
-        result[name] = StructType(name, members, is_constant=True)
+        result[name] = StructDefinition(name, members, is_constant=True)
 
     return result
 

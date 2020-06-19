@@ -1,18 +1,10 @@
 from vyper import ast as vy_ast
-from vyper.context.types.bases import AbstractDataType, BasePureType
-from vyper.context.types.value.bases import ValueType
+from vyper.context.types.abstract import BytesAbstractType
+from vyper.context.types.bases import BasePureType, ValueTypeDefinition
 from vyper.exceptions import InvalidLiteral
 
 
-class BytesBase(AbstractDataType):
-
-    """Abstract data class for bytes types (bytes32, bytes[])."""
-
-    def __repr__(self):
-        return "bytes"
-
-
-class Bytes32Type(BytesBase, ValueType):
+class Bytes32Definition(BytesAbstractType, ValueTypeDefinition):
 
     # included for compatibility with bytes array methods
     _id = "bytes32"
@@ -21,10 +13,10 @@ class Bytes32Type(BytesBase, ValueType):
     _min_length = 32
 
 
-class Bytes32Pure(BasePureType):
+class Bytes32PureType(BasePureType):
 
     _as_array = True
-    _type = Bytes32Type
+    _type = Bytes32Definition
     _id = "bytes32"
     _valid_literal = (vy_ast.Bytes, vy_ast.Hex)
 

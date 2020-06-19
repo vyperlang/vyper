@@ -5,26 +5,28 @@ from decimal import Decimal
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
-from vyper.context.types.indexable.sequence import ArrayType
-from vyper.context.types.utils import get_type_from_annotation
-from vyper.context.types.value.address import AddressType
-from vyper.context.types.value.array_value import (
-    ArrayValueBase,
-    BytesArrayPure,
-    BytesArrayType,
-    BytesBase,
-    StringPure,
-    StringType,
+from vyper.context.types.abstract import (
+    ArrayValueAbstractType,
+    BytesAbstractType,
+    IntegerAbstractType,
+    NumericAbstractType,
 )
-from vyper.context.types.value.bases import ValueType
-from vyper.context.types.value.boolean import BoolType
-from vyper.context.types.value.bytes_fixed import Bytes32Type
+from vyper.context.types.bases import ValueTypeDefinition
+from vyper.context.types.indexable.sequence import ArrayDefinition
+from vyper.context.types.utils import get_type_from_annotation
+from vyper.context.types.value.address import AddressDefinition
+from vyper.context.types.value.array_value import (
+    BytesArrayDefinition,
+    BytesArrayPureType,
+    StringPureType,
+    StringDefinition,
+)
+from vyper.context.types.value.boolean import BoolDefinition
+from vyper.context.types.value.bytes_fixed import Bytes32Definition
 from vyper.context.types.value.numeric import (
-    DecimalType,
-    Int128Type,
-    IntegerBase,
-    NumericBase,
-    Uint256Type,
+    DecimalDefinition,
+    Int128Definition,
+    Uint256Definition,
 )
 from vyper.context.validation.utils import (
     get_common_types,
@@ -95,7 +97,7 @@ class AssertModifiable(_SimpleBuiltinFunction):
     Assert a condition without performing a constancy check.
     """
     _id = "assert_modifiable"
-    _inputs = [("cond", BoolType())]
+    _inputs = [("cond", BoolDefinition())]
     _return_type = None
 
     @validate_inputs
@@ -106,8 +108,8 @@ class AssertModifiable(_SimpleBuiltinFunction):
 class Floor(_SimpleBuiltinFunction):
 
     _id = "floor"
-    _inputs = [("value", DecimalType())]
-    _return_type = Int128Type()
+    _inputs = [("value", DecimalDefinition())]
+    _return_type = Int128Definition()
 
     def evaluate(self, node):
         validate_call_args(node, 1)
@@ -134,8 +136,8 @@ class Floor(_SimpleBuiltinFunction):
 class Ceil(_SimpleBuiltinFunction):
 
     _id = "ceil"
-    _inputs = [("value", DecimalType())]
-    _return_type = Int128Type()
+    _inputs = [("value", DecimalDefinition())]
+    _return_type = Int128Definition()
 
     def evaluate(self, node):
         validate_call_args(node, 1)
@@ -170,14 +172,14 @@ class Convert:
         validate_call_args(node, 2)
         target_type = get_type_from_annotation(node.args[1])
 
-        validate_expected_type(node.args[0], ValueType())
+        validate_expected_type(node.args[0], ValueTypeDefinition())
         try:
             validate_expected_type(node.args[0], target_type)
         except VyperException:
             pass
         else:
             # TODO remove this once it's possible in parser
-            if not isinstance(target_type, Uint256Type):
+            if not isinstance(target_type, Uint256Definition):
                 raise InvalidType(f"Value and target type are both '{target_type}'", node)
 
         # TODO!
@@ -235,16 +237,16 @@ class Slice:
         if isinstance(node.args[2], vy_ast.Int) and node.args[2].value < 1:
             raise ArgumentException("Length cannot be less than 1", node.args[2])
 
-        validate_expected_type(node.args[0], (BytesBase(), StringPure()))
+        validate_expected_type(node.args[0], (BytesAbstractType(), StringPureType()))
         type_list = get_possible_types_from_node(node.args[0])
         try:
-            validate_expected_type(node.args[0], StringPure())
-            return_type = StringType()
+            validate_expected_type(node.args[0], StringPureType())
+            return_type = StringDefinition()
         except VyperException:
-            return_type = BytesArrayType()
+            return_type = BytesArrayDefinition()
 
         for arg in node.args[1:]:
-            validate_expected_type(arg, Int128Type())
+            validate_expected_type(arg, Int128Definition())
 
         if isinstance(node.args[2], vy_ast.Int):
             return_type.set_length(node.args[2].value)
@@ -334,8 +336,8 @@ class Slice:
 class Len(_SimpleBuiltinFunction):
 
     _id = "len"
-    _inputs = [("b", ArrayValueBase())]
-    _return_type = Int128Type()
+    _inputs = [("b", ArrayValueAbstractType())]
+    _return_type = Int128Definition()
 
     def evaluate(self, node):
         validate_call_args(node, 1)
@@ -367,7 +369,7 @@ class Concat:
             raise ArgumentException("Keyword arguments are not accepted here", node.keywords[0])
 
         type_ = None
-        for expected in (BytesBase(), StringPure()):
+        for expected in (BytesAbstractType(), StringPureType()):
             try:
                 validate_expected_type(node.args[0], expected)
                 type_ = expected
@@ -384,8 +386,10 @@ class Concat:
         for arg in node.args:
             length += get_possible_types_from_node(arg).pop().length
 
-        # # type_.set_length(sum(i.length for i in type_list))
-        return_type = BytesArrayType() if isinstance(type_, BytesBase) else StringType()
+        if isinstance(type_, BytesAbstractType):
+            return_type = BytesArrayDefinition()
+        else:
+            return_type = StringDefinition()
         return_type.set_length(length)
         return return_type
 
@@ -500,8 +504,8 @@ class Concat:
 class Keccak256(_SimpleBuiltinFunction):
 
     _id = "keccak256"
-    _inputs = [("value", (BytesArrayPure(), StringType(), Bytes32Type()))]
-    _return_type = Bytes32Type()
+    _inputs = [("value", (Bytes32Definition(), BytesArrayPureType(), StringPureType()))]
+    _return_type = Bytes32Definition()
 
     def evaluate(self, node):
         validate_call_args(node, 1)
@@ -540,8 +544,8 @@ def _make_sha256_call(inp_start, inp_len, out_start, out_len):
 class Sha256(_SimpleBuiltinFunction):
 
     _id = "sha256"
-    _inputs = [("value", (BytesArrayPure(), StringType(), Bytes32Type()))]
-    _return_type = Bytes32Type()
+    _inputs = [("value", (Bytes32Definition(), BytesArrayPureType(), StringPureType()))]
+    _return_type = Bytes32Definition()
 
     def evaluate(self, node):
         validate_call_args(node, 1)
@@ -675,12 +679,12 @@ class ECRecover(_SimpleBuiltinFunction):
 
     _id = "ecrecover"
     _inputs = [
-        ("hash", Bytes32Type()),
-        ("v", Uint256Type()),
-        ("r", Uint256Type()),
-        ("s", Uint256Type()),
+        ("hash", Bytes32Definition()),
+        ("v", Uint256Definition()),
+        ("r", Uint256Definition()),
+        ("s", Uint256Definition()),
     ]
-    _return_type = AddressType()
+    _return_type = AddressDefinition()
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -707,8 +711,11 @@ def avo(arg, ind, pos):
 class ECAdd(_SimpleBuiltinFunction):
 
     _id = "ecadd"
-    _inputs = [("a", ArrayType(Uint256Type(), 2)), ("b", ArrayType(Uint256Type(), 2))]
-    _return_type = ArrayType(Uint256Type(), 2)
+    _inputs = [
+        ("a", ArrayDefinition(Uint256Definition(), 2)),
+        ("b", ArrayDefinition(Uint256Definition(), 2)),
+    ]
+    _return_type = ArrayDefinition(Uint256Definition(), 2)
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -731,8 +738,8 @@ class ECAdd(_SimpleBuiltinFunction):
 class ECMul(_SimpleBuiltinFunction):
 
     _id = "ecmul"
-    _inputs = [("point", ArrayType(Uint256Type(), 2)), ("scalar", Uint256Type())]
-    _return_type = ArrayType(Uint256Type(), 2)
+    _inputs = [("point", ArrayDefinition(Uint256Definition(), 2)), ("scalar", Uint256Definition())]
+    _return_type = ArrayDefinition(Uint256Definition(), 2)
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -768,7 +775,7 @@ def _storage_element_getter(index):
 class Extract32(_SimpleBuiltinFunction):
 
     _id = "extract32"
-    _inputs = [("b", BytesArrayPure()), ("start", Int128Type())]
+    _inputs = [("b", BytesArrayPureType()), ("start", Int128Definition())]
     _kwargs = {"type": Optional('name_literal', 'bytes32')}
     _return_type = None
 
@@ -776,10 +783,13 @@ class Extract32(_SimpleBuiltinFunction):
         super().fetch_call_return(node)
         if node.keywords:
             return_type = get_type_from_annotation(node.keywords[0].value)
-            if not isinstance(return_type, (AddressType, Bytes32Type, IntegerBase)):
+            if not isinstance(
+                return_type,
+                (AddressDefinition, Bytes32Definition, IntegerAbstractType)
+            ):
                 raise
         else:
-            return_type = Bytes32Type()
+            return_type = Bytes32Definition()
 
         return return_type
 
@@ -854,7 +864,7 @@ class AsWeiValue:
 
     _id = "as_wei_value"
     _inputs = [("value", ("int128", "uint256", "decimal")), ("unit", "str_literal")]
-    _return_type = Uint256Type()
+    _return_type = Uint256Definition()
 
     wei_denoms = {
         ("wei", ): 1,
@@ -895,7 +905,7 @@ class AsWeiValue:
         return vy_ast.Int.from_node(node, value=int(value * denom))
 
     def fetch_call_return(self, node):
-        validate_expected_type(node.args[0], NumericBase())
+        validate_expected_type(node.args[0], NumericAbstractType())
         return self._return_type
 
     @validate_inputs
@@ -948,7 +958,7 @@ false_value = LLLnode.from_list(0, typ=BaseType('bool', is_literal=True))
 class RawCall(_SimpleBuiltinFunction):
 
     _id = "raw_call"
-    _inputs = [("to", AddressType()), ("data", BytesArrayPure())]
+    _inputs = [("to", AddressDefinition()), ("data", BytesArrayPureType())]
     _kwargs = {
         "max_outsize": Optional('num_literal', 0),
         "gas": Optional('uint256', 'gas'),
@@ -968,7 +978,7 @@ class RawCall(_SimpleBuiltinFunction):
             raise
 
         if outsize.value:
-            return_type = BytesArrayType()
+            return_type = BytesArrayDefinition()
             return_type.set_min_length(outsize.value)
 
             return return_type
@@ -1047,7 +1057,7 @@ class RawCall(_SimpleBuiltinFunction):
 class Send(_SimpleBuiltinFunction):
 
     _id = "send"
-    _inputs = [("to", AddressType()), ("value", Uint256Type())]
+    _inputs = [("to", AddressDefinition()), ("value", Uint256Definition())]
     _return_type = None
 
     @validate_inputs
@@ -1068,7 +1078,7 @@ class Send(_SimpleBuiltinFunction):
 class SelfDestruct(_SimpleBuiltinFunction):
 
     _id = "selfdestruct"
-    _inputs = [("to", AddressType())]
+    _inputs = [("to", AddressDefinition())]
     _return_type = None
     _is_terminus = True
 
@@ -1085,8 +1095,8 @@ class SelfDestruct(_SimpleBuiltinFunction):
 class BlockHash(_SimpleBuiltinFunction):
 
     _id = "blockhash"
-    _inputs = [("block_num", Uint256Type())]
-    _return_type = Bytes32Type()
+    _inputs = [("block_num", Uint256Definition())]
+    _return_type = Bytes32Definition()
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, contact):
@@ -1111,9 +1121,9 @@ class RawLog:
         if node.args[0].elements:
             validate_expected_type(
                 node.args[0],
-                ArrayType(Bytes32Type(), len(node.args[0].elements))
+                ArrayDefinition(Bytes32Definition(), len(node.args[0].elements))
             )
-        validate_expected_type(node.args[1], BytesBase())
+        validate_expected_type(node.args[1], BytesAbstractType())
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -1171,8 +1181,8 @@ class RawLog:
 class BitwiseAnd(_SimpleBuiltinFunction):
 
     _id = "bitwise_and"
-    _inputs = [("x", Uint256Type()), ("y", Uint256Type())]
-    _return_type = Uint256Type()
+    _inputs = [("x", Uint256Definition()), ("y", Uint256Definition())]
+    _return_type = Uint256Definition()
 
     def evaluate(self, node):
         validate_call_args(node, 2)
@@ -1195,8 +1205,8 @@ class BitwiseAnd(_SimpleBuiltinFunction):
 class BitwiseOr(_SimpleBuiltinFunction):
 
     _id = "bitwise_or"
-    _inputs = [("x", Uint256Type()), ("y", Uint256Type())]
-    _return_type = Uint256Type()
+    _inputs = [("x", Uint256Definition()), ("y", Uint256Definition())]
+    _return_type = Uint256Definition()
 
     def evaluate(self, node):
         validate_call_args(node, 2)
@@ -1219,8 +1229,8 @@ class BitwiseOr(_SimpleBuiltinFunction):
 class BitwiseXor(_SimpleBuiltinFunction):
 
     _id = "bitwise_xor"
-    _inputs = [("x", Uint256Type()), ("y", Uint256Type())]
-    _return_type = Uint256Type()
+    _inputs = [("x", Uint256Definition()), ("y", Uint256Definition())]
+    _return_type = Uint256Definition()
 
     def evaluate(self, node):
         validate_call_args(node, 2)
@@ -1243,8 +1253,8 @@ class BitwiseXor(_SimpleBuiltinFunction):
 class BitwiseNot(_SimpleBuiltinFunction):
 
     _id = "bitwise_not"
-    _inputs = [("x", Uint256Type())]
-    _return_type = Uint256Type()
+    _inputs = [("x", Uint256Definition())]
+    _return_type = Uint256Definition()
 
     def evaluate(self, node):
         validate_call_args(node, 1)
@@ -1266,8 +1276,8 @@ class BitwiseNot(_SimpleBuiltinFunction):
 class Shift(_SimpleBuiltinFunction):
 
     _id = "shift"
-    _inputs = [("x", Uint256Type()), ("_shift", Int128Type())]
-    _return_type = Uint256Type()
+    _inputs = [("x", Uint256Definition()), ("_shift", Int128Definition())]
+    _return_type = Uint256Definition()
 
     def evaluate(self, node):
         validate_call_args(node, 2)
@@ -1324,8 +1334,8 @@ class Shift(_SimpleBuiltinFunction):
 
 class _AddMulMod(_SimpleBuiltinFunction):
 
-    _inputs = [("a", Uint256Type()), ("b", Uint256Type()), ("c", Uint256Type())]
-    _return_type = Uint256Type()
+    _inputs = [("a", Uint256Definition()), ("b", Uint256Definition()), ("c", Uint256Definition())]
+    _return_type = Uint256Definition()
 
     def evaluate(self, node):
         validate_call_args(node, 3)
@@ -1407,9 +1417,9 @@ def get_create_forwarder_to_bytecode():
 class CreateForwarderTo(_SimpleBuiltinFunction):
 
     _id = "create_forwarder_to"
-    _inputs = [("target", AddressType())]
+    _inputs = [("target", AddressDefinition())]
     _kwargs = {'value': Optional('uint256', zero_value)}
-    _return_type = AddressType()
+    _return_type = AddressDefinition()
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
@@ -1464,7 +1474,7 @@ class _MinMax:
 
         types_list = get_common_types(
             *node.args,
-            filter_fn=lambda x: isinstance(x, NumericBase)
+            filter_fn=lambda x: isinstance(x, NumericAbstractType)
         )
         if not types_list:
             raise TypeMismatch
@@ -1522,8 +1532,8 @@ class Max(_MinMax):
 class Sqrt(_SimpleBuiltinFunction):
 
     _id = "sqrt"
-    _inputs = [("d", DecimalType())]
-    _return_type = DecimalType()
+    _inputs = [("d", DecimalDefinition())]
+    _return_type = DecimalDefinition()
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):

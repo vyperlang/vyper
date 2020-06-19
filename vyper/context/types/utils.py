@@ -3,7 +3,7 @@ from typing import Dict, Optional
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.context.namespace import get_namespace
-from vyper.context.types.indexable.sequence import ArrayType
+from vyper.context.types.indexable.sequence import ArrayDefinition
 from vyper.context.validation.utils import (
     get_exact_type_from_node,
     get_index_value,
@@ -71,13 +71,13 @@ def get_type_from_annotation(
         raise UnknownType("Not a valid type - value is undeclared", node) from None
 
     if getattr(type_obj, "_as_array", False) and isinstance(node, vy_ast.Subscript):
-        # if type can be an array and node is a subscript, create an `ArrayType`
+        # if type can be an array and node is a subscript, create an `ArrayDefinition`
         try:
             length = get_index_value(node.slice)
         except VyperException as exc:
             raise UnknownType(str(exc)) from None
         value_type = get_type_from_annotation(node.value, is_constant, False)
-        return ArrayType(value_type, length, is_constant, is_public)
+        return ArrayDefinition(value_type, length, is_constant, is_public)
 
     try:
         return type_obj.from_annotation(node, is_constant, is_public)

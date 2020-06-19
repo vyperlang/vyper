@@ -1,10 +1,10 @@
 from vyper import ast as vy_ast
-from vyper.context.types.indexable.bases import IndexableType
-from vyper.context.types.value.numeric import IntegerBase
+from vyper.context.types.abstract import IntegerAbstractType
+from vyper.context.types.bases import IndexableTypeDefinition
 from vyper.exceptions import ArrayIndexException, InvalidType
 
 
-class _SequenceBase(IndexableType):
+class _SequenceDefinition(IndexableTypeDefinition):
     """
     Private base class for sequence types.
 
@@ -17,11 +17,11 @@ class _SequenceBase(IndexableType):
     def __init__(
         self, value_type, length: int, _id: str, is_constant: bool = False, is_public: bool = False
     ) -> None:
-        super().__init__(value_type, IntegerBase(), _id)
+        super().__init__(value_type, IntegerAbstractType(), _id)
         self.length = length
 
 
-class ArrayType(_SequenceBase):
+class ArrayDefinition(_SequenceDefinition):
     """
     Castable array type.
 
@@ -53,7 +53,7 @@ class ArrayType(_SequenceBase):
         return self.value_type.compare_type(other.value_type)
 
 
-class TupleType(_SequenceBase):
+class TupleDefinition(_SequenceDefinition):
     """
     Castable array type.
 

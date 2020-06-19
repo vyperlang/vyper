@@ -1,12 +1,11 @@
 from typing import Union
 
 from vyper import ast as vy_ast
-from vyper.context.types.bases import BasePureType
-from vyper.context.types.value.bases import ValueType
+from vyper.context.types.bases import BasePureType, ValueTypeDefinition
 from vyper.exceptions import InvalidLiteral
 
 
-class BoolType(ValueType):
+class BoolDefinition(ValueTypeDefinition):
     _id = "bool"
 
     def validate_boolean_op(self, node: vy_ast.BoolOp):
@@ -18,10 +17,10 @@ class BoolType(ValueType):
         super().validate_numeric_op(node)
 
 
-class BoolPure(BasePureType):
+class BoolPureType(BasePureType):
 
     _id = "bool"
-    _type = BoolType
+    _type = BoolDefinition
     _as_array = True
     _valid_literal = vy_ast.NameConstant
 

@@ -2,9 +2,9 @@ from collections import OrderedDict
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
-from vyper.context.types.indexable.mapping import MappingType
+from vyper.context.types.bases import MemberTypeDefinition
+from vyper.context.types.indexable.mapping import MappingDefinition
 from vyper.context.types.utils import get_type_from_annotation
-from vyper.context.types.value.bases import MemberType
 from vyper.context.validation.utils import validate_expected_type
 from vyper.exceptions import (
     NamespaceCollision,
@@ -14,7 +14,7 @@ from vyper.exceptions import (
 )
 
 
-class StructType(MemberType):
+class StructDefinition(MemberTypeDefinition):
     def __init__(self, _id, members, is_constant: bool = False, is_public: bool = False) -> None:
         self._id = _id
         super().__init__(is_constant, is_public)
@@ -25,7 +25,7 @@ class StructType(MemberType):
         return super().compare_type(other) and self._id == other._id
 
 
-class StructPure:
+class StructPureType:
 
     _is_callable = True
     _as_array = True
@@ -42,10 +42,10 @@ class StructPure:
 
     def from_annotation(
         self, node: vy_ast.VyperNode, is_constant: bool = False, is_public: bool = False
-    ) -> StructType:
+    ) -> StructDefinition:
         if not isinstance(node, vy_ast.Name):
             raise StructureException("Invalid type assignment", node)
-        return StructType(self._id, self.members, is_constant, is_public)
+        return StructDefinition(self._id, self.members, is_constant, is_public)
 
     def fetch_call_return(self, node: vy_ast.Call):
         validate_call_args(node, 1)
@@ -53,7 +53,7 @@ class StructPure:
             raise VariableDeclarationException(
                 "Struct values must be declared via dictionary", node.args[0]
             )
-        if next((i for i in self.members.values() if isinstance(i, MappingType)), False):
+        if next((i for i in self.members.values() if isinstance(i, MappingDefinition)), False):
             raise VariableDeclarationException(
                 "Struct contains a mapping and so cannot be declared as a literal", node
             )
@@ -68,12 +68,12 @@ class StructPure:
                 f"Struct declaration does not define all fields: {', '.join(list(members))}", node,
             )
 
-        return StructType(self._id, self.members)
+        return StructDefinition(self._id, self.members)
 
 
-def build_pure_type_from_node(base_node: vy_ast.ClassDef) -> StructPure:
+def build_pure_type_from_node(base_node: vy_ast.ClassDef) -> StructPureType:
     """
-    Generate a `StructPure` object from a Vyper ast node.
+    Generate a `StructPureType` object from a Vyper ast node.
 
     Arguments
     ---------
@@ -81,7 +81,7 @@ def build_pure_type_from_node(base_node: vy_ast.ClassDef) -> StructPure:
         Vyper ast node defining the struct
     Returns
     -------
-    StructPure
+    StructPureType
         Pure struct type
     """
 
@@ -100,4 +100,4 @@ def build_pure_type_from_node(base_node: vy_ast.ClassDef) -> StructPure:
             )
         members[member_name] = get_type_from_annotation(node.annotation)
 
-    return StructPure(base_node.name, members)
+    return StructPureType(base_node.name, members)

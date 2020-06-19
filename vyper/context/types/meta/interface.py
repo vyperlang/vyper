@@ -4,9 +4,9 @@ from typing import Union
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.context.namespace import get_namespace
+from vyper.context.types.bases import MemberTypeDefinition
 from vyper.context.types.function import ContractFunctionType
-from vyper.context.types.value.address import AddressType
-from vyper.context.types.value.bases import MemberType
+from vyper.context.types.value.address import AddressDefinition
 from vyper.context.validation.utils import validate_expected_type
 from vyper.exceptions import (
     InterfaceViolation,
@@ -15,9 +15,9 @@ from vyper.exceptions import (
 )
 
 
-class InterfaceType(MemberType):
+class InterfaceDefinition(MemberTypeDefinition):
 
-    _type_members = {"address": AddressType()}
+    _type_members = {"address": AddressDefinition()}
 
     def __init__(self, _id, members, is_constant: bool = False, is_public: bool = False) -> None:
         self._id = _id
@@ -26,7 +26,7 @@ class InterfaceType(MemberType):
             self.add_member(key, type_)
 
 
-class InterfacePure:
+class InterfacePureType:
 
     _is_callable = True
     _as_array = True
@@ -40,18 +40,18 @@ class InterfacePure:
 
     def from_annotation(
         self, node: vy_ast.VyperNode, is_constant: bool = False, is_public: bool = False
-    ) -> InterfaceType:
+    ) -> InterfaceDefinition:
 
         if not isinstance(node, vy_ast.Name):
             raise StructureException("Invalid type assignment", node)
 
-        return InterfaceType(self._id, self.members, is_constant, is_public)
+        return InterfaceDefinition(self._id, self.members, is_constant, is_public)
 
     def fetch_call_return(self, node: vy_ast.Call):
         validate_call_args(node, 1)
-        validate_expected_type(node.args[0], AddressType())
+        validate_expected_type(node.args[0], AddressDefinition())
 
-        return InterfaceType(self._id, self.members)
+        return InterfaceDefinition(self._id, self.members)
 
     def validate_implements(self, node: vy_ast.AnnAssign):
         namespace = get_namespace()
@@ -69,7 +69,7 @@ class InterfacePure:
             )
 
 
-def build_pure_type_from_abi(name: str, abi: dict) -> InterfacePure:
+def build_pure_type_from_abi(name: str, abi: dict) -> InterfacePureType:
     """
     Generate an `InterfacePure` object from an ABI.
 
@@ -95,10 +95,10 @@ def build_pure_type_from_abi(name: str, abi: dict) -> InterfacePure:
             )
         members[func.name] = func
 
-    return InterfacePure(name, members)
+    return InterfacePureType(name, members)
 
 
-def build_pure_type_from_node(node: Union[vy_ast.ClassDef, vy_ast.Module]) -> InterfacePure:
+def build_pure_type_from_node(node: Union[vy_ast.ClassDef, vy_ast.Module]) -> InterfacePureType:
     """
     Generate an `InterfacePure` object from a Vyper ast node.
 
@@ -123,7 +123,7 @@ def build_pure_type_from_node(node: Union[vy_ast.ClassDef, vy_ast.Module]) -> In
         if func.name in namespace:
             raise NamespaceCollision(func.name, func.node)
 
-    return InterfacePure(node.name, members)
+    return InterfacePureType(node.name, members)
 
 
 def _get_module_functions(base_node: vy_ast.Module):

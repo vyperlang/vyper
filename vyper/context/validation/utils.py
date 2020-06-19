@@ -4,8 +4,11 @@ from typing import List
 from vyper import ast as vy_ast
 from vyper.context import types
 from vyper.context.namespace import get_namespace
-from vyper.context.types.indexable.sequence import ArrayType, TupleType
-from vyper.context.types.value.boolean import BoolType
+from vyper.context.types.indexable.sequence import (
+    ArrayDefinition,
+    TupleDefinition,
+)
+from vyper.context.types.value.boolean import BoolDefinition
 from vyper.exceptions import (
     ArrayIndexException,
     InvalidLiteral,
@@ -101,7 +104,7 @@ class _ExprTypeChecker:
             *node.values, filter_fn=lambda k: _filter(k, "validate_boolean_op", node)
         )
         if types_list:
-            return [BoolType()]
+            return [BoolDefinition()]
         raise TypeMismatch(f"Cannot perform {node.op.description} between dislike types", node)
 
     def types_from_Compare(self, node):
@@ -110,11 +113,11 @@ class _ExprTypeChecker:
         right = self.get_possible_types_from_node(node.right)
         if isinstance(node.op, vy_ast.In):
             # x in y
-            if next((i for i in left if isinstance(i, ArrayType)), False):
+            if next((i for i in left if isinstance(i, ArrayDefinition)), False):
                 raise InvalidOperation(
                     "Left operand in membership comparison cannot be Array type", node.left,
                 )
-            if next((i for i in right if not isinstance(i, ArrayType)), False):
+            if next((i for i in right if not isinstance(i, ArrayDefinition)), False):
                 raise InvalidOperation(
                     "Right operand must be Array for membership comparison", node.right
                 )
@@ -131,7 +134,7 @@ class _ExprTypeChecker:
                 f"Cannot perform {node.op.description} comparison "
                 f"between {left.pop()} and {right.pop()}"
             )
-        return [BoolType()]
+        return [BoolDefinition()]
 
     def types_from_Call(self, node):
         # function calls, e.g. `foo()`
@@ -166,7 +169,7 @@ class _ExprTypeChecker:
 
         types_list = get_common_types(*node.elements)
         if types_list:
-            return [ArrayType(i, len(node.elements)) for i in types_list]
+            return [ArrayDefinition(i, len(node.elements)) for i in types_list]
 
         raise InvalidLiteral("Array contains multiple, incompatible types", node)
 
@@ -189,7 +192,7 @@ class _ExprTypeChecker:
 
     def types_from_Tuple(self, node):
         types_list = [self.get_exact_type_from_node(i) for i in node.elements]
-        return [TupleType(types_list)]
+        return [TupleDefinition(types_list)]
 
     def types_from_UnaryOp(self, node):
         # unary operation: `-foo`
@@ -333,7 +336,7 @@ def validate_expected_type(node, expected_type):
 
     if isinstance(node, (vy_ast.List, vy_ast.Tuple)):
         # special case - for literal arrays or tuples we individually validate each item
-        for expected in (i for i in expected_type if isinstance(i, ArrayType)):
+        for expected in (i for i in expected_type if isinstance(i, ArrayDefinition)):
             if _validate_literal_array(node, expected):
                 return
     else:

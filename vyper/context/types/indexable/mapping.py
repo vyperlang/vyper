@@ -1,11 +1,10 @@
 from vyper.ast.validation import validate_call_args
-from vyper.context.types.bases import BasePureType
-from vyper.context.types.indexable.bases import IndexableType
+from vyper.context.types.bases import BasePureType, IndexableTypeDefinition
 from vyper.context.types.utils import get_type_from_annotation
 from vyper.context.validation.utils import validate_expected_type
 
 
-class MappingType(IndexableType):
+class MappingDefinition(IndexableTypeDefinition):
     _id = "map"
 
     def compare_type(self, other):
@@ -24,7 +23,7 @@ class MappingType(IndexableType):
         return self.value_type
 
 
-class MappingPure(BasePureType):
+class MappingPureType(BasePureType):
     _id = "map"
     _valid_literal = ()
 
@@ -33,6 +32,6 @@ class MappingPure(BasePureType):
         validate_call_args(node, 2)
         key_type = get_type_from_annotation(node.args[0])
         value_type = get_type_from_annotation(node.args[1])
-        return MappingType(
+        return MappingDefinition(
             value_type, key_type, f"map({key_type}, {value_type})", is_constant, is_public
         )
