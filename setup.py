@@ -9,15 +9,14 @@ import subprocess
 
 extras_require = {
     'test': [
-        'pytest>=5.2.0,<6',
-        'pytest-cov>=2.8.1,<3',
-        'coveralls[yaml]>=1.8.2,<2',
-        'pytest-xdist>=1.30.0,<2',
-        'eth-tester[py-evm]>=0.3.0b1,<0.4',
-        'web3>=5.2.0,<5.3.0',
-        'tox>=3.7,<4',
-        'lark-parser>=0.7.8,<1',
-        'hypothesis[lark]>=4.53.2,<5',
+        'pytest>=5.4,<6.0',
+        'pytest-cov>=2.10,<3.0',
+        'pytest-xdist>=1.32,<2.0',
+        'eth-tester[py-evm]>=0.5.0b1,<0.6',
+        'web3>=5.11,<6.0',
+        'tox>=3.15,<4.0',
+        'lark-parser>=0.8,<1.0',
+        'hypothesis[lark]>=5.16,<6.0',
     ],
     'lint': [
         'flake8>=3.8,<4.0',
