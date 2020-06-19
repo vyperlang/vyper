@@ -51,10 +51,14 @@ To install a specific version use:
 ::
 
     pip install vyper==0.1.0b17
-    
+
 .. note::
 
     The ``vyper`` package can only be installed using Python 3.6 or higher.
+
+.. note::
+
+    It is highly recommended to use `pyenv <https://github.com/pyenv/pyenv>`_ to manage your Python installation.
 
 Troubleshooting
 *************
