@@ -29,7 +29,7 @@ class ContractFunctionType(BaseTypeDefinition):
     """
     Contract function type.
 
-    Functions compare false against all types and so cannot be cast without
+    Functions compare false against all types and so cannot be assigned without
     being called. Calls are validated by `fetch_call_return`, check the call
     arguments against `arguments`, and return `return_type`.
 

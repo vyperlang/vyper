@@ -23,7 +23,7 @@ class _SequenceDefinition(IndexableTypeDefinition):
 
 class ArrayDefinition(_SequenceDefinition):
     """
-    Castable array type.
+    Array type definition.
 
     This class has no corresponding pure type. It is initialized
     during `context.types.utils.get_type_from_annotation`
@@ -55,7 +55,7 @@ class ArrayDefinition(_SequenceDefinition):
 
 class TupleDefinition(_SequenceDefinition):
     """
-    Castable array type.
+    Tuple type definition.
 
     This class has no corresponding pure type. It is used to represent
     multiple return values from `types.function.ContractFunctionType`.

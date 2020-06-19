@@ -18,7 +18,7 @@ class BasePureType:
     """
     Base class for pure type classes.
 
-    Pure types are objects that are invoked when casting a variable as a type.
+    Pure types are objects that are invoked when applying a type to a variable.
     They must contain a `from_annotation` (and optionally `from_literal`) method
     that returns their equivalent `BaseTypeDefinition` object.
 
@@ -31,7 +31,7 @@ class BasePureType:
     _as_array: bool, optional
         If `True`, this type can be used as the base member for an array.
     _valid_literal : Tuple
-        A tuple of Vyper ast classes that may be cast as this type.
+        A tuple of Vyper ast classes that may be assigned this type.
     """
 
     _type: Type["BaseTypeDefinition"]
@@ -66,10 +66,10 @@ class BasePureType:
         This method is called on every pure type class in order to determine
         potential types for a `Constant` AST node.
 
-        Methods that can be cast from literals should include a `_valid_literal`
-        attribute, containing a list of AST node classes that may be cast
-        as this type. If this attribute is not included, the type cannot be
-        cast as a literal.
+        Types that may be assigned from literals should include a `_valid_literal`
+        attribute, containing a list of AST node classes that may be valid for
+        this type. If the `_valid_literal` attribute is not included, the type
+        cannot be assigned to a literal.
 
         Arguments
         ---------
@@ -151,10 +151,10 @@ class BasePureType:
 
 class BaseTypeDefinition:
     """
-    Base class for casted type classes.
+    Base class for type definition classes.
 
-    Casted types are objects that represent the type of a specific object within
-    a contract. They are typically derived from a `BasePureType` counterpart.
+    Type definitions are objects that represent the type of a specific object
+    within a contract. They are usually derived from a `BasePureType` counterpart.
 
     Class Attributes
     -----------------
@@ -375,7 +375,7 @@ class ValueTypeDefinition(BaseTypeDefinition):
     _valid_literal: VyperNode | Tuple
         A vyper ast class or tuple of ast classes that can represent valid literals
         for the given type. Including this attribute will allow literal values to be
-        cast as this type.
+        assigned this type.
     """
 
     def __repr__(self):

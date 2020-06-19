@@ -11,7 +11,6 @@ Vyper abstract syntax tree (AST).
 
 * [`types/`](types): Subpackage of classes and methods used to represent types
   * [`types/indexable/`](types/indexable)
-    * [`bases.py`](types/indexable/bases.py): Indexable base types
     * [`mapping.py`](types/indexable/mapping.py): Mapping type
     * [`sequence.py`](types/indexable/sequence.py): Array and Tuple types
   * [`types/meta/`](types/meta)
@@ -20,10 +19,10 @@ Vyper abstract syntax tree (AST).
   * [`types/value/`](types/value)
     * [`address.py`](types/value/address.py): Address type
     * [`array_value.py`](types/value/array_value.py): Single-value subscript types (bytes, string)
-    * [`bases.py`](types/value/bases.py): `ValueType` base class
     * [`boolean.py`](types/value/boolean.py): Boolean type
     * [`bytes_fixed.py`](types/value/bytes_fixed.py): Fixed length byte types
     * [`numeric.py`](types/value/numeric.py): Integer and decimal types
+  * [`abstract.py`](types/abstract.py): Abstract data type classes
   * [`bases.py`](types/bases.py): Common base classes for all type objects
   * [`event.py`](types/event.py): `Event` type class
   * [`function.py`](types/function.py): `ContractFunctionType` type class
@@ -54,7 +53,7 @@ Prior to beginning type checking, builtins are added via the `Namespace.enter_bu
 method. This includes:
 
 * Adding pure type classes from the [`types/`](types) subpackage
-* Adding environment variables and builtin constants from `environment.py`[environment.py]
+* Adding environment variables and builtin constants from [`environment.py`](environment.py)
 * Adding builtin functions from the [`functions`](../functions/functions.py) package
 * Adding / resetting `self` and `log`
 
@@ -64,7 +63,7 @@ method. This includes:
 of a contract. This includes:
 
 * Generating user-defined pure types (e.g. structs and interfaces)
-* Creating castable types for storage variables, user-defined constants, events
+* Creating type definitions for storage variables, user-defined constants, events
 and functions
 * Validating import statements and function signatures
 
@@ -79,7 +78,33 @@ of `FunctionNodeVisitor`.
 
 ## Design
 
-### Types
+### Type Checking
+
+Type checking is handled bottom-up.
+
+1. The type of each expression is evaluated independently.
+2. Multiple types within the left-hand or right-hand side are compared (e.g. a
+literal array).
+3. The left-hand and right-hand types are compared.
+4. The operation being performed is validated according to the types (e.g. in a
+math operation, the types must be numeric)
+
+In type-checking the following example:
+
+```python
+foo: int128[2] = [-2, 42]
+```
+
+1. The annotation value is validated and determined to be an `int128` array of
+length `2`.
+2. The literal array values are validated on their own. The first value must be
+`int128`, the second could be `int128` or `uint256`.
+3. The right-hand side types are compared. A common type of `int128` is found.
+The array is given a type of `int128[2]`.
+4. The left-hand and right-hand types are compared and found to be matching.
+5. A new type definition `int128[2]` is added to the namespace with the name `foo`.
+
+### Types Classes
 
 All type classes are found within the [`context/types/`](types) subpackage.
 
@@ -96,30 +121,31 @@ Along with the builtin pure types, user-defined ones may be created. These types
 are defined in the modules within [`context/types/meta`](types/meta). See
 the docstrings there for more information.
 
-#### Castable Types
+#### Type Definitions
 
-A **castable type** is a type that has been assigned to a variable, literal, or
-other value. Castable types are typically derived from pure types. They include
-additional information such as the constancy, visibility and scope of the associated
-value.
+A **type definition** (or just definition) is a type that has been assigned to a
+specific variable, literal, or other value. Definition objects are typically derived
+from pure types. They include additional information such as the constancy,
+visibility and scope of the associated value.
 
-A pure type always has a corresponding castable type. However, not all castable types
-have a pure type, e.g. arrays and tuples.
+A pure type always has a corresponding type definition. However, not all type
+definitions have a pure type, e.g. arrays and tuples.
 
-Comparing a castable type to it's related pure type will always evaluate true.
-Comparing two castabled types of the same class can sometimes evaluate false depending
-on certain attributes. All castable type classes are subclasses of `BaseType`.
+Comparing a definition to it's related pure type will always evaluate `True`.
+Comparing two definitions of the same class can sometimes evaluate false depending
+on certain attributes. All definition classes are subclasses of `BaseTypeDefinition`.
 
-Additionally, literal values sometimes have multiple _potential types_. In this case,
-a membership check determines if the literal is valid by comparing the list of potential
-types against an explicitely casted type.
+Additionally, literal values sometimes have multiple _potential type definitions_.
+In this case, a membership check determines if the literal is valid by comparing
+the list of potential types against a specific type.
 
 #### Abstract Types
 
-An **abstract type** is an inherited class shared by two or more castable type
-classes. Abstract types may not be directly assigned to any values. They are used
-for broad type checking, in cases where e.g. a function expects any numeric value,
-or any bytes value.  All abstract type classes are subclasses of `AbstractDataType`.
+An **abstract type** is an inherited class shared by two or more definition
+classes. Abstract types do not implement any functionality and may not be directly
+assigned to any values. They are used for broad type checking, in cases where
+e.g. a function expects any numeric value, or any bytes value. All abstract type
+classes are subclasses of `AbstractDataType`.
 
 ### Namespace
 
@@ -129,6 +155,15 @@ additional restrictions:
 
 * Attempting to replace an existing field raises `NamespaceCollision`
 * Attempting to access a key that does not exist raises `UndeclaredDefinition`
+
+To ensure that only one copy of `Namespace` exists throughout the package, you
+should access it using the `get_namespace` method:
+
+```python
+from brownie.context.namespace import get_namespace
+
+namespace = get_namespace()
+```
 
 #### Scoping and Namespace as a Context Manager
 
@@ -157,48 +192,65 @@ Prior to beginning type checking, the first scope **must** be initiated using
 `Namespace.enter_builtin_scope`. This ensures that all builtin objects have
 been added, and resets the content of `self` and `log`.
 
-#### Importing the Namespace Object
+### Validation
 
-The `namespace` module replaces itself with an instance of `Namespace` within
-`sys.modules`. provides an easy way for other modules to import the same
-`Namespace` object and ensures that only one copy of the object exists.
+Validation is handled by calling methods within each type object. In general:
 
-To access the `Namespace` object from another module:
+* Pure type objects include one or both of `from_annotation` and `from_literal` methods,
+which validate an AST node and a produce definition object
+* Definition objects include a variety of `get_<thing>` and `validate_<action>` methods,
+which are used to validate interactions and obtain new types based on AST nodes
 
-```python
-from vyper.context import namespace
-```
+All possible methods for pure types and type definitions are outlined within the
+base classes in [`types/bases.py`](types/bases.py). The functionality within the
+methods of the base classes is typically to raise and give a meaningful explanation
+for _why_ the syntax not valid.
 
-Guido van Rossum provides an explanation of why this works in this post from the
-[Python mailing list](https://mail.python.org/pipermail/python-ideas/2012-May/014969.html).
+Here are some examples:
 
-### Type Checking
-
-Type checking is handled bottom-up.
-
-1. The type of each expression is evaluated independently.
-2. Multiple types within the left-hand or right-hand side are compared (e.g. a
-literal array).
-3. The left-hand and right-hand types are compared.
-4. The operation being performed is validated according to the types (e.g. in a
-math operation, the types must be numeric)
-
-In type-checking the following example:
+#### 1. Declaring a Variable
 
 ```python
-foo: int128[2] = [-2, 42]
+foo: int128
 ```
 
-1. The annotation value is validated and determined to be an `int128` array of
-length `2`.
-2. The literal array values are validated on their own. The first value must be
-`int128`, the second could be `int128` or `uint256`.
-3. The right-hand side types are compared. A common type of `int128` is found.
-The array is given a type of `int128[2]`.
-4. The left-hand and right-hand types are compared and found to be matching.
-5. A new castable type `int128[2]` is added to the namespace with the name `foo`.
+1. We look up `int128` in `namespace`. We retrieve an `Int128PureType` object.
+2. We call `Int128PureType.from_annotation` with the AST node of the statement. This
+method validates the statement and returns an `Int128Definition` object.
+3. We store the new definition under the key `foo` within `namespace`.
 
-#### Exceptions
+#### 2. Modifying the value of a variable
+
+```python
+foo += 6
+```
+
+1. We look up `foo` in `namespace` and retrieve the `Int128Definition`.
+2. We call `get_potential_types_from_node` with the target node
+and are returned a list of types that are valid for the literal `6`. In this
+case, the list includes `Int128Definition`. The type check for the statement
+passes.
+3. We call the `validate_modification` method on the definition object
+for `foo` to confirm that it is a value that may be modified (not a constant).
+4. Because the statement involves a mathematical operator, we also call the
+`validate_numeric_operation` method on `foo` to confirm that the operation is
+allowed.
+
+#### 3. Calling a builtin function
+
+```python
+bar: bytes32 = sha256(b"hash me!")
+```
+
+1. We look up `sha256` in `namespace` and retrieve the definition for the builtin
+function.
+2. We call `fetch_call_return` on the function definition object, with the AST
+node representing the call. This method validates the input arguments, and returns
+a `Bytes32Definition`.
+3. We validation of the delcaration of `bar` in the same manner as the first
+example, and compare the generated type to that returned by `sha256`.
+
+### Exceptions
 
 In general, the following list of exceptions is preferred for type-checking
 errors. When more than one reason applies, the earliest exception in the list

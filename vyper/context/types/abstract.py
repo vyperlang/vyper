@@ -4,9 +4,11 @@ class AbstractDataType:
     """
     Base class for abstract type classes.
 
-    Abstract type classes are uncastable, inherited types used for comparison.
-    For example, a function that accepts either `int128` or `uint256` might
-    perform this comparison using the `IntegerBase` abstract type.
+    Abstract type classes are not assignable and should not implement any
+    functionality other than simple comparison. They are inherited by type definition
+    classes and used for broad comparisons based soley on data format with no
+    consideration for syntax. For example, a function that accepts either `int128`
+    or `uint256` might perform this comparison using `IntegerAbstractType`.
     """
 
     def compare_type(self, other) -> bool:
