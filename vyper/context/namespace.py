@@ -22,6 +22,9 @@ class Namespace(dict):
         self._scopes = []
         self._has_builtins = False
 
+    def __eq__(self, other):
+        return self is other
+
     def __setitem__(self, attr, obj):
         if attr in self:
             obj = super().__getitem__(attr)

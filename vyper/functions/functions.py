@@ -18,8 +18,8 @@ from vyper.context.types.value.address import AddressDefinition
 from vyper.context.types.value.array_value import (
     BytesArrayDefinition,
     BytesArrayPureType,
-    StringPureType,
     StringDefinition,
+    StringPureType,
 )
 from vyper.context.types.value.boolean import BoolDefinition
 from vyper.context.types.value.bytes_fixed import Bytes32Definition
