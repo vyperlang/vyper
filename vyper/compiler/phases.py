@@ -4,6 +4,7 @@ from typing import Optional, Tuple
 
 from vyper import ast as vy_ast
 from vyper import compile_lll, optimizer
+from vyper.context import validate_semantics
 from vyper.parser import parser
 from vyper.parser.global_context import GlobalContext
 from vyper.typing import InterfaceImports
@@ -80,6 +81,7 @@ class CompilerData:
 
         if not hasattr(self, "_vyper_module_folded"):
             self._vyper_module_folded = generate_folded_ast(self.vyper_module)
+            validate_semantics(self._vyper_module_folded, self.interface_codes)
 
         return self._vyper_module_folded
 
