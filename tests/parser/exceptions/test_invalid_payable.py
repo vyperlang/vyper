@@ -8,7 +8,7 @@ fail_list = [
     """
 @public
 def foo():
-    x = msg.value
+    x: uint256 = msg.value
 """
 ]
 

@@ -2,14 +2,11 @@ import pytest
 from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import InvalidType
+from vyper.exceptions import InvalidType, UnknownType
 
 fail_list = [
     """
 x: bat
-    """,
-    """
-x: 5
     """,
     """
 x: map(int, int128)
@@ -21,35 +18,16 @@ x: int128[-1]
 x: int128[3.5]
     """,
     """
-struct X:
-    int128[5]: int128[7]
-    """,
-    """
 x: [bar, baz]
     """,
     """
 x: [bar(int128), baz(baffle)]
     """,
     """
-def foo(x): pass
-    """,
-    """
-b: map((int128, decimal), int128)
-    """,
-    """
-x: int128(address)
-    """,
-    """
-x: int128(2 ** 2)
-    """,
-    """
 x: bytes <= wei
     """,
     """
 x: string <= 33
-    """,
-    """
-x: bytes[33.3]
     """,
     """
 struct A:
@@ -61,6 +39,33 @@ struct B:
 
 
 @pytest.mark.parametrize('bad_code', fail_list)
+def test_unknown_type_exception(bad_code):
+    with raises(UnknownType):
+        compiler.compile_code(bad_code)
+
+
+invalid_list = [
+    """
+@public
+def foo():
+    raw_log(b"cow", b"dog")
+    """,
+    # Must be a literal string.
+    """
+@public
+def mint(_to: address, _value: uint256):
+    assert msg.sender == self,minter
+    """,
+    # Raise reason must be string
+    """
+@public
+def mint(_to: address, _value: uint256):
+    raise 1
+    """,
+]
+
+
+@pytest.mark.parametrize('bad_code', invalid_list)
 def test_invalid_type_exception(bad_code):
     with raises(InvalidType):
         compiler.compile_code(bad_code)
