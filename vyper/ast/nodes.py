@@ -195,6 +195,8 @@ class VyperNode:
         Field names that, if present, must be set to None or a `SyntaxException`
         is raised. This attribute is used to exclude syntax that is valid in Python
         but not in Vyper.
+    _terminus : bool, optional
+        If `True`, indicates that execution halts upon reaching this node.
     _translated_fields : Dict, optional
         Field names that are reassigned if encountered. Used to normalize fields
         across different Python versions.
@@ -634,6 +636,7 @@ class arg(VyperNode):
 
 class Return(VyperNode):
     __slots__ = ("value",)
+    _is_terminus = True
 
 
 class ClassDef(VyperNode):
@@ -1052,6 +1055,7 @@ class GtE(VyperNode):
 
 class In(VyperNode):
     __slots__ = ()
+    _description = "membership"
 
     def _op(self, left, right):
         return left in right
@@ -1136,6 +1140,7 @@ class AugAssign(VyperNode):
 class Raise(VyperNode):
     __slots__ = ("exc",)
     _only_empty_fields = ("cause",)
+    _is_terminus = True
 
 
 class Assert(VyperNode):
