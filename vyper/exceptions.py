@@ -111,6 +111,14 @@ class EventDeclarationException(VyperException):
     """Invalid event declaration."""
 
 
+class UnknownType(VyperException):
+    """Reference to a type that does not exist."""
+
+
+class UnknownAttribute(VyperException):
+    """Reference to an attribute that does not exist."""
+
+
 class UndeclaredDefinition(VyperException):
     """Reference to a definition that has not been declared."""
 
