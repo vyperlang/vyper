@@ -3,7 +3,7 @@ from decimal import Decimal
 import pytest
 
 from vyper.compiler import compile_code, compile_codes
-from vyper.exceptions import StructureException
+from vyper.exceptions import InterfaceViolation, StructureException
 from vyper.interfaces import ERC20, ERC721
 from vyper.signatures.interface import (
     extract_file_interface_imports,
@@ -76,7 +76,7 @@ def test() -> bool:
 
     assert_compile_failed(
         lambda: compile_code(code),
-        StructureException
+        InterfaceViolation
     )
 
 
@@ -148,7 +148,7 @@ def foo() -> uint256:
 
     assert_compile_failed(
         lambda: compile_code(not_implemented_code, interface_codes=interface_codes),
-        StructureException
+        InterfaceViolation,
     )
 
 
@@ -194,8 +194,8 @@ def test_external_call_to_interface(w3, get_contract):
 balanceOf: public(map(address, uint256))
 
 @public
-def transfer(to: address, value: uint256):
-    self.balanceOf[to] += value
+def transfer(to: address, _value: uint256):
+    self.balanceOf[to] += _value
     """
 
     code = """
@@ -235,8 +235,8 @@ def test_external_call_to_builtin_interface(w3, get_contract):
 balanceOf: public(map(address, uint256))
 
 @public
-def transfer(to: address, value: uint256):
-    self.balanceOf[to] += value
+def transfer(to: address, _value: uint256):
+    self.balanceOf[to] += _value
     """
 
     code = """

@@ -2,7 +2,7 @@ from decimal import Decimal
 
 import pytest
 
-from vyper.exceptions import TypeMismatch
+from vyper.exceptions import InvalidOperation
 
 
 def test_unary_sub_uint256_fail(assert_compile_failed, get_contract):
@@ -10,7 +10,7 @@ def test_unary_sub_uint256_fail(assert_compile_failed, get_contract):
 def negate(a: uint256) -> uint256:
     return -(a)
     """
-    assert_compile_failed(lambda: get_contract(code), exception=TypeMismatch)
+    assert_compile_failed(lambda: get_contract(code), exception=InvalidOperation)
 
 
 def test_unary_sub_int128_fail(get_contract, assert_tx_failed):

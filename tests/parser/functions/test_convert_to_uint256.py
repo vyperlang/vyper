@@ -66,7 +66,7 @@ def foo(bar: bytes[33]) -> uint256:
     test_fail = """
 @public
 def foobar() -> uint256:
-    barfoo: bytes[63] = "Hello darkness, my old friend I've come to talk with you again."
+    barfoo: bytes[63] = b"Hello darkness, my old friend I've come to talk with you again."
     return convert(barfoo, uint256)
     """
 
