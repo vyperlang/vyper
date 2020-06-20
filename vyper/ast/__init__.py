@@ -1,10 +1,10 @@
 import sys
 
-from . import folding, nodes, validation  # noqa: F401
-from .nodes import compare_nodes  # noqa: F401
-from .utils import ast_to_dict, parse_to_ast  # noqa: F401
+from . import folding, nodes, validation
+from .nodes import compare_nodes
+from .utils import ast_to_dict, parse_to_ast
 
-from .natspec import parse_natspec  # noqa: F401; isort:skip
+from .natspec import parse_natspec  # isort:skip
 
 # adds vyper.ast.nodes classes into the local namespace
 for name, obj in (
