@@ -1,8 +1,7 @@
 import pytest
-from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import TypeMismatch
+from vyper.exceptions import InvalidType, UndeclaredDefinition
 
 type_fail_list = [
     """
@@ -15,7 +14,27 @@ def foo():
 
 @pytest.mark.parametrize('bad_code', type_fail_list)
 def test_block_type_fail(bad_code):
-    with raises(TypeMismatch):
+    with pytest.raises(InvalidType):
+        compiler.compile_code(bad_code)
+
+
+structure_fail_list = [
+    """
+@public
+def foo():
+    x: bytes32 = sha3("moose")
+    """,
+    """
+@public
+def foo():
+    x: bytes32 = sha3(0x1234567890123456789012345678901234567890123456789012345678901234)
+    """
+]
+
+
+@pytest.mark.parametrize('bad_code', structure_fail_list)
+def test_block_structure_fail(bad_code):
+    with pytest.raises(UndeclaredDefinition):
         compiler.compile_code(bad_code)
 
 

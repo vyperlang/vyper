@@ -3,30 +3,31 @@ from pytest import raises
 
 from vyper import compiler
 from vyper.exceptions import (
-    FunctionDeclarationException,
-    InvalidLiteral,
+    ArgumentException,
+    ConstancyViolation,
+    InvalidType,
+    NamespaceCollision,
     StructureException,
-    TypeMismatch,
     VariableDeclarationException,
 )
 
 fail_list = [
     # no value
-    """
+    ("""
 VAL: constant(uint256)
-    """,
+    """, VariableDeclarationException),
     # too many args
-    """
+    ("""
 VAL: constant(uint256, int128) = 12
-    """,
+    """, ArgumentException),
     # invalid type
     ("""
 VAL: constant(uint256) = "test"
-    """, TypeMismatch),
+    """, InvalidType),
     # invalid range
     ("""
 VAL: constant(uint256) = -1
-    """, TypeMismatch),
+    """, InvalidType),
     # reserverd keyword
     ("""
 wei: constant(uint256) = 1
@@ -35,11 +36,11 @@ wei: constant(uint256) = 1
     ("""
 VAL: constant(uint256) = 11
 VAL: constant(uint256) = 11
-    """, VariableDeclarationException),
+    """, NamespaceCollision),
     # bytearray too long.
     ("""
 VAL: constant(bytes[4]) = b"testtest"
-    """, TypeMismatch),
+    """, InvalidType),
     # global with same name
     ("""
 VAL: constant(bytes[4]) = b"t"
@@ -52,19 +53,18 @@ VAL: constant(bytes[4]) = b"t"
 @public
 def test(VAL: uint256):
     pass
-    """, FunctionDeclarationException),
+    """, NamespaceCollision),
     ("""
 C1: constant(uint256) = block.number
-C2: constant(uint256) = convert(C1, uint256)
-    """, InvalidLiteral),
+    """, ConstancyViolation),
     # cannot assign function result to a constant
-    """
+    ("""
 @public
 def foo() -> uint256:
     return 42
 
-c1: constant(uint256) = foo()
-     """
+c1: constant(uint256) = self.foo
+     """, ConstancyViolation)
 ]
 
 

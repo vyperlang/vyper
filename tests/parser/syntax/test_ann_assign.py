@@ -3,33 +3,34 @@ from pytest import raises
 
 from vyper import compiler
 from vyper.exceptions import (
-    InvalidLiteral,
+    InvalidType,
     StructureException,
-    TypeMismatch,
+    UndeclaredDefinition,
+    UnknownAttribute,
     VariableDeclarationException,
 )
 
 fail_list = [
-    """
+    ("""
 @public
 def test():
     a = 1
-    """,
-    """
+    """, UndeclaredDefinition),
+    ("""
 @public
 def test():
     a = 33.33
-    """,
-    """
+    """, UndeclaredDefinition),
+    ("""
 @public
 def test():
     a = "test string"
-    """,
+    """, UndeclaredDefinition),
     ("""
 @public
 def test():
     a: int128 = 33.33
-    """, TypeMismatch),
+    """, InvalidType),
     ("""
 struct S:
     a: int128
@@ -56,7 +57,7 @@ def test():
 def data() -> int128:
     s: int128[5] = [1, 2, 3, 4, 5, 6]
     return 235357
-    """, TypeMismatch),
+    """, InvalidType),
     ("""
 struct S:
     a: int128
@@ -65,7 +66,7 @@ struct S:
 def foo() -> int128:
     s: S = S({a: 1.2, b: 1})
     return s.a
-    """, TypeMismatch),
+    """, InvalidType),
     ("""
 struct S:
     a: int128
@@ -74,25 +75,25 @@ struct S:
 def foo() -> int128:
     s: S = S({b: 1.2, c: 1, d: 33, e: 55})
     return s.a
-    """, TypeMismatch),
+    """, UnknownAttribute),
     ("""
 @public
 def foo() -> bool:
     a: uint256 = -1
     return True
-""", InvalidLiteral),
+""", InvalidType),
     ("""
 @public
 def foo() -> bool:
     a: uint256[2] = [13, -42]
     return True
-""", InvalidLiteral),
+""", InvalidType),
     ("""
 @public
 def foo() -> bool:
     a: int128 = 170141183460469231731687303715884105728
     return True
-""", TypeMismatch),
+""", InvalidType),
 ]
 
 
