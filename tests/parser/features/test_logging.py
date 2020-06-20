@@ -1,6 +1,13 @@
 from decimal import Decimal
 
-from vyper.exceptions import EventDeclarationException, TypeMismatch
+from vyper.exceptions import (
+    ArgumentException,
+    EventDeclarationException,
+    InvalidType,
+    NamespaceCollision,
+    TypeMismatch,
+    UnknownAttribute,
+)
 from vyper.utils import keccak256
 
 
@@ -493,7 +500,7 @@ def foo_():
     log.MyLog(b'yo')
 """
 
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatch)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), InvalidType)
 
 
 def test_fails_when_topic_is_the_wrong_size(assert_tx_failed, get_contract_with_gas_estimation):
@@ -505,7 +512,7 @@ def foo():
     log.MyLog(b'bars')
 """
 
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatch)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), InvalidType)
 
 
 def test_fails_when_input_topic_is_the_wrong_size(assert_tx_failed,
@@ -530,7 +537,7 @@ def foo():
     log.MyLog(b'bars')
 """
 
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatch)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), InvalidType)
 
 
 def test_fails_when_input_data_is_the_wrong_size(assert_tx_failed,
@@ -584,7 +591,7 @@ def foo():
     """
 
     assert_tx_failed(
-        lambda: get_contract_with_gas_estimation(loggy_code), EventDeclarationException
+        lambda: get_contract_with_gas_estimation(loggy_code), NamespaceCollision
     )
 
 
@@ -598,7 +605,7 @@ def foo():
     """
 
     assert_tx_failed(
-        lambda: get_contract_with_gas_estimation(loggy_code), EventDeclarationException
+        lambda: get_contract_with_gas_estimation(loggy_code), UnknownAttribute
     )
 
 
@@ -663,7 +670,7 @@ def foo():
     log.MyLog(1, 2)
 """
     assert_tx_failed(
-        lambda: get_contract_with_gas_estimation(loggy_code), EventDeclarationException
+        lambda: get_contract_with_gas_estimation(loggy_code), ArgumentException
     )
 
 
@@ -678,7 +685,7 @@ def foo():
     log.MyLog(1)
 """
     assert_tx_failed(
-        lambda: get_contract_with_gas_estimation(loggy_code), EventDeclarationException
+        lambda: get_contract_with_gas_estimation(loggy_code), ArgumentException
     )
 
 

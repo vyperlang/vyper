@@ -1,11 +1,11 @@
 import pytest
 
 from vyper.exceptions import (
+    ArgumentException,
     ConstancyViolation,
-    InvalidType,
     StructureException,
-    TypeMismatch,
-    VariableDeclarationException,
+    UndeclaredDefinition,
+    UnknownType,
 )
 
 
@@ -328,7 +328,7 @@ def test_invalid_contract_reference_call(assert_tx_failed, get_contract):
 def bar(arg1: address, arg2: int128) -> int128:
     return Foo(arg1).foo(arg2)
 """
-    assert_tx_failed(lambda: get_contract(contract), exception=VariableDeclarationException)
+    assert_tx_failed(lambda: get_contract(contract), exception=UndeclaredDefinition)
 
 
 def test_invalid_contract_reference_return_type(assert_tx_failed, get_contract):
@@ -340,7 +340,7 @@ contract Foo:
 def bar(arg1: address, arg2: int128) -> int128:
     return Foo(arg1).foo(arg2)
 """
-    assert_tx_failed(lambda: get_contract(contract), exception=InvalidType)
+    assert_tx_failed(lambda: get_contract(contract), exception=UnknownType)
 
 
 def test_external_contracts_must_be_declared_first_1(assert_tx_failed, get_contract):
@@ -524,7 +524,7 @@ def foo(contract_address: contract(Boo)) -> int128:
     return self.bar_contract.bar()
     """
 
-    assert_compile_failed(lambda: get_contract(contract_1), InvalidType)
+    assert_compile_failed(lambda: get_contract(contract_1), UnknownType)
 
 
 def test_invalid_external_contract_call_declaration_2(assert_compile_failed, get_contract):
@@ -540,7 +540,7 @@ def foo(contract_address: address) -> int128:
     return self.bar_contract.bar()
     """
 
-    assert_compile_failed(lambda: get_contract(contract_1), InvalidType)
+    assert_compile_failed(lambda: get_contract(contract_1), UnknownType)
 
 
 def test_external_with_payble_value(w3, get_contract_with_gas_estimation):
@@ -647,7 +647,7 @@ def get_lucky(amount_to_send: int128) -> int128:
     """
 
     assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(contract_1), TypeMismatch
+        lambda: get_contract_with_gas_estimation(contract_1), ArgumentException
     )
 
 
@@ -662,23 +662,11 @@ bar_contract: Barr
     """
 
     assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(contract_1), InvalidType
+        lambda: get_contract_with_gas_estimation(contract_1), UnknownType
     )
 
 
 FAILING_CONTRACTS_STRUCTURE_EXCEPTION = [
-    """
-# invalid contract declaration (pass)
-contract Bar:
-    def set_lucky(arg1: int128): pass
-    """,
-    """
-contract Bar:
-# invalud contract declaration (assignment)
-    def set_lucky(arg1: int128):
-        arg1 = 1
-        arg1 = 3
-    """,
     """
 # wrong arg count
 contract Bar:
@@ -712,7 +700,7 @@ def foo(a: address):
 @pytest.mark.parametrize('bad_code', FAILING_CONTRACTS_STRUCTURE_EXCEPTION)
 def test_bad_code_struct_exc(assert_compile_failed, get_contract_with_gas_estimation, bad_code):
 
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), StructureException)
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), ArgumentException)
 
 
 def test_external__value_arg_without_return(w3, get_contract_with_gas_estimation):

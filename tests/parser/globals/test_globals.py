@@ -1,6 +1,6 @@
 from pytest import raises
 
-from vyper.exceptions import VariableDeclarationException
+from vyper.exceptions import UndeclaredDefinition
 
 
 def test_permanent_variables_test(get_contract_with_gas_estimation):
@@ -32,5 +32,5 @@ def a() -> int128:
     return self.b
     """
 
-    with raises(VariableDeclarationException):
+    with raises(UndeclaredDefinition):
         get_contract(code)
