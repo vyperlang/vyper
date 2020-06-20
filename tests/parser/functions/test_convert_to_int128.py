@@ -101,13 +101,13 @@ def foo(bar: bytes[33]) -> int128:
     test_fail = """
 @public
 def foobar() -> int128:
-    barfoo: bytes[63] = "Hello darkness, my old friend I've come to talk with you again."
+    barfoo: bytes[63] = b"Hello darkness, my old friend I've come to talk with you again."
     return convert(barfoo, int128)
     """
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(test_fail),
-        TypeMismatch
+        TypeMismatch,
     )
 
 
@@ -250,7 +250,7 @@ def foo() -> int128:
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(code),
-        InvalidLiteral
+        OverflowException,
     )
 
     code = """

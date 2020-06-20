@@ -1,4 +1,4 @@
-from vyper.exceptions import TypeMismatch
+from vyper.exceptions import InvalidType, TypeMismatch
 
 
 def test_convert_from_bool(get_contract_with_gas_estimation, assert_compile_failed):
@@ -11,7 +11,7 @@ def foo():
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(code),
-        TypeMismatch
+        InvalidType,
     )
 
     code = """
@@ -22,7 +22,7 @@ def foo():
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(code),
-        TypeMismatch
+        InvalidType
     )
 
 
@@ -183,13 +183,13 @@ def foo(bar: bytes[33]) -> bool:
     code = """
 @public
 def foo() -> bool:
-    bar: bytes[63] = "Hello darkness, my old friend I've come to talk with you again."
+    bar: bytes[63] = b"Hello darkness, my old friend I've come to talk with you again."
     return convert(bar, bool)
     """
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(code),
-        TypeMismatch
+        TypeMismatch,
     )
 
 
