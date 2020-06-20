@@ -23,7 +23,7 @@ def foo() -> int128:
     """
 @public
 @constant
-def foo() -> int128:
+def foo():
     selfdestruct(0x1234567890123456789012345678901234567890)
     """,
     """
@@ -39,7 +39,7 @@ def foo() -> int128:
 @public
 @constant
 def foo() -> int128:
-    x = raw_call(
+    x: bytes[4] = raw_call(
         0x1234567890123456789012345678901234567890, b"cow", max_outsize=4, gas=595757, value=9
     )
     return 5
@@ -48,7 +48,7 @@ def foo() -> int128:
 @public
 @constant
 def foo() -> int128:
-    x = create_forwarder_to(0x1234567890123456789012345678901234567890, value=9)
+    x: address = create_forwarder_to(0x1234567890123456789012345678901234567890, value=9)
     return 5
     """,
     """
@@ -56,35 +56,10 @@ def foo() -> int128:
 def foo(x: int128):
     x = 5
     """,
-    """
-f:int128
-
-@public
-def a (x:int128)->int128:
-    self.f = 100
-    return x+5
-
-@constant
-@public
-def b():
-    p: int128 = self.a(10)
-    """,
-    """
-f:int128
-
-@public
-def a (x:int128):
-    self.f = 100
-
-@constant
-@public
-def b():
-    self.a(10)
-    """,
     # test constancy in range expressions
     """
 glob: int128
-@public
+@private
 def foo() -> int128:
     self.glob += 1
     return 5
@@ -95,18 +70,7 @@ def bar():
     """,
     """
 glob: int128
-@public
-def foo() -> int128:
-    self.glob += 1
-    return 5
-@public
-def bar():
-    for i in range(self.foo()):
-        pass
-    """,
-    """
-glob: int128
-@public
+@private
 def foo() -> int128:
     self.glob += 1
     return 5
@@ -116,27 +80,12 @@ def bar():
         pass
     """,
     """
-glob: int128
 @public
-def foo() -> int128:
-    self.glob += 1
-    return 5
-@public
-def bar():
-    for i in range(self.foo(), 7):
+def foo():
+    x: int128 = 5
+    for i in range(x):
         pass
     """,
-    """
-glob: int128
-@public
-def foo() -> int128:
-    self.glob += 1
-    return 5
-@public
-def bar():
-    for i in range(3, self.foo()):
-        pass
-    """
 ]
 
 
