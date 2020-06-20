@@ -241,8 +241,6 @@ class Expr(object):
                 [obj],
                 typ=BaseType(typ, is_literal=True),
                 pos=getpos(self.expr))
-        elif self.context.constants.ast_is_constant(self.expr):
-            return self.context.constants.get_constant(self.expr.id, self.context)
         else:
             raise VariableDeclarationException(f"Undeclared variable: {self.expr.id}", self.expr)
 
