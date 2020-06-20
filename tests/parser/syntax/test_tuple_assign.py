@@ -4,8 +4,8 @@ from pytest import raises
 from vyper import compiler
 from vyper.exceptions import (
     ConstancyViolation,
+    StructureException,
     TypeMismatch,
-    VariableDeclarationException,
 )
 
 fail_list = [
@@ -16,7 +16,7 @@ def test():
     b: int128 = 0
     c: int128 = 0
     a, b, c = 1, 2, 3
-    """, VariableDeclarationException),
+    """, StructureException),
     """
 @private
 def out_literals() -> (int128, int128, bytes[10]):

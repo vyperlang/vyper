@@ -1,24 +1,27 @@
 import pytest
-from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import StructureException
+from vyper.exceptions import (
+    StructureException,
+    UndeclaredDefinition,
+    UnknownAttribute,
+)
 
 fail_list = [
-    """
+    ("""
 @public
 def foo() -> uint256:
     doesnotexist(2, uint256)
     return convert(2, uint256)
-    """,
-    """
+    """, UndeclaredDefinition),
+    ("""
 @public
 def foo() -> uint256:
     convert(2, uint256)
     return convert(2, uint256)
 
-    """,
-    """
+    """, StructureException),
+    ("""
 @private
 def test(a : uint256):
     pass
@@ -27,14 +30,14 @@ def test(a : uint256):
 @public
 def burn(_value: uint256):
     self.test(msg.sender._value)
-    """,
+    """, UnknownAttribute),
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
-def test_functions_call_fail(bad_code):
+@pytest.mark.parametrize('bad_code,exc', fail_list)
+def test_functions_call_fail(bad_code, exc):
 
-    with raises(StructureException):
+    with pytest.raises(exc):
         compiler.compile_code(bad_code)
 
 
@@ -56,7 +59,7 @@ factory: Factory
 @public
 def setup(token_addr: address):
     self.token = ERC20(token_addr)
-    assert self.factory.getExchange(self.token) == self
+    assert self.factory.getExchange(self.token.address) == self
     """
 ]
 

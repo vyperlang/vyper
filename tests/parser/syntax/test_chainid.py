@@ -1,8 +1,7 @@
 import pytest
-from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import EvmVersionException, TypeMismatch
+from vyper.exceptions import EvmVersionException, InvalidType, TypeMismatch
 from vyper.opcodes import EVM_VERSIONS
 
 
@@ -15,18 +14,18 @@ def foo():
     """
 
     if EVM_VERSIONS[evm_version] < 2:
-        with raises(EvmVersionException):
+        with pytest.raises(EvmVersionException):
             compiler.compile_code(code, evm_version=evm_version)
     else:
         compiler.compile_code(code, evm_version=evm_version)
 
 
 fail_list = [
-    """
+    ("""
 @public
 def foo() -> int128[2]:
     return [3,chain.id]
-    """,
+    """, InvalidType),
     """
 @public
 def foo() -> decimal:
@@ -71,10 +70,10 @@ def foo(inp: bytes[10]) -> bytes[3]:
 def test_chain_fail(bad_code):
 
     if isinstance(bad_code, tuple):
-        with raises(bad_code[1]):
+        with pytest.raises(bad_code[1]):
             compiler.compile_code(bad_code[0], evm_version="istanbul")
     else:
-        with raises(TypeMismatch):
+        with pytest.raises(TypeMismatch):
             compiler.compile_code(bad_code, evm_version="istanbul")
 
 

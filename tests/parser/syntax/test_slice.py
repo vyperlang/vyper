@@ -1,32 +1,31 @@
 import pytest
-from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import TypeMismatch
+from vyper.exceptions import InvalidType, TypeMismatch
 
 fail_list = [
-    """
+    ("""
 @public
 def foo(inp: bytes[10]) -> bytes[2]:
     return slice(inp, 2, 3)
-    """,
-    """
+    """, TypeMismatch),
+    ("""
 @public
 def foo(inp: int128) -> bytes[3]:
     return slice(inp, 2, 3)
-    """,
-    """
+    """, TypeMismatch),
+    ("""
 @public
 def foo(inp: bytes[10]) -> bytes[3]:
     return slice(inp, 4.0, 3)
-    """
+    """, InvalidType),
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
-def test_slice_fail(bad_code):
+@pytest.mark.parametrize('bad_code,exc', fail_list)
+def test_slice_fail(bad_code, exc):
 
-    with raises(TypeMismatch):
+    with pytest.raises(exc):
         compiler.compile_code(bad_code)
 
 

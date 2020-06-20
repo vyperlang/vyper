@@ -2,7 +2,7 @@ import pytest
 from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import ArgumentException, TypeMismatch
+from vyper.exceptions import ArgumentException, StructureException
 
 fail_list = [
     ("""
@@ -15,7 +15,7 @@ def foo():
 def foo() -> int128:
     x: int128 = 45
     return x.balance
-    """, TypeMismatch),
+    """, StructureException),
 ]
 
 

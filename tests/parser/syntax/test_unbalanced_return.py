@@ -1,22 +1,21 @@
 import pytest
-from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import StructureException
+from vyper.exceptions import FunctionDeclarationException, StructureException
 
 fail_list = [
-    """
+    ("""
 @public
 def foo() -> int128:
     pass
-    """,
-    """
+    """, FunctionDeclarationException),
+    ("""
 @public
 def foo() -> int128:
     if False:
         return 123
-    """,
-    """
+    """, FunctionDeclarationException),
+    ("""
 @public
 def test() -> int128:
     if 1 == 1 :
@@ -25,20 +24,20 @@ def test() -> int128:
             return 0
     else:
         assert False
-    """,
-    """
+    """, FunctionDeclarationException),
+    ("""
 @private
 def valid_address(sender: address) -> bool:
     selfdestruct(sender)
     return True
-    """,
-    """
+    """, StructureException),
+    ("""
 @private
 def valid_address(sender: address) -> bool:
     selfdestruct(sender)
     a: address = sender
-    """,
-    """
+    """, StructureException),
+    ("""
 @private
 def valid_address(sender: address) -> bool:
     if sender == ZERO_ADDRESS:
@@ -46,13 +45,13 @@ def valid_address(sender: address) -> bool:
         _sender: address = sender
     else:
         return False
-    """
+    """, StructureException),
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
-def test_return_mismatch(bad_code):
-    with raises(StructureException):
+@pytest.mark.parametrize('bad_code,exc', fail_list)
+def test_return_mismatch(bad_code, exc):
+    with pytest.raises(exc):
         compiler.compile_code(bad_code)
 
 

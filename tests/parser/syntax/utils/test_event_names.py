@@ -2,7 +2,7 @@ import pytest
 from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import EventDeclarationException, InvalidType
+from vyper.exceptions import EventDeclarationException, UnknownType
 
 fail_list = [  # noqa: E122
     """
@@ -53,12 +53,10 @@ def foo(i: int128) -> int128:
     (
         """
 Transfer: eve.t({_from: indexed(address)})
-    """,
-        InvalidType,
-    ),
-    """
+    """, UnknownType),
+    ("""
 Transfer: event({_from: i.dexed(address), _to: indexed(address),lue: uint256})
-    """,
+    """, UnknownType),
 ]
 
 
