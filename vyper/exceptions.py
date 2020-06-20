@@ -4,6 +4,26 @@ import types
 from vyper.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
 
 
+class ExceptionList(list):
+    """
+    List subclass for storing exceptions.
+    To deliver multiple compilation errors to the user at once, append each
+    raised Exception to this list and call raise_if_not_empty once the task
+    is completed.
+    """
+    def raise_if_not_empty(self):
+        if len(self) == 1:
+            raise self[0]
+        elif len(self) > 1:
+            if len(set(type(i) for i in self)) > 1:
+                err_type = StructureException
+            else:
+                err_type = type(self[0])
+            err_msg = ["Compilation failed with the following errors:"]
+            err_msg += [f"{type(i).__name__}: {i}" for i in self]
+            raise err_type("\n\n".join(err_msg))
+
+
 class VyperException(Exception):
     """
     Base Vyper exception class.
