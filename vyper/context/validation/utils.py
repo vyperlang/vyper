@@ -389,8 +389,8 @@ def get_index_value(node: vy_ast.Index) -> int:
         Literal integer value.
     """
 
-    if not isinstance(node.value, vy_ast.Int):
-        raise InvalidType(f"Invalid type for Slice: '{type(node.value)}'", node)
+    if not isinstance(node.get("value"), vy_ast.Int):
+        raise InvalidType(f"Invalid type for Slice: '{type(node).__name__}'", node)
 
     if node.value.value <= 0:
         raise ArrayIndexException("Slice must be greater than 0", node)
