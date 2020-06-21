@@ -4,12 +4,15 @@ from typing import Union
 
 import vyper.interfaces
 from vyper import ast as vy_ast
+from vyper.ast.validation import validate_call_args
 from vyper.context.namespace import get_namespace
 from vyper.context.types.function import ContractFunctionType
-from vyper.context.types.utils import build_type_from_ann_assign
+from vyper.context.types.utils import check_literal, get_type_from_annotation
 from vyper.context.validation.base import VyperNodeVisitorBase
+from vyper.context.validation.utils import validate_expected_type
 from vyper.exceptions import (
     CompilerPanic,
+    ConstancyViolation,
     ExceptionList,
     UndeclaredDefinition,
     VariableDeclarationException,
@@ -58,34 +61,51 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         if name is None:
             raise VariableDeclarationException("Invalid module-level assignment", node)
 
-        elif name == "implements":
+        if name == "implements":
             interface_name = node.annotation.id
             self.namespace[interface_name].validate_implements(node)
+            return
 
-        else:
-            var = build_type_from_ann_assign(node.annotation, node.value)
-            if hasattr(var, "_member_of"):
-                try:
-                    self.namespace[var._member_of].add_member(name, var)
-                except VyperException as exc:
-                    raise exc.with_annotation(node) from None
-            elif node.get("annotation.func.id") == "constant":
-                # constants are added to the main namespace
-                try:
-                    self.namespace[name] = var
-                except VyperException as exc:
-                    raise exc.with_annotation(node) from None
+        is_constant, is_public = False, False
+        annotation = node.annotation
+        if isinstance(annotation, vy_ast.Call):
+            # the annotation is a function call, e.g. `foo: constant(uint256)`
+            call_name = annotation.get("func.id")
+            if call_name in ("constant", "public"):
+                validate_call_args(annotation, 1)
+                if call_name == "constant":
+                    # declaring a constant
+                    is_constant = True
 
-            else:
-                if node.value:
-                    raise VariableDeclarationException(
-                        "Storage variables cannot have an initial value", node.value
-                    )
-                # storage vars are added as members of self
-                try:
-                    self.namespace["self"].add_member(name, var)
-                except VyperException as exc:
-                    raise exc.with_annotation(node) from None
+                elif call_name == "public":
+                    # declaring a public variable
+                    is_public = True
+                # remove the outer call node, to handle cases such as `public(map(..))`
+                annotation = annotation.args[0]
+        type_definition = get_type_from_annotation(annotation, is_constant, is_public)
+
+        if is_constant:
+            if not node.value:
+                raise VariableDeclarationException("Constant must be declared with a value", node)
+            if not check_literal(node.value):
+                raise ConstancyViolation("Value must be a literal", node.value)
+
+            validate_expected_type(node.value, type_definition)
+            try:
+                self.namespace[name] = type_definition
+            except VyperException as exc:
+                raise exc.with_annotation(node) from None
+            return
+
+        if node.value:
+            raise VariableDeclarationException(
+                "Storage variables cannot have an initial value", node.value
+            )
+        member_key = getattr(type_definition, "_member_of", "self")
+        try:
+            self.namespace[member_key].add_member(name, type_definition)
+        except VyperException as exc:
+            raise exc.with_annotation(node) from None
 
     def visit_ClassDef(self, node):
         type_ = self.namespace[node.class_type].build_pure_type_from_node(node)
@@ -94,18 +114,18 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 
-    def visit_Import(self, node):
-        _add_import(node, self.interface_codes, self.namespace)
-
-    def visit_ImportFrom(self, node):
-        _add_import(node, self.interface_codes, self.namespace)
-
     def visit_FunctionDef(self, node):
         func = ContractFunctionType.from_FunctionDef(node)
         try:
             self.namespace["self"].add_member(func.name, func)
         except VyperException as exc:
             raise exc.with_annotation(node) from None
+
+    def visit_Import(self, node):
+        _add_import(node, self.interface_codes, self.namespace)
+
+    def visit_ImportFrom(self, node):
+        _add_import(node, self.interface_codes, self.namespace)
 
 
 def _add_import(

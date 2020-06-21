@@ -6,7 +6,7 @@ from vyper.context.types.indexable.sequence import (
     ArrayDefinition,
     TupleDefinition,
 )
-from vyper.context.types.utils import build_type_from_ann_assign
+from vyper.context.types.utils import get_type_from_annotation
 from vyper.context.types.value.boolean import BoolDefinition
 from vyper.context.types.value.numeric import Uint256Definition
 from vyper.context.validation.base import VyperNodeVisitorBase
@@ -101,9 +101,12 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         name = node.target.id
         if name in self.namespace["self"].members:
             raise NamespaceCollision("Variable name shadows an existing storage-scoped value", node)
-        var = build_type_from_ann_assign(node.annotation, node.value)
+
+        type_definition = get_type_from_annotation(node.annotation)
+        validate_expected_type(node.value, type_definition)
+
         try:
-            self.namespace[name] = var
+            self.namespace[name] = type_definition
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 
