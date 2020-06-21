@@ -60,90 +60,11 @@ To install a specific version use:
 Troubleshooting
 *************
 
-Installing Python 3.6
+Installing Python
 =====================
 
-Vyper can only be built using Python 3.6 and higher. If you are not already running
-Python 3.6, follow the instructions here to make sure you have the correct Python
-version installed, and are using that version.
-
-Ubuntu
-------
-
-Run the following commands to install:
-::
-
-    sudo apt-get update
-    sudo apt-get install python3.6
-
-.. note::
-
-   If you get the error ``Python.h: No such file or directory`` you need to install the python header files for the Python C API with
-   ::
-
-       sudo apt-get install python3-dev
-
-.. note::
-
-    If you get the error ``fatal error: openssl/aes.h: No such file or directory`` in the output of ``make``, then run ``sudo apt-get install libssl-dev1``, then run ``make`` again.
-
-Arch
-----
-
-Using your aur helper of choice (``yay`` in this example).
-
-::
-
-    yay -S vyper
-
-MacOS
------
-
-Make sure you have Homebrew installed. If you don't have the ``brew`` command
-available on the terminal, follow `these instructions <https://docs.brew.sh/Installation.html>`_
-to get Homebrew on your system.
-
-To install Python 3.6, follow the instructions here:
-`Installing Python 3 on Mac OS X <https://python-guide.readthedocs.io/en/latest/starting/install3/osx/>`_
-
-Also, ensure the following libraries are installed using ``brew``:
-::
-
-    brew install gmp leveldb
-    
-
-
-.. note::
-
-    Apple has deprecated use of OpenSSL in favor of its own TLS and crypto
-    libraries. This means that you will need to export some OpenSSL settings
-    yourself, before you can install Vyper.
-
-    Use the following commands:
-    ::
-
-        export CFLAGS="-I$(brew --prefix openssl)/include"
-        export LDFLAGS="-L$(brew --prefix openssl)/lib"
-        pip install scrypt
-
-.. note::
-
-    If you get the error ``ld: library not found for -lyaml`` in the output of `make`, make sure ``libyaml`` is installed using ``brew info libyaml``. If it is installed, add its location to the compile flags as well:
-    ::
-
-        export CFLAGS="-I$(brew --prefix openssl)/include -I$(brew --prefix libyaml)/include"
-        export LDFLAGS="-L$(brew --prefix openssl)/lib -L$(brew --prefix libyaml)/lib"
-        
-
-Windows
---------
-
-Windows users can first `install Windows Subsystem for Linux <https://docs.microsoft.com/en-us/windows/wsl/install-win10>`_ and then follow the instructions for Ubuntu, or `install Docker for Windows <https://docs.docker.com/docker-for-windows/install/>`_ and then follow the instructions for Docker.
-
-.. note::
-    - Windows Subsystem for Linux is only available for Windows 10.
-    - Windows versions that are < 10 and Windows 10 Home should install the slightly outdated `Docker Toolbox <https://docs.docker.com/toolbox/toolbox_install_windows/>`_, as explained in the link.
-
+Vyper can only be built using Python 3.6 and higher. If you need to know how to install the correct version of python,
+follow the instructions from the official `Python website <https://wiki.python.org/moin/BeginnersGuide/Download>`_.
 
 Creating a virtual environment
 ==============================
@@ -152,22 +73,8 @@ It is **strongly recommended** to install Vyper in **a virtual Python
 environment**, so that new packages installed and dependencies built are
 strictly contained in your Vyper project and will not alter or affect your
 other development environment set-up.
-
-
-To create a new virtual environment for Vyper run the following commands:
-::
-
-    sudo apt install virtualenv
-    virtualenv -p python3.6 --no-site-packages ~/vyper-venv
-    source ~/vyper-venv/bin/activate
+For easy virtualenv management, we recommend either `pyenv <https://github.com/pyenv/pyenv>`_
+or `Poetry <https://github.com/python-poetry/poetry>`_.
 
 To find out more about virtual environments, check out:
 `virtualenv guide <https://virtualenv.pypa.io/en/stable/>`_.
-
-
-You can also create a virtual environment without virtualenv:
-::
-
-   python3.6 -m venv ~/vyper-env
-   source ~/vyper-env/bin/activate
-    
