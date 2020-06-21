@@ -33,29 +33,16 @@ The normal paramaters are also supported, for example:
 
     docker run -v $(pwd):/code vyperlang/vyper -f abi /code/<contract_file.vy>
     [{'name': 'test1', 'outputs': [], 'inputs': [{'type': 'uint256', 'name': 'a'}, {'type': 'bytes', 'name': 'b'}], 'constant': False, 'payable': False, 'type': 'function', 'gas': 441}, {'name': 'test2', 'outputs': [], 'inputs': [{'type': 'uint256', 'name': 'a'}], 'constant': False, 'payable': False, 'type': 'function', 'gas': 316}]
+    
+.. note::
+
+    If you would like to know how to install Docker, please follow their `documentation <https://docs.docker.com/get-docker/>`_.
 
 PIP
 ***
 
-Each tagged version of vyper is also uploaded to `pypi <https://pypi.org/project/vyper/>`_, and can be installed using ``pip``.
-::
-
-    pip install vyper
-
-To install a specific version use:
-::
-
-    pip install vyper==0.1.0b17
-
-.. note::
-
-    The ``vyper`` package can only be installed using Python 3.6 or higher.
-
-Troubleshooting
-*************
-
 Installing Python
-=====================
+=================
 
 Vyper can only be built using Python 3.6 and higher. If you need to know how to install the correct version of python,
 follow the instructions from the official `Python website <https://wiki.python.org/moin/BeginnersGuide/Download>`_.
@@ -75,3 +62,17 @@ or `Poetry <https://github.com/python-poetry/poetry>`_.
 
     To find out more about virtual environments, check out:
     `virtualenv guide <https://docs.python.org/3/library/venv.html>`_.
+
+
+Installing Vyper
+================
+
+Each tagged version of vyper is uploaded to `pypi <https://pypi.org/project/vyper/>`_, and can be installed using ``pip``:
+::
+
+    pip install vyper
+
+To install a specific version use:
+::
+
+    pip install vyper==0.1.0b17
