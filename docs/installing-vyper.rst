@@ -17,7 +17,7 @@ Vyper can be downloaded as docker image from dockerhub:
 
     docker pull vyperlang/vyper
 
-To run the compiler use the `docker run` command:
+To run the compiler use the ``docker run`` command:
 ::
 
     docker run -v $(pwd):/code vyperlang/vyper /code/<contract_file.vy>
