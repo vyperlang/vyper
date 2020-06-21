@@ -7,8 +7,7 @@ any errors.
 
 .. note::
 
-    The easiest way to try out the language, experiment with examples, and
-    compile code is to use the `Remix online compiler <https://remix.ethereum.org>`_.
+    The easiest way to experiment with the language is to use the `Remix online compiler <https://remix.ethereum.org>`_.
 
 Docker
 ******
@@ -75,4 +74,4 @@ or `Poetry <https://github.com/python-poetry/poetry>`_.
 .. note::
 
     To find out more about virtual environments, check out:
-    `virtualenv guide <https://virtualenv.pypa.io/en/stable/>`_.
+    `virtualenv guide <https://docs.python.org/3/library/venv.html>`_.
