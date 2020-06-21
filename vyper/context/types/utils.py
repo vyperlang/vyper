@@ -16,7 +16,6 @@ from vyper.exceptions import (
     UndeclaredDefinition,
     UnknownType,
     VariableDeclarationException,
-    VyperException,
 )
 
 
@@ -75,10 +74,7 @@ def get_type_from_annotation(
 
     if getattr(type_obj, "_as_array", False) and isinstance(node, vy_ast.Subscript):
         # if type can be an array and node is a subscript, create an `ArrayDefinition`
-        try:
-            length = get_index_value(node.slice)
-        except VyperException as exc:
-            raise UnknownType(str(exc)) from None
+        length = get_index_value(node.slice)
         value_type = get_type_from_annotation(node.value, is_constant, False)
         return ArrayDefinition(value_type, length, is_constant, is_public)
 
