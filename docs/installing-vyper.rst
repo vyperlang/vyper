@@ -90,19 +90,6 @@ Run the following commands to install:
 
     If you get the error ``fatal error: openssl/aes.h: No such file or directory`` in the output of ``make``, then run ``sudo apt-get install libssl-dev1``, then run ``make`` again.
 
-
-Using a BASH script
-^^^^^^^^^^^^^^^^^^^
-
-Vyper can be installed using a bash script.
-
-::
-
-    https://github.com/balajipachai/Scripts/blob/master/install_vyper/install_vyper_ubuntu.sh
-
-
-**Reminder**: Please read and understand the commands in any bash script before executing, especially with ``sudo``.
-
 Arch
 ----
 
