@@ -1,22 +1,18 @@
-from typing import Dict, Optional
+from typing import Dict
 
 from vyper import ast as vy_ast
-from vyper.ast.validation import validate_call_args
 from vyper.context.namespace import get_namespace
 from vyper.context.types.bases import BaseTypeDefinition
 from vyper.context.types.indexable.sequence import ArrayDefinition
 from vyper.context.validation.utils import (
     get_exact_type_from_node,
     get_index_value,
-    validate_expected_type,
 )
 from vyper.exceptions import (
-    ConstancyViolation,
     InvalidType,
     StructureException,
     UndeclaredDefinition,
     UnknownType,
-    VariableDeclarationException,
 )
 
 
@@ -92,80 +88,32 @@ def get_type_from_annotation(
         raise UnknownType(f"'{type_name}' is not a valid type", node) from None
 
 
-def _check_literal(node):
-    # check whether a given node is a literal value
+def check_literal(node: vy_ast.VyperNode) -> bool:
+    """
+    Check if the given node is a literal value.
+    """
     if isinstance(node, vy_ast.Constant):
         return True
     elif isinstance(node, (vy_ast.Tuple, vy_ast.List)):
         for item in node.elements:
-            if not _check_literal(item):
+            if not check_literal(item):
                 return False
         return True
     else:
         return False
 
 
-def _check_constant(node):
-    # check whether a given node is a literal value or constant variable
-    if _check_literal(node):
+def check_constant(node: vy_ast.VyperNode) -> bool:
+    """
+    Check if the given node is a literal or constant value.
+    """
+    if check_literal(node):
         return True
     if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
         for item in node.elements:
-            if not _check_constant(item):
+            if not check_constant(item):
                 return False
         return True
 
     value_type = get_exact_type_from_node(node)
     return getattr(value_type, "is_constant", False)
-
-
-def build_type_from_ann_assign(
-    annotation: vy_ast.VyperNode, value: Optional[vy_ast.VyperNode], is_constant: bool = False,
-) -> BaseTypeDefinition:
-    """
-    Generate a new `BaseTypeDefinition` object from the given nodes.
-
-    Arguments
-    ---------
-    annotation : VyperNode
-        Vyper ast node representing the type of the variable.
-    value : VyperNode | None
-        Vyper ast node representing the initial value of the variable. Can be
-        None if the variable has no initial value assigned.
-    is_constant : bool, optional
-        Boolean indicating if the value is read-only.
-
-    Returns
-    -------
-    BaseTypeDefinition
-        Type definition object.
-    """
-    is_public = False
-    if isinstance(annotation, vy_ast.Call):
-        # the annotation is a function call, e.g. `foo: constant(uint256)`
-        call_name = annotation.get("func.id")
-        if call_name in ("constant", "public"):
-            validate_call_args(annotation, 1)
-            if call_name == "constant":
-                # declaring a constant
-                is_constant = True
-                if not value:
-                    raise VariableDeclarationException(
-                        "Constant must be declared with a value", annotation
-                    )
-                if not _check_literal(value):
-                    raise ConstancyViolation("Value must be a literal", value)
-            elif call_name == "public":
-                # declaring a public variable
-                is_public = True
-            # remove the outer call node, to handle cases such as `public(map(..))`
-            annotation = annotation.args[0]
-
-    var_type = get_type_from_annotation(annotation, is_constant, is_public)
-    if is_constant and value and not _check_constant(value):
-        raise ConstancyViolation("Value must be a literal or environment variable", value)
-
-    if value is not None:
-        validate_expected_type(value, var_type)
-
-    return var_type

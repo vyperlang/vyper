@@ -7,7 +7,7 @@ from vyper.context.namespace import get_namespace
 from vyper.context.types.bases import BaseTypeDefinition
 from vyper.context.types.indexable.sequence import TupleDefinition
 from vyper.context.types.utils import (
-    build_type_from_ann_assign,
+    check_constant,
     get_type_from_abi,
     get_type_from_annotation,
 )
@@ -199,7 +199,10 @@ class ContractFunctionType(BaseTypeDefinition):
             if arg.annotation is None:
                 raise ArgumentException(f"Function argument '{arg.arg}' is missing a type", arg)
 
+            type_definition = get_type_from_annotation(arg.annotation, is_constant=True)
             if value is not None:
+                if not check_constant(value):
+                    raise ConstancyViolation("Value must be literal or environment variable", value)
                 if value.get("value.id") == "msg":
                     if value.attr == "sender" and not kwargs["is_public"]:
                         raise ConstancyViolation(
@@ -209,8 +212,9 @@ class ContractFunctionType(BaseTypeDefinition):
                         raise NonPayableViolation(
                             "msg.value is not allowed in non-payable functions", value
                         )
+                validate_expected_type(value, type_definition)
 
-            arguments[arg.arg] = build_type_from_ann_assign(arg.annotation, value, is_constant=True)
+            arguments[arg.arg] = type_definition
 
         # return types
         if node.returns is None:
