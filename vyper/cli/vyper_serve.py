@@ -95,7 +95,7 @@ class VyperRequestHandler(BaseHTTPRequestHandler):
             code = data['code']
             out_dict = vyper.compile_codes(
                 {'': code},
-                vyper.compiler.OUTPUT_FORMATS.keys(),
+                list(vyper.compiler.OUTPUT_FORMATS.keys()),
                 evm_version=data.get('evm_version', DEFAULT_EVM_VERSION)
             )['']
             out_dict['ir'] = str(out_dict['ir'])
