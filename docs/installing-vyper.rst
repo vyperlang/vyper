@@ -14,9 +14,6 @@ any errors.
 Docker
 ******
 
-Dockerhub
-=========
-
 Vyper can be downloaded as docker image from dockerhub:
 ::
 
