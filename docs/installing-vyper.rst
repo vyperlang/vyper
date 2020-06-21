@@ -8,8 +8,7 @@ any errors.
 .. note::
 
     The easiest way to try out the language, experiment with examples, and
-    compile code to ``bytecode`` or ``LLL`` is to use the
-    `Remix online compiler <https://remix.ethereum.org>`_.
+    compile code is to use the `Remix online compiler <https://remix.ethereum.org>`_.
 
 Docker
 ******
@@ -53,10 +52,6 @@ To install a specific version use:
 
     The ``vyper`` package can only be installed using Python 3.6 or higher.
 
-.. note::
-
-    It is highly recommended to use `pyenv <https://github.com/pyenv/pyenv>`_ to manage your Python installation.
-
 Troubleshooting
 *************
 
@@ -76,5 +71,8 @@ other development environment set-up.
 For easy virtualenv management, we recommend either `pyenv <https://github.com/pyenv/pyenv>`_
 or `Poetry <https://github.com/python-poetry/poetry>`_.
 
-To find out more about virtual environments, check out:
-`virtualenv guide <https://virtualenv.pypa.io/en/stable/>`_.
+
+.. note::
+
+    To find out more about virtual environments, check out:
+    `virtualenv guide <https://virtualenv.pypa.io/en/stable/>`_.
