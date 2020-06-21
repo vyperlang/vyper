@@ -10,6 +10,8 @@ from vyper.exceptions import (
     InvalidOperation,
     NamespaceCollision,
     StructureException,
+    UnexpectedNodeType,
+    UnexpectedValue,
     UnknownAttribute,
 )
 
@@ -34,6 +36,7 @@ class BasePureType:
         A tuple of Vyper ast classes that may be assigned this type.
     """
 
+    _id: str
     _type: Type["BaseTypeDefinition"]
     _valid_literal: Tuple
 
@@ -59,6 +62,8 @@ class BasePureType:
         """
         if not isinstance(node, vy_ast.Name):
             raise StructureException("Invalid type assignment", node)
+        if node.id != cls._id:
+            raise UnexpectedValue("Node id does not match type name")
         return cls._type(is_constant, is_public)
 
     @classmethod
@@ -85,7 +90,7 @@ class BasePureType:
             BaseTypeDefinition related to the pure type that the method was called on.
         """
         if not isinstance(node, vy_ast.Constant):
-            raise CompilerPanic(f"Attempted to validate a '{node.ast_type}' node.")
+            raise UnexpectedNodeType(f"Attempted to validate a '{node.ast_type}' node.")
         if not isinstance(node, cls._valid_literal):
             raise InvalidLiteral(f"Invalid literal type for {cls.__name__}", node)
         return cls._type()

@@ -235,11 +235,22 @@ class VyperInternalException(Exception):
         self.message = message
 
     def __str__(self):
-        return f"{self.message} Please create an issue."
+        return (
+            f"{self.message}\n\nThis is an unhandled internal compiler error. "
+            "Please create an issue on Github to notify the developers."
+        )
 
 
 class CompilerPanic(VyperInternalException):
-    """Unexpected error during compilation."""
+    """General unexpected error during compilation."""
+
+
+class UnexpectedNodeType(VyperInternalException):
+    """Unexpected AST node type."""
+
+
+class UnexpectedValue(VyperInternalException):
+    """Unexpected Value."""
 
 
 class UnfoldableNode(VyperInternalException):

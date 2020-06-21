@@ -7,7 +7,7 @@ from vyper.context.types.abstract import (
     BytesAbstractType,
 )
 from vyper.context.types.bases import BasePureType, ValueTypeDefinition
-from vyper.exceptions import CompilerPanic, StructureException
+from vyper.exceptions import CompilerPanic, StructureException, UnexpectedValue
 
 
 class _ArrayValueDefinition(ValueTypeDefinition):
@@ -99,10 +99,16 @@ class _ArrayValuePureType(BasePureType):
     def from_annotation(
         cls, node: vy_ast.VyperNode, is_constant: bool = False, is_public: bool = False
     ) -> _ArrayValueDefinition:
+        if not isinstance(node, vy_ast.Subscript):
+            raise StructureException(
+                f"Cannot declare {cls._id} type without a maximum length", node
+            )
         if len(node.get_descendants(vy_ast.Subscript, include_self=True)) > 1:
-            raise StructureException("Multidimensional arrays are not supported", node)
+            raise StructureException(f"Multidimensional {cls._id} arrays are not supported", node)
+        if node.get("value.id") != cls._id:
+            raise UnexpectedValue("Node id does not match type name")
 
-        length = validation.utils.get_index_value(node.get("slice") or node)  # type: ignore
+        length = validation.utils.get_index_value(node.slice)  # type: ignore
         return cls._type(length, is_constant, is_public)
 
     @classmethod
