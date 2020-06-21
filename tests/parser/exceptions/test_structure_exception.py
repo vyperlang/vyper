@@ -78,6 +78,12 @@ def double_nonreentrant():
     """
 x: 5
     """,
+    """
+x: bytes <= wei
+    """,
+    """
+x: string <= 33
+    """,
 ]
 
 
