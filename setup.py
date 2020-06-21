@@ -16,8 +16,7 @@ extras_require = {
         'web3>=5.11,<6.0',
         'tox>=3.15,<4.0',
         'lark-parser>=0.8,<1.0',
-        # pinned to 5.8.5 until HypothesisWorks/hypothesis#2469 is fixed
-        'hypothesis[lark]==5.8.5',
+        'hypothesis[lark]>=5.16.2,<6.0',
     ],
     'lint': [
         'flake8>=3.8,<4.0',
