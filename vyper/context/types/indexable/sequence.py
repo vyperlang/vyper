@@ -27,6 +27,8 @@ class _SequenceDefinition(IndexableTypeDefinition):
         is_constant: bool = False,
         is_public: bool = False,
     ) -> None:
+        if length <= 0:
+            raise InvalidType("Array length must be greater than 0")
         super().__init__(value_type, IntegerAbstractType(), _id)  # type: ignore
         self.length = length
 

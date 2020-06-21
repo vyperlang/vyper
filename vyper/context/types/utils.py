@@ -12,6 +12,7 @@ from vyper.context.validation.utils import (
 )
 from vyper.exceptions import (
     ConstancyViolation,
+    InvalidType,
     StructureException,
     UndeclaredDefinition,
     UnknownType,
@@ -38,11 +39,18 @@ def get_type_from_abi(
     type_string = abi_type["type"]
     if type_string == "fixed168x10":
         type_string = "decimal"
+    # TODO string and bytes
 
     namespace = get_namespace()
     try:
+        if "[" in type_string:
+            value_type_string, length_str = type_string.rsplit("[", maxsplit=1)
+            length = int(length_str.rstrip("]"))
+            value_type = get_type_from_abi({"type": value_type_string}, is_constant=is_constant)
+            return ArrayDefinition(value_type, length, is_constant, is_public)
+
         return namespace[type_string]._type(is_constant=is_constant, is_public=is_public)
-    except KeyError:
+    except (KeyError, ValueError, InvalidType, UnknownType):
         raise UnknownType(f"ABI contains unknown type: {type_string}") from None
 
 
