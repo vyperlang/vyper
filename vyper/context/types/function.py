@@ -21,7 +21,6 @@ from vyper.exceptions import (
     FunctionDeclarationException,
     InvalidType,
     NamespaceCollision,
-    NonPayableViolation,
     StructureException,
 )
 
@@ -63,7 +62,7 @@ class ContractFunctionType(BaseTypeDefinition):
         arguments: OrderedDict,
         arg_count: Union[Tuple[int, int], int],
         return_type: Optional[BaseTypeDefinition],
-        is_public: bool = False,
+        is_public: bool,
         is_payable: bool = False,
         is_constant: bool = False,
         nonreentrant: Optional[str] = None,
@@ -203,15 +202,6 @@ class ContractFunctionType(BaseTypeDefinition):
             if value is not None:
                 if not check_constant(value):
                     raise ConstancyViolation("Value must be literal or environment variable", value)
-                if value.get("value.id") == "msg":
-                    if value.attr == "sender" and not kwargs["is_public"]:
-                        raise ConstancyViolation(
-                            "msg.sender is not allowed in private functions", value
-                        )
-                    if value.attr == "value" and not kwargs.get("is_payable"):
-                        raise NonPayableViolation(
-                            "msg.value is not allowed in non-payable functions", value
-                        )
                 validate_expected_type(value, type_definition)
 
             arguments[arg.arg] = type_definition
