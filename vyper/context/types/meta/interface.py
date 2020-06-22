@@ -28,7 +28,7 @@ class InterfaceDefinition(MemberTypeDefinition):
             self.add_member(key, type_)
 
 
-class InterfacePureType:
+class InterfacePrimitive:
 
     _is_callable = True
     _as_array = True
@@ -71,9 +71,9 @@ class InterfacePureType:
             )
 
 
-def build_pure_type_from_abi(name: str, abi: dict) -> InterfacePureType:
+def build_primitive_from_abi(name: str, abi: dict) -> InterfacePrimitive:
     """
-    Generate an `InterfacePure` object from an ABI.
+    Generate an `InterfacePrimitive` object from an ABI.
 
     Arguments
     ---------
@@ -84,8 +84,8 @@ def build_pure_type_from_abi(name: str, abi: dict) -> InterfacePureType:
 
     Returns
     -------
-    InterfacePure
-        Pure interface type
+    InterfacePrimitive
+        primitive interface type
     """
     members: OrderedDict = OrderedDict()
     for item in [i for i in abi if i.get("type") == "function"]:
@@ -97,12 +97,12 @@ def build_pure_type_from_abi(name: str, abi: dict) -> InterfacePureType:
             )
         members[func.name] = func
 
-    return InterfacePureType(name, members)
+    return InterfacePrimitive(name, members)
 
 
-def build_pure_type_from_node(node: Union[vy_ast.ClassDef, vy_ast.Module]) -> InterfacePureType:
+def build_primitive_from_node(node: Union[vy_ast.ClassDef, vy_ast.Module]) -> InterfacePrimitive:
     """
-    Generate an `InterfacePure` object from a Vyper ast node.
+    Generate an `InterfacePrimitive` object from a Vyper ast node.
 
     Arguments
     ---------
@@ -110,8 +110,8 @@ def build_pure_type_from_node(node: Union[vy_ast.ClassDef, vy_ast.Module]) -> In
         Vyper ast node defining the interface
     Returns
     -------
-    InterfacePure
-        Pure interface type
+    InterfacePrimitive
+        primitive interface type
     """
     if isinstance(node, vy_ast.Module):
         members = _get_module_functions(node)
@@ -125,7 +125,7 @@ def build_pure_type_from_node(node: Union[vy_ast.ClassDef, vy_ast.Module]) -> In
         if func.name in namespace:
             raise NamespaceCollision(func.name, func.node)
 
-    return InterfacePureType(node.name, members)
+    return InterfacePrimitive(node.name, members)
 
 
 def _get_module_functions(base_node: vy_ast.Module) -> OrderedDict:

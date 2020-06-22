@@ -2,7 +2,7 @@ from typing import Union
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
-from vyper.context.types.bases import BasePureType, IndexableTypeDefinition
+from vyper.context.types.bases import BasePrimitive, IndexableTypeDefinition
 from vyper.context.types.utils import get_type_from_annotation
 from vyper.context.validation.utils import validate_expected_type
 from vyper.exceptions import CompilerPanic
@@ -23,7 +23,7 @@ class MappingDefinition(IndexableTypeDefinition):
         return self.value_type
 
 
-class MappingPureType(BasePureType):
+class MappingPrimitive(BasePrimitive):
     _id = "map"
     _valid_literal = ()
 

@@ -30,7 +30,7 @@ def get_type_from_abi(
     Returns
     -------
     BaseTypeDefinition
-        Pure type object.
+        Type definition object.
     """
     type_string = abi_type["type"]
     if type_string == "fixed168x10":

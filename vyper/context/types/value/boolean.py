@@ -2,7 +2,7 @@ from typing import Union
 
 from vyper import ast as vy_ast
 from vyper.context.types.bases import (
-    BasePureType,
+    BasePrimitive,
     BaseTypeDefinition,
     ValueTypeDefinition,
 )
@@ -23,7 +23,7 @@ class BoolDefinition(ValueTypeDefinition):
         super().validate_numeric_op(node)
 
 
-class BoolPureType(BasePureType):
+class BoolPrimitive(BasePrimitive):
 
     _as_array = True
     _id = "bool"

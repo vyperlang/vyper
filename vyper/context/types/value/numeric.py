@@ -3,7 +3,7 @@ from typing import Optional, Tuple, Type, Union
 from vyper import ast as vy_ast
 from vyper.context.types.abstract import FixedAbstractType, IntegerAbstractType
 from vyper.context.types.bases import (
-    BasePureType,
+    BasePrimitive,
     BaseTypeDefinition,
     ValueTypeDefinition,
 )
@@ -34,7 +34,7 @@ class _NumericDefinition(ValueTypeDefinition):
         return
 
 
-class _NumericPureType(BasePureType):
+class _NumericPrimitive(BasePrimitive):
 
     _as_array = True
     _bounds: Tuple[int, int]
@@ -67,24 +67,23 @@ class DecimalDefinition(FixedAbstractType, _NumericDefinition):
     _invalid_op = vy_ast.Pow
 
 
-# pure types
+# primitives
 
-
-class Int128PureType(_NumericPureType):
+class Int128Primitive(_NumericPrimitive):
     _bounds = (-(2 ** 127), 2 ** 127 - 1)
     _id = "int128"
     _type = Int128Definition
     _valid_literal = (vy_ast.Int,)
 
 
-class Uint256PureType(_NumericPureType):
+class Uint256Primitive(_NumericPrimitive):
     _bounds = (0, 2 ** 256 - 1)
     _id = "uint256"
     _type = Uint256Definition
     _valid_literal = (vy_ast.Int,)
 
 
-class DecimalPureType(_NumericPureType):
+class DecimalPrimitive(_NumericPrimitive):
     _bounds = (-(2 ** 127), 2 ** 127 - 1)
     _id = "decimal"
     _type = DecimalDefinition

@@ -17,9 +17,9 @@ from vyper.context.types.utils import get_type_from_annotation
 from vyper.context.types.value.address import AddressDefinition
 from vyper.context.types.value.array_value import (
     BytesArrayDefinition,
-    BytesArrayPureType,
+    BytesArrayPrimitive,
     StringDefinition,
-    StringPureType,
+    StringPrimitive,
 )
 from vyper.context.types.value.boolean import BoolDefinition
 from vyper.context.types.value.bytes_fixed import Bytes32Definition
@@ -237,10 +237,10 @@ class Slice:
         if isinstance(node.args[2], vy_ast.Int) and node.args[2].value < 1:
             raise ArgumentException("Length cannot be less than 1", node.args[2])
 
-        validate_expected_type(node.args[0], (BytesAbstractType(), StringPureType()))
+        validate_expected_type(node.args[0], (BytesAbstractType(), StringPrimitive()))
         type_list = get_possible_types_from_node(node.args[0])
         try:
-            validate_expected_type(node.args[0], StringPureType())
+            validate_expected_type(node.args[0], StringPrimitive())
             return_type = StringDefinition()
         except VyperException:
             return_type = BytesArrayDefinition()
@@ -369,7 +369,7 @@ class Concat:
             raise ArgumentException("Keyword arguments are not accepted here", node.keywords[0])
 
         type_ = None
-        for expected in (BytesAbstractType(), StringPureType()):
+        for expected in (BytesAbstractType(), StringPrimitive()):
             try:
                 validate_expected_type(node.args[0], expected)
                 type_ = expected
@@ -504,7 +504,7 @@ class Concat:
 class Keccak256(_SimpleBuiltinFunction):
 
     _id = "keccak256"
-    _inputs = [("value", (Bytes32Definition(), BytesArrayPureType(), StringPureType()))]
+    _inputs = [("value", (Bytes32Definition(), BytesArrayPrimitive(), StringPrimitive()))]
     _return_type = Bytes32Definition()
 
     def evaluate(self, node):
@@ -544,7 +544,7 @@ def _make_sha256_call(inp_start, inp_len, out_start, out_len):
 class Sha256(_SimpleBuiltinFunction):
 
     _id = "sha256"
-    _inputs = [("value", (Bytes32Definition(), BytesArrayPureType(), StringPureType()))]
+    _inputs = [("value", (Bytes32Definition(), BytesArrayPrimitive(), StringPrimitive()))]
     _return_type = Bytes32Definition()
 
     def evaluate(self, node):
@@ -775,7 +775,7 @@ def _storage_element_getter(index):
 class Extract32(_SimpleBuiltinFunction):
 
     _id = "extract32"
-    _inputs = [("b", BytesArrayPureType()), ("start", Int128Definition())]
+    _inputs = [("b", BytesArrayPrimitive()), ("start", Int128Definition())]
     _kwargs = {"type": Optional('name_literal', 'bytes32')}
     _return_type = None
 
@@ -958,7 +958,7 @@ false_value = LLLnode.from_list(0, typ=BaseType('bool', is_literal=True))
 class RawCall(_SimpleBuiltinFunction):
 
     _id = "raw_call"
-    _inputs = [("to", AddressDefinition()), ("data", BytesArrayPureType())]
+    _inputs = [("to", AddressDefinition()), ("data", BytesArrayPrimitive())]
     _kwargs = {
         "max_outsize": Optional('num_literal', 0),
         "gas": Optional('uint256', 'gas'),

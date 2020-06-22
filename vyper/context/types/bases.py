@@ -16,11 +16,11 @@ from vyper.exceptions import (
 )
 
 
-class BasePureType:
+class BasePrimitive:
     """
-    Base class for pure type classes.
+    Base class for primitive type classes.
 
-    Pure types are objects that are invoked when applying a type to a variable.
+    Primitives are objects that are invoked when applying a type to a variable.
     They must contain a `from_annotation` (and optionally `from_literal`) method
     that returns their equivalent `BaseTypeDefinition` object.
 
@@ -29,7 +29,7 @@ class BasePureType:
     _id : str
         The name of the type.
     _type : BaseTypeDefinition
-        The related `BaseTypeDefinition` class generated from this pure type.
+        The related `BaseTypeDefinition` class generated from this primitive
     _as_array: bool, optional
         If `True`, this type can be used as the base member for an array.
     _valid_literal : Tuple
@@ -58,7 +58,7 @@ class BasePureType:
         Returns
         -------
         BaseTypeDefinition
-            BaseTypeDefinition related to the pure type that the method was called on.
+            BaseTypeDefinition related to the primitive that the method was called on.
         """
         if not isinstance(node, vy_ast.Name):
             raise StructureException("Invalid type assignment", node)
@@ -71,7 +71,7 @@ class BasePureType:
         """
         Generate a `BaseTypeDefinition` instance of this type from a literal constant.
 
-        This method is called on every pure type class in order to determine
+        This method is called on every primitive class in order to determine
         potential types for a `Constant` AST node.
 
         Types that may be assigned from literals should include a `_valid_literal`
@@ -87,7 +87,7 @@ class BasePureType:
         Returns
         -------
         BaseTypeDefinition
-            BaseTypeDefinition related to the pure type that the method was called on.
+            BaseTypeDefinition related to the primitive that the method was called on.
         """
         if not isinstance(node, vy_ast.Constant):
             raise UnexpectedNodeType(f"Attempted to validate a '{node.ast_type}' node.")
@@ -97,7 +97,7 @@ class BasePureType:
 
     @classmethod
     def compare_type(
-        cls, other: Union["BaseTypeDefinition", "BasePureType", AbstractDataType]
+        cls, other: Union["BaseTypeDefinition", "BasePrimitive", AbstractDataType]
     ) -> bool:
         """
         Compare this type object against another type object.
@@ -160,7 +160,7 @@ class BaseTypeDefinition:
     Base class for type definition classes.
 
     Type definitions are objects that represent the type of a specific object
-    within a contract. They are usually derived from a `BasePureType` counterpart.
+    within a contract. They are usually derived from a `BasePrimitive` counterpart.
 
     Class Attributes
     -----------------
@@ -182,11 +182,11 @@ class BaseTypeDefinition:
         self.is_public = is_public
 
     def from_annotation(self, node: vy_ast.VyperNode, **kwargs: Any) -> None:
-        # always raises, user should have used a pure type
+        # always raises, user should have used a primitive
         raise StructureException("Value is not a type", node)
 
     def compare_type(
-        self, other: Union["BaseTypeDefinition", BasePureType, AbstractDataType]
+        self, other: Union["BaseTypeDefinition", BasePrimitive, AbstractDataType]
     ) -> bool:
         """
         Compare this type object against another type object.
