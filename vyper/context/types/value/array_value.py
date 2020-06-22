@@ -6,7 +6,7 @@ from vyper.context.types.abstract import (
     ArrayValueAbstractType,
     BytesAbstractType,
 )
-from vyper.context.types.bases import BasePureType, ValueTypeDefinition
+from vyper.context.types.bases import BasePrimitive, ValueTypeDefinition
 from vyper.exceptions import CompilerPanic, StructureException, UnexpectedValue
 
 
@@ -92,7 +92,7 @@ class _ArrayValueDefinition(ValueTypeDefinition):
         return other.compare_type(self)
 
 
-class _ArrayValuePureType(BasePureType):
+class _ArrayValuePrimitive(BasePrimitive):
     _type: Type[_ArrayValueDefinition]  # type: ignore
 
     @classmethod
@@ -132,13 +132,13 @@ class StringDefinition(ArrayValueAbstractType, _ArrayValueDefinition):
     _id = "string"
 
 
-class BytesArrayPureType(_ArrayValuePureType):
+class BytesArrayPrimitive(_ArrayValuePrimitive):
     _id = "bytes"
     _type = BytesArrayDefinition
     _valid_literal = (vy_ast.Bytes, vy_ast.Hex)
 
 
-class StringPureType(_ArrayValuePureType):
+class StringPrimitive(_ArrayValuePrimitive):
     _id = "string"
     _type = StringDefinition
     _valid_literal = (vy_ast.Str,)

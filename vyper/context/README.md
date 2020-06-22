@@ -52,7 +52,7 @@ The [`Namespace`](namespace.py) object represents the namespace for a contract.
 Prior to beginning type checking, builtins are added via the `Namespace.enter_builtin_scope`
 method. This includes:
 
-* Adding pure type classes from the [`types/`](types) subpackage
+* Adding primitive type classes from the [`types/`](types) subpackage
 * Adding environment variables and builtin constants from [`environment.py`](environment.py)
 * Adding builtin functions from the [`functions`](../functions/functions.py) package
 * Adding / resetting `self` and `log`
@@ -62,7 +62,7 @@ method. This includes:
 [`validation/module.py`](validation/module.py) validates the module-level scope
 of a contract. This includes:
 
-* Generating user-defined pure types (e.g. structs and interfaces)
+* Generating user-defined primitive types (e.g. structs and interfaces)
 * Creating type definitions for storage variables, user-defined constants, events
 and functions
 * Validating import statements and function signatures
@@ -111,27 +111,27 @@ All type classes are found within the [`context/types/`](types) subpackage.
 Type classes rely on inheritance to define their structure and functionlity.
 Vyper uses three broad categories to represent types within the compiler.
 
-#### Pure Types
+#### Primitive Types
 
-A **pure type** defines the base attributes of a given type. There is only one pure
-type object created for each Vyper type. All pure type classes are subclasses of
-`BasePureType`.
+A **primitive type** (or just primitive) defines the base attributes of a given type.
+There is only one primitive type object created for each Vyper type. All primitive
+classes are subclasses of `BasePrimitive`.
 
-Along with the builtin pure types, user-defined ones may be created. These types
-are defined in the modules within [`context/types/meta`](types/meta). See
-the docstrings there for more information.
+Along with the builtin primitive types, user-defined ones may be created. These
+primitives are defined in the modules within [`context/types/meta`](types/meta).
+See the docstrings there for more information.
 
 #### Type Definitions
 
 A **type definition** (or just definition) is a type that has been assigned to a
 specific variable, literal, or other value. Definition objects are typically derived
-from pure types. They include additional information such as the constancy,
+from primitives. They include additional information such as the constancy,
 visibility and scope of the associated value.
 
-A pure type always has a corresponding type definition. However, not all type
-definitions have a pure type, e.g. arrays and tuples.
+A primitive type always has a corresponding type definition. However, not all
+type definitions have a primitive type, e.g. arrays and tuples.
 
-Comparing a definition to it's related pure type will always evaluate `True`.
+Comparing a definition to it's related primitive type will always evaluate `True`.
 Comparing two definitions of the same class can sometimes evaluate false depending
 on certain attributes. All definition classes are subclasses of `BaseTypeDefinition`.
 
@@ -196,14 +196,14 @@ been added, and resets the content of `self` and `log`.
 
 Validation is handled by calling methods within each type object. In general:
 
-* Pure type objects include one or both of `from_annotation` and `from_literal` methods,
-which validate an AST node and a produce definition object
+* Primitive type objects include one or both of `from_annotation` and `from_literal`
+methods, which validate an AST node and a produce definition object
 * Definition objects include a variety of `get_<thing>` and `validate_<action>` methods,
 which are used to validate interactions and obtain new types based on AST nodes
 
-All possible methods for pure types and type definitions are outlined within the
-base classes in [`types/bases.py`](types/bases.py). The functionality within the
-methods of the base classes is typically to raise and give a meaningful explanation
+All possible methods for primitives and definitions are outlined within the base
+classes in [`types/bases.py`](types/bases.py). The functionality within the methods
+of the base classes is typically to raise and give a meaningful explanation
 for _why_ the syntax not valid.
 
 Here are some examples:
@@ -214,8 +214,8 @@ Here are some examples:
 foo: int128
 ```
 
-1. We look up `int128` in `namespace`. We retrieve an `Int128PureType` object.
-2. We call `Int128PureType.from_annotation` with the AST node of the statement. This
+1. We look up `int128` in `namespace`. We retrieve an `Int128Primitive` object.
+2. We call `Int128Primitive.from_annotation` with the AST node of the statement. This
 method validates the statement and returns an `Int128Definition` object.
 3. We store the new definition under the key `foo` within `namespace`.
 

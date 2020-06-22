@@ -1,9 +1,9 @@
 from vyper.context.types import indexable, meta, value
-from vyper.context.types.bases import BasePureType
+from vyper.context.types.bases import BasePrimitive
 from vyper.context.types.event import Event
 
 
-def get_pure_types():
+def get_primitive_types():
     result = {}
 
     for module in (indexable, value):
@@ -16,7 +16,7 @@ def get_pure_types():
             result.update(
                 (v._id, v)
                 for v in item.__dict__.values()
-                if isinstance(getattr(v, "_id", None), str) and issubclass(v, BasePureType)
+                if isinstance(getattr(v, "_id", None), str) and issubclass(v, BasePrimitive)
             )
 
     return result
@@ -25,6 +25,6 @@ def get_pure_types():
 def get_types():
     result = {"event": Event}
     result.update(meta.META_TYPES)
-    result.update(get_pure_types())
+    result.update(get_primitive_types())
 
     return result
