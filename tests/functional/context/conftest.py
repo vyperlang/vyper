@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import ast as vy_ast
-from vyper.context import namespace as ns
+from vyper.context.namespace import get_namespace
 
 
 @pytest.fixture(scope="session")
@@ -11,6 +11,7 @@ def build_node():
     """
 
     def _build_node(source):
+        # docstring ensures string nodes are properly generated, not turned into docstrings
         source = f"""'I am a docstring.'\n{source}"""
         ast = vy_ast.parse_to_ast(source).body[0]
         if isinstance(ast, vy_ast.Expr):
@@ -25,7 +26,7 @@ def namespace():
     """
     Yields a clean `Namespace` object.
     """
-    obj = ns.get_namespace()
+    obj = get_namespace()
     obj.clear()
     yield obj
     obj.clear()

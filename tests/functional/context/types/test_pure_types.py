@@ -72,10 +72,11 @@ INVALID_NODES = [
 ]
 
 
-@pytest.mark.parametrize("PureType", VALID_LITERALS.keys())
+# source is a combined list made from all lists in  VALID_LITERALS and INVALID_LITERALS
 @pytest.mark.parametrize(
     "source", [x for v in VALID_LITERALS.values() for x in v] + INVALID_LITERALS
 )
+@pytest.mark.parametrize("PureType", VALID_LITERALS.keys())
 def test_from_literal(build_node, PureType, source):
     node = build_node(source)
 

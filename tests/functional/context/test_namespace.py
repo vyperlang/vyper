@@ -62,6 +62,7 @@ def test_builtin_context_manager_mutable_vars(namespace):
 
 def test_builtin_context_manager_wrong_sequence(namespace):
     with namespace.enter_builtin_scope():
+        # fails because builtin scope may only be entered once
         with pytest.raises(CompilerPanic):
             with namespace.enter_builtin_scope():
                 pass
@@ -75,6 +76,8 @@ def test_context_manager(namespace):
 
         assert namespace["foo"] == 42
         assert "bar" not in namespace
+
+    assert "foo" not in namespace
 
 
 def test_context_manager_wrong_sequence(namespace):
