@@ -82,72 +82,6 @@ class Stmt(object):
             raise StructureException('Raise must have a reason', self.stmt)
         return self._assert_reason(0, self.stmt.exc)
 
-    def _check_valid_assign(self, sub):
-        if (
-            isinstance(self.stmt.annotation, vy_ast.Name) and
-            self.stmt.annotation.id == 'bytes32'
-        ):
-            # CMC 04/07/2020 this check could be much clearer, more like:
-            # if isinstance(ByteArrayLike) and maxlen == 32
-            #   or isinstance(BaseType) and typ.typ == 'bytes32'
-            #   then GOOD
-            #   else RAISE
-            if isinstance(sub.typ, ByteArrayLike):
-                if sub.typ.maxlen != 32:
-                    raise TypeMismatch(
-                        'Invalid type, expected: bytes32. String is incorrect length.', self.stmt
-                    )
-                return
-            elif isinstance(sub.typ, BaseType):
-                if sub.typ.typ != 'bytes32':
-                    raise TypeMismatch('Invalid type, expected: bytes32', self.stmt)
-                return
-            else:
-                raise TypeMismatch("Invalid type, expected: bytes32", self.stmt)
-        elif isinstance(self.stmt.annotation, vy_ast.Subscript):
-            # check list assign:
-            if not isinstance(sub.typ, (ListType, ByteArrayLike)):
-                raise TypeMismatch(
-                    f'Invalid type, expected: {self.stmt.annotation.value.id},'
-                    f' got: {sub.typ}', self.stmt
-                )
-        elif sub.typ is None:
-            # Check that the object to be assigned is not of NoneType
-            raise TypeMismatch(
-                f"Invalid type, expected {self.stmt.annotation.id}", self.stmt
-            )
-        elif isinstance(sub.typ, StructType):
-            # This needs to get more sophisticated in the presence of
-            # foreign structs.
-            if not sub.typ.name == self.stmt.annotation.id:
-                raise TypeMismatch(
-                    f"Invalid type, expected {self.stmt.annotation.id}", self.stmt
-                )
-        # Check that the integer literal, can be assigned to uint256 if necessary.
-        elif (self.stmt.annotation.id, sub.typ.typ) == ('uint256', 'int128') and sub.typ.is_literal:
-            if not SizeLimits.in_bounds('uint256', sub.value):
-                raise InvalidLiteral(
-                    'Invalid uint256 assignment, value not in uint256 range.', self.stmt
-                )
-        elif self.stmt.annotation.id != sub.typ.typ:
-            raise TypeMismatch(
-                f'Invalid type {sub.typ.typ}, expected: {self.stmt.annotation.id}',
-                self.stmt,
-            )
-        else:
-            return True
-
-    def _check_same_variable_assign(self, sub):
-        lhs_var_name = self.stmt.target.id
-        rhs_names = self._check_rhs_var_assn_recur(self.stmt.value)
-        if lhs_var_name in rhs_names:
-            raise VariableDeclarationException((
-                'Invalid variable assignment, same variable not allowed on '
-                f'LHS and RHS: {lhs_var_name}'
-            ))
-        else:
-            return True
-
     def _check_rhs_var_assn_recur(self, val):
         names = ()
         if isinstance(val, (vy_ast.BinOp, vy_ast.Compare)):
@@ -204,8 +138,6 @@ class Stmt(object):
                     pos=getpos(self.stmt),
                 )
 
-            self._check_valid_assign(sub)
-            self._check_same_variable_assign(sub)
             variable_loc = LLLnode.from_list(
                 pos,
                 typ=typ,
@@ -215,16 +147,6 @@ class Stmt(object):
             o = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
 
             return o
-
-    def _check_implicit_conversion(self, var_id, sub):
-        target_typ = self.context.vars[var_id].typ
-        assign_typ = sub.typ
-        if isinstance(target_typ, BaseType) and isinstance(assign_typ, BaseType):
-            if not assign_typ.is_literal and assign_typ.typ != target_typ.typ:
-                raise TypeMismatch(
-                    f'Invalid type {assign_typ.typ}, expected: {target_typ.typ}',
-                    self.stmt
-                )
 
     def assign(self):
         # Assignment (e.g. x[4] = y)
@@ -237,9 +159,6 @@ class Stmt(object):
                 # Do not allow assignment to undefined variables without annotation
                 if self.stmt.target.id not in self.context.vars:
                     raise VariableDeclarationException("Variable type not defined", self.stmt)
-
-                # Check against implicit conversion
-                self._check_implicit_conversion(self.stmt.target.id, sub)
 
             is_valid_tuple_assign = (
                 isinstance(self.stmt.target, vy_ast.Tuple)
