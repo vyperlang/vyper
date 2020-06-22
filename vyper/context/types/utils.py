@@ -38,16 +38,27 @@ def get_type_from_abi(
     # TODO string and bytes
 
     namespace = get_namespace()
-    try:
-        if "[" in type_string:
-            value_type_string, length_str = type_string.rsplit("[", maxsplit=1)
-            length = int(length_str.rstrip("]"))
-            value_type = get_type_from_abi({"type": value_type_string}, is_constant=is_constant)
-            return ArrayDefinition(value_type, length, is_constant, is_public)
 
-        return namespace[type_string]._type(is_constant=is_constant, is_public=is_public)
-    except (KeyError, ValueError, InvalidType, UnknownType):
-        raise UnknownType(f"ABI contains unknown type: {type_string}") from None
+    if "[" in type_string:
+        value_type_string, length_str = type_string.rsplit("[", maxsplit=1)
+        try:
+            length = int(length_str.rstrip("]"))
+        except ValueError:
+            raise UnknownType(f"ABI type has an invalid length: {type_string}") from None
+        try:
+            value_type = get_type_from_abi({"type": value_type_string}, is_constant=is_constant)
+        except UnknownType:
+            raise UnknownType(f"ABI contains unknown type: {type_string}") from None
+        try:
+            return ArrayDefinition(value_type, length, is_constant, is_public)
+        except InvalidType:
+            raise UnknownType(f"ABI contains unknown type: {type_string}") from None
+
+    else:
+        try:
+            return namespace[type_string]._type(is_constant=is_constant, is_public=is_public)
+        except KeyError:
+            raise UnknownType(f"ABI contains unknown type: {type_string}") from None
 
 
 def get_type_from_annotation(
