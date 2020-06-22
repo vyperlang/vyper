@@ -24,6 +24,25 @@ from vyper.exceptions import (
 )
 
 
+def _validate_op(node, types_list, validation_fn_name):
+    if not types_list:
+        raise TypeMismatch(f"Cannot perform {node.op.description} between dislike types", node)
+
+    if len(types_list) == 1:
+        getattr(types_list[0], validation_fn_name)(node)
+        return types_list
+
+    for type_ in types_list.copy():
+        try:
+            getattr(type_, validation_fn_name)(node)
+        except InvalidOperation:
+            types_list.remove(type_)
+
+    if types_list:
+        return types_list
+    raise InvalidOperation(f"Cannot perform {node.op.description} on value", node)
+
+
 class _ExprTypeChecker:
     """
     Node type-checker class.
@@ -81,38 +100,20 @@ class _ExprTypeChecker:
     def types_from_BinOp(self, node):
         # binary operation: `x + y`
         types_list = get_common_types(node.left, node.right)
-        if not types_list:
-            raise TypeMismatch(f"Cannot perform {node.op.description} between dislike types", node)
-
-        if len(types_list) == 1:
-            types_list[0].validate_numeric_op(node)
-            return types_list
-
-        for type_ in types_list.copy():
-            try:
-                type_.validate_numeric_op(node)
-            except InvalidOperation:
-                types_list.remove(type_)
-
-        if types_list:
-            return types_list
-        raise InvalidOperation(f"Cannot perform {node.op.description} on value", node)
+        return _validate_op(node, types_list, "validate_numeric_op")
 
     def types_from_BoolOp(self, node):
         # boolean operation: `x and y`
-        types_list = get_common_types(
-            *node.values, filter_fn=lambda k: _filter(k, "validate_boolean_op", node)
-        )
-        if types_list:
-            return [BoolDefinition()]
-        raise TypeMismatch(f"Cannot perform {node.op.description} between dislike types", node)
+        types_list = get_common_types(*node.values)
+        _validate_op(node, types_list, "validate_boolean_op")
+        return [BoolDefinition()]
 
     def types_from_Compare(self, node):
         # comparison: `x < y`
-        left = self.get_possible_types_from_node(node.left)
-        right = self.get_possible_types_from_node(node.right)
         if isinstance(node.op, vy_ast.In):
             # x in y
+            left = self.get_possible_types_from_node(node.left)
+            right = self.get_possible_types_from_node(node.right)
             if next((i for i in left if isinstance(i, ArrayDefinition)), False):
                 raise InvalidOperation(
                     "Left operand in membership comparison cannot be Array type", node.left,
@@ -121,19 +122,14 @@ class _ExprTypeChecker:
                 raise InvalidOperation(
                     "Right operand must be Array for membership comparison", node.right
                 )
-
             types_list = [i for i in left if _is_type_in_list(i, [i.value_type for i in right])]
+            if not types_list:
+                raise TypeMismatch(
+                    "Cannot perform membership comparison between dislike types", node
+                )
         else:
-            # all other comparisons
-            types_list = get_common_types(
-                node.left, node.right, filter_fn=lambda k: _filter(k, "validate_comparator", node),
-            )
-
-        if not types_list:
-            raise TypeMismatch(
-                f"Cannot perform {node.op.description} comparison "
-                f"between {left.pop()} and {right.pop()}"
-            )
+            types_list = get_common_types(node.left, node.right)
+            _validate_op(node, types_list, "validate_comparator")
         return [BoolDefinition()]
 
     def types_from_Call(self, node):
@@ -197,20 +193,7 @@ class _ExprTypeChecker:
     def types_from_UnaryOp(self, node):
         # unary operation: `-foo`
         types_list = self.get_possible_types_from_node(node.operand)
-
-        if len(types_list) == 1:
-            types_list[0].validate_numeric_op(node)
-            return types_list
-
-        for type_ in types_list.copy():
-            try:
-                type_.validate_numeric_op(node)
-            except InvalidOperation:
-                types_list.remove(type_)
-
-        if types_list:
-            return types_list
-        raise InvalidOperation(f"Cannot perform {node.op.description} on this value", node)
+        return _validate_op(node, types_list, "validate_numeric_op")
 
 
 def _is_type_in_list(obj, types_list):
@@ -389,10 +372,10 @@ def get_index_value(node: vy_ast.Index) -> int:
         Literal integer value.
     """
 
-    if not isinstance(node.value, vy_ast.Int):
-        raise InvalidType(f"Invalid type for Slice: '{type(node.value)}'", node)
+    if not isinstance(node.get("value"), vy_ast.Int):
+        raise InvalidType("Subscript must be a literal integer", node)
 
     if node.value.value <= 0:
-        raise ArrayIndexException("Slice must be greater than 0", node)
+        raise ArrayIndexException("Subscript must be greater than 0", node)
 
     return node.value.value

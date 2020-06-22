@@ -12,22 +12,10 @@ x: bat
 x: map(int, int128)
     """,
     """
-x: int128[-1]
-    """,
-    """
-x: int128[3.5]
-    """,
-    """
 x: [bar, baz]
     """,
     """
 x: [bar(int128), baz(baffle)]
-    """,
-    """
-x: bytes <= wei
-    """,
-    """
-x: string <= 33
     """,
     """
 struct A:
@@ -61,6 +49,9 @@ def mint(_to: address, _value: uint256):
 @public
 def mint(_to: address, _value: uint256):
     raise 1
+    """,
+    """
+x: int128[3.5]
     """,
 ]
 

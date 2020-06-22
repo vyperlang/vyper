@@ -6,7 +6,7 @@ from vyper.context.types.indexable.sequence import (
     ArrayDefinition,
     TupleDefinition,
 )
-from vyper.context.types.utils import build_type_from_ann_assign
+from vyper.context.types.utils import get_type_from_annotation
 from vyper.context.types.value.boolean import BoolDefinition
 from vyper.context.types.value.numeric import Uint256Definition
 from vyper.context.validation.base import VyperNodeVisitorBase
@@ -23,6 +23,7 @@ from vyper.exceptions import (
     InvalidLiteral,
     InvalidType,
     NamespaceCollision,
+    NonPayableViolation,
     StructureException,
     TypeMismatch,
     VariableDeclarationException,
@@ -68,8 +69,6 @@ def check_for_terminus(node_list: list) -> bool:
     return False
 
 
-# TODO constancy checks could be handled here. if the function being evaluated
-# is_constant, check that the target of all Call nodes is also constant
 class FunctionNodeVisitor(VyperNodeVisitorBase):
 
     ignored_types = (
@@ -80,11 +79,29 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
     )
     scope_name = "function"
 
-    def __init__(self, fn_node, namespace):
+    def __init__(self, fn_node: vy_ast.FunctionDef, namespace: dict) -> None:
         self.fn_node = fn_node
         self.namespace = namespace
         self.func = namespace["self"].get_member(fn_node.name, fn_node)
         namespace.update(self.func.arguments)
+
+        if not self.func.is_public:
+            node_list = fn_node.get_descendants(
+                vy_ast.Attribute, {"value.id": "msg", "attr": "sender"}
+            )
+            if node_list:
+                raise ConstancyViolation(
+                    "msg.sender is not allowed in private functions", node_list[0]
+                )
+        if not getattr(self.func, "is_payable", False):
+            node_list = fn_node.get_descendants(
+                vy_ast.Attribute, {"value.id": "msg", "attr": "value"}
+            )
+            if node_list:
+                raise NonPayableViolation(
+                    "msg.value is not allowed in non-payable functions", node_list[0]
+                )
+
         for node in fn_node.body:
             self.visit(node)
         if self.func.return_type:
@@ -101,9 +118,12 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         name = node.target.id
         if name in self.namespace["self"].members:
             raise NamespaceCollision("Variable name shadows an existing storage-scoped value", node)
-        var = build_type_from_ann_assign(node.annotation, node.value)
+
+        type_definition = get_type_from_annotation(node.annotation)
+        validate_expected_type(node.value, type_definition)
+
         try:
-            self.namespace[name] = var
+            self.namespace[name] = type_definition
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 

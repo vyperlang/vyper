@@ -58,16 +58,6 @@ def foo():
     x: bytes[10] = concat(b"")
     """,
     """
-struct S:
-    x: int128
-s: S = S({x: int128}, 1)
-    """,
-    """
-struct S:
-    x: int128
-s: S = S()
-    """,
-    """
 @public
 def foo():
     x: bytes[4] = create_forwarder_to(0x1234567890123456789012345678901234567890, b"cow")
