@@ -237,7 +237,8 @@ class VyperInternalException(Exception):
     def __str__(self):
         return (
             f"{self.message}\n\nThis is an unhandled internal compiler error. "
-            "Please create an issue on Github to notify the developers."
+            "Please create an issue on Github to notify the developers.\n"
+            "https://github.com/vyperlang/vyper/issues/new?template=bug.md"
         )
 
 

@@ -122,22 +122,21 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             raise exc.with_annotation(node) from None
 
     def visit_Import(self, node):
-        _add_import(node, self.interface_codes, self.namespace)
+        _add_import(
+            node, node.names[0].name, node.names[0].asname, self.interface_codes, self.namespace
+        )
 
     def visit_ImportFrom(self, node):
-        _add_import(node, self.interface_codes, self.namespace)
+        _add_import(node, node.module, node.names[0].name, self.interface_codes, self.namespace)
 
 
 def _add_import(
-    node: Union[vy_ast.Import, vy_ast.ImportFrom], interface_codes: InterfaceDict, namespace: dict,
+    node: Union[vy_ast.Import, vy_ast.ImportFrom],
+    module: str,
+    name: str,
+    interface_codes: InterfaceDict,
+    namespace: dict,
 ) -> None:
-    if isinstance(node, vy_ast.Import):
-        module = node.names[0].name
-        name = node.names[0].asname
-    else:
-        module = node.module
-        name = node.names[0].name
-
     if module == "vyper.interfaces":
         interface_codes = _get_builtin_interfaces()
     if name not in interface_codes:
