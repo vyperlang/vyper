@@ -1,7 +1,7 @@
 from vyper import ast as vy_ast
 from vyper.context.types.abstract import BytesAbstractType
 from vyper.context.types.bases import (
-    BasePureType,
+    BasePrimitive,
     BaseTypeDefinition,
     ValueTypeDefinition,
 )
@@ -17,7 +17,7 @@ class Bytes32Definition(BytesAbstractType, ValueTypeDefinition):
     _min_length = 32
 
 
-class Bytes32PureType(BasePureType):
+class Bytes32Primitive(BasePrimitive):
 
     _as_array = True
     _type = Bytes32Definition

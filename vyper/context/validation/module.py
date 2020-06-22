@@ -108,7 +108,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             raise exc.with_annotation(node) from None
 
     def visit_ClassDef(self, node):
-        type_ = self.namespace[node.class_type].build_pure_type_from_node(node)
+        type_ = self.namespace[node.class_type].build_primitive_from_node(node)
         try:
             self.namespace[node.name] = type_
         except VyperException as exc:
@@ -145,9 +145,9 @@ def _add_import(
         if interface_codes[name]["type"] == "vyper":
             interface_ast = vy_ast.parse_to_ast(interface_codes[name]["code"])
             interface_ast.name = name
-            type_ = namespace["contract"].build_pure_type_from_node(interface_ast)
+            type_ = namespace["contract"].build_primitive_from_node(interface_ast)
         elif interface_codes[name]["type"] == "json":
-            type_ = namespace["contract"].build_pure_type_from_abi(
+            type_ = namespace["contract"].build_primitive_from_abi(
                 name, interface_codes[name]["code"]
             )
         else:

@@ -27,7 +27,7 @@ class StructDefinition(MemberTypeDefinition):
         return super().compare_type(other) and self._id == other._id
 
 
-class StructPureType:
+class StructPrimitive:
 
     _is_callable = True
     _as_array = True
@@ -73,9 +73,9 @@ class StructPureType:
         return StructDefinition(self._id, self.members)
 
 
-def build_pure_type_from_node(base_node: vy_ast.ClassDef) -> StructPureType:
+def build_primitive_from_node(base_node: vy_ast.ClassDef) -> StructPrimitive:
     """
-    Generate a `StructPureType` object from a Vyper ast node.
+    Generate a `StructPrimitive` object from a Vyper ast node.
 
     Arguments
     ---------
@@ -83,8 +83,8 @@ def build_pure_type_from_node(base_node: vy_ast.ClassDef) -> StructPureType:
         Vyper ast node defining the struct
     Returns
     -------
-    StructPureType
-        Pure struct type
+    StructPrimitive
+        Primitive struct type
     """
 
     members: OrderedDict = OrderedDict()
@@ -102,4 +102,4 @@ def build_pure_type_from_node(base_node: vy_ast.ClassDef) -> StructPureType:
             )
         members[member_name] = get_type_from_annotation(node.annotation)
 
-    return StructPureType(base_node.name, members)
+    return StructPrimitive(base_node.name, members)

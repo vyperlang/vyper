@@ -37,7 +37,7 @@ class ArrayDefinition(_SequenceDefinition):
     """
     Array type definition.
 
-    This class has no corresponding pure type. It is initialized
+    This class has no corresponding primitive. It is initialized
     during `context.types.utils.get_type_from_annotation`
     """
 
@@ -73,7 +73,7 @@ class TupleDefinition(_SequenceDefinition):
     """
     Tuple type definition.
 
-    This class has no corresponding pure type. It is used to represent
+    This class has no corresponding primitive. It is used to represent
     multiple return values from `types.function.ContractFunctionType`.
     """
 

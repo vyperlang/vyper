@@ -1,5 +1,5 @@
 from vyper import ast as vy_ast
-from vyper.context.types.bases import BasePureType, MemberTypeDefinition
+from vyper.context.types.bases import BasePrimitive, MemberTypeDefinition
 from vyper.context.types.value.boolean import BoolDefinition
 from vyper.context.types.value.bytes_fixed import Bytes32Definition
 from vyper.context.types.value.numeric import (
@@ -20,7 +20,7 @@ class AddressDefinition(MemberTypeDefinition):
     }
 
 
-class AddressPureType(BasePureType):
+class AddressPrimitive(BasePrimitive):
     _as_array = True
     _id = "address"
     _type = AddressDefinition

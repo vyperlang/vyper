@@ -143,9 +143,9 @@ class _ExprTypeChecker:
     def types_from_Constant(self, node):
         # literal value (integer, string, etc)
         types_list = []
-        for pure_type in types.get_pure_types().values():
+        for primitive in types.get_primitive_types().values():
             try:
-                obj = pure_type.from_literal(node)
+                obj = primitive.from_literal(node)
                 types_list.append(obj)
             except VyperException:
                 continue
