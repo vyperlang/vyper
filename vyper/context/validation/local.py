@@ -207,6 +207,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 # range(CONSTANT)
                 if not isinstance(args[0], vy_ast.Num):
                     raise ConstancyViolation("Value must be a literal", node)
+                if args[0].value <= 0:
+                    raise StructureException("For loop must have at least 1 iteration", args[0])
                 validate_expected_type(args[0], Uint256Definition())
                 type_list = get_possible_types_from_node(args[0])
             else:
@@ -227,16 +229,24 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                         )
                     if not isinstance(args[1].right, vy_ast.Int):
                         raise InvalidLiteral("Literal must be an integer", args[1].right)
+                    if args[1].right.value < 1:
+                        raise StructureException(
+                            f"For loop has invalid number of iterations ({args[1].right.value}),"
+                            " the value must be greater than zero",
+                            args[1].right,
+                        )
                 else:
                     # range(CONSTANT, CONSTANT)
                     if not isinstance(args[1], vy_ast.Int):
                         raise InvalidType("Value must be a literal integer", args[1])
                     validate_expected_type(args[1], IntegerAbstractType())
                     if args[0].value >= args[1].value:
-                        raise InvalidLiteral("Second value must be > first value", args[1])
+                        raise StructureException("Second value must be > first value", args[1])
 
         else:
             # iteration over a variable or literal list
+            if isinstance(node.iter, vy_ast.Subscript):
+                raise StructureException("Cannot iterate over a nested list", node.iter)
             type_list = [
                 i.value_type
                 for i in get_possible_types_from_node(node.iter)
@@ -245,6 +255,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         if not type_list:
             raise InvalidType("Not an iterable type", node.iter)
+
+        if next((i for i in type_list if isinstance(i, ArrayDefinition)), False):
+            raise StructureException("Cannot iterate over a nested list", node.iter)
 
         for type_ in type_list:
             with self.namespace.enter_scope():

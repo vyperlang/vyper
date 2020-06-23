@@ -5,7 +5,6 @@ import pytest
 from vyper.exceptions import (
     ArgumentException,
     ConstancyViolation,
-    InvalidLiteral,
     InvalidType,
     NamespaceCollision,
     StructureException,
@@ -335,7 +334,7 @@ def foo(x: int128):
 def foo():
     for i in range(-3):
         pass
-    """, InvalidType),
+    """, StructureException),
     """
 @public
 def foo():
@@ -347,7 +346,7 @@ def foo():
 def foo():
     for i in range(5,3):
         pass
-    """, InvalidLiteral),
+    """, StructureException),
     ("""
 @public
 def foo():
