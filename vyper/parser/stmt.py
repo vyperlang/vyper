@@ -1,10 +1,6 @@
 from vyper import ast as vy_ast
 from vyper.codegen.return_ import gen_tuple_return, make_return_stmt
-from vyper.exceptions import (
-    ConstancyViolation,
-    StructureException,
-    TypeCheckFailure,
-)
+from vyper.exceptions import StructureException, TypeCheckFailure
 from vyper.functions import STMT_DISPATCH_TABLE
 from vyper.parser import external_call, self_call
 from vyper.parser.context import Context
@@ -596,34 +592,28 @@ class Stmt:
         if isinstance(target, vy_ast.Subscript) and self.context.in_for_loop:
             raise_exception = False
             if isinstance(target.value, vy_ast.Attribute):
-                list_name = f"{target.value.value.id}.{target.value.attr}"
-                if list_name in self.context.in_for_loop:
+                if f"{target.value.value.id}.{target.value.attr}" in self.context.in_for_loop:
                     raise_exception = True
 
-            if isinstance(target.value, vy_ast.Name) and \
-               target.value.id in self.context.in_for_loop:
-                list_name = target.value.id
+            if target.get('value.id') in self.context.in_for_loop:
                 raise_exception = True
 
             if raise_exception:
-                raise StructureException(
-                    f"Altering list '{list_name}' which is being iterated!",
-                    self.stmt,
-                )
+                raise TypeCheckFailure("Failed for-loop constancy check")
 
         if isinstance(target, vy_ast.Name) and target.id in self.context.forvars:
-            raise StructureException(
-                f"Altering iterator '{target.id}' which is in use!",
-                self.stmt,
-            )
+            raise TypeCheckFailure("Failed for-loop constancy check")
+
         if isinstance(target, vy_ast.Tuple):
             target = Expr(target, self.context).lll_node
             for node in target.args:
-                constancy_checks(node, self.context, self.stmt)
+                if (node.location == 'storage' and self.context.is_constant()) or not node.mutable:
+                    raise TypeCheckFailure("Failed for-loop constancy check")
             return target
 
         target = Expr.parse_variable_location(target, self.context)
-        constancy_checks(target, self.context, self.stmt)
+        if (target.location == 'storage' and self.context.is_constant()) or not target.mutable:
+            raise TypeCheckFailure("Failed for-loop constancy check")
         return target
 
 
@@ -643,16 +633,3 @@ def parse_body(code, context):
         lll_node.append(lll)
     lll_node.append('pass')  # force zerovalent, even last statement
     return LLLnode.from_list(lll_node, pos=getpos(code[0]) if code else None)
-
-
-def constancy_checks(node, context, stmt):
-    if node.location == 'storage' and context.is_constant():
-        raise ConstancyViolation(
-            f"Cannot modify storage inside {context.pp_constancy()}: {node.annotation}",
-            stmt,
-        )
-    if not node.mutable:
-        raise ConstancyViolation(
-            f"Cannot modify function argument: {node.annotation}",
-            stmt,
-        )
