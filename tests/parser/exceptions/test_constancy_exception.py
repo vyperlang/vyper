@@ -86,6 +86,18 @@ def foo():
     for i in range(x):
         pass
     """,
+    """
+f:int128
+
+@public
+def a (x:int128):
+    self.f = 100
+
+@constant
+@public
+def b():
+    self.a(10)
+    """,
 ]
 
 

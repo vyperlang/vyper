@@ -19,18 +19,6 @@ def b():
     p: int128 = self.a(10)
     """,
     """
-f:int128
-
-@public
-def a (x:int128):
-    self.f = 100
-
-@constant
-@public
-def b():
-    self.a(10)
-    """,
-    """
 @private
 def foo():
     self.goo()

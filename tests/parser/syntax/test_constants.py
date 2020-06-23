@@ -109,11 +109,15 @@ TEST_WEI: constant(uint256) = 1
 
 @private
 def test():
-   raw_call(0x0000000000000000000000000000000000000005, b'hello', max_outsize=TEST_C, gas=2000)
+   foo: bytes[1] = raw_call(
+       0x0000000000000000000000000000000000000005, b'hello', max_outsize=TEST_C, gas=2000
+    )
 
 @private
 def test1():
-    raw_call(0x0000000000000000000000000000000000000005, b'hello', max_outsize=256, gas=TEST_WEI)
+    foo: bytes[256] = raw_call(
+        0x0000000000000000000000000000000000000005, b'hello', max_outsize=256, gas=TEST_WEI
+    )
     """,
     """
 LIMIT: constant(int128) = 1
