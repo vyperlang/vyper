@@ -69,6 +69,7 @@ class DecimalDefinition(FixedAbstractType, _NumericDefinition):
 
 # primitives
 
+
 class Int128Primitive(_NumericPrimitive):
     _bounds = (-(2 ** 127), 2 ** 127 - 1)
     _id = "int128"

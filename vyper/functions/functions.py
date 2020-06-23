@@ -11,7 +11,7 @@ from vyper.context.types.abstract import (
     IntegerAbstractType,
     NumericAbstractType,
 )
-from vyper.context.types.bases import ValueTypeDefinition
+from vyper.context.types.bases import DataLocation, ValueTypeDefinition
 from vyper.context.types.indexable.sequence import ArrayDefinition
 from vyper.context.types.utils import get_type_from_annotation
 from vyper.context.types.value.address import AddressDefinition
@@ -170,7 +170,7 @@ class Convert:
 
     def fetch_call_return(self, node):
         validate_call_args(node, 2)
-        target_type = get_type_from_annotation(node.args[1])
+        target_type = get_type_from_annotation(node.args[1], DataLocation.MEMORY)
 
         validate_expected_type(node.args[0], ValueTypeDefinition())
         try:
@@ -782,7 +782,7 @@ class Extract32(_SimpleBuiltinFunction):
     def fetch_call_return(self, node):
         super().fetch_call_return(node)
         if node.keywords:
-            return_type = get_type_from_annotation(node.keywords[0].value)
+            return_type = get_type_from_annotation(node.keywords[0].value, DataLocation.MEMORY)
             if not isinstance(
                 return_type,
                 (AddressDefinition, Bytes32Definition, IntegerAbstractType)
@@ -1601,7 +1601,7 @@ class Empty:
 
     def fetch_call_return(self, node):
         validate_call_args(node, 1)
-        type_ = get_type_from_annotation(node.args[0])
+        type_ = get_type_from_annotation(node.args[0], DataLocation.MEMORY)
         return type_
 
     @validate_inputs

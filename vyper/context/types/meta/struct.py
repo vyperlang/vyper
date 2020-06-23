@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
-from vyper.context.types.bases import MemberTypeDefinition
+from vyper.context.types.bases import DataLocation, MemberTypeDefinition
 from vyper.context.types.indexable.mapping import MappingDefinition
 from vyper.context.types.utils import get_type_from_annotation
 from vyper.context.validation.utils import validate_expected_type
@@ -16,10 +16,15 @@ from vyper.exceptions import (
 
 class StructDefinition(MemberTypeDefinition):
     def __init__(
-        self, _id: str, members: dict, is_constant: bool = False, is_public: bool = False,
+        self,
+        _id: str,
+        members: dict,
+        location: DataLocation = DataLocation.MEMORY,
+        is_constant: bool = False,
+        is_public: bool = False,
     ) -> None:
         self._id = _id
-        super().__init__(is_constant, is_public)
+        super().__init__(location, is_constant, is_public)
         for key, type_ in members.items():
             self.add_member(key, type_)
 
@@ -43,11 +48,15 @@ class StructPrimitive:
         return False
 
     def from_annotation(
-        self, node: vy_ast.VyperNode, is_constant: bool = False, is_public: bool = False
+        self,
+        node: vy_ast.VyperNode,
+        location: DataLocation = DataLocation.UNSET,
+        is_constant: bool = False,
+        is_public: bool = False,
     ) -> StructDefinition:
         if not isinstance(node, vy_ast.Name):
             raise StructureException("Invalid type assignment", node)
-        return StructDefinition(self._id, self.members, is_constant, is_public)
+        return StructDefinition(self._id, self.members, location, is_constant, is_public)
 
     def fetch_call_return(self, node: vy_ast.Call) -> StructDefinition:
         validate_call_args(node, 1)
@@ -100,6 +109,6 @@ def build_primitive_from_node(base_node: vy_ast.ClassDef) -> StructPrimitive:
             raise NamespaceCollision(
                 f"Struct member '{member_name}' has already been declared", node.target
             )
-        members[member_name] = get_type_from_annotation(node.annotation)
+        members[member_name] = get_type_from_annotation(node.annotation, DataLocation.UNSET)
 
     return StructPrimitive(base_node.name, members)

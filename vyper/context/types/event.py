@@ -3,6 +3,7 @@ from typing import List
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
+from vyper.context.types.bases import DataLocation
 from vyper.context.types.utils import get_type_from_annotation
 from vyper.context.validation.utils import validate_expected_type
 from vyper.exceptions import StructureException
@@ -33,7 +34,11 @@ class Event:
 
     @classmethod
     def from_annotation(
-        cls, node: vy_ast.Call, is_constant: bool = False, is_public: bool = False
+        cls,
+        node: vy_ast.Call,
+        location: DataLocation = DataLocation.UNSET,
+        is_constant: bool = False,
+        is_public: bool = False,
     ) -> "Event":
         arguments = OrderedDict()
         indexed = []
@@ -47,7 +52,7 @@ class Event:
                 value = value.args[0]
             else:
                 indexed.append(False)
-            arguments[key] = get_type_from_annotation(value)
+            arguments[key] = get_type_from_annotation(value, DataLocation.UNSET)
         return cls(arguments, indexed)
 
     def fetch_call_return(self, node: vy_ast.Call) -> None:

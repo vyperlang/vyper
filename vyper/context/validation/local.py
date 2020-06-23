@@ -2,6 +2,7 @@ from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.context.namespace import get_namespace
 from vyper.context.types.abstract import IntegerAbstractType
+from vyper.context.types.bases import DataLocation
 from vyper.context.types.function import ContractFunctionType
 from vyper.context.types.indexable.sequence import (
     ArrayDefinition,
@@ -120,7 +121,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if name in self.namespace["self"].members:
             raise NamespaceCollision("Variable name shadows an existing storage-scoped value", node)
 
-        type_definition = get_type_from_annotation(node.annotation)
+        type_definition = get_type_from_annotation(node.annotation, DataLocation.MEMORY)
         validate_expected_type(node.value, type_definition)
 
         try:
@@ -133,6 +134,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException("Right-hand side of assignment cannot be a tuple", node.value)
         target = get_exact_type_from_node(node.target)
         validate_expected_type(node.value, target)
+        if self.func.is_constant and target.location == DataLocation.STORAGE:
+            raise ConstancyViolation("Cannot modify storage in a constant function", node)
         target.validate_modification(node)
 
     def visit_AugAssign(self, node):
@@ -140,6 +143,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException("Right-hand side of assignment cannot be a tuple", node.value)
         target = get_exact_type_from_node(node.target)
         validate_expected_type(node.value, target)
+        if self.func.is_constant and target.location == DataLocation.STORAGE:
+            raise ConstancyViolation("Cannot modify storage in a constant function", node)
         target.validate_modification(node)
 
     def visit_Raise(self, node):
