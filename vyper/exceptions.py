@@ -256,3 +256,7 @@ class UnexpectedValue(VyperInternalException):
 
 class UnfoldableNode(VyperInternalException):
     """Constant folding logic cannot be applied to an AST node."""
+
+
+class TypeCheckFailure(VyperInternalException):
+    """An issue was not caught during type checking that should have been."""

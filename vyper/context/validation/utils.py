@@ -21,6 +21,7 @@ from vyper.exceptions import (
     UndeclaredDefinition,
     UnknownAttribute,
     VyperException,
+    ZeroDivisionException,
 )
 
 
@@ -100,6 +101,14 @@ class _ExprTypeChecker:
     def types_from_BinOp(self, node):
         # binary operation: `x + y`
         types_list = get_common_types(node.left, node.right)
+
+        if (
+            isinstance(node.op, (vy_ast.Div, vy_ast.Mod))
+            and isinstance(node.right, vy_ast.Num)
+            and not node.right.value
+        ):
+            raise ZeroDivisionException(f"{node.op.description} by zero", node)
+
         return _validate_op(node, types_list, "validate_numeric_op")
 
     def types_from_BoolOp(self, node):

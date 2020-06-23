@@ -1,11 +1,7 @@
 import copy
 
 from vyper import ast as vy_ast
-from vyper.exceptions import (
-    StructureException,
-    TypeMismatch,
-    VariableDeclarationException,
-)
+from vyper.exceptions import TypeMismatch
 from vyper.parser.context import Context
 from vyper.parser.expr import Expr
 from vyper.parser.memory_allocator import MemoryAllocator
@@ -73,54 +69,13 @@ class Constants(object):
         return ann_expr
 
     def add_constant(self, item, global_ctx):
-        args = item.annotation.args
-        if not item.value:
-            raise StructureException('Constants must express a value!', item)
-
-        is_correctly_formatted_struct = (
-            len(args) == 1 and isinstance(args[0], (vy_ast.Subscript, vy_ast.Name, vy_ast.Call))
-        ) and item.target
-
-        if is_correctly_formatted_struct:
-            c_name = item.target.id
-            if global_ctx.is_valid_varname(c_name, item):
-                self._constants[c_name] = self.unroll_constant(item, global_ctx)
-                self._constants_ast[c_name] = item.value
-            # TODO: the previous `if` has no else which will result in this
-            # *silently* existing without doing anything. is this intended
-            # behavior.
-        else:
-            raise StructureException('Incorrectly formatted struct', item)
+        c_name = item.target.id
+        if global_ctx.is_valid_varname(c_name, item):
+            self._constants[c_name] = self.unroll_constant(item, global_ctx)
+            self._constants_ast[c_name] = item.value
+        # TODO: the previous `if` has no else which will result in this
+        # *silently* existing without doing anything. is this intended
+        # behavior.
 
     def ast_is_constant(self, ast_node):
         return isinstance(ast_node, vy_ast.Name) and ast_node.id in self._constants
-
-    def is_constant_of_base_type(self, ast_node, base_types):
-        base_types = (base_types) if not isinstance(base_types, tuple) else base_types
-        valid = self.ast_is_constant(ast_node)
-        if not valid:
-            return False
-
-        const = self._constants[ast_node.id]
-        if isinstance(const.typ, BaseType) and const.typ.typ in base_types:
-            return True
-
-        return False
-
-    def get_constant(self, const_name, context):
-        """ Return unrolled const """
-
-        # check if value is compatible with
-        const = self._constants[const_name]
-
-        if isinstance(const, vy_ast.AnnAssign):  # Handle ByteArrays.
-            if context:
-                expr = Expr(const.value, context).lll_node
-                return expr
-            else:
-                raise VariableDeclarationException(
-                    f"ByteArray: Can not be used outside of a function context: {const_name}"
-                )
-
-        # Other types are already unwrapped, no need
-        return self._constants[const_name]

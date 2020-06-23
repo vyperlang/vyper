@@ -274,11 +274,7 @@ def parse_type(item, location, sigs=None, custom_structs=None, constants=None):
         # Fixed size lists or bytearrays, e.g. num[100]
         is_constant_val = constants.ast_is_constant(item.slice.value)
         if isinstance(item.slice.value, vy_ast.Int) or is_constant_val:
-            n_val = (
-                constants.get_constant(item.slice.value.id, context=None).value
-                if is_constant_val
-                else item.slice.value.n
-            )
+            n_val = item.slice.value.n
             if not isinstance(n_val, int) or n_val <= 0:
                 raise InvalidType(
                     "Arrays / ByteArrays must have a positive integral number of elements",
