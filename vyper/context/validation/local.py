@@ -2,6 +2,7 @@ from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.context.namespace import get_namespace
 from vyper.context.types.abstract import IntegerAbstractType
+from vyper.context.types.function import ContractFunctionType
 from vyper.context.types.indexable.sequence import (
     ArrayDefinition,
     TupleDefinition,
@@ -280,6 +281,15 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if not isinstance(node.value, vy_ast.Call):
             raise StructureException("Expressions without assignment are disallowed", node)
 
-        # TODO only some functions can be called this way
-        type_ = get_exact_type_from_node(node.value.func)
-        type_.fetch_call_return(node.value)
+        fn_type = get_exact_type_from_node(node.value.func)
+        if isinstance(fn_type, ContractFunctionType):
+            if self.func.is_constant and not fn_type.is_constant:
+                raise ConstancyViolation(
+                    "Cannot call a non-constant function from a constant function", node
+                )
+
+        return_value = fn_type.fetch_call_return(node.value)
+        if return_value and not isinstance(fn_type, ContractFunctionType):
+            raise StructureException(
+                f"Function '{node.value.func}' cannot be called without assigning the result", node
+            )

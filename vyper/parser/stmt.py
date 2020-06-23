@@ -5,7 +5,7 @@ from vyper.exceptions import (
     StructureException,
     TypeCheckFailure,
 )
-from vyper.functions import DISPATCH_TABLE, STMT_DISPATCH_TABLE
+from vyper.functions import STMT_DISPATCH_TABLE
 from vyper.parser import external_call, self_call
 from vyper.parser.context import Context
 from vyper.parser.events import pack_logging_data, pack_logging_topics
@@ -140,15 +140,7 @@ class Stmt:
 
         if isinstance(self.stmt.func, vy_ast.Name):
             funcname = self.stmt.func.id
-            if funcname in STMT_DISPATCH_TABLE:
-                return STMT_DISPATCH_TABLE[funcname].build_LLL(self.stmt, self.context)
-            elif funcname in DISPATCH_TABLE:
-                raise StructureException(
-                    f"Function {funcname} can not be called without being used.",
-                    self.stmt,
-                )
-            else:
-                return
+            return STMT_DISPATCH_TABLE[funcname].build_LLL(self.stmt, self.context)
         elif is_self_function:
             return self_call.make_call(self.stmt, self.context)
         elif is_log_call:
