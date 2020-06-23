@@ -256,22 +256,7 @@ struct C:
 struct Nom:
     a: map(int128, C)
     b: int128
-nom: Nom
-@public
-def foo():
-    self.nom = empty(Nom)
-    """, TypeMismatch),
-    """
-struct C:
-    c: int128
-struct Nom:
-    a: map(int128, C)
-    b: int128
-nom: Nom
-@public
-def foo():
-    self.nom = Nom({a: [C({c: 5})], b: 7})
-    """,
+    """, StructureException),
     """
 struct C1:
     c: int128
@@ -415,18 +400,6 @@ nom: C[3]
 @public
 def foo():
     self.nom = self.mom.a
-    """,
-    """
-struct C:
-    c: int128
-struct Nom:
-    a: map(int128, C)
-    b: int128
-nom: Nom
-@public
-def foo():
-    self.nom.a[135] = C({c: 6})
-    self.nom.b = 9
     """,
     """
 struct C:

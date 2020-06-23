@@ -262,7 +262,7 @@ def test_range_constant(get_contract, code, result):
 
 BAD_CODE = [
     # altering list within loop
-    """
+    ("""
 @public
 def data() -> int128:
     s: int128[6] = [1, 2, 3, 4, 5, 6]
@@ -273,17 +273,17 @@ def data() -> int128:
             return i
         count += 1
     return -1
-    """,
-    """
+    """, ConstancyViolation),
+    ("""
 @public
 def foo():
     s: int128[6] = [1, 2, 3, 4, 5, 6]
     count: int128 = 0
     for i in s:
         s[count] += 1
-    """,
+    """, ConstancyViolation),
     # alter storage list within for loop
-    """
+    ("""
 s: int128[6]
 
 @public
@@ -299,7 +299,7 @@ def data() -> int128:
             return i
         count += 1
     return -1
-    """,
+    """, ConstancyViolation),
     # invalid nested loop
     ("""
 @public
@@ -316,18 +316,18 @@ def foo(x: int128):
             pass
      """, NamespaceCollision),
     # invalid iterator assignment
-    """
+    ("""
 @public
 def foo(x: int128):
     for i in [1,2]:
         i = 2
-    """,
-    """
+    """, ConstancyViolation),
+    ("""
 @public
 def foo(x: int128):
     for i in [1,2]:
         i += 2
-    """,
+    """, ConstancyViolation),
     # range of < 1
     ("""
 @public
