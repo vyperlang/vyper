@@ -6,6 +6,7 @@ import vyper.interfaces
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.context.namespace import get_namespace
+from vyper.context.types.bases import DataLocation
 from vyper.context.types.function import ContractFunctionType
 from vyper.context.types.utils import check_literal, get_type_from_annotation
 from vyper.context.validation.base import VyperNodeVisitorBase
@@ -82,7 +83,9 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
                     is_public = True
                 # remove the outer call node, to handle cases such as `public(map(..))`
                 annotation = annotation.args[0]
-        type_definition = get_type_from_annotation(annotation, is_constant, is_public)
+        type_definition = get_type_from_annotation(
+            annotation, DataLocation.STORAGE, is_constant, is_public
+        )
 
         if is_constant:
             if not node.value:

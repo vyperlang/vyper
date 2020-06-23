@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional, Tuple, Union
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.context.namespace import get_namespace
-from vyper.context.types.bases import BaseTypeDefinition
+from vyper.context.types.bases import BaseTypeDefinition, DataLocation
 from vyper.context.types.indexable.sequence import TupleDefinition
 from vyper.context.types.utils import (
     check_constant,
@@ -67,7 +67,7 @@ class ContractFunctionType(BaseTypeDefinition):
         is_constant: bool = False,
         nonreentrant: Optional[str] = None,
     ) -> None:
-        super().__init__(is_constant, is_public)
+        super().__init__(DataLocation.UNSET, is_constant, is_public)
         self.name = name
         self.arguments = arguments
         self.arg_count = arg_count
@@ -99,12 +99,21 @@ class ContractFunctionType(BaseTypeDefinition):
         kwargs: Dict[str, Any] = {f"is_{i}": True for i in ("constant", "payable") if abi[i]}
         arguments = OrderedDict()
         for item in abi["inputs"]:
-            arguments[item["name"]] = get_type_from_abi(item, True)
+            arguments[item["name"]] = get_type_from_abi(
+                item, location=DataLocation.CALLDATA, is_constant=True
+            )
         return_type = None
         if len(abi["outputs"]) == 1:
-            return_type = get_type_from_abi(abi["outputs"][0], True)
+            return_type = get_type_from_abi(
+                abi["outputs"][0], location=DataLocation.CALLDATA, is_constant=True
+            )
         elif len(abi["outputs"]) > 1:
-            return_type = TupleDefinition(tuple(get_type_from_abi(i, True) for i in abi["outputs"]))
+            return_type = TupleDefinition(
+                tuple(
+                    get_type_from_abi(i, location=DataLocation.CALLDATA, is_constant=True)
+                    for i in abi["outputs"]
+                )
+            )
         return cls(abi["name"], arguments, len(arguments), return_type, is_public=True, **kwargs,)
 
     @classmethod
@@ -198,7 +207,9 @@ class ContractFunctionType(BaseTypeDefinition):
             if arg.annotation is None:
                 raise ArgumentException(f"Function argument '{arg.arg}' is missing a type", arg)
 
-            type_definition = get_type_from_annotation(arg.annotation, is_constant=True)
+            type_definition = get_type_from_annotation(
+                arg.annotation, location=DataLocation.CALLDATA, is_constant=True
+            )
             if value is not None:
                 if not check_constant(value):
                     raise ConstancyViolation("Value must be literal or environment variable", value)
@@ -210,11 +221,11 @@ class ContractFunctionType(BaseTypeDefinition):
         if node.returns is None:
             return_type = None
         elif isinstance(node.returns, (vy_ast.Name, vy_ast.Call, vy_ast.Subscript)):
-            return_type = get_type_from_annotation(node.returns)
+            return_type = get_type_from_annotation(node.returns, location=DataLocation.MEMORY)
         elif isinstance(node.returns, vy_ast.Tuple):
             tuple_types: Tuple = ()
             for n in node.returns.elements:
-                tuple_types += (get_type_from_annotation(n),)
+                tuple_types += (get_type_from_annotation(n, location=DataLocation.MEMORY),)
             return_type = TupleDefinition(tuple_types)
         else:
             raise InvalidType("Function return value must be a type name or tuple", node.returns)
@@ -239,7 +250,7 @@ class ContractFunctionType(BaseTypeDefinition):
         """
         if not isinstance(node.annotation, vy_ast.Call):
             raise CompilerPanic("Annotation must be a call to public()")
-        type_ = get_type_from_annotation(node.annotation.args[0])
+        type_ = get_type_from_annotation(node.annotation.args[0], location=DataLocation.STORAGE)
         arguments, return_type = type_.get_signature()
         args_dict: OrderedDict = OrderedDict()
         for item in arguments:

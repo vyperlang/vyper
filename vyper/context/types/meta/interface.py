@@ -4,7 +4,7 @@ from typing import Union
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.context.namespace import get_namespace
-from vyper.context.types.bases import MemberTypeDefinition
+from vyper.context.types.bases import DataLocation, MemberTypeDefinition
 from vyper.context.types.function import ContractFunctionType
 from vyper.context.types.value.address import AddressDefinition
 from vyper.context.validation.utils import validate_expected_type
@@ -20,10 +20,15 @@ class InterfaceDefinition(MemberTypeDefinition):
     _type_members = {"address": AddressDefinition()}
 
     def __init__(
-        self, _id: str, members: OrderedDict, is_constant: bool = False, is_public: bool = False,
+        self,
+        _id: str,
+        members: OrderedDict,
+        location: DataLocation = DataLocation.MEMORY,
+        is_constant: bool = False,
+        is_public: bool = False,
     ) -> None:
         self._id = _id
-        super().__init__(is_constant, is_public)
+        super().__init__(location, is_constant, is_public)
         for key, type_ in members.items():
             self.add_member(key, type_)
 
@@ -41,13 +46,17 @@ class InterfacePrimitive:
         return f"{self._id} declaration object"
 
     def from_annotation(
-        self, node: vy_ast.VyperNode, is_constant: bool = False, is_public: bool = False
+        self,
+        node: vy_ast.VyperNode,
+        location: DataLocation = DataLocation.MEMORY,
+        is_constant: bool = False,
+        is_public: bool = False,
     ) -> InterfaceDefinition:
 
         if not isinstance(node, vy_ast.Name):
             raise StructureException("Invalid type assignment", node)
 
-        return InterfaceDefinition(self._id, self.members, is_constant, is_public)
+        return InterfaceDefinition(self._id, self.members, location, is_constant, is_public)
 
     def fetch_call_return(self, node: vy_ast.Call) -> InterfaceDefinition:
         validate_call_args(node, 1)

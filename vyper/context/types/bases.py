@@ -1,4 +1,6 @@
+import copy
 from collections import OrderedDict
+from enum import Enum
 from typing import Any, Dict, Optional, Tuple, Type, Union
 
 from vyper import ast as vy_ast
@@ -14,6 +16,13 @@ from vyper.exceptions import (
     UnexpectedValue,
     UnknownAttribute,
 )
+
+
+class DataLocation(Enum):
+    UNSET = 0
+    MEMORY = 1
+    STORAGE = 2
+    CALLDATA = 3
 
 
 class BasePrimitive:
@@ -44,6 +53,7 @@ class BasePrimitive:
     def from_annotation(
         cls,
         node: Union[vy_ast.Name, vy_ast.Call],
+        location: DataLocation = DataLocation.UNSET,
         is_constant: bool = False,
         is_public: bool = False,
     ) -> "BaseTypeDefinition":
@@ -64,7 +74,7 @@ class BasePrimitive:
             raise StructureException("Invalid type assignment", node)
         if node.id != cls._id:
             raise UnexpectedValue("Node id does not match type name")
-        return cls._type(is_constant, is_public)
+        return cls._type(location, is_constant, is_public)
 
     @classmethod
     def from_literal(cls, node: vy_ast.Constant) -> "BaseTypeDefinition":
@@ -177,7 +187,13 @@ class BaseTypeDefinition:
         If `True`, the value of this object cannot be modified after assignment.
     """
 
-    def __init__(self, is_constant: bool = False, is_public: bool = False) -> None:
+    def __init__(
+        self,
+        location: DataLocation = DataLocation.UNSET,
+        is_constant: bool = False,
+        is_public: bool = False,
+    ) -> None:
+        self.location = location
         self.is_constant = is_constant
         self.is_public = is_public
 
@@ -341,8 +357,9 @@ class BaseTypeDefinition:
         node : Assign | AugAssign
             Vyper ast node of the modifying action.
         """
+        if self.location == DataLocation.CALLDATA:
+            raise ConstancyViolation("Cannot write to calldata", node)
         if getattr(self, "is_constant", False):
-            # TODO store location information to make this exception more meaningful
             raise ConstancyViolation("Constant value cannot be written to", node)
         if isinstance(node, vy_ast.AugAssign):
             self.validate_numeric_op(node)
@@ -411,8 +428,13 @@ class MemberTypeDefinition(ValueTypeDefinition):
 
     _type_members: Dict
 
-    def __init__(self, is_constant: bool = False, is_public: bool = False) -> None:
-        super().__init__(is_constant, is_public)
+    def __init__(
+        self,
+        location: DataLocation = DataLocation.UNSET,
+        is_constant: bool = False,
+        is_public: bool = False,
+    ) -> None:
+        super().__init__(location, is_constant, is_public)
         self.members: OrderedDict = OrderedDict()
 
     def add_member(self, name: str, type_: BaseTypeDefinition) -> None:
@@ -425,8 +447,11 @@ class MemberTypeDefinition(ValueTypeDefinition):
     def get_member(self, key: str, node: vy_ast.VyperNode) -> BaseTypeDefinition:
         if key in self.members:
             return self.members[key]
-        if key in getattr(self, "_type_members", []):
-            return self._type_members[key]
+        elif key in getattr(self, "_type_members", []):
+            type_ = copy.deepcopy(self._type_members[key])
+            type_.location = self.location
+            type_.is_constant = self.is_constant
+            return type_
         raise UnknownAttribute(f"{self} has no member '{key}'", node)
 
     def __repr__(self):
@@ -452,10 +477,11 @@ class IndexableTypeDefinition(BaseTypeDefinition):
         value_type: BaseTypeDefinition,
         key_type: BaseTypeDefinition,
         _id: str,
+        location: DataLocation = DataLocation.UNSET,
         is_constant: bool = False,
         is_public: bool = False,
     ) -> None:
-        super().__init__(is_constant, is_public)
+        super().__init__(location, is_constant, is_public)
         self.value_type = value_type
         self.key_type = key_type
         self._id = _id

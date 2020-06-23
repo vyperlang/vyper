@@ -6,7 +6,11 @@ from vyper.context.types.abstract import (
     ArrayValueAbstractType,
     BytesAbstractType,
 )
-from vyper.context.types.bases import BasePrimitive, ValueTypeDefinition
+from vyper.context.types.bases import (
+    BasePrimitive,
+    DataLocation,
+    ValueTypeDefinition,
+)
 from vyper.exceptions import CompilerPanic, StructureException, UnexpectedValue
 
 
@@ -33,8 +37,14 @@ class _ArrayValueDefinition(ValueTypeDefinition):
     def __repr__(self):
         return f"{self._id}[{self.length}]"
 
-    def __init__(self, length: int = 0, is_constant: bool = False, is_public: bool = False) -> None:
-        super().__init__(is_constant, is_public)
+    def __init__(
+        self,
+        length: int = 0,
+        location: DataLocation = DataLocation.MEMORY,
+        is_constant: bool = False,
+        is_public: bool = False,
+    ) -> None:
+        super().__init__(location, is_constant, is_public)
         self._length = length
         self._min_length = length
 
@@ -97,7 +107,11 @@ class _ArrayValuePrimitive(BasePrimitive):
 
     @classmethod
     def from_annotation(
-        cls, node: vy_ast.VyperNode, is_constant: bool = False, is_public: bool = False
+        cls,
+        node: vy_ast.VyperNode,
+        location: DataLocation = DataLocation.MEMORY,
+        is_constant: bool = False,
+        is_public: bool = False,
     ) -> _ArrayValueDefinition:
         if not isinstance(node, vy_ast.Subscript):
             raise StructureException(
@@ -109,7 +123,7 @@ class _ArrayValuePrimitive(BasePrimitive):
             raise UnexpectedValue("Node id does not match type name")
 
         length = validation.utils.get_index_value(node.slice)  # type: ignore
-        return cls._type(length, is_constant, is_public)
+        return cls._type(length, location, is_constant, is_public)
 
     @classmethod
     def from_literal(cls, node: vy_ast.Constant) -> _ArrayValueDefinition:
