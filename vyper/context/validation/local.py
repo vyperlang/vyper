@@ -1,3 +1,5 @@
+import copy
+
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.context.namespace import get_namespace
@@ -200,6 +202,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 self.visit(n)
 
     def visit_For(self, node):
+        if isinstance(node.iter, vy_ast.Subscript):
+            raise StructureException("Cannot iterate over a nested list", node.iter)
+
         if isinstance(node.iter, vy_ast.Call):
             # iteration via range()
             if node.iter.get("func.id") != "range":
@@ -251,8 +256,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         else:
             # iteration over a variable or literal list
-            if isinstance(node.iter, vy_ast.Subscript):
-                raise StructureException("Cannot iterate over a nested list", node.iter)
             type_list = [
                 i.value_type
                 for i in get_possible_types_from_node(node.iter)
@@ -265,7 +268,22 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if next((i for i in type_list if isinstance(i, ArrayDefinition)), False):
             raise StructureException("Cannot iterate over a nested list", node.iter)
 
+        if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
+            # find references to the iterated node within the for-loop body
+            similar_nodes = [
+                n
+                for n in node.get_descendants(type(node.iter))
+                if vy_ast.compare_nodes(node.iter, n)
+            ]
+            for n in similar_nodes:
+                # raise if the node is the target of an assignment statement
+                assign = n.get_ancestor((vy_ast.Assign, vy_ast.AugAssign))
+                if assign and n in assign.target.get_descendants(include_self=True):
+                    raise ConstancyViolation("Cannot alter array during iteration", n)
+
         for type_ in type_list:
+            type_ = copy.deepcopy(type_)
+            type_.is_constant = True
             with self.namespace.enter_scope():
                 try:
                     self.namespace[node.target.id] = type_
