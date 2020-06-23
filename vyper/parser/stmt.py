@@ -249,11 +249,6 @@ class Stmt:
         if self._is_list_iter():
             return self._parse_for_list()
 
-        if not isinstance(self.stmt.iter, vy_ast.Call):
-            if isinstance(self.stmt.iter, vy_ast.Subscript):
-                raise StructureException("Cannot iterate over a nested list", self.stmt.iter)
-            return
-
         if self.stmt.get('iter.func.id') != "range":
             return
         if not 0 < len(self.stmt.iter.args) < 3:
@@ -286,11 +281,7 @@ class Stmt:
 
             r = rounds if isinstance(rounds, int) else rounds.value
             if r < 1:
-                raise StructureException(
-                    f"For loop has invalid number of iterations ({r}),"
-                    " the value must be greater than zero",
-                    self.stmt.iter
-                )
+                return
 
             varname = self.stmt.target.id
             pos = self.context.new_variable(varname, BaseType('int128'), pos=getpos(self.stmt))
@@ -331,7 +322,7 @@ class Stmt:
         with self.context.range_scope():
             iter_list_node = Expr(self.stmt.iter, self.context).lll_node
         if not isinstance(iter_list_node.typ.subtype, BaseType):  # Sanity check on list subtype.
-            raise StructureException('For loops allowed only on basetype lists.', self.stmt.iter)
+            return
         iter_var_type = (
             self.context.vars.get(self.stmt.iter.id).typ
             if isinstance(self.stmt.iter, vy_ast.Name)
