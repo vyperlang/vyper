@@ -58,7 +58,7 @@ class VyperRequestHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_cors_all()
             self.end_headers()
-            self.wfile.write('Vyper Compiler. Version: ' + (vyper.__version__).encode() + '\n')
+            self.wfile.write(f'Vyper Compiler. Version: {vyper.__version__}\n'.encode())
         else:
             self.send_404()
 
