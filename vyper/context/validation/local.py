@@ -149,10 +149,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
     def visit_Assert(self, node):
         if node.msg:
-            if not (
-                (isinstance(node.msg, vy_ast.Name) and node.msg.id == "UNREACHABLE")
-                or isinstance(node.msg, vy_ast.Str)
-            ):
+            if isinstance(node.msg, vy_ast.Str):
+                if not node.msg.value.strip():
+                    raise StructureException("Reason string cannot be empty", node.msg)
+            elif not (isinstance(node.msg, vy_ast.Name) and node.msg.id == "UNREACHABLE"):
                 raise InvalidType("Reason must UNREACHABLE or a string literal", node.msg)
 
         try:
