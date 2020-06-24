@@ -120,6 +120,7 @@ class ContractFunctionType(BaseTypeDefinition):
     def from_FunctionDef(
         cls,
         node: vy_ast.FunctionDef,
+        is_constant: Optional[bool] = None,
         is_public: Optional[bool] = None,
         include_defaults: Optional[bool] = True,
     ) -> "ContractFunctionType":
@@ -142,6 +143,8 @@ class ContractFunctionType(BaseTypeDefinition):
         ContractFunctionType
         """
         kwargs: Dict[str, Any] = {}
+        if is_constant is not None:
+            kwargs["is_constant"] = is_constant
         if is_public is not None:
             kwargs["is_public"] = is_public
 
