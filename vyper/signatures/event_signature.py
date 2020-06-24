@@ -69,13 +69,12 @@ class EventSignature:
                     raise EventDeclarationException("Indexed arguments are limited to 32 bytes")
                 if topics_count > 4:
                     raise EventDeclarationException(
-                        f"Maximum of 3 topics {topics_count - 1} given",
-                        arg,
+                        f"Maximum of 3 topics {topics_count - 1} given", arg_item,
                     )
                 if not isinstance(arg, str):
-                    raise VariableDeclarationException("Argument name invalid", arg)
+                    raise VariableDeclarationException("Argument name invalid", arg_item)
                 if not typ:
-                    raise InvalidType("Argument must have type", arg)
+                    raise InvalidType("Argument must have type", arg_item)
                 check_valid_varname(
                     arg,
                     global_ctx._structs,

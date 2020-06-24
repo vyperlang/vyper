@@ -6,7 +6,7 @@ from vyper.ast.validation import validate_call_args
 from vyper.context.types.bases import DataLocation
 from vyper.context.types.utils import get_type_from_annotation
 from vyper.context.validation.utils import validate_expected_type
-from vyper.exceptions import StructureException
+from vyper.exceptions import EventDeclarationException, StructureException
 
 # NOTE: This implementation isn't as polished as it could be, because it will be
 # replaced with a new struct-style syntax prior to the next release.
@@ -41,13 +41,17 @@ class Event:
         is_public: bool = False,
     ) -> "Event":
         arguments = OrderedDict()
-        indexed = []
+        indexed: List = []
         validate_call_args(node, 1)
         if not isinstance(node.args[0], vy_ast.Dict):
             raise StructureException("Invalid event declaration syntax", node.args[0])
         for key, value in zip(node.args[0].keys, node.args[0].values):
             if isinstance(value, vy_ast.Call) and value.get("func.id") == "indexed":
                 validate_call_args(value, 1)
+                if indexed.count(True) == 3:
+                    raise EventDeclarationException(
+                        "Event cannot have more than three indexed arguments", value
+                    )
                 indexed.append(True)
                 value = value.args[0]
             else:
