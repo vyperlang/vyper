@@ -1,6 +1,6 @@
 import importlib
 import pkgutil
-from typing import Union
+from typing import Optional, Union
 
 import vyper.interfaces
 from vyper import ast as vy_ast
@@ -12,6 +12,7 @@ from vyper.context.types.utils import check_literal, get_type_from_annotation
 from vyper.context.validation.base import VyperNodeVisitorBase
 from vyper.context.validation.utils import validate_expected_type
 from vyper.exceptions import (
+    CallViolation,
     CompilerPanic,
     ConstancyViolation,
     ExceptionList,
@@ -28,6 +29,19 @@ def add_module_namespace(vy_module: vy_ast.Module, interface_codes: InterfaceDic
 
     namespace = get_namespace()
     ModuleNodeVisitor(vy_module, interface_codes, namespace)
+
+
+def _find_cyclic_call(fn_names: list, self_members: dict) -> Optional[list]:
+    if fn_names[-1] not in self_members:
+        return None
+    internal_calls = self_members[fn_names[-1]].internal_calls
+    for name in internal_calls:
+        if name in fn_names:
+            return fn_names + [name]
+        sequence = _find_cyclic_call(fn_names + [name], self_members)
+        if sequence:
+            return sequence
+    return None
 
 
 class ModuleNodeVisitor(VyperNodeVisitorBase):
@@ -56,6 +70,51 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             # level logic to parse regardless of the ordering of code elements.
             if count == len(module_nodes):
                 err_list.raise_if_not_empty()
+
+        # get list of internal function calls made by each function
+        call_function_names = set()
+        self_members = namespace["self"].members
+        for node in self.ast.get_children(vy_ast.FunctionDef):
+            call_function_names.add(node.name)
+            self_members[node.name].internal_calls = set(
+                i.func.attr for i in node.get_descendants(vy_ast.Call, {'func.value.id': "self"})
+            )
+            if node.name in self_members[node.name].internal_calls:
+                self_node = node.get_descendants(
+                    vy_ast.Attribute, {"value.id": "self", "attr": node.name}
+                )[0]
+                raise CallViolation(f"Function '{node.name}' calls into itself", self_node)
+
+        for fn_name in sorted(call_function_names):
+
+            if fn_name not in self_members:
+                # the referenced function does not exist - this is an issue, but we'll report
+                # it later when parsing the function so we can give more meaningful output
+                continue
+
+            # check for circular function calls
+            sequence = _find_cyclic_call([fn_name], self_members)
+            if sequence is not None:
+                nodes = []
+                for i in range(len(sequence) - 1):
+                    fn_node = self.ast.get_children(vy_ast.FunctionDef, {"name": sequence[i]})[0]
+                    call_node = fn_node.get_descendants(
+                        vy_ast.Attribute, {"value.id": "self", "attr": sequence[i + 1]}
+                    )[0]
+                    nodes.append(call_node)
+
+                raise CallViolation("Contract contains cyclic function call", *nodes)
+
+            # get complete list of functions that are reachable from this function
+            function_set = set(i for i in self_members[fn_name].internal_calls if i in self_members)
+            while True:
+                expanded = set(x for i in function_set for x in self_members[i].internal_calls)
+                expanded |= function_set
+                if expanded == function_set:
+                    break
+                function_set = expanded
+
+            self_members[fn_name].recursive_calls = function_set
 
     def visit_AnnAssign(self, node):
         name = node.get("target.id")
