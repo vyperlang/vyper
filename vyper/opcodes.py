@@ -240,8 +240,8 @@ def _gas(value: OpcodeValue, idx: int) -> Optional[OpcodeRulesetValue]:
 
 def _mk_version_opcodes(opcodes: OpcodeMap, idx: int) -> OpcodeRulesetMap:
     return dict(
-        (k, _gas(v, idx))
-        for k, v in opcodes.items()  # type: ignore
+        (k, _gas(v, idx))  # type: ignore
+        for k, v in opcodes.items()
         if _gas(v, idx) is not None
     )
 
