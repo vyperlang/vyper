@@ -153,5 +153,15 @@ def _get_class_functions(base_node: vy_ast.ClassDef) -> OrderedDict:
     for node in base_node.body:
         if not isinstance(node, vy_ast.FunctionDef):
             raise StructureException("Interfaces can only contain function definitions", node)
-        functions[node.name] = ContractFunctionType.from_FunctionDef(node, is_public=True)
+
+        if len(node.body) != 1 or node.body[0].get("value.id") not in ("constant", "modifying"):
+            raise StructureException(
+                "Interface function must be set as constant or modifying",
+                node.body[0] if node.body else node,
+            )
+
+        is_constant = bool(node.body[0].value.id == "constant")
+        fn = ContractFunctionType.from_FunctionDef(node, is_constant=is_constant, is_public=True)
+        functions[node.name] = fn
+
     return functions
