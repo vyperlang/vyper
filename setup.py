@@ -19,6 +19,7 @@ extras_require = {
         'hypothesis[lark]>=5.16.2,<6.0',
     ],
     'lint': [
+        'black>=19.10b0,<20.0',
         'flake8>=3.8,<4.0',
         'flake8-bugbear>=20.1,<21.0',
         'flake8-use-fstring>=1.1,<2.0',
