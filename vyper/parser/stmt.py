@@ -68,7 +68,7 @@ class Stmt:
                 constants=self.context.constants,
             )
             varname = self.stmt.target.id
-            pos = self.context.new_variable(varname, typ)
+            pos = self.context.new_variable(varname, typ, pos=self.stmt)
             if self.stmt.value is None:
                 return
 
