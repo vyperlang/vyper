@@ -1,4 +1,5 @@
 import copy
+from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
@@ -35,7 +36,7 @@ from vyper.exceptions import (
 )
 
 
-def validate_functions(vy_module):
+def validate_functions(vy_module: vy_ast.Module) -> None:
 
     """Analyzes a vyper ast and validates the function-level namespaces."""
 
@@ -44,14 +45,14 @@ def validate_functions(vy_module):
     for node in vy_module.get_children(vy_ast.FunctionDef):
         with namespace.enter_scope():
             try:
-                FunctionNodeVisitor(node, namespace)
+                FunctionNodeVisitor(vy_module, node, namespace)
             except VyperException as e:
                 err_list.append(e)
 
     err_list.raise_if_not_empty()
 
 
-def _is_terminus_node(node):
+def _is_terminus_node(node: vy_ast.VyperNode) -> bool:
     if getattr(node, "_is_terminus", None):
         return True
     if isinstance(node, vy_ast.Expr) and isinstance(node.value, vy_ast.Call):
@@ -73,6 +74,24 @@ def check_for_terminus(node_list: list) -> bool:
     return False
 
 
+def _check_iterator_assign(
+    target_node: vy_ast.VyperNode, search_node: vy_ast.VyperNode
+) -> Optional[vy_ast.VyperNode]:
+    similar_nodes = [
+        n
+        for n in search_node.get_descendants(type(target_node))
+        if vy_ast.compare_nodes(target_node, n)
+    ]
+
+    for node in similar_nodes:
+        # raise if the node is the target of an assignment statement
+        assign_node = node.get_ancestor((vy_ast.Assign, vy_ast.AugAssign))
+        if assign_node and node in assign_node.target.get_descendants(include_self=True):
+            return node
+
+    return None
+
+
 class FunctionNodeVisitor(VyperNodeVisitorBase):
 
     ignored_types = (
@@ -83,7 +102,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
     )
     scope_name = "function"
 
-    def __init__(self, fn_node: vy_ast.FunctionDef, namespace: dict) -> None:
+    def __init__(
+        self, vyper_module: vy_ast.Module, fn_node: vy_ast.FunctionDef, namespace: dict
+    ) -> None:
+        self.vyper_module = vyper_module
         self.fn_node = fn_node
         self.namespace = namespace
         self.func = namespace["self"].get_member(fn_node.name, fn_node)
@@ -269,17 +291,35 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException("Cannot iterate over a nested list", node.iter)
 
         if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
-            # find references to the iterated node within the for-loop body
-            similar_nodes = [
-                n
-                for n in node.get_descendants(type(node.iter))
-                if vy_ast.compare_nodes(node.iter, n)
-            ]
-            for n in similar_nodes:
-                # raise if the node is the target of an assignment statement
-                assign = n.get_ancestor((vy_ast.Assign, vy_ast.AugAssign))
-                if assign and n in assign.target.get_descendants(include_self=True):
-                    raise ConstancyViolation("Cannot alter array during iteration", n)
+            # check for references to the iterated value within the body of the loop
+            assign = _check_iterator_assign(node.iter, node)
+            if assign:
+                raise ConstancyViolation("Cannot modify array during iteration", assign)
+
+        if node.iter.get("value.id") == "self":
+            # check if iterated value may be modified by function calls inside the loop
+            iter_name = node.iter.attr
+            for call_node in node.get_descendants(vy_ast.Call, {"func.value.id": "self"}):
+                fn_name = call_node.func.attr
+
+                fn_node = self.vyper_module.get_children(vy_ast.FunctionDef, {"name": fn_name})[0]
+                if _check_iterator_assign(node.iter, fn_node):
+                    # check for direct modification
+                    raise ConstancyViolation(
+                        f"Cannot call '{fn_name}' inside for loop, it potentially "
+                        f"modifies iterated storage variable '{iter_name}'",
+                        call_node,
+                    )
+
+                for name in self.namespace["self"].members[fn_name].recursive_calls:
+                    # check for indirect modification
+                    fn_node = self.vyper_module.get_children(vy_ast.FunctionDef, {"name": name})[0]
+                    if _check_iterator_assign(node.iter, fn_node):
+                        raise ConstancyViolation(
+                            f"Cannot call '{fn_name}' inside for loop, it may call to '{name}' "
+                            f"which potentially modifies iterated storage variable '{iter_name}'",
+                            call_node,
+                        )
 
         for type_ in type_list:
             type_ = copy.deepcopy(type_)
