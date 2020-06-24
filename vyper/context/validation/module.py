@@ -77,7 +77,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         for node in self.ast.get_children(vy_ast.FunctionDef):
             call_function_names.add(node.name)
             self_members[node.name].internal_calls = set(
-                i.func.attr for i in node.get_descendants(vy_ast.Call, {'func.value.id': "self"})
+                i.func.attr for i in node.get_descendants(vy_ast.Call, {"func.value.id": "self"})
             )
             if node.name in self_members[node.name].internal_calls:
                 self_node = node.get_descendants(
