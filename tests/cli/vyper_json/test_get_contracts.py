@@ -64,7 +64,7 @@ def test_contract_collision():
 
 def test_contracts_return_value():
     input_json = {
-        "sources": {"/foo.vy": {"content": FOO_CODE}, "contracts/bar.vy": {"content": BAR_CODE},}
+        "sources": {"/foo.vy": {"content": FOO_CODE}, "contracts/bar.vy": {"content": BAR_CODE}}
     }
     result = get_input_dict_contracts(input_json)
     assert result == {"foo.vy": FOO_CODE, "contracts/bar.vy": BAR_CODE}

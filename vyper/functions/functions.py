@@ -1180,7 +1180,7 @@ class RawLog:
                 [
                     "seq",
                     ["mstore", placeholder, unwrap_location(args[1])],
-                    ["log" + str(len(topics)), placeholder, 32,] + topics,
+                    ["log" + str(len(topics)), placeholder, 32] + topics,
                 ],
                 typ=None,
                 pos=getpos(expr),
@@ -1191,7 +1191,7 @@ class RawLog:
                     "with",
                     "_arr",
                     args[1],
-                    ["log" + str(len(topics)), ["add", "_arr", 32], ["mload", "_arr"],] + topics,
+                    ["log" + str(len(topics)), ["add", "_arr", 32], ["mload", "_arr"]] + topics,
                 ],
                 typ=None,
                 pos=getpos(expr),
@@ -1367,7 +1367,7 @@ class Shift(_SimpleBuiltinFunction):
             node_list = right_shift
 
         return LLLnode.from_list(
-            ["with", "_v", args[0], ["with", "_s", args[1], node_list,],],
+            ["with", "_v", args[0], ["with", "_s", args[1], node_list]],
             typ=BaseType("uint256"),
             pos=getpos(expr),
         )
@@ -1394,7 +1394,7 @@ class _AddMulMod(_SimpleBuiltinFunction):
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         return LLLnode.from_list(
-            ["seq", ["assert", args[2]], [self._opcode, args[0], args[1], args[2]],],
+            ["seq", ["assert", args[2]], [self._opcode, args[0], args[1], args[2]]],
             typ=BaseType("uint256"),
             pos=getpos(expr),
         )

@@ -105,7 +105,7 @@ class FunctionSignature:
                 # No default args, so base_args = args.
                 self.base_args = self.args
             # All default argument name/type definitions.
-            self.default_args = code.args.args[-self.total_default_args :]
+            self.default_args = code.args.args[-self.total_default_args :]  # noqa: E203
             # Keep all the value to assign to default parameters.
             self.default_values = dict(
                 zip([arg.arg for arg in self.default_args], code.args.defaults)

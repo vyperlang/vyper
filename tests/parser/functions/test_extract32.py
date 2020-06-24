@@ -35,7 +35,7 @@ def extrakt32_storage(index: int128, inp: bytes[100]) -> bytes32:
     )
 
     for S, i in test_cases:
-        expected_result = S[i : i + 32] if 0 <= i <= len(S) - 32 else None
+        expected_result = S[i : i + 32] if 0 <= i <= len(S) - 32 else None  # noqa: E203
         if expected_result is None:
             assert_tx_failed(lambda: c.extrakt32(S, i))
         else:

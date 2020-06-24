@@ -41,7 +41,7 @@ def keccak256_helper(expr, args, kwargs, context):
         placeholder_node, LLLnode.from_list("_sub", typ=sub.typ, location=sub.location),
     )
     return LLLnode.from_list(
-        ["with", "_sub", sub, ["seq", copier, ["sha3", ["add", placeholder, 32], lengetter]],],
+        ["with", "_sub", sub, ["seq", copier, ["sha3", ["add", placeholder, 32], lengetter]]],
         typ=BaseType("bytes32"),
         pos=getpos(expr),
     )

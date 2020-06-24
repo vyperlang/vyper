@@ -231,7 +231,10 @@ class GlobalContext:
     def mk_getter(cls, varname, typ):
         funs = cls._mk_getter_helper(typ)
         return [
-            f"@public\n@constant\ndef {varname}{funname}({head.rstrip(', ')}) -> {base}: return self.{varname}{tail}"
+            f"""@public
+@constant
+def {varname}{funname}({head.rstrip(', ')}) -> {base}:
+    return self.{varname}{tail}"""
             for (funname, head, tail, base) in funs  # noqa: E501
         ]
 

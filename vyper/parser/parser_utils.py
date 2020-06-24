@@ -252,7 +252,7 @@ def byte_array_to_num(
                 "with",
                 "_el1",
                 first_el_getter,
-                ["with", "_len", ["clamp", 0, lengetter, 32], result,],
+                ["with", "_len", ["clamp", 0, lengetter, 32], result],
             ],
         ],
         typ=BaseType(out_type),

@@ -292,7 +292,7 @@ def foo() -> uint256:
         "BarInterface": {"type": "vyper", "code": interface_code},
     }
     local_interface_codes = {
-        "FooContract": {"FooInterface": {"type": "vyper", "code": interface_code},},
+        "FooContract": {"FooInterface": {"type": "vyper", "code": interface_code}},
         "BarContract": {"BarInterface": {"type": "vyper", "code": interface_code}},
     }
 

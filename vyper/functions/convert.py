@@ -71,7 +71,7 @@ def to_int128(expr, args, kwargs, context):
 
     elif input_type == "address":
         return LLLnode.from_list(
-            ["signextend", 15, ["and", in_arg, (SizeLimits.ADDRSIZE - 1)],],
+            ["signextend", 15, ["and", in_arg, (SizeLimits.ADDRSIZE - 1)]],
             typ=BaseType("int128"),
             pos=getpos(expr),
         )
@@ -203,7 +203,7 @@ def to_decimal(expr, args, kwargs, context):
             return LLLnode.from_list(
                 [
                     "mul",
-                    ["signextend", 15, ["and", in_arg, (SizeLimits.ADDRSIZE - 1)],],
+                    ["signextend", 15, ["and", in_arg, (SizeLimits.ADDRSIZE - 1)]],
                     DECIMAL_DIVISOR,
                 ],
                 typ=BaseType("decimal"),

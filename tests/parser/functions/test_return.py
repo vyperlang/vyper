@@ -28,6 +28,8 @@ def hardtest(arg1: bytes[64], arg2: bytes[64]) -> bytes[128]:
     len_value = int.from_bytes(dyn_section[:32], "big")
 
     assert len_value == len(b"hello" * 15)
-    assert dyn_section[32 : 32 + len_value] == b"hello" * 15
+    assert dyn_section[32 : 32 + len_value] == b"hello" * 15  # noqa: E203
     # second right pad assert
-    assert dyn_section[32 + len_value :] == b"\x00" * (len(dyn_section) - 32 - len_value)
+    assert dyn_section[32 + len_value :] == b"\x00" * (  # noqa: E203
+        len(dyn_section) - 32 - len_value
+    )

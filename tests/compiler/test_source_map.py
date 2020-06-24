@@ -62,7 +62,7 @@ def test_pos_map_offsets():
             lineno, col_offset, end_lineno, end_col_offset = next(pc_iter)
             assert code_lines[lineno - 1][col_offset] == TEST_CODE[start]
             assert length == (
-                sum(len(i) for i in code_lines[lineno - 1 : end_lineno])
+                sum(len(i) for i in code_lines[lineno - 1 : end_lineno])  # noqa: E203
                 - col_offset
                 - (len(code_lines[end_lineno - 1]) - end_col_offset)
             )

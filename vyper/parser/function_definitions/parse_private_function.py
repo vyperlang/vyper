@@ -200,7 +200,7 @@ def parse_private_function(
                         "seq",
                         private_label,
                         LLLnode.from_list(
-                            ["mstore", context.callback_ptr, "pass",],
+                            ["mstore", context.callback_ptr, "pass"],
                             annotation="pop callback pointer",
                             pos=getpos(code),
                         ),

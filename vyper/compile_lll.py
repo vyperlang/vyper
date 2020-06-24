@@ -394,7 +394,7 @@ def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=No
     # <= operator
     elif code.value == "le":
         return compile_to_assembly(
-            LLLnode.from_list(["iszero", ["gt", code.args[0], code.args[1]],]),
+            LLLnode.from_list(["iszero", ["gt", code.args[0], code.args[1]]]),
             withargs,
             existing_labels,
             break_dest,
@@ -403,7 +403,7 @@ def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=No
     # >= operator
     elif code.value == "ge":
         return compile_to_assembly(
-            LLLnode.from_list(["iszero", ["lt", code.args[0], code.args[1]],]),
+            LLLnode.from_list(["iszero", ["lt", code.args[0], code.args[1]]]),
             withargs,
             existing_labels,
             break_dest,
@@ -412,7 +412,7 @@ def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=No
     # <= operator
     elif code.value == "sle":
         return compile_to_assembly(
-            LLLnode.from_list(["iszero", ["sgt", code.args[0], code.args[1]],]),
+            LLLnode.from_list(["iszero", ["sgt", code.args[0], code.args[1]]]),
             withargs,
             existing_labels,
             break_dest,
@@ -421,7 +421,7 @@ def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=No
     # >= operator
     elif code.value == "sge":
         return compile_to_assembly(
-            LLLnode.from_list(["iszero", ["slt", code.args[0], code.args[1]],]),
+            LLLnode.from_list(["iszero", ["slt", code.args[0], code.args[1]]]),
             withargs,
             existing_labels,
             break_dest,
@@ -430,7 +430,7 @@ def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=No
     # != operator
     elif code.value == "ne":
         return compile_to_assembly(
-            LLLnode.from_list(["iszero", ["eq", code.args[0], code.args[1]],]),
+            LLLnode.from_list(["iszero", ["eq", code.args[0], code.args[1]]]),
             withargs,
             existing_labels,
             break_dest,
@@ -444,7 +444,7 @@ def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=No
                     "with",
                     "_val",
                     code.args[0],
-                    ["sub", ["add", "_val", 31], ["mod", ["sub", "_val", 1], 32],],
+                    ["sub", ["add", "_val", 31], ["mod", ["sub", "_val", 1], 32]],
                 ]
             ),
             withargs,

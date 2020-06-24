@@ -144,16 +144,12 @@ def __default__():
         w3.eth.getBalance(buyer_contract_address),
     )
     # Start purchase
-    buyer_contract.start_purchase(
-        transact={"value": 4, "from": w3.eth.accounts[1], "gas": 100000,}
-    )
+    buyer_contract.start_purchase(transact={"value": 4, "from": w3.eth.accounts[1], "gas": 100000})
     assert c.unlocked() is False
     assert c.buyer() == buyer_contract_address
 
     # Trigger "re-entry"
-    buyer_contract.start_received(
-        transact={"from": w3.eth.accounts[1], "gas": 100000,}
-    )
+    buyer_contract.start_received(transact={"from": w3.eth.accounts[1], "gas": 100000})
 
     # Final check if everything worked. 1 value has been transferred
     assert w3.eth.getBalance(a0), w3.eth.getBalance(buyer_contract_address) == (

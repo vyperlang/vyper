@@ -39,13 +39,13 @@ def baz4() -> bytes[100]:
 
 def test_bytes_literal_splicing_fuzz(get_contract_with_gas_estimation):
     for i in range(95, 96, 97):
-        kode = """
+        kode = f"""
 moo: bytes[100]
 
 @public
 def foo(s: int128, L: int128) -> bytes[100]:
         x: int128 = 27
-        r: bytes[100] = slice(b"{0}", s, L)
+        r: bytes[100] = slice(b"{("c" * i)}", s, L)
         y: int128 = 37
         if x * y == 999:
             return r
@@ -53,7 +53,7 @@ def foo(s: int128, L: int128) -> bytes[100]:
 
 @public
 def bar(s: int128, L: int128) -> bytes[100]:
-        self.moo = b"{0}"
+        self.moo = b"{("c" * i)}"
         x: int128 = 27
         r: bytes[100] = slice(self.moo, s, L)
         y: int128  = 37
@@ -64,14 +64,12 @@ def bar(s: int128, L: int128) -> bytes[100]:
 @public
 def baz(s: int128, L: int128) -> bytes[100]:
         x: int128 = 27
-        self.moo = slice(b"{0}", s, L)
+        self.moo = slice(b"{("c" * i)}", s, L)
         y: int128 = 37
         if x * y == 999:
             return self.moo
         return b"3434346667777"
-        """.format(
-            ("c" * i)
-        )  # noqa: FS002
+        """
 
         c = get_contract_with_gas_estimation(kode)
         for e in range(63, 64, 65):

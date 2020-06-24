@@ -74,7 +74,7 @@ class ContractFunctionType(BaseTypeDefinition):
         self.return_type = return_type
         self.kwarg_keys = []
         if isinstance(arg_count, tuple):
-            self.kwarg_keys = list(self.arguments)[arg_count[0] :]
+            self.kwarg_keys = list(self.arguments)[arg_count[0] :]  # noqa: E203
         self.is_payable = is_payable
         self.nonreentrant = nonreentrant
 
