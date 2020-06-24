@@ -9,19 +9,19 @@ def foo(x: bytes[100]) -> bytes[100]:
     """
 
     c = get_contract_with_gas_estimation(test_bytes)
-    moo_result = c.foo(b'cow')
-    assert moo_result == b'cow'
+    moo_result = c.foo(b"cow")
+    assert moo_result == b"cow"
 
-    print('Passed basic bytes test')
+    print("Passed basic bytes test")
 
-    assert c.foo(b'\x35' * 100) == b'\x35' * 100
+    assert c.foo(b"\x35" * 100) == b"\x35" * 100
 
-    print('Passed max-length bytes test')
+    print("Passed max-length bytes test")
 
     # test for greater than 100 bytes, should raise exception
-    assert_tx_failed(lambda: c.foo(b'\x35' * 101))
+    assert_tx_failed(lambda: c.foo(b"\x35" * 101))
 
-    print('Passed input-too-long test')
+    print("Passed input-too-long test")
 
 
 def test_test_bytes2(get_contract_with_gas_estimation):
@@ -33,13 +33,13 @@ def foo(x: bytes[100]) -> bytes[100]:
     """
 
     c = get_contract_with_gas_estimation(test_bytes2)
-    assert c.foo(b'cow') == b'cow'
-    assert c.foo(b'') == b''
-    assert c.foo(b'\x35' * 63) == b'\x35' * 63
-    assert c.foo(b'\x35' * 64) == b'\x35' * 64
-    assert c.foo(b'\x35' * 65) == b'\x35' * 65
+    assert c.foo(b"cow") == b"cow"
+    assert c.foo(b"") == b""
+    assert c.foo(b"\x35" * 63) == b"\x35" * 63
+    assert c.foo(b"\x35" * 64) == b"\x35" * 64
+    assert c.foo(b"\x35" * 65) == b"\x35" * 65
 
-    print('Passed string copying test')
+    print("Passed string copying test")
 
 
 def test_test_bytes3(get_contract_with_gas_estimation):
@@ -90,7 +90,7 @@ def get_xy() -> int128:
     assert c.get_maa() == b"mongoose"
     assert c.get_xy() == 999
 
-    print('Passed advanced string copying test')
+    print("Passed advanced string copying test")
 
 
 def test_test_bytes4(get_contract_with_gas_estimation):
@@ -113,7 +113,7 @@ def bar(inp: bytes[60]) -> bytes[60]:
     assert c.foo(b"") == b"", c.foo()
     assert c.bar(b"") == b""
 
-    print('Passed string deleting test')
+    print("Passed string deleting test")
 
 
 def test_test_bytes5(get_contract_with_gas_estimation):
@@ -166,7 +166,7 @@ def quz(inp1: bytes[40], inp2: bytes[45]):
     assert c.check1() == b"badminton"
     assert c.check2() == b"fluffysheep"
 
-    print('Passed string struct test')
+    print("Passed string struct test")
 
 
 def test_binary_literal(get_contract_with_gas_estimation):
@@ -193,13 +193,13 @@ def testsome_storage(y: bytes[1]) -> bool:
 
     c = get_contract_with_gas_estimation(bytes_to_num_code)
 
-    assert c.getsome() == b'\x0e'
-    assert c.testsome(b'a')
-    assert c.testsome(b'\x61')
-    assert c.testsome(0b1100001.to_bytes(1, 'big'))
-    assert not c.testsome(b'b')
-    assert c.testsome_storage(b'a')
-    assert not c.testsome_storage(b'x')
+    assert c.getsome() == b"\x0e"
+    assert c.testsome(b"a")
+    assert c.testsome(b"\x61")
+    assert c.testsome(0b1100001 .to_bytes(1, "big"))
+    assert not c.testsome(b"b")
+    assert c.testsome_storage(b"a")
+    assert not c.testsome_storage(b"x")
 
 
 def test_bytes_comparison(get_contract_with_gas_estimation):
@@ -216,9 +216,9 @@ def get_large(a: bytes[100]) -> bool:
     """
 
     c = get_contract_with_gas_estimation(code)
-    assert c.get_mismatch(b'\x00') is False
-    assert c.get_large(b'\x00') is False
-    assert c.get_large(b'ab') is True
+    assert c.get_mismatch(b"\x00") is False
+    assert c.get_large(b"\x00") is False
+    assert c.get_large(b"ab") is True
 
 
 def test_bytes32_literals(get_contract):
@@ -263,13 +263,13 @@ def get_count() -> bytes[24]:
 
     c = get_contract(code)
 
-    assert c.get_count() == b'\x00\x00\x00\x00\x00\x00\x00\x00'
+    assert c.get_count() == b"\x00\x00\x00\x00\x00\x00\x00\x00"
     c.set_count(1, transact={})
-    assert c.get_count() == b'\x01\x00\x00\x00\x00\x00\x00\x00'
-    c.set_count(0xf0f0f0, transact={})
-    assert c.get_count() == b'\xf0\xf0\xf0\x00\x00\x00\x00\x00'
+    assert c.get_count() == b"\x01\x00\x00\x00\x00\x00\x00\x00"
+    c.set_count(0xF0F0F0, transact={})
+    assert c.get_count() == b"\xf0\xf0\xf0\x00\x00\x00\x00\x00"
     c.set_count(0x0101010101010101, transact={})
-    assert c.get_count() == b'\x01\x01\x01\x01\x01\x01\x01\x01'
+    assert c.get_count() == b"\x01\x01\x01\x01\x01\x01\x01\x01"
 
 
 def test_bytes_to_bytes32_assigment(get_contract, assert_compile_failed):

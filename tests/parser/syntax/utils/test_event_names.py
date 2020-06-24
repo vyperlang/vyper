@@ -53,10 +53,15 @@ def foo(i: int128) -> int128:
     (
         """
 Transfer: eve.t({_from: indexed(address)})
-    """, UnknownType),
-    ("""
+    """,
+        UnknownType,
+    ),
+    (
+        """
 Transfer: event({_from: i.dexed(address), _to: indexed(address),lue: uint256})
-    """, UnknownType),
+    """,
+        UnknownType,
+    ),
 ]
 
 

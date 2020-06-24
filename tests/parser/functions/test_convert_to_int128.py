@@ -39,13 +39,13 @@ def zero_bytes(inp: bytes[1]) -> int128:
     assert c.bytes32_to_num() == [1, 1]
     assert c.bytes_to_num() == [97, 97]
 
-    assert c.zero_bytes(b'\x01') == 1
-    assert c.zero_bytes(b'\x00') == 0
+    assert c.zero_bytes(b"\x01") == 1
+    assert c.zero_bytes(b"\x00") == 0
 
 
-def test_convert_from_bytes(assert_compile_failed,
-                            assert_tx_failed,
-                            get_contract_with_gas_estimation):
+def test_convert_from_bytes(
+    assert_compile_failed, assert_tx_failed, get_contract_with_gas_estimation
+):
     # Test valid bytes input for conversion
     test_success = """
 @public
@@ -54,8 +54,8 @@ def foo(bar: bytes[5]) -> int128:
     """
 
     c = get_contract_with_gas_estimation(test_success)
-    assert c.foo(b'\x00\x00\x00\x00\x00') == 0
-    assert c.foo(b'\x00\x07\x5B\xCD\x15') == 123456789
+    assert c.foo(b"\x00\x00\x00\x00\x00") == 0
+    assert c.foo(b"\x00\x07\x5B\xCD\x15") == 123456789
 
     test_success = """
 @public
@@ -93,10 +93,7 @@ def foo(bar: bytes[33]) -> int128:
     return convert(bar, int128)
     """
 
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(test_fail),
-        TypeMismatch
-    )
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(test_fail), TypeMismatch)
 
     test_fail = """
 @public
@@ -106,8 +103,7 @@ def foobar() -> int128:
     """
 
     assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(test_fail),
-        TypeMismatch,
+        lambda: get_contract_with_gas_estimation(test_fail), TypeMismatch,
     )
 
 
@@ -133,7 +129,7 @@ def test(foo: uint256) -> int128:
 
     c = get_contract_with_gas_estimation(code)
     assert c.test(0) == 0
-    assert c.test(2**127 - 1) == 2**127 - 1
+    assert c.test(2 ** 127 - 1) == 2 ** 127 - 1
 
 
 def test_out_of_range_from_uint256(assert_tx_failed, get_contract_with_gas_estimation):
@@ -144,22 +140,20 @@ def test(foo: uint256) -> int128:
     """
 
     c = get_contract_with_gas_estimation(code)
-    assert_tx_failed(lambda: c.test(2**127))
-    assert_tx_failed(lambda: c.test(2**256 - 1))
+    assert_tx_failed(lambda: c.test(2 ** 127))
+    assert_tx_failed(lambda: c.test(2 ** 256 - 1))
 
 
-def test_out_of_range_from_uint256_at_compile(assert_compile_failed,
-                                              get_contract_with_gas_estimation):
+def test_out_of_range_from_uint256_at_compile(
+    assert_compile_failed, get_contract_with_gas_estimation
+):
     code = """
 @public
 def test() -> int128:
     return convert(2**127, int128)
     """
 
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code),
-        InvalidLiteral
-    )
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidLiteral)
 
     code = """
 @public
@@ -167,10 +161,7 @@ def test() -> int128:
     return convert(2**256 - 1, int128)
     """
 
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code),
-        InvalidLiteral
-    )
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidLiteral)
 
 
 def test_convert_from_bytes32_overflow(assert_tx_failed, get_contract_with_gas_estimation):
@@ -239,9 +230,9 @@ def goomar() -> int128:
     assert c.goomar() == 0
 
 
-def test_convert_from_overflow_decimal(assert_compile_failed,
-                                       assert_tx_failed,
-                                       get_contract_with_gas_estimation):
+def test_convert_from_overflow_decimal(
+    assert_compile_failed, assert_tx_failed, get_contract_with_gas_estimation
+):
     code = """
 @public
 def foo() -> int128:
@@ -249,8 +240,7 @@ def foo() -> int128:
     """
 
     assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code),
-        OverflowException,
+        lambda: get_contract_with_gas_estimation(code), OverflowException,
     )
 
     code = """
@@ -260,8 +250,7 @@ def foo() -> int128:
     """
 
     assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code),
-        OverflowException,
+        lambda: get_contract_with_gas_estimation(code), OverflowException,
     )
 
 

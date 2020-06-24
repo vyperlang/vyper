@@ -68,9 +68,7 @@ def get_node(
             _raise_syntax_exc("Vyper does not support slicing", ast_struct)
         elif ast_struct["ast_type"] in ("Invert", "UAdd"):
             op = "+" if ast_struct["ast_type"] == "UAdd" else "~"
-            _raise_syntax_exc(
-                f"Vyper does not support {op} as a unary operator", parent
-            )
+            _raise_syntax_exc(f"Vyper does not support {op} as a unary operator", parent)
         else:
             _raise_syntax_exc(
                 f"Invalid syntax (unsupported '{ast_struct['ast_type']}' Python AST node)",
@@ -103,9 +101,7 @@ def compare_nodes(left_node: "VyperNode", right_node: "VyperNode") -> bool:
     if not isinstance(left_node, type(right_node)):
         return False
 
-    for field_name in (
-        i for i in left_node.get_fields() if i not in VyperNode.__slots__
-    ):
+    for field_name in (i for i in left_node.get_fields() if i not in VyperNode.__slots__):
         left_value = getattr(left_node, field_name, None)
         right_value = getattr(right_node, field_name, None)
 
@@ -114,9 +110,7 @@ def compare_nodes(left_node: "VyperNode", right_node: "VyperNode") -> bool:
             return False
 
         if isinstance(left_value, list):
-            if next(
-                (i for i in zip(left_value, right_value) if not compare_nodes(*i)), None
-            ):
+            if next((i for i in zip(left_value, right_value) if not compare_nodes(*i)), None):
                 return False
         elif isinstance(left_value, VyperNode):
             if not compare_nodes(left_value, right_value):
@@ -161,8 +155,7 @@ def _sort_nodes(node_iterable):
         return float("inf") if key is None else key
 
     return sorted(
-        node_iterable,
-        key=lambda k: (sortkey(k.lineno), sortkey(k.col_offset), k.node_id),
+        node_iterable, key=lambda k: (sortkey(k.lineno), sortkey(k.col_offset), k.node_id),
     )
 
 
@@ -278,9 +271,7 @@ class VyperNode:
         -------
         Vyper node instance
         """
-        ast_struct = {
-            i: getattr(node, i) for i in VyperNode.__slots__ if not i.startswith("_")
-        }
+        ast_struct = {i: getattr(node, i) for i in VyperNode.__slots__ if not i.startswith("_")}
         ast_struct.update(ast_type=cls.__name__, **kwargs)
         return cls(**ast_struct)
 
@@ -296,9 +287,7 @@ class VyperNode:
         return set(i for i in slot_fields if not i.startswith("_"))
 
     def __hash__(self):
-        values = [
-            getattr(self, i, None) for i in VyperNode.__slots__ if not i.startswith("_")
-        ]
+        values = [getattr(self, i, None) for i in VyperNode.__slots__ if not i.startswith("_")]
         return hash(tuple(values))
 
     def __eq__(self, other):
@@ -306,9 +295,7 @@ class VyperNode:
             return False
         if other.node_id != self.node_id:
             return False
-        for field_name in (
-            i for i in self.get_fields() if i not in VyperNode.__slots__
-        ):
+        for field_name in (i for i in self.get_fields() if i not in VyperNode.__slots__):
             if getattr(self, field_name, None) != getattr(other, field_name, None):
                 return False
         return True
@@ -374,9 +361,7 @@ class VyperNode:
                 ast_dict[key] = _to_dict(value)
         return ast_dict
 
-    def get_ancestor(
-        self, node_type: Union["VyperNode", tuple, None] = None
-    ) -> "VyperNode":
+    def get_ancestor(self, node_type: Union["VyperNode", tuple, None] = None) -> "VyperNode":
         """
         Return an ancestor node for this node.
 
@@ -574,31 +559,23 @@ class Module(TopLevel):
             raise CompilerPanic("Node to be replaced does not exist within the tree")
 
         if old_node not in parent._children:
-            raise CompilerPanic(
-                "Node to be replaced does not exist within parent children"
-            )
+            raise CompilerPanic("Node to be replaced does not exist within parent children")
 
         is_replaced = False
         for key in parent.get_fields():
             obj = getattr(parent, key, None)
             if obj == old_node:
                 if is_replaced:
-                    raise CompilerPanic(
-                        "Node to be replaced exists as multiple members in parent"
-                    )
+                    raise CompilerPanic("Node to be replaced exists as multiple members in parent")
                 setattr(parent, key, new_node)
                 is_replaced = True
             elif isinstance(obj, list) and obj.count(old_node):
                 if is_replaced or obj.count(old_node) > 1:
-                    raise CompilerPanic(
-                        "Node to be replaced exists as multiple members in parent"
-                    )
+                    raise CompilerPanic("Node to be replaced exists as multiple members in parent")
                 obj[obj.index(old_node)] = new_node
                 is_replaced = True
         if not is_replaced:
-            raise CompilerPanic(
-                "Node to be replaced does not exist within parent members"
-            )
+            raise CompilerPanic("Node to be replaced does not exist within parent members")
 
         parent._children.remove(old_node)
 
@@ -660,13 +637,9 @@ class Num(Constant):
 
     def validate(self):
         if self.value < SizeLimits.MINNUM:
-            raise OverflowException(
-                "Value is below lower bound for all numeric types", self
-            )
+            raise OverflowException("Value is below lower bound for all numeric types", self)
         if self.value > SizeLimits.MAX_UINT256:
-            raise OverflowException(
-                "Value exceeds upper bound for all numeric types", self
-            )
+            raise OverflowException("Value exceeds upper bound for all numeric types", self)
 
 
 class Int(Num):
@@ -714,9 +687,7 @@ class Hex(Num):
 
     def validate(self):
         if len(self.value) % 2:
-            raise InvalidLiteral(
-                "Hex notation requires an even number of digits", self
-            )
+            raise InvalidLiteral("Hex notation requires an even number of digits", self)
 
 
 class Str(Constant):
@@ -726,9 +697,7 @@ class Str(Constant):
     def validate(self):
         for c in self.value:
             if ord(c) >= 256:
-                raise InvalidLiteral(
-                    f"'{c}' is not an allowed string literal character", self
-                )
+                raise InvalidLiteral(f"'{c}' is not an allowed string literal character", self)
 
     @property
     def s(self):
@@ -910,9 +879,7 @@ class Pow(VyperNode):
 
     def _op(self, left, right):
         if isinstance(left, decimal.Decimal):
-            raise TypeMismatch(
-                "Cannot perform exponentiation on decimal values.", self._parent
-            )
+            raise TypeMismatch("Cannot perform exponentiation on decimal values.", self._parent)
         return int(left ** right)
 
 
@@ -972,9 +939,7 @@ class Compare(VyperNode):
 
     def __init__(self, *args, **kwargs):
         if len(kwargs["ops"]) > 1 or len(kwargs["comparators"]) > 1:
-            _raise_syntax_exc(
-                "Cannot have a comparison with more than two elements", kwargs
-            )
+            _raise_syntax_exc("Cannot have a comparison with more than two elements", kwargs)
 
         kwargs["op"] = kwargs.pop("ops")[0]
         kwargs["right"] = kwargs.pop("comparators")[0]
@@ -1006,12 +971,8 @@ class Compare(VyperNode):
         if not isinstance(left, type(right)):
             raise UnfoldableNode("Cannot compare different literal types")
 
-        if not isinstance(self.op, (Eq, NotEq)) and not isinstance(
-            left, (Int, Decimal)
-        ):
-            raise TypeMismatch(
-                f"Invalid literal types for {self.op.description} comparison", self
-            )
+        if not isinstance(self.op, (Eq, NotEq)) and not isinstance(left, (Int, Decimal)):
+            raise TypeMismatch(f"Invalid literal types for {self.op.description} comparison", self)
 
         value = self.op._op(left.value, right.value)
         return NameConstant.from_node(self, value=value)

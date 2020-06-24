@@ -9,49 +9,67 @@ from vyper.exceptions import (
 )
 
 fail_list = [
-    ("""
+    (
+        """
 from vyper.interfaces import ERC20
 a: public(ERC20)
 @public
 def test():
     b: uint256 = self.a
-    """, TypeMismatch),
-    ("""
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
 from vyper.interfaces import ERC20
 aba: public(ERC20)
 @public
 def test():
     self.aba = ERC20
-    """, StructureException),
-    ("""
+    """,
+        StructureException,
+    ),
+    (
+        """
 from vyper.interfaces import ERC20
 
 a: address(ERC20) # invalid syntax now.
-    """, StructureException),
-    ("""
+    """,
+        StructureException,
+    ),
+    (
+        """
 from vyper.interfaces import ERC20
 
 @public
 def test():
     a: address(ERC20) = ZERO_ADDRESS
-    """, StructureException),
-    ("""
+    """,
+        StructureException,
+    ),
+    (
+        """
 a: address
 
 @public
 def test():  # may not call normal address
     assert self.a.random()
-    """, UnknownAttribute),
-    ("""
+    """,
+        UnknownAttribute,
+    ),
+    (
+        """
 from vyper.interfaces import ERC20
 @public
 def test(a: address):
     my_address: address = ERC20()
-    """, ArgumentException)
+    """,
+        ArgumentException,
+    ),
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
+@pytest.mark.parametrize("bad_code", fail_list)
 def test_interfaces_fail(bad_code):
     with pytest.raises(bad_code[1]):
         compiler.compile_code(bad_code[0])
@@ -125,11 +143,11 @@ a: public(ERC20)
 @public
 def test():
     b: address = self.a.address
-    """
+    """,
 ]
 
 
-@pytest.mark.parametrize('good_code', valid_list)
+@pytest.mark.parametrize("good_code", valid_list)
 def test_interfaces_success(good_code):
     assert compiler.compile_code(good_code) is not None
 
@@ -156,7 +174,9 @@ def foobar():
     pass
 """
 
-    assert compiler.compile_code(
-        code,
-        interface_codes={'Foo': {'type': "vyper", 'code': interface_code}}
-    ) is not None
+    assert (
+        compiler.compile_code(
+            code, interface_codes={"Foo": {"type": "vyper", "code": interface_code}}
+        )
+        is not None
+    )

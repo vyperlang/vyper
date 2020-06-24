@@ -41,9 +41,9 @@ def foo(inp: decimal) -> decimal:
     return y
 """
     c = get_contract_with_gas_estimation(code)
-    assert c.foo(Decimal('1')) == Decimal('0.2')
-    assert c.foo(Decimal('.5')) == Decimal('0.1')
-    assert c.foo(Decimal('.2')) == Decimal('.04')
+    assert c.foo(Decimal("1")) == Decimal("0.2")
+    assert c.foo(Decimal(".5")) == Decimal("0.1")
+    assert c.foo(Decimal(".2")) == Decimal(".04")
 
 
 def test_negative_nums(get_contract_with_gas_estimation):
@@ -97,8 +97,8 @@ def _num_min() -> int128:
 
     c = get_contract_with_gas_estimation(num_bound_code)
 
-    NUM_MAX = 2**127 - 1
-    NUM_MIN = -2**127
+    NUM_MAX = 2 ** 127 - 1
+    NUM_MIN = -(2 ** 127)
     assert c._num_add(NUM_MAX, 0) == NUM_MAX
     assert c._num_sub(NUM_MIN, 0) == NUM_MIN
     assert c._num_add(NUM_MAX - 1, 1) == NUM_MAX
@@ -132,8 +132,8 @@ def num_add(i: int128) -> int128:
     """
     c = get_contract(code)
 
-    assert c.num_add(0) == 2**127 - 1
-    assert c.num_add(-1) == 2**127 - 2
+    assert c.num_add(0) == 2 ** 127 - 1
+    assert c.num_add(-1) == 2 ** 127 - 2
 
     assert_tx_failed(lambda: c.num_add(1))
     assert_tx_failed(lambda: c.num_add(2))
@@ -147,8 +147,8 @@ def num_add(a: int128, b: int128) -> int128:
     """
     c = get_contract(code)
 
-    assert_tx_failed(lambda: c.num_add(2**127 - 1, 1))
-    assert_tx_failed(lambda: c.num_add(1, 2**127 - 1))
+    assert_tx_failed(lambda: c.num_add(2 ** 127 - 1, 1))
+    assert_tx_failed(lambda: c.num_add(1, 2 ** 127 - 1))
 
 
 def test_overflow_sub_vars(get_contract, assert_tx_failed):
@@ -160,8 +160,8 @@ def num_sub(a: int128, b: int128) -> int128:
 
     c = get_contract(code)
 
-    assert c.num_sub(-2**127, -1) == (-2**127) + 1
-    assert_tx_failed(lambda: c.num_sub(-2**127, 1))
+    assert c.num_sub(-(2 ** 127), -1) == (-(2 ** 127)) + 1
+    assert_tx_failed(lambda: c.num_sub(-(2 ** 127), 1))
 
 
 def test_overflow_mul_vars(get_contract, assert_tx_failed):
@@ -173,8 +173,8 @@ def num_mul(a: int128, b: int128) -> int128:
 
     c = get_contract(code)
 
-    assert c.num_mul(-2**127, 1) == -2**127
-    assert_tx_failed(lambda: c.num_mul(2**126, 2))
+    assert c.num_mul(-(2 ** 127), 1) == -(2 ** 127)
+    assert_tx_failed(lambda: c.num_mul(2 ** 126, 2))
 
 
 def test_overflow_pow_vars(get_contract, assert_tx_failed):
@@ -186,9 +186,9 @@ def num_pow(a: int128, b: int128) -> int128:
 
     c = get_contract(code)
 
-    assert c.num_pow(-2, 127) == (-2**127)
-    assert c.num_pow(2, 126) == (2**126)
-    assert_tx_failed(lambda: c.num_pow(2**126, 2))
+    assert c.num_pow(-2, 127) == (-(2 ** 127))
+    assert c.num_pow(2, 126) == (2 ** 126)
+    assert_tx_failed(lambda: c.num_pow(2 ** 126, 2))
 
 
 def test_literal_int_division(get_contract):

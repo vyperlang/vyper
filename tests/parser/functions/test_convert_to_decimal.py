@@ -36,7 +36,7 @@ def test_passed_variable(a: uint256) -> decimal:
 
     assert c.test_variable() is True
     assert c.test_passed_variable(256) == 256
-    max_decimal = (2**127 - 1)
+    max_decimal = 2 ** 127 - 1
     assert c.test_passed_variable(max_decimal) == Decimal(max_decimal)
     assert_tx_failed(lambda: c.test_passed_variable(max_decimal + 1))
 
@@ -48,10 +48,7 @@ def foo() -> decimal:
     return convert(2**256 - 1, decimal)
     """
 
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code),
-        InvalidLiteral
-    )
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidLiteral)
 
 
 def test_convert_from_bool(get_contract_with_gas_estimation):
@@ -87,10 +84,7 @@ def foo() -> decimal:
     return convert(0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF, decimal)
     """
 
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code),
-        InvalidLiteral
-    )
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidLiteral)
 
 
 def test_convert_from_bytes(get_contract_with_gas_estimation):
@@ -106,8 +100,8 @@ def goo(bar: bytes[32]) -> decimal:
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.foo(b'\x00\x00\x00\x00\x00') == 0.0
-    assert c.foo(b'\x00\x07\x5B\xCD\x15') == 123456789.0
+    assert c.foo(b"\x00\x00\x00\x00\x00") == 0.0
+    assert c.foo(b"\x00\x07\x5B\xCD\x15") == 123456789.0
 
     assert c.goo(b"") == 0.0
     assert c.goo(b"\x00") == 0.0
@@ -126,8 +120,7 @@ def foo(bar: bytes[33]) -> decimal:
     """
 
     assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code),
-        TypeMismatch,
+        lambda: get_contract_with_gas_estimation(code), TypeMismatch,
     )
 
     code = """
@@ -138,8 +131,7 @@ def foobar() -> decimal:
     """
 
     assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code),
-        TypeMismatch,
+        lambda: get_contract_with_gas_estimation(code), TypeMismatch,
     )
 
 

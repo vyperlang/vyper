@@ -60,7 +60,10 @@ def out_very_long_bytes() -> (int128, bytes[1024], int128, address):
     assert c.four() == [1234, b"bytes", b"test", 4321]
     assert c.out_chunk() == [b"hello", 5678, b"world"]
     assert c.out_very_long_bytes() == [
-        5555, long_string.encode(), 6666, "0x0000000000000000000000000000000000001234"
+        5555,
+        long_string.encode(),
+        6666,
+        "0x0000000000000000000000000000000000001234",
     ]
 
 
@@ -72,10 +75,10 @@ def out_literals() -> (int128, address, bytes[6]):
     """
 
     c = get_contract_with_gas_estimation(code)
-    assert c._classic_contract.abi[0]['outputs'] == [
-        {'type': 'int128', 'name': ''},
-        {'type': 'address', 'name': ''},
-        {'type': 'bytes', 'name': ''},
+    assert c._classic_contract.abi[0]["outputs"] == [
+        {"type": "int128", "name": ""},
+        {"type": "address", "name": ""},
+        {"type": "bytes", "name": ""},
     ]
 
 
@@ -138,7 +141,7 @@ def test3() -> (address, int128):
 
     c = get_contract_with_gas_estimation(code)
 
-    addr = '0x' + '00' * 19 + '23'
+    addr = "0x" + "00" * 19 + "23"
     assert c.out_literals() == [1, b"testtesttest", addr, b"random"]
     assert c.out_literals() == c.test1()
     assert c.test2() == [1, c.out_literals()[2]]

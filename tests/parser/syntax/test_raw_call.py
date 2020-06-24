@@ -4,33 +4,42 @@ from vyper import compiler
 from vyper.exceptions import InvalidType, SyntaxException, TypeMismatch
 
 fail_list = [
-    ("""
+    (
+        """
 @public
 def foo():
     x: bytes[9] = raw_call(
         0x1234567890123456789012345678901234567890, b"cow", max_outsize=4, max_outsize=9
     )
-    """, SyntaxException),
-    ("""
+    """,
+        SyntaxException,
+    ),
+    (
+        """
 @public
 def foo():
     raw_log([b"cow"], b"dog")
-    """, InvalidType),
+    """,
+        InvalidType,
+    ),
     """
 @public
 def foo():
     raw_log([], 0x1234567890123456789012345678901234567890)
     """,
-    ("""
+    (
+        """
 @public
 def foo():
     # fails because raw_call without max_outsize does not return a value
     x: bytes[9] = raw_call(0x1234567890123456789012345678901234567890, b"cow")
-    """, InvalidType),
+    """,
+        InvalidType,
+    ),
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
+@pytest.mark.parametrize("bad_code", fail_list)
 def test_raw_call_fail(bad_code):
 
     if isinstance(bad_code, tuple):
@@ -82,6 +91,6 @@ def foo():
 ]
 
 
-@pytest.mark.parametrize('good_code', valid_list)
+@pytest.mark.parametrize("good_code", valid_list)
 def test_raw_call_success(good_code):
     assert compiler.compile_code(good_code) is not None

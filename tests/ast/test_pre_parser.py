@@ -84,13 +84,13 @@ prerelease_invalid_versions = [
         "<0.1.1b1",
         marks=pytest.mark.xfail(
             reason="https://github.com/rbarrois/python-semanticversion/issues/100"
-        )
+        ),
     ),
     pytest.param(
         "<0.1.1a9",
         marks=pytest.mark.xfail(
             reason="https://github.com/rbarrois/python-semanticversion/issues/100"
-        )
+        ),
     ),
 ]
 

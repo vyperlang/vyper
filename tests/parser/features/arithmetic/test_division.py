@@ -32,7 +32,7 @@ def foo(a: int128) -> int128:
 @public
 def foo(a: decimal) -> decimal:
     return a / 0.0
-    """
+    """,
 ]
 
 

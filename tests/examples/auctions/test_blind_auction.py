@@ -9,7 +9,7 @@ TEST_INCREMENT = 1
 
 @pytest.fixture
 def auction_contract(w3, get_contract):
-    with open('examples/auctions/blind_auction.vy') as f:
+    with open("examples/auctions/blind_auction.vy") as f:
         contract_code = f.read()
         contract = get_contract(contract_code, *[w3.eth.accounts[0], BIDDING_TIME, REVEAL_TIME])
     return contract
@@ -19,7 +19,10 @@ def test_initial_state(w3, tester, auction_contract):
     # Check beneficiary is correct
     assert auction_contract.beneficiary() == w3.eth.accounts[0]
     # Check that bidding end time is correct
-    assert auction_contract.biddingEnd() == tester.get_block_by_number('latest')['timestamp'] + BIDDING_TIME  # noqa: E501
+    assert (
+        auction_contract.biddingEnd()
+        == tester.get_block_by_number("latest")["timestamp"] + BIDDING_TIME
+    )  # noqa: E501
     # Check that the reveal end time is correct
     assert auction_contract.revealEnd() == auction_contract.biddingEnd() + REVEAL_TIME
     # Check auction has not ended
@@ -37,14 +40,20 @@ def test_late_bid(w3, auction_contract, assert_tx_failed):
     w3.testing.mine(BIDDING_TIME + TEST_INCREMENT)
 
     # Try to bid after bidding has ended
-    assert_tx_failed(lambda: auction_contract.bid(
-        w3.keccak(b''.join([
-            (200).to_bytes(32, byteorder='big'),
-            (0).to_bytes(32, byteorder='big'),
-            (8675309).to_bytes(32, byteorder='big')
-        ])),
-        transact={'value': 200, 'from': k1}
-    ))
+    assert_tx_failed(
+        lambda: auction_contract.bid(
+            w3.keccak(
+                b"".join(
+                    [
+                        (200).to_bytes(32, byteorder="big"),
+                        (0).to_bytes(32, byteorder="big"),
+                        (8675309).to_bytes(32, byteorder="big"),
+                    ]
+                )
+            ),
+            transact={"value": 200, "from": k1},
+        )
+    )
 
 
 def test_too_many_bids(w3, auction_contract, assert_tx_failed):
@@ -53,23 +62,33 @@ def test_too_many_bids(w3, auction_contract, assert_tx_failed):
     # First 128 bids should be able to be placed successfully
     for i in range(MAX_BIDS):
         auction_contract.bid(
-            w3.keccak(b''.join([
-                (i).to_bytes(32, byteorder='big'),
-                (1).to_bytes(32, byteorder='big'),
-                (8675309).to_bytes(32, byteorder='big')
-            ])),
-            transact={'value': i, 'from': k1}
+            w3.keccak(
+                b"".join(
+                    [
+                        (i).to_bytes(32, byteorder="big"),
+                        (1).to_bytes(32, byteorder="big"),
+                        (8675309).to_bytes(32, byteorder="big"),
+                    ]
+                )
+            ),
+            transact={"value": i, "from": k1},
         )
 
     # 129th bid should fail
-    assert_tx_failed(lambda: auction_contract.bid(
-        w3.keccak(b''.join([
-            (128).to_bytes(32, byteorder='big'),
-            (0).to_bytes(32, byteorder='big'),
-            (8675309).to_bytes(32, byteorder='big')
-        ])),
-        transact={'value': 128, 'from': k1}
-    ))
+    assert_tx_failed(
+        lambda: auction_contract.bid(
+            w3.keccak(
+                b"".join(
+                    [
+                        (128).to_bytes(32, byteorder="big"),
+                        (0).to_bytes(32, byteorder="big"),
+                        (8675309).to_bytes(32, byteorder="big"),
+                    ]
+                )
+            ),
+            transact={"value": 128, "from": k1},
+        )
+    )
 
 
 def test_early_reval(w3, auction_contract, assert_tx_failed):
@@ -77,12 +96,16 @@ def test_early_reval(w3, auction_contract, assert_tx_failed):
 
     # k1 places 1 real bid
     auction_contract.bid(
-        w3.keccak(b''.join([
-            (100).to_bytes(32, byteorder='big'),
-            (0).to_bytes(32, byteorder='big'),
-            (8675309).to_bytes(32, byteorder='big')
-        ])),
-        transact={'value': 100, 'from': k1}
+        w3.keccak(
+            b"".join(
+                [
+                    (100).to_bytes(32, byteorder="big"),
+                    (0).to_bytes(32, byteorder="big"),
+                    (8675309).to_bytes(32, byteorder="big"),
+                ]
+            )
+        ),
+        transact={"value": 100, "from": k1},
     )
 
     # Move time slightly forward (still before bidding has ended)
@@ -91,18 +114,16 @@ def test_early_reval(w3, auction_contract, assert_tx_failed):
     # Try to reveal early
     _values = [0] * MAX_BIDS  # Initialized with 128 default values
     _fakes = [False] * MAX_BIDS  # Initialized with 128 default values
-    _secrets = [b'\x00' * 32] * MAX_BIDS  # Initialized with 128 default values
+    _secrets = [b"\x00" * 32] * MAX_BIDS  # Initialized with 128 default values
     _numBids = 1
     _values[0] = 100
     _fakes[0] = False
-    _secrets[0] = (8675309).to_bytes(32, byteorder='big')
-    assert_tx_failed(lambda: auction_contract.reveal(
-        _numBids,
-        _values,
-        _fakes,
-        _secrets,
-        transact={'value': 0, 'from': k1}
-    ))
+    _secrets[0] = (8675309).to_bytes(32, byteorder="big")
+    assert_tx_failed(
+        lambda: auction_contract.reveal(
+            _numBids, _values, _fakes, _secrets, transact={"value": 0, "from": k1}
+        )
+    )
 
     # Check highest bidder is still empty
     assert auction_contract.highestBidder() is None
@@ -115,12 +136,16 @@ def test_late_reveal(w3, auction_contract, assert_tx_failed):
 
     # k1 places 1 real bid
     auction_contract.bid(
-        w3.keccak(b''.join([
-            (100).to_bytes(32, byteorder='big'),
-            (0).to_bytes(32, byteorder='big'),
-            (8675309).to_bytes(32, byteorder='big')
-        ])),
-        transact={'value': 100, 'from': k1}
+        w3.keccak(
+            b"".join(
+                [
+                    (100).to_bytes(32, byteorder="big"),
+                    (0).to_bytes(32, byteorder="big"),
+                    (8675309).to_bytes(32, byteorder="big"),
+                ]
+            )
+        ),
+        transact={"value": 100, "from": k1},
     )
 
     # Move time forward past bidding _and_ reveal time
@@ -129,18 +154,16 @@ def test_late_reveal(w3, auction_contract, assert_tx_failed):
     # Try to reveal late
     _values = [0] * MAX_BIDS  # Initialized with 128 default values
     _fakes = [False] * MAX_BIDS  # Initialized with 128 default values
-    _secrets = [b'\x00' * 32] * MAX_BIDS  # Initialized with 128 default values
+    _secrets = [b"\x00" * 32] * MAX_BIDS  # Initialized with 128 default values
     _numBids = 1
     _values[0] = 100
     _fakes[0] = False
-    _secrets[0] = (8675309).to_bytes(32, byteorder='big')
-    assert_tx_failed(lambda: auction_contract.reveal(
-        _numBids,
-        _values,
-        _fakes,
-        _secrets,
-        transact={'value': 0, 'from': k1}
-    ))
+    _secrets[0] = (8675309).to_bytes(32, byteorder="big")
+    assert_tx_failed(
+        lambda: auction_contract.reveal(
+            _numBids, _values, _fakes, _secrets, transact={"value": 0, "from": k1}
+        )
+    )
 
     # Check highest bidder is still empty
     assert auction_contract.highestBidder() is None
@@ -152,9 +175,7 @@ def test_early_end(w3, auction_contract, assert_tx_failed):
     k0 = w3.eth.accounts[0]
 
     # Should not be able to end auction before reveal time has ended
-    assert_tx_failed(lambda: auction_contract.auctionEnd(
-        transact={'value': 0, 'from': k0}
-    ))
+    assert_tx_failed(lambda: auction_contract.auctionEnd(transact={"value": 0, "from": k0}))
 
 
 def test_double_end(w3, auction_contract, assert_tx_failed):
@@ -164,14 +185,10 @@ def test_double_end(w3, auction_contract, assert_tx_failed):
     w3.testing.mine(BIDDING_TIME + REVEAL_TIME + TEST_INCREMENT)
 
     # First auction end should succeed
-    auction_contract.auctionEnd(
-        transact={'value': 0, 'from': k0}
-    )
+    auction_contract.auctionEnd(transact={"value": 0, "from": k0})
 
     # Should not be able to end auction twice
-    assert_tx_failed(lambda: auction_contract.auctionEnd(
-        transact={'value': 0, 'from': k0}
-    ))
+    assert_tx_failed(lambda: auction_contract.auctionEnd(transact={"value": 0, "from": k0}))
 
 
 def test_blind_auction(w3, auction_contract):
@@ -183,56 +200,80 @@ def test_blind_auction(w3, auction_contract):
 
     # k1 places 1 real bid
     auction_contract.bid(
-        w3.keccak(b''.join([
-            (100).to_bytes(32, byteorder='big'),
-            (0).to_bytes(32, byteorder='big'),
-            (8675309).to_bytes(32, byteorder='big')
-        ])),
-        transact={'value': 100, 'from': k1}
+        w3.keccak(
+            b"".join(
+                [
+                    (100).to_bytes(32, byteorder="big"),
+                    (0).to_bytes(32, byteorder="big"),
+                    (8675309).to_bytes(32, byteorder="big"),
+                ]
+            )
+        ),
+        transact={"value": 100, "from": k1},
     )
 
     # k2 places 1 real bid (highest) and 2 fake
     auction_contract.bid(
-        w3.keccak(b''.join([
-            (150).to_bytes(32, byteorder='big'),
-            (1).to_bytes(32, byteorder='big'),
-            (1234567).to_bytes(32, byteorder='big')
-        ])),
-        transact={'value': 150, 'from': k2}
+        w3.keccak(
+            b"".join(
+                [
+                    (150).to_bytes(32, byteorder="big"),
+                    (1).to_bytes(32, byteorder="big"),
+                    (1234567).to_bytes(32, byteorder="big"),
+                ]
+            )
+        ),
+        transact={"value": 150, "from": k2},
     )
     auction_contract.bid(
-        w3.keccak(b''.join([
-            (200).to_bytes(32, byteorder='big'),
-            (0).to_bytes(32, byteorder='big'),
-            (1234567).to_bytes(32, byteorder='big')
-        ])),
-        transact={'value': 250, 'from': k2}
+        w3.keccak(
+            b"".join(
+                [
+                    (200).to_bytes(32, byteorder="big"),
+                    (0).to_bytes(32, byteorder="big"),
+                    (1234567).to_bytes(32, byteorder="big"),
+                ]
+            )
+        ),
+        transact={"value": 250, "from": k2},
     )
     auction_contract.bid(
-        w3.keccak(b''.join([
-            (300).to_bytes(32, byteorder='big'),
-            (1).to_bytes(32, byteorder='big'),
-            (1234567).to_bytes(32, byteorder='big')
-        ])),
-        transact={'value': 300, 'from': k2}
+        w3.keccak(
+            b"".join(
+                [
+                    (300).to_bytes(32, byteorder="big"),
+                    (1).to_bytes(32, byteorder="big"),
+                    (1234567).to_bytes(32, byteorder="big"),
+                ]
+            )
+        ),
+        transact={"value": 300, "from": k2},
     )
 
     # k3 places 2 fake bids
     auction_contract.bid(
-        w3.keccak(b''.join([
-            (175).to_bytes(32, byteorder='big'),
-            (1).to_bytes(32, byteorder='big'),
-            (9876543).to_bytes(32, byteorder='big')
-        ])),
-        transact={'value': 175, 'from': k3}
+        w3.keccak(
+            b"".join(
+                [
+                    (175).to_bytes(32, byteorder="big"),
+                    (1).to_bytes(32, byteorder="big"),
+                    (9876543).to_bytes(32, byteorder="big"),
+                ]
+            )
+        ),
+        transact={"value": 175, "from": k3},
     )
     auction_contract.bid(
-        w3.keccak(b''.join([
-            (275).to_bytes(32, byteorder='big'),
-            (1).to_bytes(32, byteorder='big'),
-            (9876543).to_bytes(32, byteorder='big')
-        ])),
-        transact={'value': 275, 'from': k3}
+        w3.keccak(
+            b"".join(
+                [
+                    (275).to_bytes(32, byteorder="big"),
+                    (1).to_bytes(32, byteorder="big"),
+                    (9876543).to_bytes(32, byteorder="big"),
+                ]
+            )
+        ),
+        transact={"value": 275, "from": k3},
     )
 
     ###################################################################
@@ -245,18 +286,12 @@ def test_blind_auction(w3, auction_contract):
     # Reveal k1 bids
     _values = [0] * MAX_BIDS  # Initialized with 128 default values
     _fakes = [False] * MAX_BIDS  # Initialized with 128 default values
-    _secrets = [b'\x00' * 32] * MAX_BIDS  # Initialized with 128 default values
+    _secrets = [b"\x00" * 32] * MAX_BIDS  # Initialized with 128 default values
     _numBids = 1
     _values[0] = 100
     _fakes[0] = False
-    _secrets[0] = (8675309).to_bytes(32, byteorder='big')
-    auction_contract.reveal(
-        _numBids,
-        _values,
-        _fakes,
-        _secrets,
-        transact={'value': 0, 'from': k1}
-    )
+    _secrets[0] = (8675309).to_bytes(32, byteorder="big")
+    auction_contract.reveal(_numBids, _values, _fakes, _secrets, transact={"value": 0, "from": k1})
 
     #: Check that highest bidder and highest bid have updated
     assert auction_contract.highestBid() == 100
@@ -265,24 +300,18 @@ def test_blind_auction(w3, auction_contract):
     # Reveal k2 bids
     _values = [0] * MAX_BIDS  # Initialized with 128 default values
     _fakes = [False] * MAX_BIDS  # Initialized with 128 default values
-    _secrets = [b'\x00' * 32] * MAX_BIDS  # Initialized with 128 default values
+    _secrets = [b"\x00" * 32] * MAX_BIDS  # Initialized with 128 default values
     _values[0] = 150
     _fakes[0] = True
-    _secrets[0] = (1234567).to_bytes(32, byteorder='big')
+    _secrets[0] = (1234567).to_bytes(32, byteorder="big")
     _values[1] = 200
     _fakes[1] = False
-    _secrets[1] = (1234567).to_bytes(32, byteorder='big')
+    _secrets[1] = (1234567).to_bytes(32, byteorder="big")
     _values[2] = 300
     _fakes[2] = True
-    _secrets[2] = (1234567).to_bytes(32, byteorder='big')
+    _secrets[2] = (1234567).to_bytes(32, byteorder="big")
     balance_before_reveal = w3.eth.getBalance(k2)
-    auction_contract.reveal(
-        3,
-        _values,
-        _fakes,
-        _secrets,
-        transact={'value': 0, 'from': k2}
-    )
+    auction_contract.reveal(3, _values, _fakes, _secrets, transact={"value": 0, "from": k2})
     balance_after_reveal = w3.eth.getBalance(k2)
 
     #: Check that highest bidder and highest bid have updated
@@ -295,21 +324,15 @@ def test_blind_auction(w3, auction_contract):
     # Reveal k3 bids
     _values = [0] * MAX_BIDS  # Initialized with 128 default values
     _fakes = [False] * MAX_BIDS  # Initialized with 128 default values
-    _secrets = [b'\x00' * 32] * MAX_BIDS  # Initialized with 128 default values
+    _secrets = [b"\x00" * 32] * MAX_BIDS  # Initialized with 128 default values
     _values[0] = 175
     _fakes[0] = True
-    _secrets[0] = (9876543).to_bytes(32, byteorder='big')
+    _secrets[0] = (9876543).to_bytes(32, byteorder="big")
     _values[1] = 275
     _fakes[1] = True
-    _secrets[1] = (9876543).to_bytes(32, byteorder='big')
+    _secrets[1] = (9876543).to_bytes(32, byteorder="big")
     balance_before_reveal = w3.eth.getBalance(k3)
-    auction_contract.reveal(
-        2,
-        _values,
-        _fakes,
-        _secrets,
-        transact={'value': 0, 'from': k3}
-    )
+    auction_contract.reveal(2, _values, _fakes, _secrets, transact={"value": 0, "from": k3})
     balance_after_reveal = w3.eth.getBalance(k3)
 
     #: Check that highest bidder and highest bid have NOT updated
@@ -328,7 +351,7 @@ def test_blind_auction(w3, auction_contract):
 
     # End the auction
     balance_before_end = w3.eth.getBalance(k0)
-    auction_contract.auctionEnd(transact={'value': 0, 'from': k0})
+    auction_contract.auctionEnd(transact={"value": 0, "from": k0})
     balance_after_end = w3.eth.getBalance(k0)
 
     # Check that auction indeed ended
@@ -339,6 +362,6 @@ def test_blind_auction(w3, auction_contract):
 
     # Check that k1 is able to withdraw their outbid bid
     balance_before_withdraw = w3.eth.getBalance(k1)
-    auction_contract.withdraw(transact={'value': 0, 'from': k1})
+    auction_contract.withdraw(transact={"value": 0, "from": k1})
     balance_after_withdraw = w3.eth.getBalance(k1)
     assert balance_after_withdraw == (balance_before_withdraw + 100)

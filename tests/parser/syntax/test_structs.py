@@ -10,23 +10,30 @@ from vyper.exceptions import (
 )
 
 fail_list = [
-    ("""
+    (
+        """
 struct A:
     x: int128
 a: A
 @public
 def foo():
     self.a = A(1)
-    """, VariableDeclarationException),
-    ("""
+    """,
+        VariableDeclarationException,
+    ),
+    (
+        """
 struct A:
     x: int128
 a: A
 @public
 def foo():
     self.a = A({x: 1, y: 2})
-    """, UnknownAttribute),
-    ("""
+    """,
+        UnknownAttribute,
+    ),
+    (
+        """
 struct A:
     x: int128
     y: int128
@@ -34,8 +41,11 @@ a: A
 @public
 def foo():
     self.a = A({x: 1})
-    """, VariableDeclarationException),
-    ("""
+    """,
+        VariableDeclarationException,
+    ),
+    (
+        """
 struct A:
     x: int128
 struct B:
@@ -45,8 +55,11 @@ b: B
 @public
 def foo():
     self.a = A(self.b)
-    """, VariableDeclarationException),
-    ("""
+    """,
+        VariableDeclarationException,
+    ),
+    (
+        """
 struct A:
     x: int128
 a: A
@@ -54,8 +67,11 @@ b: A
 @public
 def foo():
     self.a = A(self.b)
-    """, VariableDeclarationException),
-    ("""
+    """,
+        VariableDeclarationException,
+    ),
+    (
+        """
 struct A:
     x: int128
     y: int128
@@ -63,8 +79,11 @@ a: A
 @public
 def foo():
     self.a = A({x: 1})
-    """, VariableDeclarationException),
-    ("""
+    """,
+        VariableDeclarationException,
+    ),
+    (
+        """
 struct C:
     c: int128
 struct Mom:
@@ -78,7 +97,9 @@ nom: Nom
 @public
 def foo():
     self.nom = Nom(self.mom)
-    """, VariableDeclarationException),
+    """,
+        VariableDeclarationException,
+    ),
     """
 struct C1:
     c: int128
@@ -157,7 +178,8 @@ nom: Nom
 def foo():
     self.nom = Nom(self.mom)
     """,
-    ("""
+    (
+        """
 struct Mom:
     a: int128
 struct Nom:
@@ -167,7 +189,9 @@ nom: Nom
 @public
 def foo():
     self.nom = self.mom # require cast
-    """, TypeMismatch),
+    """,
+        TypeMismatch,
+    ),
     """
 struct Mom:
     a: int128
@@ -179,7 +203,8 @@ nom: Nom
 def foo():
     self.nom = Nom(self.mom)
     """,
-    ("""
+    (
+        """
 struct C:
     c: int128
 struct Mom:
@@ -193,8 +218,11 @@ nom: Nom
 @public
 def foo():
     self.nom = self.mom # require cast
-    """, TypeMismatch),
-    ("""
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
 struct C:
     c: int128
 struct Mom:
@@ -207,8 +235,11 @@ nom: C[3]
 @public
 def foo():
     self.nom = self.mom.b
-    """, TypeMismatch),
-    ("""
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
 struct C:
     c: int128
 struct Mom:
@@ -221,8 +252,11 @@ nom: C[3]
 @public
 def foo():
     self.mom = Mom({a: self.nom, b: 5.5})
-    """, InvalidType),
-    ("""
+    """,
+        InvalidType,
+    ),
+    (
+        """
 struct C1:
     c: int128
 struct C2:
@@ -235,8 +269,11 @@ nom: C2[3]
 @public
 def foo():
     self.mom = Mom({a: self.nom, b: 5})
-    """, TypeMismatch),
-    ("""
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
 struct C:
     c: int128
 struct Mom:
@@ -249,14 +286,19 @@ nom: C[3]
 @public
 def foo():
     self.mom = Mom({a: self.nom, b: self.nom})
-    """, TypeMismatch),
-    ("""
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
 struct C:
     c: int128
 struct Nom:
     a: map(int128, C)
     b: int128
-    """, StructureException),
+    """,
+        StructureException,
+    ),
     """
 struct C1:
     c: int128
@@ -274,7 +316,8 @@ mom: Mom
 def foo():
     self.nom = Nom(self.mom)
     """,
-    ("""
+    (
+        """
 struct C1:
     c: int128
 struct C2:
@@ -287,8 +330,11 @@ nom: C2[3]
 @public
 def foo():
     self.mom = Mom({a: self.nom, b: 5})
-    """, TypeMismatch),
-    ("""
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
 struct Bar:
     a: int128
     b: int128
@@ -297,8 +343,11 @@ bar: int128[3]
 @public
 def foo():
     self.bar = Bar({0: 5, 1: 7, 2: 9})
-    """, UnknownAttribute),
-    ("""
+    """,
+        UnknownAttribute,
+    ),
+    (
+        """
 struct Bar:
     a: int128
     b: int128
@@ -307,8 +356,11 @@ bar: int128[3]
 @public
 def foo():
     self.bar = Bar({a: 5, b: 7, c: 9})
-    """, TypeMismatch),
-    ("""
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
 struct Farm:
     cow: int128
     dog: int128
@@ -316,8 +368,11 @@ struct Farm:
 def foo() -> int128:
     f: Farm = Farm({cow: 5, dog: 7})
     return f
-    """, TypeMismatch),
-    ("""
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
 struct X:
     cow: int128
     cor: int128
@@ -325,16 +380,22 @@ x: X
 @public
 def foo():
     self.x.cof = 1
-    """, UnknownAttribute),
-    ("""
+    """,
+        UnknownAttribute,
+    ),
+    (
+        """
 struct B:
     foo: int128
 b: B
 @public
 def foo():
     self.b = B({foo: 1, foo: 2})
-    """, UnknownAttribute),
-    ("""
+    """,
+        UnknownAttribute,
+    ),
+    (
+        """
 struct B:
     foo: int128
     bar: int128
@@ -342,8 +403,11 @@ b: B
 @public
 def foo():
     x: int128 = self.b.cow
-    """, UnknownAttribute),
-    ("""
+    """,
+        UnknownAttribute,
+    ),
+    (
+        """
 struct B:
     foo: int128
     bar: int128
@@ -351,26 +415,37 @@ b: B
 @public
 def foo():
     x: int128 = self.b[0]
-    """, StructureException),
-    ("""
+    """,
+        StructureException,
+    ),
+    (
+        """
 struct X:
     bar: int128
     decimal: int128
-    """, VariableDeclarationException),
-    ("""
+    """,
+        VariableDeclarationException,
+    ),
+    (
+        """
 struct B:
     num: int128
     address: address
-    """, VariableDeclarationException),
-    ("""
+    """,
+        VariableDeclarationException,
+    ),
+    (
+        """
 struct B:
     num: int128
     address: address
-    """, VariableDeclarationException)
+    """,
+        VariableDeclarationException,
+    ),
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
+@pytest.mark.parametrize("bad_code", fail_list)
 def test_block_fail(bad_code):
     if isinstance(bad_code, tuple):
         with pytest.raises(bad_code[1]):
@@ -467,6 +542,6 @@ x: X
 ]
 
 
-@pytest.mark.parametrize('good_code', valid_list)
+@pytest.mark.parametrize("good_code", valid_list)
 def test_block_success(good_code):
     assert compiler.compile_code(good_code) is not None

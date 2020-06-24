@@ -1,4 +1,3 @@
-
 def test_correct_abi_right_padding(tester, w3, get_contract_with_gas_estimation):
     selfcall_code_6 = """
 @public
@@ -14,21 +13,21 @@ def hardtest(arg1: bytes[64], arg2: bytes[64]) -> bytes[128]:
     classic_contract = c._classic_contract
     func = classic_contract.functions.hardtest(b"hello" * 5, b"hello" * 10)
     tx = func.buildTransaction()
-    del tx['chainId']
-    del tx['gasPrice']
+    del tx["chainId"]
+    del tx["gasPrice"]
 
-    tx['from'] = w3.eth.accounts[0]
+    tx["from"] = w3.eth.accounts[0]
     res = w3.toBytes(hexstr=tester.call(tx))
 
-    static_offset = int.from_bytes(res[:32], 'big')
+    static_offset = int.from_bytes(res[:32], "big")
     assert static_offset == 32
 
     dyn_section = res[static_offset:]
     assert len(dyn_section) % 32 == 0  # first right pad assert
 
-    len_value = int.from_bytes(dyn_section[:32], 'big')
+    len_value = int.from_bytes(dyn_section[:32], "big")
 
     assert len_value == len(b"hello" * 15)
-    assert dyn_section[32: 32 + len_value] == b"hello" * 15
+    assert dyn_section[32 : 32 + len_value] == b"hello" * 15
     # second right pad assert
-    assert dyn_section[32 + len_value:] == b'\x00' * (len(dyn_section) - 32 - len_value)
+    assert dyn_section[32 + len_value :] == b"\x00" * (len(dyn_section) - 32 - len_value)

@@ -6,14 +6,10 @@ from vyper import ast as vy_ast
 from vyper import functions as vy_fn
 
 st_decimals = st.decimals(
-    min_value=-2 ** 32,
-    max_value=2 ** 32,
-    allow_nan=False,
-    allow_infinity=False,
-    places=10,
+    min_value=-(2 ** 32), max_value=2 ** 32, allow_nan=False, allow_infinity=False, places=10,
 )
-st_int128 = st.integers(min_value=-2**127, max_value=2**127-1)
-st_uint256 = st.integers(min_value=0, max_value=2**256-1)
+st_int128 = st.integers(min_value=-(2 ** 127), max_value=2 ** 127 - 1)
+st_uint256 = st.integers(min_value=0, max_value=2 ** 256 - 1)
 
 
 @pytest.mark.fuzzing

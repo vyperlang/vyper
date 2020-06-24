@@ -12,12 +12,12 @@ def get_node_ids(ast_struct, ids=None):
         elif isinstance(v, list):
             for x in v:
                 ids = get_node_ids(x, ids)
-        elif k == 'node_id':
+        elif k == "node_id":
             ids.append(v)
         elif v is None or isinstance(v, (str, int)):
             continue
         else:
-            raise Exception('Unknown ast_struct provided.')
+            raise Exception("Unknown ast_struct provided.")
     return ids
 
 
@@ -28,7 +28,7 @@ def test() -> int128:
     a: uint256 = 100
     return 123
     """
-    dict_out = compiler.compile_code(code, ['ast_dict'])
+    dict_out = compiler.compile_code(code, ["ast_dict"])
     node_ids = get_node_ids(dict_out)
 
     assert len(node_ids) == len(set(node_ids))
@@ -38,37 +38,37 @@ def test_basic_ast():
     code = """
 a: int128
     """
-    dict_out = compiler.compile_code(code, ['ast_dict'])
-    assert dict_out['ast_dict']['ast']['body'][0] == {
-      'annotation': {
-        'ast_type': 'Name',
-        'col_offset': 3,
-        'end_col_offset': 9,
-        'end_lineno': 2,
-        'id': 'int128',
-        'lineno': 2,
-        'node_id': 4,
-        'src': "4:6:0",
-      },
-      'ast_type': 'AnnAssign',
-      'col_offset': 0,
-      'end_col_offset': 9,
-      'end_lineno': 2,
-      'lineno': 2,
-      'node_id': 1,
-      'simple': 1,
-      'src': '1:9:0',
-      'target': {
-        'ast_type': 'Name',
-        'col_offset': 0,
-        'end_col_offset': 1,
-        'end_lineno': 2,
-        'id': 'a',
-        'lineno': 2,
-        'node_id': 2,
-        'src': '1:1:0',
-      },
-      'value': None
+    dict_out = compiler.compile_code(code, ["ast_dict"])
+    assert dict_out["ast_dict"]["ast"]["body"][0] == {
+        "annotation": {
+            "ast_type": "Name",
+            "col_offset": 3,
+            "end_col_offset": 9,
+            "end_lineno": 2,
+            "id": "int128",
+            "lineno": 2,
+            "node_id": 4,
+            "src": "4:6:0",
+        },
+        "ast_type": "AnnAssign",
+        "col_offset": 0,
+        "end_col_offset": 9,
+        "end_lineno": 2,
+        "lineno": 2,
+        "node_id": 1,
+        "simple": 1,
+        "src": "1:9:0",
+        "target": {
+            "ast_type": "Name",
+            "col_offset": 0,
+            "end_col_offset": 1,
+            "end_lineno": 2,
+            "id": "a",
+            "lineno": 2,
+            "node_id": 2,
+            "src": "1:1:0",
+        },
+        "value": None,
     }
 
 

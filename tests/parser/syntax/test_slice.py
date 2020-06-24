@@ -4,25 +4,34 @@ from vyper import compiler
 from vyper.exceptions import InvalidType, TypeMismatch
 
 fail_list = [
-    ("""
+    (
+        """
 @public
 def foo(inp: bytes[10]) -> bytes[2]:
     return slice(inp, 2, 3)
-    """, TypeMismatch),
-    ("""
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
 @public
 def foo(inp: int128) -> bytes[3]:
     return slice(inp, 2, 3)
-    """, TypeMismatch),
-    ("""
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
 @public
 def foo(inp: bytes[10]) -> bytes[3]:
     return slice(inp, 4.0, 3)
-    """, InvalidType),
+    """,
+        InvalidType,
+    ),
 ]
 
 
-@pytest.mark.parametrize('bad_code,exc', fail_list)
+@pytest.mark.parametrize("bad_code,exc", fail_list)
 def test_slice_fail(bad_code, exc):
 
     with pytest.raises(exc):
@@ -44,10 +53,10 @@ def foo(inp: bytes[10]) -> bytes[4]:
 @public
 def foo() -> bytes[10]:
     return slice(b"badmintonzzz", 1, 10)
-    """
+    """,
 ]
 
 
-@pytest.mark.parametrize('good_code', valid_list)
+@pytest.mark.parametrize("good_code", valid_list)
 def test_slice_success(good_code):
     assert compiler.compile_code(good_code) is not None

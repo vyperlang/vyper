@@ -14,19 +14,21 @@ class Constancy(enum.Enum):
 
 # Contains arguments, variables, etc
 class Context:
-    def __init__(self,
-                 vars,
-                 global_ctx,
-                 memory_allocator,
-                 sigs=None,
-                 forvars=None,
-                 return_type=None,
-                 constancy=Constancy.Mutable,
-                 is_private=False,
-                 is_payable=False,
-                 origcode='',
-                 method_id='',
-                 sig=None):
+    def __init__(
+        self,
+        vars,
+        global_ctx,
+        memory_allocator,
+        sigs=None,
+        forvars=None,
+        return_type=None,
+        constancy=Constancy.Mutable,
+        is_private=False,
+        is_payable=False,
+        origcode="",
+        method_id="",
+        sig=None,
+    ):
         # In-memory variables, in the form (name, memory location, type)
         self.vars = vars or {}
         # Memory alloctor, keeps track of currently allocated memory.
@@ -34,7 +36,7 @@ class Context:
         # Global variables, in the form (name, storage location, type)
         self.globals = global_ctx._globals
         # ABI objects, in the form {classname: ABI JSON}
-        self.sigs = sigs or {'self': {}}
+        self.sigs = sigs or {"self": {}}
         # Variables defined in for loops, e.g. for i in range(6): ...
         self.forvars = forvars or {}
         # Return type of the function
@@ -74,9 +76,7 @@ class Context:
         self.sig = sig
 
     def is_constant(self):
-        return self.constancy is Constancy.Constant or \
-                self.in_assertion or \
-                self.in_range_expr
+        return self.constancy is Constancy.Constant or self.in_assertion or self.in_range_expr
 
     #
     # Context Managers
@@ -114,7 +114,8 @@ class Context:
         yield
         # Remove all variables that have specific blockscope_id attached.
         self.vars = {
-            name: var_record for name, var_record in self.vars.items()
+            name: var_record
+            for name, var_record in self.vars.items()
             if blockscope_id not in var_record.blockscopes
         }
         # Remove block scopes
@@ -124,9 +125,7 @@ class Context:
         # Global context check first.
         if self.global_ctx.is_valid_varname(name, pos):
             check_valid_varname(
-                name,
-                custom_structs=self.structs,
-                constants=self.constants, pos=pos,
+                name, custom_structs=self.structs, constants=self.constants, pos=pos,
             )
             # Local context duplicate context check.
             if any((name in self.vars, name in self.globals, name in self.constants)):
@@ -136,7 +135,7 @@ class Context:
     def _mangle(self, name):
         # ensure it is not possible to use an internal variable in source
         # code because source code identifiers cannot start with `#`
-        return '#internal' + name
+        return "#internal" + name
 
     # TODO location info for errors
     # Add a new variable
@@ -149,11 +148,7 @@ class Context:
             var_size = 32 * get_size_of_type(typ)
             var_pos, _ = self.memory_allocator.increase_memory(var_size)
             self.vars[name] = VariableRecord(
-                name=name,
-                pos=var_pos,
-                typ=typ,
-                mutable=True,
-                blockscopes=self.blockscopes.copy(),
+                name=name, pos=var_pos, typ=typ, mutable=True, blockscopes=self.blockscopes.copy(),
             )
             return var_pos
 
@@ -162,7 +157,7 @@ class Context:
 
     # Add an anonymous variable (used in some complex function definitions)
     def new_placeholder(self, typ):
-        name = '_placeholder_' + str(self.placeholder_count)
+        name = "_placeholder_" + str(self.placeholder_count)
         self.placeholder_count += 1
         return self.new_internal_variable(name, typ)
 
@@ -175,9 +170,9 @@ class Context:
     # Pretty print constancy for error messages
     def pp_constancy(self):
         if self.in_assertion:
-            return 'an assertion'
+            return "an assertion"
         elif self.in_range_expr:
-            return 'a range expression'
+            return "a range expression"
         elif self.constancy == Constancy.Constant:
-            return 'a constant function'
+            return "a constant function"
         raise CompilerPanic(f"unknown constancy in pp_constancy: {self.constancy}")

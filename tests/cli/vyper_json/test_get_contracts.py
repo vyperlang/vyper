@@ -28,51 +28,43 @@ def test_no_sources():
 
 def test_contracts_urls():
     with pytest.raises(JSONError):
-        get_input_dict_contracts({'sources': {'foo.vy': {'urls': ["https://foo.code.com/"]}}})
+        get_input_dict_contracts({"sources": {"foo.vy": {"urls": ["https://foo.code.com/"]}}})
 
 
 def test_contracts_no_content_key():
     with pytest.raises(JSONError):
-        get_input_dict_contracts({'sources': {'foo.vy': FOO_CODE}})
+        get_input_dict_contracts({"sources": {"foo.vy": FOO_CODE}})
 
 
 def test_contracts_keccak():
     hash_ = keccak256(FOO_CODE.encode()).hex()
 
-    input_json = {'sources': {'foo.vy': {'content': FOO_CODE, 'keccak256': hash_}}}
+    input_json = {"sources": {"foo.vy": {"content": FOO_CODE, "keccak256": hash_}}}
     get_input_dict_contracts(input_json)
 
-    input_json['sources']['foo.vy']['keccak256'] = "0x"+hash_
+    input_json["sources"]["foo.vy"]["keccak256"] = "0x" + hash_
     get_input_dict_contracts(input_json)
 
-    input_json['sources']['foo.vy']['keccak256'] = "0x1234567890"
+    input_json["sources"]["foo.vy"]["keccak256"] = "0x1234567890"
     with pytest.raises(JSONError):
         get_input_dict_contracts(input_json)
 
 
 def test_contracts_bad_path():
-    input_json = {'sources': {'../foo.vy': {'content': FOO_CODE}}}
+    input_json = {"sources": {"../foo.vy": {"content": FOO_CODE}}}
     with pytest.raises(JSONError):
         get_input_dict_contracts(input_json)
 
 
 def test_contract_collision():
-    input_json = {
-        'sources': {
-            'foo.vy': {'content': FOO_CODE},
-            '/foo.vy': {'content': FOO_CODE}
-        }
-    }
+    input_json = {"sources": {"foo.vy": {"content": FOO_CODE}, "/foo.vy": {"content": FOO_CODE}}}
     with pytest.raises(JSONError):
         get_input_dict_contracts(input_json)
 
 
 def test_contracts_return_value():
     input_json = {
-        'sources': {
-            '/foo.vy': {'content': FOO_CODE},
-            'contracts/bar.vy': {'content': BAR_CODE},
-        }
+        "sources": {"/foo.vy": {"content": FOO_CODE}, "contracts/bar.vy": {"content": BAR_CODE},}
     }
     result = get_input_dict_contracts(input_json)
-    assert result == {'foo.vy': FOO_CODE, 'contracts/bar.vy': BAR_CODE}
+    assert result == {"foo.vy": FOO_CODE, "contracts/bar.vy": BAR_CODE}

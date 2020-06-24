@@ -14,7 +14,7 @@ def foo():
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
+@pytest.mark.parametrize("bad_code", fail_list)
 def test_type_mismatch_exception(bad_code):
     with raises(TypeMismatch):
         compiler.compile_code(bad_code)

@@ -8,4 +8,4 @@ def foo() -> int128:
 
     c = get_contract_with_gas_estimation(comment_test)
     assert c.foo() == 3
-    print('Passed comment test')
+    print("Passed comment test")

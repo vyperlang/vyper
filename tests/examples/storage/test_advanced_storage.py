@@ -6,7 +6,7 @@ INITIAL_VALUE = 4
 
 @pytest.fixture
 def adv_storage_contract(w3, get_contract):
-    with open('examples/storage/advanced_storage.vy') as f:
+    with open("examples/storage/advanced_storage.vy") as f:
         contract_code = f.read()
         # Pass constructor variables directly to the contract
         contract = get_contract(contract_code, INITIAL_VALUE)
@@ -35,8 +35,7 @@ def test_failed_transactions(w3, adv_storage_contract, assert_tx_failed):
 
     # Assert a different exception (ValidationError for non matching argument type)
     assert_tx_failed(
-        lambda: adv_storage_contract.set("foo", transact={"from": k1}),
-        ValidationError
+        lambda: adv_storage_contract.set("foo", transact={"from": k1}), ValidationError
     )
 
     # Assert a different exception that contains specific text
@@ -44,7 +43,7 @@ def test_failed_transactions(w3, adv_storage_contract, assert_tx_failed):
         lambda: adv_storage_contract.set(1, 2, transact={"from": k1}),
         ValidationError,
         "invocation failed due to improper number of arguments",
-     )
+    )
 
 
 def test_events(w3, adv_storage_contract, get_logs):
@@ -66,4 +65,4 @@ def test_events(w3, adv_storage_contract, get_logs):
     assert len(logs2) == 1
     assert logs2[0].args._setter == k2
 
-    assert not logs3   # tx3 does not generate a log
+    assert not logs3  # tx3 does not generate a log

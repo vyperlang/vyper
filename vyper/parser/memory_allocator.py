@@ -17,9 +17,7 @@ class MemoryAllocator:
     # Grow memory by x bytes
     def increase_memory(self, size: int) -> Tuple[int, int]:
         if size % 32 != 0:
-            raise CompilerPanic(
-                'Memory misaligment, only multiples of 32 supported.'
-            )
+            raise CompilerPanic("Memory misaligment, only multiples of 32 supported.")
         before_value = self.next_mem
         self.next_mem += size
         return before_value, self.next_mem

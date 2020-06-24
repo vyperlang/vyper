@@ -84,9 +84,7 @@ def compile_codes(
         output_formats = dict((k, output_formats) for k in contract_sources.keys())
 
     out: OrderedDict = OrderedDict()
-    for source_id, contract_name in enumerate(
-        sorted(contract_sources), start=initial_id
-    ):
+    for source_id, contract_name in enumerate(sorted(contract_sources), start=initial_id):
         # trailing newline fixes python parsing bug when source ends in a comment
         # https://bugs.python.org/issue35107
         source_code = f"{contract_sources[contract_name]}\n"
@@ -104,9 +102,7 @@ def compile_codes(
                 raise ValueError(f"Unsupported format type {repr(output_format)}")
             try:
                 out.setdefault(contract_name, {})
-                out[contract_name][output_format] = OUTPUT_FORMATS[output_format](
-                    compiler_data
-                )
+                out[contract_name][output_format] = OUTPUT_FORMATS[output_format](compiler_data)
             except Exception as exc:
                 if exc_handler is not None:
                     exc_handler(contract_name, exc)
@@ -153,8 +149,5 @@ def compile_code(
     contract_sources = {UNKNOWN_CONTRACT_NAME: contract_source}
 
     return compile_codes(
-        contract_sources,
-        output_formats,
-        interface_codes=interface_codes,
-        evm_version=evm_version,
+        contract_sources, output_formats, interface_codes=interface_codes, evm_version=evm_version,
     )[UNKNOWN_CONTRACT_NAME]

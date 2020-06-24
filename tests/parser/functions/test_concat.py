@@ -20,8 +20,11 @@ def foo3(input1: bytes[50], input2: bytes[50], input3: bytes[50]) -> bytes[1000]
     assert c.foo3(b"Buffalo", b" ", b"buffalo") == b"Buffalo buffalo"
     assert c.foo2(b"\x36", b"\x35" * 32) == b"\x36" + b"\x35" * 32
     assert c.foo2(b"\x36" * 48, b"\x35" * 32) == b"\x36" * 48 + b"\x35" * 32
-    assert c.foo3(b"horses" * 4, b"mice" * 7, b"crows" * 10) == b"horses" * 4 + b"mice" * 7 + b"crows" * 10  # noqa: E501
-    print('Passed simple concat test')
+    assert (
+        c.foo3(b"horses" * 4, b"mice" * 7, b"crows" * 10)
+        == b"horses" * 4 + b"mice" * 7 + b"crows" * 10
+    )  # noqa: E501
+    print("Passed simple concat test")
 
 
 def test_concat2(get_contract_with_gas_estimation):
@@ -34,7 +37,7 @@ def foo(inp: bytes[50]) -> bytes[1000]:
 
     c = get_contract_with_gas_estimation(test_concat2)
     assert c.foo(b"horse" * 9 + b"vyper") == (b"horse" * 9 + b"vyper") * 10
-    print('Passed second concat test')
+    print("Passed second concat test")
 
 
 def test_crazy_concat_code(get_contract_with_gas_estimation):
@@ -50,9 +53,9 @@ def krazykonkat(z: bytes[10]) -> bytes[25]:
 
     c = get_contract_with_gas_estimation(crazy_concat_code)
 
-    assert c.krazykonkat(b"moose") == b'cow horse moose'
+    assert c.krazykonkat(b"moose") == b"cow horse moose"
 
-    print('Passed third concat test')
+    print("Passed third concat test")
 
 
 def test_concat_bytes32(get_contract_with_gas_estimation):
@@ -67,7 +70,9 @@ def fivetimes(inp: bytes32) -> bytes[160]:
     """
 
     c = get_contract_with_gas_estimation(test_concat_bytes32)
-    assert c.sandwich(b"cow", b"\x35" * 32) == b"\x35" * 32 + b"cow" + b"\x35" * 32, c.sandwich(b"cow", b"\x35" * 32)  # noqa: E501
+    assert c.sandwich(b"cow", b"\x35" * 32) == b"\x35" * 32 + b"cow" + b"\x35" * 32, c.sandwich(
+        b"cow", b"\x35" * 32
+    )  # noqa: E501
     assert c.sandwich(b"", b"\x46" * 32) == b"\x46" * 64
     assert c.sandwich(b"\x57" * 95, b"\x57" * 32) == b"\x57" * 159
     assert c.sandwich(b"\x57" * 96, b"\x57" * 32) == b"\x57" * 160
@@ -97,11 +102,11 @@ def hoo(x: bytes32, y: bytes32) -> bytes[64]:
     """
 
     c = get_contract_with_gas_estimation(konkat_code)
-    assert c.foo(b'\x35' * 32, b'\x00' * 32) == b'\x35' * 32 + b'\x00' * 32
-    assert c.goo(b'\x35' * 32, b'\x00' * 32) == b'\x35' * 32 + b'\x00' * 32
-    assert c.hoo(b'\x35' * 32, b'\x00' * 32) == b'\x35' * 32 + b'\x00' * 32
+    assert c.foo(b"\x35" * 32, b"\x00" * 32) == b"\x35" * 32 + b"\x00" * 32
+    assert c.goo(b"\x35" * 32, b"\x00" * 32) == b"\x35" * 32 + b"\x00" * 32
+    assert c.hoo(b"\x35" * 32, b"\x00" * 32) == b"\x35" * 32 + b"\x00" * 32
 
-    print('Passed second concat tests')
+    print("Passed second concat tests")
 
 
 def test_small_output(get_contract_with_gas_estimation):
@@ -112,8 +117,8 @@ def small_output(a: string[5], b: string[4]) -> string[9]:
     return c
     """
     c = get_contract_with_gas_estimation(code)
-    assert c.small_output('abcde', 'fghi') == 'abcdefghi'
-    assert c.small_output('', '') == ''
+    assert c.small_output("abcde", "fghi") == "abcdefghi"
+    assert c.small_output("", "") == ""
 
 
 def test_large_output(get_contract_with_gas_estimation, assert_compile_failed):
@@ -124,7 +129,4 @@ def large_output(a: string[33], b: string[33]) -> string[64]:
     return c
     """
 
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code),
-        TypeMismatch
-    )
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatch)

@@ -4,18 +4,25 @@ from vyper import compiler
 from vyper.exceptions import FunctionDeclarationException, StructureException
 
 fail_list = [
-    ("""
+    (
+        """
 @public
 def foo() -> int128:
     pass
-    """, FunctionDeclarationException),
-    ("""
+    """,
+        FunctionDeclarationException,
+    ),
+    (
+        """
 @public
 def foo() -> int128:
     if False:
         return 123
-    """, FunctionDeclarationException),
-    ("""
+    """,
+        FunctionDeclarationException,
+    ),
+    (
+        """
 @public
 def test() -> int128:
     if 1 == 1 :
@@ -24,20 +31,29 @@ def test() -> int128:
             return 0
     else:
         assert False
-    """, FunctionDeclarationException),
-    ("""
+    """,
+        FunctionDeclarationException,
+    ),
+    (
+        """
 @private
 def valid_address(sender: address) -> bool:
     selfdestruct(sender)
     return True
-    """, StructureException),
-    ("""
+    """,
+        StructureException,
+    ),
+    (
+        """
 @private
 def valid_address(sender: address) -> bool:
     selfdestruct(sender)
     a: address = sender
-    """, StructureException),
-    ("""
+    """,
+        StructureException,
+    ),
+    (
+        """
 @private
 def valid_address(sender: address) -> bool:
     if sender == ZERO_ADDRESS:
@@ -45,11 +61,13 @@ def valid_address(sender: address) -> bool:
         _sender: address = sender
     else:
         return False
-    """, StructureException),
+    """,
+        StructureException,
+    ),
 ]
 
 
-@pytest.mark.parametrize('bad_code,exc', fail_list)
+@pytest.mark.parametrize("bad_code,exc", fail_list)
 def test_return_mismatch(bad_code, exc):
     with pytest.raises(exc):
         compiler.compile_code(bad_code)
@@ -107,10 +125,10 @@ def test() -> int128:
         x = keccak256(x)
         return 1
     return 1
-    """
+    """,
 ]
 
 
-@pytest.mark.parametrize('good_code', valid_list)
+@pytest.mark.parametrize("good_code", valid_list)
 def test_return_success(good_code):
     assert compiler.compile_code(good_code) is not None

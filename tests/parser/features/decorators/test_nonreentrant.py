@@ -1,5 +1,3 @@
-
-
 def test_nonrentrant_decorator(get_contract, assert_tx_failed):
     calling_contract_code = """
 contract SpecialContract:
@@ -54,11 +52,11 @@ def unprotected_function(val: string[100], do_callback: bool):
     assert reentrant_contract.callback() == calling_contract.address
 
     # Test unprotected function.
-    reentrant_contract.unprotected_function('some value', True, transact={})
-    assert reentrant_contract.special_value() == 'surprise!'
+    reentrant_contract.unprotected_function("some value", True, transact={})
+    assert reentrant_contract.special_value() == "surprise!"
 
     # Test protected function.
-    reentrant_contract.protected_function('some value', False, transact={})
-    assert reentrant_contract.special_value() == 'some value'
+    reentrant_contract.protected_function("some value", False, transact={})
+    assert reentrant_contract.special_value() == "some value"
 
-    assert_tx_failed(lambda: reentrant_contract.protected_function('zzz value', True, transact={}))
+    assert_tx_failed(lambda: reentrant_contract.protected_function("zzz value", True, transact={}))

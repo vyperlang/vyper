@@ -9,7 +9,7 @@ def repeat(z: int128) -> int128:
     """
     c = get_contract_with_gas_estimation(basic_repeater)
     assert c.repeat(9) == 54
-    print('Passed basic repeater test')
+    print("Passed basic repeater test")
 
 
 def test_digit_reverser(get_contract_with_gas_estimation):
@@ -30,7 +30,7 @@ def reverse_digits(x: int128) -> int128:
 
     c = get_contract_with_gas_estimation(digit_reverser)
     assert c.reverse_digits(123456) == 654321
-    print('Passed digit reverser test')
+    print("Passed digit reverser test")
 
 
 def test_more_complex_repeater(get_contract_with_gas_estimation):
@@ -48,7 +48,7 @@ def repeat() -> int128:
     c = get_contract_with_gas_estimation(more_complex_repeater)
     assert c.repeat() == 666666
 
-    print('Passed complex repeater test')
+    print("Passed complex repeater test")
 
 
 def test_offset_repeater(get_contract_with_gas_estimation):
@@ -64,7 +64,7 @@ def sum() -> int128:
     c = get_contract_with_gas_estimation(offset_repeater)
     assert c.sum() == 4100
 
-    print('Passed repeater with offset test')
+    print("Passed repeater with offset test")
 
 
 def test_offset_repeater_2(get_contract_with_gas_estimation):
@@ -83,7 +83,7 @@ def sum(frm: int128, to: int128) -> int128:
     assert c.sum(100, 99999) == 15150
     assert c.sum(70, 131) == 6100
 
-    print('Passed more complex repeater with offset test')
+    print("Passed more complex repeater with offset test")
 
 
 def test_loop_call_priv(get_contract_with_gas_estimation):

@@ -22,7 +22,7 @@ def returnMoose() -> int128:
 
     c = get_contract_with_gas_estimation(permanent_variables_test, *[5, 7])
     assert c.returnMoose() == 57
-    print('Passed init argument and variable member test')
+    print("Passed init argument and variable member test")
 
 
 def test_missing_global(get_contract):

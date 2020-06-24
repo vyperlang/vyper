@@ -47,14 +47,12 @@ def validate_call_args(
         raise ArgumentException(
             f"Invalid argument count: expected {arg_count[0]} "
             f"to {arg_count[1]}, got {len(node.args)}",
-            node
+            node,
         )
 
     if kwargs is None:
         if node.keywords:
-            raise ArgumentException(
-                "Keyword arguments are not accepted here", node.keywords[0]
-            )
+            raise ArgumentException("Keyword arguments are not accepted here", node.keywords[0])
         return
 
     kwargs_seen = set()

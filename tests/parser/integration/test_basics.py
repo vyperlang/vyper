@@ -39,5 +39,5 @@ def returnten() -> int128:
     """
 
     c = get_contract_with_gas_estimation(selfcall_code_3)
-    assert c.return_hash_of_cow_x_30() == keccak(b'cow' * 30)
+    assert c.return_hash_of_cow_x_30() == keccak(b"cow" * 30)
     assert c.returnten() == 10

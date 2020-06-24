@@ -13,7 +13,7 @@ def foo():
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
+@pytest.mark.parametrize("bad_code", fail_list)
 def test_variable_decleration_exception(bad_code):
     with raises(NonPayableViolation):
         compiler.compile_code(bad_code)
@@ -33,10 +33,10 @@ def foo() -> int128:
 @payable
 def foo():
     x: uint256 = msg.value
-    """
+    """,
 ]
 
 
-@pytest.mark.parametrize('good_code', valid_list)
+@pytest.mark.parametrize("good_code", valid_list)
 def test_block_success(good_code):
     assert compiler.compile_code(good_code) is not None

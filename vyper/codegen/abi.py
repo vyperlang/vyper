@@ -21,7 +21,7 @@ from vyper.utils import ceil32
 class ABIType:
     # aka has tail
     def is_dynamic(self):
-        raise NotImplementedError('ABIType.is_dynamic')
+        raise NotImplementedError("ABIType.is_dynamic")
 
     # size (in bytes) in the static section (aka 'head')
     # when embedded in a tuple.
@@ -30,7 +30,7 @@ class ABIType:
 
     # size (in bytes) of the static section
     def static_size(self):
-        raise NotImplementedError('ABIType.static_size')
+        raise NotImplementedError("ABIType.static_size")
 
     # max size (in bytes) in the dynamic section (aka 'tail')
     def dynamic_size_bound(self):
@@ -38,13 +38,13 @@ class ABIType:
 
     # The canonical name of the type for calculating the function selector
     def selector_name(self):
-        raise NotImplementedError('ABIType.selector_name')
+        raise NotImplementedError("ABIType.selector_name")
 
     # Whether the type is a tuple at the ABI level.
     # (This is important because if it does, it needs an offset.
     #   Compare the difference in encoding between `bytes` and `(bytes,)`.)
     def is_tuple(self):
-        raise NotImplementedError('ABIType.is_tuple')
+        raise NotImplementedError("ABIType.is_tuple")
 
 
 # uint<M>: unsigned integer type of M bits, 0 < M <= 256, M % 8 == 0. e.g. uint32, uint8, uint256.
@@ -52,7 +52,7 @@ class ABIType:
 class ABI_GIntM(ABIType):
     def __init__(self, m_bits, signed):
         if not (0 < m_bits <= 256 and 0 == m_bits % 8):
-            raise CompilerPanic('Invalid M provided for GIntM')
+            raise CompilerPanic("Invalid M provided for GIntM")
 
         self.m_bits = m_bits
         self.signed = signed
@@ -64,7 +64,7 @@ class ABI_GIntM(ABIType):
         return 32
 
     def selector_name(self):
-        return ('' if self.signed else 'u') + f'int{self.m_bits}'
+        return ("" if self.signed else "u") + f"int{self.m_bits}"
 
     def is_tuple(self):
         return False
@@ -77,7 +77,7 @@ class ABI_Address(ABI_GIntM):
         return super().__init__(160, False)
 
     def selector_name(self):
-        return 'address'
+        return "address"
 
 
 # bool: equivalent to uint8 restricted to the values 0 and 1.
@@ -89,7 +89,7 @@ class ABI_Bool(ABI_GIntM):
         return super().__init__(8, False)
 
     def selector_name(self):
-        return 'bool'
+        return "bool"
 
 
 # fixed<M>x<N>: signed fixed-point decimal number of M bits, 8 <= M <= 256,
@@ -100,9 +100,9 @@ class ABI_Bool(ABI_GIntM):
 class ABI_FixedMxN(ABIType):
     def __init__(self, m_bits, n_places, signed):
         if not (0 < m_bits <= 256 and 0 == m_bits % 8):
-            raise CompilerPanic('Invalid M for FixedMxN')
+            raise CompilerPanic("Invalid M for FixedMxN")
         if not (0 < n_places and n_places <= 80):
-            raise CompilerPanic('Invalid N for FixedMxN')
+            raise CompilerPanic("Invalid N for FixedMxN")
 
         self.m_bits = m_bits
         self.n_places = n_places
@@ -115,8 +115,7 @@ class ABI_FixedMxN(ABIType):
         return 32
 
     def selector_name(self):
-        return ('' if self.signed else 'u') + \
-                'fixed{self.m_bits}x{self.n_places}'
+        return ("" if self.signed else "u") + "fixed{self.m_bits}x{self.n_places}"
 
     def is_tuple(self):
         return False
@@ -126,7 +125,7 @@ class ABI_FixedMxN(ABIType):
 class ABI_BytesM(ABIType):
     def __init__(self, m_bytes):
         if not 0 < m_bytes <= 32:
-            raise CompilerPanic('Invalid M for BytesM')
+            raise CompilerPanic("Invalid M for BytesM")
 
         self.m_bytes = m_bytes
 
@@ -137,7 +136,7 @@ class ABI_BytesM(ABIType):
         return 32
 
     def selector_name(self):
-        return f'bytes{self.m_bytes}'
+        return f"bytes{self.m_bytes}"
 
     def is_tuple(self):
         return False
@@ -150,14 +149,14 @@ class ABI_Function(ABI_BytesM):
         return super().__init__(24)
 
     def selector_name(self):
-        return 'function'
+        return "function"
 
 
 # <type>[M]: a fixed-length array of M elements, M >= 0, of the given type.
 class ABI_StaticArray(ABIType):
     def __init__(self, subtyp, m_elems):
         if not m_elems >= 0:
-            raise CompilerPanic('Invalid M')
+            raise CompilerPanic("Invalid M")
 
         self.subtyp = subtyp
         self.m_elems = m_elems
@@ -172,7 +171,7 @@ class ABI_StaticArray(ABIType):
         return self.m_elems * self.subtyp.dynamic_size_bound()
 
     def selector_name(self):
-        return f'{self.subtyp.selector_name()}[{self.m_elems}]'
+        return f"{self.subtyp.selector_name()}[{self.m_elems}]"
 
     def is_tuple(self):
         return True
@@ -181,7 +180,7 @@ class ABI_StaticArray(ABIType):
 class ABI_Bytes(ABIType):
     def __init__(self, bytes_bound):
         if not bytes_bound >= 0:
-            raise CompilerPanic('Negative bytes_bound provided to ABI_Bytes')
+            raise CompilerPanic("Negative bytes_bound provided to ABI_Bytes")
 
         self.bytes_bound = bytes_bound
 
@@ -198,7 +197,7 @@ class ABI_Bytes(ABIType):
         return 32 + ceil32(self.bytes_bound)
 
     def selector_name(self):
-        return 'bytes'
+        return "bytes"
 
     def is_tuple(self):
         return False
@@ -206,13 +205,13 @@ class ABI_Bytes(ABIType):
 
 class ABI_String(ABI_Bytes):
     def selector_name(self):
-        return 'string'
+        return "string"
 
 
 class ABI_DynamicArray(ABIType):
     def __init__(self, subtyp, elems_bound):
         if not elems_bound >= 0:
-            raise CompilerPanic('Negative bound provided to DynamicArray')
+            raise CompilerPanic("Negative bound provided to DynamicArray")
 
         self.subtyp = subtyp
         self.elems_bound = elems_bound
@@ -227,7 +226,7 @@ class ABI_DynamicArray(ABIType):
         return self.subtyp.dynamic_size_bound() * self.elems_bound
 
     def selector_name(self):
-        return f'{self.subtyp.selector_name()}[]'
+        return f"{self.subtyp.selector_name()}[]"
 
     def is_tuple(self):
         return False
@@ -253,20 +252,20 @@ class ABI_Tuple(ABIType):
 def abi_type_of(lll_typ):
     if isinstance(lll_typ, BaseType):
         t = lll_typ.typ
-        if 'uint256' == t:
+        if "uint256" == t:
             return ABI_GIntM(256, False)
-        elif 'int128' == t:
+        elif "int128" == t:
             return ABI_GIntM(128, True)
-        elif 'address' == t:
+        elif "address" == t:
             return ABI_Address()
-        elif 'bytes32' == t:
+        elif "bytes32" == t:
             return ABI_BytesM(32)
-        elif 'bool' == t:
+        elif "bool" == t:
             return ABI_Bool()
-        elif 'decimal' == t:
+        elif "decimal" == t:
             return ABI_FixedMxN(168, 10, True)
         else:
-            raise CompilerPanic(f'Unrecognized type {t}')
+            raise CompilerPanic(f"Unrecognized type {t}")
     elif isinstance(lll_typ, TupleLike):
         return ABI_Tuple([abi_type_of(t) for t in lll_typ.tuple_members()])
     elif isinstance(lll_typ, ListType):
@@ -276,7 +275,7 @@ def abi_type_of(lll_typ):
     elif isinstance(lll_typ, StringType):
         return ABI_String(lll_typ.maxlen)
     else:
-        raise CompilerPanic(f'Unrecognized type {lll_typ}')
+        raise CompilerPanic(f"Unrecognized type {lll_typ}")
 
 
 # there are a lot of places in the calling convention where a tuple
@@ -291,14 +290,16 @@ def ensure_tuple(abi_typ):
 def o_list(lll_node, pos=None):
     lll_t = lll_node.typ
     if isinstance(lll_t, (TupleLike, ListType)):
-        if lll_node.value == 'multi':  # is literal
+        if lll_node.value == "multi":  # is literal
             ret = lll_node.args
         else:
-            ks = lll_t.tuple_keys() if isinstance(lll_t, TupleLike) else \
-                    [LLLnode.from_list(i, 'uint256') for i in range(lll_t.count)]
+            ks = (
+                lll_t.tuple_keys()
+                if isinstance(lll_t, TupleLike)
+                else [LLLnode.from_list(i, "uint256") for i in range(lll_t.count)]
+            )
 
-            ret = [add_variable_offset(lll_node, k, pos, array_bounds_check=False)
-                   for k in ks]
+            ret = [add_variable_offset(lll_node, k, pos, array_bounds_check=False) for k in ks]
         return ret
     else:
         return [lll_node]
@@ -337,12 +338,12 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
     parent_abi_t = abi_type_of(lll_node.typ)
     size_bound = parent_abi_t.static_size() + parent_abi_t.dynamic_size_bound()
     if bufsz is not None and bufsz < 32 * size_bound:
-        raise CompilerPanic('buffer provided to abi_encode not large enough')
+        raise CompilerPanic("buffer provided to abi_encode not large enough")
 
-    lll_ret = ['seq']
-    dyn_ofst = 'dyn_ofst'  # current offset in the dynamic section
-    dst_begin = 'dst'      # pointer to beginning of buffer
-    dst_loc = 'dst_loc'    # pointer to write location in static section
+    lll_ret = ["seq"]
+    dyn_ofst = "dyn_ofst"  # current offset in the dynamic section
+    dst_begin = "dst"  # pointer to beginning of buffer
+    dst_loc = "dst_loc"  # pointer to write location in static section
     os = o_list(lll_node, pos=pos)
 
     for i, o in enumerate(os):
@@ -350,60 +351,54 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
 
         if parent_abi_t.is_tuple():
             if abi_t.is_dynamic():
-                lll_ret.append(['mstore', dst_loc, dyn_ofst])
+                lll_ret.append(["mstore", dst_loc, dyn_ofst])
                 # recurse
-                child_dst = ['add', dst_begin, dyn_ofst]
+                child_dst = ["add", dst_begin, dyn_ofst]
                 child = abi_encode(child_dst, o, pos=pos, returns=True)
                 # increment dyn ofst for the return
                 # (optimization note:
                 #   if non-returning and this is the last dyn member in
                 #   the tuple, this set can be elided.)
-                lll_ret.append(
-                        ['set', dyn_ofst,
-                            ['add', dyn_ofst, child]])
+                lll_ret.append(["set", dyn_ofst, ["add", dyn_ofst, child]])
             else:
                 # recurse
                 lll_ret.append(abi_encode(dst_loc, o, pos=pos, returns=False))
 
         elif isinstance(o.typ, BaseType):
-            d = LLLnode(dst_loc, typ=o.typ, location='memory')
+            d = LLLnode(dst_loc, typ=o.typ, location="memory")
             lll_ret.append(make_setter(d, o, location=d.location, pos=pos))
         elif isinstance(o.typ, ByteArrayLike):
-            d = LLLnode.from_list(dst_loc, typ=o.typ, location='memory')
-            lll_ret.append(
-                    ['seq',
-                        make_setter(d, o, location=d.location,  pos=pos),
-                        zero_pad(d)])
+            d = LLLnode.from_list(dst_loc, typ=o.typ, location="memory")
+            lll_ret.append(["seq", make_setter(d, o, location=d.location, pos=pos), zero_pad(d)])
         else:
-            raise CompilerPanic(f'unreachable type: {o.typ}')
+            raise CompilerPanic(f"unreachable type: {o.typ}")
 
         if i + 1 == len(os):
             pass  # optimize out the last increment to dst_loc
         else:  # note: always false for non-tuple types
             sz = abi_t.embedded_static_size()
-            lll_ret.append(['set', dst_loc, ['add', dst_loc, sz]])
+            lll_ret.append(["set", dst_loc, ["add", dst_loc, sz]])
 
     # declare LLL variables.
     if returns:
         if not parent_abi_t.is_dynamic():
             lll_ret.append(parent_abi_t.embedded_static_size())
         elif parent_abi_t.is_tuple():
-            lll_ret.append('dyn_ofst')
+            lll_ret.append("dyn_ofst")
         elif isinstance(lll_node.typ, ByteArrayLike):
             # for abi purposes, return zero-padded length
-            calc_len = ['ceil32', ['add', 32, ['mload', dst_loc]]]
+            calc_len = ["ceil32", ["add", 32, ["mload", dst_loc]]]
             lll_ret.append(calc_len)
         else:
-            raise CompilerPanic('unknown type {lll_node.typ}')
+            raise CompilerPanic("unknown type {lll_node.typ}")
 
     if not (parent_abi_t.is_dynamic() and parent_abi_t.is_tuple()):
         pass  # optimize out dyn_ofst allocation if we don't need it
     else:
         dyn_section_start = parent_abi_t.static_size()
-        lll_ret = ['with', 'dyn_ofst', dyn_section_start, lll_ret]
+        lll_ret = ["with", "dyn_ofst", dyn_section_start, lll_ret]
 
-    lll_ret = ['with', dst_begin, dst,
-               ['with', dst_loc, dst_begin, lll_ret]]
+    lll_ret = ["with", dst_begin, dst, ["with", dst_loc, dst_begin, lll_ret]]
 
     return LLLnode.from_list(lll_ret)
 
@@ -413,15 +408,15 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
 def abi_decode(lll_node, src, pos=None):
     os = o_list(lll_node, pos=pos)
     lll_ret = []
-    src_ptr = 'src'      # pointer to beginning of buffer
-    src_loc = 'src_loc'  # pointer to read location in static section
+    src_ptr = "src"  # pointer to beginning of buffer
+    src_loc = "src_loc"  # pointer to read location in static section
     parent_abi_t = abi_type_of(src.typ)
     for i, o in enumerate(os):
         abi_t = abi_type_of(o.typ)
-        src_loc = LLLnode('src_loc', typ=o.typ, location=src.location)
+        src_loc = LLLnode("src_loc", typ=o.typ, location=src.location)
         if parent_abi_t.is_tuple():
             if abi_t.is_dynamic():
-                child_loc = ['add', src_ptr, unwrap_location(src_loc)]
+                child_loc = ["add", src_ptr, unwrap_location(src_loc)]
             else:
                 child_loc = src_loc
             # descend into the child tuple
@@ -433,11 +428,9 @@ def abi_decode(lll_node, src, pos=None):
             pass  # optimize out the last pointer increment
         else:
             sz = abi_t.embedded_static_size()
-            lll_ret.append(['set', src_loc, ['add', src_loc, sz]])
+            lll_ret.append(["set", src_loc, ["add", src_loc, sz]])
 
-    lll_ret = ['with', 'src', src,
-               ['with', 'src_loc', 'src',
-                ['seq', lll_ret]]]
+    lll_ret = ["with", "src", src, ["with", "src_loc", "src", ["seq", lll_ret]]]
 
     return lll_ret
 
@@ -445,7 +438,7 @@ def abi_decode(lll_node, src, pos=None):
 def _add_ofst(loc, ofst):
     if isinstance(loc.value, int):
         return LLLnode(loc.value + ofst)
-    return ['add', loc, ofst]
+    return ["add", loc, ofst]
 
 
 # decode a buffer containing abi-encoded data structure in place
@@ -481,9 +474,9 @@ def lazy_abi_decode(typ, src, pos=None):
             os.append(lazy_abi_decode(t, loc, pos))
             ofst += child_abi_t.embedded_static_size()
 
-        return LLLnode.from_list(['multi'] + os, typ=typ, pos=pos)
+        return LLLnode.from_list(["multi"] + os, typ=typ, pos=pos)
 
     elif isinstance(typ, (BaseType, ByteArrayLike)):
         return unwrap_location(src)
     else:
-        raise CompilerPanic(f'unknown type for lazy_abi_decode {typ}')
+        raise CompilerPanic(f"unknown type for lazy_abi_decode {typ}")

@@ -17,12 +17,12 @@ def log(n: decimal) -> int128:
 
     c = get_contract_with_gas_estimation(break_test)
 
-    assert c.log(Decimal('1')) == 0
-    assert c.log(Decimal('2')) == 3
-    assert c.log(Decimal('10')) == 10
-    assert c.log(Decimal('200')) == 23
+    assert c.log(Decimal("1")) == 0
+    assert c.log(Decimal("2")) == 3
+    assert c.log(Decimal("10")) == 10
+    assert c.log(Decimal("200")) == 23
 
-    print('Passed for-loop break test')
+    print("Passed for-loop break test")
 
 
 def test_break_test_2(get_contract_with_gas_estimation):
@@ -45,12 +45,12 @@ def log(n: decimal) -> int128:
     """
 
     c = get_contract_with_gas_estimation(break_test_2)
-    assert c.log(Decimal('1')) == 0
-    assert c.log(Decimal('2')) == 3
-    assert c.log(Decimal('10')) == 10
-    assert c.log(Decimal('200')) == 23
-    assert c.log(Decimal('4000000')) == 66
-    print('Passed for-loop break test 2')
+    assert c.log(Decimal("1")) == 0
+    assert c.log(Decimal("2")) == 3
+    assert c.log(Decimal("10")) == 10
+    assert c.log(Decimal("200")) == 23
+    assert c.log(Decimal("4000000")) == 66
+    print("Passed for-loop break test 2")
 
 
 def test_break_test_3(get_contract_with_gas_estimation):
@@ -78,4 +78,4 @@ def log(n: int128) -> int128:
     assert c.log(10) == 10
     assert c.log(200) == 23
     assert c.log(4000000) == 66
-    print('Passed aug-assignment break composite test')
+    print("Passed aug-assignment break composite test")

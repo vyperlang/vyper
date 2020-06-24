@@ -27,6 +27,7 @@ def get_balance(w3):
         a0, a1 = w3.eth.accounts[:2]
         # balance of a1 = seller, a2 = buyer
         return w3.eth.getBalance(a0), w3.eth.getBalance(a1)
+
     return get_balance
 
 
@@ -39,28 +40,28 @@ def test_initial_state(w3, assert_tx_failed, get_contract, get_balance, contract
     # Check that the seller is set correctly
     assert c.seller() == w3.eth.accounts[0]
     # Check if item value is set correctly (Half of deposit)
-    assert c.value() == w3.toWei(1, 'ether')
+    assert c.value() == w3.toWei(1, "ether")
     # Check if unlocked() works correctly after initialization
     assert c.unlocked() is True
     # Check that sellers (and buyers) balance is correct
-    assert get_balance() == ((a1_pre_bal - w3.toWei(2, 'ether')), a1_pre_bal)
+    assert get_balance() == ((a1_pre_bal - w3.toWei(2, "ether")), a1_pre_bal)
 
 
 def test_abort(w3, assert_tx_failed, get_balance, get_contract, contract_code):
     a0, a1, a2 = w3.eth.accounts[:3]
 
     a0_pre_bal, a1_pre_bal = get_balance()
-    c = get_contract(contract_code, value=w3.toWei(2, 'ether'))
-    assert c.value() == w3.toWei(1, 'ether')
+    c = get_contract(contract_code, value=w3.toWei(2, "ether"))
+    assert c.value() == w3.toWei(1, "ether")
     # Only sender can trigger refund
-    assert_tx_failed(lambda: c.abort(transact={'from': a2}))
+    assert_tx_failed(lambda: c.abort(transact={"from": a2}))
     # Refund works correctly
-    c.abort(transact={'from': a0})
+    c.abort(transact={"from": a0})
     assert get_balance() == (a0_pre_bal, a1_pre_bal)
     # Purchase in process, no refund possible
     c = get_contract(contract_code, value=2)
-    c.purchase(transact={'value': 2, 'from': a1})
-    assert_tx_failed(lambda: c.abort(transact={'from': a0}))
+    c.purchase(transact={"value": 2, "from": a1})
+    assert_tx_failed(lambda: c.abort(transact={"from": a0}))
 
 
 def test_purchase(w3, get_contract, assert_tx_failed, get_balance, contract_code):
@@ -68,10 +69,10 @@ def test_purchase(w3, get_contract, assert_tx_failed, get_balance, contract_code
     init_bal_a0, init_bal_a1 = get_balance()
     c = get_contract(contract_code, value=2)
     # Purchase for too low/high price
-    assert_tx_failed(lambda: c.purchase(transact={'value': 1, 'from': a1}))
-    assert_tx_failed(lambda: c.purchase(transact={'value': 3, 'from': a1}))
+    assert_tx_failed(lambda: c.purchase(transact={"value": 1, "from": a1}))
+    assert_tx_failed(lambda: c.purchase(transact={"value": 3, "from": a1}))
     # Purchase for the correct price
-    c.purchase(transact={'value': 2, 'from': a1})
+    c.purchase(transact={"value": 2, "from": a1})
     # Check if buyer is set correctly
     assert c.buyer() == a1
     # Check if contract is locked correctly
@@ -79,7 +80,7 @@ def test_purchase(w3, get_contract, assert_tx_failed, get_balance, contract_code
     # Check balances, both deposits should have been deducted
     assert get_balance() == (init_bal_a0 - 2, init_bal_a1 - 2)
     # Allow nobody else to purchase
-    assert_tx_failed(lambda: c.purchase(transact={'value': 2, 'from': a3}))
+    assert_tx_failed(lambda: c.purchase(transact={"value": 2, "from": a3}))
 
 
 def test_received(w3, get_contract, assert_tx_failed, get_balance, contract_code):
@@ -87,13 +88,13 @@ def test_received(w3, get_contract, assert_tx_failed, get_balance, contract_code
     init_bal_a0, init_bal_a1 = get_balance()
     c = get_contract(contract_code, value=2)
     # Can only be called after purchase
-    assert_tx_failed(lambda: c.received(transact={'from': a1}))
+    assert_tx_failed(lambda: c.received(transact={"from": a1}))
     # Purchase completed
-    c.purchase(transact={'value': 2, 'from': a1})
+    c.purchase(transact={"value": 2, "from": a1})
     # Check that e.g. sender cannot trigger received
-    assert_tx_failed(lambda: c.received(transact={'from': a0}))
+    assert_tx_failed(lambda: c.received(transact={"from": a0}))
     # Check if buyer can call receive
-    c.received(transact={'from': a1})
+    c.received(transact={"from": a1})
     # Final check if everything worked. 1 value has been transferred
     assert get_balance() == (init_bal_a0 + 1, init_bal_a1 - 1)
 
@@ -143,19 +144,16 @@ def __default__():
         w3.eth.getBalance(buyer_contract_address),
     )
     # Start purchase
-    buyer_contract.start_purchase(transact={
-        'value': 4,
-        'from': w3.eth.accounts[1],
-        'gas': 100000,
-    })
+    buyer_contract.start_purchase(
+        transact={"value": 4, "from": w3.eth.accounts[1], "gas": 100000,}
+    )
     assert c.unlocked() is False
     assert c.buyer() == buyer_contract_address
 
     # Trigger "re-entry"
-    buyer_contract.start_received(transact={
-        'from': w3.eth.accounts[1],
-        'gas': 100000,
-    })
+    buyer_contract.start_received(
+        transact={"from": w3.eth.accounts[1], "gas": 100000,}
+    )
 
     # Final check if everything worked. 1 value has been transferred
     assert w3.eth.getBalance(a0), w3.eth.getBalance(buyer_contract_address) == (

@@ -36,7 +36,7 @@ def test_func() -> int128:
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
+@pytest.mark.parametrize("bad_code", fail_list)
 def test_function_declaration_exception(bad_code):
     with pytest.raises(FunctionDeclarationException):
         compiler.compile_code(bad_code)

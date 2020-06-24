@@ -63,12 +63,12 @@ def refund():
     """
     a0, a1, a2, a3, a4, a5, a6 = w3.eth.accounts[:7]
     c = get_contract_with_gas_estimation_for_constants(crowdfund, *[a1, 50, 60])
-    c.participate(transact={'value': 5})
+    c.participate(transact={"value": 5})
     assert c.timelimit() == 60
     assert c.deadline() - c.block_timestamp() == 59
     assert not c.expired()
     assert not c.reached()
-    c.participate(transact={'value': 49})
+    c.participate(transact={"value": 49})
     assert c.reached()
     pre_bal = w3.eth.getBalance(a1)
     w3.testing.mine(100)
@@ -78,10 +78,10 @@ def refund():
     assert post_bal - pre_bal == 54
 
     c = get_contract_with_gas_estimation_for_constants(crowdfund, *[a1, 50, 60])
-    c.participate(transact={'value': 1, 'from': a3})
-    c.participate(transact={'value': 2, 'from': a4})
-    c.participate(transact={'value': 3, 'from': a5})
-    c.participate(transact={'value': 4, 'from': a6})
+    c.participate(transact={"value": 1, "from": a3})
+    c.participate(transact={"value": 2, "from": a4})
+    c.participate(transact={"value": 3, "from": a5})
+    c.participate(transact={"value": 4, "from": a6})
     w3.testing.mine(100)
     assert c.expired()
     assert not c.reached()
@@ -155,12 +155,12 @@ def refund():
     a0, a1, a2, a3, a4, a5, a6 = w3.eth.accounts[:7]
     c = get_contract_with_gas_estimation_for_constants(crowdfund2, *[a1, 50, 60])
 
-    c.participate(transact={'value': 5})
+    c.participate(transact={"value": 5})
     assert c.timelimit() == 60
     assert c.deadline() - c.block_timestamp() == 59
     assert not c.expired()
     assert not c.reached()
-    c.participate(transact={'value': 49})
+    c.participate(transact={"value": 49})
     assert c.reached()
     pre_bal = w3.eth.getBalance(a1)
     w3.testing.mine(100)
@@ -170,10 +170,10 @@ def refund():
     assert post_bal - pre_bal == 54
 
     c = get_contract_with_gas_estimation_for_constants(crowdfund2, *[a1, 50, 60])
-    c.participate(transact={'value': 1, 'from': a3})
-    c.participate(transact={'value': 2, 'from': a4})
-    c.participate(transact={'value': 3, 'from': a5})
-    c.participate(transact={'value': 4, 'from': a6})
+    c.participate(transact={"value": 1, "from": a3})
+    c.participate(transact={"value": 2, "from": a4})
+    c.participate(transact={"value": 3, "from": a5})
+    c.participate(transact={"value": 4, "from": a6})
     w3.testing.mine(100)
     assert c.expired()
     assert not c.reached()

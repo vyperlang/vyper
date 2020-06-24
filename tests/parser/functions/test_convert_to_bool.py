@@ -10,8 +10,7 @@ def foo():
     """
 
     assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code),
-        InvalidType,
+        lambda: get_contract_with_gas_estimation(code), InvalidType,
     )
 
     code = """
@@ -20,10 +19,7 @@ def foo():
     foobar: bool = convert(False, bool)
     """
 
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code),
-        InvalidType
-    )
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidType)
 
 
 def test_convert_from_decimal(get_contract_with_gas_estimation):
@@ -140,8 +136,8 @@ def hoo() -> bool:
     """
 
     c = get_contract_with_gas_estimation(code)
-    assert c.foo(b'\x0F' * 32) is True
-    assert c.foo(b'\x00' * 32) is False
+    assert c.foo(b"\x0F" * 32) is True
+    assert c.foo(b"\x00" * 32) is False
 
     assert c.goo() is False
     assert c.hoo() is True
@@ -159,8 +155,8 @@ def goo(nar: bytes[32]) -> bool:
     """
 
     c = get_contract_with_gas_estimation(code)
-    assert c.foo(b'\x00\x00\x00\x00\x00') is False
-    assert c.foo(b'\x00\x07\x5B\xCD\x15') is True
+    assert c.foo(b"\x00\x00\x00\x00\x00") is False
+    assert c.foo(b"\x00\x07\x5B\xCD\x15") is True
     assert c.goo(b"") is False
     assert c.goo(b"\x00") is False
     assert c.goo(b"\x00" * 32) is False
@@ -175,10 +171,7 @@ def foo(bar: bytes[33]) -> bool:
     return convert(bar, bool)
     """
 
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code),
-        TypeMismatch
-    )
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatch)
 
     code = """
 @public
@@ -188,8 +181,7 @@ def foo() -> bool:
     """
 
     assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code),
-        TypeMismatch,
+        lambda: get_contract_with_gas_estimation(code), TypeMismatch,
     )
 
 
@@ -212,9 +204,9 @@ def test_sender() -> bool:
     a = w3.eth.accounts[0]
     c = get_contract_with_gas_estimation(code)
 
-    assert c.test_address_to_bool((b'\x00' * 19) + (b'\x01')) is True
+    assert c.test_address_to_bool((b"\x00" * 19) + (b"\x01")) is True
     assert c.test_address_to_bool(a) is True
-    assert c.test_address_to_bool(b'\x00' * 20) is False
+    assert c.test_address_to_bool(b"\x00" * 20) is False
 
     assert c.test_literal_zero_address() is False
     assert c.test_sender() is True

@@ -10,12 +10,12 @@ if (_sys.version_info.major, _sys.version_info.minor) < (3, 6):
 
 
 try:
-    __version__ = _pkg_resources.get_distribution('vyper').version
+    __version__ = _pkg_resources.get_distribution("vyper").version
 except _pkg_resources.DistributionNotFound:
-    __version__ = '0.0.0development'
+    __version__ = "0.0.0development"
 
 try:
-    __commit__ = _pkg_resources.resource_string('vyper', 'vyper_git_version.txt').decode('utf-8')
+    __commit__ = _pkg_resources.resource_string("vyper", "vyper_git_version.txt").decode("utf-8")
     __commit__ = __commit__[:7]
 except FileNotFoundError:
-    __commit__ = 'unknown'
+    __commit__ = "unknown"

@@ -67,7 +67,7 @@ def foop() -> int128:
     assert c.foom() == 999
     assert c.foop() == 999
 
-    print('Passed basic addition, subtraction and multiplication tests')
+    print("Passed basic addition, subtraction and multiplication tests")
 
 
 def test_harder_decimal_test(get_contract_with_gas_estimation):
@@ -103,15 +103,15 @@ def iarg() -> uint256:
     """
 
     c = get_contract_with_gas_estimation(harder_decimal_test)
-    assert c.phooey(Decimal('1.2')) == Decimal('20736.0')
-    assert c.phooey(Decimal('-1.2')) == Decimal('20736.0')
-    assert c.arg(Decimal('-3.7')) == Decimal('-3.7')
-    assert c.arg(Decimal('3.7')) == Decimal('3.7')
-    assert c.garg() == Decimal('6.75')
-    assert c.harg() == Decimal('9.0')
-    assert c.iarg() == Decimal('14')
+    assert c.phooey(Decimal("1.2")) == Decimal("20736.0")
+    assert c.phooey(Decimal("-1.2")) == Decimal("20736.0")
+    assert c.arg(Decimal("-3.7")) == Decimal("-3.7")
+    assert c.arg(Decimal("3.7")) == Decimal("3.7")
+    assert c.garg() == Decimal("6.75")
+    assert c.harg() == Decimal("9.0")
+    assert c.iarg() == Decimal("14")
 
-    print('Passed fractional multiplication test')
+    print("Passed fractional multiplication test")
 
 
 def test_mul_overflow(assert_tx_failed, get_contract_with_gas_estimation):
@@ -125,8 +125,8 @@ def _num_mul(x: decimal, y: decimal) -> decimal:
 
     c = get_contract_with_gas_estimation(mul_code)
 
-    NUM_1 = Decimal('85070591730234615865843651857942052864')
-    NUM_2 = Decimal('136112946768375385385349842973')
+    NUM_1 = Decimal("85070591730234615865843651857942052864")
+    NUM_2 = Decimal("136112946768375385385349842973")
 
     assert_tx_failed(lambda: c._num_mul(NUM_1, NUM_2))
 
@@ -158,8 +158,8 @@ def bar(num: decimal) -> decimal:
     """
     c = get_contract_with_gas_estimation(code)
 
-    assert c.foo() == Decimal('1e-10')  # Smallest possible decimal
-    assert c.bar(Decimal('1e37')) == Decimal('-9e37')  # Math lines up
+    assert c.foo() == Decimal("1e-10")  # Smallest possible decimal
+    assert c.bar(Decimal("1e37")) == Decimal("-9e37")  # Math lines up
 
 
 def test_exponents(assert_compile_failed, get_contract):

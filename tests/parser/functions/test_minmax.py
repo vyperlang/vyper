@@ -13,7 +13,7 @@ def goo() -> uint256:
     """
 
     c = get_contract_with_gas_estimation(minmax_test)
-    assert c.foo() == Decimal('58223.123')
+    assert c.foo() == Decimal("58223.123")
     assert c.goo() == 83
 
     print("Passed min/max test")
@@ -109,6 +109,7 @@ def test_minmax_var_uint256_var_int128(get_contract_with_gas_estimation, assert_
     variable int128 are passed.
     """
     from vyper.exceptions import TypeMismatch
+
     code_1 = """
 @public
 def foo() -> uint256:
@@ -116,10 +117,7 @@ def foo() -> uint256:
     b: int128 = 3
     return max(a, b)
 """
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code_1),
-        TypeMismatch
-    )
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code_1), TypeMismatch)
 
     code_2 = """
 @public
@@ -128,10 +126,7 @@ def foo() -> uint256:
     b: int128 = 3
     return max(b, a)
 """
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code_2),
-        TypeMismatch
-    )
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code_2), TypeMismatch)
 
     code_3 = """
 @public
@@ -140,10 +135,7 @@ def foo() -> uint256:
     b: int128 = 3
     return min(a, b)
 """
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code_3),
-        TypeMismatch
-    )
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code_3), TypeMismatch)
 
     code_4 = """
 @public
@@ -152,26 +144,21 @@ def foo() -> uint256:
     b: int128 = 3
     return min(b, a)
 """
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code_4),
-        TypeMismatch
-    )
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code_4), TypeMismatch)
 
 
-def test_minmax_var_uint256_negative_int128(get_contract_with_gas_estimation,
-                                            assert_tx_failed,
-                                            assert_compile_failed):
+def test_minmax_var_uint256_negative_int128(
+    get_contract_with_gas_estimation, assert_tx_failed, assert_compile_failed
+):
     from vyper.exceptions import TypeMismatch
+
     code_1 = """
 @public
 def foo() -> uint256:
     a: uint256 = 2 ** 200
     return max(a, -1)
 """
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code_1),
-        TypeMismatch
-    )
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code_1), TypeMismatch)
 
     code_2 = """
 @public
@@ -179,10 +166,7 @@ def foo() -> uint256:
     a: uint256 = 2 ** 200
     return min(a, -1)
 """
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code_2),
-        TypeMismatch
-    )
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code_2), TypeMismatch)
 
 
 def test_unsigned(get_contract_with_gas_estimation):
@@ -207,8 +191,8 @@ def foo4() -> uint256:
     c = get_contract_with_gas_estimation(code)
     assert c.foo1() == 0
     assert c.foo2() == 0
-    assert c.foo3() == 2**255
-    assert c.foo4() == 2**255
+    assert c.foo3() == 2 ** 255
+    assert c.foo4() == 2 ** 255
 
 
 def test_signed(get_contract_with_gas_estimation):
@@ -231,7 +215,7 @@ def foo4() -> int128:
     """
 
     c = get_contract_with_gas_estimation(code)
-    assert c.foo1() == -2**127
-    assert c.foo2() == -2**127
-    assert c.foo3() == 2**127-1
-    assert c.foo4() == 2**127-1
+    assert c.foo1() == -(2 ** 127)
+    assert c.foo2() == -(2 ** 127)
+    assert c.foo3() == 2 ** 127 - 1
+    assert c.foo4() == 2 ** 127 - 1

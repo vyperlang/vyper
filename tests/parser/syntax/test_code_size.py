@@ -13,7 +13,7 @@ def foo() -> int128:
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
+@pytest.mark.parametrize("bad_code", fail_list)
 def test_block_fail(bad_code):
 
     with pytest.raises(StructureException):
@@ -30,6 +30,6 @@ def foo() -> int128:
 ]
 
 
-@pytest.mark.parametrize('good_code', valid_list)
+@pytest.mark.parametrize("good_code", valid_list)
 def test_block_success(good_code):
     assert compiler.compile_code(good_code) is not None

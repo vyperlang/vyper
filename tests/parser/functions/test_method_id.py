@@ -1,5 +1,3 @@
-
-
 def test_method_id_test(get_contract_with_gas_estimation):
     method_id_test = """
 @public

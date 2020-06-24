@@ -18,14 +18,14 @@ def foo():
     """
     c = get_contract_with_gas_estimation(code)
     a0 = w3.eth.accounts[0]
-    gas_sent = 10**6
-    tx_hash = c.foo(transact={'from': a0, 'gas': gas_sent, 'gasPrice': 10})
+    gas_sent = 10 ** 6
+    tx_hash = c.foo(transact={"from": a0, "gas": gas_sent, "gasPrice": 10})
     # More info on receipt status:
     # https://github.com/ethereum/EIPs/blob/master/EIPS/eip-658.md#specification.
     tx_receipt = w3.eth.getTransactionReceipt(tx_hash)
-    assert tx_receipt['status'] == 0
+    assert tx_receipt["status"] == 0
     # Checks for gas refund from revert
-    assert tx_receipt['gasUsed'] < gas_sent
+    assert tx_receipt["gasUsed"] < gas_sent
 
 
 def test_assert_reason(w3, get_contract_with_gas_estimation, assert_tx_failed):
@@ -52,21 +52,21 @@ def test3() :
     with pytest.raises(TransactionFailed) as e_info:
         c.test(0)
 
-    assert e_info.value.args[0] == 'larger than one please'
+    assert e_info.value.args[0] == "larger than one please"
     # a = 0, b = 1
     with pytest.raises(TransactionFailed) as e_info:
         c.test2(0, 1)
-    assert e_info.value.args[0] == 'a is not large enough'
+    assert e_info.value.args[0] == "a is not large enough"
     # a = 1, b = 0
     with pytest.raises(TransactionFailed) as e_info:
         c.test2(2, 2)
-    assert e_info.value.args[0] == 'b may only be 1'
+    assert e_info.value.args[0] == "b may only be 1"
     # return correct value
     assert c.test2(5, 1) == 17
 
     with pytest.raises(TransactionFailed) as e_info:
         c.test3()
-    assert e_info.value.args[0] == 'An exception'
+    assert e_info.value.args[0] == "An exception"
 
 
 def test_assert_reason_invalid(get_contract, assert_compile_failed):
@@ -202,5 +202,5 @@ def test() -> int128:
         c.test()
     error_bytes = eval(e_info.value.args[0])
     assert len(error_bytes) == 100
-    msg = decode_single('string', error_bytes[36:])
-    assert msg == 'oops'
+    msg = decode_single("string", error_bytes[36:])
+    assert msg == "oops"

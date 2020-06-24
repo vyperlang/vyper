@@ -44,7 +44,7 @@ def return_hash_of_rzpadded_cow() -> bytes32:
 
     c = get_contract_with_gas_estimation(selfcall_code_2)
     assert c.returnten() == 10
-    assert c.return_hash_of_rzpadded_cow() == keccak(b'cow' + b'\x00' * 29)
+    assert c.return_hash_of_rzpadded_cow() == keccak(b"cow" + b"\x00" * 29)
 
     print("Passed single fixed-size argument self-call test")
 
@@ -69,7 +69,7 @@ def returnten() -> int128:
     """
 
     c = get_contract_with_gas_estimation(selfcall_code_3)
-    assert c.return_hash_of_cow_x_30() == keccak(b'cow' * 30)
+    assert c.return_hash_of_cow_x_30() == keccak(b"cow" * 30)
     assert c.returnten() == 10
 
     print("Passed single variable-size argument self-call test")
@@ -301,9 +301,9 @@ def bar6() -> int128:
 
     c = get_contract_with_gas_estimation(code)
     assert c.bar() == 0
-    assert c.foo1([0, 0], Decimal('0')) == 0
+    assert c.foo1([0, 0], Decimal("0")) == 0
     assert c.bar2() == 55
-    assert c.bar3() == Decimal('1.33')
+    assert c.bar3() == Decimal("1.33")
     assert c.bar4() == 77
     assert c.bar5() == 88
 
@@ -328,7 +328,7 @@ def bar() -> (int128, decimal):
     return self._fooz(x, y, z, a), self._fooa(x, y, z, a)
     """
     c = get_contract_with_gas_estimation(code)
-    assert c.bar() == [66, Decimal('66.77')]
+    assert c.bar() == [66, Decimal("66.77")]
 
 
 def test_private_function_multiple_lists_as_args(get_contract_with_gas_estimation):
@@ -380,7 +380,7 @@ def bar() -> (bytes[11], decimal, int128):
     return self._fooz(x, y, z, a), self._fooa(x, y, z, a), self._foox(x, y, z, a)
     """
     c = get_contract_with_gas_estimation(code)
-    assert c.bar() == [b"hello world", Decimal('66.77'), 44]
+    assert c.bar() == [b"hello world", Decimal("66.77"), 44]
 
 
 FAILING_CONTRACTS_CALL_VIOLATION = [
@@ -407,16 +407,13 @@ def _baz() -> int128:
 @public
 def foo() -> int128:
     return self._baz()
-    """
+    """,
 ]
 
 
-@pytest.mark.parametrize('failing_contract_code', FAILING_CONTRACTS_CALL_VIOLATION)
+@pytest.mark.parametrize("failing_contract_code", FAILING_CONTRACTS_CALL_VIOLATION)
 def test_selfcall_call_violation(failing_contract_code, assert_compile_failed):
-    assert_compile_failed(
-        lambda: compile_code(failing_contract_code),
-        CallViolation
-    )
+    assert_compile_failed(lambda: compile_code(failing_contract_code), CallViolation)
 
 
 FAILING_CONTRACTS_ARGUMENT_EXCEPTION = [
@@ -453,12 +450,9 @@ def foo() -> int128:
 ]
 
 
-@pytest.mark.parametrize('failing_contract_code', FAILING_CONTRACTS_ARGUMENT_EXCEPTION)
+@pytest.mark.parametrize("failing_contract_code", FAILING_CONTRACTS_ARGUMENT_EXCEPTION)
 def test_selfcall_wrong_arg_count(failing_contract_code, assert_compile_failed):
-    assert_compile_failed(
-        lambda: compile_code(failing_contract_code),
-        ArgumentException
-    )
+    assert_compile_failed(lambda: compile_code(failing_contract_code), ArgumentException)
 
 
 FAILING_CONTRACTS_TYPE_MISMATCH = [
@@ -505,8 +499,8 @@ def bar():
 ]
 
 
-@pytest.mark.parametrize('failing_contract_code', FAILING_CONTRACTS_TYPE_MISMATCH)
-@pytest.mark.parametrize('decorator', ['public', 'private'])
+@pytest.mark.parametrize("failing_contract_code", FAILING_CONTRACTS_TYPE_MISMATCH)
+@pytest.mark.parametrize("decorator", ["public", "private"])
 def test_selfcall_kwarg_raises(failing_contract_code, decorator, assert_compile_failed):
     assert_compile_failed(
         lambda: compile_code(failing_contract_code.format(decorator)),

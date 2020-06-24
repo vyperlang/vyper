@@ -15,8 +15,9 @@ def foo() -> int128:
     print("Passed constant function test")
 
 
-def test_invalid_constant_and_payable(get_contract_with_gas_estimation_for_constants,
-                                      assert_compile_failed):
+def test_invalid_constant_and_payable(
+    get_contract_with_gas_estimation_for_constants, assert_compile_failed
+):
     code = """
 @public
 @payable
@@ -24,6 +25,4 @@ def test_invalid_constant_and_payable(get_contract_with_gas_estimation_for_const
 def foo() -> num:
     return 5
 """
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation_for_constants(code), UnknownType
-    )
+    assert_compile_failed(lambda: get_contract_with_gas_estimation_for_constants(code), UnknownType)

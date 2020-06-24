@@ -96,9 +96,7 @@ class CompilerData:
 
     def _gen_lll(self) -> None:
         # fetch both deployment and runtime LLL
-        self._lll_nodes, self._lll_runtime = generate_lll_nodes(
-            self.source_code, self.global_ctx
-        )
+        self._lll_nodes, self._lll_runtime = generate_lll_nodes(self.source_code, self.global_ctx)
 
     @property
     def lll_nodes(self) -> parser.LLLnode:
@@ -194,9 +192,7 @@ def generate_global_context(
     GlobalContext
         Sorted, contextualized representation of the Vyper AST
     """
-    return GlobalContext.get_global_context(
-        vyper_module, interface_codes=interface_codes
-    )
+    return GlobalContext.get_global_context(vyper_module, interface_codes=interface_codes)
 
 
 def generate_lll_nodes(

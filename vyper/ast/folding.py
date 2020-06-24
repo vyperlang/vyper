@@ -172,9 +172,7 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
             # annotation is not wrapped in `constant(...)`
             continue
 
-        changed_nodes += replace_constant(
-            vyper_module, node.target.id, node.value, False
-        )
+        changed_nodes += replace_constant(vyper_module, node.target.id, node.value, False)
 
     return changed_nodes
 
@@ -232,9 +230,7 @@ def replace_constant(
 
         if not isinstance(parent, vy_ast.Index):
             # do not replace left-hand side of assignments
-            assign = node.get_ancestor(
-                (vy_ast.Assign, vy_ast.AnnAssign, vy_ast.AugAssign)
-            )
+            assign = node.get_ancestor((vy_ast.Assign, vy_ast.AnnAssign, vy_ast.AugAssign))
             if assign and node in assign.target.get_descendants(include_self=True):
                 continue
 

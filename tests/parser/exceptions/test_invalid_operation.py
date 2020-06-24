@@ -12,7 +12,7 @@ def foo():
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
+@pytest.mark.parametrize("bad_code", fail_list)
 def test_variable_declaration_exception(bad_code):
     with pytest.raises(InvalidOperation):
         compiler.compile_code(bad_code)

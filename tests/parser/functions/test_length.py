@@ -11,4 +11,4 @@ def foo(inp: bytes[10]) -> int128:
 
     c = get_contract_with_gas_estimation(test_length)
     assert c.foo(b"badminton") == 954, c.foo(b"badminton")
-    print('Passed length test')
+    print("Passed length test")

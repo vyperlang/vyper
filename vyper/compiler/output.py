@@ -23,23 +23,17 @@ def build_ast_dict(compiler_data: CompilerData) -> dict:
 
 
 def build_devdoc(compiler_data: CompilerData) -> dict:
-    userdoc, devdoc = parse_natspec(
-        compiler_data.vyper_module, compiler_data.global_ctx
-    )
+    userdoc, devdoc = parse_natspec(compiler_data.vyper_module, compiler_data.global_ctx)
     return devdoc
 
 
 def build_userdoc(compiler_data: CompilerData) -> dict:
-    userdoc, devdoc = parse_natspec(
-        compiler_data.vyper_module, compiler_data.global_ctx
-    )
+    userdoc, devdoc = parse_natspec(compiler_data.vyper_module, compiler_data.global_ctx)
     return userdoc
 
 
 def build_external_interface_output(compiler_data: CompilerData) -> str:
-    return extract_external_interface(
-        compiler_data.global_ctx, compiler_data.contract_name
-    )
+    return extract_external_interface(compiler_data.global_ctx, compiler_data.contract_name)
 
 
 def build_interface_output(compiler_data: CompilerData) -> str:
@@ -105,10 +99,7 @@ def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
         out[k] = line_number_map[k]
 
     out["pc_pos_map_compressed"] = _compress_source_map(
-        compiler_data.source_code,
-        out["pc_pos_map"],
-        out["pc_jump_map"],
-        compiler_data.source_id,
+        compiler_data.source_code, out["pc_pos_map"], out["pc_jump_map"], compiler_data.source_id,
     )
     out["pc_pos_map"] = dict((k, v) for k, v in out["pc_pos_map"].items() if v)
     return out
@@ -168,9 +159,7 @@ def _build_opcodes(bytecode: bytes) -> str:
         opcode_output.append(opcode_map[op])
         if "PUSH" in opcode_output[-1]:
             push_len = int(opcode_map[op][4:])
-            push_values = [
-                hex(bytecode_sequence.popleft())[2:] for i in range(push_len)
-            ]
+            push_values = [hex(bytecode_sequence.popleft())[2:] for i in range(push_len)]
             opcode_output.append(f"0x{''.join(push_values).upper()}")
 
     return " ".join(opcode_output)

@@ -1,5 +1,3 @@
-
-
 def test_bytes_logging_extended(get_contract_with_gas_estimation, get_logs):
     code = """
 MyLog: event({arg1: int128, arg2: bytes[64], arg3: int128})
@@ -10,7 +8,7 @@ def foo():
     """
 
     c = get_contract_with_gas_estimation(code)
-    log = get_logs(c.foo(transact={}), c, 'MyLog')
+    log = get_logs(c.foo(transact={}), c, "MyLog")
 
     assert log[0].args.arg1 == 667788
     assert log[0].args.arg2 == b"hello" * 9
@@ -30,7 +28,7 @@ def foo():
     """
 
     c = get_contract_with_gas_estimation(code)
-    log = get_logs(c.foo(transact={}), c, 'MyLog')
+    log = get_logs(c.foo(transact={}), c, "MyLog")
 
     assert log[0].args.arg1 == b"hello" * 9
     assert log[0].args.arg2 == b"hello" * 8
@@ -48,7 +46,7 @@ def foo(a: int128, b: bytes[64], c: int128):
 
     c = get_contract_with_gas_estimation(code)
 
-    log = get_logs(c.foo(333, b"flower" * 8, 444, transact={}), c, 'MyLog')
+    log = get_logs(c.foo(333, b"flower" * 8, 444, transact={}), c, "MyLog")
 
     assert log[0].args.arg1 == 333
     assert log[0].args.arg2 == b"flower" * 8
@@ -75,7 +73,7 @@ def set(x: int128, y: bytes[64], z: int128):
 
     c = get_contract_with_gas_estimation(code)
     c.foo()
-    log = get_logs(c.foo(transact={}), c, 'MyLog')
+    log = get_logs(c.foo(transact={}), c, "MyLog")
 
     assert log[0].args.arg1 == 0
     assert log[0].args.arg2 == b""
@@ -83,7 +81,7 @@ def set(x: int128, y: bytes[64], z: int128):
 
     c.set(333, b"flower" * 8, 444, transact={})
 
-    log = get_logs(c.foo(transact={}), c, 'MyLog')[0]
+    log = get_logs(c.foo(transact={}), c, "MyLog")[0]
 
     assert log.args.arg1 == 333
     assert log.args.arg2 == b"flower" * 8
@@ -110,7 +108,7 @@ def foo():
     """
 
     c = get_contract_with_gas_estimation(code)
-    log = get_logs(c.foo(transact={}), c, 'MyLog')[0]
+    log = get_logs(c.foo(transact={}), c, "MyLog")[0]
 
     assert log.args.arg1 == [[24, 26], [12, 10]]
     assert log.args.arg2 == b"hello" * 9

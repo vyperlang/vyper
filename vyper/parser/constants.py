@@ -10,7 +10,6 @@ from vyper.utils import SizeLimits, is_instances
 
 
 class Constants(object):
-
     def __init__(self):
         self._constants = dict()
         self._constants_ast = dict()
@@ -26,7 +25,7 @@ class Constants(object):
                 vars=None,
                 global_ctx=global_ctx,
                 origcode=const.full_source_code,
-                memory_allocator=MemoryAllocator()
+                memory_allocator=MemoryAllocator(),
             ),
         )
         annotation_type = global_ctx.parse_type(const.annotation.args[0], None)
@@ -41,16 +40,16 @@ class Constants(object):
             fail = True
             # special case for literals, which can be uint256 types as well.
             is_special_case_uint256_literal = (
-                is_instances([expr.typ, annotation_type], BaseType)
-            ) and (
-                [annotation_type.typ, expr.typ.typ] == ['uint256', 'int128']
-            ) and SizeLimits.in_bounds('uint256', expr.value)
+                (is_instances([expr.typ, annotation_type], BaseType))
+                and ([annotation_type.typ, expr.typ.typ] == ["uint256", "int128"])
+                and SizeLimits.in_bounds("uint256", expr.value)
+            )
 
             is_special_case_int256_literal = (
-                is_instances([expr.typ, annotation_type], BaseType)
-            ) and (
-                [annotation_type.typ, expr.typ.typ] == ['int128', 'int128']
-            ) and SizeLimits.in_bounds('int128', expr.value)
+                (is_instances([expr.typ, annotation_type], BaseType))
+                and ([annotation_type.typ, expr.typ.typ] == ["int128", "int128"])
+                and SizeLimits.in_bounds("int128", expr.value)
+            )
 
             if is_special_case_uint256_literal or is_special_case_int256_literal:
                 fail = False

@@ -8,20 +8,27 @@ from vyper.exceptions import (
 )
 
 fail_list = [
-    ("""
+    (
+        """
 @public
 def foo() -> uint256:
     doesnotexist(2, uint256)
     return convert(2, uint256)
-    """, UndeclaredDefinition),
-    ("""
+    """,
+        UndeclaredDefinition,
+    ),
+    (
+        """
 @public
 def foo() -> uint256:
     convert(2, uint256)
     return convert(2, uint256)
 
-    """, StructureException),
-    ("""
+    """,
+        StructureException,
+    ),
+    (
+        """
 @private
 def test(a : uint256):
     pass
@@ -30,11 +37,13 @@ def test(a : uint256):
 @public
 def burn(_value: uint256):
     self.test(msg.sender._value)
-    """, UnknownAttribute),
+    """,
+        UnknownAttribute,
+    ),
 ]
 
 
-@pytest.mark.parametrize('bad_code,exc', fail_list)
+@pytest.mark.parametrize("bad_code,exc", fail_list)
 def test_functions_call_fail(bad_code, exc):
 
     with pytest.raises(exc):
@@ -60,10 +69,10 @@ factory: Factory
 def setup(token_addr: address):
     self.token = ERC20(token_addr)
     assert self.factory.getExchange(self.token.address) == self
-    """
+    """,
 ]
 
 
-@pytest.mark.parametrize('good_code', valid_list)
+@pytest.mark.parametrize("good_code", valid_list)
 def test_functions_call_success(good_code):
     assert compiler.compile_code(good_code) is not None

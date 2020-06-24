@@ -87,7 +87,7 @@ x: string <= 33
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
+@pytest.mark.parametrize("bad_code", fail_list)
 def test_invalid_type_exception(bad_code):
     with pytest.raises(StructureException):
         compiler.compile_code(bad_code)

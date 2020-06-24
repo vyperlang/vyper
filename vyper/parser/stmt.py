@@ -31,7 +31,6 @@ from vyper.utils import SizeLimits, bytes_to_int, fourbytes_to_int, keccak256
 
 
 class Stmt:
-
     def __init__(self, node: vy_ast.VyperNode, context: Context) -> None:
         self.stmt = node
         self.context = context
@@ -47,11 +46,11 @@ class Stmt:
         return Stmt(self.stmt.value, self.context).lll_node
 
     def parse_Pass(self):
-        return LLLnode.from_list('pass', typ=None, pos=getpos(self.stmt))
+        return LLLnode.from_list("pass", typ=None, pos=getpos(self.stmt))
 
     def parse_Name(self):
         if self.stmt.id == "vdb":
-            return LLLnode('debugger', typ=None, pos=getpos(self.stmt))
+            return LLLnode("debugger", typ=None, pos=getpos(self.stmt))
         else:
             raise StructureException(f"Unsupported statement type: {type(self.stmt)}", self.stmt)
 
@@ -63,7 +62,7 @@ class Stmt:
         with self.context.assignment_scope():
             typ = parse_type(
                 self.stmt.annotation,
-                location='memory',
+                location="memory",
                 custom_structs=self.context.structs,
                 constants=self.context.constants,
             )
@@ -78,25 +77,20 @@ class Stmt:
                 isinstance(sub.typ, ByteArrayType)
                 and sub.typ.maxlen == 32
                 and isinstance(typ, BaseType)
-                and typ.typ == 'bytes32'
+                and typ.typ == "bytes32"
                 and sub.typ.is_literal
             )
 
             # If bytes[32] to bytes32 assignment rewrite sub as bytes32.
             if is_literal_bytes32_assign:
                 sub = LLLnode(
-                    bytes_to_int(self.stmt.value.s),
-                    typ=BaseType('bytes32'),
-                    pos=getpos(self.stmt),
+                    bytes_to_int(self.stmt.value.s), typ=BaseType("bytes32"), pos=getpos(self.stmt),
                 )
 
             variable_loc = LLLnode.from_list(
-                pos,
-                typ=typ,
-                location='memory',
-                pos=getpos(self.stmt),
+                pos, typ=typ, location="memory", pos=getpos(self.stmt),
             )
-            lll_node = make_setter(variable_loc, sub, 'memory', pos=getpos(self.stmt))
+            lll_node = make_setter(variable_loc, sub, "memory", pos=getpos(self.stmt))
 
             return lll_node
 
@@ -120,19 +114,22 @@ class Stmt:
         block_scope_id = id(self.stmt)
         with self.context.make_blockscope(block_scope_id):
             test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
-            body = ['if', test_expr,
-                    parse_body(self.stmt.body, self.context)] + add_on
+            body = ["if", test_expr, parse_body(self.stmt.body, self.context)] + add_on
             lll_node = LLLnode.from_list(body, typ=None, pos=getpos(self.stmt))
         return lll_node
 
     def parse_Call(self):
         is_self_function = (
-            isinstance(self.stmt.func, vy_ast.Attribute)
-        ) and isinstance(self.stmt.func.value, vy_ast.Name) and self.stmt.func.value.id == "self"
+            (isinstance(self.stmt.func, vy_ast.Attribute))
+            and isinstance(self.stmt.func.value, vy_ast.Name)
+            and self.stmt.func.value.id == "self"
+        )
 
         is_log_call = (
-            isinstance(self.stmt.func, vy_ast.Attribute)
-        ) and isinstance(self.stmt.func.value, vy_ast.Name) and self.stmt.func.value.id == 'log'
+            (isinstance(self.stmt.func, vy_ast.Attribute))
+            and isinstance(self.stmt.func.value, vy_ast.Name)
+            and self.stmt.func.value.id == "log"
+        )
 
         if isinstance(self.stmt.func, vy_ast.Name):
             funcname = self.stmt.func.id
@@ -140,7 +137,7 @@ class Stmt:
         elif is_self_function:
             return self_call.make_call(self.stmt, self.context)
         elif is_log_call:
-            event = self.context.sigs['self'][self.stmt.func.attr]
+            event = self.context.sigs["self"][self.stmt.func.attr]
             expected_topics, topics = [], []
             expected_data, data = [], []
             for pos, is_indexed in enumerate(event.indexed_list):
@@ -151,36 +148,35 @@ class Stmt:
                     expected_data.append(event.args[pos])
                     data.append(self.stmt.args[pos])
             topics = pack_logging_topics(
-                event.event_id,
-                topics,
-                expected_topics,
-                self.context,
-                pos=getpos(self.stmt),
+                event.event_id, topics, expected_topics, self.context, pos=getpos(self.stmt),
             )
             inargs, inargsize, inargsize_node, inarg_start = pack_logging_data(
-                expected_data,
-                data,
-                self.context,
-                pos=getpos(self.stmt),
+                expected_data, data, self.context, pos=getpos(self.stmt),
             )
 
             if inargsize_node is None:
                 sz = inargsize
             else:
-                sz = ['mload', inargsize_node]
+                sz = ["mload", inargsize_node]
 
-            return LLLnode.from_list([
-                'seq', inargs, LLLnode.from_list(
-                    ["log" + str(len(topics)), inarg_start, sz] + topics,
-                    add_gas_estimate=inargsize * 10,
-                )
-            ], typ=None, pos=getpos(self.stmt))
+            return LLLnode.from_list(
+                [
+                    "seq",
+                    inargs,
+                    LLLnode.from_list(
+                        ["log" + str(len(topics)), inarg_start, sz] + topics,
+                        add_gas_estimate=inargsize * 10,
+                    ),
+                ],
+                typ=None,
+                pos=getpos(self.stmt),
+            )
         else:
             return external_call.make_external_call(self.stmt, self.context)
 
     def _assert_reason(self, test_expr, msg):
-        if isinstance(msg, vy_ast.Name) and msg.id == 'UNREACHABLE':
-            return LLLnode.from_list(['assert_unreachable', test_expr], typ=None, pos=getpos(msg))
+        if isinstance(msg, vy_ast.Name) and msg.id == "UNREACHABLE":
+            return LLLnode.from_list(["assert_unreachable", test_expr], typ=None, pos=getpos(msg))
 
         reason_str = msg.s.strip()
         sig_placeholder = self.context.new_placeholder(BaseType(32))
@@ -189,17 +185,17 @@ class Stmt:
         placeholder_bytes = Expr(msg, self.context).lll_node
         method_id = fourbytes_to_int(keccak256(b"Error(string)")[:4])
         assert_reason = [
-                'seq',
-                ['mstore', sig_placeholder, method_id],
-                ['mstore', arg_placeholder, 32],
-                placeholder_bytes,
-                [
-                    'assert_reason',
-                    test_expr,
-                    int(sig_placeholder + 28),
-                    int(4 + get_size_of_type(reason_str_type) * 32),
-                    ],
-                ]
+            "seq",
+            ["mstore", sig_placeholder, method_id],
+            ["mstore", arg_placeholder, 32],
+            placeholder_bytes,
+            [
+                "assert_reason",
+                test_expr,
+                int(sig_placeholder + 28),
+                int(4 + get_size_of_type(reason_str_type) * 32),
+            ],
+        ]
         return LLLnode.from_list(assert_reason, typ=None, pos=getpos(self.stmt))
 
     def parse_Assert(self):
@@ -209,7 +205,7 @@ class Stmt:
         if self.stmt.msg:
             return self._assert_reason(test_expr, self.stmt.msg)
         else:
-            return LLLnode.from_list(['assert', test_expr], typ=None, pos=getpos(self.stmt))
+            return LLLnode.from_list(["assert", test_expr], typ=None, pos=getpos(self.stmt))
 
     def _check_valid_range_constant(self, arg_ast_node, raise_exception=True):
         with self.context.range_scope():
@@ -217,14 +213,14 @@ class Stmt:
             arg_expr = Expr.parse_value_expr(arg_ast_node, self.context)
 
         is_integer_literal = (
-            isinstance(arg_expr.typ, BaseType) and
-            arg_expr.typ.is_literal and
-            arg_expr.typ.typ in {'uint256', 'int128'}
+            isinstance(arg_expr.typ, BaseType)
+            and arg_expr.typ.is_literal
+            and arg_expr.typ.typ in {"uint256", "int128"}
         )
         if not is_integer_literal and raise_exception:
             raise StructureException(
                 "Range only accepts literal (constant) values of type uint256 or int128",
-                arg_ast_node
+                arg_ast_node,
             )
         return is_integer_literal, arg_expr
 
@@ -237,7 +233,7 @@ class Stmt:
         if self._is_list_iter():
             return self._parse_for_list()
 
-        if self.stmt.get('iter.func.id') != "range":
+        if self.stmt.get("iter.func.id") != "range":
             return
         if not 0 < len(self.stmt.iter.args) < 3:
             return
@@ -251,15 +247,15 @@ class Stmt:
             # Type 1 for, e.g. for i in range(10): ...
             if num_of_args == 1:
                 arg0_val = self._get_range_const_value(arg0)
-                start = LLLnode.from_list(0, typ='int128', pos=getpos(self.stmt))
+                start = LLLnode.from_list(0, typ="int128", pos=getpos(self.stmt))
                 rounds = arg0_val
 
             # Type 2 for, e.g. for i in range(100, 110): ...
             elif self._check_valid_range_constant(self.stmt.iter.args[1], raise_exception=False)[0]:
                 arg0_val = self._get_range_const_value(arg0)
                 arg1_val = self._get_range_const_value(self.stmt.iter.args[1])
-                start = LLLnode.from_list(arg0_val, typ='int128', pos=getpos(self.stmt))
-                rounds = LLLnode.from_list(arg1_val - arg0_val, typ='int128', pos=getpos(self.stmt))
+                start = LLLnode.from_list(arg0_val, typ="int128", pos=getpos(self.stmt))
+                rounds = LLLnode.from_list(arg1_val - arg0_val, typ="int128", pos=getpos(self.stmt))
 
             # Type 3 for, e.g. for i in range(x, x + 10): ...
             else:
@@ -272,10 +268,10 @@ class Stmt:
                 return
 
             varname = self.stmt.target.id
-            pos = self.context.new_variable(varname, BaseType('int128'), pos=getpos(self.stmt))
+            pos = self.context.new_variable(varname, BaseType("int128"), pos=getpos(self.stmt))
             self.context.forvars[varname] = True
             lll_node = LLLnode.from_list(
-                ['repeat', pos, start, rounds, parse_body(self.stmt.body, self.context)],
+                ["repeat", pos, start, rounds, parse_body(self.stmt.body, self.context)],
                 typ=None,
                 pos=getpos(self.stmt),
             )
@@ -318,15 +314,9 @@ class Stmt:
         )
         subtype = iter_list_node.typ.subtype.typ
         varname = self.stmt.target.id
-        value_pos = self.context.new_variable(
-            varname,
-            BaseType(subtype),
-        )
-        i_pos_raw_name = '_index_for_' + varname
-        i_pos = self.context.new_internal_variable(
-                i_pos_raw_name,
-                BaseType(subtype),
-                )
+        value_pos = self.context.new_variable(varname, BaseType(subtype),)
+        i_pos_raw_name = "_index_for_" + varname
+        i_pos = self.context.new_internal_variable(i_pos_raw_name, BaseType(subtype),)
         self.context.forvars[varname] = True
 
         # Is a list that is already allocated to memory.
@@ -336,23 +326,23 @@ class Stmt:
             # make sure list cannot be altered whilst iterating.
             with self.context.in_for_loop_scope(list_name):
                 iter_var = self.context.vars.get(self.stmt.iter.id)
-                if iter_var.location == 'calldata':
-                    fetcher = 'calldataload'
-                elif iter_var.location == 'memory':
-                    fetcher = 'mload'
+                if iter_var.location == "calldata":
+                    fetcher = "calldataload"
+                elif iter_var.location == "memory":
+                    fetcher = "mload"
                 else:
                     return
                 body = [
-                    'seq',
+                    "seq",
                     [
-                        'mstore',
+                        "mstore",
                         value_pos,
-                        [fetcher, ['add', iter_var.pos, ['mul', ['mload', i_pos], 32]]],
+                        [fetcher, ["add", iter_var.pos, ["mul", ["mload", i_pos], 32]]],
                     ],
-                    parse_body(self.stmt.body, self.context)
+                    parse_body(self.stmt.body, self.context),
                 ]
                 lll_node = LLLnode.from_list(
-                    ['repeat', i_pos, 0, iter_var.size, body], typ=None, pos=getpos(self.stmt)
+                    ["repeat", i_pos, 0, iter_var.size, body], typ=None, pos=getpos(self.stmt)
                 )
 
         # List gets defined in the for statement.
@@ -362,18 +352,16 @@ class Stmt:
             tmp_list = LLLnode.from_list(
                 obj=self.context.new_placeholder(ListType(iter_list_node.typ.subtype, count)),
                 typ=ListType(iter_list_node.typ.subtype, count),
-                location='memory'
+                location="memory",
             )
-            setter = make_setter(tmp_list, iter_list_node, 'memory', pos=getpos(self.stmt))
+            setter = make_setter(tmp_list, iter_list_node, "memory", pos=getpos(self.stmt))
             body = [
-                'seq',
-                ['mstore', value_pos, ['mload', ['add', tmp_list, ['mul', ['mload', i_pos], 32]]]],
-                parse_body(self.stmt.body, self.context)
+                "seq",
+                ["mstore", value_pos, ["mload", ["add", tmp_list, ["mul", ["mload", i_pos], 32]]]],
+                parse_body(self.stmt.body, self.context),
             ]
             lll_node = LLLnode.from_list(
-                ['seq',
-                    setter,
-                    ['repeat', i_pos, 0, count, body]], typ=None, pos=getpos(self.stmt)
+                ["seq", setter, ["repeat", i_pos, 0, count, body]], typ=None, pos=getpos(self.stmt)
             )
 
         # List contained in storage.
@@ -384,17 +372,16 @@ class Stmt:
             # make sure list cannot be altered whilst iterating.
             with self.context.in_for_loop_scope(list_name):
                 body = [
-                    'seq',
+                    "seq",
                     [
-                        'mstore',
+                        "mstore",
                         value_pos,
-                        ['sload', ['add', ['sha3_32', iter_list_node], ['mload', i_pos]]]
+                        ["sload", ["add", ["sha3_32", iter_list_node], ["mload", i_pos]]],
                     ],
                     parse_body(self.stmt.body, self.context),
                 ]
                 lll_node = LLLnode.from_list(
-                    ['seq',
-                        ['repeat', i_pos, 0, count, body]], typ=None, pos=getpos(self.stmt)
+                    ["seq", ["repeat", i_pos, 0, count, body]], typ=None, pos=getpos(self.stmt)
                 )
 
         del self.context.vars[varname]
@@ -410,10 +397,10 @@ class Stmt:
         sub = Expr.parse_value_expr(self.stmt.value, self.context)
         if not isinstance(target.typ, BaseType):
             return
-        if target.location == 'storage':
+        if target.location == "storage":
             lll_node = Expr.parse_value_expr(
                 vy_ast.BinOp(
-                    left=LLLnode.from_list(['sload', '_stloc'], typ=target.typ, pos=target.pos),
+                    left=LLLnode.from_list(["sload", "_stloc"], typ=target.typ, pos=target.pos),
                     right=sub,
                     op=self.stmt.op,
                     lineno=self.stmt.lineno,
@@ -423,17 +410,26 @@ class Stmt:
                 ),
                 self.context,
             )
-            return LLLnode.from_list([
-                'with', '_stloc', target, [
-                    'sstore',
-                    '_stloc',
-                    base_type_conversion(lll_node, lll_node.typ, target.typ, pos=getpos(self.stmt)),
+            return LLLnode.from_list(
+                [
+                    "with",
+                    "_stloc",
+                    target,
+                    [
+                        "sstore",
+                        "_stloc",
+                        base_type_conversion(
+                            lll_node, lll_node.typ, target.typ, pos=getpos(self.stmt)
+                        ),
+                    ],
                 ],
-            ], typ=None, pos=getpos(self.stmt))
-        elif target.location == 'memory':
+                typ=None,
+                pos=getpos(self.stmt),
+            )
+        elif target.location == "memory":
             lll_node = Expr.parse_value_expr(
                 vy_ast.BinOp(
-                    left=LLLnode.from_list(['mload', '_mloc'], typ=target.typ, pos=target.pos),
+                    left=LLLnode.from_list(["mload", "_mloc"], typ=target.typ, pos=target.pos),
                     right=sub,
                     op=self.stmt.op,
                     lineno=self.stmt.lineno,
@@ -443,19 +439,28 @@ class Stmt:
                 ),
                 self.context,
             )
-            return LLLnode.from_list([
-                'with', '_mloc', target, [
-                    'mstore',
-                    '_mloc',
-                    base_type_conversion(lll_node, lll_node.typ, target.typ, pos=getpos(self.stmt)),
+            return LLLnode.from_list(
+                [
+                    "with",
+                    "_mloc",
+                    target,
+                    [
+                        "mstore",
+                        "_mloc",
+                        base_type_conversion(
+                            lll_node, lll_node.typ, target.typ, pos=getpos(self.stmt)
+                        ),
+                    ],
                 ],
-            ], typ=None, pos=getpos(self.stmt))
+                typ=None,
+                pos=getpos(self.stmt),
+            )
 
     def parse_Continue(self):
-        return LLLnode.from_list('continue', typ=None, pos=getpos(self.stmt))
+        return LLLnode.from_list("continue", typ=None, pos=getpos(self.stmt))
 
     def parse_Break(self):
-        return LLLnode.from_list('break', typ=None, pos=getpos(self.stmt))
+        return LLLnode.from_list("break", typ=None, pos=getpos(self.stmt))
 
     def parse_Return(self):
         if self.context.return_type is None:
@@ -476,21 +481,27 @@ class Stmt:
 
             if self.context.return_type != sub.typ and not sub.typ.is_literal:
                 return
-            elif sub.typ.is_literal and (self.context.return_type.typ == sub.typ or 'int' in self.context.return_type.typ and 'int' in sub.typ.typ):  # noqa: E501
+            elif sub.typ.is_literal and (
+                self.context.return_type.typ == sub.typ
+                or "int" in self.context.return_type.typ
+                and "int" in sub.typ.typ
+            ):  # noqa: E501
                 if SizeLimits.in_bounds(self.context.return_type.typ, sub.value):
                     return LLLnode.from_list(
                         [
-                            'seq',
-                            ['mstore', 0, sub],
-                            make_return_stmt(self.stmt, self.context, 0, 32)
+                            "seq",
+                            ["mstore", 0, sub],
+                            make_return_stmt(self.stmt, self.context, 0, 32),
                         ],
                         typ=None,
                         pos=getpos(self.stmt),
                         valency=0,
                     )
-            elif is_base_type(sub.typ, self.context.return_type.typ) or (is_base_type(sub.typ, 'int128') and is_base_type(self.context.return_type, 'int256')):  # noqa: E501
+            elif is_base_type(sub.typ, self.context.return_type.typ) or (
+                is_base_type(sub.typ, "int128") and is_base_type(self.context.return_type, "int256")
+            ):  # noqa: E501
                 return LLLnode.from_list(
-                    ['seq', ['mstore', 0, sub], make_return_stmt(self.stmt, self.context, 0, 32)],
+                    ["seq", ["mstore", 0, sub], make_return_stmt(self.stmt, self.context, 0, 32)],
                     typ=None,
                     pos=getpos(self.stmt),
                     valency=0,
@@ -504,33 +515,38 @@ class Stmt:
                 return
 
             # loop memory has to be allocated first.
-            loop_memory_position = self.context.new_placeholder(typ=BaseType('uint256'))
+            loop_memory_position = self.context.new_placeholder(typ=BaseType("uint256"))
             # len & bytez placeholder have to be declared after each other at all times.
-            len_placeholder = self.context.new_placeholder(typ=BaseType('uint256'))
+            len_placeholder = self.context.new_placeholder(typ=BaseType("uint256"))
             bytez_placeholder = self.context.new_placeholder(typ=sub.typ)
 
-            if sub.location in ('storage', 'memory'):
-                return LLLnode.from_list([
-                    'seq',
-                    make_byte_array_copier(
-                        LLLnode(bytez_placeholder, location='memory', typ=sub.typ),
-                        sub,
-                        pos=getpos(self.stmt)
-                    ),
-                    zero_pad(bytez_placeholder),
-                    ['mstore', len_placeholder, 32],
-                    make_return_stmt(
-                        self.stmt,
-                        self.context,
-                        len_placeholder,
-                        ['ceil32', ['add', ['mload', bytez_placeholder], 64]],
-                        loop_memory_position=loop_memory_position,
-                    )
-                ], typ=None, pos=getpos(self.stmt), valency=0)
+            if sub.location in ("storage", "memory"):
+                return LLLnode.from_list(
+                    [
+                        "seq",
+                        make_byte_array_copier(
+                            LLLnode(bytez_placeholder, location="memory", typ=sub.typ),
+                            sub,
+                            pos=getpos(self.stmt),
+                        ),
+                        zero_pad(bytez_placeholder),
+                        ["mstore", len_placeholder, 32],
+                        make_return_stmt(
+                            self.stmt,
+                            self.context,
+                            len_placeholder,
+                            ["ceil32", ["add", ["mload", bytez_placeholder], 64]],
+                            loop_memory_position=loop_memory_position,
+                        ),
+                    ],
+                    typ=None,
+                    pos=getpos(self.stmt),
+                    valency=0,
+                )
             return
 
         elif isinstance(sub.typ, ListType):
-            loop_memory_position = self.context.new_placeholder(typ=BaseType('uint256'))
+            loop_memory_position = self.context.new_placeholder(typ=BaseType("uint256"))
             if sub.typ != self.context.return_type:
                 return
             elif sub.location == "memory" and sub.value != "multi":
@@ -550,20 +566,24 @@ class Stmt:
                 new_sub = LLLnode.from_list(
                     self.context.new_placeholder(self.context.return_type),
                     typ=self.context.return_type,
-                    location='memory',
+                    location="memory",
                 )
-                setter = make_setter(new_sub, sub, 'memory', pos=getpos(self.stmt))
-                return LLLnode.from_list([
-                    'seq',
-                    setter,
-                    make_return_stmt(
-                        self.stmt,
-                        self.context,
-                        new_sub,
-                        get_size_of_type(self.context.return_type) * 32,
-                        loop_memory_position=loop_memory_position,
-                    )
-                ], typ=None, pos=getpos(self.stmt))
+                setter = make_setter(new_sub, sub, "memory", pos=getpos(self.stmt))
+                return LLLnode.from_list(
+                    [
+                        "seq",
+                        setter,
+                        make_return_stmt(
+                            self.stmt,
+                            self.context,
+                            new_sub,
+                            get_size_of_type(self.context.return_type) * 32,
+                            loop_memory_position=loop_memory_position,
+                        ),
+                    ],
+                    typ=None,
+                    pos=getpos(self.stmt),
+                )
 
         # Returning a struct
         elif isinstance(sub.typ, StructType):
@@ -595,7 +615,7 @@ class Stmt:
                 if f"{target.value.value.id}.{target.value.attr}" in self.context.in_for_loop:
                     raise_exception = True
 
-            if target.get('value.id') in self.context.in_for_loop:
+            if target.get("value.id") in self.context.in_for_loop:
                 raise_exception = True
 
             if raise_exception:
@@ -607,12 +627,12 @@ class Stmt:
         if isinstance(target, vy_ast.Tuple):
             target = Expr(target, self.context).lll_node
             for node in target.args:
-                if (node.location == 'storage' and self.context.is_constant()) or not node.mutable:
+                if (node.location == "storage" and self.context.is_constant()) or not node.mutable:
                     raise TypeCheckFailure("Failed for-loop constancy check")
             return target
 
         target = Expr.parse_variable_location(target, self.context)
-        if (target.location == 'storage' and self.context.is_constant()) or not target.mutable:
+        if (target.location == "storage" and self.context.is_constant()) or not target.mutable:
             raise TypeCheckFailure("Failed for-loop constancy check")
         return target
 
@@ -627,9 +647,9 @@ def parse_body(code, context):
     if not isinstance(code, list):
         return parse_stmt(code, context)
 
-    lll_node = ['seq']
+    lll_node = ["seq"]
     for stmt in code:
         lll = parse_stmt(stmt, context)
         lll_node.append(lll)
-    lll_node.append('pass')  # force zerovalent, even last statement
+    lll_node.append("pass")  # force zerovalent, even last statement
     return LLLnode.from_list(lll_node, pos=getpos(code[0]) if code else None)

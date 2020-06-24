@@ -5,7 +5,7 @@ EXPIRY = 16
 
 @pytest.fixture
 def auction_contract(w3, get_contract):
-    with open('examples/auctions/simple_open_auction.vy') as f:
+    with open("examples/auctions/simple_open_auction.vy") as f:
         contract_code = f.read()
         contract = get_contract(contract_code, *[w3.eth.accounts[0], EXPIRY])
     return contract
@@ -15,9 +15,11 @@ def test_initial_state(w3, tester, auction_contract):
     # Check beneficiary is correct
     assert auction_contract.beneficiary() == w3.eth.accounts[0]
     # Check bidding time is 5 days
-    assert auction_contract.auctionEnd() == tester.get_block_by_number('latest')['timestamp'] + EXPIRY  # noqa: E501
+    assert (
+        auction_contract.auctionEnd() == tester.get_block_by_number("latest")["timestamp"] + EXPIRY
+    )  # noqa: E501
     # Check start time is current block timestamp
-    assert auction_contract.auctionStart() == tester.get_block_by_number('latest')['timestamp']
+    assert auction_contract.auctionStart() == tester.get_block_by_number("latest")["timestamp"]
     # Check auction has not ended
     assert auction_contract.ended() is False
     # Check highest bidder is empty
@@ -49,9 +51,9 @@ def test_bid(w3, tester, auction_contract, assert_tx_failed):
     # Check that highest bidder and highest bid have changed accordingly
     assert auction_contract.highestBidder() == k5
     assert auction_contract.highestBid() == 5
-    auction_contract.bid(transact={"value": 1 * 10**10, "from": k1})
+    auction_contract.bid(transact={"value": 1 * 10 ** 10, "from": k1})
     pending_return_before_outbid = auction_contract.pendingReturns(k1)
-    auction_contract.bid(transact={"value": 2 * 10**10, "from": k2})
+    auction_contract.bid(transact={"value": 2 * 10 ** 10, "from": k2})
     pending_return_after_outbid = auction_contract.pendingReturns(k1)
     # Account has a greater pending return balance after being outbid
     assert pending_return_after_outbid > pending_return_before_outbid
@@ -69,7 +71,7 @@ def test_end_auction(w3, tester, auction_contract, assert_tx_failed):
     k1, k2, k3, k4, k5 = w3.eth.accounts[:5]
     # Fails if auction end time has not been reached
     assert_tx_failed(lambda: auction_contract.endAuction())
-    auction_contract.bid(transact={"value": 1 * 10**10, "from": k2})
+    auction_contract.bid(transact={"value": 1 * 10 ** 10, "from": k2})
     # Move block timestamp foreward to reach auction end time
     # tester.time_travel(tester.get_block_by_number('latest')['timestamp'] + EXPIRY)
     w3.testing.mine(EXPIRY)
