@@ -1,6 +1,10 @@
 from vyper.parser.context import Constancy, Context
-from vyper.parser.function_definitions.parse_private_function import parse_private_function
-from vyper.parser.function_definitions.parse_public_function import parse_public_function
+from vyper.parser.function_definitions.parse_private_function import (  # NOTE: black/isort conflict
+    parse_private_function,
+)
+from vyper.parser.function_definitions.parse_public_function import (  # NOTE: black/isort conflict
+    parse_public_function,
+)
 from vyper.parser.memory_allocator import MemoryAllocator
 from vyper.signatures import FunctionSignature
 from vyper.utils import calc_mem_gas
