@@ -1,9 +1,5 @@
 from vyper import ast as vy_ast
-from vyper.exceptions import (
-    EventDeclarationException,
-    InvalidType,
-    VariableDeclarationException,
-)
+from vyper.exceptions import EventDeclarationException, TypeCheckFailure
 from vyper.signatures.function_signature import VariableRecord
 from vyper.types import ByteArrayType, canonicalize_type, get_size_of_type
 from vyper.utils import (
@@ -45,14 +41,11 @@ class EventSignature:
             for i in range(len(keys)):
                 typ = values[i]
                 if not isinstance(keys[i], vy_ast.Name):
-                    raise EventDeclarationException(
-                        'Invalid key type, expected a valid name.',
-                        keys[i],
-                    )
+                    raise TypeCheckFailure('Invalid key type, expected a valid name.')
                 if not isinstance(typ, (vy_ast.Name, vy_ast.Call, vy_ast.Subscript)):
-                    raise EventDeclarationException('Invalid event argument type.', typ)
+                    raise TypeCheckFailure('Invalid event argument type.')
                 if isinstance(typ, vy_ast.Call) and not isinstance(typ.func, vy_ast.Name):
-                    raise EventDeclarationException('Invalid event argument type', typ)
+                    raise TypeCheckFailure('Invalid event argument type')
                 arg = keys[i].id
                 arg_item = keys[i]
                 is_indexed = False
@@ -68,13 +61,11 @@ class EventSignature:
                 if isinstance(typ, vy_ast.Subscript) and getattr(typ.value, 'id', None) == 'bytes' and typ.slice.value.n > 32 and is_indexed:  # noqa: E501
                     raise EventDeclarationException("Indexed arguments are limited to 32 bytes")
                 if topics_count > 4:
-                    raise EventDeclarationException(
-                        f"Maximum of 3 topics {topics_count - 1} given", arg_item,
-                    )
+                    raise TypeCheckFailure("Too many indexed arguments")
                 if not isinstance(arg, str):
-                    raise VariableDeclarationException("Argument name invalid", arg_item)
+                    raise TypeCheckFailure("Argument name invalid")
                 if not typ:
-                    raise InvalidType("Argument must have type", arg_item)
+                    raise TypeCheckFailure("Argument must have type")
                 check_valid_varname(
                     arg,
                     global_ctx._structs,
@@ -83,10 +74,7 @@ class EventSignature:
                     error_prefix="Event argument name invalid or reserved.",
                 )
                 if arg in (x.name for x in args):
-                    raise VariableDeclarationException(
-                        "Duplicate function argument name: " + arg,
-                        arg_item,
-                    )
+                    raise TypeCheckFailure(f"Duplicate function argument name: {arg}")
                 # Can struct be logged?
                 parsed_type = global_ctx.parse_type(typ, None)
                 args.append(VariableRecord(arg, pos, parsed_type, False))
