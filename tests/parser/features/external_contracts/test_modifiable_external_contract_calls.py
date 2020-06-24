@@ -1,4 +1,4 @@
-from vyper.exceptions import InvalidType, StructureException
+from vyper.exceptions import StructureException, UnknownType
 
 
 def test_external_contract_call_declaration_expr(get_contract, assert_tx_failed):
@@ -198,16 +198,9 @@ def test_invalid_external_contract_call_declaration_1(assert_compile_failed, get
     contract_1 = """
 contract Bar:
     def bar() -> int128: pass
-
-bar_contract: Bar
-
-@public
-def foo(contract_address: contract(Boo)) -> int128:
-    self.bar_contract = Bar(contract_address)
-    return self.bar_contract.bar()
     """
 
-    assert_compile_failed(lambda: get_contract(contract_1), InvalidType)
+    assert_compile_failed(lambda: get_contract(contract_1), StructureException)
 
 
 def test_invalid_external_contract_call_declaration_2(assert_compile_failed, get_contract):
@@ -223,7 +216,7 @@ def foo(contract_address: address) -> int128:
     return self.bar_contract.bar()
     """
 
-    assert_compile_failed(lambda: get_contract(contract_1), InvalidType)
+    assert_compile_failed(lambda: get_contract(contract_1), UnknownType)
 
 
 def test_invalid_if_external_contract_doesnt_exist(get_contract, assert_compile_failed):
@@ -231,7 +224,7 @@ def test_invalid_if_external_contract_doesnt_exist(get_contract, assert_compile_
 modifiable_bar_contract: Bar
 """
 
-    assert_compile_failed(lambda: get_contract(code), InvalidType)
+    assert_compile_failed(lambda: get_contract(code), UnknownType)
 
 
 def test_invalid_if_not_in_valid_global_keywords(get_contract, assert_compile_failed):
@@ -241,7 +234,7 @@ contract Bar:
 
 modifiable_bar_contract: trusted(Bar)
     """
-    assert_compile_failed(lambda: get_contract(code), StructureException)
+    assert_compile_failed(lambda: get_contract(code), UnknownType)
 
 
 def test_invalid_if_have_modifiability_not_declared(get_contract_with_gas_estimation_for_constants,

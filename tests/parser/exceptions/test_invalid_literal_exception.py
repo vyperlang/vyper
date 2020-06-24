@@ -14,36 +14,20 @@ def foo():
     """
 @public
 def foo():
-    x = as_wei_value(0x05, "babbage")
+    x: uint256 = convert(-(-(-1)), uint256)
     """,
     """
+@public
+def foo(x: int128):
+    y: int128 = 7
+    for i in range(x, x + y):
+        pass
+    """,
+    """
+bar: int128[3]
 @public
 def foo():
-    send(0xde0b295669a9fd93d5f28d9ec85e40f4cb697bae, 5)
-    """,
-    """
-@public
-def foo():
-    x = convert(-(-(-1)), uint256)
-    """,
-    """
-# Test decimal limit.
-a:decimal
-
-@public
-def foo():
-    self.a = 170141183460469231731687303715884105727.888
-    """,
-    """
-@public
-def overflow() -> uint256:
-    return 2**256
-    """,
-    """
-@public
-def overflow2() -> uint256:
-    a: uint256 = 2**256
-    return a
+    self.bar = []
     """,
     """
 @public

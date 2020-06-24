@@ -21,9 +21,12 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
 
     vsub = None
     for expected_arg in expected_arg_typelist:
+
+        # temporary hack, once we refactor this package none of this will exist
+        if hasattr(expected_arg, '_id'):
+            expected_arg = expected_arg._id
+
         if expected_arg == 'num_literal':
-            if context.constants.is_constant_of_base_type(arg, ('uint256', 'int128')):
-                return context.constants.get_constant(arg.id, None).value
             if isinstance(arg, (vy_ast.Int, vy_ast.Decimal)):
                 return arg.n
         elif expected_arg == 'str_literal':

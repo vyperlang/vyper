@@ -127,19 +127,19 @@ def foo(bar: bytes[33]) -> decimal:
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(code),
-        TypeMismatch
+        TypeMismatch,
     )
 
     code = """
 @public
 def foobar() -> decimal:
-    barfoo: bytes[63] = "Hello darkness, my old friend I've come to talk with you again."
+    barfoo: bytes[63] = b"Hello darkness, my old friend I've come to talk with you again."
     return convert(barfoo, decimal)
     """
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(code),
-        TypeMismatch
+        TypeMismatch,
     )
 
 

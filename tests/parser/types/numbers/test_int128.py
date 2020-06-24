@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from vyper.exceptions import InvalidLiteral
+from vyper.exceptions import OverflowException
 
 
 def test_exponents_with_nums(get_contract_with_gas_estimation):
@@ -121,7 +121,7 @@ def num_sub() -> int128:
     return 1-2**256
     """
 
-    assert_compile_failed(lambda: get_contract(code), InvalidLiteral)
+    assert_compile_failed(lambda: get_contract(code), OverflowException)
 
 
 def test_overflow_add(get_contract, assert_tx_failed):

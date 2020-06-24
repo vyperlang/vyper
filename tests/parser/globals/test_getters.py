@@ -23,7 +23,6 @@ struct W:
     a: uint256
     b: int128[7]
     c: bytes[100]
-    d: map(address, int128)
     e: int128[3][3]
     f: uint256
     g: uint256
@@ -36,11 +35,10 @@ w: public(map(int128, W))
 def __init__():
     self.x = as_wei_value(7, "wei")
     self.y[1] = 9
-    self.z = "cow"
+    self.z = b"cow"
     self.w[1].a = 11
     self.w[1].b[2] = 13
-    self.w[1].c = "horse"
-    self.w[1].d[0x1234567890123456789012345678901234567890] = 15
+    self.w[1].c = b"horse"
     self.w[2].e[1][2] = 17
     self.w[3].f = 750
     self.w[3].g = 751
@@ -53,7 +51,6 @@ def __init__():
     assert c.w__a(1) == 11
     assert c.w__b(1, 2) == 13
     assert c.w__c(1) == b"horse"
-    assert c.w__d(1, "0x1234567890123456789012345678901234567890") == 15
     assert c.w__e(2, 1, 2) == 17
     assert c.w__f(3) == 750
     assert c.w__g(3) == 751

@@ -1,17 +1,21 @@
 import pytest
-from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import SyntaxException, TypeMismatch
+from vyper.exceptions import (
+    InvalidOperation,
+    InvalidType,
+    SyntaxException,
+    TypeMismatch,
+)
 
 fail_list = [
-    """
+    ("""
 @public
 def baa():
     x: bytes[50] = b""
     y: bytes[50] = b""
-    z = x + y
-    """,
+    z: bytes[50] = x + y
+    """, InvalidOperation),
     """
 @public
 def baa():
@@ -48,18 +52,18 @@ def foo(x: bytes[100]) -> int128:
 def foo(x: int128) -> bytes[75]:
     return x
     """,
-    """
+    ("""
 @public
 def foo() -> bytes[10]:
     x: bytes[10] = '0x1234567890123456789012345678901234567890'
     x = 0x1234567890123456789012345678901234567890
     return x
-    """,
-    """
+    """, InvalidType),
+    ("""
 @public
 def foo() -> bytes[10]:
     return "badmintonzz"
-    """,
+    """, InvalidType),
     ("""
 @public
 def test() -> bytes[1]:
@@ -72,10 +76,10 @@ def test() -> bytes[1]:
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_bytes_fail(bad_code):
     if isinstance(bad_code, tuple):
-        with raises(bad_code[1]):
+        with pytest.raises(bad_code[1]):
             compiler.compile_code(bad_code[0])
     else:
-        with raises(TypeMismatch):
+        with pytest.raises(TypeMismatch):
             compiler.compile_code(bad_code)
 
 

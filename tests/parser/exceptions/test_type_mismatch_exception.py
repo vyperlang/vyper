@@ -7,8 +7,9 @@ from vyper.exceptions import TypeMismatch
 fail_list = [
     """
 @public
-def test_func() -> int128:
-    return (1, 2)
+def foo():
+    b: bytes[1] = 0x05
+    x: uint256 = as_wei_value(b, "babbage")
     """,
 ]
 

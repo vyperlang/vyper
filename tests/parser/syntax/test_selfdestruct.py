@@ -1,8 +1,7 @@
 import pytest
-from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import TypeMismatch
+from vyper.exceptions import InvalidType
 
 fail_list = [
     """
@@ -16,7 +15,7 @@ def foo():
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_block_fail(bad_code):
 
-    with raises(TypeMismatch):
+    with pytest.raises(InvalidType):
         compiler.compile_code(bad_code)
 
 

@@ -1,8 +1,7 @@
 import pytest
-from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import TypeMismatch
+from vyper.exceptions import StructureException
 
 fail_list = [
     """
@@ -17,7 +16,7 @@ def foo() -> int128:
 @pytest.mark.parametrize('bad_code', fail_list)
 def test_block_fail(bad_code):
 
-    with raises(TypeMismatch):
+    with pytest.raises(StructureException):
         compiler.compile_code(bad_code)
 
 

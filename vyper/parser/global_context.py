@@ -329,23 +329,6 @@ class GlobalContext:
             )
         return True
 
-    def add_constant(self, item):
-        args = item.annotation.args
-        if not item.value:
-            raise StructureException('Constants must express a value!', item)
-
-        is_valid_struct = (
-            len(args) == 1 and
-            isinstance(args[0], (vy_ast.Subscript, vy_ast.Name, vy_ast.Call))
-        ) and item.target
-
-        if is_valid_struct:
-            c_name = item.target.id
-            if self.is_valid_varname(c_name, item):
-                self._constants[c_name] = self.unroll_constant(item)
-        else:
-            raise StructureException('Incorrectly formatted struct', item)
-
     @staticmethod
     def get_call_func_name(item):
         if isinstance(item.annotation, vy_ast.Call) and \

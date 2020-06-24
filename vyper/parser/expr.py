@@ -1,14 +1,9 @@
-import warnings
-
 from vyper import ast as vy_ast
 from vyper.exceptions import (
     EvmVersionException,
-    InvalidLiteral,
-    NonPayableViolation,
     StructureException,
+    TypeCheckFailure,
     TypeMismatch,
-    VariableDeclarationException,
-    ZeroDivisionException,
 )
 from vyper.opcodes import version_check
 from vyper.parser import external_call, self_call
@@ -72,41 +67,27 @@ def get_min_val_for_type(typ: str) -> int:
     return min_val
 
 
-class Expr(object):
+class Expr:
     # TODO: Once other refactors are made reevaluate all inline imports
-    def __init__(self, expr, context):
-        self.expr = expr
+
+    def __init__(self, node, context):
+        self.expr = node
         self.context = context
-        self.expr_table = {
-            LLLnode: self.get_expr,
-            vy_ast.Int: self.integer,
-            vy_ast.Decimal: self.decimal,
-            vy_ast.Hex: self.hexstring,
-            vy_ast.Str: self.string,
-            vy_ast.NameConstant: self.constants,
-            vy_ast.Name: self.variables,
-            vy_ast.Attribute: self.attribute,
-            vy_ast.Subscript: self.subscript,
-            vy_ast.BinOp: self.arithmetic,
-            vy_ast.Compare: self.compare,
-            vy_ast.BoolOp: self.boolean_operations,
-            vy_ast.UnaryOp: self.unary_operations,
-            vy_ast.Call: self.call,
-            vy_ast.List: self.list_literals,
-            vy_ast.Tuple: self.tuple_literals,
-            vy_ast.Dict: self.dict_fail,
-            vy_ast.Bytes: self.bytes,
-        }
-        expr_type = self.expr.__class__
-        if expr_type in self.expr_table:
-            self.lll_node = self.expr_table[expr_type]()
-        else:
-            raise Exception("Unsupported operator.", self.expr)
 
-    def get_expr(self):
-        return self.expr
+        if isinstance(node, LLLnode):
+            # TODO this seems bad
+            self.lll_node = node
+            return
 
-    def integer(self):
+        fn = getattr(self, f"parse_{type(node).__name__}", None)
+        if fn is None:
+            raise TypeCheckFailure(f"Invalid statement node: {type(node).__name__}")
+
+        self.lll_node = fn()
+        if self.lll_node is None:
+            raise TypeCheckFailure(f"{type(node).__name__} node did not produce LLL")
+
+    def parse_Int(self):
         # Literal (mostly likely) becomes int128
         if SizeLimits.in_bounds('int128', self.expr.n) or self.expr.n < 0:
             return LLLnode.from_list(
@@ -122,32 +103,21 @@ class Expr(object):
                 pos=getpos(self.expr),
             )
 
-    def decimal(self):
+    def parse_Decimal(self):
         numstring, num, den = get_number_as_fraction(self.expr, self.context)
-        # if not SizeLimits.in_bounds('decimal', num // den):
-        # if not SizeLimits.MINDECIMAL * den <= num <= SizeLimits.MAXDECIMAL * den:
         if not (SizeLimits.MINNUM * den <= num <= SizeLimits.MAXNUM * den):
-            raise InvalidLiteral("Number out of range: " + numstring, self.expr)
+            return
         if DECIMAL_DIVISOR % den:
-            raise InvalidLiteral(
-                "Type 'decimal' has maximum 10 decimal places",
-                self.expr
-            )
+            return
         return LLLnode.from_list(
             num * DECIMAL_DIVISOR // den,
             typ=BaseType('decimal', is_literal=True),
             pos=getpos(self.expr),
         )
 
-    def hexstring(self):
+    def parse_Hex(self):
         orignum = self.expr.value
-        if len(orignum) == 42:
-            if checksum_encode(orignum) != orignum:
-                raise InvalidLiteral(
-                    "Address checksum mismatch. If you are sure this is the "
-                    f"right address, the correct checksummed form is: {checksum_encode(orignum)}",
-                    self.expr
-                )
+        if len(orignum) == 42 and checksum_encode(orignum) == orignum:
             return LLLnode.from_list(
                 int(self.expr.value, 16),
                 typ=BaseType('address', is_literal=True),
@@ -159,21 +129,15 @@ class Expr(object):
                 typ=BaseType('bytes32', is_literal=True),
                 pos=getpos(self.expr),
             )
-        else:
-            raise InvalidLiteral(
-                f"Cannot read 0x value with length {len(orignum)}. Expecting 42 (address "
-                "incl 0x) or 66 (bytes32 incl 0x)",
-                self.expr
-            )
 
     # String literals
-    def string(self):
+    def parse_Str(self):
         bytez, bytez_length = string_to_bytes(self.expr.value)
         typ = StringType(bytez_length, is_literal=True)
         return self._make_bytelike(typ, bytez, bytez_length)
 
     # Byte literals
-    def bytes(self):
+    def parse_Bytes(self):
         bytez = self.expr.s
         bytez_length = len(self.expr.s)
         typ = ByteArrayType(bytez_length, is_literal=True)
@@ -198,7 +162,7 @@ class Expr(object):
         )
 
     # True, False, None constants
-    def constants(self):
+    def parse_NameConstant(self):
         if self.expr.value is True:
             return LLLnode.from_list(
                 1,
@@ -211,16 +175,9 @@ class Expr(object):
                 typ=BaseType('bool', is_literal=True),
                 pos=getpos(self.expr),
             )
-        elif self.expr.value is None:
-            # block None
-            raise InvalidLiteral(
-                    'None is not allowed in vyper'
-                    '(use a default value or built-in `empty()`')
-        else:
-            raise Exception(f"Unknown name constant: {self.expr.value.value}")
 
     # Variable names
-    def variables(self):
+    def parse_Name(self):
 
         if self.expr.id == 'self':
             return LLLnode.from_list(['address'], typ='address', pos=getpos(self.expr))
@@ -241,81 +198,60 @@ class Expr(object):
                 [obj],
                 typ=BaseType(typ, is_literal=True),
                 pos=getpos(self.expr))
-        elif self.context.constants.ast_is_constant(self.expr):
-            return self.context.constants.get_constant(self.expr.id, self.context)
-        else:
-            raise VariableDeclarationException(f"Undeclared variable: {self.expr.id}", self.expr)
 
     # x.y or x[5]
-    def attribute(self):
+    def parse_Attribute(self):
         # x.balance: balance of address x
         if self.expr.attr == 'balance':
             addr = Expr.parse_value_expr(self.expr.value, self.context)
-            if not is_base_type(addr.typ, 'address'):
-                raise TypeMismatch(
-                    "Type mismatch: balance keyword expects an address as input",
-                    self.expr
+            if is_base_type(addr.typ, 'address'):
+                if (
+                    isinstance(self.expr.value, vy_ast.Name) and
+                    self.expr.value.id == "self" and
+                    version_check(begin="istanbul")
+                ):
+                    seq = ['selfbalance']
+                else:
+                    seq = ['balance', addr]
+                return LLLnode.from_list(
+                    seq,
+                    typ=BaseType('uint256'),
+                    location=None,
+                    pos=getpos(self.expr),
                 )
-            if (
-                isinstance(self.expr.value, vy_ast.Name) and
-                self.expr.value.id == "self" and
-                version_check(begin="istanbul")
-            ):
-                seq = ['selfbalance']
-            else:
-                seq = ['balance', addr]
-            return LLLnode.from_list(
-                seq,
-                typ=BaseType('uint256'),
-                location=None,
-                pos=getpos(self.expr),
-            )
         # x.codesize: codesize of address x
         elif self.expr.attr == 'codesize' or self.expr.attr == 'is_contract':
             addr = Expr.parse_value_expr(self.expr.value, self.context)
-            if not is_base_type(addr.typ, 'address'):
-                raise TypeMismatch(
-                    "Type mismatch: codesize keyword expects an address as input",
-                    self.expr,
+            if is_base_type(addr.typ, 'address'):
+                if self.expr.attr == 'codesize':
+                    eval_code = ['extcodesize', addr]
+                    output_type = 'int128'
+                else:
+                    eval_code = ['gt', ['extcodesize', addr], 0]
+                    output_type = 'bool'
+                return LLLnode.from_list(
+                    eval_code,
+                    typ=BaseType(output_type),
+                    location=None,
+                    pos=getpos(self.expr),
                 )
-            if self.expr.attr == 'codesize':
-                eval_code = ['extcodesize', addr]
-                output_type = 'int128'
-            else:
-                eval_code = ['gt', ['extcodesize', addr], 0]
-                output_type = 'bool'
-            return LLLnode.from_list(
-                eval_code,
-                typ=BaseType(output_type),
-                location=None,
-                pos=getpos(self.expr),
-            )
         # x.codehash: keccak of address x
         elif self.expr.attr == 'codehash':
             addr = Expr.parse_value_expr(self.expr.value, self.context)
-            if not is_base_type(addr.typ, 'address'):
-                raise TypeMismatch(
-                    "codehash keyword expects an address as input",
-                    self.expr,
-                )
             if not version_check(begin="constantinople"):
                 raise EvmVersionException(
                     "address.codehash is unavailable prior to constantinople ruleset",
                     self.expr
                 )
-            return LLLnode.from_list(
-                ['extcodehash', addr],
-                typ=BaseType('bytes32'),
-                location=None,
-                pos=getpos(self.expr)
-            )
+            if is_base_type(addr.typ, 'address'):
+                return LLLnode.from_list(
+                    ['extcodehash', addr],
+                    typ=BaseType('bytes32'),
+                    location=None,
+                    pos=getpos(self.expr)
+                )
         # self.x: global attribute
         elif isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id == "self":
-            if self.expr.attr not in self.context.globals:
-                raise VariableDeclarationException(
-                    "Persistent variable undeclared: " + self.expr.attr,
-                    self.expr,
-                )
             var = self.context.globals[self.expr.attr]
             return LLLnode.from_list(
                 var.pos,
@@ -329,18 +265,10 @@ class Expr(object):
             isinstance(self.expr.value, vy_ast.Name) and
             self.expr.value.id in ENVIRONMENT_VARIABLES
         ):
-            key = self.expr.value.id + "." + self.expr.attr
-            if key == "msg.sender":
-                if self.context.is_private:
-                    raise StructureException(
-                        "msg.sender not allowed in private functions.", self.expr
-                    )
+            key = f"{self.expr.value.id}.{self.expr.attr}"
+            if key == "msg.sender" and not self.context.is_private:
                 return LLLnode.from_list(['caller'], typ='address', pos=getpos(self.expr))
-            elif key == "msg.value":
-                if not self.context.is_payable:
-                    raise NonPayableViolation(
-                        "Cannot use msg.value in a non-payable function", self.expr,
-                    )
+            elif key == "msg.value" and self.context.is_payable:
                 return LLLnode.from_list(
                     ['callvalue'],
                     typ=BaseType('uint256'),
@@ -383,56 +311,35 @@ class Expr(object):
                         self.expr
                     )
                 return LLLnode.from_list(['chainid'], typ='uint256', pos=getpos(self.expr))
-            else:
-                raise StructureException("Unsupported keyword: " + key, self.expr)
         # Other variables
         else:
             sub = Expr.parse_variable_location(self.expr.value, self.context)
             # contract type
             if isinstance(sub.typ, ContractType):
                 return sub
-            if not isinstance(sub.typ, StructType):
-                raise TypeMismatch(
-                    "Type mismatch: member variable access not expected",
-                    self.expr.value,
-                )
-            attrs = list(sub.typ.members.keys())
-            if self.expr.attr not in attrs:
-                raise TypeMismatch(
-                    f"Member {self.expr.attr} not found. Only the following available: "
-                    f"{' '.join(attrs)}",
-                    self.expr,
-                )
-            return add_variable_offset(sub, self.expr.attr, pos=getpos(self.expr))
+            if isinstance(sub.typ, StructType) and self.expr.attr in sub.typ.members:
+                return add_variable_offset(sub, self.expr.attr, pos=getpos(self.expr))
 
-    def subscript(self):
+    def parse_Subscript(self):
         sub = Expr.parse_variable_location(self.expr.value, self.context)
         if isinstance(sub.typ, (MappingType, ListType)):
-            if not isinstance(self.expr.slice, vy_ast.Index):
-                raise StructureException(
-                    "Array access must access a single element, not a slice",
-                    self.expr,
-                )
             index = Expr.parse_value_expr(self.expr.slice.value, self.context)
         elif isinstance(sub.typ, TupleType):
-            if not isinstance(self.expr.slice.value, vy_ast.Int) or self.expr.slice.value.n < 0 or self.expr.slice.value.n >= len(sub.typ.members):  # noqa: E501
-                raise TypeMismatch("Tuple index invalid", self.expr.slice.value)
             index = self.expr.slice.value.n
+            if not 0 <= index < len(sub.typ.members):
+                return
         else:
-            raise TypeMismatch("Bad subscript attempt", self.expr.value)
-        o = add_variable_offset(sub, index, pos=getpos(self.expr))
-        o.mutable = sub.mutable
-        return o
+            return
+        lll_node = add_variable_offset(sub, index, pos=getpos(self.expr))
+        lll_node.mutable = sub.mutable
+        return lll_node
 
-    def arithmetic(self):
+    def parse_BinOp(self):
         left = Expr.parse_value_expr(self.expr.left, self.context)
         right = Expr.parse_value_expr(self.expr.right, self.context)
 
         if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
-            raise TypeMismatch(
-                f"Unsupported types for arithmetic op: {left.typ} {right.typ}",
-                self.expr,
-            )
+            return
 
         arithmetic_pair = {left.typ.typ, right.typ.typ}
         pos = getpos(self.expr)
@@ -456,19 +363,14 @@ class Expr(object):
                 )
 
         if left.typ.typ == "decimal" and isinstance(self.expr.op, vy_ast.Pow):
-            raise TypeMismatch(
-                "Cannot perform exponentiation on decimal values.",
-                self.expr,
-            )
+            return
 
         # Only allow explicit conversions to occur.
         if left.typ.typ != right.typ.typ:
-            raise TypeMismatch(
-                f"Cannot implicitly convert {left.typ.typ} to {right.typ.typ}.",
-                self.expr,
-            )
+            return
 
         ltyp, rtyp = left.typ.typ, right.typ.typ
+        arith = None
         if isinstance(self.expr.op, (vy_ast.Add, vy_ast.Sub)):
             new_typ = BaseType(ltyp)
             op = 'add' if isinstance(self.expr.op, vy_ast.Add) else 'sub'
@@ -487,9 +389,6 @@ class Expr(object):
 
             elif ltyp == rtyp:
                 arith = [op, 'l', 'r']
-
-            else:
-                raise Exception(f"Unsupported Operation '{op}({ltyp}, {rtyp})'")
 
         elif isinstance(self.expr.op, vy_ast.Mult):
             new_typ = BaseType(ltyp)
@@ -515,12 +414,10 @@ class Expr(object):
                                      ['eq', ['sdiv', 'ans', 'l'], 'r'],
                                      ['iszero', 'l']]],
                              ['sdiv', 'ans', DECIMAL_DIVISOR]]]
-            else:
-                raise Exception(f"Unsupported Operation 'mul({ltyp}, {rtyp})'")
 
         elif isinstance(self.expr.op, vy_ast.Div):
             if right.typ.is_literal and right.value == 0:
-                raise ZeroDivisionException("Cannot divide by 0.", self.expr)
+                return
 
             new_typ = BaseType(ltyp)
             if ltyp == rtyp == 'uint256':
@@ -535,12 +432,9 @@ class Expr(object):
                          ['mul', 'l', DECIMAL_DIVISOR],
                          ['clamp_nonzero', 'r']]
 
-            else:
-                raise Exception(f"Unsupported Operation 'div({ltyp}, {rtyp})'")
-
         elif isinstance(self.expr.op, vy_ast.Mod):
             if right.typ.is_literal and right.value == 0:
-                raise ZeroDivisionException("Cannot calculate modulus of 0.", self.expr)
+                return
 
             new_typ = BaseType(ltyp)
 
@@ -550,14 +444,9 @@ class Expr(object):
                 # TODO should this be regular mod
                 arith = ['smod', 'l', ['clamp_nonzero', 'r']]
 
-            else:
-                raise Exception(f"Unsupported Operation 'mod({ltyp}, {rtyp})'")
         elif isinstance(self.expr.op, vy_ast.Pow):
             if ltyp != 'int128' and ltyp != 'uint256' and isinstance(self.expr.right, vy_ast.Name):
-                raise TypeMismatch(
-                    "Cannot use dynamic values as exponents, for unit base types",
-                    self.expr,
-                )
+                return
             new_typ = BaseType(ltyp)
 
             if ltyp == rtyp == 'uint256':
@@ -572,13 +461,10 @@ class Expr(object):
             elif ltyp == rtyp == 'int128':
                 arith = ['exp', 'l', 'r']
 
-            else:
-                raise TypeMismatch('Only whole number exponents are supported', self.expr)
-        else:
-            raise StructureException(f"Unsupported binary operator: {self.expr.op}", self.expr)
+        if arith is None:
+            return
 
         p = ['seq']
-
         if new_typ.typ == 'int128':
             p.append([
                 'clamp',
@@ -596,7 +482,7 @@ class Expr(object):
         elif new_typ.typ == 'uint256':
             p.append(arith)
         else:
-            raise Exception(f"{arith} {new_typ}")
+            return
 
         p = ['with', 'l', left, ['with', 'r', right, p]]
         return LLLnode.from_list(p, typ=new_typ, pos=pos)
@@ -604,12 +490,6 @@ class Expr(object):
     def build_in_comparator(self):
         left = Expr(self.expr.left, self.context).lll_node
         right = Expr(self.expr.right, self.context).lll_node
-
-        if left.typ != right.typ.subtype:
-            raise TypeMismatch(
-                f"{left.typ} cannot be in a list of {right.typ.subtype}",
-                self.expr,
-            )
 
         result_placeholder = self.context.new_placeholder(BaseType('bool'))
         setter = []
@@ -668,14 +548,14 @@ class Expr(object):
             compare_sequence = ['seq'] + for_loop_sequence
 
         # Compare the result of the repeat loop to 1, to know if a match was found.
-        o = LLLnode.from_list([
+        lll_node = LLLnode.from_list([
             'eq', 1,
             compare_sequence],
             typ='bool',
             annotation="in comporator"
         )
 
-        return o
+        return lll_node
 
     @staticmethod
     def _signed_to_unsigned_comparision_op(op):
@@ -690,15 +570,12 @@ class Expr(object):
         else:
             return op
 
-    def compare(self):
+    def parse_Compare(self):
         left = Expr.parse_value_expr(self.expr.left, self.context)
         right = Expr.parse_value_expr(self.expr.right, self.context)
 
         if right.value is None:
-            raise InvalidLiteral(
-                'Comparison to None is not allowed, compare against a default value.',
-                self.expr,
-            )
+            return
 
         if isinstance(left.typ, ByteArrayLike) and isinstance(right.typ, ByteArrayLike):
             # TODO: Can this if branch be removed ^
@@ -706,10 +583,7 @@ class Expr(object):
 
         elif isinstance(self.expr.op, vy_ast.In) and isinstance(right.typ, ListType):
             if left.typ != right.typ.subtype:
-                raise TypeMismatch(
-                    "Can't use IN comparison with different types!",
-                    self.expr,
-                )
+                return
             return self.build_in_comparator()
 
         if isinstance(self.expr.op, vy_ast.Gt):
@@ -725,7 +599,7 @@ class Expr(object):
         elif isinstance(self.expr.op, vy_ast.NotEq):
             op = 'ne'
         else:
-            raise Exception("Unsupported comparison operator")
+            return
 
         # Compare (limited to 32) byte arrays.
         if isinstance(left.typ, ByteArrayLike) and isinstance(right.typ, ByteArrayLike):
@@ -747,11 +621,7 @@ class Expr(object):
                     )
 
                 else:
-                    raise StructureException(
-                        "Can only compare strings/bytes of length shorter",
-                        " than 32 bytes other than equality comparisons",
-                        self.expr,
-                    )
+                    return
 
             else:
                 def load_bytearray(side):
@@ -769,7 +639,7 @@ class Expr(object):
         # Compare other types.
         if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
             if op not in ('eq', 'ne'):
-                raise TypeMismatch("Invalid type for comparison op", self.expr)
+                return
         left_type, right_type = left.typ.typ, right.typ.typ
 
         # Special Case: comparison of a literal integer. If in valid range allow it to be compared.
@@ -788,20 +658,12 @@ class Expr(object):
         elif {left_type, right_type} == {'uint256', 'uint256'}:
             op = self._signed_to_unsigned_comparision_op(op)
         elif (left_type in ('decimal', 'int128') or right_type in ('decimal', 'int128')) and left_type != right_type:  # noqa: E501
-            raise TypeMismatch(
-                f'Implicit conversion from {left_type} to {right_type} disallowed, please convert.',
-                self.expr,
-            )
+            return
 
         if left_type == right_type:
             return LLLnode.from_list([op, left, right], typ='bool', pos=getpos(self.expr))
-        else:
-            raise TypeMismatch(
-                f"Unsupported types for comparison: {left_type} {right_type}",
-                self.expr,
-            )
 
-    def boolean_operations(self):
+    def parse_BoolOp(self):
         # Iterate through values
         for value in self.expr.values:
             # Check for calls at assignment
@@ -814,12 +676,7 @@ class Expr(object):
             # Check for boolean operations with non-boolean inputs
             _expr = Expr.parse_value_expr(value, self.context)
             if not is_base_type(_expr.typ, 'bool'):
-                raise TypeMismatch(
-                    "Boolean operations can only be between booleans!",
-                    self.expr,
-                )
-
-            # TODO: Handle special case of literals and simplify at compile time
+                return
 
         # Check for valid ops
         if isinstance(self.expr.op, vy_ast.And):
@@ -827,13 +684,11 @@ class Expr(object):
         elif isinstance(self.expr.op, vy_ast.Or):
             op = 'or'
         else:
-            raise Exception("Unsupported bool op: " + self.expr.op)
+            return
 
         # Handle different numbers of inputs
         count = len(self.expr.values)
-        if count < 2:
-            raise StructureException("Expected at least two arguments for a bool op", self.expr)
-        elif count == 2:
+        if count == 2:
             left = Expr.parse_value_expr(self.expr.values[0], self.context)
             right = Expr.parse_value_expr(self.expr.values[1], self.context)
             return LLLnode.from_list([op, left, right], typ='bool', pos=getpos(self.expr))
@@ -851,33 +706,20 @@ class Expr(object):
             return LLLnode.from_list(p, typ='bool', pos=getpos(self.expr))
 
     # Unary operations (only "not" supported)
-    def unary_operations(self):
+    def parse_UnaryOp(self):
         operand = Expr.parse_value_expr(self.expr.operand, self.context)
         if isinstance(self.expr.op, vy_ast.Not):
             if isinstance(operand.typ, BaseType) and operand.typ.typ == 'bool':
                 return LLLnode.from_list(["iszero", operand], typ='bool', pos=getpos(self.expr))
-            else:
-                raise TypeMismatch(
-                    f"Only bool is supported for not operation, {operand.typ} supplied.",
-                    self.expr,
-                )
-        elif isinstance(self.expr.op, vy_ast.USub):
-            if not is_numeric_type(operand.typ):
-                raise TypeMismatch(
-                    f"Unsupported type for negation: {operand.typ}",
-                    self.expr,
-                )
-
+        elif isinstance(self.expr.op, vy_ast.USub) and is_numeric_type(operand.typ):
             # Clamp on minimum integer value as we cannot negate that value
             # (all other integer values are fine)
             min_int_val = get_min_val_for_type(operand.typ.typ)
             return LLLnode.from_list(
-                    ["sub", 0, ["clampgt", operand, min_int_val]],
-                    typ=operand.typ,
-                    pos=getpos(self.expr)
-                )
-        else:
-            raise StructureException("Only the 'not' or 'neg' unary operators are supported")
+                ["sub", 0, ["clampgt", operand, min_int_val]],
+                typ=operand.typ,
+                pos=getpos(self.expr)
+            )
 
     def _is_valid_contract_assign(self):
         if self.expr.args and len(self.expr.args) == 1:
@@ -887,7 +729,7 @@ class Expr(object):
         return False, None
 
     # Function calls
-    def call(self):
+    def parse_Call(self):
         from vyper.functions import (
             DISPATCH_TABLE,
         )
@@ -901,19 +743,8 @@ class Expr(object):
             # Struct constructors do not need `self` prefix.
             elif function_name in self.context.structs:
                 args = self.expr.args
-                if len(args) != 1:
-                    raise StructureException(
-                        "Struct constructor is called with one argument only",
-                        self.expr,
-                    )
-
-                arg = args[0]
-                if not isinstance(arg, vy_ast.Dict):
-                    raise TypeMismatch(
-                        "Struct can only be constructed with a dict",
-                        self.expr,
-                    )
-                return Expr.struct_literals(arg, function_name, self.context)
+                if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
+                    return Expr.struct_literals(args[0], function_name, self.context)
 
             # Contract assignment. Bar(<address>).
             elif function_name in self.context.sigs:
@@ -921,32 +752,21 @@ class Expr(object):
                 if ret is True:
                     arg_lll.typ = ContractType(function_name)  # Cast to Correct contract type.
                     return arg_lll
-                else:
-                    raise TypeMismatch(
-                        "ContractType definition expects one address argument.",
-                        self.expr,
-                    )
-            else:
-                err_msg = f"Not a top-level function: {function_name}"
-                if function_name in [x.split('(')[0] for x, _ in self.context.sigs['self'].items()]:
-                    err_msg += f". Did you mean self.{function_name}?"
-                raise StructureException(err_msg, self.expr)
         elif isinstance(self.expr.func, vy_ast.Attribute) and isinstance(self.expr.func.value, vy_ast.Name) and self.expr.func.value.id == "self":  # noqa: E501
             return self_call.make_call(self.expr, self.context)
         else:
             return external_call.make_external_call(self.expr, self.context)
 
-    def list_literals(self):
-
+    def parse_List(self):
         if not len(self.expr.elements):
-            raise StructureException("List must have elements", self.expr)
+            return
 
         def get_out_type(lll_node):
             if isinstance(lll_node, ListType):
                 return get_out_type(lll_node.subtype)
             return lll_node.typ
 
-        o = []
+        lll_node = []
         previous_type = None
         out_type = None
 
@@ -956,25 +776,17 @@ class Expr(object):
                 out_type = current_lll_node.typ
 
             current_type = get_out_type(current_lll_node)
-            if len(o) > 0 and previous_type != current_type:
+            if len(lll_node) > 0 and previous_type != current_type:
                 raise TypeMismatch("Lists may only contain one type", self.expr)
             else:
-                o.append(current_lll_node)
+                lll_node.append(current_lll_node)
                 previous_type = current_type
 
         return LLLnode.from_list(
-            ["multi"] + o,
-            typ=ListType(out_type, len(o)),
+            ["multi"] + lll_node,
+            typ=ListType(out_type, len(lll_node)),
             pos=getpos(self.expr),
         )
-
-    def dict_fail(self):
-        warnings.warn(
-            "Anonymous structs have been removed in"
-            " favor of named structs, see VIP300",
-            DeprecationWarning
-        )
-        raise InvalidLiteral("Invalid literal.", self.expr)
 
     @staticmethod
     def struct_literals(expr, name, context):
@@ -982,10 +794,7 @@ class Expr(object):
         member_typs = {}
         for key, value in zip(expr.keys, expr.values):
             if not isinstance(key, vy_ast.Name):
-                raise TypeMismatch(
-                    f"Invalid member variable for struct: {getattr(key, 'id', '')}",
-                    key,
-                )
+                return
             check_valid_varname(
                 key.id,
                 context.structs,
@@ -993,7 +802,7 @@ class Expr(object):
                 "Invalid member variable for struct",
             )
             if key.id in member_subs:
-                raise TypeMismatch("Member variable duplicated: " + key.id, key)
+                return
             sub = Expr(value, context).lll_node
             member_subs[key.id] = sub
             member_typs[key.id] = sub.typ
@@ -1003,14 +812,14 @@ class Expr(object):
             pos=getpos(expr),
         )
 
-    def tuple_literals(self):
+    def parse_Tuple(self):
         if not len(self.expr.elements):
-            raise StructureException("Tuple must have elements", self.expr)
-        o = []
-        for elt in self.expr.elements:
-            o.append(Expr(elt, self.context).lll_node)
-        typ = TupleType([x.typ for x in o], is_literal=True)
-        return LLLnode.from_list(["multi"] + o, typ=typ, pos=getpos(self.expr))
+            return
+        lll_node = []
+        for node in self.expr.elements:
+            lll_node.append(Expr(node, self.context).lll_node)
+        typ = TupleType([x.typ for x in lll_node], is_literal=True)
+        return LLLnode.from_list(["multi"] + lll_node, typ=typ, pos=getpos(self.expr))
 
     # Parse an expression that results in a value
     @classmethod

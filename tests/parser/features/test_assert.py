@@ -2,7 +2,12 @@ import pytest
 from eth_abi import decode_single
 from eth_tester.exceptions import TransactionFailed
 
-from vyper.exceptions import ConstancyViolation, StructureException
+from vyper.exceptions import (
+    CallViolation,
+    ConstancyViolation,
+    StructureException,
+    TypeMismatch,
+)
 
 
 def test_assert_refund(w3, get_contract_with_gas_estimation, assert_tx_failed):
@@ -72,24 +77,13 @@ def test(a: int128) -> int128:
     assert a > 1, ""
     return 1 + a
         """,
-        # Must be a literal string.
-        """
-@public
-def mint(_to: address, _value: uint256):
-    assert msg.sender == self,minter
-        """,
         # Raise must have a reason
         """
 @public
 def mint(_to: address, _value: uint256):
     raise
         """,
-        # Raise reason must be string
-        """
-@public
-def mint(_to: address, _value: uint256):
-    raise 1
-        """]
+    ]
 
     for code in codes:
         assert_compile_failed(lambda: get_contract(code), StructureException)
@@ -104,7 +98,7 @@ def ret1() -> int128:
 def test():
     assert self.ret1() == 1
     """
-    assert_compile_failed(lambda: get_contract(code), ConstancyViolation)
+    assert_compile_failed(lambda: get_contract(code), CallViolation)
 
     code = """
 @private
@@ -121,7 +115,7 @@ def test():
 def test():
     assert raw_call(msg.sender, b'', max_outsize=1, gas=10, value=1000*1000) == 1
     """
-    assert_compile_failed(lambda: get_contract(code), ConstancyViolation)
+    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
     code = """
 @private
@@ -138,7 +132,7 @@ def test():
 def test():
     assert create_forwarder_to(self) == 1
     """
-    assert_compile_failed(lambda: get_contract(code), ConstancyViolation)
+    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
     foreign_code = """
 state: uint256

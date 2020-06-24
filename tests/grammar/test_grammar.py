@@ -7,7 +7,7 @@ import pytest
 from hypothesis import HealthCheck, assume, given
 from hypothesis.extra.lark import LarkStrategy
 
-from conftest import get_lark_grammar
+from tests.grammar.conftest import get_lark_grammar
 from vyper.ast import Module, parse_to_ast
 
 

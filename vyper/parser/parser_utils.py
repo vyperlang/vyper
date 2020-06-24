@@ -2,11 +2,10 @@ from decimal import Decimal, getcontext
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
-    ArrayIndexException,
     CompilerPanic,
-    ConstancyViolation,
     InvalidLiteral,
     StructureException,
+    TypeCheckFailure,
     TypeMismatch,
 )
 from vyper.parser.lll_node import LLLnode
@@ -35,6 +34,17 @@ from vyper.utils import (
 )
 
 getcontext().prec = 78  # MAX_UINT256 < 1e78
+
+
+def type_check_wrapper(fn):
+
+    def _wrapped(*args, **kwargs):
+        return_value = fn(*args, **kwargs)
+        if return_value is None:
+            raise TypeCheckFailure(f"{fn.__name__} did not return a value")
+        return return_value
+
+    return _wrapped
 
 
 # Get a decimal number as a fraction with denominator multiple of 10
@@ -257,31 +267,16 @@ def set_offsets(node, pos):
 
 # Take a value representing a memory or storage location, and descend down to
 # an element or member variable
+@type_check_wrapper
 def add_variable_offset(parent, key, pos, array_bounds_check=True):
     typ, location = parent.typ, parent.location
     if isinstance(typ, TupleLike):
         if isinstance(typ, StructType):
-            if not isinstance(key, str):
-                raise TypeMismatch(
-                    f"Expecting a member variable access; cannot access element {key}", pos
-                )
-            if key not in typ.members:
-                raise TypeMismatch(f"Object does not have member variable {key}", pos)
             subtype = typ.members[key]
             attrs = list(typ.tuple_keys())
-
-            if key not in attrs:
-                raise TypeMismatch(
-                    f"Member {key} not found. Only the following available: " + " ".join(attrs),
-                    pos
-                )
             index = attrs.index(key)
             annotation = key
         else:
-            if not isinstance(key, int):
-                raise TypeMismatch(
-                    f"Expecting a static index; cannot access element {key}", pos
-                )
             attrs = list(range(len(typ.members)))
             index = key
             annotation = None
@@ -306,58 +301,43 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
                                      typ=typ.members[key],
                                      location=location,
                                      annotation=annotation)
-        else:
-            raise TypeMismatch("Not expecting a member variable access", pos)
 
     elif isinstance(typ, MappingType):
 
+        sub = None
         if isinstance(key.typ, ByteArrayLike):
-            if not isinstance(typ.keytype, ByteArrayLike) or (typ.keytype.maxlen < key.typ.maxlen):
-                raise TypeMismatch(
-                    "Mapping keys of bytes cannot be cast, use exact same bytes type of: "
-                    f"{str(typ.keytype)}",
-                    pos,
-                )
-            subtype = typ.valuetype
-            if len(key.args[0].args) >= 3:  # handle bytes literal.
-                sub = LLLnode.from_list([
-                    'seq',
-                    key,
-                    ['sha3', ['add', key.args[0].args[-1], 32], ['mload', key.args[0].args[-1]]]
-                ])
-            else:
-                sub = LLLnode.from_list(
-                    ['sha3', ['add', key.args[0].value, 32], ['mload', key.args[0].value]]
-                )
+            if isinstance(typ.keytype, ByteArrayLike) and (typ.keytype.maxlen >= key.typ.maxlen):
+
+                subtype = typ.valuetype
+                if len(key.args[0].args) >= 3:  # handle bytes literal.
+                    sub = LLLnode.from_list([
+                        'seq',
+                        key,
+                        ['sha3', ['add', key.args[0].args[-1], 32], ['mload', key.args[0].args[-1]]]
+                    ])
+                else:
+                    sub = LLLnode.from_list(
+                        ['sha3', ['add', key.args[0].value, 32], ['mload', key.args[0].value]]
+                    )
         else:
             subtype = typ.valuetype
             sub = base_type_conversion(key, key.typ, typ.keytype, pos=pos)
 
-        if location == 'storage':
+        if sub is not None and location == 'storage':
             return LLLnode.from_list(['sha3_64', parent, sub],
                                      typ=subtype,
                                      location='storage')
-        elif location in ('memory', 'calldata'):
-            raise TypeMismatch(
-                "Can only have fixed-side arrays in memory, not mappings", pos
-            )
 
-    elif isinstance(typ, ListType):
+    elif isinstance(typ, ListType) and is_base_type(key.typ, ('int128', 'uint256')):
 
         subtype = typ.subtype
         k = unwrap_location(key)
-        if not is_base_type(key.typ, ('int128', 'uint256')):
-            raise TypeMismatch(f'Invalid type for array index: {key.typ}', pos)
-
         if not array_bounds_check:
             sub = k
         elif key.typ.is_literal:  # note: BaseType always has is_literal attr
             # perform the check at compile time and elide the runtime check.
             if key.value < 0 or key.value >= typ.count:
-                raise ArrayIndexException(
-                        'Array index determined to be out of bounds. '
-                        f'Index is {key.value} but array size is {typ.count}',
-                        pos)
+                return
             sub = k
         else:
             # this works, even for int128. for int128, since two's-complement
@@ -384,30 +364,21 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
                 location=location,
                 pos=pos
             )
-        else:
-            raise TypeMismatch("Not expecting an array access ", pos)
-    else:
-        raise TypeMismatch(f"Cannot access the child of a constant variable! {typ}", pos)
 
 
 # Convert from one base type to another
+@type_check_wrapper
 def base_type_conversion(orig, frm, to, pos, in_function_call=False):
     orig = unwrap_location(orig)
 
     # do the base type check so we can use BaseType attributes
     if not isinstance(frm, BaseType) or not isinstance(to, BaseType):
-        raise TypeMismatch(
-            f"Base type conversion from or to non-base type: {frm} {to}", pos
-        )
+        return
 
     if getattr(frm, 'is_literal', False):
-        if frm.typ in ('int128', 'uint256'):
-            if not SizeLimits.in_bounds(frm.typ, orig.value):
-                raise InvalidLiteral(f"Number out of range: {orig.value}", pos)
-
-        if to.typ in ('int128', 'uint256'):
-            if not SizeLimits.in_bounds(to.typ, orig.value):
-                raise InvalidLiteral(f"Number out of range: {orig.value}", pos)
+        for typ in (frm.typ, to.typ):
+            if typ in ('int128', 'uint256') and not SizeLimits.in_bounds(typ, orig.value):
+                return
 
     is_decimal_int128_conversion = frm.typ == 'int128' and to.typ == 'decimal'
     is_same_type = frm.typ == to.typ
@@ -417,9 +388,7 @@ def base_type_conversion(orig, frm, to, pos, in_function_call=False):
             or is_literal_conversion
             or is_address_conversion
             or is_decimal_int128_conversion):
-        raise TypeMismatch(
-            f"Typecasting from base type {frm} to {to} unavailable", pos
-        )
+        return
 
     # handle None value inserted by `empty()`
     if orig.value is None:
@@ -447,6 +416,7 @@ def unwrap_location(orig):
 
 
 # Pack function arguments for a call
+@type_check_wrapper
 def pack_arguments(signature, args, context, stmt_expr, return_placeholder=True):
     pos = getpos(stmt_expr)
     placeholder_typ = ByteArrayType(
@@ -456,14 +426,8 @@ def pack_arguments(signature, args, context, stmt_expr, return_placeholder=True)
     setters = [['mstore', placeholder, signature.method_id]]
     needpos = False
     staticarray_offset = 0
-    expected_arg_count = len(signature.args)
-    actual_arg_count = len(args)
-    if actual_arg_count != expected_arg_count:
-        raise StructureException(
-            f"Wrong number of args for: {signature.name} "
-            f"({actual_arg_count} args given, expected {expected_arg_count}",
-            stmt_expr
-        )
+    if len(signature.args) != len(args):
+        return
 
     for i, (arg, typ) in enumerate(zip(args, [arg.typ for arg in signature.args])):
         if isinstance(typ, BaseType):
@@ -495,7 +459,7 @@ def pack_arguments(signature, args, context, stmt_expr, return_placeholder=True)
 
         elif isinstance(typ, (StructType, ListType)):
             if has_dynamic_data(typ):
-                raise TypeMismatch("Cannot pack bytearray in struct", stmt_expr)
+                return
             target = LLLnode.from_list(
                 [placeholder + 32 + staticarray_offset + i * 32],
                 typ=typ,
@@ -509,7 +473,7 @@ def pack_arguments(signature, args, context, stmt_expr, return_placeholder=True)
             staticarray_offset += 32 * (count - 1)
 
         else:
-            raise TypeMismatch(f"Cannot pack argument of type {typ}", stmt_expr)
+            return
 
     # For private call usage, doesn't use a returner.
     returner = [[placeholder + 28]] if return_placeholder else []
@@ -533,6 +497,7 @@ def pack_arguments(signature, args, context, stmt_expr, return_placeholder=True)
 
 
 # Create an x=y statement, where the types may be compound
+@type_check_wrapper
 def make_setter(left, right, location, pos, in_function_call=False):
     # Basic types
     if isinstance(left.typ, BaseType):
@@ -557,14 +522,11 @@ def make_setter(left, right, location, pos, in_function_call=False):
     elif isinstance(left.typ, ListType):
         # Cannot do something like [a, b, c] = [1, 2, 3]
         if left.value == "multi":
-            raise Exception("Target of set statement must be a single item")
-
+            return
         if not isinstance(right.typ, ListType):
-            raise TypeMismatch(
-                f"Setter type mismatch: left side is {left.typ}, right side is {right.typ}", pos
-            )
+            return
         if right.typ.count != left.typ.count:
-            raise TypeMismatch("Mismatched number of elements", pos)
+            return
 
         left_token = LLLnode.from_list('_L', typ=left.typ, location=left.location)
         if left.location == "storage":
@@ -583,9 +545,7 @@ def make_setter(left, right, location, pos, in_function_call=False):
             return LLLnode.from_list(['with', '_L', left, ['seq'] + subs], typ=None)
         elif right.value is None:
             if right.typ != left.typ:
-                raise TypeMismatch(
-                    f"left side is {left.typ}, right side is {right.typ}", pos
-                )
+                return
             if left.location == 'memory':
                 return mzero(left, 32*get_size_of_type(left.typ))
 
@@ -621,35 +581,22 @@ def make_setter(left, right, location, pos, in_function_call=False):
     # Structs
     elif isinstance(left.typ, TupleLike):
         if left.value == "multi" and isinstance(left.typ, StructType):
-            raise Exception("Target of set statement must be a single item")
+            return
         if right.value is not None:
             if not isinstance(right.typ, left.typ.__class__):
-                raise TypeMismatch(
-                    f"Setter type mismatch: left side is {left.typ}, right side is {right.typ}",
-                    pos,
-                )
+                return
             if isinstance(left.typ, StructType):
                 for k in left.typ.members:
                     if k not in right.typ.members:
-                        raise TypeMismatch(
-                            f"Keys don't match for structs, missing {k}",
-                            pos,
-                        )
+                        return
                 for k in right.typ.members:
                     if k not in left.typ.members:
-                        raise TypeMismatch(
-                            f"Keys don't match for structs, extra {k}",
-                            pos,
-                        )
+                        return
                 if left.typ.name != right.typ.name:
-                    raise TypeMismatch(f"Expected {left.typ}, got {right.typ}", pos)
+                    return
             else:
                 if len(left.typ.members) != len(right.typ.members):
-                    raise TypeMismatch(
-                        "Tuple lengths don't match, "
-                        f"{len(left.typ.members)} vs {len(right.typ.members)}",
-                        pos,
-                    )
+                    return
 
         left_token = LLLnode.from_list('_L', typ=left.typ, location=left.location)
         if left.location == "storage":
@@ -666,7 +613,7 @@ def make_setter(left, right, location, pos, in_function_call=False):
         # If the right side is a literal
         if right.value == "multi":
             if len(right.args) != len(keyz):
-                raise TypeMismatch("Mismatched number of elements", pos)
+                return
             # get the RHS arguments into a dict because
             # they are not guaranteed to be in the same order
             # the LHS keys.
@@ -683,9 +630,7 @@ def make_setter(left, right, location, pos, in_function_call=False):
         # If the right side is a null
         elif right.value is None:
             if left.typ != right.typ:
-                raise TypeMismatch(
-                    f"left side is {left.typ}, right side is {right.typ}", pos
-                )
+                return
 
             if left.location == 'memory':
                 return mzero(left, 32*get_size_of_type(left.typ))
@@ -706,9 +651,7 @@ def make_setter(left, right, location, pos, in_function_call=False):
             zipped_components = zip(left.args, right.typ.members, locations)
             for var_arg in left.args:
                 if var_arg.location == 'calldata':
-                    raise ConstancyViolation(
-                        f"Cannot modify function argument: {var_arg.annotation}", pos
-                    )
+                    return
             for left_arg, right_arg, loc in zipped_components:
                 if isinstance(right_arg, ByteArrayLike):
                     RType = ByteArrayType if isinstance(right_arg, ByteArrayType) else StringType
@@ -751,8 +694,6 @@ def make_setter(left, right, location, pos, in_function_call=False):
                 ['with', '_L', left, ['with', '_R', right, ['seq'] + subs]],
                 typ=None,
             )
-    else:
-        raise Exception("Invalid type for setters")
 
 
 def is_return_from_function(node):

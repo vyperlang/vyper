@@ -11,7 +11,7 @@ from vyper.cli.vyper_json import (
     exc_handler_raises,
     exc_handler_to_dict,
 )
-from vyper.exceptions import JSONError, SyntaxException, TypeMismatch
+from vyper.exceptions import InvalidType, JSONError, SyntaxException
 
 FOO_CODE = """
 import contracts.bar as Bar
@@ -98,7 +98,7 @@ def test_exc_handler_to_dict_syntax():
 def test_exc_handler_raises_compiler():
     input_json = deepcopy(INPUT_JSON)
     input_json['sources']['badcode.vy'] = {'content': BAD_COMPILER_CODE}
-    with pytest.raises(TypeMismatch):
+    with pytest.raises(InvalidType):
         compile_from_input_dict(input_json, exc_handler_raises)
 
 
@@ -111,7 +111,7 @@ def test_exc_handler_to_dict_compiler():
     assert len(result['errors']) == 1
     error = result['errors'][0]
     assert error['component'] == "compiler"
-    assert error['type'] == "TypeMismatch"
+    assert error['type'] == "InvalidType"
 
 
 def test_source_ids_increment():

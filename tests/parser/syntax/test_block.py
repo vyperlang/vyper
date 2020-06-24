@@ -2,19 +2,19 @@ import pytest
 from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import TypeMismatch
+from vyper.exceptions import InvalidType, TypeMismatch
 
 fail_list = [
-    """
+    ("""
 @public
 def foo() -> int128[2]:
     return [3,block.timestamp]
-    """,
-    """
+    """, InvalidType),
+    ("""
 @public
 def foo() -> int128[2]:
     return [block.timestamp - block.timestamp, block.timestamp]
-    """,
+    """, InvalidType),
     """
 @public
 def foo() -> decimal:
@@ -25,7 +25,7 @@ def foo() -> decimal:
     """
 @public
 def foo():
-    x: bytes[10] = slice("cow", 0, block.timestamp)
+    x: bytes[10] = slice(b"cow", 0, block.timestamp)
     """,
     """
 @public

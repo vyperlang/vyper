@@ -1,57 +1,51 @@
 import pytest
-from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import TypeMismatch
+from vyper.exceptions import InvalidType, TypeMismatch
 
 fail_list = [
-    """
+    ("""
 @public
 def foo():
     send(1, 2)
-    """,
-    """
-@public
-def foo():
-    send(1, 2)
-    """,
-    """
+    """, InvalidType),
+    ("""
 @public
 def foo():
     send(0x1234567890123456789012345678901234567890, 2.5)
-    """,
-    """
+    """, InvalidType),
+    ("""
 @public
 def foo():
     send(0x1234567890123456789012345678901234567890, 0x1234567890123456789012345678901234567890)
-    """,
-    """
+    """, InvalidType),
+    ("""
 x: int128
 
 @public
 def foo():
     send(0x1234567890123456789012345678901234567890, self.x)
-    """,
-    """
+    """, TypeMismatch),
+    ("""
 x: uint256
 
 @public
 def foo():
     send(0x1234567890123456789012345678901234567890, self.x + 1.5)
-    """,
-    """
+    """, TypeMismatch),
+    ("""
 x: decimal
 
 @public
 def foo():
     send(0x1234567890123456789012345678901234567890, self.x)
-    """
+    """, TypeMismatch),
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
-def test_send_fail(bad_code):
-    with raises(TypeMismatch):
+@pytest.mark.parametrize('bad_code,exc', fail_list)
+def test_send_fail(bad_code, exc):
+    with pytest.raises(exc):
         compiler.compile_code(bad_code)
 
 

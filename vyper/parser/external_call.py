@@ -1,10 +1,8 @@
 from vyper import ast as vy_ast
 from vyper.exceptions import (
     ConstancyViolation,
-    FunctionDeclarationException,
     StructureException,
-    TypeMismatch,
-    VariableDeclarationException,
+    TypeCheckFailure,
 )
 from vyper.parser.lll_node import LLLnode
 from vyper.parser.parser_utils import getpos, pack_arguments, unwrap_location
@@ -31,30 +29,11 @@ def external_contract_call(node,
         value = 0
     if gas is None:
         gas = 'gas'
-    if not contract_name:
-        raise StructureException(
-            f'Invalid external contract call "{node.func.attr}".',
-            node
-        )
-    if contract_name not in context.sigs:
-        raise VariableDeclarationException(
-            f'Contract "{contract_name}" not declared yet',
-            node
-        )
     if contract_address.value == "address":
         raise StructureException(
             "External calls to self are not permitted.", node
         )
     method_name = node.func.attr
-    if method_name not in context.sigs[contract_name]:
-        raise FunctionDeclarationException(
-            (
-                f"Function not declared yet: {method_name} (reminder: "
-                "function must be declared in the correct contract)"
-                f"The available methods are: {','.join(context.sigs[contract_name].keys())}"
-            ),
-            node.func
-        )
     sig = context.sigs[contract_name][method_name]
     inargs, inargsize, _ = pack_arguments(
         sig,
@@ -110,7 +89,7 @@ def get_external_contract_call_output(sig, context):
     elif isinstance(sig.output_type, ListType):
         returner = [0, output_placeholder]
     else:
-        raise TypeMismatch(f"Invalid output type: {sig.output_type}")
+        raise TypeCheckFailure(f"Invalid output type: {sig.output_type}")
     return output_placeholder, output_size, returner
 
 
@@ -118,15 +97,12 @@ def get_external_contract_keywords(stmt_expr, context):
     from vyper.parser.expr import Expr
     value, gas = None, None
     for kw in stmt_expr.keywords:
-        if kw.arg not in ('value', 'gas'):
-            raise TypeMismatch(
-                'Invalid keyword argument, only "gas" and "value" supported.',
-                stmt_expr,
-            )
-        elif kw.arg == 'gas':
+        if kw.arg == 'gas':
             gas = Expr.parse_value_expr(kw.value, context)
         elif kw.arg == 'value':
             value = Expr.parse_value_expr(kw.value, context)
+        else:
+            raise TypeCheckFailure("Unexpected keyword argument")
     return value, gas
 
 

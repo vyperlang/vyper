@@ -4,6 +4,27 @@ import types
 from vyper.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
 
 
+class ExceptionList(list):
+    """
+    List subclass for storing exceptions.
+    To deliver multiple compilation errors to the user at once, append each
+    raised Exception to this list and call raise_if_not_empty once the task
+    is completed.
+    """
+
+    def raise_if_not_empty(self):
+        if len(self) == 1:
+            raise self[0]
+        elif len(self) > 1:
+            if len(set(type(i) for i in self)) > 1:
+                err_type = StructureException
+            else:
+                err_type = type(self[0])
+            err_msg = ["Compilation failed with the following errors:"]
+            err_msg += [f"{type(i).__name__}: {i}" for i in self]
+            raise err_type("\n\n".join(err_msg))
+
+
 class VyperException(Exception):
     """
     Base Vyper exception class.
@@ -11,7 +32,8 @@ class VyperException(Exception):
     This exception is not raised directly. Other exceptions inherit it in
     order to display source annotations in the error string.
     """
-    def __init__(self, message='Error Message not found.', item=None):
+
+    def __init__(self, message="Error Message not found.", *items):
         """
         Exception initializer.
 
@@ -19,60 +41,70 @@ class VyperException(Exception):
         ---------
         message : str
             Error message to display with the exception.
-        item : VyperNode | tuple, optional
-            Vyper ast node or tuple of (lineno, col_offset) indicating where
-            the exception occured.
+        *items : VyperNode | tuple, optional
+            Vyper ast node(s) indicating where the exception occured. Source
+            annotation is generated in the order the nodes are given. A single
+            tuple of (lineno, col_offset) is also understood to support the old
+            API, but new exceptions should not use this approach.
         """
         self.message = message
         self.lineno = None
         self.col_offset = None
 
-        if isinstance(item, tuple):
-            self.lineno, self.col_offset = item[:2]
-        elif hasattr(item, 'lineno'):
-            self.lineno = item.lineno
-            self.col_offset = item.col_offset
-            self.source_code = item.full_source_code
+        if len(items) == 1 and isinstance(items[0], tuple):
+            self.lineno, self.col_offset = items[0][:2]
+        else:
+            self.nodes = items
+            if items:
+                self.source_code = items[0].full_source_code
 
-    def with_annotation(self, node):
+    def with_annotation(self, *nodes):
         """
         Creates a copy of this exception with a modified source annotation.
 
         Arguments
         ---------
-        node : VyperNode
-            AST node to obtain the source offset from.
+        *node : VyperNode
+            AST node(s) to use in the annotation.
 
         Returns
         -------
-        A copy of the exception with the new offset applied.
+        A copy of the exception with the new node offset(s) applied.
         """
         exc = copy.copy(self)
-        exc.lineno = node.lineno
-        exc.col_offset = node.col_offset
-        exc.source_code = node.full_source_code
+        exc.source_code = nodes[0].full_source_code
+        exc.nodes = nodes
         return exc
 
     def __str__(self):
-        lineno, col_offset = self.lineno, self.col_offset
+        from vyper import ast as vy_ast
+        from vyper.utils import annotate_source_code
 
-        if lineno is not None and hasattr(self, 'source_code'):
-            from vyper.utils import annotate_source_code
+        if not hasattr(self, "source_code"):
+            if self.lineno is not None and self.col_offset is not None:
+                return f"line {self.lineno}:{self.col_offset} {self.message}"
+            else:
+                return self.message
 
+        msg = f"{self.message}\n"
+        for node in self.nodes:
             source_annotation = annotate_source_code(
                 self.source_code,
-                lineno,
-                col_offset,
+                node.lineno,
+                node.col_offset,
                 context_lines=VYPER_ERROR_CONTEXT_LINES,
                 line_numbers=VYPER_ERROR_LINE_NUMBERS,
             )
-            col_offset_str = '' if col_offset is None else str(col_offset)
-            return f'line {lineno}:{col_offset_str} {self.message}\n{source_annotation}'
 
-        elif lineno is not None and col_offset is not None:
-            return f'line {lineno}:{col_offset} {self.message}'
+            if isinstance(node, vy_ast.VyperNode):
+                fn_node = node.get_ancestor(vy_ast.FunctionDef)
+                if fn_node:
+                    msg += f"function '{fn_node.name}', "
 
-        return self.message
+            col_offset_str = "" if node.col_offset is None else str(node.col_offset)
+            msg += f"line {node.lineno}:{col_offset_str} \n{source_annotation}\n"
+
+        return msg
 
 
 class SyntaxException(VyperException):
@@ -109,6 +141,14 @@ class FunctionDeclarationException(VyperException):
 
 class EventDeclarationException(VyperException):
     """Invalid event declaration."""
+
+
+class UnknownType(VyperException):
+    """Reference to a type that does not exist."""
+
+
+class UnknownAttribute(VyperException):
+    """Reference to an attribute that does not exist."""
 
 
 class UndeclaredDefinition(VyperException):
@@ -203,16 +243,33 @@ class VyperInternalException(Exception):
     Internal exceptions are raised as a means of passing information between
     compiler processes. They should never be exposed to the user.
     """
+
     def __init__(self, message=""):
         self.message = message
 
     def __str__(self):
-        return f"{self.message} Please create an issue."
+        return (
+            f"{self.message}\n\nThis is an unhandled internal compiler error. "
+            "Please create an issue on Github to notify the developers.\n"
+            "https://github.com/vyperlang/vyper/issues/new?template=bug.md"
+        )
 
 
 class CompilerPanic(VyperInternalException):
-    """Unexpected error during compilation."""
+    """General unexpected error during compilation."""
+
+
+class UnexpectedNodeType(VyperInternalException):
+    """Unexpected AST node type."""
+
+
+class UnexpectedValue(VyperInternalException):
+    """Unexpected Value."""
 
 
 class UnfoldableNode(VyperInternalException):
     """Constant folding logic cannot be applied to an AST node."""
+
+
+class TypeCheckFailure(VyperInternalException):
+    """An issue was not caught during type checking that should have been."""

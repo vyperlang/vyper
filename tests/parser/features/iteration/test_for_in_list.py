@@ -2,7 +2,13 @@ from decimal import Decimal
 
 import pytest
 
-from vyper.exceptions import StructureException, VariableDeclarationException
+from vyper.exceptions import (
+    ArgumentException,
+    ConstancyViolation,
+    InvalidType,
+    NamespaceCollision,
+    StructureException,
+)
 
 BASIC_FOR_LOOP_CODE = [
     # basic for-in-list memory
@@ -256,7 +262,7 @@ def test_range_constant(get_contract, code, result):
 
 BAD_CODE = [
     # altering list within loop
-    """
+    ("""
 @public
 def data() -> int128:
     s: int128[6] = [1, 2, 3, 4, 5, 6]
@@ -267,17 +273,17 @@ def data() -> int128:
             return i
         count += 1
     return -1
-    """,
-    """
+    """, ConstancyViolation),
+    ("""
 @public
 def foo():
     s: int128[6] = [1, 2, 3, 4, 5, 6]
     count: int128 = 0
     for i in s:
         s[count] += 1
-    """,
+    """, ConstancyViolation),
     # alter storage list within for loop
-    """
+    ("""
 s: int128[6]
 
 @public
@@ -293,7 +299,7 @@ def data() -> int128:
             return i
         count += 1
     return -1
-    """,
+    """, ConstancyViolation),
     # invalid nested loop
     ("""
 @public
@@ -301,59 +307,59 @@ def foo(x: int128):
     for i in range(4):
         for i in range(5):
             pass
-    """, VariableDeclarationException),
+    """, NamespaceCollision),
     ("""
 @public
 def foo(x: int128):
     for i in [1,2]:
         for i in [1,2]:
             pass
-     """, VariableDeclarationException),
+     """, NamespaceCollision),
     # invalid iterator assignment
-    """
+    ("""
 @public
 def foo(x: int128):
     for i in [1,2]:
         i = 2
-    """,
-    """
+    """, ConstancyViolation),
+    ("""
 @public
 def foo(x: int128):
     for i in [1,2]:
         i += 2
-    """,
+    """, ConstancyViolation),
     # range of < 1
-    """
+    ("""
 @public
 def foo():
     for i in range(-3):
         pass
-    """,
+    """, StructureException),
     """
 @public
 def foo():
     for i in range(0):
         pass
     """,
-    """
+    ("""
 @public
 def foo():
     for i in range(5,3):
         pass
-    """,
-    """
+    """, StructureException),
+    ("""
 @public
 def foo():
     for i in range(5,3,-1):
         pass
-    """,
-    """
+    """, ArgumentException),
+    ("""
 @public
 def foo():
     a: uint256 = 2
     for i in range(a):
         pass
-    """,
+    """, ConstancyViolation),
     """
 @public
 def foo():
@@ -362,43 +368,43 @@ def foo():
         pass
     """,
     # invalid argument length
-    """
+    ("""
 @public
 def foo():
     for i in range():
         pass
-    """,
-    """
+    """, ArgumentException),
+    ("""
 @public
 def foo():
     for i in range(0,1,2):
         pass
-    """,
+    """, ArgumentException),
     # non-iterables
-    """
+    ("""
 @public
 def foo():
     for i in b"asdf":
         pass
-    """,
-    """
+    """, InvalidType),
+    ("""
 @public
 def foo():
     for i in 31337:
         pass
-    """,
-    """
+    """, InvalidType),
+    ("""
 @public
 def foo():
     for i in bar():
         pass
-    """,
-    """
+    """, ConstancyViolation),
+    ("""
 @public
 def foo():
     for i in self.bar():
         pass
-    """,
+    """, ConstancyViolation),
     # nested lists
     """
 @public

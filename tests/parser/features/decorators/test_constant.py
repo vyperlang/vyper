@@ -1,4 +1,4 @@
-from vyper.exceptions import StructureException
+from vyper.exceptions import UnknownType
 
 
 def test_constant_test(get_contract_with_gas_estimation_for_constants):
@@ -25,5 +25,5 @@ def foo() -> num:
     return 5
 """
     assert_compile_failed(
-        lambda: get_contract_with_gas_estimation_for_constants(code), StructureException
+        lambda: get_contract_with_gas_estimation_for_constants(code), UnknownType
     )
