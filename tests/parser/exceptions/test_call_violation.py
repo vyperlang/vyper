@@ -19,13 +19,13 @@ def b():
     p: int128 = self.a(10)
     """,
     """
+@public
+def goo():
+    pass
+
 @private
 def foo():
     self.goo()
-
-@public
-def goo():
-    self.foo()
     """,
 ]
 

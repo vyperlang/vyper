@@ -198,16 +198,9 @@ def test_invalid_external_contract_call_declaration_1(assert_compile_failed, get
     contract_1 = """
 contract Bar:
     def bar() -> int128: pass
-
-bar_contract: Bar
-
-@public
-def foo(contract_address: contract(Boo)) -> int128:
-    self.bar_contract = Bar(contract_address)
-    return self.bar_contract.bar()
     """
 
-    assert_compile_failed(lambda: get_contract(contract_1), UnknownType)
+    assert_compile_failed(lambda: get_contract(contract_1), StructureException)
 
 
 def test_invalid_external_contract_call_declaration_2(assert_compile_failed, get_contract):
