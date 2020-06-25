@@ -1,9 +1,20 @@
 interface_code = """
 # Events
 
-Transfer: event({_from: address, _to: address, _tokenId: uint256})
-Approval: event({_owner: address, _approved: address, _tokenId: uint256})
-ApprovalForAll: event({_owner: address, _operator: address, _approved: bool})
+event Transfer:
+    _from: address
+    _to: address
+    _tokenId: uint256
+
+event Approval:
+    _owner: address
+    _approved: address
+    _tokenId: uint256
+
+event ApprovalForAll:
+    _owner: address
+    _operator: address
+    _approved: bool
 
 # Functions
 
