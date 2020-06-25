@@ -86,7 +86,7 @@ def test(input: address):
     """
 from vyper.interfaces import ERC20
 
-contract Factory:
+interface Factory:
    def getExchange(token_addr: address) -> address: constant
 
 factory: Factory

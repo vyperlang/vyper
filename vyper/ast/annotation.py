@@ -76,7 +76,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         """
         Annotate the Class node with it's original type from the Vyper source.
 
-        Vyper uses `struct` and `contract` in place of `class`, however these
+        Vyper uses `struct` and `interface` in place of `class`, however these
         values must be substituted out to create parseable Python. The Python
         node is annotated with the original value via the `class_type` member.
         """

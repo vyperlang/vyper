@@ -1,7 +1,7 @@
 from vyper.interfaces import ERC20
 
 
-contract Factory:
+interface Factory:
     def register(): modifying
 
 

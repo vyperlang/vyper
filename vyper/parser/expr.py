@@ -20,7 +20,7 @@ from vyper.types import (
     BaseType,
     ByteArrayLike,
     ByteArrayType,
-    ContractType,
+    InterfaceType,
     ListType,
     MappingType,
     StringType,
@@ -285,7 +285,7 @@ class Expr:
         else:
             sub = Expr.parse_variable_location(self.expr.value, self.context)
             # contract type
-            if isinstance(sub.typ, ContractType):
+            if isinstance(sub.typ, InterfaceType):
                 return sub
             if isinstance(sub.typ, StructType) and self.expr.attr in sub.typ.members:
                 return add_variable_offset(sub, self.expr.attr, pos=getpos(self.expr))
@@ -707,7 +707,7 @@ class Expr:
                 pos=getpos(self.expr),
             )
 
-    def _is_valid_contract_assign(self):
+    def _is_valid_interface_assign(self):
         if self.expr.args and len(self.expr.args) == 1:
             arg_lll = Expr(self.expr.args[0], self.context).lll_node
             if arg_lll.typ == BaseType("address"):
@@ -730,11 +730,11 @@ class Expr:
                 if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
                     return Expr.struct_literals(args[0], function_name, self.context)
 
-            # Contract assignment. Bar(<address>).
+            # Interface assignment. Bar(<address>).
             elif function_name in self.context.sigs:
-                ret, arg_lll = self._is_valid_contract_assign()
+                ret, arg_lll = self._is_valid_interface_assign()
                 if ret is True:
-                    arg_lll.typ = ContractType(function_name)  # Cast to Correct contract type.
+                    arg_lll.typ = InterfaceType(function_name)  # Cast to Correct interface type.
                     return arg_lll
         elif (
             isinstance(self.expr.func, vy_ast.Attribute)

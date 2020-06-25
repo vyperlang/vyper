@@ -50,8 +50,8 @@ def _prive(_owner: address, _spender: address) -> (uint256, uint256):
     """
 
     interface = """
-# External Contracts
-contract One:
+# External Interfaces
+interface One:
     def allowance(_owner: address, _spender: address) -> (uint256, uint256): constant
     def test(_owner: address): modifying
     """
@@ -190,7 +190,7 @@ def transfer(to: address, _value: uint256):
     code = """
 import one as TokenCode
 
-contract EPI:
+interface EPI:
     def test() -> uint256: constant
 
 
@@ -315,7 +315,7 @@ def foo() -> uint256:
 
 def test_self_interface_cannot_compile(assert_compile_failed):
     code = """
-contract Bar:
+interface Bar:
     def foo() -> uint256: constant
 
 @public
@@ -331,7 +331,7 @@ def bar() -> uint256:
 
 def test_self_interface_via_storage_raises(get_contract, assert_tx_failed):
     code = """
-contract Bar:
+interface Bar:
     def foo() -> uint256: constant
 
 bar_contract: Bar
@@ -354,7 +354,7 @@ def bar() -> uint256:
 
 def test_self_interface_via_calldata_raises(get_contract, assert_tx_failed):
     code = """
-contract Bar:
+interface Bar:
     def foo() -> uint256: constant
 
 @public

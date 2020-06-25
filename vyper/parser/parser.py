@@ -52,18 +52,18 @@ def parse_events(sigs, global_ctx):
     return sigs
 
 
-def parse_external_contracts(external_contracts, global_ctx):
-    for _contractname in global_ctx._contracts:
-        _contract_defs = global_ctx._contracts[_contractname]
-        _defnames = [_def.name for _def in _contract_defs]
-        contract = {}
-        if len(set(_defnames)) < len(_contract_defs):
+def parse_external_interfaces(external_interfaces, global_ctx):
+    for _interfacename in global_ctx._contracts:
+        _interface_defs = global_ctx._contracts[_interfacename]
+        _defnames = [_def.name for _def in _interface_defs]
+        interface = {}
+        if len(set(_defnames)) < len(_interface_defs):
             raise FunctionDeclarationException(
                 "Duplicate function name: "
                 f"{[name for name in _defnames if _defnames.count(name) > 1][0]}"
             )
 
-        for _def in _contract_defs:
+        for _def in _interface_defs:
             constant = False
             # test for valid call type keyword.
             if (
@@ -78,42 +78,42 @@ def parse_external_contracts(external_contracts, global_ctx):
             # Recognizes already-defined structs
             sig = FunctionSignature.from_definition(
                 _def,
-                contract_def=True,
+                interface_def=True,
                 constant_override=constant,
                 custom_structs=global_ctx._structs,
                 constants=global_ctx._constants,
             )
-            contract[sig.name] = sig
-        external_contracts[_contractname] = contract
+            interface[sig.name] = sig
+        external_interfaces[_interfacename] = interface
 
     for interface_name, interface in global_ctx._interfaces.items():
-        external_contracts[interface_name] = {
+        external_interfaces[interface_name] = {
             sig.name: sig for sig in interface if isinstance(sig, FunctionSignature)
         }
 
-    return external_contracts
+    return external_interfaces
 
 
 def parse_other_functions(
-    o, otherfuncs, sigs, external_contracts, origcode, global_ctx, default_function
+    o, otherfuncs, sigs, external_interfaces, origcode, global_ctx, default_function
 ):
     sub = ["seq", func_init_lll()]
     add_gas = func_init_lll().gas
 
     for _def in otherfuncs:
         sub.append(
-            parse_function(_def, {**{"self": sigs}, **external_contracts}, origcode, global_ctx)
+            parse_function(_def, {**{"self": sigs}, **external_interfaces}, origcode, global_ctx)
         )
         sub[-1].total_gas += add_gas
         add_gas += 30
-        for sig in sig_utils.generate_default_arg_sigs(_def, external_contracts, global_ctx):
+        for sig in sig_utils.generate_default_arg_sigs(_def, external_interfaces, global_ctx):
             sig.gas = sub[-1].total_gas
             sigs[sig.sig] = sig
 
     # Add fallback function
     if default_function:
         default_func = parse_function(
-            default_function[0], {**{"self": sigs}, **external_contracts}, origcode, global_ctx,
+            default_function[0], {**{"self": sigs}, **external_interfaces}, origcode, global_ctx,
         )
         fallback = default_func
     else:
@@ -148,26 +148,26 @@ def parse_tree_to_lll(source_code: str, global_ctx: GlobalContext) -> Tuple[LLLn
         _def for _def in global_ctx._defs if not is_initializer(_def) and not is_default_func(_def)
     ]
     sigs: dict = {}
-    external_contracts: dict = {}
+    external_interfaces: dict = {}
     # Create the main statement
     o = ["seq"]
     if global_ctx._events:
         sigs = parse_events(sigs, global_ctx)
     if global_ctx._contracts or global_ctx._interfaces:
-        external_contracts = parse_external_contracts(external_contracts, global_ctx)
+        external_interfaces = parse_external_interfaces(external_interfaces, global_ctx)
     # If there is an init func...
     if initfunc:
         o.append(init_func_init_lll())
         o.append(
             parse_function(
-                initfunc[0], {**{"self": sigs}, **external_contracts}, source_code, global_ctx,
+                initfunc[0], {**{"self": sigs}, **external_interfaces}, source_code, global_ctx,
             )
         )
 
     # If there are regular functions...
     if otherfuncs or defaultfunc:
         o, runtime = parse_other_functions(
-            o, otherfuncs, sigs, external_contracts, source_code, global_ctx, defaultfunc
+            o, otherfuncs, sigs, external_interfaces, source_code, global_ctx, defaultfunc
         )
     else:
         runtime = o.copy()

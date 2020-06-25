@@ -153,7 +153,7 @@ class FunctionSignature:
         code,
         sigs=None,
         custom_structs=None,
-        contract_def=False,
+        interface_def=False,
         constants=None,
         constant_override=False,
     ):
@@ -248,7 +248,7 @@ class FunctionSignature:
             raise StructureException(f"Function {name} cannot be both constant and payable.")
         if payable and private:
             raise StructureException(f"Function {name} cannot be both private and payable.")
-        if (not public and not private) and not contract_def:
+        if (not public and not private) and not interface_def:
             raise StructureException(
                 "Function visibility must be declared (@public or @private)", code,
             )

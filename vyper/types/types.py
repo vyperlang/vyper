@@ -41,7 +41,7 @@ class BaseType(NodeType):
         return str(self.typ)
 
 
-class ContractType(BaseType):
+class InterfaceType(BaseType):
     def __init__(self, name):
         super().__init__("address")
         self.name = name
@@ -234,7 +234,7 @@ def parse_type(item, location, sigs=None, custom_structs=None, constants=None):
         # Contract_types
         if item.func.id == "address":
             if sigs and item.args[0].id in sigs:
-                return ContractType(item.args[0].id)
+                return InterfaceType(item.args[0].id)
         # Struct types
         if (custom_structs is not None) and (item.func.id in custom_structs):
             return make_struct_type(

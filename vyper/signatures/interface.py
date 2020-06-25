@@ -160,7 +160,7 @@ def extract_external_interface(global_ctx, contract_name):
     offset = 4 * " "
     for idx, func in enumerate(functions):
         if idx == 0:
-            out += f"\n# External Contracts\ncontract {cname}:\n"
+            out += f"\n# External Interfaces\ninterface {cname}:\n"
         if not func.private and func.name != "__init__":
             args = ", ".join([arg.name + ": " + str(arg.typ) for arg in func.args])
             func_type = "constant" if func.const else "modifying"

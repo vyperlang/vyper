@@ -78,7 +78,7 @@ struct_member: NAME ":" type
 struct_def: _STRUCT_DECL NAME ":" _NEWLINE _INDENT (struct_member _NEWLINE)+ _DEDENT
 
 // Interfaces are composed of a series of method definitions, plus their mutability
-_INTERFACE_DECL: "contract"
+_INTERFACE_DECL: "interface"
 mutability: NAME
 interface_function: function_sig ":" mutability
 interface_def: _INTERFACE_DECL NAME ":" _NEWLINE _INDENT ( interface_function _NEWLINE)+ _DEDENT

@@ -19,7 +19,7 @@ def foo(arg1: int128) -> int128:
     c = get_contract_with_gas_estimation(contract_1)
 
     contract_2 = """
-contract Foo:
+interface Foo:
         def foo(arg1: int128) -> int128: constant
 
 @public
@@ -53,7 +53,7 @@ def array() -> bytes[3]:
     c = get_contract_with_gas_estimation(contract_1, *[lucky_number])
 
     contract_2 = """
-contract Foo:
+interface Foo:
     def foo() -> int128: modifying
     def array() -> bytes[3]: constant
 
@@ -77,7 +77,7 @@ def array() -> bytes[3]:
     c = get_contract_with_gas_estimation(contract_1)
 
     contract_2 = """
-contract Foo:
+interface Foo:
     def array() -> bytes[3]: constant
 
 @public
@@ -102,7 +102,7 @@ def set_lucky(_lucky: int128):
     c = get_contract(contract_1)
 
     contract_2 = """
-contract Foo:
+interface Foo:
     def set_lucky(_lucky: int128): modifying
 
 @public
@@ -121,7 +121,7 @@ def test_constant_external_contract_call_cannot_change_state(
     assert_compile_failed, get_contract_with_gas_estimation
 ):
     c = """
-contract Foo:
+interface Foo:
     def set_lucky(_lucky: int128) -> int128: modifying
 
 @public
@@ -164,7 +164,7 @@ def set_lucky(_lucky: int128) -> int128:
     c2 = get_contract(contract_2)
 
     contract_3 = """
-contract Foo:
+interface Foo:
     def set_lucky(_lucky: int128): modifying
 
 @public
@@ -196,7 +196,7 @@ def __init__(_lucky: int128):
     c = get_contract(contract_1, *[lucky_number])
 
     contract_2 = """
-contract Foo:
+interface Foo:
     def lucky() -> int128: constant
 
 @public
@@ -222,7 +222,7 @@ def __init__(_lucky: int128):
     c = get_contract(contract_1, *[lucky_number])
 
     contract_2 = """
-contract Foo:
+interface Foo:
     def lucky() -> int128: constant
 
 magic_number: public(int128)
@@ -234,7 +234,7 @@ def __init__(arg1: address):
 
     c2 = get_contract(contract_2, *[c.address])
     contract_3 = """
-contract Bar:
+interface Bar:
     def magic_number() -> int128: constant
 
 best_number: public(int128)
@@ -257,7 +257,7 @@ def bar() -> int128:
     """
 
     contract_2 = """
-contract Bar:
+interface Bar:
     def bar() -> int128: constant
 
 @public
@@ -290,7 +290,7 @@ def bar() -> int128:
     """
 
     contract_2 = """
-contract Bar:
+interface Bar:
     def bar() -> int128: constant
 
 @public
@@ -308,7 +308,7 @@ def foo(x: address) -> int128:
 
 def test_invalid_contract_reference_declaration(assert_tx_failed, get_contract):
     contract = """
-contract Bar:
+interface Bar:
     get_magic_number: 1
 
 best_number: public(int128)
@@ -331,7 +331,7 @@ def bar(arg1: address, arg2: int128) -> int128:
 
 def test_invalid_contract_reference_return_type(assert_tx_failed, get_contract):
     contract = """
-contract Foo:
+interface Foo:
     def foo(arg2: int128) -> invalid: constant
 
 @public
@@ -346,7 +346,7 @@ def test_external_contracts_must_be_declared_first_1(assert_tx_failed, get_contr
 
 item: public(int128)
 
-contract Foo:
+interface Foo:
     def foo(arg2: int128) -> int128: constant
 """
     assert_tx_failed(lambda: get_contract(contract), exception=StructureException)
@@ -357,7 +357,7 @@ def test_external_contracts_must_be_declared_first_2(assert_tx_failed, get_contr
 
 MyLog: event({})
 
-contract Foo:
+interface Foo:
     def foo(arg2: int128) -> int128: constant
 """
     assert_tx_failed(lambda: get_contract(contract), exception=StructureException)
@@ -369,7 +369,7 @@ def test_external_contracts_must_be_declared_first_3(assert_tx_failed, get_contr
 def foo() -> int128:
     return 1
 
-contract Foo:
+interface Foo:
     def foo(arg2: int128) -> int128: constant
 """
     assert_tx_failed(lambda: get_contract(contract), exception=StructureException)
@@ -383,7 +383,7 @@ def bar() -> int128:
 """
 
     contract_2 = """
-contract Bar:
+interface Bar:
     def bar() -> int128: constant
 
 bar_contract: Bar
@@ -413,7 +413,7 @@ def get_lucky() -> int128:
 """
 
     contract_2 = """
-contract Bar:
+interface Bar:
     def set_lucky(arg1: int128): modifying
     def get_lucky() -> int128: constant
 
@@ -456,7 +456,7 @@ def get_lucky() -> int128:
 """
 
     contract_3 = """
-contract Bar:
+interface Bar:
     def set_lucky(arg1: int128): modifying
     def get_lucky() -> int128: constant
 
@@ -489,7 +489,7 @@ def bar() -> int128:
     return 1
 """
     contract_2 = """
-contract Bar:
+interface Bar:
     def bar() -> int128: constant
 
 bar_contract: public(Bar)
@@ -511,7 +511,7 @@ def get_bar() -> int128:
 
 def test_invalid_external_contract_call_declaration_1(assert_compile_failed, get_contract):
     contract_1 = """
-contract Bar:
+interface Bar:
     def bar() -> int128: constant
 
 bar_contract: Bar
@@ -527,7 +527,7 @@ def foo(contract_address: contract(Boo)) -> int128:
 
 def test_invalid_external_contract_call_declaration_2(assert_compile_failed, get_contract):
     contract_1 = """
-contract Bar:
+interface Bar:
     def bar() -> int128: constant
 
 bar_contract: Boo
@@ -554,7 +554,7 @@ def get_balance() -> uint256:
 """
 
     contract_2 = """
-contract Bar:
+interface Bar:
     def get_lucky() -> int128: modifying
 
 bar_contract: Bar
@@ -607,7 +607,7 @@ def get_lucky() -> int128:
 """
 
     contract_2 = """
-contract Bar:
+interface Bar:
     def set_lucky(arg1: int128): modifying
     def get_lucky() -> int128: constant
 
@@ -633,7 +633,7 @@ def get_lucky(gas_amount: uint256) -> int128:
 def test_invalid_keyword_on_call(assert_compile_failed, get_contract_with_gas_estimation):
 
     contract_1 = """
-contract Bar:
+interface Bar:
     def set_lucky(arg1: int128): modifying
     def get_lucky() -> int128: constant
 
@@ -650,7 +650,7 @@ def get_lucky(amount_to_send: int128) -> int128:
 def test_invalid_contract_declaration(assert_compile_failed, get_contract_with_gas_estimation):
 
     contract_1 = """
-contract Bar:
+interface Bar:
     def set_lucky(arg1: int128): modifying
 
 bar_contract: Barr
@@ -663,7 +663,7 @@ bar_contract: Barr
 FAILING_CONTRACTS_STRUCTURE_EXCEPTION = [
     """
 # wrong arg count
-contract Bar:
+interface Bar:
     def bar(arg1: int128) -> bool: constant
 
 @public
@@ -672,7 +672,7 @@ def foo(a: address):
     """,
     """
 # expected args, none given
-contract Bar:
+interface Bar:
     def bar(arg1: int128) -> bool: constant
 
 @public
@@ -681,7 +681,7 @@ def foo(a: address):
     """,
     """
 # expected no args, args given
-contract Bar:
+interface Bar:
     def bar() -> bool: constant
 
 @public
@@ -710,7 +710,7 @@ def get_balance() -> uint256:
 """
 
     contract_2 = """
-contract Bar:
+interface Bar:
     def get_lucky() -> int128: modifying
 
 bar_contract: Bar
@@ -760,7 +760,7 @@ def out_literals() -> (int128, address, bytes[10]):
     """
 
     contract_2 = """
-contract Test:
+interface Test:
     def out_literals() -> (int128, address, bytes[10]) : constant
 
 @public
@@ -793,7 +793,7 @@ def out_literals() -> X:
 struct X:
     x: int128
     y: address
-contract Test:
+interface Test:
     def out_literals() -> X : constant
 
 @public
@@ -819,7 +819,7 @@ def array() -> int128[3]:
     c = get_contract_with_gas_estimation(contract_1)
 
     contract_2 = """
-contract Foo:
+interface Foo:
     def array() -> int128[3]: constant
 @public
 def get_array(arg1: address) -> int128[3]:

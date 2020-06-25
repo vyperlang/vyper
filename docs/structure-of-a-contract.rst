@@ -298,11 +298,11 @@ Defining Interfaces and Making External Calls
 
 Interfaces can be added to contracts either through inline definition, or by importing them from a seperate file.
 
-The ``contract`` keyword is used to define an inline external interface:
+The ``interface`` keyword is used to define an inline external interface:
 
 .. code-block:: python
 
-    contract FooBar:
+    interface FooBar:
         def calculate() -> uint256: constant
         def test1(): modifying
 
@@ -314,7 +314,7 @@ The defined interface can then be use to make external calls, given a contract a
     def test(some_address: address):
         FooBar(some_address).calculate()
 
-The interface name can also be used as a type annotation for storage variables. You then assign an address value to the variable to access that interface. Note that assignment of an address requires the value to be cast using the contract type e.g. ``FooBar(<address_var>)``:
+The interface name can also be used as a type annotation for storage variables. You then assign an address value to the variable to access that interface. Note that assignment of an address requires the value to be cast using the interface type e.g. ``FooBar(<address_var>)``:
 
 .. code-block:: python
 
@@ -332,7 +332,7 @@ Specifying ``modifying`` annotation indicates that the call made to the external
 
 .. code-block:: python
 
-    contract FooBar:
+    interface FooBar:
         def calculate() -> uint256: constant
         def test1(): modifying
 
@@ -447,14 +447,14 @@ Vyper has a built-in format option to allow you to make your own vyper interface
 
     # ...
 
-If you want to do an external call to another contract, vyper provides an external contract extract utility as well.
+If you want to do an external call to another contract, vyper provides an external interface extract utility as well.
 
 ::
 
     $ vyper -f external_interface examples/voting/ballot.vy
 
     # External Contracts
-    contract Ballot:
+    interface Ballot:
         def delegated(addr: address) -> bool: constant
         def directlyVoted(addr: address) -> bool: constant
         def giveRightToVote(voter: address): modifying

@@ -62,7 +62,7 @@ def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
 
 
 VYPER_CLASS_TYPES = {
-    "contract",
+    "interface",
     "struct",
 }
 
@@ -72,13 +72,13 @@ def pre_parse(code: str) -> Tuple[ClassTypes, str]:
     Re-formats a vyper source string into a python source string and performs
     some validation.  More specifically,
 
-    * Translates "contract" and "struct" keyword into python "class" keyword
+    * Translates "interface" and "struct" keyword into python "class" keyword
     * Validates "@version" pragma against current compiler version
     * Prevents direct use of python "class" keyword
     * Prevents use of python semi-colon statement separator
 
-    Also returns a mapping of detected contract and struct names to their
-    respective vyper class types ("contract" or "struct").
+    Also returns a mapping of detected interface and struct names to their
+    respective vyper class types ("interface" or "struct").
 
     Parameters
     ----------
@@ -114,13 +114,22 @@ def pre_parse(code: str) -> Tuple[ClassTypes, str]:
 
             if typ == NAME and string == "class" and start[1] == 0:
                 raise SyntaxException(
-                    "The `class` keyword is not allowed. Perhaps you meant `contract` or `struct`?",
+                    "The `class` keyword is not allowed. "
+                    "Perhaps you meant `interface` or `struct`?",
                     code,
                     start[0],
                     start[1],
                 )
 
-            # Make note of contract or struct name along with the type keyword
+            if typ == NAME and string == "contract" and start[1] == 0:
+                raise SyntaxException(
+                    "The `contract` keyword has been deprecated. Please use `interface`",
+                    code,
+                    start[0],
+                    start[1],
+                )
+
+            # Make note of interface or struct name along with the type keyword
             # that preceded it
             if typ == NAME and previous_keyword is not None:
                 class_types[string] = previous_keyword

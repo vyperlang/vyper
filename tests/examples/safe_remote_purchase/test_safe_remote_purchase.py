@@ -102,7 +102,7 @@ def test_received(w3, get_contract, assert_tx_failed, get_balance, contract_code
 def test_received_reentrancy(w3, get_contract, assert_tx_failed, get_balance, contract_code):
 
     buyer_contract_code = """
-contract PurchaseContract:
+interface PurchaseContract:
 
     def received(): modifying
     def purchase(): modifying
