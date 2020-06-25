@@ -8,7 +8,7 @@ from vyper.context.types.bases import (
 )
 from vyper.context.types.utils import get_type_from_annotation
 from vyper.context.validation.utils import validate_expected_type
-from vyper.exceptions import CompilerPanic, StructureException
+from vyper.exceptions import StructureException
 
 
 class MappingDefinition(IndexableTypeDefinition):
@@ -38,15 +38,18 @@ class MappingPrimitive(BasePrimitive):
         is_constant: bool = False,
         is_public: bool = False,
     ) -> MappingDefinition:
-        if not isinstance(node, vy_ast.Subscript):
-            raise CompilerPanic("Node must be a subscript")
-        if not isinstance(node.slice.value, vy_ast.Tuple):
-            raise CompilerPanic("Mapping must be a subscript with a Tuple Index")
+        if (
+            not isinstance(node, vy_ast.Subscript)
+            or not isinstance(node.slice, vy_ast.Index)
+            or not isinstance(node.slice.value, vy_ast.Tuple)
+            or len(node.slice.value.elements) != 2
+        ):
+            raise StructureException(
+                "HashMap must be defined with a key type and a value type", node
+            )
         if location != DataLocation.STORAGE:
-            raise StructureException("Mapping can only be declared as a storage variable", node)
+            raise StructureException("HashMap can only be declared as a storage variable", node)
 
-        if len(node.slice.value.elements) != 2:
-            raise StructureException("Mapping must have two args: key type, and value type", node)
         key_type = get_type_from_annotation(node.slice.value.elements[0], DataLocation.UNSET)
         value_type = get_type_from_annotation(node.slice.value.elements[1], DataLocation.STORAGE)
         return MappingDefinition(
