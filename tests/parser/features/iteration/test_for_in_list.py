@@ -12,24 +12,31 @@ from vyper.exceptions import (
 
 BASIC_FOR_LOOP_CODE = [
     # basic for-in-list memory
-    ("""
+    (
+        """
 @public
 def data() -> int128:
     s: int128[5] = [1, 2, 3, 4, 5]
     for i in s:
         if i >= 3:
             return i
-    return -1""", 3),
+    return -1""",
+        3,
+    ),
     # basic for-in-list literal
-    ("""
+    (
+        """
 @public
 def data() -> int128:
     for i in [3, 5, 7, 9]:
         if i > 5:
             return i
-    return -1""", 7),
+    return -1""",
+        7,
+    ),
     # basic for-in-list addresses
-    ("""
+    (
+        """
 @public
 def data() -> address:
     addresses: address[3] = [
@@ -43,11 +50,13 @@ def data() -> address:
         if count == 2:
             return i
     return 0x0000000000000000000000000000000000000000
-    """, "0x82A978B3f5962A5b0957d9ee9eEf472EE55B42F1"),
+    """,
+        "0x82A978B3f5962A5b0957d9ee9eEf472EE55B42F1",
+    ),
 ]
 
 
-@pytest.mark.parametrize('code, data', BASIC_FOR_LOOP_CODE)
+@pytest.mark.parametrize("code, data", BASIC_FOR_LOOP_CODE)
 def test_basic_for_in_lists(code, data, get_contract):
     c = get_contract(code)
     assert c.data() == data
@@ -100,9 +109,9 @@ def iterate_return_second() -> address:
 
     c = get_contract_with_gas_estimation(code)
 
-    c.set(0, '0x82A978B3f5962A5b0957d9ee9eEf472EE55B42F1', transact={})
-    c.set(1, '0x7d577a597B2742b498Cb5Cf0C26cDCD726d39E6e', transact={})
-    c.set(2, '0xDCEceAF3fc5C0a63d195d69b1A90011B7B19650D', transact={})
+    c.set(0, "0x82A978B3f5962A5b0957d9ee9eEf472EE55B42F1", transact={})
+    c.set(1, "0x7d577a597B2742b498Cb5Cf0C26cDCD726d39E6e", transact={})
+    c.set(2, "0xDCEceAF3fc5C0a63d195d69b1A90011B7B19650D", transact={})
 
     assert c.ret(1) == c.iterate_return_second() == "0x7d577a597B2742b498Cb5Cf0C26cDCD726d39E6e"
 
@@ -131,13 +140,13 @@ def i_return(break_count: int128) -> decimal:
 
     c = get_contract_with_gas_estimation(code)
 
-    c.set(0, Decimal('0.0001'), transact={})
-    c.set(1, Decimal('1.1'), transact={})
-    c.set(2, Decimal('2.2'), transact={})
+    c.set(0, Decimal("0.0001"), transact={})
+    c.set(1, Decimal("1.1"), transact={})
+    c.set(2, Decimal("2.2"), transact={})
 
-    assert c.ret(2) == c.i_return(2) == Decimal('2.2')
-    assert c.ret(1) == c.i_return(1) == Decimal('1.1')
-    assert c.ret(0) == c.i_return(0) == Decimal('0.0001')
+    assert c.ret(2) == c.i_return(2) == Decimal("2.2")
+    assert c.ret(1) == c.i_return(1) == Decimal("1.1")
+    assert c.ret(0) == c.i_return(0) == Decimal("0.0001")
 
 
 def test_for_in_list_iter_type(get_contract_with_gas_estimation):
@@ -208,13 +217,14 @@ def foo():
 ]
 
 
-@pytest.mark.parametrize('code', GOOD_CODE)
+@pytest.mark.parametrize("code", GOOD_CODE)
 def test_good_code(code, get_contract):
     get_contract(code)
 
 
 RANGE_CONSTANT_CODE = [
-    ("""
+    (
+        """
 TREE_FIDDY: constant(int128)  = 350
 
 
@@ -223,8 +233,11 @@ def a() -> uint256:
     x: uint256 = 0
     for i in range(TREE_FIDDY):
         x += 1
-    return x""", 350),
-    ("""
+    return x""",
+        350,
+    ),
+    (
+        """
 ONE_HUNDRED: constant(int128)  = 100
 
 @public
@@ -232,8 +245,11 @@ def a() -> uint256:
     x: uint256 = 0
     for i in range(1, 1 + ONE_HUNDRED):
         x += 1
-    return x""", 100),
-    ("""
+    return x""",
+        100,
+    ),
+    (
+        """
 START: constant(int128)  = 100
 END: constant(int128)  = 199
 
@@ -242,18 +258,23 @@ def a() -> uint256:
     x: uint256 = 0
     for i in range(START, END):
         x += 1
-    return x""", 99),
-    ("""
+    return x""",
+        99,
+    ),
+    (
+        """
 @public
 def a() -> int128:
     x: int128 = 0
     for i in range(-5, -1):
         x += i
-    return x""", -14)
+    return x""",
+        -14,
+    ),
 ]
 
 
-@pytest.mark.parametrize('code, result', RANGE_CONSTANT_CODE)
+@pytest.mark.parametrize("code, result", RANGE_CONSTANT_CODE)
 def test_range_constant(get_contract, code, result):
     c = get_contract(code)
 
@@ -262,7 +283,8 @@ def test_range_constant(get_contract, code, result):
 
 BAD_CODE = [
     # altering list within loop
-    ("""
+    (
+        """
 @public
 def data() -> int128:
     s: int128[6] = [1, 2, 3, 4, 5, 6]
@@ -273,17 +295,23 @@ def data() -> int128:
             return i
         count += 1
     return -1
-    """, ConstancyViolation),
-    ("""
+    """,
+        ConstancyViolation,
+    ),
+    (
+        """
 @public
 def foo():
     s: int128[6] = [1, 2, 3, 4, 5, 6]
     count: int128 = 0
     for i in s:
         s[count] += 1
-    """, ConstancyViolation),
+    """,
+        ConstancyViolation,
+    ),
     # alter storage list within for loop
-    ("""
+    (
+        """
 s: int128[6]
 
 @public
@@ -299,67 +327,93 @@ def data() -> int128:
             return i
         count += 1
     return -1
-    """, ConstancyViolation),
+    """,
+        ConstancyViolation,
+    ),
     # invalid nested loop
-    ("""
+    (
+        """
 @public
 def foo(x: int128):
     for i in range(4):
         for i in range(5):
             pass
-    """, NamespaceCollision),
-    ("""
+    """,
+        NamespaceCollision,
+    ),
+    (
+        """
 @public
 def foo(x: int128):
     for i in [1,2]:
         for i in [1,2]:
             pass
-     """, NamespaceCollision),
+     """,
+        NamespaceCollision,
+    ),
     # invalid iterator assignment
-    ("""
+    (
+        """
 @public
 def foo(x: int128):
     for i in [1,2]:
         i = 2
-    """, ConstancyViolation),
-    ("""
+    """,
+        ConstancyViolation,
+    ),
+    (
+        """
 @public
 def foo(x: int128):
     for i in [1,2]:
         i += 2
-    """, ConstancyViolation),
+    """,
+        ConstancyViolation,
+    ),
     # range of < 1
-    ("""
+    (
+        """
 @public
 def foo():
     for i in range(-3):
         pass
-    """, StructureException),
+    """,
+        StructureException,
+    ),
     """
 @public
 def foo():
     for i in range(0):
         pass
     """,
-    ("""
+    (
+        """
 @public
 def foo():
     for i in range(5,3):
         pass
-    """, StructureException),
-    ("""
+    """,
+        StructureException,
+    ),
+    (
+        """
 @public
 def foo():
     for i in range(5,3,-1):
         pass
-    """, ArgumentException),
-    ("""
+    """,
+        ArgumentException,
+    ),
+    (
+        """
 @public
 def foo():
     a: uint256 = 2
     for i in range(a):
         pass
-    """, ConstancyViolation),
+    """,
+        ConstancyViolation,
+    ),
     """
 @public
 def foo():
@@ -368,43 +422,61 @@ def foo():
         pass
     """,
     # invalid argument length
-    ("""
+    (
+        """
 @public
 def foo():
     for i in range():
         pass
-    """, ArgumentException),
-    ("""
+    """,
+        ArgumentException,
+    ),
+    (
+        """
 @public
 def foo():
     for i in range(0,1,2):
         pass
-    """, ArgumentException),
+    """,
+        ArgumentException,
+    ),
     # non-iterables
-    ("""
+    (
+        """
 @public
 def foo():
     for i in b"asdf":
         pass
-    """, InvalidType),
-    ("""
+    """,
+        InvalidType,
+    ),
+    (
+        """
 @public
 def foo():
     for i in 31337:
         pass
-    """, InvalidType),
-    ("""
+    """,
+        InvalidType,
+    ),
+    (
+        """
 @public
 def foo():
     for i in bar():
         pass
-    """, ConstancyViolation),
-    ("""
+    """,
+        ConstancyViolation,
+    ),
+    (
+        """
 @public
 def foo():
     for i in self.bar():
         pass
-    """, ConstancyViolation),
+    """,
+        ConstancyViolation,
+    ),
     # nested lists
     """
 @public
@@ -419,11 +491,11 @@ def foo():
     x: uint256[5][2] = [[0, 1, 2, 3, 4], [2, 4, 6, 8, 10]]
     for i in x[1]:
         pass
-    """
+    """,
 ]
 
 
-@pytest.mark.parametrize('code', BAD_CODE)
+@pytest.mark.parametrize("code", BAD_CODE)
 def test_bad_code(assert_compile_failed, get_contract, code):
     err = StructureException
     if not isinstance(code, str):

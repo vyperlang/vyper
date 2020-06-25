@@ -1,4 +1,3 @@
-
 def test_string_literal_return(get_contract_with_gas_estimation):
     code = """
 @public

@@ -41,9 +41,7 @@ def foo({input_value}) -> bool:
 def test_boolop_nested(get_contract, values, comparators):
 
     input_value = ",".join(f"{i}: bool" for i in variables[: len(values)])
-    return_value = " ".join(
-        f"{a} {b}" for a, b in zip(variables[: len(values)], comparators)
-    )
+    return_value = " ".join(f"{a} {b}" for a, b in zip(variables[: len(values)], comparators))
     return_value = return_value.rsplit(maxsplit=1)[0]
 
     source = f"""

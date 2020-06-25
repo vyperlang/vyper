@@ -44,11 +44,11 @@ def foo(i: int128) -> int128:
 def foo(i: int128) -> int128:
     decimal : int128 = i
     return decimal
-    """
+    """,
 ]
 
 
-@pytest.mark.parametrize('bad_code', collision_fail_list)
+@pytest.mark.parametrize("bad_code", collision_fail_list)
 def test_varname_collision_fail(bad_code):
     with raises(NamespaceCollision):
         compiler.compile_code(bad_code)

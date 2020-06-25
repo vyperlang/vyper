@@ -20,10 +20,10 @@ def a() -> bool:
     return True
     """
 
-    out = vyper.compile_code(code, ['opcodes_runtime', 'opcodes'])
+    out = vyper.compile_code(code, ["opcodes_runtime", "opcodes"])
 
-    assert len(out['opcodes']) > len(out['opcodes_runtime'])
-    assert out['opcodes_runtime'] in out['opcodes']
+    assert len(out["opcodes"]) > len(out["opcodes_runtime"])
+    assert out["opcodes_runtime"] in out["opcodes"]
 
 
 def test_version_check_no_begin_or_end():
@@ -45,10 +45,10 @@ def test_get_opcodes(evm_version):
     op = opcodes.get_opcodes()
     if evm_version == "istanbul":
         assert "CHAINID" in op
-        assert op['SLOAD'][-1] == 800
+        assert op["SLOAD"][-1] == 800
     else:
         assert "CHAINID" not in op
-        assert op['SLOAD'][-1] == 200
+        assert op["SLOAD"][-1] == 200
     if evm_version in ("byzantium", "atlantis"):
         assert "CREATE2" not in op
     else:

@@ -17,28 +17,25 @@ def _parse_cli_args():
 
 
 def _parse_args(argv):
-    parser = argparse.ArgumentParser(
-        description='Serve Vyper compiler as an HTTP Service'
-    )
-    parser.add_argument('--version', action='version', version=f'{vyper.__version__}')
+    parser = argparse.ArgumentParser(description="Serve Vyper compiler as an HTTP Service")
+    parser.add_argument("--version", action="version", version=f"{vyper.__version__}")
     parser.add_argument(
-        '-b',
-        help='Address to bind JSON server on, default: localhost:8000',
-        default='localhost:8000',
-        dest='bind_address'
+        "-b",
+        help="Address to bind JSON server on, default: localhost:8000",
+        default="localhost:8000",
+        dest="bind_address",
     )
 
     args = parser.parse_args(argv)
 
-    if ':' in args.bind_address:
+    if ":" in args.bind_address:
         lll_node.VYPER_COLOR_OUTPUT = False
-        runserver(*args.bind_address.split(':'))
+        runserver(*args.bind_address.split(":"))
     else:
         print('Provide bind address in "{address}:{port}" format')
 
 
 class VyperRequestHandler(BaseHTTPRequestHandler):
-
     def send_404(self):
         self.send_response(404)
         self.end_headers()
@@ -54,11 +51,11 @@ class VyperRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        if self.path == '/':
+        if self.path == "/":
             self.send_response(200)
             self.send_cors_all()
             self.end_headers()
-            self.wfile.write(f'Vyper Compiler. Version: {vyper.__version__}\n'.encode())
+            self.wfile.write(f"Vyper Compiler. Version: {vyper.__version__}\n".encode())
         else:
             self.send_404()
 
@@ -66,8 +63,8 @@ class VyperRequestHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
 
-        if self.path == '/compile':
-            content_len = int(self.headers.get('content-length'))
+        if self.path == "/compile":
+            content_len = int(self.headers.get("content-length"))
             post_body = self.rfile.read(content_len)
             data = json.loads(post_body)
 
@@ -85,47 +82,44 @@ class VyperRequestHandler(BaseHTTPRequestHandler):
         return
 
     def _compile(self, data):
-        code = data.get('code')
+        code = data.get("code")
         if not code:
-            return {'status': 'failed', 'message': 'No "code" key supplied'}, 400
+            return {"status": "failed", "message": 'No "code" key supplied'}, 400
         if not isinstance(code, str):
-            return {'status': 'failed', 'message': '"code" must be a non-empty string'}, 400
+            return {"status": "failed", "message": '"code" must be a non-empty string'}, 400
 
         try:
-            code = data['code']
+            code = data["code"]
             out_dict = vyper.compile_codes(
-                {'': code},
+                {"": code},
                 list(vyper.compiler.OUTPUT_FORMATS.keys()),
-                evm_version=data.get('evm_version', DEFAULT_EVM_VERSION)
-            )['']
-            out_dict['ir'] = str(out_dict['ir'])
+                evm_version=data.get("evm_version", DEFAULT_EVM_VERSION),
+            )[""]
+            out_dict["ir"] = str(out_dict["ir"])
         except VyperException as e:
-            return {
-                'status': 'failed',
-                'message': str(e),
-                'column': e.col_offset,
-                'line': e.lineno
-            }, 400
+            return (
+                {"status": "failed", "message": str(e), "column": e.col_offset, "line": e.lineno},
+                400,
+            )
         except SyntaxError as e:
-            return {
-                'status': 'failed',
-                'message': str(e),
-                'column': e.offset,
-                'line': e.lineno
-            }, 400
+            return (
+                {"status": "failed", "message": str(e), "column": e.offset, "line": e.lineno},
+                400,
+            )
 
-        out_dict.update({'status': "success"})
+        out_dict.update({"status": "success"})
 
         return out_dict, 200
 
 
 class VyperHTTPServer(ThreadingMixIn, HTTPServer):
     """Handle requests in a separate thread."""
+
     pass
 
 
-def runserver(host='', port=8000):
+def runserver(host="", port=8000):
     server_address = (host, int(port))
     httpd = VyperHTTPServer(server_address, VyperRequestHandler)
-    print(f'Listening on http://{host}:{port}')
+    print(f"Listening on http://{host}:{port}")
     httpd.serve_forever()

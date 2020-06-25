@@ -22,15 +22,11 @@ def __init__():
 ]
 
 
-@pytest.mark.parametrize('source_code', source_codes)
+@pytest.mark.parametrize("source_code", source_codes)
 def test_only_init_function(source_code):
-    empty_sig = [{
-        'outputs': [],
-        'inputs': [],
-        'constant': False,
-        'payable': False,
-        'type': 'constructor'
-    }]
+    empty_sig = [
+        {"outputs": [], "inputs": [], "constant": False, "payable": False, "type": "constructor"}
+    ]
 
     data = CompilerData(source_code)
     assert build_abi_output(data) == empty_sig
@@ -45,11 +41,7 @@ def __default__():
     """
 
     data = CompilerData(default_code)
-    assert build_abi_output(data) == [{
-        'constant': False,
-        'payable': True,
-        'type': 'fallback'
-    }]
+    assert build_abi_output(data) == [{"constant": False, "payable": True, "type": "fallback"}]
 
 
 def test_method_identifiers():
@@ -61,15 +53,9 @@ def foo(y: uint256) -> bytes[100]:
     return b"hello"
     """
 
-    out = compile_code(
-        code,
-        output_formats=['method_identifiers'],
-    )
+    out = compile_code(code, output_formats=["method_identifiers"],)
 
-    assert out['method_identifiers'] == {
-        'foo(uint256)': '0x2fbebd38',
-        'x()': '0xc55699c'
-    }
+    assert out["method_identifiers"] == {"foo(uint256)": "0x2fbebd38", "x()": "0xc55699c"}
 
 
 def test_struct_abi():
@@ -90,15 +76,12 @@ def foo(s: MyStruct) -> MyStruct:
 
     assert func_abi["name"] == "foo"
     expected = {
-        'type': 'tuple',
-        'name': '',
-        'components': [
-           {'type': 'address', 'name': 'a'},
-           {'type': 'uint256', 'name': 'b'}
-        ]
+        "type": "tuple",
+        "name": "",
+        "components": [{"type": "address", "name": "a"}, {"type": "uint256", "name": "b"}],
     }
 
     assert func_abi["outputs"][0] == expected
 
-    expected['name'] = "s"
+    expected["name"] = "s"
     assert func_abi["inputs"][0] == expected

@@ -49,4 +49,4 @@ def fop() -> int128:
     c = get_contract_with_gas_estimation(packing_test)
     assert c.foo() == 1023, c.foo()
     assert c.fop() == 1023, c.fop()
-    print('Passed packing test')
+    print("Passed packing test")

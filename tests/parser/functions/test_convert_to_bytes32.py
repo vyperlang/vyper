@@ -45,11 +45,14 @@ def bytes_to_bytes32_from_smaller(inp: bytes[10]) -> bytes32:
     """
 
     c = get_contract_with_gas_estimation(code)
-    assert c.int128_to_bytes32(1) == [bytes_helper('', 31) + b'\x01'] * 3
-    assert c.uint256_to_bytes32(1) == [bytes_helper('', 31) + b'\x01'] * 3
-    assert c.address_to_bytes32(w3.eth.accounts[0]) == [bytes_helper('', 12) + w3.toBytes(hexstr=w3.eth.accounts[0])] * 2  # noqa: E501
-    assert c.bytes_to_bytes32(bytes_helper('', 32)) == [bytes_helper('', 32)] * 2
-    assert c.bytes_to_bytes32_from_smaller(b'hello') == bytes_helper('hello', 32)
+    assert c.int128_to_bytes32(1) == [bytes_helper("", 31) + b"\x01"] * 3
+    assert c.uint256_to_bytes32(1) == [bytes_helper("", 31) + b"\x01"] * 3
+    assert (
+        c.address_to_bytes32(w3.eth.accounts[0])
+        == [bytes_helper("", 12) + w3.toBytes(hexstr=w3.eth.accounts[0])] * 2
+    )  # noqa: E501
+    assert c.bytes_to_bytes32(bytes_helper("", 32)) == [bytes_helper("", 32)] * 2
+    assert c.bytes_to_bytes32_from_smaller(b"hello") == bytes_helper("hello", 32)
 
 
 def test_convert_from_address(get_contract_with_gas_estimation):
@@ -76,11 +79,11 @@ def testConvertBytes32(flag: bool) -> bytes32:
 
     c = get_contract_with_gas_estimation(exp_code)
     falseBytes = c.testConvertBytes32(False)
-    assert falseBytes[31:32] == b'\x00'
+    assert falseBytes[31:32] == b"\x00"
     assert len(falseBytes) == 32
 
     trueBytes = c.testConvertBytes32(True)
-    assert trueBytes[31:32] == b'\x01'
+    assert trueBytes[31:32] == b"\x01"
     assert len(trueBytes) == 32
 
 
@@ -154,7 +157,7 @@ def convert_negative_decimal_storage() -> bytes32:
 
     c = get_contract_with_gas_estimation(code)
 
-    _temp = (b"\x00" * 32)
+    _temp = b"\x00" * 32
     assert _temp == c.convert_literal_zero()
     assert _temp == c.convert_literal_zero_storage()
 

@@ -1,8 +1,8 @@
 from vyper.parser.context import Constancy, Context
-from vyper.parser.function_definitions.parse_private_function import (
+from vyper.parser.function_definitions.parse_private_function import (  # NOTE: black/isort conflict
     parse_private_function,
 )
-from vyper.parser.function_definitions.parse_public_function import (
+from vyper.parser.function_definitions.parse_public_function import (  # NOTE: black/isort conflict
     parse_public_function,
 )
 from vyper.parser.memory_allocator import MemoryAllocator
@@ -12,12 +12,12 @@ from vyper.utils import calc_mem_gas
 
 # Is a function the initializer?
 def is_initializer(code):
-    return code.name == '__init__'
+    return code.name == "__init__"
 
 
 # Is a function the default function?
 def is_default_func(code):
-    return code.name == '__default__'
+    return code.name == "__default__"
 
 
 def parse_function(code, sigs, origcode, global_ctx, _vars=None):
@@ -31,10 +31,7 @@ def parse_function(code, sigs, origcode, global_ctx, _vars=None):
     if _vars is None:
         _vars = {}
     sig = FunctionSignature.from_definition(
-        code,
-        sigs=sigs,
-        custom_structs=global_ctx._structs,
-        constants=global_ctx._constants
+        code, sigs=sigs, custom_structs=global_ctx._structs, constants=global_ctx._constants
     )
 
     # Validate return statements.
@@ -53,25 +50,15 @@ def parse_function(code, sigs, origcode, global_ctx, _vars=None):
         origcode=origcode,
         is_private=sig.private,
         method_id=sig.method_id,
-        sig=sig
+        sig=sig,
     )
 
     if sig.private:
-        o = parse_private_function(
-            code=code,
-            sig=sig,
-            context=context,
-        )
+        o = parse_private_function(code=code, sig=sig, context=context,)
     else:
-        o = parse_public_function(
-            code=code,
-            sig=sig,
-            context=context,
-        )
+        o = parse_public_function(code=code, sig=sig, context=context,)
 
     o.context = context
-    o.total_gas = o.gas + calc_mem_gas(
-        o.context.memory_allocator.get_next_memory_position()
-    )
+    o.total_gas = o.gas + calc_mem_gas(o.context.memory_allocator.get_next_memory_position())
     o.func_name = sig.name
     return o

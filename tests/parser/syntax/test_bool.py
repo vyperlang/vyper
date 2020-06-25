@@ -10,28 +10,40 @@ from vyper.exceptions import (
 )
 
 fail_list = [
-    ("""
+    (
+        """
 @public
 def foo():
     x: bool = True
     x = 5
-    """, InvalidType),
-    ("""
+    """,
+        InvalidType,
+    ),
+    (
+        """
 @public
 def foo():
     True = 3
-    """, SyntaxException),
-    ("""
+    """,
+        SyntaxException,
+    ),
+    (
+        """
 @public
 def foo():
     x: bool = True
     x = 129
-    """, InvalidType),
-    ("""
+    """,
+        InvalidType,
+    ),
+    (
+        """
 @public
 def foo() -> bool:
     return (1 == 2) <= (1 == 1)
-    """, TypeMismatch),
+    """,
+        TypeMismatch,
+    ),
     """
 @public
 def foo() -> bool:
@@ -48,11 +60,14 @@ def foo() -> bool:
     a: address = ZERO_ADDRESS
     return a == 1
     """,
-    ("""
+    (
+        """
 @public
 def foo(a: address) -> bool:
     return not a
-    """, InvalidOperation),
+    """,
+        InvalidOperation,
+    ),
     """
 @public
 def foo() -> bool:
@@ -71,16 +86,19 @@ def foo() -> bool:
     b: uint256 = 0
     return not b
     """,
-    ("""
+    (
+        """
 @public
 def test(a: address) -> bool:
     assert(a)
     return True
-    """, TypeMismatch)
+    """,
+        TypeMismatch,
+    ),
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
+@pytest.mark.parametrize("bad_code", fail_list)
 def test_bool_fail(bad_code):
 
     if isinstance(bad_code, tuple):
@@ -144,10 +162,10 @@ def foo() -> bool:
 @public
 def foo2(a: address) -> bool:
     return a != ZERO_ADDRESS
-    """
+    """,
 ]
 
 
-@pytest.mark.parametrize('good_code', valid_list)
+@pytest.mark.parametrize("good_code", valid_list)
 def test_bool_success(good_code):
     assert compiler.compile_code(good_code) is not None

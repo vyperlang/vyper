@@ -5,16 +5,22 @@ from vyper import compiler
 from vyper.exceptions import InvalidType, TypeMismatch
 
 fail_list = [
-    ("""
+    (
+        """
 @public
 def foo() -> int128[2]:
     return [3,block.timestamp]
-    """, InvalidType),
-    ("""
+    """,
+        InvalidType,
+    ),
+    (
+        """
 @public
 def foo() -> int128[2]:
     return [block.timestamp - block.timestamp, block.timestamp]
-    """, InvalidType),
+    """,
+        InvalidType,
+    ),
     """
 @public
 def foo() -> decimal:
@@ -63,15 +69,18 @@ def add_record():
 def foo(inp: bytes[10]) -> bytes[3]:
     return slice(inp, block.timestamp, 3)
     """,
-    ("""
+    (
+        """
 @public
 def foo() -> int128:
     return block.fail
-""", Exception)
+""",
+        Exception,
+    ),
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
+@pytest.mark.parametrize("bad_code", fail_list)
 def test_block_fail(bad_code):
 
     if isinstance(bad_code, tuple):
@@ -121,10 +130,10 @@ def foo():
     x: uint256 = block.difficulty + 185
     if tx.origin == self:
         y: bytes[35] = concat(block.prevhash, b"dog")
-    """
+    """,
 ]
 
 
-@pytest.mark.parametrize('good_code', valid_list)
+@pytest.mark.parametrize("good_code", valid_list)
 def test_block_success(good_code):
     assert compiler.compile_code(good_code) is not None

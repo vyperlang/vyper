@@ -1,4 +1,3 @@
-
 def test_convert_from_bool(get_contract_with_gas_estimation):
     code = """
 @public

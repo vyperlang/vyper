@@ -62,7 +62,7 @@ def jop() -> int128:
     assert c.hop() == 321
     assert c.joo() == 0
     assert c.jop() == 321
-    print('Passed multi-setter literal test')
+    print("Passed multi-setter literal test")
 
 
 def test_multi_setter_struct_test(get_contract_with_gas_estimation):

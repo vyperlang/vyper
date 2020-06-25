@@ -9,14 +9,17 @@ from vyper.exceptions import (
 )
 
 fail_list = [
-    ("""
+    (
+        """
 @public
 def test():
     a: int128 = 0
     b: int128 = 0
     c: int128 = 0
     a, b, c = 1, 2, 3
-    """, StructureException),
+    """,
+        StructureException,
+    ),
     """
 @private
 def out_literals() -> (int128, int128, bytes[10]):
@@ -66,7 +69,8 @@ def test():
     c: bytes[1] = b""
     a, b, c = self.out_literals()
     """,
-    ("""
+    (
+        """
 @private
 def _test(a: bytes32) -> (bytes32, uint256, int128):
     b: uint256 = 1000
@@ -80,8 +84,11 @@ def test(a: bytes32) -> (bytes32, uint256, int128):
     a, b, c = self._test(a)
     assert d == 123
     return a, b, c
-    """, ConstancyViolation),
-    ("""
+    """,
+        ConstancyViolation,
+    ),
+    (
+        """
 x: public(uint256)
 
 @private
@@ -94,11 +101,13 @@ def return_two() -> (uint256, uint256):
 def foo():
     a: uint256 = 0
     a, self.x = self.return_two()
-     """, ConstancyViolation),
+     """,
+        ConstancyViolation,
+    ),
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
+@pytest.mark.parametrize("bad_code", fail_list)
 def test_tuple_assign_fail(bad_code):
     if isinstance(bad_code, tuple):
         with raises(bad_code[1]):

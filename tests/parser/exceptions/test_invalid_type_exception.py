@@ -26,7 +26,7 @@ struct B:
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
+@pytest.mark.parametrize("bad_code", fail_list)
 def test_unknown_type_exception(bad_code):
     with raises(UnknownType):
         compiler.compile_code(bad_code)
@@ -56,7 +56,7 @@ x: int128[3.5]
 ]
 
 
-@pytest.mark.parametrize('bad_code', invalid_list)
+@pytest.mark.parametrize("bad_code", invalid_list)
 def test_invalid_type_exception(bad_code):
     with raises(InvalidType):
         compiler.compile_code(bad_code)

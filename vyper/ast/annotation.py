@@ -13,10 +13,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
     _class_types: ClassTypes
 
     def __init__(
-        self,
-        source_code: str,
-        class_types: Optional[ClassTypes] = None,
-        source_id: int = 0,
+        self, source_code: str, class_types: Optional[ClassTypes] = None, source_id: int = 0,
     ):
         self._source_id = source_id
         self._source_code: str = source_code
@@ -155,9 +152,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             node.ast_type = "Int"
 
         else:
-            raise CompilerPanic(
-                f"Unexpected type for Constant value: {type(node.n).__name__}"
-            )
+            raise CompilerPanic(f"Unexpected type for Constant value: {type(node.n).__name__}")
 
         return node
 

@@ -1,8 +1,9 @@
 from vyper.exceptions import FunctionDeclarationException
 
 
-def test_invalid_if_both_public_and_internal(assert_compile_failed,
-                                             get_contract_with_gas_estimation):
+def test_invalid_if_both_public_and_internal(
+    assert_compile_failed, get_contract_with_gas_estimation
+):
     code = """
 @public
 @private
@@ -15,8 +16,9 @@ def foo():
     )
 
 
-def test_invalid_if_visibility_isnt_declared(assert_compile_failed,
-                                             get_contract_with_gas_estimation):
+def test_invalid_if_visibility_isnt_declared(
+    assert_compile_failed, get_contract_with_gas_estimation
+):
     code = """
 def foo():
     x: uint256 = 1

@@ -35,7 +35,7 @@ def foo():
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
+@pytest.mark.parametrize("bad_code", fail_list)
 def test_invalid_reference_exception(bad_code):
     with pytest.raises(InvalidReference):
         compiler.compile_code(bad_code)

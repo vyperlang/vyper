@@ -5,7 +5,7 @@ INITIAL_VALUE = 4
 
 @pytest.fixture
 def storage_contract(w3, get_contract):
-    with open('examples/storage/storage.vy') as f:
+    with open("examples/storage/storage.vy") as f:
         contract_code = f.read()
         # Pass constructor variables directly to the contract
         contract = get_contract(contract_code, INITIAL_VALUE)

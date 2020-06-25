@@ -80,9 +80,8 @@ SHA256_PER_WORD_GAS = 12
 
 
 class _SimpleBuiltinFunction:
-
     def fetch_call_return(self, node):
-        validate_call_args(node, len(self._inputs), getattr(self, '_kwargs', []))
+        validate_call_args(node, len(self._inputs), getattr(self, "_kwargs", []))
         for arg, (_, expected) in zip(node.args, self._inputs):
             validate_expected_type(arg, expected)
 
@@ -96,13 +95,14 @@ class AssertModifiable(_SimpleBuiltinFunction):
     """
     Assert a condition without performing a constancy check.
     """
+
     _id = "assert_modifiable"
     _inputs = [("cond", BoolDefinition())]
     _return_type = None
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
-        return LLLnode.from_list(['assert', args[0]], typ=None, pos=getpos(expr))
+        return LLLnode.from_list(["assert", args[0]], typ=None, pos=getpos(expr))
 
 
 class Floor(_SimpleBuiltinFunction):
@@ -123,13 +123,13 @@ class Floor(_SimpleBuiltinFunction):
     def build_LLL(self, expr, args, kwargs, context):
         return LLLnode.from_list(
             [
-                'if',
-                ['slt', args[0], 0],
-                ['sdiv', ['sub', args[0], DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR],
-                ['sdiv', args[0], DECIMAL_DIVISOR]
+                "if",
+                ["slt", args[0], 0],
+                ["sdiv", ["sub", args[0], DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR],
+                ["sdiv", args[0], DECIMAL_DIVISOR],
             ],
-            typ=BaseType('int128'),
-            pos=getpos(expr)
+            typ=BaseType("int128"),
+            pos=getpos(expr),
         )
 
 
@@ -151,13 +151,13 @@ class Ceil(_SimpleBuiltinFunction):
     def build_LLL(self, expr, args, kwargs, context):
         return LLLnode.from_list(
             [
-                'if',
-                ['slt', args[0], 0],
-                ['sdiv', args[0], DECIMAL_DIVISOR],
-                ['sdiv', ['add', args[0], DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR]
+                "if",
+                ["slt", args[0], 0],
+                ["sdiv", args[0], DECIMAL_DIVISOR],
+                ["sdiv", ["add", args[0], DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR],
             ],
-            typ=BaseType('int128'),
-            pos=getpos(expr)
+            typ=BaseType("int128"),
+            pos=getpos(expr),
         )
 
 
@@ -225,7 +225,7 @@ class Convert:
 class Slice:
 
     _id = "slice"
-    _inputs = [("b", ('bytes', 'bytes32', 'string')), ('start', 'int128'), ('length', 'int128')]
+    _inputs = [("b", ("bytes", "bytes32", "string")), ("start", "int128"), ("length", "int128")]
     _return_type = None
 
     def fetch_call_return(self, node):
@@ -259,77 +259,82 @@ class Slice:
     def build_LLL(self, expr, args, kwargs, context):
 
         sub, start, length = args
-        if is_base_type(sub.typ, 'bytes32'):
-            if (
-                (start.typ.is_literal and length.typ.is_literal) and
-                not (0 <= start.value + length.value <= 32)
+        if is_base_type(sub.typ, "bytes32"):
+            if (start.typ.is_literal and length.typ.is_literal) and not (
+                0 <= start.value + length.value <= 32
             ):
                 raise InvalidLiteral(
-                    'Invalid start / length values needs to be between 0 and 32.',
-                    expr,
+                    "Invalid start / length values needs to be between 0 and 32.", expr,
                 )
             sub_typ_maxlen = 32
         else:
             sub_typ_maxlen = sub.typ.maxlen
 
         # Get returntype string or bytes
-        if isinstance(args[0].typ, ByteArrayType) or is_base_type(sub.typ, 'bytes32'):
+        if isinstance(args[0].typ, ByteArrayType) or is_base_type(sub.typ, "bytes32"):
             ReturnType = ByteArrayType
         else:
             ReturnType = OldStringType
 
         # Node representing the position of the output in memory
         np = context.new_placeholder(ReturnType(maxlen=sub_typ_maxlen + 32))
-        placeholder_node = LLLnode.from_list(np, typ=sub.typ, location='memory')
-        placeholder_plus_32_node = LLLnode.from_list(np + 32, typ=sub.typ, location='memory')
+        placeholder_node = LLLnode.from_list(np, typ=sub.typ, location="memory")
+        placeholder_plus_32_node = LLLnode.from_list(np + 32, typ=sub.typ, location="memory")
         # Copies over bytearray data
-        if sub.location == 'storage':
+        if sub.location == "storage":
             adj_sub = LLLnode.from_list(
-                ['add', ['sha3_32', sub], ['add', ['div', '_start', 32], 1]],
+                ["add", ["sha3_32", sub], ["add", ["div", "_start", 32], 1]],
                 typ=sub.typ,
                 location=sub.location,
             )
         else:
             adj_sub = LLLnode.from_list(
-                ['add', sub, ['add', ['sub', '_start', ['mod', '_start', 32]], 32]],
+                ["add", sub, ["add", ["sub", "_start", ["mod", "_start", 32]], 32]],
                 typ=sub.typ,
                 location=sub.location,
             )
 
-        if is_base_type(sub.typ, 'bytes32'):
-            adj_sub = LLLnode.from_list(
-                sub.args[0], typ=sub.typ, location="memory"
-            )
+        if is_base_type(sub.typ, "bytes32"):
+            adj_sub = LLLnode.from_list(sub.args[0], typ=sub.typ, location="memory")
 
         copier = make_byte_slice_copier(
             placeholder_plus_32_node,
             adj_sub,
-            ['add', '_length', 32],
+            ["add", "_length", 32],
             sub_typ_maxlen,
             pos=getpos(expr),
         )
         # New maximum length in the type of the result
         newmaxlen = length.value if not len(length.args) else sub_typ_maxlen
-        if is_base_type(sub.typ, 'bytes32'):
+        if is_base_type(sub.typ, "bytes32"):
             maxlen = 32
         else:
-            maxlen = ['mload', Expr(sub, context=context).lll_node]  # Retrieve length of the bytes.
+            maxlen = ["mload", Expr(sub, context=context).lll_node]  # Retrieve length of the bytes.
 
         out = [
-            'with', '_start', start, [
-                'with', '_length', length, [
-                    'with', '_opos', ['add', placeholder_node, ['mod', '_start', 32]], [
-                        'seq',
-                        ['assert', ['le', ['add', '_start', '_length'], maxlen]],
+            "with",
+            "_start",
+            start,
+            [
+                "with",
+                "_length",
+                length,
+                [
+                    "with",
+                    "_opos",
+                    ["add", placeholder_node, ["mod", "_start", 32]],
+                    [
+                        "seq",
+                        ["assert", ["le", ["add", "_start", "_length"], maxlen]],
                         copier,
-                        ['mstore', '_opos', '_length'],
-                        '_opos'
+                        ["mstore", "_opos", "_length"],
+                        "_opos",
                     ],
                 ],
             ],
         ]
         return LLLnode.from_list(
-            out, typ=ReturnType(newmaxlen), location='memory', pos=getpos(expr)
+            out, typ=ReturnType(newmaxlen), location="memory", pos=getpos(expr)
         )
 
 
@@ -398,15 +403,15 @@ class Concat:
         if len(args) < 2:
             raise StructureException("Concat expects at least two arguments", expr)
 
-        prev_type = ''
+        prev_type = ""
         for _, (expr_arg, arg) in enumerate(zip(expr.args, args)):
-            if not isinstance(arg.typ, ByteArrayLike) and not is_base_type(arg.typ, 'bytes32'):
+            if not isinstance(arg.typ, ByteArrayLike) and not is_base_type(arg.typ, "bytes32"):
                 raise TypeMismatch("Concat expects string, bytes or bytes32 objects", expr_arg)
 
             current_type = (
-                'bytes'
-                if isinstance(arg.typ, ByteArrayType) or is_base_type(arg.typ, 'bytes32')
-                else 'string'
+                "bytes"
+                if isinstance(arg.typ, ByteArrayType) or is_base_type(arg.typ, "bytes32")
+                else "string"
             )
             if prev_type and current_type != prev_type:
                 raise TypeMismatch(
@@ -418,15 +423,15 @@ class Concat:
                 )
             prev_type = current_type
 
-        if current_type == 'string':
+        if current_type == "string":
             ReturnType = OldStringType
         else:
             ReturnType = ByteArrayType
 
         # Maximum length of the output
-        total_maxlen = sum([
-            arg.typ.maxlen if isinstance(arg.typ, ByteArrayLike) else 32 for arg in args
-        ])
+        total_maxlen = sum(
+            [arg.typ.maxlen if isinstance(arg.typ, ByteArrayLike) else 32 for arg in args]
+        )
         # Node representing the position of the output in memory
         placeholder = context.new_placeholder(ReturnType(total_maxlen))
         # Object representing the output
@@ -436,14 +441,12 @@ class Concat:
             # Start pasting into a position the starts at zero, and keeps
             # incrementing as we concatenate arguments
             placeholder_node = LLLnode.from_list(
-                ['add', placeholder, '_poz'],
-                typ=ReturnType(total_maxlen),
-                location='memory',
+                ["add", placeholder, "_poz"], typ=ReturnType(total_maxlen), location="memory",
             )
             placeholder_node_plus_32 = LLLnode.from_list(
-                ['add', ['add', placeholder, '_poz'], 32],
+                ["add", ["add", placeholder, "_poz"], 32],
                 typ=ReturnType(total_maxlen),
-                location='memory',
+                location="memory",
             )
             if isinstance(arg.typ, ReturnType):
                 # Ignore empty strings
@@ -451,53 +454,57 @@ class Concat:
                     continue
                 # Get the length of the current argument
                 if arg.location == "memory":
-                    length = LLLnode.from_list(['mload', '_arg'], typ=BaseType('int128'))
+                    length = LLLnode.from_list(["mload", "_arg"], typ=BaseType("int128"))
                     argstart = LLLnode.from_list(
-                        ['add', '_arg', 32],
-                        typ=arg.typ,
-                        location=arg.location,
+                        ["add", "_arg", 32], typ=arg.typ, location=arg.location,
                     )
                 elif arg.location == "storage":
                     length = LLLnode.from_list(
-                        ['sload', ['sha3_32', '_arg']], typ=BaseType('int128')
+                        ["sload", ["sha3_32", "_arg"]], typ=BaseType("int128")
                     )
                     argstart = LLLnode.from_list(
-                        ['add', ['sha3_32', '_arg'], 1],
-                        typ=arg.typ,
-                        location=arg.location,
+                        ["add", ["sha3_32", "_arg"], 1], typ=arg.typ, location=arg.location,
                     )
                 # Make a copier to copy over data from that argument
-                seq.append([
-                    'with', '_arg', arg, [
-                        'seq',
-                        make_byte_slice_copier(
-                            placeholder_node_plus_32,
-                            argstart,
-                            length,
-                            arg.typ.maxlen, pos=getpos(expr),
-                        ),
-                        # Change the position to start at the correct
-                        # place to paste the next value
-                        ['set', '_poz', ['add', '_poz', length]],
-                    ],
-                ])
+                seq.append(
+                    [
+                        "with",
+                        "_arg",
+                        arg,
+                        [
+                            "seq",
+                            make_byte_slice_copier(
+                                placeholder_node_plus_32,
+                                argstart,
+                                length,
+                                arg.typ.maxlen,
+                                pos=getpos(expr),
+                            ),
+                            # Change the position to start at the correct
+                            # place to paste the next value
+                            ["set", "_poz", ["add", "_poz", length]],
+                        ],
+                    ]
+                )
             else:
-                seq.append([
-                    'seq',
-                    ['mstore', ['add', placeholder_node, 32], unwrap_location(arg)],
-                    ['set', '_poz', ['add', '_poz', 32]],
-                ])
+                seq.append(
+                    [
+                        "seq",
+                        ["mstore", ["add", placeholder_node, 32], unwrap_location(arg)],
+                        ["set", "_poz", ["add", "_poz", 32]],
+                    ]
+                )
         # The position, after all arguments are processing, equals the total
         # length. Paste this in to make the output a proper bytearray
-        seq.append(['mstore', placeholder, '_poz'])
+        seq.append(["mstore", placeholder, "_poz"])
         # Memory location of the output
         seq.append(placeholder)
         return LLLnode.from_list(
-            ['with', '_poz', 0, ['seq'] + seq],
+            ["with", "_poz", 0, ["seq"] + seq],
             typ=ReturnType(total_maxlen),
-            location='memory',
+            location="memory",
             pos=getpos(expr),
-            annotation='concat',
+            annotation="concat",
         )
 
 
@@ -529,15 +536,16 @@ class Keccak256(_SimpleBuiltinFunction):
 
 def _make_sha256_call(inp_start, inp_len, out_start, out_len):
     return [
-        'assert', [
-            'staticcall',
-            ['gas'],  # gas
+        "assert",
+        [
+            "staticcall",
+            ["gas"],  # gas
             SHA256_ADDRESS,  # address
             inp_start,
             inp_len,
             out_start,
-            out_len
-        ]
+            out_len,
+        ],
     ]
 
 
@@ -566,67 +574,72 @@ class Sha256(_SimpleBuiltinFunction):
     def build_LLL(self, expr, args, kwargs, context):
         sub = args[0]
         # bytes32 input
-        if is_base_type(sub.typ, 'bytes32'):
+        if is_base_type(sub.typ, "bytes32"):
             return LLLnode.from_list(
                 [
-                    'seq',
-                    ['mstore', MemoryPositions.FREE_VAR_SPACE, sub],
+                    "seq",
+                    ["mstore", MemoryPositions.FREE_VAR_SPACE, sub],
                     _make_sha256_call(
                         inp_start=MemoryPositions.FREE_VAR_SPACE,
                         inp_len=32,
                         out_start=MemoryPositions.FREE_VAR_SPACE,
-                        out_len=32
+                        out_len=32,
                     ),
-                    ['mload', MemoryPositions.FREE_VAR_SPACE]  # push value onto stack
+                    ["mload", MemoryPositions.FREE_VAR_SPACE],  # push value onto stack
                 ],
-                typ=BaseType('bytes32'),
+                typ=BaseType("bytes32"),
                 pos=getpos(expr),
-                add_gas_estimate=SHA256_BASE_GAS + 1 * SHA256_PER_WORD_GAS
+                add_gas_estimate=SHA256_BASE_GAS + 1 * SHA256_PER_WORD_GAS,
             )
         # bytearay-like input
         if sub.location == "storage":
             # Copy storage to memory
             placeholder = context.new_placeholder(sub.typ)
-            placeholder_node = LLLnode.from_list(placeholder, typ=sub.typ, location='memory')
+            placeholder_node = LLLnode.from_list(placeholder, typ=sub.typ, location="memory")
             copier = make_byte_array_copier(
-                placeholder_node,
-                LLLnode.from_list('_sub', typ=sub.typ, location=sub.location),
+                placeholder_node, LLLnode.from_list("_sub", typ=sub.typ, location=sub.location),
             )
             return LLLnode.from_list(
                 [
-                    'with', '_sub', sub, [
-                        'seq',
+                    "with",
+                    "_sub",
+                    sub,
+                    [
+                        "seq",
                         copier,
                         _make_sha256_call(
-                            inp_start=['add', placeholder, 32],
-                            inp_len=['mload', placeholder],
+                            inp_start=["add", placeholder, 32],
+                            inp_len=["mload", placeholder],
                             out_start=MemoryPositions.FREE_VAR_SPACE,
-                            out_len=32
+                            out_len=32,
                         ),
-                        ['mload', MemoryPositions.FREE_VAR_SPACE]
+                        ["mload", MemoryPositions.FREE_VAR_SPACE],
                     ],
                 ],
-                typ=BaseType('bytes32'),
+                typ=BaseType("bytes32"),
                 pos=getpos(expr),
-                add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS
+                add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS,
             )
         elif sub.location == "memory":
             return LLLnode.from_list(
                 [
-                    'with', '_sub', sub, [
-                        'seq',
+                    "with",
+                    "_sub",
+                    sub,
+                    [
+                        "seq",
                         _make_sha256_call(
-                            inp_start=['add', '_sub', 32],
-                            inp_len=['mload', '_sub'],
+                            inp_start=["add", "_sub", 32],
+                            inp_len=["mload", "_sub"],
                             out_start=MemoryPositions.FREE_VAR_SPACE,
-                            out_len=32
+                            out_len=32,
                         ),
-                        ['mload', MemoryPositions.FREE_VAR_SPACE]
-                    ]
+                        ["mload", MemoryPositions.FREE_VAR_SPACE],
+                    ],
                 ],
-                typ=BaseType('bytes32'),
+                typ=BaseType("bytes32"),
                 pos=getpos(expr),
-                add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS
+                add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS,
             )
         else:
             # This should never happen, but just left here for future compiler-writers.
@@ -645,14 +658,14 @@ class MethodID:
         if not isinstance(args[0], vy_ast.Str):
             raise InvalidType("method id must be given as a literal string", args[0])
         if " " in args[0].value:
-            raise InvalidLiteral('Invalid function signature no spaces allowed.')
+            raise InvalidLiteral("Invalid function signature no spaces allowed.")
 
         if isinstance(args[1], vy_ast.Name) and args[1].id == "bytes32":
             length = 32
         elif (
-            isinstance(args[1], vy_ast.Subscript) and
-            args[1].get('value.id') == "bytes" and
-            args[1].get('slice.value.value') == 4
+            isinstance(args[1], vy_ast.Subscript)
+            and args[1].get("value.id") == "bytes"
+            and args[1].get("slice.value.value") == 4
         ):
             length = 4
         else:
@@ -689,23 +702,36 @@ class ECRecover(_SimpleBuiltinFunction):
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         placeholder_node = LLLnode.from_list(
-            context.new_placeholder(ByteArrayType(128)), typ=ByteArrayType(128), location='memory'
+            context.new_placeholder(ByteArrayType(128)), typ=ByteArrayType(128), location="memory"
         )
-        return LLLnode.from_list([
-            'seq',
-            ['mstore', placeholder_node, args[0]],
-            ['mstore', ['add', placeholder_node, 32], args[1]],
-            ['mstore', ['add', placeholder_node, 64], args[2]],
-            ['mstore', ['add', placeholder_node, 96], args[3]],
-            ['pop', [
-                'staticcall', ['gas'], 1, placeholder_node, 128, MemoryPositions.FREE_VAR_SPACE, 32
-            ]],
-            ['mload', MemoryPositions.FREE_VAR_SPACE],
-        ], typ=BaseType('address'), pos=getpos(expr))
+        return LLLnode.from_list(
+            [
+                "seq",
+                ["mstore", placeholder_node, args[0]],
+                ["mstore", ["add", placeholder_node, 32], args[1]],
+                ["mstore", ["add", placeholder_node, 64], args[2]],
+                ["mstore", ["add", placeholder_node, 96], args[3]],
+                [
+                    "pop",
+                    [
+                        "staticcall",
+                        ["gas"],
+                        1,
+                        placeholder_node,
+                        128,
+                        MemoryPositions.FREE_VAR_SPACE,
+                        32,
+                    ],
+                ],
+                ["mload", MemoryPositions.FREE_VAR_SPACE],
+            ],
+            typ=BaseType("address"),
+            pos=getpos(expr),
+        )
 
 
 def avo(arg, ind, pos):
-    return unwrap_location(add_variable_offset(arg, LLLnode.from_list(ind, 'int128'), pos=pos))
+    return unwrap_location(add_variable_offset(arg, LLLnode.from_list(ind, "int128"), pos=pos))
 
 
 class ECAdd(_SimpleBuiltinFunction):
@@ -720,18 +746,23 @@ class ECAdd(_SimpleBuiltinFunction):
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         placeholder_node = LLLnode.from_list(
-            context.new_placeholder(ByteArrayType(128)), typ=ByteArrayType(128), location='memory'
+            context.new_placeholder(ByteArrayType(128)), typ=ByteArrayType(128), location="memory"
         )
         pos = getpos(expr)
-        o = LLLnode.from_list([
-            'seq',
-            ['mstore', placeholder_node, avo(args[0], 0, pos)],
-            ['mstore', ['add', placeholder_node, 32], avo(args[0], 1, pos)],
-            ['mstore', ['add', placeholder_node, 64], avo(args[1], 0, pos)],
-            ['mstore', ['add', placeholder_node, 96], avo(args[1], 1, pos)],
-            ['assert', ['staticcall', ['gas'], 6, placeholder_node, 128, placeholder_node, 64]],
-            placeholder_node,
-        ], typ=ListType(BaseType('uint256'), 2), pos=getpos(expr), location='memory')
+        o = LLLnode.from_list(
+            [
+                "seq",
+                ["mstore", placeholder_node, avo(args[0], 0, pos)],
+                ["mstore", ["add", placeholder_node, 32], avo(args[0], 1, pos)],
+                ["mstore", ["add", placeholder_node, 64], avo(args[1], 0, pos)],
+                ["mstore", ["add", placeholder_node, 96], avo(args[1], 1, pos)],
+                ["assert", ["staticcall", ["gas"], 6, placeholder_node, 128, placeholder_node, 64]],
+                placeholder_node,
+            ],
+            typ=ListType(BaseType("uint256"), 2),
+            pos=getpos(expr),
+            location="memory",
+        )
         return o
 
 
@@ -744,31 +775,34 @@ class ECMul(_SimpleBuiltinFunction):
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         placeholder_node = LLLnode.from_list(
-            context.new_placeholder(ByteArrayType(128)), typ=ByteArrayType(128), location='memory'
+            context.new_placeholder(ByteArrayType(128)), typ=ByteArrayType(128), location="memory"
         )
         pos = getpos(expr)
-        o = LLLnode.from_list([
-            'seq',
-            ['mstore', placeholder_node, avo(args[0], 0, pos)],
-            ['mstore', ['add', placeholder_node, 32], avo(args[0], 1, pos)],
-            ['mstore', ['add', placeholder_node, 64], args[1]],
-            ['assert', ['staticcall', ['gas'], 7, placeholder_node, 96, placeholder_node, 64]],
-            placeholder_node,
-        ], typ=ListType(BaseType('uint256'), 2), pos=pos, location='memory')
+        o = LLLnode.from_list(
+            [
+                "seq",
+                ["mstore", placeholder_node, avo(args[0], 0, pos)],
+                ["mstore", ["add", placeholder_node, 32], avo(args[0], 1, pos)],
+                ["mstore", ["add", placeholder_node, 64], args[1]],
+                ["assert", ["staticcall", ["gas"], 7, placeholder_node, 96, placeholder_node, 64]],
+                placeholder_node,
+            ],
+            typ=ListType(BaseType("uint256"), 2),
+            pos=pos,
+            location="memory",
+        )
         return o
 
 
 def _memory_element_getter(index):
     return LLLnode.from_list(
-        ['mload', ['add', '_sub', ['add', 32, ['mul', 32, index]]]],
-        typ=BaseType('int128'),
+        ["mload", ["add", "_sub", ["add", 32, ["mul", 32, index]]]], typ=BaseType("int128"),
     )
 
 
 def _storage_element_getter(index):
     return LLLnode.from_list(
-        ['sload', ['add', ['sha3_32', '_sub'], ['add', 1, index]]],
-        typ=BaseType('int128'),
+        ["sload", ["add", ["sha3_32", "_sub"], ["add", 1, index]]], typ=BaseType("int128"),
     )
 
 
@@ -776,7 +810,7 @@ class Extract32(_SimpleBuiltinFunction):
 
     _id = "extract32"
     _inputs = [("b", BytesArrayPrimitive()), ("start", Int128Definition())]
-    _kwargs = {"type": Optional('name_literal', 'bytes32')}
+    _kwargs = {"type": Optional("name_literal", "bytes32")}
     _return_type = None
 
     def fetch_call_return(self, node):
@@ -784,8 +818,7 @@ class Extract32(_SimpleBuiltinFunction):
         if node.keywords:
             return_type = get_type_from_annotation(node.keywords[0].value, DataLocation.MEMORY)
             if not isinstance(
-                return_type,
-                (AddressDefinition, Bytes32Definition, IntegerAbstractType)
+                return_type, (AddressDefinition, Bytes32Definition, IntegerAbstractType)
             ):
                 raise
         else:
@@ -796,13 +829,13 @@ class Extract32(_SimpleBuiltinFunction):
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         sub, index = args
-        ret_type = kwargs['type']
+        ret_type = kwargs["type"]
         # Get length and specific element
         if sub.location == "memory":
-            lengetter = LLLnode.from_list(['mload', '_sub'], typ=BaseType('int128'))
+            lengetter = LLLnode.from_list(["mload", "_sub"], typ=BaseType("int128"))
             elementgetter = _memory_element_getter
         elif sub.location == "storage":
-            lengetter = LLLnode.from_list(['sload', ['sha3_32', '_sub']], typ=BaseType('int128'))
+            lengetter = LLLnode.from_list(["sload", ["sha3_32", "_sub"]], typ=BaseType("int128"))
             elementgetter = _storage_element_getter
         # TODO: unclosed if/elif clause.  Undefined behavior if `sub.location`
         # isn't one of `memory`/`storage`
@@ -811,48 +844,69 @@ class Extract32(_SimpleBuiltinFunction):
         if isinstance(index.value, int) and not index.value % 32:
             o = LLLnode.from_list(
                 [
-                    'with', '_sub', sub,
-                    elementgetter(['div', ['clamp', 0, index, ['sub', lengetter, 32]], 32])
+                    "with",
+                    "_sub",
+                    sub,
+                    elementgetter(["div", ["clamp", 0, index, ["sub", lengetter, 32]], 32]),
                 ],
                 typ=BaseType(ret_type),
-                annotation='extracting 32 bytes',
+                annotation="extracting 32 bytes",
             )
         # General case
         else:
-            o = LLLnode.from_list([
-                'with', '_sub', sub, [
-                    'with', '_len', lengetter, [
-                        'with', '_index', ['clamp', 0, index, ['sub', '_len', 32]], [
-                            'with', '_mi32', ['mod', '_index', 32], [
-                                'with', '_di32', ['div', '_index', 32],
+            o = LLLnode.from_list(
+                [
+                    "with",
+                    "_sub",
+                    sub,
+                    [
+                        "with",
+                        "_len",
+                        lengetter,
+                        [
+                            "with",
+                            "_index",
+                            ["clamp", 0, index, ["sub", "_len", 32]],
+                            [
+                                "with",
+                                "_mi32",
+                                ["mod", "_index", 32],
                                 [
-                                    'if',
-                                    '_mi32',
+                                    "with",
+                                    "_di32",
+                                    ["div", "_index", 32],
                                     [
-                                        'add',
-                                        ['mul', elementgetter('_di32'), ['exp', 256, '_mi32']],
+                                        "if",
+                                        "_mi32",
                                         [
-                                            'div',
-                                            elementgetter(['add', '_di32', 1]),
-                                            ['exp', 256, ['sub', 32, '_mi32']],
+                                            "add",
+                                            ["mul", elementgetter("_di32"), ["exp", 256, "_mi32"]],
+                                            [
+                                                "div",
+                                                elementgetter(["add", "_di32", 1]),
+                                                ["exp", 256, ["sub", 32, "_mi32"]],
+                                            ],
                                         ],
+                                        elementgetter("_di32"),
                                     ],
-                                    elementgetter('_di32'),
                                 ],
                             ],
                         ],
                     ],
                 ],
-            ], typ=BaseType(ret_type), pos=getpos(expr), annotation='extracting 32 bytes')
-        if ret_type == 'int128':
+                typ=BaseType(ret_type),
+                pos=getpos(expr),
+                annotation="extracting 32 bytes",
+            )
+        if ret_type == "int128":
             return LLLnode.from_list(
-                ['clamp', ['mload', MemoryPositions.MINNUM], o, ['mload', MemoryPositions.MAXNUM]],
-                typ=BaseType('int128'),
+                ["clamp", ["mload", MemoryPositions.MINNUM], o, ["mload", MemoryPositions.MAXNUM]],
+                typ=BaseType("int128"),
                 pos=getpos(expr),
             )
-        elif ret_type == 'address':
+        elif ret_type == "address":
             return LLLnode.from_list(
-                ['uclamplt', o, ['mload', MemoryPositions.ADDRSIZE]],
+                ["uclamplt", o, ["mload", MemoryPositions.ADDRSIZE]],
                 typ=BaseType(ret_type),
                 pos=getpos(expr),
             )
@@ -867,14 +921,14 @@ class AsWeiValue:
     _return_type = Uint256Definition()
 
     wei_denoms = {
-        ("wei", ): 1,
-        ("femtoether", "kwei", "babbage"): 10**3,
-        ("picoether", "mwei", "lovelace"): 10**6,
-        ("nanoether", "gwei", "shannon"): 10**9,
-        ("microether", "szabo", ): 10**12,
-        ("milliether", "finney", ): 10**15,
-        ("ether", ): 10**18,
-        ("kether", "grand"): 10**21,
+        ("wei",): 1,
+        ("femtoether", "kwei", "babbage"): 10 ** 3,
+        ("picoether", "mwei", "lovelace"): 10 ** 6,
+        ("nanoether", "gwei", "shannon"): 10 ** 9,
+        ("microether", "szabo",): 10 ** 12,
+        ("milliether", "finney",): 10 ** 15,
+        ("ether",): 10 ** 18,
+        ("kether", "grand"): 10 ** 21,
     }
 
     def evaluate(self, node):
@@ -897,9 +951,9 @@ class AsWeiValue:
         if value < 0:
             raise InvalidLiteral("Negative wei value not allowed", node.args[0])
 
-        if isinstance(value, int) and value >= 2**256:
+        if isinstance(value, int) and value >= 2 ** 256:
             raise InvalidLiteral("Value out of range for uint256", node.args[0])
-        if isinstance(value, Decimal) and value >= 2**127:
+        if isinstance(value, Decimal) and value >= 2 ** 127:
             raise InvalidLiteral("Value out of range for decimal", node.args[0])
 
         return vy_ast.Int.from_node(node, value=int(value * denom))
@@ -917,7 +971,7 @@ class AsWeiValue:
             raise InvalidLiteral(
                 f"Invalid denomination: {denom_name}, valid denominations are: "
                 f"{','.join(x[0] for x in self.wei_denoms)}",
-                expr.args[1]
+                expr.args[1],
             )
 
         # Compute the amount of wei and return that value
@@ -928,31 +982,26 @@ class AsWeiValue:
                 expr_args_0 = context.constants._constants_ast[expr.args[0].id]
             numstring, num, den = get_number_as_fraction(expr_args_0, context)
             if denom_divisor % den:
-                max_len = len(str(denom_divisor))-1
+                max_len = len(str(denom_divisor)) - 1
                 raise InvalidLiteral(
                     f"Wei value of denomination '{denom_name}' has max {max_len} decimal places",
-                    expr.args[0]
+                    expr.args[0],
                 )
             sub = num * denom_divisor // den
         elif value.typ.is_literal:
             if value.value <= 0:
                 raise InvalidLiteral("Negative wei value not allowed", expr)
-            sub = ['mul', value.value, denom_divisor]
-        elif value.typ.typ == 'uint256':
-            sub = ['mul', value, denom_divisor]
+            sub = ["mul", value.value, denom_divisor]
+        elif value.typ.typ == "uint256":
+            sub = ["mul", value, denom_divisor]
         else:
-            sub = ['div', ['mul', value, denom_divisor], DECIMAL_DIVISOR]
+            sub = ["div", ["mul", value, denom_divisor], DECIMAL_DIVISOR]
 
-        return LLLnode.from_list(
-            sub,
-            typ=BaseType('uint256'),
-            location=None,
-            pos=getpos(expr),
-        )
+        return LLLnode.from_list(sub, typ=BaseType("uint256"), location=None, pos=getpos(expr),)
 
 
-zero_value = LLLnode.from_list(0, typ=BaseType('uint256'))
-false_value = LLLnode.from_list(0, typ=BaseType('bool', is_literal=True))
+zero_value = LLLnode.from_list(0, typ=BaseType("uint256"))
+false_value = LLLnode.from_list(0, typ=BaseType("bool", is_literal=True))
 
 
 class RawCall(_SimpleBuiltinFunction):
@@ -960,11 +1009,11 @@ class RawCall(_SimpleBuiltinFunction):
     _id = "raw_call"
     _inputs = [("to", AddressDefinition()), ("data", BytesArrayPrimitive())]
     _kwargs = {
-        "max_outsize": Optional('num_literal', 0),
-        "gas": Optional('uint256', 'gas'),
-        "value": Optional('uint256', zero_value),
-        "is_delegate_call": Optional('bool', false_value),
-        "is_static_call": Optional('bool', false_value),
+        "max_outsize": Optional("num_literal", 0),
+        "gas": Optional("uint256", "gas"),
+        "value": Optional("uint256", zero_value),
+        "is_delegate_call": Optional("bool", false_value),
+        "is_static_call": Optional("bool", false_value),
     }
     _return_type = None
 
@@ -987,11 +1036,11 @@ class RawCall(_SimpleBuiltinFunction):
     def build_LLL(self, expr, args, kwargs, context):
         to, data = args
         gas, value, outsize, delegate_call, static_call = (
-            kwargs['gas'],
-            kwargs['value'],
-            kwargs['max_outsize'],
-            kwargs['is_delegate_call'],
-            kwargs['is_static_call'],
+            kwargs["gas"],
+            kwargs["value"],
+            kwargs["max_outsize"],
+            kwargs["is_delegate_call"],
+            kwargs["is_static_call"],
         )
         for key in ("is_delegate_call", "is_static_call"):
             if kwargs[key].typ.is_literal is False:
@@ -1009,46 +1058,43 @@ class RawCall(_SimpleBuiltinFunction):
                 expr,
             )
         placeholder = context.new_placeholder(data.typ)
-        placeholder_node = LLLnode.from_list(placeholder, typ=data.typ, location='memory')
+        placeholder_node = LLLnode.from_list(placeholder, typ=data.typ, location="memory")
         copier = make_byte_array_copier(placeholder_node, data, pos=getpos(expr))
         output_placeholder = context.new_placeholder(ByteArrayType(outsize))
         output_node = LLLnode.from_list(
-            output_placeholder,
-            typ=ByteArrayType(outsize),
-            location='memory',
+            output_placeholder, typ=ByteArrayType(outsize), location="memory",
         )
 
         # build LLL for call or delegatecall
         common_call_lll = [
-            ['add', placeholder_node, 32],
-            ['mload', placeholder_node],
+            ["add", placeholder_node, 32],
+            ["mload", placeholder_node],
             # if there is no return value, the return offset can be 0
-            ['add', output_node, 32] if outsize else 0,
-            outsize
+            ["add", output_node, 32] if outsize else 0,
+            outsize,
         ]
 
         if delegate_call.value == 1:
-            call_lll = ['delegatecall', gas, to] + common_call_lll
+            call_lll = ["delegatecall", gas, to] + common_call_lll
         elif static_call.value == 1:
-            call_lll = ['staticcall', gas, to] + common_call_lll
+            call_lll = ["staticcall", gas, to] + common_call_lll
         else:
-            call_lll = ['call', gas, to, value] + common_call_lll
+            call_lll = ["call", gas, to, value] + common_call_lll
 
         # build sequence LLL
         if outsize:
             # return minimum of outsize and returndatasize
             size = [
-                'with', '_l', outsize, [
-                    'with', '_r', 'returndatasize', ['if', ['gt', '_l', '_r'], '_r', '_l']
-                ]
+                "with",
+                "_l",
+                outsize,
+                ["with", "_r", "returndatasize", ["if", ["gt", "_l", "_r"], "_r", "_l"]],
             ]
 
-            seq = [
-                'seq', copier, ['assert', call_lll], ['mstore', output_node, size], output_node
-            ]
+            seq = ["seq", copier, ["assert", call_lll], ["mstore", output_node, size], output_node]
             typ = ByteArrayType(outsize)
         else:
-            seq = ['seq', copier, ['assert', call_lll]]
+            seq = ["seq", copier, ["assert", call_lll]]
             typ = None
 
         return LLLnode.from_list(seq, typ=typ, location="memory", pos=getpos(expr))
@@ -1065,13 +1111,10 @@ class Send(_SimpleBuiltinFunction):
         to, value = args
         if context.is_constant():
             raise ConstancyViolation(
-                f"Cannot send ether inside {context.pp_constancy()}!",
-                expr,
+                f"Cannot send ether inside {context.pp_constancy()}!", expr,
             )
         return LLLnode.from_list(
-            ['assert', ['call', 0, to, value, 0, 0, 0, 0]],
-            typ=None,
-            pos=getpos(expr),
+            ["assert", ["call", 0, to, value, 0, 0, 0, 0]], typ=None, pos=getpos(expr),
         )
 
 
@@ -1086,10 +1129,9 @@ class SelfDestruct(_SimpleBuiltinFunction):
     def build_LLL(self, expr, args, kwargs, context):
         if context.is_constant():
             raise ConstancyViolation(
-                f"Cannot {expr.func.id} inside {context.pp_constancy()}!",
-                expr.func,
+                f"Cannot {expr.func.id} inside {context.pp_constancy()}!", expr.func,
             )
-        return LLLnode.from_list(['selfdestruct', args[0]], typ=None, pos=getpos(expr))
+        return LLLnode.from_list(["selfdestruct", args[0]], typ=None, pos=getpos(expr))
 
 
 class BlockHash(_SimpleBuiltinFunction):
@@ -1101,8 +1143,8 @@ class BlockHash(_SimpleBuiltinFunction):
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, contact):
         return LLLnode.from_list(
-            ['blockhash', ['uclamplt', ['clampge', args[0], ['sub', ['number'], 256]], 'number']],
-            typ=BaseType('bytes32'),
+            ["blockhash", ["uclamplt", ["clampge", args[0], ["sub", ["number"], 256]], "number"]],
+            typ=BaseType("bytes32"),
             pos=getpos(expr),
         )
 
@@ -1110,18 +1152,15 @@ class BlockHash(_SimpleBuiltinFunction):
 class RawLog:
 
     _id = "raw_log"
-    _inputs = [("topics", "*"), ("data", ('bytes32', 'bytes'))]
+    _inputs = [("topics", "*"), ("data", ("bytes32", "bytes"))]
 
     def fetch_call_return(self, node):
         validate_call_args(node, 2)
         if not isinstance(node.args[0], vy_ast.List) or len(node.args[0].elements) > 4:
-            raise InvalidType(
-                "Expecting a list of 0-4 topics as first argument", node.args[0]
-            )
+            raise InvalidType("Expecting a list of 0-4 topics as first argument", node.args[0])
         if node.args[0].elements:
             validate_expected_type(
-                node.args[0],
-                ArrayDefinition(Bytes32Definition(), len(node.args[0].elements))
+                node.args[0], ArrayDefinition(Bytes32Definition(), len(node.args[0].elements))
             )
         validate_expected_type(node.args[1], BytesAbstractType())
 
@@ -1132,37 +1171,43 @@ class RawLog:
         topics = []
         for elt in args[0].elements:
             arg = Expr.parse_value_expr(elt, context)
-            if not is_base_type(arg.typ, 'bytes32'):
+            if not is_base_type(arg.typ, "bytes32"):
                 raise TypeMismatch("Expecting a bytes32 argument as topic", elt)
             topics.append(arg)
-        if args[1].typ == BaseType('bytes32'):
-            placeholder = context.new_placeholder(BaseType('bytes32'))
+        if args[1].typ == BaseType("bytes32"):
+            placeholder = context.new_placeholder(BaseType("bytes32"))
             return LLLnode.from_list(
-                ['seq',
-                    ['mstore', placeholder, unwrap_location(args[1])],
-                    [
-                        "log" + str(len(topics)),
-                        placeholder,
-                        32,
-                    ] + topics], typ=None, pos=getpos(expr))
+                [
+                    "seq",
+                    ["mstore", placeholder, unwrap_location(args[1])],
+                    ["log" + str(len(topics)), placeholder, 32] + topics,
+                ],
+                typ=None,
+                pos=getpos(expr),
+            )
         if args[1].location == "memory":
-            return LLLnode.from_list([
-                "with", "_arr", args[1], [
-                    "log" + str(len(topics)),
-                    ["add", "_arr", 32],
-                    ["mload", "_arr"],
-                ] + topics
-            ], typ=None, pos=getpos(expr))
+            return LLLnode.from_list(
+                [
+                    "with",
+                    "_arr",
+                    args[1],
+                    ["log" + str(len(topics)), ["add", "_arr", 32], ["mload", "_arr"]] + topics,
+                ],
+                typ=None,
+                pos=getpos(expr),
+            )
         placeholder = context.new_placeholder(args[1].typ)
-        placeholder_node = LLLnode.from_list(placeholder, typ=args[1].typ, location='memory')
+        placeholder_node = LLLnode.from_list(placeholder, typ=args[1].typ, location="memory")
         copier = make_byte_array_copier(
             placeholder_node,
-            LLLnode.from_list('_sub', typ=args[1].typ, location=args[1].location),
+            LLLnode.from_list("_sub", typ=args[1].typ, location=args[1].location),
             pos=getpos(expr),
         )
         return LLLnode.from_list(
             [
-                "with", "_sub", args[1],
+                "with",
+                "_sub",
+                args[1],
                 [
                     "seq",
                     copier,
@@ -1170,7 +1215,8 @@ class RawLog:
                         "log" + str(len(topics)),
                         ["add", placeholder_node, 32],
                         ["mload", placeholder_node],
-                    ] + topics
+                    ]
+                    + topics,
                 ],
             ],
             typ=None,
@@ -1189,7 +1235,7 @@ class BitwiseAnd(_SimpleBuiltinFunction):
         for arg in node.args:
             if not isinstance(arg, vy_ast.Num):
                 raise UnfoldableNode
-            if arg.value < 0 or arg.value >= 2**256:
+            if arg.value < 0 or arg.value >= 2 ** 256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
 
         value = node.args[0].value & node.args[1].value
@@ -1198,7 +1244,7 @@ class BitwiseAnd(_SimpleBuiltinFunction):
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         return LLLnode.from_list(
-            ['and', args[0], args[1]], typ=BaseType('uint256'), pos=getpos(expr)
+            ["and", args[0], args[1]], typ=BaseType("uint256"), pos=getpos(expr)
         )
 
 
@@ -1213,7 +1259,7 @@ class BitwiseOr(_SimpleBuiltinFunction):
         for arg in node.args:
             if not isinstance(arg, vy_ast.Num):
                 raise UnfoldableNode
-            if arg.value < 0 or arg.value >= 2**256:
+            if arg.value < 0 or arg.value >= 2 ** 256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
 
         value = node.args[0].value | node.args[1].value
@@ -1222,7 +1268,7 @@ class BitwiseOr(_SimpleBuiltinFunction):
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         return LLLnode.from_list(
-            ['or', args[0], args[1]], typ=BaseType('uint256'), pos=getpos(expr)
+            ["or", args[0], args[1]], typ=BaseType("uint256"), pos=getpos(expr)
         )
 
 
@@ -1237,7 +1283,7 @@ class BitwiseXor(_SimpleBuiltinFunction):
         for arg in node.args:
             if not isinstance(arg, vy_ast.Num):
                 raise UnfoldableNode
-            if arg.value < 0 or arg.value >= 2**256:
+            if arg.value < 0 or arg.value >= 2 ** 256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
 
         value = node.args[0].value ^ node.args[1].value
@@ -1246,7 +1292,7 @@ class BitwiseXor(_SimpleBuiltinFunction):
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         return LLLnode.from_list(
-            ['xor', args[0], args[1]], typ=BaseType('uint256'), pos=getpos(expr)
+            ["xor", args[0], args[1]], typ=BaseType("uint256"), pos=getpos(expr)
         )
 
 
@@ -1262,15 +1308,15 @@ class BitwiseNot(_SimpleBuiltinFunction):
             raise UnfoldableNode
 
         value = node.args[0].value
-        if value < 0 or value >= 2**256:
+        if value < 0 or value >= 2 ** 256:
             raise InvalidLiteral("Value out of range for uint256", node.args[0])
 
-        value = (2**256-1) - value
+        value = (2 ** 256 - 1) - value
         return vy_ast.Int.from_node(node, value=value)
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
-        return LLLnode.from_list(['not', args[0]], typ=BaseType('uint256'), pos=getpos(expr))
+        return LLLnode.from_list(["not", args[0]], typ=BaseType("uint256"), pos=getpos(expr))
 
 
 class Shift(_SimpleBuiltinFunction):
@@ -1284,15 +1330,15 @@ class Shift(_SimpleBuiltinFunction):
         if [i for i in node.args if not isinstance(i, vy_ast.Num)]:
             raise UnfoldableNode
         value, shift = [i.value for i in node.args]
-        if value < 0 or value >= 2**256:
+        if value < 0 or value >= 2 ** 256:
             raise InvalidLiteral("Value out of range for uint256", node.args[0])
-        if shift < -2**127 or shift >= 2**127:
+        if shift < -(2 ** 127) or shift >= 2 ** 127:
             raise InvalidLiteral("Value out of range for int128", node.args[1])
 
         if shift < 0:
             value = value >> -shift
         else:
-            value = (value << shift) % (2**256)
+            value = (value << shift) % (2 ** 256)
         return vy_ast.Int.from_node(node, value=value)
 
     @validate_inputs
@@ -1300,34 +1346,29 @@ class Shift(_SimpleBuiltinFunction):
         if args[1].typ.is_literal:
             shift_abs = abs(args[1].value)
         else:
-            shift_abs = ['sub', 0, '_s']
+            shift_abs = ["sub", 0, "_s"]
 
         if version_check(begin="constantinople"):
-            left_shift = ['shl', '_s', '_v']
-            right_shift = ['shr', shift_abs, '_v']
+            left_shift = ["shl", "_s", "_v"]
+            right_shift = ["shr", shift_abs, "_v"]
         else:
             # If second argument is positive, left-shift so multiply by a power of two
             # If it is negative, divide by a power of two
             # node that if the abs of the second argument >= 256, then in the EVM
             # 2**(second arg) = 0, and multiplying OR dividing by 0 gives 0
-            left_shift = ['mul', '_v', ['exp', 2, '_s']]
-            right_shift = ['div', '_v', ['exp', 2, shift_abs]]
+            left_shift = ["mul", "_v", ["exp", 2, "_s"]]
+            right_shift = ["div", "_v", ["exp", 2, shift_abs]]
 
         if not args[1].typ.is_literal:
-            node_list = ['if', ['slt', '_s', 0], right_shift, left_shift]
+            node_list = ["if", ["slt", "_s", 0], right_shift, left_shift]
         elif args[1].value >= 0:
             node_list = left_shift
         else:
             node_list = right_shift
 
         return LLLnode.from_list(
-            [
-                'with', '_v', args[0], [
-                    'with', '_s', args[1],
-                        node_list,
-                ],
-            ],
-            typ=BaseType('uint256'),
+            ["with", "_v", args[0], ["with", "_s", args[1], node_list]],
+            typ=BaseType("uint256"),
             pos=getpos(expr),
         )
 
@@ -1344,7 +1385,7 @@ class _AddMulMod(_SimpleBuiltinFunction):
         for arg in node.args:
             if not isinstance(arg, vy_ast.Num):
                 raise UnfoldableNode
-            if arg.value < 0 or arg.value >= 2**256:
+            if arg.value < 0 or arg.value >= 2 ** 256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
 
         value = self._eval_fn(node.args[0].value, node.args[1].value) % node.args[2].value
@@ -1353,12 +1394,8 @@ class _AddMulMod(_SimpleBuiltinFunction):
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         return LLLnode.from_list(
-            [
-                'seq',
-                ['assert', args[2]],
-                [self._opcode, args[0], args[1], args[2]],
-            ],
-            typ=BaseType('uint256'),
+            ["seq", ["assert", args[2]], [self._opcode, args[0], args[1], args[2]]],
+            typ=BaseType("uint256"),
             pos=getpos(expr),
         )
 
@@ -1376,74 +1413,85 @@ class MulMod(_AddMulMod):
 
 
 def get_create_forwarder_to_bytecode():
-    from vyper.compile_lll import (
-        assembly_to_evm,
-        num_to_bytearray
-    )
+    from vyper.compile_lll import assembly_to_evm, num_to_bytearray
+
     code_a = [
-        'PUSH1', 0x33,
-        'PUSH1', 0x0c,
-        'PUSH1', 0x00,
-        'CODECOPY',
-        'PUSH1', 0x33,
-        'PUSH1', 0x00,
-        'RETURN',
-        'CALLDATASIZE',
-        'PUSH1', 0x00,
-        'PUSH1', 0x00,
-        'CALLDATACOPY',
-        'PUSH2', num_to_bytearray(0x1000),
-        'PUSH1', 0x00,
-        'CALLDATASIZE',
-        'PUSH1', 0x00,
-        'PUSH20',  # [address to delegate to]
+        "PUSH1",
+        0x33,
+        "PUSH1",
+        0x0C,
+        "PUSH1",
+        0x00,
+        "CODECOPY",
+        "PUSH1",
+        0x33,
+        "PUSH1",
+        0x00,
+        "RETURN",
+        "CALLDATASIZE",
+        "PUSH1",
+        0x00,
+        "PUSH1",
+        0x00,
+        "CALLDATACOPY",
+        "PUSH2",
+        num_to_bytearray(0x1000),
+        "PUSH1",
+        0x00,
+        "CALLDATASIZE",
+        "PUSH1",
+        0x00,
+        "PUSH20",  # [address to delegate to]
     ]
     code_b = [
-        'GAS',
-        'DELEGATECALL',
-        'PUSH1', 0x2c,  # jumpdest of whole program.
-        'JUMPI',
-        'PUSH1', 0x0,
-        'DUP1',
-        'REVERT',
-        'JUMPDEST',
-        'PUSH2', num_to_bytearray(0x1000),
-        'PUSH1', 0x00,
-        'RETURN'
+        "GAS",
+        "DELEGATECALL",
+        "PUSH1",
+        0x2C,  # jumpdest of whole program.
+        "JUMPI",
+        "PUSH1",
+        0x0,
+        "DUP1",
+        "REVERT",
+        "JUMPDEST",
+        "PUSH2",
+        num_to_bytearray(0x1000),
+        "PUSH1",
+        0x00,
+        "RETURN",
     ]
-    return assembly_to_evm(code_a)[0] + (b'\x00' * 20) + assembly_to_evm(code_b)[0]
+    return assembly_to_evm(code_a)[0] + (b"\x00" * 20) + assembly_to_evm(code_b)[0]
 
 
 class CreateForwarderTo(_SimpleBuiltinFunction):
 
     _id = "create_forwarder_to"
     _inputs = [("target", AddressDefinition())]
-    _kwargs = {'value': Optional('uint256', zero_value)}
+    _kwargs = {"value": Optional("uint256", zero_value)}
     _return_type = AddressDefinition()
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
-        value = kwargs['value']
+        value = kwargs["value"]
         if context.is_constant():
             raise ConstancyViolation(
-                f"Cannot make calls from {context.pp_constancy()}",
-                expr,
+                f"Cannot make calls from {context.pp_constancy()}", expr,
             )
         placeholder = context.new_placeholder(ByteArrayType(96))
 
         kode = get_create_forwarder_to_bytecode()
         high = bytes_to_int(kode[:32])
-        low = bytes_to_int((kode + b'\x00' * 32)[47:79])
+        low = bytes_to_int((kode + b"\x00" * 32)[47:79])
 
         return LLLnode.from_list(
             [
-                'seq',
-                ['mstore', placeholder, high],
-                ['mstore', ['add', placeholder, 27], ['mul', args[0], 2**96]],
-                ['mstore', ['add', placeholder, 47], low],
-                ['clamp_nonzero', ['create', value, placeholder, 96]],
+                "seq",
+                ["mstore", placeholder, high],
+                ["mstore", ["add", placeholder, 27], ["mul", args[0], 2 ** 96]],
+                ["mstore", ["add", placeholder, 47], low],
+                ["clamp_nonzero", ["create", value, placeholder, 96]],
             ],
-            typ=BaseType('address'),
+            typ=BaseType("address"),
             pos=getpos(expr),
             add_gas_estimate=11000,
         )
@@ -1451,7 +1499,7 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
 
 class _MinMax:
 
-    _inputs = [("a", ('int128', 'decimal', 'uint256')), ("b", ('int128', 'decimal', 'uint256'))]
+    _inputs = [("a", ("int128", "decimal", "uint256")), ("b", ("int128", "decimal", "uint256"))]
 
     def evaluate(self, node):
         validate_call_args(node, 2)
@@ -1461,9 +1509,11 @@ class _MinMax:
             raise UnfoldableNode
 
         left, right = (i.value for i in node.args)
-        if isinstance(left, Decimal) and (min(left, right) < -2**127 or max(left, right) >= 2**127):
+        if isinstance(left, Decimal) and (
+            min(left, right) < -(2 ** 127) or max(left, right) >= 2 ** 127
+        ):
             raise InvalidType("Decimal value is outside of allowable range", node)
-        if isinstance(left, int) and (min(left, right) < 0 and max(left, right) >= 2**127):
+        if isinstance(left, int) and (min(left, right) < 0 and max(left, right) >= 2 ** 127):
             raise TypeMismatch("Cannot perform action between dislike numeric types", node)
 
         value = self._eval_fn(left, right)
@@ -1473,8 +1523,7 @@ class _MinMax:
         validate_call_args(node, 2)
 
         types_list = get_common_types(
-            *node.args,
-            filter_fn=lambda x: isinstance(x, NumericAbstractType)
+            *node.args, filter_fn=lambda x: isinstance(x, NumericAbstractType)
         )
         if not types_list:
             raise TypeMismatch
@@ -1484,36 +1533,36 @@ class _MinMax:
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         def _can_compare_with_uint256(operand):
-            if operand.typ.typ == 'uint256':
+            if operand.typ.typ == "uint256":
                 return True
-            elif operand.typ.typ == 'int128' and operand.typ.is_literal and SizeLimits.in_bounds('uint256', operand.value):  # noqa: E501
+            elif (
+                operand.typ.typ == "int128"
+                and operand.typ.is_literal
+                and SizeLimits.in_bounds("uint256", operand.value)
+            ):  # noqa: E501
                 return True
             return False
 
         comparator = self._opcode
         left, right = args[0], args[1]
         if left.typ.typ == right.typ.typ:
-            if left.typ.typ != 'uint256':
+            if left.typ.typ != "uint256":
                 # if comparing like types that are not uint256, use SLT or SGT
-                comparator = f's{comparator}'
-            o = ['if', [comparator, '_l', '_r'], '_r', '_l']
+                comparator = f"s{comparator}"
+            o = ["if", [comparator, "_l", "_r"], "_r", "_l"]
             otyp = left.typ
             otyp.is_literal = False
         elif _can_compare_with_uint256(left) and _can_compare_with_uint256(right):
-            o = ['if', [comparator, '_l', '_r'], '_r', '_l']
-            if right.typ.typ == 'uint256':
+            o = ["if", [comparator, "_l", "_r"], "_r", "_l"]
+            if right.typ.typ == "uint256":
                 otyp = right.typ
             else:
                 otyp = left.typ
             otyp.is_literal = False
         else:
-            raise TypeMismatch(
-                f"Minmax types incompatible: {left.typ.typ} {right.typ.typ}"
-            )
+            raise TypeMismatch(f"Minmax types incompatible: {left.typ.typ} {right.typ.typ}")
         return LLLnode.from_list(
-            ['with', '_l', left, ['with', '_r', right, o]],
-            typ=otyp,
-            pos=getpos(expr),
+            ["with", "_l", left, ["with", "_r", right, o]], typ=otyp, pos=getpos(expr),
         )
 
 
@@ -1537,9 +1586,8 @@ class Sqrt(_SimpleBuiltinFunction):
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
-        from vyper.functions.utils import (
-            generate_inline_function,
-        )
+        from vyper.functions.utils import generate_inline_function
+
         arg = args[0]
         sqrt_code = """
 assert x >= 0.0
@@ -1558,38 +1606,29 @@ else:
         z = (x / z + z) / 2.0
         """
 
-        x_type = BaseType('decimal')
-        placeholder_copy = ['pass']
+        x_type = BaseType("decimal")
+        placeholder_copy = ["pass"]
         # Steal current position if variable is already allocated.
-        if arg.value == 'mload':
+        if arg.value == "mload":
             new_var_pos = arg.args[0]
         # Other locations need to be copied.
         else:
             new_var_pos = context.new_placeholder(x_type)
-            placeholder_copy = ['mstore', new_var_pos, arg]
+            placeholder_copy = ["mstore", new_var_pos, arg]
         # Create input variables.
-        variables = {
-            'x': VariableRecord(
-                name='x',
-                pos=new_var_pos,
-                typ=x_type,
-                mutable=False
-            )
-        }
+        variables = {"x": VariableRecord(name="x", pos=new_var_pos, typ=x_type, mutable=False)}
         # Generate inline LLL.
         new_ctx, sqrt_lll = generate_inline_function(
-            code=sqrt_code,
-            variables=variables,
-            memory_allocator=context.memory_allocator
+            code=sqrt_code, variables=variables, memory_allocator=context.memory_allocator
         )
         return LLLnode.from_list(
             [
-                'seq_unchecked',
+                "seq_unchecked",
                 placeholder_copy,  # load x variable
                 sqrt_lll,
-                ['mload', new_ctx.vars['z'].pos]  # unload z variable into the stack,
+                ["mload", new_ctx.vars["z"].pos],  # unload z variable into the stack,
             ],
-            typ=BaseType('decimal'),
+            typ=BaseType("decimal"),
             pos=getpos(expr),
         )
 
@@ -1611,43 +1650,43 @@ class Empty:
 
 
 DISPATCH_TABLE = {
-    'floor': Floor(),
-    'ceil': Ceil(),
-    'convert': Convert(),
-    'slice': Slice(),
-    'len': Len(),
-    'concat': Concat(),
-    'sha256': Sha256(),
-    'method_id': MethodID(),
-    'keccak256': Keccak256(),
-    'ecrecover': ECRecover(),
-    'ecadd': ECAdd(),
-    'ecmul': ECMul(),
-    'extract32': Extract32(),
-    'as_wei_value': AsWeiValue(),
-    'raw_call': RawCall(),
-    'blockhash': BlockHash(),
-    'bitwise_and': BitwiseAnd(),
-    'bitwise_or': BitwiseOr(),
-    'bitwise_xor': BitwiseXor(),
-    'bitwise_not': BitwiseNot(),
-    'uint256_addmod': AddMod(),
-    'uint256_mulmod': MulMod(),
-    'sqrt': Sqrt(),
-    'shift': Shift(),
-    'create_forwarder_to': CreateForwarderTo(),
-    'min': Min(),
-    'max': Max(),
-    'empty': Empty(),
+    "floor": Floor(),
+    "ceil": Ceil(),
+    "convert": Convert(),
+    "slice": Slice(),
+    "len": Len(),
+    "concat": Concat(),
+    "sha256": Sha256(),
+    "method_id": MethodID(),
+    "keccak256": Keccak256(),
+    "ecrecover": ECRecover(),
+    "ecadd": ECAdd(),
+    "ecmul": ECMul(),
+    "extract32": Extract32(),
+    "as_wei_value": AsWeiValue(),
+    "raw_call": RawCall(),
+    "blockhash": BlockHash(),
+    "bitwise_and": BitwiseAnd(),
+    "bitwise_or": BitwiseOr(),
+    "bitwise_xor": BitwiseXor(),
+    "bitwise_not": BitwiseNot(),
+    "uint256_addmod": AddMod(),
+    "uint256_mulmod": MulMod(),
+    "sqrt": Sqrt(),
+    "shift": Shift(),
+    "create_forwarder_to": CreateForwarderTo(),
+    "min": Min(),
+    "max": Max(),
+    "empty": Empty(),
 }
 
 STMT_DISPATCH_TABLE = {
-    'assert_modifiable': AssertModifiable(),
-    'send': Send(),
-    'selfdestruct': SelfDestruct(),
-    'raw_call': RawCall(),
-    'raw_log': RawLog(),
-    'create_forwarder_to': CreateForwarderTo(),
+    "assert_modifiable": AssertModifiable(),
+    "send": Send(),
+    "selfdestruct": SelfDestruct(),
+    "raw_call": RawCall(),
+    "raw_log": RawLog(),
+    "create_forwarder_to": CreateForwarderTo(),
 }
 
 BUILTIN_FUNCTIONS = {**STMT_DISPATCH_TABLE, **DISPATCH_TABLE}.keys()

@@ -1,5 +1,3 @@
-
-
 def test_test_slice(get_contract_with_gas_estimation):
     test_slice = """
 
@@ -24,7 +22,7 @@ def bar(inp1: bytes[10]) -> int128:
 
     assert c.bar(b"badminton") == 35
 
-    print('Passed slice test')
+    print("Passed slice test")
 
 
 def test_test_slice2(get_contract_with_gas_estimation):
@@ -40,7 +38,7 @@ def slice_tower_test(inp1: bytes[50]) -> bytes[50]:
     x = c.slice_tower_test(b"abcdefghijklmnopqrstuvwxyz1234")
     assert x == b"klmnopqrst", x
 
-    print('Passed advanced slice test')
+    print("Passed advanced slice test")
 
 
 def test_test_slice3(get_contract_with_gas_estimation):
@@ -69,7 +67,7 @@ def bar(inp1: bytes[50]) -> int128:
 
     assert c.bar(b"badminton") == 35
 
-    print('Passed storage slice test')
+    print("Passed storage slice test")
 
 
 def test_test_slice4(get_contract_with_gas_estimation, assert_tx_failed):
@@ -92,7 +90,7 @@ def foo(inp: bytes[10], start: int128, _len: int128) -> bytes[10]:
     assert_tx_failed(lambda: c.foo(b"badminton", 9, 1))
     assert_tx_failed(lambda: c.foo(b"badminton", 10, 0))
 
-    print('Passed slice edge case test')
+    print("Passed slice edge case test")
 
 
 def test_slice_at_end(get_contract):
@@ -105,4 +103,4 @@ def ret10_slice() -> bytes[10]:
     """
 
     c = get_contract(code)
-    assert c.ret10_slice() == b'A'
+    assert c.ret10_slice() == b"A"

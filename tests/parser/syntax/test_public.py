@@ -14,10 +14,10 @@ z: public(int128)
 @public
 def foo() -> int128:
     return self.x / self.y / self.z
-    """
+    """,
 ]
 
 
-@pytest.mark.parametrize('good_code', valid_list)
+@pytest.mark.parametrize("good_code", valid_list)
 def test_public_success(good_code):
     assert compiler.compile_code(good_code) is not None

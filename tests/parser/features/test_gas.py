@@ -14,7 +14,7 @@ def foo() -> uint256:
     assert c.foo(call={"gas": 50000}) < 50000
     assert c.foo(call={"gas": 50000}) > 25000
 
-    print('Passed gas test')
+    print("Passed gas test")
 
 
 def test_gas_estimate_repr():
@@ -27,5 +27,5 @@ def __init__():
     """
     parser_utils.LLLnode.repr_show_gas = True
     out = parse_to_lll(code)
-    assert '35261' in str(out)[:28]
+    assert "35261" in str(out)[:28]
     parser_utils.LLLnode.repr_show_gas = False

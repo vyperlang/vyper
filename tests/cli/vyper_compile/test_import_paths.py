@@ -30,18 +30,18 @@ SAME_FOLDER_IMPORT_STMT = [
 ]
 
 
-@pytest.mark.parametrize('import_stmt', SAME_FOLDER_IMPORT_STMT)
+@pytest.mark.parametrize("import_stmt", SAME_FOLDER_IMPORT_STMT)
 def test_import_same_folder(import_stmt, tmp_path):
-    tmp_path.joinpath('contracts').mkdir()
+    tmp_path.joinpath("contracts").mkdir()
 
-    foo_path = tmp_path.joinpath('contracts/foo.vy')
-    with foo_path.open('w') as fp:
+    foo_path = tmp_path.joinpath("contracts/foo.vy")
+    with foo_path.open("w") as fp:
         fp.write(FOO_CODE.format(import_stmt))
 
-    with tmp_path.joinpath('contracts/Bar.vy').open('w') as fp:
+    with tmp_path.joinpath("contracts/Bar.vy").open("w") as fp:
         fp.write(BAR_CODE)
 
-    assert compile_files([foo_path], ['combined_json'], root_folder=tmp_path)
+    assert compile_files([foo_path], ["combined_json"], root_folder=tmp_path)
 
 
 SUBFOLDER_IMPORT_STMT = [
@@ -54,19 +54,19 @@ SUBFOLDER_IMPORT_STMT = [
 ]
 
 
-@pytest.mark.parametrize('import_stmt', SUBFOLDER_IMPORT_STMT)
+@pytest.mark.parametrize("import_stmt", SUBFOLDER_IMPORT_STMT)
 def test_import_subfolder(import_stmt, tmp_path):
-    tmp_path.joinpath('contracts').mkdir()
+    tmp_path.joinpath("contracts").mkdir()
 
-    foo_path = tmp_path.joinpath('contracts/foo.vy')
-    with foo_path.open('w') as fp:
+    foo_path = tmp_path.joinpath("contracts/foo.vy")
+    with foo_path.open("w") as fp:
         fp.write(FOO_CODE.format(import_stmt))
 
-    tmp_path.joinpath('contracts/other').mkdir()
-    with tmp_path.joinpath('contracts/other/Bar.vy').open('w') as fp:
+    tmp_path.joinpath("contracts/other").mkdir()
+    with tmp_path.joinpath("contracts/other/Bar.vy").open("w") as fp:
         fp.write(BAR_CODE)
 
-    assert compile_files([foo_path], ['combined_json'], root_folder=tmp_path)
+    assert compile_files([foo_path], ["combined_json"], root_folder=tmp_path)
 
 
 OTHER_FOLDER_IMPORT_STMT = [
@@ -76,36 +76,36 @@ OTHER_FOLDER_IMPORT_STMT = [
 ]
 
 
-@pytest.mark.parametrize('import_stmt', OTHER_FOLDER_IMPORT_STMT)
+@pytest.mark.parametrize("import_stmt", OTHER_FOLDER_IMPORT_STMT)
 def test_import_other_folder(import_stmt, tmp_path):
-    tmp_path.joinpath('contracts').mkdir()
+    tmp_path.joinpath("contracts").mkdir()
 
-    foo_path = tmp_path.joinpath('contracts/foo.vy')
-    with foo_path.open('w') as fp:
+    foo_path = tmp_path.joinpath("contracts/foo.vy")
+    with foo_path.open("w") as fp:
         fp.write(FOO_CODE.format(import_stmt))
 
-    tmp_path.joinpath('interfaces').mkdir()
-    with tmp_path.joinpath('interfaces/Bar.vy').open('w') as fp:
+    tmp_path.joinpath("interfaces").mkdir()
+    with tmp_path.joinpath("interfaces/Bar.vy").open("w") as fp:
         fp.write(BAR_CODE)
 
-    assert compile_files([foo_path], ['combined_json'], root_folder=tmp_path)
+    assert compile_files([foo_path], ["combined_json"], root_folder=tmp_path)
 
 
 def test_import_parent_folder(tmp_path, assert_compile_failed):
-    tmp_path.joinpath('contracts').mkdir()
-    tmp_path.joinpath('contracts/baz').mkdir()
+    tmp_path.joinpath("contracts").mkdir()
+    tmp_path.joinpath("contracts/baz").mkdir()
 
-    foo_path = tmp_path.joinpath('contracts/baz/foo.vy')
-    with foo_path.open('w') as fp:
+    foo_path = tmp_path.joinpath("contracts/baz/foo.vy")
+    with foo_path.open("w") as fp:
         fp.write(FOO_CODE.format("from ... import Bar"))
 
-    with tmp_path.joinpath('Bar.vy').open('w') as fp:
+    with tmp_path.joinpath("Bar.vy").open("w") as fp:
         fp.write(BAR_CODE)
 
-    assert compile_files([foo_path], ['combined_json'], root_folder=tmp_path)
+    assert compile_files([foo_path], ["combined_json"], root_folder=tmp_path)
     # Cannot perform relative import outside of base folder
     with pytest.raises(FileNotFoundError):
-        compile_files([foo_path], ['combined_json'], root_folder=tmp_path.joinpath('contracts'))
+        compile_files([foo_path], ["combined_json"], root_folder=tmp_path.joinpath("contracts"))
 
 
 META_IMPORT_STMT = [
@@ -116,7 +116,7 @@ META_IMPORT_STMT = [
 ]
 
 
-@pytest.mark.parametrize('import_stmt', META_IMPORT_STMT)
+@pytest.mark.parametrize("import_stmt", META_IMPORT_STMT)
 def test_import_self_interface(import_stmt, tmp_path):
     # a contract can access it's derived interface by importing itself
     code = f"""
@@ -131,13 +131,13 @@ def be_known() -> uint256:
     return 42
     """
 
-    tmp_path.joinpath('contracts').mkdir()
+    tmp_path.joinpath("contracts").mkdir()
 
-    meta_path = tmp_path.joinpath('contracts/Meta.vy')
-    with meta_path.open('w') as fp:
+    meta_path = tmp_path.joinpath("contracts/Meta.vy")
+    with meta_path.open("w") as fp:
         fp.write(code)
 
-    assert compile_files([meta_path], ['combined_json'], root_folder=tmp_path)
+    assert compile_files([meta_path], ["combined_json"], root_folder=tmp_path)
 
 
 DERIVED_IMPORT_STMT_BAZ = [
@@ -151,8 +151,8 @@ DERIVED_IMPORT_STMT_FOO = [
 ]
 
 
-@pytest.mark.parametrize('import_stmt_baz', DERIVED_IMPORT_STMT_BAZ)
-@pytest.mark.parametrize('import_stmt_foo', DERIVED_IMPORT_STMT_FOO)
+@pytest.mark.parametrize("import_stmt_baz", DERIVED_IMPORT_STMT_BAZ)
+@pytest.mark.parametrize("import_stmt_foo", DERIVED_IMPORT_STMT_FOO)
 def test_derived_interface_imports(import_stmt_baz, import_stmt_foo, tmp_path):
     # contracts-as-interfaces should be able to contain import statements
     baz_code = f"""
@@ -167,17 +167,17 @@ def bar(_foo: address, _bar: address) -> uint256:
     return Foo(_foo).bar(_bar)
     """
 
-    with tmp_path.joinpath('Foo.vy').open('w') as fp:
+    with tmp_path.joinpath("Foo.vy").open("w") as fp:
         fp.write(FOO_CODE.format(import_stmt_foo))
 
-    with tmp_path.joinpath('Bar.vy').open('w') as fp:
+    with tmp_path.joinpath("Bar.vy").open("w") as fp:
         fp.write(BAR_CODE)
 
-    baz_path = tmp_path.joinpath('Baz.vy')
-    with baz_path.open('w') as fp:
+    baz_path = tmp_path.joinpath("Baz.vy")
+    with baz_path.open("w") as fp:
         fp.write(baz_code)
 
-    assert compile_files([baz_path], ['combined_json'], root_folder=tmp_path)
+    assert compile_files([baz_path], ["combined_json"], root_folder=tmp_path)
 
 
 def test_local_namespace(tmp_path):
@@ -192,49 +192,49 @@ def test_local_namespace(tmp_path):
 
     compile_paths = []
     for i, code in enumerate(codes):
-        path = tmp_path.joinpath(f'code{i}.vy')
-        with path.open('w') as fp:
+        path = tmp_path.joinpath(f"code{i}.vy")
+        with path.open("w") as fp:
             fp.write(code)
         compile_paths.append(path)
 
-    for file_name in ('foo.vy', 'bar.vy'):
-        with tmp_path.joinpath(file_name).open('w') as fp:
+    for file_name in ("foo.vy", "bar.vy"):
+        with tmp_path.joinpath(file_name).open("w") as fp:
             fp.write(BAR_CODE)
 
-    assert compile_files(compile_paths, ['combined_json'], root_folder=tmp_path)
+    assert compile_files(compile_paths, ["combined_json"], root_folder=tmp_path)
 
 
 def test_get_interface_file_path(tmp_path):
-    for file_name in ('foo.vy', 'foo.json', 'bar.vy', 'baz.json', 'potato'):
-        with tmp_path.joinpath(file_name).open('w') as fp:
+    for file_name in ("foo.vy", "foo.json", "bar.vy", "baz.json", "potato"):
+        with tmp_path.joinpath(file_name).open("w") as fp:
             fp.write("")
 
-    tmp_path.joinpath('interfaces').mkdir()
-    for file_name in ('interfaces/foo.json', 'interfaces/bar'):
-        with tmp_path.joinpath(file_name).open('w') as fp:
+    tmp_path.joinpath("interfaces").mkdir()
+    for file_name in ("interfaces/foo.json", "interfaces/bar"):
+        with tmp_path.joinpath(file_name).open("w") as fp:
             fp.write("")
 
-    base_paths = [tmp_path, tmp_path.joinpath('interfaces')]
-    assert get_interface_file_path(base_paths, 'foo') == tmp_path.joinpath('foo.vy')
-    assert get_interface_file_path(base_paths, 'bar') == tmp_path.joinpath('bar.vy')
-    assert get_interface_file_path(base_paths, 'baz') == tmp_path.joinpath('baz.json')
+    base_paths = [tmp_path, tmp_path.joinpath("interfaces")]
+    assert get_interface_file_path(base_paths, "foo") == tmp_path.joinpath("foo.vy")
+    assert get_interface_file_path(base_paths, "bar") == tmp_path.joinpath("bar.vy")
+    assert get_interface_file_path(base_paths, "baz") == tmp_path.joinpath("baz.json")
 
-    base_paths = [tmp_path.joinpath('interfaces'), tmp_path]
-    assert get_interface_file_path(base_paths, 'foo') == tmp_path.joinpath('interfaces/foo.json')
-    assert get_interface_file_path(base_paths, 'bar') == tmp_path.joinpath('bar.vy')
-    assert get_interface_file_path(base_paths, 'baz') == tmp_path.joinpath('baz.json')
+    base_paths = [tmp_path.joinpath("interfaces"), tmp_path]
+    assert get_interface_file_path(base_paths, "foo") == tmp_path.joinpath("interfaces/foo.json")
+    assert get_interface_file_path(base_paths, "bar") == tmp_path.joinpath("bar.vy")
+    assert get_interface_file_path(base_paths, "baz") == tmp_path.joinpath("baz.json")
 
     with pytest.raises(Exception):
-        get_interface_file_path(base_paths, 'potato')
+        get_interface_file_path(base_paths, "potato")
 
 
 def test_compile_outside_root_path(tmp_path):
-    foo_path = tmp_path.joinpath('foo.vy')
-    with foo_path.open('w') as fp:
-        fp.write(FOO_CODE.format('import bar as Bar'))
+    foo_path = tmp_path.joinpath("foo.vy")
+    with foo_path.open("w") as fp:
+        fp.write(FOO_CODE.format("import bar as Bar"))
 
-    bar_path = tmp_path.joinpath('bar.vy')
-    with bar_path.open('w') as fp:
+    bar_path = tmp_path.joinpath("bar.vy")
+    with bar_path.open("w") as fp:
         fp.write(BAR_CODE)
 
-    assert compile_files([foo_path, bar_path], ['combined_json'], root_folder=".")
+    assert compile_files([foo_path, bar_path], ["combined_json"], root_folder=".")

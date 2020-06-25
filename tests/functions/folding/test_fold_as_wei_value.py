@@ -9,18 +9,14 @@ denoms = [x for k in vy_fn.AsWeiValue.wei_denoms.keys() for x in k]
 
 
 st_decimals = st.decimals(
-    min_value=0,
-    max_value=2 ** 32,
-    allow_nan=False,
-    allow_infinity=False,
-    places=10,
+    min_value=0, max_value=2 ** 32, allow_nan=False, allow_infinity=False, places=10,
 )
 
 
 @pytest.mark.fuzzing
 @settings(max_examples=10, deadline=1000)
 @given(value=st_decimals)
-@pytest.mark.parametrize('denom', denoms)
+@pytest.mark.parametrize("denom", denoms)
 def test_decimal(get_contract, value, denom):
     source = f"""
 @public
@@ -39,7 +35,7 @@ def foo(a: decimal) -> uint256:
 @pytest.mark.fuzzing
 @settings(max_examples=10, deadline=1000)
 @given(value=st.integers(min_value=0, max_value=2 ** 128))
-@pytest.mark.parametrize('denom', denoms)
+@pytest.mark.parametrize("denom", denoms)
 def test_integer(get_contract, value, denom):
     source = f"""
 @public

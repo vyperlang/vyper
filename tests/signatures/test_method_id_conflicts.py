@@ -66,11 +66,11 @@ def gfah(): pass
 @public
 @constant
 def eexo(): pass
-    """
+    """,
 ]
 
 
-@pytest.mark.parametrize('failing_contract_code', FAILING_CONTRACTS)
+@pytest.mark.parametrize("failing_contract_code", FAILING_CONTRACTS)
 def test_method_id_conflicts(failing_contract_code):
     with pytest.raises(StructureException):
         compiler.compile_code(failing_contract_code)

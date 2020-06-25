@@ -26,9 +26,9 @@ def num_modulo_decimal() -> decimal:
 """
     c = get_contract_with_gas_estimation(code)
     assert c.num_modulo_num() == 1
-    assert c.decimal_modulo_decimal() == Decimal('.18')
-    assert c.decimal_modulo_num() == Decimal('.5')
-    assert c.num_modulo_decimal() == Decimal('.5')
+    assert c.decimal_modulo_decimal() == Decimal(".18")
+    assert c.decimal_modulo_num() == Decimal(".5")
+    assert c.num_modulo_decimal() == Decimal(".5")
 
 
 def test_modulo_with_input_of_zero(assert_tx_failed, get_contract_with_gas_estimation):
@@ -38,7 +38,7 @@ def foo(a: decimal, b: decimal) -> decimal:
     return a % b
 """
     c = get_contract_with_gas_estimation(code)
-    assert_tx_failed(lambda: c.foo(Decimal('1'), Decimal('0')))
+    assert_tx_failed(lambda: c.foo(Decimal("1"), Decimal("0")))
 
 
 def test_literals_vs_evm(get_contract):
@@ -90,7 +90,7 @@ def foo(a: int128) -> int128:
 @public
 def foo(a: decimal) -> decimal:
     return a % 0.0
-    """
+    """,
 ]
 
 

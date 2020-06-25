@@ -13,62 +13,95 @@ from vyper.exceptions import (
 
 fail_list = [
     # no value
-    ("""
+    (
+        """
 VAL: constant(uint256)
-    """, VariableDeclarationException),
+    """,
+        VariableDeclarationException,
+    ),
     # too many args
-    ("""
+    (
+        """
 VAL: constant(uint256, int128) = 12
-    """, ArgumentException),
+    """,
+        ArgumentException,
+    ),
     # invalid type
-    ("""
+    (
+        """
 VAL: constant(uint256) = "test"
-    """, InvalidType),
+    """,
+        InvalidType,
+    ),
     # invalid range
-    ("""
+    (
+        """
 VAL: constant(uint256) = -1
-    """, InvalidType),
+    """,
+        InvalidType,
+    ),
     # reserverd keyword
-    ("""
+    (
+        """
 wei: constant(uint256) = 1
-    """, VariableDeclarationException),
+    """,
+        VariableDeclarationException,
+    ),
     # duplicate constant name
-    ("""
+    (
+        """
 VAL: constant(uint256) = 11
 VAL: constant(uint256) = 11
-    """, NamespaceCollision),
+    """,
+        NamespaceCollision,
+    ),
     # bytearray too long.
-    ("""
+    (
+        """
 VAL: constant(bytes[4]) = b"testtest"
-    """, InvalidType),
+    """,
+        InvalidType,
+    ),
     # global with same name
-    ("""
+    (
+        """
 VAL: constant(bytes[4]) = b"t"
 VAL: uint256
-    """, VariableDeclarationException),
+    """,
+        VariableDeclarationException,
+    ),
     # signature variable with same name
-    ("""
+    (
+        """
 VAL: constant(bytes[4]) = b"t"
 
 @public
 def test(VAL: uint256):
     pass
-    """, NamespaceCollision),
-    ("""
+    """,
+        NamespaceCollision,
+    ),
+    (
+        """
 C1: constant(uint256) = block.number
-    """, ConstancyViolation),
+    """,
+        ConstancyViolation,
+    ),
     # cannot assign function result to a constant
-    ("""
+    (
+        """
 @public
 def foo() -> uint256:
     return 42
 
 c1: constant(uint256) = self.foo
-     """, ConstancyViolation)
+     """,
+        ConstancyViolation,
+    ),
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
+@pytest.mark.parametrize("bad_code", fail_list)
 def test_constants_fail(bad_code):
     if isinstance(bad_code, tuple):
         with raises(bad_code[1]):
@@ -161,6 +194,6 @@ MY_DECIMAL: constant(decimal) = -1e38
 ]
 
 
-@pytest.mark.parametrize('good_code', valid_list)
+@pytest.mark.parametrize("good_code", valid_list)
 def test_constant_success(good_code):
     assert compiler.compile_code(good_code) is not None

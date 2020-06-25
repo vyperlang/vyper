@@ -25,9 +25,9 @@ def allowance(_owner: address, _spender: address) -> (uint256, uint256):
     return 1, 2
     """
 
-    out = compile_code(code, ['interface'])
-    out = out['interface']
-    code_pass = '\n'.join(code.split('\n')[:-2] + ['    pass'])  # replace with a pass statement.
+    out = compile_code(code, ["interface"])
+    out = out["interface"]
+    code_pass = "\n".join(code.split("\n")[:-2] + ["    pass"])  # replace with a pass statement.
 
     assert code_pass.strip() == out.strip()
 
@@ -56,8 +56,8 @@ contract One:
     def test(_owner: address): modifying
     """
 
-    out = compile_codes({'one.vy': code}, ['external_interface'])['one.vy']
-    out = out['external_interface']
+    out = compile_codes({"one.vy": code}, ["external_interface"])["one.vy"]
+    out = out["external_interface"]
 
     assert interface.strip() == out.strip()
 
@@ -74,15 +74,12 @@ def test() -> bool:
     return True
     """
 
-    assert_compile_failed(
-        lambda: compile_code(code),
-        InterfaceViolation
-    )
+    assert_compile_failed(lambda: compile_code(code), InterfaceViolation)
 
 
 def test_builtin_interfaces_parse():
-    assert len(extract_sigs({'type': 'vyper', 'code': ERC20.interface_code})) == 8
-    assert len(extract_sigs({'type': 'vyper', 'code': ERC721.interface_code})) == 13
+    assert len(extract_sigs({"type": "vyper", "code": ERC20.interface_code})) == 8
+    assert len(extract_sigs({"type": "vyper", "code": ERC721.interface_code})) == 13
 
 
 def test_extract_sigs_ignores_imports():
@@ -94,10 +91,10 @@ def foo() -> uint256:
     pass
     """
 
-    base = extract_sigs({'type': 'vyper', 'code': interface_code.format("")})
+    base = extract_sigs({"type": "vyper", "code": interface_code.format("")})
 
     for stmt in ("import x as x", "from x import y"):
-        sigs = extract_sigs({'type': 'vyper', 'code': interface_code.format(stmt)})
+        sigs = extract_sigs({"type": "vyper", "code": interface_code.format(stmt)})
         assert [type(i) for i in base] == [type(i) for i in sigs]
 
 
@@ -112,12 +109,7 @@ def bar() -> uint256:
     pass
     """
 
-    interface_codes = {
-        'FooBarInterface': {
-            'type': 'vyper',
-            'code': interface_code
-        }
-    }
+    interface_codes = {"FooBarInterface": {"type": "vyper", "code": interface_code}}
 
     code = """
 import a as FooBarInterface
@@ -154,20 +146,20 @@ def foo() -> uint256:
 
 VALID_IMPORT_CODE = [
     # import statement, import path without suffix
-    ("import a as Foo", 'a'),
-    ("import b.a as Foo", 'b/a'),
-    ("import Foo as Foo", 'Foo'),
-    ("from a import Foo", 'a/Foo'),
-    ("from b.a import Foo", 'b/a/Foo'),
-    ("from .a import Foo", './a/Foo'),
-    ("from ..a import Foo", '../a/Foo'),
+    ("import a as Foo", "a"),
+    ("import b.a as Foo", "b/a"),
+    ("import Foo as Foo", "Foo"),
+    ("from a import Foo", "a/Foo"),
+    ("from b.a import Foo", "b/a/Foo"),
+    ("from .a import Foo", "./a/Foo"),
+    ("from ..a import Foo", "../a/Foo"),
 ]
 
 
-@pytest.mark.parametrize('code', VALID_IMPORT_CODE)
+@pytest.mark.parametrize("code", VALID_IMPORT_CODE)
 def test_extract_file_interface_imports(code):
 
-    assert extract_file_interface_imports(code[0]) == {'Foo': code[1]}
+    assert extract_file_interface_imports(code[0]) == {"Foo": code[1]}
 
 
 BAD_IMPORT_CODE = [
@@ -181,12 +173,9 @@ BAD_IMPORT_CODE = [
 ]
 
 
-@pytest.mark.parametrize('code', BAD_IMPORT_CODE)
+@pytest.mark.parametrize("code", BAD_IMPORT_CODE)
 def test_extract_file_interface_imports_raises(code, assert_compile_failed):
-    assert_compile_failed(
-        lambda: extract_file_interface_imports(code),
-        StructureException
-    )
+    assert_compile_failed(lambda: extract_file_interface_imports(code), StructureException)
 
 
 def test_external_call_to_interface(w3, get_contract):
@@ -219,9 +208,9 @@ def test():
     """
 
     erc20 = get_contract(token_code)
-    test_c = get_contract(code, *[erc20.address], interface_codes={
-        'TokenCode': {'type': 'vyper', 'code': token_code}
-    })
+    test_c = get_contract(
+        code, *[erc20.address], interface_codes={"TokenCode": {"type": "vyper", "code": token_code}}
+    )
 
     sender = w3.eth.accounts[0]
     assert erc20.balanceOf(sender) == 0
@@ -257,12 +246,9 @@ def test():
     """
 
     erc20 = get_contract(token_code)
-    test_c = get_contract(code, *[erc20.address], interface_codes={
-        'TokenCode': {
-            'type': 'vyper',
-            'code': token_code
-        }
-    })
+    test_c = get_contract(
+        code, *[erc20.address], interface_codes={"TokenCode": {"type": "vyper", "code": token_code}}
+    )
 
     sender = w3.eth.accounts[0]
     assert erc20.balanceOf(sender) == 0
@@ -288,12 +274,7 @@ def balanceOf(owner: address) -> uint256:
 def balanceOf(owner: address) -> uint256:
     pass
     """
-    interface_codes = {
-        "BalanceOf": {
-            'type': 'vyper',
-            'code': interface_code
-        }
-    }
+    interface_codes = {"BalanceOf": {"type": "vyper", "code": interface_code}}
     c = get_contract(code, interface_codes=interface_codes)
 
     assert c.balanceOf(w3.eth.accounts[0]) == w3.toWei(1, "ether")
@@ -307,28 +288,12 @@ def foo() -> uint256:
     """
 
     global_interface_codes = {
-        'FooInterface': {
-            'type': 'vyper',
-            'code': interface_code
-        },
-        'BarInterface': {
-            'type': 'vyper',
-            'code': interface_code
-        }
+        "FooInterface": {"type": "vyper", "code": interface_code},
+        "BarInterface": {"type": "vyper", "code": interface_code},
     }
     local_interface_codes = {
-        'FooContract': {
-            'FooInterface': {
-                'type': 'vyper',
-                'code': interface_code
-            },
-        },
-        'BarContract': {
-            'BarInterface': {
-                'type': 'vyper',
-                'code': interface_code
-            }
-        }
+        "FooContract": {"FooInterface": {"type": "vyper", "code": interface_code}},
+        "BarContract": {"BarInterface": {"type": "vyper", "code": interface_code}},
     }
 
     code = """
@@ -341,10 +306,7 @@ def foo() -> uint256:
     return 1
     """
 
-    codes = {
-        'FooContract': code.format('FooInterface'),
-        'BarContract': code.format('BarInterface')
-    }
+    codes = {"FooContract": code.format("FooInterface"), "BarContract": code.format("BarInterface")}
 
     global_compiled = compile_codes(codes, interface_codes=global_interface_codes)
     local_compiled = compile_codes(codes, interface_codes=local_interface_codes)
@@ -364,10 +326,7 @@ def foo() -> uint256 :
 def bar() -> uint256:
     return Bar(self).foo()
 """
-    assert_compile_failed(
-        lambda: compile_code(code),
-        StructureException
-    )
+    assert_compile_failed(lambda: compile_code(code), StructureException)
 
 
 def test_self_interface_via_storage_raises(get_contract, assert_tx_failed):
@@ -411,14 +370,14 @@ def bar(a: address) -> uint256:
 
 
 type_str_params = [
-    ('int128', -33),
-    ('uint256', 42),
-    ('bool', True),
-    ('address', "0x1234567890123456789012345678901234567890"),
-    ('bytes32', b"bytes32bytes32bytes32bytes32poop"),
-    ('decimal', Decimal("3.1337")),
-    ('bytes[4]', b"newp"),
-    ('string[6]', "potato"),
+    ("int128", -33),
+    ("uint256", 42),
+    ("bool", True),
+    ("address", "0x1234567890123456789012345678901234567890"),
+    ("bytes32", b"bytes32bytes32bytes32bytes32poop"),
+    ("decimal", Decimal("3.1337")),
+    ("bytes[4]", b"newp"),
+    ("string[6]", "potato"),
 ]
 
 interface_test_code = """
@@ -433,16 +392,16 @@ def test_json(a: {0}) -> {0}:
 def test_json_interface_implements(type_str):
     code = interface_test_code.format(type_str)
 
-    abi = compile_code(code, ['abi'])['abi']
+    abi = compile_code(code, ["abi"])["abi"]
     code = f"import jsonabi as jsonabi\nimplements: jsonabi\n{code}"
-    compile_code(code, interface_codes={'jsonabi': {'type': 'json', 'code': abi}})
+    compile_code(code, interface_codes={"jsonabi": {"type": "json", "code": abi}})
 
 
 @pytest.mark.parametrize("type_str,value", type_str_params)
 def test_json_interface_calls(get_contract, type_str, value):
     code = interface_test_code.format(type_str)
 
-    abi = compile_code(code, ['abi'])['abi']
+    abi = compile_code(code, ["abi"])["abi"]
     c1 = get_contract(code)
 
     code = f"""
@@ -453,5 +412,5 @@ import jsonabi as jsonabi
 def test_call(a: address, b: {type_str}) -> {type_str}:
     return jsonabi(a).test_json(b)
     """
-    c2 = get_contract(code, interface_codes={'jsonabi': {'type': 'json', 'code': abi}})
+    c2 = get_contract(code, interface_codes={"jsonabi": {"type": "json", "code": abi}})
     assert c2.test_call(c1.address, value) == value

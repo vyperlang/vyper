@@ -38,8 +38,8 @@ def foo(bar: bytes[5]) -> uint256:
     """
 
     c = get_contract_with_gas_estimation(test_success)
-    assert c.foo(b'\x00\x00\x00\x00\x00') == 0
-    assert c.foo(b'\x00\x07\x5B\xCD\x15') == 123456789
+    assert c.foo(b"\x00\x00\x00\x00\x00") == 0
+    assert c.foo(b"\x00\x07\x5B\xCD\x15") == 123456789
 
     test_success = """
 @public
@@ -48,8 +48,8 @@ def foo(bar: bytes[32]) -> uint256:
     """
 
     c = get_contract_with_gas_estimation(test_success)
-    assert c.foo(b'\x00' * 32) == 0
-    assert c.foo(b'\xff' * 32) == ((2**256) - 1)
+    assert c.foo(b"\x00" * 32) == 0
+    assert c.foo(b"\xff" * 32) == ((2 ** 256) - 1)
 
     # Test overflow bytes input for conversion
     test_fail = """
@@ -58,10 +58,7 @@ def foo(bar: bytes[33]) -> uint256:
     return convert(bar, uint256)
     """
 
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(test_fail),
-        InvalidLiteral
-    )
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(test_fail), InvalidLiteral)
 
     test_fail = """
 @public
@@ -70,10 +67,7 @@ def foobar() -> uint256:
     return convert(barfoo, uint256)
     """
 
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(test_fail),
-        InvalidLiteral
-    )
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(test_fail), InvalidLiteral)
 
 
 def test_convert_from_address(w3, get_contract):
@@ -118,8 +112,8 @@ def conv_min_literal() -> uint256:
     assert c.conv1(a) == int(a, 0)
     assert c.conv2() == 663969929716095361663590611662499625636445838238
     assert c.conv3() == 663969929716095361663590611662499625636445838238
-    assert c.conv_max_stor() == (2**160) - 1
-    assert c.conv_max_literal() == (2**160) - 1
+    assert c.conv_max_stor() == (2 ** 160) - 1
+    assert c.conv_max_literal() == (2 ** 160) - 1
     assert c.conv_min_stor() == 0
     assert c.conv_min_literal() == 0
 
@@ -210,19 +204,16 @@ def goomar() -> uint256:
     assert c.goomar() == 0
 
 
-def test_convert_from_negative_decimal(assert_compile_failed,
-                                       assert_tx_failed,
-                                       get_contract_with_gas_estimation):
+def test_convert_from_negative_decimal(
+    assert_compile_failed, assert_tx_failed, get_contract_with_gas_estimation
+):
     code = """
 @public
 def foo() -> uint256:
     return convert(-27.2319, uint256)
     """
 
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code),
-        InvalidLiteral
-    )
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidLiteral)
 
     code = """
 @public
@@ -230,10 +221,7 @@ def foo() -> uint256:
     return convert(-(-(-27.2319)), uint256)
     """
 
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code),
-        InvalidLiteral
-    )
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidLiteral)
 
     code = """
 bar: decimal
@@ -245,6 +233,4 @@ def foobar() -> uint256:
     """
 
     c = get_contract_with_gas_estimation(code)
-    assert_tx_failed(
-        lambda: c.foobar()
-    )
+    assert_tx_failed(lambda: c.foobar())

@@ -9,13 +9,16 @@ from vyper.exceptions import (
 )
 
 fail_list = [
-    ("""
+    (
+        """
 @public
 def baa():
     x: bytes[50] = b""
     y: bytes[50] = b""
     z: bytes[50] = x + y
-    """, InvalidOperation),
+    """,
+        InvalidOperation,
+    ),
     """
 @public
 def baa():
@@ -52,28 +55,37 @@ def foo(x: bytes[100]) -> int128:
 def foo(x: int128) -> bytes[75]:
     return x
     """,
-    ("""
+    (
+        """
 @public
 def foo() -> bytes[10]:
     x: bytes[10] = '0x1234567890123456789012345678901234567890'
     x = 0x1234567890123456789012345678901234567890
     return x
-    """, InvalidType),
-    ("""
+    """,
+        InvalidType,
+    ),
+    (
+        """
 @public
 def foo() -> bytes[10]:
     return "badmintonzz"
-    """, InvalidType),
-    ("""
+    """,
+        InvalidType,
+    ),
+    (
+        """
 @public
 def test() -> bytes[1]:
     a: bytes[1] = 0b0000001  # needs multiple of 8 bits.
     return a
-    """, SyntaxException)
+    """,
+        SyntaxException,
+    ),
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
+@pytest.mark.parametrize("bad_code", fail_list)
 def test_bytes_fail(bad_code):
     if isinstance(bad_code, tuple):
         with pytest.raises(bad_code[1]):
@@ -98,10 +110,10 @@ def foo(x: bytes[100]) -> bytes[150]:
 @public
 def baa():
     x: bytes[50] = b""
-    """
+    """,
 ]
 
 
-@pytest.mark.parametrize('good_code', valid_list)
+@pytest.mark.parametrize("good_code", valid_list)
 def test_bytes_success(good_code):
     assert compiler.compile_code(good_code) is not None

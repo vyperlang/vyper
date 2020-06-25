@@ -29,7 +29,7 @@ def bar(arg1: address, arg2: int128) -> int128:
     c2 = get_contract(contract_2)
 
     assert c2.bar(c.address, 1) == 1
-    print('Successfully executed an external contract call')
+    print("Successfully executed an external contract call")
 
 
 def test_complicated_external_contract_calls(get_contract, get_contract_with_gas_estimation):
@@ -64,7 +64,7 @@ def bar(arg1: address) -> int128:
     c2 = get_contract(contract_2)
 
     assert c2.bar(c.address) == lucky_number
-    print('Successfully executed a complicated external contract call')
+    print("Successfully executed a complicated external contract call")
 
 
 def test_external_contract_calls_with_bytes(get_contract, get_contract_with_gas_estimation):
@@ -86,7 +86,7 @@ def get_array(arg1: address) -> bytes[3]:
 """
 
     c2 = get_contract(contract_2)
-    assert c2.get_array(c.address) == b'dog'
+    assert c2.get_array(c.address) == b"dog"
 
 
 def test_external_contract_call_state_change(get_contract):
@@ -114,12 +114,12 @@ def set_lucky(arg1: address, arg2: int128):
     assert c.lucky() == 0
     c2.set_lucky(c.address, lucky_number, transact={})
     assert c.lucky() == lucky_number
-    print('Successfully executed an external contract call state change')
+    print("Successfully executed an external contract call state change")
 
 
 def test_constant_external_contract_call_cannot_change_state(
-        assert_compile_failed,
-        get_contract_with_gas_estimation):
+    assert_compile_failed, get_contract_with_gas_estimation
+):
     c = """
 contract Foo:
     def set_lucky(_lucky: int128) -> int128: modifying
@@ -134,11 +134,9 @@ def set_lucky_expr(arg1: address, arg2: int128):
 def set_lucky_stmt(arg1: address, arg2: int128) -> int128:
     return Foo(arg1).set_lucky(arg2)
     """
-    assert_compile_failed(
-            lambda: get_contract_with_gas_estimation(c),
-            ConstancyViolation)
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(c), ConstancyViolation)
 
-    print('Successfully blocked an external contract call from a constant function')
+    print("Successfully blocked an external contract call from a constant function")
 
 
 def test_external_contract_can_be_changed_based_on_address(get_contract):
@@ -180,8 +178,8 @@ def set_lucky(arg1: address, arg2: int128):
     assert c.lucky() == lucky_number_1
     assert c2.lucky() == lucky_number_2
     print(
-        'Successfully executed multiple external contract calls to different '
-        'contracts based on address'
+        "Successfully executed multiple external contract calls to different "
+        "contracts based on address"
     )
 
 
@@ -208,7 +206,7 @@ def bar(arg1: address) -> int128:
     c2 = get_contract(contract_2)
 
     assert c2.bar(c.address) == lucky_number
-    print('Successfully executed an external contract call with public globals')
+    print("Successfully executed an external contract call with public globals")
 
 
 def test_external_contract_calls_with_multiple_contracts(get_contract):
@@ -248,7 +246,7 @@ def __init__(arg1: address):
 
     c3 = get_contract(contract_3, *[c2.address])
     assert c3.best_number() == lucky_number
-    print('Successfully executed a multiple external contract calls')
+    print("Successfully executed a multiple external contract calls")
 
 
 def test_invalid_external_contract_call_to_the_same_contract(assert_tx_failed, get_contract):
@@ -584,16 +582,16 @@ def get_lucky(amount_to_send: uint256) -> int128:
     c2.set_contract(c1.address, transact={})
 
     # Send some eth
-    assert c2.get_lucky(0, call={'value': 500}) == 1
-    c2.get_lucky(0, transact={'value': 500})
+    assert c2.get_lucky(0, call={"value": 500}) == 1
+    c2.get_lucky(0, transact={"value": 500})
     # Contract 1 received money.
     assert c1.get_balance() == 500
     assert w3.eth.getBalance(c1.address) == 500
     assert w3.eth.getBalance(c2.address) == 0
 
     # Send subset of amount
-    assert c2.get_lucky(250, call={'value': 500}) == 1
-    c2.get_lucky(250, transact={'value': 500})
+    assert c2.get_lucky(250, call={"value": 500}) == 1
+    c2.get_lucky(250, transact={"value": 500})
 
     # Contract 1 received more money.
     assert c1.get_balance() == 750
@@ -646,9 +644,7 @@ def get_lucky(amount_to_send: int128) -> int128:
     return self.bar_contract.get_lucky(gass=1)
     """
 
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(contract_1), ArgumentException
-    )
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), ArgumentException)
 
 
 def test_invalid_contract_declaration(assert_compile_failed, get_contract_with_gas_estimation):
@@ -661,9 +657,7 @@ bar_contract: Barr
 
     """
 
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(contract_1), UnknownType
-    )
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), UnknownType)
 
 
 FAILING_CONTRACTS_STRUCTURE_EXCEPTION = [
@@ -693,11 +687,11 @@ contract Bar:
 @public
 def foo(a: address):
     Bar(a).bar(1)
-    """
+    """,
 ]
 
 
-@pytest.mark.parametrize('bad_code', FAILING_CONTRACTS_STRUCTURE_EXCEPTION)
+@pytest.mark.parametrize("bad_code", FAILING_CONTRACTS_STRUCTURE_EXCEPTION)
 def test_bad_code_struct_exc(assert_compile_failed, get_contract_with_gas_estimation, bad_code):
 
     assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), ArgumentException)
@@ -742,7 +736,7 @@ def get_lucky(amount_to_send: uint256):
     c2.set_contract(c1.address, transact={})
 
     # Send some eth
-    c2.get_lucky(0, transact={'value': 500})
+    c2.get_lucky(0, transact={"value": 500})
 
     # Contract 1 received money.
     assert c1.get_balance() == 500
@@ -750,7 +744,7 @@ def get_lucky(amount_to_send: uint256):
     assert w3.eth.getBalance(c2.address) == 0
 
     # Send subset of amount
-    c2.get_lucky(250, transact={'value': 500})
+    c2.get_lucky(250, transact={"value": 500})
 
     # Contract 1 received more money.
     assert c1.get_balance() == 750

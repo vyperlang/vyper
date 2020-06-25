@@ -21,34 +21,29 @@ from vyper.typing import InterfaceImports
 from vyper.utils import LOADED_LIMITS
 
 # TODO remove this check
-if not hasattr(vy_ast, 'AnnAssign'):
+if not hasattr(vy_ast, "AnnAssign"):
     raise Exception("Requires python 3.6 or higher for annotation support")
 
 # Header code
-STORE_CALLDATA: List[Any] = \
-        ['seq',
-            # check that calldatasize is at least 4, otherwise
-            # calldataload will load zeros (cf. yellow paper).
-            ['if', ['lt', 'calldatasize', 4],
-                ['goto', 'fallback']],
-            ['mstore', 28, ['calldataload', 0]]]
+STORE_CALLDATA: List[Any] = [
+    "seq",
+    # check that calldatasize is at least 4, otherwise
+    # calldataload will load zeros (cf. yellow paper).
+    ["if", ["lt", "calldatasize", 4], ["goto", "fallback"]],
+    ["mstore", 28, ["calldataload", 0]],
+]
 # Store limit constants at fixed addresses in memory.
 LIMIT_MEMORY_SET: List[Any] = [
-    ['mstore', pos, limit_size]
-    for pos, limit_size in LOADED_LIMITS.items()
+    ["mstore", pos, limit_size] for pos, limit_size in LOADED_LIMITS.items()
 ]
 
 
 def func_init_lll():
-    return LLLnode.from_list(
-        STORE_CALLDATA + LIMIT_MEMORY_SET, typ=None
-    )
+    return LLLnode.from_list(STORE_CALLDATA + LIMIT_MEMORY_SET, typ=None)
 
 
 def init_func_init_lll():
-    return LLLnode.from_list(
-        ['seq'] + LIMIT_MEMORY_SET, typ=None
-    )
+    return LLLnode.from_list(["seq"] + LIMIT_MEMORY_SET, typ=None)
 
 
 def parse_events(sigs, global_ctx):
@@ -71,47 +66,43 @@ def parse_external_contracts(external_contracts, global_ctx):
         for _def in _contract_defs:
             constant = False
             # test for valid call type keyword.
-            if len(_def.body) == 1 and \
-               isinstance(_def.body[0], vy_ast.Expr) and \
-               isinstance(_def.body[0].value, vy_ast.Name) and \
-               _def.body[0].value.id in ('modifying', 'constant'):
-                constant = True if _def.body[0].value.id == 'constant' else False
+            if (
+                len(_def.body) == 1
+                and isinstance(_def.body[0], vy_ast.Expr)
+                and isinstance(_def.body[0].value, vy_ast.Name)
+                and _def.body[0].value.id in ("modifying", "constant")
+            ):
+                constant = True if _def.body[0].value.id == "constant" else False
             else:
-                raise StructureException('constant or modifying call type must be specified', _def)
+                raise StructureException("constant or modifying call type must be specified", _def)
             # Recognizes already-defined structs
             sig = FunctionSignature.from_definition(
                 _def,
                 contract_def=True,
                 constant_override=constant,
                 custom_structs=global_ctx._structs,
-                constants=global_ctx._constants
+                constants=global_ctx._constants,
             )
             contract[sig.name] = sig
         external_contracts[_contractname] = contract
 
     for interface_name, interface in global_ctx._interfaces.items():
         external_contracts[interface_name] = {
-            sig.name: sig
-            for sig in interface
-            if isinstance(sig, FunctionSignature)
+            sig.name: sig for sig in interface if isinstance(sig, FunctionSignature)
         }
 
     return external_contracts
 
 
-def parse_other_functions(o,
-                          otherfuncs,
-                          sigs,
-                          external_contracts,
-                          origcode,
-                          global_ctx,
-                          default_function):
-    sub = ['seq', func_init_lll()]
+def parse_other_functions(
+    o, otherfuncs, sigs, external_contracts, origcode, global_ctx, default_function
+):
+    sub = ["seq", func_init_lll()]
     add_gas = func_init_lll().gas
 
     for _def in otherfuncs:
         sub.append(
-            parse_function(_def, {**{'self': sigs}, **external_contracts}, origcode, global_ctx)
+            parse_function(_def, {**{"self": sigs}, **external_contracts}, origcode, global_ctx)
         )
         sub[-1].total_gas += add_gas
         add_gas += 30
@@ -122,16 +113,13 @@ def parse_other_functions(o,
     # Add fallback function
     if default_function:
         default_func = parse_function(
-            default_function[0],
-            {**{'self': sigs}, **external_contracts},
-            origcode,
-            global_ctx,
+            default_function[0], {**{"self": sigs}, **external_contracts}, origcode, global_ctx,
         )
         fallback = default_func
     else:
-        fallback = LLLnode.from_list(['revert', 0, 0], typ=None, annotation='Default function')
-    sub.append(['seq_unchecked', ['label', 'fallback'], fallback])
-    o.append(['return', 0, ['lll', sub, 0]])
+        fallback = LLLnode.from_list(["revert", 0, 0], typ=None, annotation="Default function")
+    sub.append(["seq_unchecked", ["label", "fallback"], fallback])
+    o.append(["return", 0, ["lll", sub, 0]])
     return o, sub
 
 
@@ -157,15 +145,12 @@ def parse_tree_to_lll(source_code: str, global_ctx: GlobalContext) -> Tuple[LLLn
     defaultfunc = [_def for _def in global_ctx._defs if is_default_func(_def)]
     # Regular functions
     otherfuncs = [
-        _def
-        for _def
-        in global_ctx._defs
-        if not is_initializer(_def) and not is_default_func(_def)
+        _def for _def in global_ctx._defs if not is_initializer(_def) and not is_default_func(_def)
     ]
     sigs: dict = {}
     external_contracts: dict = {}
     # Create the main statement
-    o = ['seq']
+    o = ["seq"]
     if global_ctx._events:
         sigs = parse_events(sigs, global_ctx)
     if global_ctx._contracts or global_ctx._interfaces:
@@ -173,23 +158,16 @@ def parse_tree_to_lll(source_code: str, global_ctx: GlobalContext) -> Tuple[LLLn
     # If there is an init func...
     if initfunc:
         o.append(init_func_init_lll())
-        o.append(parse_function(
-            initfunc[0],
-            {**{'self': sigs}, **external_contracts},
-            source_code,
-            global_ctx,
-        ))
+        o.append(
+            parse_function(
+                initfunc[0], {**{"self": sigs}, **external_contracts}, source_code, global_ctx,
+            )
+        )
 
     # If there are regular functions...
     if otherfuncs or defaultfunc:
         o, runtime = parse_other_functions(
-            o,
-            otherfuncs,
-            sigs,
-            external_contracts,
-            source_code,
-            global_ctx,
-            defaultfunc
+            o, otherfuncs, sigs, external_contracts, source_code, global_ctx, defaultfunc
         )
     else:
         runtime = o.copy()
@@ -201,9 +179,7 @@ def parse_tree_to_lll(source_code: str, global_ctx: GlobalContext) -> Tuple[LLLn
 
 
 def parse_to_lll(
-    source_code: str,
-    runtime_only: bool = False,
-    interface_codes: Optional[InterfaceImports] = None
+    source_code: str, runtime_only: bool = False, interface_codes: Optional[InterfaceImports] = None
 ) -> LLLnode:
     vyper_module = vy_ast.parse_to_ast(source_code)
     global_ctx = GlobalContext.get_global_context(vyper_module, interface_codes=interface_codes)

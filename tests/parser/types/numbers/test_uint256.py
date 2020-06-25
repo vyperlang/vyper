@@ -1,4 +1,3 @@
-
 def test_uint256_code(assert_tx_failed, get_contract_with_gas_estimation):
     uint256_code = """
 @public
@@ -92,13 +91,13 @@ def _uint256_mulmod(x: uint256, y: uint256, z: uint256) -> uint256:
     assert_tx_failed(lambda: c._uint256_mod(3, 0))
     assert c._uint256_addmod(1, 2, 2) == 1
     assert c._uint256_addmod(32, 2, 32) == 2
-    assert c._uint256_addmod((2**256) - 1, 0, 2) == 1
-    assert c._uint256_addmod(2**255, 2**255, 6) == 4
+    assert c._uint256_addmod((2 ** 256) - 1, 0, 2) == 1
+    assert c._uint256_addmod(2 ** 255, 2 ** 255, 6) == 4
     assert_tx_failed(lambda: c._uint256_addmod(1, 2, 0))
     assert c._uint256_mulmod(3, 1, 2) == 1
     assert c._uint256_mulmod(200, 3, 601) == 600
-    assert c._uint256_mulmod(2**255, 1, 3) == 2
-    assert c._uint256_mulmod(2**255, 2, 6) == 4
+    assert c._uint256_mulmod(2 ** 255, 1, 3) == 2
+    assert c._uint256_mulmod(2 ** 255, 2, 6) == 4
     assert_tx_failed(lambda: c._uint256_mulmod(2, 2, 0))
 
 
@@ -114,9 +113,9 @@ def _uint256_exp(x: uint256, y: uint256) -> uint256:
     assert c._uint256_exp(2, 0) == 1
     assert c._uint256_exp(2, 1) == 2
     assert c._uint256_exp(2, 3) == 8
-    assert_tx_failed(lambda: c._uint256_exp(2**128, 2))
-    assert c._uint256_exp(2**64, 2) == 2**128
-    assert c._uint256_exp(7**23, 3) == 7**69
+    assert_tx_failed(lambda: c._uint256_exp(2 ** 128, 2))
+    assert c._uint256_exp(2 ** 64, 2) == 2 ** 128
+    assert c._uint256_exp(7 ** 23, 3) == 7 ** 69
 
 
 def test_modmul(get_contract_with_gas_estimation):
@@ -199,5 +198,5 @@ def minimum() -> uint256:
     """
 
     c = get_contract_with_gas_estimation(code)
-    assert c.maximum() == 2**256 - 1
+    assert c.maximum() == 2 ** 256 - 1
     assert c.minimum() == 0

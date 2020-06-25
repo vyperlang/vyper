@@ -27,8 +27,12 @@ class EventSignature:
         pos = 0
 
         check_valid_varname(
-            name, global_ctx._structs, global_ctx._constants,
-            pos=code, error_prefix="Event name invalid. ", exc=EventDeclarationException
+            name,
+            global_ctx._structs,
+            global_ctx._constants,
+            pos=code,
+            error_prefix="Event name invalid. ",
+            exc=EventDeclarationException,
         )
 
         # Determine the arguments, expects something of the form def foo(arg1: num, arg2: num ...
@@ -41,24 +45,29 @@ class EventSignature:
             for i in range(len(keys)):
                 typ = values[i]
                 if not isinstance(keys[i], vy_ast.Name):
-                    raise TypeCheckFailure('Invalid key type, expected a valid name.')
+                    raise TypeCheckFailure("Invalid key type, expected a valid name.")
                 if not isinstance(typ, (vy_ast.Name, vy_ast.Call, vy_ast.Subscript)):
-                    raise TypeCheckFailure('Invalid event argument type.')
+                    raise TypeCheckFailure("Invalid event argument type.")
                 if isinstance(typ, vy_ast.Call) and not isinstance(typ.func, vy_ast.Name):
-                    raise TypeCheckFailure('Invalid event argument type')
+                    raise TypeCheckFailure("Invalid event argument type")
                 arg = keys[i].id
                 arg_item = keys[i]
                 is_indexed = False
 
                 # Check to see if argument is a topic
-                if isinstance(typ, vy_ast.Call) and typ.func.id == 'indexed':
+                if isinstance(typ, vy_ast.Call) and typ.func.id == "indexed":
                     typ = values[i].args[0]
                     indexed_list.append(True)
                     topics_count += 1
                     is_indexed = True
                 else:
                     indexed_list.append(False)
-                if isinstance(typ, vy_ast.Subscript) and getattr(typ.value, 'id', None) == 'bytes' and typ.slice.value.n > 32 and is_indexed:  # noqa: E501
+                if (
+                    isinstance(typ, vy_ast.Subscript)
+                    and getattr(typ.value, "id", None) == "bytes"
+                    and typ.slice.value.n > 32
+                    and is_indexed
+                ):  # noqa: E501
                     raise EventDeclarationException("Indexed arguments are limited to 32 bytes")
                 if topics_count > 4:
                     raise TypeCheckFailure("Too many indexed arguments")
@@ -82,8 +91,15 @@ class EventSignature:
                     pos += ceil32(typ.slice.value.n)
                 else:
                     pos += get_size_of_type(parsed_type) * 32
-        sig = name + '(' + ','.join([canonicalize_type(arg.typ, indexed_list[pos]) for pos, arg in enumerate(args)]) + ')'  # noqa F812
-        event_id = bytes_to_int(keccak256(bytes(sig, 'utf-8')))
+        sig = (
+            name
+            + "("
+            + ",".join(
+                [canonicalize_type(arg.typ, indexed_list[pos]) for pos, arg in enumerate(args)]
+            )
+            + ")"
+        )  # noqa F812
+        event_id = bytes_to_int(keccak256(bytes(sig, "utf-8")))
         return cls(name, args, indexed_list, event_id, sig)
 
     @iterable_cast(dict)
@@ -95,11 +111,10 @@ class EventSignature:
     def to_abi_dict(self):
         abi_dict = {
             "name": self.name,
-            "inputs": [
-                self.to_abi_event_dict(arg, pos)
-                for pos, arg in enumerate(self.args)
-            ] if self.args else [],
+            "inputs": [self.to_abi_event_dict(arg, pos) for pos, arg in enumerate(self.args)]
+            if self.args
+            else [],
             "anonymous": False,
-            "type": "event"
+            "type": "event",
         }
         return abi_dict

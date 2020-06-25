@@ -65,7 +65,7 @@ def foo():
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
+@pytest.mark.parametrize("bad_code", fail_list)
 def test_function_declaration_exception(bad_code):
     with pytest.raises(ArgumentException):
         compiler.compile_code(bad_code)

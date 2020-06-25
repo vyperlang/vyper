@@ -5,7 +5,7 @@ from vyper.exceptions import EvmVersionException, InvalidType, TypeMismatch
 from vyper.opcodes import EVM_VERSIONS
 
 
-@pytest.mark.parametrize('evm_version', list(EVM_VERSIONS))
+@pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
 def test_evm_version(evm_version):
     code = """
 @public
@@ -21,11 +21,14 @@ def foo():
 
 
 fail_list = [
-    ("""
+    (
+        """
 @public
 def foo() -> int128[2]:
     return [3,chain.id]
-    """, InvalidType),
+    """,
+        InvalidType,
+    ),
     """
 @public
 def foo() -> decimal:
@@ -66,7 +69,7 @@ def foo(inp: bytes[10]) -> bytes[3]:
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
+@pytest.mark.parametrize("bad_code", fail_list)
 def test_chain_fail(bad_code):
 
     if isinstance(bad_code, tuple):
@@ -93,7 +96,7 @@ def check_chain_id(c: uint256) -> bool:
 ]
 
 
-@pytest.mark.parametrize('good_code', valid_list)
+@pytest.mark.parametrize("good_code", valid_list)
 def test_chain_success(good_code):
     assert compiler.compile_code(good_code, evm_version="istanbul") is not None
 

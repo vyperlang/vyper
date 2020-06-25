@@ -13,7 +13,7 @@ def foo() -> uint256:
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
+@pytest.mark.parametrize("bad_code", fail_list)
 def test_extract32_fail(bad_code):
 
     with raises(TypeMismatch):
@@ -39,10 +39,10 @@ x: bytes[100]
 def foo() -> uint256:
     self.x = b"cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc"
     return extract32(self.x, 1, type=uint256)
-"""
+""",
 ]
 
 
-@pytest.mark.parametrize('good_code', valid_list)
+@pytest.mark.parametrize("good_code", valid_list)
 def test_extract32_success(good_code):
     assert compiler.compile_code(good_code) is not None

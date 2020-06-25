@@ -1,4 +1,3 @@
-
 import pytest
 from pytest import raises
 
@@ -49,7 +48,7 @@ def foo(choice: bool):
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
+@pytest.mark.parametrize("bad_code", fail_list)
 def test_fail_undeclared(bad_code):
 
     with raises(UndeclaredDefinition):
@@ -67,7 +66,7 @@ def foo():
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list_collision)
+@pytest.mark.parametrize("bad_code", fail_list_collision)
 def test_fail_collision(bad_code):
 
     with raises(NamespaceCollision):
@@ -91,10 +90,10 @@ def foo(choice: bool):
     else:
         a: uint256 = 42
     a: bool = True
-    """
+    """,
 ]
 
 
-@pytest.mark.parametrize('good_code', valid_list)
+@pytest.mark.parametrize("good_code", valid_list)
 def test_valid_blockscope(good_code):
     assert compiler.compile_code(good_code) is not None

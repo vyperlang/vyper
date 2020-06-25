@@ -50,9 +50,7 @@ def test_invalid_assign(assert_compile_failed, get_contract_with_gas_estimation)
 def foo(x: int128):
     x = 5
 """
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code), ConstancyViolation
-    )
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ConstancyViolation)
 
 
 def test_invalid_augassign(assert_compile_failed, get_contract_with_gas_estimation):
@@ -61,9 +59,7 @@ def test_invalid_augassign(assert_compile_failed, get_contract_with_gas_estimati
 def foo(x: int128):
     x += 5
 """
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code), ConstancyViolation
-    )
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ConstancyViolation)
 
 
 def test_valid_literal_increment(get_contract_with_gas_estimation):
@@ -95,9 +91,7 @@ def foo3(y: uint256) -> uint256:
     assert c.foo3(11) == 12
 
 
-def test_invalid_uin256_assignment(
-    assert_compile_failed, get_contract_with_gas_estimation
-):
+def test_invalid_uin256_assignment(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
 storx: uint256
 
@@ -125,9 +119,7 @@ def foo2() -> uint256:
     assert c.foo2() == 5
 
 
-def test_calculate_literals_invalid(
-    assert_compile_failed, get_contract_with_gas_estimation
-):
+def test_calculate_literals_invalid(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
 @public
 def foo2() -> uint256:
@@ -135,9 +127,7 @@ def foo2() -> uint256:
     x = 3 ^ 3  # invalid operator
     return x
 """
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code), SyntaxException
-    )
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), SyntaxException)
 
 
 # See #838. Confirm that nested keys and structs work properly.
@@ -267,14 +257,10 @@ def foo():
 def test_invalid_implicit_conversions(
     contract, assert_compile_failed, get_contract_with_gas_estimation,
 ):
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(contract), TypeMismatch
-    )
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(contract), TypeMismatch)
 
 
-def test_invalid_nonetype_assignment(
-    assert_compile_failed, get_contract_with_gas_estimation
-):
+def test_invalid_nonetype_assignment(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
 @private
 def bar():
@@ -284,6 +270,4 @@ def bar():
 def foo():
     ret : bool = self.bar()
 """
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code), InvalidType
-    )
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidType)

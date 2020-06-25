@@ -30,7 +30,7 @@ def foo():
 ]
 
 
-@pytest.mark.parametrize('bad_code', call_violation_list)
+@pytest.mark.parametrize("bad_code", call_violation_list)
 def test_call_violation_exception(bad_code):
     with raises(CallViolation):
         compiler.compile_code(bad_code)

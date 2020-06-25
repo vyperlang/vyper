@@ -8,16 +8,13 @@ from vyper.utils import SizeLimits
 
 getcontext().prec = 168
 DECIMAL_PLACES = 10
-DECIMAL_RANGE = [
-    Decimal('0.' + '0' * d + '2')
-    for d in range(0, DECIMAL_PLACES)
-]
+DECIMAL_RANGE = [Decimal("0." + "0" * d + "2") for d in range(0, DECIMAL_PLACES)]
 
 
 def decimal_truncate(val, decimal_places=DECIMAL_PLACES, rounding=ROUND_FLOOR):
-    q = '0'
+    q = "0"
     if decimal_places != 0:
-        q += '.' + '0' * decimal_places
+        q += "." + "0" * decimal_places
 
     return val.quantize(Decimal(q), rounding=rounding)
 
@@ -33,7 +30,7 @@ def test() -> decimal:
     return sqrt(2.0)
     """
     c = get_contract_with_gas_estimation(code)
-    assert c.test() == decimal_sqrt(Decimal('2'))
+    assert c.test() == decimal_sqrt(Decimal("2"))
 
 
 def test_sqrt_variable(get_contract_with_gas_estimation):
@@ -50,14 +47,14 @@ def test2() -> decimal:
 
     c = get_contract_with_gas_estimation(code)
 
-    val = Decimal('33.33')
+    val = Decimal("33.33")
     assert c.test(val) == decimal_sqrt(val)
 
-    val = Decimal('0.1')
+    val = Decimal("0.1")
     assert c.test(val) == decimal_sqrt(val)
 
-    assert c.test(Decimal('0.0')) == Decimal('0.0')
-    assert c.test2() == decimal_sqrt(Decimal('44.001'))
+    assert c.test(Decimal("0.0")) == Decimal("0.0")
+    assert c.test2() == decimal_sqrt(Decimal("44.001"))
 
 
 def test_sqrt_storage(get_contract_with_gas_estimation):
@@ -76,11 +73,11 @@ def test2() -> decimal:
     """
 
     c = get_contract_with_gas_estimation(code)
-    val = Decimal('12.21')
+    val = Decimal("12.21")
     assert c.test(val) == decimal_sqrt(val + 1)
-    val = Decimal('100.01')
+    val = Decimal("100.01")
     assert c.test(val) == decimal_sqrt(val + 1)
-    assert c.test2() == decimal_sqrt(Decimal('444.44'))
+    assert c.test2() == decimal_sqrt(Decimal("444.44"))
 
 
 def test_sqrt_inline_memory_correct(get_contract_with_gas_estimation):
@@ -97,18 +94,18 @@ def test(a: decimal) -> (decimal, decimal, decimal, decimal, decimal, string[100
 
     c = get_contract_with_gas_estimation(code)
 
-    val = Decimal('2.1')
+    val = Decimal("2.1")
     assert c.test(val) == [
         val,
-        Decimal('1'),
-        Decimal('2'),
-        Decimal('3'),
+        Decimal("1"),
+        Decimal("2"),
+        Decimal("3"),
         decimal_sqrt(val),
-        'hello world'
+        "hello world",
     ]
 
 
-@pytest.mark.parametrize('value', DECIMAL_RANGE)
+@pytest.mark.parametrize("value", DECIMAL_RANGE)
 def test_sqrt_sub_decimal_places(value, get_contract):
     code = """
 @public
@@ -123,7 +120,7 @@ def test(a: decimal) -> decimal:
     assert vyper_sqrt == actual_sqrt
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope="module")
 def sqrt_contract(get_contract_module):
     code = """
 @public
@@ -134,7 +131,7 @@ def test(a: decimal) -> decimal:
     return c
 
 
-@pytest.mark.parametrize('value', [Decimal(0), Decimal(SizeLimits.MAXNUM)])
+@pytest.mark.parametrize("value", [Decimal(0), Decimal(SizeLimits.MAXNUM)])
 def test_sqrt_bounds(sqrt_contract, value):
     vyper_sqrt = sqrt_contract.test(value)
     actual_sqrt = decimal_sqrt(value)
@@ -144,16 +141,12 @@ def test_sqrt_bounds(sqrt_contract, value):
 @pytest.mark.fuzzing
 @hypothesis.given(
     value=hypothesis.strategies.decimals(
-        min_value=Decimal(0),
-        max_value=Decimal(SizeLimits.MAXNUM),
-        places=DECIMAL_PLACES
+        min_value=Decimal(0), max_value=Decimal(SizeLimits.MAXNUM), places=DECIMAL_PLACES
     )
 )
 @hypothesis.example(Decimal(SizeLimits.MAXNUM))
 @hypothesis.example(Decimal(0))
-@hypothesis.settings(
-    deadline=1000,
-)
+@hypothesis.settings(deadline=1000,)
 def test_sqrt_valid_range(sqrt_contract, value):
     vyper_sqrt = sqrt_contract.test(value)
     actual_sqrt = decimal_sqrt(value)
@@ -163,16 +156,12 @@ def test_sqrt_valid_range(sqrt_contract, value):
 @pytest.mark.fuzzing
 @hypothesis.given(
     value=hypothesis.strategies.decimals(
-        min_value=Decimal(SizeLimits.MINNUM),
-        max_value=Decimal('-1E10'),
-        places=DECIMAL_PLACES
+        min_value=Decimal(SizeLimits.MINNUM), max_value=Decimal("-1E10"), places=DECIMAL_PLACES
     )
 )
-@hypothesis.settings(
-    deadline=400,
-)
+@hypothesis.settings(deadline=400,)
 @hypothesis.example(Decimal(SizeLimits.MINNUM))
-@hypothesis.example(Decimal('-1E10'))
+@hypothesis.example(Decimal("-1E10"))
 def test_sqrt_invalid_range(sqrt_contract, value):
     with pytest.raises(TransactionFailed):
         sqrt_contract.test(value)

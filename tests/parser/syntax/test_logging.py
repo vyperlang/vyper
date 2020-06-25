@@ -20,17 +20,20 @@ def foo():
     x: decimal[4] = [0.0, 0.0, 0.0, 0.0]
     log.Bar(x)
     """,
-    ("""
+    (
+        """
 Test: event({ n: uint256 })
 
 @public
 def test():
     log.Test(-7)
-   """, InvalidType),
+   """,
+        InvalidType,
+    ),
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
+@pytest.mark.parametrize("bad_code", fail_list)
 def test_logging_fail(bad_code):
 
     if isinstance(bad_code, tuple):

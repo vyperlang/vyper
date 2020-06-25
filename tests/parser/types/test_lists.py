@@ -133,7 +133,7 @@ def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
 
     c = get_contract_with_gas_estimation(array_accessor)
     assert c.test_array(2, 7, 1, 8) == 2718
-    print('Passed basic array accessor test')
+    print("Passed basic array accessor test")
 
 
 def test_two_d_array_accessor(get_contract_with_gas_estimation):
@@ -150,7 +150,7 @@ def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
 
     c = get_contract_with_gas_estimation(two_d_array_accessor)
     assert c.test_array(2, 7, 1, 8) == 2718
-    print('Passed complex array accessor test')
+    print("Passed complex array accessor test")
 
 
 def test_returns_lists(get_contract_with_gas_estimation):
@@ -238,20 +238,14 @@ def fail() -> uint256:
     xs: uint256[3] = [1,2,3]
     return xs[3]
     """
-    assert_compile_failed(
-            lambda: get_contract_with_gas_estimation(code),
-            ArrayIndexException
-            )
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ArrayIndexException)
     code = """
 @public
 def fail() -> uint256:
     xs: uint256[3] = [1,2,3]
     return xs[-1]
     """
-    assert_compile_failed(
-            lambda: get_contract_with_gas_estimation(code),
-            ArrayIndexException
-            )
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ArrayIndexException)
 
 
 def test_compile_time_bounds_check(get_contract_with_gas_estimation, assert_compile_failed):
@@ -261,7 +255,4 @@ def parse_list_fail():
     xs: uint256[3] = [2**255, 1, 3]
     pass
     """
-    assert_compile_failed(
-            lambda: get_contract_with_gas_estimation(code),
-            TypeMismatch
-            )
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatch)

@@ -43,17 +43,17 @@ def test_arithmetic(a: int128) -> int128:
     assert c.test_zaddress("0x0000000000000000000000000000000000000000") is True
     assert c.test_zaddress("0x0000000000000000000000000000000000000012") is False
 
-    assert c.test_int128(2**127 - 1) == [True, False]
-    assert c.test_int128(-2**127) == [False, True]
+    assert c.test_int128(2 ** 127 - 1) == [True, False]
+    assert c.test_int128(-(2 ** 127)) == [False, True]
     assert c.test_int128(0) == [False, False]
 
-    assert c.test_decimal(Decimal(2**127 - 1)) == [True, False]
-    assert c.test_decimal(Decimal('-170141183460469231731687303715884105728')) == [False, True]
-    assert c.test_decimal(Decimal('0.1')) == [False, False]
+    assert c.test_decimal(Decimal(2 ** 127 - 1)) == [True, False]
+    assert c.test_decimal(Decimal("-170141183460469231731687303715884105728")) == [False, True]
+    assert c.test_decimal(Decimal("0.1")) == [False, False]
 
-    assert c.test_uint256(2**256 - 1) is True
+    assert c.test_uint256(2 ** 256 - 1) is True
 
-    assert c.test_arithmetic(5000) == 2**127 - 1 - 5000
+    assert c.test_arithmetic(5000) == 2 ** 127 - 1 - 5000
 
 
 def test_builtin_constants_assignment(get_contract_with_gas_estimation):
@@ -96,17 +96,17 @@ def zoo() -> uint256:
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.foo() == 2**127 - 1
-    assert c.goo() == -2**127
+    assert c.foo() == 2 ** 127 - 1
+    assert c.goo() == -(2 ** 127)
 
     assert c.hoo() == b"\x00" * 32
 
     assert c.joo() is None
 
-    assert c.koo() == Decimal(2**127 - 1)
-    assert c.loo() == Decimal(-2**127)
+    assert c.koo() == Decimal(2 ** 127 - 1)
+    assert c.loo() == Decimal(-(2 ** 127))
 
-    assert c.zoo() == 2**256 - 1
+    assert c.zoo() == 2 ** 256 - 1
 
 
 def test_custom_constants(get_contract):
@@ -144,7 +144,7 @@ def is_owner() -> bool:
     """
     c = get_contract(code)
 
-    assert c.get_owner() == '0x0000000000000000000000000000000000000012'
+    assert c.get_owner() == "0x0000000000000000000000000000000000000012"
     assert c.is_owner() is False
 
 
@@ -178,8 +178,8 @@ def test() -> uint256:
     return 2**SOME_CONSTANT * SOME_PRIME
     """
 
-    lll = compile_code(code, ['ir'])['ir']
-    assert search_for_sublist(lll, ['mstore', [0], [2**12 * some_prime]])
+    lll = compile_code(code, ["ir"])["ir"]
+    assert search_for_sublist(lll, ["mstore", [0], [2 ** 12 * some_prime]])
 
 
 def test_constant_lists(get_contract):
@@ -204,7 +204,7 @@ def contains(a: int128) -> bool:
 
     c = get_contract(code)
 
-    assert c.test()[-2:] == b'\x11\x23'
+    assert c.test()[-2:] == b"\x11\x23"
 
     assert c.contains(55) is True
     assert c.contains(44) is True

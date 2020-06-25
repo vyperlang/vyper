@@ -259,9 +259,7 @@ def foo():
     """,
     ],
 )
-def test_clear_literals(
-    contract, assert_compile_failed, get_contract_with_gas_estimation
-):
+def test_clear_literals(contract, assert_compile_failed, get_contract_with_gas_estimation):
     assert_compile_failed(lambda: get_contract_with_gas_estimation(contract), Exception)
 
 

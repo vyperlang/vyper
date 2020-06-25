@@ -77,7 +77,7 @@ def foo():
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
+@pytest.mark.parametrize("bad_code", fail_list)
 def test_invalid_literal_exception(bad_code):
     with raises(InvalidLiteral):
         compiler.compile_code(bad_code)

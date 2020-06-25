@@ -4,16 +4,15 @@ from web3.exceptions import ValidationError
 TOKEN_NAME = "Vypercoin"
 TOKEN_SYMBOL = "FANG"
 TOKEN_DECIMALS = 18
-TOKEN_INITIAL_SUPPLY = (21 * 10 ** 6)
+TOKEN_INITIAL_SUPPLY = 21 * 10 ** 6
 TOKEN_TOTAL_SUPPLY = TOKEN_INITIAL_SUPPLY * (10 ** TOKEN_DECIMALS)
 
 
 @pytest.fixture
 def erc20(get_contract):
-    with open('examples/tokens/ERC20.vy') as f:
+    with open("examples/tokens/ERC20.vy") as f:
         contract = get_contract(
-            f.read(),
-            *[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY]
+            f.read(), *[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY]
         )
     return contract
 
@@ -97,7 +96,7 @@ def test_call_transfer(w3, erc20, erc20_caller, assert_tx_failed):
     # Negative transfer value.
     assert_tx_failed(
         function_to_test=lambda: erc20_caller.transfer(w3.eth.accounts[1], -1),
-        exception=ValidationError
+        exception=ValidationError,
     )
 
 

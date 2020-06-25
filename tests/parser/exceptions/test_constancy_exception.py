@@ -101,7 +101,7 @@ def b():
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
+@pytest.mark.parametrize("bad_code", fail_list)
 def test_constancy_violation_exception(bad_code):
     with raises(ConstancyViolation):
         compiler.compile_code(bad_code)

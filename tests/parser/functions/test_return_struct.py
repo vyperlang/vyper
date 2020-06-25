@@ -13,10 +13,10 @@ def test() -> Voter:
     return a
     """
 
-    out = compile_code(code, ['abi'])
-    abi = out['abi'][0]
+    out = compile_code(code, ["abi"])
+    abi = out["abi"][0]
 
-    assert abi['name'] == 'test'
+    assert abi["name"] == "test"
 
     c = get_contract_with_gas_estimation(code)
 

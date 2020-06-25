@@ -133,9 +133,7 @@ def pre_parse(code: str) -> Tuple[ClassTypes, str]:
                 previous_keyword = string
 
             if (typ, string) == (OP, ";"):
-                raise SyntaxException(
-                    "Semi-colon statements not allowed", code, start[0], start[1]
-                )
+                raise SyntaxException("Semi-colon statements not allowed", code, start[0], start[1])
             result.extend(toks)
     except TokenError as e:
         raise SyntaxException(e.args[0], code, e.args[1][0], e.args[1][1]) from e

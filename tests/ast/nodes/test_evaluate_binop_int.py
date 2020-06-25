@@ -70,8 +70,7 @@ def foo(a: uint256, b: uint256) -> uint256:
 @pytest.mark.fuzzing
 @settings(max_examples=50, deadline=1000)
 @given(
-    left=st.integers(min_value=2, max_value=245),
-    right=st.integers(min_value=0, max_value=16),
+    left=st.integers(min_value=2, max_value=245), right=st.integers(min_value=0, max_value=16),
 )
 @example(left=0, right=0)
 @example(left=0, right=1)
@@ -93,9 +92,7 @@ def foo(a: uint256, b: uint256) -> uint256:
 @pytest.mark.fuzzing
 @settings(max_examples=50, deadline=1000)
 @given(
-    values=st.lists(
-        st.integers(min_value=-256, max_value=256), min_size=2, max_size=10
-    ),
+    values=st.lists(st.integers(min_value=-256, max_value=256), min_size=2, max_size=10),
     ops=st.lists(st.sampled_from("+-*/%"), min_size=11, max_size=11),
 )
 def test_binop_nested(get_contract, assert_tx_failed, values, ops):

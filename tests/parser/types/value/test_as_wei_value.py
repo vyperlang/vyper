@@ -23,8 +23,8 @@ def return_2pow64_wei() -> uint256:
 
     c = get_contract_with_gas_estimation(test_wei)
 
-    assert c.return_2_finney() == 2 * 10**15
-    assert c.return_3_finney() == 3 * 10**15, c.return_3_finney()
-    assert c.return_2p5_ether() == 2.5 * 10**18
-    assert c.return_3p5_ether() == 3.5 * 10**18
-    assert c.return_2pow64_wei() == 2**64
+    assert c.return_2_finney() == 2 * 10 ** 15
+    assert c.return_3_finney() == 3 * 10 ** 15, c.return_3_finney()
+    assert c.return_2p5_ether() == 2.5 * 10 ** 18
+    assert c.return_3p5_ether() == 3.5 * 10 ** 18
+    assert c.return_2pow64_wei() == 2 ** 64

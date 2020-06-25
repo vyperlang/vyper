@@ -17,8 +17,8 @@ def test_ecrecover2() -> address:
 
     c = get_contract_with_gas_estimation(ecrecover_test)
 
-    h = b'\x35' * 32
-    local_account = Account.privateKeyToAccount(b'\x46' * 32)
+    h = b"\x35" * 32
+    local_account = Account.privateKeyToAccount(b"\x46" * 32)
     sig = local_account.signHash(h)
 
     assert c.test_ecrecover(h, sig.v, sig.r, sig.s) == local_account.address

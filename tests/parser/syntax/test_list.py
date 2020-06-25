@@ -9,160 +9,232 @@ from vyper.exceptions import (
 )
 
 fail_list = [
-    ("""
+    (
+        """
 @public
 def foo():
     x: int128[3] = [1, 2, 3]
     x = 4
-    """, InvalidType),
-    ("""
+    """,
+        InvalidType,
+    ),
+    (
+        """
 @public
 def foo():
     x: int128[3] = [1, 2, 3]
     x = [4, 5, 6, 7]
-    """, InvalidType),
-    ("""
+    """,
+        InvalidType,
+    ),
+    (
+        """
 @public
 def foo() -> int128[2]:
     return [3, 5, 7]
-    """, InvalidType),
-    ("""
+    """,
+        InvalidType,
+    ),
+    (
+        """
 @public
 def foo() -> int128[2]:
     return [3]
-    """, InvalidType),
-    ("""
+    """,
+        InvalidType,
+    ),
+    (
+        """
 y: int128[3]
 
 @public
 def foo(x: int128[3]):
     self.y = x[0]
-    """, TypeMismatch),
-    ("""
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
 y: int128[3]
 
 @public
 def foo(x: int128[3]):
     self.y[0] = x
-    """, TypeMismatch),
-    ("""
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
 y: int128[4]
 
 @public
 def foo(x: int128[3]):
     self.y = x
-    """, TypeMismatch),
-    ("""
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
 y: decimal[2]
 
 @public
 def foo(x: int128[2][2]):
     self.y = x[1]
-    """, TypeMismatch),
-    ("""
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
 bar: int128[3]
 @public
 def foo():
     self.bar = [1, 2, 0x1234567890123456789012345678901234567890]
-    """, InvalidLiteral),
-    ("""
+    """,
+        InvalidLiteral,
+    ),
+    (
+        """
 bar: int128[3]
 @public
 def foo():
     self.bar = []
-    """, InvalidLiteral),
-    ("""
+    """,
+        InvalidLiteral,
+    ),
+    (
+        """
 b: int128[5]
 @public
 def foo():
     x: int128 = self.b[0][1]
-    """, StructureException),
-    ("""
+    """,
+        StructureException,
+    ),
+    (
+        """
 bar: int128[3]
 @public
 def foo():
     self.bar = [1, [2], 3]
-    """, InvalidLiteral),
-    ("""
+    """,
+        InvalidLiteral,
+    ),
+    (
+        """
 bar: int128[3][3]
 @public
 def foo():
     self.bar = 5
-    """, InvalidType),
-    ("""
+    """,
+        InvalidType,
+    ),
+    (
+        """
 bar: int128[3][3]
 @public
 def foo():
     self.bar = [2, 5]
-    """, InvalidType),
-    ("""
+    """,
+        InvalidType,
+    ),
+    (
+        """
 bar: int128[3]
 @public
 def foo():
     self.bar = [1, 2, 3, 4]
-    """, InvalidType),
-    ("""
+    """,
+        InvalidType,
+    ),
+    (
+        """
 bar: int128[3]
 @public
 def foo():
     self.bar = [1, 2]
-    """, InvalidType),
-    ("""
+    """,
+        InvalidType,
+    ),
+    (
+        """
 b: int128[5]
 @public
 def foo():
     self.b[0] = 7.5
-    """, InvalidType),
-    ("""
+    """,
+        InvalidType,
+    ),
+    (
+        """
 b: int128[5]
 @public
 def foo():
     x: int128[5] = self.b[0].cow
-    """, StructureException),
-    ("""
+    """,
+        StructureException,
+    ),
+    (
+        """
 @public
 def foo()->bool[2]:
     a: decimal[2] = [0.0, 0.0]
     a[0] = 1
     return a
-    """, InvalidType),
-    ("""
+    """,
+        InvalidType,
+    ),
+    (
+        """
 @public
 def foo()->bool[2]:
     a: bool[10] = [True, True, True, True, True, True, True, True, True, True]
     a[0] = 1
     return a
-    """, InvalidType),
-    ("""
+    """,
+        InvalidType,
+    ),
+    (
+        """
 @public
 def test() -> int128:
     a: int128[3] = [1, 2, 3.0]
     return a[0]
-    """, InvalidLiteral),
-    ("""
+    """,
+        InvalidLiteral,
+    ),
+    (
+        """
 @public
 def test() -> int128:
     a: int128[3] = [1, 2, True]
     return a[0]
-    """, InvalidLiteral),
-    ("""
+    """,
+        InvalidLiteral,
+    ),
+    (
+        """
 y: decimal[3]
 
 @public
 def foo(x: int128[3]):
     self.y = x
-    """, TypeMismatch),
-    ("""
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
 y: decimal[2][2]
 
 @public
 def foo(x: int128[2][2]):
     self.y = x
-    """, TypeMismatch),
+    """,
+        TypeMismatch,
+    ),
 ]
 
 
-@pytest.mark.parametrize('bad_code,exc', fail_list)
+@pytest.mark.parametrize("bad_code,exc", fail_list)
 def test_block_fail(bad_code, exc):
 
     with pytest.raises(exc):
@@ -235,10 +307,10 @@ b: decimal[5]
 @public
 def foo():
     self.b[0] = 7.0
-    """
+    """,
 ]
 
 
-@pytest.mark.parametrize('good_code', valid_list)
+@pytest.mark.parametrize("good_code", valid_list)
 def test_list_success(good_code):
     assert compiler.compile_code(good_code) is not None

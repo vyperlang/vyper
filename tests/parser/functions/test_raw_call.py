@@ -71,7 +71,7 @@ def create_and_return_forwarder(inp: address) -> address:
     assert c3_contract_code[:14] == expected_forwarder_code_mask[:14]
     assert c3_contract_code[35:] == expected_forwarder_code_mask[35:]
 
-    print('Passed forwarder test')
+    print("Passed forwarder test")
     # TODO: This one is special
     # print(f'Gas consumed: {(chain.head_state.receipts[-1].gas_used - chain.head_state.receipts[-2].gas_used - chain.last_tx.intrinsic_gas_used)}')  # noqa: E501
 
@@ -102,7 +102,7 @@ def create_and_return_forwarder(inp: address) -> address:
 
     assert_tx_failed(lambda: c2.create_and_call_returnten(c.address))
 
-    print('Passed forwarder exception test')
+    print("Passed forwarder exception test")
 
 
 def test_delegate_call(w3, get_contract):
@@ -153,7 +153,7 @@ def set(i: int128, owner: address):
 
     # Call outer contract, that make a delegate call to inner_contract.
     tx_hash = outer_contract.set(1, a1, transact={})
-    assert w3.eth.getTransactionReceipt(tx_hash)['status'] == 1
+    assert w3.eth.getTransactionReceipt(tx_hash)["status"] == 1
     assert outer_contract.owners(1) == a1
 
 
@@ -250,21 +250,27 @@ def foo(_addr: address) -> int128:
 
 
 uncompilable_code = [
-    ("""
+    (
+        """
 @public
 @constant
 def foo(_addr: address):
     raw_call(_addr, method_id("foo()", bytes[4]))
-    """, ConstancyViolation),
-    ("""
+    """,
+        ConstancyViolation,
+    ),
+    (
+        """
 @public
 def foo(_addr: address):
     raw_call(_addr, method_id("foo()", bytes[4]), is_delegate_call=True, is_static_call=True)
-    """, ArgumentException),
+    """,
+        ArgumentException,
+    ),
 ]
 
 
-@pytest.mark.parametrize('source_code,exc', uncompilable_code)
+@pytest.mark.parametrize("source_code,exc", uncompilable_code)
 def test_invalid_type_exception(source_code, exc):
     with pytest.raises(exc):
         compiler.compile_code(source_code)

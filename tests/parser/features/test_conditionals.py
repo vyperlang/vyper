@@ -14,7 +14,7 @@ def foo(i: bool) -> int128:
     assert c.foo(True) == 5
     assert c.foo(False) == 7
 
-    print('Passed conditional return tests')
+    print("Passed conditional return tests")
 
 
 def test_single_branch_underflow_public(get_contract_with_gas_estimation):

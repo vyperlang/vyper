@@ -22,28 +22,26 @@ def bar(a: uint256) -> bool:
     return True
 """
 
-BAR_ABI = [{
-    'name': 'bar',
-    'outputs': [{'type': 'bool', 'name': 'out'}],
-    'inputs': [{'type': 'uint256', 'name': 'a'}],
-    'constant': False,
-    'payable': False,
-    'type': 'function',
-    'gas': 313
-}]
+BAR_ABI = [
+    {
+        "name": "bar",
+        "outputs": [{"type": "bool", "name": "out"}],
+        "inputs": [{"type": "uint256", "name": "a"}],
+        "constant": False,
+        "payable": False,
+        "type": "function",
+        "gas": 313,
+    }
+]
 
 INPUT_JSON = {
-    'language': "Vyper",
-    'sources': {
-        'contracts/foo.vy': {'content': FOO_CODE},
-        'contracts/bar.vy': {'content': BAR_CODE},
+    "language": "Vyper",
+    "sources": {
+        "contracts/foo.vy": {"content": FOO_CODE},
+        "contracts/bar.vy": {"content": BAR_CODE},
     },
-    'interfaces': {
-        'contracts/bar.json': {'abi': BAR_ABI}
-    },
-    'settings': {
-        'outputSelection': {'*': ["*"]}
-    }
+    "interfaces": {"contracts/bar.json": {"abi": BAR_ABI}},
+    "settings": {"outputSelection": {"*": ["*"]}},
 }
 
 
@@ -58,7 +56,7 @@ def test_bad_json():
 
 def test_keyerror_becomes_jsonerror():
     input_json = deepcopy(INPUT_JSON)
-    del input_json['sources']
+    del input_json["sources"]
     with pytest.raises(KeyError):
         compile_from_input_dict(input_json)
     with pytest.raises(JSONError):

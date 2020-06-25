@@ -53,7 +53,7 @@ def foo():
 ]
 
 
-@pytest.mark.parametrize('bad_code', fail_list)
+@pytest.mark.parametrize("bad_code", fail_list)
 def test_insufficient_arguments(bad_code):
     with pytest.raises(NamespaceCollision):
         compiler.compile_code(bad_code)

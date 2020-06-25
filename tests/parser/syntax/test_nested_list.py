@@ -9,37 +9,53 @@ from vyper.exceptions import (
 )
 
 fail_list = [
-    ("""
+    (
+        """
 bar: int128[3][3]
 @public
 def foo():
     self.bar = [[1, 2], [3, 4, 5], [6, 7, 8]]
-    """, InvalidLiteral),
-    ("""
+    """,
+        InvalidLiteral,
+    ),
+    (
+        """
 bar: int128[3][3]
 @public
 def foo():
     self.bar = [[1, 2, 3], [4, 5, 6], [7.0, 8.0, 9.0]]
-    """, InvalidLiteral),
-    ("""
+    """,
+        InvalidLiteral,
+    ),
+    (
+        """
 @public
 def foo() -> int128[2]:
     return [[1,2],[3,4]]
-    """, InvalidType),
-    ("""
+    """,
+        InvalidType,
+    ),
+    (
+        """
 @public
 def foo() -> int128[2][2]:
     return [1,2]
-    """, InvalidType),
-    ("""
+    """,
+        InvalidType,
+    ),
+    (
+        """
 y: address[2][2]
 
 @public
 def foo(x: int128[2][2]) -> int128:
     self.y = x
     return 768
-    """, TypeMismatch),
-    ("""
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
 # for loops only allowed on base types
 bar: int128[3][3]
 
@@ -50,11 +66,13 @@ def foo() -> int128[3]:
         if x == [4, 5, 6]:
             return x
     return [-1, -2, -3]
-    """, StructureException)
+    """,
+        StructureException,
+    ),
 ]
 
 
-@pytest.mark.parametrize('bad_code,exc', fail_list)
+@pytest.mark.parametrize("bad_code,exc", fail_list)
 def test_nested_list_fail(bad_code, exc):
     with pytest.raises(exc):
         compiler.compile_code(bad_code)
@@ -72,10 +90,10 @@ bar: decimal[3][3]
 @public
 def foo():
     self.bar = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]
-    """
+    """,
 ]
 
 
-@pytest.mark.parametrize('good_code', valid_list)
+@pytest.mark.parametrize("good_code", valid_list)
 def test_nested_list_sucess(good_code):
     assert compiler.compile_code(good_code) is not None

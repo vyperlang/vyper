@@ -3,7 +3,7 @@ import pytest
 from vyper.opcodes import EVM_VERSIONS
 
 
-@pytest.mark.parametrize('evm_version', list(EVM_VERSIONS))
+@pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
 def test_self_balance(w3, get_contract_with_gas_estimation, evm_version):
     code = """
 @public
@@ -24,5 +24,5 @@ def __default__():
     else:
         assert 0x47 not in c._classic_contract.bytecode
 
-    w3.eth.sendTransaction({'to': c.address, 'value': 1337})
+    w3.eth.sendTransaction({"to": c.address, "value": 1337})
     assert c.get_balance() == 1337

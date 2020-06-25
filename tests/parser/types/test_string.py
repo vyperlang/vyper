@@ -1,4 +1,3 @@
-
 def test_string_return(get_contract_with_gas_estimation):
     code = """
 @public
@@ -13,7 +12,7 @@ def testa(inp: string[100]) -> string[100]:
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.testa('meh') == "meh"
+    assert c.testa("meh") == "meh"
     assert c.testb() == "test return"
 
 
@@ -33,8 +32,8 @@ def testa(inp: string[10]) -> string[160]:
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.testb('bob') == "return message: bob"
-    assert c.testa('foo') == "Funny foo foo<-- return message"
+    assert c.testb("bob") == "return message: bob"
+    assert c.testa("foo") == "Funny foo foo<-- return message"
 
 
 def test_basic_long_string_as_keys(get_contract, w3):
@@ -52,7 +51,7 @@ def get(k: string[34]) -> int128:
 
     c = get_contract(code)
 
-    c.set(b"a" * 34, 6789, transact={'gas': 10**6})
+    c.set(b"a" * 34, 6789, transact={"gas": 10 ** 6})
 
     assert c.get(b"a" * 34) == 6789
 
@@ -111,7 +110,7 @@ def foo():
     """
 
     c = get_contract_with_gas_estimation(code)
-    log = get_logs(c.foo(transact={}), c, 'MyLog')
+    log = get_logs(c.foo(transact={}), c, "MyLog")
 
     assert log[0].args.arg1 == 667788
     assert log[0].args.arg2 == "hello" * 9

@@ -72,9 +72,7 @@ def foo():
     ]
 
     for contract in contracts:
-        assert_compile_failed(
-            lambda: get_contract_with_gas_estimation(contract), InvalidLiteral
-        )
+        assert_compile_failed(lambda: get_contract_with_gas_estimation(contract), InvalidLiteral)
 
 
 def test_no_is_none(assert_compile_failed, get_contract_with_gas_estimation):
@@ -118,9 +116,7 @@ def foo():
     ]
 
     for contract in contracts:
-        assert_compile_failed(
-            lambda: get_contract_with_gas_estimation(contract), SyntaxException
-        )
+        assert_compile_failed(lambda: get_contract_with_gas_estimation(contract), SyntaxException)
 
 
 def test_no_eq_none(assert_compile_failed, get_contract_with_gas_estimation):
@@ -164,9 +160,7 @@ def foo():
     ]
 
     for contract in contracts:
-        assert_compile_failed(
-            lambda: get_contract_with_gas_estimation(contract), InvalidLiteral
-        )
+        assert_compile_failed(lambda: get_contract_with_gas_estimation(contract), InvalidLiteral)
 
 
 def test_struct_none(assert_compile_failed, get_contract_with_gas_estimation):
@@ -210,6 +204,4 @@ def foo():
     ]
 
     for contract in contracts:
-        assert_compile_failed(
-            lambda: get_contract_with_gas_estimation(contract), InvalidLiteral
-        )
+        assert_compile_failed(lambda: get_contract_with_gas_estimation(contract), InvalidLiteral)
