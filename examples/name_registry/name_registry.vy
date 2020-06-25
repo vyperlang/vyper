@@ -1,5 +1,5 @@
 
-registry: map(bytes[100], address)
+registry: HashMap[bytes[100], address]
 
 @public
 def register(name: bytes[100], owner: address):

@@ -4,7 +4,7 @@ struct Funder :
   sender: address
   value: uint256
 
-funders: map(int128, Funder)
+funders: HashMap[int128, Funder]
 nextFunderIndex: int128
 beneficiary: address
 deadline: public(uint256)

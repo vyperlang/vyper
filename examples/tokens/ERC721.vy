@@ -55,22 +55,22 @@ ApprovalForAll: event({
 
 
 # @dev Mapping from NFT ID to the address that owns it.
-idToOwner: map(uint256, address)
+idToOwner: HashMap[uint256, address]
 
 # @dev Mapping from NFT ID to approved address.
-idToApprovals: map(uint256, address)
+idToApprovals: HashMap[uint256, address]
 
 # @dev Mapping from owner address to count of his tokens.
-ownerToNFTokenCount: map(address, uint256)
+ownerToNFTokenCount: HashMap[address, uint256]
 
 # @dev Mapping from owner address to mapping of operator addresses.
-ownerToOperators: map(address, map(address, bool))
+ownerToOperators: HashMap[address, HashMap[address, bool]]
 
 # @dev Address of minter, who can mint a token
 minter: address
 
 # @dev Mapping of interface id to bool about whether or not it's supported
-supportedInterfaces: map(bytes32, bool)
+supportedInterfaces: HashMap[bytes32, bool]
 
 # @dev ERC165 interface ID of ERC165
 ERC165_INTERFACE_ID: constant(bytes32) = 0x0000000000000000000000000000000000000000000000000000000001ffc9a7

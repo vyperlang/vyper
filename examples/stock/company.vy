@@ -10,7 +10,7 @@ totalShares: public(uint256)
 price: public(uint256)
 
 # Store a ledger of stockholder holdings.
-holdings: map(address, uint256)
+holdings: HashMap[address, uint256]
 
 # Set up the company.
 @public
