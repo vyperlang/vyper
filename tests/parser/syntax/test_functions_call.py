@@ -59,7 +59,7 @@ def foo() -> uint256:
     """
 from vyper.interfaces import ERC20
 
-contract Factory:
+interface Factory:
     def getExchange(token_addr: address) -> address: constant
 
 token: ERC20

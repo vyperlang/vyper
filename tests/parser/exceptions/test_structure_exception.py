@@ -44,7 +44,7 @@ def foo() -> int128:
     return x.codesize()
     """,
     """
-contract F:
+interface F:
     def foo(): constant
 struct S:
     x: int128
@@ -101,13 +101,13 @@ x: int128(address)
 x: int128(2 ** 2)
     """,
     """
-# invalid contract declaration (pass)
-contract Bar:
+# invalid interface declaration (pass)
+interface Bar:
     def set_lucky(arg1: int128): pass
     """,
     """
-contract Bar:
-# invalud contract declaration (assignment)
+interface Bar:
+# invalud interface declaration (assignment)
     def set_lucky(arg1: int128):
         arg1 = 1
         arg1 = 3

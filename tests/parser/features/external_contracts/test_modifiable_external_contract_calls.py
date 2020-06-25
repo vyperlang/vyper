@@ -11,10 +11,10 @@ def set_lucky(_lucky: int128):
 """
 
     contract_2 = """
-contract ModBar:
+interface ModBar:
     def set_lucky(_lucky: int128): modifying
 
-contract ConstBar:
+interface ConstBar:
     def set_lucky(_lucky: int128): constant
 
 modifiable_bar_contract: ModBar
@@ -54,10 +54,10 @@ def set_lucky(_lucky: int128) -> int128:
 """
 
     contract_2 = """
-contract ModBar:
+interface ModBar:
     def set_lucky(_lucky: int128) -> int128: modifying
 
-contract ConstBar:
+interface ConstBar:
     def set_lucky(_lucky: int128) -> int128: constant
 
 modifiable_bar_contract: ModBar
@@ -97,10 +97,10 @@ def set_lucky(_lucky: int128):
 """
 
     contract_2 = """
-contract ModBar:
+interface ModBar:
     def set_lucky(_lucky: int128): modifying
 
-contract ConstBar:
+interface ConstBar:
     def set_lucky(_lucky: int128): constant
 
 modifiable_bar_contract: ModBar
@@ -121,11 +121,11 @@ def static_set_lucky(_lucky: int128):
 """
 
     contract_3 = """
-contract ModBar:
+interface ModBar:
     def modifiable_set_lucky(_lucky: int128): modifying
     def static_set_lucky(_lucky: int128): modifying
 
-contract ConstBar:
+interface ConstBar:
     def modifiable_set_lucky(_lucky: int128): constant
     def static_set_lucky(_lucky: int128): constant
 
@@ -174,7 +174,7 @@ def bar() -> int128:
     return 1
 """
     contract_2 = """
-contract Bar:
+interface Bar:
     def bar() -> int128: constant
 
 bar_contract: public(Bar)
@@ -196,7 +196,7 @@ def get_bar() -> int128:
 
 def test_invalid_external_contract_call_declaration_1(assert_compile_failed, get_contract):
     contract_1 = """
-contract Bar:
+interface Bar:
     def bar() -> int128: pass
     """
 
@@ -205,7 +205,7 @@ contract Bar:
 
 def test_invalid_external_contract_call_declaration_2(assert_compile_failed, get_contract):
     contract_1 = """
-contract Bar:
+interface Bar:
     def bar() -> int128: constant
 
 bar_contract: Boo
@@ -229,7 +229,7 @@ modifiable_bar_contract: Bar
 
 def test_invalid_if_not_in_valid_global_keywords(get_contract, assert_compile_failed):
     code = """
-contract Bar:
+interface Bar:
     def set_lucky(_lucky: int128): modifying
 
 modifiable_bar_contract: trusted(Bar)
@@ -241,7 +241,7 @@ def test_invalid_if_have_modifiability_not_declared(
     get_contract_with_gas_estimation_for_constants, assert_compile_failed
 ):
     code = """
-contract Bar:
+interface Bar:
     def set_lucky(_lucky: int128): pass
 
 modifiable_bar_contract: public(Bar)

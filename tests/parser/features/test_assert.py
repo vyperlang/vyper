@@ -142,7 +142,7 @@ def not_really_constant() -> uint256:
     return self.state
     """
     code = """
-contract ForeignContract:
+interface ForeignContract:
     def not_really_constant() -> uint256: constant
 
 @public
