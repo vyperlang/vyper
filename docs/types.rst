@@ -421,7 +421,7 @@ Syntax
 ------
 
 Mapping types are declared as ``map(_KeyType, _ValueType)``.
-Here ``_KeyType`` can be any base or bytes type. Mappings, contract or structs are not support as key types.
+Here ``_KeyType`` can be any base or bytes type. Mappings, interfaces or structs are not support as key types.
 ``_ValueType`` can actually be any type, including mappings.
 
 **Example:**
