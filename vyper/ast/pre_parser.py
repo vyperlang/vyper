@@ -121,6 +121,14 @@ def pre_parse(code: str) -> Tuple[ClassTypes, str]:
                     start[1],
                 )
 
+            if typ == NAME and string == "contract" and start[1] == 0:
+                raise SyntaxException(
+                    "The `contract` keyword has been deprecated. Please use `interface`",
+                    code,
+                    start[0],
+                    start[1],
+                )
+
             # Make note of interface or struct name along with the type keyword
             # that preceded it
             if typ == NAME and previous_keyword is not None:
