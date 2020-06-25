@@ -806,7 +806,7 @@ class Extract32(_SimpleBuiltinFunction):
 
     _id = "extract32"
     _inputs = [("b", BytesArrayPrimitive()), ("start", Int128Definition())]
-    _kwargs = {"type": Optional("name_literal", "bytes32")}
+    _kwargs = {"output_type": Optional("name_literal", "bytes32")}
     _return_type = None
 
     def fetch_call_return(self, node):
@@ -825,7 +825,7 @@ class Extract32(_SimpleBuiltinFunction):
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         sub, index = args
-        ret_type = kwargs["type"]
+        ret_type = kwargs["output_type"]
         # Get length and specific element
         if sub.location == "memory":
             lengetter = LLLnode.from_list(["mload", "_sub"], typ=BaseType("int128"))
