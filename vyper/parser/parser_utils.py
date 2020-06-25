@@ -24,7 +24,7 @@ from vyper.types import (
     has_dynamic_data,
     is_base_type,
 )
-from vyper.types.types import ContractType
+from vyper.types.types import InterfaceType
 from vyper.utils import (
     DECIMAL_DIVISOR,
     GAS_IDENTITY,
@@ -406,7 +406,7 @@ def base_type_conversion(orig, frm, to, pos, in_function_call=False):
     is_decimal_int128_conversion = frm.typ == "int128" and to.typ == "decimal"
     is_same_type = frm.typ == to.typ
     is_literal_conversion = frm.is_literal and (frm.typ, to.typ) == ("int128", "uint256")
-    is_address_conversion = isinstance(frm, ContractType) and to.typ == "address"
+    is_address_conversion = isinstance(frm, InterfaceType) and to.typ == "address"
     if not (
         is_same_type
         or is_literal_conversion

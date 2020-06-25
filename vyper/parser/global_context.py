@@ -14,7 +14,7 @@ from vyper.signatures.function_signature import ContractRecord, VariableRecord
 from vyper.types import (
     BaseType,
     ByteArrayLike,
-    ContractType,
+    InterfaceType,
     ListType,
     MappingType,
     StructType,
@@ -29,16 +29,18 @@ NONRENTRANT_STORAGE_OFFSET = 0xFFFFFF
 # Datatype to store all global context information.
 class GlobalContext:
     def __init__(self):
+        # Oh jesus, just leave this. So confusing!
         self._contracts = dict()
+        self._interfaces = dict()
+        self._interface = dict()
+        self._implemented_interfaces = set()
+
         self._structs = dict()
         self._events = list()
         self._globals = dict()
         self._defs = list()
         self._getters = list()
         self._constants = Constants()
-        self._interfaces = dict()
-        self._interface = dict()
-        self._implemented_interfaces = set()
         self._nonrentrant_counter = 0
         self._nonrentrant_keys = dict()
 
@@ -56,12 +58,12 @@ class GlobalContext:
         global_ctx = cls()
 
         for item in vyper_module:
-            # Contract references
+            # External contract references
             if isinstance(item, vy_ast.ClassDef):
                 if global_ctx._events or global_ctx._globals or global_ctx._defs:
                     raise StructureException(
                         (
-                            "External contract and struct declarations must come "
+                            "External interface and struct declarations must come "
                             "before event declarations, global declarations, and "
                             "function definitions"
                         ),
@@ -74,7 +76,7 @@ class GlobalContext:
                             "Structs must come before external contract definitions", item
                         )
                     global_ctx._structs[item.name] = global_ctx.make_struct(item)
-                elif item.class_type == "contract":
+                elif item.class_type == "interface":
                     if item.name in global_ctx._contracts or item.name in global_ctx._interfaces:
                         raise StructureException(
                             f"Contract '{item.name}' is already defined", item,
@@ -388,17 +390,17 @@ def {varname}{funname}({head.rstrip(', ')}) -> {base}:
                     f" Use {item.target.id}: {item_name} instead"
                 )
             self._globals[item.target.id] = ContractRecord(
-                item.target.id, len(self._globals), ContractType(item_name), True,
+                item.target.id, len(self._globals), InterfaceType(item_name), True,
             )
             if item_attributes["public"]:
-                typ = ContractType(item_name)
+                typ = InterfaceType(item_name)
                 for getter in self.mk_getter(item.target.id, typ):
                     self._getters.append(self.parse_line("\n" * (item.lineno - 1) + getter))
                     self._getters[-1].pos = getpos(item)
                     set_offsets(self._getters[-1], self._getters[-1].pos)
         elif self.get_call_func_name(item) == "public":
             if isinstance(item.annotation.args[0], vy_ast.Name) and item_name in self._contracts:
-                typ = ContractType(item_name)
+                typ = InterfaceType(item_name)
             else:
                 typ = parse_type(
                     item.annotation.args[0],

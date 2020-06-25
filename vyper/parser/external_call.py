@@ -15,9 +15,7 @@ from vyper.types import (
 )
 
 
-def external_contract_call(
-    node, context, contract_name, contract_address, pos, value=None, gas=None
-):
+def external_call(node, context, interface_name, contract_address, pos, value=None, gas=None):
     from vyper.parser.expr import Expr
 
     if value is None:
@@ -27,11 +25,11 @@ def external_contract_call(
     if contract_address.value == "address":
         raise StructureException("External calls to self are not permitted.", node)
     method_name = node.func.attr
-    sig = context.sigs[contract_name][method_name]
+    sig = context.sigs[interface_name][method_name]
     inargs, inargsize, _ = pack_arguments(
         sig, [Expr(arg, context).lll_node for arg in node.args], context, node.func,
     )
-    output_placeholder, output_size, returner = get_external_contract_call_output(sig, context)
+    output_placeholder, output_size, returner = get_external_call_output(sig, context)
     sub = [
         "seq",
         ["assert", ["extcodesize", contract_address]],
@@ -80,7 +78,7 @@ def external_contract_call(
     return o
 
 
-def get_external_contract_call_output(sig, context):
+def get_external_call_output(sig, context):
     if not sig.output_type:
         return 0, 0, []
     output_placeholder = context.new_placeholder(typ=sig.output_type)
@@ -98,7 +96,7 @@ def get_external_contract_call_output(sig, context):
     return output_placeholder, output_size, returner
 
 
-def get_external_contract_keywords(stmt_expr, context):
+def get_external_interface_keywords(stmt_expr, context):
     from vyper.parser.expr import Expr
 
     value, gas = None, None
@@ -115,7 +113,7 @@ def get_external_contract_keywords(stmt_expr, context):
 def make_external_call(stmt_expr, context):
     from vyper.parser.expr import Expr
 
-    value, gas = get_external_contract_keywords(stmt_expr, context)
+    value, gas = get_external_interface_keywords(stmt_expr, context)
 
     if isinstance(stmt_expr.func, vy_ast.Attribute) and isinstance(
         stmt_expr.func.value, vy_ast.Call
@@ -123,7 +121,7 @@ def make_external_call(stmt_expr, context):
         contract_name = stmt_expr.func.value.func.id
         contract_address = Expr.parse_value_expr(stmt_expr.func.value.args[0], context)
 
-        return external_contract_call(
+        return external_call(
             stmt_expr,
             context,
             contract_name,
@@ -149,7 +147,7 @@ def make_external_call(stmt_expr, context):
             )
         )
 
-        return external_contract_call(
+        return external_call(
             stmt_expr,
             context,
             contract_name,
@@ -177,7 +175,7 @@ def make_external_call(stmt_expr, context):
             )
         )
 
-        return external_contract_call(
+        return external_call(
             stmt_expr,
             context,
             contract_name,

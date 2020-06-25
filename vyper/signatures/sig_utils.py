@@ -5,14 +5,14 @@ from vyper.signatures.function_signature import FunctionSignature
 
 
 # Generate default argument function signatures.
-def generate_default_arg_sigs(code, contracts, global_ctx):
+def generate_default_arg_sigs(code, interfaces, global_ctx):
     # generate all sigs, and attach.
     total_default_args = len(code.args.defaults)
     if total_default_args == 0:
         return [
             FunctionSignature.from_definition(
                 code,
-                sigs=contracts,
+                sigs=interfaces,
                 custom_structs=global_ctx._structs,
                 constants=global_ctx._constants,
             )
@@ -39,7 +39,7 @@ def generate_default_arg_sigs(code, contracts, global_ctx):
                 new_code.args.args.append(default_args[idx])
         sig = FunctionSignature.from_definition(
             new_code,
-            sigs=contracts,
+            sigs=interfaces,
             custom_structs=global_ctx._structs,
             constants=global_ctx._constants,
         )

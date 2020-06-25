@@ -126,7 +126,7 @@ LOADED_LIMITS: Dict[int, int] = {
 }
 
 # Keywords available for ast.Call type
-VALID_CALL_KEYWORDS = {"uint256", "int128", "decimal", "address", "contract", "indexed"}
+VALID_CALL_KEYWORDS = {"uint256", "int128", "decimal", "address", "interface", "indexed"}
 
 # Valid attributes for variables and methods
 VALID_GLOBAL_KEYWORDS = {
@@ -210,8 +210,8 @@ RESERVED_KEYWORDS = (
         "balance",
         "codesize",
         "is_contract",
-        # contract keywords
-        "contract",
+        # meta types
+        "interface",
         "struct",
         # units
         "units",
