@@ -130,7 +130,7 @@ def __init__(_owner_setter: address):
 @public
 def set(i: int128, owner: address):
     # delegate setting owners to other contract.s
-    cdata: bytes[68] = concat(method_id("set_owner(int128,address)", bytes[4]), convert(i, bytes32), convert(owner, bytes32))  # noqa: E501
+    cdata: bytes[68] = concat(method_id("set_owner(int128,address)"), convert(i, bytes32), convert(owner, bytes32))  # noqa: E501
     raw_call(
         self.owner_setter_contract,
         cdata,
@@ -172,7 +172,7 @@ def foo(_bar: bytes32):
 @public
 def foo_call(_addr: address):
     cdata: bytes[40] = concat(
-        method_id("foo(bytes32)", bytes[4]),
+        method_id("foo(bytes32)"),
         0x0000000000000000000000000000000000000000000000000000000000000001
     )
     raw_call(_addr, cdata, max_outsize=0{})
@@ -206,7 +206,7 @@ def foo() -> int128:
 def foo(_addr: address) -> int128:
     _response: bytes[32] = raw_call(
         _addr,
-        method_id("foo()", bytes[4]),
+        method_id("foo()"),
         max_outsize=32,
         is_static_call=True,
     )
@@ -236,7 +236,7 @@ def foo() -> int128:
 def foo(_addr: address) -> int128:
     _response: bytes[32] = raw_call(
         _addr,
-        method_id("foo()", bytes[4]),
+        method_id("foo()"),
         max_outsize=32,
         is_static_call=True,
     )
@@ -255,7 +255,7 @@ uncompilable_code = [
 @public
 @constant
 def foo(_addr: address):
-    raw_call(_addr, method_id("foo()", bytes[4]))
+    raw_call(_addr, method_id("foo()"))
     """,
         ConstancyViolation,
     ),
@@ -263,7 +263,7 @@ def foo(_addr: address):
         """
 @public
 def foo(_addr: address):
-    raw_call(_addr, method_id("foo()", bytes[4]), is_delegate_call=True, is_static_call=True)
+    raw_call(_addr, method_id("foo()"), is_delegate_call=True, is_static_call=True)
     """,
         ArgumentException,
     ),
