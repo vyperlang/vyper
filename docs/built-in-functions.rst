@@ -48,13 +48,27 @@ contracts.
     * ``value``: Value for the ether unit
     * ``unit``: Ether unit name (e.g. ``"wei"``, ``"ether"``, ``"gwei"``, etc.) indicating the denomination of ``value``.
 
-.. py:function:: slice(b: bytes, start: int128, length: int128) -> bytes
+.. py:function:: slice(b: Union[bytes, bytes32, string], start: uint256, length: uint256) -> Union[bytes, string]
 
-    Copies a list of bytes and returns a specified slice.
+    Copy a list of bytes and return a specified slice.
 
-    * ``b``: ``bytes`` or ``bytes32`` to be sliced
+    * ``b``: value being sliced
     * ``start``: start position of the slice
     * ``length``: length of the slice
+
+    If the value being sliced is a ``bytes`` or ``bytes32``, the return type is ``bytes``.  If it is a ``string``, the return type is ``string``.
+
+    .. code-block:: python
+
+        @public
+        @constant
+        def foo(s: string[32]) -> string[5]:
+            return slice(s, 4, 5)
+
+    .. code-block:: python
+
+        >>> ExampleContract.foo("why hello! how are you?")
+        "hello"
 
 .. py:function:: len(b: Union[bytes, string]) -> uint256
 
