@@ -16,7 +16,7 @@ def bar():
     self.foo()
     """
     vyper_module = parse_to_ast(code)
-    with namespace.enter_builtin_scope():
+    with namespace.enter_scope():
         with pytest.raises(CallViolation):
             ModuleNodeVisitor(vyper_module, {}, namespace)
 
@@ -40,6 +40,6 @@ def potato():
     self.foo()
     """
     vyper_module = parse_to_ast(code)
-    with namespace.enter_builtin_scope():
+    with namespace.enter_scope():
         with pytest.raises(CallViolation):
             ModuleNodeVisitor(vyper_module, {}, namespace)

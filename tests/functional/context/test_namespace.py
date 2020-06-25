@@ -10,40 +10,34 @@ from vyper.exceptions import (
 )
 
 
-def test_get_namespace(namespace):
+def test_get_namespace():
     ns = get_namespace()
     ns2 = get_namespace()
-    assert ns == ns2 == namespace
-
-
-def test_clear(namespace):
-    namespace["foo"] = 42
-    assert "foo" in namespace
-
-    namespace.clear()
-    assert "foo" not in namespace
+    assert ns == ns2
 
 
 def test_builtin_context_manager(namespace):
     namespace["foo"] = 42
-    with namespace.enter_builtin_scope():
+    with namespace.enter_scope():
         namespace["bar"] = 1337
 
     assert namespace["foo"] == 42
     assert "bar" not in namespace
 
 
-def test_builtin_context_manager_types(namespace):
-    with namespace.enter_builtin_scope():
-        for key, value in get_types().items():
-            assert namespace[key] == value
-
+def test_builtin_types(namespace):
     for key, value in get_types().items():
         assert namespace[key] == value
 
 
-def test_builtin_context_manager_conamespacetant_vars(namespace):
-    with namespace.enter_builtin_scope():
+def test_builtin_types_persist_after_clear(namespace):
+    namespace.clear()
+    for key, value in get_types().items():
+        assert namespace[key] == value
+
+
+def test_context_manager_constant_vars(namespace):
+    with namespace.enter_scope():
         for key in environment.CONSTANT_ENVIRONMENT_VARS.keys():
             assert key in namespace
 
@@ -51,8 +45,8 @@ def test_builtin_context_manager_conamespacetant_vars(namespace):
         assert key in namespace
 
 
-def test_builtin_context_manager_mutable_vars(namespace):
-    with namespace.enter_builtin_scope():
+def test_context_manager_mutable_vars(namespace):
+    with namespace.enter_scope():
         for key in environment.MUTABLE_ENVIRONMENT_VARS.keys():
             assert key in namespace
 
@@ -60,16 +54,8 @@ def test_builtin_context_manager_mutable_vars(namespace):
         assert key not in namespace
 
 
-def test_builtin_context_manager_wrong_sequence(namespace):
-    with namespace.enter_builtin_scope():
-        # fails because builtin scope may only be entered once
-        with pytest.raises(CompilerPanic):
-            with namespace.enter_builtin_scope():
-                pass
-
-
 def test_context_manager(namespace):
-    with namespace.enter_builtin_scope():
+    with namespace.enter_scope():
         namespace["foo"] = 42
         with namespace.enter_scope():
             namespace["bar"] = 1337
@@ -80,13 +66,7 @@ def test_context_manager(namespace):
     assert "foo" not in namespace
 
 
-def test_context_manager_wrong_sequence(namespace):
-    with pytest.raises(CompilerPanic):
-        with namespace.enter_scope():
-            pass
-
-
-def test_incorrect_context_invokation(namespace):
+def test_incorrect_context_invocation(namespace):
     with pytest.raises(CompilerPanic):
         with namespace:
             pass
@@ -99,7 +79,7 @@ def test_namespace_collision(namespace):
 
 
 def test_namespace_collision_across_scopes(namespace):
-    with namespace.enter_builtin_scope():
+    with namespace.enter_scope():
         namespace["foo"] = 42
         with namespace.enter_scope():
             with pytest.raises(NamespaceCollision):
@@ -112,7 +92,7 @@ def test_undeclared_definition(namespace):
 
 
 def test_undeclared_definition_across_scopes(namespace):
-    with namespace.enter_builtin_scope():
+    with namespace.enter_scope():
         with namespace.enter_scope():
             namespace["foo"] = 42
     with pytest.raises(UndeclaredDefinition):
