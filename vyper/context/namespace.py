@@ -13,14 +13,18 @@ class Namespace(dict):
     ----------
     _scopes : List[Set]
         List of sets containing the key names for each scope
-    _has_builtins: bool
-        Boolean indicating if constant environment variables have been added
     """
 
     def __init__(self):
         super().__init__()
         self._scopes = []
-        self._has_builtins = False
+        from vyper.context import environment
+        from vyper.context.types import get_types
+        from vyper.functions.functions import get_builtin_functions
+
+        self.update(get_types())
+        self.update(environment.get_constant_vars())
+        self.update(get_builtin_functions())
 
     def __eq__(self, other):
         return self is other
@@ -49,33 +53,6 @@ class Namespace(dict):
         for key in self._scopes.pop():
             del self[key]
 
-    def enter_builtin_scope(self):
-        """
-        Add types and builtin values to the namespace.
-
-        Called as a context manager, e.g. `with namespace.enter_builtin_scope():`
-        It must be the first scope that is entered prior to type checking.
-        """
-        # prevent circular import issues
-        from vyper.context import environment
-        from vyper.context.types import get_types
-        from vyper.functions.functions import get_builtin_functions
-
-        if self._scopes:
-            raise CompilerPanic("Namespace has a currently active scope")
-
-        if not self._has_builtins:
-            # constant builtins are only added once
-            self.update(get_types())
-            self.update(environment.get_constant_vars())
-            self.update(get_builtin_functions())
-            self._has_builtins = True
-
-        # mutable builtins are always added
-        self._scopes.append(set())
-        self.update(environment.get_mutable_vars())
-        return self
-
     def enter_scope(self):
         """
         Enter a new scope within the namespace.
@@ -83,9 +60,14 @@ class Namespace(dict):
         Called as a context manager, e.g. `with namespace.enter_scope():`
         All items that are added within the context are removed upon exit.
         """
-        if not self._scopes:
-            raise CompilerPanic("First scope must be entered via `enter_builtin_scope`")
+        from vyper.context import environment
+
         self._scopes.append(set())
+
+        if len(self._scopes) == 1:
+            # add mutable vars (`self`) to the initial scope
+            self.update(environment.get_mutable_vars())
+
         return self
 
     def update(self, other):
@@ -94,17 +76,16 @@ class Namespace(dict):
 
     def clear(self):
         super().clear()
-        self._scopes = []
-        self._has_builtins = False
-
-
-_namespace = Namespace()
+        self.__init__()
 
 
 def get_namespace():
     """
     Get the active namespace object.
-
-    This method should always be used over directly importing `_namespace`.
     """
-    return _namespace
+    global _namespace
+    try:
+        return _namespace
+    except NameError:
+        _namespace = Namespace()
+        return _namespace

@@ -24,14 +24,14 @@ STRING_LITERALS = [("'hi'", "'there'"), ("'foo'", "'bar'"), ("'longer'", "'short
 def test_attribute(build_node, namespace):
     node = build_node("self.foo")
     type_def = Int128Definition()
-    with namespace.enter_builtin_scope():
+    with namespace.enter_scope():
         namespace["self"].add_member("foo", type_def)
         assert get_possible_types_from_node(node) == [type_def]
 
 
 def test_attribute_missing_self(build_node, namespace):
     node = build_node("foo")
-    with namespace.enter_builtin_scope():
+    with namespace.enter_scope():
         namespace["self"].add_member("foo", Int128Definition())
         with pytest.raises(InvalidReference):
             get_possible_types_from_node(node)
@@ -39,7 +39,7 @@ def test_attribute_missing_self(build_node, namespace):
 
 def test_attribute_not_in_self(build_node, namespace):
     node = build_node("self.foo")
-    with namespace.enter_builtin_scope():
+    with namespace.enter_scope():
         namespace["foo"] = Int128Definition()
         with pytest.raises(InvalidReference):
             get_possible_types_from_node(node)
@@ -47,7 +47,7 @@ def test_attribute_not_in_self(build_node, namespace):
 
 def test_attribute_unknown(build_node, namespace):
     node = build_node("foo.bar")
-    with namespace.enter_builtin_scope():
+    with namespace.enter_scope():
         namespace["foo"] = AddressDefinition()
         with pytest.raises(UnknownAttribute):
             get_possible_types_from_node(node)
@@ -55,7 +55,7 @@ def test_attribute_unknown(build_node, namespace):
 
 def test_attribute_not_member_type(build_node, namespace):
     node = build_node("foo.bar")
-    with namespace.enter_builtin_scope():
+    with namespace.enter_scope():
         namespace["foo"] = Int128Definition()
         with pytest.raises(StructureException):
             get_possible_types_from_node(node)
@@ -65,7 +65,7 @@ def test_attribute_not_member_type(build_node, namespace):
 @pytest.mark.parametrize("left,right", INTEGER_LITERALS + DECIMAL_LITERALS)
 def test_binop(build_node, namespace, op, left, right):
     node = build_node(f"{left}{op}{right}")
-    with namespace.enter_builtin_scope():
+    with namespace.enter_scope():
         get_possible_types_from_node(node)
 
 
@@ -73,14 +73,14 @@ def test_binop(build_node, namespace, op, left, right):
 @pytest.mark.parametrize("left,right", [(42, "2.3"), (-1, 2 ** 128)])
 def test_binop_type_mismatch(build_node, namespace, op, left, right):
     node = build_node(f"{left}{op}{right}")
-    with namespace.enter_builtin_scope():
+    with namespace.enter_scope():
         with pytest.raises(TypeMismatch):
             get_possible_types_from_node(node)
 
 
 def test_binop_invalid_decimal_pow(build_node, namespace):
     node = build_node("2.1 ** 2.1")
-    with namespace.enter_builtin_scope():
+    with namespace.enter_scope():
         with pytest.raises(InvalidOperation):
             get_possible_types_from_node(node)
 
@@ -89,7 +89,7 @@ def test_binop_invalid_decimal_pow(build_node, namespace):
 @pytest.mark.parametrize("op", "+-*/%")
 def test_binop_invalid_op(build_node, namespace, op, left, right):
     node = build_node(f"{left} {op} {right}")
-    with namespace.enter_builtin_scope():
+    with namespace.enter_scope():
         with pytest.raises(InvalidOperation):
             get_possible_types_from_node(node)
 
@@ -98,7 +98,7 @@ def test_binop_invalid_op(build_node, namespace, op, left, right):
 @pytest.mark.parametrize("op", ["and", "or"])
 def test_boolop(build_node, namespace, op, left, right):
     node = build_node(f"{left} {op} {right}")
-    with namespace.enter_builtin_scope():
+    with namespace.enter_scope():
         types_list = get_possible_types_from_node(node)
 
     assert len(types_list) == 1
@@ -109,7 +109,7 @@ def test_boolop(build_node, namespace, op, left, right):
 @pytest.mark.parametrize("op", ["and", "or"])
 def test_boolop_invalid_op(build_node, namespace, op, left, right):
     node = build_node(f"{left} {op} {right}")
-    with namespace.enter_builtin_scope():
+    with namespace.enter_scope():
         with pytest.raises(InvalidOperation):
             get_possible_types_from_node(node)
 
@@ -118,7 +118,7 @@ def test_boolop_invalid_op(build_node, namespace, op, left, right):
 @pytest.mark.parametrize("op", ["<", "<=", ">", ">="])
 def test_compare_lt_gt(build_node, namespace, op, left, right):
     node = build_node(f"{left} {op} {right}")
-    with namespace.enter_builtin_scope():
+    with namespace.enter_scope():
         types_list = get_possible_types_from_node(node)
 
     assert len(types_list) == 1
@@ -131,7 +131,7 @@ def test_compare_lt_gt(build_node, namespace, op, left, right):
 @pytest.mark.parametrize("op", ["==", "!="])
 def test_compare_eq_ne(build_node, namespace, op, left, right):
     node = build_node(f"{left} {op} {right}")
-    with namespace.enter_builtin_scope():
+    with namespace.enter_scope():
         types_list = get_possible_types_from_node(node)
 
     assert len(types_list) == 1
@@ -142,7 +142,7 @@ def test_compare_eq_ne(build_node, namespace, op, left, right):
 @pytest.mark.parametrize("op", ["<", "<=", ">", ">="])
 def test_compare_invalid_op(build_node, namespace, op, left, right):
     node = build_node(f"{left} {op} {right}")
-    with namespace.enter_builtin_scope():
+    with namespace.enter_scope():
         with pytest.raises(InvalidOperation):
             get_possible_types_from_node(node)
 
@@ -165,7 +165,7 @@ def test_name_unknown(build_node, namespace):
 def test_list(build_node, namespace, left, right):
     node = build_node(f"[{left}, {right}]")
 
-    with namespace.enter_builtin_scope():
+    with namespace.enter_scope():
         types_list = get_possible_types_from_node(node)
 
     assert types_list
