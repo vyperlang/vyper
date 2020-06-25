@@ -7,7 +7,7 @@ from vyper.exceptions import InvalidLiteral, VariableDeclarationException
 from vyper.opcodes import OPCODES
 
 try:
-    from Crypto.Hash import keccak
+    from Crypto.Hash import keccak  # type: ignore
 
     keccak256 = lambda x: keccak.new(digest_bits=256, data=x).digest()  # noqa: E731
 except ImportError:
