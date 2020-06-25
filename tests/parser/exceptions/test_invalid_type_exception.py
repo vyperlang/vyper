@@ -9,7 +9,7 @@ fail_list = [
 x: bat
     """,
     """
-x: map(int, int128)
+x: HashMap[int, int128]
     """,
     """
 x: [bar, baz]

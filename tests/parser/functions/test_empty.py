@@ -433,7 +433,7 @@ def e() -> X:
 
 def test_map_clear(get_contract_with_gas_estimation):
     code = """
-big_storage: map(bytes32, bytes32)
+big_storage: HashMap[bytes32, bytes32]
 
 @public
 def set(key: bytes32, _value: bytes32):
@@ -459,7 +459,7 @@ def delete(key: bytes32):
 
 def test_map_clear_nested(get_contract_with_gas_estimation):
     code = """
-big_storage: map(bytes32, map(bytes32, bytes32))
+big_storage: HashMap[bytes32, HashMap[bytes32, bytes32]]
 
 @public
 def set(key1: bytes32, key2: bytes32, _value: bytes32):
@@ -489,7 +489,7 @@ struct X:
     a: int128
     b: int128
 
-structmap: map(int128, X)
+structmap: HashMap[int128, X]
 
 @public
 def set():

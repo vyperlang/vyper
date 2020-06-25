@@ -180,7 +180,7 @@ def test_extract_file_interface_imports_raises(code, assert_compile_failed):
 
 def test_external_call_to_interface(w3, get_contract):
     token_code = """
-balanceOf: public(map(address, uint256))
+balanceOf: public(HashMap[address, uint256])
 
 @public
 def transfer(to: address, _value: uint256):
@@ -221,7 +221,7 @@ def test():
 
 def test_external_call_to_builtin_interface(w3, get_contract):
     token_code = """
-balanceOf: public(map(address, uint256))
+balanceOf: public(HashMap[address, uint256])
 
 @public
 def transfer(to: address, _value: uint256):

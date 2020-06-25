@@ -68,8 +68,8 @@ event_def: NAME ":" "event" "(" "{" (variable | indexed_event_arg)? ("," (variab
 array_def: (NAME | array_def) "[" (DEC_NUMBER | NAME) "]"
 tuple_def: "(" ( NAME | array_def | tuple_def ) ( "," ( NAME | array_def | tuple_def ) )* [","] ")"
 // NOTE: Map takes a basic type and maps to another type (can be non-basic, including maps)
-_MAP: "map"
-map_def: _MAP "(" ( NAME | array_def ) "," type ")"
+_MAP: "HashMap"
+map_def: _MAP "[" ( NAME | array_def ) "," type "]"
 type: ( NAME | array_def | tuple_def | map_def )
 
 // Structs can be composed of 1+ basic types or other custom_types

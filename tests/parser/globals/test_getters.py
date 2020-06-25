@@ -1,6 +1,6 @@
 def test_state_accessor(get_contract_with_gas_estimation_for_constants):
     state_accessor = """
-y: map(int128, int128)
+y: HashMap[int128, int128]
 
 @public
 def oo():
@@ -29,7 +29,7 @@ struct W:
 x: public(uint256)
 y: public(int128[5])
 z: public(bytes[100])
-w: public(map(int128, W))
+w: public(HashMap[int128, W])
 
 @public
 def __init__():

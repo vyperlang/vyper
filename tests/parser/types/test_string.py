@@ -38,7 +38,7 @@ def testa(inp: string[10]) -> string[160]:
 
 def test_basic_long_string_as_keys(get_contract, w3):
     code = """
-mapped_string: map(string[34], int128)
+mapped_string: HashMap[string[34], int128]
 
 @public
 def set(k: string[34], v: int128):

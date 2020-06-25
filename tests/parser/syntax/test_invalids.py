@@ -138,7 +138,7 @@ def foo():
 
 must_succeed(
     """
-b: map(int128, int128)
+b: HashMap[int128, int128]
 @public
 def foo():
     x: int128 = self.b[5]
@@ -147,7 +147,7 @@ def foo():
 
 must_fail(
     """
-b: map(uint256, uint256)
+b: HashMap[uint256, uint256]
 @public
 def foo():
     x: int128 = self.b[-5]
@@ -157,7 +157,7 @@ def foo():
 
 must_fail(
     """
-b: map(int128, int128)
+b: HashMap[int128, int128]
 @public
 def foo():
     x: int128 = self.b[5.7]
@@ -167,7 +167,7 @@ def foo():
 
 must_succeed(
     """
-b: map(decimal, int128)
+b: HashMap[decimal, int128]
 @public
 def foo():
     x: int128 = self.b[5.0]
@@ -176,7 +176,7 @@ def foo():
 
 must_fail(
     """
-b: map(int128, int128)
+b: HashMap[int128, int128]
 @public
 def foo():
     self.b[3] = 5.6
@@ -186,7 +186,7 @@ def foo():
 
 must_succeed(
     """
-b: map(int128, int128)
+b: HashMap[int128, int128]
 @public
 def foo():
     self.b[3] = -5
@@ -195,7 +195,7 @@ def foo():
 
 must_succeed(
     """
-b: map(int128, int128)
+b: HashMap[int128, int128]
 @public
 def foo():
     self.b[-3] = 5
