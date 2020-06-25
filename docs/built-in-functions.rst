@@ -156,15 +156,28 @@ contracts.
     * ``point``: Point to be multiplied
     * ``scalar``: Scalar value
 
-.. py:function:: extract32(b: bytes, start: int128, type_=bytes32) -> Union[bytes32, int128, address]
+.. py:function:: extract32(b: bytes, start: int128, output_type=bytes32) -> Union[bytes32, int128, address]
 
-    Extracts a value from a ``bytes`` list.
+    Extract a value from a ``bytes`` list.
 
     * ``b``: ``bytes`` list to extract from
     * ``start``: Start point to extract from
-    * ``type_``: Type of output (``bytes32``, ``int128``, or ``address``). Defaults to ``bytes32``.
+    * ``output_type``: Type of output (``bytes32``, ``int128``, or ``address``). Defaults to ``bytes32``.
 
-    Returns a value of the type specified by ``type_``.
+    Returns a value of the type specified by ``output_type``.
+
+    .. code-block:: python
+
+        @public
+        @constant
+        def foo(bytes[32]) -> address:
+            return extract32(b, 12, output_type=address)
+
+    .. code-block:: python
+
+        >>> ExampleContract.foo("0x0000000000000000000000009f8F72aA9304c8B593d555F12eF6589cC3A579A2")
+        "0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2"
+
 
 Low Level Built in Functions
 ****************************
