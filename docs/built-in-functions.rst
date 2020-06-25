@@ -114,14 +114,26 @@ contracts.
 
     Returns the square root of the provided decimal number, using the Babylonian square root algorithm.
 
-.. py:function:: method_id(method, type_) -> Union[bytes32, bytes[4]]
+.. py:function:: method_id(method, output_type: type = bytes[4]) -> Union[bytes32, bytes[4]]
 
     Takes a function declaration and returns its method_id (used in data field to call it).
 
-    * ``method``: Method declaration as ``str_literal``
-    * ``type_``: Type of output (``bytes32`` or ``bytes[4]``)
+    * ``method``: Method declaration as given as a literal string
+    * ``output_type``: The type of output (``bytes[4]`` or ``bytes32``). Defaults to ``bytes[4]``.
 
-    Returns a value of the type specified by ``type_``.
+    Returns a value of the type specified by ``output_type``.
+
+    .. code-block:: python
+
+        @public
+        @constant
+        def foo() -> bytes[4]:
+            return method_id('transfer(address,uint256)', output_type=bytes[4])
+
+    .. code-block:: python
+
+        >>> ExampleContract.foo("hello")
+        b"\xa9\x05\x9c\xbb"
 
 .. py:function:: ecrecover(hash: bytes32, v: uint256, r: uint256, s: uint256) -> address
 
