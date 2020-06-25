@@ -262,9 +262,9 @@ def byte_array_to_num(
 
 def get_length(arg):
     if arg.location == "memory":
-        return LLLnode.from_list(["mload", arg], typ=BaseType("int128"))
+        return LLLnode.from_list(["mload", arg], typ=BaseType("uint256"))
     elif arg.location == "storage":
-        return LLLnode.from_list(["sload", ["sha3_32", arg]], typ=BaseType("int128"))
+        return LLLnode.from_list(["sload", ["sha3_32", arg]], typ=BaseType("uint256"))
 
 
 def getpos(node):
