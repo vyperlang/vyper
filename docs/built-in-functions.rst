@@ -56,9 +56,21 @@ contracts.
     * ``start``: start position of the slice
     * ``length``: length of the slice
 
-.. py:function:: len(b: bytes) -> int128
+.. py:function:: len(b: Union[bytes, string]) -> uint256
 
-    Returns the length of a given ``bytes`` list.
+    Return the length of a given ``bytes`` or ``string``.
+
+    .. code-block:: python
+
+        @public
+        @constant
+        def foo(s: string[32]) -> uint256:
+            return len(s)
+
+    .. code-block:: python
+
+        >>> ExampleContract.foo("hello")
+        5
 
 .. py:function:: concat(a, b, *args) -> bytes
 
