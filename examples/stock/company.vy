@@ -1,8 +1,22 @@
 # Financial events the contract logs
-Transfer: event({_from: indexed(address), _to: indexed(address), _value: uint256})
-Buy: event({_buyer: indexed(address), _buy_order: uint256})
-Sell: event({_seller: indexed(address), _sell_order: uint256})
-Pay: event({_vendor: indexed(address), _amount: uint256})
+
+event Transfer:
+    sender: indexed(address)
+    receiver: indexed(address)
+    value: uint256
+
+event Buy:
+    buyer: indexed(address)
+    buy_order: uint256
+
+event Sell:
+    seller: indexed(address)
+    sell_order: uint256
+
+event Pay:
+    vendor: indexed(address)
+    amount: uint256
+
 
 # Initiate the variables for the company and it's own shares.
 company: public(address)
@@ -53,7 +67,7 @@ def buyStock():
     self.holdings[msg.sender] += buy_order
 
     # Log the buy event.
-    log.Buy(msg.sender, buy_order)
+    log Buy(msg.sender, buy_order)
 
 # Find out how much stock any address (that's owned by someone) has.
 @private
@@ -90,7 +104,7 @@ def sellStock(sell_order: uint256):
     send(msg.sender, sell_order * self.price)
 
     # Log the sell event.
-    log.Sell(msg.sender, sell_order)
+    log Sell(msg.sender, sell_order)
 
 # Transfer stock from one stockholder to another. (Assume that the
 # receiver is given some compensation, but this is not enforced.)
@@ -105,7 +119,7 @@ def transferStock(receiver: address, transfer_order: uint256):
     self.holdings[receiver] += transfer_order
 
     # Log the transfer event.
-    log.Transfer(msg.sender, receiver, transfer_order)
+    log Transfer(msg.sender, receiver, transfer_order)
 
 # Allow the company to pay someone for services rendered.
 @public
@@ -119,7 +133,7 @@ def payBill(vendor: address, amount: uint256):
     send(vendor, amount)
 
     # Log the payment event.
-    log.Pay(vendor, amount)
+    log Pay(vendor, amount)
 
 # Return the amount in wei that a company has raised in stock offerings.
 @private
