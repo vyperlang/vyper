@@ -645,27 +645,27 @@ class Sha256(_SimpleBuiltinFunction):
 class MethodID:
 
     _id = "method_id"
-    _inputs = [("method", "str_literal"), ("type", "name_literal")]
 
     def evaluate(self, node):
-        validate_call_args(node, 2)
+        validate_call_args(node, 1, ["output_type"])
 
         args = node.args
         if not isinstance(args[0], vy_ast.Str):
             raise InvalidType("method id must be given as a literal string", args[0])
         if " " in args[0].value:
-            raise InvalidLiteral("Invalid function signature no spaces allowed.")
+            raise InvalidLiteral("Invalid function signature - no spaces allowed.")
 
-        if isinstance(args[1], vy_ast.Name) and args[1].id == "bytes32":
-            length = 32
-        elif (
-            isinstance(args[1], vy_ast.Subscript)
-            and args[1].get("value.id") == "bytes"
-            and args[1].get("slice.value.value") == 4
-        ):
-            length = 4
+        if node.keywords:
+            return_type = get_type_from_annotation(node.keywords[0].value, DataLocation.UNSET)
+            if isinstance(return_type, Bytes32Definition):
+                length = 32
+            elif isinstance(return_type, BytesArrayDefinition) and return_type.length == 4:
+                length = 4
+            else:
+                raise ArgumentException("output_type must be bytes[4] or bytes32", node.keywords[0])
         else:
-            raise InvalidType("Can only produce bytes32 or bytes[4] as outputs", args[1])
+            # if `output_type` is not given, default to `bytes[4]`
+            length = 4
 
         method_id = fourbytes_to_int(keccak256(args[0].value.encode())[:4])
         value = method_id.to_bytes(length, "big")
