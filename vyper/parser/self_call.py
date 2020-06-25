@@ -19,7 +19,7 @@ from vyper.types import (
 )
 
 
-def call_lookup_specs(stmt_expr, context):
+def _call_lookup_specs(stmt_expr, context):
     from vyper.parser.expr import Expr
 
     method_name = stmt_expr.func.attr
@@ -36,7 +36,7 @@ def call_lookup_specs(stmt_expr, context):
 
 
 def make_call(stmt_expr, context):
-    method_name, _, sig = call_lookup_specs(stmt_expr, context)
+    method_name, _, sig = _call_lookup_specs(stmt_expr, context)
 
     if context.is_constant() and not sig.const:
         raise ConstancyViolation(
@@ -47,10 +47,10 @@ def make_call(stmt_expr, context):
     if not sig.private:
         raise StructureException("Cannot call public functions via 'self'", stmt_expr)
 
-    return call_self_private(stmt_expr, context, sig)
+    return _call_self_private(stmt_expr, context, sig)
 
 
-def call_make_placeholder(stmt_expr, context, sig):
+def _call_make_placeholder(stmt_expr, context, sig):
     if sig.output_type is None:
         return 0, 0, 0
 
@@ -64,7 +64,7 @@ def call_make_placeholder(stmt_expr, context, sig):
     return output_placeholder, returner, out_size
 
 
-def call_self_private(stmt_expr, context, sig):
+def _call_self_private(stmt_expr, context, sig):
     # ** Private Call **
     # Steps:
     # (x) push current local variables
@@ -74,7 +74,7 @@ def call_self_private(stmt_expr, context, sig):
     # (x) pop return values
     # (x) pop local variables
 
-    method_name, expr_args, sig = call_lookup_specs(stmt_expr, context)
+    method_name, expr_args, sig = _call_lookup_specs(stmt_expr, context)
     pre_init = []
     pop_local_vars = []
     push_local_vars = []
@@ -190,7 +190,7 @@ def call_self_private(stmt_expr, context, sig):
     # Pop return values.
     returner = [0]
     if sig.output_type:
-        output_placeholder, returner, output_size = call_make_placeholder(stmt_expr, context, sig)
+        output_placeholder, returner, output_size = _call_make_placeholder(stmt_expr, context, sig)
         if output_size > 0:
             dynamic_offsets = []
             if isinstance(sig.output_type, (BaseType, ListType)):
