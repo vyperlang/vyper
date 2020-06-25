@@ -39,11 +39,6 @@ def foo() -> decimal:
     """
 @public
 def foo():
-    x: bytes[10] = slice("cow", 0, chain.id)
-    """,
-    """
-@public
-def foo():
     x: int128 = 7
     y: int128 = min(x, chain.id)
     """,
@@ -61,11 +56,14 @@ a: map(int128, uint256)
 def add_record():
     self.a[chain.id] = chain.id + 20
     """,
-    """
+    (
+        """
 @public
 def foo(inp: bytes[10]) -> bytes[3]:
-    return slice(inp, chain.id, 3)
+    return slice(inp, chain.id, -3)
     """,
+        InvalidType,
+    ),
 ]
 
 

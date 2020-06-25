@@ -28,11 +28,14 @@ def foo() -> decimal:
     y: int128 = block.timestamp + 50
     return x / y
     """,
-    """
+    (
+        """
 @public
 def foo():
-    x: bytes[10] = slice(b"cow", 0, block.timestamp)
+    x: bytes[10] = slice(b"cow", -1, block.timestamp)
     """,
+        InvalidType,
+    ),
     """
 @public
 def foo():
@@ -67,7 +70,7 @@ def add_record():
     """
 @public
 def foo(inp: bytes[10]) -> bytes[3]:
-    return slice(inp, block.timestamp, 3)
+    return slice(inp, block.timestamp, 6)
     """,
     (
         """

@@ -86,12 +86,12 @@ def _catty(x: bytes[5], y: bytes[5]) -> bytes[10]:
     return concat(x, y)
 
 @private
-def _slicey1(x: bytes[10], y: int128) -> bytes[10]:
+def _slicey1(x: bytes[10], y: uint256) -> bytes[10]:
     return slice(x, 0, y)
 
 @private
-def _slicey2(y: int128, x: bytes[10]) -> bytes[10]:
-    return slice(x, 0,y)
+def _slicey2(y: uint256, x: bytes[10]) -> bytes[10]:
+    return slice(x, 0, y)
 
 @public
 def returnten() -> int128:
@@ -152,7 +152,7 @@ def _underscore() -> bytes[1]:
     return b"_"
 
 @private
-def _hardtest(x: bytes[100], y: int128, z: int128, a: bytes[100], b: int128, c: int128) -> bytes[201]:  # noqa: E501
+def _hardtest(x: bytes[100], y: uint256, z: uint256, a: bytes[100], b: uint256, c: uint256) -> bytes[201]:  # noqa: E501
     return concat(slice(x, y, z), self._underscore(), slice(a, b, c))
 
 @public

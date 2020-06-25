@@ -59,7 +59,7 @@ def get(k: string[34]) -> int128:
 def test_string_slice(get_contract_with_gas_estimation, assert_tx_failed):
     test_slice4 = """
 @public
-def foo(inp: string[10], start: int128, _len: int128) -> string[10]:
+def foo(inp: string[10], start: uint256, _len: uint256) -> string[10]:
     return slice(inp, start, _len)
     """
 

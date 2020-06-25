@@ -43,7 +43,7 @@ def test_bytes_literal_splicing_fuzz(get_contract_with_gas_estimation):
 moo: bytes[100]
 
 @public
-def foo(s: int128, L: int128) -> bytes[100]:
+def foo(s: uint256, L: uint256) -> bytes[100]:
         x: int128 = 27
         r: bytes[100] = slice(b"{("c" * i)}", s, L)
         y: int128 = 37
@@ -52,7 +52,7 @@ def foo(s: int128, L: int128) -> bytes[100]:
         return b"3434346667777"
 
 @public
-def bar(s: int128, L: int128) -> bytes[100]:
+def bar(s: uint256, L: uint256) -> bytes[100]:
         self.moo = b"{("c" * i)}"
         x: int128 = 27
         r: bytes[100] = slice(self.moo, s, L)
@@ -62,7 +62,7 @@ def bar(s: int128, L: int128) -> bytes[100]:
         return b"3434346667777"
 
 @public
-def baz(s: int128, L: int128) -> bytes[100]:
+def baz(s: uint256, L: uint256) -> bytes[100]:
         x: int128 = 27
         self.moo = slice(b"{("c" * i)}", s, L)
         y: int128 = 37
