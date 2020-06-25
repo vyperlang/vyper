@@ -26,12 +26,13 @@ def bar(inp1: bytes[10]) -> int128:
 
 
 def test_test_slice2(get_contract_with_gas_estimation):
+    # TODO once parser is refactored so that `i` is `uint256`, remove call to `convert`
     test_slice2 = """
 @public
 def slice_tower_test(inp1: bytes[50]) -> bytes[50]:
     inp: bytes[50] = inp1
     for i in range(1, 11):
-        inp = slice(inp, 1, 30 - i * 2)
+        inp = slice(inp, 1, convert(30 - i * 2, uint256))
     return inp
     """
     c = get_contract_with_gas_estimation(test_slice2)
@@ -73,7 +74,7 @@ def bar(inp1: bytes[50]) -> int128:
 def test_test_slice4(get_contract_with_gas_estimation, assert_tx_failed):
     test_slice4 = """
 @public
-def foo(inp: bytes[10], start: int128, _len: int128) -> bytes[10]:
+def foo(inp: bytes[10], start: uint256, _len: uint256) -> bytes[10]:
     return slice(inp, start, _len)
     """
 

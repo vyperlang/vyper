@@ -225,15 +225,14 @@ class Convert:
 class Slice:
 
     _id = "slice"
-    _inputs = [("b", ("bytes", "bytes32", "string")), ("start", "int128"), ("length", "int128")]
+    _inputs = [("b", ("bytes", "bytes32", "string")), ("start", "uint256"), ("length", "uint256")]
     _return_type = None
 
     def fetch_call_return(self, node):
         validate_call_args(node, 3)
 
-        # TODO
-        if isinstance(node.args[1], vy_ast.Int) and node.args[1].value < 0:
-            raise ArgumentException("Start must be a positive integer", node.args[1])
+        for arg in node.args[1:]:
+            validate_expected_type(arg, Uint256Definition())
         if isinstance(node.args[2], vy_ast.Int) and node.args[2].value < 1:
             raise ArgumentException("Length cannot be less than 1", node.args[2])
 
@@ -244,9 +243,6 @@ class Slice:
             return_type = StringDefinition()
         except VyperException:
             return_type = BytesArrayDefinition()
-
-        for arg in node.args[1:]:
-            validate_expected_type(arg, Int128Definition())
 
         if isinstance(node.args[2], vy_ast.Int):
             return_type.set_length(node.args[2].value)
