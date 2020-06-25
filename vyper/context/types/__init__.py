@@ -1,6 +1,5 @@
 from vyper.context.types import indexable, meta, value
 from vyper.context.types.bases import BasePrimitive
-from vyper.context.types.event import Event
 
 
 def get_primitive_types():
@@ -23,7 +22,7 @@ def get_primitive_types():
 
 
 def get_types():
-    result = {"event": Event}
+    result = {}
     result.update(meta.META_TYPES)
     result.update(get_primitive_types())
 

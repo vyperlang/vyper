@@ -170,9 +170,13 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             raise exc.with_annotation(node) from None
 
     def visit_ClassDef(self, node):
-        type_ = self.namespace[node.class_type].build_primitive_from_node(node)
+        obj = self.namespace[node.class_type].build_primitive_from_node(node)
         try:
-            self.namespace[node.name] = type_
+            if hasattr(obj, "_member_of"):
+                member_key = obj._member_of
+                self.namespace[member_key].add_member(node.name, obj)
+            else:
+                self.namespace[node.name] = obj
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 

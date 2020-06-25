@@ -62,6 +62,7 @@ def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
 
 
 VYPER_CLASS_TYPES = {
+    "event",
     "interface",
     "struct",
 }
