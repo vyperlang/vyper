@@ -1,4 +1,4 @@
-contract Exchange:
+interface Exchange:
     def token() -> address: constant
     def receive(_from: address, _amt: uint256): modifying
     def transfer(_to: address, _amt: uint256): modifying

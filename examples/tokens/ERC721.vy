@@ -7,7 +7,7 @@ from vyper.interfaces import ERC721
 implements: ERC721
 
 # Interface for the contract called by safeTransferFrom()
-contract ERC721Receiver:
+interface ERC721Receiver:
     def onERC721Received(
             _operator: address,
             _from: address,
