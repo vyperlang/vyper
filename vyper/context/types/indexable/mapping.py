@@ -1,7 +1,6 @@
 from typing import Union
 
 from vyper import ast as vy_ast
-from vyper.ast.validation import validate_call_args
 from vyper.context.types.bases import (
     BasePrimitive,
     DataLocation,
