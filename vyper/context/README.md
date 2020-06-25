@@ -49,8 +49,7 @@ consists of three steps:
 ### 1. Preparing the builtin namespace
 
 The [`Namespace`](namespace.py) object represents the namespace for a contract.
-Prior to beginning type checking, builtins are added via the `Namespace.enter_builtin_scope`
-method. This includes:
+Builtins are added upon initialization of the object. This includes:
 
 * Adding primitive type classes from the [`types/`](types) subpackage
 * Adding environment variables and builtin constants from [`environment.py`](environment.py)
@@ -187,10 +186,6 @@ with namespace.enter_scope():
 
 namespace['foo']  # this raises an UndeclaredDefinition
 ```
-
-Prior to beginning type checking, the first scope **must** be initiated using
-`Namespace.enter_builtin_scope`. This ensures that all builtin objects have
-been added, and resets the content of `self` and `log`.
 
 ### Validation
 
