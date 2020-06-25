@@ -197,7 +197,7 @@ class GlobalContext:
             o = []
             for funname, head, tail, base in cls._mk_getter_helper(typ.subtype, depth + 1):
                 o.append(
-                    (funname, (f"arg{depth}: int128, ") + head, (f"[arg{depth}]") + tail, base,)
+                    (funname, (f"arg{depth}: uint256, ") + head, (f"[arg{depth}]") + tail, base,)
                 )
             return o
         # Mapping type: do not extend the getter name, add an input argument for
