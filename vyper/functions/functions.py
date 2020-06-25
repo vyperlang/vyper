@@ -342,7 +342,7 @@ class Len(_SimpleBuiltinFunction):
 
     _id = "len"
     _inputs = [("b", ArrayValueAbstractType())]
-    _return_type = Int128Definition()
+    _return_type = Uint256Definition()
 
     def evaluate(self, node):
         validate_call_args(node, 1)

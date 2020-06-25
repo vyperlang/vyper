@@ -38,14 +38,14 @@ def get_twox() -> int128:
 
 def test_constructor_advanced_code2(get_contract_with_gas_estimation):
     constructor_advanced_code2 = """
-comb: int128
+comb: uint256
 
 @public
-def __init__(x: int128[2], y: bytes[3], z: int128):
+def __init__(x: uint256[2], y: bytes[3], z: uint256):
     self.comb = x[0] * 1000 + x[1] * 100 + len(y) * 10 + z
 
 @public
-def get_comb() -> int128:
+def get_comb() -> uint256:
     return self.comb
     """
     c = get_contract_with_gas_estimation(constructor_advanced_code2, *[[5, 7], b"dog", 8])

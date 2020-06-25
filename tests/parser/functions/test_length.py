@@ -3,7 +3,7 @@ def test_test_length(get_contract_with_gas_estimation):
 y: bytes[10]
 
 @public
-def foo(inp: bytes[10]) -> int128:
+def foo(inp: bytes[10]) -> uint256:
     x: bytes[5] = slice(inp,1, 5)
     self.y = slice(inp, 2, 4)
     return len(inp) * 100 + len(x) * 10 + len(self.y)
