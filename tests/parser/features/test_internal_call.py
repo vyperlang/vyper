@@ -60,11 +60,11 @@ def return_hash_of_cow_x_30() -> bytes32:
     return self._hashy2(b"cowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcow")  # noqa: E501
 
 @private
-def _len(x: bytes[100]) -> int128:
+def _len(x: bytes[100]) -> uint256:
     return len(x)
 
 @public
-def returnten() -> int128:
+def returnten() -> uint256:
     return self._len(b"badminton!")
     """
 

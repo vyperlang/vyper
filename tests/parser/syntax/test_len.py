@@ -7,12 +7,12 @@ from vyper.exceptions import TypeMismatch
 fail_list = [
     """
 @public
-def foo(inp: int128) -> int128:
+def foo(inp: bytes[4]) -> int128:
     return len(inp)
     """,
     """
 @public
-def foo(inp: int128) -> address:
+def foo(inp: int128) -> uint256:
     return len(inp)
     """,
 ]
@@ -32,12 +32,12 @@ def test_block_fail(bad_code):
 valid_list = [
     """
 @public
-def foo(inp: bytes[10]) -> int128:
+def foo(inp: bytes[10]) -> uint256:
     return len(inp)
     """,
     """
 @public
-def foo(inp: string[10]) -> int128:
+def foo(inp: string[10]) -> uint256:
     return len(inp)
     """,
 ]
