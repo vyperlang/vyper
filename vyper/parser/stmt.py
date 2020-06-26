@@ -194,8 +194,7 @@ class Stmt:
         return LLLnode.from_list(assert_reason, typ=None, pos=getpos(self.stmt))
 
     def parse_Assert(self):
-        with self.context.assertion_scope():
-            test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
+        test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
 
         if self.stmt.msg:
             return self._assert_reason(test_expr, self.stmt.msg)

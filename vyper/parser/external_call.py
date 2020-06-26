@@ -36,9 +36,9 @@ def external_call(node, context, interface_name, contract_address, pos, value=No
         ["assert", ["ne", "address", contract_address]],
     ]
     if context.is_constant() and not sig.const:
+        # TODO this can probably go
         raise ConstancyViolation(
-            f"May not call non-constant function '{method_name}' within {context.pp_constancy()}."
-            " For asserting the result of modifiable contract calls, try assert_modifiable.",
+            f"May not call non-constant function '{method_name}' within {context.pp_constancy()}.",
             node,
         )
 
