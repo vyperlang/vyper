@@ -1,7 +1,7 @@
 from typing import Dict, Optional, Sequence, Tuple, Union
 
 # Parser
-ClassTypes = Dict[str, str]
+ModificationOffsets = Dict[Tuple[int, int], str]
 ParserPosition = Tuple[int, int]
 
 # Compiler
