@@ -377,7 +377,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 StateMutability.PURE,
             ):
                 raise ConstancyViolation(
-                    "Cannot call a mutating function from a view function", node
+                    "Cannot call a state modifying function from a view function", node
                 )
 
             if (

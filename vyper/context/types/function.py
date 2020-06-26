@@ -45,7 +45,7 @@ class StateMutability(StringEnum):
         """
         if "stateMutability" in abi_dict:
             return cls(abi_dict["stateMutability"])
-        elif "payable" in abi_dict and abi_dict["payable"]:
+        elif abi_dict.get("payable"):
             return StateMutability.PAYABLE
         elif "constant" in abi_dict and abi_dict["constant"]:
             return StateMutability.VIEW
@@ -240,7 +240,7 @@ class ContractFunctionType(BaseTypeDefinition):
                 raise StructureException("Bad decorator syntax", decorator)
 
         if "function_visibility" not in kwargs:
-            options = " or ".join([v.value for v in list(FunctionVisibility)])
+            options = " or ".join(v.value for v in list(FunctionVisibility))
             raise FunctionDeclarationException(
                 f"Visibility must be set to one of {options}", node,
             )
