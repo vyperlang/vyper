@@ -28,8 +28,6 @@ class Event:
         Name of the event.
     """
 
-    _member_of = "log"
-
     def __init__(self, name: str, arguments: OrderedDict, indexed: List) -> None:
         self.name = name
         self.arguments = arguments

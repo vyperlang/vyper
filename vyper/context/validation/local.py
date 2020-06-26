@@ -11,6 +11,7 @@ from vyper.context.types.indexable.sequence import (
     ArrayDefinition,
     TupleDefinition,
 )
+from vyper.context.types.meta.event import Event
 from vyper.context.types.utils import get_type_from_annotation
 from vyper.context.types.value.boolean import BoolDefinition
 from vyper.context.types.value.numeric import Uint256Definition
@@ -345,6 +346,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException("Expressions without assignment are disallowed", node)
 
         fn_type = get_exact_type_from_node(node.value.func)
+        if isinstance(fn_type, Event):
+            raise StructureException("To call an event you must use the `log` statement", node)
+
         if isinstance(fn_type, ContractFunctionType):
             if self.func.is_constant and not fn_type.is_constant:
                 raise ConstancyViolation(
@@ -356,3 +360,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException(
                 f"Function '{node.value.func}' cannot be called without assigning the result", node
             )
+
+    def visit_Log(self, node):
+        if not isinstance(node.value, vy_ast.Call):
+            raise StructureException("Log must call an event", node)
+        event = get_exact_type_from_node(node.value.func)
+        if not isinstance(event, Event):
+            raise StructureException("Value is not an event", node.value)
+        event.fetch_call_return(node.value)

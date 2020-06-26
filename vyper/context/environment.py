@@ -1,4 +1,4 @@
-from typing import Dict, Tuple
+from typing import Dict
 
 from vyper.context.types.meta.struct import StructDefinition
 from vyper.context.types.value.address import AddressDefinition
@@ -19,9 +19,8 @@ CONSTANT_ENVIRONMENT_VARS: Dict[str, Dict[str, type]] = {
 }
 
 
-MUTABLE_ENVIRONMENT_VARS: Dict[str, Tuple] = {
-    "log": (StructDefinition, "log", {}),
-    "self": (AddressDefinition,),
+MUTABLE_ENVIRONMENT_VARS: Dict[str, type] = {
+    "self": AddressDefinition,
 }
 
 
@@ -43,7 +42,7 @@ def get_mutable_vars() -> Dict:
     modified during the course of contract execution, such as `self`).
     """
     result = {}
-    for name, data in MUTABLE_ENVIRONMENT_VARS.items():
-        obj, args = data[0], data[1:]
-        result[name] = obj(*args, is_constant=True)
+    for name, type_ in MUTABLE_ENVIRONMENT_VARS.items():
+        result[name] = type_(is_constant=True)
+
     return result
