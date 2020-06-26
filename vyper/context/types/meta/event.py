@@ -54,6 +54,10 @@ def build_primitive_from_node(base_node: vy_ast.ClassDef) -> Event:
 
     members: OrderedDict = OrderedDict()
     indexed: List = []
+
+    if len(base_node.body) == 1 and isinstance(base_node.body[0], vy_ast.Pass):
+        return Event(base_node.name, members, indexed)
+
     for node in base_node.body:
         if not isinstance(node, vy_ast.AnnAssign):
             raise StructureException("Events can only contain variable definitions", node)

@@ -37,35 +37,36 @@ class EventSignature:
 
         args = []
         indexed_list = []
-        for node in class_node.body:
-            arg_item = node.target
-            arg = node.target.id
-            typ = node.annotation
-            if isinstance(typ, vy_ast.Call) and typ.get("func.id") == "indexed":
-                if indexed_list.count(True) == 3:
-                    raise EventDeclarationException(
-                        "Event cannot have more than three indexed arguments", typ
-                    )
-                indexed_list.append(True)
-                typ = typ.args[0]
-            else:
-                indexed_list.append(False)
-            check_valid_varname(
-                arg,
-                global_ctx._structs,
-                global_ctx._constants,
-                pos=arg_item,
-                error_prefix="Event argument name invalid or reserved.",
-            )
-            if arg in (x.name for x in args):
-                raise TypeCheckFailure(f"Duplicate function argument name: {arg}")
-            # Can struct be logged?
-            parsed_type = global_ctx.parse_type(typ, None)
-            args.append(VariableRecord(arg, pos, parsed_type, False))
-            if isinstance(parsed_type, ByteArrayType):
-                pos += ceil32(typ.slice.value.n)
-            else:
-                pos += get_size_of_type(parsed_type) * 32
+        if len(class_node.body) != 1 or not isinstance(class_node.body[0], vy_ast.Pass):
+            for node in class_node.body:
+                arg_item = node.target
+                arg = node.target.id
+                typ = node.annotation
+                if isinstance(typ, vy_ast.Call) and typ.get("func.id") == "indexed":
+                    if indexed_list.count(True) == 3:
+                        raise EventDeclarationException(
+                            "Event cannot have more than three indexed arguments", typ
+                        )
+                    indexed_list.append(True)
+                    typ = typ.args[0]
+                else:
+                    indexed_list.append(False)
+                check_valid_varname(
+                    arg,
+                    global_ctx._structs,
+                    global_ctx._constants,
+                    pos=arg_item,
+                    error_prefix="Event argument name invalid or reserved.",
+                )
+                if arg in (x.name for x in args):
+                    raise TypeCheckFailure(f"Duplicate function argument name: {arg}")
+                # Can struct be logged?
+                parsed_type = global_ctx.parse_type(typ, None)
+                args.append(VariableRecord(arg, pos, parsed_type, False))
+                if isinstance(parsed_type, ByteArrayType):
+                    pos += ceil32(typ.slice.value.n)
+                else:
+                    pos += get_size_of_type(parsed_type) * 32
 
         sig = (
             name
