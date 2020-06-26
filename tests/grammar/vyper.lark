@@ -59,10 +59,13 @@ returns: _RETURN_TYPE type
 function_sig: _FUNC_DECL NAME "(" [parameters] ")" [returns]
 function_def: [decorators] function_sig ":" body
 
+// Events can be composed of 0 or more members
+_EVENT_DECL: "event"
+event_member: NAME ":" type
 indexed_event_arg: NAME ":" "indexed" "(" type ")"
-// Events can have zero args
-event_def: NAME ":" "event" "(" "{" (variable | indexed_event_arg)? ("," (variable | indexed_event_arg))* "}" ")"
-
+event_body: _NEWLINE _INDENT ((variable | indexed_event_arg) _NEWLINE)+ _DEDENT
+// Events which use no args use a pass statement instead
+event_def: _EVENT_DECL NAME ":" ( event_body | _PASS )
 
 // Types
 array_def: (NAME | array_def) "[" (DEC_NUMBER | NAME) "]"
@@ -132,8 +135,7 @@ pass_stmt: _PASS
 break_stmt: _BREAK
 continue_stmt: _CONTINUE
 
-// TODO: Remove "." as unnecessary
-log_stmt: _LOG "." NAME "(" [arguments] ")"
+log_stmt: _LOG NAME "(" [arguments] ")"
 return_stmt: _RETURN [_expr ("," _expr)*]
 _UNREACHABLE: "UNREACHABLE"
 raise_stmt: _RAISE -> raise

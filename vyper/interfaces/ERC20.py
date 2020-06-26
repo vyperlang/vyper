@@ -1,7 +1,14 @@
 interface_code = """
 # Events
-Transfer: event({_from: indexed(address), _to: indexed(address), _value: uint256})
-Approval: event({_owner: indexed(address), _spender: indexed(address), _value: uint256})
+event Transfer:
+    _from: indexed(address)
+    _to: indexed(address)
+    _value: uint256
+
+event Approval:
+    _owner: indexed(address)
+    _spender: indexed(address)
+    _value: uint256
 
 # Functions
 @constant

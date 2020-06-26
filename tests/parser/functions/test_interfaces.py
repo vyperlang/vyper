@@ -15,7 +15,10 @@ def test_basic_extract_interface():
     code = """
 # Events
 
-Transfer: event({_from: address, _to: address, _value: uint256})
+event Transfer:
+    _from: address
+    _to: address
+    _value: uint256
 
 # Functions
 

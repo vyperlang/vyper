@@ -2,52 +2,67 @@ import pytest
 from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import EventDeclarationException, UnknownType
+from vyper.exceptions import (
+    EventDeclarationException,
+    NamespaceCollision,
+    UnknownType,
+)
 
 fail_list = [  # noqa: E122
     """
-Âssign: event({variable: int128})
+event Âssign:
+    variable: int128
 
 @public
 def foo(i: int128) -> int128:
     temp_var : int128 = i
-    log.Âssign(temp_var)
+    log Âssign(temp_var)
+    return temp_var
+    """,
+    (
+        """
+event int128:
+    variable: int128
+
+@public
+def foo(i: int128) -> int128:
+    temp_var : int128 = i
+    log int128(temp_var)
+    return temp_var
+    """,
+        NamespaceCollision,
+    ),
+    (
+        """
+event decimal:
+    variable: int128
+
+@public
+def foo(i: int128) -> int128:
+    temp_var : int128 = i
+    log decimal(temp_var)
+    return temp_var
+    """,
+        NamespaceCollision,
+    ),
+    """
+event wei:
+    variable: int128
+
+@public
+def foo(i: int128) -> int128:
+    temp_var : int128 = i
+    log wei(temp_var)
     return temp_var
     """,
     """
-int128: event({variable: int128})
+event false:
+    variable: int128
 
 @public
 def foo(i: int128) -> int128:
     temp_var : int128 = i
-    log.int128(temp_var)
-    return temp_var
-    """,
-    """
-decimal: event({variable: int128})
-
-@public
-def foo(i: int128) -> int128:
-    temp_var : int128 = i
-    log.decimal(temp_var)
-    return temp_var
-    """,
-    """
-wei: event({variable: int128})
-
-@public
-def foo(i: int128) -> int128:
-    temp_var : int128 = i
-    log.wei(temp_var)
-    return temp_var
-    """,
-    """
-false: event({variable: int128})
-
-@public
-def foo(i: int128) -> int128:
-    temp_var : int128 = i
-    log.false(temp_var)
+    log false(temp_var)
     return temp_var
     """,
     (
@@ -58,7 +73,10 @@ Transfer: eve.t({_from: indexed(address)})
     ),
     (
         """
-Transfer: event({_from: i.dexed(address), _to: indexed(address),lue: uint256})
+event Transfer:
+    _from: i.dexed(address)
+    _to: indexed(address)
+    lue: uint256
     """,
         UnknownType,
     ),
@@ -77,30 +95,33 @@ def test_varname_validity_fail(bad_code):
 
 valid_list = [
     """
-Assigned: event({variable: int128})
+event Assigned:
+    variable: int128
 
 @public
 def foo(i: int128) -> int128:
     variable : int128 = i
-    log.Assigned(variable)
+    log Assigned(variable)
     return variable
     """,
     """
-_Assign: event({variable: int128})
+event _Assign:
+    variable: int128
 
 @public
 def foo(i: int128) -> int128:
     variable : int128 = i
-    log._Assign(variable)
+    log _Assign(variable)
     return variable
     """,
     """
-Assigned1: event({variable: int128})
+event Assigned1:
+    variable: int128
 
 @public
 def foo(i: int128) -> int128:
     variable : int128 = i
-    log.Assigned1(variable)
+    log Assigned1(variable)
     return variable
     """,
 ]

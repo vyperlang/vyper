@@ -5,28 +5,32 @@ from vyper.exceptions import InvalidType, TypeMismatch
 
 fail_list = [
     """
-Bar: event({_value: int128[4]})
+event Bar:
+    _value: int128[4]
+
 x: decimal[4]
 
 @public
 def foo():
-    log.Bar(self.x)
+    log Bar(self.x)
     """,
     """
-Bar: event({_value: int128[4]})
+event Bar:
+    _value: int128[4]
 
 @public
 def foo():
     x: decimal[4] = [0.0, 0.0, 0.0, 0.0]
-    log.Bar(x)
+    log Bar(x)
     """,
     (
         """
-Test: event({ n: uint256 })
+event Test:
+    n: uint256
 
 @public
 def test():
-    log.Test(-7)
+    log Test(-7)
    """,
         InvalidType,
     ),

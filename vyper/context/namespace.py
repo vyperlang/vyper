@@ -31,6 +31,8 @@ class Namespace(dict):
 
     def __setitem__(self, attr, obj):
         if attr in self:
+            if attr not in [x for i in self._scopes for x in i]:
+                raise NamespaceCollision(f"Cannot assign to '{attr}', it is a builtin")
             obj = super().__getitem__(attr)
             raise NamespaceCollision(f"'{attr}' has already been declared as a {obj}")
 

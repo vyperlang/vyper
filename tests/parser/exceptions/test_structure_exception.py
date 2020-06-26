@@ -50,11 +50,6 @@ struct S:
     x: int128
     """,
     """
-g: int128
-struct S:
-    x: int128
-    """,
-    """
 @public
 @nonreentrant("B")
 @nonreentrant("C")

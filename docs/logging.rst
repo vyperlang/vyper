@@ -12,8 +12,15 @@ This example is taken from the `sample ERC20 contract <https://github.com/vyperl
 ::
 
     # Events of the token.
-    Transfer: event({_from: indexed(address), _to: indexed(address), _value: uint256})
-    Approval: event({_owner: indexed(address), _spender: indexed(address), _value: uint256})
+    event Transfer:
+        sender: indexed(address)
+        receiver: indexed(address)
+        value: uint256
+
+    event Approval:
+        owner: indexed(address)
+        spender: indexed(address)
+        value: uint256
 
     # Transfer some tokens from message sender to another address
     def transfer(_to : address, _value : uint256) -> bool:
@@ -21,11 +28,11 @@ This example is taken from the `sample ERC20 contract <https://github.com/vyperl
        ... Logic here to do the real work ...
 
        # All done, log the event for listeners
-       log.Transfer(msg.sender, _to, _amount)
+       log Transfer(msg.sender, _to, _value)
 
 Let's look at what this is doing. First, we declare two event types to log. The two events are similar in that they contain
 two indexed address fields. Indexed fields do not make up part of the event data itself, but can be searched by clients that
-want to catch the event. Also, each event contains one single data field, in each case called ``_value``. Events can contain several arguments with any names desired.
+want to catch the event. Also, each event contains one single data field, in each case called ``value``. Events can contain several arguments with any names desired.
 
 Next, in the ``transfer`` function, after we do whatever work is necessary, we log the event. We pass three arguments, corresponding with the three arguments of the Transfer event declaration.
 
@@ -54,25 +61,32 @@ Let's look at an event declaration in more detail.
 
 .. code-block:: python
 
-    Transfer: event({_from: indexed(address), _to: indexed(address), _value: uint256})
+    event Transfer:
+        sender: indexed(address)
+        receiver: indexed(address)
+        value: uint256
 
-Event declarations look like state variable declarations but use the special keyword event. event takes its arguments that consists of all the arguments to be passed as part of the event. Typical events will contain two kinds of arguments:
+Event declarations look similar to struct declarations, containing one or more arguments that are passed to the event. Typical events will contain two kinds of arguments:
 
 * Indexed arguments, which can be searched for by listeners. Each indexed argument is identified by the ``indexed`` keyword.  Here, each indexed argument is an address. You can have any number of indexed arguments, but indexed arguments are not passed directly to listeners, although some of this information (such as the sender) may be available in the listener's `results` object.
 * Value arguments, which are passed through to listeners. You can have any number of value arguments and they can have arbitrary names, but each is limited by the EVM to be no more than 32 bytes.
 
-Note that while the argument definition syntax looks like a Python dictionary, it's actually an order-sensitive definition. (Python dictionaries `maintain order starting with 3.7 <https://mail.python.org/pipermail/python-dev/2017-December/151283.html>`_.) Thus, the first element (``_from``) will be matched up with the first argument passed in the log.Transfer call.
+It is also possible to create an event with no arguments. In this case, use the ``pass`` statement:
+
+.. code-block:: python
+
+    event Foo: pass
 
 Logging Events
 ==============
 
 Once an event is declared, you can log (send) events. You can send events as many times as you want to. Please note that events sent do not take state storage and thus do not cost gas: this makes events a good way to save some information. However, the drawback is that events are not available to contracts, only to clients.
 
-Logging events is done using the magic keyword ``log``:
+Logging events is done using the ``log`` statement:
 
 .. code-block:: python
 
-   log.Transfer(msg.sender, _to, _amount)
+   log Transfer(msg.sender, _to, _amount)
 
 The order and types of arguments sent needs to match up with the order of declarations in the dictionary.
 

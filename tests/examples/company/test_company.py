@@ -93,21 +93,21 @@ def test_logs(w3, c, get_logs):
     # Buy is logged
     logs = get_logs(c.buyStock(transact={"from": a1, "value": 7 * c.price()}), c, "Buy")
     assert len(logs) == 1
-    assert logs[0].args._buy_order == 7
+    assert logs[0].args.buy_order == 7
 
     # Sell is logged
     logs = get_logs(c.sellStock(3, transact={"from": a1}), c, "Sell")
     assert len(logs) == 1
-    assert logs[0].args._sell_order == 3
+    assert logs[0].args.sell_order == 3
 
     # Transfer is logged
     logs = get_logs(c.transferStock(a2, 4, transact={"from": a1}), c, "Transfer")
     assert len(logs) == 1
     assert logs[0].event == "Transfer"
-    assert logs[0].args._value == 4
+    assert logs[0].args.value == 4
 
     # Pay is logged
     amount = 10 ** 4
     logs = get_logs(c.payBill(a3, amount, transact={}), c, "Pay")
     assert len(logs) == 1
-    assert logs[0].args._amount == amount
+    assert logs[0].args.amount == amount

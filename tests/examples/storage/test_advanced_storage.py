@@ -60,9 +60,9 @@ def test_events(w3, adv_storage_contract, get_logs):
 
     # Check log contents
     assert len(logs1) == 1
-    assert logs1[0].args._value == 10
+    assert logs1[0].args.value == 10
 
     assert len(logs2) == 1
-    assert logs2[0].args._setter == k2
+    assert logs2[0].args.setter == k2
 
     assert not logs3  # tx3 does not generate a log

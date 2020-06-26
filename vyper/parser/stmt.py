@@ -118,6 +118,42 @@ class Stmt:
             lll_node = LLLnode.from_list(body, typ=None, pos=getpos(self.stmt))
         return lll_node
 
+    def parse_Log(self):
+        event = self.context.sigs["self"][self.stmt.value.func.id]
+        expected_topics, topics = [], []
+        expected_data, data = [], []
+        for pos, is_indexed in enumerate(event.indexed_list):
+            if is_indexed:
+                expected_topics.append(event.args[pos])
+                topics.append(self.stmt.value.args[pos])
+            else:
+                expected_data.append(event.args[pos])
+                data.append(self.stmt.value.args[pos])
+        topics = pack_logging_topics(
+            event.event_id, topics, expected_topics, self.context, pos=getpos(self.stmt),
+        )
+        inargs, inargsize, inargsize_node, inarg_start = pack_logging_data(
+            expected_data, data, self.context, pos=getpos(self.stmt),
+        )
+
+        if inargsize_node is None:
+            sz = inargsize
+        else:
+            sz = ["mload", inargsize_node]
+
+        return LLLnode.from_list(
+            [
+                "seq",
+                inargs,
+                LLLnode.from_list(
+                    ["log" + str(len(topics)), inarg_start, sz] + topics,
+                    add_gas_estimate=inargsize * 10,
+                ),
+            ],
+            typ=None,
+            pos=getpos(self.stmt),
+        )
+
     def parse_Call(self):
         is_self_function = (
             (isinstance(self.stmt.func, vy_ast.Attribute))
@@ -125,52 +161,11 @@ class Stmt:
             and self.stmt.func.value.id == "self"
         )
 
-        is_log_call = (
-            (isinstance(self.stmt.func, vy_ast.Attribute))
-            and isinstance(self.stmt.func.value, vy_ast.Name)
-            and self.stmt.func.value.id == "log"
-        )
-
         if isinstance(self.stmt.func, vy_ast.Name):
             funcname = self.stmt.func.id
             return STMT_DISPATCH_TABLE[funcname].build_LLL(self.stmt, self.context)
         elif is_self_function:
             return self_call.make_call(self.stmt, self.context)
-        elif is_log_call:
-            event = self.context.sigs["self"][self.stmt.func.attr]
-            expected_topics, topics = [], []
-            expected_data, data = [], []
-            for pos, is_indexed in enumerate(event.indexed_list):
-                if is_indexed:
-                    expected_topics.append(event.args[pos])
-                    topics.append(self.stmt.args[pos])
-                else:
-                    expected_data.append(event.args[pos])
-                    data.append(self.stmt.args[pos])
-            topics = pack_logging_topics(
-                event.event_id, topics, expected_topics, self.context, pos=getpos(self.stmt),
-            )
-            inargs, inargsize, inargsize_node, inarg_start = pack_logging_data(
-                expected_data, data, self.context, pos=getpos(self.stmt),
-            )
-
-            if inargsize_node is None:
-                sz = inargsize
-            else:
-                sz = ["mload", inargsize_node]
-
-            return LLLnode.from_list(
-                [
-                    "seq",
-                    inargs,
-                    LLLnode.from_list(
-                        ["log" + str(len(topics)), inarg_start, sz] + topics,
-                        add_gas_estimate=inargsize * 10,
-                    ),
-                ],
-                typ=None,
-                pos=getpos(self.stmt),
-            )
         else:
             return external_call.make_external_call(self.stmt, self.context)
 

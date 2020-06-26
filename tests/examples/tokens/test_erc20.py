@@ -253,58 +253,58 @@ def test_raw_logs(c, w3, get_log_args):
 
     # Check that mint appropriately emits Transfer event
     args = get_log_args(c.mint(a1, 2, transact={"from": minter}), c, "Transfer")
-    assert args._from == ZERO_ADDRESS
-    assert args._to == a1
-    assert args._value == 2
+    assert args.sender == ZERO_ADDRESS
+    assert args.receiver == a1
+    assert args.value == 2
 
     args = get_log_args(c.mint(a1, 0, transact={"from": minter}), c, "Transfer")
-    assert args._from == ZERO_ADDRESS
-    assert args._to == a1
-    assert args._value == 0
+    assert args.sender == ZERO_ADDRESS
+    assert args.receiver == a1
+    assert args.value == 0
 
     # Check that burn appropriately emits Transfer event
     args = get_log_args(c.burn(1, transact={"from": a1}), c, "Transfer")
-    assert args._from == a1
-    assert args._to == ZERO_ADDRESS
-    assert args._value == 1
+    assert args.sender == a1
+    assert args.receiver == ZERO_ADDRESS
+    assert args.value == 1
 
     args = get_log_args(c.burn(0, transact={"from": a1}), c, "Transfer")
-    assert args._from == a1
-    assert args._to == ZERO_ADDRESS
-    assert args._value == 0
+    assert args.sender == a1
+    assert args.receiver == ZERO_ADDRESS
+    assert args.value == 0
 
     # Check that transfer appropriately emits Transfer event
     args = get_log_args(c.transfer(a2, 1, transact={"from": a1}), c, "Transfer")
-    assert args._from == a1
-    assert args._to == a2
-    assert args._value == 1
+    assert args.sender == a1
+    assert args.receiver == a2
+    assert args.value == 1
 
     args = get_log_args(c.transfer(a2, 0, transact={"from": a1}), c, "Transfer")
-    assert args._from == a1
-    assert args._to == a2
-    assert args._value == 0
+    assert args.sender == a1
+    assert args.receiver == a2
+    assert args.value == 0
 
     # Check that approving amount emits events
     args = get_log_args(c.approve(a1, 1, transact={"from": a2}), c, "Approval")
-    assert args._owner == a2
-    assert args._spender == a1
-    assert args._value == 1
+    assert args.owner == a2
+    assert args.spender == a1
+    assert args.value == 1
 
     args = get_log_args(c.approve(a2, 0, transact={"from": a3}), c, "Approval")
-    assert args._owner == a3
-    assert args._spender == a2
-    assert args._value == 0
+    assert args.owner == a3
+    assert args.spender == a2
+    assert args.value == 0
 
     # Check that transferFrom appropriately emits Transfer event
     args = get_log_args(c.transferFrom(a2, a3, 1, transact={"from": a1}), c, "Transfer")
-    assert args._from == a2
-    assert args._to == a3
-    assert args._value == 1
+    assert args.sender == a2
+    assert args.receiver == a3
+    assert args.value == 1
 
     args = get_log_args(c.transferFrom(a2, a3, 0, transact={"from": a1}), c, "Transfer")
-    assert args._from == a2
-    assert args._to == a3
-    assert args._value == 0
+    assert args.sender == a2
+    assert args.receiver == a3
+    assert args.value == 0
 
 
 def test_bad_transfer(c_bad, w3, assert_tx_failed):

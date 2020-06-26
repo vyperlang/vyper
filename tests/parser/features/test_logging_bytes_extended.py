@@ -1,10 +1,13 @@
 def test_bytes_logging_extended(get_contract_with_gas_estimation, get_logs):
     code = """
-MyLog: event({arg1: int128, arg2: bytes[64], arg3: int128})
+event MyLog:
+    arg1: int128
+    arg2: bytes[64]
+    arg3: int128
 
 @public
 def foo():
-    log.MyLog(667788, b'hellohellohellohellohellohellohellohellohello', 334455)
+    log MyLog(667788, b'hellohellohellohellohellohellohellohellohello', 334455)
     """
 
     c = get_contract_with_gas_estimation(code)
@@ -17,14 +20,17 @@ def foo():
 
 def test_bytes_logging_extended_variables(get_contract_with_gas_estimation, get_logs):
     code = """
-MyLog: event({arg1: bytes[64], arg2: bytes[64], arg3: bytes[64]})
+event MyLog:
+    arg1: bytes[64]
+    arg2: bytes[64]
+    arg3: bytes[64]
 
 @public
 def foo():
     a: bytes[64] = b'hellohellohellohellohellohellohellohellohello'
     b: bytes[64] = b'hellohellohellohellohellohellohellohello'
     c: bytes[64] = b'hellohellohellohellohellohellohello'
-    log.MyLog(a, b, c)
+    log MyLog(a, b, c)
     """
 
     c = get_contract_with_gas_estimation(code)
@@ -37,11 +43,14 @@ def foo():
 
 def test_bytes_logging_extended_passthrough(get_contract_with_gas_estimation, get_logs):
     code = """
-MyLog: event({arg1: int128, arg2: bytes[64], arg3: int128})
+event MyLog:
+    arg1: int128
+    arg2: bytes[64]
+    arg3: int128
 
 @public
 def foo(a: int128, b: bytes[64], c: int128):
-    log.MyLog(a, b, c)
+    log MyLog(a, b, c)
     """
 
     c = get_contract_with_gas_estimation(code)
@@ -55,14 +64,18 @@ def foo(a: int128, b: bytes[64], c: int128):
 
 def test_bytes_logging_extended_storage(get_contract_with_gas_estimation, get_logs):
     code = """
-MyLog: event({arg1: int128, arg2: bytes[64], arg3: int128})
+event MyLog:
+    arg1: int128
+    arg2: bytes[64]
+    arg3: int128
+
 a: int128
 b: bytes[64]
 c: int128
 
 @public
 def foo():
-    log.MyLog(self.a, self.b, self.c)
+    log MyLog(self.a, self.b, self.c)
 
 @public
 def set(x: int128, y: bytes[64], z: int128):
@@ -90,16 +103,15 @@ def set(x: int128, y: bytes[64], z: int128):
 
 def test_bytes_logging_extended_mixed_with_lists(get_contract_with_gas_estimation, get_logs):
     code = """
-MyLog: event({
-    arg1: int128[2][2],
-    arg2: bytes[64],
-    arg3: int128,
+event MyLog:
+    arg1: int128[2][2]
+    arg2: bytes[64]
+    arg3: int128
     arg4: bytes[64]
-})
 
 @public
 def foo():
-    log.MyLog(
+    log MyLog(
         [[24, 26], [12, 10]],
         b'hellohellohellohellohellohellohellohellohello',
         314159,
