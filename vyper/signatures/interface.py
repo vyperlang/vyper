@@ -139,7 +139,7 @@ def extract_interface_str(global_ctx):
     def render_decorator(sig):
         o = "\n"
         if sig.const:
-            o += "@constant\n"
+            o += "@view\n"
         if not sig.private:
             o += "@public\n"
         return o
@@ -168,7 +168,7 @@ def extract_external_interface(global_ctx, contract_name):
             out += f"\n# External Interfaces\ninterface {cname}:\n"
         if not func.private and func.name != "__init__":
             args = ", ".join([arg.name + ": " + str(arg.typ) for arg in func.args])
-            func_type = "constant" if func.const else "modifying"
+            func_type = "view" if func.const else "modifying"
             out += offset + f"def {func.name}({args}){render_return(func)}: {func_type}\n"
     out += "\n"
     return out

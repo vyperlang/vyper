@@ -180,8 +180,10 @@ class ContractFunctionType(BaseTypeDefinition):
                             "Visibility must be public or private, not both", node
                         )
                     kwargs["is_public"] = bool(decorator.id == "public")
-                elif decorator.id in ("constant", "payable"):
-                    kwargs[f"is_{decorator.id}"] = True
+                elif decorator.id == "payable":
+                    kwargs["is_payable"] = True
+                elif decorator.id == "view":
+                    kwargs["is_constant"] = True
                 else:
                     raise FunctionDeclarationException(
                         f"Unknown decorator: {decorator.id}", decorator

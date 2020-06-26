@@ -7,27 +7,27 @@ ApprovalForAll: event({_owner: address, _operator: address, _approved: bool})
 
 # Functions
 
-@constant
+@view
 @public
 def supportsInterface(_interfaceID: bytes32) -> bool:
     pass
 
-@constant
+@view
 @public
 def balanceOf(_owner: address) -> uint256:
     pass
 
-@constant
+@view
 @public
 def ownerOf(_tokenId: uint256) -> address:
     pass
 
-@constant
+@view
 @public
 def getApproved(_tokenId: uint256) -> address:
     pass
 
-@constant
+@view
 @public
 def isApprovedForAll(_owner: address, _operator: address) -> bool:
     pass

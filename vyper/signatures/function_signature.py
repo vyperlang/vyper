@@ -213,7 +213,7 @@ class FunctionSignature:
 
         # Update function properties from decorators
         for dec in code.decorator_list:
-            if isinstance(dec, vy_ast.Name) and dec.id == "constant":
+            if isinstance(dec, vy_ast.Name) and dec.id == "view":
                 const = True
             elif isinstance(dec, vy_ast.Name) and dec.id == "payable":
                 payable = True
@@ -253,7 +253,7 @@ class FunctionSignature:
                 "Function visibility must be declared (@public or @private)", code,
             )
         if const and nonreentrant_key:
-            raise StructureException("@nonreentrant makes no sense on a @constant function.", code)
+            raise StructureException("@nonreentrant makes no sense on a @view function.", code)
 
         # Determine the return type and whether or not it's constant. Expects something
         # of the form:

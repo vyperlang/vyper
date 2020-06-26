@@ -4,17 +4,17 @@ Transfer: event({_from: indexed(address), _to: indexed(address), _value: uint256
 Approval: event({_owner: indexed(address), _spender: indexed(address), _value: uint256})
 
 # Functions
-@constant
+@view
 @public
 def totalSupply() -> uint256:
     pass
 
-@constant
+@view
 @public
 def balanceOf(_owner: address) -> uint256:
     pass
 
-@constant
+@view
 @public
 def allowance(_owner: address, _spender: address) -> uint256:
     pass
