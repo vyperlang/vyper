@@ -13,7 +13,7 @@ interface ERC721Receiver:
             _from: address,
             _tokenId: uint256,
             _data: bytes[1024]
-        ) -> bytes32: constant
+        ) -> bytes32: view
 
 
 # @dev Emits when ownership of any NFT changes by any mechanism. This event emits when NFTs are
@@ -89,8 +89,8 @@ def __init__():
     self.minter = msg.sender
 
 
+@view
 @public
-@constant
 def supportsInterface(_interfaceID: bytes32) -> bool:
     """
     @dev Interface identification is specified in ERC-165.
@@ -101,8 +101,8 @@ def supportsInterface(_interfaceID: bytes32) -> bool:
 
 ### VIEW FUNCTIONS ###
 
+@view
 @public
-@constant
 def balanceOf(_owner: address) -> uint256:
     """
     @dev Returns the number of NFTs owned by `_owner`.
@@ -113,8 +113,8 @@ def balanceOf(_owner: address) -> uint256:
     return self.ownerToNFTokenCount[_owner]
 
 
+@view
 @public
-@constant
 def ownerOf(_tokenId: uint256) -> address:
     """
     @dev Returns the address of the owner of the NFT.
@@ -127,8 +127,8 @@ def ownerOf(_tokenId: uint256) -> address:
     return owner
 
 
+@view
 @public
-@constant
 def getApproved(_tokenId: uint256) -> address:
     """
     @dev Get the approved address for a single NFT.
@@ -140,8 +140,8 @@ def getApproved(_tokenId: uint256) -> address:
     return self.idToApprovals[_tokenId]
 
 
+@view
 @public
-@constant
 def isApprovedForAll(_owner: address, _operator: address) -> bool:
     """
     @dev Checks if `_operator` is an approved operator for `_owner`.
@@ -153,8 +153,8 @@ def isApprovedForAll(_owner: address, _operator: address) -> bool:
 
 ### TRANSFER FUNCTION HELPERS ###
 
+@view
 @private
-@constant
 def _isApprovedOrOwner(_spender: address, _tokenId: uint256) -> bool:
     """
     @dev Returns whether the given spender can transfer a given token ID

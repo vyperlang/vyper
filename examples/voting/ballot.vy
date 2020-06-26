@@ -25,26 +25,26 @@ chairperson: public(address)
 int128Proposals: public(int128)
 
 
+@view
 @private
-@constant
 def _delegated(addr: address) -> bool:
     return self.voters[addr].delegate != ZERO_ADDRESS
 
 
+@view
 @public
-@constant
 def delegated(addr: address) -> bool:
     return self._delegated(addr)
 
 
+@view
 @private
-@constant
 def _directlyVoted(addr: address) -> bool:
     return self.voters[addr].voted and (self.voters[addr].delegate == ZERO_ADDRESS)
 
 
+@view
 @public
-@constant
 def directlyVoted(addr: address) -> bool:
     return self._directlyVoted(addr)
 
@@ -152,8 +152,8 @@ def vote(proposal: int128):
 
 # Computes the winning proposal taking all
 # previous votes into account.
+@view
 @private
-@constant
 def _winningProposal() -> int128:
     winning_vote_count: int128 = 0
     winning_proposal: int128 = 0
@@ -163,8 +163,8 @@ def _winningProposal() -> int128:
             winning_proposal = i
     return winning_proposal
 
+@view
 @public
-@constant
 def winningProposal() -> int128:
     return self._winningProposal()
 
@@ -172,7 +172,7 @@ def winningProposal() -> int128:
 # Calls winningProposal() function to get the index
 # of the winner contained in the proposals array and then
 # returns the name of the winner
+@view
 @public
-@constant
 def winnerName() -> bytes32:
     return self.proposals[self._winningProposal()].name

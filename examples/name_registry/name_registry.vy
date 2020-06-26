@@ -7,7 +7,7 @@ def register(name: bytes[100], owner: address):
     self.registry[name] = owner
 
 
+@view
 @public
-@constant
 def lookup(name: bytes[100]) -> address:
     return self.registry[name]

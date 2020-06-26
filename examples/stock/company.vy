@@ -26,14 +26,14 @@ def __init__(_company: address, _total_shares: uint256, initial_price: uint256):
     self.holdings[self.company] = _total_shares
 
 # Find out how much stock the company holds
+@view
 @private
-@constant
 def _stockAvailable() -> uint256:
     return self.holdings[self.company]
 
 # Public function to allow external access to _stockAvailable
+@view
 @public
-@constant
 def stockAvailable() -> uint256:
     return self._stockAvailable()
 
@@ -56,20 +56,20 @@ def buyStock():
     log.Buy(msg.sender, buy_order)
 
 # Find out how much stock any address (that's owned by someone) has.
+@view
 @private
-@constant
 def _getHolding(_stockholder: address) -> uint256:
     return self.holdings[_stockholder]
 
 # Public function to allow external access to _getHolding
+@view
 @public
-@constant
 def getHolding(_stockholder: address) -> uint256:
     return self._getHolding(_stockholder)
 
 # Return the amount the company has on hand in cash.
+@view
 @public
-@constant
 def cash() -> uint256:
     return self.balance
 
@@ -122,21 +122,21 @@ def payBill(vendor: address, amount: uint256):
     log.Pay(vendor, amount)
 
 # Return the amount in wei that a company has raised in stock offerings.
+@view
 @private
-@constant
 def _debt() -> uint256:
     return (self.totalShares - self._stockAvailable()) * self.price
 
 # Public function to allow external access to _debt
+@view
 @public
-@constant
 def debt() -> uint256:
     return self._debt()
 
 # Return the cash holdings minus the debt of the company.
 # The share debt or liability only is included here,
 # but of course all other liabilities can be included.
+@view
 @public
-@constant
 def worth() -> uint256:
     return self.balance - self._debt()

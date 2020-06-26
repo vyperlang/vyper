@@ -35,8 +35,8 @@ def __init__(_name: string[64], _symbol: string[32], _decimals: uint256, _supply
     log.Transfer(ZERO_ADDRESS, msg.sender, init_supply)
 
 
+@view
 @public
-@constant
 def totalSupply() -> uint256:
     """
     @dev Total number of tokens in existence.
@@ -44,8 +44,8 @@ def totalSupply() -> uint256:
     return self.total_supply
 
 
+@view
 @public
-@constant
 def allowance(_owner : address, _spender : address) -> uint256:
     """
     @dev Function to check the amount of tokens that an owner allowed to a spender.
