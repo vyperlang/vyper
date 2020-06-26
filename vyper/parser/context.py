@@ -95,13 +95,6 @@ class Context:
         self.in_assignment = False
 
     @contextlib.contextmanager
-    def assertion_scope(self):
-        prev_value = self.in_assertion
-        self.in_assertion = True
-        yield
-        self.in_assertion = prev_value
-
-    @contextlib.contextmanager
     def range_scope(self):
         prev_value = self.in_range_expr
         self.in_range_expr = True

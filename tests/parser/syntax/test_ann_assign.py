@@ -4,7 +4,6 @@ from pytest import raises
 from vyper import compiler
 from vyper.exceptions import (
     InvalidType,
-    StructureException,
     UndeclaredDefinition,
     UnknownAttribute,
     VariableDeclarationException,
@@ -42,33 +41,6 @@ def test():
     a: int128 = 33.33
     """,
         InvalidType,
-    ),
-    (
-        """
-struct S:
-    a: int128
-    b: decimal
-@private
-def do_stuff() -> bool:
-    return True
-
-@public
-def test():
-    a: bool = self.do_stuff() or self.do_stuff()
-    """,
-        StructureException,
-    ),
-    (
-        """
-@private
-def do_stuff() -> bool:
-    return True
-
-@public
-def test():
-    a: bool = False or self.do_stuff()
-    """,
-        StructureException,
     ),
     (
         """
@@ -144,6 +116,27 @@ def test_as_wei_fail(bad_code):
 
 
 valid_list = [
+    """
+struct S:
+    a: int128
+    b: decimal
+@private
+def do_stuff() -> bool:
+    return True
+
+@public
+def test():
+    a: bool = self.do_stuff() or self.do_stuff()
+    """,
+    """
+@private
+def do_stuff() -> bool:
+    return True
+
+@public
+def test():
+    a: bool = False or self.do_stuff()
+    """,
     """
 @public
 def test():

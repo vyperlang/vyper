@@ -653,12 +653,6 @@ class Expr:
     def parse_BoolOp(self):
         # Iterate through values
         for value in self.expr.values:
-            # Check for calls at assignment
-            if self.context.in_assignment and isinstance(value, vy_ast.Call):
-                raise StructureException(
-                    "Boolean operations with calls may not be performed on assignment", self.expr,
-                )
-
             # Check for boolean operations with non-boolean inputs
             _expr = Expr.parse_value_expr(value, self.context)
             if not is_base_type(_expr.typ, "bool"):
