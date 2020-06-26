@@ -17,7 +17,7 @@ def create_token(get_contract):
 
 @pytest.fixture
 def create_exchange(w3, get_contract):
-    with open("examples/factory/Exchange.vy") as f:
+    with open("examples/tokenswap/Exchange.vy") as f:
         code = f.read()
 
     def create_exchange(token, factory):
@@ -31,13 +31,13 @@ def create_exchange(w3, get_contract):
 
 @pytest.fixture
 def factory(get_contract):
-    with open("examples/factory/Exchange.vy") as f:
+    with open("examples/tokenswap/Exchange.vy") as f:
         code = f.read()
 
     exchange_interface = vyper.compile_code(code, output_formats=["bytecode_runtime"])
     exchange_deployed_bytecode = exchange_interface["bytecode_runtime"]
 
-    with open("examples/factory/Factory.vy") as f:
+    with open("examples/tokenswap/Factory.vy") as f:
         code = f.read()
 
     # NOTE: We deploy the factory with the hash of the exchange's expected deployment bytecode
