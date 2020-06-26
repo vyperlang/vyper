@@ -81,13 +81,13 @@ def test_chain_fail(bad_code):
 valid_list = [
     """
 @public
-@constant
+@view
 def get_chain_id() -> uint256:
     return chain.id
     """,
     """
 @public
-@constant
+@view
 def check_chain_id(c: uint256) -> bool:
     return chain.id == c
     """,
@@ -102,7 +102,7 @@ def test_chain_success(good_code):
 def test_chainid_operation(get_contract_with_gas_estimation):
     code = """
 @public
-@constant
+@view
 def get_chain_id() -> uint256:
     return chain.id
     """

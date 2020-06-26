@@ -241,7 +241,7 @@ def test_zero_padding_with_private(get_contract):
 counter: uint256
 
 @private
-@constant
+@view
 def to_little_endian_64(_value: uint256) -> bytes[8]:
     y: uint256 = 0
     x: uint256 = _value
@@ -256,7 +256,7 @@ def set_count(i: uint256):
     self.counter = i
 
 @public
-@constant
+@view
 def get_count() -> bytes[24]:
     return self.to_little_endian_64(self.counter)
     """

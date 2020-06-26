@@ -143,7 +143,7 @@ def not_really_constant() -> uint256:
     """
     code = """
 interface ForeignContract:
-    def not_really_constant() -> uint256: constant
+    def not_really_constant() -> uint256: view
 
 @public
 def test():

@@ -92,12 +92,12 @@ def test(a: bytes32) -> (bytes32, uint256, int128):
 x: public(uint256)
 
 @private
-@constant
+@view
 def return_two() -> (uint256, uint256):
     return 1, 2
 
 @public
-@constant
+@view
 def foo():
     a: uint256 = 0
     a, self.x = self.return_two()

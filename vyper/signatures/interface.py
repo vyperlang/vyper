@@ -78,9 +78,14 @@ def mk_full_signature_from_json(abi):
             )
 
         decorator_list = [vy_ast.Name(id="public")]
-        if func["constant"]:
-            decorator_list.append(vy_ast.Name(id="constant"))
-        if func["payable"]:
+        # Handle either constant/payable or stateMutability field
+        if ("constant" in func and func["constant"]) or (
+            "stateMutability" in func and func["stateMutability"] == "view"
+        ):
+            decorator_list.append(vy_ast.Name(id="view"))
+        if ("payable" in func and func["payable"]) or (
+            "stateMutability" in func and func["stateMutability"] == "payable"
+        ):
             decorator_list.append(vy_ast.Name(id="payable"))
 
         sig = FunctionSignature.from_definition(
@@ -138,7 +143,7 @@ def extract_interface_str(global_ctx):
     def render_decorator(sig):
         o = "\n"
         if sig.const:
-            o += "@constant\n"
+            o += "@view\n"
         if not sig.private:
             o += "@public\n"
         return o
@@ -167,7 +172,7 @@ def extract_external_interface(global_ctx, contract_name):
             out += f"\n# External Interfaces\ninterface {cname}:\n"
         if not func.private and func.name != "__init__":
             args = ", ".join([arg.name + ": " + str(arg.typ) for arg in func.args])
-            func_type = "constant" if func.const else "modifying"
+            func_type = "view" if func.const else "modifying"
             out += offset + f"def {func.name}({args}){render_return(func)}: {func_type}\n"
     out += "\n"
     return out

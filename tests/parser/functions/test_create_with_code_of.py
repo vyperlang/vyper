@@ -18,7 +18,7 @@ def test_create_forwarder_to_call(get_contract, w3):
 
 interface SubContract:
 
-    def hello() -> bytes[100]: constant
+    def hello() -> bytes[100]: view
 
 
 other: public(address)
@@ -53,7 +53,7 @@ def test_create_with_code_exception(w3, get_contract, assert_tx_failed):
 
 interface SubContract:
 
-    def hello(a: uint256) -> bytes[100]: constant
+    def hello(a: uint256) -> bytes[100]: view
 
 
 other: public(address)

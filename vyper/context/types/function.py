@@ -1,3 +1,4 @@
+import warnings
 from collections import OrderedDict
 from typing import Any, Dict, Optional, Tuple, Union
 
@@ -96,7 +97,20 @@ class ContractFunctionType(BaseTypeDefinition):
         ContractFunction object.
         """
 
-        kwargs: Dict[str, Any] = {f"is_{i}": True for i in ("constant", "payable") if abi[i]}
+        # Handle either constant/payable fields in ABI, or...
+        kwargs: Dict[str, Any] = {
+            f"is_{i}": True for i in ("constant", "payable") if i in abi and abi[i]
+        }
+        # stateMutability field (takes precedence)
+        if "stateMutability" in abi:
+            if abi["stateMutability"] == "payable":
+                kwargs["is_payable"] = True
+                kwargs["is_constant"] = False
+            elif abi["stateMutability"] == "view" or abi["stateMutability"] == "pure":
+                kwargs["is_payable"] = False
+                kwargs["is_constant"] = True
+        # NOTE: The state mutability nonpayable is reflected in Solidity by not
+        #       specifying a state mutability modifier at all. Do the same here.
         arguments = OrderedDict()
         for item in abi["inputs"]:
             arguments[item["name"]] = get_type_from_abi(
@@ -167,9 +181,17 @@ class ContractFunctionType(BaseTypeDefinition):
                             "Visibility must be public or private, not both", node
                         )
                     kwargs["is_public"] = bool(decorator.id == "public")
-                elif decorator.id in ("constant", "payable"):
-                    kwargs[f"is_{decorator.id}"] = True
+                elif decorator.id == "payable":
+                    kwargs["is_payable"] = True
+                elif decorator.id == "view":
+                    kwargs["is_constant"] = True
                 else:
+                    if decorator.id == "constant":
+                        warnings.warn(
+                            "'@constant' decorator has been removed (see VIP2040). "
+                            "Use `@view` instead.",
+                            DeprecationWarning,
+                        )
                     raise FunctionDeclarationException(
                         f"Unknown decorator: {decorator.id}", decorator
                     )

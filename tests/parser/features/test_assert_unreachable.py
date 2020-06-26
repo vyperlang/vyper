@@ -44,7 +44,7 @@ def foo(val: int128) -> bool:
 def test_basic_call_unreachable(w3, get_contract, assert_tx_failed):
     code = """
 
-@constant
+@view
 @private
 def _test_me(val: int128) -> bool:
     return val == 33

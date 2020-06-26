@@ -129,7 +129,7 @@ def out_literals() -> (int128, address, string[10]):
 
     contract_2 = """
 interface Test:
-    def out_literals() -> (int128, address, string[10]) : constant
+    def out_literals() -> (int128, address, string[10]) : view
 
 @public
 def test(addr: address) -> (int128, address, string[10]):

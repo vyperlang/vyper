@@ -32,7 +32,7 @@ of the error within the code:
 
 .. py:exception:: ConstancyViolation
 
-    Raises when attempting to perform a modifying action within a constant context. For example, writing to storage in a ``@constant`` function or modifying a constant variable.
+    Raises when attempting to perform a modifying action within a constant or view-only context. For example, writing to storage in a ``@view`` function or modifying a constant variable.
 
 .. py:exception:: EventDeclarationException
 

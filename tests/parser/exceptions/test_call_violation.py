@@ -13,7 +13,7 @@ def a (x:int128)->int128:
     self.f = 100
     return x+5
 
-@constant
+@view
 @public
 def b():
     p: int128 = self.a(10)

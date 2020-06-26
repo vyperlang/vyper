@@ -6,12 +6,12 @@ event TestLog:
     testData3: bytes[8]
 
 @private
-@constant
+@view
 def to_bytes(_value: uint256) -> bytes[8]:
     return slice(concat(b"", convert(_value, bytes32)), 24, 8)
 
 @private
-@constant
+@view
 def to_bytes32(_value: uint256) -> bytes32:
     return convert(_value, bytes32)
 
@@ -50,12 +50,12 @@ event TestLog:
     testData3: string[8]
 
 @private
-@constant
+@view
 def to_bytes(_value: uint256) -> bytes[8]:
     return slice(concat(b"", convert(_value, bytes32)), 24, 8)
 
 @private
-@constant
+@view
 def to_bytes32(_value: uint256) -> bytes32:
     return convert(_value, bytes32)
 
@@ -90,7 +90,7 @@ event TestLog:
     testData2: bytes[133]
 
 @private
-@constant
+@view
 def to_bytes32(_value: uint256) -> bytes32:
     return convert(_value, bytes32)
 
@@ -123,12 +123,12 @@ event TestLog:
     testData3: bytes[8]
 
 @private
-@constant
+@view
 def to_bytes(_value: uint256) -> bytes[8]:
     return slice(concat(b"", convert(_value, bytes32)), 24, 8)
 
 @private
-@ constant
+@view
 def to_bytes32(_value: uint256) -> bytes32:
     return convert(_value, bytes32)
 

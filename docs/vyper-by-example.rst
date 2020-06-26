@@ -482,10 +482,10 @@ proposals ``voteCount`` by the voter’s ``weight``.
 With all the basic functionality complete, what’s left is simply returning
 the winning proposal. To do this, we have two methods: ``winningProposal()``,
 which returns the key of the proposal, and ``winnerName()``, returning the
-name of the proposal. Notice the ``@constant`` decorator on these two methods.
+name of the proposal. Notice the ``@view`` decorator on these two methods.
 We do this because the two methods only read the blockchain state and do not
 modify it. Remember, reading the blockchain state is free; modifying the state
-costs gas. By having the ``@constant`` decorator, we let the EVM know that this
+costs gas. By having the ``@view`` decorator, we let the EVM know that this
 is a read-only function and we benefit by saving gas fees.
 
 .. literalinclude:: ../examples/voting/ballot.vy
@@ -569,7 +569,7 @@ company's address is initialized to hold all shares of the company in the
   :lineno-start: 42
   :lines: 42-52
 
-We will be seeing a few ``@constant`` decorators in this contract—which is
+We will be seeing a few ``@view`` decorators in this contract—which is
 used to decorate methods that simply read the contract state or return a simple
 calculation on the contract state without modifying it. Remember, reading the
 blockchain is free, writing on it is not. Since Vyper is a statically typed
@@ -600,7 +600,7 @@ Now that people can buy shares, how do we check someone's holdings?
   :lineno-start: 73
   :lines: 73-82
 
-The ``_getHolding()`` is another ``@constant`` method that takes an ``address``
+The ``_getHolding()`` is another ``@view`` method that takes an ``address``
 and returns its corresponding stock holdings by keying into ``self.holdings``.
 Again, a public function ``getHolding()`` is included to allow external access.
 

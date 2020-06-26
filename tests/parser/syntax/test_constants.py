@@ -162,7 +162,7 @@ event myEvent:
 CONST: constant(uint256) = 8
 
 @public
-@constant
+@view
 def test():
     for i in range(CONST / 4):
         pass

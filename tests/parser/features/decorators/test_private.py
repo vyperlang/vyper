@@ -157,7 +157,7 @@ def set_greeting(_greeting: bytes[20]):
         self.greeting = _greeting
 
 @private
-@constant
+@view
 def construct(greet: bytes[20]) -> bytes[40]:
     return concat(self.greeting, greet)
 
@@ -430,12 +430,12 @@ def _whoami() -> address:
 def test_nested_static_params_only(get_contract, assert_tx_failed):
     code1 = """
 @private
-@constant
+@view
 def c() -> bool:
     return True
 
 @private
-@constant
+@view
 def b(sender: address) -> address:
     assert self.c()
     return sender
@@ -448,12 +448,12 @@ def a() -> bool:
 
     code2 = """
 @private
-@constant
+@view
 def c(sender: address) -> address:
     return sender
 
 @private
-@constant
+@view
 def b(sender: address) -> address:
     return self.c(sender)
 

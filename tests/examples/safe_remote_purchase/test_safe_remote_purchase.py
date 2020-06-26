@@ -106,7 +106,7 @@ interface PurchaseContract:
 
     def received(): modifying
     def purchase(): modifying
-    def unlocked() -> bool: constant
+    def unlocked() -> bool: view
 
 purchase_contract: PurchaseContract
 

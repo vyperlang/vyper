@@ -61,7 +61,7 @@ Accessing State Variables
         return True
 
     @public
-    @constant
+    @view
     def get_var() -> uint256:
         return self.state_var
 

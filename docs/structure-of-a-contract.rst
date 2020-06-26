@@ -94,14 +94,14 @@ Decorator                       Description
 =============================== ===========================================
 ``@public``                     Can only be called externally.
 ``@private``                    Can only be called within current contract.
-``@constant``                   Does not alter contract state.
+``@view``                   Does not alter contract state.
 ``@payable``                    The contract is open to receive Ether.
 ``@nonreentrant(<unique_key>)`` Function can only be called once,
                                 both externally and internally. Used to
                                 prevent reentrancy attacks.
 =============================== ===========================================
 
-The visibility decorators ``@public`` or ``@private`` are mandatory on function declarations, whilst the other decorators(``@constant``, ``@payable``, ``@nonreentrant``) are optional.
+The visibility decorators ``@public`` or ``@private`` are mandatory on function declarations, whilst the other decorators(``@view``, ``@payable``, ``@nonreentrant``) are optional.
 
 Default function
 ----------------
@@ -305,7 +305,7 @@ The ``interface`` keyword is used to define an inline external interface:
 .. code-block:: python
 
     interface FooBar:
-        def calculate() -> uint256: constant
+        def calculate() -> uint256: view
         def test1(): modifying
 
 The defined interface can then be use to make external calls, given a contract address:
@@ -335,7 +335,7 @@ Specifying ``modifying`` annotation indicates that the call made to the external
 .. code-block:: python
 
     interface FooBar:
-        def calculate() -> uint256: constant
+        def calculate() -> uint256: view
         def test1(): modifying
 
     @public
@@ -442,7 +442,7 @@ Vyper has a built-in format option to allow you to make your own vyper interface
 
     # Functions
 
-    @constant
+    @view
     @public
     def delegated(addr: address) -> bool:
         pass
@@ -457,8 +457,8 @@ If you want to do an external call to another contract, vyper provides an extern
 
     # External Contracts
     interface Ballot:
-        def delegated(addr: address) -> bool: constant
-        def directlyVoted(addr: address) -> bool: constant
+        def delegated(addr: address) -> bool: view
+        def directlyVoted(addr: address) -> bool: view
         def giveRightToVote(voter: address): modifying
         def forwardWeight(delegate_with_weight_to_forward: address): modifying
         # ...

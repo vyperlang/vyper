@@ -4,7 +4,7 @@ from vyper.exceptions import UnknownType
 def test_constant_test(get_contract_with_gas_estimation_for_constants):
     constant_test = """
 @public
-@constant
+@view
 def foo() -> int128:
     return 5
     """
@@ -21,7 +21,7 @@ def test_invalid_constant_and_payable(
     code = """
 @public
 @payable
-@constant
+@view
 def foo() -> num:
     return 5
 """

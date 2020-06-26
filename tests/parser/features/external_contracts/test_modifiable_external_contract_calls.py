@@ -15,7 +15,7 @@ interface ModBar:
     def set_lucky(_lucky: int128): modifying
 
 interface ConstBar:
-    def set_lucky(_lucky: int128): constant
+    def set_lucky(_lucky: int128): view
 
 modifiable_bar_contract: ModBar
 static_bar_contract: ConstBar
@@ -58,7 +58,7 @@ interface ModBar:
     def set_lucky(_lucky: int128) -> int128: modifying
 
 interface ConstBar:
-    def set_lucky(_lucky: int128) -> int128: constant
+    def set_lucky(_lucky: int128) -> int128: view
 
 modifiable_bar_contract: ModBar
 static_bar_contract: ConstBar
@@ -101,7 +101,7 @@ interface ModBar:
     def set_lucky(_lucky: int128): modifying
 
 interface ConstBar:
-    def set_lucky(_lucky: int128): constant
+    def set_lucky(_lucky: int128): view
 
 modifiable_bar_contract: ModBar
 static_bar_contract: ConstBar
@@ -126,8 +126,8 @@ interface ModBar:
     def static_set_lucky(_lucky: int128): modifying
 
 interface ConstBar:
-    def modifiable_set_lucky(_lucky: int128): constant
-    def static_set_lucky(_lucky: int128): constant
+    def modifiable_set_lucky(_lucky: int128): view
+    def static_set_lucky(_lucky: int128): view
 
 modifiable_bar_contract: ModBar
 static_bar_contract: ConstBar
@@ -175,7 +175,7 @@ def bar() -> int128:
 """
     contract_2 = """
 interface Bar:
-    def bar() -> int128: constant
+    def bar() -> int128: view
 
 bar_contract: public(Bar)
 
@@ -206,7 +206,7 @@ interface Bar:
 def test_invalid_external_contract_call_declaration_2(assert_compile_failed, get_contract):
     contract_1 = """
 interface Bar:
-    def bar() -> int128: constant
+    def bar() -> int128: view
 
 bar_contract: Boo
 

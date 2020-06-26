@@ -44,12 +44,12 @@ def foo(a: decimal, b: decimal) -> decimal:
 def test_literals_vs_evm(get_contract):
     code = """
 @public
-@constant
+@view
 def foo() -> (int128, int128, int128, int128):
     return 5%2, 5%-2, -5%2, -5%-2
 
 @public
-@constant
+@view
 def bar(a: int128) -> bool:
     assert -5%2 == a%2
     return True
