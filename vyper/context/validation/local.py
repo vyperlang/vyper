@@ -191,8 +191,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         try:
             validate_expected_type(node.test, BoolDefinition())
-        except (InvalidType, TypeMismatch) as exc:
-            raise type(exc)("Assertion test value must be a boolean", node.test)
+        except InvalidType:
+            raise InvalidType("Assertion test value must be a boolean", node.test)
 
     def visit_Return(self, node):
         values = node.value

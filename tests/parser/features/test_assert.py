@@ -2,13 +2,6 @@ import pytest
 from eth_abi import decode_single
 from eth_tester.exceptions import TransactionFailed
 
-from vyper.exceptions import (
-    CallViolation,
-    ConstancyViolation,
-    StructureException,
-    TypeMismatch,
-)
-
 
 def test_assert_refund(w3, get_contract_with_gas_estimation, assert_tx_failed):
     code = """
@@ -69,71 +62,72 @@ def test3() :
     assert e_info.value.args[0] == "An exception"
 
 
-def test_assert_reason_invalid(get_contract, assert_compile_failed):
-    codes = [
-        """
+invalid_code = [
+    """
 @public
 def test(a: int128) -> int128:
     assert a > 1, ""
     return 1 + a
-        """,
-        # Raise must have a reason
-        """
+    """,
+    """
+@public
+def test(a: int128) -> int128:
+    raise ""
+    """,
+    """
+@public
+def test():
+    assert create_forwarder_to(self)
+    """,
+]
+
+
+@pytest.mark.parametrize("code", invalid_code)
+def test_invalid_assertions(get_contract, assert_compile_failed, code):
+    assert_compile_failed(lambda: get_contract(code))
+
+
+valid_code = [
+    """
 @public
 def mint(_to: address, _value: uint256):
     raise
-        """,
-    ]
-
-    for code in codes:
-        assert_compile_failed(lambda: get_contract(code), StructureException)
-
-
-def test_assert_no_effects(get_contract, assert_compile_failed, assert_tx_failed):
-    code = """
-@public
-def ret1() -> int128:
-    return 1
-@public
-def test():
-    assert self.ret1() == 1
+    """,
     """
-    assert_compile_failed(lambda: get_contract(code), CallViolation)
-
-    code = """
 @private
 def ret1() -> int128:
     return 1
 @public
 def test():
     assert self.ret1() == 1
+    """,
     """
-    assert_compile_failed(lambda: get_contract(code), ConstancyViolation)
-
-    code = """
-@public
-def test():
-    assert raw_call(msg.sender, b'', max_outsize=1, gas=10, value=1000*1000) == 1
-    """
-    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
-
-    code = """
 @private
 def valid_address(sender: address) -> bool:
     selfdestruct(sender)
 @public
 def test():
     assert self.valid_address(msg.sender)
+    """,
     """
-    assert_compile_failed(lambda: get_contract(code), ConstancyViolation)
-
-    code = """
 @public
 def test():
-    assert create_forwarder_to(self) == 1
+    assert raw_call(msg.sender, b'', max_outsize=1, gas=10, value=1000*1000) == b''
+    """,
     """
-    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
+@public
+def test():
+    assert create_forwarder_to(self) == self
+    """,
+]
 
+
+@pytest.mark.parametrize("code", valid_code)
+def test_valid_assertions(get_contract, code):
+    get_contract(code)
+
+
+def test_assert_staticcall(get_contract, assert_tx_failed):
     foreign_code = """
 state: uint256
 @public
