@@ -244,7 +244,7 @@ def parse_type(item, location, sigs=None, custom_structs=None, constants=None):
                     ),
                     n_val,
                 )
-        elif isinstance(item.slice.value, vy_ast.Tuple):
+        elif item.value.id in ("HashMap",) and isinstance(item.slice.value, vy_ast.Tuple):
             keytype = parse_type(
                 item.slice.value.elements[0],
                 None,
