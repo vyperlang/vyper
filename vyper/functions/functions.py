@@ -21,7 +21,6 @@ from vyper.context.types.value.array_value import (
     StringDefinition,
     StringPrimitive,
 )
-from vyper.context.types.value.boolean import BoolDefinition
 from vyper.context.types.value.bytes_fixed import Bytes32Definition
 from vyper.context.types.value.numeric import (
     DecimalDefinition,
@@ -87,22 +86,6 @@ class _SimpleBuiltinFunction:
 
         if self._return_type:
             return self._return_type
-
-
-# currently no option for reason string (easy to add, just need to refactor
-# vyper.parser.stmt so we can use _assert_reason).
-class AssertModifiable(_SimpleBuiltinFunction):
-    """
-    Assert a condition without performing a constancy check.
-    """
-
-    _id = "assert_modifiable"
-    _inputs = [("cond", BoolDefinition())]
-    _return_type = None
-
-    @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
-        return LLLnode.from_list(["assert", args[0]], typ=None, pos=getpos(expr))
 
 
 class Floor(_SimpleBuiltinFunction):
@@ -1677,7 +1660,6 @@ DISPATCH_TABLE = {
 }
 
 STMT_DISPATCH_TABLE = {
-    "assert_modifiable": AssertModifiable(),
     "send": Send(),
     "selfdestruct": SelfDestruct(),
     "raw_call": RawCall(),
