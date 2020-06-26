@@ -104,9 +104,10 @@ def pre_parse(code: str) -> Tuple[ModificationOffsets, str]:
 
     try:
         code_bytes = code.encode("utf-8")
-        token_generator = tokenize(io.BytesIO(code_bytes).readline)
+        token_list = list(tokenize(io.BytesIO(code_bytes).readline))
 
-        for token in token_generator:
+        for i in range(len(token_list)):
+            token = token_list[i]
             toks = [token]
 
             typ = token.type
@@ -126,6 +127,13 @@ def pre_parse(code: str) -> Tuple[ModificationOffsets, str]:
             if typ == NAME and string == "contract" and start[1] == 0:
                 raise SyntaxException(
                     "The `contract` keyword has been deprecated. Please use `interface`",
+                    code,
+                    start[0],
+                    start[1],
+                )
+            if typ == NAME and string == "log" and token_list[i + 1].string == ".":
+                raise SyntaxException(
+                    "`log` is no longer an object, please use it as a statement instead",
                     code,
                     start[0],
                     start[1],
