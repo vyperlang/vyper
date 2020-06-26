@@ -8,6 +8,7 @@ from vyper.context.namespace import get_namespace
 from vyper.context.types.bases import BaseTypeDefinition, DataLocation
 from vyper.context.types.indexable.sequence import TupleDefinition
 from vyper.context.types.utils import (
+    StringEnum,
     check_constant,
     get_type_from_abi,
     get_type_from_annotation,
@@ -24,6 +25,32 @@ from vyper.exceptions import (
     NamespaceCollision,
     StructureException,
 )
+
+
+class FunctionVisibility(StringEnum):
+    PUBLIC = StringEnum.auto()
+    PRIVATE = StringEnum.auto()
+
+
+class StateMutability(StringEnum):
+    PURE = StringEnum.auto()
+    VIEW = StringEnum.auto()
+    NONPAYABLE = StringEnum.auto()
+    PAYABLE = StringEnum.auto()
+
+    @classmethod
+    def from_abi(cls, abi_dict) -> "StateMutability":
+        """
+        Extract stateMutability from an entry in a contract's ABI
+        """
+        if "stateMutability" in abi_dict:
+            return cls(abi_dict["stateMutability"])
+        elif "payable" in abi_dict and abi_dict["payable"]:
+            return StateMutability.PAYABLE
+        elif "constant" in abi_dict and abi_dict["constant"]:
+            return StateMutability.VIEW
+        else:  # Assume nonpayable if neither field is there, or constant/payable not set
+            return StateMutability.NONPAYABLE
 
 
 class ContractFunctionType(BaseTypeDefinition):

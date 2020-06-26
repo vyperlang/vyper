@@ -1,5 +1,7 @@
 from typing import Dict
 
+import enum
+
 from vyper import ast as vy_ast
 from vyper.context.namespace import get_namespace
 from vyper.context.types.bases import BaseTypeDefinition, DataLocation
@@ -13,7 +15,27 @@ from vyper.exceptions import (
     StructureException,
     UndeclaredDefinition,
     UnknownType,
+    VyperInternalException,
 )
+
+
+class StringEnum(enum.Enum):
+    @staticmethod
+    def auto():
+        return enum.auto()
+
+    # Must be first, or else won't work, specifies what .value is
+    def _generate_next_value_(name, start, count, last_values):
+        return name.lower()
+
+    # Override ValueError with our own internal exception
+    @classmethod
+    def _missing_(cls, value):
+        raise VyperInternalException(f"{value} is not a valid {cls.__name__}")
+
+    @classmethod
+    def is_valid_value(cls, value: str) -> bool:
+        return value in set(o.value for o in cls)
 
 
 def get_type_from_abi(
