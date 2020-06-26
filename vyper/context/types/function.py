@@ -141,17 +141,17 @@ class ContractFunctionType(BaseTypeDefinition):
         arguments = OrderedDict()
         for item in abi["inputs"]:
             arguments[item["name"]] = get_type_from_abi(
-                item, location=DataLocation.CALLDATA, is_constant=True
+                item, location=DataLocation.CALLDATA, is_immutable=True
             )
         return_type = None
         if len(abi["outputs"]) == 1:
             return_type = get_type_from_abi(
-                abi["outputs"][0], location=DataLocation.CALLDATA, is_constant=True
+                abi["outputs"][0], location=DataLocation.CALLDATA, is_immutable=True
             )
         elif len(abi["outputs"]) > 1:
             return_type = TupleDefinition(
                 tuple(
-                    get_type_from_abi(i, location=DataLocation.CALLDATA, is_constant=True)
+                    get_type_from_abi(i, location=DataLocation.CALLDATA, is_immutable=True)
                     for i in abi["outputs"]
                 )
             )
@@ -161,7 +161,7 @@ class ContractFunctionType(BaseTypeDefinition):
     def from_FunctionDef(
         cls,
         node: vy_ast.FunctionDef,
-        is_constant: Optional[bool] = None,
+        is_immutable: Optional[bool] = None,
         is_public: Optional[bool] = None,
         include_defaults: Optional[bool] = True,
     ) -> "ContractFunctionType":
@@ -260,7 +260,7 @@ class ContractFunctionType(BaseTypeDefinition):
                 raise ArgumentException(f"Function argument '{arg.arg}' is missing a type", arg)
 
             type_definition = get_type_from_annotation(
-                arg.annotation, location=DataLocation.CALLDATA, is_constant=True
+                arg.annotation, location=DataLocation.CALLDATA, is_immutable=True
             )
             if value is not None:
                 if not check_constant(value):

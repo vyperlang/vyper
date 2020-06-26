@@ -13,10 +13,10 @@ from vyper.utils import checksum_encode
 class AddressDefinition(MemberTypeDefinition):
     _id = "address"
     _type_members = {
-        "balance": Uint256Definition(is_constant=True),
-        "codehash": Bytes32Definition(is_constant=True),
-        "codesize": Int128Definition(is_constant=True),
-        "is_contract": BoolDefinition(is_constant=True),
+        "balance": Uint256Definition(is_immutable=True),
+        "codehash": Bytes32Definition(is_immutable=True),
+        "codesize": Int128Definition(is_immutable=True),
+        "is_contract": BoolDefinition(is_immutable=True),
     }
 
 

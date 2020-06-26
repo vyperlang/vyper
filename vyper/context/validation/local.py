@@ -327,7 +327,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         for type_ in type_list:
             type_ = copy.deepcopy(type_)
-            type_.is_constant = True
+            type_.is_immutable = True
             with self.namespace.enter_scope():
                 try:
                     self.namespace[node.target.id] = type_

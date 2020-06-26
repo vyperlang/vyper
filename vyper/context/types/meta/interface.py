@@ -24,11 +24,11 @@ class InterfaceDefinition(MemberTypeDefinition):
         _id: str,
         members: OrderedDict,
         location: DataLocation = DataLocation.MEMORY,
-        is_constant: bool = False,
+        is_immutable: bool = False,
         is_public: bool = False,
     ) -> None:
         self._id = _id
-        super().__init__(location, is_constant, is_public)
+        super().__init__(location, is_immutable, is_public)
         for key, type_ in members.items():
             self.add_member(key, type_)
 
@@ -49,14 +49,14 @@ class InterfacePrimitive:
         self,
         node: vy_ast.VyperNode,
         location: DataLocation = DataLocation.MEMORY,
-        is_constant: bool = False,
+        is_immutable: bool = False,
         is_public: bool = False,
     ) -> InterfaceDefinition:
 
         if not isinstance(node, vy_ast.Name):
             raise StructureException("Invalid type assignment", node)
 
-        return InterfaceDefinition(self._id, self.members, location, is_constant, is_public)
+        return InterfaceDefinition(self._id, self.members, location, is_immutable, is_public)
 
     def fetch_call_return(self, node: vy_ast.Call) -> InterfaceDefinition:
         validate_call_args(node, 1)
@@ -162,8 +162,8 @@ def _get_class_functions(base_node: vy_ast.InterfaceDef) -> OrderedDict:
                 node.body[0] if node.body else node,
             )
 
-        is_constant = bool(node.body[0].value.id == "view")
-        fn = ContractFunctionType.from_FunctionDef(node, is_constant=is_constant, is_public=True)
+        is_immutable = bool(node.body[0].value.id == "view")
+        fn = ContractFunctionType.from_FunctionDef(node, is_immutable=is_immutable, is_public=True)
         functions[node.name] = fn
 
     return functions
