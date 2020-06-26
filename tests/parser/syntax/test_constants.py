@@ -161,7 +161,7 @@ myEvent: event({arg1: bytes32[LIMIT]})
 CONST: constant(uint256) = 8
 
 @public
-@constant
+@view
 def test():
     for i in range(CONST / 4):
         pass

@@ -6,7 +6,7 @@ from vyper.exceptions import StructureException
 FAILING_CONTRACTS = [
     """
 @public
-@constant
+@view
 @nonreentrant('lock')
 def nonreentrant_foo() -> uint256:
     return 1

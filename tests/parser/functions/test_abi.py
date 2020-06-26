@@ -65,7 +65,7 @@ struct MyStruct:
     b: uint256
 
 @public
-@constant
+@view
 def foo(s: MyStruct) -> MyStruct:
     return s
     """

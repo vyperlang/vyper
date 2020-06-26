@@ -6,65 +6,65 @@ from vyper.exceptions import StructureException
 FAILING_CONTRACTS = [
     """
 @public
-@constant
+@view
 def gsf():
     pass
 
 @public
-@constant
+@view
 def tgeo():
     pass
     """,
     """
 @public
-@constant
+@view
 def withdraw(a: uint256):
     pass
 
 @public
-@constant
+@view
 def OwnerTransferV7b711143(a: uint256):
     pass
     """,
     """
 @public
-@constant
+@view
 def withdraw(a: uint256):
     pass
 
 @public
-@constant
+@view
 def gsf():
     pass
 
 @public
-@constant
+@view
 def tgeo():
     pass
 
 @public
-@constant
+@view
 def OwnerTransferV7b711143(a: uint256):
     pass
     """,
     """
 # check collision between private method IDs
 @private
-@constant
+@view
 def gfah(): pass
 
 @private
-@constant
+@view
 def eexo(): pass
     """,
     """
 # check collision between private and public IDs
 @private
-@constant
+@view
 def gfah(): pass
 
 @public
-@constant
+@view
 def eexo(): pass
     """,
 ]

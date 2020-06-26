@@ -152,7 +152,7 @@ def i_return(break_count: int128) -> decimal:
 def test_for_in_list_iter_type(get_contract_with_gas_estimation):
     code = """
 @public
-@constant
+@view
 def func(amounts: uint256[3]) -> uint256:
     total: uint256 = as_wei_value(0, "wei")
 

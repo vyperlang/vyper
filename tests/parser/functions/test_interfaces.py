@@ -19,7 +19,7 @@ Transfer: event({_from: address, _to: address, _value: uint256})
 
 # Functions
 
-@constant
+@view
 @public
 def allowance(_owner: address, _spender: address) -> (uint256, uint256):
     return 1, 2
@@ -34,7 +34,7 @@ def allowance(_owner: address, _spender: address) -> (uint256, uint256):
 
 def test_basic_extract_external_interface():
     code = """
-@constant
+@view
 @public
 def allowance(_owner: address, _spender: address) -> (uint256, uint256):
     return 1, 2
@@ -43,7 +43,7 @@ def allowance(_owner: address, _spender: address) -> (uint256, uint256):
 def test(_owner: address):
     pass
 
-@constant
+@view
 @private
 def _prive(_owner: address, _spender: address) -> (uint256, uint256):
     return 1, 2
@@ -52,7 +52,7 @@ def _prive(_owner: address, _spender: address) -> (uint256, uint256):
     interface = """
 # External Interfaces
 interface One:
-    def allowance(_owner: address, _spender: address) -> (uint256, uint256): constant
+    def allowance(_owner: address, _spender: address) -> (uint256, uint256): view
     def test(_owner: address): modifying
     """
 
@@ -191,7 +191,7 @@ def transfer(to: address, _value: uint256):
 import one as TokenCode
 
 interface EPI:
-    def test() -> uint256: constant
+    def test() -> uint256: view
 
 
 token_address: TokenCode
@@ -264,13 +264,13 @@ import balanceof as BalanceOf
 implements: BalanceOf
 
 @public
-@constant
+@view
 def balanceOf(owner: address) -> uint256:
     return as_wei_value(1, "ether")
     """
     interface_code = """
 @public
-@constant
+@view
 def balanceOf(owner: address) -> uint256:
     pass
     """
@@ -316,7 +316,7 @@ def foo() -> uint256:
 def test_self_interface_cannot_compile(assert_compile_failed):
     code = """
 interface Bar:
-    def foo() -> uint256: constant
+    def foo() -> uint256: view
 
 @public
 def foo() -> uint256 :
@@ -332,7 +332,7 @@ def bar() -> uint256:
 def test_self_interface_via_storage_raises(get_contract, assert_tx_failed):
     code = """
 interface Bar:
-    def foo() -> uint256: constant
+    def foo() -> uint256: view
 
 bar_contract: Bar
 
@@ -355,7 +355,7 @@ def bar() -> uint256:
 def test_self_interface_via_calldata_raises(get_contract, assert_tx_failed):
     code = """
 interface Bar:
-    def foo() -> uint256: constant
+    def foo() -> uint256: view
 
 @public
 def foo() -> uint256 :
@@ -382,7 +382,7 @@ type_str_params = [
 
 interface_test_code = """
 @public
-@constant
+@view
 def test_json(a: {0}) -> {0}:
     return a
     """
@@ -408,7 +408,7 @@ def test_json_interface_calls(get_contract, type_str, value):
 import jsonabi as jsonabi
 
 @public
-@constant
+@view
 def test_call(a: address, b: {type_str}) -> {type_str}:
     return jsonabi(a).test_json(b)
     """

@@ -196,7 +196,7 @@ def test() -> bytes32:
     a: bytes32[2] = BYTE32_LIST
     return a[1]
 
-@constant
+@view
 @public
 def contains(a: int128) -> bool:
     return a in SPECIAL

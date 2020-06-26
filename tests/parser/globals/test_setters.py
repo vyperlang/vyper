@@ -152,13 +152,13 @@ struct Foo:
     b: uint256
 
 @public
-@constant
+@view
 def test1() -> uint256:
     foo: Foo = Foo({a: 297, b: 2})
     return foo.a
 
 @public
-@constant
+@view
 def test2() -> uint256:
     foo: Foo = Foo({b: 2, a: 297})
     return foo.a

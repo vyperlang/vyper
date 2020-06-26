@@ -21,11 +21,11 @@ def erc20(get_contract):
 def erc20_caller(erc20, get_contract):
     erc20_caller_code = """
 interface ERC20Contract:
-    def name() -> string[64]: constant
-    def symbol() -> string[32]: constant
-    def decimals() -> uint256: constant
-    def balanceOf(_owner: address) -> uint256: constant
-    def totalSupply() -> uint256: constant
+    def name() -> string[64]: view
+    def symbol() -> string[32]: view
+    def decimals() -> uint256: view
+    def balanceOf(_owner: address) -> uint256: view
+    def totalSupply() -> uint256: view
     def transfer(_to: address, _amount: uint256) -> bool: modifying
     def transferFrom(_from: address, _to: address, _value: uint256) -> bool: modifying
     def approve(_spender: address, _amount: uint256) -> bool: modifying

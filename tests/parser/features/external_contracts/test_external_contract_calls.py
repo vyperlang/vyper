@@ -20,7 +20,7 @@ def foo(arg1: int128) -> int128:
 
     contract_2 = """
 interface Foo:
-        def foo(arg1: int128) -> int128: constant
+        def foo(arg1: int128) -> int128: view
 
 @public
 def bar(arg1: address, arg2: int128) -> int128:
@@ -55,7 +55,7 @@ def array() -> bytes[3]:
     contract_2 = """
 interface Foo:
     def foo() -> int128: modifying
-    def array() -> bytes[3]: constant
+    def array() -> bytes[3]: view
 
 @public
 def bar(arg1: address) -> int128:
@@ -78,7 +78,7 @@ def array() -> bytes[3]:
 
     contract_2 = """
 interface Foo:
-    def array() -> bytes[3]: constant
+    def array() -> bytes[3]: view
 
 @public
 def get_array(arg1: address) -> bytes[3]:
@@ -125,12 +125,12 @@ interface Foo:
     def set_lucky(_lucky: int128) -> int128: modifying
 
 @public
-@constant
+@view
 def set_lucky_expr(arg1: address, arg2: int128):
     Foo(arg1).set_lucky(arg2)
 
 @public
-@constant
+@view
 def set_lucky_stmt(arg1: address, arg2: int128) -> int128:
     return Foo(arg1).set_lucky(arg2)
     """
@@ -197,7 +197,7 @@ def __init__(_lucky: int128):
 
     contract_2 = """
 interface Foo:
-    def lucky() -> int128: constant
+    def lucky() -> int128: view
 
 @public
 def bar(arg1: address) -> int128:
@@ -223,7 +223,7 @@ def __init__(_lucky: int128):
 
     contract_2 = """
 interface Foo:
-    def lucky() -> int128: constant
+    def lucky() -> int128: view
 
 magic_number: public(int128)
 
@@ -235,7 +235,7 @@ def __init__(arg1: address):
     c2 = get_contract(contract_2, *[c.address])
     contract_3 = """
 interface Bar:
-    def magic_number() -> int128: constant
+    def magic_number() -> int128: view
 
 best_number: public(int128)
 
@@ -258,7 +258,7 @@ def bar() -> int128:
 
     contract_2 = """
 interface Bar:
-    def bar() -> int128: constant
+    def bar() -> int128: view
 
 @public
 def bar() -> int128:
@@ -291,7 +291,7 @@ def bar() -> int128:
 
     contract_2 = """
 interface Bar:
-    def bar() -> int128: constant
+    def bar() -> int128: view
 
 @public
 def foo(x: address) -> int128:
@@ -332,7 +332,7 @@ def bar(arg1: address, arg2: int128) -> int128:
 def test_invalid_contract_reference_return_type(assert_tx_failed, get_contract):
     contract = """
 interface Foo:
-    def foo(arg2: int128) -> invalid: constant
+    def foo(arg2: int128) -> invalid: view
 
 @public
 def bar(arg1: address, arg2: int128) -> int128:
@@ -347,7 +347,7 @@ def test_external_contracts_must_be_declared_first_1(assert_tx_failed, get_contr
 item: public(int128)
 
 interface Foo:
-    def foo(arg2: int128) -> int128: constant
+    def foo(arg2: int128) -> int128: view
 """
     assert_tx_failed(lambda: get_contract(contract), exception=StructureException)
 
@@ -358,7 +358,7 @@ def test_external_contracts_must_be_declared_first_2(assert_tx_failed, get_contr
 MyLog: event({})
 
 interface Foo:
-    def foo(arg2: int128) -> int128: constant
+    def foo(arg2: int128) -> int128: view
 """
     assert_tx_failed(lambda: get_contract(contract), exception=StructureException)
 
@@ -370,7 +370,7 @@ def foo() -> int128:
     return 1
 
 interface Foo:
-    def foo(arg2: int128) -> int128: constant
+    def foo(arg2: int128) -> int128: view
 """
     assert_tx_failed(lambda: get_contract(contract), exception=StructureException)
 
@@ -384,7 +384,7 @@ def bar() -> int128:
 
     contract_2 = """
 interface Bar:
-    def bar() -> int128: constant
+    def bar() -> int128: view
 
 bar_contract: Bar
 
@@ -415,7 +415,7 @@ def get_lucky() -> int128:
     contract_2 = """
 interface Bar:
     def set_lucky(arg1: int128): modifying
-    def get_lucky() -> int128: constant
+    def get_lucky() -> int128: view
 
 bar_contract: Bar
 
@@ -458,7 +458,7 @@ def get_lucky() -> int128:
     contract_3 = """
 interface Bar:
     def set_lucky(arg1: int128): modifying
-    def get_lucky() -> int128: constant
+    def get_lucky() -> int128: view
 
 bar_contract: Bar
 
@@ -490,7 +490,7 @@ def bar() -> int128:
 """
     contract_2 = """
 interface Bar:
-    def bar() -> int128: constant
+    def bar() -> int128: view
 
 bar_contract: public(Bar)
 
@@ -512,7 +512,7 @@ def get_bar() -> int128:
 def test_invalid_external_contract_call_declaration_1(assert_compile_failed, get_contract):
     contract_1 = """
 interface Bar:
-    def bar() -> int128: constant
+    def bar() -> int128: view
 
 bar_contract: Bar
 
@@ -528,7 +528,7 @@ def foo(contract_address: contract(Boo)) -> int128:
 def test_invalid_external_contract_call_declaration_2(assert_compile_failed, get_contract):
     contract_1 = """
 interface Bar:
-    def bar() -> int128: constant
+    def bar() -> int128: view
 
 bar_contract: Boo
 
@@ -609,7 +609,7 @@ def get_lucky() -> int128:
     contract_2 = """
 interface Bar:
     def set_lucky(arg1: int128): modifying
-    def get_lucky() -> int128: constant
+    def get_lucky() -> int128: view
 
 bar_contract: Bar
 
@@ -635,7 +635,7 @@ def test_invalid_keyword_on_call(assert_compile_failed, get_contract_with_gas_es
     contract_1 = """
 interface Bar:
     def set_lucky(arg1: int128): modifying
-    def get_lucky() -> int128: constant
+    def get_lucky() -> int128: view
 
 bar_contract: Bar
 
@@ -664,7 +664,7 @@ FAILING_CONTRACTS_STRUCTURE_EXCEPTION = [
     """
 # wrong arg count
 interface Bar:
-    def bar(arg1: int128) -> bool: constant
+    def bar(arg1: int128) -> bool: view
 
 @public
 def foo(a: address):
@@ -673,7 +673,7 @@ def foo(a: address):
     """
 # expected args, none given
 interface Bar:
-    def bar(arg1: int128) -> bool: constant
+    def bar(arg1: int128) -> bool: view
 
 @public
 def foo(a: address):
@@ -682,7 +682,7 @@ def foo(a: address):
     """
 # expected no args, args given
 interface Bar:
-    def bar() -> bool: constant
+    def bar() -> bool: view
 
 @public
 def foo(a: address):
@@ -761,7 +761,7 @@ def out_literals() -> (int128, address, bytes[10]):
 
     contract_2 = """
 interface Test:
-    def out_literals() -> (int128, address, bytes[10]) : constant
+    def out_literals() -> (int128, address, bytes[10]) : view
 
 @public
 def test(addr: address) -> (int128, address, bytes[10]):
@@ -794,7 +794,7 @@ struct X:
     x: int128
     y: address
 interface Test:
-    def out_literals() -> X : constant
+    def out_literals() -> X : view
 
 @public
 def test(addr: address) -> (int128, address):
@@ -820,7 +820,7 @@ def array() -> int128[3]:
 
     contract_2 = """
 interface Foo:
-    def array() -> int128[3]: constant
+    def array() -> int128[3]: view
 @public
 def get_array(arg1: address) -> int128[3]:
     return Foo(arg1).array()

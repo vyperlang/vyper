@@ -8,21 +8,21 @@ fail_list = [
     """
 x: int128
 @public
-@constant
+@view
 def foo() -> int128:
     self.x = 5
     return 1
     """,
     """
 @public
-@constant
+@view
 def foo() -> int128:
     send(0x1234567890123456789012345678901234567890, 5)
     return 1
     """,
     """
 @public
-@constant
+@view
 def foo():
     selfdestruct(0x1234567890123456789012345678901234567890)
     """,
@@ -30,14 +30,14 @@ def foo():
 x: int128
 y: int128
 @public
-@constant
+@view
 def foo() -> int128:
     self.y = 9
     return 5
     """,
     """
 @public
-@constant
+@view
 def foo() -> int128:
     x: bytes[4] = raw_call(
         0x1234567890123456789012345678901234567890, b"cow", max_outsize=4, gas=595757, value=9
@@ -46,7 +46,7 @@ def foo() -> int128:
     """,
     """
 @public
-@constant
+@view
 def foo() -> int128:
     x: address = create_forwarder_to(0x1234567890123456789012345678901234567890, value=9)
     return 5
@@ -93,7 +93,7 @@ f:int128
 def a (x:int128):
     self.f = 100
 
-@constant
+@view
 @public
 def b():
     self.a(10)

@@ -342,7 +342,7 @@ def test_param_empty(get_contract_with_gas_estimation):
     code = """
 interface Mirror:
     # reuse the contract for this test by compiling two copies of it
-    def test_empty(xs: int128[111], ys: bytes[1024], zs: bytes[31]) -> bool: constant
+    def test_empty(xs: int128[111], ys: bytes[1024], zs: bytes[31]) -> bool: view
 
 # a helper function which will write all over memory with random stuff
 @private

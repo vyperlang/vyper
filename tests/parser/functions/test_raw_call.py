@@ -195,14 +195,14 @@ def test_static_call(get_contract):
 
     target_source = """
 @public
-@constant
+@view
 def foo() -> int128:
     return 42
 """
 
     caller_source = """
 @public
-@constant
+@view
 def foo(_addr: address) -> int128:
     _response: bytes[32] = raw_call(
         _addr,
@@ -232,7 +232,7 @@ def foo() -> int128:
 
     caller_source = """
 @public
-@constant
+@view
 def foo(_addr: address) -> int128:
     _response: bytes[32] = raw_call(
         _addr,
@@ -253,7 +253,7 @@ uncompilable_code = [
     (
         """
 @public
-@constant
+@view
 def foo(_addr: address):
     raw_call(_addr, method_id("foo()"))
     """,

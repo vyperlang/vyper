@@ -87,7 +87,7 @@ def test(input: address):
 from vyper.interfaces import ERC20
 
 interface Factory:
-   def getExchange(token_addr: address) -> address: constant
+   def getExchange(token_addr: address) -> address: view
 
 factory: Factory
 token: ERC20

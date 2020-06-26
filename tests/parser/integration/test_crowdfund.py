@@ -29,17 +29,17 @@ def participate():
     self.nextFunderIndex = nfi + 1
 
 @public
-@constant
+@view
 def expired() -> bool:
     return block.timestamp >= self.deadline
 
 @public
-@constant
+@view
 def block_timestamp() -> uint256:
     return block.timestamp
 
 @public
-@constant
+@view
 def reached() -> bool:
     return self.balance >= self.goal
 
@@ -121,17 +121,17 @@ def participate():
     self.nextFunderIndex = nfi + 1
 
 @public
-@constant
+@view
 def expired() -> bool:
     return block.timestamp >= self.deadline
 
 @public
-@constant
+@view
 def block_timestamp() -> uint256:
     return block.timestamp
 
 @public
-@constant
+@view
 def reached() -> bool:
     return self.balance >= self.goal
 

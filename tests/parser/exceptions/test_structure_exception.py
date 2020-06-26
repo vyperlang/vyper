@@ -22,7 +22,7 @@ send(0x1234567890123456789012345678901234567890, 5)
     """
 x: int128
 @public
-@constant(123)
+@view(123)
 def foo() -> int128:
     pass
     """,
@@ -45,7 +45,7 @@ def foo() -> int128:
     """,
     """
 interface F:
-    def foo(): constant
+    def foo(): view
 struct S:
     x: int128
     """,
