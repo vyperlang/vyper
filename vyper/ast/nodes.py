@@ -616,6 +616,10 @@ class Return(VyperNode):
     _is_terminus = True
 
 
+class Log(VyperNode):
+    __slots__ = ("value",)
+
+
 class ClassDef(VyperNode):
     __slots__ = ("class_type", "name", "body")
 
