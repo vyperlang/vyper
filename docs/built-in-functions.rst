@@ -61,7 +61,7 @@ contracts.
     .. code-block:: python
 
         @public
-        @constant
+        @view
         def foo(s: string[32]) -> string[5]:
             return slice(s, 4, 5)
 
@@ -77,7 +77,7 @@ contracts.
     .. code-block:: python
 
         @public
-        @constant
+        @view
         def foo(s: string[32]) -> uint256:
             return len(s)
 
@@ -126,7 +126,7 @@ contracts.
     .. code-block:: python
 
         @public
-        @constant
+        @view
         def foo() -> bytes[4]:
             return method_id('transfer(address,uint256)', output_type=bytes[4])
 
@@ -169,7 +169,7 @@ contracts.
     .. code-block:: python
 
         @public
-        @constant
+        @view
         def foo(bytes[32]) -> address:
             return extract32(b, 12, output_type=address)
 
