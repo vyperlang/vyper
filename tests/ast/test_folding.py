@@ -63,7 +63,7 @@ constants_modified = [
     "bar: int128[FOO]",
     "[1, 2, FOO]",
     "def bar(a: int128 = FOO): pass",
-    "log.bar({bar: FOO})",
+    "log bar(FOO)",
     "FOO + 1",
 ]
 
@@ -85,7 +85,7 @@ constants_unmodified = [
     "FOO()",
     "bar = FOO()",
     "bar = self.FOO",
-    "log.bar({FOO: bar})",
+    "log FOO(bar)",
     "[1, 2, FOO()]",
 ]
 
@@ -108,8 +108,8 @@ builtins_modified = [
     "def foo(bar: int128 = MAX_INT128): pass",
     "def foo(): bar = MAX_INT128",
     "def foo(): return MAX_INT128",
-    "log.foo(MAX_INT128)",
-    "log.foo(42, MAX_INT128)",
+    "log foo(MAX_INT128)",
+    "log foo(42, MAX_INT128)",
 ]
 
 
@@ -129,7 +129,7 @@ builtins_unmodified = [
     "def foo(MAX_INT128: int128 = 42): pass",
     "def foo(): MAX_INT128 = 42",
     "def MAX_INT128(): pass",
-    "log.MAX_INT128(42)",
+    "log MAX_INT128(42)",
 ]
 
 

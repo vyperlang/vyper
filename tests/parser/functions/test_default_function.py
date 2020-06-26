@@ -18,12 +18,13 @@ def __init__():
 
 def test_basic_default(w3, get_logs, get_contract_with_gas_estimation):
     code = """
-Sent: event({sender: indexed(address)})
+event Sent:
+    sender: indexed(address)
 
 @public
 @payable
 def __default__():
-    log.Sent(msg.sender)
+    log Sent(msg.sender)
     """
     c = get_contract_with_gas_estimation(code)
 
@@ -34,17 +35,19 @@ def __default__():
 
 def test_basic_default_default_param_function(w3, get_logs, get_contract_with_gas_estimation):
     code = """
-Sent: event({sender: indexed(address)})
+event Sent:
+    sender: indexed(address)
+
 @public
 @payable
 def fooBar(a: int128 = 12345) -> int128:
-    log.Sent(ZERO_ADDRESS)
+    log Sent(ZERO_ADDRESS)
     return a
 
 @public
 @payable
 def __default__():
-    log.Sent(msg.sender)
+    log Sent(msg.sender)
     """
     c = get_contract_with_gas_estimation(code)
 
@@ -55,11 +58,12 @@ def __default__():
 
 def test_basic_default_not_payable(w3, assert_tx_failed, get_contract_with_gas_estimation):
     code = """
-Sent: event({sender: indexed(address)})
+event Sent:
+    sender: indexed(address)
 
 @public
 def __default__():
-    log.Sent(msg.sender)
+    log Sent(msg.sender)
     """
     c = get_contract_with_gas_estimation(code)
 
@@ -87,28 +91,30 @@ def __default__():
 
 def test_always_public_2(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
-Sent: event({sender: indexed(address)})
+event Sent:
+    sender: indexed(address)
 
 def __default__():
-    log.Sent(msg.sender)
+    log Sent(msg.sender)
     """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code))
 
 
 def test_zero_method_id(w3, get_logs, get_contract_with_gas_estimation):
     code = """
-Sent: event({sig: uint256})
+event Sent:
+    sig: uint256
 
 @public
 @payable
 # function selector: 0x00000000
 def blockHashAskewLimitary(v: uint256) -> uint256:
-    log.Sent(2)
+    log Sent(2)
     return 7
 
 @public
 def __default__():
-    log.Sent(1)
+    log Sent(1)
     """
 
     c = get_contract_with_gas_estimation(code)
