@@ -6,8 +6,15 @@ from vyper.interfaces import ERC20
 
 implements: ERC20
 
-Transfer: event({_from: indexed(address), _to: indexed(address), _value: uint256})
-Approval: event({_owner: indexed(address), _spender: indexed(address), _value: uint256})
+event Transfer:
+    sender: indexed(address)
+    receiver: indexed(address)
+    value: uint256
+
+event Approval:
+    owner: indexed(address)
+    spender: indexed(address)
+    value: uint256
 
 name: public(string[64])
 symbol: public(string[32])
@@ -32,7 +39,7 @@ def __init__(_name: string[64], _symbol: string[32], _decimals: uint256, _supply
     self.balanceOf[msg.sender] = init_supply
     self.total_supply = init_supply
     self.minter = msg.sender
-    log.Transfer(ZERO_ADDRESS, msg.sender, init_supply)
+    log Transfer(ZERO_ADDRESS, msg.sender, init_supply)
 
 
 @view
@@ -67,7 +74,7 @@ def transfer(_to : address, _value : uint256) -> bool:
     #       so the following subtraction would revert on insufficient balance
     self.balanceOf[msg.sender] -= _value
     self.balanceOf[_to] += _value
-    log.Transfer(msg.sender, _to, _value)
+    log Transfer(msg.sender, _to, _value)
     return True
 
 
@@ -86,7 +93,7 @@ def transferFrom(_from : address, _to : address, _value : uint256) -> bool:
     # NOTE: vyper does not allow underflows
     #      so the following subtraction would revert on insufficient allowance
     self.allowances[_from][msg.sender] -= _value
-    log.Transfer(_from, _to, _value)
+    log Transfer(_from, _to, _value)
     return True
 
 
@@ -102,7 +109,7 @@ def approve(_spender : address, _value : uint256) -> bool:
     @param _value The amount of tokens to be spent.
     """
     self.allowances[msg.sender][_spender] = _value
-    log.Approval(msg.sender, _spender, _value)
+    log Approval(msg.sender, _spender, _value)
     return True
 
 
@@ -119,7 +126,7 @@ def mint(_to: address, _value: uint256):
     assert _to != ZERO_ADDRESS
     self.total_supply += _value
     self.balanceOf[_to] += _value
-    log.Transfer(ZERO_ADDRESS, _to, _value)
+    log Transfer(ZERO_ADDRESS, _to, _value)
 
 
 @private
@@ -133,7 +140,7 @@ def _burn(_to: address, _value: uint256):
     assert _to != ZERO_ADDRESS
     self.total_supply -= _value
     self.balanceOf[_to] -= _value
-    log.Transfer(_to, ZERO_ADDRESS, _value)
+    log Transfer(_to, ZERO_ADDRESS, _value)
 
 
 @public

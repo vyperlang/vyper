@@ -48,7 +48,7 @@ def init_func_init_lll():
 
 def parse_events(sigs, global_ctx):
     for event in global_ctx._events:
-        sigs[event.target.id] = EventSignature.from_declaration(event, global_ctx)
+        sigs[event.name] = EventSignature.from_declaration(event, global_ctx)
     return sigs
 
 
@@ -132,7 +132,7 @@ def parse_tree_to_lll(source_code: str, global_ctx: GlobalContext) -> Tuple[LLLn
             "Duplicate function name: "
             f"{[name for name in _names_def if _names_def.count(name) > 1][0]}"
         )
-    _names_events = [_event.target.id for _event in global_ctx._events]
+    _names_events = [_event.name for _event in global_ctx._events]
     # Checks for duplicate event names
     if len(set(_names_events)) < len(_names_events):
         raise EventDeclarationException(

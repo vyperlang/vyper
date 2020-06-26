@@ -155,7 +155,8 @@ def test1():
     """
 LIMIT: constant(int128) = 1
 
-myEvent: event({arg1: bytes32[LIMIT]})
+event myEvent:
+    arg1: bytes32[LIMIT]
     """,
     """
 CONST: constant(uint256) = 8

@@ -60,16 +60,6 @@ class GlobalContext:
         for item in vyper_module:
             # External contract references
             if isinstance(item, vy_ast.ClassDef):
-                if global_ctx._events or global_ctx._globals or global_ctx._defs:
-                    raise StructureException(
-                        (
-                            "External interface and struct declarations must come "
-                            "before event declarations, global declarations, and "
-                            "function definitions"
-                        ),
-                        item,
-                    )
-
                 if item.class_type == "struct":
                     if global_ctx._contracts:
                         raise StructureException(
@@ -82,6 +72,9 @@ class GlobalContext:
                             f"Contract '{item.name}' is already defined", item,
                         )
                     global_ctx._contracts[item.name] = GlobalContext.make_contract(item)
+                elif item.class_type == "event":
+                    global_ctx._events.append(item)
+
                 else:
                     raise StructureException(
                         "Unknown class_type. This is likely a compiler bug, please report", item

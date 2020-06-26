@@ -108,6 +108,7 @@ def extract_sigs(sig_code):
             i
             for i in vy_ast.parse_to_ast(sig_code["code"])
             if isinstance(i, vy_ast.FunctionDef)
+            or isinstance(i, vy_ast.ClassDef)
             or (isinstance(i, vy_ast.AnnAssign) and i.target.id != "implements")
         ]
         global_ctx = GlobalContext.get_global_context(interface_ast)
@@ -132,8 +133,11 @@ def extract_interface_str(global_ctx):
     for idx, event in enumerate(events):
         if idx == 0:
             out += "# Events\n\n"
-        event_args_str = ", ".join([arg.name + ": " + str(arg.typ) for arg in event.args])
-        out += f"{event.name}: event({{{event_args_str}}})\n"
+        if event.args:
+            event_args_str = "\n    ".join([arg.name + ": " + str(arg.typ) for arg in event.args])
+        else:
+            event_args_str = "pass"
+        out += f"event {event.name}:\n    {event_args_str}\n"
 
     # Print functions.
     def render_decorator(sig):

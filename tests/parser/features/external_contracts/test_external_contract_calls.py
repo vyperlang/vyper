@@ -341,40 +341,6 @@ def bar(arg1: address, arg2: int128) -> int128:
     assert_tx_failed(lambda: get_contract(contract), exception=UnknownType)
 
 
-def test_external_contracts_must_be_declared_first_1(assert_tx_failed, get_contract):
-    contract = """
-
-item: public(int128)
-
-interface Foo:
-    def foo(arg2: int128) -> int128: view
-"""
-    assert_tx_failed(lambda: get_contract(contract), exception=StructureException)
-
-
-def test_external_contracts_must_be_declared_first_2(assert_tx_failed, get_contract):
-    contract = """
-
-MyLog: event({})
-
-interface Foo:
-    def foo(arg2: int128) -> int128: view
-"""
-    assert_tx_failed(lambda: get_contract(contract), exception=StructureException)
-
-
-def test_external_contracts_must_be_declared_first_3(assert_tx_failed, get_contract):
-    contract = """
-@public
-def foo() -> int128:
-    return 1
-
-interface Foo:
-    def foo(arg2: int128) -> int128: view
-"""
-    assert_tx_failed(lambda: get_contract(contract), exception=StructureException)
-
-
 def test_external_contract_call_declaration_expr(get_contract):
     contract_1 = """
 @public

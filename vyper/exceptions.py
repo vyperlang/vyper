@@ -88,13 +88,17 @@ class VyperException(Exception):
 
         msg = f"{self.message}\n"
         for node in self.nodes:
-            source_annotation = annotate_source_code(
-                self.source_code,
-                node.lineno,
-                node.col_offset,
-                context_lines=VYPER_ERROR_CONTEXT_LINES,
-                line_numbers=VYPER_ERROR_LINE_NUMBERS,
-            )
+            try:
+                source_annotation = annotate_source_code(
+                    self.source_code,
+                    node.lineno,
+                    node.col_offset,
+                    context_lines=VYPER_ERROR_CONTEXT_LINES,
+                    line_numbers=VYPER_ERROR_LINE_NUMBERS,
+                )
+            except Exception:
+                # necessary for certian types of syntax exceptions
+                return msg
 
             if isinstance(node, vy_ast.VyperNode):
                 fn_node = node.get_ancestor(vy_ast.FunctionDef)

@@ -22,59 +22,38 @@ class EventSignature:
 
     # Get a signature from an event declaration
     @classmethod
-    def from_declaration(cls, code, global_ctx):
-        name = code.target.id
+    def from_declaration(cls, class_node, global_ctx):
+        name = class_node.name
         pos = 0
 
         check_valid_varname(
             name,
             global_ctx._structs,
             global_ctx._constants,
-            pos=code,
+            pos=class_node,
             error_prefix="Event name invalid. ",
             exc=EventDeclarationException,
         )
 
-        # Determine the arguments, expects something of the form def foo(arg1: num, arg2: num ...
         args = []
         indexed_list = []
-        topics_count = 1
-        if code.annotation.args:
-            keys = code.annotation.args[0].keys
-            values = code.annotation.args[0].values
-            for i in range(len(keys)):
-                typ = values[i]
-                if not isinstance(keys[i], vy_ast.Name):
-                    raise TypeCheckFailure("Invalid key type, expected a valid name.")
-                if not isinstance(typ, (vy_ast.Name, vy_ast.Call, vy_ast.Subscript)):
-                    raise TypeCheckFailure("Invalid event argument type.")
-                if isinstance(typ, vy_ast.Call) and not isinstance(typ.func, vy_ast.Name):
-                    raise TypeCheckFailure("Invalid event argument type")
-                arg = keys[i].id
-                arg_item = keys[i]
-                is_indexed = False
+        if len(class_node.body) != 1 or not isinstance(class_node.body[0], vy_ast.Pass):
+            for node in class_node.body:
+                arg_item = node.target
+                arg = node.target.id
+                typ = node.annotation
 
-                # Check to see if argument is a topic
-                if isinstance(typ, vy_ast.Call) and typ.func.id == "indexed":
-                    typ = values[i].args[0]
+                if isinstance(typ, vy_ast.Call) and typ.get("func.id") == "indexed":
                     indexed_list.append(True)
-                    topics_count += 1
-                    is_indexed = True
+                    typ = typ.args[0]
+                    if (
+                        isinstance(typ, vy_ast.Subscript)
+                        and getattr(typ.value, "id", None) == "bytes"
+                        and typ.slice.value.n > 32
+                    ):  # noqa: E501
+                        raise EventDeclarationException("Indexed arguments are limited to 32 bytes")
                 else:
                     indexed_list.append(False)
-                if (
-                    isinstance(typ, vy_ast.Subscript)
-                    and getattr(typ.value, "id", None) == "bytes"
-                    and typ.slice.value.n > 32
-                    and is_indexed
-                ):  # noqa: E501
-                    raise EventDeclarationException("Indexed arguments are limited to 32 bytes")
-                if topics_count > 4:
-                    raise TypeCheckFailure("Too many indexed arguments")
-                if not isinstance(arg, str):
-                    raise TypeCheckFailure("Argument name invalid")
-                if not typ:
-                    raise TypeCheckFailure("Argument must have type")
                 check_valid_varname(
                     arg,
                     global_ctx._structs,
@@ -91,6 +70,7 @@ class EventSignature:
                     pos += ceil32(typ.slice.value.n)
                 else:
                     pos += get_size_of_type(parsed_type) * 32
+
         sig = (
             name
             + "("

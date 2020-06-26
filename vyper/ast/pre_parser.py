@@ -14,7 +14,7 @@ from typing import Tuple
 from semantic_version import NpmSpec, Version
 
 from vyper.exceptions import SyntaxException, VersionException
-from vyper.typing import ClassTypes, ParserPosition
+from vyper.typing import ModificationOffsets, ParserPosition
 
 VERSION_ALPHA_RE = re.compile(r"(?<=\d)a(?=\d)")  # 0.1.0a17
 VERSION_BETA_RE = re.compile(r"(?<=\d)b(?=\d)")  # 0.1.0b17
@@ -61,18 +61,25 @@ def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
         )
 
 
+# compound statements that are replaced with `class`
 VYPER_CLASS_TYPES = {
+    "event",
     "interface",
     "struct",
 }
 
+# simple statements or expressions that are replaced with `yield`
+VYPER_EXPRESSION_TYPES = {
+    "log",
+}
 
-def pre_parse(code: str) -> Tuple[ClassTypes, str]:
+
+def pre_parse(code: str) -> Tuple[ModificationOffsets, str]:
     """
     Re-formats a vyper source string into a python source string and performs
     some validation.  More specifically,
 
-    * Translates "interface" and "struct" keyword into python "class" keyword
+    * Translates "interface", "struct" and "event" keywords into python "class" keyword
     * Validates "@version" pragma against current compiler version
     * Prevents direct use of python "class" keyword
     * Prevents use of python semi-colon statement separator
@@ -88,19 +95,19 @@ def pre_parse(code: str) -> Tuple[ClassTypes, str]:
     Returns
     -------
     dict
-        Mapping of class types for the given source.
+        Mapping of offsets where source was modified.
     str
         Reformatted python source string.
     """
     result = []
-    previous_keyword = None
-    class_types: ClassTypes = {}
+    modification_offsets: ModificationOffsets = {}
 
     try:
         code_bytes = code.encode("utf-8")
-        g = tokenize(io.BytesIO(code_bytes).readline)
+        token_list = list(tokenize(io.BytesIO(code_bytes).readline))
 
-        for token in g:
+        for i in range(len(token_list)):
+            token = token_list[i]
             toks = [token]
 
             typ = token.type
@@ -112,13 +119,9 @@ def pre_parse(code: str) -> Tuple[ClassTypes, str]:
             if typ == COMMENT and "@version" in string:
                 validate_version_pragma(string[1:], start)
 
-            if typ == NAME and string == "class" and start[1] == 0:
+            if typ == NAME and string in ("class", "yield"):
                 raise SyntaxException(
-                    "The `class` keyword is not allowed. "
-                    "Perhaps you meant `interface` or `struct`?",
-                    code,
-                    start[0],
-                    start[1],
+                    f"The `{string}` keyword is not allowed. ", code, start[0], start[1],
                 )
 
             if typ == NAME and string == "contract" and start[1] == 0:
@@ -128,18 +131,21 @@ def pre_parse(code: str) -> Tuple[ClassTypes, str]:
                     start[0],
                     start[1],
                 )
+            if typ == NAME and string == "log" and token_list[i + 1].string == ".":
+                raise SyntaxException(
+                    "`log` is no longer an object, please use it as a statement instead",
+                    code,
+                    start[0],
+                    start[1],
+                )
 
-            # Make note of interface or struct name along with the type keyword
-            # that preceded it
-            if typ == NAME and previous_keyword is not None:
-                class_types[string] = previous_keyword
-                previous_keyword = None
-
-            # Translate vyper-specific class keywords into python "class"
-            # keyword
-            if typ == NAME and string in VYPER_CLASS_TYPES and start[1] == 0:
-                toks = [TokenInfo(NAME, "class", start, end, line)]
-                previous_keyword = string
+            if typ == NAME:
+                if string in VYPER_CLASS_TYPES and start[1] == 0:
+                    toks = [TokenInfo(NAME, "class", start, end, line)]
+                    modification_offsets[start] = string
+                elif string in VYPER_EXPRESSION_TYPES:
+                    toks = [TokenInfo(NAME, "yield", start, end, line)]
+                    modification_offsets[start] = string.capitalize()
 
             if (typ, string) == (OP, ";"):
                 raise SyntaxException("Semi-colon statements not allowed", code, start[0], start[1])
@@ -147,4 +153,4 @@ def pre_parse(code: str) -> Tuple[ClassTypes, str]:
     except TokenError as e:
         raise SyntaxException(e.args[0], code, e.args[1][0], e.args[1][1]) from e
 
-    return class_types, untokenize(result).decode("utf-8")
+    return modification_offsets, untokenize(result).decode("utf-8")

@@ -116,12 +116,14 @@ If the function is annotated as ``@payable``, this function is executed whenever
 
 .. code-block:: python
 
-    Payment: event({amount: int128, from: indexed(address)})
+    event Payment:
+        amount: int128
+        sender: indexed(address)
 
     @public
     @payable
     def __default__():
-        log.Payment(msg.value, msg.sender)
+        log Payment(msg.value, msg.sender)
 
 Considerations
 **************
@@ -152,7 +154,9 @@ Events may be logged in specially indexed data structures that allow clients, in
 
 .. code-block:: python
 
-    Payment: event({amount: int128, arg2: indexed(address)})
+    event Payment:
+        amount: int128
+        sender: indexed(address)
 
     total_paid: int128
 
@@ -160,9 +164,7 @@ Events may be logged in specially indexed data structures that allow clients, in
     @payable
     def pay():
         self.total_paid += msg.value
-        log.Payment(msg.value, msg.sender)
-
-Events must be declared before global declarations and function definitions.
+        log Payment(msg.value, msg.sender)
 
 .. _structure-metadata:
 

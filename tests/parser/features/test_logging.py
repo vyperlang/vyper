@@ -6,18 +6,18 @@ from vyper.exceptions import (
     InvalidType,
     NamespaceCollision,
     TypeMismatch,
-    UnknownAttribute,
+    UndeclaredDefinition,
 )
 from vyper.utils import keccak256
 
 
 def test_empty_event_logging(w3, tester, keccak, get_contract_with_gas_estimation):
     loggy_code = """
-MyLog: event({})
+event MyLog: pass
 
 @public
 def foo():
-    log.MyLog()
+    log MyLog()
     """
 
     c = get_contract_with_gas_estimation(loggy_code)
@@ -41,11 +41,12 @@ def foo():
 
 def test_event_logging_with_topics(w3, tester, keccak, get_logs, get_contract_with_gas_estimation):
     loggy_code = """
-MyLog: event({arg1: indexed(bytes[3])})
+event MyLog:
+    arg1: indexed(bytes[3])
 
 @public
 def foo():
-    log.MyLog(b'bar')
+    log MyLog(b'bar')
     """
 
     c = get_contract_with_gas_estimation(loggy_code)
@@ -72,11 +73,14 @@ def test_event_logging_with_multiple_topics(
     w3, tester, keccak, get_logs, get_contract_with_gas_estimation
 ):
     loggy_code = """
-MyLog: event({arg1: indexed(bytes[3]), arg2: indexed(bytes[4]), arg3: indexed(address)})
+event MyLog:
+    arg1: indexed(bytes[3])
+    arg2: indexed(bytes[4])
+    arg3: indexed(address)
 
 @public
 def foo():
-    log.MyLog(b'bar', b'home', self)
+    log MyLog(b'bar', b'home', self)
     """
 
     c = get_contract_with_gas_estimation(loggy_code)
@@ -109,14 +113,19 @@ def test_event_logging_with_multiple_topics_var_and_store(
     tester, get_contract_with_gas_estimation, get_logs
 ):
     code = """
-MyLog: event({arg1: indexed(bytes[3]), arg2: indexed(bytes[4]), arg3: indexed(address), arg4: bytes[10]})  # noqa: E501
+event MyLog:
+    arg1: indexed(bytes[3])
+    arg2: indexed(bytes[4])
+    arg3: indexed(address)
+    arg4: bytes[10]
+
 b: bytes[10]
 
 @public
 def foo(arg1: bytes[3]):
     a: bytes[4] = b'home'
     self.b = b'hellothere'
-    log.MyLog(arg1, a,  self, self.b)
+    log MyLog(arg1, a,  self, self.b)
     """
 
     c = get_contract_with_gas_estimation(code)
@@ -135,17 +144,19 @@ def test_logging_the_same_event_multiple_times_with_topics(
     w3, tester, keccak, get_logs, get_contract_with_gas_estimation
 ):
     loggy_code = """
-MyLog: event({arg1: indexed(int128), arg2: indexed(address)})
+event MyLog:
+    arg1: indexed(int128)
+    arg2: indexed(address)
 
 @public
 def foo():
-    log.MyLog(1, self)
-    log.MyLog(1, self)
+    log MyLog(1, self)
+    log MyLog(1, self)
 
 @public
 def bar():
-    log.MyLog(1, self)
-    log.MyLog(1, self)
+    log MyLog(1, self)
+    log MyLog(1, self)
     """
 
     c = get_contract_with_gas_estimation(loggy_code)
@@ -181,7 +192,11 @@ def test_event_logging_cannot_have_more_than_three_topics(
     assert_tx_failed, get_contract_with_gas_estimation
 ):
     loggy_code = """
-MyLog: event({arg1: indexed(bytes[3]), arg2: indexed(bytes[4]), arg3: indexed(address), arg4: indexed(int128)})  # noqa: E501
+event MyLog:
+    arg1: indexed(bytes[3])
+    arg2: indexed(bytes[4])
+    arg3: indexed(address)
+    arg4: indexed(int128)
     """
 
     assert_tx_failed(
@@ -191,11 +206,12 @@ MyLog: event({arg1: indexed(bytes[3]), arg2: indexed(bytes[4]), arg3: indexed(ad
 
 def test_event_logging_with_data(w3, tester, keccak, get_logs, get_contract_with_gas_estimation):
     loggy_code = """
-MyLog: event({arg1: int128})
+event MyLog:
+    arg1: int128
 
 @public
 def foo():
-    log.MyLog(123)
+    log MyLog(123)
     """
 
     c = get_contract_with_gas_estimation(loggy_code)
@@ -222,12 +238,16 @@ def test_event_logging_with_fixed_array_data(
     w3, tester, keccak, get_logs, get_contract_with_gas_estimation
 ):
     loggy_code = """
-MyLog: event({arg1: int128[2], arg2: uint256[3], arg3: int128[2][2]})
+event MyLog:
+    arg1: int128[2]
+    arg2: uint256[3]
+    arg3: int128[2][2]
+
 
 @public
 def foo():
-    log.MyLog([1,2], [block.timestamp, block.timestamp+1, block.timestamp+2], [[1,2],[1,2]])
-    log.MyLog([1,2], [block.timestamp, block.timestamp+1, block.timestamp+2], [[1,2],[1,2]])
+    log MyLog([1,2], [block.timestamp, block.timestamp+1, block.timestamp+2], [[1,2],[1,2]])
+    log MyLog([1,2], [block.timestamp, block.timestamp+1, block.timestamp+2], [[1,2],[1,2]])
     """
 
     c = get_contract_with_gas_estimation(loggy_code)
@@ -263,11 +283,14 @@ def test_logging_with_input_bytes_1(
     w3, tester, keccak, get_logs, bytes_helper, get_contract_with_gas_estimation
 ):
     loggy_code = """
-MyLog: event({arg1: indexed(bytes[4]), arg2: indexed(bytes[29]), arg3: bytes[31]})
+event MyLog:
+    arg1: indexed(bytes[4])
+    arg2: indexed(bytes[29])
+    arg3: bytes[31]
 
 @public
 def foo(arg1: bytes[29], arg2: bytes[31]):
-    log.MyLog(b'bar', arg1, arg2)
+    log MyLog(b'bar', arg1, arg2)
 """
 
     c = get_contract_with_gas_estimation(loggy_code)
@@ -300,11 +323,12 @@ def test_event_logging_with_bytes_input_2(
     w3, tester, keccak, get_logs, get_contract_with_gas_estimation
 ):
     loggy_code = """
-MyLog: event({arg1: bytes[20]})
+event MyLog:
+    arg1: bytes[20]
 
 @public
 def foo(_arg1: bytes[20]):
-    log.MyLog(_arg1)
+    log MyLog(_arg1)
     """
 
     c = get_contract_with_gas_estimation(loggy_code)
@@ -328,11 +352,12 @@ def foo(_arg1: bytes[20]):
 
 def test_event_logging_with_bytes_input_3(w3, tester, keccak, get_logs, get_contract):
     loggy_code = """
-MyLog: event({arg1: bytes[5]})
+event MyLog:
+    arg1: bytes[5]
 
 @public
 def foo(_arg1: bytes[5]):
-    log.MyLog(_arg1)
+    log MyLog(_arg1)
     """
 
     c = get_contract(loggy_code)
@@ -358,11 +383,17 @@ def test_event_logging_with_data_with_different_types(
     w3, tester, keccak, get_logs, get_contract_with_gas_estimation
 ):
     loggy_code = """
-MyLog: event({arg1: int128, arg2: bytes[4], arg3: bytes[3], arg4: address, arg5: address, arg6: uint256})  # noqa: E501
+event MyLog:
+    arg1: int128
+    arg2: bytes[4]
+    arg3: bytes[3]
+    arg4: address
+    arg5: address
+    arg6: uint256
 
 @public
 def foo():
-    log.MyLog(123, b'home', b'bar', 0xc305c901078781C232A2a521C2aF7980f8385ee9, self, block.timestamp)  # noqa: E501
+    log MyLog(123, b'home', b'bar', 0xc305c901078781C232A2a521C2aF7980f8385ee9, self, block.timestamp)  # noqa: E501
     """
 
     c = get_contract_with_gas_estimation(loggy_code)
@@ -403,11 +434,13 @@ def test_event_logging_with_topics_and_data_1(
     w3, tester, keccak, get_logs, get_contract_with_gas_estimation
 ):
     loggy_code = """
-MyLog: event({arg1: indexed(int128), arg2: bytes[3]})
+event MyLog:
+    arg1: indexed(int128)
+    arg2: bytes[3]
 
 @public
 def foo():
-    log.MyLog(1, b'bar')
+    log MyLog(1, b'bar')
     """
 
     c = get_contract_with_gas_estimation(loggy_code)
@@ -438,13 +471,17 @@ def test_event_logging_with_multiple_logs_topics_and_data(
     w3, tester, keccak, get_logs, get_contract_with_gas_estimation
 ):
     loggy_code = """
-MyLog: event({arg1: indexed(int128), arg2: bytes[3]})
-YourLog: event({arg1: indexed(address), arg2: bytes[5]})
+event MyLog:
+    arg1: indexed(int128)
+    arg2: bytes[3]
+event YourLog:
+    arg1: indexed(address)
+    arg2: bytes[5]
 
 @public
 def foo():
-    log.MyLog(1, b'bar')
-    log.YourLog(self, b'house')
+    log MyLog(1, b'bar')
+    log YourLog(self, b'house')
     """
 
     c = get_contract_with_gas_estimation(loggy_code)
@@ -492,11 +529,12 @@ def foo():
 
 def test_fails_when_input_is_the_wrong_type(assert_tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
-MyLog: event({arg1: indexed(int128)})
+event MyLog:
+    arg1: indexed(int128)
 
 @public
 def foo_():
-    log.MyLog(b'yo')
+    log MyLog(b'yo')
 """
 
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), InvalidType)
@@ -504,11 +542,13 @@ def foo_():
 
 def test_fails_when_topic_is_the_wrong_size(assert_tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
-MyLog: event({arg1: indexed(bytes[3])})
+event MyLog:
+    arg1: indexed(bytes[3])
+
 
 @public
 def foo():
-    log.MyLog(b'bars')
+    log MyLog(b'bars')
 """
 
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), InvalidType)
@@ -518,11 +558,12 @@ def test_fails_when_input_topic_is_the_wrong_size(
     assert_tx_failed, get_contract_with_gas_estimation
 ):
     loggy_code = """
-MyLog: event({arg1: indexed(bytes[3])})
+event MyLog:
+    arg1: indexed(bytes[3])
 
 @public
 def foo(arg1: bytes[4]):
-    log.MyLog(arg1)
+    log MyLog(arg1)
 """
 
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatch)
@@ -530,11 +571,12 @@ def foo(arg1: bytes[4]):
 
 def test_fails_when_data_is_the_wrong_size(assert_tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
-MyLog: event({arg1: bytes[3]})
+event MyLog:
+    arg1: bytes[3]
 
 @public
 def foo():
-    log.MyLog(b'bars')
+    log MyLog(b'bars')
 """
 
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), InvalidType)
@@ -544,11 +586,12 @@ def test_fails_when_input_data_is_the_wrong_size(
     assert_tx_failed, get_contract_with_gas_estimation
 ):
     loggy_code = """
-MyLog: event({arg1: bytes[3]})
+event MyLog:
+    arg1: bytes[3]
 
 @public
 def foo(arg1: bytes[4]):
-    log.MyLog(arg1)
+    log MyLog(arg1)
 """
 
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatch)
@@ -556,7 +599,8 @@ def foo(arg1: bytes[4]):
 
 def test_fails_when_topic_is_over_32_bytes(assert_tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
-MyLog: event({arg1: indexed(bytes[100])})
+event MyLog:
+    arg1: indexed(bytes[100])
 
 @public
 def foo():
@@ -570,10 +614,15 @@ def foo():
 
 def test_logging_fails_with_over_three_topics(assert_tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
-MyLog: event({arg1: indexed(int128), arg2: indexed(int128), arg3: indexed(int128), arg4: indexed(int128)})  # noqa: E501
+event MyLog:
+    arg1: indexed(int128)
+    arg2: indexed(int128)
+    arg3: indexed(int128)
+    arg4: indexed(int128)
+
 @public
 def __init__():
-    log.MyLog(1, 2, 3, 4)
+    log MyLog(1, 2, 3, 4)
     """
 
     assert_tx_failed(
@@ -583,12 +632,12 @@ def __init__():
 
 def test_logging_fails_with_duplicate_log_names(assert_tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
-MyLog: event({})
-MyLog: event({})
+event MyLog: pass
+event MyLog: pass
 
 @public
 def foo():
-    log.MyLog()
+    log MyLog()
     """
 
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), NamespaceCollision)
@@ -601,19 +650,20 @@ def test_logging_fails_with_when_log_is_undeclared(
 
 @public
 def foo():
-    log.MyLog()
+    log MyLog()
     """
 
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), UnknownAttribute)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), UndeclaredDefinition)
 
 
 def test_logging_fails_with_topic_type_mismatch(assert_tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
-MyLog: event({arg1: indexed(int128)})
+event MyLog:
+    arg1: indexed(int128)
 
 @public
 def foo():
-    log.MyLog(self)
+    log MyLog(self)
     """
 
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatch)
@@ -621,53 +671,27 @@ def foo():
 
 def test_logging_fails_with_data_type_mismatch(assert_tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
-MyLog: event({arg1: bytes[3]})
+event MyLog:
+    arg1: bytes[3]
 
 @public
 def foo():
-    log.MyLog(self)
+    log MyLog(self)
     """
 
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatch)
-
-
-def test_logging_fails_after_a_global_declaration(
-    assert_tx_failed, get_contract_with_gas_estimation
-):
-    loggy_code = """
-age: int128
-MyLog: event({arg1: bytes[3]})
-    """
-
-    assert_tx_failed(
-        lambda: get_contract_with_gas_estimation(loggy_code), EventDeclarationException
-    )
-
-
-def test_logging_fails_after_a_function_declaration(
-    assert_tx_failed, get_contract_with_gas_estimation
-):
-    loggy_code = """
-@public
-def foo():
-    pass
-
-MyLog: event({arg1: bytes[3]})
-    """
-    assert_tx_failed(
-        lambda: get_contract_with_gas_estimation(loggy_code), EventDeclarationException
-    )
 
 
 def test_logging_fails_when_number_of_arguments_is_greater_than_declaration(
     assert_tx_failed, get_contract_with_gas_estimation
 ):
     loggy_code = """
-MyLog: event({arg1: int128})
+event MyLog:
+    arg1: int128
 
 @public
 def foo():
-    log.MyLog(1, 2)
+    log MyLog(1, 2)
 """
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), ArgumentException)
 
@@ -676,11 +700,13 @@ def test_logging_fails_when_number_of_arguments_is_less_than_declaration(
     assert_tx_failed, get_contract_with_gas_estimation
 ):
     loggy_code = """
-MyLog: event({arg1: int128, arg2: int128})
+event MyLog:
+    arg1: int128
+    arg2: int128
 
 @public
 def foo():
-    log.MyLog(1)
+    log MyLog(1)
 """
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), ArgumentException)
 
@@ -761,12 +787,13 @@ def foo():
 def test_variable_list_packing(get_logs, get_contract_with_gas_estimation):
 
     code = """
-Bar: event({_value: int128[4]})
+event Bar:
+    _value: int128[4]
 
 @public
 def foo():
     a: int128[4] = [1, 2, 3, 4]
-    log.Bar(a)
+    log Bar(a)
     """
     c = get_contract_with_gas_estimation(code)
 
@@ -778,11 +805,12 @@ def foo():
 def test_literal_list_packing(get_logs, get_contract_with_gas_estimation):
 
     code = """
-Bar: event({_value: int128[4]})
+event Bar:
+    _value: int128[4]
 
 @public
 def foo():
-    log.Bar([1, 2, 3, 4])
+    log Bar([1, 2, 3, 4])
     """
     c = get_contract_with_gas_estimation(code)
 
@@ -794,12 +822,14 @@ def foo():
 def test_storage_list_packing(get_logs, bytes_helper, get_contract_with_gas_estimation):
 
     code = """
-Bar: event({_value: int128[4]})
+event Bar:
+    _value: int128[4]
+
 x: int128[4]
 
 @public
 def foo():
-    log.Bar(self.x)
+    log Bar(self.x)
 
 @public
 def set_list():
@@ -819,11 +849,12 @@ def set_list():
 def test_passed_list_packing(get_logs, get_contract_with_gas_estimation):
 
     code = """
-Bar: event({_value: int128[4]})
+event Bar:
+    _value: int128[4]
 
 @public
 def foo(barbaric: int128[4]):
-    log.Bar(barbaric)
+    log Bar(barbaric)
     """
     c = get_contract_with_gas_estimation(code)
 
@@ -834,11 +865,12 @@ def foo(barbaric: int128[4]):
 
 def test_variable_decimal_list_packing(get_logs, get_contract_with_gas_estimation):
     code = """
-Bar: event({_value: decimal[4]})
+event Bar:
+    _value: decimal[4]
 
 @public
 def foo():
-    log.Bar([1.11, 2.22, 3.33, 4.44])
+    log Bar([1.11, 2.22, 3.33, 4.44])
     """
     c = get_contract_with_gas_estimation(code)
 
@@ -855,12 +887,14 @@ def foo():
 def test_storage_byte_packing(get_logs, bytes_helper, get_contract_with_gas_estimation):
 
     code = """
-MyLog: event({arg1: bytes[29]})
+event MyLog:
+    arg1: bytes[29]
+
 x:bytes[5]
 
 @public
 def foo(a: int128):
-    log.MyLog(self.x)
+    log MyLog(self.x)
 
 @public
 def setbytez():
@@ -880,12 +914,14 @@ def setbytez():
 def test_storage_decimal_list_packing(get_logs, bytes_helper, get_contract_with_gas_estimation):
 
     code = """
-Bar: event({_value: decimal[4]})
+event Bar:
+    _value: decimal[4]
+
 x: decimal[4]
 
 @public
 def foo():
-    log.Bar(self.x)
+    log Bar(self.x)
 
 @public
 def set_list():
@@ -911,30 +947,34 @@ def test_logging_fails_when_declartation_is_too_big(
     assert_tx_failed, get_contract_with_gas_estimation
 ):
     code = """
-Bar: event({_value: indexed(bytes[33])})
+event Bar:
+    _value: indexed(bytes[33])
 """
     assert_tx_failed(lambda: get_contract_with_gas_estimation(code), EventDeclarationException)
 
 
 def test_logging_fails_when_input_is_too_big(assert_tx_failed, get_contract_with_gas_estimation):
     code = """
-Bar: event({_value: indexed(bytes[32])})
+event Bar:
+    _value: indexed(bytes[32])
 
 @public
 def foo(inp: bytes[33]):
-    log.Bar(inp)
+    log Bar(inp)
 """
     assert_tx_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatch)
 
 
 def test_2nd_var_list_packing(get_logs, get_contract_with_gas_estimation):
     code = """
-Bar: event({arg1: int128, arg2: int128[4]})
+event Bar:
+    arg1: int128
+    arg2: int128[4]
 
 @public
 def foo():
     a: int128[4] = [1, 2, 3, 4]
-    log.Bar(10, a)
+    log Bar(10, a)
     """
     c = get_contract_with_gas_estimation(code)
 
@@ -944,12 +984,15 @@ def foo():
 
 def test_2nd_var_storage_list_packing(get_logs, get_contract_with_gas_estimation):
     code = """
-Bar: event({arg1: int128, arg2: int128[4]})
+event Bar:
+    arg1: int128
+    arg2: int128[4]
+
 x: int128[4]
 
 @public
 def foo():
-    log.Bar(10, self.x)
+    log Bar(10, self.x)
 
 @public
 def set_list():
@@ -966,7 +1009,13 @@ def set_list():
 
 def test_mixed_var_list_packing(get_logs, get_contract_with_gas_estimation):
     code = """
-Bar: event({arg1: int128, arg2: int128[4], arg3 :bytes[4], arg4: int128[3], arg5: int128[2]})
+event Bar:
+    arg1: int128
+    arg2: int128[4]
+    arg3 :bytes[4]
+    arg4: int128[3]
+    arg5: int128[2]
+
 x: int128[4]
 y: int128[2]
 
@@ -977,7 +1026,7 @@ def __init__():
 @public
 def foo():
     v: int128[3] = [7, 8, 9]
-    log.Bar(10, self.x, b"test", v, self.y)
+    log Bar(10, self.x, b"test", v, self.y)
 
 @public
 def set_list():

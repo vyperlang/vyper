@@ -9,7 +9,9 @@ struct Bid:
 MAX_BIDS: constant(int128) = 128
 
 # Event for logging that auction has ended
-AuctionEnded: event({_highestBidder: address, _highestBid: uint256})
+event AuctionEnded:
+    highestBidder: address
+    highestBid: uint256
 
 # Auction parameters
 beneficiary: public(address)
@@ -170,7 +172,7 @@ def auctionEnd():
     assert not self.ended
 
     # Log auction ending and set flag
-    log.AuctionEnded(self.highestBidder, self.highestBid)
+    log AuctionEnded(self.highestBidder, self.highestBid)
     self.ended = True
 
     # Transfer funds to beneficiary

@@ -1,3 +1,3 @@
-from vyper.context.types.meta import interface, struct
+from vyper.context.types.meta import event, interface, struct
 
-META_TYPES = {"interface": interface, "struct": struct}
+META_TYPES = {"event": event, "interface": interface, "struct": struct}
