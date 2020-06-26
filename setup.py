@@ -64,7 +64,7 @@ setup(
     python_requires=">=3.6",
     py_modules=["vyper"],
     install_requires=["asttokens==2.0.3", "pycryptodome>=3.5.1,<4", "semantic-version==2.8.5"],
-    setup_requires=["pytest-runner"],
+    setup_requires=["pytest-runner", "setuptools-markdown"],
     tests_require=extras_require["test"],
     extras_require=extras_require,
     entry_points={
