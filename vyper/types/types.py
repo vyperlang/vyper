@@ -210,14 +210,6 @@ def parse_type(item, location, sigs=None, custom_structs=None, constants=None):
             raise InvalidType("Invalid base type: " + item.id, item)
     # Units, e.g. num (1/sec) or contracts
     elif isinstance(item, vy_ast.Call) and isinstance(item.func, vy_ast.Name):
-        # Mapping type.
-        if item.func.id == "HashMap":
-            warnings.warn(
-                "Mapping definitions using call have deprecated (see VIP1969). "
-                "Use HashMap[type1, type2] instead.",
-                DeprecationWarning,
-            )
-            raise InvalidType("map(type1, type2) no longer supported.", item)
         # Contract_types
         if item.func.id == "address":
             if sigs and item.args[0].id in sigs:
