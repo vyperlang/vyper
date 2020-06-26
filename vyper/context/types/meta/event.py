@@ -17,13 +17,15 @@ class Event:
     """
     Event type.
 
-    Event are special types that exist as members of the builtin `log` object.
-
     Attributes
     ----------
+    arguments : OrderedDict
+        Event arguments.
     indexed : list
         A list of booleans indicating if each argument within the event is
         indexed.
+    name : str
+        Name of the event.
     """
 
     _member_of = "log"

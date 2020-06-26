@@ -163,20 +163,15 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             raise VariableDeclarationException(
                 "Storage variables cannot have an initial value", node.value
             )
-        member_key = getattr(type_definition, "_member_of", "self")
         try:
-            self.namespace[member_key].add_member(name, type_definition)
+            self.namespace["self"].add_member(name, type_definition)
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 
     def visit_ClassDef(self, node):
         obj = self.namespace[node.class_type].build_primitive_from_node(node)
         try:
-            if hasattr(obj, "_member_of"):
-                member_key = obj._member_of
-                self.namespace[member_key].add_member(node.name, obj)
-            else:
-                self.namespace[node.name] = obj
+            self.namespace[node.name] = obj
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 
