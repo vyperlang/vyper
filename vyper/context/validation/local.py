@@ -6,7 +6,11 @@ from vyper.ast.validation import validate_call_args
 from vyper.context.namespace import get_namespace
 from vyper.context.types.abstract import IntegerAbstractType
 from vyper.context.types.bases import DataLocation
-from vyper.context.types.function import ContractFunctionType
+from vyper.context.types.function import (
+    ContractFunctionType,
+    FunctionVisibility,
+    StateMutability,
+)
 from vyper.context.types.indexable.sequence import (
     ArrayDefinition,
     TupleDefinition,
@@ -121,7 +125,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.func = namespace["self"].get_member(fn_node.name, fn_node)
         namespace.update(self.func.arguments)
 
-        if not self.func.is_public:
+        if self.func.visibility is FunctionVisibility.PRIVATE:
             node_list = fn_node.get_descendants(
                 vy_ast.Attribute, {"value.id": "msg", "attr": "sender"}
             )
@@ -129,7 +133,16 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 raise ConstancyViolation(
                     "msg.sender is not allowed in private functions", node_list[0]
                 )
-        if not getattr(self.func, "is_payable", False):
+        if self.func.mutability is StateMutability.PURE:
+            node_list = fn_node.get_descendants(
+                vy_ast.Attribute, {"value.id": {"self", "msg", "tx", "block", "chain"}}
+            )
+            if node_list:
+                raise ConstancyViolation(
+                    "not allowed to query contract or environment variables in pure functions",
+                    node_list[0],
+                )
+        if self.func.mutability is not StateMutability.PAYABLE:
             node_list = fn_node.get_descendants(
                 vy_ast.Attribute, {"value.id": "msg", "attr": "value"}
             )
@@ -168,7 +181,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException("Right-hand side of assignment cannot be a tuple", node.value)
         target = get_exact_type_from_node(node.target)
         validate_expected_type(node.value, target)
-        if self.func.is_constant and target.location == DataLocation.STORAGE:
+        if (
+            self.func.mutability in (StateMutability.PURE, StateMutability.VIEW)
+            and target.location == DataLocation.STORAGE
+        ):
             raise ConstancyViolation("Cannot modify storage in a constant function", node)
         target.validate_modification(node)
 
@@ -177,7 +193,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException("Right-hand side of assignment cannot be a tuple", node.value)
         target = get_exact_type_from_node(node.target)
         validate_expected_type(node.value, target)
-        if self.func.is_constant and target.location == DataLocation.STORAGE:
+        if (
+            self.func.mutability in (StateMutability.PURE, StateMutability.VIEW)
+            and target.location == DataLocation.STORAGE
+        ):
             raise ConstancyViolation("Cannot modify storage in a constant function", node)
         target.validate_modification(node)
 
@@ -353,9 +372,20 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException("To call an event you must use the `log` statement", node)
 
         if isinstance(fn_type, ContractFunctionType):
-            if self.func.is_constant and not fn_type.is_constant:
+            if self.func.mutability is StateMutability.VIEW and fn_type.mutability not in (
+                StateMutability.VIEW,
+                StateMutability.PURE,
+            ):
                 raise ConstancyViolation(
-                    "Cannot call a non-constant function from a constant function", node
+                    "Cannot call a mutating function from a view function", node
+                )
+
+            if (
+                self.func.mutability is StateMutability.PURE
+                and fn_type.mutability is not StateMutability.PURE
+            ):
+                raise ConstancyViolation(
+                    "Cannot call a stateful function from a pure function", node
                 )
 
         return_value = fn_type.fetch_call_return(node.value)
