@@ -109,13 +109,15 @@ def build_primitive_from_abi(name: str, abi: dict) -> InterfacePrimitive:
     return InterfacePrimitive(name, members)
 
 
-def build_primitive_from_node(node: Union[vy_ast.ClassDef, vy_ast.Module]) -> InterfacePrimitive:
+def build_primitive_from_node(
+    node: Union[vy_ast.InterfaceDef, vy_ast.Module]
+) -> InterfacePrimitive:
     """
     Generate an `InterfacePrimitive` object from a Vyper ast node.
 
     Arguments
     ---------
-    node : ClassDef | Module
+    node : InterfaceDef | Module
         Vyper ast node defining the interface
     Returns
     -------
@@ -124,7 +126,7 @@ def build_primitive_from_node(node: Union[vy_ast.ClassDef, vy_ast.Module]) -> In
     """
     if isinstance(node, vy_ast.Module):
         members = _get_module_functions(node)
-    elif isinstance(node, vy_ast.ClassDef):
+    elif isinstance(node, vy_ast.InterfaceDef):
         members = _get_class_functions(node)
     else:
         raise StructureException("Invalid syntax for interface definition", node)
@@ -148,7 +150,7 @@ def _get_module_functions(base_node: vy_ast.Module) -> OrderedDict:
     return functions
 
 
-def _get_class_functions(base_node: vy_ast.ClassDef) -> OrderedDict:
+def _get_class_functions(base_node: vy_ast.InterfaceDef) -> OrderedDict:
     functions = OrderedDict()
     for node in base_node.body:
         if not isinstance(node, vy_ast.FunctionDef):

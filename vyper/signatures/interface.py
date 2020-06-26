@@ -108,7 +108,7 @@ def extract_sigs(sig_code):
             i
             for i in vy_ast.parse_to_ast(sig_code["code"])
             if isinstance(i, vy_ast.FunctionDef)
-            or isinstance(i, vy_ast.ClassDef)
+            or isinstance(i, vy_ast.EventDef)
             or (isinstance(i, vy_ast.AnnAssign) and i.target.id != "implements")
         ]
         global_ctx = GlobalContext.get_global_context(interface_ast)

@@ -53,8 +53,8 @@ def test_it_annotates_ast_with_class_types():
     struct_def = contract_ast.body[0]
     contract_def = contract_ast.body[1]
 
-    assert struct_def.class_type == "struct"
-    assert contract_def.class_type == "interface"
+    assert struct_def.ast_type == "StructDef"
+    assert contract_def.ast_type == "InterfaceDef"
 
 
 def test_it_rewrites_unary_subtractions():

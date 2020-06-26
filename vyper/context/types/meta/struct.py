@@ -82,13 +82,13 @@ class StructPrimitive:
         return StructDefinition(self._id, self.members)
 
 
-def build_primitive_from_node(base_node: vy_ast.ClassDef) -> StructPrimitive:
+def build_primitive_from_node(base_node: vy_ast.EventDef) -> StructPrimitive:
     """
     Generate a `StructPrimitive` object from a Vyper ast node.
 
     Arguments
     ---------
-    node : ClassDef
+    node : EventDef
         Vyper ast node defining the struct
     Returns
     -------
