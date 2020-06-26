@@ -78,9 +78,14 @@ def mk_full_signature_from_json(abi):
             )
 
         decorator_list = [vy_ast.Name(id="public")]
-        if func["constant"]:
-            decorator_list.append(vy_ast.Name(id="constant"))
-        if func["payable"]:
+        # Handle either constant/payable or stateMutability field
+        if ("constant" in func and func["constant"]) or (
+            "stateMutability" in func and func["stateMutability"] == "view"
+        ):
+            decorator_list.append(vy_ast.Name(id="view"))
+        if ("payable" in func and func["payable"]) or (
+            "stateMutability" in func and func["stateMutability"] == "payable"
+        ):
             decorator_list.append(vy_ast.Name(id="payable"))
 
         sig = FunctionSignature.from_definition(
