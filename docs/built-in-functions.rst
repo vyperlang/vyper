@@ -225,13 +225,15 @@ Vyper contains a set of built in functions which execute opcodes such as ``SEND`
 
         This method will delete the contract from the Ethereum blockchain. All non-ether assets associated with this contract will be "burned" and the contract will be inaccessible.
 
-.. py:function:: raise(reason: str) -> None
+.. py:function:: raise(reason: str = None) -> None
 
     Raises an exception.
 
-    * ``reason``: The exception reason (must be <= 32 bytes)
+    * ``reason``: The exception reason
 
     This method triggers the ``REVERT`` opcode (``0xFD``) with the provided reason given as the error message. The code will stop operation, the contract's state will be reverted to the state before the transaction took place and the remaining gas will be returned to the transaction's sender.
+
+    If the reason string is set to ``UNREACHABLE``, an ``INVALID`` opcode (``0xFE``) will be used instead of ``REVERT``. In this case, calls that revert will not receive a gas refund.
 
     .. note::
 
@@ -242,43 +244,22 @@ Vyper contains a set of built in functions which execute opcodes such as ``SEND`
     Asserts the specified condition.
 
     * ``cond``: The boolean condition to assert
-    * ``reason``: The exception reason (must be <= 32 bytes)
+    * ``reason``: The exception reason
 
     This method's behavior is equivalent to:
 
     .. code-block:: python
 
         if not cond:
-            raise reason
+            raise "reason"
 
     The only difference in behavior is that ``assert`` can be called without a reason string, while ``raise`` requires one.
 
     If the reason string is set to ``UNREACHABLE``, an ``INVALID`` opcode (``0xFE``) will be used instead of ``REVERT``. In this case, calls that revert will not receive a gas refund.
 
-    You cannot directly ``assert`` the result of a non-constant function call. The proper pattern for doing so is to assign the result to a memory variable, and then call assert on that variable. Alternatively, use the :ref:`assert_modifiable<assert-modifiable>` method.
-
     .. note::
 
         To give it a more Python-like syntax, the assert function can be called without parenthesis, the syntax would be ``assert your_bool_condition``. Even though both options will compile, it's recommended to use the Pythonic version without parenthesis.
-
-.. _assert-modifiable:
-
-.. py:function:: assert_modifiable(cond: bool) -> None
-
-    Asserts a specified condition, without checking for constancy on a callable condition.
-
-    * ``cond``: The boolean condition to assert
-
-    Use ``assert_modifiable`` in place of ``assert`` when you wish to directly assert the result of a potentially state-changing call.
-
-    For example, a common use case is verifying the results of an ERC20 token transfer:
-
-    .. code-block:: python
-
-        @public
-        def transferTokens(token: address, to: address, amount: uint256) -> bool:
-            assert_modifiable(ERC20(token).transfer(to, amount))
-            return True
 
 .. py:function:: raw_log(topics: bytes32[4], data: bytes) -> None
 
