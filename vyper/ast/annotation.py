@@ -5,23 +5,25 @@ from typing import Optional
 import asttokens
 
 from vyper.exceptions import CompilerPanic, SyntaxException
-from vyper.typing import ClassTypes
+from vyper.typing import ModificationOffsets
 
 
 class AnnotatingVisitor(python_ast.NodeTransformer):
     _source_code: str
-    _class_types: ClassTypes
+    _modification_offsets: ModificationOffsets
 
     def __init__(
-        self, source_code: str, class_types: Optional[ClassTypes] = None, source_id: int = 0,
+        self,
+        source_code: str,
+        modification_offsets: Optional[ModificationOffsets] = None,
+        source_id: int = 0,
     ):
         self._source_id = source_id
         self._source_code: str = source_code
         self.counter: int = 0
-        if class_types is not None:
-            self._class_types = class_types
-        else:
-            self._class_types = {}
+        self._modification_offsets = {}
+        if modification_offsets is not None:
+            self._modification_offsets = modification_offsets
 
     def generic_visit(self, node):
         """
@@ -82,7 +84,26 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         """
         self.generic_visit(node)
 
-        node.class_type = self._class_types.get(node.name)
+        node.class_type = self._modification_offsets[(node.lineno, node.col_offset)]
+        return node
+
+    def visit_Expr(self, node):
+        """
+        Convert the `Yield` node into a Vyper-specific node type.
+
+        Vyper substitutes `yield` for non-pythonic statement such as `log`. Prior
+        to generating Vyper AST, we must annotate `Yield` nodes with their original
+        value.
+
+        Because `Yield` is an expression-statement, we also remove it from it's
+        enclosing `Expr` node.
+        """
+        self.generic_visit(node)
+
+        if isinstance(node.value, python_ast.Yield):
+            node = node.value
+            node.ast_type = self._modification_offsets[(node.lineno, node.col_offset)]
+
         return node
 
     def visit_Constant(self, node):
@@ -187,7 +208,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 def annotate_python_ast(
     parsed_ast: python_ast.AST,
     source_code: str,
-    class_types: Optional[ClassTypes] = None,
+    modification_offsets: Optional[ModificationOffsets] = None,
     source_id: int = 0,
 ) -> python_ast.AST:
     """
@@ -199,7 +220,7 @@ def annotate_python_ast(
         The AST to be annotated and optimized.
     source_code : str
         The originating source code of the AST.
-    class_types : dict, optional
+    modification_offsets : dict, optional
         A mapping of class names to their original class types.
 
     Returns
@@ -208,6 +229,6 @@ def annotate_python_ast(
     """
 
     asttokens.ASTTokens(source_code, tree=parsed_ast)
-    AnnotatingVisitor(source_code, class_types, source_id).visit(parsed_ast)
+    AnnotatingVisitor(source_code, modification_offsets, source_id).visit(parsed_ast)
 
     return parsed_ast
