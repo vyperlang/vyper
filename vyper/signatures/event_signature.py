@@ -42,13 +42,16 @@ class EventSignature:
                 arg_item = node.target
                 arg = node.target.id
                 typ = node.annotation
+
                 if isinstance(typ, vy_ast.Call) and typ.get("func.id") == "indexed":
-                    if indexed_list.count(True) == 3:
-                        raise EventDeclarationException(
-                            "Event cannot have more than three indexed arguments", typ
-                        )
                     indexed_list.append(True)
                     typ = typ.args[0]
+                    if (
+                        isinstance(typ, vy_ast.Subscript)
+                        and getattr(typ.value, "id", None) == "bytes"
+                        and typ.slice.value.n > 32
+                    ):  # noqa: E501
+                        raise EventDeclarationException("Indexed arguments are limited to 32 bytes")
                 else:
                     indexed_list.append(False)
                 check_valid_varname(
