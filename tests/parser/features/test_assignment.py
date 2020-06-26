@@ -139,8 +139,8 @@ struct X:
 struct Y:
     c: int128
     d: int128
-test_map1: map(int128, X)
-test_map2: map(int128, Y)
+test_map1: HashMap[int128, X]
+test_map2: HashMap[int128, Y]
 
 @public
 def set():
@@ -166,8 +166,8 @@ struct X:
 struct Y:
     c: int128
     d: int128
-test_map1: map(int128, X)
-test_map2: map(int128, Y)
+test_map1: HashMap[int128, X]
+test_map2: HashMap[int128, Y]
 
 @public
 def set():

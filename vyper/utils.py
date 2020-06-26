@@ -146,7 +146,7 @@ BASE_TYPES = {"int128", "decimal", "bytes32", "uint256", "bool", "address"}
 RESERVED_KEYWORDS = (
     {
         # reference types
-        "map",
+        "HashMap",
         "string",
         "bytes",
         # control flow

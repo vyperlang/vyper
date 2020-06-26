@@ -14,7 +14,7 @@ highestBid: public(uint256)
 ended: public(bool)
 
 # Keep track of refunded bids so we can follow the withdraw pattern
-pendingReturns: public(map(address, uint256))
+pendingReturns: public(HashMap[address, uint256])
 
 # Create a simple auction with `_bidding_time`
 # seconds bidding time on behalf of the

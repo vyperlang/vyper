@@ -296,7 +296,7 @@ def {varname}{funname}({head.rstrip(', ')}) -> {base}:
     def get_item_name_and_attributes(self, item, attributes):
         is_map_invocation = (
             isinstance(item, vy_ast.Call) and isinstance(item.func, vy_ast.Name)
-        ) and item.func.id == "map"
+        ) and item.func.id == "HashMap"
 
         if isinstance(item, vy_ast.Name):
             return item.id, attributes
@@ -307,7 +307,7 @@ def {varname}{funname}({head.rstrip(', ')}) -> {base}:
         elif is_map_invocation:
             if len(item.args) != 2:
                 raise StructureException(
-                    "Map type expects two type arguments map(type1, type2)", item.func
+                    "Map type expects two type arguments HashMap[type1, type2]", item.func
                 )
             return self.get_item_name_and_attributes(item.args, attributes)
         # elif ist

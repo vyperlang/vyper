@@ -24,11 +24,11 @@ highestBid: public(uint256)
 highestBidder: public(address)
 
 # State of the bids
-bids: map(address, Bid[128])
-bidCounts: map(address, int128)
+bids: HashMap[address, Bid[128]]
+bidCounts: HashMap[address, int128]
 
 # Allowed withdrawals of previous bids
-pendingReturns: map(address, uint256)
+pendingReturns: HashMap[address, uint256]
 
 
 # Create a blinded auction with `_biddingTime` seconds bidding time and

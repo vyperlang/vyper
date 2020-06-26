@@ -4,7 +4,7 @@ def test_crowdfund(w3, tester, get_contract_with_gas_estimation_for_constants):
 struct Funder:
     sender: address
     value: uint256
-funders: map(int128, Funder)
+funders: HashMap[int128, Funder]
 nextFunderIndex: int128
 beneficiary: address
 deadline: public(uint256)
@@ -97,7 +97,7 @@ struct Funder:
     sender: address
     value: uint256
 
-funders: map(int128, Funder)
+funders: HashMap[int128, Funder]
 nextFunderIndex: int128
 beneficiary: address
 deadline: public(uint256)

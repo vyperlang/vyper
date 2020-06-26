@@ -5,7 +5,7 @@ from vyper.exceptions import TypeMismatch
 
 def test_basic_bytes_keys(w3, get_contract):
     code = """
-mapped_bytes: map(bytes[5], int128)
+mapped_bytes: HashMap[bytes[5], int128]
 
 @public
 def set(k: bytes[5], v: int128):
@@ -25,7 +25,7 @@ def get(k: bytes[5]) -> int128:
 
 def test_basic_bytes_literal_key(get_contract):
     code = """
-mapped_bytes: map(bytes[5], int128)
+mapped_bytes: HashMap[bytes[5], int128]
 
 @public
 def set(v: int128):
@@ -45,7 +45,7 @@ def get(k: bytes[5]) -> int128:
 
 def test_basic_long_bytes_as_keys(get_contract):
     code = """
-mapped_bytes: map(bytes[34], int128)
+mapped_bytes: HashMap[bytes[34], int128]
 
 @public
 def set(k: bytes[34], v: int128):
@@ -65,7 +65,7 @@ def get(k: bytes[34]) -> int128:
 
 def test_mismatched_byte_length(get_contract):
     code = """
-mapped_bytes: map(bytes[34], int128)
+mapped_bytes: HashMap[bytes[34], int128]
 
 @public
 def set(k: bytes[35], v: int128):
@@ -78,7 +78,7 @@ def set(k: bytes[35], v: int128):
 
 def test_extended_bytes_key_from_storage(get_contract):
     code = """
-a: map(bytes[100000], int128)
+a: HashMap[bytes[100000], int128]
 
 @public
 def __init__():

@@ -80,7 +80,7 @@ def test_invalid_index(build_node, idx, type_str):
 @pytest.mark.parametrize("type_str", BASE_TYPES)
 @pytest.mark.parametrize("type_str2", BASE_TYPES)
 def test_mapping(build_node, type_str, type_str2):
-    node = build_node(f"map({type_str}, {type_str2})")
+    node = build_node(f"HashMap[{type_str}, {type_str2}]")
     primitives = get_primitive_types()
 
     type_definition = get_type_from_annotation(node, DataLocation.STORAGE)
@@ -93,7 +93,7 @@ def test_mapping(build_node, type_str, type_str2):
 @pytest.mark.parametrize("type_str", BASE_TYPES)
 @pytest.mark.parametrize("type_str2", BASE_TYPES)
 def test_multidimensional_mapping(build_node, type_str, type_str2):
-    node = build_node(f"map({type_str}, map({type_str}, {type_str2}))")
+    node = build_node(f"HashMap[{type_str}, HashMap[{type_str}, {type_str2}]]")
     primitives = get_primitive_types()
 
     type_definition = get_type_from_annotation(node, DataLocation.STORAGE)

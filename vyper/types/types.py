@@ -99,7 +99,7 @@ class MappingType(NodeType):
         return other.keytype == self.keytype and other.valuetype == self.valuetype
 
     def __repr__(self):
-        return "map(" + repr(self.valuetype) + ", " + repr(self.keytype) + ")"
+        return "HashMap[" + repr(self.valuetype) + ", " + repr(self.keytype) + "]"
 
 
 # Type which has heterogeneous members, i.e. Tuples and Structs
@@ -210,27 +210,6 @@ def parse_type(item, location, sigs=None, custom_structs=None, constants=None):
             raise InvalidType("Invalid base type: " + item.id, item)
     # Units, e.g. num (1/sec) or contracts
     elif isinstance(item, vy_ast.Call) and isinstance(item.func, vy_ast.Name):
-        # Mapping type.
-        if item.func.id == "map":
-            if location == "memory":
-                raise InvalidType(
-                    "No mappings allowed for in-memory types, only fixed-size arrays", item,
-                )
-            if len(item.args) != 2:
-                raise InvalidType(
-                    "Mapping requires 2 valid positional arguments.", item,
-                )
-            keytype = parse_type(
-                item.args[0], None, custom_structs=custom_structs, constants=constants,
-            )
-            if not isinstance(keytype, (BaseType, ByteArrayLike)):
-                raise InvalidType("Mapping keys must be base or bytes/string types", item)
-            return MappingType(
-                keytype,
-                parse_type(
-                    item.args[1], location, custom_structs=custom_structs, constants=constants,
-                ),
-            )
         # Contract_types
         if item.func.id == "address":
             if sigs and item.args[0].id in sigs:
@@ -265,13 +244,24 @@ def parse_type(item, location, sigs=None, custom_structs=None, constants=None):
                     ),
                     n_val,
                 )
+        elif item.value.id in ("HashMap",) and isinstance(item.slice.value, vy_ast.Tuple):
+            keytype = parse_type(
+                item.slice.value.elements[0],
+                None,
+                custom_structs=custom_structs,
+                constants=constants,
+            )
+            return MappingType(
+                keytype,
+                parse_type(
+                    item.slice.value.elements[1],
+                    location,
+                    custom_structs=custom_structs,
+                    constants=constants,
+                ),
+            )
         # Mappings, e.g. num[address]
         else:
-            warnings.warn(
-                "Mapping definitions using subscript have deprecated (see VIP564). "
-                "Use map(type1, type2) instead.",
-                DeprecationWarning,
-            )
             raise InvalidType("Unknown list type.", item)
 
     # Dicts, used to represent mappings, e.g. {uint: uint}. Key must be a base type

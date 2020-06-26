@@ -17,8 +17,8 @@ decimals: public(uint256)
 #       method to allow access to account balances.
 #       The _KeyType will become a required parameter for the getter and it will return _ValueType.
 #       See: https://vyper.readthedocs.io/en/v0.1.0-beta.8/types.html?highlight=getter#mappings
-balanceOf: public(map(address, uint256))
-allowances: map(address, map(address, uint256))
+balanceOf: public(HashMap[address, uint256])
+allowances: HashMap[address, HashMap[address, uint256]]
 total_supply: uint256
 minter: address
 

@@ -420,7 +420,7 @@ return ``_ValueType``.
 Syntax
 ------
 
-Mapping types are declared as ``map(_KeyType, _ValueType)``.
+Mapping types are declared as ``HashMap[_KeyType, _ValueType]``.
 Here ``_KeyType`` can be any base or bytes type. Mappings, interfaces or structs are not support as key types.
 ``_ValueType`` can actually be any type, including mappings.
 
@@ -428,7 +428,7 @@ Here ``_KeyType`` can be any base or bytes type. Mappings, interfaces or structs
 ::
 
    #Defining a mapping
-   exampleMapping: map(int128, decimal)
+   exampleMapping: HashMap[int128, decimal]
    #Accessing a value
    exampleMapping[0] = 10.1
 

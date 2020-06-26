@@ -294,7 +294,7 @@ def foo():
 struct C:
     c: int128
 struct Nom:
-    a: map(int128, C)
+    a: HashMap[int128, C]
     b: int128
     """,
         StructureException,

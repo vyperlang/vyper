@@ -43,14 +43,14 @@ def foo():
     y: int128 = min(x, chain.id)
     """,
     """
-a: map(uint256, int128)
+a: HashMap[uint256, int128]
 
 @public
 def add_record():
     self.a[chain.id] = chain.id + 20
     """,
     """
-a: map(int128, uint256)
+a: HashMap[int128, uint256]
 
 @public
 def add_record():

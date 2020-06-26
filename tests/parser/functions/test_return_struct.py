@@ -30,7 +30,7 @@ struct Foo:
   y: uint256
 
 _foo: Foo
-_foos: map(int128, Foo)
+_foos: HashMap[int128, Foo]
 
 @private
 def priv1() -> Foo:

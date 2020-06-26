@@ -6,7 +6,7 @@ interface Exchange:
 
 exchange_codehash: public(bytes32)
 # Maps token addresses to exchange addresses
-exchanges: public(map(address, address))
+exchanges: public(HashMap[address, address])
 
 
 @public

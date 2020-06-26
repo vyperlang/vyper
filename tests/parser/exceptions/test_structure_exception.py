@@ -66,7 +66,7 @@ struct X:
     int128[5]: int128[7]
     """,
     """
-b: map((int128, decimal), int128)
+b: HashMap[(int128, decimal), int128]
     """,
     """
 @public
