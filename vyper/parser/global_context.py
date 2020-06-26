@@ -58,27 +58,22 @@ class GlobalContext:
         global_ctx = cls()
 
         for item in vyper_module:
-            # External contract references
-            if isinstance(item, vy_ast.ClassDef):
-                if item.class_type == "struct":
-                    if global_ctx._contracts:
-                        raise StructureException(
-                            "Structs must come before external contract definitions", item
-                        )
-                    global_ctx._structs[item.name] = global_ctx.make_struct(item)
-                elif item.class_type == "interface":
-                    if item.name in global_ctx._contracts or item.name in global_ctx._interfaces:
-                        raise StructureException(
-                            f"Contract '{item.name}' is already defined", item,
-                        )
-                    global_ctx._contracts[item.name] = GlobalContext.make_contract(item)
-                elif item.class_type == "event":
-                    global_ctx._events.append(item)
-
-                else:
+            if isinstance(item, vy_ast.StructDef):
+                if global_ctx._contracts:
                     raise StructureException(
-                        "Unknown class_type. This is likely a compiler bug, please report", item
+                        "Structs must come before external contract definitions", item
                     )
+                global_ctx._structs[item.name] = global_ctx.make_struct(item)
+
+            elif isinstance(item, vy_ast.InterfaceDef):
+                if item.name in global_ctx._contracts or item.name in global_ctx._interfaces:
+                    raise StructureException(
+                        f"Contract '{item.name}' is already defined", item,
+                    )
+                global_ctx._contracts[item.name] = GlobalContext.make_contract(item)
+
+            elif isinstance(item, vy_ast.EventDef):
+                global_ctx._events.append(item)
 
             # Statements of the form:
             # variable_name: type
@@ -240,7 +235,7 @@ def {varname}{funname}({head.rstrip(', ')}) -> {base}:
         return parsed_ast
 
     # A struct is a list of members
-    def make_struct(self, node: "vy_ast.ClassDef") -> list:
+    def make_struct(self, node: "vy_ast.StructDef") -> list:
         members = []
 
         for item in node.body:
@@ -276,7 +271,7 @@ def {varname}{funname}({head.rstrip(', ')}) -> {base}:
 
     # A contract is a list of functions.
     @staticmethod
-    def make_contract(node: "vy_ast.ClassDef") -> list:
+    def make_contract(node: "vy_ast.InterfaceDef") -> list:
         _defs = []
         for item in node.body:
             # Function definitions

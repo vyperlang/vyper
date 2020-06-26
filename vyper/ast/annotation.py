@@ -76,15 +76,15 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
     def visit_ClassDef(self, node):
         """
-        Annotate the Class node with it's original type from the Vyper source.
+        Convert the `ClassDef` node into a Vyper-specific node type.
 
         Vyper uses `struct` and `interface` in place of `class`, however these
         values must be substituted out to create parseable Python. The Python
-        node is annotated with the original value via the `class_type` member.
+        node is annotated with the desired Vyper type via the `ast_type` member.
         """
         self.generic_visit(node)
 
-        node.class_type = self._modification_offsets[(node.lineno, node.col_offset)]
+        node.ast_type = self._modification_offsets[(node.lineno, node.col_offset)]
         return node
 
     def visit_Expr(self, node):

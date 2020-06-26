@@ -39,13 +39,13 @@ class Event:
             validate_expected_type(arg, expected)
 
 
-def build_primitive_from_node(base_node: vy_ast.ClassDef) -> Event:
+def build_primitive_from_node(base_node: vy_ast.EventDef) -> Event:
     """
     Generate an `Event` object from a Vyper ast node.
 
     Arguments
     ---------
-    node : ClassDef
+    node : EventDef
         Vyper ast node defining the event
     Returns
     -------

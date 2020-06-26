@@ -168,8 +168,8 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 
-    def visit_ClassDef(self, node):
-        obj = self.namespace[node.class_type].build_primitive_from_node(node)
+    def visit_EventDef(self, node):
+        obj = self.namespace["event"].build_primitive_from_node(node)
         try:
             self.namespace[node.name] = obj
         except VyperException as exc:
@@ -189,6 +189,20 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
     def visit_ImportFrom(self, node):
         _add_import(node, node.module, node.names[0].name, self.interface_codes, self.namespace)
+
+    def visit_InterfaceDef(self, node):
+        obj = self.namespace["interface"].build_primitive_from_node(node)
+        try:
+            self.namespace[node.name] = obj
+        except VyperException as exc:
+            raise exc.with_annotation(node) from None
+
+    def visit_StructDef(self, node):
+        obj = self.namespace["struct"].build_primitive_from_node(node)
+        try:
+            self.namespace[node.name] = obj
+        except VyperException as exc:
+            raise exc.with_annotation(node) from None
 
 
 def _add_import(

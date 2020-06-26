@@ -620,8 +620,16 @@ class Log(VyperNode):
     __slots__ = ("value",)
 
 
-class ClassDef(VyperNode):
-    __slots__ = ("class_type", "name", "body")
+class EventDef(VyperNode):
+    __slots__ = ("name", "body")
+
+
+class InterfaceDef(VyperNode):
+    __slots__ = ("name", "body")
+
+
+class StructDef(VyperNode):
+    __slots__ = ("name", "body")
 
 
 class Constant(VyperNode):

@@ -142,7 +142,7 @@ def pre_parse(code: str) -> Tuple[ModificationOffsets, str]:
             if typ == NAME:
                 if string in VYPER_CLASS_TYPES and start[1] == 0:
                     toks = [TokenInfo(NAME, "class", start, end, line)]
-                    modification_offsets[start] = string
+                    modification_offsets[start] = f"{string.capitalize()}Def"
                 elif string in VYPER_EXPRESSION_TYPES:
                     toks = [TokenInfo(NAME, "yield", start, end, line)]
                     modification_offsets[start] = string.capitalize()
